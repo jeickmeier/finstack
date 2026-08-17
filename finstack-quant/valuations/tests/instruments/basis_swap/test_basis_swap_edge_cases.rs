@@ -3,6 +3,8 @@
 //! Tests validate robustness across extreme market conditions, unusual
 //! instrument configurations, and boundary scenarios.
 
+use finstack_quant_cashflows::CashflowProvider;
+use finstack_quant_core::cashflow::CFKind;
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
@@ -41,6 +43,36 @@ fn market() -> MarketContext {
         .build()
         .unwrap();
     MarketContext::new().insert(disc).insert(f3m).insert(f1m)
+}
+
+/// Vanilla basis swaps must not exchange notionals.
+#[test]
+fn basis_swap_cashflows_have_no_notional_exchange() {
+    let ctx = market();
+    let swap = BasisSwap::new(
+        "NO-NOTIONAL",
+        Money::new(10_000_000.0, USD),
+        make_leg("USD-SOFR-3M", d(2025, 1, 2), d(2026, 1, 2), Decimal::ZERO),
+        make_leg("USD-SOFR-1M", d(2025, 1, 2), d(2026, 1, 2), Decimal::ZERO),
+    )
+    .expect("swap construction");
+    let schedule = swap
+        .cashflow_schedule(&ctx, d(2025, 1, 2))
+        .expect("basis-swap schedule");
+    assert!(
+        schedule
+            .get_flows()
+            .iter()
+            .all(|cf| cf.kind != CFKind::Notional),
+        "basis swap must not emit issue or redemption notionals"
+    );
+    assert!(
+        schedule
+            .get_flows()
+            .iter()
+            .any(|cf| cf.kind == CFKind::FloatReset),
+        "coupon flows must remain without retain_flows"
+    );
 }
 
 fn make_leg(forward_curve: &str, start: Date, end: Date, spread_bp: Decimal) -> BasisSwapLeg {

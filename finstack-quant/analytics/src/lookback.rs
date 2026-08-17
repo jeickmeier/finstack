@@ -8,9 +8,7 @@
 //!
 //! Delegates to `dates::DateExt` for calendar math.
 
-use crate::dates::{
-    adjust, BusinessDayConvention, Date, DateExt, Duration, FiscalConfig, HolidayCalendar, Month,
-};
+use crate::dates::{Date, DateExt, Duration, FiscalConfig, HolidayCalendar, Month};
 use core::ops::Range;
 
 /// Index of the first date on or after `target` via binary search.
@@ -86,34 +84,34 @@ pub(crate) fn ytd_select(dates: &[Date], ref_date: Date) -> Range<usize> {
     select_range(dates, year_start, ref_date)
 }
 
-/// Fiscal-year-to-date index range: from the start of the fiscal year
-/// containing `ref_date` through `ref_date` (inclusive), aligned to the next
-/// business day via `calendar`.
+/// Fiscal-year-to-date index range: first observation on or after the
+/// fiscal calendar start through `ref_date` (inclusive).
 ///
 /// The fiscal year start is determined by [`FiscalConfig`] (start month and
-/// day). For example, the US federal fiscal year starts October 1. When the
-/// fiscal start date is not a business day, the range begins on the next
-/// business day per [`BusinessDayConvention::Following`].
+/// day) with no holiday skip. A January 1 holiday still begins the window
+/// at the first observation `>=` January 1. The first included simple
+/// return still spans the prior close (the return on date `T` is the
+/// move from `T-1` to `T`).
 ///
 /// # Arguments
 ///
 /// * `dates`         - Sorted slice of observation dates.
 /// * `ref_date`      - Reference date (typically "today").
 /// * `fiscal_config` - Fiscal year configuration (start month, start day).
-/// * `calendar`      - Holiday calendar used for business-day alignment.
+/// * `_calendar`     - Accepted for call-site compatibility; FYTD no longer
+///   adjusts the fiscal start onto a business day.
 ///
-/// # Errors
-/// Returns an error when business-day adjustment fails for the supplied
-/// calendar.
+/// # Returns
+///
+/// A `Range<usize>` into `dates` covering the FYTD window.
 pub(crate) fn fytd_select(
     dates: &[Date],
     ref_date: Date,
     fiscal_config: FiscalConfig,
-    calendar: &dyn HolidayCalendar,
-) -> crate::Result<Range<usize>> {
+    _calendar: &dyn HolidayCalendar,
+) -> Range<usize> {
     let fy_start = fiscal_year_start_date(ref_date, fiscal_config);
-    let aligned_start = adjust(fy_start, BusinessDayConvention::Following, calendar)?;
-    Ok(select_range(dates, aligned_start, ref_date))
+    select_range(dates, fy_start, ref_date)
 }
 
 fn fiscal_year_start_date(ref_date: Date, fiscal_config: FiscalConfig) -> Date {
@@ -177,8 +175,7 @@ mod tests {
     fn fytd_select_us_federal() {
         let dates = daily_dates(d(2024, 10, 1), 120);
         let config = FiscalConfig::us_federal();
-        let range = fytd_select(&dates, d(2025, 1, 15), config, nyse())
-            .expect("calendar-adjusted FYTD range");
+        let range = fytd_select(&dates, d(2025, 1, 15), config, nyse());
         assert_eq!(range.start, 0);
     }
 
@@ -198,11 +195,12 @@ mod tests {
     }
 
     #[test]
-    fn fytd_select_uses_next_business_day_when_start_is_holiday() {
+    fn fytd_select_includes_first_observation_on_or_after_fiscal_start() {
         let dates = daily_dates(d(2024, 12, 30), 10);
-        let range = fytd_select(&dates, d(2025, 1, 6), FiscalConfig::calendar_year(), nyse())
-            .expect("calendar-adjusted FYTD range");
-        // Jan 1 2025 is a holiday → expect range to start on Jan 2 2025.
-        assert_eq!(dates[range.start], d(2025, 1, 2));
+        let range = fytd_select(&dates, d(2025, 1, 6), FiscalConfig::calendar_year(), nyse());
+        // Jan 1 2025 is a holiday; the window still starts at the first
+        // observation on/after Jan 1, not the Following business day.
+        assert_eq!(dates[range.start], d(2025, 1, 1));
+        assert_ne!(dates[range.start], d(2025, 1, 2));
     }
 }

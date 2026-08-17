@@ -2,9 +2,11 @@
 
 Cashflow schedule construction, accrual, and currency-preserving aggregation
 for bonds, loans, swaps, and structured products. The crate turns contract
-terms — notional, amortization, coupon legs, fees, credit assumptions — into a
+terms — notional, amortization, coupon legs, fees — into a
 `CashFlowSchedule` of dated, currency-tagged `Money` flows. Pricing lives in
-`finstack-quant-valuations`; this crate stops at the schedule.
+`finstack-quant-valuations`; this crate stops at the schedule. PSA/SDA
+prepayment and default curves, and recovery specs, are calculators for
+structured-credit valuations; `CashFlowBuilder.build()` does not consume them.
 
 ## Position in the stack
 
@@ -67,14 +69,17 @@ Builder surface, grouped:
 
 | Group | Methods |
 |-------|---------|
-| Principal | `principal`, `amortization`, `add_principal_event` |
+| Principal | `principal`, `principal_exchange`, `amortization`, `add_principal_event` |
 | Coupons | `fixed_cf`, `floating_cf`, `step_up_cf`, `fixed_to_float`, `add_fixed_window`, `add_floating_window`, `float_margin_stepup_decimal` |
 | Fees | `fee` |
 | Payment split | `add_payment_window`, `payment_split_program` |
 | Terminal | `build(curves)` |
 
 Setters record deferred configuration errors rather than panicking; `build`
-returns the first one.
+returns the first one. `principal()` still defaults to issue funding plus
+maturity redemption (`PrincipalExchange::InitialAndFinal`). Vanilla IRS and
+basis swaps opt out with `PrincipalExchange::None` so coupon math keeps the
+notional outstanding without exchanging it.
 
 ### Schedule conventions
 
@@ -90,7 +95,10 @@ the common desks:
 Accrual boundaries are left unadjusted by default (bond/ICMA convention); the
 swap presets set `adjust_accrual_dates = true` so both accrual boundaries roll
 with the business-day convention (ISDA 2006 §4.10). Only payment dates roll in
-the bond case.
+the bond case. Each coupon-program window is an independent schedule with a
+fresh stub at conversion; a fixed-to-float switch does not continue the
+pre-switch roll. `annual_actact()` is ISDA Act/Act, not ICMA (use
+`eur_gov_bond` / `usd_treasury` for government bonds).
 
 ## Accrual
 
@@ -153,7 +161,7 @@ signature but have no host binding.
 
 `CashflowScheduleBuildSpec` is the serde-first construction path used by the
 bindings: `notional`, `issue`, `maturity`, plus optional `coupon_program`,
-`payment_program`, `fees`, and `principal_events`. It is
+`payment_program`, `fees`, `principal_events`, and `principal_exchange`. It is
 `#[serde(deny_unknown_fields)]`, and dates go through
 `finstack_quant_core::wire::date` (ISO `YYYY-MM-DD`).
 

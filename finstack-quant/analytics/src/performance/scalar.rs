@@ -4,18 +4,34 @@
 //! Pure layout split from `performance.rs`; no behavior changes.
 
 use super::Performance;
+use crate::dates::HolidayCalendar;
 use crate::drawdown::{
     calmar, cdar, martin_ratio, max_drawdown, max_drawdown_duration as dd_max_duration,
     mean_drawdown, pain_index, pain_ratio, recovery_factor, sterling_ratio, ulcer_index,
 };
 use crate::returns::comp_total;
 use crate::risk_metrics;
+use crate::risk_metrics::CagrDayCount;
 
 impl Performance {
     /// Compound annual growth rate for each ticker.
     ///
     /// Uses the active date window and annualizes from the actual holding
-    /// period implied by the price-date grid.
+    /// period implied by the price-date grid. The default
+    /// [`CagrDayCount::Act365_25`] divides actual calendar days by 365.25.
+    /// [`CagrDayCount::DayCount`] wraps any core day-count; `Bus252`
+    /// requires `calendar`.
+    ///
+    /// # Arguments
+    ///
+    /// * `day_count` - Year-fraction convention. Pass
+    ///   [`CagrDayCount::Act365_25`] for the default, or
+    ///   [`CagrDayCount::DayCount`] with e.g.
+    ///   [`finstack_quant_core::dates::DayCount::Act365F`].
+    /// * `calendar` - Holiday calendar used only when `day_count` is
+    ///   [`CagrDayCount::DayCount`] with
+    ///   [`finstack_quant_core::dates::DayCount::Bus252`].
+    ///   Ignored otherwise. Missing calendar with Bus/252 is an error.
     ///
     /// # Returns
     ///
@@ -24,12 +40,13 @@ impl Performance {
     /// # Errors
     ///
     /// Returns [`crate::error::InputError::Invalid`] if the active range has
-    /// no valid positive holding period.
+    /// no valid positive holding period. Propagates day-count errors,
+    /// including a missing calendar for Bus/252.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// # use finstack_quant_analytics::Performance;
+    /// # use finstack_quant_analytics::{CagrDayCount, Performance};
     /// # use finstack_quant_core::dates::{Date, Month, PeriodKind};
     /// # let dates: Vec<Date> = (1..=4)
     /// #     .map(|d| Date::from_calendar_date(2025, Month::January, d).unwrap())
@@ -41,11 +58,15 @@ impl Performance {
     /// #     None,
     /// #     PeriodKind::Daily,
     /// # )?;
-    /// let cagr = perf.cagr()?;
+    /// let cagr = perf.cagr(CagrDayCount::Act365_25, None)?;
     /// assert_eq!(cagr.len(), 1);
     /// # Ok::<(), finstack_quant_core::Error>(())
     /// ```
-    pub fn cagr(&self) -> crate::Result<Vec<f64>> {
+    pub fn cagr(
+        &self,
+        day_count: CagrDayCount,
+        calendar: Option<&dyn HolidayCalendar>,
+    ) -> crate::Result<Vec<f64>> {
         (0..self.ticker_names.len())
             .map(|i| {
                 let Some((start, end)) = self.active_holding_period_for_ticker(i) else {
@@ -61,7 +82,8 @@ impl Performance {
                 };
                 risk_metrics::cagr(
                     self.active_returns(i),
-                    risk_metrics::CagrBasis::dates(start, end),
+                    risk_metrics::CagrBasis::dates_with(start, end, day_count),
+                    calendar,
                 )
             })
             .collect()
@@ -99,9 +121,15 @@ impl Performance {
 
     /// Sharpe ratio for each ticker.
     ///
+    /// Excess return subtracts a geometrically decompounded period risk-free
+    /// rate from the period arithmetic mean, then scales by the observation
+    /// frequency: `(mean(r) − rf_period) × N`.
+    ///
     /// # Arguments
     ///
-    /// * `risk_free_rate` - Annualized risk-free rate (e.g. `0.02` for 2%).
+    /// * `risk_free_rate` - Annualized risk-free rate in decimal form
+    ///   (e.g. `0.02` for 2%). Decompounded to the panel frequency with
+    ///   `(1 + rf)^{1/N} − 1` before subtraction.
     ///
     /// # Returns
     ///
@@ -118,7 +146,7 @@ impl Performance {
                 return f64::NAN;
             }
             let (m, v) = risk_metrics::mean_vol_annualized(r, ann);
-            risk_metrics::sharpe(m, v, risk_free_rate)
+            risk_metrics::sharpe(m, v, risk_free_rate, ann)
         })
     }
 
@@ -154,8 +182,10 @@ impl Performance {
 
     /// Calmar ratio for each ticker.
     ///
-    /// Computes CAGR over the active date window and divides by the absolute
-    /// value of each ticker's worst drawdown over that same window.
+    /// Computes CAGR / |max drawdown| over the **active window**, not
+    /// Young's 36-month CTA definition. There is no extra lookback
+    /// argument; the ratio uses the same active date range as
+    /// [`Self::cagr`] and [`Self::max_drawdown`].
     ///
     /// # Returns
     ///
@@ -167,7 +197,7 @@ impl Performance {
     /// Propagates errors from [`Self::cagr`] when the active range cannot be
     /// annualized.
     pub fn calmar(&self) -> crate::Result<Vec<f64>> {
-        let cagrs = self.cagr()?;
+        let cagrs = self.cagr(CagrDayCount::default(), None)?;
         Ok(self.map_tickers(|i| calmar(cagrs[i], max_drawdown(self.active_drawdown_values(i)))))
     }
 
@@ -393,22 +423,32 @@ impl Performance {
     /// Propagates errors from [`Self::cagr`] when the active range cannot be
     /// annualized.
     pub fn martin_ratio(&self) -> crate::Result<Vec<f64>> {
-        let cagrs = self.cagr()?;
+        let cagrs = self.cagr(CagrDayCount::default(), None)?;
         Ok(self
             .map_tickers(|i| martin_ratio(cagrs[i], ulcer_index(self.active_drawdown_values(i)))))
     }
 
-    /// Parametric (Gaussian) VaR for each ticker.
+    /// Equal-weight Gaussian VaR for each ticker.
+    ///
+    /// Uses the sample mean and sample volatility of the active window.
+    /// This is not an EWMA / RiskMetrics estimator.
     ///
     /// # Arguments
     ///
     /// * `confidence` - Confidence level in `(0, 1)`, e.g. `0.95`.
+    /// * `horizon_periods` - Optional horizon in observation periods.
+    ///   `None` is one-period VaR (`μ + z σ`). `Some(h)` scales as
+    ///   `μ h + z σ √h`. Does not default to the panel annualization
+    ///   factor.
     ///
     /// # Returns
     ///
-    /// One non-positive parametric VaR per ticker in column order.
-    pub fn parametric_var(&self, confidence: f64) -> Vec<f64> {
-        self.map_tickers(|i| risk_metrics::parametric_var(self.active_returns(i), confidence, None))
+    /// One parametric VaR per ticker in column order. Empty or invalid
+    /// windows return [`f64::NAN`].
+    pub fn parametric_var(&self, confidence: f64, horizon_periods: Option<f64>) -> Vec<f64> {
+        self.map_tickers(|i| {
+            risk_metrics::parametric_var(self.active_returns(i), confidence, horizon_periods)
+        })
     }
 
     /// Cornish-Fisher adjusted VaR for each ticker.
@@ -416,13 +456,18 @@ impl Performance {
     /// # Arguments
     ///
     /// * `confidence` - Confidence level in `(0, 1)`, e.g. `0.95`.
+    /// * `horizon_periods` - Optional horizon in observation periods.
+    ///   `None` is one-period VaR. `Some(h)` applies the same mean/vol
+    ///   scaling as [`Self::parametric_var`] and decays skewness /
+    ///   excess kurtosis as `1/√h` and `1/h`.
     ///
     /// # Returns
     ///
-    /// One non-positive Cornish-Fisher VaR per ticker in column order.
-    pub fn cornish_fisher_var(&self, confidence: f64) -> Vec<f64> {
+    /// One Cornish-Fisher VaR per ticker in column order. Empty or
+    /// invalid windows return [`f64::NAN`].
+    pub fn cornish_fisher_var(&self, confidence: f64, horizon_periods: Option<f64>) -> Vec<f64> {
         self.map_tickers(|i| {
-            risk_metrics::cornish_fisher_var(self.active_returns(i), confidence, None)
+            risk_metrics::cornish_fisher_var(self.active_returns(i), confidence, horizon_periods)
         })
     }
 
@@ -456,7 +501,7 @@ impl Performance {
     /// Propagates errors from [`Self::cagr`] when the active range cannot be
     /// annualized.
     pub fn sterling_ratio(&self, risk_free_rate: f64, n: usize) -> crate::Result<Vec<f64>> {
-        let cagrs = self.cagr()?;
+        let cagrs = self.cagr(CagrDayCount::default(), None)?;
         Ok(self.map_tickers(|i| {
             let avg = crate::drawdown::mean_episode_drawdown(self.active_drawdown_values(i), n);
             sterling_ratio(cagrs[i], avg, risk_free_rate)
@@ -479,7 +524,7 @@ impl Performance {
     /// Propagates errors from [`Self::cagr`] when the active range cannot be
     /// annualized.
     pub fn burke_ratio(&self, risk_free_rate: f64, n: usize) -> crate::Result<Vec<f64>> {
-        let cagrs = self.cagr()?;
+        let cagrs = self.cagr(CagrDayCount::default(), None)?;
         Ok(self.map_tickers(|i| {
             let episodes = crate::drawdown::drawdown_details(
                 self.active_drawdown_values(i),
@@ -515,7 +560,7 @@ impl Performance {
     /// Propagates errors from [`Self::cagr`] when the active range cannot be
     /// annualized.
     pub fn pain_ratio(&self, risk_free_rate: f64) -> crate::Result<Vec<f64>> {
-        let cagrs = self.cagr()?;
+        let cagrs = self.cagr(CagrDayCount::default(), None)?;
         Ok(self.map_tickers(|i| {
             let pain = pain_index(self.active_drawdown_values(i));
             pain_ratio(cagrs[i], pain, risk_free_rate)
@@ -543,6 +588,8 @@ impl Performance {
     /// # Arguments
     ///
     /// * `risk_free_rate` - Annualized risk-free rate in decimal form.
+    ///   Decompounded to the panel frequency before subtraction, matching
+    ///   [`Self::sharpe`].
     /// * `confidence`     - Cornish-Fisher VaR confidence level in `(0, 1)`.
     ///
     /// # Returns
@@ -557,5 +604,100 @@ impl Performance {
                 self.ann(),
             )
         })
+    }
+}
+
+#[cfg(test)]
+mod from_returns_cagr_tests {
+
+    use crate::dates::{Date, Month, PeriodKind};
+    use crate::risk_metrics::{cagr, CagrBasis, CagrDayCount};
+    use crate::Performance;
+
+    fn d(year: i32, month: Month, day: u8) -> Date {
+        Date::from_calendar_date(year, month, day).expect("valid date")
+    }
+
+    #[test]
+    fn from_returns_monthly_cagr_uses_month_end_prior() {
+        let dates = vec![
+            d(2023, Month::January, 31),
+            d(2023, Month::February, 28),
+            d(2023, Month::March, 31),
+        ];
+        let returns = vec![vec![0.01, 0.02, 0.03]];
+        let perf = Performance::from_returns(
+            dates,
+            returns.clone(),
+            vec!["M".into()],
+            None,
+            PeriodKind::Monthly,
+        )
+        .expect("monthly panel");
+        let actual = perf.cagr(CagrDayCount::default(), None).expect("cagr")[0];
+        let expected = cagr(
+            &returns[0],
+            CagrBasis::dates(d(2022, Month::December, 31), d(2023, Month::March, 31)),
+            None,
+        )
+        .expect("expected cagr");
+        let invented_gap = cagr(
+            &returns[0],
+            CagrBasis::dates(d(2023, Month::January, 3), d(2023, Month::March, 31)),
+            None,
+        )
+        .expect("gap-invented cagr");
+        assert!((actual - expected).abs() < 1e-12);
+        assert!((actual - invented_gap).abs() > 1e-6);
+    }
+
+    #[test]
+    fn from_returns_daily_cagr_ignores_two_day_gap() {
+        let dates = vec![d(2024, Month::January, 3), d(2024, Month::January, 5)];
+        let returns = vec![vec![0.01, 0.02]];
+        let perf = Performance::from_returns(
+            dates,
+            returns.clone(),
+            vec!["D".into()],
+            None,
+            PeriodKind::Daily,
+        )
+        .expect("daily panel");
+        let actual = perf.cagr(CagrDayCount::default(), None).expect("cagr")[0];
+        let expected = cagr(
+            &returns[0],
+            CagrBasis::dates(d(2024, Month::January, 2), d(2024, Month::January, 5)),
+            None,
+        )
+        .expect("expected cagr");
+        let two_day_prior = cagr(
+            &returns[0],
+            CagrBasis::dates(d(2024, Month::January, 1), d(2024, Month::January, 5)),
+            None,
+        )
+        .expect("two-day-prior cagr");
+        assert!((actual - expected).abs() < 1e-12);
+        assert!((actual - two_day_prior).abs() > 1e-8);
+    }
+
+    #[test]
+    fn cagr_bus252_without_calendar_is_err() {
+        let dates = vec![d(2024, Month::January, 2), d(2024, Month::January, 5)];
+        let perf = Performance::from_returns(
+            dates,
+            vec![vec![0.01, 0.02]],
+            vec!["D".into()],
+            None,
+            PeriodKind::Daily,
+        )
+        .expect("daily panel");
+        let err = perf
+            .cagr(CagrDayCount::DayCount(crate::dates::DayCount::Bus252), None)
+            .expect_err("Bus252 requires a calendar");
+        let msg = err.to_string();
+        assert!(
+            msg.to_lowercase().contains("calendar") || msg.to_lowercase().contains("bus"),
+            "unexpected error: {msg}"
+        );
     }
 }

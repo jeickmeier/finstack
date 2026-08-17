@@ -65,6 +65,7 @@ finstack-quant-wasm/types/generated/ValidationReport.ts
 finstack-quant-wasm/types/generated/VolQuote.ts
 finstack-quant-wasm/types/generated/VolSurfaceModel.ts
 finstack-quant-wasm/types/generated/VolSurfaceParams.ts
+finstack-quant-wasm/types/generated/VolSurfaceSolveConfig.ts
 finstack-quant-wasm/types/generated/XccyBasisParams.ts
 finstack-quant-wasm/types/generated/XccyQuote.ts
 finstack-quant-wasm/types/generated/index.ts

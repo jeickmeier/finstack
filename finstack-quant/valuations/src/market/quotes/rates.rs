@@ -102,12 +102,13 @@ pub enum RateQuote {
         expiry: Date,
         /// Price of the future (e.g. 98.50).
         price: f64,
-        /// Optional convexity adjustment (rate, decimal).
+        /// Convexity adjustment as a decimal rate (Hull convention).
         ///
-        /// Calibration treats an omitted adjustment as zero. Instrument construction
-        /// may instead use the futures contract convention's default adjustment.
-        #[serde(default)]
-        convexity_adjustment: Option<f64>,
+        /// The implied forward is
+        /// `forward = (100 - price) / 100 − convexity_adjustment`.
+        /// A positive adjustment lowers the futures-implied rate toward the true
+        /// forward. Callers that want no adjustment must pass `0.0` explicitly.
+        convexity_adjustment: f64,
     },
     /// Interest Rate Swap (par rate).
     Swap {
@@ -481,7 +482,7 @@ mod tests {
             expiry: Date::from_calendar_date(2026, finstack_quant_core::dates::Month::June, 17)
                 .expect("valid date"),
             price: 96.00,
-            convexity_adjustment: Some(0.0),
+            convexity_adjustment: 0.0,
         };
 
         let bumped = quote.bump_rate_bp(1.0);

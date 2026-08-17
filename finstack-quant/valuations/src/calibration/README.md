@@ -28,7 +28,8 @@ only to replay an already-calibrated context.
 
 Public re-exports from `crate::calibration`: `CalibrationConfig`,
 `CalibrationMethod`, `DiscountCurveSolveConfig`, `HazardCurveSolveConfig`,
-`InflationCurveSolveConfig`, `RatesStepConventions`, `ResidualWeightingScheme`,
+`InflationCurveSolveConfig`, `VolSurfaceSolveConfig`, `RatesStepConventions`,
+`ResidualWeightingScheme`,
 `SolverConfig`, `CurveValidator`, the surface no-arbitrage validators
 (`validate_surface`, `validate_calendar_spread`, `validate_butterfly_spread`,
 and friends), `RateBounds`, `RateBoundsPolicy`, `ValidationConfig`,
@@ -51,6 +52,10 @@ quotes in two complementary tracks:
 
 Both tracks may appear in the same envelope; the engine merges `market_data` and
 `prior_market` into the working context before running steps.
+
+Envelope quotes are assumed live and uncrossed. The engine does not filter
+stale or crossed markets because quotes carry no bid/ask or timestamp. Callers
+must supply a clean snapshot.
 
 ## Executing a plan
 
@@ -96,14 +101,22 @@ envelope examples live in
    the numerical root finder stops. `SolverConfig` wraps
    `finstack_quant_core::math::solver::BrentSolver`; this is convergence in
    parameter space, not economic fit.
-2. **Validation tolerance** (`config.discount_curve.validation_tolerance` and
-   the hazard/inflation equivalents, default `1e-8`) — whether the calibration
-   counts as successful. After the solver converges, final residuals are
-   compared against it; any residual above the threshold marks the report
-   failed.
+2. **Validation tolerance** — whether the calibration counts as successful.
+   After the solver converges, final residuals are compared against the
+   step's success tolerance; any residual above the threshold marks the
+   report failed.
 
 A precise root is not the same as an accurate reprice, which is why both exist.
-Validation tolerances are per-unit-notional residuals.
+Curve validation tolerances are per-unit-notional residuals. Vol-surface
+residuals are decimal implied vols.
+
+| Setting | Default | Residual unit | Used by |
+|---------|---------|---------------|---------|
+| `solver.tolerance()` | `1e-12` | parameter space | all numerical solvers |
+| `discount_curve.validation_tolerance` | `1e-8` | PV / notional | discount, forward (borrowed), xccy |
+| `hazard_curve.validation_tolerance` | `1e-8` | PV / notional | hazard |
+| `inflation_curve.validation_tolerance` | `1e-8` | PV / notional | inflation |
+| `vol_surface.validation_tolerance` | `1e-3` | decimal implied vol | SABR and SVI surfaces |
 
 `CalibrationConfig::fail_on_bad_fit` defaults to `true`: a step whose
 `report.success` is false is propagated as
@@ -144,6 +157,22 @@ The global forward target enforces `CalibrationConfig::effective_rate_bounds`
 per fitted reset-rate parameter, and — until a dedicated forward solve config
 exists — borrows `discount_curve.weighting_scheme` and
 `discount_curve.validation_tolerance`.
+
+### Interpolation
+
+Step `interpolation` is caller-owned. The engine does not pick a production
+default. `Linear` interpolates the stored ordinates — discount factors on a
+discount or XCCY curve, forward rates on a forward curve — and is **not** the
+QuantLib or Bloomberg production choice. Use `LogLinear` (log-DF) or
+`MonotoneConvex` (Hagan–West) for production discount curves.
+
+### Cross-currency `fx_spot`
+
+`XccyBasisParams.fx_spot` is the T+0 cash FX (domestic per foreign). Screen
+spot is T+2 for most G10 pairs and T+1 for USD/CAD; convert to T+0 with ON/TN
+points before passing the rate. Mixing T+2 screen spot with T+0 discounting
+biases long-tenor basis by roughly 1–2 bp. The engine does not convert
+settlement lag.
 
 ### Rate bounds
 

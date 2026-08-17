@@ -2482,3 +2482,136 @@ fn test_seasoned_term_reset_missing_exact_fixing_errors() {
         "error should name the index and the missing fixing date: {msg}"
     );
 }
+
+fn make_overnight_spec_with_day_count(
+    day_count: DayCount,
+    overnight_basis: Option<DayCount>,
+) -> FloatingCouponSpec {
+    let mut spec = make_overnight_float_spec(
+        OvernightCompoundingMethod::CompoundedInArrears,
+        FloatingRateFallback::Error,
+        dec!(0.0),
+    );
+    spec.schedule.day_count = day_count;
+    spec.rate_spec.overnight_basis = overnight_basis;
+    spec
+}
+
+/// When `overnight_basis` is omitted, a SONIA-style Act/365F coupon must
+/// compound and annualize on 365 so the coupon equals `N * (product - 1)`.
+#[test]
+fn overnight_basis_none_inherits_act365f() {
+    let issue = Date::from_calendar_date(2024, Month::January, 15).unwrap();
+    let maturity = Date::from_calendar_date(2025, Month::January, 15).unwrap();
+    let notional = 1_000_000.0;
+    let init = Money::new(notional, Currency::USD);
+    let market = make_flat_forward_market(issue, 0.05);
+
+    let inferred = make_overnight_spec_with_day_count(DayCount::Act365F, None);
+    let explicit_365 =
+        make_overnight_spec_with_day_count(DayCount::Act365F, Some(DayCount::Act365F));
+    let explicit_360 =
+        make_overnight_spec_with_day_count(DayCount::Act365F, Some(DayCount::Act360));
+
+    let build = |spec: FloatingCouponSpec| {
+        let mut builder = CashFlowSchedule::builder();
+        let _ = builder.principal(init, issue, maturity).floating_cf(spec);
+        builder
+            .build(Some(&market))
+            .expect("overnight schedule should build")
+    };
+    let inferred_sched = build(inferred);
+    let act365_sched = build(explicit_365);
+    let act360_sched = build(explicit_360);
+
+    let inferred_cf = inferred_sched
+        .get_flows()
+        .iter()
+        .find(|cf| cf.kind == CFKind::FloatReset)
+        .expect("float coupon");
+    let act365_cf = act365_sched
+        .get_flows()
+        .iter()
+        .find(|cf| cf.kind == CFKind::FloatReset)
+        .expect("float coupon");
+    let act360_cf = act360_sched
+        .get_flows()
+        .iter()
+        .find(|cf| cf.kind == CFKind::FloatReset)
+        .expect("float coupon");
+
+    assert!(
+        (inferred_cf.amount.amount() - act365_cf.amount.amount()).abs() < 1e-6,
+        "None overnight_basis must compound on the Act/365F coupon day count"
+    );
+    assert!(
+        (inferred_cf.amount.amount() - act360_cf.amount.amount()).abs() > 1.0,
+        "Act/365F compounding must not match a 360-basis product scaled by 360/365"
+    );
+
+    let product_minus_one = inferred_cf.rate.expect("rate") * inferred_cf.accrual_factor;
+    assert!(
+        (inferred_cf.amount.amount() - notional * product_minus_one).abs() < 1.0,
+        "coupon must equal N * (product - 1) when compounding and accrual share 365"
+    );
+}
+
+/// Act/360 coupon schedules still compound on 360 when `overnight_basis` is omitted.
+#[test]
+fn overnight_basis_none_inherits_act360() {
+    let issue = Date::from_calendar_date(2024, Month::January, 15).unwrap();
+    let maturity = Date::from_calendar_date(2025, Month::January, 15).unwrap();
+    let notional = 1_000_000.0;
+    let init = Money::new(notional, Currency::USD);
+    let market = make_flat_forward_market(issue, 0.05);
+
+    let inferred = make_overnight_spec_with_day_count(DayCount::Act360, None);
+    let explicit = make_overnight_spec_with_day_count(DayCount::Act360, Some(DayCount::Act360));
+
+    let build = |spec: FloatingCouponSpec| {
+        let mut builder = CashFlowSchedule::builder();
+        let _ = builder.principal(init, issue, maturity).floating_cf(spec);
+        builder
+            .build(Some(&market))
+            .expect("overnight schedule should build")
+    };
+    let inferred_cf = build(inferred)
+        .get_flows()
+        .iter()
+        .find(|cf| cf.kind == CFKind::FloatReset)
+        .expect("float coupon")
+        .amount
+        .amount();
+    let explicit_cf = build(explicit)
+        .get_flows()
+        .iter()
+        .find(|cf| cf.kind == CFKind::FloatReset)
+        .expect("float coupon")
+        .amount
+        .amount();
+    assert!(
+        (inferred_cf - explicit_cf).abs() < 1e-6,
+        "None overnight_basis on Act/360 must keep the 360 compounding basis"
+    );
+}
+
+/// Overnight compounding cannot infer a basis from Thirty/360.
+#[test]
+fn overnight_basis_none_rejects_thirty360() {
+    let issue = Date::from_calendar_date(2024, Month::January, 15).unwrap();
+    let maturity = Date::from_calendar_date(2025, Month::January, 15).unwrap();
+    let init = Money::new(1_000_000.0, Currency::USD);
+    let market = make_flat_forward_market(issue, 0.05);
+    let spec = make_overnight_spec_with_day_count(DayCount::Thirty360, None);
+
+    let mut builder = CashFlowSchedule::builder();
+    let _ = builder.principal(init, issue, maturity).floating_cf(spec);
+    let err = builder
+        .build(Some(&market))
+        .expect_err("Thirty/360 overnight compounding without an explicit basis must error");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("Act/360") || msg.contains("overnight"),
+        "error should require Act/360 or Act/365F: {msg}"
+    );
+}

@@ -164,7 +164,7 @@ fn bench_multi_factor_greeks(c: &mut Criterion) {
         b.iter(|| {
             let factors: [&[f64]; 3] = [&factor_a, &factor_b, &factor_c];
             black_box(
-                perf.multi_factor_greeks(3, &factors)
+                perf.multi_factor_greeks(3, &factors, finstack_quant_analytics::ReturnKind::Excess)
                     .expect("multi factor regression"),
             )
         });

@@ -25,7 +25,7 @@ use rust_decimal::Decimal;
 use crate::cashflow::builder::{
     periods::{build_periods, BuildPeriodsParams, SchedulePeriod},
     schedule::merge_cashflow_schedules,
-    CashFlowSchedule, FloatingCouponSpec, FloatingRateSpec, Notional,
+    CashFlowSchedule, FloatingCouponSpec, FloatingRateSpec, Notional, PrincipalExchange,
 };
 use crate::instruments::common_impl::numeric::decimal_to_f64;
 use crate::instruments::rates::irs::{FloatingLegCompounding, InterestRateSwap, PayReceive};
@@ -393,6 +393,7 @@ pub(crate) fn float_leg_schedule_with_curves_as_of(
     let mut float_b = CashFlowSchedule::builder();
     let _ = float_b
         .principal(irs.notional, float.start, float.end)
+        .principal_exchange(PrincipalExchange::None)
         .floating_cf(FloatingCouponSpec {
             rate_spec: FloatingRateSpec {
                 index_id: float.forward_curve_id.to_owned(),
@@ -432,10 +433,7 @@ pub(crate) fn float_leg_schedule_with_curves_as_of(
                 roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         });
-    let mut sched = float_b.build(curves)?;
-    // IRS do not exchange notionals; return coupon-only schedule as documented.
-    sched.retain_flows(|cf| cf.kind == crate::cashflow::primitives::CFKind::FloatReset);
-    Ok(sched)
+    float_b.build(curves)
 }
 
 /// Build a full, signed cashflow schedule with `CFKind` metadata for an IRS with market curves.

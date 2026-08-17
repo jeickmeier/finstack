@@ -98,12 +98,14 @@ expiry: string,
  */
 price: number,
 /**
- * Optional convexity adjustment (rate, decimal).
+ * Convexity adjustment as a decimal rate (Hull convention).
  *
- * Calibration treats an omitted adjustment as zero. Instrument construction
- * may instead use the futures contract convention's default adjustment.
+ * The implied forward is
+ * `forward = (100 - price) / 100 − convexity_adjustment`.
+ * A positive adjustment lowers the futures-implied rate toward the true
+ * forward. Callers that want no adjustment must pass `0.0` explicitly.
  */
-convexity_adjustment: number | null, } | { "type": "swap",
+convexity_adjustment: number, } | { "type": "swap",
 /**
  * Unique identifier for the quote.
  */

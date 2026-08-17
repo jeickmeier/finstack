@@ -53,6 +53,66 @@ fn push_pairwise_returns(prices: &[f64], out: &mut Vec<f64>) {
     }
 }
 
+/// Geometric decompounding of an annualized risk-free rate to one period.
+///
+/// ```text
+/// rf_period = (1 + rf_annual)^{1/N} − 1
+/// ```
+///
+/// This is the crate-wide compounding rule for Sharpe-family excess returns
+/// and for per-period excess-return series.
+///
+/// # Arguments
+///
+/// * `risk_free_rate` - Annualized risk-free rate in decimal form (e.g. `0.02`
+///   for 2%).
+/// * `ann_factor` - Periods per year `N` used to decompound (e.g. `252` daily,
+///   `12` monthly).
+///
+/// # Returns
+///
+/// The equivalent one-period simple rate. Returns [`f64::NAN`] when either
+/// input is non-finite or `ann_factor` is not strictly positive.
+#[must_use]
+pub(crate) fn periodic_risk_free_rate(risk_free_rate: f64, ann_factor: f64) -> f64 {
+    if !risk_free_rate.is_finite() || !ann_factor.is_finite() || ann_factor <= 0.0 {
+        return f64::NAN;
+    }
+    if (ann_factor - 1.0).abs() <= f64::EPSILON {
+        return risk_free_rate;
+    }
+    (1.0 + risk_free_rate).powf(1.0 / ann_factor) - 1.0
+}
+
+/// Linearly annualized excess return after geometric rf decompounding.
+///
+/// `ann_return` is the arithmetic mean scaled by `N` (`μ × N`). The
+/// annualized risk-free rate is first converted to a period rate, then
+/// subtracted from the period mean and rescaled:
+///
+/// ```text
+/// excess_ann = (μ − rf_period) × N = ann_return − rf_period × N
+/// ```
+///
+/// # Arguments
+///
+/// * `ann_return` - Linearly annualized arithmetic mean return (`μ × N`).
+/// * `risk_free_rate` - Annualized risk-free rate in decimal form.
+/// * `ann_factor` - Periods per year `N` used to decompound `risk_free_rate`.
+///
+/// # Returns
+///
+/// Annualized excess return. Propagates [`f64::NAN`] when decompounding
+/// is undefined.
+#[must_use]
+pub(crate) fn annualized_excess_return(
+    ann_return: f64,
+    risk_free_rate: f64,
+    ann_factor: f64,
+) -> f64 {
+    ann_return - periodic_risk_free_rate(risk_free_rate, ann_factor) * ann_factor
+}
+
 /// Excess returns = portfolio returns minus risk-free returns.
 ///
 /// When `nperiods` is provided, the risk-free rate is de-compounded to the
@@ -89,10 +149,8 @@ pub(crate) fn excess_returns(returns: &[f64], rf: &[f64], nperiods: Option<f64>)
     let mut out = Vec::with_capacity(n);
     for i in 0..n {
         let rf_adj = match nperiods {
-            Some(np) if np.abs() > f64::EPSILON && (np - 1.0).abs() > f64::EPSILON => {
-                (1.0 + rf[i]).powf(1.0 / np) - 1.0
-            }
-            _ => rf[i],
+            Some(np) => periodic_risk_free_rate(rf[i], np),
+            None => rf[i],
         };
         out.push(returns[i] - rf_adj);
     }
@@ -106,6 +164,39 @@ pub(crate) fn excess_returns(returns: &[f64], rf: &[f64], nperiods: Option<f64>)
 /// still representing an effectively total loss.
 const MIN_GROWTH_FACTOR: f64 = 1e-18;
 
+/// Log-space wealth accumulator shared by compounding and drawdown.
+///
+/// Each step multiplies wealth by `max(1 + r, MIN_GROWTH_FACTOR)` via a
+/// Neumaier sum of log growth factors. Non-finite returns mark the path
+/// invalid from that point forward.
+pub(crate) struct WealthEngine {
+    acc: NeumaierAccumulator,
+    invalid: bool,
+}
+
+impl WealthEngine {
+    pub(crate) fn new() -> Self {
+        Self {
+            acc: NeumaierAccumulator::new(),
+            invalid: false,
+        }
+    }
+
+    /// Apply one simple return and return the reconstructed wealth level.
+    ///
+    /// Starting wealth is `1`. The returned value is `exp(Σ ln g)` or
+    /// [`f64::NAN`] once a non-finite return has been seen.
+    pub(crate) fn step(&mut self, r: f64) -> f64 {
+        if self.invalid || !r.is_finite() {
+            self.invalid = true;
+            return f64::NAN;
+        }
+        let g = (1.0 + r).max(MIN_GROWTH_FACTOR);
+        self.acc.add(g.ln());
+        self.acc.total().exp()
+    }
+}
+
 /// Cumulative compounded returns: `(1+r).cumprod() - 1`.
 ///
 /// At each step `i` the cumulative return is:
@@ -114,11 +205,9 @@ const MIN_GROWTH_FACTOR: f64 = 1e-18;
 /// comp_sum[i] = Π_{j=0}^{i} (1 + r[j]) - 1
 /// ```
 ///
-/// Uses a Neumaier accumulator in log-space for numerical stability on
-/// long series. Growth factors are clamped to `MIN_GROWTH_FACTOR` so
-/// that returns ≤ −1.0 produce a near-total-loss (≈ −100 %) rather than NaN.
-/// Non-finite returns (NaN, ±Inf) mark the path invalid from that point
-/// forward, so the current and subsequent outputs become `NaN`.
+/// Uses the shared [`WealthEngine`] (Neumaier log-space, `MIN_GROWTH_FACTOR`
+/// clamp). Returns ≤ −1.0 produce a near-total-loss (≈ −100 %) rather than
+/// NaN. Non-finite returns mark the path invalid from that point forward.
 ///
 /// # Arguments
 ///
@@ -129,18 +218,10 @@ const MIN_GROWTH_FACTOR: f64 = 1e-18;
 /// A `Vec<f64>` of the same length as `returns`. Returns an empty vector
 /// if `returns` is empty.
 pub(crate) fn comp_sum(returns: &[f64]) -> Vec<f64> {
-    let mut acc = NeumaierAccumulator::new();
+    let mut engine = WealthEngine::new();
     let mut out = Vec::with_capacity(returns.len());
-    let mut invalid = false;
     for &r in returns {
-        if invalid || !r.is_finite() {
-            invalid = true;
-            out.push(f64::NAN);
-            continue;
-        }
-        let g = (1.0 + r).max(MIN_GROWTH_FACTOR);
-        acc.add(g.ln());
-        out.push(acc.total().exp() - 1.0);
+        out.push(engine.step(r) - 1.0);
     }
     out
 }
@@ -168,14 +249,12 @@ pub(crate) fn comp_total(returns: &[f64]) -> f64 {
     if returns.is_empty() {
         return 0.0;
     }
-    let mut acc = NeumaierAccumulator::new();
+    let mut engine = WealthEngine::new();
+    let mut last = 1.0;
     for &r in returns {
-        if !r.is_finite() {
-            return f64::NAN;
-        }
-        acc.add((1.0 + r).max(MIN_GROWTH_FACTOR).ln());
+        last = engine.step(r);
     }
-    acc.total().exp() - 1.0
+    last - 1.0
 }
 
 #[cfg(test)]
@@ -199,6 +278,25 @@ mod tests {
     #[test]
     fn pairwise_returns_single() {
         assert!(pairwise_returns(&[100.0]).is_empty());
+    }
+
+    #[test]
+    fn periodic_risk_free_rate_geometric_decompound() {
+        let rf_period = periodic_risk_free_rate(0.02, 252.0);
+        assert!((rf_period - (1.02_f64.powf(1.0 / 252.0) - 1.0)).abs() < 1e-15);
+        assert!(periodic_risk_free_rate(0.02, 0.0).is_nan());
+        assert!(periodic_risk_free_rate(f64::NAN, 252.0).is_nan());
+    }
+
+    #[test]
+    fn annualized_excess_return_differs_from_linear_subtraction() {
+        let mu = 0.0004_f64;
+        let ann = 252.0;
+        let geometric = annualized_excess_return(mu * ann, 0.02, ann);
+        let linear = mu * ann - 0.02;
+        let rf_period = 1.02_f64.powf(1.0 / ann) - 1.0;
+        assert!((geometric - (mu - rf_period) * ann).abs() < 1e-12);
+        assert!((geometric - linear).abs() > 1e-6);
     }
 
     #[test]

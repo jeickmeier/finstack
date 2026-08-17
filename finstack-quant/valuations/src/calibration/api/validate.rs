@@ -480,9 +480,13 @@ fn validate_rate_quote(step_id: &str, quote: &RateQuote, errors: &mut Vec<Envelo
             ..
         } => {
             require_finite(step_id, quote_id, "price", *price, errors);
-            if let Some(value) = convexity_adjustment {
-                require_finite(step_id, quote_id, "convexity_adjustment", *value, errors);
-            }
+            require_finite(
+                step_id,
+                quote_id,
+                "convexity_adjustment",
+                *convexity_adjustment,
+                errors,
+            );
         }
     }
 }
@@ -725,7 +729,7 @@ mod tests {
         CalibrationPlan, CalibrationResultEnvelope, CalibrationSchema, CalibrationStep,
         DiscountCurveParams, StepParams,
     };
-    use crate::market::conventions::ids::{CdsConventionKey, CdsDocClause};
+    use crate::market::conventions::ids::{CdsConventionKey, CdsDocClause, IrFutureContractId};
     use crate::market::quotes::ids::{Pillar, QuoteId};
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::market_data::scalars::MarketScalar;
@@ -964,6 +968,75 @@ mod tests {
             assert_eq!(quote_id, "USD-DEP-1M");
             assert!(reason.contains("rate must be finite"));
         }
+    }
+
+    #[test]
+    fn missing_or_non_finite_futures_convexity_is_envelope_error() {
+        let expiry = finstack_quant_core::dates::Date::from_calendar_date(
+            2026,
+            finstack_quant_core::dates::Month::March,
+            17,
+        )
+        .expect("valid expiry");
+        let mut env = empty_envelope("bad-convexity");
+        env.plan
+            .quote_sets
+            .insert("rates".to_string(), vec![QuoteId::new("USD-FUT")]);
+        env.plan
+            .steps
+            .push(discount_step("discount", "rates", "USD-OIS"));
+        env.market_data
+            .push(MarketDatum::RateQuote(RateQuote::Futures {
+                id: QuoteId::new("USD-FUT"),
+                contract: IrFutureContractId::new("CME:SR3"),
+                expiry,
+                price: 96.50,
+                convexity_adjustment: f64::NAN,
+            }));
+
+        let report = validate(&env);
+        let err = report
+            .errors
+            .iter()
+            .find(|e| matches!(e, EnvelopeError::QuoteDataInvalid { .. }))
+            .expect("non-finite convexity must be QuoteDataInvalid");
+        if let EnvelopeError::QuoteDataInvalid {
+            step_id,
+            quote_id,
+            reason,
+        } = err
+        {
+            assert_eq!(step_id, "discount");
+            assert_eq!(quote_id, "USD-FUT");
+            assert!(reason.contains("convexity_adjustment must be finite"));
+        }
+
+        env.market_data.clear();
+        env.market_data
+            .push(MarketDatum::RateQuote(RateQuote::Futures {
+                id: QuoteId::new("USD-FUT"),
+                contract: IrFutureContractId::new("CME:SR3"),
+                expiry,
+                price: 96.50,
+                convexity_adjustment: 0.0,
+            }));
+        let mut value = serde_json::to_value(&env).expect("serialize envelope");
+        let quote = value["market_data"]
+            .as_array_mut()
+            .expect("market_data array")
+            .iter_mut()
+            .find(|datum| datum.get("id").and_then(|id| id.as_str()) == Some("USD-FUT"))
+            .expect("futures quote");
+        quote
+            .as_object_mut()
+            .expect("quote object")
+            .remove("convexity_adjustment");
+        let error = parse_envelope(&value.to_string())
+            .expect_err("missing convexity_adjustment must fail parse");
+        assert!(
+            matches!(error, EnvelopeError::JsonParse { .. }),
+            "missing convexity must be EnvelopeError, got {error}"
+        );
     }
 
     #[test]

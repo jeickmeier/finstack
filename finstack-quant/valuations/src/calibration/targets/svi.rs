@@ -204,7 +204,7 @@ impl SviSurfaceTarget {
                     .unwrap_or(f64::NAN);
                 residuals.insert(
                     format!("svi_t{expiry:.6}_k{strike:.6}_i{idx}"),
-                    (model_vol - *market_vol).abs(),
+                    model_vol - *market_vol,
                 );
             }
 
@@ -282,11 +282,11 @@ impl SviSurfaceTarget {
                 .err()
                 .map(|e| format!("SVI butterfly-spread arbitrage: {e}"));
 
-        let mut report = CalibrationReport::new(
+        let mut report = CalibrationReport::for_type_with_tolerance(
+            "svi_surface",
             residuals,
             params_by_expiry.len(),
-            true,
-            "SVI surface calibration completed",
+            global_config.vol_surface.validation_tolerance,
         )
         .with_model_version(finstack_quant_core::versions::SVI_SURFACE);
         report.update_solver_config(global_config.solver.clone());

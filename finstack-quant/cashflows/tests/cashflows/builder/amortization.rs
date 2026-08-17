@@ -905,6 +905,59 @@ mod computation {
             );
         }
     }
+
+    /// LinearTo treats the lagged payment date as maturity, so the last
+    /// installment and any residual balloon settle with the final coupon.
+    #[test]
+    fn linear_to_maturity_uses_lagged_redemption_date() {
+        let issue = Date::from_calendar_date(2025, Month::January, 17).unwrap(); // Friday
+        let maturity = Date::from_calendar_date(2026, Month::January, 17).unwrap(); // Saturday
+        let redemption_date = Date::from_calendar_date(2026, Month::January, 21).unwrap();
+
+        let mut spec = standard_fixed_spec();
+        spec.schedule.payment_lag_days = 2;
+
+        let init = Money::new(1_000_000.0, Currency::USD);
+        let mut builder = CashFlowSchedule::builder();
+        let _ = builder
+            .principal(init, issue, maturity)
+            .amortization(AmortizationSpec::LinearTo {
+                final_notional: Money::new(0.0, Currency::USD),
+            })
+            .fixed_cf(spec);
+
+        let schedule = builder.build(None).expect("lagged LinearTo schedule");
+
+        let last_amort = schedule
+            .get_flows()
+            .iter()
+            .filter(|cf| cf.kind == CFKind::Amortization)
+            .max_by_key(|cf| cf.date)
+            .expect("amortization flows");
+        assert_eq!(
+            last_amort.date, redemption_date,
+            "LinearTo last installment must pay on adjust(maturity)+lag"
+        );
+        assert!(
+            schedule
+                .get_flows()
+                .iter()
+                .all(|cf| !(cf.kind == CFKind::Amortization && cf.date == maturity)),
+            "no LinearTo installment may settle on the raw weekend maturity"
+        );
+        let residual_on_raw: f64 = schedule
+            .get_flows()
+            .iter()
+            .filter(|cf| {
+                cf.date == maturity && cf.kind == CFKind::Notional && cf.amount.amount() > 0.0
+            })
+            .map(|cf| cf.amount.amount())
+            .sum();
+        assert!(
+            residual_on_raw.abs() < 1e-9,
+            "balloon must not redeem on raw maturity, got {residual_on_raw}"
+        );
+    }
 }
 
 fn hash_of<T: std::hash::Hash>(value: &T) -> u64 {

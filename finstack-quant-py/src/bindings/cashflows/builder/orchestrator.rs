@@ -11,7 +11,7 @@ use crate::errors::core_to_py;
 use super::schedule::PyCashFlowSchedule;
 use super::specs::{
     PyAmortizationSpec, PyCouponType, PyFeeSpec, PyFixedCouponSpec, PyFloatingCouponSpec,
-    PyStepUpCouponSpec,
+    PyPrincipalExchange, PyStepUpCouponSpec,
 };
 
 /// Wrapper for [`PrincipalEvent`]
@@ -132,6 +132,27 @@ impl PyCashFlowBuilder {
         let maturity = py_to_date(maturity)?;
         let _ = slf.inner.principal(initial.inner, issue, maturity);
         Ok(slf)
+    }
+
+    /// Select whether issue funding and maturity redemption notionals are emitted.
+    ///
+    /// Outstanding still starts at the :meth:`principal` initial amount for
+    /// coupon math. Scheduled amortization and explicit principal events still
+    /// emit. The default is :attr:`PrincipalExchange.INITIAL_AND_FINAL`.
+    ///
+    /// Parameters
+    /// ----------
+    /// exchange : PrincipalExchange
+    ///     ``INITIAL_AND_FINAL`` emits the issue draw and the redemption
+    ///     balloon on the lagged payment date. ``NONE`` tracks outstanding
+    ///     only (vanilla IRS / basis-swap convention).
+    #[pyo3(text_signature = "(self, exchange)")]
+    fn principal_exchange<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        exchange: PyRef<'py, PyPrincipalExchange>,
+    ) -> PyRefMut<'py, Self> {
+        let _ = slf.inner.principal_exchange(exchange.inner);
+        slf
     }
 
     /// Configure amortization for the instrument notional.

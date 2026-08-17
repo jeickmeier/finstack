@@ -205,11 +205,9 @@ impl InterestRateSwap {
     ) -> finstack_quant_core::Result<f64> {
         // Delegate rate projection to the cashflow builder so the pricer and
         // the signed schedule surfaced by `cashflow_schedule` / `dated_cashflows`
-        // use bit-for-bit identical coupon amounts. The builder follows the
-        // ISDA 2006 convention of projecting the index rate over
-        // `[reset_date, reset_date + index_tenor]` (an unadjusted tenor),
-        // whereas an inlined projection over the BDC-adjusted accrual window
-        // introduces small but compounding mismatches across the leg.
+        // use bit-for-bit identical coupon amounts. The builder reads the
+        // named term-index curve at `reset_date` (`fwd.rate(t_reset)`);
+        // `index_tenor` is diagnostic error-context only, not a FRA window.
         use finstack_quant_core::cashflow::CFKind;
 
         let disc = context.get_discount(self.fixed.discount_curve_id.as_ref())?;

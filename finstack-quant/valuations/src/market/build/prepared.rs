@@ -239,7 +239,7 @@ mod tests {
             contract: "SR3".into(),
             expiry: Date::from_calendar_date(2025, Month::September, 15).expect("valid expiry"),
             price: 96.50,
-            convexity_adjustment: None,
+            convexity_adjustment: 0.0,
         };
 
         let prepared = prepare_rate_quote(quote, &ctx, DayCount::Act365F, as_of, true)

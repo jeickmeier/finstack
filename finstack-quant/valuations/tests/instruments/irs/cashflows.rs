@@ -92,6 +92,41 @@ fn test_irs_cashflow_schedule_generation() {
     assert!(!schedule.is_empty(), "Schedule should not be empty");
 }
 
+/// Vanilla IRS must not exchange notionals; coupons remain after dropping
+/// `retain_flows`.
+#[test]
+fn test_irs_cashflows_have_no_notional_exchange() {
+    let swap = test_utils::usd_irs_swap(
+        "IRS-NO-NOTIONAL",
+        Money::new(1_000_000.0, Currency::USD),
+        0.05,
+        date!(2024 - 01 - 01),
+        date!(2029 - 01 - 01),
+        PayReceive::Receive,
+    )
+    .unwrap();
+
+    let market = build_test_curves();
+    let schedule = swap
+        .cashflow_schedule(&market, date!(2024 - 01 - 01))
+        .unwrap();
+    assert!(
+        schedule
+            .get_flows()
+            .iter()
+            .all(|cf| cf.kind != finstack_quant_core::cashflow::CFKind::Notional),
+        "vanilla IRS must not emit issue or redemption notionals"
+    );
+    assert!(
+        schedule.get_flows().iter().any(|cf| matches!(
+            cf.kind,
+            finstack_quant_core::cashflow::CFKind::Fixed
+                | finstack_quant_core::cashflow::CFKind::FloatReset
+        )),
+        "coupon flows must remain without retain_flows"
+    );
+}
+
 #[test]
 fn test_irs_fixed_leg_quarterly_schedule() {
     // Fixed leg with quarterly payments

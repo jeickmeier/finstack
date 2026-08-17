@@ -242,7 +242,11 @@ impl ScheduleParams {
         )
     }
 
-    /// Annual payments with Act/Act day count and Following BDC.
+    /// Annual payments with ISDA Act/Act day count and Following BDC.
+    ///
+    /// This is the ISDA Actual/Actual convention (`DayCount::ActAct`), not
+    /// ICMA Act/Act. Government-bond schedules use [`Self::eur_gov_bond`] or
+    /// [`Self::usd_treasury`].
     ///
     /// # Arguments
     ///
@@ -397,7 +401,8 @@ impl ScheduleParams {
 
     /// EUR ESTR swap (annual, Act/360, Modified Following, TARGET2, T+2 payment lag).
     ///
-    /// Follows ECB €STR conventions.
+    /// Payment lag is the **LCH** €STR OIS template (T+2), not a universal CCP
+    /// default. Follows ECB €STR compounding conventions for the day count.
     ///
     /// # Arguments
     ///
@@ -406,7 +411,7 @@ impl ScheduleParams {
     /// # Returns
     ///
     /// Schedule parameters for a EUR €STR-style floating leg with TARGET2
-    /// calendar and two-business-day payment lag.
+    /// calendar and the LCH two-business-day payment lag.
     ///
     /// # Examples
     ///

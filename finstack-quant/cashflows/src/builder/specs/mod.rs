@@ -28,6 +28,7 @@ mod coupon;
 mod default;
 mod fees;
 mod prepayment;
+mod principal;
 mod recovery;
 mod schedule;
 
@@ -39,5 +40,6 @@ pub use coupon::{
 pub use default::{DefaultCurve, DefaultModelSpec};
 pub use fees::{evaluate_fee_tiers, FeeAccrualBasis, FeeBase, FeeSpec, FeeTier};
 pub use prepayment::{PrepaymentCurve, PrepaymentModelSpec};
+pub use principal::PrincipalExchange;
 pub use recovery::RecoveryModelSpec;
 pub use schedule::{FixedWindow, RollRule, ScheduleParams};

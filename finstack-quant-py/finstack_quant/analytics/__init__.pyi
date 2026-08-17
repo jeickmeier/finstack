@@ -29,6 +29,7 @@ from typing import Sequence
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from finstack_quant.core.dates import DayCount
 
 __all__ = [
     "AnalyticsError",
@@ -848,7 +849,11 @@ class MultiFactorResult:
     @property
     def alpha(self) -> float:
         """
-        Raw regression intercept, annualized with the supplied factor frequency.
+        Annualized OLS intercept of the (possibly rf-adjusted) dependent series.
+
+        For ``return_kind="excess"`` this is the intercept of already-excess
+        ``y``. For ``return_kind="total"`` it is Jensen-style after subtracting
+        the decompounded period risk-free rate from ``y`` only.
 
         Returns
         -------
@@ -1748,9 +1753,27 @@ class Performance:
 
     # -- Scalar-per-ticker methods --
 
-    def cagr(self) -> pd.Series:
+    def cagr(
+        self,
+        day_count: str | DayCount | None = None,
+        calendar_id: str | None = None,
+    ) -> pd.Series:
         """
         Compound annual growth rate for each ticker.
+
+        The default convention is Act/365.25. Pass ``"act365_25"`` for the
+        same default, a core DayCount name such as ``"act_365f"`` or
+        ``"bus_252"``, or a :class:`~finstack_quant.core.dates.DayCount`.
+        ``bus_252`` requires ``calendar_id``.
+
+        Parameters
+        ----------
+        day_count : str or DayCount, optional
+            ``None`` / ``"act365_25"`` for Act/365.25, or a core DayCount
+            name / instance (``"act_365f"``, ``DayCount.ACT_365F``,
+            ``"bus_252"``, …).
+        calendar_id : str, optional
+            Holiday-calendar id required when ``day_count`` is Bus/252.
 
         Returns
         -------
@@ -1760,7 +1783,12 @@ class Performance:
         Raises
         ------
         ValueError
-            If the active date window cannot be annualized.
+            If ``day_count`` is not a recognized convention.
+        KeyError
+            If ``calendar_id`` is set but cannot be resolved.
+        AnalyticsError
+            If the active date window cannot be annualized, or Bus/252 is
+            requested without a calendar.
         """
 
     def mean_return(self, annualize: bool = True) -> pd.Series:
@@ -1866,7 +1894,10 @@ class Performance:
 
     def calmar(self) -> pd.Series:
         """
-        Calmar ratio for each ticker.
+        Calmar ratio for each ticker over the active window.
+
+        This is CAGR / |max drawdown| on the loaded (or reset) date range,
+        not Young's 36-month CTA definition.
 
         Returns
         -------
@@ -2378,14 +2409,24 @@ class Performance:
         This accessor does not raise; it returns the stored or derived value.
         """
 
-    def parametric_var(self, confidence: float = 0.95) -> pd.Series:
+    def parametric_var(
+        self,
+        confidence: float = 0.95,
+        horizon_periods: float | None = None,
+    ) -> pd.Series:
         """
-        Parametric VaR for each ticker.
+        Equal-weight Gaussian VaR for each ticker.
+
+        ``horizon_periods=None`` is one-period VaR. A positive ``h`` scales
+        the mean by ``h`` and volatility by ``sqrt(h)``. Empty or invalid
+        series return ``NaN``.
 
         Parameters
         ----------
         confidence : float, default 0.95
-            Confidence level.
+            Tail confidence as a decimal probability.
+        horizon_periods : float, optional
+            Horizon in observation periods. ``None`` is one period.
 
         Returns
         -------
@@ -2396,20 +2437,26 @@ class Performance:
         ------
         ValueError
             If the computed values cannot be wrapped as a labelled pandas object.
-
-        Sources
-        -------
-        - J.P. Morgan RiskMetrics (1996): see docs/REFERENCES.md#jpmorgan1996RiskMetrics
         """
 
-    def cornish_fisher_var(self, confidence: float = 0.95) -> pd.Series:
+    def cornish_fisher_var(
+        self,
+        confidence: float = 0.95,
+        horizon_periods: float | None = None,
+    ) -> pd.Series:
         """
         Cornish-Fisher VaR for each ticker.
+
+        ``horizon_periods=None`` is one-period VaR. A positive ``h`` scales
+        the Cornish–Fisher moments to that horizon. Empty or invalid series
+        return ``NaN``.
 
         Parameters
         ----------
         confidence : float, default 0.95
-            Confidence level.
+            Tail confidence as a decimal probability.
+        horizon_periods : float, optional
+            Horizon in observation periods. ``None`` is one period.
 
         Returns
         -------
@@ -2631,14 +2678,20 @@ class Performance:
         """
         Correlation matrix across all tickers.
 
+        Uses the complete-case common window when every ticker has at least
+        two overlapping points; otherwise pairwise intersecting spans. The
+        matrix is Higham-repaired to the nearest correlation matrix.
+
         Returns
         -------
         list[list[float]]
             Symmetric correlation matrix indexed by ticker column order.
 
-        Notes
-        -----
-        This method does not raise; it returns the stored or derived value.
+        Raises
+        ------
+        AnalyticsError
+            If a pair is degenerate (zero variance or non-finite) or Higham
+            repair fails.
         """
 
     def cumulative_returns_outperformance(self) -> list[list[float]]:
@@ -2675,24 +2728,29 @@ class Performance:
         nperiods: float | None = None,
     ) -> list[list[float]]:
         """
-        Excess returns over a risk-free series (per ticker).
+        Excess returns over a risk-free series aligned to the panel grid.
+
+        Each ticker subtracts ``rf[panel_index]`` on its active span.
+        ``nperiods=None`` geometrically decompounds an annual series using
+        the engine frequency; pass ``1.0`` when ``rf`` is already periodic.
 
         Parameters
         ----------
         rf : list[float]
-            Risk-free return series aligned with the observation dates.
+            Risk-free series with one value per active panel date.
         nperiods : float, optional
-            Annualization factor (e.g. ``252`` for daily). When ``None``,
-            uses the engine's frequency default.
+            Periods per year used to decompound annual ``rf``. ``None`` uses
+            the engine frequency; ``1.0`` treats ``rf`` as already periodic.
 
         Returns
         -------
         list[list[float]]
             Per-ticker excess return series.
 
-        Notes
-        -----
-        This method does not raise; it returns the stored or derived value.
+        Raises
+        ------
+        AnalyticsError
+            If ``len(rf)`` differs from the number of active panel dates.
         """
 
     # -- Per-ticker structured methods --
@@ -2882,17 +2940,29 @@ class Performance:
         self,
         ticker_idx: int,
         factor_returns: list[list[float]],
+        return_kind: str = "excess",
+        risk_free_rate: float = 0.0,
     ) -> MultiFactorResult:
         """
         Multi-factor regression for a specific ticker.
+
+        Factor series are already-excess (Fama–French style).
+        ``return_kind="excess"`` leaves the ticker series unchanged.
+        ``return_kind="total"`` subtracts the geometrically decompounded
+        period risk-free rate from the ticker series only.
 
         Parameters
         ----------
         ticker_idx : int
             Zero-based ticker column index.
         factor_returns : list[list[float]]
-            Column-major factor return matrix; ``factor_returns[i]`` is the
+            Already-excess factor return matrix; ``factor_returns[i]`` is the
             return series for factor ``i``.
+        return_kind : str, default ``"excess"``
+            ``"excess"`` or ``"total"``.
+        risk_free_rate : float, default 0.0
+            Annualized decimal risk-free rate used when ``return_kind`` is
+            ``"total"``.
 
         Returns
         -------
@@ -2901,6 +2971,8 @@ class Performance:
 
         Raises
         ------
+        ValueError
+            If ``return_kind`` is not ``"excess"`` or ``"total"``.
         AnalyticsError
             If ``ticker_idx`` is out of range, no factors are supplied, factor
             lengths differ from the ticker return series, returns are
@@ -2918,9 +2990,10 @@ class Performance:
         """
         Period-to-date lookback returns.
 
-        Defaults to a January-1 fiscal-year start. The FYTD window start is
-        adjusted to the next business day on *calendar* (default ``"nyse"``);
-        pass the calendar id matching your market for non-US panels.
+        Defaults to a January-1 fiscal-year start. FYTD is the first
+        observation on or after that fiscal calendar start through
+        ``ref_date``. Holidays are not skipped. The first included simple
+        return still spans the prior close.
 
         Parameters
         ----------
@@ -2931,7 +3004,7 @@ class Performance:
         fiscal_year_start_day : int, optional
             Fiscal year start day in ``1..=31``.
         calendar : str, default "nyse"
-            Business-day calendar id for FYTD adjustments.
+            Holiday-calendar id accepted for call-site compatibility.
 
         Returns
         -------
@@ -3119,9 +3192,10 @@ class Performance:
         pd.DataFrame
             Symmetric correlation matrix with ticker names on both axes.
 
-        Notes
-        -----
-        This accessor does not raise; it returns the stored or derived value.
+        Raises
+        ------
+        AnalyticsError
+            If a pair is degenerate or Higham repair fails.
         """
         ...
 

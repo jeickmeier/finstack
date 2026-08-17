@@ -383,12 +383,12 @@ pub(crate) fn emit_fixed_coupons_on(
 ///
 /// For every other method (`CompoundedInArrears`, `SimpleAverage`,
 /// `CompoundedWithLookback`, `CompoundedWithLockout`) the observation window
-/// coincides with the accrual window; method-specific rate-index shifting
-/// (lookback) or end-of-period lockout remains a concern of
-/// [`crate::builder::rate_helpers::compute_overnight_rate`]. The Lookback
-/// variant currently applies its shift inside the accrual window (ARRC
-/// 2020 SOFR at 2 BD); aligning it with the observation-window model is
-/// tracked as a follow-up.
+/// coincides with the accrual window. Lookback sampling is applied in
+/// [`sample_overnight_rates_with_lookback`]: each accrual business day is
+/// paired with the fixing `lookback_days` business days earlier, while
+/// day-count weights stay on the accrual dates (ARRC 2020 §2; ISDA 2021
+/// Supp. 70 §7.1(g)(ii)). Lockout is applied in
+/// [`crate::builder::rate_helpers::compute_overnight_rate`].
 fn observation_window(
     method: &OvernightCompoundingMethod,
     accrual_start: Date,
@@ -858,10 +858,22 @@ pub(crate) fn emit_float_coupons_on(
                         // calendar (resolved by the compiler from
                         // `fixing_calendar_id`, defaulting to the accrual
                         // calendar), not the accrual calendar.
-                        let overnight_day_count = spec
-                            .rate_spec
-                            .overnight_basis
-                            .unwrap_or(finstack_quant_core::dates::DayCount::Act360);
+                        let overnight_day_count = match spec.rate_spec.overnight_basis {
+                            Some(basis) => basis,
+                            None => match spec.schedule.day_count {
+                                finstack_quant_core::dates::DayCount::Act360
+                                | finstack_quant_core::dates::DayCount::Act365F => {
+                                    spec.schedule.day_count
+                                }
+                                other => {
+                                    return Err(finstack_quant_core::Error::Validation(format!(
+                                        "overnight compounding requires Act360 or Act365F \
+                                         (set overnight_basis or the coupon day count); \
+                                         got {other:?}"
+                                    )))
+                                }
+                            },
+                        };
                         let day_count_basis = match overnight_day_count {
                             finstack_quant_core::dates::DayCount::Act360 => 360.0,
                             finstack_quant_core::dates::DayCount::Act365F => 365.0,

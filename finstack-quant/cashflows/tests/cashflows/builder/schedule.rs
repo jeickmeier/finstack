@@ -19,7 +19,7 @@ use finstack_quant_cashflows::builder::specs::{
     CouponType, FeeSpec, FixedCouponSpec, FixedWindow, FloatingCouponSpec, FloatingRateFallback,
     FloatingRateSpec, OvernightIndexConstraintApplication,
 };
-use finstack_quant_cashflows::builder::{AmortizationSpec, CashFlowSchedule};
+use finstack_quant_cashflows::builder::{AmortizationSpec, CashFlowSchedule, PrincipalExchange};
 use finstack_quant_core::cashflow::Discountable;
 use finstack_quant_core::cashflow::{CFKind, CashFlow};
 use finstack_quant_core::currency::Currency;
@@ -243,6 +243,84 @@ fn linear_amortization_uses_first_coupon_leg_cadence() {
     assert!(
         !amortization_dates.contains(&maturity),
         "the later floating leg cadence is not used for linear amortization"
+    );
+}
+
+/// A mid-horizon fixed-to-float conversion starts a fresh schedule at
+/// `switch` (short-front stub) rather than continuing the pre-switch roll.
+#[test]
+fn fixed_to_float_window_has_fresh_front_stub_at_switch() {
+    let issue = Date::from_calendar_date(2025, Month::January, 15).unwrap();
+    let switch = Date::from_calendar_date(2025, Month::April, 20).unwrap();
+    let maturity = Date::from_calendar_date(2026, Month::January, 15).unwrap();
+    let init = Money::new(1_000_000.0, Currency::USD);
+
+    let quarterly = finstack_quant_cashflows::builder::ScheduleParams {
+        frequency: Tenor::quarterly(),
+        day_count: DayCount::Act360,
+        business_day_convention: BusinessDayConvention::Following,
+        calendar_id: "weekends_only".to_string(),
+        stub: StubKind::ShortFront,
+        end_of_month: false,
+        payment_lag_days: 0,
+        adjust_accrual_dates: false,
+        roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
+    };
+    let fixed = FixedWindow {
+        rate: Decimal::try_from(0.05).expect("valid"),
+        schedule: quarterly.clone(),
+    };
+    let floating = FloatingCouponSpec {
+        coupon_type: CouponType::Cash,
+        rate_spec: FloatingRateSpec {
+            index_id: "USD-SOFR-3M".into(),
+            spread_bp: Decimal::try_from(0.0).expect("valid"),
+            gearing: Decimal::ONE,
+            gearing_includes_spread: true,
+            index_floor_bp: None,
+            all_in_cap_bp: None,
+            all_in_floor_bp: None,
+            index_cap_bp: None,
+            overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
+            reset_frequency: Tenor::quarterly(),
+            index_tenor: None,
+            reset_lag_days: 0,
+            fixing_calendar_id: None,
+            overnight_compounding: None,
+            overnight_basis: None,
+            fallback: FloatingRateFallback::SpreadOnly,
+        },
+        schedule: quarterly,
+    };
+
+    let mut builder = CashFlowSchedule::builder();
+    let _ = builder.principal(init, issue, maturity).fixed_to_float(
+        switch,
+        fixed,
+        floating,
+        CouponType::Cash,
+    );
+    let schedule = builder.build(None).expect("fixed-to-float schedule");
+
+    let first_float = schedule
+        .get_flows()
+        .iter()
+        .find(|cf| cf.kind == CFKind::FloatReset)
+        .expect("post-switch coupon");
+    let accrual = first_float.accrual.expect("float coupon accrual");
+    assert_eq!(
+        accrual.start, switch,
+        "float window must start a fresh schedule at switch, not continue the Jan-15 roll"
+    );
+    let continued_roll = Date::from_calendar_date(2025, Month::April, 15).unwrap();
+    assert_ne!(
+        accrual.start, continued_roll,
+        "must not continue the pre-switch quarterly roll"
+    );
+    assert!(
+        first_float.accrual_factor < 0.25,
+        "first post-switch period should be a short-front stub, got {}",
+        first_float.accrual_factor
     );
 }
 
@@ -1426,5 +1504,320 @@ fn test_weighted_average_life_ignores_coupons() {
         (wal - 1.0).abs() < 0.02,
         "WAL should be ~1.0 (only principal, ignoring coupons), got {}",
         wal
+    );
+}
+
+/// Saturday maturity, quarterly Act/360, T+2 payment lag: last coupon and
+/// redemption share `adjust(maturity) + 2` business days; no notional on the
+/// raw weekend maturity.
+#[test]
+fn lagged_redemption_matches_final_coupon_on_weekend_maturity() {
+    let issue = Date::from_calendar_date(2025, Month::January, 17).unwrap(); // Friday
+    let maturity = Date::from_calendar_date(2026, Month::January, 17).unwrap(); // Saturday
+                                                                                // Following: Sat 17 -> Mon 19; +2 business days -> Wed 21.
+    let redemption_date = Date::from_calendar_date(2026, Month::January, 21).unwrap();
+
+    let float = FloatingCouponSpec {
+        coupon_type: CouponType::Cash,
+        rate_spec: FloatingRateSpec {
+            index_id: "USD-SOFR".into(),
+            spread_bp: Decimal::try_from(0.0).expect("valid"),
+            gearing: Decimal::ONE,
+            gearing_includes_spread: true,
+            index_floor_bp: None,
+            all_in_cap_bp: None,
+            all_in_floor_bp: None,
+            index_cap_bp: None,
+            overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
+            reset_frequency: Tenor::quarterly(),
+            index_tenor: None,
+            reset_lag_days: 0,
+            fixing_calendar_id: None,
+            overnight_compounding: None,
+            overnight_basis: None,
+            fallback: FloatingRateFallback::SpreadOnly,
+        },
+        schedule: finstack_quant_cashflows::builder::ScheduleParams {
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::Following,
+            calendar_id: "weekends_only".to_string(),
+            stub: StubKind::None,
+            end_of_month: false,
+            payment_lag_days: 2,
+            adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
+        },
+    };
+
+    let init = Money::new(1_000_000.0, Currency::USD);
+    let mut builder = CashFlowSchedule::builder();
+    let _ = builder.principal(init, issue, maturity).floating_cf(float);
+    let schedule = builder.build(None).expect("lagged SOFR-style schedule");
+
+    let last_coupon_date = schedule
+        .get_flows()
+        .iter()
+        .filter(|cf| cf.kind == CFKind::FloatReset)
+        .map(|cf| cf.date)
+        .max()
+        .expect("coupon flows");
+    let redemption = schedule
+        .get_flows()
+        .iter()
+        .find(|cf| cf.kind == CFKind::Notional && cf.amount.amount() > 0.0)
+        .expect("redemption flow");
+
+    assert_eq!(last_coupon_date, redemption_date);
+    assert_eq!(redemption.date, redemption_date);
+    assert!(
+        schedule
+            .get_flows()
+            .iter()
+            .all(|cf| !(cf.kind == CFKind::Notional && cf.date == maturity)),
+        "no notional may settle on the raw weekend maturity"
+    );
+}
+
+/// PIK capitalizes on the lagged payment date before redemption, so the
+/// balloon equals post-PIK outstanding and no residual-balance remains.
+#[test]
+fn pik_then_redemption_on_lagged_payment_date() {
+    let issue = Date::from_calendar_date(2025, Month::January, 17).unwrap(); // Friday
+    let maturity = Date::from_calendar_date(2026, Month::January, 17).unwrap(); // Saturday
+    let redemption_date = Date::from_calendar_date(2026, Month::January, 21).unwrap();
+
+    let fixed = FixedCouponSpec {
+        coupon_type: CouponType::Pik,
+        rate: Decimal::try_from(0.10).expect("valid"),
+        schedule: finstack_quant_cashflows::builder::ScheduleParams {
+            frequency: Tenor::semi_annual(),
+            day_count: DayCount::Act365F,
+            business_day_convention: BusinessDayConvention::Following,
+            calendar_id: "weekends_only".to_string(),
+            stub: StubKind::None,
+            end_of_month: false,
+            payment_lag_days: 2,
+            adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
+        },
+    };
+
+    let init = Money::new(1_000.0, Currency::USD);
+    let mut builder = CashFlowSchedule::builder();
+    let _ = builder.principal(init, issue, maturity).fixed_cf(fixed);
+    let schedule = builder.build(None).expect("PIK lagged schedule");
+
+    let pik_total: f64 = schedule
+        .get_flows()
+        .iter()
+        .filter(|cf| cf.kind == CFKind::Pik)
+        .map(|cf| cf.amount.amount())
+        .sum();
+    let last_pik_date = schedule
+        .get_flows()
+        .iter()
+        .filter(|cf| cf.kind == CFKind::Pik)
+        .map(|cf| cf.date)
+        .max()
+        .expect("PIK flows");
+    let redemption = schedule
+        .get_flows()
+        .iter()
+        .find(|cf| cf.kind == CFKind::Notional && cf.amount.amount() > 0.0)
+        .expect("redemption flow");
+
+    assert_eq!(last_pik_date, redemption_date);
+    assert_eq!(redemption.date, redemption_date);
+    assert!(
+        (redemption.amount.amount() - (init.amount() + pik_total)).abs()
+            < financial_tolerance(init.amount()),
+        "redemption should equal post-PIK outstanding: got {} expected {}",
+        redemption.amount.amount(),
+        init.amount() + pik_total
+    );
+    let path = schedule.outstanding_by_date().unwrap();
+    let final_outstanding = path.last().expect("outstanding path").1.amount();
+    assert!(
+        final_outstanding.abs() < financial_tolerance(init.amount()),
+        "no residual outstanding after lagged PIK redemption, got {final_outstanding}"
+    );
+}
+
+/// Lag-0 weekend maturity redeems on the adjusted business day (same as the
+/// last coupon), not the Saturday raw maturity.
+#[test]
+fn lag_zero_weekend_maturity_redeems_on_adjusted_business_day() {
+    let issue = Date::from_calendar_date(2025, Month::January, 17).unwrap(); // Friday
+    let maturity = Date::from_calendar_date(2026, Month::January, 17).unwrap(); // Saturday
+    let adjusted = Date::from_calendar_date(2026, Month::January, 19).unwrap(); // Monday
+
+    let fixed = FixedCouponSpec {
+        coupon_type: CouponType::Cash,
+        rate: Decimal::try_from(0.05).expect("valid"),
+        schedule: finstack_quant_cashflows::builder::ScheduleParams {
+            frequency: Tenor::semi_annual(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::Following,
+            calendar_id: "weekends_only".to_string(),
+            stub: StubKind::None,
+            end_of_month: false,
+            payment_lag_days: 0,
+            adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
+        },
+    };
+
+    let init = Money::new(1_000_000.0, Currency::USD);
+    let mut builder = CashFlowSchedule::builder();
+    let _ = builder.principal(init, issue, maturity).fixed_cf(fixed);
+    let schedule = builder.build(None).expect("lag-0 weekend schedule");
+
+    let last_coupon_date = schedule
+        .get_flows()
+        .iter()
+        .filter(|cf| cf.kind == CFKind::Fixed)
+        .map(|cf| cf.date)
+        .max()
+        .expect("coupon flows");
+    let redemption = schedule
+        .get_flows()
+        .iter()
+        .find(|cf| cf.kind == CFKind::Notional && cf.amount.amount() > 0.0)
+        .expect("redemption flow");
+
+    assert_eq!(last_coupon_date, adjusted);
+    assert_eq!(redemption.date, adjusted);
+    assert!(
+        schedule.get_flows().iter().all(|cf| cf.date != maturity),
+        "no flow may be dated on the unadjusted weekend maturity"
+    );
+}
+
+fn principal_exchange_fixed_spec() -> FixedCouponSpec {
+    FixedCouponSpec {
+        coupon_type: CouponType::Cash,
+        rate: Decimal::try_from(0.05).expect("valid"),
+        schedule: finstack_quant_cashflows::builder::ScheduleParams {
+            frequency: Tenor::semi_annual(),
+            day_count: DayCount::Act365F,
+            business_day_convention: BusinessDayConvention::Following,
+            calendar_id: "weekends_only".to_string(),
+            stub: StubKind::None,
+            end_of_month: false,
+            payment_lag_days: 0,
+            adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
+        },
+    }
+}
+
+/// Default builder still emits issue funding and maturity redemption notionals.
+#[test]
+fn principal_exchange_default_emits_issue_and_redemption() {
+    let issue = Date::from_calendar_date(2025, Month::January, 15).unwrap();
+    let maturity = Date::from_calendar_date(2026, Month::January, 15).unwrap();
+    let init = Money::new(1_000_000.0, Currency::USD);
+
+    let mut builder = CashFlowSchedule::builder();
+    let _ = builder
+        .principal(init, issue, maturity)
+        .fixed_cf(principal_exchange_fixed_spec());
+    let schedule = builder.build(None).expect("default principal exchange");
+
+    let notionals: Vec<_> = schedule
+        .get_flows()
+        .iter()
+        .filter(|cf| cf.kind == CFKind::Notional)
+        .collect();
+    assert_eq!(notionals.len(), 2, "default must emit issue + redemption");
+    assert_eq!(notionals[0].date, issue);
+    assert!(notionals[0].amount.amount() < 0.0);
+    assert_eq!(notionals[1].date, maturity);
+    assert!(
+        (notionals[1].amount.amount() - init.amount()).abs() < financial_tolerance(init.amount())
+    );
+}
+
+/// `PrincipalExchange::None` suppresses issue/redemption notionals but keeps
+/// coupon amounts on the same outstanding path.
+#[test]
+fn principal_exchange_none_is_coupon_only() {
+    let issue = Date::from_calendar_date(2025, Month::January, 15).unwrap();
+    let maturity = Date::from_calendar_date(2026, Month::January, 15).unwrap();
+    let init = Money::new(1_000_000.0, Currency::USD);
+    let spec = principal_exchange_fixed_spec();
+
+    let mut with_exchange = CashFlowSchedule::builder();
+    let _ = with_exchange
+        .principal(init, issue, maturity)
+        .fixed_cf(spec.clone());
+    let exchanged = with_exchange.build(None).expect("default exchange");
+
+    let mut without_exchange = CashFlowSchedule::builder();
+    let _ = without_exchange
+        .principal(init, issue, maturity)
+        .principal_exchange(PrincipalExchange::None)
+        .fixed_cf(spec);
+    let coupons_only = without_exchange.build(None).expect("no principal exchange");
+
+    assert!(
+        coupons_only
+            .get_flows()
+            .iter()
+            .all(|cf| cf.kind != CFKind::Notional),
+        "PrincipalExchange::None must not emit issue or redemption notionals"
+    );
+    let exchanged_coupons: Vec<_> = exchanged
+        .get_flows()
+        .iter()
+        .filter(|cf| cf.kind == CFKind::Fixed)
+        .collect();
+    let none_coupons: Vec<_> = coupons_only
+        .get_flows()
+        .iter()
+        .filter(|cf| cf.kind == CFKind::Fixed)
+        .collect();
+    assert_eq!(exchanged_coupons.len(), none_coupons.len());
+    for (left, right) in exchanged_coupons.iter().zip(none_coupons.iter()) {
+        assert_eq!(left.date, right.date);
+        assert!(
+            (left.amount.amount() - right.amount.amount()).abs()
+                < financial_tolerance(init.amount()),
+            "coupon amounts must match with or without notional exchange"
+        );
+    }
+}
+
+/// Scheduled amortization still emits when principal exchange is opted out.
+#[test]
+fn principal_exchange_none_keeps_amortization_flows() {
+    let issue = Date::from_calendar_date(2025, Month::January, 15).unwrap();
+    let maturity = Date::from_calendar_date(2026, Month::January, 15).unwrap();
+    let init = Money::new(1_000_000.0, Currency::USD);
+
+    let mut builder = CashFlowSchedule::builder();
+    let _ = builder
+        .principal(init, issue, maturity)
+        .principal_exchange(PrincipalExchange::None)
+        .amortization(AmortizationSpec::LinearTo {
+            final_notional: Money::new(0.0, Currency::USD),
+        })
+        .fixed_cf(principal_exchange_fixed_spec());
+    let schedule = builder.build(None).expect("amortizing no-exchange");
+
+    assert!(
+        schedule
+            .get_flows()
+            .iter()
+            .any(|cf| cf.kind == CFKind::Amortization),
+        "scheduled amortization must still emit"
+    );
+    assert!(
+        schedule
+            .get_flows()
+            .iter()
+            .all(|cf| cf.kind != CFKind::Notional),
+        "opt-out must not add a residual notional balloon"
     );
 }

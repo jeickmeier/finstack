@@ -128,6 +128,7 @@ pub(crate) mod constants;
 pub use config::{
     CalibrationConfig, CalibrationMethod, DiscountCurveSolveConfig, HazardCurveSolveConfig,
     InflationCurveSolveConfig, RatesStepConventions, ResidualWeightingScheme,
+    VolSurfaceSolveConfig,
 };
 
 /// Solver configuration (Brent/Newton).

@@ -75,7 +75,8 @@ returns them.
 | `LookbackReturns` | `performance` | `mtd` / `qtd` / `ytd` / optional `fytd`, one entry per ticker |
 | `PeriodStats` | `aggregation` | Best/worst, win rate, streaks, payoff and profit factors, CPC index |
 | `DrawdownEpisode` | `drawdown` | Returned by `Performance::drawdown_details` |
-| `BetaResult`, `GreeksResult`, `RollingGreeks`, `MultiFactorResult` | `benchmark` | Returned by benchmark methods |
+| `BetaResult`, `GreeksResult`, `RollingGreeks`, `MultiFactorResult`, `ReturnKind` | `benchmark` | Returned / consumed by benchmark methods |
+| `CagrDayCount` | `risk_metrics` | Act/365.25 default or a wrapped core `DayCount` |
 | `DatedSeries` | `risk_metrics` | Returned by `Performance::rolling_*` |
 | `beta` | `benchmark` | Freestanding OLS slope; consumed by `finstack-quant-factor-model` |
 | `correlation` | `correlation` | Public module: shared row-major correlation validation and repair |
@@ -112,6 +113,28 @@ link against this crate.
 
 - Returns are simple decimal returns (`0.01` is 1%), not percentages.
 - Annualization is derived from `finstack_quant_core::dates::PeriodKind`.
+- Risk-free rates that enter Sharpe, Treynor, M², modified Sharpe, Jensen,
+  and `ReturnKind::Total` are geometrically decompounded:
+  `rf_period = (1 + rf_annual)^{1/N} − 1`. Sterling, Calmar, and pain keep
+  `CAGR − rf_annual` (both already annual).
+- `excess_returns` subtracts a panel-aligned `rf` series (`rf.len()` must
+  equal the active date grid). `nperiods: None` decompounds at `self.ann()`.
+- CAGR defaults to Act/365.25 via `CagrDayCount`. Wrap a core `DayCount`
+  for Act/365F, Act/Act, Bus/252, and so on; Bus/252 requires a calendar.
+- Historical VaR, ES, tail ratio, parametric VaR, and Cornish–Fisher VaR
+  return `NaN` on empty or invalid series. Parametric and CF horizon
+  `None` is one period, not `ann()`.
+- Drawdown and compounding share one log-space Neumaier wealth engine.
+- FYTD is the first observation on or after the fiscal calendar start;
+  holidays are not skipped with `Following`.
+- Calmar is CAGR / |max DD| over the **active window**, not Young's
+  36-month CTA definition.
+- `correlation_matrix` uses complete-case when every ticker has ≥2 points
+  on the common span, otherwise pairwise, then Higham. Degenerate pairs
+  or repair failure return `Err`.
+- `multi_factor_greeks` takes `ReturnKind::Excess` or
+  `ReturnKind::Total { risk_free_rate }`. Factors are already-excess;
+  Total subtracts decompounded rf from the dependent series only.
 - Drawdown depths are non-positive fractions: `-0.25` is a 25% loss.
 - Rolling series are right-labeled — each output value carries the date of the
   last observation in its window.
@@ -136,7 +159,10 @@ matrices, column counts that disagree with `ticker_names`, an unknown
 `NaN` padding is allowed but the finite span must be contiguous; an interior
 `NaN` or an active return `< -1.0` is an error. `multi_factor_greeks` also
 rejects mismatched factor lengths, non-finite factors, non-positive
-annualization factors, and singular or near-singular factor matrices.
+annualization factors, an unknown or non-finite `ReturnKind::Total` rate,
+and singular or near-singular factor matrices. `correlation_matrix` and
+`excess_returns` return `Err` on length mismatch, degenerate pairs, or
+Higham failure.
 
 ## Serialization
 

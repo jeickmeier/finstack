@@ -47,9 +47,13 @@ spot_override: number | null,
  */
 dividend_yield_override: number | null,
 /**
- * Extrapolation policy for SABR parameter interpolation across expiries.
+ * Extrapolation policy for total-variance fill across expiries.
  *
- * This controls how the adapter behaves when `target_expiries` extend beyond
- * the expiries that were successfully calibrated from market quotes.
+ * After each quoted expiry is calibrated, the published expiry×strike
+ * grid is filled by interpolating total variance `w = σ²T` in expiry
+ * (not by interpolating SABR α/ν/ρ and evaluating Hagan at the target
+ * `T`). This policy controls targets that fall outside the calibrated
+ * expiry range: `Error` rejects them; `Clamp` holds the nearest slice's
+ * total variance flat.
  */
 expiry_extrapolation: SurfaceExtrapolationPolicy, };

@@ -53,6 +53,7 @@ __all__ = [
     "OvernightIndexConstraintApplication",
     "PrepaymentModelSpec",
     "PrincipalEvent",
+    "PrincipalExchange",
     "RecoveryModelSpec",
     "RollRule",
     "ScheduleParams",
@@ -270,6 +271,56 @@ class CashFlowBuilder:
         ValueError
             If *issue_date* is not strictly before *maturity*, or a date
             cannot be converted from the supplied value.
+        """
+        ...
+
+    def principal_exchange(self, exchange: PrincipalExchange) -> CashFlowBuilder:
+        """
+        Select whether issue funding and maturity redemption notionals are emitted.
+
+        Outstanding still starts at the :meth:`principal` initial amount for
+        coupon math. Scheduled amortization and explicit principal events
+        still emit. The default is
+        :attr:`PrincipalExchange.INITIAL_AND_FINAL`.
+
+        Parameters
+        ----------
+        exchange : PrincipalExchange
+            ``INITIAL_AND_FINAL`` emits the issue draw and the redemption
+            balloon on the lagged payment date. ``NONE`` tracks outstanding
+            only (vanilla IRS / basis-swap convention).
+
+        Returns
+        -------
+        CashFlowBuilder
+            This same builder, for chaining.
+
+        Notes
+        -----
+        This method does not raise.
+
+        Examples
+        --------
+        >>> import datetime
+        >>> from decimal import Decimal
+        >>> from finstack_quant.cashflows.builder import (
+        ...     CashFlowSchedule,
+        ...     FixedCouponSpec,
+        ...     PrincipalExchange,
+        ...     ScheduleParams,
+        ... )
+        >>> from finstack_quant.cashflows.primitives import CFKind
+        >>> from finstack_quant.core.money import Money
+        >>> schedule = (
+        ...     CashFlowSchedule
+        ...     .builder()
+        ...     .principal(Money(1_000_000.0, "USD"), datetime.date(2025, 1, 15), datetime.date(2026, 1, 15))
+        ...     .principal_exchange(PrincipalExchange.NONE)
+        ...     .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.semiannual_30360()))
+        ...     .build()
+        ... )
+        >>> all(cf.kind != CFKind.NOTIONAL for cf in schedule.get_flows())
+        True
         """
         ...
 
@@ -2314,6 +2365,26 @@ class RecoveryModelSpec:
             If the rate is not finite or falls outside ``[0.0, 1.0]``.
         """
         ...
+
+class PrincipalExchange:
+    """
+    Whether the builder emits issue-funding and maturity-redemption notionals.
+
+    Immutable, hashable enum-style type. Outstanding still starts at the
+    configured initial principal for coupon math. This is not the
+    cross-currency ``NotionalExchange`` policy.
+
+    Examples
+    --------
+    >>> from finstack_quant.cashflows.builder import PrincipalExchange
+    >>> PrincipalExchange.NONE != PrincipalExchange.INITIAL_AND_FINAL
+    True
+    """
+
+    NONE: PrincipalExchange
+    """Do not emit issue or redemption ``CFKind.NOTIONAL`` flows."""
+    INITIAL_AND_FINAL: PrincipalExchange
+    """Emit issue funding and maturity redemption (default)."""
 
 class RollRule:
     """

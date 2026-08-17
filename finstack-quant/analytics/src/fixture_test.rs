@@ -4,7 +4,7 @@
 //! building-block functions directly. Public-API consumers should go
 //! through [`crate::performance::Performance`].
 
-use crate::benchmark::{multi_factor_greeks, rolling_greeks};
+use crate::benchmark::{multi_factor_greeks, rolling_greeks, ReturnKind};
 use crate::dates::Date;
 use crate::risk_metrics::{cagr, expected_shortfall, sharpe, sortino, value_at_risk, CagrBasis};
 use serde::Deserialize;
@@ -70,10 +70,10 @@ fn rust_core_matches_api_invariants_fixture() {
     let expected = &fixture.expected;
 
     assert_close(
-        cagr(&fixture.returns, CagrBasis::factor(252.0)).expect("valid fixture CAGR"),
+        cagr(&fixture.returns, CagrBasis::factor(252.0), None).expect("valid fixture CAGR"),
         expected.cagr_factor,
     );
-    assert_close(sharpe(0.12, 0.18, 0.02), expected.sharpe);
+    assert_close(sharpe(0.12, 0.18, 0.02, 1.0), expected.sharpe);
     assert_close(
         sortino(&fixture.returns, true, 252.0, 0.0),
         expected.sortino,
@@ -99,7 +99,7 @@ fn rust_core_matches_api_invariants_fixture() {
     assert_vec_close(&rolling.betas, &expected.rolling_greeks.betas);
 
     let factor_refs: Vec<&[f64]> = fixture.factors.iter().map(Vec::as_slice).collect();
-    let multi = multi_factor_greeks(&fixture.returns, &factor_refs, 252.0)
+    let multi = multi_factor_greeks(&fixture.returns, &factor_refs, 252.0, ReturnKind::Excess)
         .expect("valid fixture multi-factor regression");
     assert_close(multi.alpha, expected.multi_factor_greeks.alpha);
     assert_vec_close(&multi.betas, &expected.multi_factor_greeks.betas);

@@ -7,7 +7,7 @@
 use crate::accrual::{accrued_interest_amount, AccrualConfig};
 use crate::builder::{
     CashFlowSchedule, CouponType, FeeSpec, FixedCouponSpec, FixedWindow, FloatingCouponSpec,
-    Notional, StepUpCouponSpec,
+    Notional, PrincipalExchange, StepUpCouponSpec,
 };
 use crate::primitives::{is_cash_settlement_kind, CFKind};
 use finstack_quant_core::dates::Date;
@@ -42,6 +42,15 @@ pub struct CashflowScheduleBuildSpec {
     /// Explicit principal events to add after the base principal setup.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub principal_events: Vec<PrincipalEventSpec>,
+    /// Whether to emit issue funding and maturity redemption notionals.
+    ///
+    /// Defaults to [`PrincipalExchange::InitialAndFinal`]. Set to
+    /// [`PrincipalExchange::None`] for coupon-only schedules (vanilla IRS).
+    #[serde(
+        default,
+        skip_serializing_if = "PrincipalExchange::is_initial_and_final"
+    )]
+    pub principal_exchange: PrincipalExchange,
 }
 
 /// One canonical coupon-program instruction.
@@ -254,6 +263,7 @@ impl CashflowScheduleBuildSpec {
         let mut builder = CashFlowSchedule::builder();
         let _ = builder
             .principal(self.notional.initial, self.issue, self.maturity)
+            .principal_exchange(self.principal_exchange)
             .amortization(self.notional.amort.clone());
 
         for instruction in &self.coupon_program {
@@ -324,7 +334,8 @@ impl CashflowScheduleBuildSpec {
 ///
 /// # Arguments
 ///
-/// * `spec_json` - JSON-encoded [`CashflowScheduleBuildSpec`].
+/// * `spec_json` - JSON-encoded [`CashflowScheduleBuildSpec`]. Optional
+///   `principal_exchange` is `"none"` or `"initial_and_final"` (default).
 /// * `market_json` - Optional JSON-encoded [`MarketContext`] used for floating
 ///   coupon projection.
 ///

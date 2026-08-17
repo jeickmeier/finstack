@@ -286,9 +286,10 @@ fn parse_fx_quote_convention(s: &str) -> PyResult<FxQuoteConvention> {
     name = "FxQuoteConvention",
     module = "finstack_quant.core.market_data.fx",
     frozen,
+    eq,
     skip_from_py_object
 )]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PyFxQuoteConvention {
     /// Inner Rust convention.
     pub(crate) inner: FxQuoteConvention,

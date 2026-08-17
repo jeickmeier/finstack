@@ -22,7 +22,13 @@ currency: string,
  */
 base_date: string,
 /**
- * FX spot rate (domestic per foreign), used when a quote omits `spot_fx`.
+ * T+0 cash FX rate (domestic per foreign), used when a quote omits `spot_fx`.
+ *
+ * Covered-interest parity from today needs the cash FX, not the screen
+ * "spot". Market spot is T+2 for most G10 pairs and T+1 for USD/CAD;
+ * convert to T+0 using ON/TN points before passing the rate here.
+ * Mixing T+2 screen spot with T+0 discounting biases long-tenor basis
+ * by roughly 1–2 bp.
  */
 fx_spot: number,
 /**
@@ -34,7 +40,11 @@ domestic_discount_id: string,
  */
 method: CalibrationMethod,
 /**
- * Interpolation style for the foreign curve.
+ * Interpolation style for the constructed foreign discount curve.
+ *
+ * Caller-owned: the engine does not override this field. `Linear`
+ * interpolates discount-factor ordinates and is **not** the QuantLib
+ * or Bloomberg production default.
  */
 interpolation: string,
 /**

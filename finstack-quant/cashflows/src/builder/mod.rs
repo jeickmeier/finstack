@@ -67,8 +67,8 @@ pub use specs::{
     evaluate_fee_tiers, AmortizationSpec, CouponType, DefaultCurve, DefaultModelSpec,
     FeeAccrualBasis, FeeBase, FeeSpec, FeeTier, FixedCouponSpec, FixedWindow, FloatingCouponSpec,
     FloatingRateFallback, FloatingRateSpec, Notional, OvernightCompoundingMethod,
-    OvernightIndexConstraintApplication, PrepaymentCurve, PrepaymentModelSpec, RecoveryModelSpec,
-    RollRule, ScheduleParams, StepUpCouponSpec,
+    OvernightIndexConstraintApplication, PrepaymentCurve, PrepaymentModelSpec, PrincipalExchange,
+    RecoveryModelSpec, RollRule, ScheduleParams, StepUpCouponSpec,
 };
 
 pub use credit_rates::{cdr_to_mdr, cpr_to_smm, mdr_to_cdr, smm_to_cpr};

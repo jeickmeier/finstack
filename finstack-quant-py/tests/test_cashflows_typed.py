@@ -121,12 +121,13 @@ class TestBuilderSpecs:
     def test_coupon_type_and_roll_rule(self) -> None:
         from decimal import Decimal
 
-        from finstack_quant.cashflows.builder import CouponType, RollRule
+        from finstack_quant.cashflows.builder import CouponType, PrincipalExchange, RollRule
 
         assert CouponType.CASH is not None
         assert CouponType.PIK is not None
         assert CouponType.split(Decimal("0.5"), Decimal("0.5")) is not None
         assert RollRule.NONE != RollRule.CDS_IMM
+        assert PrincipalExchange.NONE != PrincipalExchange.INITIAL_AND_FINAL
 
     def test_amortization_and_notional(self) -> None:
         from finstack_quant.cashflows.builder import AmortizationSpec, Notional

@@ -1,13 +1,17 @@
 //! Stateful [`Performance`] analytics engine.
 
 use super::types::*;
+use crate::bindings::core::dates::daycount::PyDayCount;
 use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
 use crate::bindings::pandas_utils::{
     dates_to_datetime_index, dict_to_dataframe, int_values_to_series, values_to_series,
 };
 use crate::errors::analytics_to_py as core_to_py;
+use crate::errors::value_error;
 use finstack_quant_analytics as fa;
-use finstack_quant_core::dates::{calendar_by_id, FiscalConfig, HolidayCalendar, PeriodKind};
+use finstack_quant_core::dates::{
+    calendar_by_id, DayCount, FiscalConfig, HolidayCalendar, PeriodKind,
+};
 use numpy::PyArray1;
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyTypeError;
@@ -53,6 +57,50 @@ fn resolve_fiscal_calendar(calendar_id: &str) -> PyResult<&'static dyn HolidayCa
             ),
         )
     })
+}
+
+fn parse_cagr_day_count_str(label: &str) -> PyResult<fa::CagrDayCount> {
+    match label {
+        "act365_25" | "act_365_25" | "act/365.25" => Ok(fa::CagrDayCount::Act365_25),
+        other => other
+            .parse::<DayCount>()
+            .map(fa::CagrDayCount::DayCount)
+            .map_err(value_error),
+    }
+}
+
+fn parse_cagr_day_count(day_count: Option<&Bound<'_, PyAny>>) -> PyResult<fa::CagrDayCount> {
+    let Some(value) = day_count else {
+        return Ok(fa::CagrDayCount::Act365_25);
+    };
+    if value.is_none() {
+        return Ok(fa::CagrDayCount::Act365_25);
+    }
+    if let Ok(day_count) = value.extract::<PyRef<'_, PyDayCount>>() {
+        return Ok(fa::CagrDayCount::DayCount(day_count.inner));
+    }
+    if let Ok(label) = value.extract::<String>() {
+        return parse_cagr_day_count_str(&label);
+    }
+    Err(PyTypeError::new_err(
+        "day_count must be None, 'act365_25', a DayCount name such as 'act_365f', or a DayCount",
+    ))
+}
+
+fn resolve_optional_calendar(
+    calendar_id: Option<&str>,
+) -> PyResult<Option<&'static dyn HolidayCalendar>> {
+    calendar_id.map(resolve_fiscal_calendar).transpose()
+}
+
+fn parse_return_kind(return_kind: &str, risk_free_rate: f64) -> PyResult<fa::ReturnKind> {
+    match return_kind {
+        "excess" => Ok(fa::ReturnKind::Excess),
+        "total" => Ok(fa::ReturnKind::Total { risk_free_rate }),
+        other => Err(value_error(format!(
+            "Unknown return_kind {other:?}; expected 'excess' or 'total'"
+        ))),
+    }
 }
 
 /// Parse a frequency string into a [`PeriodKind`].
@@ -462,12 +510,25 @@ impl PyPerformance {
 
     /// CAGR for each ticker.
     ///
+    /// ``day_count=None`` uses Act/365.25. Pass ``"act365_25"`` for the same
+    /// default, a core DayCount name such as ``"act_365f"`` / ``"bus_252"``,
+    /// or a :class:`~finstack_quant.core.dates.DayCount`. ``bus_252`` requires
+    /// ``calendar_id``.
+    ///
     /// Returns
     /// -------
     /// pandas.Series
     ///     Compound annual growth rate indexed by ticker name.
-    fn cagr<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let values = self.inner.cagr().map_err(core_to_py)?;
+    #[pyo3(signature = (day_count = None, calendar_id = None))]
+    fn cagr<'py>(
+        &self,
+        py: Python<'py>,
+        day_count: Option<&Bound<'_, PyAny>>,
+        calendar_id: Option<&str>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let day_count = parse_cagr_day_count(day_count)?;
+        let calendar = resolve_optional_calendar(calendar_id)?;
+        let values = self.inner.cagr(day_count, calendar).map_err(core_to_py)?;
         values_to_series(py, values, self.inner.ticker_names(), "cagr")
     }
 
@@ -522,7 +583,8 @@ impl PyPerformance {
         values_to_series(py, values, self.inner.ticker_names(), "sortino")
     }
 
-    /// Calmar ratio for each ticker.
+    /// Calmar ratio for each ticker over the active window
+    /// (CAGR / |max drawdown|), not Young's 36-month CTA definition.
     ///
     /// Returns
     /// -------
@@ -867,31 +929,43 @@ impl PyPerformance {
         values_to_series(py, values, self.inner.ticker_names(), "batting_average")
     }
 
-    /// Parametric VaR for each ticker.
+    /// Equal-weight Gaussian VaR for each ticker.
+    ///
+    /// ``horizon_periods=None`` is one-period VaR. Pass a positive count to
+    /// scale mean by ``h`` and volatility by ``sqrt(h)``.
     ///
     /// Returns
     /// -------
     /// pandas.Series
     ///     Parametric value at risk indexed by ticker name.
-    #[pyo3(signature = (confidence = 0.95))]
-    fn parametric_var<'py>(&self, py: Python<'py>, confidence: f64) -> PyResult<Bound<'py, PyAny>> {
-        let values = self.inner.parametric_var(confidence);
+    #[pyo3(signature = (confidence = 0.95, horizon_periods = None))]
+    fn parametric_var<'py>(
+        &self,
+        py: Python<'py>,
+        confidence: f64,
+        horizon_periods: Option<f64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let values = self.inner.parametric_var(confidence, horizon_periods);
         values_to_series(py, values, self.inner.ticker_names(), "parametric_var")
     }
 
     /// Cornish-Fisher VaR for each ticker.
     ///
+    /// ``horizon_periods=None`` is one-period VaR. Pass a positive count to
+    /// scale the Cornish–Fisher moments to that horizon.
+    ///
     /// Returns
     /// -------
     /// pandas.Series
     ///     Cornish-Fisher modified value at risk indexed by ticker name.
-    #[pyo3(signature = (confidence = 0.95))]
+    #[pyo3(signature = (confidence = 0.95, horizon_periods = None))]
     fn cornish_fisher_var<'py>(
         &self,
         py: Python<'py>,
         confidence: f64,
+        horizon_periods: Option<f64>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let values = self.inner.cornish_fisher_var(confidence);
+        let values = self.inner.cornish_fisher_var(confidence, horizon_periods);
         values_to_series(py, values, self.inner.ticker_names(), "cornish_fisher_var")
     }
 
@@ -1010,8 +1084,13 @@ impl PyPerformance {
     }
 
     /// Correlation matrix across all tickers.
-    fn correlation_matrix(&self, py: Python<'_>) -> Vec<Vec<f64>> {
-        py.detach(|| self.inner.correlation_matrix())
+    ///
+    /// Uses the complete-case common window when every ticker has at least
+    /// two overlapping points; otherwise pairwise intersecting spans. The
+    /// matrix is Higham-repaired to the nearest correlation matrix.
+    /// Raises when a pair is degenerate or repair fails.
+    fn correlation_matrix(&self, py: Python<'_>) -> PyResult<Vec<Vec<f64>>> {
+        py.detach(|| self.inner.correlation_matrix().map_err(core_to_py))
     }
 
     /// Cumulative returns outperformance vs benchmark.
@@ -1024,10 +1103,14 @@ impl PyPerformance {
         self.inner.drawdown_difference()
     }
 
-    /// Excess returns over a risk-free rate series.
+    /// Excess returns over a risk-free rate series aligned to the panel grid.
+    ///
+    /// ``rf`` must have one value per active panel date. ``nperiods=None``
+    /// geometrically decompounds an annual series using the engine frequency;
+    /// pass ``1.0`` when ``rf`` is already periodic.
     #[pyo3(signature = (rf, nperiods = None))]
-    fn excess_returns(&self, rf: Vec<f64>, nperiods: Option<f64>) -> Vec<Vec<f64>> {
-        self.inner.excess_returns(&rf, nperiods)
+    fn excess_returns(&self, rf: Vec<f64>, nperiods: Option<f64>) -> PyResult<Vec<Vec<f64>>> {
+        self.inner.excess_returns(&rf, nperiods).map_err(core_to_py)
     }
 
     // -- Per-ticker indexed methods --
@@ -1129,14 +1212,23 @@ impl PyPerformance {
     }
 
     /// Multi-factor regression for a specific ticker.
+    ///
+    /// Factor series are already-excess. ``return_kind="excess"`` leaves the
+    /// ticker series unchanged. ``return_kind="total"`` subtracts the
+    /// geometrically decompounded period risk-free rate from the ticker
+    /// series only.
+    #[pyo3(signature = (ticker_idx, factor_returns, return_kind = "excess", risk_free_rate = 0.0))]
     fn multi_factor_greeks(
         &self,
         py: Python<'_>,
         ticker_idx: usize,
         factor_returns: Vec<Vec<f64>>,
+        return_kind: &str,
+        risk_free_rate: f64,
     ) -> PyResult<PyMultiFactorResult> {
         let refs: Vec<&[f64]> = factor_returns.iter().map(|v| v.as_slice()).collect();
-        py.detach(|| self.inner.multi_factor_greeks(ticker_idx, &refs))
+        let kind = parse_return_kind(return_kind, risk_free_rate)?;
+        py.detach(|| self.inner.multi_factor_greeks(ticker_idx, &refs, kind))
             .map(|r| PyMultiFactorResult { inner: r })
             .map_err(core_to_py)
     }
@@ -1157,11 +1249,10 @@ impl PyPerformance {
 
     /// Period-to-date lookback returns.
     ///
-    /// The FYTD window starts at the fiscal-year start
-    /// (``fiscal_year_start_month`` / ``fiscal_year_start_day``) adjusted to
-    /// the next business day on ``calendar``. The default calendar is
-    /// ``"nyse"``; pass the calendar matching your market (any id registered
-    /// in the core ``calendar_by_id``) for non-US panels.
+    /// FYTD is the first observation on or after the fiscal calendar start
+    /// through ``ref_date``. Holidays are not skipped. The first included
+    /// simple return still spans the prior close. ``calendar`` is accepted
+    /// for call-site compatibility.
     #[pyo3(signature = (ref_date, fiscal_year_start_month = None, fiscal_year_start_day = None, calendar = "nyse"))]
     fn lookback_returns(
         &self,
@@ -1242,7 +1333,12 @@ impl PyPerformance {
                 let (var, es) = self.inner.value_at_risk_and_es(confidence);
                 let (skew, kurt) = self.inner.skew_kurt();
                 Ok([
-                    ("cagr", self.inner.cagr().map_err(core_to_py)?),
+                    (
+                        "cagr",
+                        self.inner
+                            .cagr(fa::CagrDayCount::default(), None)
+                            .map_err(core_to_py)?,
+                    ),
                     ("mean_return", self.inner.mean_return(true)),
                     ("volatility", self.inner.volatility(true)),
                     ("sharpe", self.inner.sharpe(risk_free_rate)),
@@ -1322,7 +1418,7 @@ impl PyPerformance {
     /// Returns a ticker × ticker matrix with ticker names as index and columns.
     fn to_correlation_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let names = self.inner.ticker_names();
-        let matrix = self.inner.correlation_matrix();
+        let matrix = self.inner.correlation_matrix().map_err(core_to_py)?;
 
         let pd = py.import("pandas")?;
         let kwargs = PyDict::new(py);

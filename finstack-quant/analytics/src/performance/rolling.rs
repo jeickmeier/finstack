@@ -174,7 +174,8 @@ impl Performance {
     ///
     /// * `ticker_idx`     - Zero-based column index of the ticker.
     /// * `window`         - Look-back window length in periods.
-    /// * `risk_free_rate` - Annualized risk-free rate to subtract.
+    /// * `risk_free_rate` - Annualized risk-free rate, geometrically
+    ///   decompounded to the panel frequency before subtraction.
     ///
     /// # Returns
     ///

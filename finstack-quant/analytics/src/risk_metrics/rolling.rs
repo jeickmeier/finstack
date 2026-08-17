@@ -91,7 +91,8 @@ fn nan_series(dates: &[Date], start: usize, len: usize) -> DatedSeries {
 ///   output; must be at least as long as `returns`.
 /// * `window` - Look-back window length in periods.
 /// * `ann_factor` - Number of periods per year for annualization.
-/// * `risk_free_rate` - Annualized risk-free rate to subtract.
+/// * `risk_free_rate` - Annualized risk-free rate, geometrically
+///   decompounded to the observation frequency before subtraction.
 ///
 /// # Returns
 ///
@@ -122,7 +123,8 @@ pub(crate) fn rolling_sharpe(
             (m2 / (w - 1.0)).max(0.0)
         };
         let ann_vol = var.sqrt() * ann_factor.sqrt();
-        out.values.push(sharpe(ann_mean, ann_vol, risk_free_rate));
+        out.values
+            .push(sharpe(ann_mean, ann_vol, risk_free_rate, ann_factor));
         out.dates.push(dates[date_idx]);
         date_idx += 1;
     });

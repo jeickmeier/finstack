@@ -54,11 +54,10 @@ pub struct DrawdownEpisode {
 /// # Arguments
 ///
 /// * `returns` - Slice of period simple returns (e.g., `0.01` = +1 %).
-///   Returns below `−1.0` drive wealth negative, which is mathematically
-///   valid for leveraged positions but physically meaningless for long-only
-///   portfolios. Callers should validate inputs if negative wealth is
-///   not expected. `NaN` values propagate silently through all downstream
-///   drawdown metrics.
+///   Returns ≤ −1.0 are clamped by the shared wealth engine to a near-zero
+///   growth factor (total wipeout). Non-finite returns mark the path
+///   invalid from that point forward, so the current and subsequent
+///   drawdowns become `NaN`.
 ///
 /// # Returns
 ///
@@ -69,11 +68,11 @@ pub(crate) fn to_drawdown_series(returns: &[f64]) -> Vec<f64> {
     if returns.is_empty() {
         return vec![];
     }
-    let mut wealth = 1.0;
+    let mut engine = crate::returns::WealthEngine::new();
     let mut peak = 1.0;
     let mut dd = Vec::with_capacity(returns.len());
     for &r in returns {
-        wealth *= 1.0 + r;
+        let wealth = engine.step(r);
         if wealth > peak {
             peak = wealth;
         }
@@ -356,6 +355,51 @@ mod tests {
     }
 
     #[test]
+    fn drawdown_wealth_matches_comp_sum_on_long_mixed_sign_series() {
+        let r: Vec<f64> = (0..5000)
+            .map(|i| (((i % 17) as f64) - 8.0) * 0.0003)
+            .collect();
+        let cs = crate::returns::comp_sum(&r);
+        let mut engine = crate::returns::WealthEngine::new();
+        let mut last_wealth = 1.0;
+        for &ret in &r {
+            last_wealth = engine.step(ret);
+        }
+        let comp_wealth = 1.0 + cs.last().copied().unwrap_or(0.0);
+        assert!((comp_wealth - last_wealth).abs() < 1e-12);
+
+        let dd = to_drawdown_series(&r);
+        let mut engine = crate::returns::WealthEngine::new();
+        let mut peak = 1.0;
+        for (i, &ret) in r.iter().enumerate() {
+            let wealth = engine.step(ret);
+            if wealth > peak {
+                peak = wealth;
+            }
+            let expected_dd = wealth / peak - 1.0;
+            assert!(
+                (dd[i] - expected_dd).abs() < 1e-12,
+                "drawdown wealth path diverged at {i}: {} vs {expected_dd}",
+                dd[i]
+            );
+        }
+    }
+
+    #[test]
+    fn drawdown_series_propagates_nan() {
+        let dd = to_drawdown_series(&[0.05, f64::NAN, 0.10]);
+        assert!(dd[1].is_nan());
+        assert!(dd[2].is_nan());
+    }
+
+    #[test]
+    fn drawdown_series_handles_total_wipeout() {
+        let dd = to_drawdown_series(&[0.05, -1.0, 0.10]);
+        assert!(dd.iter().all(|v| v.is_finite()));
+        assert!(dd[1] < -0.99);
+    }
+
+    #[test]
     fn drawdown_series_basic() {
         let r = [0.10, -0.20, 0.05, 0.10];
         let dd = to_drawdown_series(&r);
@@ -553,10 +597,9 @@ fn ratio_or_sign_infinity(numerator: f64, denominator: f64) -> f64 {
     }
 }
 
-/// Calmar ratio = CAGR / |max drawdown|.
+/// Calmar ratio = CAGR / |max drawdown| over the supplied active window.
 ///
-/// Compares annualized growth against the worst peak-to-trough loss,
-/// making it particularly useful for evaluating trend-following strategies.
+/// This is the active-window ratio, not Young's 36-month CTA definition.
 ///
 /// # Arguments
 ///
@@ -811,7 +854,7 @@ mod drawdown_ratio_tests {
         let returns = [0.01, -0.02, 0.015, -0.005, 0.012, 0.008];
         let ann = 252.0;
         let cagr_val =
-            crate::risk_metrics::cagr(&returns, crate::risk_metrics::CagrBasis::factor(ann))
+            crate::risk_metrics::cagr(&returns, crate::risk_metrics::CagrBasis::factor(ann), None)
                 .expect("valid CAGR");
         let dd = to_drawdown_series(&returns);
         let max_dd = dd.iter().copied().fold(0.0_f64, f64::min);

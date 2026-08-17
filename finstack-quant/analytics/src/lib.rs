@@ -27,7 +27,7 @@
 //!
 //! Result and config types ([`PeriodStats`], [`DrawdownEpisode`],
 //! [`BetaResult`], [`GreeksResult`], [`RollingGreeks`], [`MultiFactorResult`],
-//! [`DatedSeries`], [`LookbackReturns`]) are re-exported here because
+//! [`ReturnKind`], [`DatedSeries`], [`LookbackReturns`]) are re-exported here because
 //! `Performance` returns them.
 //!
 //! Freestanding public exceptions are intentionally narrow:
@@ -93,7 +93,7 @@ pub(crate) mod risk_metrics;
 mod fixture_test;
 
 pub use aggregation::PeriodStats;
-pub use benchmark::{beta, BetaResult, GreeksResult, MultiFactorResult, RollingGreeks};
+pub use benchmark::{beta, BetaResult, GreeksResult, MultiFactorResult, ReturnKind, RollingGreeks};
 pub use drawdown::DrawdownEpisode;
 pub use performance::{LookbackReturns, Performance};
-pub use risk_metrics::DatedSeries;
+pub use risk_metrics::{CagrDayCount, DatedSeries};

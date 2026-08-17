@@ -23,7 +23,7 @@ use crate::dates::date_extensions::DateExt;
 use crate::dates::Date;
 use core::fmt;
 use core::str::FromStr;
-use time::Month;
+use time::{Duration, Month};
 
 /// Period frequency type.
 ///
@@ -123,6 +123,37 @@ impl PeriodKind {
     /// For all variants this equals `periods_per_year()` cast to `f64`.
     pub fn annualization_factor(self) -> f64 {
         self.periods_per_year() as f64
+    }
+
+    /// Observation date immediately before `first` at this frequency.
+    ///
+    /// Reconstructs the synthetic prior price date so a return-aligned
+    /// panel has a holding period of one frequency step, independent of
+    /// irregular gaps in the observed date grid.
+    ///
+    /// - Daily: one calendar day before `first`
+    /// - Weekly: seven calendar days before `first`
+    /// - Monthly / quarterly / semi-annual / annual: step back 1 / 3 / 6 /
+    ///   12 months, clamping to the last valid day of the target month
+    ///
+    /// # Arguments
+    ///
+    /// * `first` - First return-aligned observation date in the series.
+    ///
+    /// # Returns
+    ///
+    /// The prior observation date. Saturates at [`Date::MIN`] if
+    /// subtraction would underflow the calendar.
+    #[must_use]
+    pub fn prior_observation_date(self, first: Date) -> Date {
+        match self {
+            Self::Daily => first.checked_sub(Duration::days(1)).unwrap_or(Date::MIN),
+            Self::Weekly => first.checked_sub(Duration::days(7)).unwrap_or(Date::MIN),
+            Self::Monthly => first.add_months(-1),
+            Self::Quarterly => first.add_months(-3),
+            Self::SemiAnnual => first.add_months(-6),
+            Self::Annual => first.add_months(-12),
+        }
     }
 
     #[inline]
@@ -1382,6 +1413,55 @@ mod tests {
     fn prev_rolls_to_previous_iso_year_last_week() {
         let prev = PeriodId::week(2022, 1).prev().expect("previous week");
         assert_eq!(prev, PeriodId::week(2021, 52));
+    }
+
+    #[test]
+    fn prior_observation_date_daily_is_one_calendar_day() {
+        let first = d(2024, Month::January, 3);
+        assert_eq!(
+            PeriodKind::Daily.prior_observation_date(first),
+            d(2024, Month::January, 2)
+        );
+    }
+
+    #[test]
+    fn prior_observation_date_weekly_is_seven_days() {
+        let first = d(2024, Month::January, 8);
+        assert_eq!(
+            PeriodKind::Weekly.prior_observation_date(first),
+            d(2024, Month::January, 1)
+        );
+    }
+
+    #[test]
+    fn prior_observation_date_month_end_clamps() {
+        let jan31 = d(2023, Month::January, 31);
+        assert_eq!(
+            PeriodKind::Monthly.prior_observation_date(jan31),
+            d(2022, Month::December, 31)
+        );
+        let feb28 = d(2023, Month::February, 28);
+        assert_eq!(
+            PeriodKind::Monthly.prior_observation_date(feb28),
+            d(2023, Month::January, 28)
+        );
+        let mar31 = d(2023, Month::March, 31);
+        assert_eq!(
+            PeriodKind::Monthly.prior_observation_date(mar31),
+            d(2023, Month::February, 28)
+        );
+        assert_eq!(
+            PeriodKind::Quarterly.prior_observation_date(jan31),
+            d(2022, Month::October, 31)
+        );
+        assert_eq!(
+            PeriodKind::SemiAnnual.prior_observation_date(jan31),
+            d(2022, Month::July, 31)
+        );
+        assert_eq!(
+            PeriodKind::Annual.prior_observation_date(jan31),
+            d(2022, Month::January, 31)
+        );
     }
 
     #[test]

@@ -466,18 +466,19 @@ pub struct FloatingRateSpec {
 
     /// Reset frequency for rate fixings.
     ///
-    /// This is the cadence at which the rate refixes; it also serves as the
-    /// default index tenor when [`Self::index_tenor`] is `None`.
+    /// This is the cadence at which the rate refixes. When
+    /// [`Self::index_tenor`] is `None`, it is also the tenor used only to
+    /// build the diagnostic index-maturity date in projection error context.
     pub reset_frequency: Tenor,
 
-    /// Underlying index tenor used to project the forward rate (term rates).
+    /// Diagnostic tenor for term-index projection error context.
     ///
-    /// The forward rate is projected over
-    /// `[accrual_start, accrual_start + index_tenor]`. When `None` (the serde
-    /// default), the index tenor falls back to [`Self::reset_frequency`]. Set this
-    /// explicitly when the reset cadence differs from the index's underlying
-    /// deposit period (e.g. a monthly-paying leg referencing a 3M index).
-    /// Ignored for overnight-compounded legs.
+    /// The named forward curve is already the term index (for example a 3M
+    /// EURIBOR curve). Projection is `fwd.rate(reset_date)`, not a FRA-style
+    /// average over `[reset, reset + tenor]`. This field (or
+    /// [`Self::reset_frequency`] when `None`) is used only to compute
+    /// `index_maturity` for error messages. Ignored for overnight-compounded
+    /// legs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub index_tenor: Option<Tenor>,
 
@@ -504,13 +505,14 @@ pub struct FloatingRateSpec {
     /// Day-count basis for the overnight compounding denominator.
     ///
     /// This controls the annualization factor used when compounding daily
-    /// overnight fixings (e.g., 360 for SOFR/ESTR/TONA, 365 for SONIA).
-    /// It is independent of the leg's accrual day count (`day_count`), which
-    /// governs the coupon year fraction.
+    /// overnight fixings (e.g., 360 for SOFR/€STR/TONA, 365 for SONIA).
+    /// It is independent of the leg's accrual day count when set explicitly.
     ///
-    /// Defaults to `Act/360` when `None`, matching SOFR/ESTR/TONA
-    /// convention. Set to `Act/365F` for SONIA.
-    /// Ignored when `overnight_compounding` is `None`.
+    /// When `None` and `overnight_compounding` is set, the coupon
+    /// `schedule.day_count` is used if it is `Act360` or `Act365F`. Other
+    /// coupon day counts (for example `Thirty360`) error unless an explicit
+    /// `Act360` or `Act365F` basis is supplied. Ignored when
+    /// `overnight_compounding` is `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub overnight_basis: Option<DayCount>,
 

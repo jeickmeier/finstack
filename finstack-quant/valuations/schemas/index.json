@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "$id": "https://finstack_quant.dev/schemas/calibration/1/calibration.schema.json",
-      "bytes": 216791,
+      "bytes": 219889,
       "kind": "input",
       "path": "schemas/calibration/1/calibration.schema.json",
       "summary": "Build a market from quotes: a calibration plan, flat market data, and any pre-built curves or surfaces.",
@@ -250,7 +250,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/levered_real_estate_equity.schema.json",
-      "bytes": 830406,
+      "bytes": 830535,
       "kind": "input",
       "path": "schemas/instruments/1/equity/levered_real_estate_equity.schema.json",
       "summary": "Property equity net of its financing stack.",
@@ -322,7 +322,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/basket.schema.json",
-      "bytes": 830487,
+      "bytes": 830616,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/basket.schema.json",
       "summary": "Weighted basket of constituents priced as one position.",
@@ -394,7 +394,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/bond.schema.json",
-      "bytes": 83997,
+      "bytes": 84126,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/bond.schema.json",
       "summary": "Fixed- or floating-rate cash bond with a coupon schedule.",
@@ -402,7 +402,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/bond_future.schema.json",
-      "bytes": 96150,
+      "bytes": 96279,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/bond_future.schema.json",
       "summary": "Exchange-traded bond future with a deliverable basket and CTD.",
@@ -410,7 +410,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/convertible_bond.schema.json",
-      "bytes": 53882,
+      "bytes": 54011,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/convertible_bond.schema.json",
       "summary": "Corporate bond convertible into a fixed number of shares.",
@@ -434,7 +434,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/revolving_credit.schema.json",
-      "bytes": 45358,
+      "bytes": 45487,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/revolving_credit.schema.json",
       "summary": "Committed revolver with drawn/undrawn balances and commitment fees.",
@@ -442,7 +442,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/structured_credit.schema.json",
-      "bytes": 188037,
+      "bytes": 188166,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/structured_credit.schema.json",
       "summary": "ABS/CLO/RMBS/CMBS deal: collateral pool, tranches and waterfall.",
@@ -450,7 +450,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/term_loan.schema.json",
-      "bytes": 57407,
+      "bytes": 57536,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/term_loan.schema.json",
       "summary": "Amortising leveraged loan with call protection and covenants.",
@@ -546,7 +546,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json",
-      "bytes": 908559,
+      "bytes": 908688,
       "kind": "input",
       "path": "schemas/instruments/1/instrument.schema.json",
       "summary": "The seventy-branch union of every instrument type. Prefer the per-type schema beside it: this document is too large to hand to a model.",
@@ -690,7 +690,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/market/1/market_quote.schema.json",
-      "bytes": 42507,
+      "bytes": 42543,
       "kind": "component",
       "path": "schemas/market/1/market_quote.schema.json",
       "summary": "One market observation, tagged by asset class.",

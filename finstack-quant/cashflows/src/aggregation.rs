@@ -676,6 +676,12 @@ pub(crate) fn credit_adjusted_period_pv(
 
 /// Present value one cashflow under payment-date recovery semantics.
 ///
+/// Recovery is assumed paid on the scheduled payment date. Coupons are
+/// survival-weighted only; there is no coupon accrued-on-default term. This
+/// is **not** the ISDA CDS standard model. The mid-point / default-integrated
+/// path is `pub(crate)` (`credit_adjusted_period_pv` with
+/// `RecoveryTiming::AtDefaultIntegrated`).
+///
 /// This is the checked row-level counterpart to the aggregate credit PV APIs.
 /// It applies the same cash/non-cash classification, historical-flow cutoff,
 /// survival weighting, and principal recovery treatment used by periodized

@@ -17,7 +17,7 @@ use finstack_quant_valuations::calibration::{
     CalibrationConfig, CalibrationDiagnostics, CalibrationMethod, CalibrationReport,
     DiscountCurveSolveConfig, HazardCurveSolveConfig, InflationCurveSolveConfig, QuoteQuality,
     RateBounds, RateBoundsPolicy, RatesStepConventions, ResidualWeightingScheme, SolverConfig,
-    ValidationMode,
+    ValidationMode, VolSurfaceSolveConfig,
 };
 use finstack_quant_valuations::instruments::OptionType;
 use finstack_quant_valuations::market::quotes::bond::BondQuote;
@@ -86,6 +86,7 @@ fn export_calibration_types() {
     DiscountCurveSolveConfig::export(cfg).expect("export DiscountCurveSolveConfig");
     HazardCurveSolveConfig::export(cfg).expect("export HazardCurveSolveConfig");
     InflationCurveSolveConfig::export(cfg).expect("export InflationCurveSolveConfig");
+    VolSurfaceSolveConfig::export(cfg).expect("export VolSurfaceSolveConfig");
     RateBoundsPolicy::export(cfg).expect("export RateBoundsPolicy");
     RatesStepConventions::export(cfg).expect("export RatesStepConventions");
     ResidualWeightingScheme::export(cfg).expect("export ResidualWeightingScheme");

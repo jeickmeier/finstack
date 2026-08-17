@@ -164,6 +164,48 @@ class TestReturnRiskMetrics:
         assert list(values.index) == ["ACME", "BENCH"]
         assert all(isinstance(v, float) for v in values)
 
+    def test_cagr_act365_25_label_matches_default(self, perf_prices: Performance) -> None:
+        default = perf_prices.cagr()
+        labeled = perf_prices.cagr(day_count="act365_25")
+        assert default["ACME"] == pytest.approx(labeled["ACME"])
+        assert default["BENCH"] == pytest.approx(labeled["BENCH"])
+
+    def test_cagr_bus252_requires_calendar(self, perf_prices: Performance) -> None:
+        with pytest.raises(AnalyticsError):
+            perf_prices.cagr(day_count="bus_252")
+        values = perf_prices.cagr(day_count="bus_252", calendar_id="nyse")
+        assert list(values.index) == ["ACME", "BENCH"]
+        assert not math.isnan(values["ACME"])
+
+    def test_parametric_var_horizon_changes_result(self, perf_prices: Performance) -> None:
+        one = perf_prices.parametric_var(0.95)
+        ten = perf_prices.parametric_var(0.95, horizon_periods=10.0)
+        assert list(one.index) == ["ACME", "BENCH"]
+        assert one["ACME"] != pytest.approx(ten["ACME"])
+
+    def test_excess_returns_rejects_length_mismatch(self, perf_prices: Performance) -> None:
+        with pytest.raises(AnalyticsError):
+            perf_prices.excess_returns([0.0])
+
+    def test_excess_returns_zero_rf_matches_returns(self, perf_prices: Performance) -> None:
+        rf = [0.0] * len(perf_prices.active_dates())
+        excess = perf_prices.excess_returns(rf, nperiods=1.0)
+        raw = perf_prices.returns()
+        assert excess[0] == pytest.approx(raw[0])
+
+    def test_correlation_matrix_is_square_psd_identity_diag(self) -> None:
+        dates = _daily_dates(6)
+        returns = [
+            [0.01, -0.02, 0.015, 0.0, 0.01, -0.01],
+            [0.005, -0.01, 0.0, 0.005, 0.02, -0.015],
+        ]
+        perf = Performance.from_returns_arrays(dates, returns, ["A", "B"])
+        corr = perf.correlation_matrix()
+        assert len(corr) == 2
+        assert len(corr[0]) == 2
+        assert corr[0][0] == pytest.approx(1.0)
+        assert corr[1][1] == pytest.approx(1.0)
+
     def test_volatility_positive_for_oscillating_series(self, perf_prices: Performance) -> None:
         vols = perf_prices.volatility(annualize=True)
         assert vols["ACME"] > 0.0  # ACME oscillates
@@ -367,6 +409,20 @@ class TestMultiFactor:
         bad = [float("nan")] + [0.001] * (n - 1)
         with pytest.raises(AnalyticsError):
             perf_prices.multi_factor_greeks(0, [bad])
+
+    def test_multi_factor_total_zero_matches_excess(self, perf_prices: Performance) -> None:
+        n = len(perf_prices.dates())
+        factor = [0.001 * (i % 5) for i in range(n)]
+        excess = perf_prices.multi_factor_greeks(0, [factor], return_kind="excess")
+        total = perf_prices.multi_factor_greeks(0, [factor], return_kind="total", risk_free_rate=0.0)
+        assert excess.alpha == pytest.approx(total.alpha)
+        assert float(excess.betas[0]) == pytest.approx(float(total.betas[0]))
+
+    def test_multi_factor_rejects_unknown_kind(self, perf_prices: Performance) -> None:
+        n = len(perf_prices.dates())
+        factor = [0.001] * n
+        with pytest.raises(ValueError, match="return_kind"):
+            perf_prices.multi_factor_greeks(0, [factor], return_kind="jensen")
 
 
 # Date window mutation

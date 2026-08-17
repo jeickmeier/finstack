@@ -4,11 +4,12 @@ use crate::calibration::api::schema::ForwardCurveParams;
 use crate::calibration::config::CalibrationConfig;
 use crate::calibration::config::CalibrationMethod;
 use crate::calibration::config::ResidualWeightingScheme;
+use crate::calibration::constants::WEIGHT_MIN_FLOOR;
 use crate::calibration::solver::global::GlobalFitOptimizer;
 use crate::calibration::solver::traits::GlobalSolveTarget;
 use crate::calibration::targets::util::{
     discount_and_forward_curve_ids, prepare_rate_calibration_quotes_with_ois_override,
-    ContextScratch,
+    quote_annuity_proxy, ContextScratch,
 };
 use crate::calibration::CalibrationReport;
 use crate::instruments::rates::deposit::Deposit;
@@ -48,6 +49,8 @@ pub(crate) struct ForwardCurveTargetParams {
     pub(crate) config: CalibrationConfig,
     /// Convention for converting dates to time axis (year fractions).
     pub(crate) time_day_count: DayCount,
+    /// Residual normalization notional (used to scale PV residuals to per-unit notional).
+    pub(crate) residual_notional: f64,
     /// Context providing supporting market data (e.g. discount curves).
     pub(crate) base_context: MarketContext,
 }
@@ -72,6 +75,8 @@ pub(crate) struct ForwardCurveTarget {
     pub(crate) config: CalibrationConfig,
     /// Day count convention for time calculations.
     pub(crate) time_day_count: DayCount,
+    /// Residual normalization notional.
+    pub(crate) residual_notional: f64,
     /// Reusable scratch context (see [`ContextScratch`]).
     scratch: ContextScratch,
     /// Actual contractual reset/end times used to build projection DFs.
@@ -92,6 +97,7 @@ impl ForwardCurveTarget {
             solve_interp: params.solve_interp,
             config: params.config,
             time_day_count: params.time_day_count,
+            residual_notional: params.residual_notional,
             scratch,
             projection_grid: RefCell::new(None),
             parameter_count: Cell::new(0),
@@ -116,7 +122,7 @@ impl ForwardCurveTarget {
                 params.curve_id.as_ref(),
             ),
             params.conventions.curve_day_count,
-            1.0,
+            1_000_000.0,
             params.conventions.ois_compounding.clone(),
         )?;
         let prepared_quotes = prepared.quotes;
@@ -134,6 +140,7 @@ impl ForwardCurveTarget {
             solve_interp: params.interpolation,
             config: config.clone(),
             time_day_count: curve_day_count,
+            residual_notional: 1_000_000.0,
             base_context: context.clone(),
         });
 
@@ -235,7 +242,7 @@ impl ForwardCurveTarget {
                 contract: RateCalibrationFutureContractId::new(contract.as_str()),
                 expiry: *expiry,
                 price: *price,
-                convexity_adjustment: *convexity_adjustment,
+                convexity_adjustment: Some(*convexity_adjustment),
             },
             RateQuote::Swap {
                 index,
@@ -345,7 +352,7 @@ impl ForwardCurveTarget {
                 price,
                 convexity_adjustment,
                 ..
-            } => Ok((100.0 - price) / 100.0 - convexity_adjustment.unwrap_or(0.0)),
+            } => Ok((100.0 - price) / 100.0 - convexity_adjustment),
         }
     }
 
@@ -729,6 +736,16 @@ impl GlobalSolveTarget for ForwardCurveTarget {
                         )));
                     }
                 };
+                if !self.residual_notional.is_finite() || self.residual_notional <= 0.0 {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "Invalid residual_notional {}: expected finite positive value",
+                        self.residual_notional
+                    )));
+                }
+                // Deposits price off the discount curve, not the projection curve
+                // being fitted. Convert the index-basis forward error into PV per
+                // unit notional (`τ·Δr`) so deposits share residual space with
+                // FRA / futures / swap `value_raw / notional`.
                 *residual = if let RateQuote::Deposit { rate, index, .. } = pq.quote.as_ref() {
                     let (start, end) =
                         self.reset_intervals(pq)?.first().copied().ok_or_else(|| {
@@ -750,7 +767,6 @@ impl GlobalSolveTarget for ForwardCurveTarget {
                         end,
                         DayCountContext::default(),
                     )?;
-                    // Compare simple deposit rates on the index accrual basis.
                     let idx_conv =
                         crate::market::conventions::registry::ConventionRegistry::try_global()?
                             .require_rate_index(index)?;
@@ -770,9 +786,9 @@ impl GlobalSolveTarget for ForwardCurveTarget {
                     }
                     let growth =
                         curve.rate_between(start_time, end_time)? * (end_time - start_time);
-                    growth / deposit_accrual - rate
+                    growth - rate * deposit_accrual
                 } else {
-                    pq.instrument.value_raw(ctx, self.base_date)?
+                    pq.instrument.value_raw(ctx, self.base_date)? / self.residual_notional
                 };
             }
             Ok(())
@@ -811,11 +827,19 @@ impl GlobalSolveTarget for ForwardCurveTarget {
                     )));
                 }
             };
-            *weight = match self.config.discount_curve.weighting_scheme {
+            let annuity = quote_annuity_proxy(quote, time);
+            let pv01_inverse_sq = 1.0 / (annuity * annuity);
+            let scheme_factor = match self.config.discount_curve.weighting_scheme {
                 ResidualWeightingScheme::Equal => 1.0,
                 ResidualWeightingScheme::LinearTime => time,
                 ResidualWeightingScheme::SqrtTime => time.sqrt(),
                 ResidualWeightingScheme::InverseDuration => 1.0 / time.max(0.1),
+            };
+            let weight_value = pv01_inverse_sq * scheme_factor;
+            *weight = if weight_value.is_finite() {
+                weight_value.max(WEIGHT_MIN_FLOOR)
+            } else {
+                WEIGHT_MIN_FLOOR
             };
         }
         Ok(())
@@ -841,7 +865,8 @@ mod tests {
     use crate::instruments::common_impl::traits::{Attributes, Instrument};
     use crate::market::build::prepared::PreparedQuote;
     use crate::market::conventions::ids::IrFutureContractId;
-    use crate::market::quotes::ids::QuoteId;
+    use crate::market::quotes::ids::{Pillar, QuoteId};
+    use crate::market::quotes::market_quote::MarketQuote;
     use crate::market::quotes::rates::RateQuote;
     use crate::pricer::InstrumentType;
     use finstack_quant_core::currency::Currency;
@@ -923,6 +948,7 @@ mod tests {
             solve_interp: InterpStyle::Linear,
             config,
             time_day_count: DayCount::Act360,
+            residual_notional: 1.0,
             base_context: MarketContext::new(),
         });
         let quotes = [(0.25, 0.05), (1.0, 0.20)]
@@ -976,7 +1002,26 @@ mod tests {
         let mut weights = vec![0.0; quotes.len()];
         GlobalSolveTarget::residual_weights(&target, &quotes, &mut weights)
             .expect("configured residual weights");
-        assert_eq!(weights, vec![0.25, 1.0]);
+        let expected: Vec<f64> = quotes
+            .iter()
+            .map(|quote| {
+                let time = quote.pillar_time().max(1e-6);
+                let annuity = quote_annuity_proxy(quote, time);
+                let weight = (1.0 / (annuity * annuity)) * time;
+                if weight.is_finite() {
+                    weight.max(WEIGHT_MIN_FLOOR)
+                } else {
+                    WEIGHT_MIN_FLOOR
+                }
+            })
+            .collect();
+        assert_eq!(weights.len(), expected.len());
+        for (got, want) in weights.iter().zip(expected.iter()) {
+            assert!(
+                (got - want).abs() < 1e-12,
+                "PV01-inverse LinearTime weight {got} != {want}"
+            );
+        }
 
         let (curve, report) = GlobalFitOptimizer::optimize(
             &target,
@@ -1013,6 +1058,7 @@ mod tests {
             solve_interp: InterpStyle::Linear,
             config: config.clone(),
             time_day_count: DayCount::Act360,
+            residual_notional: 1.0,
             base_context: MarketContext::new(),
         });
         let quotes = [(90_i64, 0.04), (180_i64, 0.05)]
@@ -1085,6 +1131,7 @@ mod tests {
             config: config.clone(),
             // Curve time axis deliberately different from the Act/360 index day_count.
             time_day_count: DayCount::Act365F,
+            residual_notional: 1.0,
             base_context: MarketContext::new(),
         });
         let quotes = [(90_i64, 0.04), (180_i64, 0.05)]
@@ -1147,6 +1194,72 @@ mod tests {
     }
 
     #[test]
+    fn par_deposit_and_par_swap_share_pv_per_notional_residuals() {
+        let base_date = Date::from_calendar_date(2025, Month::January, 2).expect("valid date");
+        let discount = DiscountCurve::builder("USD-OIS")
+            .base_date(base_date)
+            .day_count(DayCount::Act365F)
+            .knots([
+                (0.0, 1.0),
+                (0.25, (-0.04_f64 * 0.25).exp()),
+                (2.0, (-0.04_f64 * 2.0).exp()),
+            ])
+            .build()
+            .expect("discount curve");
+        let quotes = [
+            MarketQuote::Rates(RateQuote::Deposit {
+                id: QuoteId::new("DEP-3M"),
+                index: finstack_quant_core::types::IndexId::new("USD-SOFR-3M"),
+                pillar: Pillar::Tenor("3M".parse().expect("valid tenor")),
+                rate: 0.04,
+            }),
+            MarketQuote::Rates(RateQuote::Swap {
+                id: QuoteId::new("SWAP-2Y"),
+                index: finstack_quant_core::types::IndexId::new("USD-SOFR-3M"),
+                pillar: Pillar::Tenor("2Y".parse().expect("valid tenor")),
+                rate: 0.04,
+                spread_decimal: None,
+            }),
+        ];
+        let params = ForwardCurveParams {
+            curve_id: CurveId::new("USD-FWD"),
+            currency: Currency::USD,
+            base_date,
+            tenor_years: 0.25,
+            discount_curve_id: CurveId::new("USD-OIS"),
+            method: CalibrationMethod::GlobalSolve {
+                use_analytical_jacobian: false,
+            },
+            interpolation: InterpStyle::Linear,
+            conventions: crate::calibration::RatesStepConventions {
+                curve_day_count: Some(DayCount::Act365F),
+                ois_compounding: None,
+            },
+        };
+
+        let (_market, report) = ForwardCurveTarget::solve(
+            &params,
+            &quotes,
+            &MarketContext::new().insert(discount),
+            &CalibrationConfig::default(),
+        )
+        .expect("forward calibration");
+        assert!(report.success, "{}", report.convergence_reason);
+        assert_eq!(
+            report.residuals.len(),
+            2,
+            "deposit and swap must both contribute residuals"
+        );
+        for (key, residual) in &report.residuals {
+            assert!(
+                residual.abs() <= 1e-8,
+                "{key} residual {residual} is not PV-per-notional (~1e-8); \
+                 mixed rate vs annuity units would leave one quote at Δr and the other at A·Δr"
+            );
+        }
+    }
+
+    #[test]
     fn futures_initial_guess_subtracts_convexity_adjustment() {
         let base_date = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
         let target = ForwardCurveTarget::new(ForwardCurveTargetParams {
@@ -1157,6 +1270,7 @@ mod tests {
             solve_interp: InterpStyle::Linear,
             config: CalibrationConfig::default(),
             time_day_count: DayCount::Act365F,
+            residual_notional: 1.0,
             base_context: MarketContext::new(),
         });
 
@@ -1166,7 +1280,7 @@ mod tests {
                 contract: IrFutureContractId::new("CME:SR3"),
                 expiry: base_date,
                 price: 98.50,
-                convexity_adjustment: Some(0.0010),
+                convexity_adjustment: 0.0010,
             }),
             Arc::new(DummyInstrument),
             base_date,

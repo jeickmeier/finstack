@@ -117,7 +117,7 @@ fn test_build_futures() {
         contract: "SR3".into(),
         expiry: Date::from_calendar_date(2025, time::Month::September, 15).unwrap(),
         price: 96.50,
-        convexity_adjustment: None,
+        convexity_adjustment: 0.0,
     };
 
     let instrument = build_rate_instrument(&quote, &ctx).expect("build futures");
@@ -142,7 +142,7 @@ fn test_build_euribor_futures() {
         contract: "ICE:ER".into(),
         expiry: Date::from_calendar_date(2025, time::Month::September, 15).unwrap(),
         price: 97.15,
-        convexity_adjustment: None,
+        convexity_adjustment: 0.0,
     };
 
     let instrument = build_rate_instrument(&quote, &ctx).expect("build euribor futures");

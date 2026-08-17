@@ -4,7 +4,7 @@ use finstack_quant_cashflows::builder::{
     AmortizationSpec, CouponType, DefaultModelSpec, FeeAccrualBasis, FeeBase, FeeSpec,
     FixedCouponSpec, FloatingCouponSpec, FloatingRateFallback, FloatingRateSpec, Notional,
     OvernightCompoundingMethod, OvernightIndexConstraintApplication, PrepaymentModelSpec,
-    RecoveryModelSpec, RollRule, ScheduleParams, StepUpCouponSpec,
+    PrincipalExchange, RecoveryModelSpec, RollRule, ScheduleParams, StepUpCouponSpec,
 };
 use finstack_quant_core::dates::{BusinessDayConvention, Date, StubKind};
 use finstack_quant_core::money::Money;
@@ -91,6 +91,41 @@ impl PyRollRule {
     /// Debug-style representation.
     fn __repr__(&self) -> String {
         format!("RollRule({:?})", self.inner)
+    }
+}
+
+/// Wrapper for [`PrincipalExchange`]
+/// (`finstack_quant.cashflows.builder.PrincipalExchange`).
+#[pyclass(
+    name = "PrincipalExchange",
+    module = "finstack_quant.cashflows.builder",
+    frozen,
+    eq,
+    hash,
+    skip_from_py_object
+)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct PyPrincipalExchange {
+    /// Inner principal-exchange policy.
+    pub(crate) inner: PrincipalExchange,
+}
+
+#[pymethods]
+impl PyPrincipalExchange {
+    /// Do not emit issue or redemption notionals.
+    #[classattr]
+    const NONE: PyPrincipalExchange = PyPrincipalExchange {
+        inner: PrincipalExchange::None,
+    };
+    /// Emit issue funding and maturity redemption (default).
+    #[classattr]
+    const INITIAL_AND_FINAL: PyPrincipalExchange = PyPrincipalExchange {
+        inner: PrincipalExchange::InitialAndFinal,
+    };
+
+    /// Debug-style representation.
+    fn __repr__(&self) -> String {
+        format!("PrincipalExchange({:?})", self.inner)
     }
 }
 
@@ -1270,6 +1305,7 @@ impl PyRecoveryModelSpec {
 /// Add all spec classes to the builder module.
 pub(crate) fn add_classes(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyRollRule>()?;
+    module.add_class::<PyPrincipalExchange>()?;
     module.add_class::<PyCouponType>()?;
     module.add_class::<PyOvernightCompoundingMethod>()?;
     module.add_class::<PyOvernightIndexConstraintApplication>()?;

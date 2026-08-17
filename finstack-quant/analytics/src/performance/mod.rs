@@ -4,7 +4,7 @@
 //! `benchmark`, `aggregation`); each adds `impl Performance` methods.
 //! Public re-exports happen from `lib.rs`.
 
-use crate::dates::{Date, Duration, PeriodKind};
+use crate::dates::{Date, PeriodKind};
 
 use super::drawdown::to_drawdown_series;
 use super::returns::pairwise_returns;
@@ -54,7 +54,7 @@ mod scalar;
 ///     Date::from_calendar_date(2025, Month::January, 3).unwrap(),
 ///     Date::from_calendar_date(2025, Month::January, 6).unwrap(),
 /// );
-/// assert_eq!(perf.cagr()?.len(), 2);
+/// assert_eq!(perf.cagr(finstack_quant_analytics::CagrDayCount::Act365_25, None)?.len(), 2);
 /// # Ok::<(), finstack_quant_core::Error>(())
 /// ```
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -294,15 +294,11 @@ fn local_range(span: TickerSpan, global: TickerSpan) -> core::ops::Range<usize> 
     start..end
 }
 
-fn build_synthetic_price_dates(dates: &[Date]) -> Vec<Date> {
-    let prior_date = if dates.len() >= 2 {
-        let gap = (dates[1] - dates[0]).whole_days();
-        dates[0]
-            .checked_sub(Duration::days(gap))
-            .unwrap_or(dates[0])
-    } else {
-        dates[0]
+fn build_synthetic_price_dates(dates: &[Date], frequency: PeriodKind) -> Vec<Date> {
+    let Some(&first) = dates.first() else {
+        return Vec::new();
     };
+    let prior_date = frequency.prior_observation_date(first);
     let mut price_dates = Vec::with_capacity(dates.len() + 1);
     price_dates.push(prior_date);
     price_dates.extend_from_slice(dates);
@@ -331,6 +327,18 @@ impl Performance {
     fn active_two_ticker_span(&self, lhs_idx: usize, rhs_idx: usize) -> TickerSpan {
         self.active_span_for_ticker(lhs_idx)
             .intersect(self.active_span_for_ticker(rhs_idx))
+    }
+
+    fn common_active_span(&self) -> TickerSpan {
+        let n = self.ticker_names.len();
+        if n == 0 {
+            return TickerSpan::new(0, 0);
+        }
+        let mut span = self.active_span_for_ticker(0);
+        for i in 1..n {
+            span = span.intersect(self.active_span_for_ticker(i));
+        }
+        span
     }
 
     fn returns_for_span(&self, ticker_idx: usize, global: TickerSpan) -> &[f64] {
@@ -500,9 +508,9 @@ impl Performance {
     ///
     /// A synthetic prior date is prepended to the internal price-date grid
     /// so that CAGR and other date-aware metrics see a holding period of
-    /// `dates.len()` periods. The prior date is derived from the first
-    /// observed gap (`dates[1] - dates[0]`) when at least two dates are
-    /// supplied, and otherwise falls back to `dates[0]`.
+    /// `dates.len()` periods. The prior date is
+    /// [`PeriodKind::prior_observation_date`] of the first return date
+    /// (one frequency step back), not the first observed calendar gap.
     ///
     /// # Arguments
     ///
@@ -555,7 +563,7 @@ impl Performance {
         }
 
         Self::assemble(
-            build_synthetic_price_dates(&dates),
+            build_synthetic_price_dates(&dates, frequency),
             dates,
             all_returns,
             return_spans,

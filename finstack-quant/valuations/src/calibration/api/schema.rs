@@ -714,7 +714,12 @@ pub struct DiscountCurveParams {
     /// Calibration method to use.
     #[serde(default)]
     pub method: CalibrationMethod,
-    /// Interpolation style for the curve.
+    /// Interpolation style for the constructed discount curve.
+    ///
+    /// Caller-owned: the engine does not override this field. `Linear`
+    /// interpolates discount-factor ordinates in time and is **not** the
+    /// QuantLib or Bloomberg production default. Production curves typically
+    /// use `LogLinear` (log-DF) or `MonotoneConvex` (Hagan–West).
     #[serde(default = "default_interp_linear")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub interpolation: InterpStyle,
@@ -765,7 +770,11 @@ pub struct ForwardCurveParams {
     /// couple adjacent rates through projection discount factors.
     #[serde(default)]
     pub method: CalibrationMethod,
-    /// Interpolation style for the curve.
+    /// Interpolation style for the constructed forward curve.
+    ///
+    /// Caller-owned: the engine does not override this field. `Linear`
+    /// interpolates the stored forward-rate ordinates in time and is **not**
+    /// the QuantLib or Bloomberg production default.
     #[serde(default = "default_interp_linear")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub interpolation: InterpStyle,
@@ -967,10 +976,14 @@ pub struct VolSurfaceParams {
     /// Optional dividend yield override.
     #[serde(default)]
     pub dividend_yield_override: Option<f64>,
-    /// Extrapolation policy for SABR parameter interpolation across expiries.
+    /// Extrapolation policy for total-variance fill across expiries.
     ///
-    /// This controls how the adapter behaves when `target_expiries` extend beyond
-    /// the expiries that were successfully calibrated from market quotes.
+    /// After each quoted expiry is calibrated, the published expiry×strike
+    /// grid is filled by interpolating total variance `w = σ²T` in expiry
+    /// (not by interpolating SABR α/ν/ρ and evaluating Hagan at the target
+    /// `T`). This policy controls targets that fall outside the calibrated
+    /// expiry range: `Error` rejects them; `Clamp` holds the nearest slice's
+    /// total variance flat.
     #[serde(default)]
     pub expiry_extrapolation: SurfaceExtrapolationPolicy,
 }
@@ -1406,7 +1419,13 @@ pub struct XccyBasisParams {
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
-    /// FX spot rate (domestic per foreign), used when a quote omits `spot_fx`.
+    /// T+0 cash FX rate (domestic per foreign), used when a quote omits `spot_fx`.
+    ///
+    /// Covered-interest parity from today needs the cash FX, not the screen
+    /// "spot". Market spot is T+2 for most G10 pairs and T+1 for USD/CAD;
+    /// convert to T+0 using ON/TN points before passing the rate here.
+    /// Mixing T+2 screen spot with T+0 discounting biases long-tenor basis
+    /// by roughly 1–2 bp.
     pub fx_spot: f64,
     /// Identifier for the pre-calibrated domestic discount curve.
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
@@ -1414,7 +1433,11 @@ pub struct XccyBasisParams {
     /// Calibration method to use.
     #[serde(default)]
     pub method: CalibrationMethod,
-    /// Interpolation style for the foreign curve.
+    /// Interpolation style for the constructed foreign discount curve.
+    ///
+    /// Caller-owned: the engine does not override this field. `Linear`
+    /// interpolates discount-factor ordinates and is **not** the QuantLib
+    /// or Bloomberg production default.
     #[serde(default = "default_interp_linear")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub interpolation: InterpStyle,

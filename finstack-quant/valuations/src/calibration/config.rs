@@ -245,6 +245,48 @@ impl Default for InflationCurveSolveConfig {
     }
 }
 
+/// Volatility-surface specific numerical solver configuration.
+///
+/// Controls the success criterion for SABR and SVI surface calibration.
+/// Residuals are in **decimal implied-vol units** (for example `0.001` is
+/// 0.10 vol points), not PV-per-notional.
+///
+/// # Examples
+/// ```
+/// use finstack_quant_valuations::calibration::VolSurfaceSolveConfig;
+///
+/// let config = VolSurfaceSolveConfig {
+///     validation_tolerance: 2e-3, // 0.20 vol points
+/// };
+/// ```
+#[cfg_attr(feature = "ts_export", derive(TS))]
+#[cfg_attr(feature = "ts_export", ts(export))]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct VolSurfaceSolveConfig {
+    /// Tolerance for determining calibration *success* (applied to vol residuals).
+    ///
+    /// After each expiry slice is calibrated, the final `|σ_model − σ_mkt|`
+    /// residuals are compared against this tolerance. If `max_residual >
+    /// validation_tolerance`, the calibration report will have `success = false`
+    /// even if the slice solver converged.
+    ///
+    /// This is distinct from `solver.tolerance()` which controls when the
+    /// numerical solver terminates. See [`CalibrationConfig`] for a full
+    /// explanation.
+    ///
+    /// Default: `1e-3` (0.10 vol points in decimal vol).
+    pub validation_tolerance: f64,
+}
+
+impl Default for VolSurfaceSolveConfig {
+    fn default() -> Self {
+        Self {
+            validation_tolerance: 1e-3,
+        }
+    }
+}
+
 /// Discount-curve specific numerical solver configuration.
 ///
 /// Controls the search space and numerical stability of the discount curve
@@ -355,7 +397,9 @@ impl Default for DiscountCurveSolveConfig {
 ///    algorithmic convergence criterion in x-space (parameter space). The solver
 ///    stops when successive parameter estimates differ by less than this tolerance.
 ///
-/// 2. **Validation Tolerance** (e.g., [`discount_curve.validation_tolerance`](DiscountCurveSolveConfig::validation_tolerance)):
+/// 2. **Validation Tolerance** (e.g., [`discount_curve.validation_tolerance`](DiscountCurveSolveConfig::validation_tolerance)
+///    for PV-per-notional curve residuals, or [`vol_surface.validation_tolerance`](VolSurfaceSolveConfig::validation_tolerance)
+///    for decimal implied-vol residuals):
 ///    Controls whether calibration is considered *successful*. After the solver
 ///    converges, the final residuals are compared against this tolerance. If any
 ///    residual exceeds `validation_tolerance`, the calibration is marked as failed
@@ -459,6 +503,10 @@ pub struct CalibrationConfig {
     #[serde(default)]
     pub inflation_curve: InflationCurveSolveConfig,
 
+    /// Volatility-surface specific solver configuration (SABR and SVI).
+    #[serde(default)]
+    pub vol_surface: VolSurfaceSolveConfig,
+
     /// When `true`, a calibration step whose solver reports
     /// `report.success == false` is propagated as a
     /// `finstack_quant_core::Error::Calibration` and its output is **not**
@@ -505,6 +553,7 @@ impl Default for CalibrationConfig {
             discount_curve: DiscountCurveSolveConfig::default(),
             hazard_curve: HazardCurveSolveConfig::default(),
             inflation_curve: InflationCurveSolveConfig::default(),
+            vol_surface: VolSurfaceSolveConfig::default(),
             fail_on_bad_fit: default_fail_on_bad_fit(),
             fx: FxConfig::default(),
             hierarchy: None,
@@ -575,6 +624,10 @@ impl CalibrationConfig {
         self.validate_solver_vs_success_tolerance(
             "inflation_curve.validation_tolerance",
             self.inflation_curve.validation_tolerance,
+        )?;
+        self.validate_solver_vs_success_tolerance(
+            "vol_surface.validation_tolerance",
+            self.vol_surface.validation_tolerance,
         )?;
         self.validate_hazard_bounds()?;
         self.validate_inflation_bounds()
@@ -827,5 +880,33 @@ mod fx_and_hierarchy_settings_tests {
         let cfg: CalibrationConfig = serde_json::from_str(json).expect("empty JSON");
         assert_eq!(cfg.fx, FxConfig::default());
         assert!(cfg.hierarchy.is_none());
+    }
+
+    #[test]
+    fn vol_surface_default_validation_tolerance_is_one_tenth_vol_point() {
+        let cfg = CalibrationConfig::default();
+        assert!((cfg.vol_surface.validation_tolerance - 1e-3).abs() < 1e-15);
+        cfg.validate()
+            .expect("default vol-surface tolerance must be compatible with the solver");
+    }
+
+    #[test]
+    fn omitted_vol_surface_section_uses_defaults() {
+        let json = r#"{}"#;
+        let cfg: CalibrationConfig = serde_json::from_str(json).expect("empty JSON");
+        assert!((cfg.vol_surface.validation_tolerance - 1e-3).abs() < 1e-15);
+    }
+
+    #[test]
+    fn vol_surface_validation_tolerance_must_dominate_solver() {
+        let mut cfg = CalibrationConfig::default();
+        cfg.vol_surface.validation_tolerance = 1e-14;
+        let err = cfg
+            .validate()
+            .expect_err("solver tolerance looser than vol-surface success tolerance should fail");
+        assert!(
+            err.to_string().contains("vol_surface.validation_tolerance"),
+            "unexpected validation error: {err}"
+        );
     }
 }

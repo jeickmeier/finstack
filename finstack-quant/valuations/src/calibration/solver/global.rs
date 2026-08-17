@@ -130,15 +130,17 @@ impl GlobalFitOptimizer {
     /// * `target` - The domain-specific implementation of the [`GlobalSolveTarget`] trait.
     /// * `quotes` - The list of high-level market quotes to fit.
     /// * `config` - Calibration settings specifying tolerances and methods.
-    /// * `success_tolerance` - Target-specific validation tolerance for determining calibration success.
+    /// * `success_tolerance` - Accept/reject threshold for the unweighted native residual
+    ///   (`max_i |r_i|`). Distinct from the LM solver convergence tolerance in `config`.
     ///   If `None`, falls back to `config.discount_curve.validation_tolerance`.
     ///
     /// # Returns
     /// A pair containing the calibrated term structure and a diagnostic report.
     ///
     /// # Tolerance Semantics
-    /// Success is determined by comparing the **weighted L2 norm of the residual vector**
-    /// (i.e., `sqrt(sum((r_i * sqrt(w_i))^2))`) against the `success_tolerance`.
+    /// Success is `max_i |r_i| <= success_tolerance` on the unweighted native residual.
+    /// Residual weights affect only the LM objective (`objective_value` / weighted L2),
+    /// not the accept/reject gate. The report stores signed residuals.
     pub(crate) fn optimize<T>(
         target: &T,
         quotes: &[T::Quote],
@@ -309,7 +311,7 @@ impl GlobalFitOptimizer {
         target.calculate_residuals(&final_curve, &active_quotes, &mut resid_values)?;
 
         for (i, (&val, quote)) in resid_values.iter().zip(active_quotes.iter()).enumerate() {
-            residuals_map.insert(target.residual_key(quote, i), val.abs());
+            residuals_map.insert(target.residual_key(quote, i), val);
         }
 
         let l2_norm: f64 = resid_values.iter().map(|r| r * r).sum::<f64>().sqrt();
@@ -331,72 +333,25 @@ impl GlobalFitOptimizer {
         let validation_tolerance =
             success_tolerance.unwrap_or(config.discount_curve.validation_tolerance);
 
-        // Success requires BOTH the weighted L2 norm AND the max individual residual
-        // to be within tolerance. The L2 norm alone can mask outlier instruments when
-        // many quotes fit well but one fits poorly.
-        //
-        // Both sides of the gate must be expressed on the SAME (weighted) residual
-        // scale. The L2 term is `sqrt(Σ (r_i·√w_i)^2)`; for a uniform per-quote error
-        // `e` on the weighted scale, that norm is `e·√n`, so the per-quote tolerance
-        // is `validation_tolerance·√n`. The max term must therefore also use the
-        // *weighted* max residual `max_i |r_i·√w_i|` — comparing an unweighted
-        // `max_i |r_i|` against a √n-scaled tolerance mixes units and can spuriously
-        // pass (or fail) whenever the weights differ from 1.
-        let max_residual_tolerance = validation_tolerance * (n_residuals as f64).sqrt();
-        let calibration_success = weighted_l2_norm <= validation_tolerance
-            && weighted_max_abs_residual <= max_residual_tolerance;
-
+        // Success is unweighted `max_i |r_i| <= validation_tolerance`. Weights belong
+        // in the LM objective only; do not scale the gate by √n or compare weighted L2
+        // to this tolerance. `for_type_with_tolerance` already applies that rule.
         let mut report = CalibrationReport::for_type_with_tolerance(
             "global_fit",
             residuals_map,
             stats.iterations,
             validation_tolerance,
         );
-        // Override success based on weighted L2 + max-residual criteria.
-        report.success = calibration_success;
         report.objective_value = weighted_l2_norm;
         // Always surface the LM termination reason so callers can distinguish
         // "gradient tolerance met" (clean convergence) from "max iterations
         // reached but residuals within tolerance" (acceptable but suspect).
-        if calibration_success {
-            report.convergence_reason = format!(
-                "global fit succeeded: LM terminated with {:?}; weighted L2 norm {:.2e} <= tolerance {:.2e}; \
-                 weighted max residual {:.2e} <= per-quote tolerance {:.2e}",
-                stats.termination_reason,
-                weighted_l2_norm,
-                validation_tolerance,
-                weighted_max_abs_residual,
-                max_residual_tolerance,
-            );
-        } else if weighted_l2_norm > validation_tolerance
-            && weighted_max_abs_residual > max_residual_tolerance
-        {
-            report.convergence_reason = format!(
-                "global fit calibration failed: LM terminated with {:?}; weighted L2 norm ({:.2e}) exceeds \
-                 tolerance ({:.2e}) and weighted max residual ({:.2e}) exceeds per-quote tolerance ({:.2e})",
-                stats.termination_reason,
-                weighted_l2_norm, validation_tolerance, weighted_max_abs_residual, max_residual_tolerance,
-            );
-        } else if weighted_max_abs_residual > max_residual_tolerance {
-            report.convergence_reason = format!(
-                "global fit calibration failed: LM terminated with {:?}; weighted max residual ({:.2e}) exceeds \
-                 per-quote tolerance ({:.2e}), weighted L2 norm ({:.2e}) passed",
-                stats.termination_reason,
-                weighted_max_abs_residual, max_residual_tolerance, weighted_l2_norm,
-            );
-        } else {
-            report.convergence_reason = format!(
-                "global fit calibration failed: LM terminated with {:?}; weighted L2 norm ({:.2e}) exceeds \
-                 tolerance ({:.2e}), weighted max residual ({:.2e}) passed per-quote tolerance ({:.2e})",
-                stats.termination_reason,
-                weighted_l2_norm,
-                validation_tolerance,
-                weighted_max_abs_residual,
-                max_residual_tolerance,
-            );
-        }
+        report.convergence_reason.push_str(&format!(
+            "; LM terminated with {:?}",
+            stats.termination_reason
+        ));
 
-        if !calibration_success {
+        if !report.success {
             // Surface the worst-fit quotes without requiring diagnostics.
             let worst = top_k_worst_fits(target, &active_quotes, &resid_values, 3);
             if !worst.is_empty() {
@@ -414,7 +369,7 @@ impl GlobalFitOptimizer {
 
         report = report
             .with_metadata("method", "global_fit_lm_weighted_lsq")
-            .with_metadata("tolerance_definition", "weighted_l2_norm_and_max_residual")
+            .with_metadata("tolerance_definition", "max_abs_residual")
             .with_metadata(
                 "validation_tolerance",
                 format!("{:.2e}", validation_tolerance),
@@ -1305,19 +1260,61 @@ mod tests {
         }
     }
 
-    /// Item 1: the success gate must compare a *weighted* max residual against the
-    /// √n-scaled tolerance — both sides on the same (weighted) scale.
+    /// Success is unweighted `max_i |r_i| <= validation_tolerance`.
     ///
-    /// Construct residuals `[0.5, 0.0]` with small weights `w=[0.01,0.01]` (√w=0.1).
-    /// Weighted residuals are `[0.05, 0.0]`: weighted L2 = 0.05, weighted max = 0.05.
-    /// With `success_tolerance = 0.1`, `max_residual_tolerance = 0.1·√2 ≈ 0.1414`.
-    ///   * Pre-fix gate: `weighted_l2(0.05) ≤ 0.1` AND `UNWEIGHTED max(0.5) ≤ 0.1414`
-    ///     → false → spurious FAILURE despite the weighted fit being well in tolerance.
-    ///   * Post-fix gate: `weighted_l2(0.05) ≤ 0.1` AND `weighted max(0.05) ≤ 0.1414`
-    ///     → true → SUCCESS.
+    /// A strip of residuals each equal to `tol` must succeed. Unweighted L2 is
+    /// `tol·√n`, so the old weighted-L2 / √n-scaled gate would have failed.
     #[test]
-    fn success_gate_uses_weighted_max_residual_consistent_units() {
-        let target = TestTarget::from_len(2, vec![0.5, 0.0]).with_weights(vec![0.01, 0.01]);
+    fn success_gate_accepts_when_every_residual_equals_tolerance() {
+        let tol = 0.1;
+        let target = TestTarget::from_len(4, vec![tol; 4]);
+        let quotes = vec![0usize, 1usize, 2usize, 3usize];
+        let config = CalibrationConfig::default().with_tolerance(1.0);
+        let (_curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, Some(tol))
+            .expect("optimization should complete");
+
+        assert!(
+            report.success,
+            "every |r_i| == tol must succeed (convergence_reason: {})",
+            report.convergence_reason,
+        );
+        assert_eq!(
+            report
+                .metadata
+                .get("tolerance_definition")
+                .map(String::as_str),
+            Some("max_abs_residual"),
+        );
+    }
+
+    /// One residual above `tol` must fail even when the weighted L2 is well inside
+    /// `tol` (small weights shrink the objective without shrinking the native residual).
+    #[test]
+    fn success_gate_fails_when_one_residual_exceeds_tolerance() {
+        // Native residuals [0.15, 0.0]; weights 0.01 → √w = 0.1.
+        // Weighted L2 = 0.015 << tol=0.1, but max |r| = 0.15 > 0.1.
+        let target = TestTarget::from_len(2, vec![0.15, 0.0]).with_weights(vec![0.01, 0.01]);
+        let quotes = vec![0usize, 1usize];
+        let config = CalibrationConfig::default().with_tolerance(1e-12);
+        let (_curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, Some(0.1))
+            .expect("optimization should complete");
+        assert!(
+            !report.success,
+            "max |r| > tol must fail even if weighted L2 is small \
+             (objective_value={:.4}, reason: {})",
+            report.objective_value, report.convergence_reason,
+        );
+        assert!(
+            report.objective_value < 0.1,
+            "weighted L2 must be below tol so this is not an L2-only failure"
+        );
+    }
+
+    /// The old "weighted max vs sqrt(n)" success case: `|r|=0.5`, `w=0.01`, `tol=0.1`.
+    /// Weighted residuals are `[0.05, 0.0]` so the old gate passed; the new gate fails.
+    #[test]
+    fn success_gate_rejects_old_weighted_sqrt_n_success_case() {
+        let target = TestTarget::from_len(2, vec![-0.5, 0.0]).with_weights(vec![0.01, 0.01]);
         let quotes = vec![0usize, 1usize];
         let config = CalibrationConfig::default().with_tolerance(1e-12);
 
@@ -1327,46 +1324,15 @@ mod tests {
             .expect("optimization should complete");
 
         assert!(
-            report.success,
-            "weighted L2 ({:.4}) and weighted max residual both within tolerance — \
-             the gate must not fail on an UNWEIGHTED max residual (convergence_reason: {})",
+            !report.success,
+            "|r|=0.5 > tol=0.1 must fail even though weighted max 0.05 was inside \
+             the old √n-scaled bound (objective_value={:.4}, reason: {})",
             report.objective_value, report.convergence_reason,
         );
-    }
-
-    /// Item 1 (converse): a genuinely large *weighted* max residual must still fail the
-    /// gate. Residuals `[0.3, 0.0]`, unit weights, `success_tolerance = 0.01`: weighted
-    /// L2 = 0.3 and weighted max = 0.3 both far exceed any `tol·√n` per-quote bound.
-    /// Guards the fix against degenerating into an L2-only check.
-    #[test]
-    fn success_gate_still_fails_on_large_weighted_max_residual() {
-        let target = TestTarget::from_len(2, vec![0.3, 0.0]).with_weights(vec![1.0, 1.0]);
-        let quotes = vec![0usize, 1usize];
-        let config = CalibrationConfig::default().with_tolerance(1e-12);
-        let (_curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, Some(0.01))
-            .expect("optimization should complete");
-        assert!(
-            !report.success,
-            "a weighted max residual far above tolerance must fail the gate"
-        );
-    }
-
-    #[test]
-    fn failure_reason_reports_l2_failure_when_weighted_max_passes() {
-        let target = TestTarget::from_len(4, vec![0.06; 4]);
-        let quotes = vec![0usize, 1usize, 2usize, 3usize];
-        let config = CalibrationConfig::default().with_tolerance(1.0);
-        let (_curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, Some(0.1))
-            .expect("optimization should complete");
-
-        assert!(!report.success);
-        assert!(
-            report.convergence_reason.contains("weighted L2 norm")
-                && report.convergence_reason.contains("exceeds")
-                && report.convergence_reason.contains("weighted max residual")
-                && report.convergence_reason.contains("passed"),
-            "failure reason must identify the failing and passing criteria: {}",
-            report.convergence_reason
+        assert_eq!(
+            report.residuals.get("GLOBAL-000000"),
+            Some(&-0.5),
+            "residuals_map must store the signed residual"
         );
     }
 
@@ -1579,9 +1545,9 @@ mod tests {
             GlobalFitOptimizer::optimize(&target, &quotes, &config, None).expect("should succeed");
 
         assert_eq!(report.residuals.len(), 3);
-        assert!(report.residuals.contains_key("GLOBAL-000010"));
-        assert!(report.residuals.contains_key("GLOBAL-000011"));
-        assert!(report.residuals.contains_key("GLOBAL-000012"));
+        assert_eq!(report.residuals.get("GLOBAL-000010"), Some(&0.01));
+        assert_eq!(report.residuals.get("GLOBAL-000011"), Some(&-0.02));
+        assert_eq!(report.residuals.get("GLOBAL-000012"), Some(&0.03));
     }
 
     #[test]

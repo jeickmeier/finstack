@@ -5,7 +5,8 @@ use wasm_bindgen::prelude::*;
 
 /// Build a cashflow schedule from a JSON spec and return canonical schedule JSON.
 ///
-/// @param spec_json - JSON-encoded `CashflowScheduleBuildSpec`.
+/// @param spec_json - JSON-encoded `CashflowScheduleBuildSpec`. Optional
+///   `principal_exchange` is `"none"` or `"initial_and_final"` (default).
 /// @param market_json - Optional JSON-encoded market context for floating-rate lookups.
 /// @returns JSON-encoded `CashFlowSchedule`.
 /// @throws If the spec or market JSON is malformed, or schedule construction fails.

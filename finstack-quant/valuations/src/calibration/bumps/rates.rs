@@ -411,7 +411,7 @@ fn rate_quotes_from_recipe(
                     ),
                     expiry: *expiry,
                     price: *price,
-                    convexity_adjustment: *convexity_adjustment,
+                    convexity_adjustment: convexity_adjustment.unwrap_or(0.0),
                 },
                 RateCalibrationQuote::Swap {
                     index_id,
@@ -451,7 +451,7 @@ fn rate_quote_level(quote: &RateQuote) -> f64 {
             price,
             convexity_adjustment,
             ..
-        } => (100.0 - price) / 100.0 - convexity_adjustment.unwrap_or(0.0),
+        } => (100.0 - price) / 100.0 - convexity_adjustment,
     }
 }
 
@@ -1920,7 +1920,7 @@ mod tests {
                 expiry: Date::from_calendar_date(2026, time::Month::September, 16)
                     .expect("valid date"),
                 price: 96.00, // implied rate 4%
-                convexity_adjustment: Some(0.0),
+                convexity_adjustment: 0.0,
             },
             RateQuote::Swap {
                 id: QuoteId::new("USD-SWAP-2Y"),
@@ -2267,7 +2267,7 @@ mod tests {
             &restored[2],
             RateQuote::Futures {
                 contract,
-                convexity_adjustment: Some(value),
+                convexity_adjustment: value,
                 ..
             } if contract.as_str() == "CME:SR3" && (*value - 0.0001).abs() < f64::EPSILON
         ));

@@ -135,7 +135,7 @@ fn ticker_names_round_trip() {
 #[wasm_bindgen_test]
 fn cagr_returns_per_ticker_vec() {
     let perf = build_perf();
-    let values = typed_vec(perf.cagr().unwrap());
+    let values = typed_vec(perf.cagr(None, None).unwrap());
     assert_eq!(values.len(), 2);
     assert!(values.iter().all(|v| v.is_finite()));
 }
@@ -161,8 +161,8 @@ fn tail_metrics_finite() {
     for raw in [
         perf.value_at_risk(Some(0.95)),
         perf.expected_shortfall(Some(0.95)),
-        perf.parametric_var(Some(0.95)),
-        perf.cornish_fisher_var(Some(0.95)),
+        perf.parametric_var(Some(0.95), None),
+        perf.cornish_fisher_var(Some(0.95), None),
         perf.tail_ratio(Some(0.95)),
     ] {
         let v = typed_vec(raw);
@@ -199,7 +199,7 @@ fn cumulative_and_drawdown_series_are_per_ticker_panels() {
 #[wasm_bindgen_test]
 fn correlation_matrix_is_square() {
     let perf = build_perf();
-    let mat = typed_matrix(perf.correlation_matrix());
+    let mat = typed_matrix(perf.correlation_matrix().unwrap());
     assert_eq!(mat.len(), 2);
     assert_eq!(mat[0].len(), 2);
     assert!((mat[0][0] - 1.0).abs() < 1e-12);
@@ -283,7 +283,7 @@ fn multi_factor_greeks_resolves_to_struct() {
     let perf = build_perf();
     let fx = fixture();
     let raw = perf
-        .multi_factor_greeks(0, to_f64_matrix(&fx.factors))
+        .multi_factor_greeks(0, to_f64_matrix(&fx.factors), None, None)
         .unwrap();
     let value: serde_json::Value = serde_wasm_bindgen::from_value(raw).unwrap();
     assert!(value["alpha"].is_number());

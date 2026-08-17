@@ -23,7 +23,12 @@ base_date: string,
  */
 method: CalibrationMethod,
 /**
- * Interpolation style for the curve.
+ * Interpolation style for the constructed discount curve.
+ *
+ * Caller-owned: the engine does not override this field. `Linear`
+ * interpolates discount-factor ordinates in time and is **not** the
+ * QuantLib or Bloomberg production default. Production curves typically
+ * use `LogLinear` (log-DF) or `MonotoneConvex` (Hagan–West).
  */
 interpolation: string,
 /**

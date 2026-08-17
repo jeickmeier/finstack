@@ -65,5 +65,6 @@ export * from "./ValidationReport";
 export * from "./VolQuote";
 export * from "./VolSurfaceModel";
 export * from "./VolSurfaceParams";
+export * from "./VolSurfaceSolveConfig";
 export * from "./XccyBasisParams";
 export * from "./XccyQuote";

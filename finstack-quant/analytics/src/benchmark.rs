@@ -428,13 +428,6 @@ pub(crate) fn beta_only(returns: &[f64], benchmark: &[f64]) -> f64 {
     oc.optimal_beta()
 }
 
-fn periodic_risk_free_rate(risk_free_rate: f64, ann_factor: f64) -> f64 {
-    if !risk_free_rate.is_finite() || !ann_factor.is_finite() || ann_factor <= 0.0 {
-        return f64::NAN;
-    }
-    (1.0 + risk_free_rate).powf(1.0 / ann_factor) - 1.0
-}
-
 fn jensen_alpha(
     mean_port: f64,
     mean_bench: f64,
@@ -442,7 +435,7 @@ fn jensen_alpha(
     ann_factor: f64,
     risk_free_rate: f64,
 ) -> f64 {
-    let rf_period = periodic_risk_free_rate(risk_free_rate, ann_factor);
+    let rf_period = crate::returns::periodic_risk_free_rate(risk_free_rate, ann_factor);
     (mean_port - rf_period - beta * (mean_bench - rf_period)) * ann_factor
 }
 
@@ -597,7 +590,7 @@ pub(crate) fn rolling_greeks(
     let mut out_dates = Vec::with_capacity(count);
     let mut alphas = Vec::with_capacity(count);
     let mut betas = Vec::with_capacity(count);
-    let rf_period = periodic_risk_free_rate(risk_free_rate, ann_factor);
+    let rf_period = crate::returns::periodic_risk_free_rate(risk_free_rate, ann_factor);
 
     // Incremental O(n) sliding-window OLS via running sums.
     //
@@ -812,10 +805,29 @@ pub(crate) fn batting_average(returns: &[f64], benchmark: &[f64]) -> f64 {
     wins as f64 / n as f64
 }
 
+/// How the dependent return series is interpreted in a multi-factor regression.
+///
+/// Factor series are always treated as already-excess (Fama–French style).
+/// Only the dependent series is adjusted when [`ReturnKind::Total`] is used.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ReturnKind {
+    /// `returns` are already excess returns. Alpha is the annualized OLS
+    /// intercept of excess `y` on the supplied (already-excess) factors.
+    Excess,
+    /// `returns` are total returns. The geometrically decompounded period
+    /// risk-free rate is subtracted from `y` only, then OLS is run.
+    /// Alpha is the annualized intercept and is Jensen-style for the
+    /// dependent variable.
+    Total {
+        /// Annualized risk-free rate in decimal form (e.g. `0.02` for 2%).
+        risk_free_rate: f64,
+    },
+}
+
 /// Result of a multi-factor regression.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MultiFactorResult {
-    /// Raw regression intercept annualized with the supplied factor frequency.
+    /// Annualized OLS intercept of the (possibly rf-adjusted) dependent series.
     pub alpha: f64,
     /// Regression coefficients, one per factor.
     pub betas: Vec<f64>,
@@ -880,29 +892,37 @@ where
 /// Estimates the linear model
 ///
 /// ```text
-/// r_portfolio = α + β₁f₁ + β₂f₂ + ... + βₖfₖ + ε
+/// y = α + β₁f₁ + β₂f₂ + ... + βₖfₖ + ε
 /// ```
 ///
 /// by solving the least-squares system with an SVD of the (column-normalized)
 /// design matrix. SVD avoids explicitly forming the normal equations and is
 /// numerically robust to correlated factors and rank deficiency.
 ///
+/// Factor series are treated as already-excess. [`ReturnKind::Total`]
+/// subtracts the geometrically decompounded period risk-free rate from the
+/// **dependent** series only. [`ReturnKind::Excess`] leaves `y` unchanged;
+/// the annualized intercept is then the alpha of already-excess `y`, not a
+/// Jensen adjustment of total returns.
+///
 /// # Arguments
 ///
-/// * `returns`    - Portfolio simple-return series in decimal form (for example,
-///   `0.01` for 1%).
-/// * `factors`    - Slice of factor return series (each inner slice is one
-///   factor's return series, all the same length as `returns`). Factor returns
-///   use the same decimal convention as `returns`.
-/// * `ann_factor` - Number of observation periods per year used to annualize
-///   the intercept and residual volatility. For example, use `252.0` for daily
-///   data or `12.0` for monthly data.
+/// * `returns`     - Portfolio simple-return series in decimal form (for
+///   example, `0.01` for 1%). Interpreted as excess or total according to
+///   `return_kind`.
+/// * `factors`     - Slice of factor return series (each inner slice is one
+///   factor's return series, all the same length as `returns`). Factors are
+///   already-excess returns in the same decimal convention.
+/// * `ann_factor`  - Number of observation periods per year used to
+///   annualize the intercept and residual volatility (e.g. `252.0` daily).
+/// * `return_kind` - Whether `returns` are already excess or total. Total
+///   subtracts `(1 + rf)^{1/N} − 1` from `y` only.
 ///
 /// # Returns
 ///
 /// A [`MultiFactorResult`] containing:
 ///
-/// - `alpha`: raw regression intercept, annualized with the supplied factor frequency
+/// - `alpha`: annualized OLS intercept of the (possibly rf-adjusted) `y`
 /// - `betas`: one loading per factor
 /// - `r_squared` and `adjusted_r_squared`: goodness-of-fit measures
 /// - `residual_vol`: annualized residual volatility
@@ -916,6 +936,7 @@ where
 /// Returns an error when:
 ///
 /// - `ann_factor` is not finite or is `<= 0`
+/// - [`ReturnKind::Total`] has a non-finite risk-free rate
 /// - no factors are supplied
 /// - there are too few observations for the requested number of factors
 /// - any portfolio or factor return is non-finite
@@ -931,6 +952,7 @@ pub(crate) fn multi_factor_greeks(
     returns: &[f64],
     factors: &[&[f64]],
     ann_factor: f64,
+    return_kind: ReturnKind,
 ) -> crate::Result<MultiFactorResult> {
     if !ann_factor.is_finite() || ann_factor <= 0.0 {
         tracing::debug!(
@@ -941,7 +963,20 @@ pub(crate) fn multi_factor_greeks(
         return Err(crate::error::InputError::Invalid.into());
     }
 
-    let n = returns.len();
+    let adjusted_y;
+    let y = match return_kind {
+        ReturnKind::Excess => returns,
+        ReturnKind::Total { risk_free_rate } => {
+            let rf_period = crate::returns::periodic_risk_free_rate(risk_free_rate, ann_factor);
+            if !rf_period.is_finite() {
+                return Err(crate::error::InputError::Invalid.into());
+            }
+            adjusted_y = returns.iter().map(|r| r - rf_period).collect::<Vec<_>>();
+            adjusted_y.as_slice()
+        }
+    };
+
+    let n = y.len();
     let k = factors.len();
     let p = k + 1; // intercept + k factors
 
@@ -995,7 +1030,7 @@ pub(crate) fn multi_factor_greeks(
             }
         },
     );
-    let targets = DMatrix::from_column_slice(n, 1, returns);
+    let targets = DMatrix::from_column_slice(n, 1, y);
     let solutions = normalized_svd_least_squares(design, &targets)?;
     let beta = solutions.column(0).iter().copied().collect::<Vec<_>>();
 
@@ -1003,10 +1038,10 @@ pub(crate) fn multi_factor_greeks(
     let factor_betas: Vec<f64> = beta[1..].to_vec();
 
     // Compute residuals and R²
-    let y_mean = mean(returns);
+    let y_mean = mean(y);
     let mut ss_res = 0.0_f64;
     let mut ss_tot = 0.0_f64;
-    for (t, &r) in returns.iter().enumerate().take(n) {
+    for (t, &r) in y.iter().enumerate().take(n) {
         let mut y_hat = alpha_per_period;
         for j in 0..k {
             let fj = factors[j][t];
@@ -1278,7 +1313,7 @@ mod tests {
         assert!(result.std_err.is_nan());
 
         // Treynor on an unidentifiable beta propagates NaN instead of ±∞.
-        assert!(treynor(0.10, 0.02, beta_only(&r, &b)).is_nan());
+        assert!(treynor(0.10, 0.02, beta_only(&r, &b), 1.0).is_nan());
     }
 
     #[test]
@@ -1485,7 +1520,8 @@ mod tests {
         // y = 2*x → alpha ≈ 0, beta ≈ 2, R² ≈ 1.
         let y = [0.02, 0.04, 0.06, 0.08, 0.10];
         let f1 = [0.01, 0.02, 0.03, 0.04, 0.05];
-        let result = multi_factor_greeks(&y, &[&f1], 252.0).expect("single-factor regression");
+        let result = multi_factor_greeks(&y, &[&f1], 252.0, ReturnKind::Excess)
+            .expect("single-factor regression");
         assert!((result.betas[0] - 2.0).abs() < 1e-8);
         assert!(result.r_squared > 0.999);
     }
@@ -1496,7 +1532,8 @@ mod tests {
         let f1 = [0.01, 0.02, 0.03, 0.04, 0.05];
         let f2 = [0.03, -0.01, 0.02, 0.01, -0.02];
         let y: Vec<f64> = (0..5).map(|i| 1.5 * f1[i] + 0.5 * f2[i]).collect();
-        let result = multi_factor_greeks(&y, &[&f1, &f2], 252.0).expect("two-factor regression");
+        let result = multi_factor_greeks(&y, &[&f1, &f2], 252.0, ReturnKind::Excess)
+            .expect("two-factor regression");
         assert!(result.r_squared > 0.99);
         assert_eq!(result.betas.len(), 2);
         assert!((result.betas[0] - 1.5).abs() < 1e-6);
@@ -1505,7 +1542,7 @@ mod tests {
 
     #[test]
     fn multi_factor_empty_errors() {
-        let result = multi_factor_greeks(&[], &[&[]], 252.0);
+        let result = multi_factor_greeks(&[], &[&[]], 252.0, ReturnKind::Excess);
         assert!(result.is_err());
     }
 
@@ -1513,7 +1550,7 @@ mod tests {
     fn multi_factor_mismatched_factor_lengths_error() {
         let y = [0.02, 0.04, 0.06, 0.08, 0.10];
         let f1 = [0.01, 0.02, 0.03];
-        let result = multi_factor_greeks(&y, &[&f1], 252.0);
+        let result = multi_factor_greeks(&y, &[&f1], 252.0, ReturnKind::Excess);
         assert!(result.is_err());
     }
 
@@ -1522,9 +1559,55 @@ mod tests {
         // y = 2*x → R²≈1, adj_R² should also be close to 1
         let y = [0.02, 0.04, 0.06, 0.08, 0.10];
         let f1 = [0.01, 0.02, 0.03, 0.04, 0.05];
-        let result = multi_factor_greeks(&y, &[&f1], 252.0).expect("adjusted r-squared regression");
+        let result = multi_factor_greeks(&y, &[&f1], 252.0, ReturnKind::Excess)
+            .expect("adjusted r-squared regression");
         assert!(result.adjusted_r_squared > 0.99);
         assert!(result.adjusted_r_squared <= result.r_squared);
+    }
+
+    #[test]
+    fn multi_factor_total_zero_rf_matches_excess() {
+        let y = [0.02, 0.04, 0.06, 0.08, 0.10];
+        let f1 = [0.01, 0.02, 0.03, 0.04, 0.05];
+        let excess =
+            multi_factor_greeks(&y, &[&f1], 252.0, ReturnKind::Excess).expect("excess regression");
+        let total_zero = multi_factor_greeks(
+            &y,
+            &[&f1],
+            252.0,
+            ReturnKind::Total {
+                risk_free_rate: 0.0,
+            },
+        )
+        .expect("total zero-rf regression");
+        assert!((excess.alpha - total_zero.alpha).abs() < 1e-12);
+        assert!((excess.betas[0] - total_zero.betas[0]).abs() < 1e-12);
+        assert!((excess.r_squared - total_zero.r_squared).abs() < 1e-12);
+        assert!((excess.residual_vol - total_zero.residual_vol).abs() < 1e-12);
+    }
+
+    #[test]
+    fn multi_factor_total_matches_manual_excess_subtraction() {
+        let y = [0.02, 0.03, 0.01, 0.04, 0.00];
+        let f1 = [0.01, 0.02, -0.01, 0.03, 0.00];
+        let rf_annual = 0.12;
+        let rf_period = crate::returns::periodic_risk_free_rate(rf_annual, 252.0);
+        let y_ex: Vec<f64> = y.iter().map(|r| r - rf_period).collect();
+        let total = multi_factor_greeks(
+            &y,
+            &[&f1],
+            252.0,
+            ReturnKind::Total {
+                risk_free_rate: rf_annual,
+            },
+        )
+        .expect("total rf regression");
+        let excess = multi_factor_greeks(&y_ex, &[&f1], 252.0, ReturnKind::Excess)
+            .expect("manual excess regression");
+        assert!((total.alpha - excess.alpha).abs() < 1e-12);
+        assert!((total.betas[0] - excess.betas[0]).abs() < 1e-12);
+        assert!((total.r_squared - excess.r_squared).abs() < 1e-12);
+        assert!((total.residual_vol - excess.residual_vol).abs() < 1e-12);
     }
 
     #[test]
@@ -1560,9 +1643,12 @@ mod tests {
 ///
 /// # Arguments
 ///
-/// * `ann_return`     - Annualized portfolio return.
-/// * `risk_free_rate` - Annualized risk-free rate.
+/// * `ann_return`     - Linearly annualized arithmetic mean (`μ × N`).
+/// * `risk_free_rate` - Annualized risk-free rate in decimal form.
 /// * `beta`           - Portfolio beta vs benchmark.
+/// * `ann_factor`     - Periods per year `N` used to decompound
+///   `risk_free_rate`. Pass `1.0` when `ann_return` and `risk_free_rate`
+///   are already in the same (annual) units.
 ///
 /// # Returns
 ///
@@ -1572,13 +1658,20 @@ mod tests {
 /// `information_ratio` zero-denominator convention). A `NaN` beta (e.g.
 /// from a zero-variance benchmark) propagates to a `NaN` ratio.
 ///
+/// Excess return uses the same geometric rf decompounding as
+/// [`crate::risk_metrics::sharpe`]:
+///
+/// ```text
+/// excess_ann = (μ − rf_period) × N
+/// ```
+///
 /// # References
 ///
 /// - Treynor (1965): see docs/REFERENCES.md#treynor1965
 #[must_use]
-pub(crate) fn treynor(ann_return: f64, risk_free_rate: f64, beta: f64) -> f64 {
+pub(crate) fn treynor(ann_return: f64, risk_free_rate: f64, beta: f64, ann_factor: f64) -> f64 {
+    let excess = crate::returns::annualized_excess_return(ann_return, risk_free_rate, ann_factor);
     if beta.abs() < 1e-10 {
-        let excess = ann_return - risk_free_rate;
         return if excess > 0.0 {
             f64::INFINITY
         } else if excess < 0.0 {
@@ -1587,7 +1680,7 @@ pub(crate) fn treynor(ann_return: f64, risk_free_rate: f64, beta: f64) -> f64 {
             0.0
         };
     }
-    (ann_return - risk_free_rate) / beta
+    excess / beta
 }
 
 /// M-squared (Modigliani-Modigliani): risk-adjusted return on the benchmark's scale.
@@ -1597,15 +1690,19 @@ pub(crate) fn treynor(ann_return: f64, risk_free_rate: f64, beta: f64) -> f64 {
 /// direct measure of value added at the same risk level.
 ///
 /// ```text
-/// M² = R_f + (R_p − R_f) × (σ_bench / σ_portfolio)
+/// M² = R_f + excess_ann × (σ_bench / σ_portfolio)
+/// excess_ann = (μ − rf_period) × N
 /// ```
 ///
 /// # Arguments
 ///
-/// * `ann_return`     - Annualized portfolio return.
+/// * `ann_return`     - Linearly annualized arithmetic mean (`μ × N`).
 /// * `ann_vol`        - Annualized portfolio volatility.
 /// * `bench_vol`      - Annualized benchmark volatility.
-/// * `risk_free_rate` - Annualized risk-free rate.
+/// * `risk_free_rate` - Annualized risk-free rate in decimal form.
+/// * `ann_factor`     - Periods per year `N` used to decompound
+///   `risk_free_rate`. Pass `1.0` when `ann_return` and `risk_free_rate`
+///   are already in the same (annual) units.
 ///
 /// # Returns
 ///
@@ -1615,11 +1712,18 @@ pub(crate) fn treynor(ann_return: f64, risk_free_rate: f64, beta: f64) -> f64 {
 ///
 /// - Modigliani & Modigliani (1997): see docs/REFERENCES.md#modigliani1997
 #[must_use]
-pub(crate) fn m_squared(ann_return: f64, ann_vol: f64, bench_vol: f64, risk_free_rate: f64) -> f64 {
+pub(crate) fn m_squared(
+    ann_return: f64,
+    ann_vol: f64,
+    bench_vol: f64,
+    risk_free_rate: f64,
+    ann_factor: f64,
+) -> f64 {
     if ann_vol.abs() < 1e-10 {
         return risk_free_rate;
     }
-    risk_free_rate + (ann_return - risk_free_rate) * (bench_vol / ann_vol)
+    let excess = crate::returns::annualized_excess_return(ann_return, risk_free_rate, ann_factor);
+    risk_free_rate + excess * (bench_vol / ann_vol)
 }
 
 #[cfg(test)]
@@ -1628,32 +1732,47 @@ mod benchmark_ratio_tests {
 
     #[test]
     fn treynor_hand_calc() {
-        let t = treynor(0.10, 0.02, 1.2);
+        let t = treynor(0.10, 0.02, 1.2, 1.0);
         assert!((t - 0.08 / 1.2).abs() < 1e-14);
     }
 
     #[test]
     fn treynor_zero_beta() {
-        assert_eq!(treynor(0.10, 0.02, 0.0), f64::INFINITY);
-        assert_eq!(treynor(0.01, 0.02, 0.0), f64::NEG_INFINITY);
-        assert_eq!(treynor(0.02, 0.02, 0.0), 0.0);
+        assert_eq!(treynor(0.10, 0.02, 0.0, 1.0), f64::INFINITY);
+        assert_eq!(treynor(0.01, 0.02, 0.0, 1.0), f64::NEG_INFINITY);
+        assert_eq!(treynor(0.02, 0.02, 0.0, 1.0), 0.0);
     }
 
     #[test]
     fn treynor_negative_beta() {
-        let t = treynor(0.10, 0.02, -0.5);
+        let t = treynor(0.10, 0.02, -0.5, 1.0);
         assert!((t - (0.08 / -0.5)).abs() < 1e-14);
     }
 
     #[test]
     fn m_squared_hand_calc() {
-        let m2 = m_squared(0.12, 0.20, 0.15, 0.02);
+        let m2 = m_squared(0.12, 0.20, 0.15, 0.02, 1.0);
         assert!((m2 - 0.095).abs() < 1e-12);
     }
 
     #[test]
     fn m_squared_zero_vol() {
-        assert_eq!(m_squared(0.10, 0.0, 0.15, 0.02), 0.02);
+        assert_eq!(m_squared(0.10, 0.0, 0.15, 0.02, 1.0), 0.02);
+    }
+
+    #[test]
+    fn jensen_and_sharpe_agree_on_rf_when_beta_is_zero() {
+        let mu = 0.0004_f64;
+        let ann_factor = 252.0;
+        let rf_annual = 0.02;
+        let rf_period = crate::returns::periodic_risk_free_rate(rf_annual, ann_factor);
+        let expected = (mu - rf_period) * ann_factor;
+        let alpha = jensen_alpha(mu, 0.001, 0.0, ann_factor, rf_annual);
+        let sharpe_excess =
+            crate::returns::annualized_excess_return(mu * ann_factor, rf_annual, ann_factor);
+        assert!((alpha - expected).abs() < 1e-12);
+        assert!((sharpe_excess - expected).abs() < 1e-12);
+        assert!((alpha - sharpe_excess).abs() < 1e-12);
     }
 }
 
@@ -1673,7 +1792,8 @@ mod multi_factor_error_regression_tests {
         let factor_a = [0.01, 0.02, 0.03, 0.04, 0.05];
         let factor_b = [0.02, 0.04, 0.06, 0.08, 0.10];
 
-        let result = multi_factor_greeks(&returns, &[&factor_a, &factor_b], 252.0);
+        let result =
+            multi_factor_greeks(&returns, &[&factor_a, &factor_b], 252.0, ReturnKind::Excess);
         assert!(result.is_err());
     }
 
@@ -1694,7 +1814,7 @@ mod multi_factor_error_regression_tests {
         .expect("performance should build");
 
         let invalid_factor = [0.01, 0.02];
-        let result = perf.multi_factor_greeks(1, &[&invalid_factor]);
+        let result = perf.multi_factor_greeks(1, &[&invalid_factor], ReturnKind::Excess);
         assert!(result.is_err());
     }
 
@@ -1711,7 +1831,8 @@ mod multi_factor_error_regression_tests {
             0.060_000_000_000,
         ];
 
-        let result = multi_factor_greeks(&returns, &[&factor_a, &factor_b], 252.0);
+        let result =
+            multi_factor_greeks(&returns, &[&factor_a, &factor_b], 252.0, ReturnKind::Excess);
         assert!(result.is_err());
     }
 
@@ -1720,8 +1841,8 @@ mod multi_factor_error_regression_tests {
         let returns = [0.02, 0.04, 0.06, 0.08, 0.10];
         let factor = [0.01, 0.02, 0.03, 0.04, 0.05];
 
-        assert!(multi_factor_greeks(&returns, &[&factor], 0.0).is_err());
-        assert!(multi_factor_greeks(&returns, &[&factor], -252.0).is_err());
+        assert!(multi_factor_greeks(&returns, &[&factor], 0.0, ReturnKind::Excess).is_err());
+        assert!(multi_factor_greeks(&returns, &[&factor], -252.0, ReturnKind::Excess).is_err());
     }
 
     #[test]
@@ -1735,7 +1856,12 @@ mod multi_factor_error_regression_tests {
             .map(|(a, b)| a + b)
             .collect();
 
-        let result = multi_factor_greeks(&returns, &[&factor_a, &factor_b, &factor_c], 252.0);
+        let result = multi_factor_greeks(
+            &returns,
+            &[&factor_a, &factor_b, &factor_c],
+            252.0,
+            ReturnKind::Excess,
+        );
         assert!(result.is_err());
     }
 
@@ -1749,8 +1875,9 @@ mod multi_factor_error_regression_tests {
             .map(|(a, b)| 2.0 * a - 3.0 * b)
             .collect();
 
-        let result = multi_factor_greeks(&returns, &[&factor_a, &factor_b], 252.0)
-            .expect("scaled factors should solve successfully");
+        let result =
+            multi_factor_greeks(&returns, &[&factor_a, &factor_b], 252.0, ReturnKind::Excess)
+                .expect("scaled factors should solve successfully");
         assert!((result.betas[0] - 2.0).abs() < 1e-10);
         assert!((result.betas[1] + 3.0).abs() < 5e-5);
     }

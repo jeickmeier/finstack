@@ -298,7 +298,7 @@
               "type": "null"
             }
           ],
-          "description": "Underlying index tenor used to project the forward rate (term rates).\n\nThe forward rate is projected over\n`[accrual_start, accrual_start + index_tenor]`. When `None` (the serde\ndefault), the index tenor falls back to [`Self::reset_frequency`]. Set this\nexplicitly when the reset cadence differs from the index's underlying\ndeposit period (e.g. a monthly-paying leg referencing a 3M index).\nIgnored for overnight-compounded legs."
+          "description": "Diagnostic tenor for term-index projection error context.\n\nThe named forward curve is already the term index (for example a 3M\nEURIBOR curve). Projection is `fwd.rate(reset_date)`, not a FRA-style\naverage over `[reset, reset + tenor]`. This field (or\n[`Self::reset_frequency`] when `None`) is used only to compute\n`index_maturity` for error messages. Ignored for overnight-compounded\nlegs."
         },
         "overnight_basis": {
           "anyOf": [
@@ -309,7 +309,7 @@
               "type": "null"
             }
           ],
-          "description": "Day-count basis for the overnight compounding denominator.\n\nThis controls the annualization factor used when compounding daily\novernight fixings (e.g., 360 for SOFR/ESTR/TONA, 365 for SONIA).\nIt is independent of the leg's accrual day count (`day_count`), which\ngoverns the coupon year fraction.\n\nDefaults to `Act/360` when `None`, matching SOFR/ESTR/TONA\nconvention. Set to `Act/365F` for SONIA.\nIgnored when `overnight_compounding` is `None`."
+          "description": "Day-count basis for the overnight compounding denominator.\n\nThis controls the annualization factor used when compounding daily\novernight fixings (e.g., 360 for SOFR/€STR/TONA, 365 for SONIA).\nIt is independent of the leg's accrual day count when set explicitly.\n\nWhen `None` and `overnight_compounding` is set, the coupon\n`schedule.day_count` is used if it is `Act360` or `Act365F`. Other\ncoupon day counts (for example `Thirty360`) error unless an explicit\n`Act360` or `Act365F` basis is supplied. Ignored when\n`overnight_compounding` is `None`."
         },
         "overnight_compounding": {
           "anyOf": [
@@ -328,7 +328,7 @@
         },
         "reset_frequency": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
-          "description": "Reset frequency for rate fixings.\n\nThis is the cadence at which the rate refixes; it also serves as the\ndefault index tenor when [`Self::index_tenor`] is `None`."
+          "description": "Reset frequency for rate fixings.\n\nThis is the cadence at which the rate refixes. When\n[`Self::index_tenor`] is `None`, it is also the tenor used only to\nbuild the diagnostic index-maturity date in projection error context."
         },
         "reset_lag_days": {
           "default": 2,

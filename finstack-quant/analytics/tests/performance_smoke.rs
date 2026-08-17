@@ -90,7 +90,11 @@ fn performance_facade_exercises_broad_api_surface() {
         .collect();
 
     for (label, values) in [
-        ("cagr", perf.cagr().expect("valid performance CAGR")),
+        (
+            "cagr",
+            perf.cagr(finstack_quant_analytics::CagrDayCount::default(), None)
+                .expect("valid performance CAGR"),
+        ),
         ("annual mean", perf.mean_return(true)),
         ("period mean", perf.mean_return(false)),
         ("volatility", perf.volatility(true)),
@@ -116,8 +120,8 @@ fn performance_facade_exercises_broad_api_surface() {
             "martin ratio",
             perf.martin_ratio().expect("valid Martin ratios"),
         ),
-        ("parametric var", perf.parametric_var(0.95)),
-        ("cornish-fisher var", perf.cornish_fisher_var(0.95)),
+        ("parametric var", perf.parametric_var(0.95, None)),
+        ("cornish-fisher var", perf.cornish_fisher_var(0.95, None)),
         ("recovery factor", perf.recovery_factor()),
         (
             "sterling ratio",
@@ -167,7 +171,11 @@ fn performance_facade_exercises_broad_api_surface() {
         .returns_for_ticker(perf.benchmark_idx())
         .expect("benchmark returns");
     let multi_factor = perf
-        .multi_factor_greeks(0, &[&bench_series])
+        .multi_factor_greeks(
+            0,
+            &[&bench_series],
+            finstack_quant_analytics::ReturnKind::Excess,
+        )
         .expect("multi-factor regression");
     assert_eq!(multi_factor.betas.len(), 1);
     assert!(multi_factor.alpha.is_finite());
@@ -243,7 +251,7 @@ fn performance_facade_exercises_broad_api_surface() {
     assert!(period_stats.avg_return.is_finite());
     assert!((0.0..=1.0).contains(&period_stats.win_rate));
 
-    let correlation = perf.correlation_matrix();
+    let correlation = perf.correlation_matrix().expect("psd correlation");
     assert_eq!(correlation.len(), ticker_count);
     for (i, row) in correlation.iter().enumerate() {
         assert_eq!(row.len(), ticker_count);
@@ -265,7 +273,9 @@ fn performance_facade_exercises_broad_api_surface() {
     assert!(benchmark_drawdowns.len() <= 2);
 
     let rf = vec![0.0; perf.active_dates().len()];
-    let excess = perf.excess_returns(&rf, Some(252.0));
+    let excess = perf
+        .excess_returns(&rf, Some(252.0))
+        .expect("aligned zero rf");
     assert_finite_panel("excess returns", &excess, &active_lens);
 
     let d = perf.dates().to_vec();
@@ -412,7 +422,10 @@ fn returns_accessors_reproduce_cumulative_returns_and_zero_rf_excess_returns() {
     // The `excess_returns(zeros)` workaround is now unnecessary: it is exactly
     // what `returns()` yields.
     let rf = vec![0.0; perf.active_dates().len()];
-    assert_eq!(perf.excess_returns(&rf, None), panel);
+    assert_eq!(
+        perf.excess_returns(&rf, None).expect("aligned zero rf"),
+        panel
+    );
 
     // Out-of-range indices are rejected rather than silently returning empty.
     assert!(perf.returns_for_ticker(perf.ticker_names().len()).is_err());

@@ -1,5 +1,5 @@
 //! Regression tests pinning analytics metric values.
-use finstack_quant_analytics::Performance;
+use finstack_quant_analytics::{CagrDayCount, Performance};
 use finstack_quant_core::dates::{Date, Month, PeriodKind};
 
 fn d(year: i32, month: Month, day: u8) -> Date {
@@ -26,7 +26,9 @@ fn performance_cagr_uses_default_act_365_25_convention_for_single_return_window(
     )
     .expect("performance should build");
 
-    let cagr = perf.cagr().expect("valid performance CAGR");
+    let cagr = perf
+        .cagr(CagrDayCount::default(), None)
+        .expect("valid performance CAGR");
     assert_eq!(cagr.len(), 1);
     let expected = 1.10_f64.powf(365.25 / 365.0) - 1.0;
     assert!(
@@ -215,7 +217,10 @@ fn benchmark_relative_metrics_use_overlapping_dates_only() {
     .expect("edge-ragged returns should build");
 
     assert_close(perf.beta()[1].beta, 2.0);
-    assert_close(perf.correlation_matrix()[0][1], 1.0);
+    assert_close(
+        perf.correlation_matrix().expect("psd correlation")[0][1],
+        1.0,
+    );
 
     let expected_up_capture = ((1.02_f64 * 1.04_f64 * 1.06_f64).powf(12.0 / 3.0) - 1.0)
         / ((1.01_f64 * 1.02_f64 * 1.03_f64).powf(12.0 / 3.0) - 1.0);
@@ -366,7 +371,9 @@ fn performance_calmar_matches_cagr_over_absolute_max_drawdown() {
     assert_close(max_dd, -0.244);
 
     let expected_cagr = 0.898128_f64.powf(365.25 / 5.0) - 1.0;
-    let cagr = perf.cagr().expect("valid CAGR")[0];
+    let cagr = perf
+        .cagr(CagrDayCount::default(), None)
+        .expect("valid CAGR")[0];
     assert_close(cagr, expected_cagr);
 
     let calmar = perf.calmar().expect("valid Calmar")[0];
@@ -591,20 +598,13 @@ fn single_observation_windows_surface_nan_not_signed_infinity() {
 }
 
 #[test]
-fn correlation_matrix_uses_nan_for_degenerate_pairs() {
-    // Two tickers with non-overlapping finite spans: correlation is
-    // undefined (fewer than 2 paired observations) and must surface as NaN,
-    // matching the NaN produced for zero-variance pairs — not a
-    // plausible-looking 0.0.
+fn correlation_matrix_errors_on_degenerate_pairs() {
     let dates = vec![
         d(2024, Month::January, 1),
         d(2024, Month::January, 2),
         d(2024, Month::January, 3),
     ];
-    let returns = vec![
-        vec![0.01, 0.02, f64::NAN],     // finite span: rows 0..=1
-        vec![f64::NAN, f64::NAN, 0.03], // finite span: row 2 only
-    ];
+    let returns = vec![vec![0.01, 0.02, f64::NAN], vec![f64::NAN, f64::NAN, 0.03]];
     let perf = Performance::from_returns(
         dates,
         returns,
@@ -614,13 +614,8 @@ fn correlation_matrix_uses_nan_for_degenerate_pairs() {
     )
     .expect("performance should build");
 
-    let m = perf.correlation_matrix();
-    assert_eq!(m[0][0], 1.0);
-    assert_eq!(m[1][1], 1.0);
     assert!(
-        m[0][1].is_nan() && m[1][0].is_nan(),
-        "non-overlapping pair must be NaN, got {} / {}",
-        m[0][1],
-        m[1][0]
+        perf.correlation_matrix().is_err(),
+        "non-overlapping pair must error rather than return a NaN matrix"
     );
 }

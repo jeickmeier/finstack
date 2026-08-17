@@ -829,7 +829,7 @@ export interface DayCountConstructor {
    */
   actActAfb(): DayCount;
   /**
-   * 30/360 Italian.
+   * Return a `DayCount` handle configured for thirty360 it.
    *
    * Day 31 becomes 30, and any February day after the 27th becomes 30
    * (QuantLib `Thirty360::Italian`). Distinct from US SIA and 30E/360.
@@ -1660,8 +1660,8 @@ export interface FxQuoteConventionConstructor {
   indirect(): FxQuoteConvention;
   /**
    * Parse from a string label such as `"direct"` or `"indirect"`.
-   * @param name - Convention label: `direct` or `indirect`.
    * @returns An `FxQuoteConvention` handle.
+   * @param name - Convention label: `direct` or `indirect`.
    * @throws Error - Throws a JavaScript exception unless `name` is `direct` or `indirect`.
    */
   fromName(name: string): FxQuoteConvention;
@@ -3075,10 +3075,16 @@ export declare class Performance {
   activeDatesForTicker(tickerIdx: number): string[];
   /**
    * Compound annual growth rate per asset.
+   *
+   * `dayCount` omitted or `"act365_25"` uses Act/365.25. Other values are
+   * core DayCount names such as `"act_365f"` or `"bus_252"`. `bus_252`
+   * requires `calendarId`.
+   * @param dayCount - Optional day-count: `"act365_25"` or a core name such as `"act_365f"`; defaults to Act/365.25.
+   * @param calendarId - Optional holiday-calendar id; required for `bus_252`.
    * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
-   * @throws Error - Rejects when any ticker's active range has no positive holding period.
+   * @throws Error - Rejects an unknown day-count or calendar id, a missing calendar when `bus_252` is requested, or a ticker whose active range has no positive holding period.
    */
-  cagr(): Float64Array;
+  cagr(dayCount?: string, calendarId?: string): Float64Array;
   /**
    * Mean periodic return per asset (annualized by default).
    * @param annualize - Whether to annualize by the configured frequency; defaults to true.
@@ -3104,7 +3110,8 @@ export declare class Performance {
    */
   sortino(mar?: number): Float64Array;
   /**
-   * Calmar ratio (CAGR over max drawdown) per asset.
+   * Calmar ratio (CAGR / |max drawdown|) over the active window, not
+   * Young's 36-month CTA definition.
    * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
    * @throws Error - Rejects when any ticker's active range has no positive holding period and therefore cannot produce CAGR.
    */
@@ -3258,17 +3265,25 @@ export declare class Performance {
    */
   battingAverage(): Float64Array;
   /**
-   * Parametric (Gaussian) value-at-risk per asset.
+   * Equal-weight Gaussian value-at-risk per asset.
+   *
+   * `horizonPeriods` omitted is one-period VaR. A positive `h` scales
+   * mean by `h` and volatility by `√h`.
    * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
+   * @param horizonPeriods - Optional horizon in observation periods; omitted is one-period VaR.
    * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
    */
-  parametricVar(confidence?: number): Float64Array;
+  parametricVar(confidence?: number, horizonPeriods?: number): Float64Array;
   /**
    * Cornish-Fisher adjusted value-at-risk per asset.
+   *
+   * `horizonPeriods` omitted is one-period VaR. A positive `h` scales
+   * Cornish–Fisher moments to that horizon.
    * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
+   * @param horizonPeriods - Optional horizon in observation periods; omitted is one-period VaR.
    * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
    */
-  cornishFisherVar(confidence?: number): Float64Array;
+  cornishFisherVar(confidence?: number, horizonPeriods?: number): Float64Array;
   /**
    * Conditional drawdown-at-risk per asset at the given confidence level.
    * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
@@ -3332,8 +3347,13 @@ export declare class Performance {
    */
   drawdownSeries(): Float64Array[];
   /**
-   * Pairwise return correlation matrix across assets.
-   * @returns Square pairwise correlation matrix as nested Float64Array rows in `tickerNames()` order.
+   * Return correlation matrix across assets.
+   *
+   * Uses the complete-case common window when every ticker has at least
+   * two overlapping points; otherwise pairwise intersecting spans, then
+   * Higham repair.
+   * @returns Square correlation matrix as nested Float64Array rows in `tickerNames()` order.
+   * @throws Error - Rejects a degenerate pair or a matrix that cannot be repaired to a valid correlation matrix.
    */
   correlationMatrix(): Float64Array[];
   /**
@@ -3348,10 +3368,14 @@ export declare class Performance {
   drawdownDifference(): Float64Array[];
   /**
    * Excess returns over the supplied risk-free series per asset.
-   * @param rf - Risk-free return series as decimal values aligned with active observations.
-   * @param nperiods - Optional periods per year used to annualize excess returns.
+   *
+   * `rf` must have one value per active panel date. `nperiods` omitted
+   * geometrically decompounds an annual series using the engine frequency;
+   * pass `1` when `rf` is already periodic.
+   * @param rf - Risk-free return series as decimal values aligned with active panel dates.
+   * @param nperiods - Optional periods per year used to decompound annual `rf`; omit to use the engine frequency, or pass `1` for already-periodic `rf`.
    * @returns One Float64Array per ticker in `tickerNames()` order.
-   * @throws Error - Rejects when `rf` is neither a numeric JavaScript array nor a `Float64Array`.
+   * @throws Error - Rejects when `rf` is neither a numeric JavaScript array nor a `Float64Array`, or when its length differs from the active panel.
    */
   excessReturns(rf: NumericArray, nperiods?: number): Float64Array[];
   /**
@@ -3420,22 +3444,31 @@ export declare class Performance {
   drawdownDetails(tickerIdx: number, n?: number): DrawdownEpisode[];
   /**
    * Multi-factor regression statistics for one asset.
+   *
+   * Factor series are already-excess. `returnKind` `"excess"` leaves the
+   * ticker series unchanged; `"total"` subtracts the geometrically
+   * decompounded period risk-free rate from the ticker series only.
    * @param tickerIdx - Zero-based ticker column index in tickerNames order.
-   * @param factorReturns - Matrix of aligned decimal factor-return series, one row per factor.
+   * @param factorReturns - Matrix of aligned already-excess decimal factor-return series, one row per factor.
+   * @param returnKind - `"excess"` or `"total"`; defaults to `"excess"`.
+   * @param riskFreeRate - Annualized decimal risk-free rate used when `returnKind` is `"total"`; defaults to 0.0.
    * @returns `{ alpha, betas, r_squared, adjusted_r_squared, residual_vol }` for the selected ticker.
-   * @throws Error - Rejects a non-numeric `factor_returns` matrix, an out-of-range `ticker_idx`, no factors, too few observations, non-finite or length-mismatched inputs, a singular factor design, or a result that cannot be serialized to JavaScript.
+   * @throws Error - Rejects a non-numeric `factor_returns` matrix, an unknown `returnKind`, an out-of-range `ticker_idx`, no factors, too few observations, non-finite or length-mismatched inputs, a singular factor design, or a result that cannot be serialized to JavaScript.
    */
-  multiFactorGreeks(tickerIdx: number, factorReturns: NumericMatrix): MultiFactorResult;
+  multiFactorGreeks(tickerIdx: number, factorReturns: NumericMatrix, returnKind?: string, riskFreeRate?: number): MultiFactorResult;
   /**
-   * Period-to-date lookback returns. The FYTD window starts at the fiscal-year
-   * start adjusted to the next business day on `calendar` (default `"nyse"`);
-   * pass the calendar id matching your market for non-US panels.
+   * Period-to-date lookback returns.
+   *
+   * FYTD is the first observation on or after the fiscal calendar start
+   * through `refDate`. Holidays are not skipped. The first included
+   * simple return still spans the prior close. `calendar` is accepted
+   * for call-site compatibility.
    * @param refDate - ISO-8601 date on which MTD, QTD, YTD, and FYTD windows end.
    * @param fiscalYearStartMonth - Optional fiscal-year start month from 1 through 12; defaults to January.
    * @param fiscalYearStartDay - Optional fiscal-year start day; defaults to the first day.
-   * @param calendar - Optional holiday-calendar id for FYTD adjustment; defaults to NYSE.
+   * @param calendar - Optional holiday-calendar id accepted for call-site compatibility; defaults to NYSE.
    * @returns Per-ticker `{ mtd, qtd, ytd, fytd }` lookback returns as decimal fractions.
-   * @throws Error - Rejects an invalid ISO `ref_date`, a fiscal month outside `1..=12`, a fiscal day outside `1..=31`, an unknown `calendar`, a fiscal start that cannot be business-day-adjusted, or a result that cannot be serialized to JavaScript.
+   * @throws Error - Rejects an invalid ISO `ref_date`, a fiscal month outside `1..=12`, a fiscal day outside `1..=31`, an unknown `calendar`, or a result that cannot be serialized to JavaScript.
    */
   lookbackReturns(
     refDate: string,
@@ -4692,7 +4725,7 @@ export interface MonteCarloNamespace {
    * @param useParallel - Whether simulation paths are evaluated in parallel when supported.
    * @param basis - Regression basis family used by the American-option exercise estimator.
    * @param basisDegree - Maximum polynomial degree used by the American-option exercise basis.
-   * @throws Error - Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is unknown; `strike` is non-finite or `strike <= 0`; the GBM parameters, path count, step count, expiry, basis name, or basis degree fail validation; path generation fails; or the result cannot be serialized.
+   * @throws Error - Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is unknown; `strike` is non-finite or `<= 0`; the GBM parameters, path count, step count, expiry, basis name, or basis degree fail validation; path generation fails; or the result cannot be serialized.
    */
   priceAmericanPut(
     spot: number,
@@ -4727,7 +4760,7 @@ export interface MonteCarloNamespace {
    * @param useParallel - Whether simulation paths are evaluated in parallel when supported.
    * @param basis - Regression basis family used by the American-option exercise estimator.
    * @param basisDegree - Maximum polynomial degree used by the American-option exercise basis.
-   * @throws Error - Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is unknown; `strike <= 0`; the GBM parameters, path count, step count, expiry, basis name, or basis degree fail validation; path generation fails; or the result cannot be serialized.
+   * @throws Error - Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is unknown; `strike` is non-finite or `<= 0`; the GBM parameters, path count, step count, expiry, basis name, or basis degree fail validation; path generation fails; or the result cannot be serialized.
    */
   priceAmericanCall(
     spot: number,
@@ -4761,7 +4794,7 @@ export interface MonteCarloNamespace {
    * @param useParallel - Whether simulation paths are evaluated in parallel when supported.
    * @param basis - Regression basis family used by the American-option exercise estimator.
    * @param basisDegree - Maximum polynomial degree used by the American-option exercise basis.
-   * @throws Error - Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is unknown; `strike <= 0`; the GBM parameters, path count, step count, expiry, basis name, or basis degree fail validation; `pricing_seed == seed`; either path-generation pass or the regression fit fails; or the result cannot be serialized.
+   * @throws Error - Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is unknown; `strike` is non-finite or `<= 0`; the GBM parameters, path count, step count, expiry, basis name, or basis degree fail validation; `pricing_seed == seed`; either path-generation pass or the regression fit fails; or the result cannot be serialized.
    */
   priceAmericanPutUnbiased(
     spot: number,
@@ -4796,7 +4829,7 @@ export interface MonteCarloNamespace {
    * @param useParallel - Whether simulation paths are evaluated in parallel when supported.
    * @param basis - Regression basis family used by the American-option exercise estimator.
    * @param basisDegree - Maximum polynomial degree used by the American-option exercise basis.
-   * @throws Error - Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is unknown; `strike <= 0`; the GBM parameters, path count, step count, expiry, basis name, or basis degree fail validation; `pricing_seed == seed`; either path-generation pass or the regression fit fails; or the result cannot be serialized.
+   * @throws Error - Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is unknown; `strike` is non-finite or `<= 0`; the GBM parameters, path count, step count, expiry, basis name, or basis degree fail validation; `pricing_seed == seed`; either path-generation pass or the regression fit fails; or the result cannot be serialized.
    */
   priceAmericanCallUnbiased(
     spot: number,
@@ -5004,7 +5037,7 @@ export interface CashflowsNamespace {
   /**
    * Build a cashflow schedule from a `CashflowScheduleBuildSpec` JSON string.
    *
-   * @param specJson - JSON-encoded `CashflowScheduleBuildSpec`.
+   * @param specJson - JSON-encoded `CashflowScheduleBuildSpec`. Optional `principal_exchange` is `"none"` or `"initial_and_final"` (default).
    * @param marketJson - Optional JSON-encoded market context for floating-rate lookups.
    * @returns JSON-encoded `CashFlowSchedule`.
    * @throws If the spec or market JSON is malformed, or schedule construction fails.

@@ -4,7 +4,7 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
 
 use crate::builder::orchestrator::{CashFlowBuilder, PrincipalEvent};
-use crate::builder::{AmortizationSpec, Notional};
+use crate::builder::{AmortizationSpec, Notional, PrincipalExchange};
 use crate::primitives::CFKind;
 
 impl CashFlowBuilder {
@@ -31,6 +31,58 @@ impl CashFlowBuilder {
         });
         self.issue = Some(issue_date);
         self.maturity = Some(maturity);
+        self
+    }
+
+    /// Selects whether issue funding and maturity redemption notionals are emitted.
+    ///
+    /// Outstanding still starts at the `principal` initial amount for coupon
+    /// math. Scheduled amortization and explicit principal events still emit.
+    /// The default is [`PrincipalExchange::InitialAndFinal`].
+    ///
+    /// # Arguments
+    ///
+    /// * `exchange` - `InitialAndFinal` emits the issue draw and the
+    ///   redemption balloon on the lagged payment date. `None` tracks
+    ///   outstanding only (vanilla IRS / basis-swap convention).
+    ///
+    /// # Returns
+    ///
+    /// Mutable builder reference for fluent chaining.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use finstack_quant_cashflows::builder::{
+    ///     CashFlowSchedule, CouponType, FixedCouponSpec, PrincipalExchange, ScheduleParams,
+    /// };
+    /// use finstack_quant_core::currency::Currency;
+    /// use finstack_quant_core::dates::Date;
+    /// use finstack_quant_core::money::Money;
+    /// use rust_decimal_macros::dec;
+    /// use time::Month;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let issue = Date::from_calendar_date(2025, Month::January, 15)?;
+    /// let maturity = Date::from_calendar_date(2026, Month::January, 15)?;
+    /// let schedule = CashFlowSchedule::builder()
+    ///     .principal(Money::new(1_000_000.0, Currency::USD), issue, maturity)
+    ///     .principal_exchange(PrincipalExchange::None)
+    ///     .fixed_cf(FixedCouponSpec {
+    ///         coupon_type: CouponType::Cash,
+    ///         rate: dec!(0.05),
+    ///         schedule: ScheduleParams::semiannual_30360(),
+    ///     })
+    ///     .build(None)?;
+    /// assert!(schedule.get_flows().iter().all(|cf| {
+    ///     cf.kind != finstack_quant_core::cashflow::CFKind::Notional
+    /// }));
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use = "builder methods should be chained or terminated with .build(...)"]
+    pub fn principal_exchange(&mut self, exchange: PrincipalExchange) -> &mut Self {
+        self.principal_exchange = exchange;
         self
     }
 

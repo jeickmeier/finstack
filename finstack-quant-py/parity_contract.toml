@@ -355,6 +355,7 @@ public = [
     "FeeSpec", "FixedCouponSpec", "FloatingCouponSpec", "FloatingRateFallback",
     "FloatingRateSpec", "Notional", "OvernightCompoundingMethod",
     "OvernightIndexConstraintApplication", "PrepaymentModelSpec", "PrincipalEvent",
+    "PrincipalExchange",
     "RecoveryModelSpec", "RollRule", "ScheduleParams", "StepUpCouponSpec",
     "cdr_to_mdr", "cpr_to_smm", "mdr_to_cdr",
     "merge_cashflow_schedules", "smm_to_cpr",

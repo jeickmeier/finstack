@@ -153,6 +153,7 @@ pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult
             "OvernightIndexConstraintApplication",
             "PrepaymentModelSpec",
             "PrincipalEvent",
+            "PrincipalExchange",
             "RecoveryModelSpec",
             "RollRule",
             "ScheduleParams",

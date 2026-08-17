@@ -28,7 +28,7 @@ use finstack_quant_core::{
 // Import shared swap leg pricing utilities
 use crate::cashflow::builder::{
     schedule::merge_cashflow_schedules, CashFlowSchedule, CouponType, FloatingCouponSpec,
-    FloatingRateFallback, FloatingRateSpec, Notional,
+    FloatingRateFallback, FloatingRateSpec, Notional, PrincipalExchange,
 };
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::numeric::decimal_to_f64;
@@ -688,6 +688,7 @@ impl BasisSwap {
         let mut builder = CashFlowSchedule::builder();
         let _ = builder
             .principal(self.notional, leg.start, leg.end)
+            .principal_exchange(PrincipalExchange::None)
             .floating_cf(FloatingCouponSpec {
                 rate_spec: FloatingRateSpec {
                     index_id: leg.forward_curve_id.clone(),
@@ -720,9 +721,7 @@ impl BasisSwap {
                     roll_rule: crate::cashflow::builder::specs::RollRule::None,
                 },
             });
-        let mut schedule = builder.build(Some(market))?;
-        schedule.retain_flows(|cf| cf.kind == crate::cashflow::primitives::CFKind::FloatReset);
-        Ok(schedule)
+        builder.build(Some(market))
     }
 
     fn overnight_leg_schedule(

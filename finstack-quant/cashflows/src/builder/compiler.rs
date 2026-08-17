@@ -7,13 +7,17 @@
 //! Responsibilities:
 //! - Partition the `[issue, maturity]` horizon into windows using coupon/payment
 //!   program boundaries.
-//! - For each window, derive date schedules according to frequency, stub, BDC,
-//!   calendar, and day‑count conventions.
+//! - For each window, derive an **independent** date schedule (fresh stub at
+//!   the window start) according to frequency, stub, BDC, calendar, and
+//!   day‑count conventions. A mid-horizon conversion does not continue the
+//!   pre-switch roll.
 //! - Materialize per‑window coupon specs (fixed or floating) and selected
 //!   payment split (Cash | PIK | Split) with precise coverage semantics.
 //! - Compile fee specifications into periodic and fixed fee schedules.
 //! - Collect a stable, de‑duplicated set of relevant dates (issue, maturity,
-//!   coupon/payment/fee dates, and custom amortization dates).
+//!   coupon/payment/fee dates, and custom amortization dates). The orchestrator
+//!   then adds the lagged `redemption_date` so maturity handling runs on the
+//!   same date as the final coupon.
 //!
 //! Determinism and validation follow the project invariants: windows must be
 //! within `[issue, maturity]`, coverage must be unique (no overlapping coupon

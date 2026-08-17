@@ -12,7 +12,8 @@
 //! - confidence levels are in `(0, 1)`, e.g. `0.95` for 95% VaR
 //! - sample skewness uses Fisher's `G_1`; sample excess kurtosis uses `G_2`
 //!   (matching Excel `SKEW()` / `KURT()`)
-//! - empty inputs return `0.0` rather than panicking
+//! - empty or invalid VaR / ES / tail-ratio / parametric / Cornish-Fisher
+//!   inputs return [`f64::NAN`] (matching Sharpe when `n < 2`)
 
 use crate::math::stats::mean_var;
 use finstack_quant_core::math::stats::quantile;
@@ -67,15 +68,12 @@ fn finite_returns_copy(returns: &[f64]) -> Option<Vec<f64>> {
 ///
 /// # Returns
 ///
-/// The VaR as a non-positive scalar. Returns `0.0` for an empty slice.
-///
-/// # References
-///
-/// - J.P. Morgan RiskMetrics (1996): see docs/REFERENCES.md#jpmorgan1996RiskMetrics `docs/REFERENCES.md#jpmorgan1996RiskMetrics`
+/// The VaR as a non-positive scalar. Returns [`f64::NAN`] for an empty
+/// slice or an invalid confidence level.
 #[must_use]
 pub(crate) fn value_at_risk(returns: &[f64], confidence: f64) -> f64 {
     if returns.is_empty() {
-        return 0.0;
+        return f64::NAN;
     }
     if !has_strict_confidence(confidence) {
         tracing::debug!(
@@ -120,8 +118,8 @@ pub(crate) fn value_at_risk(returns: &[f64], confidence: f64) -> f64 {
 ///
 /// # Returns
 ///
-/// The Expected Shortfall as a non-positive scalar. Returns `0.0` for
-/// an empty slice.
+/// The Expected Shortfall as a non-positive scalar. Returns [`f64::NAN`]
+/// for an empty slice or an invalid confidence level.
 ///
 /// # References
 ///
@@ -129,7 +127,7 @@ pub(crate) fn value_at_risk(returns: &[f64], confidence: f64) -> f64 {
 #[must_use]
 pub(crate) fn expected_shortfall(returns: &[f64], confidence: f64) -> f64 {
     if returns.is_empty() {
-        return 0.0;
+        return f64::NAN;
     }
     if !has_strict_confidence(confidence) {
         tracing::debug!(
@@ -162,12 +160,12 @@ pub(crate) fn expected_shortfall(returns: &[f64], confidence: f64) -> f64 {
 ///
 /// Returns `(value_at_risk, expected_shortfall)`. Sentinel rules match the
 /// standalone [`value_at_risk`] / [`expected_shortfall`] functions:
-/// `(0.0, 0.0)` for an empty slice and `(NaN, NaN)` for non-finite inputs
-/// or out-of-range `confidence`.
+/// `(NaN, NaN)` for an empty slice, non-finite inputs, or out-of-range
+/// `confidence`.
 #[must_use]
 pub(crate) fn value_at_risk_and_es(returns: &[f64], confidence: f64) -> (f64, f64) {
     if returns.is_empty() {
-        return (0.0, 0.0);
+        return (f64::NAN, f64::NAN);
     }
     if !has_strict_confidence(confidence) {
         return (f64::NAN, f64::NAN);
@@ -207,13 +205,13 @@ pub(crate) fn value_at_risk_and_es(returns: &[f64], confidence: f64) -> (f64, f6
 ///
 /// # Returns
 ///
-/// The tail ratio (non-negative). Returns `0.0` if `returns` is empty,
-/// [`f64::INFINITY`] when the lower tail quantile is zero but the upper tail
-/// is positive, and [`f64::NAN`] when both tails are zero.
+/// The tail ratio (non-negative). Returns [`f64::NAN`] if `returns` is
+/// empty, [`f64::INFINITY`] when the lower tail quantile is zero but the
+/// upper tail is positive, and [`f64::NAN`] when both tails are zero.
 #[must_use]
 pub(crate) fn tail_ratio(returns: &[f64], confidence: f64) -> f64 {
     if returns.is_empty() {
-        return 0.0;
+        return f64::NAN;
     }
     if !has_strict_confidence(confidence) {
         return f64::NAN;
@@ -322,15 +320,15 @@ pub(crate) fn skew_kurt(returns: &[f64]) -> (f64, f64) {
 ///
 /// # Returns
 ///
-/// The parametric VaR (typically negative). Returns `0.0` for an empty slice.
+/// The parametric VaR (typically negative). Returns [`f64::NAN`] for an
+/// empty slice or an invalid confidence / horizon.
 ///
-/// # References
-///
-/// - J.P. Morgan RiskMetrics (1996): see docs/REFERENCES.md#jpmorgan1996RiskMetrics `docs/REFERENCES.md#jpmorgan1996RiskMetrics`
+/// This is equal-weight Gaussian VaR (sample mean and sample volatility),
+/// not an EWMA / RiskMetrics estimator.
 #[must_use]
 pub(crate) fn parametric_var(returns: &[f64], confidence: f64, ann_factor: Option<f64>) -> f64 {
     if returns.is_empty() {
-        return 0.0;
+        return f64::NAN;
     }
     if !has_strict_confidence(confidence) {
         return f64::NAN;
@@ -370,9 +368,9 @@ pub(crate) fn parametric_var(returns: &[f64], confidence: f64, ann_factor: Optio
 ///
 /// # Returns
 ///
-/// The Cornish-Fisher adjusted VaR (typically negative). Returns `0.0`
-/// for an empty slice. Falls back to parametric VaR if skewness and
-/// kurtosis are both zero.
+/// The Cornish-Fisher adjusted VaR (typically negative). Returns
+/// [`f64::NAN`] for an empty slice. Falls back to parametric VaR if
+/// skewness and kurtosis are both zero.
 ///
 /// # Caution
 ///
@@ -397,7 +395,7 @@ pub(crate) fn parametric_var(returns: &[f64], confidence: f64, ann_factor: Optio
 #[must_use]
 pub(crate) fn cornish_fisher_var(returns: &[f64], confidence: f64, ann_factor: Option<f64>) -> f64 {
     if returns.is_empty() {
-        return 0.0;
+        return f64::NAN;
     }
     if !has_strict_confidence(confidence) {
         return f64::NAN;
@@ -503,7 +501,7 @@ pub(super) fn moments4(returns: &[f64]) -> (f64, f64, f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::math::stats::{mean, variance};
+    use crate::math::stats::{mean, mean_var, variance};
 
     #[test]
     fn var_basic() {
@@ -615,7 +613,19 @@ mod tests {
 
     #[test]
     fn parametric_var_empty() {
-        assert_eq!(parametric_var(&[], 0.95, None), 0.0);
+        assert!(parametric_var(&[], 0.95, None).is_nan());
+    }
+
+    #[test]
+    fn parametric_var_horizon_ten_matches_formula() {
+        let returns = [0.01, -0.02, 0.03, -0.01, 0.02, -0.005];
+        let actual = parametric_var(&returns, 0.95, Some(10.0));
+        let (m, var) = mean_var(&returns);
+        let z = crate::math::special_functions::standard_normal_inv_cdf(0.05);
+        let expected = m * 10.0 + z * var.sqrt() * 10.0_f64.sqrt();
+        assert!((actual - expected).abs() < 1e-14);
+        let period = parametric_var(&returns, 0.95, None);
+        assert!((actual - period).abs() > 1e-6);
     }
 
     #[test]
@@ -658,7 +668,7 @@ mod tests {
 
     #[test]
     fn cornish_fisher_var_empty() {
-        assert_eq!(cornish_fisher_var(&[], 0.95, None), 0.0);
+        assert!(cornish_fisher_var(&[], 0.95, None).is_nan());
     }
 
     #[test]
@@ -753,9 +763,11 @@ mod tests {
     #[test]
     fn empty_input_consistency() {
         let empty: Vec<f64> = vec![];
-        assert_eq!(value_at_risk(&empty, 0.95), 0.0);
-        assert_eq!(expected_shortfall(&empty, 0.95), 0.0);
-        assert_eq!(tail_ratio(&empty, 0.95), 0.0);
+        assert!(value_at_risk(&empty, 0.95).is_nan());
+        assert!(expected_shortfall(&empty, 0.95).is_nan());
+        assert!(tail_ratio(&empty, 0.95).is_nan());
+        let (var, es) = value_at_risk_and_es(&empty, 0.95);
+        assert!(var.is_nan() && es.is_nan());
     }
 
     // ─── Moved from tests/correctness_regressions.rs ─────────────────────────

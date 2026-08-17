@@ -16,19 +16,19 @@ use crate::builder::emission::{
     AmortizationParams, ResolvedFloatMarket,
 };
 use crate::builder::orchestrator::{AmortizationSetup, BuildState, PrincipalEvent};
-use crate::builder::Notional;
+use crate::builder::{Notional, PrincipalExchange};
 use crate::primitives::{CFKind, CashFlow};
 
 #[derive(Clone, Copy)]
 pub(super) struct BuildContext<'a> {
     pub(super) ccy: Currency,
     pub(super) issue: Date,
-    pub(super) maturity: Date,
-    /// Business-day-adjusted maturity on which the final principal redemption
-    /// is paid. Adjusted with the calendar/BDC of the principal-paying leg
-    /// (first fixed, else first floating coupon schedule); equals the raw
-    /// `maturity` when no coupon schedule exists.
+    /// Date on which the final principal redemption is paid: BDC-adjust
+    /// `maturity` on the principal-paying leg, then apply that leg's payment
+    /// lag. Equals the raw `maturity` when no coupon schedule exists.
     pub(super) redemption_date: Date,
+    /// Whether to emit the maturity balloon as `CFKind::Notional`.
+    pub(super) principal_exchange: PrincipalExchange,
     pub(super) notional: &'a Notional,
     pub(super) fixed_schedules: &'a [FixedSchedule],
     pub(super) float_schedules: &'a [FloatSchedule],
@@ -107,7 +107,7 @@ impl<'a> DateProcessor<'a> {
             self.ctx.notional,
             &mut state.outstanding,
             &amort_params,
-            d == self.ctx.maturity,
+            d == self.ctx.redemption_date,
             &mut state.flows,
         )?;
         Ok(())
@@ -180,16 +180,19 @@ impl<'a> DateProcessor<'a> {
 
     /// Handle maturity redemption: emit final principal repayment if outstanding > 0.
     ///
-    /// The loop still triggers on the raw (unadjusted) maturity date, but the
-    /// emitted cashflow is dated on `BuildContext::redemption_date` — the
-    /// business-day-adjusted maturity — so the redemption settles on the same
-    /// date as the final coupon. `finalize_flows` re-sorts flows by date, so
-    /// the shifted date keeps the schedule ordered.
+    /// Triggers on `redemption_date` (adjusted maturity plus payment lag),
+    /// after same-day coupons, amortization, PIK capitalization, and fees, so
+    /// a lagged final PIK is included in the balloon. Outstanding is not
+    /// zeroed on the raw maturity when that date is earlier than the lagged
+    /// coupon.
     fn handle_maturity(&self, d: Date, state: &mut BuildState) -> finstack_quant_core::Result<()> {
-        if d == self.ctx.maturity && state.outstanding > Decimal::ZERO {
+        if d == self.ctx.redemption_date
+            && self.ctx.principal_exchange == PrincipalExchange::InitialAndFinal
+            && state.outstanding > Decimal::ZERO
+        {
             let outstanding_f64 = finstack_quant_core::decimal::decimal_to_f64(state.outstanding)?;
             state.flows.push(CashFlow::new(
-                self.ctx.redemption_date,
+                d,
                 None,
                 Money::new(outstanding_f64, self.ctx.ccy),
                 CFKind::Notional,

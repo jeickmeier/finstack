@@ -7,6 +7,7 @@ import type { RateBounds } from "./RateBounds";
 import type { RateBoundsPolicy } from "./RateBoundsPolicy";
 import type { SolverConfig } from "./SolverConfig";
 import type { ValidationMode } from "./ValidationMode";
+import type { VolSurfaceSolveConfig } from "./VolSurfaceSolveConfig";
 
 /**
  * Global configuration for the calibration subsystem.
@@ -26,7 +27,9 @@ import type { ValidationMode } from "./ValidationMode";
  *    algorithmic convergence criterion in x-space (parameter space). The solver
  *    stops when successive parameter estimates differ by less than this tolerance.
  *
- * 2. **Validation Tolerance** (e.g., [`discount_curve.validation_tolerance`](DiscountCurveSolveConfig::validation_tolerance)):
+ * 2. **Validation Tolerance** (e.g., [`discount_curve.validation_tolerance`](DiscountCurveSolveConfig::validation_tolerance)
+ *    for PV-per-notional curve residuals, or [`vol_surface.validation_tolerance`](VolSurfaceSolveConfig::validation_tolerance)
+ *    for decimal implied-vol residuals):
  *    Controls whether calibration is considered *successful*. After the solver
  *    converges, the final residuals are compared against this tolerance. If any
  *    residual exceeds `validation_tolerance`, the calibration is marked as failed
@@ -133,6 +136,10 @@ hazard_curve: HazardCurveSolveConfig,
  * Inflation-curve specific solver configuration.
  */
 inflation_curve: InflationCurveSolveConfig,
+/**
+ * Volatility-surface specific solver configuration (SABR and SVI).
+ */
+vol_surface: VolSurfaceSolveConfig,
 /**
  * When `true`, a calibration step whose solver reports
  * `report.success == false` is propagated as a

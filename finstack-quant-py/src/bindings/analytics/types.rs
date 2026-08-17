@@ -432,7 +432,7 @@ impl PyMultiFactorResult {
         serde_json::to_string(&self.inner).map_err(display_to_py)
     }
 
-    /// Raw regression intercept, annualized with the supplied factor frequency.
+    /// Annualized OLS intercept of the (possibly rf-adjusted) dependent series.
     #[getter]
     fn alpha(&self) -> f64 {
         self.inner.alpha

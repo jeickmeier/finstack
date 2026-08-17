@@ -68,7 +68,7 @@
     },
     "CalibrationConfig": {
       "additionalProperties": false,
-      "description": "Global configuration for the calibration subsystem.\n\nThis struct consolidates all settings for solvers, validation, and market-regime\nspecific bounds. It is typically derived from a `FinstackConfig` extension section.\nPublic callers should treat it as the behavioral contract for calibration\nexecution policy: solver choice, convergence settings, validation thresholds,\nrate-bound policy, and curve-specific numerical guardrails.\n\n# Tolerance Semantics\n\nCalibration involves two distinct tolerance concepts:\n\n1. **Solver Tolerance** ([`solver.tolerance()`](SolverConfig::tolerance)):\n   Controls when the numerical solver (Brent/Newton) terminates. This is an\n   algorithmic convergence criterion in x-space (parameter space). The solver\n   stops when successive parameter estimates differ by less than this tolerance.\n\n2. **Validation Tolerance** (e.g., [`discount_curve.validation_tolerance`](DiscountCurveSolveConfig::validation_tolerance)):\n   Controls whether calibration is considered *successful*. After the solver\n   converges, the final residuals are compared against this tolerance. If any\n   residual exceeds `validation_tolerance`, the calibration is marked as failed\n   even if the solver converged.\n\n**Why two tolerances?**\n- Solver tolerance ensures numerical convergence but doesn't guarantee economic fit.\n- Validation tolerance ensures the calibrated curve actually prices instruments correctly.\n- For well-behaved problems, solver tolerance of `1e-12` with validation tolerance of\n  `1e-8` works well: the solver finds a precise root, and we verify it prices accurately.\n\n# Configuration Hierarchy\n\nSettings can be specified at multiple levels with the following precedence:\n\n1. **Step-level** (`CalibrationStep.params.method`): Per-instrument-type overrides\n2. **Plan-level** (`CalibrationPlan.settings`): Plan-wide defaults\n3. **Finstack config extensions** (`valuations.calibration.canonical`): application defaults\n4. **Global defaults** (`CalibrationConfig::default()`): fallback values\n\nStep-level settings always take precedence over plan-level settings.\nIn other words, this struct provides default policy, but explicit plan steps\nremain authoritative when both are supplied.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::calibration::CalibrationConfig;\n\n// Create a default config\nlet config = CalibrationConfig::default();\n\n// Customize tolerance settings\nlet custom = CalibrationConfig::default()\n    .with_tolerance(1e-14)  // Solver convergence tolerance\n    .with_max_iterations(200);\n```\n\n# References\n\n- Multi-curve construction context: `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`\n- Curve interpolation context: `docs/REFERENCES.md#hagan-west-monotone-convex`",
+      "description": "Global configuration for the calibration subsystem.\n\nThis struct consolidates all settings for solvers, validation, and market-regime\nspecific bounds. It is typically derived from a `FinstackConfig` extension section.\nPublic callers should treat it as the behavioral contract for calibration\nexecution policy: solver choice, convergence settings, validation thresholds,\nrate-bound policy, and curve-specific numerical guardrails.\n\n# Tolerance Semantics\n\nCalibration involves two distinct tolerance concepts:\n\n1. **Solver Tolerance** ([`solver.tolerance()`](SolverConfig::tolerance)):\n   Controls when the numerical solver (Brent/Newton) terminates. This is an\n   algorithmic convergence criterion in x-space (parameter space). The solver\n   stops when successive parameter estimates differ by less than this tolerance.\n\n2. **Validation Tolerance** (e.g., [`discount_curve.validation_tolerance`](DiscountCurveSolveConfig::validation_tolerance)\n   for PV-per-notional curve residuals, or [`vol_surface.validation_tolerance`](VolSurfaceSolveConfig::validation_tolerance)\n   for decimal implied-vol residuals):\n   Controls whether calibration is considered *successful*. After the solver\n   converges, the final residuals are compared against this tolerance. If any\n   residual exceeds `validation_tolerance`, the calibration is marked as failed\n   even if the solver converged.\n\n**Why two tolerances?**\n- Solver tolerance ensures numerical convergence but doesn't guarantee economic fit.\n- Validation tolerance ensures the calibrated curve actually prices instruments correctly.\n- For well-behaved problems, solver tolerance of `1e-12` with validation tolerance of\n  `1e-8` works well: the solver finds a precise root, and we verify it prices accurately.\n\n# Configuration Hierarchy\n\nSettings can be specified at multiple levels with the following precedence:\n\n1. **Step-level** (`CalibrationStep.params.method`): Per-instrument-type overrides\n2. **Plan-level** (`CalibrationPlan.settings`): Plan-wide defaults\n3. **Finstack config extensions** (`valuations.calibration.canonical`): application defaults\n4. **Global defaults** (`CalibrationConfig::default()`): fallback values\n\nStep-level settings always take precedence over plan-level settings.\nIn other words, this struct provides default policy, but explicit plan steps\nremain authoritative when both are supplied.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::calibration::CalibrationConfig;\n\n// Create a default config\nlet config = CalibrationConfig::default();\n\n// Customize tolerance settings\nlet custom = CalibrationConfig::default()\n    .with_tolerance(1e-14)  // Solver convergence tolerance\n    .with_max_iterations(200);\n```\n\n# References\n\n- Multi-curve construction context: `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`\n- Curve interpolation context: `docs/REFERENCES.md#hagan-west-monotone-convex`",
       "properties": {
         "calibration_method": {
           "$ref": "#/$defs/CalibrationMethod",
@@ -207,6 +207,13 @@
           "default": false,
           "description": "Enable verbose logging of the calibration process.",
           "type": "boolean"
+        },
+        "vol_surface": {
+          "$ref": "#/$defs/VolSurfaceSolveConfig",
+          "default": {
+            "validation_tolerance": 0.001
+          },
+          "description": "Volatility-surface specific solver configuration (SABR and SVI)."
         }
       },
       "type": "object"
@@ -343,7 +350,10 @@
               "tolerance": 1e-10
             },
             "validation_mode": "error",
-            "verbose": false
+            "verbose": false,
+            "vol_surface": {
+              "validation_tolerance": 0.001
+            }
           },
           "description": "Global settings for the calibration process."
         },
@@ -400,7 +410,7 @@
             "interpolation": {
               "$ref": "#/$defs/InterpStyle",
               "default": "linear",
-              "description": "Interpolation style for the curve."
+              "description": "Interpolation style for the constructed discount curve.\n\nCaller-owned: the engine does not override this field. `Linear`\ninterpolates discount-factor ordinates in time and is **not** the\nQuantLib or Bloomberg production default. Production curves typically\nuse `LogLinear` (log-DF) or `MonotoneConvex` (Hagan–West)."
             },
             "kind": {
               "const": "discount",
@@ -474,7 +484,7 @@
             "interpolation": {
               "$ref": "#/$defs/InterpStyle",
               "default": "linear",
-              "description": "Interpolation style for the curve."
+              "description": "Interpolation style for the constructed forward curve.\n\nCaller-owned: the engine does not override this field. `Linear`\ninterpolates the stored forward-rate ordinates in time and is **not**\nthe QuantLib or Bloomberg production default."
             },
             "kind": {
               "const": "forward",
@@ -702,7 +712,7 @@
             "expiry_extrapolation": {
               "$ref": "#/$defs/SurfaceExtrapolationPolicy",
               "default": "error",
-              "description": "Extrapolation policy for SABR parameter interpolation across expiries.\n\nThis controls how the adapter behaves when `target_expiries` extend beyond\nthe expiries that were successfully calibrated from market quotes."
+              "description": "Extrapolation policy for total-variance fill across expiries.\n\nAfter each quoted expiry is calibrated, the published expiry×strike\ngrid is filled by interpolating total variance `w = σ²T` in expiry\n(not by interpolating SABR α/ν/ρ and evaluating Hagan at the target\n`T`). This policy controls targets that fall outside the calibrated\nexpiry range: `Error` rejects them; `Clamp` holds the nearest slice's\ntotal variance flat."
             },
             "kind": {
               "const": "vol_surface",
@@ -1312,14 +1322,14 @@
               "description": "Extrapolation policy for the foreign curve."
             },
             "fx_spot": {
-              "description": "FX spot rate (domestic per foreign), used when a quote omits `spot_fx`.",
+              "description": "T+0 cash FX rate (domestic per foreign), used when a quote omits `spot_fx`.\n\nCovered-interest parity from today needs the cash FX, not the screen\n\"spot\". Market spot is T+2 for most G10 pairs and T+1 for USD/CAD;\nconvert to T+0 using ON/TN points before passing the rate here.\nMixing T+2 screen spot with T+0 discounting biases long-tenor basis\nby roughly 1–2 bp.",
               "format": "double",
               "type": "number"
             },
             "interpolation": {
               "$ref": "#/$defs/InterpStyle",
               "default": "linear",
-              "description": "Interpolation style for the foreign curve."
+              "description": "Interpolation style for the constructed foreign discount curve.\n\nCaller-owned: the engine does not override this field. `Linear`\ninterpolates discount-factor ordinates and is **not** the QuantLib\nor Bloomberg production default."
             },
             "kind": {
               "const": "xccy_basis",
@@ -2148,13 +2158,9 @@
                   "description": "Future contract identifier (e.g. \"CME:SR3\")."
                 },
                 "convexity_adjustment": {
-                  "default": null,
-                  "description": "Optional convexity adjustment (rate, decimal).\n\nCalibration treats an omitted adjustment as zero. Instrument construction\nmay instead use the futures contract convention's default adjustment.",
+                  "description": "Convexity adjustment as a decimal rate (Hull convention).\n\nThe implied forward is\n`forward = (100 - price) / 100 − convexity_adjustment`.\nA positive adjustment lowers the futures-implied rate toward the true\nforward. Callers that want no adjustment must pass `0.0` explicitly.",
                   "format": "double",
-                  "type": [
-                    "number",
-                    "null"
-                  ]
+                  "type": "number"
                 },
                 "expiry": {
                   "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
@@ -2179,7 +2185,8 @@
                 "id",
                 "contract",
                 "expiry",
-                "price"
+                "price",
+                "convexity_adjustment"
               ],
               "type": "object"
             },
@@ -5366,6 +5373,19 @@
       "description": "Parameters for volatility surface calibration step.",
       "type": "string"
     },
+    "VolSurfaceSolveConfig": {
+      "additionalProperties": false,
+      "description": "Volatility-surface specific numerical solver configuration.\n\nControls the success criterion for SABR and SVI surface calibration.\nResiduals are in **decimal implied-vol units** (for example `0.001` is\n0.10 vol points), not PV-per-notional.\n\n# Examples\n```\nuse finstack_quant_valuations::calibration::VolSurfaceSolveConfig;\n\nlet config = VolSurfaceSolveConfig {\n    validation_tolerance: 2e-3, // 0.20 vol points\n};\n```",
+      "properties": {
+        "validation_tolerance": {
+          "default": 0.001,
+          "description": "Tolerance for determining calibration *success* (applied to vol residuals).\n\nAfter each expiry slice is calibrated, the final `|σ_model − σ_mkt|`\nresiduals are compared against this tolerance. If `max_residual >\nvalidation_tolerance`, the calibration report will have `success = false`\neven if the slice solver converged.\n\nThis is distinct from `solver.tolerance()` which controls when the\nnumerical solver terminates. See [`CalibrationConfig`] for a full\nexplanation.\n\nDefault: `1e-3` (0.10 vol points in decimal vol).",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
     "XccyConventionId": {
       "description": "Identifier for cross-currency swap market conventions (e.g., \"EUR/USD-XCCY\").",
       "type": "string"
@@ -5452,7 +5472,10 @@
             "tolerance": 1e-10
           },
           "validation_mode": "error",
-          "verbose": false
+          "verbose": false,
+          "vol_surface": {
+            "validation_tolerance": 0.001
+          }
         },
         "steps": []
       },

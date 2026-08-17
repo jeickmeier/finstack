@@ -161,7 +161,6 @@ impl VolSurfaceTarget {
 
         let mut sabr_params_by_expiry: BTreeMap<OrderedF64, SABRParameters> = BTreeMap::new();
         let mut residuals = BTreeMap::new();
-        let mut expiry_errors: BTreeMap<OrderedF64, String> = BTreeMap::new();
         let mut total_iterations = 0;
 
         for (t_key, expiry_quotes) in &quotes_by_expiry {
@@ -179,73 +178,53 @@ impl VolSurfaceTarget {
             }
 
             if strikes.len() < 3 {
-                expiry_errors.insert(
-                    *t_key,
-                    format!(
-                        "Need at least 3 strikes to calibrate SABR; got {}",
+                return Err(finstack_quant_core::Error::Calibration {
+                    message: format!(
+                        "SABR calibration failed at t={t:.6}: need at least 3 strikes, got {}",
                         strikes.len()
                     ),
-                );
-                continue;
+                    category: "vol_surface".to_string(),
+                });
             }
 
-            match sabr_calibrator.calibrate_auto_shift(f, &strikes, &vols, t, params.beta) {
-                Ok(p) => {
-                    let model = SABRModel::new(p.clone());
-                    let mut bucket_residuals: Vec<(String, f64)> =
-                        Vec::with_capacity(strikes.len());
-                    let mut bucket_error: Option<String> = None;
-                    for (i, k) in strikes.iter().enumerate() {
-                        match model.implied_volatility(f, *k, t) {
-                            Ok(model_vol) => {
-                                let res = (model_vol - vols[i]).abs();
-                                bucket_residuals
-                                    .push((format!("opt_vol_t{:.2}_k{:.2}_i{}", t, k, i), res));
-                            }
-                            Err(e) => {
-                                bucket_error = Some(format!(
-                                    "SABR implied vol failed at t={:.6}, strike={:.6}: {}",
-                                    t, k, e
-                                ));
-                                break;
-                            }
-                        }
+            let p = sabr_calibrator
+                .calibrate_auto_shift(f, &strikes, &vols, t, params.beta)
+                .map_err(|e| finstack_quant_core::Error::Calibration {
+                    message: format!("SABR calibration failed at t={t:.6}: {e}"),
+                    category: "vol_surface".to_string(),
+                })?;
+            let model = SABRModel::new(p.clone());
+            for (i, k) in strikes.iter().enumerate() {
+                let model_vol = model.implied_volatility(f, *k, t).map_err(|e| {
+                    finstack_quant_core::Error::Calibration {
+                        message: format!("SABR implied vol failed at t={t:.6}, strike={k:.6}: {e}"),
+                        category: "vol_surface".to_string(),
                     }
-                    if let Some(err) = bucket_error {
-                        expiry_errors.insert(*t_key, err);
-                        continue;
-                    }
-
-                    sabr_params_by_expiry.insert(*t_key, p);
-                    for (k, v) in bucket_residuals {
-                        residuals.insert(k, v);
-                    }
-                    total_iterations += 1;
-                }
-                Err(e) => {
-                    expiry_errors.insert(*t_key, e.to_string());
-                }
+                })?;
+                residuals.insert(format!("opt_vol_t{t:.2}_k{k:.2}_i{i}"), model_vol - vols[i]);
             }
+            sabr_params_by_expiry.insert(*t_key, p);
+            total_iterations += 1;
+        }
+
+        if sabr_params_by_expiry.is_empty() {
+            return Err(finstack_quant_core::Error::Calibration {
+                message: "SABR calibration failed: no quoted expiries with t > 0".to_string(),
+                category: "vol_surface".to_string(),
+            });
         }
 
         let mut grid = Vec::new();
 
         for &t in &params.target_expiries {
-            let f = forward_fn(t);
-            let p =
-                Self::interpolate_params(t, &sabr_params_by_expiry, params.expiry_extrapolation)?;
-            let model = SABRModel::new(p);
-
             for &k in &params.target_strikes {
-                let v = model.implied_volatility(f, k, t).map_err(|e| {
-                    finstack_quant_core::Error::Calibration {
-                        message: format!(
-                            "Failed to compute SABR implied vol at t={:.6}, k={:.6}: {}",
-                            t, k, e
-                        ),
-                        category: "vol_surface".to_string(),
-                    }
-                })?;
+                let v = Self::interpolate_total_variance_vol(
+                    t,
+                    k,
+                    forward_fn,
+                    &sabr_params_by_expiry,
+                    params.expiry_extrapolation,
+                )?;
                 grid.push(v);
             }
         }
@@ -280,17 +259,12 @@ impl VolSurfaceTarget {
             .keys()
             .map(|k| format!("{:.6}", k.into_inner()))
             .collect();
-        let failed_examples: Vec<String> = expiry_errors
-            .iter()
-            .take(5)
-            .map(|(t, e)| format!("t={:.6}: {}", t.into_inner(), e))
-            .collect();
 
         let mut report = CalibrationReport::for_type_with_tolerance(
             "vol_surface",
             residuals,
             total_iterations,
-            config.solver.tolerance(),
+            config.vol_surface.validation_tolerance,
         );
         report.update_metadata(
             "expiry_extrapolation_policy",
@@ -303,12 +277,8 @@ impl VolSurfaceTarget {
             "calibrated_expiry_count",
             sabr_params_by_expiry.len().to_string(),
         );
-        report.update_metadata("failed_expiry_count", expiry_errors.len().to_string());
         if !calibrated_expiries.is_empty() {
             report.update_metadata("calibrated_expiries", calibrated_expiries.join(","));
-        }
-        if !failed_examples.is_empty() {
-            report.update_metadata("failed_expiry_examples", failed_examples.join(" | "));
         }
 
         report.update_solver_config(config.solver.clone());
@@ -325,88 +295,106 @@ impl VolSurfaceTarget {
         Ok((surface, report))
     }
 
-    /// Interpolate SABR parameters across the 1D expiry axis.
-    #[allow(clippy::expect_used)] // Infallible after is_empty check
-    #[allow(clippy::unreachable)] // `params` is proven non-empty by the guards below
-    fn interpolate_params(
-        t: f64,
+    /// Fill one grid cell by interpolating total variance `w = σ²T` in expiry.
+    ///
+    /// Each neighbouring SABR slice is evaluated at the **absolute** target
+    /// strike with that slice's own forward and expiry. Linear interpolation
+    /// of `w` in `T` is calendar-safe whenever the calibrated slices themselves
+    /// are calendar-monotone. Extrapolation holds the nearest slice's `w` flat
+    /// (`Clamp`) or rejects the target (`Error`).
+    fn interpolate_total_variance_vol(
+        target_expiry: f64,
+        target_strike: f64,
+        forward_fn: impl Fn(f64) -> f64,
         params: &BTreeMap<OrderedF64, SABRParameters>,
         extrapolation: SurfaceExtrapolationPolicy,
-    ) -> Result<SABRParameters> {
-        let min_key =
-            params
-                .keys()
-                .next()
-                .ok_or_else(|| finstack_quant_core::Error::Calibration {
-                    message: "No calibrated SABR parameters".to_string(),
-                    category: "vol_surface".to_string(),
-                })?;
-        let max_key =
-            params
-                .keys()
-                .next_back()
-                .ok_or_else(|| finstack_quant_core::Error::Calibration {
-                    message: "No calibrated SABR parameters".to_string(),
-                    category: "vol_surface".to_string(),
-                })?;
+    ) -> Result<f64> {
+        if target_expiry <= 0.0 {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "SABR interpolation target expiry must be positive; got {target_expiry:.6}"
+            )));
+        }
+
+        let Some((&min_key, _)) = params.iter().next() else {
+            return Err(finstack_quant_core::Error::Calibration {
+                message: "No calibrated SABR parameters".to_string(),
+                category: "vol_surface".to_string(),
+            });
+        };
+        let Some((&max_key, _)) = params.iter().next_back() else {
+            return Err(finstack_quant_core::Error::Calibration {
+                message: "No calibrated SABR parameters".to_string(),
+                category: "vol_surface".to_string(),
+            });
+        };
         let min_t = min_key.into_inner();
         let max_t = max_key.into_inner();
 
-        if extrapolation == SurfaceExtrapolationPolicy::Error {
-            // Require targets to be within the calibrated expiry range.
-            if t < min_t || t > max_t {
+        if extrapolation == SurfaceExtrapolationPolicy::Error
+            && (target_expiry < min_t || target_expiry > max_t)
+        {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Target expiry t={target_expiry:.6} is out of bounds for calibrated expiries \
+[{min_t:.6}, {max_t:.6}]. Set params.expiry_extrapolation='clamp' to allow flat \
+total-variance extrapolation."
+            )));
+        }
+
+        let slice_total_variance = |slice_expiry: f64,
+                                    slice_params: &SABRParameters|
+         -> Result<f64> {
+            let forward = forward_fn(slice_expiry);
+            let sigma = SABRModel::new(slice_params.clone())
+                .implied_volatility(forward, target_strike, slice_expiry)
+                .map_err(|e| finstack_quant_core::Error::Calibration {
+                    message: format!(
+                        "Failed to compute SABR implied vol at t={slice_expiry:.6}, k={target_strike:.6}: {e}"
+                    ),
+                    category: "vol_surface".to_string(),
+                })?;
+            let w = sigma * sigma * slice_expiry;
+            if !w.is_finite() || w < 0.0 {
                 return Err(finstack_quant_core::Error::Validation(format!(
-                    "Target expiry t={:.6} is out of bounds for calibrated expiries [{:.6}, {:.6}]. \
-Set params.expiry_extrapolation='clamp' to allow flat extrapolation.",
-                    t, min_t, max_t
+                    "SABR negative total variance at K={target_strike:.4}, T={slice_expiry:.6}: w={w:.6}"
                 )));
             }
-        }
+            Ok(w)
+        };
 
         let mut before = None;
         let mut after = None;
-
         for (&kt, p) in params {
             let kt_f = kt.into_inner();
-            if kt_f <= t {
+            if kt_f <= target_expiry {
                 before = Some((kt_f, p));
             }
-            if kt_f >= t && after.is_none() {
+            if kt_f >= target_expiry && after.is_none() {
                 after = Some((kt_f, p));
             }
         }
 
-        match (before, after) {
+        let w = match (before, after) {
             (Some((t1, p1)), Some((t2, p2))) if (t2 - t1).abs() > 1e-12 => {
-                let w = (t - t1) / (t2 - t1);
-                let w = w.clamp(0.0, 1.0);
-
-                // Log-space interpolation for α and ν preserves positivity and
-                // is consistent with the swaption vol target implementation.
-                let log_alpha1 = p1.alpha.max(1e-16).ln();
-                let log_alpha2 = p2.alpha.max(1e-16).ln();
-                let log_nu1 = p1.nu.max(1e-16).ln();
-                let log_nu2 = p2.nu.max(1e-16).ln();
-
-                let alpha = (log_alpha1 * (1.0 - w) + log_alpha2 * w).exp();
-                let nu = (log_nu1 * (1.0 - w) + log_nu2 * w).exp();
-                let rho = (p1.rho * (1.0 - w) + p2.rho * w).clamp(-0.999, 0.999);
-
-                Ok(SABRParameters {
-                    alpha,
-                    beta: p1.beta,
-                    nu,
-                    rho,
-                    shift: p1.shift,
-                })
+                let w1 = slice_total_variance(t1, p1)?;
+                let w2 = slice_total_variance(t2, p2)?;
+                let tau = ((target_expiry - t1) / (t2 - t1)).clamp(0.0, 1.0);
+                w1 + tau * (w2 - w1)
             }
-            (Some((_, p)), _) | (_, Some((_, p))) => Ok(p.clone()),
-            (None, None) => unreachable!(
-                "interpolate_params found no expiry neighbours for target t={t:.6}; `params` is \
-                 proven non-empty by the guards above, and every key is either <= t or > t, so \
-                 a non-empty map always yields at least one neighbour."
-            ),
+            (Some((t, p)), _) | (_, Some((t, p))) => slice_total_variance(t, p)?,
+            (None, None) => {
+                return Err(finstack_quant_core::Error::Calibration {
+                    message: format!("No SABR expiry neighbours for target t={target_expiry:.6}"),
+                    category: "vol_surface".to_string(),
+                });
+            }
+        };
+        if !w.is_finite() || w < 0.0 {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "SABR total-variance interpolation produced invalid w={w:.6} at \
+T={target_expiry:.6}, K={target_strike:.4}"
+            )));
         }
+        Ok((w / target_expiry).sqrt())
     }
 }
 
@@ -434,62 +422,175 @@ mod tests {
         }
     }
 
+    fn slice_vol(p: &SABRParameters, forward: f64, strike: f64, expiry: f64) -> f64 {
+        SABRModel::new(p.clone())
+            .implied_volatility(forward, strike, expiry)
+            .expect("SABR vol")
+    }
+
+    fn slice_total_variance(p: &SABRParameters, forward: f64, strike: f64, expiry: f64) -> f64 {
+        let sigma = slice_vol(p, forward, strike, expiry);
+        sigma * sigma * expiry
+    }
+
     #[test]
-    fn interpolate_params_out_of_bounds_errors_by_default() {
+    fn interpolate_total_variance_out_of_bounds_errors_by_default() {
         let mut map = BTreeMap::new();
         map.insert(OrderedF64(1.0), params(0.10, 0.5, 0.30, -0.20, 0.01));
         map.insert(OrderedF64(2.0), params(0.20, 0.5, 0.40, -0.10, 0.01));
+        let forward_fn = |_t: f64| 100.0;
 
-        let err =
-            VolSurfaceTarget::interpolate_params(0.5, &map, SurfaceExtrapolationPolicy::Error)
-                .expect_err("out-of-bounds should error");
+        let err = VolSurfaceTarget::interpolate_total_variance_vol(
+            0.5,
+            100.0,
+            forward_fn,
+            &map,
+            SurfaceExtrapolationPolicy::Error,
+        )
+        .expect_err("out-of-bounds should error");
         assert!(err.to_string().contains("out of bounds"));
     }
 
     #[test]
-    fn interpolate_params_out_of_bounds_clamps_when_configured() {
-        let mut map = BTreeMap::new();
+    fn interpolate_total_variance_out_of_bounds_clamps_when_configured() {
         let p1 = params(0.10, 0.5, 0.30, -0.20, 0.01);
         let p2 = params(0.20, 0.5, 0.40, -0.10, 0.01);
+        let mut map = BTreeMap::new();
         map.insert(OrderedF64(1.0), p1.clone());
         map.insert(OrderedF64(2.0), p2.clone());
+        let forward_fn = |_t: f64| 100.0;
+        let strike = 100.0;
 
-        let left =
-            VolSurfaceTarget::interpolate_params(0.5, &map, SurfaceExtrapolationPolicy::Clamp)
-                .expect("clamp-left");
-        assert_eq!(left.alpha, p1.alpha);
+        let left = VolSurfaceTarget::interpolate_total_variance_vol(
+            0.5,
+            strike,
+            forward_fn,
+            &map,
+            SurfaceExtrapolationPolicy::Clamp,
+        )
+        .expect("clamp-left");
+        let w1 = slice_total_variance(&p1, 100.0, strike, 1.0);
+        assert!(
+            (left - (w1 / 0.5).sqrt()).abs() < 1e-12,
+            "left clamp should hold the front-slice total variance"
+        );
 
-        let right =
-            VolSurfaceTarget::interpolate_params(3.0, &map, SurfaceExtrapolationPolicy::Clamp)
-                .expect("clamp-right");
-        assert_eq!(right.alpha, p2.alpha);
+        let right = VolSurfaceTarget::interpolate_total_variance_vol(
+            3.0,
+            strike,
+            forward_fn,
+            &map,
+            SurfaceExtrapolationPolicy::Clamp,
+        )
+        .expect("clamp-right");
+        let w2 = slice_total_variance(&p2, 100.0, strike, 2.0);
+        assert!(
+            (right - (w2 / 3.0).sqrt()).abs() < 1e-12,
+            "right clamp should hold the back-slice total variance"
+        );
     }
 
     #[test]
-    fn interpolate_params_log_space_interpolates_in_range() {
+    fn interpolate_total_variance_matches_calibrated_knots() {
+        let p1 = params(0.10, 0.5, 0.30, -0.20, 0.01);
+        let p2 = params(0.20, 0.5, 0.50, 0.10, 0.01);
         let mut map = BTreeMap::new();
-        map.insert(OrderedF64(1.0), params(0.10, 0.5, 0.30, -0.20, 0.01));
-        map.insert(OrderedF64(2.0), params(0.20, 0.5, 0.50, 0.10, 0.01));
+        map.insert(OrderedF64(1.0), p1.clone());
+        map.insert(OrderedF64(2.0), p2.clone());
+        let forward_fn = |t: f64| 100.0 * ((0.01 + 0.09 * t) * t).exp();
+        let strike = 95.0;
 
-        let mid =
-            VolSurfaceTarget::interpolate_params(1.5, &map, SurfaceExtrapolationPolicy::Error)
-                .expect("in-range");
+        let at_t1 = VolSurfaceTarget::interpolate_total_variance_vol(
+            1.0,
+            strike,
+            forward_fn,
+            &map,
+            SurfaceExtrapolationPolicy::Error,
+        )
+        .expect("knot t=1");
+        let expected_t1 = slice_vol(&p1, forward_fn(1.0), strike, 1.0);
+        assert!(
+            (at_t1 - expected_t1).abs() < 1e-12,
+            "exact match at t=1: got {at_t1}, expected {expected_t1}"
+        );
 
-        // α and ν use log-space: geometric mean at midpoint
-        let expected_alpha = (0.10_f64 * 0.20).sqrt(); // ≈ 0.1414
-        let expected_nu = (0.30_f64 * 0.50).sqrt(); // ≈ 0.3873
+        let at_t2 = VolSurfaceTarget::interpolate_total_variance_vol(
+            2.0,
+            strike,
+            forward_fn,
+            &map,
+            SurfaceExtrapolationPolicy::Error,
+        )
+        .expect("knot t=2");
+        let expected_t2 = slice_vol(&p2, forward_fn(2.0), strike, 2.0);
         assert!(
-            (mid.alpha - expected_alpha).abs() < 1e-12,
-            "alpha: expected {expected_alpha}, got {}",
-            mid.alpha
+            (at_t2 - expected_t2).abs() < 1e-12,
+            "exact match at t=2: got {at_t2}, expected {expected_t2}"
         );
+    }
+
+    /// Linear interpolation of `w = σ²T` at a fixed absolute strike must stay
+    /// calendar-monotone when the calibrated slices themselves are, even if
+    /// the forward is non-flat (`F(T₁) ≠ F(T₂)`).
+    #[test]
+    fn interpolate_total_variance_preserves_calendar_monotonicity() {
+        let t1 = 0.5_f64;
+        let t2 = 1.5_f64;
+        let t3 = 3.0_f64;
+        // β = 1 keeps ATM vol ≈ α (independent of F), so a non-flat forward
+        // cannot hide a calendar violation behind CEV backbone drift.
+        let p1 = params(0.25, 1.0, 0.20, -0.20, 0.01);
+        let p2 = params(0.22, 1.0, 0.18, -0.15, 0.01);
+        let p3 = params(0.20, 1.0, 0.16, -0.10, 0.01);
+        let mut map = BTreeMap::new();
+        map.insert(OrderedF64(t1), p1.clone());
+        map.insert(OrderedF64(t2), p2.clone());
+        map.insert(OrderedF64(t3), p3.clone());
+
+        let spot = 100.0_f64;
+        let forward_fn = |t: f64| spot * ((0.01 + 0.09 * t) * t).exp();
         assert!(
-            (mid.nu - expected_nu).abs() < 1e-12,
-            "nu: expected {expected_nu}, got {}",
-            mid.nu
+            (forward_fn(t1) - forward_fn(t2)).abs() > 1.0,
+            "test fixture must use a non-flat forward curve"
         );
-        // ρ is still linear
-        assert!((mid.rho - (-0.05)).abs() < 1e-12);
+
+        let strikes = [80.0_f64, 95.0, 103.0, 115.0, 135.0];
+        for &strike in &strikes {
+            let w1 = slice_total_variance(&p1, forward_fn(t1), strike, t1);
+            let w2 = slice_total_variance(&p2, forward_fn(t2), strike, t2);
+            let w3 = slice_total_variance(&p3, forward_fn(t3), strike, t3);
+            assert!(
+                w1 <= w2 + 1e-12 && w2 <= w3 + 1e-12,
+                "fixture slices must themselves be calendar-monotone at K={strike}: \
+                 w({t1})={w1}, w({t2})={w2}, w({t3})={w3}"
+            );
+        }
+
+        let n_steps = 50;
+        for &strike in &strikes {
+            let mut prev_w = f64::NEG_INFINITY;
+            let mut prev_t = t1;
+            for i in 0..=n_steps {
+                let t = t1 + (t3 - t1) * (i as f64) / (n_steps as f64);
+                let vol = VolSurfaceTarget::interpolate_total_variance_vol(
+                    t,
+                    strike,
+                    forward_fn,
+                    &map,
+                    SurfaceExtrapolationPolicy::Error,
+                )
+                .expect("interpolation ok");
+                let w = vol * vol * t;
+                assert!(
+                    w >= prev_w - 1e-9,
+                    "calendar-spread arbitrage in interpolate_total_variance_vol at \
+                     strike={strike:.1}: w(T={prev_t:.4})={prev_w:.6} > \
+                     w(T={t:.4})={w:.6}"
+                );
+                prev_w = w;
+                prev_t = t;
+            }
+        }
     }
 
     fn date(year: i32, month: Month, day: u8) -> Date {
@@ -519,7 +620,7 @@ mod tests {
     }
 
     #[test]
-    fn vol_surface_marks_implied_vol_failures_as_failed_expiries() {
+    fn vol_surface_fails_when_any_expiry_cannot_calibrate() {
         let base_date = date(2025, Month::January, 2);
         let disc = DiscountCurve::builder("USD-OIS")
             .base_date(base_date)
@@ -611,30 +712,13 @@ mod tests {
             }),
         ];
 
-        // Review 2026-06-09 (core math): SABR calibration now fails loudly on
-        // non-convergence. The SABR LM fit uses the calibrator's production
-        // defaults (1e-4 SSE tolerance, 2000 iterations) rather than the
-        // envelope's Brent root-finding config, so the 1Y bucket calibrates
-        // (its vega-weighted SSE stagnates around 2e-5) and only the strike=0
-        // expiry fails.
         let config = CalibrationConfig::default();
-        let (_surface, report) =
-            VolSurfaceTarget::solve(&params, &quotes, &ctx, &config).expect("calibrate");
-
-        assert_eq!(
-            report
-                .metadata
-                .get("failed_expiry_count")
-                .map(|s| s.as_str()),
-            Some("1")
-        );
+        let err = VolSurfaceTarget::solve(&params, &quotes, &ctx, &config)
+            .expect_err("any failed expiry must abort the surface");
+        let msg = err.to_string();
         assert!(
-            report
-                .metadata
-                .get("failed_expiry_examples")
-                .is_some_and(|s| s.contains("strike=0.000000")),
-            "missing or unexpected failed_expiry_examples: {:?}",
-            report.metadata.get("failed_expiry_examples")
+            msg.contains("SABR") || msg.contains("strike") || msg.contains("t="),
+            "error should identify the failed expiry: {msg}"
         );
     }
 }

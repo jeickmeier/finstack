@@ -608,11 +608,6 @@ impl JsFxQuoteConvention {
     }
 
     /// Parse from a string label such as `"direct"` or `"indirect"`.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - Convention label: `direct` or `indirect`.
-    ///
     /// @param name - Convention label: `direct` or `indirect`.
     ///
     /// # Errors
@@ -697,12 +692,6 @@ impl JsFxPairConvention {
 ///
 /// Priority is EUR > GBP > AUD > NZD > USD > other, with a stable ISO-4217
 /// alphabetic tie-break when both sides share the same rank.
-///
-/// # Arguments
-///
-/// * `a` - First currency ISO code of the unordered pair. Need not be market CCY1.
-/// * `b` - Second currency ISO code of the unordered pair. Need not be market CCY2.
-///
 /// @param a - First currency ISO code of the unordered pair. Need not be market CCY1.
 /// @param b - Second currency ISO code of the unordered pair. Need not be market CCY2.
 /// @returns A two-element array `[CCY1, CCY2]` of `Currency` handles in market order.
@@ -726,12 +715,6 @@ pub fn fx_market_pair(a: &str, b: &str) -> Result<Array, JsValue> {
 ///
 /// Returned `base` / `quote` are always the market CCY1/CCY2, even when the
 /// arguments are inverted.
-///
-/// # Arguments
-///
-/// * `base` - One currency ISO code of the pair. Orientation is ignored.
-/// * `quote` - The other currency ISO code of the pair. Orientation is ignored.
-///
 /// @param base - One currency ISO code of the pair. Orientation is ignored.
 /// @param quote - The other currency ISO code of the pair. Orientation is ignored.
 /// @returns Market CCY1/CCY2, USD quotation, pip size, and standard spot lag.
@@ -753,12 +736,6 @@ pub fn fx_pair_convention(base: &str, quote: &str) -> Result<JsFxPairConvention,
 ///
 /// Returns `0.01` when either side is JPY, KRW, or HUF; otherwise `0.0001`.
 /// Argument order does not matter.
-///
-/// # Arguments
-///
-/// * `base` - One currency ISO code of the pair. Order is not significant.
-/// * `quote` - The other currency ISO code of the pair. Order is not significant.
-///
 /// @param base - One currency ISO code of the pair. Order is not significant.
 /// @param quote - The other currency ISO code of the pair. Order is not significant.
 /// @returns Pip size as a decimal increment of the outright FX rate.
@@ -775,12 +752,6 @@ pub fn fx_pip_size(base: &str, quote: &str) -> Result<f64, JsValue> {
 }
 
 /// Reciprocal of a strictly positive finite FX rate.
-///
-/// # Arguments
-///
-/// * `rate` - Outright FX rate to invert, in quote-per-base units. Must be
-///   finite and strictly positive; the reciprocal must also be a valid FX rate.
-///
 /// @param rate - Outright FX rate to invert, in quote-per-base units. Must be
 /// finite and strictly positive; the reciprocal must also be a valid FX rate.
 /// @returns `1 / rate` when that reciprocal is a valid FX rate.

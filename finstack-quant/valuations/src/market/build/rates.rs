@@ -399,7 +399,7 @@ fn build_future(
         tick_size: fut_conv.tick_size,
         tick_value: fut_conv.tick_value,
         delivery_months: fut_conv.delivery_months,
-        convexity_adjustment: (*convexity_adjustment).or(fut_conv.convexity_adjustment),
+        convexity_adjustment: Some(*convexity_adjustment),
     };
 
     let future = InterestRateFuture::builder()

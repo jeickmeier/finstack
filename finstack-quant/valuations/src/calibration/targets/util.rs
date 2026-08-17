@@ -143,6 +143,55 @@ pub(crate) fn discount_and_forward_curve_ids(
     m
 }
 
+/// Closed-form proxy for a par instrument's fixed-leg annuity (PV01) at maturity
+/// `t`, used by discount and forward residual weights to put residuals on a
+/// common rate-error scale.
+///
+/// The continuously-discounted annuity of a unit-coupon par instrument is
+/// `A(t, r) = (1 − e^{−r·t}) / r`, with the well-defined limit
+/// `A → t` as `r → 0`. This is exact for a continuously-paid coupon and a tight
+/// proxy for the discrete fixed-leg annuity `Σ τ_i·DF_i` of swaps; for a single-
+/// period instrument (deposit / FRA) it reduces to `≈ t`, which is the correct
+/// PV01 there. The proxy needs only the quote's own par rate, so it works inside
+/// `residual_weights` where no calibrated curve is yet available.
+///
+/// `r` is taken from the quote when it carries a par rate (rate quotes); other
+/// quote kinds fall back to a small representative rate, for which `A ≈ t`.
+pub(crate) fn quote_annuity_proxy(quote: &CalibrationQuote, t: f64) -> f64 {
+    // Representative rate for the discount factor in the annuity integral.
+    let r = match quote {
+        CalibrationQuote::Rates(pq) => match pq.quote.as_ref() {
+            // Deposit / FRA / Swap quote `value()` IS the rate (decimal).
+            RateQuote::Deposit { rate, .. }
+            | RateQuote::Fra { rate, .. }
+            | RateQuote::Swap { rate, .. } => *rate,
+            // A future quotes a *price* (e.g. 98.5); the implied rate is
+            // Hull `forward = (100 − price)/100 − convexity_adjustment`.
+            RateQuote::Futures {
+                price,
+                convexity_adjustment,
+                ..
+            } => (100.0 - price) / 100.0 - convexity_adjustment,
+        },
+        // Inflation / xccy-basis quotes do not carry a comparable fixed par rate;
+        // a small rate makes the proxy degrade gracefully to `A ≈ t`.
+        _ => 0.0,
+    };
+    // Use the absolute rate: a negative-rate regime (EUR/JPY) still has a
+    // well-defined positive annuity, and `(1 − e^{−r·t})/r` is symmetric in the
+    // sign of `r` only to second order — `|r|` keeps the proxy stable and positive.
+    let r_abs = if r.is_finite() { r.abs() } else { 0.0 };
+    let t_pos = t.max(1e-6);
+    let annuity = if r_abs < 1e-8 {
+        // r → 0 limit: A(t, 0) = t.
+        t_pos
+    } else {
+        (1.0 - (-r_abs * t_pos).exp()) / r_abs
+    };
+    // Floor strictly positive so the `1/A²` weight is always finite.
+    annuity.max(1e-6)
+}
+
 /// Reusable scratch context for sequential bootstrap targets.
 ///
 /// Holds a `RefCell<MarketContext>` that gets mutated in place with the candidate

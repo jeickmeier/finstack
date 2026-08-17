@@ -124,7 +124,19 @@ fn analytics_dts_matches_runtime_hotspots() {
     ));
     assert!(contains_ignoring_ws(
         &dts,
-        "multiFactorGreeks(tickerIdx: number, factorReturns: NumericMatrix): MultiFactorResult;",
+        "cagr(dayCount?: string, calendarId?: string): Float64Array;",
+    ));
+    assert!(contains_ignoring_ws(
+        &dts,
+        "parametricVar(confidence?: number, horizonPeriods?: number): Float64Array;",
+    ));
+    assert!(contains_ignoring_ws(
+        &dts,
+        "cornishFisherVar(confidence?: number, horizonPeriods?: number): Float64Array;",
+    ));
+    assert!(contains_ignoring_ws(
+        &dts,
+        "multiFactorGreeks(tickerIdx: number, factorReturns: NumericMatrix, returnKind?: string, riskFreeRate?: number): MultiFactorResult;",
     ));
     assert!(contains_ignoring_ws(&dts, "maxDrawdown(): Float64Array;"));
     assert!(contains_ignoring_ws(&dts, "meanDrawdown(): Float64Array;"));
@@ -987,7 +999,10 @@ fn core_market_data_dts_exposes_fx_surface_and_rate_result() {
     assert!(dts.contains("export interface FxQuoteConvention"));
     assert!(dts.contains("export interface FxPairConvention"));
     let quote_ctor = interface_block(&dts, "FxQuoteConventionConstructor");
-    assert!(contains_signature(quote_ctor, "direct(): FxQuoteConvention;"));
+    assert!(contains_signature(
+        quote_ctor,
+        "direct(): FxQuoteConvention;"
+    ));
     assert!(contains_signature(
         quote_ctor,
         "indirect(): FxQuoteConvention;"

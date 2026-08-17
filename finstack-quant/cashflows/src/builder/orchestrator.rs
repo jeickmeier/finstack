@@ -5,9 +5,9 @@
 //! amortization methods live in `principal`.
 
 use super::schedule::{finalize_flows, CashFlowSchedule};
-use crate::builder::{AmortizationSpec, Notional};
+use crate::builder::{AmortizationSpec, Notional, PrincipalExchange};
 use crate::primitives::{CFKind, CashFlow};
-use finstack_quant_core::dates::Date;
+use finstack_quant_core::dates::{Date, DateExt};
 use finstack_quant_core::decimal::{decimal_to_f64, f64_to_decimal};
 use finstack_quant_core::market_data::fixings::fixing_series_id;
 use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
@@ -78,6 +78,7 @@ pub(super) struct AmortizationSetup {
 struct DateCollectionInputs<'a> {
     issue: Date,
     maturity: Date,
+    redemption_date: Date,
     fixed_schedules: &'a [FixedSchedule],
     float_schedules: &'a [FloatSchedule],
     periodic_fees: &'a [PeriodicFee],
@@ -246,11 +247,13 @@ fn initialize_build_state(
     notional: &Notional,
     estimated_dates: usize,
     principal_events: &[PrincipalEvent],
+    principal_exchange: PrincipalExchange,
 ) -> finstack_quant_core::Result<BuildState> {
     let estimated_flows = estimated_dates * 3;
     let mut flows: Vec<CashFlow> = Vec::with_capacity(estimated_flows);
 
-    if notional.initial.amount() != 0.0 {
+    if principal_exchange == PrincipalExchange::InitialAndFinal && notional.initial.amount() != 0.0
+    {
         flows.push(CashFlow::new(
             issue,
             None,
@@ -300,6 +303,40 @@ fn initialize_build_state(
     })
 }
 
+/// Redemption (and LinearTo maturity) date: BDC-adjust `maturity` on the
+/// principal-paying leg, then apply that leg's payment lag.
+///
+/// Principal-paying leg = first fixed schedule, else first floating. With no
+/// coupon leg there is no resolved calendar, so the raw maturity is kept.
+fn compute_redemption_date(
+    maturity: Date,
+    fixed_schedules: &[FixedSchedule],
+    float_schedules: &[FloatSchedule],
+) -> finstack_quant_core::Result<Date> {
+    let (business_day_convention, calendar, payment_lag_days) =
+        if let Some(schedule) = fixed_schedules.first() {
+            (
+                schedule.spec.schedule.business_day_convention,
+                schedule.calendar,
+                schedule.spec.schedule.payment_lag_days,
+            )
+        } else if let Some(schedule) = float_schedules.first() {
+            (
+                schedule.spec.schedule.business_day_convention,
+                schedule.calendar,
+                schedule.spec.schedule.payment_lag_days,
+            )
+        } else {
+            return Ok(maturity);
+        };
+    let adjusted = finstack_quant_core::dates::adjust(maturity, business_day_convention, calendar)?;
+    if payment_lag_days > 0 {
+        adjusted.add_business_days(payment_lag_days, calendar)
+    } else {
+        Ok(adjusted)
+    }
+}
+
 fn collect_all_dates(inputs: &DateCollectionInputs<'_>) -> finstack_quant_core::Result<Vec<Date>> {
     let periodic_date_slices: Vec<&[Date]> = inputs
         .periodic_fees
@@ -324,6 +361,7 @@ fn collect_all_dates(inputs: &DateCollectionInputs<'_>) -> finstack_quant_core::
     for ev in inputs.principal_events {
         dates.push(ev.date);
     }
+    dates.push(inputs.redemption_date);
     dates.sort_unstable();
     dates.dedup();
     if dates.len() < 2 {
@@ -350,6 +388,8 @@ pub struct CashFlowBuilder {
     // Segmented programs (optional): coupon program and payment/PIK program
     pub(super) coupon_program: Vec<CouponProgramPiece>,
     pub(super) payment_program: Vec<PaymentProgramPiece>,
+    /// Whether to emit issue funding and maturity redemption notionals.
+    pub(super) principal_exchange: PrincipalExchange,
     // Sticky builder error for fluent APIs that cannot return Result.
     pub(super) pending_error: Option<finstack_quant_core::Error>,
 }
@@ -365,6 +405,7 @@ impl Default for CashFlowBuilder {
             principal_events: Vec::new(),
             coupon_program: Vec::new(),
             payment_program: Vec::new(),
+            principal_exchange: PrincipalExchange::InitialAndFinal,
             pending_error: None,
         }
     }
@@ -382,6 +423,8 @@ struct CompiledCashFlowPlan {
     principal_events: Vec<PrincipalEvent>,
     dates: Vec<Date>,
     amort_setup: AmortizationSetup,
+    redemption_date: Date,
+    principal_exchange: PrincipalExchange,
 }
 
 impl CashFlowBuilder {
@@ -458,9 +501,12 @@ impl CashFlowBuilder {
             .into());
         }
 
+        let redemption_date =
+            compute_redemption_date(maturity, &fixed_schedules, &float_schedules)?;
         let date_inputs = DateCollectionInputs {
             issue,
             maturity,
+            redemption_date,
             fixed_schedules: &fixed_schedules,
             float_schedules: &float_schedules,
             periodic_fees: &periodic_fees,
@@ -469,7 +515,13 @@ impl CashFlowBuilder {
             principal_events: &principal_events,
         };
         let dates = collect_all_dates(&date_inputs)?;
-        debug!(dates = dates.len(), %issue, %maturity, "cashflow schedule: dates collected");
+        debug!(
+            dates = dates.len(),
+            %issue,
+            %maturity,
+            %redemption_date,
+            "cashflow schedule: dates collected"
+        );
 
         let amort_setup = derive_amortization_setup(&notional, &fixed_schedules, &float_schedules)?;
 
@@ -484,6 +536,8 @@ impl CashFlowBuilder {
             principal_events,
             dates,
             amort_setup,
+            redemption_date,
+            principal_exchange: self.principal_exchange,
         })
     }
 }
@@ -498,6 +552,7 @@ impl CompiledCashFlowPlan {
             &self.notional,
             self.dates.len(),
             &self.principal_events,
+            self.principal_exchange,
         )?;
         let ccy = self.notional.initial.currency();
         // Fixed fees dated at or before issue are emitted during initialization.
@@ -517,31 +572,11 @@ impl CompiledCashFlowPlan {
                 ));
             }
         }
-        // Principal redemption pays on the business-day-adjusted maturity using
-        // the calendar/BDC of the principal-paying leg (first fixed schedule,
-        // else first floating schedule). Without any coupon leg there is no
-        // resolved calendar, so the raw maturity date is kept.
-        let redemption_date = if let Some(schedule) = self.fixed_schedules.first() {
-            finstack_quant_core::dates::adjust(
-                self.maturity,
-                schedule.spec.schedule.business_day_convention,
-                schedule.calendar,
-            )?
-        } else if let Some(schedule) = self.float_schedules.first() {
-            finstack_quant_core::dates::adjust(
-                self.maturity,
-                schedule.spec.schedule.business_day_convention,
-                schedule.calendar,
-            )?
-        } else {
-            self.maturity
-        };
-
         let ctx = BuildContext {
             ccy,
             issue: self.issue,
-            maturity: self.maturity,
-            redemption_date,
+            redemption_date: self.redemption_date,
+            principal_exchange: self.principal_exchange,
             notional: &self.notional,
             fixed_schedules: &self.fixed_schedules,
             float_schedules: &self.float_schedules,
