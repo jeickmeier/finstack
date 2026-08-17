@@ -860,7 +860,7 @@
         },
         {
           "const": "commodity",
-          "description": "Commodity forward curve.",
+          "description": "Commodity forward [`PriceCurve`](finstack_quant_core::market_data::term_structures::PriceCurve).\n\n`bp` on parallel/node ops is percent of the price-curve forward\n(`5.0` = +5%), not a rate basis-point shock. Looking up a\n[`DiscountCurve`](finstack_quant_core::market_data::term_structures::DiscountCurve)\nunder this id is an error.",
           "type": "string"
         }
       ]
@@ -1326,7 +1326,7 @@
       "type": "string"
     },
     "OperationSpec": {
-      "description": "Individual operation within a scenario.\n\nEach variant represents a specific type of shock or adjustment that can be\napplied to market data, instruments, statements, or the valuation horizon.\nUnits are encoded in the variant name and field docs:\n- `Pct` fields use percentage points (`5.0 = +5%`)\n- `Bp` fields use additive basis points (1 bp = 1e-4)\n- `Pts` fields use absolute correlation or volatility points in decimal form\n\nHierarchy-targeted variants are resolved into direct identifiers during\n[`crate::engine::ScenarioEngine::apply`] using the market hierarchy attached\nto the execution context.",
+      "description": "Individual operation within a scenario.\n\nEach variant represents a specific type of shock or adjustment that can be\napplied to market data, instruments, statements, or the valuation horizon.\nUnits are encoded in the variant name and field docs:\n- `Pct` fields use percentage points (`5.0 = +5%`)\n- `Bp` fields use additive basis points (1 bp = 1e-4), except\n  [`CurveKind::Commodity`] where `bp` is percent of the price-curve\n  forward\n- Vol-index `Pts` are **index points** (`1.0` on 18.5 → 19.5)\n- Correlation / base-corr `Pts` are **decimal correlation** (`0.02` = +0.02)\n\nHierarchy-targeted variants are resolved into direct identifiers during\n[`crate::engine::ScenarioEngine::apply`] using the market hierarchy attached\nto the execution context.",
       "oneOf": [
         {
           "additionalProperties": false,
@@ -1416,10 +1416,10 @@
         },
         {
           "additionalProperties": false,
-          "description": "Parallel shift to a curve (additive in basis points).\n\nFor rate-style curves ([`CurveKind::Discount`], [`CurveKind::Forward`],\n[`CurveKind::ParCDS`], [`CurveKind::Inflation`], [`CurveKind::Commodity`]),\n`bp` uses the standard fixed-income convention where `1 bp = 0.0001` in\nfractional rate space.\n\n**Volatility index curves use a separate variant.** Use\n[`OperationSpec::VolIndexParallelPts`] for VIX/VSTOXX-style curves where\nshocks are quoted in absolute index points.\n\n# Example\n```rust\nuse finstack_quant_scenarios::{OperationSpec, CurveKind};\n\nlet op = OperationSpec::CurveParallelBp {\n    curve_kind: CurveKind::Discount,\n    curve_id: \"USD_SOFR\".into(),\n    discount_curve_id: None,\n    bp: 50.0, // +50bp parallel shift\n};\n```",
+          "description": "Parallel shift to a curve (additive in basis points, except commodity).\n\nFor rate-style curves ([`CurveKind::Discount`], [`CurveKind::Forward`],\n[`CurveKind::ParCDS`], [`CurveKind::Inflation`]), `bp` uses the standard\nfixed-income convention where `1 bp = 0.0001` in fractional rate space.\nFor [`CurveKind::Commodity`], `bp` is **percent of the price-curve\nforward** (`5.0` = +5%); the id must name a [`PriceCurve`](finstack_quant_core::market_data::term_structures::PriceCurve),\nnot a discount curve.\n\n**Volatility index curves use a separate variant.** Use\n[`OperationSpec::VolIndexParallelPts`] for VIX/VSTOXX-style curves where\nshocks are quoted in absolute index points.\n\n# Example\n```rust\nuse finstack_quant_scenarios::{OperationSpec, CurveKind};\n\nlet op = OperationSpec::CurveParallelBp {\n    curve_kind: CurveKind::Discount,\n    curve_id: \"USD_SOFR\".into(),\n    discount_curve_id: None,\n    bp: 50.0, // +50bp parallel shift\n};\n```",
           "properties": {
             "bp": {
-              "description": "Basis point shift (additive).",
+              "description": "Basis point shift (additive), or percent of the price-curve forward\nwhen `curve_kind` is [`CurveKind::Commodity`].",
               "format": "double",
               "type": "number"
             },
@@ -1457,7 +1457,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Node-specific basis point shifts for curve shaping.\n\nFor rate-style curves, `bp` values use the standard fixed-income\nconvention where `1 bp = 0.0001` in fractional rate space. Use\n[`OperationSpec::VolIndexNodePts`] for vol-index curves.\n\n# Example\n```rust\nuse finstack_quant_scenarios::{OperationSpec, CurveKind, TenorMatchMode};\n\nlet op = OperationSpec::CurveNodeBp {\n    curve_kind: CurveKind::Discount,\n    curve_id: \"USD_SOFR\".into(),\n    discount_curve_id: None,\n    nodes: vec![\n        (\"2Y\".into(), 25.0),\n        (\"10Y\".into(), -10.0),\n    ],\n    match_mode: TenorMatchMode::Interpolate,\n};\n```",
+          "description": "Node-specific basis point shifts for curve shaping.\n\nFor rate-style curves, `bp` values use the standard fixed-income\nconvention where `1 bp = 0.0001` in fractional rate space. For\n[`CurveKind::Commodity`], each `bp` is percent of the price-curve\nforward (`10.0` = +10% on that tenor); looking up a discount curve\nunder that id is an error. Use [`OperationSpec::VolIndexNodePts`] for\nvol-index curves.\n\n# Example\n```rust\nuse finstack_quant_scenarios::{OperationSpec, CurveKind, TenorMatchMode};\n\nlet op = OperationSpec::CurveNodeBp {\n    curve_kind: CurveKind::Discount,\n    curve_id: \"USD_SOFR\".into(),\n    discount_curve_id: None,\n    nodes: vec![\n        (\"2Y\".into(), 25.0),\n        (\"10Y\".into(), -10.0),\n    ],\n    match_mode: TenorMatchMode::Interpolate,\n};\n```",
           "properties": {
             "curve_id": {
               "$ref": "#/$defs/Id",
@@ -1488,7 +1488,7 @@
               "description": "How to handle tenors not in the curve."
             },
             "nodes": {
-              "description": "Vector of (tenor, basis_point_shift) pairs.",
+              "description": "Vector of `(tenor, shift)` pairs. Shift is rate bp except for\n[`CurveKind::Commodity`], where it is percent of the forward.",
               "items": {
                 "maxItems": 2,
                 "minItems": 2,
@@ -1584,14 +1584,14 @@
         },
         {
           "additionalProperties": false,
-          "description": "Parallel shift to base correlation surface (absolute points).\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::BaseCorrParallelPts {\n    surface_id: \"CDX_IG\".into(),\n    points: 0.05, // +5 percentage points\n};\n```",
+          "description": "Parallel shift to base correlation surface (absolute points).\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::BaseCorrParallelPts {\n    surface_id: \"CDX_IG\".into(),\n    points: 0.02, // +0.02 decimal correlation\n};\n```",
           "properties": {
             "kind": {
               "const": "base_corr_parallel_pts",
               "type": "string"
             },
             "points": {
-              "description": "Absolute shift in correlation points.",
+              "description": "Absolute shift in decimal correlation (`0.02` = +0.02).",
               "format": "double",
               "type": "number"
             },
@@ -1609,7 +1609,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Bucket-specific base correlation shifts by detachment.\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::BaseCorrBucketPts {\n    surface_id: \"CDX_IG\".into(),\n    detachment_bp: Some(vec![300, 700]), // 3% and 7% detachment\n    points: 0.03,\n};\n```",
+          "description": "Bucket-specific base correlation shifts by detachment.\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::BaseCorrBucketPts {\n    surface_id: \"CDX_IG\".into(),\n    detachment_bp: Some(vec![300, 700]), // 3% and 7% detachment\n    points: 0.02, // +0.02 decimal correlation\n};\n```",
           "properties": {
             "detachment_bp": {
               "description": "Optional detachment points in basis points (e.g., 300 for 3%).",
@@ -1627,7 +1627,7 @@
               "type": "string"
             },
             "points": {
-              "description": "Absolute shift in correlation points.",
+              "description": "Absolute shift in decimal correlation (`0.02` = +0.02).",
               "format": "double",
               "type": "number"
             },
@@ -1645,7 +1645,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Parallel percent shift to volatility surface.\n\n`pct` may be `<= -100`: vol-to-zero is sometimes used in degenerate\nstress (post-shock arbitrage detection emits a warning).\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::VolSurfaceParallelPct {\n    vol_surface_id: \"SPX\".into(),\n    pct: 10.0, // +10% volatility increase\n};\n```",
+          "description": "Parallel percent shift to a volatility surface.\n\nShocks are **sticky-strike** multiplicative grid moves: each stored\n`(expiry, strike)` vol is multiplied by `1 + pct/100`. This is not a\nsticky-delta re-mark. The post-shock calendar-spread check is\nfixed-strike and is a heuristic screen, not a no-arbitrage certificate.\n\n`pct` may be `<= -100`: vol-to-zero is sometimes used in degenerate\nstress (non-positive vol is a hard error; calendar-spread flags a\nwarning).\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::VolSurfaceParallelPct {\n    vol_surface_id: \"SPX\".into(),\n    pct: 10.0, // +10% volatility increase\n};\n```",
           "properties": {
             "kind": {
               "const": "vol_surface_parallel_pct",
@@ -1670,7 +1670,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Bucketed volatility surface shock.\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::VolSurfaceBucketPct {\n    vol_surface_id: \"SPX\".into(),\n    tenors: Some(vec![\"1M\".into(), \"3M\".into()]),\n    strikes: Some(vec![90.0, 95.0, 100.0]),\n    pct: 15.0,\n};\n```",
+          "description": "Bucketed volatility surface shock.\n\nSame sticky-strike multiplicative convention as\n[`OperationSpec::VolSurfaceParallelPct`], restricted to the selected\nexpiry/strike buckets. The calendar-spread check remains fixed-strike\nand is not a no-arbitrage certificate.\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::VolSurfaceBucketPct {\n    vol_surface_id: \"SPX\".into(),\n    tenors: Some(vec![\"1M\".into(), \"3M\".into()]),\n    strikes: Some(vec![90.0, 95.0, 100.0]),\n    pct: 15.0,\n};\n```",
           "properties": {
             "kind": {
               "const": "vol_surface_bucket_pct",
@@ -1869,10 +1869,10 @@
         },
         {
           "additionalProperties": false,
-          "description": "Shock asset correlation for structured credit instruments.\n\nApplies a parallel shift to asset correlation parameters. For flat\ncorrelation structures, this bumps the single asset correlation. For\nsectored structures, it bumps both intra-sector and inter-sector\ncorrelations (inter-sector at half the rate).\n\n# Arguments\n- `delta_pts`: Additive shock in correlation points (e.g., 0.05 for +5%)\n\n# Clamping\nAsset correlation is clamped to [0, 0.99] after the shock.\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::AssetCorrelationPts {\n    delta_pts: 0.05, // +5 percentage points\n};\n```",
+          "description": "Shock asset correlation for structured credit instruments.\n\nApplies a parallel shift to asset correlation parameters. For flat\ncorrelation structures, this bumps the single asset correlation. For\nsectored structures, it bumps both intra-sector and inter-sector\ncorrelations (inter-sector at half the rate).\n\n# Arguments\n- `delta_pts`: Additive shock in decimal correlation (`0.02` = +0.02)\n\n# Clamping\nAsset correlation is clamped to [0, 0.99] after the shock.\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::AssetCorrelationPts {\n    delta_pts: 0.02, // +0.02 decimal correlation\n};\n```",
           "properties": {
             "delta_pts": {
-              "description": "Additive shock in correlation points.",
+              "description": "Additive shock in decimal correlation (`0.02` = +0.02).",
               "format": "double",
               "type": "number"
             },
@@ -1889,10 +1889,10 @@
         },
         {
           "additionalProperties": false,
-          "description": "Shock prepay-default correlation for structured credit instruments.\n\nApplies a parallel shift to the correlation between prepayment and\ndefault rates. This is typically negative (higher prepayment = lower\ndefaults due to selection effects).\n\n# Arguments\n- `delta_pts`: Additive shock in correlation points\n\n# Clamping\nPrepay-default correlation is clamped to [-0.99, 0.99].\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::PrepayDefaultCorrelationPts {\n    delta_pts: 0.10, // +10 percentage points (less negative)\n};\n```",
+          "description": "Shock prepay-default correlation for structured credit instruments.\n\nApplies a parallel shift to the correlation between prepayment and\ndefault rates. This is typically negative (higher prepayment = lower\ndefaults due to selection effects).\n\n# Arguments\n- `delta_pts`: Additive shock in decimal correlation (`0.02` = +0.02)\n\n# Clamping\nPrepay-default correlation is clamped to [-0.99, 0.99].\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::PrepayDefaultCorrelationPts {\n    delta_pts: 0.10, // +0.10 decimal correlation (less negative)\n};\n```",
           "properties": {
             "delta_pts": {
-              "description": "Additive shock in correlation points.",
+              "description": "Additive shock in decimal correlation (`0.02` = +0.02).",
               "format": "double",
               "type": "number"
             },
@@ -1912,7 +1912,7 @@
           "description": "Hierarchy-targeted parallel curve shift.\n\nDuring [`crate::engine::ScenarioEngine::apply`], the engine resolves\n`target` against the market-data hierarchy and expands this into one\n[`OperationSpec::CurveParallelBp`] per matched curve. When multiple\nhierarchy operations reach the same curve, [`ScenarioSpec::resolution_mode`]\ndetermines whether they accumulate or only the most specific match survives.",
           "properties": {
             "bp": {
-              "description": "Basis point shift (additive).",
+              "description": "Basis point shift (additive), or percent of the price-curve forward\nwhen `curve_kind` is [`CurveKind::Commodity`].",
               "format": "double",
               "type": "number"
             },
@@ -2007,7 +2007,7 @@
               "type": "string"
             },
             "points": {
-              "description": "Absolute shift in correlation points.",
+              "description": "Absolute shift in decimal correlation (`0.02` = +0.02).",
               "format": "double",
               "type": "number"
             },
@@ -2265,7 +2265,7 @@
       ]
     },
     "TenorMatchMode": {
-      "description": "Strategy for aligning requested tenor bumps with curve pillars.\n\n[`TenorMatchMode::Exact`] requires the requested tenor to coincide with an\nexisting pillar. [`TenorMatchMode::Interpolate`] instead distributes the\nbump across the two adjacent knots, rescaled so the interpolated curve\nmoves by **exactly the requested basis points at the requested tenor**\n(minimum-norm pillar perturbation). The adjacent pillars themselves move\nby `bp · w / Σw²`, which can slightly exceed `bp` (at most ~1.21×) for\nasymmetric placements; on-pillar requests reduce to a single full-size\npillar bump. Delivery is exact for directly-bumped curves (forward,\ncommodity, vol-index, hazard direct shift) and first-order accurate for\nsolve-to-par recalibration paths (discount, par-CDS, inflation).\n\n# Examples\n```rust\nuse finstack_quant_scenarios::TenorMatchMode;\n\nlet mode = TenorMatchMode::Interpolate;\nassert_eq!(format!(\"{:?}\", mode), \"Interpolate\");\n```",
+      "description": "Strategy for aligning requested tenor bumps with curve pillars.\n\n[`TenorMatchMode::Exact`] requires the requested tenor to coincide with an\nexisting pillar. [`TenorMatchMode::Interpolate`] distributes the bump\nacross the two adjacent knots, then **calibrates those pillar deltas so\nthe curve's native interpolant hits the requested shock at the requested\ntenor** (discount zeros, inflation implied annual rates, forward rates,\nand commodity price forwards). The initial guess is the minimum-norm\n`1/Σw²` split; a few scale/Newton iterations adjust it when the live\ninterpolant is not linear-on-rate. On-pillar requests reduce to a single\nfull-size pillar bump. Delivery is first-order only for par-CDS\nsolve-to-par recalibration, which still emits\n[`Warning::InterpolatedNodeBumpFirstOrder`](crate::warning::Warning::InterpolatedNodeBumpFirstOrder).\n\n# Examples\n```rust\nuse finstack_quant_scenarios::TenorMatchMode;\n\nlet mode = TenorMatchMode::Interpolate;\nassert_eq!(format!(\"{:?}\", mode), \"Interpolate\");\n```",
       "oneOf": [
         {
           "const": "exact",

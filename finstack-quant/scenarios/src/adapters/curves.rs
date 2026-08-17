@@ -12,8 +12,13 @@ use crate::spec::{CurveKind, TenorMatchMode};
 use crate::utils::calculate_interpolation_weights;
 use crate::warning::Warning;
 use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
-use finstack_quant_core::market_data::bumps::{BumpSpec, MarketBump};
+use finstack_quant_core::market_data::bumps::{
+    BumpMode, BumpSpec, BumpType, BumpUnits, MarketBump,
+};
 use finstack_quant_core::market_data::context::CurveStorage;
+use finstack_quant_core::market_data::term_structures::{
+    DiscountCurve, ForwardCurve, InflationCurve, PriceCurve,
+};
 use finstack_quant_core::types::CurveId;
 use finstack_quant_valuations::calibration::bumps::{
     bump_discount_curve_synthetic, bump_hazard_spreads, bump_inflation_rates,
@@ -47,15 +52,25 @@ struct BumpTargetResult {
     indexed_targets: Vec<(usize, f64)>,
     /// Warnings generated during resolution (e.g., extrapolation).
     warnings: Vec<Warning>,
+    /// Off-pillar interpolate requests that need native-interpolant calibration.
+    interpolate_hits: Vec<InterpolateHit>,
+}
+
+/// One off-pillar interpolate request: target time, requested add, neighbor pillars.
+struct InterpolateHit {
+    t: f64,
+    requested: f64,
+    neighbors: Vec<usize>,
 }
 
 /// Whether the bumped curve is rebuilt by solve-to-par recalibration
-/// (discount, par-CDS, inflation) rather than a direct knot shift. On
-/// recalibrated curves the interpolated-split delivery correction is only
-/// first-order, so splits emit a [`Warning::InterpolatedNodeBumpFirstOrder`].
+/// (ParCDS only) rather than a direct knot shift. Direct-shift curves
+/// calibrate interpolated splits onto the live interpolant. Solve-to-par
+/// splits emit a [`Warning::InterpolatedNodeBumpFirstOrder`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BumpDelivery {
-    /// Curve knots are shifted directly; interpolated splits deliver exactly.
+    /// Curve knots are shifted directly; interpolated splits are calibrated
+    /// onto the curve's native interpolant.
     Direct,
     /// Shifted targets are snapped to calibration quotes and re-solved to par.
     SolveToPar,
@@ -73,16 +88,23 @@ fn resolve_bump_targets(
     let mut targets = Vec::new();
     let mut indexed_targets = Vec::new();
     let mut warnings = Vec::new();
+    let mut interpolate_hits = Vec::new();
 
     let min_knot = knots.first().copied().unwrap_or(0.0);
     let max_knot = knots.last().copied().unwrap_or(0.0);
 
     for (tenor_str, bp) in nodes {
-        let tenor = Tenor::parse(tenor_str).map_err(|e| Error::InvalidTenor(e.to_string()))?;
-        let tenor_years_ctx = tenor
-            .to_years_with_context(as_of, None, BusinessDayConvention::Unadjusted, day_count)
-            .map_err(|e| Error::Internal(e.to_string()))?;
-        let tenor_years_simple = tenor.to_years_simple();
+        // `Tenor::parse` rejects a zero count, but node shocks need a way to
+        // address the t=0 front knot (vol-index / commodity spot sync).
+        let (tenor_years_ctx, tenor_years_simple) = if tenor_str == "0Y" {
+            (0.0, 0.0)
+        } else {
+            let tenor = Tenor::parse(tenor_str).map_err(|e| Error::InvalidTenor(e.to_string()))?;
+            let tenor_years_ctx = tenor
+                .to_years_with_context(as_of, None, BusinessDayConvention::Unadjusted, day_count)
+                .map_err(|e| Error::Internal(e.to_string()))?;
+            (tenor_years_ctx, tenor.to_years_simple())
+        };
 
         let add = *bp;
 
@@ -134,17 +156,10 @@ fn resolve_bump_targets(
                     });
                 }
 
-                // Delivery correction: distributing `add` with raw linear
-                // weights (w0 + w1 = 1) realizes only add·(w0² + w1²) at the
-                // requested tenor under linear interpolation, since
-                // rate(t) = w0·r0 + w1·r1 — half the requested shock at a
-                // segment midpoint. Rescale by 1/Σw² (the minimum-norm pillar
-                // perturbation) so the interpolated curve moves by exactly
-                // `add` at the requested tenor. On-pillar requests have
-                // Σw² = 1 and are unchanged; the adjacent pillar can move by
-                // at most ~1.21·add (at w ≈ 0.72). Exact for directly-bumped
-                // curves (forward, commodity, vol-index, hazard direct shift);
-                // first-order for solve-to-par recalibration paths.
+                // Initial guess: 1/Σw² minimum-norm split so a linear-on-rate
+                // interpolant would already hit `add`. Direct-shift curves then
+                // calibrate these pillar deltas onto the live interpolant.
+                // Solve-to-par (ParCDS) keeps the first-order split and warns.
                 let norm: f64 = result.weights.iter().map(|(_, w)| w * w).sum();
                 let scale = if norm > 1e-12 { 1.0 / norm } else { 1.0 };
                 if result.weights.len() > 1 && delivery == BumpDelivery::SolveToPar {
@@ -157,14 +172,21 @@ fn resolve_bump_targets(
                         curve_id: curve_id.to_string(),
                         detail: format!(
                             "Tenor '{tenor_str}' on curve '{curve_id}' falls between pillars \
-                             [{}] and the curve is rebuilt by solve-to-par recalibration: the \
-                             interpolated-split delivery correction is only first-order and the \
-                             split targets are snapped to the nearest calibration quotes, so the \
-                             realized shock at '{tenor_str}' may differ from the requested size. \
-                             Use TenorMatchMode::Exact at pillar tenors for pillar-accurate \
-                             bucket risk.",
+                             [{}] and the curve is rebuilt by par-CDS solve-to-par \
+                             recalibration: the interpolated-split delivery correction is only \
+                             first-order and the split targets are snapped to the nearest \
+                             calibration quotes, so the realized shock at '{tenor_str}' may \
+                             differ from the requested size. Use TenorMatchMode::Exact at \
+                             pillar tenors for pillar-accurate bucket risk.",
                             pillars.join(", ")
                         ),
+                    });
+                }
+                if result.weights.len() > 1 && delivery == BumpDelivery::Direct {
+                    interpolate_hits.push(InterpolateHit {
+                        t: use_years,
+                        requested: add,
+                        neighbors: result.weights.iter().map(|(idx, _)| *idx).collect(),
                     });
                 }
                 for (idx, weight) in result.weights {
@@ -178,38 +200,276 @@ fn resolve_bump_targets(
         targets,
         indexed_targets,
         warnings,
+        interpolate_hits,
     })
 }
 
-/// Typical parallel-bump stress range for commodity curves.
-const COMMODITY_LARGE_SHOCK_MIN_BP: f64 = -5_000.0;
-const COMMODITY_LARGE_SHOCK_MAX_BP: f64 = 10_000.0;
+const INTERPOLANT_CALIBRATE_ITERS: usize = 8;
+const INTERPOLANT_CALIBRATE_TOL: f64 = 1e-12;
 
-fn commodity_shock_warning(curve_id: &CurveId, bp: f64) -> Option<Warning> {
-    let range = COMMODITY_LARGE_SHOCK_MIN_BP..=COMMODITY_LARGE_SHOCK_MAX_BP;
-    (!range.contains(&bp)).then(|| Warning::CommodityShockOutsideRange {
+/// Scale neighboring-pillar deltas so `evaluate_at_t(deltas)` hits `target`.
+fn scale_neighbor_deltas_to_hit<F>(
+    deltas: &mut [f64],
+    neighbor_idxs: &[usize],
+    target: f64,
+    curve_id: &str,
+    t: f64,
+    mut evaluate_at_t: F,
+) -> Result<()>
+where
+    F: FnMut(&[f64]) -> Result<f64>,
+{
+    const REL_EPS: f64 = 1e-6;
+    if neighbor_idxs.len() <= 1 {
+        return Ok(());
+    }
+
+    for _ in 0..INTERPOLANT_CALIBRATE_ITERS {
+        let value = evaluate_at_t(deltas)?;
+        let err = target - value;
+        if err.abs() <= INTERPOLANT_CALIBRATE_TOL {
+            return Ok(());
+        }
+
+        let all_near_zero = neighbor_idxs.iter().all(|&i| deltas[i].abs() < 1e-16);
+        let mut probed = deltas.to_vec();
+        if all_near_zero {
+            for &i in neighbor_idxs {
+                probed[i] = REL_EPS;
+            }
+            let value_eps = evaluate_at_t(&probed)?;
+            let deriv = (value_eps - value) / REL_EPS;
+            if !deriv.is_finite() || deriv.abs() < 1e-18 {
+                break;
+            }
+            let step = err / deriv;
+            for &i in neighbor_idxs {
+                deltas[i] = step;
+            }
+            continue;
+        }
+
+        for &i in neighbor_idxs {
+            probed[i] *= 1.0 + REL_EPS;
+        }
+        let value_eps = evaluate_at_t(&probed)?;
+        let deriv = (value_eps - value) / REL_EPS;
+        if !deriv.is_finite() || deriv.abs() < 1e-18 {
+            break;
+        }
+        let factor = 1.0 + err / deriv;
+        if !factor.is_finite() {
+            break;
+        }
+        for &i in neighbor_idxs {
+            deltas[i] *= factor;
+        }
+    }
+
+    let value = evaluate_at_t(deltas)?;
+    if (target - value).abs() <= INTERPOLANT_CALIBRATE_TOL {
+        return Ok(());
+    }
+    Err(Error::Validation(format!(
+        "Off-pillar interpolant delivery on '{curve_id}' at t={t:.6} did not converge \
+         (target {target:.12}, realized {value:.12})"
+    )))
+}
+
+fn indexed_to_dense(indexed: &[(usize, f64)], n: usize) -> Vec<f64> {
+    let mut deltas = vec![0.0; n];
+    for &(idx, bp) in indexed {
+        if idx < n {
+            deltas[idx] += bp;
+        }
+    }
+    deltas
+}
+
+fn write_dense_targets(result: &mut BumpTargetResult, deltas: &[f64], knots: &[f64]) {
+    result.indexed_targets.clear();
+    result.targets.clear();
+    for (idx, &bp) in deltas.iter().enumerate() {
+        if bp.abs() > 0.0 {
+            result.indexed_targets.push((idx, bp));
+            result.targets.push((knots[idx], bp));
+        }
+    }
+}
+
+/// Calibrate Direct interpolate splits so the live interpolant hits each request.
+fn calibrate_native_interpolant<Eval, Target>(
+    result: &mut BumpTargetResult,
+    knots: &[f64],
+    curve_id: &str,
+    mut quantity_at: Eval,
+    target_at: Target,
+) -> Result<()>
+where
+    Eval: FnMut(&[f64], f64) -> Result<f64>,
+    Target: Fn(f64, f64) -> f64,
+{
+    if result.interpolate_hits.is_empty() {
+        return Ok(());
+    }
+
+    let mut deltas = indexed_to_dense(&result.indexed_targets, knots.len());
+    const OUTER: usize = 4;
+    for _ in 0..OUTER {
+        let mut max_err = 0.0_f64;
+        let hits: Vec<(f64, f64, Vec<usize>)> = result
+            .interpolate_hits
+            .iter()
+            .map(|h| (h.t, h.requested, h.neighbors.clone()))
+            .collect();
+        for (t, requested, neighbors) in &hits {
+            let target = target_at(*t, *requested);
+            scale_neighbor_deltas_to_hit(&mut deltas, neighbors, target, curve_id, *t, |d| {
+                quantity_at(d, *t)
+            })?;
+            let got = quantity_at(&deltas, *t)?;
+            max_err = max_err.max((got - target).abs());
+        }
+        if max_err <= INTERPOLANT_CALIBRATE_TOL {
+            break;
+        }
+    }
+
+    write_dense_targets(result, &deltas, knots);
+    Ok(())
+}
+
+fn preview_discount_zero(base: &DiscountCurve, deltas_bp: &[f64], t: f64) -> Result<f64> {
+    let knots = base.knots();
+    let dfs = base.dfs();
+    let bumped: Vec<(f64, f64)> = knots
+        .iter()
+        .zip(dfs.iter())
+        .zip(deltas_bp.iter())
+        .map(|((&tk, &df), &bp)| (tk, df * (-(bp * 1e-4) * tk).exp()))
+        .collect();
+    Ok(base.rebuild_with_knots(bumped)?.zero(t))
+}
+
+fn implied_inflation_rate(curve: &InflationCurve, t: f64) -> f64 {
+    if t <= 0.0 {
+        return 0.0;
+    }
+    curve.inflation_rate(0.0, t)
+}
+
+fn preview_inflation_implied(base: &InflationCurve, deltas_bp: &[f64], t: f64) -> Result<f64> {
+    let base_cpi = base.base_cpi();
+    let knots = base.knots();
+    let cpi_levels = base.cpi_levels();
+    let bumped: Vec<(f64, f64)> = knots
+        .iter()
+        .zip(cpi_levels.iter())
+        .zip(deltas_bp.iter())
+        .map(|((&tk, &cpi), &bp)| {
+            if tk <= 0.0 {
+                return (tk, cpi);
+            }
+            let implied = (cpi / base_cpi).powf(1.0 / tk) - 1.0;
+            (tk, base_cpi * (1.0 + implied + bp * 1e-4).powf(tk))
+        })
+        .collect();
+    let preview = InflationCurve::builder(base.id().clone())
+        .base_cpi(base_cpi)
+        .base_date(base.base_date())
+        .day_count(base.day_count())
+        .indexation_lag_months(base.indexation_lag_months())
+        .interp(base.interp_style())
+        .extrapolation(base.extrapolation())
+        .knots(bumped)
+        .build()?;
+    Ok(implied_inflation_rate(&preview, t))
+}
+
+fn rebuild_forward_curve(base: &ForwardCurve, bumped: Vec<(f64, f64)>) -> Result<ForwardCurve> {
+    Ok(ForwardCurve::builder(base.id().as_str(), base.tenor())
+        .base_date(base.base_date())
+        .reset_lag(base.reset_lag())
+        .day_count(base.day_count())
+        .interp(base.interp_style())
+        .extrapolation(base.extrapolation())
+        .rate_calibration_opt(base.rate_calibration().cloned())
+        .fx_policy_opt(base.fx_policy().map(ToOwned::to_owned))
+        .knots(bumped)
+        .build()?)
+}
+
+fn preview_forward_rate(base: &ForwardCurve, deltas_bp: &[f64], t: f64) -> Result<f64> {
+    let knots = base.knots();
+    let bumped: Vec<(f64, f64)> = knots
+        .iter()
+        .zip(base.forwards().iter())
+        .zip(deltas_bp.iter())
+        .map(|((&tk, &fwd), &bp)| (tk, fwd + bp * 1e-4))
+        .collect();
+    Ok(rebuild_forward_curve(base, bumped)?.rate(t))
+}
+
+fn rebuild_price_curve(
+    base: &PriceCurve,
+    bumped: Vec<(f64, f64)>,
+    spot: f64,
+) -> Result<PriceCurve> {
+    Ok(PriceCurve::builder(base.id().as_str())
+        .base_date(base.base_date())
+        .day_count(base.day_count())
+        .spot_price(spot)
+        .interp(base.interp_style())
+        .extrapolation(base.extrapolation())
+        .knots(bumped)
+        .build()?)
+}
+
+fn preview_commodity_price(base: &PriceCurve, deltas_pct: &[f64], t: f64) -> Result<f64> {
+    let knots = base.knots();
+    let bumped: Vec<(f64, f64)> = knots
+        .iter()
+        .zip(base.prices().iter())
+        .zip(deltas_pct.iter())
+        .map(|((&tk, &px), &pct)| (tk, px * (1.0 + pct / 100.0)))
+        .collect();
+    let spot = if knots.first().is_some_and(|k| k.abs() < 1e-12) {
+        bumped[0].1
+    } else {
+        base.spot_price()
+    };
+    Ok(rebuild_price_curve(base, bumped, spot)?.price(t))
+}
+
+/// Typical percent-of-forward stress range for commodity price curves.
+const COMMODITY_LARGE_SHOCK_MIN_PCT: f64 = -80.0;
+const COMMODITY_LARGE_SHOCK_MAX_PCT: f64 = 200.0;
+
+fn commodity_shock_warning(curve_id: &CurveId, pct: f64) -> Option<Warning> {
+    let range = COMMODITY_LARGE_SHOCK_MIN_PCT..=COMMODITY_LARGE_SHOCK_MAX_PCT;
+    (!range.contains(&pct)).then(|| Warning::CommodityShockOutsideRange {
         curve_id: curve_id.as_str().to_string(),
         detail: format!(
-            "Commodity curve '{curve_id}' parallel bump {bp:+.0} bp is outside the typical \
-             stress range [{COMMODITY_LARGE_SHOCK_MIN_BP:+.0}, {COMMODITY_LARGE_SHOCK_MAX_BP:+.0}] bp; \
-             verify convenience-yield semantics (bp means 1e-4 on the zero rate, not a price shift)."
+            "Commodity curve '{curve_id}' parallel bump {pct:+.1} percent of the price-curve \
+             forward is outside the typical stress range \
+             [{COMMODITY_LARGE_SHOCK_MIN_PCT:+.0}, {COMMODITY_LARGE_SHOCK_MAX_PCT:+.0}] percent."
         ),
     })
 }
 
 fn commodity_node_shock_warning(curve_id: &CurveId, nodes: &[(String, f64)]) -> Option<Warning> {
-    let range = COMMODITY_LARGE_SHOCK_MIN_BP..=COMMODITY_LARGE_SHOCK_MAX_BP;
+    let range = COMMODITY_LARGE_SHOCK_MIN_PCT..=COMMODITY_LARGE_SHOCK_MAX_PCT;
     let extreme: Vec<String> = nodes
         .iter()
-        .filter(|(_, bp)| !range.contains(bp))
-        .map(|(tenor, bp)| format!("{tenor}={bp:+.0}bp"))
+        .filter(|(_, pct)| !range.contains(pct))
+        .map(|(tenor, pct)| format!("{tenor}={pct:+.1}%"))
         .collect();
     (!extreme.is_empty()).then(|| Warning::CommodityShockOutsideRange {
         curve_id: curve_id.as_str().to_string(),
         detail: format!(
             "Commodity curve '{curve_id}' node shocks outside typical stress range \
-             [{COMMODITY_LARGE_SHOCK_MIN_BP:+.0}, {COMMODITY_LARGE_SHOCK_MAX_BP:+.0}] bp: [{}]; \
-             verify convenience-yield semantics.",
+             [{COMMODITY_LARGE_SHOCK_MIN_PCT:+.0}, {COMMODITY_LARGE_SHOCK_MAX_PCT:+.0}] percent \
+             of the price-curve forward: [{}].",
             extreme.join(", ")
         ),
     })
@@ -360,9 +620,8 @@ pub(crate) fn curve_parallel_effects(
         }
         CurveKind::Forward => {
             // Forward curve parallel bump uses direct additive rate shifts.
-            // Discount curves use solve-to-par; forward curves apply additive
-            // shifts directly because they represent forward rates rather than
-            // derived discount factors.
+            // Discount parallel bumps are continuous-zero shifts
+            // (`DF' = DF · exp(−δ t)`), not solve-to-par quote re-bootstraps.
             let _base_curve = ctx
                 .market
                 .get_forward(curve_id.as_str())
@@ -427,10 +686,15 @@ pub(crate) fn curve_parallel_effects(
         CurveKind::Commodity => {
             let _base_curve = ctx
                 .market
-                .get_discount(curve_id.as_str())
+                .get_price_curve(curve_id.as_str())
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
 
-            let spec = BumpSpec::parallel_bp(bp);
+            let spec = BumpSpec {
+                mode: BumpMode::Additive,
+                units: BumpUnits::Percent,
+                value: bp,
+                bump_type: BumpType::Parallel,
+            };
             let bump = MarketBump::Curve {
                 id: curve_id.clone(),
                 spec,
@@ -463,14 +727,21 @@ pub(crate) fn curve_node_effects(
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
 
             let knots: Vec<f64> = base_curve.knots().to_vec();
-            let result = resolve_bump_targets(
+            let mut result = resolve_bump_targets(
                 curve_id.as_str(),
                 nodes,
                 &knots,
                 match_mode,
                 as_of,
                 base_curve.day_count(),
-                BumpDelivery::SolveToPar,
+                BumpDelivery::Direct,
+            )?;
+            calibrate_native_interpolant(
+                &mut result,
+                &knots,
+                curve_id.as_str(),
+                |d, t| preview_discount_zero(&base_curve, d, t),
+                |t, bp| base_curve.zero(t) + bp * 1e-4,
             )?;
             let bump_req = BumpRequest::Tenors(result.targets);
 
@@ -489,7 +760,7 @@ pub(crate) fn curve_node_effects(
             let knots = base_curve.knots().to_vec();
             let mut forwards = base_curve.forwards().to_vec();
 
-            let result = resolve_bump_targets(
+            let mut result = resolve_bump_targets(
                 curve_id.as_str(),
                 nodes,
                 &knots,
@@ -498,26 +769,20 @@ pub(crate) fn curve_node_effects(
                 base_curve.day_count(),
                 BumpDelivery::Direct,
             )?;
+            calibrate_native_interpolant(
+                &mut result,
+                &knots,
+                curve_id.as_str(),
+                |d, t| preview_forward_rate(&base_curve, d, t),
+                |t, bp| base_curve.rate(t) + bp * 1e-4,
+            )?;
 
             for &(idx, bp) in &result.indexed_targets {
                 forwards[idx] += bp * 1e-4;
             }
 
             let bumped_points: Vec<(f64, f64)> = knots.into_iter().zip(forwards).collect();
-            let new_curve =
-                finstack_quant_core::market_data::term_structures::ForwardCurve::builder(
-                    base_curve.id().as_str(),
-                    base_curve.tenor(),
-                )
-                .base_date(base_curve.base_date())
-                .reset_lag(base_curve.reset_lag())
-                .day_count(base_curve.day_count())
-                .interp(base_curve.interp_style())
-                .extrapolation(base_curve.extrapolation())
-                .rate_calibration_opt(base_curve.rate_calibration().cloned())
-                .fx_policy_opt(base_curve.fx_policy().map(ToOwned::to_owned))
-                .knots(bumped_points)
-                .build()?;
+            let new_curve = rebuild_forward_curve(&base_curve, bumped_points)?;
 
             Ok(update_effects(new_curve, result.warnings))
         }
@@ -574,14 +839,21 @@ pub(crate) fn curve_node_effects(
                 .map(|day_count| day_count.day_count())
                 .unwrap_or(DayCount::Act365F);
 
-            let result = resolve_bump_targets(
+            let mut result = resolve_bump_targets(
                 curve_id.as_str(),
                 nodes,
                 &knots,
                 match_mode,
                 as_of,
                 tenor_day_count,
-                BumpDelivery::SolveToPar,
+                BumpDelivery::Direct,
+            )?;
+            calibrate_native_interpolant(
+                &mut result,
+                &knots,
+                curve_id.as_str(),
+                |d, t| preview_inflation_implied(&base_curve, d, t),
+                |t, bp| implied_inflation_rate(&base_curve, t) + bp * 1e-4,
             )?;
             let bump_req = BumpRequest::Tenors(result.targets);
 
@@ -607,11 +879,11 @@ pub(crate) fn curve_node_effects(
         CurveKind::Commodity => {
             let base_curve = ctx
                 .market
-                .get_discount(curve_id.as_str())
+                .get_price_curve(curve_id.as_str())
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
 
             let knots: Vec<f64> = base_curve.knots().to_vec();
-            let result = resolve_bump_targets(
+            let mut result = resolve_bump_targets(
                 curve_id.as_str(),
                 nodes,
                 &knots,
@@ -620,42 +892,25 @@ pub(crate) fn curve_node_effects(
                 base_curve.day_count(),
                 BumpDelivery::Direct,
             )?;
+            calibrate_native_interpolant(
+                &mut result,
+                &knots,
+                curve_id.as_str(),
+                |d, t| preview_commodity_price(&base_curve, d, t),
+                |t, pct| base_curve.price(t) * (1.0 + pct / 100.0),
+            )?;
 
-            let mut dfs: Vec<f64> = base_curve.dfs().to_vec();
-            for &(idx, bp_shift) in &result.indexed_targets {
-                let t = knots[idx];
-                if t > 1e-12 {
-                    if dfs[idx] <= 0.0 {
-                        tracing::warn!(
-                            idx,
-                            df = dfs[idx],
-                            "Non-positive discount factor in commodity curve bump; skipping node"
-                        );
-                        continue;
-                    }
-                    let zero = -(dfs[idx].ln()) / t;
-                    let shifted = zero + bp_shift * 1e-4;
-                    dfs[idx] = (-shifted * t).exp();
-                }
+            let mut prices: Vec<f64> = base_curve.prices().to_vec();
+            for &(idx, pct) in &result.indexed_targets {
+                prices[idx] *= 1.0 + pct / 100.0;
+            }
+            let mut spot = base_curve.spot_price();
+            if knots.first().is_some_and(|k| k.abs() < 1e-12) {
+                spot = prices[0];
             }
 
-            let bumped_points: Vec<(f64, f64)> = knots.into_iter().zip(dfs).collect();
-            let new_curve =
-                finstack_quant_core::market_data::term_structures::DiscountCurve::builder(
-                    base_curve.id().as_str(),
-                )
-                .base_date(base_curve.base_date())
-                .day_count(base_curve.day_count())
-                .interp(base_curve.interp_style())
-                .extrapolation(base_curve.extrapolation())
-                .validation(
-                    finstack_quant_core::market_data::term_structures::ValidationMode::Raw {
-                        allow_non_monotonic: true,
-                        forward_floor: None,
-                    },
-                )
-                .knots(bumped_points)
-                .build()?;
+            let bumped_points: Vec<(f64, f64)> = knots.into_iter().zip(prices).collect();
+            let new_curve = rebuild_price_curve(&base_curve, bumped_points, spot)?;
 
             let mut warnings = result.warnings;
             if let Some(w) = commodity_node_shock_warning(curve_id, nodes) {
@@ -745,6 +1000,11 @@ pub(crate) fn vol_index_node_effects(
         levels[idx] = proposed;
     }
 
+    let mut spot_level = base_curve.spot_level();
+    if knots.first().is_some_and(|k| k.abs() < 1e-12) {
+        spot_level = levels[0];
+    }
+
     let bumped_points: Vec<(f64, f64)> = knots.into_iter().zip(levels).collect();
     let new_curve =
         finstack_quant_core::market_data::term_structures::VolatilityIndexCurve::builder(
@@ -752,7 +1012,7 @@ pub(crate) fn vol_index_node_effects(
         )
         .base_date(base_curve.base_date())
         .day_count(base_curve.day_count())
-        .spot_level(base_curve.spot_level())
+        .spot_level(spot_level)
         .interp(base_curve.interp_style())
         .extrapolation(base_curve.extrapolation())
         .knots(bumped_points)
@@ -813,6 +1073,48 @@ mod tests {
             .expect("vol index should exist");
         assert!((updated.spot_level() - 19.5).abs() < 1.0e-12);
         assert!((updated.forward_level(0.25) - 21.0).abs() < 1.0e-12);
+    }
+
+    #[test]
+    fn vol_index_node_front_knot_syncs_spot_level() {
+        let as_of = date!(2025 - 01 - 01);
+        let vol_curve = VolatilityIndexCurve::builder("VIX")
+            .base_date(as_of)
+            .spot_level(18.5)
+            .knots([(0.0, 18.5), (0.25, 20.0), (0.5, 21.5)])
+            .build()
+            .expect("vol index curve should build");
+        let mut market = MarketContext::new().insert(vol_curve);
+        let mut model = FinancialModelSpec::new("demo", vec![]);
+        let ctx = ExecutionContext {
+            market: &mut market,
+            model: Some(&mut model),
+            instruments: None,
+            rate_bindings: None,
+            calendar: None,
+            as_of,
+        };
+
+        let effects = vol_index_node_effects(
+            &CurveId::from("VIX"),
+            &[("0Y".into(), 1.0)],
+            TenorMatchMode::Exact,
+            &ctx,
+        )
+        .expect("front-knot vol-index shock should apply");
+        let bumped = effects
+            .iter()
+            .find_map(|e| match e {
+                ScenarioEffect::UpdateCurve(storage) => storage.vol_index().map(|c| (**c).clone()),
+                _ => None,
+            })
+            .expect("vol-index update");
+        assert!(
+            (bumped.spot_level() - 19.5).abs() < 1e-12,
+            "front-knot +1.0 should move spot 18.5 → 19.5, got {}",
+            bumped.spot_level()
+        );
+        assert!((bumped.forward_level(0.0) - 19.5).abs() < 1e-12);
     }
 
     #[test]
@@ -915,20 +1217,19 @@ mod tests {
         assert!(err.to_string().contains("non-positive level"));
     }
 
-    /// An off-pillar interpolated node bump on a discount curve goes through
-    /// solve-to-par recalibration, where the 1/Σw² delivery correction is only
-    /// first-order and the split targets snap to calibration quotes. That
-    /// approximation must be surfaced, not silent.
+    /// Off-pillar interpolated node bump on a log-linear discount curve
+    /// delivers the requested zero shift at the request tenor under the
+    /// native interpolant, with no first-order warning.
     #[test]
-    fn interpolated_node_bump_on_discount_curve_warns_first_order() {
-        use finstack_quant_core::market_data::term_structures::DiscountCurve;
-
+    fn interpolated_node_bump_on_discount_curve_hits_native_interpolant() {
         let as_of = date!(2025 - 01 - 01);
         let curve = DiscountCurve::builder("USD-OIS")
             .base_date(as_of)
+            .interp(InterpStyle::LogLinear)
             .knots(vec![(0.0, 1.0), (1.0, 0.98), (5.0, 0.90), (10.0, 0.80)])
             .build()
             .expect("discount curve should build");
+        let base_zero = curve.zero(3.0);
         let mut market = MarketContext::new().insert(curve);
         let mut model = FinancialModelSpec::new("test", vec![]);
         let ctx = ExecutionContext {
@@ -940,7 +1241,6 @@ mod tests {
             as_of,
         };
 
-        // 3Y sits between the 1Y and 5Y pillars -> split weights.
         let curve_id = CurveId::from("USD-OIS");
         let effects = curve_node_effects(
             CurveKind::Discount,
@@ -953,11 +1253,73 @@ mod tests {
         .expect("interpolated discount node bump should apply");
 
         assert!(
+            !effects.iter().any(|e| matches!(
+                e,
+                ScenarioEffect::Warning(Warning::InterpolatedNodeBumpFirstOrder { .. })
+            )),
+            "direct-shift interpolated discount bump must not warn first-order, got {effects:?}"
+        );
+
+        let bumped = effects
+            .iter()
+            .find_map(|e| match e {
+                ScenarioEffect::UpdateCurve(storage) => storage.discount().map(|c| (**c).clone()),
+                _ => None,
+            })
+            .expect("discount curve update");
+        let delta = bumped.zero(3.0) - base_zero;
+        assert!(
+            (delta - 0.0025).abs() < 1e-10,
+            "native interpolant should deliver +25 bp at 3Y: got {delta}"
+        );
+    }
+
+    /// Par-CDS off-pillar interpolate still goes through solve-to-par, so the
+    /// first-order delivery warning must fire.
+    #[test]
+    fn interpolated_node_bump_on_par_cds_warns_first_order() {
+        use finstack_quant_core::market_data::term_structures::HazardCurve;
+
+        let as_of = date!(2025 - 01 - 01);
+        let discount = DiscountCurve::builder("USD-OIS")
+            .base_date(as_of)
+            .knots(vec![(0.0, 1.0), (1.0, 0.95), (5.0, 0.80), (10.0, 0.60)])
+            .build()
+            .expect("discount curve should build");
+        let hazard = HazardCurve::builder("USD-CDS")
+            .base_date(as_of)
+            .recovery_rate(0.4)
+            .knots(vec![(1.0, 0.01), (5.0, 0.02)])
+            .par_spreads(vec![(1.0, 60.0), (5.0, 120.0)])
+            .build()
+            .expect("hazard curve should build");
+        let mut market = MarketContext::new().insert(discount).insert(hazard);
+        let mut model = FinancialModelSpec::new("test", vec![]);
+        let ctx = ExecutionContext {
+            market: &mut market,
+            model: Some(&mut model),
+            instruments: None,
+            rate_bindings: None,
+            calendar: None,
+            as_of,
+        };
+
+        let effects = curve_node_effects(
+            CurveKind::ParCDS,
+            &CurveId::from("USD-CDS"),
+            None,
+            &[("3Y".into(), 10.0)],
+            TenorMatchMode::Interpolate,
+            &ctx,
+        )
+        .expect("interpolated par-CDS node bump should apply");
+
+        assert!(
             effects.iter().any(|e| matches!(
                 e,
                 ScenarioEffect::Warning(Warning::InterpolatedNodeBumpFirstOrder { .. })
             )),
-            "off-pillar interpolated bump on a solve-to-par curve must warn, got {effects:?}"
+            "off-pillar interpolated bump on par-CDS must warn first-order, got {effects:?}"
         );
     }
 
@@ -990,7 +1352,7 @@ mod tests {
             as_of,
         };
 
-        // Exact pillar hit on the solve-to-par curve: no approximation.
+        // Exact pillar hit on a direct-shift discount curve: no approximation.
         let effects = curve_node_effects(
             CurveKind::Discount,
             &CurveId::from("USD-OIS"),
@@ -1028,108 +1390,136 @@ mod tests {
         );
     }
 
-    /// Commodity parallel and all-node bumps must agree: both are additive
-    /// continuous-zero-rate shifts, `DF'(t) = DF(t)·exp(−Δ·t)`. The parallel
-    /// path delegates to core's `DiscountCurve::with_parallel_bump` while the
-    /// node path does an explicit zero round-trip per knot; this test pins
-    /// the two code paths to identical semantics.
+    fn wti_price_curve(as_of: finstack_quant_core::dates::Date) -> PriceCurve {
+        PriceCurve::builder("WTI")
+            .base_date(as_of)
+            .spot_price(70.0)
+            .knots([(0.0, 70.0), (1.0, 72.0), (5.0, 75.0)])
+            .build()
+            .expect("WTI price curve should build")
+    }
+
     #[test]
-    fn commodity_parallel_and_all_node_bumps_agree() {
-        use finstack_quant_core::market_data::term_structures::DiscountCurve;
-
+    fn commodity_parallel_percent_moves_every_knot_and_spot() {
         let as_of = date!(2025 - 01 - 01);
-        let build_market = || {
-            let curve = DiscountCurve::builder("WTI")
-                .base_date(as_of)
-                .knots(vec![(0.0, 1.0), (1.0, 0.97), (5.0, 0.85)])
-                .build()
-                .expect("commodity curve should build");
-            MarketContext::new().insert(curve)
-        };
-
+        let mut market = MarketContext::new().insert(wti_price_curve(as_of));
+        let mut model = FinancialModelSpec::new("test", vec![]);
         let engine = ScenarioEngine::new();
-        let bp = 50.0;
-
-        let mut market_parallel = build_market();
-        let mut model_a = FinancialModelSpec::new("test", vec![]);
-        let parallel = ScenarioSpec {
-            id: "commodity_parallel".into(),
-            name: None,
-            description: None,
-            operations: vec![OperationSpec::CurveParallelBp {
-                curve_kind: CurveKind::Commodity,
-                curve_id: "WTI".into(),
-                discount_curve_id: None,
-                bp,
-            }],
-            priority: 0,
-            resolution_mode: Default::default(),
-        };
         let mut ctx = ExecutionContext {
-            market: &mut market_parallel,
-            model: Some(&mut model_a),
+            market: &mut market,
+            model: Some(&mut model),
             instruments: None,
             rate_bindings: None,
             calendar: None,
             as_of,
         };
-        engine.apply(&parallel, &mut ctx).expect("parallel applies");
+        engine
+            .apply(
+                &ScenarioSpec {
+                    id: "commodity_parallel".into(),
+                    name: None,
+                    description: None,
+                    operations: vec![OperationSpec::CurveParallelBp {
+                        curve_kind: CurveKind::Commodity,
+                        curve_id: "WTI".into(),
+                        discount_curve_id: None,
+                        bp: 10.0,
+                    }],
+                    priority: 0,
+                    resolution_mode: Default::default(),
+                },
+                &mut ctx,
+            )
+            .expect("parallel applies");
 
-        let mut market_nodes = build_market();
-        let mut model_b = FinancialModelSpec::new("test", vec![]);
-        let nodes = ScenarioSpec {
-            id: "commodity_nodes".into(),
-            name: None,
-            description: None,
-            operations: vec![OperationSpec::CurveNodeBp {
-                curve_kind: CurveKind::Commodity,
-                curve_id: "WTI".into(),
-                discount_curve_id: None,
-                nodes: vec![("1Y".into(), bp), ("5Y".into(), bp)],
-                match_mode: TenorMatchMode::Exact,
-            }],
-            priority: 0,
-            resolution_mode: Default::default(),
-        };
-        let mut ctx = ExecutionContext {
-            market: &mut market_nodes,
-            model: Some(&mut model_b),
-            instruments: None,
-            rate_bindings: None,
-            calendar: None,
-            as_of,
-        };
-        engine.apply(&nodes, &mut ctx).expect("node bump applies");
-
-        let curve_parallel = market_parallel.get_discount("WTI").expect("parallel curve");
-        let curve_nodes = market_nodes.get_discount("WTI").expect("node curve");
-        for t in [1.0_f64, 5.0] {
-            let dp = curve_parallel.df(t);
-            let dn = curve_nodes.df(t);
-            let expected = if t == 1.0 { 0.97 } else { 0.85 } * (-(bp / 10_000.0) * t).exp();
+        let bumped = market.get_price_curve("WTI").expect("price curve");
+        assert!((bumped.spot_price() - 77.0).abs() < 1e-12);
+        for (t, expected) in [(0.0, 77.0), (1.0, 79.2), (5.0, 82.5)] {
             assert!(
-                (dp - dn).abs() < 1e-12,
-                "parallel vs node DF({t}) diverged: {dp} vs {dn}"
-            );
-            assert!(
-                (dp - expected).abs() < 1e-12,
-                "DF({t}) should equal base·exp(−Δt): {dp} vs {expected}"
+                (bumped.price(t) - expected).abs() < 1e-12,
+                "price({t}) should be {expected}, got {}",
+                bumped.price(t)
             );
         }
     }
 
     #[test]
-    fn commodity_parallel_large_shock_emits_warning() {
-        use finstack_quant_core::market_data::term_structures::DiscountCurve;
-
+    fn commodity_exact_node_percent_moves_only_that_pillar() {
         let as_of = date!(2025 - 01 - 01);
-        let curve = DiscountCurve::builder("WTI")
-            .base_date(as_of)
-            .knots(vec![(0.0, 1.0), (1.0, 0.97), (5.0, 0.85)])
-            .build()
-            .expect("commodity curve should build");
+        let mut market = MarketContext::new().insert(wti_price_curve(as_of));
+        let mut model = FinancialModelSpec::new("test", vec![]);
+        let ctx = ExecutionContext {
+            market: &mut market,
+            model: Some(&mut model),
+            instruments: None,
+            rate_bindings: None,
+            calendar: None,
+            as_of,
+        };
+        let effects = curve_node_effects(
+            CurveKind::Commodity,
+            &CurveId::from("WTI"),
+            None,
+            &[("1Y".into(), 10.0)],
+            TenorMatchMode::Exact,
+            &ctx,
+        )
+        .expect("exact commodity node bump should apply");
+        let bumped = effects
+            .iter()
+            .find_map(|e| match e {
+                ScenarioEffect::UpdateCurve(storage) => storage.price().map(|c| (**c).clone()),
+                _ => None,
+            })
+            .expect("price curve update");
+        assert!((bumped.price(1.0) - 79.2).abs() < 1e-12);
+        assert!((bumped.spot_price() - 70.0).abs() < 1e-12);
+        assert!((bumped.price(5.0) - 75.0).abs() < 1e-12);
+    }
 
+    #[test]
+    fn commodity_interpolated_node_hits_native_price_percent() {
+        let as_of = date!(2025 - 01 - 01);
+        let curve = wti_price_curve(as_of);
+        let base_px = curve.price(3.0);
         let mut market = MarketContext::new().insert(curve);
+        let mut model = FinancialModelSpec::new("test", vec![]);
+        let ctx = ExecutionContext {
+            market: &mut market,
+            model: Some(&mut model),
+            instruments: None,
+            rate_bindings: None,
+            calendar: None,
+            as_of,
+        };
+        let effects = curve_node_effects(
+            CurveKind::Commodity,
+            &CurveId::from("WTI"),
+            None,
+            &[("3Y".into(), 10.0)],
+            TenorMatchMode::Interpolate,
+            &ctx,
+        )
+        .expect("interpolated commodity node bump should apply");
+        let bumped = effects
+            .iter()
+            .find_map(|e| match e {
+                ScenarioEffect::UpdateCurve(storage) => storage.price().map(|c| (**c).clone()),
+                _ => None,
+            })
+            .expect("price curve update");
+        let expected = base_px * 1.10;
+        assert!(
+            (bumped.price(3.0) - expected).abs() < 1e-10,
+            "price(3Y) should move +10%: got {} expected {expected}",
+            bumped.price(3.0)
+        );
+    }
+
+    #[test]
+    fn commodity_parallel_large_shock_emits_warning() {
+        let as_of = date!(2025 - 01 - 01);
+        let mut market = MarketContext::new().insert(wti_price_curve(as_of));
         let mut model = FinancialModelSpec::new("demo", vec![]);
         let ctx = ExecutionContext {
             market: &mut market,
@@ -1141,7 +1531,7 @@ mod tests {
         };
 
         let curve_id = CurveId::from("WTI");
-        let effects = curve_parallel_effects(CurveKind::Commodity, &curve_id, None, 50_000.0, &ctx)
+        let effects = curve_parallel_effects(CurveKind::Commodity, &curve_id, None, 250.0, &ctx)
             .expect("commodity shock should be handled");
 
         let has_warning = effects.iter().any(|e| {

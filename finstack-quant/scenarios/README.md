@@ -70,10 +70,14 @@ exposed are `apply_time_roll_forward` and `ArbitrageViolation` at the crate root
 ## Units
 
 + `Pct` fields are percentage points: `5.0` means +5%.
-+ `Bp` fields are additive basis points: 1 bp = 1e-4.
-+ `Pts` fields are absolute correlation or volatility points in decimal form.
-  Volatility-index curves deliberately use their own `VolIndex*Pts` variants so
-  "points" never collides with "basis points" on a rate curve.
++ `Bp` fields are additive basis points: 1 bp = 1e-4, except commodity
+  `CurveParallelBp` / `CurveNodeBp` where `bp` is percent of the
+  price-curve forward (`5.0` = +5%).
++ Vol-index `Pts` are index points (`1.0` on 18.5 → 19.5).
++ Correlation / base-corr `Pts` are decimal correlation (`0.02` = +0.02).
++ Vol-surface shocks are sticky-strike multiplicative grid moves. The
+  calendar-spread check is fixed-strike and is not a no-arbitrage
+  certificate.
 
 ## Execution order
 

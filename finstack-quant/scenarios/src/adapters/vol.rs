@@ -1,11 +1,16 @@
 //! Volatility surface shock adapter.
 //!
+//! Surface shocks are **sticky-strike** multiplicative moves on the stored
+//! `(expiry, strike)` grid. They do not re-mark along a sticky-delta
+//! convention.
+//!
 //! # Arbitrage Detection
 //!
-//! The [`check_arbitrage`] function validates vol surface grids for common
-//! arbitrage violations:
-//! - **Calendar spread**: Total variance must be non-decreasing in expiry
-//! - **Positive vol**: All volatilities must be positive
+//! The [`check_arbitrage`] function screens vol surface grids:
+//! - **Calendar spread**: total variance non-decreasing in expiry at
+//!   **fixed strike**. This is a heuristic screen, not a no-arbitrage
+//!   certificate (the exact condition is fixed moneyness).
+//! - **Positive vol**: all volatilities must be positive
 
 use crate::adapters::traits::ScenarioEffect;
 use crate::engine::ExecutionContext;

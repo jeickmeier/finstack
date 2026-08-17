@@ -16,9 +16,12 @@ use indexmap::IndexMap;
 /// Apply a time roll-forward operation.
 ///
 /// The function advances the valuation date by the requested period and computes
-/// theta/carry for each instrument (if a portfolio is supplied). Theta is defined
-/// as the PV change resulting purely from the passage of time while holding
-/// market data constant.
+/// theta/carry for each instrument (if a portfolio is supplied). Theta is
+/// realized-forward: carry is `PV_rolled(t1) - PV(t0) + CF_(t0,t1]`, where
+/// `t1` is valued on the market after
+/// [`MarketContext::roll_forward`](finstack_quant_core::market_data::context::MarketContext::roll_forward)
+/// (curves realize their forwards). It is not a frozen-knot lookup of the
+/// unrolled market at a shifted `as_of`.
 ///
 /// # Arguments
 /// - `ctx`: Execution context providing the mutable valuation date, market data,
@@ -118,28 +121,24 @@ pub fn apply_time_roll_forward(
         )));
     }
 
-    // Calculate carry and market value changes for instruments BEFORE rolling curves
-    // This ensures we capture the true carry (time value change with constant curves)
+    // Roll all curves forward (adjusts base dates, shifts knots, filters expired).
+    // Realized-forward semantics: every curve realizes its forwards as the
+    // base date advances (discount curves renormalize by DF(dt), hazard
+    // curves preserve hazard rates, forward curves preserve forwards,
+    // inflation rebases CPI, price/vol-index curves set spot to the old
+    // forward). Vol surfaces, FX spot, and fixings stay static.
+    let rolled_market = ctx.market.roll_forward(day_shift)?;
+
+    // Carry uses PV(t0) and cashflows on the pre-roll market, and PV(t1) on
+    // the rolled market — the same realized-forward theta as valuations.
     let (instrument_carry, total_carry, failed_instruments) =
         if let Some(instruments) = ctx.instruments.as_ref() {
-            calculate_instrument_pnl(instruments, ctx.market, old_date, new_date)?
+            calculate_instrument_pnl(instruments, ctx.market, &rolled_market, old_date, new_date)?
         } else {
             (Vec::new(), IndexMap::new(), Vec::new())
         };
 
-    // Roll all curves forward (adjusts base dates, shifts knots, filters expired).
-    // Realized-forward semantics : every curve
-    // realizes its forwards as the base date advances (discount curves
-    // renormalize by DF(dt), hazard curves preserve hazard rates, forward
-    // curves preserve forwards, inflation rebases CPI, price/vol-index curves
-    // set spot to the old forward). Vol surfaces, FX spot, and fixings stay
-    // static.
-    let rolled_market = ctx.market.roll_forward(day_shift)?;
-
-    // Replace market context with rolled version
     *ctx.market = rolled_market;
-
-    // Update as_of in context
     ctx.as_of = new_date;
 
     Ok(RollForwardReport {
@@ -162,15 +161,20 @@ type InstrumentPnlResult = (
 
 /// Calculate P&L breakdown for instruments.
 ///
-/// Theta (carry) is calculated as:
-///   Carry = PV(end_date) - PV(start_date) + Sum(Cashflows from start to end)
+/// Realized-forward theta (carry) is:
+///   Carry = PV_rolled(end_date) - PV(start_date) + Sum(Cashflows from start to end)
+///
+/// `start_date` is valued on the pre-roll market; `end_date` is valued on
+/// the rolled market (curves have realized their forwards). Cashflows in
+/// `(start_date, end_date]` are collected from the pre-roll market.
 ///
 /// This accounts for:
-/// - Pull-to-par effects (PV change)
+/// - Pull-to-par and realized-forward roll-down
 /// - Coupon/interest net cashflows during the period
 /// - Principal payments during the period
 ///
-/// This is consistent with the theta metric definition in valuations.
+/// This matches the valuations theta metric (`compute_theta_breakdown`):
+/// value on the rolled market at `t1`.
 ///
 /// # Failure handling
 ///
@@ -190,6 +194,7 @@ type InstrumentPnlResult = (
 fn calculate_instrument_pnl(
     instruments: &[Box<dyn Instrument>],
     market: &finstack_quant_core::market_data::context::MarketContext,
+    rolled: &finstack_quant_core::market_data::context::MarketContext,
     old_date: finstack_quant_core::dates::Date,
     new_date: finstack_quant_core::dates::Date,
 ) -> Result<InstrumentPnlResult> {
@@ -210,7 +215,7 @@ fn calculate_instrument_pnl(
                 continue;
             }
         };
-        let pv_new = match instrument.value(market, new_date) {
+        let pv_new = match instrument.value(rolled, new_date) {
             Ok(v) => v,
             Err(err) => {
                 failed_instruments.push((inst_id.clone(), format!("t1 valuation failed: {err}")));
@@ -407,6 +412,89 @@ mod tests {
             .get("theta")
             .expect("theta at rolled horizon");
         assert!(theta.is_finite());
+    }
+
+    /// Realized-forward theta: carry uses PV on the rolled market at t1,
+    /// not a frozen-knot lookup of the unrolled curve at a shifted as_of.
+    #[test]
+    fn apply_time_roll_forward_carry_uses_rolled_market_theta() {
+        let base_date = Date::from_calendar_date(2025, Month::January, 1).expect("valid base date");
+        let curve = DiscountCurve::builder("USD-OIS")
+            .base_date(base_date)
+            .knots(vec![(0.0, 1.0), (1.0, 0.98), (5.0, 0.90)])
+            .build()
+            .expect("valid discount curve");
+
+        let mut market = MarketContext::new().insert(curve);
+        let mut model = FinancialModelSpec::new("test", vec![]);
+        let mut instruments: Vec<Box<dyn Instrument>> = vec![Box::new(
+            Bond::builder()
+                .id("BOND1".into())
+                .notional(Money::new(100.0, Currency::USD))
+                .issue_date(base_date)
+                .maturity(base_date + time::Duration::days(730))
+                .cashflow_spec(
+                    CashflowSpec::fixed(0.05, Tenor::annual(), DayCount::Thirty360)
+                        .expect("finite test coupon"),
+                )
+                .discount_curve_id(finstack_quant_core::types::CurveId::new("USD-OIS"))
+                .credit_curve_id_opt(None)
+                .instrument_pricing_overrides(InstrumentPricingOverrides::default())
+                .attributes(Attributes::new())
+                .build()
+                .expect("valid bond"),
+        )];
+
+        let instrument = instruments.first().expect("bond instrument").as_ref();
+        let pv_old = instrument
+            .value(&market, base_date)
+            .expect("pv at t0 on unrolled market");
+
+        // 2025-01-01 + 1M calendar is 2025-02-01 (31 days, unadjusted).
+        let new_date = base_date + time::Duration::days(31);
+        let mut cf_sum = Money::new(0.0, Currency::USD);
+        if let Ok(flows) = instrument.dated_cashflows(&market, base_date) {
+            for (date, money) in flows {
+                if date > base_date && date <= new_date {
+                    cf_sum += money;
+                }
+            }
+        }
+
+        let rolled = market
+            .roll_forward(31)
+            .expect("roll market for expected t1");
+        let pv_new = instrument
+            .value(&rolled, new_date)
+            .expect("pv at t1 on rolled market");
+        let mut expected = pv_new.checked_sub(pv_old).expect("pv diff");
+        expected += cf_sum;
+        let expected_carry = expected.amount();
+
+        let mut ctx = ExecutionContext {
+            market: &mut market,
+            model: Some(&mut model),
+            instruments: Some(&mut instruments),
+            rate_bindings: None,
+            calendar: None,
+            as_of: base_date,
+        };
+
+        let report = apply_time_roll_forward(&mut ctx, "1M", TimeRollMode::CalendarDays)
+            .expect("time roll succeeds");
+        assert_eq!(ctx.as_of, new_date);
+        assert_eq!(report.days, 31);
+
+        let actual = report
+            .total_carry
+            .get(&Currency::USD)
+            .expect("USD carry")
+            .amount();
+        assert!(
+            (actual - expected_carry).abs() < 1e-10,
+            "total_carry[USD] should equal value(rolled, t1) - value(old, t0) + CF_(t0,t1]: \
+             actual={actual} expected={expected_carry}"
+        );
     }
 
     /// Roll a bare context and return `(new_date, days)` for the given mode.

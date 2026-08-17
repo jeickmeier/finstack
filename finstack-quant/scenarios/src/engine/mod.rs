@@ -6,8 +6,8 @@
 //! - enforce a repeatable ordering of operations
 //! - dispatch each `OperationSpec` variant to the appropriate adapter function
 //!   via a centralized exhaustive `match`
-//! - batch market bumps so the underlying `MarketContext` is cloned at most
-//!   once per scenario application instead of once per operation
+//! - flush market bumps **per operation** (not once per scenario) so
+//!   sequential adapters see a fully-applied prior state
 //! - collect reporting metadata about how many operations ran and any
 //!   warnings produced during execution
 

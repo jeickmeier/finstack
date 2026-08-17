@@ -43,8 +43,8 @@ pub enum Warning {
         reason: String,
     },
 
-    /// A commodity-curve shock was outside the typical stress range. Common
-    /// trigger: passing a basis-point intent in dollar-points or vice versa.
+    /// A commodity price-curve shock was outside the typical percent-of-forward
+    /// stress range (approximately `[-80, +200]` percent).
     CommodityShockOutsideRange {
         /// Curve identifier.
         curve_id: String,
@@ -166,13 +166,14 @@ pub enum Warning {
     },
 
     /// An interpolated node bump split its shock across two pillars of a
-    /// curve that is rebuilt by solve-to-par recalibration (discount, par-CDS,
-    /// inflation). On those curves the 1/Σw² delivery correction is only
-    /// first-order — the weighted targets are snapped to the nearest
-    /// calibration quotes before re-solving, so the realized shock at the
-    /// requested tenor may differ from the requested size. Use
-    /// `TenorMatchMode::Exact` at pillar tenors for pillar-accurate bucket
-    /// risk.
+    /// par-CDS curve that is rebuilt by solve-to-par recalibration. On that
+    /// path the 1/Σw² delivery correction is only first-order — the weighted
+    /// targets are snapped to the nearest calibration quotes before
+    /// re-solving, so the realized shock at the requested tenor may differ
+    /// from the requested size. Direct-shift curves (discount, inflation,
+    /// forward, commodity) calibrate onto the native interpolant and do not
+    /// emit this warning. Use `TenorMatchMode::Exact` at pillar tenors for
+    /// pillar-accurate par-CDS bucket risk.
     InterpolatedNodeBumpFirstOrder {
         /// Curve identifier.
         curve_id: String,

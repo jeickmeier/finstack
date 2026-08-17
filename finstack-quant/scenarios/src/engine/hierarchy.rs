@@ -187,8 +187,8 @@ fn curve_kind_target_exists(
     id: &CurveId,
 ) -> bool {
     match curve_kind {
-        // Commodity curves are stored in the discount collection.
-        CurveKind::Discount | CurveKind::Commodity => market.get_discount(id.as_str()).is_ok(),
+        CurveKind::Discount => market.get_discount(id.as_str()).is_ok(),
+        CurveKind::Commodity => market.get_price_curve(id.as_str()).is_ok(),
         CurveKind::Forward => market.get_forward(id.as_str()).is_ok(),
         CurveKind::ParCDS => market.get_hazard(id.as_str()).is_ok(),
         CurveKind::Inflation => market.get_inflation_curve(id.as_str()).is_ok(),
