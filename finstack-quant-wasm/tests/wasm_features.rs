@@ -149,7 +149,7 @@ fn finance_specific_feature_ops_return_js_arrays() {
     let volatility = serde_wasm_bindgen::to_value(&vec![Some(1.0), Some(2.0)]).expect("volatility");
     let weights = risk_scaled_weights(values, time_key, volatility).expect("weights");
     let weights: Vec<Option<f64>> = serde_wasm_bindgen::from_value(weights).expect("weights vec");
-    assert_eq!(weights, vec![Some(0.5), Some(0.5)]);
+    assert_eq!(weights, vec![Some(0.0), Some(0.0)]);
 }
 
 #[wasm_bindgen_test]
@@ -209,7 +209,7 @@ fn transform_panel_returns_json_result() {
         "time_key": ["2026-01-01", "2026-01-02", "2026-01-01", "2026-01-02"],
         "operations": [
             {"name": "ret1", "family": "timeseries", "op": "returns", "params": {"periods": 1}},
-            {"name": "rank", "family": "cross_sectional", "op": "rank"}
+            {"name": "rank", "family": "cross_sectional", "op": "rank", "input": "values"}
         ]
     });
 

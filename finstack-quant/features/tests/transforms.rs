@@ -122,31 +122,59 @@ fn transform_timeseries_supports_mvp_rolling_and_ewma_ops() {
         "2026-01-02".to_string(),
         "2026-01-03".to_string(),
     ];
+    let ewma_params = Some(&json!({"span": 3.0}));
+    let short_mean = transform_timeseries(
+        &returns,
+        &short_entity,
+        &short_order,
+        "ewma_mean",
+        ewma_params,
+    )
+    .expect("ewma mean on returns");
+    assert_close_options(&short_mean, &[Some(1.0), Some(2.0), Some(3.5)]);
+
     let ewma_vol = transform_timeseries(
         &returns,
         &short_entity,
         &short_order,
         "ewma_vol",
-        Some(&json!({"span": 3.0})),
+        ewma_params,
     )
     .expect("ewma vol");
-    assert_close_options(
-        &ewma_vol,
-        &[Some(1.0), Some(5.0_f64.sqrt()), Some(15.0_f64.sqrt())],
-    );
+    assert_close_options(&ewma_vol, &[None, Some(1.0), Some(2.75_f64.sqrt())]);
 
     let ewma_zscore = transform_timeseries(
         &returns,
         &short_entity,
         &short_order,
         "ewma_zscore",
-        Some(&json!({"span": 3.0})),
+        ewma_params,
     )
     .expect("ewma zscore");
     assert_close_options(
         &ewma_zscore,
-        &[Some(0.0), Some(1.0), Some(0.904_534_033_733_290_9)],
+        &[Some(0.0), Some(1.0), Some(1.5 / 2.75_f64.sqrt())],
     );
+
+    for idx in 0..returns.len() {
+        match (
+            returns[idx],
+            short_mean[idx],
+            ewma_vol[idx],
+            ewma_zscore[idx],
+        ) {
+            (Some(value), Some(mean), Some(vol), Some(zscore)) => {
+                assert!(
+                    ((value - mean) / vol - zscore).abs() < 1e-12,
+                    "ewma identity failed at idx {idx}"
+                );
+            }
+            (Some(_), Some(_), None, Some(zscore)) => {
+                assert_eq!(zscore, 0.0, "zero-variance zscore at idx {idx}");
+            }
+            _ => {}
+        }
+    }
 
     let old_ewma_alias = transform_timeseries(
         &returns,
@@ -206,7 +234,30 @@ fn transform_timeseries_supports_advanced_rolling_signal_ops() {
     let rolling_kurtosis =
         transform_timeseries(&values, &entity, &order, "rolling_kurtosis", rolling_params)
             .expect("rolling kurtosis");
-    assert_close_options(&rolling_kurtosis[0..3], &[None, None, Some(-1.5)]);
+    assert_close_options(&rolling_kurtosis[0..3], &[None, None, None]);
+
+    let four = vec![Some(1.0), Some(2.0), Some(3.0), Some(4.0)];
+    let four_entity = vec![
+        "A".to_string(),
+        "A".to_string(),
+        "A".to_string(),
+        "A".to_string(),
+    ];
+    let four_order = vec![
+        "2026-01-01".to_string(),
+        "2026-01-02".to_string(),
+        "2026-01-03".to_string(),
+        "2026-01-04".to_string(),
+    ];
+    let four_kurtosis = transform_timeseries(
+        &four,
+        &four_entity,
+        &four_order,
+        "rolling_kurtosis",
+        Some(&json!({"window": 4, "min_periods": 4})),
+    )
+    .expect("four-point kurtosis");
+    assert_close_options(&four_kurtosis, &[None, None, None, Some(-1.2)]);
 
     let rolling_slope =
         transform_timeseries(&values, &entity, &order, "rolling_slope", rolling_params)
@@ -217,6 +268,16 @@ fn transform_timeseries_supports_advanced_rolling_signal_ops() {
         transform_timeseries(&values, &entity, &order, "rolling_sharpe", rolling_params)
             .expect("rolling sharpe");
     assert_close_options(&rolling_sharpe[0..3], &[None, None, Some(2.0)]);
+
+    let excess_sharpe = transform_timeseries(
+        &values,
+        &entity,
+        &order,
+        "rolling_sharpe",
+        Some(&json!({"window": 3, "min_periods": 3, "risk_free": 1.0})),
+    )
+    .expect("rolling sharpe with risk_free");
+    assert_close_options(&excess_sharpe[0..3], &[None, None, Some(1.0)]);
 
     let rolling_winsorize = transform_timeseries(
         &values,
@@ -553,12 +614,24 @@ fn finance_specific_transforms_handle_grouping_neutralization_and_weights() {
     let weights = risk_scaled_weights(&signal, &time_key, &volatility).expect("risk weights");
     assert_close_options(
         &weights,
-        &[
-            Some(1.0 / 6.0),
-            Some(1.0 / 6.0),
-            Some(1.0 / 3.0),
-            Some(1.0 / 3.0),
-        ],
+        &[Some(-0.25), Some(-0.25), Some(0.25), Some(0.25)],
+    );
+}
+
+#[test]
+fn neutralize_fails_on_singular_cross_sectional_ols() {
+    let values = vec![Some(1.0), Some(2.0)];
+    let time_key = vec!["2026-01-01".to_string(), "2026-01-01".to_string()];
+    let ones = vec![Some(1.0), Some(1.0)];
+    let err = neutralize(&values, &time_key, &[ones], None).expect_err("singular design must fail");
+    let message = err.to_string();
+    assert!(
+        message.contains("2026-01-01"),
+        "error must name time_key, got {message}"
+    );
+    assert!(
+        message.contains("singular or underdetermined"),
+        "error must describe the OLS failure, got {message}"
     );
 }
 
@@ -718,7 +791,7 @@ fn transform_panel_runs_multiple_named_operations() {
         "time_key": ["2026-01-01", "2026-01-02", "2026-01-01", "2026-01-02"],
         "operations": [
             {"name": "ret1", "family": "timeseries", "op": "returns", "params": {"periods": 1}},
-            {"name": "rank", "family": "cross_sectional", "op": "rank"}
+            {"name": "rank", "family": "cross_sectional", "op": "rank", "input": "values"}
         ]
     });
 
@@ -757,11 +830,13 @@ fn typed_transform_panel_preserves_operation_order() {
                 name: "rank".to_string(),
                 op: CrossSectionalOp::Rank,
                 params: None,
+                input: Some("values".to_string()),
             },
             PanelOperation::Timeseries {
                 name: "ret1".to_string(),
                 op: TimeSeriesOp::Returns,
                 params: Some(json!({"periods": 1})),
+                input: Some("values".to_string()),
             },
         ],
     };
@@ -814,4 +889,55 @@ fn transform_panel_rejects_duplicate_operation_names_before_evaluation() {
 
     let err = transform_panel(&spec.to_string()).expect_err("duplicate operation names");
     assert!(err.to_string().contains("duplicate"));
+}
+
+#[test]
+fn transform_panel_applies_operations_sequentially() {
+    let spec = json!({
+        "values": [10.0, 12.0, 20.0, 21.0],
+        "entity": ["A", "A", "B", "B"],
+        "order": ["2026-01-01", "2026-01-02", "2026-01-01", "2026-01-02"],
+        "time_key": ["2026-01-01", "2026-01-02", "2026-01-01", "2026-01-02"],
+        "operations": [
+            {"name": "ret1", "family": "timeseries", "op": "returns", "params": {"periods": 1}},
+            {"name": "z", "family": "cross_sectional", "op": "zscore"}
+        ]
+    });
+
+    let out = transform_panel(&spec.to_string()).expect("sequential panel");
+    let result: serde_json::Value = serde_json::from_str(&out).expect("panel JSON");
+    assert_eq!(result["columns"][1]["name"], "z");
+    assert!(result["columns"][1]["values"][0].is_null());
+    assert!(result["columns"][1]["values"][2].is_null());
+    assert!((result["columns"][1]["values"][1].as_f64().expect("A z") - 1.0).abs() < 1e-12);
+    assert!((result["columns"][1]["values"][3].as_f64().expect("B z") + 1.0).abs() < 1e-12);
+}
+
+#[test]
+fn transform_panel_rejects_unknown_input_column() {
+    let spec = json!({
+        "values": [10.0, 12.0],
+        "time_key": ["2026-01-01", "2026-01-01"],
+        "operations": [
+            {"name": "rank", "family": "cross_sectional", "op": "rank", "input": "missing"}
+        ]
+    });
+
+    let err = transform_panel(&spec.to_string()).expect_err("unknown input");
+    assert!(err.to_string().contains("unknown"));
+    assert!(err.to_string().contains("missing"));
+}
+
+#[test]
+fn transform_panel_rejects_reserved_values_operation_name() {
+    let spec = json!({
+        "values": [10.0, 12.0],
+        "time_key": ["2026-01-01", "2026-01-01"],
+        "operations": [
+            {"name": "values", "family": "cross_sectional", "op": "rank"}
+        ]
+    });
+
+    let err = transform_panel(&spec.to_string()).expect_err("reserved name");
+    assert!(err.to_string().contains("reserved"));
 }

@@ -303,17 +303,21 @@ def panel(
 ) -> Any:
     """Apply a JSON panel transform pipeline to a DataFrame value column.
 
-    Forwards to :func:`finstack_quant.features.transform_panel`, running each
-    named operation against the shared ``value`` column and assembling the
-    results into a DataFrame.
+    Forwards to :func:`finstack_quant.features.transform_panel`. Operations run
+    sequentially: each reads the previous column by default. Set ``input`` to
+    ``"values"`` to branch from the raw column, or to an earlier operation
+    name.
 
     Args:
         df: Source DataFrame.
         value: Name of the numeric column shared by every operation.
             ``NaN``/``None`` entries are treated as missing.
         operations: Sequence of operation mappings, each with ``name``,
-            ``family`` (``"timeseries"`` or ``"cross_sectional"``), ``op``, and
-            optional ``params``. Names must be unique and non-empty.
+            ``family`` (``"timeseries"`` or ``"cross_sectional"``), ``op``,
+            optional ``params``, and optional ``input`` (default: previous
+            column, or the raw ``value`` column for the first op). Names must
+            be unique, non-empty, and must not be the reserved name
+            ``values``.
         entity: Column or index level name for the entity key; required when any
             operation has ``family="timeseries"``. Entries are coerced to
             strings.
@@ -649,11 +653,11 @@ def risk_scaled_weights(
     time_key: KeySelector | None = None,
     volatility: str | None = None,
 ) -> Any:
-    """Convert a DataFrame signal column to inverse-risk-scaled weights.
+    """Convert a DataFrame signal column to dollar-neutral inverse-vol weights.
 
-    Forwards to :func:`finstack_quant.features.risk_scaled_weights`, scaling each
-    ``time_key`` partition by ``signal / volatility`` and normalizing gross
-    weight to ``1``.
+    Forwards to :func:`finstack_quant.features.risk_scaled_weights`. Each
+    ``time_key`` partition is scaled as ``signal / volatility``, demeaned,
+    then gross-normalized so the weights sum to zero.
 
     Args:
         df: Source DataFrame.
@@ -682,9 +686,13 @@ def risk_scaled_weights(
     --------
     >>> import pandas as pd
     >>> from finstack_quant.features.dataframe import risk_scaled_weights
-    >>> frame = pd.DataFrame({"date": ["2026-01-01"] * 2, "signal": [1.0, 2.0], "vol": [1.0, 2.0]})
+    >>> frame = pd.DataFrame({
+    ...     "date": ["2026-01-01"] * 4,
+    ...     "signal": [1.0, 2.0, 2.0, 4.0],
+    ...     "vol": [1.0, 2.0, 1.0, 2.0],
+    ... })
     >>> risk_scaled_weights(frame, "signal", "date", "vol").tolist()
-    [0.5, 0.5]
+    [-0.25, -0.25, 0.25, 0.25]
     """
     out = _risk_scaled_weights(
         _numeric_column(df, value),

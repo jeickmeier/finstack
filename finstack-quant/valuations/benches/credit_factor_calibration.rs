@@ -22,8 +22,6 @@ use finstack_quant_factor_model::credit::hierarchy::{
 use serde_json::{json, Value};
 use time::{Date, Month};
 
-const ANNUALIZATION: f64 = 12.0; // monthly → annual
-
 /// Deterministic pseudo-random float in [0, 1) based on two seed ints.
 fn det_rand(seed_a: usize, seed_b: usize) -> f64 {
     let x = (seed_a.wrapping_mul(1_664_525).wrapping_add(1_013_904_223))

@@ -463,8 +463,10 @@ mod tests {
             vol_model: VolModelChoice::Sample,
             covariance_strategy: CovarianceStrategy::Diagonal,
             use_returns_or_levels: PanelSpace::Returns,
-            panel_frequency: finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
-            bucket_weighting: finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
+            panel_frequency:
+                finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
+            bucket_weighting:
+                finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
             ..Default::default()
         }
     }

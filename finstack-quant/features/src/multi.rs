@@ -125,7 +125,8 @@ fn grouped_partition_key(time: &str, group: &str) -> String {
 /// Remove cross-sectional exposure effects by OLS residualization per time key.
 ///
 /// `exposures` is a slice of columns, each aligned to `values`. Parameters:
-/// `fit_intercept` (default `true`).
+/// `fit_intercept` (default `true`). Equal-weighted OLS; a singular or
+/// underdetermined design in any time partition fails the call.
 ///
 /// # Arguments
 ///
@@ -139,7 +140,8 @@ fn grouped_partition_key(time: &str, group: &str) -> String {
 /// # Errors
 ///
 /// Returns a validation error when input lengths differ, exposure shapes are
-/// malformed, or parameters are malformed.
+/// malformed, parameters are malformed, or a time partition has fewer complete
+/// rows than columns or a singular `X'X` (the error names that `time_key`).
 pub fn neutralize(
     values: &[Option<f64>],
     time_key: &[String],
@@ -155,13 +157,16 @@ pub fn neutralize(
     }
 
     let mut output = vec![None; values.len()];
-    for indices in partitions.values() {
-        residualize_partition(values, exposures, indices, fit_intercept, &mut output);
+    for (key, indices) in &partitions {
+        residualize_partition(values, exposures, key, indices, fit_intercept, &mut output)?;
     }
     Ok(output)
 }
 
 /// Transform two value columns per entity with a rolling pairwise operation.
+///
+/// `window` and `min_periods` count paired finite observations, not calendar
+/// days. Missing rows do not expand the window (pandas `skipna`).
 ///
 /// # Arguments
 ///
@@ -172,10 +177,11 @@ pub fn neutralize(
 /// * `entity` - Row-aligned entity identifiers; each entity is rolled
 ///   independently.
 /// * `order` - Row-aligned sortable keys that establish order within entities.
+///   Time order is lexicographic; use ISO-8601 for calendar chronology.
 /// * `op` - Canonical operation name: `"rolling_cov"`, `"rolling_corr"`, or
 ///   `"rolling_beta"`.
 /// * `params` - Optional JSON parameters; `window` defaults to 1 and
-///   `min_periods` defaults to `window`.
+///   `min_periods` defaults to `window`. Both count finite paired rows.
 ///
 /// # Errors
 ///
@@ -200,6 +206,8 @@ pub fn transform_timeseries_pairwise(
 }
 
 /// Transform two value columns per entity with a typed rolling pairwise op.
+///
+/// `window` counts paired finite observations (pandas `skipna`).
 ///
 /// # Arguments
 ///
@@ -262,7 +270,9 @@ pub fn transform_timeseries_pairwise_with_op(
 /// Return rolling OLS residuals per entity using aligned exposure columns.
 ///
 /// Parameters: `window`, `min_periods` (default `window`), and `fit_intercept`
-/// (default `true`).
+/// (default `true`). `window` counts complete finite rows (pandas `skipna`).
+/// Rank-deficient windows emit `None` for that row; that is intentional and
+/// unlike [`neutralize`], which fails the call.
 ///
 /// # Arguments
 ///
@@ -272,8 +282,9 @@ pub fn transform_timeseries_pairwise_with_op(
 /// * `entity` - Row-aligned entity identifiers; regressions do not cross entity
 ///   boundaries.
 /// * `order` - Row-aligned sortable keys that establish rolling chronology.
+///   Time order is lexicographic; use ISO-8601 for calendar chronology.
 /// * `params` - Optional JSON controls for `window`, `min_periods`, and
-///   `fit_intercept`.
+///   `fit_intercept`. `window` counts complete finite rows.
 ///
 /// # Errors
 ///
@@ -311,10 +322,12 @@ pub fn rolling_regression_residual(
     Ok(output)
 }
 
-/// Convert a signal to inverse-risk-scaled weights per time key.
+/// Convert a signal to dollar-neutral inverse-risk-scaled weights per time key.
 ///
-/// Finite rows are transformed as `signal / volatility`, then normalized so the
-/// sum of absolute weights in each time partition is one.
+/// Finite rows with `|vol| > 1e-12` become `raw = signal / vol`, then
+/// `centered = raw - mean(raw)`, then `weight = centered / sum(|centered|)`.
+/// If that gross is at or below `1e-12`, finite rows emit `0.0`. Missing
+/// signal or volatility stays missing.
 ///
 /// # Arguments
 ///
@@ -338,35 +351,15 @@ pub fn risk_scaled_weights(
             ("volatility", volatility.len()),
         ],
     )?;
-    let mut partitions: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
-    for (idx, key) in time_key.iter().enumerate() {
-        partitions.entry(key.as_str()).or_default().push(idx);
-    }
-
-    let mut output = vec![None; values.len()];
-    for indices in partitions.values() {
-        let mut raw = Vec::new();
-        let mut gross = 0.0;
-        for &idx in indices {
-            let value = match (finite(values[idx]), finite(volatility[idx])) {
-                (Some(signal), Some(vol)) if vol.abs() > ZERO_TOLERANCE => Some(signal / vol),
-                _ => None,
-            };
-            if let Some(weight) = value {
-                gross += weight.abs();
-            }
-            raw.push((idx, value));
-        }
-        if gross <= ZERO_TOLERANCE {
-            continue;
-        }
-        for (idx, value) in raw {
-            if let Some(value) = value {
-                output[idx] = Some(value / gross);
-            }
-        }
-    }
-    Ok(output)
+    let scaled = values
+        .iter()
+        .zip(volatility.iter())
+        .map(|(signal, vol)| match (finite(*signal), finite(*vol)) {
+            (Some(signal), Some(vol)) if vol.abs() > ZERO_TOLERANCE => Some(signal / vol),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    demean_and_gross_normalize(&scaled, time_key)
 }
 
 /// Apply the default signal cleaning pass: cross-sectional quantile clipping.
@@ -573,16 +566,20 @@ fn pairwise_value(left: &[f64], right: &[f64], op: PairwiseOp) -> Option<f64> {
 fn residualize_partition(
     values: &[Option<f64>],
     exposures: &[Vec<Option<f64>>],
+    time_key: &str,
     indices: &[usize],
     fit_intercept: bool,
     output: &mut [Option<f64>],
-) {
-    let Some(beta) = fit_ols(values, exposures, indices, fit_intercept) else {
-        return;
-    };
+) -> Result<()> {
+    let beta = fit_ols(values, exposures, indices, fit_intercept).ok_or_else(|| {
+        Error::Validation(format!(
+            "neutralize OLS failed for time_key '{time_key}': singular or underdetermined design"
+        ))
+    })?;
     for &idx in indices {
         output[idx] = residual_for_idx(values, exposures, idx, fit_intercept, &beta);
     }
+    Ok(())
 }
 
 fn count_complete_rows(
@@ -647,9 +644,26 @@ fn fit_ols(
     }
 
     let chol = cholesky_decomposition(&gram, width).ok()?;
+    if cholesky_factor_is_singular(&chol, width) {
+        return None;
+    }
     let mut beta = vec![0.0; width];
     cholesky_solve(&chol, &rhs, &mut beta).ok()?;
     Some(beta)
+}
+
+fn cholesky_factor_is_singular(chol: &[f64], width: usize) -> bool {
+    let max_diag_sq = (0..width)
+        .map(|i| {
+            let diag = chol[i * width + i];
+            diag * diag
+        })
+        .fold(0.0, f64::max);
+    let threshold = ZERO_TOLERANCE * max_diag_sq.max(1.0);
+    (0..width).any(|i| {
+        let diag = chol[i * width + i];
+        diag * diag <= threshold
+    })
 }
 
 fn residual_for_idx(

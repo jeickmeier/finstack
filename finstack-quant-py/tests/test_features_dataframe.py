@@ -35,14 +35,14 @@ def test_dataframe_helpers_return_aligned_series_and_frames() -> None:
     assert residual.tolist() == pytest.approx([0.0, 0.0, 0.0, 0.0])
 
     weights = fdf.risk_scaled_weights(df, "signal", "date", "vol")
-    assert weights.tolist() == pytest.approx([0.4, 0.6, 0.5, 0.5])
+    assert weights.tolist() == pytest.approx([-0.5, 0.5, 0.0, 0.0])
 
     panel = fdf.panel(
         df,
         "signal",
         [
-            {"name": "rank", "family": "cross_sectional", "op": "rank"},
-            {"name": "diff", "family": "timeseries", "op": "diff"},
+            {"name": "rank", "family": "cross_sectional", "op": "rank", "input": "values"},
+            {"name": "diff", "family": "timeseries", "op": "diff", "input": "values"},
         ],
         entity="asset",
         order="date",

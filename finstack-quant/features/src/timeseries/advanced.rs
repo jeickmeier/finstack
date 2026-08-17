@@ -28,7 +28,8 @@ pub(super) fn rolling_advanced(
     let window = usize_param(params, "window", 1)?;
     let min_periods = usize_param(params, "min_periods", window)?;
     let required = match op {
-        AdvancedRollingOp::Skew | AdvancedRollingOp::Kurtosis => min_periods.max(3),
+        AdvancedRollingOp::Skew => min_periods.max(3),
+        AdvancedRollingOp::Kurtosis => min_periods.max(4),
         AdvancedRollingOp::Slope | AdvancedRollingOp::Sharpe => min_periods.max(2),
         _ => min_periods,
     };
@@ -51,7 +52,10 @@ pub(super) fn rolling_advanced(
             AdvancedRollingOp::Skew => skewness(&finite_values),
             AdvancedRollingOp::Kurtosis => excess_kurtosis(&finite_values),
             AdvancedRollingOp::Slope => rolling_slope(&finite_values),
-            AdvancedRollingOp::Sharpe => rolling_sharpe(&finite_values),
+            AdvancedRollingOp::Sharpe => {
+                let risk_free = f64_param(params, "risk_free", 0.0)?;
+                rolling_sharpe(&finite_values, risk_free)
+            }
             AdvancedRollingOp::Winsorize => {
                 let lower = probability_param(params, "lower", 0.01)?;
                 let upper = probability_param(params, "upper", 0.99)?;
@@ -102,6 +106,19 @@ pub(super) fn drawdown(
     Ok(())
 }
 
+/// Current row's normalized exponential-decay weight.
+///
+/// `window` and `half_life` count finite observations (pandas `skipna`);
+/// missing rows do not decay. Callers who need business-day half-lives must
+/// resample first.
+///
+/// # Arguments
+///
+/// * `values` - Entity-local observations; missing rows skip without decaying.
+/// * `indices` - Chronological row indices for the current entity.
+/// * `params` - JSON parameters; required positive `half_life` is in finite
+///   observations, and `window` defaults to 1 finite observations.
+/// * `output` - Row-aligned destination overwritten for this entity.
 pub(super) fn exponential_decay_weights(
     values: &[Option<f64>],
     indices: &[usize],
@@ -159,41 +176,50 @@ fn rolling_rank_value(current: Option<f64>, sample: &mut [f64]) -> Option<f64> {
 }
 
 fn skewness(values: &[f64]) -> Option<f64> {
-    if values.len() < 3 {
+    let n = values.len();
+    if n < 3 {
         return None;
     }
-    let mean = values.iter().sum::<f64>() / values.len() as f64;
-    let (m2, m3) = values.iter().fold((0.0, 0.0), |(m2, m3), value| {
-        let centered = *value - mean;
-        (
-            m2 + centered * centered,
-            m3 + centered * centered * centered,
-        )
-    });
-    let m2 = m2 / values.len() as f64;
-    if m2 <= ZERO_TOLERANCE {
+    let mean = values.iter().sum::<f64>() / n as f64;
+    let (sum_sq, sum_cubed) = values
+        .iter()
+        .fold((0.0, 0.0), |(sum_sq, sum_cubed), value| {
+            let centered = *value - mean;
+            (
+                sum_sq + centered * centered,
+                sum_cubed + centered * centered * centered,
+            )
+        });
+    let sample_var = sum_sq / (n - 1) as f64;
+    if sample_var <= ZERO_TOLERANCE {
         return Some(0.0);
     }
-    let m3 = m3 / values.len() as f64;
-    Some(m3 / m2.powf(1.5))
+    let sample_std = sample_var.sqrt();
+    let n = n as f64;
+    Some((n / ((n - 1.0) * (n - 2.0))) * sum_cubed / sample_std.powi(3))
 }
 
 fn excess_kurtosis(values: &[f64]) -> Option<f64> {
-    if values.len() < 3 {
+    let n = values.len();
+    if n < 4 {
         return None;
     }
-    let mean = values.iter().sum::<f64>() / values.len() as f64;
-    let (m2, m4) = values.iter().fold((0.0, 0.0), |(m2, m4), value| {
-        let centered = *value - mean;
-        let squared = centered * centered;
-        (m2 + squared, m4 + squared * squared)
-    });
-    let m2 = m2 / values.len() as f64;
-    if m2 <= ZERO_TOLERANCE {
+    let mean = values.iter().sum::<f64>() / n as f64;
+    let (sum_sq, sum_fourth) = values
+        .iter()
+        .fold((0.0, 0.0), |(sum_sq, sum_fourth), value| {
+            let centered = *value - mean;
+            let squared = centered * centered;
+            (sum_sq + squared, sum_fourth + squared * squared)
+        });
+    let sample_var = sum_sq / (n - 1) as f64;
+    if sample_var <= ZERO_TOLERANCE {
         return Some(0.0);
     }
-    let m4 = m4 / values.len() as f64;
-    Some(m4 / (m2 * m2) - 3.0)
+    let n = n as f64;
+    let g2_leading = n * (n + 1.0) / ((n - 1.0) * (n - 2.0) * (n - 3.0));
+    let g2_correction = 3.0 * (n - 1.0).powi(2) / ((n - 2.0) * (n - 3.0));
+    Some(g2_leading * sum_fourth / sample_var.powi(2) - g2_correction)
 }
 
 fn rolling_slope(values: &[f64]) -> Option<f64> {
@@ -216,10 +242,10 @@ fn rolling_slope(values: &[f64]) -> Option<f64> {
     }
 }
 
-fn rolling_sharpe(values: &[f64]) -> Option<f64> {
+fn rolling_sharpe(values: &[f64], risk_free: f64) -> Option<f64> {
     let mean = values.iter().sum::<f64>() / values.len() as f64;
     match sample_std(values) {
-        Some(std) if std > ZERO_TOLERANCE => Some(mean / std),
+        Some(std) if std > ZERO_TOLERANCE => Some((mean - risk_free) / std),
         Some(_) => Some(0.0),
         None => None,
     }

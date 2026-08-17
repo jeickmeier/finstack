@@ -61,17 +61,17 @@ tie-break), and applies `op` within the group.
 | `rolling_zscore` | `window` (1), `min_periods` (`window`) | Current value z-score against the trailing window |
 | `rolling_rank` | `window` (1), `min_periods` (`window`) | Current value percentile rank against the trailing window |
 | `rolling_quantile` | `window` (1), `min_periods` (`window`), `quantile` (0.5) | Quantile over the trailing window |
-| `rolling_skew` | `window` (1), `min_periods` (`window`) | Skewness over the trailing window |
-| `rolling_kurtosis` | `window` (1), `min_periods` (`window`) | Excess kurtosis over the trailing window |
+| `rolling_skew` | `window` (1), `min_periods` (`window`) | Pandas / Fisher G1 skewness over the trailing window |
+| `rolling_kurtosis` | `window` (1), `min_periods` (`window`) | Pandas / Fisher G2 excess kurtosis over the trailing window |
 | `rolling_slope` | `window` (1), `min_periods` (`window`) | Linear trend slope over the trailing window |
-| `rolling_sharpe` | `window` (1), `min_periods` (`window`) | Mean divided by sample std over the trailing window |
+| `rolling_sharpe` | `window` (1), `min_periods` (`window`), `risk_free` (0.0) | Period feature `(mean - risk_free) / sample_std`; not the annualized `analytics` Sharpe |
 | `rolling_winsorize` | `window` (1), `min_periods` (`window`), `lower` (0.01), `upper` (0.99) | Clamp current value to trailing quantile bounds |
 | `drawdown` | — | Current drawdown from the running peak |
 | `hampel_filter` | `window` (1), `min_periods` (`window`), `threshold` (3.0) | Replace outliers with trailing median |
 | `exponential_decay_weights` | `window` (1), `half_life` (required) | Current row's normalized exponential-decay weight |
-| `ewma_mean` | `span` (required) | Exponentially weighted mean with `alpha = 2 / (span + 1)` |
-| `ewma_vol` | `span` (required) | Exponentially weighted volatility of the input series |
-| `ewma_zscore` | `span` (required) | Current value z-score against EWMA mean/variance state |
+| `ewma_mean` | `span` (required) | Pandas-span EWMA mean of a **return** series (`alpha = 2 / (span + 1)`) |
+| `ewma_vol` | `span` (required) | Centered pandas-span EWMA volatility of a **return** series; first finite observation is `None` |
+| `ewma_zscore` | `span` (required) | `(x - ewma_mean) / ewma_vol` on the same shared state; `0.0` when vol is missing |
 
 Notes:
 
@@ -80,12 +80,21 @@ Notes:
 - Rolling windows count only finite points; a row is `None` until at least
   `min_periods` finite values are present. Some operations raise the effective
   minimum: `rolling_std`, `rolling_zscore`, `rolling_slope`, and
-  `rolling_sharpe` require at least 2 finite points; `rolling_skew` and
-  `rolling_kurtosis` require at least 3.
+  `rolling_sharpe` require at least 2 finite points; `rolling_skew` requires
+  at least 3 (Fisher G1); `rolling_kurtosis` requires at least 4 (Fisher G2).
+  Zero-variance windows emit `0.0`.
 - `drawdown` expects a positive level series (e.g. cumulative value); it reports
   `value / running_peak - 1` and yields `None` for non-positive inputs.
-- EWMA operations require a finite, positive `span` and carry state across only
-  the finite observations within an entity.
+- `rolling_sharpe` is a period feature `(mean - risk_free) / sample_std` on a
+  **return** series. It is not annualized and is not the `analytics`
+  `rolling_sharpe` (annualized excess / vol). `risk_free` defaults to `0.0`
+  in the same units as the return series.
+- EWMA operations require a finite, positive pandas `span` (`alpha = 2 /
+  (span + 1)`), not a RiskMetrics `lambda`. Pass **returns**, not prices.
+  `ewma_mean`, `ewma_vol`, and `ewma_zscore` share one `adjust=False`
+  centered-variance recursion; missing rows skip without decaying (pandas
+  `skipna`). The first finite observation has mean `x`, variance `0` (vol is
+  `None`, z-score is `0.0`).
 
 ## Cross-sectional operations
 
@@ -121,11 +130,11 @@ otherwise.
 |----------|------|
 | `transform_cross_sectional_grouped` | Apply a cross-sectional op within `(time_key, group)` sub-partitions |
 | `transform_cross_sectional_grouped_with_op` | Typed-op variant of `transform_cross_sectional_grouped` |
-| `neutralize` | Cross-sectional OLS residualization against exposure columns (`fit_intercept`, default `true`) |
+| `neutralize` | Equal-weighted cross-sectional OLS residualization (`fit_intercept`, default `true`); fails if a date is singular or underdetermined |
 | `transform_timeseries_pairwise` | Rolling covariance, correlation, and beta between two columns (`rolling_cov`, `rolling_corr`, `rolling_beta`) |
 | `transform_timeseries_pairwise_with_op` | Typed-op variant of `transform_timeseries_pairwise` |
-| `rolling_regression_residual` | Per-entity rolling OLS residuals against exposure columns |
-| `risk_scaled_weights` | Convert signal values into inverse-risk-scaled weights (`signal / volatility`, then gross-normalize) |
+| `rolling_regression_residual` | Per-entity rolling OLS residuals; rank-deficient windows emit `None` (unlike `neutralize`) |
+| `risk_scaled_weights` | Inverse-vol scale, demean, then gross-normalize so each cross-section is dollar-neutral |
 | `clean_signal` | Default cross-sectional signal cleaning via quantile clipping |
 | `normalize_signal` | Normalize with a selected cross-sectional op (`method`, default `zscore`) |
 | `rank_to_weights` | Convert ranks into gross-normalized long/short weights |
@@ -206,14 +215,16 @@ Ok(())
 
 ### JSON pipeline
 
-`transform_panel` runs a list of named operations against one shared `values`
-column and returns a JSON object with a single `columns` array, one entry per
-operation in request order, each carrying that operation's `name` and its
-output `values`. `transform_panel_spec` accepts the same model as Rust structs
-and returns the equivalent `PanelTransformResult`, whose `get_column(name)`
-looks a column up by name. `entity`/`order` are required for
-`timeseries` operations; `time_key` is required for `cross_sectional`
-operations. Operation names must be unique and non-empty.
+`transform_panel` runs a list of named operations **sequentially**. Each
+operation reads the previous column by default; set `input` to `"values"` to
+branch from the raw column, or to an earlier operation name. The result is a
+JSON object with a single `columns` array, one entry per operation in request
+order, each carrying that operation's `name` and its output `values`.
+`transform_panel_spec` accepts the same model as Rust structs and returns the
+equivalent `PanelTransformResult`, whose `get_column(name)` looks a column up
+by name. `entity`/`order` are required for `timeseries` operations; `time_key`
+is required for `cross_sectional` operations. Operation names must be unique,
+non-empty, and must not be the reserved name `values`.
 
 ```rust
 use finstack_quant_features::transform_panel;
@@ -227,7 +238,7 @@ let spec = json!({
     "time_key": ["2026-01-01", "2026-01-02", "2026-01-01", "2026-01-02"],
     "operations": [
         {"name": "ret1", "family": "timeseries", "op": "returns", "params": {"periods": 1}},
-        {"name": "rank", "family": "cross_sectional", "op": "rank"}
+        {"name": "rank", "family": "cross_sectional", "op": "rank", "input": "values"}
     ]
 });
 
@@ -242,6 +253,13 @@ The spec uses `serde(deny_unknown_fields)`; unrecognized keys are rejected.
 
 ## Conventions
 
+- Keys are opaque `String`s. Time order is lexicographic, so callers who want
+  calendar order must pass ISO-8601 (or any other lexicographic clock).
+- `window`, `periods`, `half_life`, and EWMA `span` count **finite
+  observations**, not calendar days. Gaps do not expand the window. Missing
+  rows do not decay EWMA or half-life (pandas `skipna`). Callers who need
+  business-day half-lives must resample first. There is no calendar-aware
+  window implementation.
 - Inputs are `Option<f64>`; `None` and non-finite values are treated as missing
   and pass through as `None`.
 - Output length and ordering always match the input `values` column.
@@ -250,6 +268,13 @@ The spec uses `serde(deny_unknown_fields)`; unrecognized keys are rejected.
 - Integer params (`periods`, `window`, `min_periods`) must be positive; `0` is a
   validation error.
 - The zero-denominator and zero-variance tolerance is `1e-12`.
+- `drawdown` takes a **level** series (`value / running_peak - 1`). The
+  `analytics` drawdown takes **returns**.
+- `rolling_sharpe` is a period feature `(mean - risk_free) / sample_std` on
+  returns, not the annualized `analytics` / GIPS Sharpe. `risk_free` defaults
+  to `0.0` in the same units as the return series.
+- `transform_panel` is sequential. Use `input: "values"` to branch from the
+  raw column.
 
 ## Bindings
 

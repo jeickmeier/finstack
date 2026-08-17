@@ -66,7 +66,7 @@ fn issuer_row(id: &str, rating: &str, region: &str, pc: f64, lv: Vec<f64>) -> Is
         adder_vol_source: AdderVolSource::Default,
         fit_quality: None,
         level_fit_quality: vec![],
-            spread_duration: 1.0,
+        spread_duration: 1.0,
     }
 }
 
@@ -87,7 +87,8 @@ fn make_model() -> CreditFactorModel {
             levels: vec![HierarchyDimension::Rating, HierarchyDimension::Region],
         },
         panel_frequency: finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
-        use_returns_or_levels: finstack_quant_factor_model::credit::calibration::PanelSpace::Returns,
+        use_returns_or_levels:
+            finstack_quant_factor_model::credit::calibration::PanelSpace::Returns,
         bucket_weighting: finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
         config: empty_factor_config(),
         issuer_betas: vec![

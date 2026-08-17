@@ -150,8 +150,9 @@ def panel(
     """
     Apply a JSON panel transform pipeline to a DataFrame value column.
 
-    Forwards to :func:`finstack_quant.features.transform_panel`, running
-    each named operation against the shared ``value`` column.
+    Forwards to :func:`finstack_quant.features.transform_panel`. Operations
+    run sequentially; set ``input`` to ``"values"`` to branch from the raw
+    column.
 
     Parameters
     ----------
@@ -161,7 +162,9 @@ def panel(
         Numeric column shared by every operation.
     operations : Sequence[Mapping[str, Any]]
         Operation mappings with ``name``, ``family`` (``"timeseries"`` or
-        ``"cross_sectional"``), ``op``, and optional ``params``.
+        ``"cross_sectional"``), ``op``, optional ``params``, and optional
+        ``input`` (default: previous column, or the raw ``value`` column
+        for the first op).
     entity : str, optional
         Entity key; required when any operation is ``family="timeseries"``.
     order : str, optional
@@ -434,9 +437,9 @@ def risk_scaled_weights(
     """
     Convert a DataFrame signal column to inverse-risk-scaled weights.
 
-    Forwards to :func:`finstack_quant.features.risk_scaled_weights`, scaling
-    each ``time_key`` partition by ``signal / volatility`` and normalizing
-    gross weight to ``1``.
+    Forwards to :func:`finstack_quant.features.risk_scaled_weights`. Each
+    ``time_key`` partition is scaled as ``signal / volatility``, demeaned,
+    then gross-normalized so the weights sum to zero.
 
     Parameters
     ----------
@@ -465,9 +468,13 @@ def risk_scaled_weights(
     --------
     >>> import pandas as pd
     >>> from finstack_quant.features.dataframe import risk_scaled_weights
-    >>> frame = pd.DataFrame({"date": ["2026-01-01"] * 2, "signal": [1.0, 2.0], "vol": [1.0, 2.0]})
+    >>> frame = pd.DataFrame({
+    ...     "date": ["2026-01-01"] * 4,
+    ...     "signal": [1.0, 2.0, 2.0, 4.0],
+    ...     "vol": [1.0, 2.0, 1.0, 2.0],
+    ... })
     >>> risk_scaled_weights(frame, "signal", "date", "vol").tolist()
-    [0.5, 0.5]
+    [-0.25, -0.25, 0.25, 0.25]
     """
     ...
 

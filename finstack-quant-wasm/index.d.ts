@@ -3710,12 +3710,17 @@ export declare class FactorCovarianceForecast {
  * }
  * ```
  * @returns Per-level factor values and residual adders at the requested date, in bp.
+ * @param model - Calibrated credit factor hierarchy used for the peel.
+ * @param observedSpreadsJson - JSON `{issuer_id: spread}` map in decimal (`0.012` = 120 bp). Values that look like bp (e.g. `100.0`) are rejected.
+ * @param observedGeneric - Generic (PC) factor value at `as_of`, same decimal convention as the spreads.
+ * @param asOf - ISO-8601 valuation date for the snapshot.
+ * @param runtimeTagsJson - Optional JSON `{issuer_id: {dim_key: tag}}` for issuers not present in the model artifact.
  * @param model - Calibrated CreditFactorModel used for the peel.
  * @param observedSpreadsJson - JSON `{issuer_id: spread}` map in decimal (`0.012` = 120 bp). Returned levels are bp.
  * @param observedGeneric - Observed generic-market spread in decimal, aligned with the model factors.
  * @param asOf - ISO-8601 valuation date used to stamp the snapshot.
  * @param runtimeTagsJson - Optional runtime-tag JSON for issuers missing from the artifact.
- * @throws Error - Throws if an issuer has no model row and no `runtime_tags` entry, if `asOf` cannot be parsed, or if a spread is outside the decimal band.
+ * @throws Error - Throws if an issuer has no model row and no `runtime_tags` entry, if `as_of` cannot be parsed, or if a spread is outside the decimal band.
  */
 export declare function decomposeLevels(
   model: CreditFactorModel,
@@ -3809,12 +3814,17 @@ export interface FactorModelCreditNamespace {
    *
    * Returns a `LevelsAtDate` handle.
    * @returns Per-level factor values and residual adders at the requested date, in bp.
+   * @param model - Calibrated credit factor hierarchy used for the peel.
+   * @param observedSpreadsJson - JSON `{issuer_id: spread}` map in decimal (`0.012` = 120 bp). Values that look like bp (e.g. `100.0`) are rejected.
+   * @param observedGeneric - Generic (PC) factor value at `as_of`, same decimal convention as the spreads.
+   * @param asOf - ISO-8601 valuation date for the snapshot.
+   * @param runtimeTagsJson - Optional JSON `{issuer_id: {dim_key: tag}}` for issuers not present in the model artifact.
    * @param model - Calibrated CreditFactorModel used for the peel.
    * @param observedSpreadsJson - JSON `{issuer_id: spread}` map in decimal (`0.012` = 120 bp). Returned levels are bp.
    * @param observedGeneric - Observed generic-market spread in decimal, aligned with the model factors.
    * @param asOf - ISO-8601 valuation date used to stamp the snapshot.
    * @param runtimeTagsJson - Optional runtime-tag JSON for issuers missing from the artifact.
-   * @throws Error - Throws if an issuer has no model row and no `runtime_tags` entry, if `asOf` cannot be parsed, or if a spread is outside the decimal band.
+   * @throws Error - Throws if an issuer has no model row and no `runtime_tags` entry, if `as_of` cannot be parsed, or if a spread is outside the decimal band.
    */
   decomposeLevels(
     model: CreditFactorModel,
@@ -3908,7 +3918,7 @@ export interface FeaturesNamespace {
    * @param entity - Entity identifier used to group ordered time-series observations.
    * @param order - Observation-order key used to sort each entity time series.
    * @param op - Transformation operation identifier supported by the feature-engineering API.
-   * @param params - Operation-specific parameter object defining transformation settings.
+   * @param params - Operation-specific parameter object. `rolling_sharpe` accepts optional `risk_free` (default `0.0`, same units as the return series).
    * @throws Error - Rejects values that cannot be decoded into the declared arrays or JSON parameters, unequal row counts, an unsupported `op`, malformed operation parameters, or a result that cannot be serialized to JavaScript.
    */
   transformTimeseries(
@@ -3957,7 +3967,7 @@ export interface FeaturesNamespace {
    * @param timeKey - Cross-sectional time key shared by values evaluated in the same slice.
    * @param exposures - Factor-exposure matrix aligned with the supplied observations.
    * @param params - Operation-specific parameter object defining transformation settings.
-   * @throws Error - Rejects values that cannot be decoded into the declared arrays or JSON parameters, unequal row counts, exposure columns whose lengths differ from `values`, a non-boolean `fit_intercept`, or a result that cannot be serialized to JavaScript.
+   * @throws Error - Rejects values that cannot be decoded into the declared arrays or JSON parameters, unequal row counts, exposure columns whose lengths differ from `values`, a non-boolean `fit_intercept`, a singular or underdetermined cross-section, or a result that cannot be serialized to JavaScript.
    */
   neutralize(
     values: FeatureValue[],
@@ -3971,9 +3981,9 @@ export interface FeaturesNamespace {
    * @param values - Numeric observations in the shape and order required by the selected transformation.
    * @param other - Second value series aligned with the primary series for a pairwise transformation.
    * @param entity - Entity identifier used to group ordered time-series observations.
-   * @param order - Observation-order key used to sort each entity time series.
+   * @param order - Lexicographic observation-order key; use ISO-8601 for calendar chronology.
    * @param op - Transformation operation identifier supported by the feature-engineering API.
-   * @param params - Operation-specific parameter object defining transformation settings.
+   * @param params - Operation-specific parameter object. `window` and `min_periods` count finite paired rows.
    * @throws Error - Rejects values that cannot be decoded into the declared arrays or JSON parameters, unequal row counts, an unsupported `op`, non-positive or non-integer `window` or `min_periods` parameters, or a result that cannot be serialized to JavaScript.
    */
   transformTimeseriesPairwise(
@@ -4073,8 +4083,8 @@ export interface FeaturesNamespace {
   /**
    * Apply a JSON panel transform pipeline.
    * @returns JSON panel after applying the transform pipeline.
-   * @param specJson - Canonical panel-transformation JSON specifying input columns, operations, and parameters.
-   * @throws Error - Rejects malformed JSON or panel specifications, blank or duplicate operation names, missing partition columns, unequal row counts, malformed operation parameters, operations that cannot be evaluated, or a result that cannot be serialized to JSON.
+   * @param specJson - Canonical panel-transformation JSON. Each operation may set optional `input` (`undefined` default: previous column, or raw `values` for the first op).
+   * @throws Error - Rejects malformed JSON or panel specifications, blank, reserved (`values`), or duplicate operation names, unknown `input` columns, missing partition columns, unequal row counts, malformed operation parameters, operations that cannot be evaluated, or a result that cannot be serialized to JSON.
    */
   transformPanel(specJson: string): string;
 }

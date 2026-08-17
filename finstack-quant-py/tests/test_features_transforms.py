@@ -115,7 +115,7 @@ def test_finance_specific_transform_entrypoints() -> None:
         time_key,
         [1.0, 2.0, 1.0, 2.0],
     )
-    assert weights == pytest.approx([1.0 / 6.0, 1.0 / 6.0, 1.0 / 3.0, 1.0 / 3.0])
+    assert weights == pytest.approx([-0.25, -0.25, 0.25, 0.25])
 
     entity = ["A", "A", "A"]
     order = ["2026-01-01", "2026-01-02", "2026-01-03"]
@@ -181,7 +181,7 @@ def test_transform_panel_json_entrypoint() -> None:
         "time_key": ["2026-01-01", "2026-01-02", "2026-01-01", "2026-01-02"],
         "operations": [
             {"name": "ret1", "family": "timeseries", "op": "returns", "params": {"periods": 1}},
-            {"name": "rank", "family": "cross_sectional", "op": "rank"},
+            {"name": "rank", "family": "cross_sectional", "op": "rank", "input": "values"},
         ],
     }
 

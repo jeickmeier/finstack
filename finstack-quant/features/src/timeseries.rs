@@ -40,13 +40,17 @@ pub enum TimeSeriesOp {
     RollingRank,
     /// Quantile over the trailing window (`quantile`, default `0.5`).
     RollingQuantile,
-    /// Skewness over the trailing window; needs ≥ 3 finite points.
+    /// Fisher G1 skewness over the trailing window; needs ≥ 3 finite points.
     RollingSkew,
-    /// Excess kurtosis over the trailing window; needs ≥ 3 finite points.
+    /// Fisher G2 excess kurtosis over the trailing window; needs ≥ 4 finite points.
     RollingKurtosis,
     /// Linear trend slope over the trailing window; needs ≥ 2 finite points.
     RollingSlope,
-    /// Mean divided by sample standard deviation over the trailing window.
+    /// Period Sharpe `(mean - risk_free) / sample_std` over the trailing window.
+    ///
+    /// This is a research period feature, not the annualized `analytics` Sharpe.
+    /// Optional JSON `risk_free` defaults to `0.0` in the same units as the
+    /// return series. No annualization.
     RollingSharpe,
     /// Clamp the current value to trailing quantile bounds.
     RollingWinsorize,
@@ -56,11 +60,11 @@ pub enum TimeSeriesOp {
     HampelFilter,
     /// Current row's normalized exponential-decay weight (`half_life` required).
     ExponentialDecayWeights,
-    /// Exponentially weighted mean with `alpha = 2 / (span + 1)`.
+    /// Exponentially weighted mean of a return series (`span` is pandas, not RiskMetrics `lambda`).
     EwmaMean,
-    /// Exponentially weighted volatility of the input series (`span` required).
+    /// Exponentially weighted volatility of a return series (`span` required).
     EwmaVol,
-    /// Current value z-score against EWMA mean/variance state (`span` required).
+    /// Return z-score against shared EWMA mean/variance (`span` required).
     EwmaZscore,
 }
 
@@ -135,6 +139,11 @@ impl FromStr for TimeSeriesOp {
 ///
 /// `order` is compared lexicographically within each entity. Use ISO-8601 date
 /// strings or another sortable key format when passing temporal labels.
+/// `window`, `periods`, `half_life`, and EWMA `span` count finite observations
+/// (pandas `skipna`); missing rows do not advance decay. `drawdown` expects a
+/// level series. `rolling_sharpe` is a period feature, not the `analytics`
+/// Sharpe; optional JSON `risk_free` defaults to `0.0` in the same units as
+/// the return series.
 ///
 /// # Arguments
 ///
@@ -147,7 +156,8 @@ impl FromStr for TimeSeriesOp {
 /// * `op` - Canonical snake-case operation name, such as `"rolling_mean"` or
 ///   `"returns"`.
 /// * `params` - Optional operation-specific JSON parameters; omitted keys use
-///   the operation's documented defaults.
+///   the operation's documented defaults. `rolling_sharpe` accepts `risk_free`
+///   (default `0.0`, same units as the return series).
 ///
 /// # Errors
 ///
@@ -167,6 +177,7 @@ pub fn transform_timeseries(
 ///
 /// `order` is compared lexicographically within each entity. Use ISO-8601 date
 /// strings or another sortable key format when passing temporal labels.
+/// Windows and EWMA spans count finite observations (pandas `skipna`).
 ///
 /// # Arguments
 ///
@@ -414,6 +425,52 @@ fn ewma_alpha(params: Option<&Value>) -> Result<f64> {
     Ok(2.0 / (span + 1.0))
 }
 
+/// Shared pandas `adjust=False` EWMA mean/variance after one finite return.
+#[derive(Clone, Copy)]
+struct EwmaState {
+    mean: f64,
+    variance: f64,
+}
+
+impl EwmaState {
+    fn first(value: f64) -> Self {
+        Self {
+            mean: value,
+            variance: 0.0,
+        }
+    }
+
+    fn update(self, value: f64, alpha: f64) -> Self {
+        let diff = value - self.mean;
+        Self {
+            mean: self.mean + alpha * diff,
+            variance: (1.0 - alpha) * (self.variance + alpha * diff * diff),
+        }
+    }
+
+    fn vol(self) -> Option<f64> {
+        if self.variance > ZERO_TOLERANCE {
+            Some(self.variance.sqrt())
+        } else {
+            None
+        }
+    }
+
+    fn zscore(self, value: f64) -> f64 {
+        match self.vol() {
+            Some(vol) => (value - self.mean) / vol,
+            None => 0.0,
+        }
+    }
+}
+
+fn ewma_step(state: Option<EwmaState>, value: f64, alpha: f64) -> EwmaState {
+    match state {
+        Some(prev) => prev.update(value, alpha),
+        None => EwmaState::first(value),
+    }
+}
+
 fn ewma_mean(
     values: &[Option<f64>],
     indices: &[usize],
@@ -425,12 +482,8 @@ fn ewma_mean(
     for &idx in indices {
         output[idx] = match finite(values[idx]) {
             Some(value) => {
-                let next = match state {
-                    Some(prev) => alpha * value + (1.0 - alpha) * prev,
-                    None => value,
-                };
-                state = Some(next);
-                Some(next)
+                state = Some(ewma_step(state, value, alpha));
+                state.map(|next| next.mean)
             }
             None => None,
         };
@@ -445,16 +498,12 @@ fn ewma_vol(
     output: &mut [Option<f64>],
 ) -> Result<()> {
     let alpha = ewma_alpha(params)?;
-    let mut variance = None;
+    let mut state = None;
     for &idx in indices {
         output[idx] = match finite(values[idx]) {
             Some(value) => {
-                let next = match variance {
-                    Some(prev) => alpha * value * value + (1.0 - alpha) * prev,
-                    None => value * value,
-                };
-                variance = Some(next);
-                Some(next.sqrt())
+                state = Some(ewma_step(state, value, alpha));
+                state.and_then(EwmaState::vol)
             }
             None => None,
         };
@@ -469,27 +518,12 @@ fn ewma_zscore(
     output: &mut [Option<f64>],
 ) -> Result<()> {
     let alpha = ewma_alpha(params)?;
-    let mut mean_state = None;
-    let mut variance_state = None;
+    let mut state = None;
     for &idx in indices {
         output[idx] = match finite(values[idx]) {
             Some(value) => {
-                let (next_mean, next_variance) = match (mean_state, variance_state) {
-                    (Some(prev_mean), Some(prev_variance)) => {
-                        let diff = value - prev_mean;
-                        let next_mean = prev_mean + alpha * diff;
-                        let next_variance = (1.0 - alpha) * (prev_variance + alpha * diff * diff);
-                        (next_mean, next_variance)
-                    }
-                    _ => (value, 0.0),
-                };
-                mean_state = Some(next_mean);
-                variance_state = Some(next_variance);
-                if next_variance <= ZERO_TOLERANCE {
-                    Some(0.0)
-                } else {
-                    Some((value - next_mean) / next_variance.sqrt())
-                }
+                state = Some(ewma_step(state, value, alpha));
+                state.map(|next| next.zscore(value))
             }
             None => None,
         };

@@ -864,9 +864,7 @@ def test_wasm_core_market_data_types_on_facade() -> None:
     public = set(CONTRACT["crates"]["core"]["market_data"]["public"])
     python_only = set(block["python_only_market_data"])
     js_map = block.get("python_js_map", {})
-    expected_on_wasm = {
-        js_map.get(f"market_data.{name}", name) for name in public - python_only
-    }
+    expected_on_wasm = {js_map.get(f"market_data.{name}", name) for name in public - python_only}
     missing = expected_on_wasm - actual
     assert not missing, f"market_data WASM subset missing from core.js: {sorted(missing)}"
 

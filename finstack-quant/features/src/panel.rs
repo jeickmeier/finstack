@@ -16,10 +16,15 @@ use std::collections::BTreeSet;
 
 /// Apply a list of named panel transforms from a JSON specification.
 ///
+/// Operations run sequentially. Each op reads the previous column by default;
+/// set `input` to `"values"` or an earlier operation name to select a source.
+///
 /// # Arguments
 ///
 /// * `spec_json` - UTF-8 JSON document encoding a [`PanelTransformSpec`],
-///   including values, required partition columns, and named operations.
+///   including values, required partition columns, and named operations. Each
+///   operation may set optional `input` (`None` default: previous column, or
+///   raw `values` for the first op).
 ///
 /// # Errors
 ///
@@ -35,6 +40,9 @@ pub fn transform_panel(spec_json: &str) -> Result<String> {
 
 /// Apply a list of named panel transforms from a typed specification.
 ///
+/// Operations run sequentially. Each op reads the previous column by default;
+/// set `input` to `"values"` or an earlier operation name to select a source.
+///
 /// # Arguments
 ///
 /// * `spec` - Typed panel-transform specification whose operations reference
@@ -42,12 +50,14 @@ pub fn transform_panel(spec_json: &str) -> Result<String> {
 ///
 /// # Errors
 ///
-/// Returns a validation error when the specification is malformed or an
-/// operation cannot be evaluated.
+/// Returns a validation error when the specification is malformed, an
+/// operation name is reserved or duplicated, `input` names an unknown or
+/// not-yet-evaluated column, or an operation cannot be evaluated.
 pub fn transform_panel_spec(spec: &PanelTransformSpec) -> Result<PanelTransformResult> {
     validate_operation_names(&spec.operations)?;
     let mut columns = Vec::with_capacity(spec.operations.len());
     for operation in &spec.operations {
+        let source = resolve_input(spec, &columns, operation)?;
         let output = match operation {
             PanelOperation::Timeseries { op, params, .. } => {
                 let entity = spec.entity.as_ref().ok_or_else(|| {
@@ -60,7 +70,7 @@ pub fn transform_panel_spec(spec: &PanelTransformSpec) -> Result<PanelTransformR
                         "panel transform order is required for time-series operations".to_string(),
                     )
                 })?;
-                transform_timeseries_with_op(&spec.values, entity, order, *op, params.as_ref())?
+                transform_timeseries_with_op(source, entity, order, *op, params.as_ref())?
             }
             PanelOperation::CrossSectional { op, params, .. } => {
                 let time_key = spec.time_key.as_ref().ok_or_else(|| {
@@ -69,7 +79,7 @@ pub fn transform_panel_spec(spec: &PanelTransformSpec) -> Result<PanelTransformR
                             .to_string(),
                     )
                 })?;
-                transform_cross_sectional_with_op(&spec.values, time_key, *op, params.as_ref())?
+                transform_cross_sectional_with_op(source, time_key, *op, params.as_ref())?
             }
         };
         columns.push(PanelTransformColumn {
@@ -80,6 +90,33 @@ pub fn transform_panel_spec(spec: &PanelTransformSpec) -> Result<PanelTransformR
     Ok(PanelTransformResult { columns })
 }
 
+fn resolve_input<'a>(
+    spec: &'a PanelTransformSpec,
+    columns: &'a [PanelTransformColumn],
+    operation: &PanelOperation,
+) -> Result<&'a [Option<f64>]> {
+    let requested = match operation.input() {
+        Some(name) => name,
+        None => columns
+            .last()
+            .map(|column| column.name.as_str())
+            .unwrap_or("values"),
+    };
+    if requested == "values" {
+        return Ok(&spec.values);
+    }
+    columns
+        .iter()
+        .find(|column| column.name == requested)
+        .map(|column| column.values.as_slice())
+        .ok_or_else(|| {
+            Error::Validation(format!(
+                "panel transform operation '{}' input '{requested}' is unknown",
+                operation.name()
+            ))
+        })
+}
+
 fn validate_operation_names(operations: &[PanelOperation]) -> Result<()> {
     let mut names = BTreeSet::new();
     for operation in operations {
@@ -87,6 +124,11 @@ fn validate_operation_names(operations: &[PanelOperation]) -> Result<()> {
         if name.trim().is_empty() {
             return Err(Error::Validation(
                 "panel transform operation name must not be empty".to_string(),
+            ));
+        }
+        if name == "values" {
+            return Err(Error::Validation(
+                "panel transform operation name must not be the reserved name 'values'".to_string(),
             ));
         }
         if !names.insert(name) {
@@ -113,7 +155,8 @@ pub struct PanelTransformSpec {
     /// Partition key for cross-sectional operations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub time_key: Option<Vec<String>>,
-    /// Ordered operations to evaluate against `values`.
+    /// Ordered operations evaluated sequentially; each reads the previous
+    /// column unless `input` selects `values` or an earlier named column.
     pub operations: Vec<PanelOperation>,
 }
 
@@ -123,23 +166,33 @@ pub struct PanelTransformSpec {
 pub enum PanelOperation {
     /// Time-series operation evaluated within each entity.
     Timeseries {
-        /// Output column name.
+        /// Output column name. Must not be the reserved name `values`.
         name: String,
         /// Operation to evaluate.
         op: TimeSeriesOp,
         /// Optional operation parameters.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         params: Option<Value>,
+        /// Source column. `None` (default) uses the previous operation output,
+        /// or the raw `values` column for the first operation. May name
+        /// `values` or an already evaluated column; forward references fail.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        input: Option<String>,
     },
     /// Cross-sectional operation evaluated within each time partition.
     CrossSectional {
-        /// Output column name.
+        /// Output column name. Must not be the reserved name `values`.
         name: String,
         /// Operation to evaluate.
         op: CrossSectionalOp,
         /// Optional operation parameters.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         params: Option<Value>,
+        /// Source column. `None` (default) uses the previous operation output,
+        /// or the raw `values` column for the first operation. May name
+        /// `values` or an already evaluated column; forward references fail.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        input: Option<String>,
     },
 }
 
@@ -149,6 +202,14 @@ impl PanelOperation {
     pub fn name(&self) -> &str {
         match self {
             Self::Timeseries { name, .. } | Self::CrossSectional { name, .. } => name,
+        }
+    }
+
+    /// Return the requested source column name, if any.
+    #[must_use]
+    pub fn input(&self) -> Option<&str> {
+        match self {
+            Self::Timeseries { input, .. } | Self::CrossSectional { input, .. } => input.as_deref(),
         }
     }
 }

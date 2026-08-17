@@ -40,11 +40,18 @@
 //!
 //! # Conventions
 //!
+//! - Keys are opaque; time order is lexicographic (use ISO-8601 for calendar
+//!   chronology).
+//! - `window`, `periods`, `half_life`, and EWMA `span` count finite
+//!   observations (pandas `skipna`). Gaps do not expand the window; missing
+//!   rows do not decay EWMA or half-life.
 //! - Outputs preserve input order and length; element `i` of the output
 //!   corresponds to element `i` of `values`.
 //! - `None` and non-finite inputs are skipped; they produce `None` outputs.
 //! - Rolling operations require `min_periods` finite points in the window
 //!   before emitting a value.
+//! - `drawdown` takes a level series; `rolling_sharpe` is a period feature,
+//!   not the `analytics` Sharpe. `transform_panel` is sequential.
 //! - String/JSON entry points are retained for Python and WASM bindings; Rust
 //!   callers should use the typed-op variants (`TimeSeriesOp`,
 //!   `CrossSectionalOp`, `PairwiseOp`, `PanelTransformSpec`).

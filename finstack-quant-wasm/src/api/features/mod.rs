@@ -10,6 +10,13 @@ use wasm_bindgen::prelude::*;
 
 /// Transform a time-series panel column per entity.
 ///
+/// `order` is lexicographic; use ISO-8601 for calendar chronology. `window`,
+/// `periods`, `half_life`, and EWMA `span` count finite observations (pandas
+/// `skipna`). `drawdown` takes a level series. `rolling_sharpe` is a period
+/// feature `(mean - risk_free) / sample_std` on returns, not the annualized
+/// `analytics` Sharpe. Optional JSON `risk_free` defaults to `0.0` in the same
+/// units as the return series.
+///
 /// # Errors
 ///
 /// Rejects values that cannot be decoded into the declared arrays or JSON
@@ -19,7 +26,7 @@ use wasm_bindgen::prelude::*;
 /// @param entity - Entity identifier used to group ordered time-series observations.
 /// @param order - Observation-order key used to sort each entity time series.
 /// @param op - Transformation operation identifier supported by the feature-engineering API.
-/// @param params - Operation-specific parameter object defining transformation settings.
+/// @param params - Operation-specific parameter object. `rolling_sharpe` accepts optional `risk_free` (default `0.0`, same units as the return series).
 #[wasm_bindgen(js_name = transformTimeseries)]
 pub fn transform_timeseries(
     values: JsValue,
@@ -109,12 +116,15 @@ pub fn transform_cross_sectional_grouped(
 
 /// Remove cross-sectional exposure effects by OLS residualization.
 ///
+/// Equal-weighted OLS. A singular or underdetermined design in any time
+/// partition fails the call and names that `timeKey`.
+///
 /// # Errors
 ///
 /// Rejects values that cannot be decoded into the declared arrays or JSON
 /// parameters, unequal row counts, exposure columns whose lengths differ from
-/// `values`, a non-boolean `fit_intercept`, or a result that cannot be
-/// serialized to JavaScript.
+/// `values`, a non-boolean `fit_intercept`, a singular or underdetermined
+/// cross-section, or a result that cannot be serialized to JavaScript.
 /// @param values - Numeric observations in the shape and order required by the selected transformation.
 /// @param time_key - Cross-sectional time key shared by values evaluated in the same slice.
 /// @param exposures - Factor-exposure matrix aligned with the supplied observations.
@@ -139,6 +149,9 @@ pub fn neutralize(
 
 /// Transform two time-series panel columns per entity.
 ///
+/// `window` counts paired finite observations (pandas `skipna`), not calendar
+/// days. `order` is lexicographic; use ISO-8601 for calendar chronology.
+///
 /// # Errors
 ///
 /// Rejects values that cannot be decoded into the declared arrays or JSON
@@ -148,9 +161,9 @@ pub fn neutralize(
 /// @param values - Numeric observations in the shape and order required by the selected transformation.
 /// @param other - Second value series aligned with the primary series for a pairwise transformation.
 /// @param entity - Entity identifier used to group ordered time-series observations.
-/// @param order - Observation-order key used to sort each entity time series.
+/// @param order - Lexicographic observation-order key; use ISO-8601 for calendar chronology.
 /// @param op - Transformation operation identifier supported by the feature-engineering API.
-/// @param params - Operation-specific parameter object defining transformation settings.
+/// @param params - Operation-specific parameter object. `window` and `min_periods` count finite paired rows.
 #[wasm_bindgen(js_name = transformTimeseriesPairwise)]
 pub fn transform_timeseries_pairwise(
     values: JsValue,
@@ -178,6 +191,9 @@ pub fn transform_timeseries_pairwise(
 }
 
 /// Return rolling OLS residuals per entity.
+///
+/// Rank-deficient windows emit `null` for that row. That is intentional and
+/// unlike `neutralize`, which fails the call.
 ///
 /// # Errors
 ///
@@ -215,7 +231,11 @@ pub fn rolling_regression_residual(
     to_js_value(&result)
 }
 
-/// Convert a signal to inverse-risk-scaled weights per timestamp.
+/// Convert a signal to dollar-neutral inverse-risk-scaled weights per timestamp.
+///
+/// Finite rows become `raw = signal / vol`, then `centered = raw - mean(raw)`,
+/// then `weight = centered / sum(|centered|)`. A near-zero centered gross
+/// emits `0.0` for those finite rows.
 ///
 /// # Errors
 ///
@@ -342,13 +362,16 @@ pub fn neutralize_and_zscore(
 
 /// Apply a JSON panel transform pipeline.
 ///
+/// Operations run sequentially. Each op reads the previous column by default;
+/// set `input` to `"values"` or an earlier operation name to select a source.
+///
 /// # Errors
 ///
-/// Rejects malformed JSON or panel specifications, blank or duplicate
-/// operation names, missing partition columns, unequal row counts, malformed
-/// operation parameters, operations that cannot be evaluated, or a result that
-/// cannot be serialized to JSON.
-/// @param spec_json - Canonical panel-transformation JSON specifying input columns, operations, and parameters.
+/// Rejects malformed JSON or panel specifications, blank, reserved (`values`),
+/// or duplicate operation names, unknown `input` columns, missing partition
+/// columns, unequal row counts, malformed operation parameters, operations
+/// that cannot be evaluated, or a result that cannot be serialized to JSON.
+/// @param spec_json - Canonical panel-transformation JSON. Each operation may set optional `input` (`undefined` default: previous column, or raw `values` for the first op).
 #[wasm_bindgen(js_name = transformPanel)]
 pub fn transform_panel(spec_json: &str) -> Result<String, JsValue> {
     finstack_quant_features::transform_panel(spec_json).map_err(to_js_err)

@@ -420,9 +420,12 @@ mod tests {
             hierarchy: CreditHierarchySpec {
                 levels: vec![HierarchyDimension::Rating, HierarchyDimension::Region],
             },
-            panel_frequency: finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
-            use_returns_or_levels: finstack_quant_factor_model::credit::calibration::PanelSpace::Returns,
-            bucket_weighting: finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
+            panel_frequency:
+                finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
+            use_returns_or_levels:
+                finstack_quant_factor_model::credit::calibration::PanelSpace::Returns,
+            bucket_weighting:
+                finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
             config: empty_factor_model_config(),
             issuer_betas: vec![
                 issuer_row("ISSUER-A", "IG", "EU", 1.1, vec![0.9, 1.05]),

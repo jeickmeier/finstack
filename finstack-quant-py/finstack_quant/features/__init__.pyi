@@ -50,8 +50,11 @@ def transform_timeseries(
 
     The input is a flat panel column. Rows are grouped by ``entity``, sorted by
     ``order`` within each group, transformed, and returned in the original input
-    order. ``None`` and non-finite numeric values are treated as missing and
-    produce ``None`` where the requested transform cannot be evaluated.
+    order. ``order`` is lexicographic; use ISO-8601 for calendar chronology.
+    ``window``, ``periods``, ``half_life``, and EWMA ``span`` count finite
+    observations (pandas ``skipna``); missing rows do not decay. ``None`` and
+    non-finite numeric values are treated as missing and produce ``None``
+    where the requested transform cannot be evaluated.
 
     Parameters
     ----------
@@ -76,9 +79,12 @@ def transform_timeseries(
         Optional operation parameters:
         ``periods`` for ``returns``, ``log_returns``, ``diff``, and
         ``lag`` (default ``1``); ``window`` and ``min_periods`` for
-        rolling operations (defaults ``1`` and ``window``); required
-        positive finite ``span`` for EWMA operations; required positive
-        finite ``half_life`` for ``exponential_decay_weights``.
+        rolling operations (defaults ``1`` and ``window``); optional
+        ``risk_free`` for ``rolling_sharpe`` (default ``0.0``, same units
+        as the return series, no annualization); required
+        positive finite pandas ``span`` for EWMA operations (not a
+        RiskMetrics ``lambda``); required positive finite ``half_life``
+        for ``exponential_decay_weights``.
 
     Returns
     -------
@@ -98,7 +104,15 @@ def transform_timeseries(
     ``returns`` and ``log_returns`` return ``None`` when the prior value is
     missing or has magnitude at or below ``1e-12``. ``rolling_std`` and
     ``rolling_zscore`` use sample standard deviation and require at least
-    two finite observations.
+    two finite observations. ``ewma_mean``, ``ewma_vol``, and
+    ``ewma_zscore`` expect a **return** series and share one pandas
+    ``adjust=False`` centered-variance recursion. The first finite
+    observation has vol ``None`` and z-score ``0.0``. Missing rows skip
+    without decaying.     ``rolling_sharpe`` is a period feature
+    ``(mean - risk_free) / sample_std`` on returns, not the annualized
+    ``analytics`` / GIPS Sharpe. ``risk_free`` defaults to ``0.0`` in the
+    same units as the return series. ``drawdown`` takes a **level**
+    series; the ``analytics`` drawdown takes **returns**.
 
     Examples
     --------
@@ -268,7 +282,8 @@ def neutralize(
     ------
     ValueError
         If lengths differ, an exposure column has the wrong length,
-        or params are malformed.
+        params are malformed, or a ``time_key`` partition is singular
+        or underdetermined (the error names that ``time_key``).
 
     Examples
     --------
@@ -290,8 +305,10 @@ def transform_timeseries_pairwise(
     Transform two panel columns per entity with a rolling pairwise operation.
 
     Rows are grouped by ``entity`` and sorted by ``order`` within each group.
-    Each output row is computed from the trailing ``window`` of paired finite
-    ``(values, other)`` observations.
+    ``order`` is lexicographic; use ISO-8601 for calendar chronology. Each
+    output row is computed from the trailing ``window`` of paired finite
+    ``(values, other)`` observations. ``window`` counts finite pairs, not
+    calendar days (pandas ``skipna``).
 
     Parameters
     ----------
@@ -388,6 +405,11 @@ def rolling_regression_residual(
         If lengths differ, an exposure column has the wrong length,
         or params are malformed.
 
+    Notes
+    -----
+    Rank-deficient windows emit ``None`` for that row. That is intentional
+    and unlike :func:`neutralize`, which fails the call.
+
     Examples
     --------
     >>> from finstack_quant.features import rolling_regression_residual
@@ -409,11 +431,11 @@ def risk_scaled_weights(
     volatility: list[float | None],
 ) -> list[float | None]:
     """
-    Convert a signal to inverse-risk-scaled weights within each timestamp.
+    Convert a signal to dollar-neutral inverse-risk-scaled weights.
 
-    Within each ``time_key`` partition, finite rows are scaled as
-    ``signal / volatility`` and then normalized so the sum of absolute weights
-    in the partition is ``1``.
+    Within each ``time_key`` partition, finite rows with ``|vol| > 1e-12``
+    become ``raw = signal / vol``, then ``centered = raw - mean(raw)``,
+    then ``weight = centered / sum(|centered|)``.
 
     Parameters
     ----------
@@ -438,15 +460,15 @@ def risk_scaled_weights(
 
     Notes
     -----
-    Rows with missing ``values`` or non-positive ``volatility`` map to
-    ``None``. A partition whose gross (summed absolute) weight is at or below
-    ``1e-12`` produces ``None`` for every row.
+    Rows with missing ``values`` or ``|volatility| <= 1e-12`` map to
+    ``None``. A partition whose centered gross is at or below ``1e-12``
+    emits ``0.0`` for those finite rows.
 
     Examples
     --------
     >>> from finstack_quant.features import risk_scaled_weights
-    >>> risk_scaled_weights([1.0, 2.0], ["2026-01-01"] * 2, [1.0, 2.0])
-    [0.5, 0.5]
+    >>> risk_scaled_weights([1.0, 2.0, 2.0, 4.0], ["2026-01-01"] * 4, [1.0, 2.0, 1.0, 2.0])
+    [-0.25, -0.25, 0.25, 0.25]
     """
     ...
 
@@ -610,7 +632,8 @@ def neutralize_and_zscore(
     ------
     ValueError
         If lengths differ, an exposure column has the wrong length,
-        or params are malformed.
+        params are malformed, or a ``time_key`` partition is singular
+        or underdetermined (the error names that ``time_key``).
 
     Examples
     --------
@@ -633,11 +656,17 @@ def transform_panel(spec_json: str) -> str:
     - ``time_key``: required when any operation has
       ``"family": "cross_sectional"``.
     - ``operations``: list of named operations. Each operation has ``name``,
-      ``family`` (``"timeseries"`` or ``"cross_sectional"``), ``op``, and
-      optional ``params``.
+      ``family`` (``"timeseries"`` or ``"cross_sectional"``), ``op``,
+      optional ``params``, and optional ``input``.
 
-    Operation names must be unique and non-empty. Unknown fields are rejected by
-    the Rust serde model.
+    Operations run sequentially. ``input`` selects the source column: omit it
+    (default) to read the previous operation output, or the raw ``values``
+    column for the first operation. Set ``input`` to ``"values"`` to branch
+    from the raw column, or to an already evaluated operation name. Forward
+    references are rejected.
+
+    Operation names must be unique, non-empty, and must not be the reserved
+    name ``values``. Unknown fields are rejected by the Rust serde model.
 
     Parameters
     ----------
@@ -655,7 +684,8 @@ def transform_panel(spec_json: str) -> str:
     ------
     ValueError
         If the JSON is malformed, required keys are missing,
-        operation names are duplicated or empty, or an operation fails
+        operation names are duplicated, empty, or reserved (``values``),
+        ``input`` names an unknown column, or an operation fails
         validation.
 
     Examples

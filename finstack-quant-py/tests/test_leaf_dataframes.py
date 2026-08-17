@@ -22,8 +22,8 @@ stay self-contained.
 
 from __future__ import annotations
 
-import datetime
 from calendar import monthrange
+import datetime
 from datetime import date as dt_date, timedelta
 import json
 import math
@@ -471,12 +471,7 @@ def _hierarchy_calibration_inputs() -> dict:
     for idx, (issuer_id, rating, region) in enumerate(issuer_specs):
         base = 0.0100 + idx * 0.0025
         beta_pc = 0.7 + 0.05 * idx
-        series = [
-            base
-            + beta_pc * (generic_values[i] - 0.0100)
-            + 0.00001 * math.cos(idx + i * 0.5)
-            for i in range(n)
-        ]
+        series = [base + beta_pc * (generic_values[i] - 0.0100) + 0.00001 * math.cos(idx + i * 0.5) for i in range(n)]
         spreads[issuer_id] = series
         tags[issuer_id] = {"rating": rating, "region": region}
         as_of_spreads[issuer_id] = float(series[-1])

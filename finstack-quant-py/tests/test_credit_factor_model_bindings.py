@@ -76,10 +76,7 @@ def _fixture_inputs() -> dict:
         base = 0.0100 + idx * 0.0025
         beta_pc = 0.7 + 0.05 * idx
         series: list[float | None] = [
-            base
-            + beta_pc * (generic_values[i] - 0.0100)
-            + 0.00001 * math.cos(idx + i * 0.5)
-            for i in range(n)
+            base + beta_pc * (generic_values[i] - 0.0100) + 0.00001 * math.cos(idx + i * 0.5) for i in range(n)
         ]
         spreads[issuer_id] = series
         tags[issuer_id] = {"rating": rating, "region": region}
