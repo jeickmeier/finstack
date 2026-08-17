@@ -304,6 +304,17 @@ impl StochasticProcess for HullWhite1FProcess {
         out[0] = self.params.sigma_at_time(t);
     }
 
+    /// Publish the short rate under both `SHORT_RATE` and `SPOT`.
+    ///
+    /// `SPOT` is aliased to the short rate so generic payoffs that read
+    /// `state.spot()` can attach to this process. A vanilla payoff on
+    /// [`HullWhite1FProcess`] is therefore a **short-rate option**, not an
+    /// equity option on a traded spot.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - Process state vector; `x[0]` is the short rate `r_t`.
+    /// * `state` - Path-state bag written for the current time step.
     fn populate_path_state(&self, x: &[f64], state: &mut PathState) {
         if !x.is_empty() {
             state.set_key(StateKey::ShortRate, x[0]);

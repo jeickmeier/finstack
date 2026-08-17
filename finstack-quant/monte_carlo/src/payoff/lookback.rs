@@ -3,6 +3,10 @@
 //! Lookback options depend on the maximum or minimum spot price
 //! observed over the life of the option.
 //!
+//! This payoff tracks extrema on **engine event dates only** (discrete /
+//! daily-close monitoring). It is not a continuous-monitoring lookback:
+//! intra-step Brownian-bridge extrema are not computed.
+//!
 //! # Unified Implementation
 //!
 //! This module provides a unified [`Lookback`] struct that handles both call and put
@@ -132,14 +136,24 @@ impl Lookback {
 }
 
 impl Payoff for Lookback {
+    /// Update the tracked extremum when the event falls on or before maturity.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - Path state at the current engine event date. Must contain a
+    ///   finite `SPOT` when `state.step <= maturity_step`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `SPOT` is missing or non-finite at an in-window event — see
+    /// `require_finite_state`.
     fn on_event(&mut self, state: &mut PathState) {
         if state.step <= self.maturity_step {
-            if let Some(spot) = state.spot() {
-                self.extreme_spot = match self.direction {
-                    LookbackDirection::Call => self.extreme_spot.max(spot),
-                    LookbackDirection::Put => self.extreme_spot.min(spot),
-                };
-            }
+            let spot = super::require_finite_state(state.spot(), "SPOT", state.step);
+            self.extreme_spot = match self.direction {
+                LookbackDirection::Call => self.extreme_spot.max(spot),
+                LookbackDirection::Put => self.extreme_spot.min(spot),
+            };
         }
     }
 
@@ -215,13 +229,23 @@ impl FloatingStrikeLookbackCall {
 }
 
 impl Payoff for FloatingStrikeLookbackCall {
+    /// Update the tracked minimum and capture terminal spot at maturity.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - Path state at the current engine event date. Must contain a
+    ///   finite `SPOT` when `state.step <= maturity_step`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `SPOT` is missing or non-finite at an in-window event — see
+    /// `require_finite_state`.
     fn on_event(&mut self, state: &mut PathState) {
         if state.step <= self.maturity_step {
-            if let Some(spot) = state.spot() {
-                self.min_spot = self.min_spot.min(spot);
-                if state.step == self.maturity_step {
-                    self.terminal_spot = spot;
-                }
+            let spot = super::require_finite_state(state.spot(), "SPOT", state.step);
+            self.min_spot = self.min_spot.min(spot);
+            if state.step == self.maturity_step {
+                self.terminal_spot = spot;
             }
         }
     }
@@ -299,13 +323,23 @@ impl FloatingStrikeLookbackPut {
 }
 
 impl Payoff for FloatingStrikeLookbackPut {
+    /// Update the tracked maximum and capture terminal spot at maturity.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - Path state at the current engine event date. Must contain a
+    ///   finite `SPOT` when `state.step <= maturity_step`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `SPOT` is missing or non-finite at an in-window event — see
+    /// `require_finite_state`.
     fn on_event(&mut self, state: &mut PathState) {
         if state.step <= self.maturity_step {
-            if let Some(spot) = state.spot() {
-                self.max_spot = self.max_spot.max(spot);
-                if state.step == self.maturity_step {
-                    self.terminal_spot = spot;
-                }
+            let spot = super::require_finite_state(state.spot(), "SPOT", state.step);
+            self.max_spot = self.max_spot.max(spot);
+            if state.step == self.maturity_step {
+                self.terminal_spot = spot;
             }
         }
     }
@@ -336,6 +370,14 @@ mod tests {
         let mut state = PathState::new(step, step as f64 * 0.1);
         state.set(state_keys::SPOT, spot);
         state
+    }
+
+    #[test]
+    #[should_panic(expected = "payoff input 'SPOT' missing or non-finite")]
+    fn test_lookback_panics_without_spot() {
+        let mut lookback = Lookback::new(LookbackDirection::Call, 100.0, 1.0, 10);
+        let mut state = PathState::new(0, 0.0);
+        lookback.on_event(&mut state);
     }
 
     #[test]

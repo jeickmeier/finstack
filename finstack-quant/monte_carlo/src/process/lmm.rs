@@ -332,6 +332,15 @@ impl StochasticProcess for LmmProcess {
         // Also store the first alive index for downstream payoffs
         state.set("lmm_first_alive", first as f64);
     }
+
+    /// Only [`LmmPredictorCorrector`](crate::discretization::lmm_predictor_corrector::LmmPredictorCorrector)
+    /// evolves the n×K displaced-diffusion system under the terminal measure.
+    /// A generic scheme such as Euler-Maruyama type-checks but treats diffusion
+    /// as an n-vector, so the pairing either panics on the n×K slice or
+    /// silently simulates the wrong SDE.
+    fn dedicated_scheme(&self) -> Option<&'static str> {
+        Some("lmm_predictor_corrector")
+    }
 }
 
 #[cfg(test)]

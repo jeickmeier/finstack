@@ -33,6 +33,16 @@ use super::super::traits::{Discretization, StochasticProcess};
 /// Avoid when:
 /// - Exact schemes exist (GBM, OU)
 /// - Specialized schemes are more accurate (QE for Heston)
+///
+/// # Euler + Heston
+///
+/// Pairing [`EulerMaruyama`] with [`crate::process::heston::HestonProcess`] is a
+/// **biased research scheme**: the process applies partial truncation
+/// (`v = max(v, 0)` in drift and diffusion) and the engine applies
+/// Cholesky to the declared factor correlation. Production Heston
+/// Europeans use [`crate::discretization::QeHeston`] via
+/// [`crate::pricer::heston::price_heston_call`] /
+/// [`crate::pricer::heston::price_heston_put`].
 #[derive(Debug, Clone, Default)]
 pub struct EulerMaruyama;
 

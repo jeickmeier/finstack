@@ -41,8 +41,9 @@ pub struct FxBarrierOption {
     /// knock-out barrier is breached; `at_expiry` defers payment to expiry.
     /// Knock-in rebates always pay at expiry, so this setting does not affect
     /// them. The analytical pricer values at-hit rebates via the discounted
-    /// first-passage closed form; the Monte Carlo path currently approximates
-    /// at-hit rebates as at-expiry.
+    /// first-passage closed form. Monte Carlo applies at-hit when
+    /// `rebate_timing == AtHit` via `with_rebate_at_hit`; the crate primitive
+    /// defaults to at-expiry.
     #[builder(default)]
     #[serde(default)]
     pub rebate_timing: crate::models::closed_form::barrier::RebateTiming,

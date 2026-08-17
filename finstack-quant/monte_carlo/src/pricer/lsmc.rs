@@ -33,8 +33,11 @@
 //! step `1..=num_steps`). That is a **Bermudan** option on the time grid, not a
 //! continuous American. Immediate exercise at valuation (`t = 0`) is applied
 //! as a floor on the reported price so the estimate cannot print below
-//! intrinsic; if that floor binds, the stderr and 95% CI collapse to the
-//! intrinsic value.
+//! intrinsic. When that floor binds, the reported mean is the intrinsic
+//! value while stderr and sample standard deviation stay those of the
+//! unfloored path present values. The 95% CI is the unfloored interval
+//! with its lower bound clamped to intrinsic so the published interval
+//! still contains the reported mean.
 
 use super::super::results::MoneyEstimate;
 use super::lsq::{regression_coefficients_with_basis, regression_with_basis};
@@ -429,8 +432,10 @@ impl LsmcPricer {
     ///
     /// Early exercise is decided on `exercise_dates` (typically `1..=num_steps`).
     /// After averaging path present values, the reported price is floored at
-    /// `exercise_value(initial_spot)`. If that intrinsic binds, stderr and the
-    /// 95% CI collapse to the intrinsic value.
+    /// `exercise_value(initial_spot)`. If that intrinsic binds, the mean is
+    /// replaced by the intrinsic value while stderr and sample standard
+    /// deviation stay those of the unfloored sample. The 95% CI is the
+    /// unfloored interval with its lower bound clamped to intrinsic.
     ///
     /// # Arguments
     ///
@@ -630,6 +635,10 @@ impl LsmcPricer {
     }
 
     /// Average antithetic pairs if enabled, then floor the mean at `t = 0` intrinsic.
+    ///
+    /// When the floor binds, stderr and sample standard deviation are kept
+    /// from the unfloored sample. The published CI is the unfloored interval
+    /// with its lower bound clamped to `intrinsic`.
     fn summarize_present_values<E: ImmediateExercise>(
         &self,
         path_pvs: &[f64],
@@ -650,7 +659,14 @@ impl LsmcPricer {
 
         let intrinsic = exercise.exercise_value(initial_spot);
         let (mean, stderr, ci_95, std_dev) = if stats.mean() < intrinsic {
-            (intrinsic, 0.0, (intrinsic, intrinsic), 0.0)
+            let (lo, hi) = stats.confidence_interval(0.05);
+            let lower = lo.max(intrinsic);
+            (
+                intrinsic,
+                stats.stderr(),
+                (lower, hi.max(lower)),
+                stats.std_dev(),
+            )
         } else {
             (
                 stats.mean(),
@@ -1841,11 +1857,49 @@ mod tests {
             "price {} below intrinsic {intrinsic}",
             estimate.mean.amount()
         );
-        if estimate.mean.amount() == intrinsic {
-            assert_eq!(estimate.stderr, 0.0);
-            assert_eq!(estimate.ci_95.0.amount(), intrinsic);
-            assert_eq!(estimate.ci_95.1.amount(), intrinsic);
-        }
+    }
+
+    #[test]
+    fn lsmc_deep_itm_put_floor_keeps_stderr() {
+        let pricer = LsmcPricer::gbm_american(2_000, 2, 17, false, true)
+            .expect("GBM American pricer should construct");
+        let estimate = pricer
+            .price_gbm_american_put(
+                50.0,
+                100.0,
+                0.05,
+                0.0,
+                0.2,
+                1.0 / 252.0,
+                2,
+                Currency::USD,
+                BasisKind::Laguerre,
+                3,
+            )
+            .expect("deep ITM short-horizon put should price");
+        let intrinsic = 50.0;
+        assert_eq!(
+            estimate.mean.amount(),
+            intrinsic,
+            "short-horizon deep ITM put should bind the t=0 intrinsic floor"
+        );
+        assert!(
+            estimate.stderr > 0.0,
+            "floored mean should keep MC stderr, got {}",
+            estimate.stderr
+        );
+        assert!(
+            estimate.ci_95.0.amount() + 1e-12 >= intrinsic,
+            "CI lower {} should be clamped to intrinsic {intrinsic}",
+            estimate.ci_95.0.amount()
+        );
+        assert!(
+            estimate.ci_95.0.amount() <= estimate.mean.amount()
+                && estimate.mean.amount() <= estimate.ci_95.1.amount(),
+            "CI [{}, {}] should contain floored mean {intrinsic}",
+            estimate.ci_95.0.amount(),
+            estimate.ci_95.1.amount()
+        );
     }
 
     #[test]

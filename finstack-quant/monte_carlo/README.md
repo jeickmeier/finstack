@@ -377,7 +377,10 @@ exactly `count`.
 - Rates, dividend yields, and volatilities are decimals; times and time-grid
   coordinates are year fractions.
 - `Payoff::value` returns an **undiscounted** `Money`; the engine applies the
-  caller-supplied `discount_factor` per path.
+  caller-supplied scalar `discount_factor` per path. `McEngine::price` is
+  scalar-DF only and does not apply a pathwise numeraire. Hull-White and LMM
+  derivative pricing belongs in the valuations pathwise-numeraire pricers.
+  Do not pass a curve discount factor on top of `lmm_numeraire`.
 - Confidence intervals are reported on discounted path values.
 - Captured-path statistics (`median`, `percentile_25`, `percentile_75`, `min`,
   `max`) describe the **retained subset**, not the full Monte Carlo population.

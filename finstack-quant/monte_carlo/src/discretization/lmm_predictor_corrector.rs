@@ -143,6 +143,12 @@ impl Discretization<LmmProcess> for LmmPredictorCorrector {
         // drift_curr(n) + predicted(n) + drift_pred(n) = 3n
         3 * n
     }
+
+    fn scheme_id(&self) -> &'static str {
+        // Satisfies `LmmProcess::dedicated_scheme` — this is the only
+        // scheme that evolves the n×K displaced-diffusion LMM.
+        "lmm_predictor_corrector"
+    }
 }
 
 #[cfg(test)]

@@ -456,6 +456,55 @@ fn test_engine_rejects_generic_scheme_for_dedicated_process() {
 }
 
 #[test]
+fn test_engine_rejects_generic_scheme_for_lmm_process() {
+    // LMM diffusion is an n×K matrix. Euler-Maruyama type-checks against
+    // `LmmProcess` but sizes its work buffer as 2n and then slices an
+    // n-vector for `diffusion`, so the pairing panics instead of pricing.
+    // The dedicated-scheme check must reject it with Validation first.
+    use crate::discretization::euler::EulerMaruyama;
+    use crate::process::lmm::{LmmParams, LmmProcess};
+
+    let engine = McEngine::builder()
+        .num_paths(10)
+        .uniform_grid(1.0, 4)
+        .parallel(false)
+        .build()
+        .expect("engine should build");
+    let payoff = CapturedValuePayoff::default();
+    let rng = crate::rng::philox::PhiloxRng::new(1);
+
+    let lmm = LmmProcess::new(
+        LmmParams::try_new(
+            3,
+            2,
+            vec![0.0, 1.0, 2.0, 3.0],
+            vec![1.0, 1.0, 1.0],
+            vec![0.005, 0.005, 0.005],
+            vec![],
+            vec![vec![
+                [0.15, 0.05, 0.0],
+                [0.12, 0.08, 0.0],
+                [0.10, 0.10, 0.0],
+            ]],
+            vec![0.03, 0.03, 0.03],
+        )
+        .expect("valid LMM params"),
+    );
+    let err = engine
+        .price(
+            &rng,
+            &lmm,
+            &EulerMaruyama::new(),
+            &[0.03, 0.03, 0.03],
+            &payoff,
+            Currency::USD,
+            1.0,
+        )
+        .expect_err("Euler + LmmProcess must be rejected");
+    assert!(err.to_string().contains("dedicated discretization"));
+}
+
+#[test]
 fn test_antithetic_mirrors_path_start_randomness() {
     // `CapturedValuePayoff` pays the uniform it draws in `on_path_start`.
     // With mirrored path-start randomness the antithetic leg receives

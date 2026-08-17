@@ -263,6 +263,14 @@ impl HestonParams {
 ///
 /// State: [S, v] (spot and variance)
 /// Factors: 2 correlated Brownian motions
+///
+/// Pairing this process with [`crate::discretization::EulerMaruyama`] is a
+/// **biased research scheme**: drift and diffusion apply partial truncation
+/// (`v = max(v, 0)`) and the engine applies Cholesky to
+/// [`StochasticProcess::factor_correlation`]. Production Heston Europeans
+/// use [`crate::discretization::QeHeston`] via
+/// [`crate::pricer::heston::price_heston_call`] /
+/// [`crate::pricer::heston::price_heston_put`].
 #[derive(Debug, Clone)]
 pub struct HestonProcess {
     params: HestonParams,

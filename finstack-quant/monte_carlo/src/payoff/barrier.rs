@@ -108,6 +108,29 @@ pub struct BarrierOptionPayoff {
 
 impl BarrierOptionPayoff {
     /// Create a new barrier option payoff.
+    ///
+    /// Rebate timing is at-expiry unless [`Self::with_rebate_at_hit`] is
+    /// chained. Valuations product defaults are `AtHit`.
+    ///
+    /// # Arguments
+    ///
+    /// * `strike` - Option strike in the same units as the simulated spot.
+    /// * `barrier` - Knock-in or knock-out level in the same units as spot.
+    /// * `barrier_type` - Up/down and in/out classification of the barrier.
+    /// * `option_type` - Call or put intrinsic evaluated at expiry when the
+    ///   option is active.
+    /// * `rebate` - Cash amount paid when the option is inactive (knocked
+    ///   out, or a knock-in that never hits). Paid at expiry unless
+    ///   [`Self::with_rebate_at_hit`] is chained.
+    /// * `notional` - Linear payoff scaling applied to the intrinsic or rebate.
+    /// * `maturity_step` - Path step index at which the payoff observes `S_T`.
+    /// * `sigma` - Fallback Black volatility used by the Brownian-bridge
+    ///   hit test when the path state has no variance key.
+    /// * `time_grid` - Simulation grid whose step year-fractions size the
+    ///   bridge intervals and the at-hit forward-compounding horizon.
+    /// * `use_gobet_miri` - Caller-intent flag retained for valuations
+    ///   dispatch; this payoff always uses the unshifted barrier plus the
+    ///   exact Brownian bridge and does not apply a BGK barrier shift.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         strike: f64,

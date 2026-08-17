@@ -319,10 +319,13 @@ impl McEngine {
     /// * `payoff` - Payoff accumulator evaluated on each simulated path.
     /// * `currency` - Currency tag for the returned [`MoneyEstimate`].
     /// * `discount_factor` - Present-value multiplier for the payoff horizon.
-    ///   Supplied as a scalar rather than derived from a rate, so the engine
-    ///   imposes no compounding or day-count convention. Callers holding a
-    ///   flat continuously compounded rate and a year fraction should build it
-    ///   with [`finstack_quant_core::cashflow::flat_discount_factor`].
+    ///   Scalar only: the engine multiplies every path by this single factor
+    ///   and does not apply a pathwise numeraire. Hull-White and LMM
+    ///   derivative pricing belongs in the valuations pathwise-numeraire
+    ///   pricers. Do not pass a curve discount factor on top of
+    ///   `lmm_numeraire`. Callers holding a flat continuously compounded
+    ///   rate and a year fraction should build the scalar with
+    ///   [`finstack_quant_core::cashflow::flat_discount_factor`].
     ///
     /// # Returns
     ///
