@@ -120,6 +120,11 @@ pub struct AttributionSpec {
     pub full_cross_attribution: bool,
 }
 
+/// Default for [`AttributionConfig::strict_validation`] on the spec/execution
+/// path used for official reports: factor pricing errors propagate instead of
+/// being zeroed into residual.
+pub(crate) const DEFAULT_STRICT_VALIDATION: bool = true;
+
 /// Optional configuration for attribution runs.
 ///
 /// Allows overriding default tolerances and metrics for attribution calculations.
@@ -136,7 +141,10 @@ pub struct AttributionConfig {
     /// If not provided, a default set will be used
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metrics: Option<Vec<String>>,
-    /// Strict validation mode (if true, errors during attribution will propagate instead of being logged)
+    /// Strict validation mode. When omitted, official spec/execution reports
+    /// default to `true` so factor pricing errors fail closed instead of
+    /// being zeroed into residual. Set to `false` only for diagnostic runs
+    /// that must complete with a soft-failed factor.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub strict_validation: Option<bool>,
     /// Rounding scale override (number of decimal places)

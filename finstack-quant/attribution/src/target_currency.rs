@@ -38,8 +38,12 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
 
 use crate::types::{
-    CarryDetail, CreditCarryDecomposition, CreditFactorAttribution, PnlAttribution, SourceLine,
+    CarryDetail, CorrelationsAttribution, CreditCarryDecomposition, CreditCurvesAttribution,
+    CreditFactorAttribution, CrossFactorDetail, FxAttribution, InflationCurvesAttribution,
+    ModelParamsAttribution, PnlAttribution, RatesCurvesAttribution, ScalarsAttribution, SourceLine,
+    VolAttribution,
 };
+use indexmap::IndexMap;
 
 /// Translate a populated `PnlAttribution` from its native pricing currency
 /// into `target_currency`.
@@ -70,10 +74,11 @@ use crate::types::{
 ///   `carry_detail` ARE translated — every Money leaf, including bucket and
 ///   per-issuer maps, moves to target currency at T1 FX so their documented
 ///   reconciliation invariants keep closing after translation (audit M5).
-///   The remaining per-curve detail maps (rates_detail.by_curve,
-///   fx_detail.by_pair, ...) are NOT translated by this helper — their key
-///   amounts remain in native currency. The aggregate fields are the
-///   supported reporting surface in target_currency.
+///   Remaining detail maps (`rates_detail`, `credit_detail`,
+///   `inflation_detail`, `correlations_detail`, `fx_detail`, `vol_detail`,
+///   `cross_factor_detail`, `model_params_detail`, `scalars_detail`) are
+///   translated the same way so callers cannot mix native and reporting
+///   currency when summing per-curve or per-pair leaves.
 /// - The `meta.fx_policy` is stamped with `target_currency` and a note describing
 ///   the translation.
 ///
@@ -155,12 +160,38 @@ pub fn translate_to_target_currency(
         ),
     });
 
-    // Carry-detail fields are typed Money; translate them so callers reading
-    // carry_detail.total etc. see consistent target-currency amounts. Detail
-    // maps (rates_detail.by_curve, fx_detail.by_pair, ...) remain in native
-    // currency — see the doc on this function.
+    // Carry-detail and every remaining per-factor detail map are typed Money;
+    // translate them so callers reading by_curve / by_pair leaves see the
+    // same reporting currency as the aggregates.
     if let Some(d) = attribution.carry_detail.as_mut() {
         translate_carry_detail(d, target_currency, market_t1, as_of_t1)?;
+    }
+    if let Some(d) = attribution.rates_detail.as_mut() {
+        translate_rates_detail(d, target_currency, market_t1, as_of_t1)?;
+    }
+    if let Some(d) = attribution.credit_detail.as_mut() {
+        translate_credit_curves_detail(d, target_currency, market_t1, as_of_t1)?;
+    }
+    if let Some(d) = attribution.inflation_detail.as_mut() {
+        translate_inflation_detail(d, target_currency, market_t1, as_of_t1)?;
+    }
+    if let Some(d) = attribution.correlations_detail.as_mut() {
+        translate_correlations_detail(d, target_currency, market_t1, as_of_t1)?;
+    }
+    if let Some(d) = attribution.fx_detail.as_mut() {
+        translate_fx_detail(d, target_currency, market_t1, as_of_t1)?;
+    }
+    if let Some(d) = attribution.vol_detail.as_mut() {
+        translate_vol_detail(d, target_currency, market_t1, as_of_t1)?;
+    }
+    if let Some(d) = attribution.cross_factor_detail.as_mut() {
+        translate_cross_factor_detail(d, target_currency, market_t1, as_of_t1)?;
+    }
+    if let Some(d) = attribution.model_params_detail.as_mut() {
+        translate_model_params_detail(d, target_currency, market_t1, as_of_t1)?;
+    }
+    if let Some(d) = attribution.scalars_detail.as_mut() {
+        translate_scalars_detail(d, target_currency, market_t1, as_of_t1)?;
     }
 
     // Audit M5: the credit-model structs are populated BEFORE this
@@ -279,6 +310,139 @@ fn translate_source_line(
         *m = convert(*m)?;
     }
     Ok(())
+}
+
+fn translate_money_map<K: Eq + std::hash::Hash>(
+    map: &mut IndexMap<K, Money>,
+    target_currency: Currency,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+) -> Result<()> {
+    for value in map.values_mut() {
+        *value = market_t1.convert_money(*value, target_currency, as_of_t1)?;
+    }
+    Ok(())
+}
+
+fn translate_rates_detail(
+    detail: &mut RatesCurvesAttribution,
+    target_currency: Currency,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+) -> Result<()> {
+    let convert =
+        |m: Money| -> Result<Money> { market_t1.convert_money(m, target_currency, as_of_t1) };
+    translate_money_map(&mut detail.by_curve, target_currency, market_t1, as_of_t1)?;
+    translate_money_map(&mut detail.by_tenor, target_currency, market_t1, as_of_t1)?;
+    detail.discount_total = convert(detail.discount_total)?;
+    detail.forward_total = convert(detail.forward_total)?;
+    Ok(())
+}
+
+fn translate_credit_curves_detail(
+    detail: &mut CreditCurvesAttribution,
+    target_currency: Currency,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+) -> Result<()> {
+    translate_money_map(&mut detail.by_curve, target_currency, market_t1, as_of_t1)?;
+    translate_money_map(&mut detail.by_tenor, target_currency, market_t1, as_of_t1)?;
+    Ok(())
+}
+
+fn translate_inflation_detail(
+    detail: &mut InflationCurvesAttribution,
+    target_currency: Currency,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+) -> Result<()> {
+    translate_money_map(&mut detail.by_curve, target_currency, market_t1, as_of_t1)?;
+    if let Some(by_tenor) = detail.by_tenor.as_mut() {
+        translate_money_map(by_tenor, target_currency, market_t1, as_of_t1)?;
+    }
+    Ok(())
+}
+
+fn translate_correlations_detail(
+    detail: &mut CorrelationsAttribution,
+    target_currency: Currency,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+) -> Result<()> {
+    translate_money_map(&mut detail.by_curve, target_currency, market_t1, as_of_t1)
+}
+
+fn translate_fx_detail(
+    detail: &mut FxAttribution,
+    target_currency: Currency,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+) -> Result<()> {
+    translate_money_map(&mut detail.by_pair, target_currency, market_t1, as_of_t1)
+}
+
+fn translate_vol_detail(
+    detail: &mut VolAttribution,
+    target_currency: Currency,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+) -> Result<()> {
+    translate_money_map(&mut detail.by_surface, target_currency, market_t1, as_of_t1)
+}
+
+fn translate_cross_factor_detail(
+    detail: &mut CrossFactorDetail,
+    target_currency: Currency,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+) -> Result<()> {
+    detail.total = market_t1.convert_money(detail.total, target_currency, as_of_t1)?;
+    translate_money_map(&mut detail.by_pair, target_currency, market_t1, as_of_t1)
+}
+
+fn translate_model_params_detail(
+    detail: &mut ModelParamsAttribution,
+    target_currency: Currency,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+) -> Result<()> {
+    let convert =
+        |m: Money| -> Result<Money> { market_t1.convert_money(m, target_currency, as_of_t1) };
+    if let Some(m) = detail.prepayment.as_mut() {
+        *m = convert(*m)?;
+    }
+    if let Some(m) = detail.default_rate.as_mut() {
+        *m = convert(*m)?;
+    }
+    if let Some(m) = detail.recovery_rate.as_mut() {
+        *m = convert(*m)?;
+    }
+    if let Some(m) = detail.conversion_ratio.as_mut() {
+        *m = convert(*m)?;
+    }
+    translate_money_map(&mut detail.other, target_currency, market_t1, as_of_t1)
+}
+
+fn translate_scalars_detail(
+    detail: &mut ScalarsAttribution,
+    target_currency: Currency,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+) -> Result<()> {
+    translate_money_map(&mut detail.dividends, target_currency, market_t1, as_of_t1)?;
+    translate_money_map(&mut detail.inflation, target_currency, market_t1, as_of_t1)?;
+    translate_money_map(
+        &mut detail.equity_prices,
+        target_currency,
+        market_t1,
+        as_of_t1,
+    )?;
+    translate_money_map(
+        &mut detail.commodity_prices,
+        target_currency,
+        market_t1,
+        as_of_t1,
+    )
 }
 
 #[cfg(test)]
@@ -639,5 +803,69 @@ mod tests {
         assert!(attr.fx_translation_pnl.amount().abs() < 1e-9);
         // Residual stays clean post-translation.
         assert!(attr.residual.amount().abs() < 1e-6);
+    }
+
+    #[test]
+    fn translate_converts_remaining_detail_maps() {
+        use crate::types::{FxAttribution, RatesCurvesAttribution};
+        use finstack_quant_core::types::CurveId;
+        use indexmap::IndexMap;
+
+        let eur = |v: f64| Money::new(v, Currency::EUR);
+        let mut attr = PnlAttribution::new(
+            eur(80.0),
+            "EUR-BOND",
+            date!(2025 - 01 - 15),
+            date!(2025 - 01 - 16),
+            AttributionMethod::Parallel,
+        );
+        attr.rates_curves_pnl = eur(80.0);
+        attr.compute_residual().expect("residual");
+
+        let mut by_curve = IndexMap::new();
+        by_curve.insert(CurveId::new("EUR-OIS"), eur(50.0));
+        let mut by_tenor = IndexMap::new();
+        by_tenor.insert((CurveId::new("EUR-OIS"), "5Y".to_string()), eur(50.0));
+        attr.rates_detail = Some(RatesCurvesAttribution {
+            by_curve,
+            by_tenor,
+            discount_total: eur(50.0),
+            forward_total: eur(30.0),
+        });
+
+        let mut by_pair = IndexMap::new();
+        by_pair.insert((Currency::EUR, Currency::USD), eur(10.0));
+        attr.fx_detail = Some(FxAttribution { by_pair });
+
+        translate_to_target_currency(
+            &mut attr,
+            Money::new(1000.0, Currency::EUR),
+            Currency::USD,
+            &market(1.10),
+            &market(1.20),
+            date!(2025 - 01 - 15),
+            date!(2025 - 01 - 16),
+        )
+        .expect("translate");
+
+        let rates = attr.rates_detail.as_ref().expect("rates detail");
+        assert_eq!(rates.discount_total.currency(), Currency::USD);
+        assert!((rates.discount_total.amount() - 60.0).abs() < 1e-9);
+        assert_eq!(
+            rates.by_curve[&CurveId::new("EUR-OIS")].currency(),
+            Currency::USD
+        );
+        assert!((rates.by_curve[&CurveId::new("EUR-OIS")].amount() - 60.0).abs() < 1e-9);
+        assert_eq!(
+            rates.by_tenor[&(CurveId::new("EUR-OIS"), "5Y".to_string())].currency(),
+            Currency::USD
+        );
+
+        let fx = attr.fx_detail.as_ref().expect("fx detail");
+        assert_eq!(
+            fx.by_pair[&(Currency::EUR, Currency::USD)].currency(),
+            Currency::USD
+        );
+        assert!((fx.by_pair[&(Currency::EUR, Currency::USD)].amount() - 12.0).abs() < 1e-9);
     }
 }

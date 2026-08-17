@@ -383,12 +383,25 @@ impl SourceLine {
 /// - **roll_down**: Curve shape benefit from aging along a sloped curve
 /// - **funding_cost**: Cost of financing the position
 ///
-/// The populated detail lines partition `total`:
-/// `coupon_income + pull_to_par + roll_down − funding_cost = total`.
+/// The populated price-carry lines always partition `total` after removing
+/// funding that is already netted into `total`:
+///
+/// ```text
+/// coupon_income + pull_to_par + roll_down − funding_cost.unwrap_or(0) = total
+/// ```
+///
+/// when `total` is a metrics-path `CarryTotal` (already net of financing).
+/// On reprice paths, `total` is the isolated date-roll factor (`theta + cash`,
+/// all-in price carry). `funding_cost` is then a repo overlay and is **not**
+/// subtracted from `total`; the price-carry partition is
+/// `coupon + pull_to_par + roll_down = total`, and economic carry net of
+/// financing is `total − funding_cost`.
 ///
 /// In metrics-based attribution, these fields are populated from pre-computed
 /// carry decomposition metrics when available. In repricing-based attribution
-/// methods, only a partial breakdown may be available.
+/// methods, pull-to-par uses a flat curve that inverts the instrument's YTM
+/// compounding convention, and `funding_cost` is isolated when a funding/repo
+/// curve is configured and present on the carry market.
 ///
 /// `coupon_income` and `roll_down` are typed as [`SourceLine`] so that
 /// callers with a `CreditFactorModel` may further split them into rates and

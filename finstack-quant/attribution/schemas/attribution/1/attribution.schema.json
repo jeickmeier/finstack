@@ -1623,7 +1623,7 @@
           ]
         },
         "strict_validation": {
-          "description": "Strict validation mode (if true, errors during attribution will propagate instead of being logged)",
+          "description": "Strict validation mode. When omitted, official spec/execution reports\ndefault to `true` so factor pricing errors fail closed instead of\nbeing zeroed into residual. Set to `false` only for diagnostic runs\nthat must complete with a soft-failed factor.",
           "type": [
             "boolean",
             "null"

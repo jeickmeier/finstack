@@ -3,7 +3,7 @@
 use super::parallel::attribute_pnl_parallel_with_credit_model;
 use super::spec::{default_attribution_metrics, AttributionResult, AttributionSpec};
 use super::waterfall::attribute_pnl_waterfall_with_credit_model;
-use super::{attribute_pnl_metrics_based, attribute_pnl_taylor, AttributionMethod};
+use super::{attribute_pnl_metrics_based, AttributionMethod};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
 use finstack_quant_valuations::instruments::Instrument;
@@ -39,7 +39,7 @@ impl AttributionSpec {
             .config
             .as_ref()
             .and_then(|c| c.strict_validation)
-            .unwrap_or(false);
+            .unwrap_or(super::spec::DEFAULT_STRICT_VALIDATION);
         let execution_policy = self
             .config
             .as_ref()
@@ -82,15 +82,18 @@ impl AttributionSpec {
                 &self.credit_factor_detail_options,
             )?,
 
-            AttributionMethod::Taylor(ref taylor_config) => attribute_pnl_taylor(
-                &instrument_arc,
-                &market_t0,
-                &market_t1,
-                self.as_of_t0,
-                self.as_of_t1,
-                taylor_config,
-                execution_policy,
-            )?,
+            AttributionMethod::Taylor(ref taylor_config) => {
+                crate::taylor::attribute_pnl_taylor_with_model_params(
+                    &instrument_arc,
+                    &market_t0,
+                    &market_t1,
+                    self.as_of_t0,
+                    self.as_of_t1,
+                    taylor_config,
+                    execution_policy,
+                    self.model_params_t0.as_ref(),
+                )?
+            }
 
             AttributionMethod::MetricsBased => {
                 let metrics = if let Some(ref cfg) = self.config {

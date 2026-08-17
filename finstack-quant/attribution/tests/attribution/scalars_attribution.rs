@@ -132,3 +132,58 @@ fn test_equity_price_id_uses_restored_scalar_price() {
     let restored_value = equity.value(&restored_market, as_of).unwrap();
     assert_eq!(restored_value.amount(), 180.0);
 }
+
+#[test]
+fn test_taylor_equity_spot_move_lands_in_market_scalars_pnl() {
+    use finstack_quant_attribution::{
+        attribute_pnl_taylor, ExecutionPolicy, TaylorAttributionConfig,
+    };
+    use finstack_quant_core::market_data::term_structures::DiscountCurve;
+    use std::sync::Arc;
+    use time::macros::date;
+
+    let as_of_t0 = date!(2024 - 01 - 01);
+    let as_of_t1 = date!(2024 - 01 - 02);
+    let equity = Equity::new("AAPL", "AAPL", Currency::USD)
+        .with_price_id("AAPL-SPOT")
+        .with_shares(1.0);
+    let instrument: Arc<dyn Instrument> = Arc::new(equity);
+
+    let discount = || {
+        DiscountCurve::builder("USD")
+            .base_date(as_of_t0)
+            .knots([(0.0, 1.0), (1.0, 0.95)])
+            .build()
+            .unwrap()
+    };
+    let market_t0 = MarketContext::new().insert(discount()).insert_price(
+        "AAPL-SPOT",
+        MarketScalar::Price(Money::new(180.0, Currency::USD)),
+    );
+    let market_t1 = MarketContext::new().insert(discount()).insert_price(
+        "AAPL-SPOT",
+        MarketScalar::Price(Money::new(185.0, Currency::USD)),
+    );
+
+    let attribution = attribute_pnl_taylor(
+        &instrument,
+        &market_t0,
+        &market_t1,
+        as_of_t0,
+        as_of_t1,
+        &TaylorAttributionConfig::default(),
+        ExecutionPolicy::Serial,
+    )
+    .expect("taylor equity attribution should succeed");
+
+    assert!(
+        (attribution.market_scalars_pnl.amount() - 5.0).abs() < 1e-6,
+        "spot move must land in market_scalars_pnl, got {}",
+        attribution.market_scalars_pnl
+    );
+    assert!(
+        attribution.residual.amount().abs() < 1e-4,
+        "residual must shrink once the spot move is attributed, got {}",
+        attribution.residual
+    );
+}

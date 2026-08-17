@@ -46,6 +46,7 @@
 //! - **Positive theta**: Instrument gains value over time (e.g., short options, carry trades)
 //! - **Zero theta**: No time-dependent value change (rare)
 
+use crate::instruments::Bond;
 use finstack_quant_core::cashflow::CFKind;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DateExt};
@@ -160,13 +161,35 @@ pub(crate) fn calculate_theta_date(
     Ok(rolled_date)
 }
 
-/// Collect income cashflows that occur during a time period.
+/// Collect period economic cash that occurs during a time period.
 ///
 /// Uses the full `cashflow_schedule()` so that each flow's [`CFKind`] is
-/// available for filtering.  Only flows representing economic income to the
-/// holder are included; negative notional flows (initial draws / funding
-/// legs) are excluded because they are not discounted receipt flows and are
-/// not reflected in the instrument PV.
+/// available for filtering. A flow enters the sum when its **payment date**
+/// falls in the half-open interval `[start_date, end_date)` and
+/// [`is_period_economic_cash`] is true. Amounts are signed: positive is cash
+/// to the long holder, negative is cash paid by the long holder.
+///
+/// # Period-cash policy
+///
+/// Included (signed):
+/// - Coupons and stub interest: [`CFKind::Fixed`], [`CFKind::FloatReset`],
+///   [`CFKind::InflationCoupon`], [`CFKind::Stub`], [`CFKind::AccruedOnDefault`]
+/// - Fees: [`CFKind::Fee`], [`CFKind::CommitmentFee`], [`CFKind::UsageFee`],
+///   [`CFKind::FacilityFee`], [`CFKind::MarginInterest`]
+/// - Principal that is period cash: [`CFKind::Notional`] (signed, so XCCY
+///   exchanges and amortizing redemptions are included),
+///   [`CFKind::Amortization`], [`CFKind::PrePayment`],
+///   [`CFKind::RevolvingDraw`], [`CFKind::RevolvingRepayment`],
+///   [`CFKind::Recovery`]
+///
+/// Excluded (not instrument cash income):
+/// - [`CFKind::Pik`] (capitalized, not paid)
+/// - [`CFKind::DefaultedNotional`] (write-down, not a cash transfer)
+/// - Collateral/margin transfers: IM/VM post/return and collateral
+///   substitution
+/// - A bond's issue-date initial draw (`CFKind::Notional` < 0 on
+///   `Bond.issue_date`): trade-level purchase cash, not in PV and not
+///   buy-and-hold period income
 ///
 /// The half-open interval `[start_date, end_date)` aligns with the PV
 /// boundary convention: `value(as_of)` includes same-day flows
@@ -200,6 +223,7 @@ pub fn collect_cashflows_in_period(
         start_date,
         end_date,
         base_currency,
+        bond_issue_draw_date(instrument),
     )
 }
 
@@ -210,8 +234,53 @@ pub(crate) fn collect_cashflows_in_period_cached(
     base_currency: Currency,
 ) -> Result<f64> {
     let instrument_id = context.instrument.id().to_string();
+    let skip_issue_draw_on = bond_issue_draw_date(context.instrument.as_ref());
     let flows = context.tagged_cashflows_cached()?;
-    collect_cashflows_from_flows(flows, &instrument_id, start_date, end_date, base_currency)
+    collect_cashflows_from_flows(
+        flows,
+        &instrument_id,
+        start_date,
+        end_date,
+        base_currency,
+        skip_issue_draw_on,
+    )
+}
+
+fn bond_issue_draw_date(instrument: &dyn crate::instruments::Instrument) -> Option<Date> {
+    instrument
+        .as_any()
+        .downcast_ref::<Bond>()
+        .map(|bond| bond.issue_date)
+}
+
+/// Whether `kind` is period economic cash for total-return / theta add-back.
+///
+/// See [`collect_cashflows_in_period`] for the full policy. Coupons are
+/// collected on payment date; signed principal is included when it is
+/// period cash (XCCY exchanges, amortizing redemptions, revolving
+/// draws/repayments).
+fn is_period_economic_cash(kind: CFKind) -> bool {
+    match kind {
+        CFKind::Fixed
+        | CFKind::FloatReset
+        | CFKind::InflationCoupon
+        | CFKind::Stub
+        | CFKind::Fee
+        | CFKind::CommitmentFee
+        | CFKind::UsageFee
+        | CFKind::FacilityFee
+        | CFKind::Notional
+        | CFKind::Amortization
+        | CFKind::PrePayment
+        | CFKind::RevolvingDraw
+        | CFKind::RevolvingRepayment
+        | CFKind::Recovery
+        | CFKind::AccruedOnDefault
+        | CFKind::MarginInterest => true,
+        // Excluded: PIK (not cash), defaulted-notional write-downs,
+        // IM/VM/collateral substitution, and any future `CFKind` variant.
+        _ => false,
+    }
 }
 
 fn collect_cashflows_from_flows(
@@ -220,13 +289,17 @@ fn collect_cashflows_from_flows(
     start_date: Date,
     end_date: Date,
     base_currency: Currency,
+    skip_issue_draw_on: Option<Date>,
 ) -> Result<f64> {
     let mut sum = 0.0;
     for cf in flows {
-        if cf.date >= start_date
-            && cf.date < end_date
-            && !(cf.kind == CFKind::Notional && cf.amount.amount() < 0.0)
-        {
+        if cf.date >= start_date && cf.date < end_date && is_period_economic_cash(cf.kind) {
+            if cf.kind == CFKind::Notional
+                && cf.amount.amount() < 0.0
+                && skip_issue_draw_on == Some(cf.date)
+            {
+                continue;
+            }
             if cf.amount.currency() != base_currency {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "Theta cashflow currency mismatch: base={} but saw cashflow currency={} (instrument_id={})",
@@ -357,6 +430,7 @@ impl crate::metrics::MetricCalculator for GenericThetaAny {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use finstack_quant_core::currency::Currency;
     use time::macros::date;
     use time::Month;
 
@@ -467,5 +541,73 @@ mod tests {
 
         let theta_date_1w = calculate_theta_date(base, "1W", Some(expiry)).expect("roll 1W");
         assert_eq!(theta_date_1w, expiry);
+    }
+
+    fn test_flow(day: u8, amount: f64, kind: CFKind) -> finstack_quant_core::cashflow::CashFlow {
+        use finstack_quant_core::money::Money;
+        finstack_quant_core::cashflow::CashFlow::new(
+            Date::from_calendar_date(2025, Month::January, day).expect("flow date"),
+            None,
+            Money::new(amount, Currency::USD),
+            kind,
+            0.5,
+            None,
+        )
+    }
+
+    #[test]
+    fn period_cash_includes_signed_principal_and_excludes_non_cash() {
+        let start = date!(2025 - 01 - 01);
+        let end = date!(2025 - 01 - 10);
+        let flows = [
+            test_flow(2, 25_000.0, CFKind::Fixed),
+            test_flow(3, -1_000_000.0, CFKind::Notional),
+            test_flow(4, 50_000.0, CFKind::Amortization),
+            test_flow(5, 10_000.0, CFKind::Pik),
+            test_flow(6, -100_000.0, CFKind::DefaultedNotional),
+            test_flow(10, 25_000.0, CFKind::Fixed), // exclusive end
+        ];
+
+        let sum = collect_cashflows_from_flows(&flows, "TEST", start, end, Currency::USD, None)
+            .expect("collect");
+        // coupon 25k + signed notional -1mm + amort 50k; PIK/default/end-date excluded
+        assert!(
+            (sum - (25_000.0 - 1_000_000.0 + 50_000.0)).abs() < 1e-9,
+            "signed principal must enter period cash, got {sum}"
+        );
+    }
+
+    #[test]
+    fn period_cash_skips_bond_issue_draw() {
+        let start = date!(2025 - 01 - 01);
+        let end = date!(2025 - 01 - 10);
+        let issue = date!(2025 - 01 - 02);
+        let flows = [
+            test_flow(2, -100.0, CFKind::Notional),
+            test_flow(3, -50.0, CFKind::Notional),
+        ];
+        let sum =
+            collect_cashflows_from_flows(&flows, "TEST", start, end, Currency::USD, Some(issue))
+                .expect("collect");
+        assert!(
+            (sum + 50.0).abs() < 1e-12,
+            "issue-date draw is excluded; later signed notional remains, got {sum}"
+        );
+    }
+
+    #[test]
+    fn period_cash_is_half_open_on_payment_date() {
+        let start = date!(2025 - 01 - 05);
+        let end = date!(2025 - 01 - 06);
+        let flows = [
+            test_flow(5, 10.0, CFKind::Fixed),
+            test_flow(6, 20.0, CFKind::Fixed),
+        ];
+        let sum = collect_cashflows_from_flows(&flows, "TEST", start, end, Currency::USD, None)
+            .expect("collect");
+        assert!(
+            (sum - 10.0).abs() < 1e-12,
+            "only the payment-date flow in [start, end) is income, got {sum}"
+        );
     }
 }

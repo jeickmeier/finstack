@@ -44,11 +44,12 @@
 //!   uses `CarryTotal` or theta over the elapsed days.
 //! - Direct decomposition functions report in the instrument's native pricing
 //!   currency; [`simple_pnl_bridge`] accepts an explicit target currency.
-//!   [`AttributionConfig::target_currency`] can translate aggregate fields:
-//!   opening value uses T₀ market/date FX, closing value uses T₁ market/date FX,
-//!   factors use T₁ FX, and the opening-position FX move is recorded separately
-//!   as `fx_translation_pnl`. Detail maps remain in native currency. The
-//!   `fx_pnl` field remains the pricing impact of FX inside the instrument.
+//!   [`AttributionConfig::target_currency`] can translate aggregate fields and
+//!   every Money leaf of the detail maps: opening value uses T₀ market/date FX,
+//!   closing value uses T₁ market/date FX, factors and detail leaves use T₁ FX,
+//!   and the opening-position FX move is recorded separately as
+//!   `fx_translation_pnl`. The `fx_pnl` field remains the pricing impact of FX
+//!   inside the instrument.
 //!
 //! # Residuals and errors
 //!
@@ -56,8 +57,7 @@
 //! residual. A waterfall residual should be near zero when its order covers all
 //! material factors; parallel residuals contain interactions and nonlinearity;
 //! metrics-based residuals contain approximation and missing-sensitivity effects;
-//! Taylor residuals also contain truncation, uncovered scalars, and soft factor
-//! failures.
+//! Taylor residuals also contain truncation and soft factor failures.
 //!
 //! The four decomposition methods reject reversed date ranges; same-day ranges
 //! are valid. Waterfall also requires a nonempty, duplicate-free order beginning

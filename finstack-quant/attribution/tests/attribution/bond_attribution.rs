@@ -179,6 +179,64 @@ fn test_bond_attribution_structure() {
 }
 
 #[test]
+fn test_parallel_bond_attribution_isolates_funding_when_repo_curve_present() {
+    let as_of_t0 = create_date(2025, Month::January, 15).unwrap();
+    let as_of_t1 = create_date(2025, Month::January, 16).unwrap();
+
+    let mut bond = Bond::fixed(
+        "US-BOND-FUNDING",
+        Money::new(1_000_000.0, Currency::USD),
+        0.05,
+        create_date(2025, Month::January, 15).unwrap(),
+        create_date(2030, Month::January, 15).unwrap(),
+        "USD-OIS",
+    )
+    .unwrap();
+    bond.funding_curve_id = Some(finstack_quant_core::types::CurveId::new("USD-REPO"));
+
+    let market_t0 = MarketContext::new()
+        .insert(flat_curve("USD-OIS", as_of_t0, 0.05))
+        .insert(flat_curve("USD-REPO", as_of_t0, 0.03));
+    let market_t1 = market_t0.clone();
+
+    let instrument: Arc<dyn Instrument> = Arc::new(bond);
+    let attribution = attribute_pnl_parallel(
+        &instrument,
+        &market_t0,
+        &market_t1,
+        as_of_t0,
+        as_of_t1,
+        &FinstackConfig::default(),
+        ExecutionPolicy::Parallel,
+    )
+    .unwrap();
+
+    let detail = attribution.carry_detail.expect("carry detail");
+    let funding = detail.funding_cost.expect("funding overlay").amount();
+    assert!(
+        funding > 0.0,
+        "reprice-path funding_cost must be isolated when a repo curve is present, got {funding}"
+    );
+    let coupon = detail
+        .coupon_income
+        .as_ref()
+        .map(|l| l.total.amount())
+        .unwrap_or(0.0);
+    let ptp = detail.pull_to_par.map(|m| m.amount()).unwrap_or(0.0);
+    let rd = detail
+        .roll_down
+        .as_ref()
+        .map(|l| l.total.amount())
+        .unwrap_or(0.0);
+    let total = detail.total.amount();
+    // Reprice path: funding is an overlay; price-carry lines partition total.
+    assert!(
+        (coupon + ptp + rd - total).abs() < 1e-6,
+        "price-carry partition: coupon({coupon}) + ptp({ptp}) + rd({rd}) should = total({total})"
+    );
+}
+
+#[test]
 fn test_metrics_based_bond_attribution_populates_carry_decomposition() {
     let as_of_t0 = create_date(2025, Month::January, 15).unwrap();
     let as_of_t1 = create_date(2025, Month::January, 16).unwrap();

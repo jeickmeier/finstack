@@ -1222,6 +1222,7 @@ mod tests {
             cash_paid: coupon,
             delta_accrued: None,
             flat_window_diff: None,
+            funding_cost: None,
             warnings: Vec::new(),
             invalid: false,
         };

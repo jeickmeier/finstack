@@ -7,13 +7,18 @@
 use super::types::{AttributionMethod, CarryDetail, PnlAttribution, SourceLine};
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::Date;
+use finstack_quant_core::dates::{Date, DayCountContext, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::math::interp::InterpStyle;
+use finstack_quant_core::math::Compounding;
 use finstack_quant_core::money::fx::{FxConversionPolicy, FxPolicyMeta};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
+use finstack_quant_valuations::instruments::fixed_income::bond::pricing::quote_conversions::{
+    df_from_yield, YieldCompounding,
+};
+use finstack_quant_valuations::instruments::Bond;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::PricingOptions;
 use finstack_quant_valuations::metrics::collect_cashflows_in_period;
@@ -170,6 +175,12 @@ pub(crate) struct TotalReturnCarryInputs {
     pub delta_accrued: Option<Money>,
     /// `F_t1 - F_t0` on a flat-YTM(t0) curve (basis cancels); `None` when `Ytm`/flat pricing is unavailable.
     pub flat_window_diff: Option<Money>,
+    /// Repo/funding carry over `[t0, t1)` when the instrument exposes a
+    /// funding curve that is present on `market`. Overlay on the reprice
+    /// path: not subtracted from `CarryDetail.total` (that total is the
+    /// isolated date-roll factor). `None` when no funding curve is configured
+    /// or the curve/PV/day-count lookup fails.
+    pub funding_cost: Option<Money>,
     /// Diagnostics for the caller to merge into `meta.notes`.
     pub warnings: Vec<String>,
     /// True when a non-finite cashflow/metric value was zeroed; the caller
@@ -225,11 +236,20 @@ pub(crate) fn total_return_carry_inputs(
     };
 
     let flat_window_diff = flat_window_diff(instrument, market, as_of_t0, as_of_t1, currency);
+    let funding_cost = reprice_funding_cost(
+        instrument,
+        market,
+        as_of_t0,
+        as_of_t1,
+        currency,
+        &mut warnings,
+    );
 
     TotalReturnCarryInputs {
         cash_paid,
         delta_accrued,
         flat_window_diff,
+        funding_cost,
         warnings,
         invalid,
     }
@@ -263,19 +283,30 @@ fn flat_window_diff(
     }
 }
 
+/// Compounding convention the instrument's `Ytm` metric was solved under.
+///
+/// Bonds use Street compounding at the coupon frequency (semi-annual US,
+/// annual EUR Bunds/corporates). Other instruments that expose `Ytm`
+/// (term loans via XIRR, structured credit) solve annually compounded
+/// yields — matching [`finstack_quant_valuations::metrics::sensitivities::carry_decomposition`].
+fn ytm_discount_convention(instrument: &dyn Instrument) -> (YieldCompounding, Tenor) {
+    if let Some(bond) = instrument.as_any().downcast_ref::<Bond>() {
+        (YieldCompounding::Street, bond.cashflow_spec.frequency())
+    } else {
+        (YieldCompounding::Annual, Tenor::annual())
+    }
+}
+
 /// Build a market whose discount curve is replaced by a flat curve at the
 /// instrument's quoted YTM.
 ///
-/// The `Ytm` metric is quoted with street (semi-annual bond-equivalent)
-/// compounding, so it is converted to its continuous equivalent
-/// `y_cont = 2·ln(1 + y/2)` before building `DF(t) = exp(−y_cont·t)` —
-/// using the quoted rate directly in a continuous discount factor overstates
-/// discounting by ≈ y²/4 per year (Tuckman & Serrat, *Fixed Income
-/// Securities*, Ch. 2–3), misallocating pull-to-par vs roll-down (audit
-/// Mo10). Knots span 0–100y in half-year steps so ultra-long bonds stay on
-/// the flat curve rather than extrapolating (audit Mi4).
-///
-/// Ported from `valuations`'s private `build_flat_curve_market` (not reachable cross-crate).
+/// Discount factors invert the same compounding convention the `Ytm` metric
+/// was solved under (Street at the bond coupon frequency; annual otherwise).
+/// A hardcoded Street-2 conversion (`y_cont = 2·ln(1 + y/2)`) misallocates
+/// pull-to-par vs roll-down for annual-compounded bonds (Tuckman & Serrat,
+/// *Fixed Income Securities*, Ch. 2–3). Knots span 0–100y in half-year
+/// steps so ultra-long bonds stay on the flat curve rather than
+/// extrapolating.
 fn build_flat_ytm_market(
     instrument: &dyn Instrument,
     market: &MarketContext,
@@ -291,20 +322,13 @@ fn build_flat_ytm_market(
             id: format!("discount_curve_for:{}", instrument.id()),
         })?;
     let original = market.get_discount(curve_id.as_str())?;
-    // Street semi-annual → continuous: y_cont = 2·ln(1 + y/2). Guard the
-    // pathological y ≤ −200% region where the conversion is undefined; the
-    // quoted rate is used as-is there (already effectively continuous junk).
-    let y_cont = if 1.0 + ytm / 2.0 > 0.0 {
-        2.0 * (1.0 + ytm / 2.0).ln()
-    } else {
-        ytm
-    };
+    let (compounding, frequency) = ytm_discount_convention(instrument);
     let knots: Vec<(f64, f64)> = (0..=200)
         .map(|i| {
             let t = i as f64 * 0.5;
-            (t, (-y_cont * t).exp())
+            df_from_yield(ytm, t, compounding, frequency).map(|df| (t, df))
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
     let flat_curve = DiscountCurve::builder(curve_id.as_str())
         .base_date(original.base_date())
         .day_count(original.day_count())
@@ -314,13 +338,108 @@ fn build_flat_ytm_market(
     Ok(market.clone().insert(flat_curve))
 }
 
+/// Repo/funding cost of carrying `PV(t0)` from `as_of_t0` to `as_of_t1`
+/// on the instrument's funding curve, when one is configured and present.
+///
+/// Accrual is `PV × (exp(r_cont × dcf) − 1)` with a continuously compounded
+/// funding zero — the same formula as the valuations `FundingCost` metric.
+/// This is a financing overlay: the waterfall/parallel date-roll factor
+/// (`theta + cash`) stays all-in price carry.
+fn reprice_funding_cost(
+    instrument: &dyn Instrument,
+    market: &MarketContext,
+    as_of_t0: Date,
+    as_of_t1: Date,
+    currency: Currency,
+    warnings: &mut Vec<String>,
+) -> Option<Money> {
+    let curve_id = instrument.funding_curve_id()?;
+    if as_of_t1 <= as_of_t0 {
+        return Some(Money::new(0.0, currency));
+    }
+    let funding_curve = match market.get_discount(curve_id.as_str()) {
+        Ok(curve) => curve,
+        Err(e) => {
+            warnings.push(format!(
+                "funding_cost omitted: funding curve '{curve_id}' unavailable ({e})"
+            ));
+            return None;
+        }
+    };
+    let pv = match instrument.value(market, as_of_t0) {
+        Ok(value) if value.amount().is_finite() => value.amount(),
+        Ok(_) => {
+            warnings.push("funding_cost omitted: T0 PV is non-finite".to_string());
+            return None;
+        }
+        Err(e) => {
+            warnings.push(format!("funding_cost omitted: T0 PV unavailable ({e})"));
+            return None;
+        }
+    };
+    let (day_count, frequency) = if let Some(bond) = instrument.as_any().downcast_ref::<Bond>() {
+        (
+            bond.cashflow_spec.day_count(),
+            Some(bond.cashflow_spec.frequency()),
+        )
+    } else {
+        (funding_curve.day_count(), None)
+    };
+    let dc_ctx = DayCountContext {
+        frequency,
+        ..DayCountContext::default()
+    };
+    let dcf = match day_count.year_fraction(as_of_t0, as_of_t1, dc_ctx) {
+        Ok(value) if value.is_finite() => value,
+        Ok(_) => {
+            warnings
+                .push("funding_cost omitted: day-count year fraction is non-finite".to_string());
+            return None;
+        }
+        Err(e) => {
+            warnings.push(format!(
+                "funding_cost omitted: day-count year fraction unavailable ({e})"
+            ));
+            return None;
+        }
+    };
+    let annual_rate = match funding_curve.zero_rate_on_date(as_of_t1, Compounding::Continuous) {
+        Ok(rate) if rate.is_finite() => rate,
+        Ok(_) => {
+            warnings.push("funding_cost omitted: funding zero rate is non-finite".to_string());
+            return None;
+        }
+        Err(e) => {
+            warnings.push(format!(
+                "funding_cost omitted: funding zero rate unavailable ({e})"
+            ));
+            return None;
+        }
+    };
+    let cost = pv * ((annual_rate * dcf).exp() - 1.0);
+    if cost.is_finite() {
+        Some(Money::new(cost, currency))
+    } else {
+        warnings.push("funding_cost omitted: non-finite funding accrual".to_string());
+        None
+    }
+}
+
 /// Assemble the carry total + the fully-labeled detail partition.
 ///
-/// `carry_total = theta + cash_paid` (unchanged); `total_pnl += cash_paid`. The detail:
+/// `carry_total = theta + cash_paid` (the isolated date-roll factor);
+/// `total_pnl += cash_paid`. The price-carry detail:
 /// `coupon_income = Δaccrued + cash`, `pull_to_par = (F_t1−F_t0) − Δaccrued`,
 /// `roll_down = theta − (F_t1−F_t0)`, which sum to `carry_total`. When accrual / flat pricing is
 /// unavailable (non-bonds), falls back to `coupon_income = cash`, `pull_to_par = None`, and the
-/// whole price-carry residual goes to `roll_down`. The populated detail lines always partition `total`.
+/// whole price-carry residual goes to `roll_down`.
+///
+/// `funding_cost` is populated when the instrument exposes a funding/repo
+/// curve that is present on the carry market. It is a financing overlay and
+/// is **not** subtracted from `total`: the waterfall/parallel factor is
+/// all-in price carry. Economic carry net of financing is `total − funding`.
+/// On the metrics path, `CarryTotal` is already net of funding and the
+/// PORT identity `coupon + ptp + rolldown − funding = total` holds there.
 pub(crate) fn apply_total_return_carry(
     attribution: &mut PnlAttribution,
     theta: Money,
@@ -347,7 +466,7 @@ pub(crate) fn apply_total_return_carry(
         coupon_income: Some(SourceLine::scalar(coupon_income)),
         pull_to_par,
         roll_down: roll_down.map(SourceLine::scalar),
-        funding_cost: None,
+        funding_cost: inputs.funding_cost,
     });
     Ok(())
 }
@@ -499,11 +618,10 @@ mod tests {
         );
     }
 
-    /// Audit Mo10: the flat-YTM window curve must convert the street
-    /// (semi-annual) YTM to continuous compounding before building
-    /// `DF(t) = exp(−y_cont·t)`. Hand check: ytm = 5% at t = 1y →
-    /// DF = (1 + 0.05/2)^(−2), NOT exp(−0.05).
-    /// Audit Mi4: the knot grid must reach 100y for ultra-long bonds.
+    /// Flat-YTM window curve must invert Street compounding at the bond's
+    /// coupon frequency. US corporate (`Bond::fixed`) is semi-annual:
+    /// ytm = 5% at t = 1y → DF = (1 + 0.05/2)^(−2), NOT exp(−0.05).
+    /// Knot grid must reach 100y for ultra-long bonds.
     #[test]
     fn flat_ytm_market_uses_street_semiannual_compounding() {
         use finstack_quant_valuations::instruments::Bond;
@@ -538,7 +656,7 @@ mod tests {
             (-0.05_f64).exp()
         );
 
-        // Mi4: grid extends to 100y (0..=200 half-years) for ultra-longs.
+        // Grid extends to 100y (0..=200 half-years) for ultra-longs.
         let expected_100y = (1.0_f64 + 0.05 / 2.0).powi(-200);
         assert!(
             ((curve.df(100.0) - expected_100y) / expected_100y).abs() < 1e-9,
@@ -546,6 +664,95 @@ mod tests {
              {expected_100y}, got {}",
             curve.df(100.0)
         );
+    }
+
+    /// Annual-pay bonds (Bund / EUR corporate) solve Street YTM at frequency 1.
+    /// DF(1y) at 5% must be 1/1.05, not the hardcoded Street-2 (1.025)^-2.
+    #[test]
+    fn flat_ytm_market_uses_bond_coupon_frequency() {
+        use finstack_quant_valuations::instruments::Bond;
+        use finstack_quant_valuations::instruments::BondConvention;
+
+        let as_of = date!(2025 - 01 - 01);
+        let bond = Bond::with_convention(
+            "FLAT-YTM-BUND",
+            Money::new(1_000_000.0, Currency::EUR),
+            0.05,
+            date!(2024 - 01 - 01),
+            date!(2034 - 01 - 01),
+            BondConvention::GermanBund,
+            "EUR-OIS",
+        )
+        .expect("bund construction");
+        let base_curve = DiscountCurve::builder("EUR-OIS")
+            .base_date(as_of)
+            .knots([(0.0, 1.0), (10.0, (-0.03_f64 * 10.0).exp())])
+            .interp(InterpStyle::LogLinear)
+            .build()
+            .expect("base curve");
+        let market = MarketContext::new().insert(base_curve);
+
+        let flat = build_flat_ytm_market(&bond, &market, 0.05).expect("flat market");
+        let curve = flat.get_discount("EUR-OIS").expect("flat curve");
+
+        let expected_1y = 1.0_f64 / 1.05;
+        let street2_1y = (1.0_f64 + 0.05 / 2.0).powi(-2);
+        assert!(
+            (curve.df(1.0) - expected_1y).abs() < 1e-12,
+            "DF(1y) at 5% annual Street YTM must be 1/1.05 = {expected_1y}, \
+             got {} (hardcoded Street-2 would be {street2_1y})",
+            curve.df(1.0)
+        );
+    }
+
+    #[test]
+    fn reprice_funding_cost_uses_repo_curve_when_configured() {
+        use finstack_quant_core::types::CurveId;
+        use finstack_quant_valuations::instruments::Bond;
+
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 16);
+        let mut bond = Bond::fixed(
+            "FUND-BOND",
+            Money::new(1_000_000.0, Currency::USD),
+            0.05,
+            date!(2025 - 01 - 15),
+            date!(2030 - 01 - 15),
+            "USD-OIS",
+        )
+        .expect("bond");
+        bond.funding_curve_id = Some(CurveId::new("USD-REPO"));
+
+        let ois = DiscountCurve::builder("USD-OIS")
+            .base_date(as_of_t0)
+            .knots([(0.0, 1.0), (10.0, (-0.05_f64 * 10.0).exp())])
+            .interp(InterpStyle::LogLinear)
+            .build()
+            .expect("ois");
+        let repo = DiscountCurve::builder("USD-REPO")
+            .base_date(as_of_t0)
+            .knots([(0.0, 1.0), (10.0, (-0.03_f64 * 10.0).exp())])
+            .interp(InterpStyle::LogLinear)
+            .build()
+            .expect("repo");
+        let market = MarketContext::new().insert(ois).insert(repo);
+
+        let mut warnings = Vec::new();
+        let funding = reprice_funding_cost(
+            &bond,
+            &market,
+            as_of_t0,
+            as_of_t1,
+            Currency::USD,
+            &mut warnings,
+        )
+        .expect("funding cost");
+        assert!(
+            funding.amount() > 0.0,
+            "repo funding cost must be positive, got {}",
+            funding.amount()
+        );
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
     }
 
     #[test]

@@ -14,8 +14,11 @@
 //! restore-and-reprice technique the parallel methodology uses), so cross-
 //! currency FX P&L is attributed instead of falling into the residual.
 //!
-//! Taylor does not compute market-scalar (spot/dividend/index) sensitivities;
-//! any P&L from those factors remains in the residual.
+//! Inflation curves, base-correlation curves, market scalars (spots, dividends,
+//! published inflation indices, commodity price curves), and model-parameter
+//! snapshots use the same restore-and-reprice isolation. The isolated P&L of
+//! each family already includes that family's higher-order effects, so they
+//! do not take a separate `include_gamma` term.
 //!
 //! This is complementary to the waterfall (full-reval) approach: it produces a
 //! factor-level explained/unexplained decomposition without sequential market
@@ -24,6 +27,7 @@
 use super::factors::{MarketRestoreFlags, MarketSnapshot};
 use super::helpers::*;
 use super::metrics_based::extract_keyrate_cs01_per_curve;
+use super::model_params;
 use super::types::*;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::bumps::{BumpSpec, MarketBump};
@@ -35,6 +39,7 @@ use finstack_quant_core::market_data::diff::{
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::Result;
+use finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::bump_surface_vol_absolute;
 use rayon::prelude::*;
@@ -183,6 +188,10 @@ fn record_taylor_factor_result(
 /// | Credit      | $ per basis point       | basis points         |
 /// | Vol         | $ per vol point         | vol points (= 1 % of absolute vol) |
 /// | FX          | $ (explained directly)  | 1.0 (dimensionless)  |
+/// | Inflation   | $ (explained directly)  | 1.0 (dimensionless)  |
+/// | Correlations| $ (explained directly)  | 1.0 (dimensionless)  |
+/// | Scalars     | $ (explained directly)  | 1.0 (dimensionless)  |
+/// | Model params| $ (explained directly)  | 1.0 (dimensionless)  |
 ///
 /// For vol factors `sensitivity` is $ per vol point and `market_move` is in
 /// vol points (percentage points of absolute vol), matching the convention of
@@ -301,6 +310,7 @@ impl TaylorExecution {
 /// # Returns
 ///
 /// `TaylorAttributionResult` with per-factor decomposition and residual.
+#[allow(clippy::too_many_arguments)]
 fn compute_taylor_result(
     instrument: &Arc<dyn Instrument>,
     market_t0: &MarketContext,
@@ -309,15 +319,24 @@ fn compute_taylor_result(
     as_of_t1: Date,
     config: &TaylorAttributionConfig,
     execution: TaylorExecution,
+    model_params_t0: Option<&ModelParamsSnapshot>,
 ) -> Result<TaylorAttributionResult> {
     config.validate()?;
     validate_attribution_period(as_of_t0, as_of_t1)?;
     let execution_policy = execution.policy;
+    // Match parallel/waterfall: T₀ value uses the opening model-parameter
+    // snapshot when the caller supplied one, so a param move is inside
+    // `actual_pnl` rather than only the isolated factor.
+    let instrument_t0 = if let Some(params) = model_params_t0 {
+        model_params::with_model_params(instrument, params)?
+    } else {
+        Arc::clone(instrument)
+    };
     let (pv_t0, pv_t1) = if let Some(endpoints) = execution.prepared_endpoints {
         endpoints
     } else {
         (
-            reprice_instrument(instrument, market_t0, as_of_t0)?,
+            reprice_instrument(&instrument_t0, market_t0, as_of_t0)?,
             reprice_instrument(instrument, market_t1, as_of_t1)?,
         )
     };
@@ -564,11 +583,78 @@ fn compute_taylor_result(
         }
     }
 
+    // Restore-and-reprice families (same isolation as FX / parallel):
+    // inflation curves, base correlations, and market scalars. The isolated
+    // P&L already includes that family's higher-order effects.
+    record_restored_family_factor(
+        "inflation",
+        "Inflation",
+        MarketRestoreFlags::INFLATION,
+        instrument,
+        market_t0,
+        market_t1,
+        as_of_t1,
+        pv_t1,
+        &mut factors,
+        &mut total_explained,
+        &mut num_repricings,
+        &mut notes,
+        &mut result_invalid,
+    );
+    record_restored_family_factor(
+        "correlations",
+        "Correlations",
+        MarketRestoreFlags::CORRELATION,
+        instrument,
+        market_t0,
+        market_t1,
+        as_of_t1,
+        pv_t1,
+        &mut factors,
+        &mut total_explained,
+        &mut num_repricings,
+        &mut notes,
+        &mut result_invalid,
+    );
+    record_restored_family_factor(
+        "market-scalar",
+        "MarketScalars",
+        MarketRestoreFlags::SCALARS,
+        instrument,
+        market_t0,
+        market_t1,
+        as_of_t1,
+        pv_t1,
+        &mut factors,
+        &mut total_explained,
+        &mut num_repricings,
+        &mut notes,
+        &mut result_invalid,
+    );
+
+    // Model-parameter snapshot: reprice T1 market with T0 params restored.
+    let params_t0 = model_params_t0
+        .cloned()
+        .unwrap_or_else(|| model_params::extract_model_params(instrument));
+    if !matches!(params_t0, ModelParamsSnapshot::None) {
+        record_taylor_factor_result(
+            "model-parameter",
+            &CurveId::new("ModelParameters"),
+            compute_model_params_factor(instrument, market_t1, as_of_t1, pv_t1, &params_t0),
+            &mut factors,
+            &mut total_explained,
+            &mut num_repricings,
+            1,
+            &mut notes,
+            &mut result_invalid,
+        );
+    }
+
     // Theta (time decay): reprice at T1 date with T0 market. The outcome
     // also carries `coupon_income` so `attribute_pnl_taylor` can split theta
     // into PV-only and coupon components without re-collecting cashflows.
     let mut theta_coupon_income: Option<f64> = None;
-    match compute_theta_factor(instrument, market_t0, as_of_t0, as_of_t1, pv_t0) {
+    match compute_theta_factor(&instrument_t0, market_t0, as_of_t0, as_of_t1, pv_t0) {
         Ok(outcome) => {
             let ThetaFactorOutcome {
                 factor: result,
@@ -628,19 +714,19 @@ fn compute_taylor_result(
 ///
 /// # Factor coverage
 ///
-/// Taylor attribution covers **rates, credit, vol, FX-exposure and theta**.
+/// Taylor attribution covers **rates, credit, vol, FX-exposure, inflation,
+/// correlations, market scalars, model parameters, and theta**.
 /// [`attribute_pnl_taylor`] computes bump-and-reprice sensitivities for discount
-/// curves, forward curves, hazard curves and vol surfaces, an FX-exposure factor
-/// (T₀ FX matrix restored vs T₁ — mirroring the parallel methodology), and
+/// curves, forward curves, hazard curves and vol surfaces, restore-and-reprice
+/// isolation for FX, inflation curves, base-correlation curves, and market
+/// scalars (the same `MarketRestoreFlags` families the parallel methodology
+/// uses), T₀-vs-T₁ model-parameter snapshot P&L via [`crate::extract_model_params`]
+/// / [`crate::with_model_params`], and
 /// theta. Each factor maps into its dedicated `PnlAttribution` bucket here, so
-/// an FX-rate move on a cross-currency instrument lands in `fx_pnl` rather than
-/// silently inflating `residual`.
+/// an FX-rate, spot, inflation, correlation, or model-parameter move lands in
+/// its named field rather than silently inflating `residual`.
 ///
-/// Taylor does **not** compute market-scalar (spot / dividend / index)
-/// sensitivities; for instruments whose pricing depends on those, the
-/// corresponding P&L remains in `residual` (use the parallel methodology in
-/// `attribution/parallel.rs` when scalar attribution is required). FX
-/// *translation* into a non-native reporting currency is likewise out of scope
+/// FX *translation* into a non-native reporting currency is out of scope
 /// for this standalone path, which reports in the instrument's pricing currency.
 ///
 /// The result uses bump-and-reprice first-order factor P&Ls and any configured
@@ -671,9 +757,7 @@ fn compute_taylor_result(
 /// Returns an error if the base instrument repricing, required market lookup,
 /// FX conversion used to calculate total P&L, or result construction fails.
 /// It can also return an error when factor accumulation detects an invalid
-/// currency or non-finite monetary amount. It does not attribute spot,
-/// dividend, or index moves; those appear in the residual rather than causing
-/// an error.
+/// currency or non-finite monetary amount.
 pub fn attribute_pnl_taylor(
     instrument: &Arc<dyn Instrument>,
     market_t0: &MarketContext,
@@ -691,9 +775,58 @@ pub fn attribute_pnl_taylor(
         as_of_t1,
         config,
         TaylorExecution::standalone(execution_policy),
+        None,
     )
 }
 
+/// Taylor attribution with an explicit T₀ model-parameter snapshot.
+///
+/// When `model_params_t0` is `None`, parameters are extracted from
+/// `instrument` (typically the T₁ instrument), so model-parameter P&L is
+/// zero unless the caller supplies a distinct opening snapshot.
+///
+/// # Arguments
+///
+/// * `instrument` - Instrument to reprice and whose risk factors are
+///   approximated by first- and optional second-order terms.
+/// * `market_t0` - Opening market state used for the base value and factor
+///   changes.
+/// * `market_t1` - Closing market state used for the repriced value and bump
+///   contexts.
+/// * `as_of_t0` - Opening valuation date used for the base repricing.
+/// * `as_of_t1` - Closing valuation date used for closing and bumped repricing.
+/// * `config` - Taylor attribution policy, including bump sizes and optional
+///   gamma treatment for the sensitivity × move families.
+/// * `execution_policy` - Sequential or parallel execution policy recorded in
+///   result metadata and used for independent factor work.
+/// * `model_params_t0` - Optional opening model-parameter snapshot. When
+///   `Some`, the T₁ instrument is repriced with these parameters restored so
+///   the isolated P&L lands in `model_params_pnl`. When `None`, parameters
+///   are taken from `instrument`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn attribute_pnl_taylor_with_model_params(
+    instrument: &Arc<dyn Instrument>,
+    market_t0: &MarketContext,
+    market_t1: &MarketContext,
+    as_of_t0: Date,
+    as_of_t1: Date,
+    config: &TaylorAttributionConfig,
+    execution_policy: ExecutionPolicy,
+    model_params_t0: Option<&ModelParamsSnapshot>,
+) -> Result<PnlAttribution> {
+    attribute_pnl_taylor_impl(
+        instrument,
+        market_t0,
+        market_t1,
+        as_of_t0,
+        as_of_t1,
+        config,
+        TaylorExecution::standalone(execution_policy),
+        model_params_t0,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
 fn attribute_pnl_taylor_impl(
     instrument: &Arc<dyn Instrument>,
     market_t0: &MarketContext,
@@ -702,9 +835,17 @@ fn attribute_pnl_taylor_impl(
     as_of_t1: Date,
     config: &TaylorAttributionConfig,
     execution: TaylorExecution,
+    model_params_t0: Option<&ModelParamsSnapshot>,
 ) -> Result<PnlAttribution> {
     let taylor = compute_taylor_result(
-        instrument, market_t0, market_t1, as_of_t0, as_of_t1, config, execution,
+        instrument,
+        market_t0,
+        market_t1,
+        as_of_t0,
+        as_of_t1,
+        config,
+        execution,
+        model_params_t0,
     )?;
 
     let total_pnl = compute_pnl_with_fx(
@@ -774,6 +915,18 @@ fn attribute_pnl_taylor_impl(
                 ccy,
                 "Taylor FX-exposure P&L (T0 FX matrix restored vs T1)",
             );
+        } else if factor.factor_name == "Inflation" {
+            attribution.inflation_curves_pnl =
+                attribution.inflation_curves_pnl.checked_add(factor_money)?;
+        } else if factor.factor_name == "Correlations" {
+            attribution.correlations_pnl =
+                attribution.correlations_pnl.checked_add(factor_money)?;
+        } else if factor.factor_name == "MarketScalars" {
+            attribution.market_scalars_pnl =
+                attribution.market_scalars_pnl.checked_add(factor_money)?;
+        } else if factor.factor_name == "ModelParameters" {
+            attribution.model_params_pnl =
+                attribution.model_params_pnl.checked_add(factor_money)?;
         } else if factor.factor_name == "Theta" {
             // Taylor theta already includes cashflows from compute_theta_factor.
             // Re-use the coupon income that was captured during that compute
@@ -794,6 +947,7 @@ fn attribute_pnl_taylor_impl(
                 cash_paid: ci,
                 delta_accrued: None,
                 flat_window_diff: None,
+                funding_cost: None,
                 warnings: Vec::new(),
                 invalid: false,
             };
@@ -828,9 +982,10 @@ fn attribute_pnl_taylor_impl(
         taylor.num_repricings,
     ));
     attribution.meta.notes.push(
-        "Taylor coverage: rates/credit/vol/FX-exposure/theta. Market-scalar \
-         (spot/dividend/index) sensitivities are not computed; their P&L (if \
-         any) remains in residual."
+        "Taylor coverage: rates/credit/vol/FX-exposure/inflation/correlations/\
+         market-scalars/model-parameters/theta. Restore-and-reprice families \
+         (FX, inflation, correlations, scalars, model parameters) isolate the \
+         full family P&L; rates/credit/vol remain sensitivity × observed move."
             .to_string(),
     );
 
@@ -862,6 +1017,7 @@ pub(crate) fn attribute_pnl_taylor_prepared(
         as_of_t1,
         config,
         TaylorExecution::prepared(execution_policy, val_t0, val_t1),
+        None,
     )
 }
 
@@ -1385,6 +1541,112 @@ fn compute_fx_factor(
     })
 }
 
+/// True when a snapshot extracted with `flags` actually holds that family.
+fn snapshot_has_family(snapshot: &MarketSnapshot, flags: MarketRestoreFlags) -> bool {
+    if flags.contains(MarketRestoreFlags::INFLATION) {
+        return !snapshot.inflation_curves.is_empty();
+    }
+    if flags.contains(MarketRestoreFlags::CORRELATION) {
+        return !snapshot.base_correlation_curves.is_empty();
+    }
+    if flags.contains(MarketRestoreFlags::SCALARS) {
+        return !snapshot.prices.is_empty()
+            || !snapshot.series.is_empty()
+            || !snapshot.inflation_indices.is_empty()
+            || !snapshot.dividends.is_empty()
+            || !snapshot.price_curves.is_empty();
+    }
+    false
+}
+
+/// Isolate one restore-flag family by splicing the T₀ snapshot into the T₁
+/// market, matching [`compute_fx_factor`] and the parallel methodology.
+fn compute_restored_family_factor(
+    instrument: &Arc<dyn Instrument>,
+    market_t0: &MarketContext,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+    pv_t1: Money,
+    flags: MarketRestoreFlags,
+    factor_name: &str,
+) -> Result<TaylorFactorResult> {
+    let snapshot = MarketSnapshot::extract(market_t0, flags);
+    let market_with_t0 = MarketSnapshot::restore_market(market_t1, &snapshot, flags);
+    let pv_with_t0 = reprice_instrument(instrument, &market_with_t0, as_of_t1)?;
+    let explained = pv_t1.amount() - pv_with_t0.amount();
+    Ok(TaylorFactorResult {
+        factor_name: factor_name.to_string(),
+        sensitivity: explained,
+        market_move: 1.0,
+        explained_pnl: explained,
+        gamma_pnl: None,
+    })
+}
+
+/// Run a restore-and-reprice family when either market carries that family.
+#[allow(clippy::too_many_arguments)]
+fn record_restored_family_factor(
+    factor_kind: &str,
+    factor_name: &str,
+    flags: MarketRestoreFlags,
+    instrument: &Arc<dyn Instrument>,
+    market_t0: &MarketContext,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+    pv_t1: Money,
+    factors: &mut Vec<TaylorFactorResult>,
+    total_explained: &mut finstack_quant_core::math::NeumaierAccumulator,
+    num_repricings: &mut usize,
+    notes: &mut Vec<String>,
+    result_invalid: &mut bool,
+) {
+    let t0_snap = MarketSnapshot::extract(market_t0, flags);
+    let t1_snap = MarketSnapshot::extract(market_t1, flags);
+    if !snapshot_has_family(&t0_snap, flags) && !snapshot_has_family(&t1_snap, flags) {
+        return;
+    }
+    record_taylor_factor_result(
+        factor_kind,
+        &CurveId::new(factor_name),
+        compute_restored_family_factor(
+            instrument,
+            market_t0,
+            market_t1,
+            as_of_t1,
+            pv_t1,
+            flags,
+            factor_name,
+        ),
+        factors,
+        total_explained,
+        num_repricings,
+        1,
+        notes,
+        result_invalid,
+    );
+}
+
+/// Isolate T₀ vs T₁ model-parameter P&L by repricing the T₁ market with the
+/// opening snapshot restored onto the instrument.
+fn compute_model_params_factor(
+    instrument: &Arc<dyn Instrument>,
+    market_t1: &MarketContext,
+    as_of_t1: Date,
+    pv_t1: Money,
+    params_t0: &ModelParamsSnapshot,
+) -> Result<TaylorFactorResult> {
+    let instrument_t0 = model_params::with_model_params(instrument, params_t0)?;
+    let pv_with_t0 = reprice_instrument(&instrument_t0, market_t1, as_of_t1)?;
+    let explained = pv_t1.amount() - pv_with_t0.amount();
+    Ok(TaylorFactorResult {
+        factor_name: "ModelParameters".to_string(),
+        sensitivity: explained,
+        market_move: 1.0,
+        explained_pnl: explained,
+        gamma_pnl: None,
+    })
+}
+
 /// Coupon income for the theta period — surfaced separately so
 /// `attribute_pnl_taylor` can re-use it when splitting `theta_pnl` into the
 /// pure PV move and the realized cashflow component (instead of calling
@@ -1539,6 +1801,7 @@ mod tests {
             as_of_t1,
             &config,
             TaylorExecution::standalone(ExecutionPolicy::Parallel),
+            None,
         )
         .expect("taylor attribution should succeed for simple instrument");
 
@@ -1617,6 +1880,7 @@ mod tests {
             as_of_t1,
             &config,
             TaylorExecution::standalone(ExecutionPolicy::Parallel),
+            None,
         )
         .expect("taylor attribution should succeed");
 
@@ -1794,6 +2058,7 @@ mod tests {
             as_of_t1,
             &config,
             TaylorExecution::standalone(ExecutionPolicy::Parallel),
+            None,
         )
         .expect("taylor attribution should succeed");
         assert!(
@@ -1902,6 +2167,22 @@ mod tests {
         /// EUR notional converted at the market FX rate when an FX matrix is
         /// present; face value in USD otherwise.
         FxOptional { eur_notional: f64 },
+        /// `scale × price.amount()` from a market scalar price.
+        Spot { id: &'static str, scale: f64 },
+        /// `scale × cpi(tenor)` from an inflation curve.
+        InflationCpi {
+            curve: &'static str,
+            tenor: f64,
+            scale: f64,
+        },
+        /// `scale × correlation(detachment)` from a base-correlation curve.
+        Correlation {
+            curve: &'static str,
+            detachment: f64,
+            scale: f64,
+        },
+        /// `scale × model_cpr` from the instrument's model-parameter snapshot.
+        ModelCpr { scale: f64 },
         /// Market-independent constant USD value.
         Constant(f64),
     }
@@ -1920,6 +2201,8 @@ mod tests {
         keyrate_measures: Vec<(String, f64)>,
         /// Optional fixed coupon `(date, USD amount)` for the theta window.
         coupon: Option<(Date, f64)>,
+        /// Optional CPR used by [`MockPayoff::ModelCpr`] and the model-param hooks.
+        model_cpr: Option<f64>,
     }
 
     impl MockInstrument {
@@ -1934,6 +2217,7 @@ mod tests {
                 expiry: None,
                 keyrate_measures: Vec::new(),
                 coupon: None,
+                model_cpr: None,
             }
         }
     }
@@ -2009,6 +2293,45 @@ mod tests {
             self.expiry
         }
 
+        fn model_params_snapshot(
+            &self,
+        ) -> finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot {
+            match self.model_cpr {
+                Some(cpr) => {
+                    use finstack_quant_cashflows::builder::{
+                        DefaultModelSpec, PrepaymentModelSpec, RecoveryModelSpec,
+                    };
+                    ModelParamsSnapshot::StructuredCredit {
+                        prepayment_spec: PrepaymentModelSpec::constant_cpr(cpr),
+                        default_spec: DefaultModelSpec::constant_cdr(0.0),
+                        recovery_spec: RecoveryModelSpec::with_lag(0.0, 0),
+                    }
+                }
+                None => ModelParamsSnapshot::None,
+            }
+        }
+
+        fn with_model_params(
+            &self,
+            params: &finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot,
+        ) -> Result<Box<dyn Instrument>> {
+            match params {
+                ModelParamsSnapshot::None => Ok(self.clone_box()),
+                ModelParamsSnapshot::StructuredCredit {
+                    prepayment_spec, ..
+                } => {
+                    let mut clone = self.clone();
+                    clone.model_cpr = Some(prepayment_spec.cpr);
+                    Ok(Box::new(clone))
+                }
+                ModelParamsSnapshot::Convertible { .. } => {
+                    Err(finstack_quant_core::Error::Validation(
+                        "MockInstrument does not accept convertible model parameters".to_string(),
+                    ))
+                }
+            }
+        }
+
         fn market_dependencies(
             &self,
         ) -> Result<finstack_quant_valuations::instruments::MarketDependencies> {
@@ -2065,6 +2388,37 @@ mod tests {
                     } else {
                         Ok(Money::new(*eur_notional, Currency::USD))
                     }
+                }
+                MockPayoff::Spot { id, scale } => {
+                    let price = match market.get_price(*id)? {
+                        finstack_quant_core::market_data::scalars::MarketScalar::Price(money) => {
+                            money.amount()
+                        }
+                        finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
+                    };
+                    Ok(Money::new(scale * price, Currency::USD))
+                }
+                MockPayoff::InflationCpi {
+                    curve,
+                    tenor,
+                    scale,
+                } => {
+                    let cpi = market.get_inflation_curve(*curve)?.cpi(*tenor);
+                    Ok(Money::new(scale * cpi, Currency::USD))
+                }
+                MockPayoff::Correlation {
+                    curve,
+                    detachment,
+                    scale,
+                } => {
+                    let corr = market
+                        .get_base_correlation(*curve)?
+                        .correlation(*detachment);
+                    Ok(Money::new(scale * corr, Currency::USD))
+                }
+                MockPayoff::ModelCpr { scale } => {
+                    let cpr = self.model_cpr.unwrap_or(0.0);
+                    Ok(Money::new(scale * cpr, Currency::USD))
                 }
                 MockPayoff::Constant(value) => Ok(Money::new(*value, Currency::USD)),
             }
@@ -2173,6 +2527,7 @@ mod tests {
             as_of_t1,
             &config,
             TaylorExecution::standalone(ExecutionPolicy::Serial),
+            None,
         )
         .expect("taylor attribution should succeed");
 
@@ -2228,6 +2583,7 @@ mod tests {
             as_of_t1,
             &config,
             TaylorExecution::standalone(ExecutionPolicy::Serial),
+            None,
         )
         .expect("taylor attribution should succeed");
 
@@ -2288,6 +2644,7 @@ mod tests {
             as_of_t1,
             &config,
             TaylorExecution::standalone(ExecutionPolicy::Serial),
+            None,
         )
         .expect("taylor attribution should succeed");
 
@@ -2350,6 +2707,7 @@ mod tests {
             as_of_t1,
             &config,
             TaylorExecution::standalone(ExecutionPolicy::Serial),
+            None,
         )
         .expect("taylor attribution should succeed");
 
@@ -2413,6 +2771,7 @@ mod tests {
             as_of_t1,
             &config,
             TaylorExecution::standalone(ExecutionPolicy::Serial),
+            None,
         )
         .expect("taylor attribution should succeed");
 
@@ -2581,6 +2940,7 @@ mod tests {
             as_of_t1,
             &TaylorAttributionConfig::default(),
             TaylorExecution::standalone(ExecutionPolicy::Serial),
+            None,
         )
         .expect("taylor attribution should succeed");
 
@@ -2646,6 +3006,7 @@ mod tests {
             as_of_t1,
             &TaylorAttributionConfig::default(),
             TaylorExecution::standalone(ExecutionPolicy::Serial),
+            None,
         )
         .expect("taylor attribution should succeed");
 
@@ -2658,6 +3019,189 @@ mod tests {
             (fx.explained_pnl - 200_000.0).abs() < 1e-6,
             "Fx factor must capture the T1 FX-driven P&L, got {}",
             fx.explained_pnl
+        );
+    }
+
+    #[test]
+    fn taylor_buckets_spot_move_into_market_scalars_pnl() {
+        use finstack_quant_core::market_data::scalars::MarketScalar;
+
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 16);
+        let instrument: Arc<dyn Instrument> = Arc::new(MockInstrument::new(
+            "SPOT-001",
+            MockPayoff::Spot {
+                id: "AAPL",
+                scale: 100.0,
+            },
+        ));
+        let market_t0 = MarketContext::new().insert_price(
+            "AAPL",
+            MarketScalar::Price(Money::new(180.0, Currency::USD)),
+        );
+        let market_t1 = MarketContext::new().insert_price(
+            "AAPL",
+            MarketScalar::Price(Money::new(185.0, Currency::USD)),
+        );
+
+        let attribution = attribute_pnl_taylor(
+            &instrument,
+            &market_t0,
+            &market_t1,
+            as_of_t0,
+            as_of_t1,
+            &TaylorAttributionConfig::default(),
+            ExecutionPolicy::Serial,
+        )
+        .expect("taylor attribution should succeed");
+
+        // 100 shares × $5 spot move = $500, previously dumped into residual.
+        assert!(
+            (attribution.market_scalars_pnl.amount() - 500.0).abs() < 1e-6,
+            "market_scalars_pnl = {}",
+            attribution.market_scalars_pnl
+        );
+        assert!(
+            attribution.residual.amount().abs() < 1e-6,
+            "residual should shrink once the spot move is attributed, got {}",
+            attribution.residual
+        );
+    }
+
+    #[test]
+    fn taylor_buckets_inflation_curve_move_into_inflation_pnl() {
+        use finstack_quant_core::market_data::term_structures::InflationCurve;
+
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 16);
+        let infl = |cpi_5y| {
+            InflationCurve::builder("US-CPI")
+                .base_date(as_of_t0)
+                .base_cpi(300.0)
+                .knots([(0.0, 300.0), (5.0, cpi_5y)])
+                .build()
+                .expect("inflation curve")
+        };
+        let instrument: Arc<dyn Instrument> = Arc::new(MockInstrument::new(
+            "INFL-001",
+            MockPayoff::InflationCpi {
+                curve: "US-CPI",
+                tenor: 5.0,
+                scale: 1_000.0,
+            },
+        ));
+        let market_t0 = MarketContext::new().insert(infl(325.0));
+        let market_t1 = MarketContext::new().insert(infl(350.0));
+
+        let attribution = attribute_pnl_taylor(
+            &instrument,
+            &market_t0,
+            &market_t1,
+            as_of_t0,
+            as_of_t1,
+            &TaylorAttributionConfig::default(),
+            ExecutionPolicy::Serial,
+        )
+        .expect("taylor attribution should succeed");
+
+        assert!(
+            (attribution.inflation_curves_pnl.amount() - 25_000.0).abs() < 1e-6,
+            "inflation_curves_pnl = {}",
+            attribution.inflation_curves_pnl
+        );
+        assert!(
+            attribution.residual.amount().abs() < 1e-6,
+            "residual should shrink once the inflation move is attributed, got {}",
+            attribution.residual
+        );
+    }
+
+    #[test]
+    fn taylor_buckets_correlation_move_into_correlations_pnl() {
+        use finstack_quant_core::market_data::term_structures::BaseCorrelationCurve;
+
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 16);
+        let corr = |mid| {
+            BaseCorrelationCurve::builder("CDX")
+                .knots(vec![(3.0, 0.20), (7.0, mid), (10.0, 0.60)])
+                .build()
+                .expect("base correlation curve")
+        };
+        let instrument: Arc<dyn Instrument> = Arc::new(MockInstrument::new(
+            "CORR-001",
+            MockPayoff::Correlation {
+                curve: "CDX",
+                detachment: 7.0,
+                scale: 1_000_000.0,
+            },
+        ));
+        let market_t0 = MarketContext::new().insert(corr(0.40));
+        let market_t1 = MarketContext::new().insert(corr(0.50));
+
+        let attribution = attribute_pnl_taylor(
+            &instrument,
+            &market_t0,
+            &market_t1,
+            as_of_t0,
+            as_of_t1,
+            &TaylorAttributionConfig::default(),
+            ExecutionPolicy::Serial,
+        )
+        .expect("taylor attribution should succeed");
+
+        assert!(
+            (attribution.correlations_pnl.amount() - 100_000.0).abs() < 1e-6,
+            "correlations_pnl = {}",
+            attribution.correlations_pnl
+        );
+        assert!(
+            attribution.residual.amount().abs() < 1e-6,
+            "residual should shrink once the correlation move is attributed, got {}",
+            attribution.residual
+        );
+    }
+
+    #[test]
+    fn taylor_buckets_model_param_move_into_model_params_pnl() {
+        use finstack_quant_cashflows::builder::{
+            DefaultModelSpec, PrepaymentModelSpec, RecoveryModelSpec,
+        };
+
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 16);
+        let mut instrument =
+            MockInstrument::new("MODEL-001", MockPayoff::ModelCpr { scale: 1_000_000.0 });
+        instrument.model_cpr = Some(0.08);
+        let instrument: Arc<dyn Instrument> = Arc::new(instrument);
+        let params_t0 = ModelParamsSnapshot::StructuredCredit {
+            prepayment_spec: PrepaymentModelSpec::constant_cpr(0.06),
+            default_spec: DefaultModelSpec::constant_cdr(0.0),
+            recovery_spec: RecoveryModelSpec::with_lag(0.0, 0),
+        };
+
+        let attribution = attribute_pnl_taylor_with_model_params(
+            &instrument,
+            &MarketContext::new(),
+            &MarketContext::new(),
+            as_of_t0,
+            as_of_t1,
+            &TaylorAttributionConfig::default(),
+            ExecutionPolicy::Serial,
+            Some(&params_t0),
+        )
+        .expect("taylor attribution should succeed");
+
+        // scale × (0.08 − 0.06) = 20_000, previously residual.
+        assert!(
+            (attribution.model_params_pnl.amount() - 20_000.0).abs() < 1e-6,
+            "model_params_pnl = {}",
+            attribution.model_params_pnl
+        );
+        assert!(
+            attribution.residual.amount().abs() < 1e-6,
+            "residual should shrink once the model-param move is attributed, got {}",
+            attribution.residual
         );
     }
 }

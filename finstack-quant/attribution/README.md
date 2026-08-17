@@ -18,7 +18,7 @@ repricing cost and operational moving parts.
 | Linear       | [`attribute_pnl_metrics_based`](src/metrics_based/)      | Linear (and optional second-order) approximation from precomputed metrics. No extra repricing. |
 | Parallel     | [`attribute_pnl_parallel`](src/parallel.rs)                | Isolate one factor at a time (T₀ for that factor, T₁ elsewhere). Residual carries cross-effects. |
 | Waterfall    | [`attribute_pnl_waterfall`](src/waterfall.rs)              | Apply factors in order; per-factor P&Ls sum to total P&L up to tolerance. Order matters.       |
-| Taylor       | [`attribute_pnl_taylor`](src/taylor.rs)                    | First- and optional second-order sensitivity expansion from bump-and-reprice Greeks.           |
+| Taylor       | [`attribute_pnl_taylor`](src/taylor.rs)                    | First- and optional second-order sensitivity expansion from bump-and-reprice Greeks; FX, inflation, correlations, scalars, and model parameters are isolated by restore-and-reprice. |
 
 `AttributionMethod` selects among the four decomposition methods when
 dispatching through a spec: `Parallel` (the `Default`),
@@ -193,9 +193,10 @@ rustdoc.
   nested thread-pool contention.
 - Taylor attribution uses central differences by default; bump sizes are
   configurable via `TaylorAttributionConfig`.
-- Strict mode (`AttributionConfig::strict_validation = true`) propagates per-factor
-  pricing errors; otherwise they are logged via `tracing` and the factor's P&L
-  is set to zero.
+- Strict mode is the spec/execution default (`AttributionConfig::strict_validation`
+  omitted or `true`): per-factor pricing errors propagate so official reports
+  fail closed. Set `strict_validation = false` only for diagnostic runs; those
+  log the failure via `tracing` and zero the factor into residual.
 - Output rounding follows `FinstackConfig::rounding`; `AttributionConfig::rounding_scale`
   overrides the per-currency scale for a single run.
 

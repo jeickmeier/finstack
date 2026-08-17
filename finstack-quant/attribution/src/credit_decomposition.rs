@@ -487,12 +487,23 @@ impl AttributionSpec {
             self.credit_factor_detail_options.include_per_issuer_adder,
         );
 
-        // Rates carry total: Σ rates_parts + pull_to_par rates share −
-        // funding_cost, so `rates_carry_total + credit_carry_total ≡
-        // carry_detail.total` (coupon + pull_to_par + roll − funding) exactly.
+        // Rates carry total: Σ rates_parts + pull_to_par rates share, minus
+        // funding only when `total` is already net of financing (metrics
+        // `CarryTotal`). On the reprice path funding is an overlay and
+        // `coupon + ptp + roll = total`, so subtracting it here would break
+        // `rates_carry_total + credit_carry_total ≡ carry_detail.total`.
         let funding_cost = carry_detail.funding_cost.map(|m| m.amount()).unwrap_or(0.0);
+        let price_carry = coupon.amount() + ptp_amount + roll.map(|m| m.amount()).unwrap_or(0.0);
+        let total = carry_detail.total.amount();
+        let funding_netted_in_total = funding_cost.abs() > 1e-12
+            && (price_carry - funding_cost - total).abs() < (price_carry - total).abs() + 1e-8;
+        let funding_in_rates = if funding_netted_in_total {
+            funding_cost
+        } else {
+            0.0
+        };
         let rates_carry_total = Money::new(
-            coupon_rates.amount() + roll_rates.amount() + ptp_rates_amt - funding_cost,
+            coupon_rates.amount() + roll_rates.amount() + ptp_rates_amt - funding_in_rates,
             ccy,
         );
 

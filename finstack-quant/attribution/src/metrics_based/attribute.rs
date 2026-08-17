@@ -148,31 +148,40 @@ pub fn attribute_pnl_metrics_based(
     // breach. Mirrors `apply_total_return_carry` on the reprice-based paths;
     // carry itself is NOT adjusted here because the metrics already carry the
     // cashflow component.
-    match collect_cashflows_in_period(
+    let realized_period_cash = match collect_cashflows_in_period(
         instrument.as_ref(),
         market_t0,
         as_of_t0,
         as_of_t1,
         val_t1.value.currency(),
     ) {
-        Ok(coupon_income) if coupon_income.abs() > 0.0 && coupon_income.is_finite() => {
-            attribution.total_pnl = attribution
-                .total_pnl
-                .checked_add(Money::new(coupon_income, val_t1.value.currency()))?;
+        Ok(coupon_income) if coupon_income.is_finite() => {
+            if coupon_income.abs() > 0.0 {
+                attribution.total_pnl = attribution
+                    .total_pnl
+                    .checked_add(Money::new(coupon_income, val_t1.value.currency()))?;
+            }
+            Money::new(coupon_income, val_t1.value.currency())
         }
-        Ok(_) => {}
+        Ok(_) => Money::new(0.0, val_t1.value.currency()),
         Err(e) => {
             attribution.meta.notes.push(format!(
                 "Total-return adjustment unavailable (cashflow collection failed: {e}); \
                  total_pnl is MTM-only for this period"
             ));
+            Money::new(0.0, val_t1.value.currency())
         }
-    }
+    };
 
     let inputs = AttributionInputs::new(
         instrument, market_t0, market_t1, val_t0, val_t1, as_of_t0, as_of_t1,
     )?;
-    super::carry::apply(&inputs, &mut attribution, &mut non_finite_detected);
+    super::carry::apply(
+        &inputs,
+        &mut attribution,
+        &mut non_finite_detected,
+        realized_period_cash,
+    )?;
     super::rates::apply(&inputs, &mut attribution, &mut non_finite_detected);
     super::credit::apply(&inputs, &mut attribution, &mut non_finite_detected);
     super::fx::apply(&inputs, &mut attribution, &mut non_finite_detected);
