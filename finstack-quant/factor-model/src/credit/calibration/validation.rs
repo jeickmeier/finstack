@@ -1,9 +1,12 @@
 use finstack_quant_core::types::IssuerId;
 use finstack_quant_core::{Error, Result};
 
-use super::config::{BetaShrinkage, CovarianceStrategy, CreditCalibrationConfig, VolModelChoice};
+use super::config::{
+    BetaShrinkage, BucketWeighting, CovarianceStrategy, CreditCalibrationConfig, VolModelChoice,
+};
 use super::inputs::CreditCalibrationInputs;
 use crate::credit::hierarchy::dimension_key;
+use crate::credit::units::validate_decimal_spread;
 
 pub(super) fn validation_err(msg: impl Into<String>) -> Error {
     Error::Validation(msg.into())
@@ -31,17 +34,6 @@ fn validate_non_negative_finite(label: impl std::fmt::Display, value: f64) -> Re
 }
 
 pub(super) fn validate_calibration_config(config: &CreditCalibrationConfig) -> Result<()> {
-    validate_finite(
-        "CreditCalibrator: annualization_factor",
-        config.annualization_factor,
-    )?;
-    if config.annualization_factor <= 0.0 {
-        return Err(validation_err(format!(
-            "CreditCalibrator: annualization_factor must be > 0.0, got {}",
-            config.annualization_factor
-        )));
-    }
-
     if let BetaShrinkage::TowardOne { alpha } = config.beta_shrinkage {
         validate_finite("CreditCalibrator: beta_shrinkage alpha", alpha)?;
         if !(0.0..=1.0).contains(&alpha) {
@@ -80,7 +72,10 @@ pub(super) fn validate_calibration_config(config: &CreditCalibrationConfig) -> R
     Ok(())
 }
 
-pub(super) fn validate_calibration_inputs(inputs: &CreditCalibrationInputs) -> Result<()> {
+pub(super) fn validate_calibration_inputs(
+    inputs: &CreditCalibrationInputs,
+    config: &CreditCalibrationConfig,
+) -> Result<()> {
     // Date grid must be strictly increasing (sorted, no duplicates): every
     // downstream step (differencing, as_of lookup, history alignment) assumes
     // it, and a shuffled or duplicated grid would silently corrupt returns.
@@ -93,6 +88,8 @@ pub(super) fn validate_calibration_inputs(inputs: &CreditCalibrationInputs) -> R
             )));
         }
     }
+
+    validate_regular_grid(&inputs.history_panel.dates, config.panel_frequency)?;
 
     // The anchor must be the panel end. An earlier as_of would let
     // post-as_of history leak into betas, vols, and correlations
@@ -148,7 +145,7 @@ pub(super) fn validate_calibration_inputs(inputs: &CreditCalibrationInputs) -> R
     }
 
     for (idx, value) in inputs.generic_factor.values.iter().copied().enumerate() {
-        validate_finite(
+        validate_decimal_spread(
             format!("CreditCalibrator: generic_factor.values[{idx}]"),
             value,
         )?;
@@ -156,20 +153,27 @@ pub(super) fn validate_calibration_inputs(inputs: &CreditCalibrationInputs) -> R
 
     for (issuer, series) in &inputs.history_panel.spreads {
         for (idx, value) in series.iter().copied().enumerate() {
-            if let Some(spread) = value {
-                validate_finite(
-                    format!(
-                        "CreditCalibrator: spread series for issuer {:?} at index {idx}",
-                        issuer.as_str()
-                    ),
-                    spread,
-                )?;
-            }
+            let Some(spread) = value else {
+                return Err(validation_err(format!(
+                    "CreditCalibrator: spread series for issuer {:?} is missing an \
+                     observation at index {idx} (date {:?}); the panel must be \
+                     fully aligned with no None entries",
+                    issuer.as_str(),
+                    inputs.history_panel.dates.get(idx)
+                )));
+            };
+            validate_decimal_spread(
+                format!(
+                    "CreditCalibrator: spread series for issuer {:?} at index {idx}",
+                    issuer.as_str()
+                ),
+                spread,
+            )?;
         }
     }
 
     for (issuer, spread) in &inputs.as_of_spreads {
-        validate_finite(
+        validate_decimal_spread(
             format!(
                 "CreditCalibrator: as_of_spreads for issuer {:?}",
                 issuer.as_str()
@@ -188,5 +192,71 @@ pub(super) fn validate_calibration_inputs(inputs: &CreditCalibrationInputs) -> R
         )?;
     }
 
+    match config.bucket_weighting {
+        BucketWeighting::Equal => {}
+        BucketWeighting::Dts => {
+            for issuer in inputs.history_panel.spreads.keys() {
+                let Some(sd) = inputs.spread_durations.get(issuer).copied() else {
+                    return Err(validation_err(format!(
+                        "CreditCalibrator: bucket_weighting is dts but issuer {:?} \
+                         has no spread_durations entry (years, must be > 0)",
+                        issuer.as_str()
+                    )));
+                };
+                validate_finite(
+                    format!(
+                        "CreditCalibrator: spread_duration for issuer {:?}",
+                        issuer.as_str()
+                    ),
+                    sd,
+                )?;
+                if sd <= 0.0 {
+                    return Err(validation_err(format!(
+                        "CreditCalibrator: spread_duration for issuer {:?} must be \
+                         > 0 years, got {sd}",
+                        issuer.as_str()
+                    )));
+                }
+            }
+            let extra: Vec<&str> = inputs
+                .spread_durations
+                .keys()
+                .filter(|id| !inputs.history_panel.spreads.contains_key(*id))
+                .map(IssuerId::as_str)
+                .collect();
+            if !extra.is_empty() {
+                return Err(validation_err(format!(
+                    "CreditCalibrator: spread_durations contains {} issuer(s) absent \
+                     from history_panel.spreads (first few: {:?})",
+                    extra.len(),
+                    &extra[..extra.len().min(5)]
+                )));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_regular_grid(
+    dates: &[finstack_quant_core::dates::Date],
+    frequency: super::config::PanelFrequency,
+) -> Result<()> {
+    if dates.is_empty() {
+        return Ok(());
+    }
+    let origin = dates[0];
+    for (idx, actual) in dates.iter().copied().enumerate() {
+        let steps = i32::try_from(idx).map_err(|_| {
+            validation_err("CreditCalibrator: history_panel.dates is longer than i32::MAX")
+        })?;
+        let expected = frequency.date_after(origin, steps)?;
+        if actual != expected {
+            return Err(validation_err(format!(
+                "CreditCalibrator: history_panel.dates is not a regular {frequency:?} \
+                 grid; at index {idx} expected {expected:?}, got {actual:?}"
+            )));
+        }
+    }
     Ok(())
 }

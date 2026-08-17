@@ -145,9 +145,21 @@ fn example_credit_inputs(
         .collect::<finstack_quant_core::Result<Vec<_>>>()?;
 
     let issuers = [
-        ("ACME", "ig", [120.0, 125.0, 118.0, 130.0, 127.0, 122.0]),
-        ("BOREAS", "ig", [95.0, 99.0, 92.0, 104.0, 101.0, 97.0]),
-        ("CYGNUS", "hy", [340.0, 355.0, 331.0, 372.0, 364.0, 349.0]),
+        (
+            "ACME",
+            "ig",
+            [0.0120, 0.0125, 0.0118, 0.0130, 0.0127, 0.0122],
+        ),
+        (
+            "BOREAS",
+            "ig",
+            [0.0095, 0.0099, 0.0092, 0.0104, 0.0101, 0.0097],
+        ),
+        (
+            "CYGNUS",
+            "hy",
+            [0.0340, 0.0355, 0.0331, 0.0372, 0.0364, 0.0349],
+        ),
     ];
 
     let mut spreads = BTreeMap::new();
@@ -176,11 +188,16 @@ fn example_credit_inputs(
                 name: "credit_pc1".to_string(),
                 series_id: "CREDIT-PC1".to_string(),
             },
-            values: vec![100.0, 104.0, 98.0, 109.0, 106.0, 102.0],
+            values: vec![0.0100, 0.0104, 0.0098, 0.0109, 0.0106, 0.0102],
         },
         as_of: dates[dates.len() - 1],
         as_of_spreads,
         idiosyncratic_overrides: BTreeMap::new(),
+        spread_durations: BTreeMap::from([
+            (finstack_quant_core::types::IssuerId::from("ACME"), 5.0),
+            (finstack_quant_core::types::IssuerId::from("BOREAS"), 5.0),
+            (finstack_quant_core::types::IssuerId::from("CYGNUS"), 4.0),
+        ]),
     })
 }
 
@@ -203,12 +220,32 @@ fn credit_factor_model_examples() -> finstack_quant_core::Result<Vec<serde_json:
     let config = crate::credit::calibration::CreditCalibrationConfig::default();
     let model = crate::credit::calibration::CreditCalibrator::new(config)
         .calibrate(example_credit_inputs()?)?;
-    let value = serde_json::to_value(&model).map_err(|error| {
-        finstack_quant_core::Error::Internal(format!(
-            "serialize credit factor model example: {error}"
-        ))
-    })?;
-    Ok(vec![value])
+    Ok(vec![json_fixed_point_value(&model)?])
+}
+
+/// Serialize `value` to canonical JSON, reload, and repeat until the bytes
+/// are a parse → emit fixed point so schema examples match the checked-in file.
+fn json_fixed_point_value<T>(value: &T) -> finstack_quant_core::Result<serde_json::Value>
+where
+    T: serde::Serialize + serde::de::DeserializeOwned,
+{
+    use finstack_quant_core::{to_canonical_bytes, Error};
+
+    let mut bytes = to_canonical_bytes(value)?;
+    for _ in 0..8 {
+        let reloaded: T = serde_json::from_slice(&bytes)
+            .map_err(|error| Error::Internal(format!("reload schema example JSON: {error}")))?;
+        let next = to_canonical_bytes(&reloaded)?;
+        if next == bytes {
+            return serde_json::from_slice(&bytes).map_err(|error| {
+                Error::Internal(format!("parse stabilized schema example: {error}"))
+            });
+        }
+        bytes = next;
+    }
+    Err(Error::Internal(
+        "schema example did not reach a JSON f64 fixed point".to_owned(),
+    ))
 }
 
 /// A canonical one-factor model: a parallel USD rates factor.

@@ -14,7 +14,7 @@
           "description": "Reference (name + series_id) embedded into the artifact."
         },
         "values": {
-          "description": "Generic factor values aligned with [`HistoryPanel::dates`].",
+          "description": "Generic factor values aligned with [`HistoryPanel::dates`].\n\nDecimal units (`0.01` = 100 bp), same convention as issuer spreads.",
           "items": {
             "format": "double",
             "type": "number"
@@ -49,7 +49,7 @@
     },
     "HistoryPanel": {
       "additionalProperties": false,
-      "description": "Sparse issuer-spread history aligned to a sorted date grid.\n\n`dates` is the sorted observation grid. `spreads[issuer]` has length\n`dates.len()`; entries are `Some(spread)` when the issuer was observed at\nthat date and `None` otherwise.",
+      "description": "Issuer-spread history aligned to a complete regular date grid.\n\n`dates` is the sorted observation grid. `spreads[issuer]` has length\n`dates.len()`. Every entry must be `Some(decimal_spread)` — gaps and\n`None` are rejected at calibration. Callers pass **decimal** spreads\n(`0.01` = 100 bp).",
       "properties": {
         "dates": {
           "description": "Observation dates (sorted ascending).",
@@ -69,7 +69,7 @@
             },
             "type": "array"
           },
-          "description": "Per-issuer spread series aligned with [`dates`][Self::dates].",
+          "description": "Per-issuer decimal spread series aligned with [`dates`][Self::dates].\n\nEach vector must be fully observed (`Some` at every date). Values are\ndecimal (`0.01` = 100 bp), converted to bp at calibrate entry.",
           "type": "object"
         }
       },
@@ -112,9 +112,9 @@
     {
       "as_of": "2024-06-01",
       "as_of_spreads": {
-        "ACME": 122.0,
-        "BOREAS": 97.0,
-        "CYGNUS": 349.0
+        "ACME": 0.0122,
+        "BOREAS": 0.0097,
+        "CYGNUS": 0.0349
       },
       "generic_factor": {
         "spec": {
@@ -122,12 +122,12 @@
           "series_id": "CREDIT-PC1"
         },
         "values": [
-          100.0,
-          104.0,
-          98.0,
-          109.0,
-          106.0,
-          102.0
+          0.01,
+          0.0104,
+          0.0098,
+          0.0109,
+          0.0106,
+          0.0102
         ]
       },
       "history_panel": {
@@ -141,28 +141,28 @@
         ],
         "spreads": {
           "ACME": [
-            120.0,
-            125.0,
-            118.0,
-            130.0,
-            127.0,
-            122.0
+            0.012,
+            0.0125,
+            0.0118,
+            0.013,
+            0.0127,
+            0.0122
           ],
           "BOREAS": [
-            95.0,
-            99.0,
-            92.0,
-            104.0,
-            101.0,
-            97.0
+            0.0095,
+            0.0099,
+            0.0092,
+            0.0104,
+            0.0101,
+            0.0097
           ],
           "CYGNUS": [
-            340.0,
-            355.0,
-            331.0,
-            372.0,
-            364.0,
-            349.0
+            0.034,
+            0.0355,
+            0.0331,
+            0.0372,
+            0.0364,
+            0.0349
           ]
         }
       },
@@ -179,6 +179,11 @@
             "rating": "hy"
           }
         }
+      },
+      "spread_durations": {
+        "ACME": 5.0,
+        "BOREAS": 5.0,
+        "CYGNUS": 4.0
       }
     }
   ],
@@ -192,7 +197,7 @@
         "format": "double",
         "type": "number"
       },
-      "description": "Issuer spreads at `as_of` (level space).",
+      "description": "Issuer spreads at `as_of` in decimal units (level space).",
       "type": "object"
     },
     "generic_factor": {
@@ -201,7 +206,7 @@
     },
     "history_panel": {
       "$ref": "#/$defs/HistoryPanel",
-      "description": "Sparse issuer-spread history."
+      "description": "Complete regular issuer-spread history in decimal units."
     },
     "idiosyncratic_overrides": {
       "additionalProperties": {
@@ -214,6 +219,15 @@
     "issuer_tags": {
       "$ref": "#/$defs/IssuerTagPanel",
       "description": "Per-issuer hierarchy tags (point-in-time)."
+    },
+    "spread_durations": {
+      "additionalProperties": {
+        "format": "double",
+        "type": "number"
+      },
+      "default": {},
+      "description": "Option-adjusted spread duration in **years** (`> 0`) per issuer.\n\nRequired when\n[`CreditCalibrationConfig::bucket_weighting`][super::config::CreditCalibrationConfig::bucket_weighting]\nis [`BucketWeighting::Dts`][super::config::BucketWeighting::Dts].\nCalibration weights use as-of DTS (`SD × spread_bp`). Persisted on\neach [`IssuerBetaRow`][crate::credit::hierarchy::IssuerBetaRow] so\ndecompose can rebuild DTS from the current spread.",
+      "type": "object"
     }
   },
   "required": [

@@ -31,6 +31,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::credit::hierarchy::{
     CreditFactorModel, HierarchyDimension, IssuerBetaRow, IssuerBetas, IssuerTags,
 };
+use crate::credit::units::{decimal_to_bp, validate_decimal_spread};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::types::IssuerId;
 
@@ -143,16 +144,28 @@ pub enum DecompositionError {
         /// Date supplied as `to` (the earlier of the two).
         to: Date,
     },
-    /// An observed spread or the generic factor value was not finite.
+    /// An observed spread or the generic factor value was not a finite
+    /// decimal in `(-0.5, 2.0)`.
     ///
-    /// A single NaN spread would otherwise silently poison every bucket mean
-    /// it participates in and propagate through the whole peel cascade.
-    #[error("non-finite input: {label} = {value}")]
-    NonFiniteInput {
-        /// Which input was non-finite (issuer id or "observed_generic").
+    /// Callers pass decimal spreads (`0.01` = 100 bp). Values such as
+    /// `100.0` are rejected as looking like basis points. A single NaN
+    /// would otherwise silently poison every bucket mean.
+    #[error("invalid decimal spread: {label} = {value}")]
+    InvalidDecimalSpread {
+        /// Which input was invalid (issuer id or "observed_generic").
         label: String,
         /// The offending value.
         value: f64,
+    },
+    /// DTS bucket weighting could not be formed for an observed issuer.
+    ///
+    /// Typical causes: a [`BucketWeighting::Dts`][crate::credit::calibration::BucketWeighting::Dts]
+    /// artifact is missing a persisted spread duration, or
+    /// `spread_duration × current_spread_bp` is not `> 0`.
+    #[error("invalid DTS weight: {reason}")]
+    InvalidDtsWeight {
+        /// Why the DTS weight could not be formed.
+        reason: String,
     },
 }
 
@@ -188,7 +201,8 @@ fn unit_betas(num_levels: usize) -> IssuerBetas {
 /// 3. **Level peel.** For each level `k` in `0..L`:
 ///    - Group issuers by their bucket path at level `k`
 ///      (e.g. `"IG.EU"` for level 1).
-///    - Compute `L_k(g) = mean over issuers in g of r_(k+1)_i`.
+///    - Compute `L_k(g)` as the **weighted** mean of residuals in `g`
+///      (equal or DTS per [`CreditFactorModel::bucket_weighting`]).
 ///    - Update `r_(k+2)_i = r_(k+1)_i - β_i^level_k · L_k(g_i^k)`.
 ///   4. The remaining residual `r_(L+1)_i` is the per-issuer adder.
 ///
@@ -214,10 +228,12 @@ fn unit_betas(num_levels: usize) -> IssuerBetas {
 ///
 /// * `model` - Calibrated credit-factor model that defines hierarchy buckets,
 ///   factor loadings, issuer tags, and anchor state.
-/// * `observed_spreads` - Current issuer spread observations, keyed by issuer;
-///   all values must be finite and use the model's spread units.
+/// * `observed_spreads` - Current issuer spread observations, keyed by issuer.
+///   Values are **decimal** (`0.01` = 100 bp) and must lie in `(-0.5, 2.0)`.
+///   They are converted to bp before peeling; returned factor levels and
+///   adders are in bp.
 /// * `observed_generic` - Current generic principal-component factor value in
-///   the same spread units as `observed_spreads`.
+///   the same **decimal** units as `observed_spreads`.
 /// * `as_of` - Observation date attached to the resulting factor snapshot.
 /// * `runtime_tags` - Optional tags for issuers absent from `model`; supplied
 ///   issuers use unit betas and model-resident issuer tags remain authoritative.
@@ -230,6 +246,11 @@ fn unit_betas(num_levels: usize) -> IssuerBetas {
 ///   `observed_spreads` but neither in the model nor in `runtime_tags`.
 /// - [`DecompositionError::MissingTag`] when an issuer's tags do not cover
 ///   every hierarchy dimension.
+/// - [`DecompositionError::InvalidDecimalSpread`] when a spread or the generic
+///   level is non-finite, outside `(-0.5, 2.0)`, or looks like basis points.
+/// - [`DecompositionError::InvalidDtsWeight`] when the model uses DTS
+///   weighting and an observed issuer is missing a persisted duration or
+///   `SD × current_spread_bp` is not `> 0`.
 pub fn decompose_levels(
     model: &CreditFactorModel,
     observed_spreads: &BTreeMap<IssuerId, f64>,
@@ -240,22 +261,26 @@ pub fn decompose_levels(
     let num_levels = model.hierarchy.levels.len();
     let beta_idx = index_issuer_betas(model);
 
-    // Reject non-finite inputs up front: one NaN spread silently poisons
-    // every bucket mean it participates in and the entire peel cascade.
-    if !observed_generic.is_finite() {
-        return Err(DecompositionError::NonFiniteInput {
+    // Reject non-decimal inputs up front, then convert to bp so the peel
+    // and every output (generic, bucket levels, adders) stay in bp.
+    if validate_decimal_spread("observed_generic", observed_generic).is_err() {
+        return Err(DecompositionError::InvalidDecimalSpread {
             label: "observed_generic".to_owned(),
             value: observed_generic,
         });
     }
+    let observed_generic = decimal_to_bp(observed_generic);
+    let mut observed_spreads_bp = BTreeMap::new();
     for (issuer, spread) in observed_spreads {
-        if !spread.is_finite() {
-            return Err(DecompositionError::NonFiniteInput {
+        if validate_decimal_spread(issuer.as_str(), *spread).is_err() {
+            return Err(DecompositionError::InvalidDecimalSpread {
                 label: issuer.as_str().to_owned(),
                 value: *spread,
             });
         }
+        observed_spreads_bp.insert(issuer.clone(), decimal_to_bp(*spread));
     }
+    let observed_spreads = &observed_spreads_bp;
 
     // Step 0 — defensive shape check on model.issuer_betas. Cheap: O(N).
     for row in &model.issuer_betas {
@@ -353,14 +378,28 @@ pub fn decompose_levels(
             .entry(issuer)
             .or_insert_with(|| vec![false; num_levels])[level_index] = true;
     }
-    let peel = super::peel::peel_single_observation(
+    let mut durations = BTreeMap::new();
+    for issuer in observed_spreads.keys() {
+        if let Some(row) = beta_idx.get(issuer) {
+            durations.insert((*issuer).clone(), row.spread_duration);
+        }
+    }
+    let weights = super::peel::issuer_bucket_weights(
+        model.bucket_weighting,
+        observed_spreads.keys(),
+        &durations,
+        observed_spreads,
+    )
+    .map_err(|reason| DecompositionError::InvalidDtsWeight { reason })?;
+    let peel = super::peel::peel_single_observation(super::peel::PeelSingleObservation {
         observed_spreads,
         observed_generic,
-        &betas_owned,
-        &bucket_paths,
-        &folded_owned,
+        betas: &betas_owned,
+        bucket_paths: &bucket_paths,
+        folded: &folded_owned,
         num_levels,
-    );
+        weights: &weights,
+    });
     let by_level: Vec<LevelValuesAtDate> = peel
         .by_level
         .into_iter()

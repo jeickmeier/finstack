@@ -855,6 +855,7 @@ mod tests {
                         adder_vol_source: AdderVolSource::Default,
                         fit_quality: None,
                         level_fit_quality: vec![],
+            spread_duration: 1.0,
                     }],
                     require_issuer_id: false,
                 }),

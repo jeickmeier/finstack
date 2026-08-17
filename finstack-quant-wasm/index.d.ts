@@ -3705,16 +3705,17 @@ export declare class FactorCovarianceForecast {
  * } from "finstack-quant-wasm";
  * await init();
  * function currentLevels(model: CreditFactorModel): LevelsAtDate {
+ *   // Callers pass decimal spreads (0.012 = 120 bp). Returned levels are bp.
  *   return decomposeLevels(model, '{"ACME": 0.012}', 0.01, "2026-01-02");
  * }
  * ```
- * @returns Per-level factor values and residual adders at the requested date.
- * @param model - Calibrated CreditFactorModel used to produce the covariance forecast.
- * @param observedSpreadsJson - JSON-serialized observed credit spreads used in the level decomposition.
- * @param observedGeneric - Observed generic-market spread component aligned with the model factors.
- * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
- * @param runtimeTagsJson - Optional runtime-tag JSON selecting the active factor-model configuration.
- * @throws Error - Throws if an issuer has no model row and no `runtime_tags` entry, or if `as_of` cannot be parsed.
+ * @returns Per-level factor values and residual adders at the requested date, in bp.
+ * @param model - Calibrated CreditFactorModel used for the peel.
+ * @param observedSpreadsJson - JSON `{issuer_id: spread}` map in decimal (`0.012` = 120 bp). Returned levels are bp.
+ * @param observedGeneric - Observed generic-market spread in decimal, aligned with the model factors.
+ * @param asOf - ISO-8601 valuation date used to stamp the snapshot.
+ * @param runtimeTagsJson - Optional runtime-tag JSON for issuers missing from the artifact.
+ * @throws Error - Throws if an issuer has no model row and no `runtime_tags` entry, if `asOf` cannot be parsed, or if a spread is outside the decimal band.
  */
 export declare function decomposeLevels(
   model: CreditFactorModel,
@@ -3767,7 +3768,8 @@ export declare function decomposePeriod(
  *   covariance_strategy: "diagonal",
  *   beta_shrinkage: "none",
  *   use_returns_or_levels: "returns",
- *   annualization_factor: 12
+ *   panel_frequency: "monthly",
+ *   bucket_weighting: "equal"
  * });
  * const calibrator = new factor_model.credit.CreditCalibrator(config);
  * calibrator.free();
@@ -3806,13 +3808,13 @@ export interface FactorModelCreditNamespace {
    *   issuers not present in the model artifact.
    *
    * Returns a `LevelsAtDate` handle.
-   * @returns Per-level factor values and residual adders at the requested date.
-   * @param model - Calibrated CreditFactorModel used to produce the covariance forecast.
-   * @param observedSpreadsJson - JSON-serialized observed credit spreads used in the level decomposition.
-   * @param observedGeneric - Observed generic-market spread component aligned with the model factors.
-   * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
-   * @param runtimeTagsJson - Optional runtime-tag JSON selecting the active factor-model configuration.
-   * @throws Error - Throws if an issuer has no model row and no `runtime_tags` entry, or if `as_of` cannot be parsed.
+   * @returns Per-level factor values and residual adders at the requested date, in bp.
+   * @param model - Calibrated CreditFactorModel used for the peel.
+   * @param observedSpreadsJson - JSON `{issuer_id: spread}` map in decimal (`0.012` = 120 bp). Returned levels are bp.
+   * @param observedGeneric - Observed generic-market spread in decimal, aligned with the model factors.
+   * @param asOf - ISO-8601 valuation date used to stamp the snapshot.
+   * @param runtimeTagsJson - Optional runtime-tag JSON for issuers missing from the artifact.
+   * @throws Error - Throws if an issuer has no model row and no `runtime_tags` entry, if `asOf` cannot be parsed, or if a spread is outside the decimal band.
    */
   decomposeLevels(
     model: CreditFactorModel,
@@ -3849,7 +3851,8 @@ export interface FactorModelCreditNamespace {
  *   covariance_strategy: "diagonal",
  *   beta_shrinkage: "none",
  *   use_returns_or_levels: "returns",
- *   annualization_factor: 12
+ *   panel_frequency: "monthly",
+ *   bucket_weighting: "equal"
  * });
  * const calibrator = new credit.CreditCalibrator(config);
  * calibrator.free();

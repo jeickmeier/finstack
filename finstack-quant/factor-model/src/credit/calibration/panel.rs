@@ -4,7 +4,9 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::types::IssuerId;
 
 use super::config::PanelSpace;
+use super::inputs::CreditCalibrationInputs;
 use crate::credit::hierarchy::{IssuerBetaMode, IssuerBetaOverride, IssuerBetaPolicy};
+use crate::credit::units::decimal_to_bp;
 
 /// Step 1: classify an issuer as `IssuerBeta` or `BucketOnly`.
 ///
@@ -59,7 +61,7 @@ pub(super) struct WorkingPanel {
 
 /// First-difference a sparse series: `d[t] = s[t+1] - s[t]` where both
 /// observations exist, `None` otherwise. Length is `len - 1`.
-pub(super) fn diff_sparse(series: &[Option<f64>]) -> Vec<Option<f64>> {
+pub(crate) fn diff_sparse(series: &[Option<f64>]) -> Vec<Option<f64>> {
     series
         .windows(2)
         .map(|w| match (w[0], w[1]) {
@@ -67,6 +69,27 @@ pub(super) fn diff_sparse(series: &[Option<f64>]) -> Vec<Option<f64>> {
             _ => None,
         })
         .collect()
+}
+
+/// Convert every caller-supplied decimal spread and generic level to bp.
+///
+/// # Arguments
+///
+/// * `inputs` - Validated calibration inputs whose spread panel, generic
+///   series, and `as_of_spreads` are still in decimal units. Mutated in place
+///   so every subsequent peel/vol step sees basis points.
+pub(super) fn convert_inputs_to_bp(inputs: &mut CreditCalibrationInputs) {
+    for series in inputs.history_panel.spreads.values_mut() {
+        for spread in series.iter_mut().flatten() {
+            *spread = decimal_to_bp(*spread);
+        }
+    }
+    for value in &mut inputs.generic_factor.values {
+        *value = decimal_to_bp(*value);
+    }
+    for spread in inputs.as_of_spreads.values_mut() {
+        *spread = decimal_to_bp(*spread);
+    }
 }
 
 pub(super) fn build_working_panel(

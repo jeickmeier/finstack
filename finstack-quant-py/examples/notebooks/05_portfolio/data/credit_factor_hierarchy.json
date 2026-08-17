@@ -1,6 +1,7 @@
 {
   "calibration_config": {
-    "annualization_factor": 12.0,
+    "panel_frequency": "monthly",
+    "bucket_weighting": "equal",
     "beta_shrinkage": "none",
     "covariance_strategy": "diagonal",
     "hierarchy": {

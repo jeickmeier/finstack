@@ -43,6 +43,7 @@ pub(super) fn anchor_levels(
     generic_at_asof: f64,
     betas: &BTreeMap<IssuerId, IssuerBetas>,
     folded: &BTreeMap<IssuerId, Vec<bool>>,
+    weights: &BTreeMap<IssuerId, f64>,
 ) -> Result<AnchorOutcome> {
     let num_levels = hierarchy.levels.len();
     // Resolve issuer → tags + bucket_paths.
@@ -68,14 +69,16 @@ pub(super) fn anchor_levels(
         bucket_paths.insert(issuer.clone(), paths);
     }
 
-    let peel = crate::credit::peel::peel_single_observation(
-        as_of_spreads,
-        generic_at_asof,
-        betas,
-        &bucket_paths,
-        folded,
-        num_levels,
-    );
+    let peel =
+        crate::credit::peel::peel_single_observation(crate::credit::peel::PeelSingleObservation {
+            observed_spreads: as_of_spreads,
+            observed_generic: generic_at_asof,
+            betas,
+            bucket_paths: &bucket_paths,
+            folded,
+            num_levels,
+            weights,
+        });
     let by_level: Vec<LevelAnchor> = peel
         .by_level
         .into_iter()
@@ -116,7 +119,7 @@ pub(super) fn build_factor_id_order(
 /// Assemble `(FactorCorrelationMatrix, FactorModelConfig)` for a given strategy.
 ///
 /// Returns the static correlation matrix and the covariance-embedded config.
-pub(super) fn assemble_factor_model_config(
+pub(crate) fn assemble_factor_model_config(
     factor_id_order: &[FactorId],
     factor_variances: &BTreeMap<FactorId, f64>,
     factor_returns: &BTreeMap<FactorId, Vec<Option<f64>>>,
@@ -270,27 +273,34 @@ pub(super) fn build_factor_histories(
     dates: &[Date],
     space: &PanelSpace,
     factor_returns: &BTreeMap<FactorId, Vec<Option<f64>>>,
-) -> FactorHistories {
+) -> Result<FactorHistories> {
     // Returns: histories align to dates[1..]. Levels: histories align to dates.
     let aligned_dates = match space {
         PanelSpace::Returns => dates.iter().skip(1).copied().collect::<Vec<_>>(),
         PanelSpace::Levels => dates.to_vec(),
     };
-    // `FactorHistories.values` is `Vec<f64>`. Flatten sparse
-    // series here: `None` (empty-bucket date) → `0.0`. Downstream consumers
-    // should treat 0.0 entries in level-factor histories as "no observation"
-    // when the panel is known to be sparse.
-    let values: BTreeMap<FactorId, Vec<f64>> = factor_returns
-        .iter()
-        .map(|(fid, series)| {
-            let dense = series.iter().map(|v| v.unwrap_or(0.0)).collect();
-            (fid.clone(), dense)
-        })
-        .collect();
-    FactorHistories {
+    // Histories are the official dense bp series. Task-1 completeness
+    // guarantees every date is a real observation — do not 0-fill gaps.
+    let mut values: BTreeMap<FactorId, Vec<f64>> = BTreeMap::new();
+    for (fid, series) in factor_returns {
+        let mut dense = Vec::with_capacity(series.len());
+        for (t, value) in series.iter().enumerate() {
+            let Some(v) = value else {
+                return Err(validation_err(format!(
+                    "CreditCalibrator: factor {} is missing an observation at \
+                     history index {t}; factor histories must be a complete \
+                     dense bp series",
+                    fid.as_str()
+                )));
+            };
+            dense.push(*v);
+        }
+        values.insert(fid.clone(), dense);
+    }
+    Ok(FactorHistories {
         dates: aligned_dates,
         values,
-    }
+    })
 }
 
 pub(super) fn build_vol_state(

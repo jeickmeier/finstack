@@ -53,7 +53,8 @@ fn credit_calibration_config_fixture() -> Value {
         "covariance_strategy": "diagonal",
         "beta_shrinkage": "none",
         "use_returns_or_levels": "returns",
-        "annualization_factor": 12.0
+        "panel_frequency": "monthly",
+        "bucket_weighting": "equal"
     })
 }
 
@@ -395,11 +396,15 @@ fn credit_calibration_schema_rejects_runtime_invalid_numeric_bounds() {
             "/beta_shrinkage",
             json!({"toward_one": {"alpha": 1.01}}),
         ),
-        ("annualization zero", "/annualization_factor", json!(0.0)),
         (
-            "annualization negative",
-            "/annualization_factor",
-            json!(-12.0),
+            "unknown panel frequency",
+            "/panel_frequency",
+            json!("weekly"),
+        ),
+        (
+            "unknown bucket weighting",
+            "/bucket_weighting",
+            json!("market_cap"),
         ),
     ];
 

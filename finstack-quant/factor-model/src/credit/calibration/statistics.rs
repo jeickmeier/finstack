@@ -22,14 +22,15 @@ use crate::FactorId;
 /// every issuer is `BucketOnly`, and skipping
 /// them here would leave the whole model with 0.0 idiosyncratic vol.
 ///
-/// An **identically-zero** residual series is excluded. It is the signature
-/// of an issuer alone in its deepest bucket (the residual minus its own
-/// bucket mean is exactly `0.0` in IEEE arithmetic), and a self-mean carries
-/// no information about idiosyncratic risk — recording it as a `FromHistory`
-/// estimate of 0.0 would silently zero the issuer's specific risk. Excluded
+/// A **numerically-zero** residual series is excluded. Exact IEEE `0.0` is
+/// the signature of an issuer alone in its deepest bucket (the residual
+/// minus its own bucket mean is exactly `0.0`). Leave-one-out peel on a
+/// near-linear panel can leave ~`1e-18` bp of float dust, which is still
+/// not a real idiosyncratic series. Recording either as a `FromHistory`
+/// estimate of ~0 would silently zero the issuer's specific risk. Excluded
 /// issuers fall through the [`assign_adder_vol`] cascade to the bucket peer
 /// proxy or the global default instead. Genuine residuals from multi-member
-/// buckets carry float noise well above zero and are unaffected.
+/// buckets carry noise well above `1e-12` bp and are unaffected.
 ///
 /// Variance uses the unbiased sample estimator (`n − 1`, Bessel's correction),
 /// matching [`factor_variances`]; sparse adders can have short effective
@@ -47,10 +48,19 @@ pub(super) fn adder_vols_from_history(
         if n_valid < 2 {
             continue;
         }
-        // Singleton-bucket signature: every observed residual is exactly
-        // ±0.0 (`abs() < MIN_POSITIVE` is a lint-clean exact-zero test;
-        // genuine residual noise is ~1e-16, far above subnormal range).
-        if series.iter().flatten().all(|v| v.abs() < f64::MIN_POSITIVE) {
+        // Degenerate residual: every observed residual is numerically zero.
+        // Exact IEEE 0.0 is the singleton-bucket signature; leave-one-out
+        // peel on a near-linear synthetic panel can leave ~1e-18 bp of
+        // float noise, which is still not a real idiosyncratic series
+        // (genuine residual noise is ~1e-16 bp and above). Treating that
+        // dust as `FromHistory` would persist a ~1e-18 annualized vol that
+        // is not a JSON f64 fixed point.
+        const DEGENERATE_RESIDUAL_BP: f64 = 1e-12;
+        if series
+            .iter()
+            .flatten()
+            .all(|v| v.abs() < DEGENERATE_RESIDUAL_BP)
+        {
             continue;
         }
         let ann_var = match vol_model {
@@ -245,7 +255,7 @@ pub(super) fn ewma_variance(series: &[Option<f64>], lambda: f64, annualization_f
 ///   see [`sample_variance_annualized`].
 /// - [`VolModelChoice::Ewma`]: RiskMetrics exponentially weighted variance;
 ///   see [`ewma_variance`].
-pub(super) fn factor_variances(
+pub(crate) fn factor_variances(
     factor_returns: &BTreeMap<FactorId, Vec<Option<f64>>>,
     vol_model: VolModelChoice,
     annualization_factor: f64,

@@ -47,6 +47,7 @@ pub(super) fn run_peel(
     modes: &BTreeMap<IssuerId, IssuerBetaMode>,
     bucket_paths: &BTreeMap<IssuerId, Vec<String>>,
     folded: &BTreeMap<IssuerId, Vec<bool>>,
+    weights: &BTreeMap<IssuerId, f64>,
 ) -> PeelOutcome {
     let n = panel.generic.len();
     let num_levels = config.hierarchy.levels.len();
@@ -74,8 +75,9 @@ pub(super) fn run_peel(
             IssuerBetaMode::IssuerBeta => {
                 let raw = ols_slope(series, &panel.generic).unwrap_or(1.0);
                 let shrunk = apply_shrinkage(&config.beta_shrinkage, raw);
-                // Fit-quality stats: R² and residual std on the same valid pairs.
-                if let Some(fq) = compute_fit_quality(series, &panel.generic, shrunk) {
+                // Diagnostics on the through-origin peel residual y − β g,
+                // not the intercept-form residual used by the OLS slope.
+                if let Some(fq) = compute_peel_fit_quality(series, &panel.generic, shrunk) {
                     fit_quality.insert(issuer.clone(), fq);
                 }
                 level_fit_quality.insert(issuer.clone(), vec![None; num_levels]);
@@ -105,6 +107,7 @@ pub(super) fn run_peel(
     // multiple parallel structures (`bucket_paths[issuer][k]`, `folded[i][k]`,
     // `betas[issuer].levels[k]`); enumerate-iterating any one of them would
     // not eliminate indexing into the others.
+    let mut prev_bucket_members: BTreeMap<String, Vec<&IssuerId>> = BTreeMap::new();
     #[allow(clippy::needless_range_loop)]
     for k in 0..num_levels {
         // 5a. For each surviving (non-folded) bucket, compute factor return series.
@@ -125,34 +128,32 @@ pub(super) fn run_peel(
             bucket_members.entry(path.clone()).or_default().push(issuer);
         }
 
-        // Compute bucket factor returns f_<level_k>(g, t) = mean over members.
-        // Empty buckets at date t (all members missing) emit `None` so that
-        // downstream OLS and variance estimation can skip those dates rather
-        // than biasing results with an imputed zero.
+        // Compute the stored / peeled bucket factor as the *full-bucket*
+        // weighted mean (equal or DTS). IssuerBeta OLS (below) uses the
+        // leave-one-out weighted mean so β is not biased toward 1.
         let mut bucket_factor_series: BTreeMap<String, Vec<Option<f64>>> = BTreeMap::new();
         for (bucket, members) in &bucket_members {
             let mut series = Vec::with_capacity(n);
             for t in 0..n {
-                let mut sum = 0.0;
-                let mut count = 0usize;
-                for issuer in members {
-                    if let Some(Some(v)) = residuals.get(*issuer).map(|r| r[t]) {
-                        sum += v;
-                        count += 1;
-                    }
-                }
-                series.push(if count > 0 {
-                    Some(sum / (count as f64))
-                } else {
-                    None
-                });
+                series.push(weighted_mean(members.iter().copied(), weights, |issuer| {
+                    residuals.get(issuer).and_then(|r| r[t])
+                }));
             }
             bucket_factor_series.insert(bucket.clone(), series);
         }
 
         // 5b. For each member, fit / set its level-k beta and update its residual.
+        // Snapshot residuals so LOO means do not see peers that were already
+        // peeled earlier in this bucket loop.
+        let residuals_before_level = residuals.clone();
         for (bucket, members) in &bucket_members {
             let factor_series = &bucket_factor_series[bucket];
+            // A child that does not refine its parent has the same members;
+            // LOO would regress on a peer leftover, not a new common factor.
+            let non_refining = k > 0
+                && parent_bucket_path(bucket)
+                    .and_then(|parent| prev_bucket_members.get(parent))
+                    .is_some_and(|parent_members| same_member_set(parent_members, members));
             for issuer in members {
                 let mode = modes
                     .get(*issuer)
@@ -162,17 +163,33 @@ pub(super) fn run_peel(
                 let beta_k = match mode {
                     IssuerBetaMode::BucketOnly => 1.0,
                     IssuerBetaMode::IssuerBeta => {
-                        // Fit OLS on the issuer's *current* residual vs the bucket factor.
-                        // `factor_series` is already `Vec<Option<f64>>`; dates where the
-                        // factor is `None` (empty bucket) are skipped by `ols_slope_owned`.
-                        let fitted = ols_slope_owned(&r_series, factor_series);
+                        // Gate on the *stored* full-bucket factor: a
+                        // non-refining child level has a ~0 full mean even
+                        // when the LOO series (the other names) still varies.
+                        // Singleton / degenerate LOO then falls back to unit β.
+                        let fitted = if non_refining
+                            || ols_slope_owned(&r_series, factor_series).is_none()
+                        {
+                            None
+                        } else {
+                            let loo_series = loo_weighted_mean(
+                                members.iter().copied(),
+                                issuer,
+                                weights,
+                                &residuals_before_level,
+                                n,
+                            );
+                            ols_slope_owned(&r_series, &loo_series)
+                        };
                         let shrunk = apply_shrinkage(&config.beta_shrinkage, fitted.unwrap_or(1.0));
-                        // Record per-level fit quality only where a genuine fit
-                        // ran (degenerate regressors return `None` above).
+                        // Diagnostics on the actual peel residual y − β x_full.
                         if fitted.is_some() {
                             if let Some(slots) = level_fit_quality.get_mut(*issuer) {
-                                slots[k] =
-                                    compute_fit_quality_sparse(&r_series, factor_series, shrunk);
+                                slots[k] = compute_peel_fit_quality_sparse(
+                                    &r_series,
+                                    factor_series,
+                                    shrunk,
+                                );
                             }
                         }
                         shrunk
@@ -199,8 +216,8 @@ pub(super) fn run_peel(
 
         // Record bucket factor return series in the canonical FactorId form.
         // The sparse `Vec<Option<f64>>` is stored directly in `factor_returns`;
-        // flattening to `Vec<f64>` for `FactorHistories` happens in
-        // `build_factor_histories` (substituting `0.0` for `None`).
+        // flattening to a dense `Vec<f64>` for `FactorHistories` happens in
+        // `build_factor_histories` (missing dates are a validation error).
         // `factor_variances` computes variance over only the `Some` entries.
         for (bucket, series) in bucket_factor_series {
             // Reconstruct an IssuerTags for path → use a synthetic helper:
@@ -217,6 +234,7 @@ pub(super) fn run_peel(
             };
             factor_returns.insert(factor_id, series);
         }
+        prev_bucket_members = bucket_members;
     }
 
     PeelOutcome {
@@ -226,6 +244,78 @@ pub(super) fn run_peel(
         level_fit_quality,
         factor_returns,
     }
+}
+
+/// Weighted mean of observed member values at one date.
+fn weighted_mean<'a, I, F>(members: I, weights: &BTreeMap<IssuerId, f64>, value: F) -> Option<f64>
+where
+    I: IntoIterator<Item = &'a IssuerId>,
+    F: Fn(&IssuerId) -> Option<f64>,
+{
+    let mut vsum = 0.0;
+    let mut wsum = 0.0;
+    for issuer in members {
+        let Some(v) = value(issuer) else {
+            continue;
+        };
+        let Some(w) = weights.get(issuer).copied() else {
+            continue;
+        };
+        if w <= 0.0 {
+            continue;
+        }
+        vsum += w * v;
+        wsum += w;
+    }
+    (wsum > 0.0).then_some(vsum / wsum)
+}
+
+/// Leave-one-out weighted mean series for `exclude`.
+///
+/// Dates where `exclude` is the only observed member (or the remaining
+/// members are all missing / zero-weight) emit `None` so OLS falls back
+/// to unit β.
+fn loo_weighted_mean<'a>(
+    members: impl Iterator<Item = &'a IssuerId> + Clone,
+    exclude: &IssuerId,
+    weights: &BTreeMap<IssuerId, f64>,
+    residuals: &BTreeMap<IssuerId, Vec<Option<f64>>>,
+    n: usize,
+) -> Vec<Option<f64>> {
+    let mut series = Vec::with_capacity(n);
+    for t in 0..n {
+        series.push(weighted_mean(members.clone(), weights, |issuer| {
+            if issuer == exclude {
+                None
+            } else {
+                residuals.get(issuer).and_then(|r| r[t])
+            }
+        }));
+    }
+    series
+}
+
+/// Parent path of a dotted bucket path (`"IG.TECH"` → `"IG"`).
+fn parent_bucket_path(path: &str) -> Option<&str> {
+    path.rfind('.').map(|i| &path[..i])
+}
+
+/// True when both member lists name the same issuers (order-independent).
+fn same_member_set(left: &[&IssuerId], right: &[&IssuerId]) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut ids: BTreeMap<&IssuerId, usize> = BTreeMap::new();
+    for issuer in left {
+        *ids.entry(*issuer).or_insert(0) += 1;
+    }
+    for issuer in right {
+        match ids.get_mut(*issuer) {
+            Some(count) if *count > 0 => *count -= 1,
+            _ => return false,
+        }
+    }
+    ids.values().all(|c| *c == 0)
 }
 
 /// Reconstruct an [`IssuerTags`] from a dotted bucket path so that callers
@@ -320,12 +410,14 @@ fn ols_slope_pairs(ys: &[f64], xs: &[f64]) -> Option<f64> {
     }
 }
 
-/// R², residual std, and n_obs for the PC fit (used as the regression diagnostic).
+/// R² and residual std on the through-origin peel residual `y − β x`.
 ///
-/// `residual_std` is a population std dev (sum of squared residuals divided by `n`).
-/// Population variance is acceptable because calibration windows are required to be
-/// ≥ 24 observations (`min_history` default = 24), keeping the bias negligible.
-fn compute_fit_quality(y: &[Option<f64>], x: &[f64], beta: f64) -> Option<FitQuality> {
+/// The OLS slope itself is the with-intercept estimator from
+/// `finstack_quant_analytics::beta`. Peel subtraction has no intercept, so
+/// diagnostics use `y − β x` (not `y − α − β x`). `residual_std` is a
+/// population std (`√(rss / n)`); calibration windows are required to be
+/// long enough (`min_history` default 24) that the bias is negligible.
+fn compute_peel_fit_quality(y: &[Option<f64>], x: &[f64], beta: f64) -> Option<FitQuality> {
     let mut xs = Vec::new();
     let mut ys = Vec::new();
     for (yi, xi) in y.iter().zip(x.iter()) {
@@ -334,12 +426,11 @@ fn compute_fit_quality(y: &[Option<f64>], x: &[f64], beta: f64) -> Option<FitQua
             ys.push(*v);
         }
     }
-    fit_quality_from_pairs(&ys, &xs, beta)
+    peel_fit_quality_from_pairs(&ys, &xs, beta)
 }
 
-/// [`compute_fit_quality`] for a sparse regressor: pairs align on positions
-/// where both series are `Some` (the same alignment [`ols_slope_owned`] uses).
-fn compute_fit_quality_sparse(
+/// [`compute_peel_fit_quality`] for a sparse full-bucket factor series.
+fn compute_peel_fit_quality_sparse(
     y: &[Option<f64>],
     x: &[Option<f64>],
     beta: f64,
@@ -352,23 +443,20 @@ fn compute_fit_quality_sparse(
             xs.push(*xv);
         }
     }
-    fit_quality_from_pairs(&ys, &xs, beta)
+    peel_fit_quality_from_pairs(&ys, &xs, beta)
 }
 
-/// Shared fit-quality core over aligned pairs.
-fn fit_quality_from_pairs(ys: &[f64], xs: &[f64], beta: f64) -> Option<FitQuality> {
+fn peel_fit_quality_from_pairs(ys: &[f64], xs: &[f64], beta: f64) -> Option<FitQuality> {
     let n = xs.len();
     if n < 3 {
         return None;
     }
     let nf = n as f64;
-    let mean_x = xs.iter().sum::<f64>() / nf;
     let mean_y = ys.iter().sum::<f64>() / nf;
-    let alpha = mean_y - beta * mean_x;
     let mut tss = 0.0;
     let mut rss = 0.0;
     for i in 0..n {
-        let resid = ys[i] - alpha - beta * xs[i];
+        let resid = ys[i] - beta * xs[i];
         rss += resid * resid;
         let dy = ys[i] - mean_y;
         tss += dy * dy;

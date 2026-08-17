@@ -23,6 +23,7 @@ stay self-contained.
 from __future__ import annotations
 
 import datetime
+from calendar import monthrange
 from datetime import date as dt_date, timedelta
 import json
 import math
@@ -431,14 +432,18 @@ _LEVEL_DELTA_COLUMNS = [
 _ADDER_DELTA_COLUMNS = ["from_date", "to_date", "issuer_id", "d_adder"]
 
 
+def _add_months_eom(origin: dt_date, months: int) -> dt_date:
+    year = origin.year + (origin.month - 1 + months) // 12
+    month = (origin.month - 1 + months) % 12 + 1
+    last = monthrange(year, month)[1]
+    origin_eom = origin.day == monthrange(origin.year, origin.month)[1]
+    day = last if origin_eom else min(origin.day, last)
+    return dt_date(year, month, day)
+
+
 def _monthly_dates(n: int, end: dt_date) -> list[str]:
-    dates = []
-    current = end
-    for _ in range(n):
-        dates.append(current.isoformat())
-        current = current - timedelta(days=30)
-    dates.reverse()
-    return dates
+    origin = _add_months_eom(end, -(n - 1))
+    return [_add_months_eom(origin, i).isoformat() for i in range(n)]
 
 
 def _hierarchy_calibration_inputs() -> dict:
@@ -449,7 +454,7 @@ def _hierarchy_calibration_inputs() -> dict:
     """
     n = 24
     dates = _monthly_dates(n, dt_date(2024, 3, 31))
-    generic_values = [100.0 + 0.5 * math.sin(i) for i in range(n)]
+    generic_values = [0.0100 + 0.00005 * math.sin(i) for i in range(n)]
 
     issuer_specs = [
         ("ISSUER-A", "IG", "EU"),
@@ -464,9 +469,14 @@ def _hierarchy_calibration_inputs() -> dict:
     tags: dict[str, dict[str, str]] = {}
     as_of_spreads: dict[str, float] = {}
     for idx, (issuer_id, rating, region) in enumerate(issuer_specs):
-        base = 100.0 + idx * 25.0
+        base = 0.0100 + idx * 0.0025
         beta_pc = 0.7 + 0.05 * idx
-        series = [base + beta_pc * (generic_values[i] - 100.0) + 0.1 * math.cos(idx + i * 0.5) for i in range(n)]
+        series = [
+            base
+            + beta_pc * (generic_values[i] - 0.0100)
+            + 0.00001 * math.cos(idx + i * 0.5)
+            for i in range(n)
+        ]
         spreads[issuer_id] = series
         tags[issuer_id] = {"rating": rating, "region": region}
         as_of_spreads[issuer_id] = float(series[-1])
@@ -497,13 +507,14 @@ def _hierarchy_period_decomposition() -> PeriodDecomposition:
         "covariance_strategy": "diagonal",
         "beta_shrinkage": "none",
         "use_returns_or_levels": "returns",
-        "annualization_factor": 12.0,
+        "panel_frequency": "monthly",
+        "bucket_weighting": "equal",
     }
     inputs = _hierarchy_calibration_inputs()
     model = CreditCalibrator(json.dumps(config)).calibrate(json.dumps(inputs))
     spreads_json = json.dumps(inputs["as_of_spreads"])
-    start = decompose_levels(model, spreads_json, 100.0, "2024-02-29")
-    end = decompose_levels(model, spreads_json, 101.5, "2024-03-31")
+    start = decompose_levels(model, spreads_json, 0.0100, "2024-02-29")
+    end = decompose_levels(model, spreads_json, 0.01015, "2024-03-31")
     return decompose_period(start, end)
 
 
@@ -515,10 +526,10 @@ def _flat_period_decomposition(issuers: tuple[str, str] = ("ZEBRA", "ALPHA")) ->
     simply the input order.
     """
     first, second = issuers
-    series = {"ZEBRA": [100.0, 101.0], "ALPHA": [90.0, 91.0]}
-    as_of = {"ZEBRA": 101.0, "ALPHA": 91.0}
-    start_spreads = {"ZEBRA": 105.0, "ALPHA": 95.0}
-    end_spreads = {"ZEBRA": 106.5, "ALPHA": 96.0}
+    series = {"ZEBRA": [0.0100, 0.0101], "ALPHA": [0.0090, 0.0091]}
+    as_of = {"ZEBRA": 0.0101, "ALPHA": 0.0091}
+    start_spreads = {"ZEBRA": 0.0105, "ALPHA": 0.0095}
+    end_spreads = {"ZEBRA": 0.01065, "ALPHA": 0.0096}
 
     def ordered(values: dict[str, object]) -> dict[str, object]:
         return {first: values[first], second: values[second]}
@@ -531,7 +542,8 @@ def _flat_period_decomposition(issuers: tuple[str, str] = ("ZEBRA", "ALPHA")) ->
         "covariance_strategy": "diagonal",
         "beta_shrinkage": "none",
         "use_returns_or_levels": "returns",
-        "annualization_factor": 12.0,
+        "panel_frequency": "monthly",
+        "bucket_weighting": "equal",
     }
     inputs = {
         "history_panel": {
@@ -541,15 +553,15 @@ def _flat_period_decomposition(issuers: tuple[str, str] = ("ZEBRA", "ALPHA")) ->
         "issuer_tags": {"tags": ordered({"ZEBRA": {}, "ALPHA": {}})},
         "generic_factor": {
             "spec": {"name": "G", "series_id": "G"},
-            "values": [100.0, 101.0],
+            "values": [0.0100, 0.0101],
         },
         "as_of": "2024-02-01",
         "as_of_spreads": ordered(as_of),
         "idiosyncratic_overrides": {},
     }
     model = CreditCalibrator(json.dumps(config)).calibrate(json.dumps(inputs))
-    start = decompose_levels(model, json.dumps(ordered(start_spreads)), 100.0, "2024-03-01")
-    end = decompose_levels(model, json.dumps(ordered(end_spreads)), 101.5, "2024-03-02")
+    start = decompose_levels(model, json.dumps(ordered(start_spreads)), 0.0100, "2024-03-01")
+    end = decompose_levels(model, json.dumps(ordered(end_spreads)), 0.01015, "2024-03-02")
     return decompose_period(start, end)
 
 

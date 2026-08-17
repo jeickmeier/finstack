@@ -10,6 +10,7 @@ Covers:
 
 from __future__ import annotations
 
+from calendar import monthrange
 from datetime import date as dt_date
 import json
 import math
@@ -29,18 +30,21 @@ from finstack_quant.factor_model.credit import (
 _N_MONTHS = 24
 
 
-def _monthly_dates(n: int, end_year: int, end_month: int, end_day: int) -> list[str]:
-    """Generate n ISO-date strings stepping backwards ~30 days from end."""
-    from datetime import timedelta
+def _add_months_eom(origin: dt_date, months: int) -> dt_date:
+    """Step `months` from `origin`, preserving end-of-month when origin is EOM."""
+    year = origin.year + (origin.month - 1 + months) // 12
+    month = (origin.month - 1 + months) % 12 + 1
+    last = monthrange(year, month)[1]
+    origin_eom = origin.day == monthrange(origin.year, origin.month)[1]
+    day = last if origin_eom else min(origin.day, last)
+    return dt_date(year, month, day)
 
+
+def _monthly_dates(n: int, end_year: int, end_month: int, end_day: int) -> list[str]:
+    """Generate n regular month-end-aware dates ending at the given day."""
     end = dt_date(end_year, end_month, end_day)
-    dates = []
-    current = end
-    for _ in range(n):
-        dates.append(current.isoformat())
-        current = current - timedelta(days=30)
-    dates.reverse()
-    return dates
+    origin = _add_months_eom(end, -(n - 1))
+    return [_add_months_eom(origin, i).isoformat() for i in range(n)]
 
 
 def _fixture_inputs() -> dict:
@@ -53,7 +57,7 @@ def _fixture_inputs() -> dict:
     as_of_str = "2024-03-31"
     dates = _monthly_dates(n, 2024, 3, 31)
 
-    generic_values = [100.0 + 0.5 * math.sin(i) for i in range(n)]
+    generic_values = [0.0100 + 0.00005 * math.sin(i) for i in range(n)]
 
     issuer_specs = [
         ("ISSUER-A", "IG", "EU"),
@@ -69,10 +73,13 @@ def _fixture_inputs() -> dict:
     as_of_spreads: dict[str, float] = {}
 
     for idx, (issuer_id, rating, region) in enumerate(issuer_specs):
-        base = 100.0 + idx * 25.0
+        base = 0.0100 + idx * 0.0025
         beta_pc = 0.7 + 0.05 * idx
         series: list[float | None] = [
-            base + beta_pc * (generic_values[i] - 100.0) + 0.1 * math.cos(idx + i * 0.5) for i in range(n)
+            base
+            + beta_pc * (generic_values[i] - 0.0100)
+            + 0.00001 * math.cos(idx + i * 0.5)
+            for i in range(n)
         ]
         spreads[issuer_id] = series
         tags[issuer_id] = {"rating": rating, "region": region}
@@ -107,7 +114,8 @@ def _calibration_config() -> dict:
         "covariance_strategy": "diagonal",
         "beta_shrinkage": "none",
         "use_returns_or_levels": "returns",
-        "annualization_factor": 12.0,
+        "panel_frequency": "monthly",
+        "bucket_weighting": "equal",
     }
 
 
@@ -131,6 +139,9 @@ _MINIMAL_MODEL_JSON = json.dumps({
     "policy": "globally_off",
     "generic_factor": {"name": "CDX IG", "series_id": "cdx.ig.5y"},
     "hierarchy": {"levels": ["rating", "region"]},
+    "panel_frequency": "monthly",
+    "use_returns_or_levels": "returns",
+    "bucket_weighting": "equal",
     "config": {
         "factors": [],
         "covariance": {"n": 0, "factor_ids": [], "data": []},
@@ -305,7 +316,7 @@ def _simple_decompose_model_and_spreads() -> tuple[CreditFactorModel, dict[str, 
 def test_decompose_levels_runs_without_error() -> None:
     model, observed = _simple_decompose_model_and_spreads()
     spreads_json = json.dumps(observed)
-    snap = decompose_levels(model, spreads_json, 100.0, "2024-03-31")
+    snap = decompose_levels(model, spreads_json, 0.0100, "2024-03-31")
     assert isinstance(snap, LevelsAtDate)
     assert snap.date == "2024-03-31"
     assert snap.generic == pytest.approx(100.0)
@@ -313,13 +324,13 @@ def test_decompose_levels_runs_without_error() -> None:
 
 def test_decompose_levels_n_levels_matches_model() -> None:
     model, observed = _simple_decompose_model_and_spreads()
-    snap = decompose_levels(model, json.dumps(observed), 100.0, "2024-03-31")
+    snap = decompose_levels(model, json.dumps(observed), 0.0100, "2024-03-31")
     assert snap.n_levels == model.n_levels
 
 
 def test_decompose_levels_level_values_are_floats() -> None:
     model, observed = _simple_decompose_model_and_spreads()
-    snap = decompose_levels(model, json.dumps(observed), 100.0, "2024-03-31")
+    snap = decompose_levels(model, json.dumps(observed), 0.0100, "2024-03-31")
     for k in range(snap.n_levels):
         vals = snap.level_values(k)
         assert isinstance(vals, dict)
@@ -329,14 +340,14 @@ def test_decompose_levels_level_values_are_floats() -> None:
 
 def test_decompose_levels_adder_covers_all_issuers() -> None:
     model, observed = _simple_decompose_model_and_spreads()
-    snap = decompose_levels(model, json.dumps(observed), 100.0, "2024-03-31")
+    snap = decompose_levels(model, json.dumps(observed), 0.0100, "2024-03-31")
     adder = snap.adder()
     assert set(adder.keys()) == set(observed.keys())
 
 
 def test_decompose_levels_level_index_out_of_range_raises() -> None:
     model, observed = _simple_decompose_model_and_spreads()
-    snap = decompose_levels(model, json.dumps(observed), 100.0, "2024-03-31")
+    snap = decompose_levels(model, json.dumps(observed), 0.0100, "2024-03-31")
     with pytest.raises(ValueError, match=r"out of range"):
         snap.level_values(999)
 
@@ -346,18 +357,18 @@ def test_decompose_levels_unknown_issuer_raises() -> None:
     # Supply a spread for an issuer not in the model and not in runtime_tags.
     bad = json.dumps({"UNKNOWN-ISSUER": 200.0})
     with pytest.raises(ValueError, match="UNKNOWN-ISSUER"):
-        decompose_levels(model, bad, 100.0, "2024-03-31")
+        decompose_levels(model, bad, 0.0100, "2024-03-31")
 
 
 def test_decompose_levels_runtime_tags_resolves_unknown_issuer() -> None:
     model, observed = _simple_decompose_model_and_spreads()
     extra = dict(observed)
-    extra["RUNTIME-ISSUER"] = 150.0
+    extra["RUNTIME-ISSUER"] = 0.0150
     runtime_tags = {"RUNTIME-ISSUER": {"rating": "IG", "region": "EU"}}
     snap = decompose_levels(
         model,
         json.dumps(extra),
-        100.0,
+        0.0100,
         "2024-03-31",
         json.dumps(runtime_tags),
     )
@@ -371,8 +382,8 @@ def test_decompose_levels_runtime_tags_resolves_unknown_issuer() -> None:
 def test_decompose_period_runs_without_error() -> None:
     model, observed = _simple_decompose_model_and_spreads()
     spreads_json = json.dumps(observed)
-    snap_t0 = decompose_levels(model, spreads_json, 100.0, "2024-02-29")
-    snap_t1 = decompose_levels(model, spreads_json, 101.5, "2024-03-31")
+    snap_t0 = decompose_levels(model, spreads_json, 0.0100, "2024-02-29")
+    snap_t1 = decompose_levels(model, spreads_json, 0.01015, "2024-03-31")
     period = decompose_period(snap_t0, snap_t1)
     assert isinstance(period, PeriodDecomposition)
     assert period.from_date == "2024-02-29"
@@ -383,8 +394,8 @@ def test_decompose_period_runs_without_error() -> None:
 def test_decompose_period_level_deltas() -> None:
     model, observed = _simple_decompose_model_and_spreads()
     spreads_json = json.dumps(observed)
-    snap_t0 = decompose_levels(model, spreads_json, 100.0, "2024-02-29")
-    snap_t1 = decompose_levels(model, spreads_json, 100.0, "2024-03-31")
+    snap_t0 = decompose_levels(model, spreads_json, 0.0100, "2024-02-29")
+    snap_t1 = decompose_levels(model, spreads_json, 0.0100, "2024-03-31")
     period = decompose_period(snap_t0, snap_t1)
     # Same spreads + same generic → all deltas should be zero.
     for k in range(period.n_levels):
@@ -396,8 +407,8 @@ def test_decompose_period_level_deltas() -> None:
 def test_decompose_period_date_order_error() -> None:
     model, observed = _simple_decompose_model_and_spreads()
     spreads_json = json.dumps(observed)
-    snap_t0 = decompose_levels(model, spreads_json, 100.0, "2024-01-31")
-    snap_t1 = decompose_levels(model, spreads_json, 100.0, "2024-03-31")
+    snap_t0 = decompose_levels(model, spreads_json, 0.0100, "2024-01-31")
+    snap_t1 = decompose_levels(model, spreads_json, 0.0100, "2024-03-31")
     # Reverse order: from > to should raise.
     with pytest.raises(ValueError, match=r"from.*to|date"):
         decompose_period(snap_t1, snap_t0)

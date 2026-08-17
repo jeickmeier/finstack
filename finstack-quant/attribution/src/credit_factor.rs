@@ -399,6 +399,7 @@ mod tests {
             adder_vol_source: AdderVolSource::Default,
             fit_quality: None,
             level_fit_quality: vec![],
+            spread_duration: 1.0,
         }
     }
 
@@ -419,6 +420,9 @@ mod tests {
             hierarchy: CreditHierarchySpec {
                 levels: vec![HierarchyDimension::Rating, HierarchyDimension::Region],
             },
+            panel_frequency: finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
+            use_returns_or_levels: finstack_quant_factor_model::credit::calibration::PanelSpace::Returns,
+            bucket_weighting: finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
             config: empty_factor_model_config(),
             issuer_betas: vec![
                 issuer_row("ISSUER-A", "IG", "EU", 1.1, vec![0.9, 1.05]),
@@ -476,14 +480,14 @@ mod tests {
         let model = model_two_levels();
 
         let mut s_t0 = BTreeMap::new();
-        s_t0.insert(IssuerId::new("ISSUER-A"), 100.0);
-        s_t0.insert(IssuerId::new("ISSUER-B"), 110.0);
-        s_t0.insert(IssuerId::new("ISSUER-C"), 350.0);
+        s_t0.insert(IssuerId::new("ISSUER-A"), 0.0100);
+        s_t0.insert(IssuerId::new("ISSUER-B"), 0.0110);
+        s_t0.insert(IssuerId::new("ISSUER-C"), 0.0350);
         let mut s_t1 = BTreeMap::new();
-        s_t1.insert(IssuerId::new("ISSUER-A"), 105.0);
-        s_t1.insert(IssuerId::new("ISSUER-B"), 118.0);
-        s_t1.insert(IssuerId::new("ISSUER-C"), 360.0);
-        let period = make_period_from_spreads(&model, s_t0.clone(), 80.0, s_t1.clone(), 85.0);
+        s_t1.insert(IssuerId::new("ISSUER-A"), 0.0105);
+        s_t1.insert(IssuerId::new("ISSUER-B"), 0.0118);
+        s_t1.insert(IssuerId::new("ISSUER-C"), 0.0360);
+        let period = make_period_from_spreads(&model, s_t0.clone(), 0.0080, s_t1.clone(), 0.0085);
 
         let positions = vec![
             CreditAttributionInput {
@@ -512,8 +516,8 @@ mod tests {
         let expected: f64 = positions
             .iter()
             .map(|p| {
-                let ds = s_t1[&p.issuer_id] - s_t0[&p.issuer_id];
-                p.cs01.amount() * ds
+                let ds_bp = (s_t1[&p.issuer_id] - s_t0[&p.issuer_id]) * 10_000.0;
+                p.cs01.amount() * ds_bp
             })
             .sum();
         let attributed = detail.generic_pnl.amount()
@@ -537,10 +541,10 @@ mod tests {
     fn empty_positions_errors() {
         let model = model_two_levels();
         let mut s_t0 = BTreeMap::new();
-        s_t0.insert(IssuerId::new("ISSUER-A"), 100.0);
+        s_t0.insert(IssuerId::new("ISSUER-A"), 0.0100);
         let mut s_t1 = BTreeMap::new();
-        s_t1.insert(IssuerId::new("ISSUER-A"), 105.0);
-        let period = make_period_from_spreads(&model, s_t0, 80.0, s_t1, 85.0);
+        s_t1.insert(IssuerId::new("ISSUER-A"), 0.0105);
+        let period = make_period_from_spreads(&model, s_t0, 0.0080, s_t1, 0.0085);
 
         let opts = CreditFactorDetailOptions::default();
         let err = compute_credit_factor_attribution(&model, &opts, &[], &period).unwrap_err();
@@ -551,12 +555,12 @@ mod tests {
     fn mixed_currency_cs01_errors() {
         let model = model_two_levels();
         let mut s_t0 = BTreeMap::new();
-        s_t0.insert(IssuerId::new("ISSUER-A"), 100.0);
-        s_t0.insert(IssuerId::new("ISSUER-B"), 110.0);
+        s_t0.insert(IssuerId::new("ISSUER-A"), 0.0100);
+        s_t0.insert(IssuerId::new("ISSUER-B"), 0.0110);
         let mut s_t1 = BTreeMap::new();
-        s_t1.insert(IssuerId::new("ISSUER-A"), 105.0);
-        s_t1.insert(IssuerId::new("ISSUER-B"), 118.0);
-        let period = make_period_from_spreads(&model, s_t0, 80.0, s_t1, 85.0);
+        s_t1.insert(IssuerId::new("ISSUER-A"), 0.0105);
+        s_t1.insert(IssuerId::new("ISSUER-B"), 0.0118);
+        let period = make_period_from_spreads(&model, s_t0, 0.0080, s_t1, 0.0085);
 
         let positions = vec![
             CreditAttributionInput {
@@ -583,10 +587,10 @@ mod tests {
     fn unknown_issuer_errors() {
         let model = model_two_levels();
         let mut s_t0 = BTreeMap::new();
-        s_t0.insert(IssuerId::new("ISSUER-A"), 100.0);
+        s_t0.insert(IssuerId::new("ISSUER-A"), 0.0100);
         let mut s_t1 = BTreeMap::new();
-        s_t1.insert(IssuerId::new("ISSUER-A"), 105.0);
-        let period = make_period_from_spreads(&model, s_t0, 80.0, s_t1, 85.0);
+        s_t1.insert(IssuerId::new("ISSUER-A"), 0.0105);
+        let period = make_period_from_spreads(&model, s_t0, 0.0080, s_t1, 0.0085);
 
         let positions = vec![CreditAttributionInput {
             position_id: "P1".into(),
@@ -611,11 +615,11 @@ mod tests {
         // ISSUER-B is present at t0 only, so decompose_period drops it from
         // d_adder (restricted to issuers present in both snapshots).
         let mut s_t0 = BTreeMap::new();
-        s_t0.insert(IssuerId::new("ISSUER-A"), 100.0);
-        s_t0.insert(IssuerId::new("ISSUER-B"), 110.0);
+        s_t0.insert(IssuerId::new("ISSUER-A"), 0.0100);
+        s_t0.insert(IssuerId::new("ISSUER-B"), 0.0110);
         let mut s_t1 = BTreeMap::new();
-        s_t1.insert(IssuerId::new("ISSUER-A"), 105.0);
-        let period = make_period_from_spreads(&model, s_t0, 80.0, s_t1, 85.0);
+        s_t1.insert(IssuerId::new("ISSUER-A"), 0.0105);
+        let period = make_period_from_spreads(&model, s_t0, 0.0080, s_t1, 0.0085);
         assert!(!period.d_adder.contains_key(&IssuerId::new("ISSUER-B")));
 
         let positions = vec![CreditAttributionInput {
@@ -636,10 +640,10 @@ mod tests {
     fn zero_cs01_position_with_unknown_issuer_is_allowed() {
         let model = model_two_levels();
         let mut s_t0 = BTreeMap::new();
-        s_t0.insert(IssuerId::new("ISSUER-A"), 100.0);
+        s_t0.insert(IssuerId::new("ISSUER-A"), 0.0100);
         let mut s_t1 = BTreeMap::new();
-        s_t1.insert(IssuerId::new("ISSUER-A"), 105.0);
-        let period = make_period_from_spreads(&model, s_t0, 80.0, s_t1, 85.0);
+        s_t1.insert(IssuerId::new("ISSUER-A"), 0.0105);
+        let period = make_period_from_spreads(&model, s_t0, 0.0080, s_t1, 0.0085);
 
         let positions = vec![
             CreditAttributionInput {
@@ -662,12 +666,12 @@ mod tests {
     fn per_issuer_adder_is_omitted_by_default() {
         let model = model_two_levels();
         let mut s_t0 = BTreeMap::new();
-        s_t0.insert(IssuerId::new("ISSUER-A"), 100.0);
-        s_t0.insert(IssuerId::new("ISSUER-B"), 110.0);
+        s_t0.insert(IssuerId::new("ISSUER-A"), 0.0100);
+        s_t0.insert(IssuerId::new("ISSUER-B"), 0.0110);
         let mut s_t1 = BTreeMap::new();
-        s_t1.insert(IssuerId::new("ISSUER-A"), 105.0);
-        s_t1.insert(IssuerId::new("ISSUER-B"), 118.0);
-        let period = make_period_from_spreads(&model, s_t0, 80.0, s_t1, 85.0);
+        s_t1.insert(IssuerId::new("ISSUER-A"), 0.0105);
+        s_t1.insert(IssuerId::new("ISSUER-B"), 0.0118);
+        let period = make_period_from_spreads(&model, s_t0, 0.0080, s_t1, 0.0085);
 
         let positions = vec![CreditAttributionInput {
             position_id: "P1".into(),
@@ -684,12 +688,12 @@ mod tests {
     fn per_bucket_breakdown_can_be_disabled() {
         let model = model_two_levels();
         let mut s_t0 = BTreeMap::new();
-        s_t0.insert(IssuerId::new("ISSUER-A"), 100.0);
-        s_t0.insert(IssuerId::new("ISSUER-B"), 110.0);
+        s_t0.insert(IssuerId::new("ISSUER-A"), 0.0100);
+        s_t0.insert(IssuerId::new("ISSUER-B"), 0.0110);
         let mut s_t1 = BTreeMap::new();
-        s_t1.insert(IssuerId::new("ISSUER-A"), 105.0);
-        s_t1.insert(IssuerId::new("ISSUER-B"), 118.0);
-        let period = make_period_from_spreads(&model, s_t0, 80.0, s_t1, 85.0);
+        s_t1.insert(IssuerId::new("ISSUER-A"), 0.0105);
+        s_t1.insert(IssuerId::new("ISSUER-B"), 0.0118);
+        let period = make_period_from_spreads(&model, s_t0, 0.0080, s_t1, 0.0085);
 
         let positions = vec![CreditAttributionInput {
             position_id: "P1".into(),

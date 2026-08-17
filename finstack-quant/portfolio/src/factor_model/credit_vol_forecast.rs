@@ -703,6 +703,9 @@ mod tests {
             hierarchy: CreditHierarchySpec {
                 levels: vec![HierarchyDimension::Rating, HierarchyDimension::Sector],
             },
+            panel_frequency: finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
+            use_returns_or_levels: finstack_quant_factor_model::credit::calibration::PanelSpace::Returns,
+            bucket_weighting: finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
             config: minimal_config(factors, cov),
             issuer_betas: vec![],
             anchor_state: LevelsAtAnchor {

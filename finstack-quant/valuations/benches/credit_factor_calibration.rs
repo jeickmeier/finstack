@@ -140,7 +140,8 @@ fn build_config(n_levels: usize) -> CreditCalibrationConfig {
         covariance_strategy: CovarianceStrategy::Diagonal,
         beta_shrinkage: BetaShrinkage::None,
         use_returns_or_levels: PanelSpace::Returns,
-        annualization_factor: ANNUALIZATION,
+        panel_frequency: finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
+        bucket_weighting: finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
     }
 }
 

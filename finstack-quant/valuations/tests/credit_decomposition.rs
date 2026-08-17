@@ -49,6 +49,10 @@ fn base_model(levels: Vec<HierarchyDimension>) -> CreditFactorModel {
             series_id: "cdx.ig.5y".to_owned(),
         },
         hierarchy: CreditHierarchySpec { levels },
+        panel_frequency: finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
+        use_returns_or_levels:
+            finstack_quant_factor_model::credit::calibration::PanelSpace::Returns,
+        bucket_weighting: finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
         config: empty_factor_model_config(),
         issuer_betas: vec![],
         anchor_state: LevelsAtAnchor {
@@ -90,6 +94,7 @@ fn issuer_row(id: &str, tags: IssuerTags, betas: IssuerBetas) -> IssuerBetaRow {
         adder_vol_source: AdderVolSource::Default,
         fit_quality: None,
         level_fit_quality: vec![],
+        spread_duration: 1.0,
     }
 }
 
@@ -188,14 +193,14 @@ fn decompose_levels_reconciles_each_issuer() {
         ("ISSUER-A", 1.50),
         ("ISSUER-B", 1.30),
         ("ISSUER-C", 1.10),
-        ("ISSUER-D", 3.40),
+        ("ISSUER-D", 0.0340),
     ]);
     let generic = 0.80_f64;
     let as_of = create_date(2024, Month::April, 30).unwrap();
 
     let snap = decompose_levels(&model, &spreads, generic, as_of, None).unwrap();
     assert_eq!(snap.date, as_of);
-    assert_eq!(snap.generic, generic);
+    assert!((snap.generic - generic * 10_000.0).abs() < TOL);
     assert_eq!(snap.by_level.len(), 3);
 
     let mut max_err = 0.0_f64;
@@ -205,7 +210,7 @@ fn decompose_levels_reconciles_each_issuer() {
         }
         let paths = bucket_paths_for(&row.tags, &model.hierarchy.levels);
         let recon = reconstruct_spread(&snap, &row.issuer_id, &row.betas, &paths).unwrap();
-        let observed = spreads[&row.issuer_id];
+        let observed = spreads[&row.issuer_id] * 10_000.0;
         let err = (recon - observed).abs();
         assert!(
             err < TOL,
@@ -230,13 +235,13 @@ fn decompose_period_reconciles_each_issuer() {
         ("ISSUER-A", 1.50),
         ("ISSUER-B", 1.30),
         ("ISSUER-C", 1.10),
-        ("ISSUER-D", 3.40),
+        ("ISSUER-D", 0.0340),
     ]);
     let s2 = spread_map(&[
         ("ISSUER-A", 1.65),
         ("ISSUER-B", 1.42),
         ("ISSUER-C", 1.22),
-        ("ISSUER-D", 3.80),
+        ("ISSUER-D", 0.0380),
     ]);
     let g1 = 0.80_f64;
     let g2 = 0.90_f64;
@@ -260,7 +265,7 @@ fn decompose_period_reconciles_each_issuer() {
         }
         delta_s += *period.d_adder.get(&row.issuer_id).unwrap();
 
-        let observed = s2[&row.issuer_id] - s1[&row.issuer_id];
+        let observed = (s2[&row.issuer_id] - s1[&row.issuer_id]) * 10_000.0;
         let err = (delta_s - observed).abs();
         assert!(
             err < TOL,
@@ -317,8 +322,8 @@ fn new_issuer_with_tags_is_bucket_only() {
     let paths = bucket_paths_for(&new_tags, &model.hierarchy.levels);
     let recon = reconstruct_spread(&snap, &new_id, &unit, &paths).unwrap();
     assert!(
-        (recon - 1.30).abs() < TOL,
-        "new issuer recon {recon} != observed 1.30"
+        (recon - 1.30 * 10_000.0).abs() < TOL,
+        "new issuer recon {recon} != observed 13000 bp"
     );
 }
 
@@ -428,8 +433,8 @@ fn empty_hierarchy_decomposes_to_generic_and_adder() {
     let a = snap.adder[&IssuerId::new("ISSUER-A")];
     let b = snap.adder[&IssuerId::new("ISSUER-B")];
     // adder = S - β_PC · generic
-    assert!((a - (1.50 - 1.10 * 0.80)).abs() < TOL);
-    assert!((b - (1.10 - 0.90 * 0.80)).abs() < TOL);
+    assert!((a - (1.50 - 1.10 * 0.80) * 10_000.0).abs() < TOL);
+    assert!((b - (1.10 - 0.90 * 0.80) * 10_000.0).abs() < TOL);
 }
 
 // Test 7: round-trip — decompose_levels twice, then decompose_period
@@ -441,13 +446,13 @@ fn decompose_levels_then_decompose_period_round_trip() {
         ("ISSUER-A", 1.30),
         ("ISSUER-B", 1.50),
         ("ISSUER-C", 1.05),
-        ("ISSUER-D", 3.10),
+        ("ISSUER-D", 0.0310),
     ]);
     let s2 = spread_map(&[
         ("ISSUER-A", 1.42),
         ("ISSUER-B", 1.66),
         ("ISSUER-C", 1.20),
-        ("ISSUER-D", 3.45),
+        ("ISSUER-D", 0.0345),
     ]);
     let g1 = 0.75_f64;
     let g2 = 0.92_f64;
@@ -467,7 +472,7 @@ fn decompose_levels_then_decompose_period_round_trip() {
         }
         delta_s += period.d_adder[&row.issuer_id];
 
-        let observed = s2[&row.issuer_id] - s1[&row.issuer_id];
+        let observed = (s2[&row.issuer_id] - s1[&row.issuer_id]) * 10_000.0;
         assert!(
             (delta_s - observed).abs() < TOL,
             "round-trip ΔS mismatch for {:?}: recon = {delta_s}, observed = {observed}",
@@ -616,7 +621,7 @@ fn decompose_levels_excludes_folded_issuers_from_bucket_means() {
         reason: "test fold-up".to_owned(),
     }];
 
-    let spreads = spread_map(&[("ISSUER-FOLDED", 100.0), ("ISSUER-ACTIVE", 10.0)]);
+    let spreads = spread_map(&[("ISSUER-FOLDED", 0.0100), ("ISSUER-ACTIVE", 0.0010)]);
     let snap = decompose_levels(
         &model,
         &spreads,
@@ -645,9 +650,9 @@ fn decompose_levels_rejects_non_finite_inputs() {
     let as_of = model.as_of;
 
     // NaN spread for one issuer must be a typed error, not a poisoned cascade.
-    let mut spreads = spread_map(&[("ISSUER-A", 120.0), ("ISSUER-B", 95.0)]);
+    let mut spreads = spread_map(&[("ISSUER-A", 0.0120), ("ISSUER-B", 0.0095)]);
     spreads.insert(IssuerId::new("ISSUER-A"), f64::NAN);
-    let err = decompose_levels(&model, &spreads, 100.0, as_of, None)
+    let err = decompose_levels(&model, &spreads, 0.0100, as_of, None)
         .expect_err("NaN spread must be rejected");
     assert!(
         err.to_string().contains("ISSUER-A"),
@@ -655,7 +660,7 @@ fn decompose_levels_rejects_non_finite_inputs() {
     );
 
     // Non-finite generic is rejected too.
-    let spreads = spread_map(&[("ISSUER-A", 120.0)]);
+    let spreads = spread_map(&[("ISSUER-A", 0.0120)]);
     let err = decompose_levels(&model, &spreads, f64::INFINITY, as_of, None)
         .expect_err("non-finite generic must be rejected");
     assert!(

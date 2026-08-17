@@ -42,7 +42,7 @@ dependency, and sensitivity types. The public submodules are `matching`,
 | Persistence | `FactorModelConfigEnvelope`, `FactorModelConfigSchema`, `FACTOR_MODEL_CONFIG_CONTRACT` |
 | Matching (`matching`) | `MatchingConfig`, `MappingRule`, `DependencyFilter`, `AttributeFilter`, `FactorMatcher`, `CascadeMatcher`, `HierarchicalMatcher`, `MappingTableMatcher`, `CreditHierarchicalMatcher`, `HierarchicalConfig`, `CreditHierarchicalConfig`, `FactorMatchEntry`, `FactorMatchError`, `FactorNode`, `bucket_factor_id`, `dimension_key`, `CREDIT_GENERIC_FACTOR_ID`, `ISSUER_ID_META_KEY` |
 | Sensitivity | `SensitivityMatrix` |
-| Credit (`credit`) | `credit::hierarchy`, `credit::calibration`, `credit::decomposition` |
+| Credit (`credit`) | `credit::hierarchy`, `credit::calibration`, `credit::decomposition`, `credit::histories` |
 | Schemas (`schema`) | `ARTIFACTS`, `FACTOR_MODEL_SCHEMA_BASE`, and the per-artifact filename/title/description constants |
 
 ```rust
@@ -82,12 +82,26 @@ S_i ≡ β_i^PC · g
 `g` is a generic (PC) factor common to all issuers, `L_k(·)` are per-bucket
 factors at hierarchy level `k` (e.g. rating → region → sector), and `adder_i`
 is the per-issuer idiosyncratic residual at the calibration anchor. The same
-identity holds for first differences, which is the reconciliation invariant
-`decompose_period` enforces to absolute tolerance `1e-10`.
+identity holds for first differences. `decompose_period` is algebraic
+differencing of two snapshots; it does not numerically enforce a tolerance.
+Callers checking the identity typically use absolute tolerance `1e-10`.
+
+Callers pass **decimal** spreads (`0.01` = 100 bp). Calibration and
+`decompose_levels` convert `× 10_000` at entry. Artifact internals, factor
+histories, anchor/decompose outputs, and `Σ` stay in **bp** so they match
+CS01 (P&L per bp). Values that look like bp (e.g. `100.0`) are rejected.
 
 Issuers are classified as either `IssuerBeta` (fits a per-level β) or
 `BucketOnly` (β fixed at `1.0`) according to an `IssuerBetaPolicy` plus
-per-issuer `IssuerBetaOverride` entries.
+per-issuer `IssuerBetaOverride` entries. The default policy is
+`GloballyOff`. When `IssuerBeta` is on, OLS uses the **leave-one-out**
+bucket mean so β is not biased toward 1; the stored/peeled factor is the
+**full-bucket** weighted mean so `S_i = β g + Σ β_k L_k + adder` holds.
+
+Bucket means default to **DTS** weights (`SD_years × spread_bp`, Ben Dor /
+Barclays). This is the factor-construction weight for risk forecast and
+contribution. Position exposure remains `β × CS01`; DTS does not replace
+CS01. `BucketWeighting::Equal` is the opt-out for tests and simple books.
 
 ### Calibration
 
@@ -122,8 +136,9 @@ sequential peel:
 
 ```rust,ignore
 use finstack_quant_factor_model::credit::calibration::{
-    BetaShrinkage, BucketSizeThresholds, CovarianceStrategy, CreditCalibrationConfig,
-    CreditCalibrationInputs, CreditCalibrator, PanelSpace, VolModelChoice,
+    BetaShrinkage, BucketSizeThresholds, BucketWeighting, CovarianceStrategy,
+    CreditCalibrationConfig, CreditCalibrationInputs, CreditCalibrator, PanelFrequency,
+    PanelSpace, VolModelChoice,
 };
 
 let config = CreditCalibrationConfig {
@@ -134,7 +149,8 @@ let config = CreditCalibrationConfig {
     covariance_strategy: CovarianceStrategy::FullSampleRepaired,
     beta_shrinkage: BetaShrinkage::TowardOne { alpha: 0.25 },
     use_returns_or_levels: PanelSpace::Returns,
-    annualization_factor: 12.0,
+    panel_frequency: PanelFrequency::Monthly,
+    bucket_weighting: BucketWeighting::Dts,
 };
 
 let model = CreditCalibrator::new(config).calibrate(CreditCalibrationInputs {
@@ -144,15 +160,23 @@ let model = CreditCalibrator::new(config).calibrate(CreditCalibrationInputs {
     as_of,
     as_of_spreads,
     idiosyncratic_overrides: Default::default(),
+    spread_durations, // years, required when bucket_weighting is Dts
 })?;
 ```
 
 `CreditCalibrationConfig::default()` uses `IssuerBetaPolicy::GloballyOff`,
 `VolModelChoice::Sample`, `CovarianceStrategy::FullSampleRepaired`,
-`BetaShrinkage::None`, `PanelSpace::Returns`, and `annualization_factor = 12.0`
-(monthly data). `FullSampleRepaired` rather than `Diagonal` is deliberate: an
+`BetaShrinkage::None`, `PanelSpace::Returns`, `PanelFrequency::Monthly`
+(annualizes with 12), and `BucketWeighting::Dts`. The history panel must be
+a complete regular grid of that frequency with no `None` issuer observations.
+`FullSampleRepaired` rather than `Diagonal` is deliberate: an
 identity-correlation default silently drops cross-factor correlation and
 understates the vol of a correlated long book.
+
+Embedded `factor_histories` are dense bp series (no `None → 0.0`). Use
+`credit::histories::covariance_from_histories` to rebuild `Σ` and
+`historical_factor_pnl` for hist-sim factor P&L `s · F_t`. Parametric
+`sᵀΣs` remains the default portfolio risk engine.
 
 ### Determinism
 
@@ -169,9 +193,9 @@ per-issuer adders. Issuers absent from the model can still be decomposed under
 bucket-only semantics by supplying `runtime_tags`.
 
 `decompose_period(levels_t0, levels_t1)` differences two snapshots into a
-`PeriodDecomposition` (`d_generic`, per-level deltas, `d_adder`) and preserves
-the linear reconciliation invariant on `ΔS_i` to absolute tolerance `1e-10` for
-every issuer present in both snapshots.
+`PeriodDecomposition` (`d_generic`, per-level deltas, `d_adder`). The
+linear identity on `ΔS_i` is algebraic when both snapshots share the same
+model vintage and tags; the function does not enforce a numerical tolerance.
 
 ```rust,ignore
 use finstack_quant_factor_model::credit::decomposition::{decompose_levels, decompose_period};
@@ -182,8 +206,8 @@ let period = decompose_period(&levels_t0, &levels_t1)?;
 ```
 
 Failure modes surface through `DecompositionError`: `UnknownIssuer`,
-`MissingTag`, `ModelInconsistent`, `SnapshotShapeMismatch`, and
-`DateMismatchInPeriod`.
+`MissingTag`, `ModelInconsistent`, `SnapshotShapeMismatch`,
+`DateMismatchInPeriod`, `InvalidDecimalSpread`, and `InvalidDtsWeight`.
 
 ## Sensitivity matrix
 
@@ -201,8 +225,9 @@ in `finstack-quant-portfolio`'s `sensitivity` module
 - Covariance entries are annualized (co)variances in each factor's canonical
   bump unit: bp for rates and credit, % for equity/commodity/FX, vol points for
   volatility. `FactorCovarianceMatrix` documents the units contract.
-- Credit decomposition enforces its reconciliation invariant to absolute
-  tolerance `1e-10`.
+- Credit callers pass decimal spreads; internals and `Σ` are bp. DTS weights
+  bucket factors; position exposure is `β × CS01`.
+- `decompose_period` is algebraic differencing; it does not enforce `1e-10`.
 - Spec types are `#[serde(deny_unknown_fields)]`; see
   [`docs/SERDE_STABILITY.md`](../../docs/SERDE_STABILITY.md).
 - This crate is `f64` throughout; it holds no `Money` and performs no FX. See

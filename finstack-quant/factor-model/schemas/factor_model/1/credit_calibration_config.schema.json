@@ -54,6 +54,21 @@
       ],
       "type": "object"
     },
+    "BucketWeighting": {
+      "description": "How bucket factor means are weighted across issuers in the bucket.\n\nDTS (duration-times-spread) is the desk-standard credit-factor weight\n(Ben Dor / Barclays): it avoids overweighting tight or short-duration\nnames. Position risk exposure remains `β × CS01`; DTS does not replace\nCS01. [`BucketWeighting::Equal`] is the opt-out for tests and simple\nequally-weighted books.",
+      "oneOf": [
+        {
+          "const": "equal",
+          "description": "Equal weight on every non-folded issuer in the bucket.",
+          "type": "string"
+        },
+        {
+          "const": "dts",
+          "description": "Weight `i` by `SD_i (years) × s_i (bp)`, normalized within the bucket.",
+          "type": "string"
+        }
+      ]
+    },
     "CovarianceStrategy": {
       "description": "Strategy for assembling the factor covariance matrix.",
       "oneOf": [
@@ -69,7 +84,7 @@
             "ridge": {
               "properties": {
                 "alpha": {
-                  "description": "Ridge regularisation parameter; must be `>= 0`.",
+                  "description": "Ridge regularisation in annualized **bp²**; must be `>= 0`.",
                   "format": "double",
                   "minimum": 0.0,
                   "type": "number"
@@ -93,7 +108,7 @@
         },
         {
           "const": "ledoit_wolf",
-          "description": "Ledoit-Wolf (2004) identity-target shrinkage over complete-case\nobservations: `Σ = annualization_factor · (δ*·μ·I + (1 − δ*)·S)` with\nthe analytic optimal intensity `δ*`, and `ρ` derived from `Σ`.\n\nOnly dates where **every** factor is observed enter the estimate;\ncalibration fails with a validation error when fewer than 2 such dates\nexist (use [`CovarianceStrategy::Ridge`] or\n[`CovarianceStrategy::FullSampleRepaired`] for very sparse panels).\n\nThe resulting `config.covariance` is authoritative for point-in-time\nrisk but diverges from the vol-forecast rebuild `D·ρ·D` on both the\ndiagonal and off-diagonal, because `vol_state` variances come from a\ndifferent estimator (the configured\n[`VolModelChoice`]) over a different observation set (per-factor\nall-available rows, not the complete-case rows used here). See\n[`CreditFactorModel::static_correlation`][crate::credit::hierarchy::CreditFactorModel::static_correlation]\nfor the full explanation.\n\nReference: Ledoit, O., & Wolf, M. (2004). \"A well-conditioned estimator\nfor large-dimensional covariance matrices.\" *Journal of Multivariate\nAnalysis*, 88(2), 365–411.",
+          "description": "Ledoit-Wolf (2004) identity-target shrinkage over complete-case\nobservations: `Σ = periods_per_year · (δ*·μ·I + (1 − δ*)·S)` with\nthe analytic optimal intensity `δ*`, and `ρ` derived from `Σ`.\n\nOnly dates where **every** factor is observed enter the estimate;\ncalibration fails with a validation error when fewer than 2 such dates\nexist (use [`CovarianceStrategy::Ridge`] or\n[`CovarianceStrategy::FullSampleRepaired`] for very sparse panels).\n\nThe resulting `config.covariance` is authoritative for point-in-time\nrisk but diverges from the vol-forecast rebuild `D·ρ·D` on both the\ndiagonal and off-diagonal, because `vol_state` variances come from a\ndifferent estimator (the configured\n[`VolModelChoice`]) over a different observation set (per-factor\nall-available rows, not the complete-case rows used here). See\n[`CreditFactorModel::static_correlation`][crate::credit::hierarchy::CreditFactorModel::static_correlation]\nfor the full explanation.\n\nReference: Ledoit, O., & Wolf, M. (2004). \"A well-conditioned estimator\nfor large-dimensional covariance matrices.\" *Journal of Multivariate\nAnalysis*, 88(2), 365–411.",
           "type": "string"
         }
       ]
@@ -210,6 +225,26 @@
         }
       ]
     },
+    "PanelFrequency": {
+      "description": "Observation frequency of a complete, regular credit history panel.\n\nAnnualization used for sample/EWMA variance and Ledoit-Wolf covariance\nis derived from this enum (`252` / `12` / `4`). There is no free\nannualization float.",
+      "oneOf": [
+        {
+          "const": "daily",
+          "description": "One observation per calendar day. Annualizes with 252.",
+          "type": "string"
+        },
+        {
+          "const": "monthly",
+          "description": "One observation per month. Annualizes with 12.\n\nThe regular grid is generated from `dates[0]` with [`DateExt::add_months`].\nWhen the first date is a month-end, subsequent dates stay on month-end\n(Jan 31 → Feb 28/29 → Mar 31).",
+          "type": "string"
+        },
+        {
+          "const": "quarterly",
+          "description": "One observation per quarter (three calendar months). Annualizes with 4.\n\nSame month-end-preserving step as [`PanelFrequency::Monthly`], advancing\nthree months at a time.",
+          "type": "string"
+        }
+      ]
+    },
     "PanelSpace": {
       "description": "Whether the calibrator works in price-difference (return) or raw-level space.\n\n`Returns` (the default) matches the spec's reference math: `r_i(t) =\nS_i(t) - S_i(t-1)` and the generic factor is differenced the same way.",
       "oneOf": [
@@ -267,8 +302,8 @@
   "description": "Configuration for the deterministic credit factor-model calibrator.",
   "examples": [
     {
-      "annualization_factor": 12.0,
       "beta_shrinkage": "none",
+      "bucket_weighting": "dts",
       "covariance_strategy": "full_sample_repaired",
       "hierarchy": {
         "levels": []
@@ -276,21 +311,20 @@
       "min_bucket_size_per_level": {
         "per_level": []
       },
+      "panel_frequency": "monthly",
       "policy": "globally_off",
       "use_returns_or_levels": "returns",
       "vol_model": "sample"
     }
   ],
   "properties": {
-    "annualization_factor": {
-      "description": "Annualization factor for sample variance (default 12.0 ≈ monthly data).",
-      "exclusiveMinimum": 0.0,
-      "format": "double",
-      "type": "number"
-    },
     "beta_shrinkage": {
       "$ref": "#/$defs/BetaShrinkage",
       "description": "Optional shrinkage applied to OLS β estimates."
+    },
+    "bucket_weighting": {
+      "$ref": "#/$defs/BucketWeighting",
+      "description": "Bucket-mean weighting. Default [`BucketWeighting::Dts`].\n\n[`BucketWeighting::Dts`] requires [`super::inputs::CreditCalibrationInputs::spread_durations`]."
     },
     "covariance_strategy": {
       "$ref": "#/$defs/CovarianceStrategy",
@@ -303,6 +337,10 @@
     "min_bucket_size_per_level": {
       "$ref": "#/$defs/BucketSizeThresholds",
       "description": "Per-level minimum-bucket-size thresholds."
+    },
+    "panel_frequency": {
+      "$ref": "#/$defs/PanelFrequency",
+      "description": "Regular observation frequency of the history panel.\n\nDerives the annualization used for variance and Ledoit-Wolf\n(`252` / `12` / `4`). The panel dates must form a complete regular\ngrid of this frequency from `dates[0]`."
     },
     "policy": {
       "$ref": "#/$defs/IssuerBetaPolicy",
@@ -325,7 +363,8 @@
     "covariance_strategy",
     "beta_shrinkage",
     "use_returns_or_levels",
-    "annualization_factor"
+    "panel_frequency",
+    "bucket_weighting"
   ],
   "title": "CreditCalibrationConfig",
   "type": "object"

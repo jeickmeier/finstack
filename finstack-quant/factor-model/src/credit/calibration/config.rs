@@ -1,7 +1,96 @@
+use finstack_quant_core::dates::{Date, DateExt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::credit::hierarchy::{CreditHierarchySpec, IssuerBetaPolicy};
+
+/// Observation frequency of a complete, regular credit history panel.
+///
+/// Annualization used for sample/EWMA variance and Ledoit-Wolf covariance
+/// is derived from this enum (`252` / `12` / `4`). There is no free
+/// annualization float.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum PanelFrequency {
+    /// One observation per calendar day. Annualizes with 252.
+    Daily,
+    /// One observation per month. Annualizes with 12.
+    ///
+    /// The regular grid is generated from `dates[0]` with [`DateExt::add_months`].
+    /// When the first date is a month-end, subsequent dates stay on month-end
+    /// (Jan 31 → Feb 28/29 → Mar 31).
+    #[default]
+    Monthly,
+    /// One observation per quarter (three calendar months). Annualizes with 4.
+    ///
+    /// Same month-end-preserving step as [`PanelFrequency::Monthly`], advancing
+    /// three months at a time.
+    Quarterly,
+}
+
+impl PanelFrequency {
+    /// Periods per year used to annualize per-period variance into bp².
+    #[must_use]
+    pub const fn annualization_factor(self) -> f64 {
+        match self {
+            Self::Daily => 252.0,
+            Self::Monthly => 12.0,
+            Self::Quarterly => 4.0,
+        }
+    }
+
+    /// Date `steps` periods after `origin` on this frequency's regular grid.
+    ///
+    /// Monthly and quarterly grids are generated from `origin`, not by
+    /// walking one step at a time. That keeps a 28th-of-month series on the
+    /// 28th even when February is a month-end, and keeps a month-end origin
+    /// on month-end (Jan 31 → Feb 28/29 → Mar 31).
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - First observation on the panel. Daily steps `steps`
+    ///   calendar days; monthly/quarterly use [`DateExt::add_months`] from
+    ///   this origin (`steps * 1` or `steps * 3` months). When `origin` is
+    ///   end-of-month, every later date is also end-of-month.
+    /// * `steps` - Number of periods after `origin`. Must be non-negative.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] when a daily step
+    /// overflows the representable date range.
+    pub fn date_after(self, origin: Date, steps: i32) -> finstack_quant_core::Result<Date> {
+        if steps < 0 {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "CreditCalibrator: panel step count must be >= 0, got {steps}"
+            )));
+        }
+        match self {
+            Self::Daily => {
+                let mut date = origin;
+                for _ in 0..steps {
+                    date = date.next_day().ok_or_else(|| {
+                        finstack_quant_core::Error::Validation(format!(
+                            "CreditCalibrator: daily panel overflows the date range after {origin:?}"
+                        ))
+                    })?;
+                }
+                Ok(date)
+            }
+            Self::Monthly => Ok(step_months_from_origin(origin, steps)),
+            Self::Quarterly => Ok(step_months_from_origin(origin, steps.saturating_mul(3))),
+        }
+    }
+}
+
+fn step_months_from_origin(origin: Date, months: i32) -> Date {
+    let stepped = origin.add_months(months);
+    if origin == origin.end_of_month() {
+        stepped.end_of_month()
+    } else {
+        stepped
+    }
+}
 
 /// Whether the calibrator works in price-difference (return) or raw-level space.
 ///
@@ -68,7 +157,7 @@ pub enum CovarianceStrategy {
     /// Sample correlation (PSD-repaired if needed) plus diagonal ridge:
     /// Σ = D·ρ·D + α·I. Requires `alpha >= 0`. See design spec §4.1.
     Ridge {
-        /// Ridge regularisation parameter; must be `>= 0`.
+        /// Ridge regularisation in annualized **bp²**; must be `>= 0`.
         #[schemars(range(min = 0.0))]
         alpha: f64,
     },
@@ -76,7 +165,7 @@ pub enum CovarianceStrategy {
     /// Σ = D·ρ_repaired·D. See design spec §4.1.
     FullSampleRepaired,
     /// Ledoit-Wolf (2004) identity-target shrinkage over complete-case
-    /// observations: `Σ = annualization_factor · (δ*·μ·I + (1 − δ*)·S)` with
+    /// observations: `Σ = periods_per_year · (δ*·μ·I + (1 − δ*)·S)` with
     /// the analytic optimal intensity `δ*`, and `ρ` derived from `Σ`.
     ///
     /// Only dates where **every** factor is observed enter the estimate;
@@ -97,6 +186,24 @@ pub enum CovarianceStrategy {
     /// for large-dimensional covariance matrices." *Journal of Multivariate
     /// Analysis*, 88(2), 365–411.
     LedoitWolf,
+}
+
+/// How bucket factor means are weighted across issuers in the bucket.
+///
+/// DTS (duration-times-spread) is the desk-standard credit-factor weight
+/// (Ben Dor / Barclays): it avoids overweighting tight or short-duration
+/// names. Position risk exposure remains `β × CS01`; DTS does not replace
+/// CS01. [`BucketWeighting::Equal`] is the opt-out for tests and simple
+/// equally-weighted books.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum BucketWeighting {
+    /// Equal weight on every non-folded issuer in the bucket.
+    Equal,
+    /// Weight `i` by `SD_i (years) × s_i (bp)`, normalized within the bucket.
+    #[default]
+    Dts,
 }
 
 /// OLS β shrinkage rule.
@@ -156,9 +263,16 @@ pub struct CreditCalibrationConfig {
     pub beta_shrinkage: BetaShrinkage,
     /// Whether to differentiate the panel before peeling.
     pub use_returns_or_levels: PanelSpace,
-    /// Annualization factor for sample variance (default 12.0 ≈ monthly data).
-    #[schemars(extend("exclusiveMinimum" = 0.0))]
-    pub annualization_factor: f64,
+    /// Regular observation frequency of the history panel.
+    ///
+    /// Derives the annualization used for variance and Ledoit-Wolf
+    /// (`252` / `12` / `4`). The panel dates must form a complete regular
+    /// grid of this frequency from `dates[0]`.
+    pub panel_frequency: PanelFrequency,
+    /// Bucket-mean weighting. Default [`BucketWeighting::Dts`].
+    ///
+    /// [`BucketWeighting::Dts`] requires [`super::inputs::CreditCalibrationInputs::spread_durations`].
+    pub bucket_weighting: BucketWeighting,
 }
 
 impl Default for CreditCalibrationConfig {
@@ -176,7 +290,8 @@ impl Default for CreditCalibrationConfig {
             covariance_strategy: CovarianceStrategy::FullSampleRepaired,
             beta_shrinkage: BetaShrinkage::None,
             use_returns_or_levels: PanelSpace::Returns,
-            annualization_factor: 12.0,
+            panel_frequency: PanelFrequency::Monthly,
+            bucket_weighting: BucketWeighting::Dts,
         }
     }
 }

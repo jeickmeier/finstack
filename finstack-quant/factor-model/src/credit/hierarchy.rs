@@ -29,6 +29,9 @@
 //!   "policy": "globally_off",
 //!   "generic_factor": { "name": "CDX IG", "series_id": "cdx.ig.5y" },
 //!   "hierarchy": { "levels": ["rating", "region", "sector"] },
+//!   "panel_frequency": "monthly",
+//!   "use_returns_or_levels": "returns",
+//!   "bucket_weighting": "equal",
 //!   "config": {
 //!     "factors": [],
 //!     "covariance": { "n": 0, "factor_ids": [], "data": [] },
@@ -62,6 +65,7 @@
 //! - `Vec<IssuerBetaRow>` is kept sorted by `issuer_id` so two calibrations on
 //!   the same inputs produce byte-identical JSON.
 
+use crate::credit::calibration::{BucketWeighting, PanelFrequency, PanelSpace};
 use crate::{FactorId, FactorModelConfig};
 use finstack_quant_core::contract::{
     deserialize_json_value, parse_json_value, ContractDescriptor, ContractError, Diagnostic,
@@ -310,7 +314,8 @@ pub enum AdderVolSource {
 pub struct FitQuality {
     /// In-sample coefficient of determination (R²).
     pub r_squared: f64,
-    /// Residual standard deviation in spread-return units.
+    /// Residual standard deviation of the through-origin peel residual
+    /// `y − β x` in basis points of spread move.
     pub residual_std: f64,
     /// Number of monthly observations used in the regression.
     pub n_obs: usize,
@@ -331,6 +336,11 @@ pub struct IssuerBetaRow {
     /// Resolved regression mode for this issuer.
     pub mode: IssuerBetaMode,
     /// Factor beta loadings (all `1.0` for `BucketOnly` issuers).
+    ///
+    /// For `IssuerBeta` mode, each level loading is the with-intercept OLS
+    /// slope of the issuer residual on the **leave-one-out** bucket mean.
+    /// Peel and stored factor histories use the **full-bucket** mean, so
+    /// the level identity `S_i = β g + Σ β_k L_k + adder` has no drift term.
     pub betas: IssuerBetas,
     /// Value of the issuer's idiosyncratic adder at `as_of` (carry component).
     pub adder_at_anchor: f64,
@@ -346,6 +356,14 @@ pub struct IssuerBetaRow {
     /// folded, regressor not degenerate); `None` otherwise. Empty for
     /// `BucketOnly` rows.
     pub level_fit_quality: Vec<Option<FitQuality>>,
+    /// Option-adjusted spread duration in **years** used for DTS weights.
+    ///
+    /// Calibration persists the caller-supplied duration. Decompose rebuilds
+    /// `DTS = spread_duration × current_spread_bp` when the artifact was
+    /// calibrated with [`BucketWeighting::Dts`][crate::credit::calibration::BucketWeighting::Dts].
+    /// Equal-weighted artifacts still store the supplied duration (or `1.0`
+    /// when none was given); it is not used at peel time.
+    pub spread_duration: f64,
 }
 
 /// Factor level values for a single hierarchy level at the calibration anchor date.
@@ -615,10 +633,14 @@ pub struct VolState {
     pub idiosyncratic: BTreeMap<IssuerId, IdiosyncraticVolModel>,
 }
 
-/// Embedded time-series of factor returns.
+/// Embedded time-series of factor **moves in bp**.
 ///
-/// Recommended default: embed in the artifact (~100 KB for typical configs).
-/// External path is supported for very large calibrations.
+/// These are the official series for rebuilding vol/correlation and for
+/// historical-simulation factor P&L. Every date is a real observation
+/// (no `None → 0.0` holes). Under [`PanelSpace::Returns`][crate::credit::calibration::PanelSpace::Returns]
+/// the stored values are already period moves; under
+/// [`PanelSpace::Levels`][crate::credit::calibration::PanelSpace::Levels]
+/// they are peeled levels and must be first-differenced before vol or P&L.
 ///
 /// `BTreeMap<FactorId, Vec<f64>>` for deterministic serialization. All value
 /// vectors must have the same length as `dates`.
@@ -636,8 +658,10 @@ pub struct FactorHistories {
 
 /// Record of a single fold-up event during calibration.
 ///
-/// When a bucket lacks sufficient coverage, its issuers are promoted to a
-/// coarser level. Each such event is logged here for auditability.
+/// Fold-up means **omit the sparse child factor** and set `β_k = 0` at that
+/// level. The issuer already sits in the parent bucket, so its residual
+/// continues to contribute to the parent mean. This is not a re-tagging of
+/// the issuer into a different leaf.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FoldUpRecord {
@@ -736,6 +760,16 @@ pub struct CreditFactorModel {
     pub generic_factor: GenericFactorSpec,
     /// Ordered hierarchy specification (broadest → narrowest).
     pub hierarchy: CreditHierarchySpec,
+    /// Regular observation frequency used to annualize variance (`252`/`12`/`4`).
+    pub panel_frequency: PanelFrequency,
+    /// Whether calibration peeled a return panel or a raw level panel.
+    pub use_returns_or_levels: PanelSpace,
+    /// Bucket-mean weighting used at calibration and required at decompose.
+    ///
+    /// [`BucketWeighting::Equal`] artifacts must not be DTS-weighted at
+    /// decompose; [`BucketWeighting::Dts`] artifacts rebuild weights from
+    /// persisted [`IssuerBetaRow::spread_duration`] × current spread (bp).
+    pub bucket_weighting: BucketWeighting,
     /// Existing factor-model config (factors, covariance, matching).
     pub config: FactorModelConfig,
     /// Per-issuer beta rows, sorted by `issuer_id` for wire stability.
@@ -756,7 +790,7 @@ pub struct CreditFactorModel {
     /// [`CovarianceStrategy::LedoitWolf`][crate::credit::calibration::CovarianceStrategy::LedoitWolf]
     /// the divergence is larger still, and affects both the diagonal and the
     /// off-diagonal: `config.covariance` is the shrinkage estimator's own
-    /// `annualization_factor · (δ*·μ·I + (1 − δ*)·S)`, computed once over the
+    /// `periods_per_year · (δ*·μ·I + (1 − δ*)·S)`, computed once over the
     /// complete-case rows (dates where every factor is observed), and is
     /// authoritative for point-in-time risk. The rebuilt `D·ρ·D` instead
     /// combines this same `ρ` with `vol_state` variances — which are
@@ -1009,6 +1043,9 @@ mod tests {
                     HierarchyDimension::Sector,
                 ],
             },
+            panel_frequency: PanelFrequency::Monthly,
+            use_returns_or_levels: PanelSpace::Returns,
+            bucket_weighting: BucketWeighting::Equal,
             config: empty_factor_model_config(),
             issuer_betas: vec![],
             anchor_state: LevelsAtAnchor {
@@ -1045,6 +1082,7 @@ mod tests {
             adder_vol_source: AdderVolSource::Default,
             fit_quality: None,
             level_fit_quality: vec![],
+            spread_duration: 1.0,
         }
     }
 

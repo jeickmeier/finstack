@@ -10,7 +10,7 @@ use super::assemble::{
 use super::config::CreditCalibrationConfig;
 use super::inputs::CreditCalibrationInputs;
 use super::inventory::{apply_fold_up, build_bucket_inventory};
-use super::panel::{build_working_panel, classify_mode};
+use super::panel::{build_working_panel, classify_mode, convert_inputs_to_bp};
 use super::peel_fit::{run_peel, unit_betas};
 use super::statistics::{
     adder_vols_from_history, assign_adder_vol, build_peer_proxy_index, factor_variances,
@@ -52,10 +52,24 @@ impl CreditCalibrator {
     ///
     /// # Arguments
     ///
-    /// * `inputs` - Inputs supplied by the caller for this operation
+    /// * `inputs` - History panel, tags, generic series, `as_of` cross-section,
+    ///   and optional idiosyncratic-vol overrides. Spreads and the generic
+    ///   series are **decimal** (`0.01` = 100 bp); they are converted to bp
+    ///   immediately after validation. The panel must be a complete regular
+    ///   grid of `config.panel_frequency` with no `None` issuer observations.
     pub fn calibrate(&self, inputs: CreditCalibrationInputs) -> Result<CreditFactorModel> {
         validate_calibration_config(&self.config)?;
-        validate_calibration_inputs(&inputs)?;
+        validate_calibration_inputs(&inputs, &self.config)?;
+        let mut inputs = inputs;
+        convert_inputs_to_bp(&mut inputs);
+
+        let bucket_weights = crate::credit::peel::issuer_bucket_weights(
+            self.config.bucket_weighting,
+            inputs.history_panel.spreads.keys(),
+            &inputs.spread_durations,
+            &inputs.as_of_spreads,
+        )
+        .map_err(validation_err)?;
 
         // -- Structural validation of inputs. -------------------------------
         let dates = &inputs.history_panel.dates;
@@ -126,6 +140,7 @@ impl CreditCalibrator {
             &modes,
             &inventory.bucket_paths,
             &folded,
+            &bucket_weights,
         );
 
         // All variance/correlation estimation operates on factor and adder
@@ -165,7 +180,7 @@ impl CreditCalibrator {
         let from_history_vols = adder_vols_from_history(
             &stat_adder_series,
             self.config.vol_model,
-            self.config.annualization_factor,
+            self.config.panel_frequency.annualization_factor(),
         );
         // Build per-level peer proxy index: level_k → bucket_path → [vols].
         let peer_proxy_index = build_peer_proxy_index(
@@ -183,13 +198,14 @@ impl CreditCalibrator {
             generic_at_asof,
             &peel_outcome.betas,
             &folded,
+            &bucket_weights,
         )?;
 
         // -- 8. Per-factor variance forecast (sample or EWMA), over moves. --
         let factor_variances = factor_variances(
             &stat_factor_returns,
             self.config.vol_model,
-            self.config.annualization_factor,
+            self.config.panel_frequency.annualization_factor(),
         );
 
         // -- Build issuer beta rows. ----------------------------------------
@@ -228,6 +244,11 @@ impl CreditCalibrator {
                 .get(issuer_id)
                 .cloned()
                 .unwrap_or_default();
+            let spread_duration = inputs
+                .spread_durations
+                .get(issuer_id)
+                .copied()
+                .unwrap_or(1.0);
             issuer_betas.push(IssuerBetaRow {
                 issuer_id: issuer_id.clone(),
                 tags,
@@ -238,6 +259,7 @@ impl CreditCalibrator {
                 adder_vol_source,
                 fit_quality,
                 level_fit_quality,
+                spread_duration,
             });
         }
         // BTreeMap iteration is already sorted by issuer_id, but be defensive.
@@ -254,7 +276,7 @@ impl CreditCalibrator {
             &self.config.hierarchy,
             &issuer_betas,
             self.config.covariance_strategy,
-            self.config.annualization_factor,
+            self.config.panel_frequency.annualization_factor(),
         )?;
 
         // -- 11. Diagnostics. -----------------------------------------------
@@ -280,7 +302,7 @@ impl CreditCalibrator {
             dates,
             &self.config.use_returns_or_levels,
             &peel_outcome.factor_returns,
-        ));
+        )?);
         let vol_state = build_vol_state(&factor_variances, &issuer_betas, self.config.vol_model);
 
         let model = CreditFactorModel {
@@ -290,6 +312,9 @@ impl CreditCalibrator {
             policy: self.config.policy.clone(),
             generic_factor: inputs.generic_factor.spec.clone(),
             hierarchy: self.config.hierarchy.clone(),
+            panel_frequency: self.config.panel_frequency,
+            use_returns_or_levels: self.config.use_returns_or_levels,
+            bucket_weighting: self.config.bucket_weighting,
             config,
             issuer_betas,
             anchor_state: anchor.levels,

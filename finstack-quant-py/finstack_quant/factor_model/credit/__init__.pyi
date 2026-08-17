@@ -35,12 +35,12 @@ class CreditFactorModel:
     >>> config_json = (
     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
     ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
-    ...     '"use_returns_or_levels":"returns","annualization_factor":12.0}'
+    ...     '"use_returns_or_levels":"returns","panel_frequency":"monthly","bucket_weighting":"equal"}'
     ... )
     >>> inputs_json = (
-    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[100.0,101.0]}},'
+    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[0.010,0.0101]}},'
     ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
-    ...     '"values":[100.0,101.0]},"as_of":"2024-02-01","as_of_spreads":{"A":101.0},'
+    ...     '"values":[0.010,0.0101]},"as_of":"2024-02-01","as_of_spreads":{"A":0.0101},'
     ...     '"idiosyncratic_overrides":{}}'
     ... )
     >>> calibrated = CreditCalibrator(config_json).calibrate(inputs_json)
@@ -235,12 +235,12 @@ class CreditCalibrator:
     >>> config_json = (
     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
     ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
-    ...     '"use_returns_or_levels":"returns","annualization_factor":12.0}'
+    ...     '"use_returns_or_levels":"returns","panel_frequency":"monthly","bucket_weighting":"equal"}'
     ... )
     >>> inputs_json = (
-    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[100.0,101.0]}},'
+    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[0.010,0.0101]}},'
     ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
-    ...     '"values":[100.0,101.0]},"as_of":"2024-02-01","as_of_spreads":{"A":101.0},'
+    ...     '"values":[0.010,0.0101]},"as_of":"2024-02-01","as_of_spreads":{"A":0.0101},'
     ...     '"idiosyncratic_overrides":{}}'
     ... )
     >>> CreditCalibrator(config_json).calibrate(inputs_json).n_issuers
@@ -296,16 +296,16 @@ class LevelsAtDate:
     >>> config_json = (
     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
     ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
-    ...     '"use_returns_or_levels":"returns","annualization_factor":12.0}'
+    ...     '"use_returns_or_levels":"returns","panel_frequency":"monthly","bucket_weighting":"equal"}'
     ... )
     >>> inputs_json = (
-    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[100.0,101.0]}},'
+    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[0.010,0.0101]}},'
     ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
-    ...     '"values":[100.0,101.0]},"as_of":"2024-02-01","as_of_spreads":{"A":101.0},'
+    ...     '"values":[0.010,0.0101]},"as_of":"2024-02-01","as_of_spreads":{"A":0.0101},'
     ...     '"idiosyncratic_overrides":{}}'
     ... )
     >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
-    >>> levels = decompose_levels(model, '{"A": 105.0}', 100.0, "2024-03-01")
+    >>> levels = decompose_levels(model, '{"A": 0.0105}', 0.010, "2024-03-01")
     >>> (levels.date, levels.generic, levels.adder())
     ('2024-03-01', 100.0, {'A': 5.0})
     """
@@ -455,17 +455,17 @@ class PeriodDecomposition:
     >>> config_json = (
     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
     ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
-    ...     '"use_returns_or_levels":"returns","annualization_factor":12.0}'
+    ...     '"use_returns_or_levels":"returns","panel_frequency":"monthly","bucket_weighting":"equal"}'
     ... )
     >>> inputs_json = (
-    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[100.0,101.0]}},'
+    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[0.010,0.0101]}},'
     ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
-    ...     '"values":[100.0,101.0]},"as_of":"2024-02-01","as_of_spreads":{"A":101.0},'
+    ...     '"values":[0.010,0.0101]},"as_of":"2024-02-01","as_of_spreads":{"A":0.0101},'
     ...     '"idiosyncratic_overrides":{}}'
     ... )
     >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
-    >>> start = decompose_levels(model, '{"A": 105.0}', 100.0, "2024-03-01")
-    >>> end = decompose_levels(model, '{"A": 106.5}', 101.5, "2024-03-02")
+    >>> start = decompose_levels(model, '{"A": 0.0105}', 0.010, "2024-03-01")
+    >>> end = decompose_levels(model, '{"A": 0.01065}', 0.01015, "2024-03-02")
     >>> period = decompose_period(start, end)
     >>> (period.from_date, period.to_date, period.d_generic)
     ('2024-03-01', '2024-03-02', 1.5)
@@ -664,12 +664,12 @@ class FactorCovarianceForecast:
     >>> config_json = (
     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
     ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
-    ...     '"use_returns_or_levels":"returns","annualization_factor":12.0}'
+    ...     '"use_returns_or_levels":"returns","panel_frequency":"monthly","bucket_weighting":"equal"}'
     ... )
     >>> inputs_json = (
-    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[100.0,101.0]}},'
+    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[0.010,0.0101]}},'
     ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
-    ...     '"values":[100.0,101.0]},"as_of":"2024-02-01","as_of_spreads":{"A":101.0},'
+    ...     '"values":[0.010,0.0101]},"as_of":"2024-02-01","as_of_spreads":{"A":0.0101},'
     ...     '"idiosyncratic_overrides":{}}'
     ... )
     >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
@@ -802,16 +802,16 @@ def decompose_levels(
     >>> config_json = (
     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
     ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
-    ...     '"use_returns_or_levels":"returns","annualization_factor":12.0}'
+    ...     '"use_returns_or_levels":"returns","panel_frequency":"monthly","bucket_weighting":"equal"}'
     ... )
     >>> inputs_json = (
-    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[100.0,101.0]}},'
+    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[0.010,0.0101]}},'
     ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
-    ...     '"values":[100.0,101.0]},"as_of":"2024-02-01","as_of_spreads":{"A":101.0},'
+    ...     '"values":[0.010,0.0101]},"as_of":"2024-02-01","as_of_spreads":{"A":0.0101},'
     ...     '"idiosyncratic_overrides":{}}'
     ... )
     >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
-    >>> decompose_levels(model, '{"A": 125.0}', 120.0, "2025-06-30").generic
+    >>> decompose_levels(model, '{"A": 0.0125}', 0.0120, "2025-06-30").generic
     120.0
     """
     ...
@@ -846,17 +846,17 @@ def decompose_period(
     >>> config_json = (
     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
     ...     '"vol_model":"sample","covariance_strategy":"diagonal","beta_shrinkage":"none",'
-    ...     '"use_returns_or_levels":"returns","annualization_factor":12.0}'
+    ...     '"use_returns_or_levels":"returns","panel_frequency":"monthly","bucket_weighting":"equal"}'
     ... )
     >>> inputs_json = (
-    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[100.0,101.0]}},'
+    ...     '{"history_panel":{"dates":["2024-01-01","2024-02-01"],"spreads":{"A":[0.010,0.0101]}},'
     ...     '"issuer_tags":{"tags":{"A":{}}},"generic_factor":{"spec":{"name":"G","series_id":"G"},'
-    ...     '"values":[100.0,101.0]},"as_of":"2024-02-01","as_of_spreads":{"A":101.0},'
+    ...     '"values":[0.010,0.0101]},"as_of":"2024-02-01","as_of_spreads":{"A":0.0101},'
     ...     '"idiosyncratic_overrides":{}}'
     ... )
     >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
-    >>> start = decompose_levels(model, '{"A": 105.0}', 100.0, "2024-03-01")
-    >>> end = decompose_levels(model, '{"A": 106.5}', 101.5, "2024-03-02")
+    >>> start = decompose_levels(model, '{"A": 0.0105}', 0.010, "2024-03-01")
+    >>> end = decompose_levels(model, '{"A": 0.01065}', 0.01015, "2024-03-02")
     >>> decompose_period(start, end).d_generic
     1.5
     """

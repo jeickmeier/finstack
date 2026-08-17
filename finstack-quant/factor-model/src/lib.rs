@@ -42,8 +42,9 @@
 //! - Covariance entries are annualized (co)variances in each factor's canonical
 //!   bump unit (bp for rates/credit, % for equity/commodity/FX, vol points for
 //!   volatility). See [`FactorCovarianceMatrix`] for the units contract.
-//! - Credit decomposition enforces the reconciliation invariant to absolute
-//!   tolerance `1e-10`.
+//! - Credit callers pass decimal spreads; internals, histories, and `Σ` are
+//!   bp. `decompose_period` is algebraic differencing (it does not enforce
+//!   a numerical tolerance).
 //! - Pricing engines that consume `FactorModelConfig` live in
 //!   `finstack-quant-portfolio::sensitivity` because they depend on the
 //!   instrument trait surface.

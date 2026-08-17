@@ -7,11 +7,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::credit::hierarchy::{GenericFactorSpec, IssuerTags};
 
-/// Sparse issuer-spread history aligned to a sorted date grid.
+/// Issuer-spread history aligned to a complete regular date grid.
 ///
 /// `dates` is the sorted observation grid. `spreads[issuer]` has length
-/// `dates.len()`; entries are `Some(spread)` when the issuer was observed at
-/// that date and `None` otherwise.
+/// `dates.len()`. Every entry must be `Some(decimal_spread)` — gaps and
+/// `None` are rejected at calibration. Callers pass **decimal** spreads
+/// (`0.01` = 100 bp).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HistoryPanel {
@@ -19,7 +20,10 @@ pub struct HistoryPanel {
     #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub dates: Vec<Date>,
-    /// Per-issuer spread series aligned with [`dates`][Self::dates].
+    /// Per-issuer decimal spread series aligned with [`dates`][Self::dates].
+    ///
+    /// Each vector must be fully observed (`Some` at every date). Values are
+    /// decimal (`0.01` = 100 bp), converted to bp at calibrate entry.
     pub spreads: BTreeMap<IssuerId, Vec<Option<f64>>>,
 }
 
@@ -38,6 +42,8 @@ pub struct GenericFactorSeries {
     /// Reference (name + series_id) embedded into the artifact.
     pub spec: GenericFactorSpec,
     /// Generic factor values aligned with [`HistoryPanel::dates`].
+    ///
+    /// Decimal units (`0.01` = 100 bp), same convention as issuer spreads.
     pub values: Vec<f64>,
 }
 
@@ -45,7 +51,7 @@ pub struct GenericFactorSeries {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreditCalibrationInputs {
-    /// Sparse issuer-spread history.
+    /// Complete regular issuer-spread history in decimal units.
     pub history_panel: HistoryPanel,
     /// Per-issuer hierarchy tags (point-in-time).
     pub issuer_tags: IssuerTagPanel,
@@ -55,11 +61,21 @@ pub struct CreditCalibrationInputs {
     #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub as_of: Date,
-    /// Issuer spreads at `as_of` (level space).
+    /// Issuer spreads at `as_of` in decimal units (level space).
     pub as_of_spreads: BTreeMap<IssuerId, f64>,
     /// Optional caller-supplied idiosyncratic vol overrides.
     ///
     /// Caller-supplied values take precedence over history, peer-proxy, and
     /// global-default adder-vol estimates.
     pub idiosyncratic_overrides: BTreeMap<IssuerId, f64>,
+    /// Option-adjusted spread duration in **years** (`> 0`) per issuer.
+    ///
+    /// Required when
+    /// [`CreditCalibrationConfig::bucket_weighting`][super::config::CreditCalibrationConfig::bucket_weighting]
+    /// is [`BucketWeighting::Dts`][super::config::BucketWeighting::Dts].
+    /// Calibration weights use as-of DTS (`SD × spread_bp`). Persisted on
+    /// each [`IssuerBetaRow`][crate::credit::hierarchy::IssuerBetaRow] so
+    /// decompose can rebuild DTS from the current spread.
+    #[serde(default)]
+    pub spread_durations: BTreeMap<IssuerId, f64>,
 }

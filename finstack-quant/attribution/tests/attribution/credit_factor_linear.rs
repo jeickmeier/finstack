@@ -66,6 +66,7 @@ fn issuer_row(id: &str, rating: &str, region: &str, pc: f64, lv: Vec<f64>) -> Is
         adder_vol_source: AdderVolSource::Default,
         fit_quality: None,
         level_fit_quality: vec![],
+            spread_duration: 1.0,
     }
 }
 
@@ -85,6 +86,9 @@ fn make_model() -> CreditFactorModel {
         hierarchy: CreditHierarchySpec {
             levels: vec![HierarchyDimension::Rating, HierarchyDimension::Region],
         },
+        panel_frequency: finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
+        use_returns_or_levels: finstack_quant_factor_model::credit::calibration::PanelSpace::Returns,
+        bucket_weighting: finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
         config: empty_factor_config(),
         issuer_betas: vec![
             issuer_row("ISSUER-A", "IG", "EU", 1.10, vec![0.90, 1.05]),
@@ -113,17 +117,17 @@ fn make_model() -> CreditFactorModel {
 
 fn make_period(model: &CreditFactorModel) -> (PeriodDecomposition, BTreeMap<IssuerId, f64>) {
     let mut s_t0 = BTreeMap::new();
-    s_t0.insert(IssuerId::new("ISSUER-A"), 100.0);
-    s_t0.insert(IssuerId::new("ISSUER-B"), 110.0);
-    s_t0.insert(IssuerId::new("ISSUER-C"), 350.0);
+    s_t0.insert(IssuerId::new("ISSUER-A"), 0.0100);
+    s_t0.insert(IssuerId::new("ISSUER-B"), 0.0110);
+    s_t0.insert(IssuerId::new("ISSUER-C"), 0.0350);
     let mut s_t1 = BTreeMap::new();
-    s_t1.insert(IssuerId::new("ISSUER-A"), 105.0);
-    s_t1.insert(IssuerId::new("ISSUER-B"), 118.0);
-    s_t1.insert(IssuerId::new("ISSUER-C"), 360.0);
+    s_t1.insert(IssuerId::new("ISSUER-A"), 0.0105);
+    s_t1.insert(IssuerId::new("ISSUER-B"), 0.0118);
+    s_t1.insert(IssuerId::new("ISSUER-C"), 0.0360);
     let from = decompose_levels(
         model,
         &s_t0,
-        80.0,
+        0.0080,
         create_date(2025, Month::January, 1).unwrap(),
         None,
     )
@@ -131,7 +135,7 @@ fn make_period(model: &CreditFactorModel) -> (PeriodDecomposition, BTreeMap<Issu
     let to = decompose_levels(
         model,
         &s_t1,
-        85.0,
+        0.0085,
         create_date(2025, Month::January, 31).unwrap(),
         None,
     )
@@ -172,7 +176,7 @@ fn positions() -> Vec<CreditAttributionInput> {
 fn synthetic_credit_pnl(positions: &[CreditAttributionInput], ds: &BTreeMap<IssuerId, f64>) -> f64 {
     positions
         .iter()
-        .map(|p| p.cs01.amount() * ds[&p.issuer_id])
+        .map(|p| p.cs01.amount() * ds[&p.issuer_id] * 10_000.0)
         .sum()
 }
 

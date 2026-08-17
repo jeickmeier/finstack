@@ -877,6 +877,7 @@ mod tests {
             adder_vol_source: AdderVolSource::Default,
             fit_quality: None,
             level_fit_quality: vec![],
+            spread_duration: 1.0,
         };
         let credit_config = CreditHierarchicalConfig {
             dependency_filter: DependencyFilter::default(),
@@ -976,6 +977,7 @@ mod tests {
             adder_vol_source: AdderVolSource::Default,
             fit_quality: None,
             level_fit_quality: vec![],
+            spread_duration: 1.0,
         };
         let generic = FactorId::new("credit::generic");
         let bucket = FactorId::new("credit::level0::Rating::IG");
@@ -1042,6 +1044,7 @@ mod tests {
             adder_vol_source: AdderVolSource::Default,
             fit_quality: None,
             level_fit_quality: vec![],
+            spread_duration: 1.0,
         };
         let member = |r: IssuerBetaRow| {
             MatchingConfig::CreditHierarchical(CreditHierarchicalConfig {

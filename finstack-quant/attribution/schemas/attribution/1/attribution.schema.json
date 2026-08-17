@@ -3267,6 +3267,21 @@
         }
       ]
     },
+    "BucketWeighting": {
+      "description": "How bucket factor means are weighted across issuers in the bucket.\n\nDTS (duration-times-spread) is the desk-standard credit-factor weight\n(Ben Dor / Barclays): it avoids overweighting tight or short-duration\nnames. Position risk exposure remains `β × CS01`; DTS does not replace\nCS01. [`BucketWeighting::Equal`] is the opt-out for tests and simple\nequally-weighted books.",
+      "oneOf": [
+        {
+          "const": "equal",
+          "description": "Equal weight on every non-folded issuer in the bucket.",
+          "type": "string"
+        },
+        {
+          "const": "dts",
+          "description": "Weight `i` by `SD_i (years) × s_i (bp)`, normalized within the bucket.",
+          "type": "string"
+        }
+      ]
+    },
     "BumpConfig": {
       "additionalProperties": false,
       "description": "Bump sizes for finite-difference sensitivity calculations.",
@@ -7599,6 +7614,10 @@
           "$ref": "#/$defs/DateWire",
           "description": "Calibration anchor date (`as_of`)."
         },
+        "bucket_weighting": {
+          "$ref": "#/$defs/BucketWeighting",
+          "description": "Bucket-mean weighting used at calibration and required at decompose.\n\n[`BucketWeighting::Equal`] artifacts must not be DTS-weighted at\ndecompose; [`BucketWeighting::Dts`] artifacts rebuild weights from\npersisted [`IssuerBetaRow::spread_duration`] × current spread (bp)."
+        },
         "calibration_window": {
           "$ref": "#/$defs/DateRange",
           "description": "History window consumed by calibration."
@@ -7637,6 +7656,10 @@
           },
           "type": "array"
         },
+        "panel_frequency": {
+          "$ref": "#/$defs/PanelFrequency",
+          "description": "Regular observation frequency used to annualize variance (`252`/`12`/`4`)."
+        },
         "policy": {
           "$ref": "#/$defs/IssuerBetaPolicy",
           "description": "Beta regression policy used during calibration."
@@ -7647,7 +7670,11 @@
         },
         "static_correlation": {
           "$ref": "#/$defs/FactorCorrelationMatrix",
-          "description": "Static factor correlation matrix `ρ` for `Σ(t) = D(t)·ρ·D(t)`.\n\n**Which matrix is authoritative:** vol forecasting rebuilds\n`Σ(t, h) = D·ρ·D` from this matrix plus `vol_state`; point-in-time\nrisk uses `config.covariance` directly. Under\n[`CovarianceStrategy::Ridge`][crate::credit::calibration::CovarianceStrategy::Ridge]\nthe two deliberately differ —\n`config.covariance = D·ρ·D + α·I`, so its implied correlations are\nshrunk relative to `ρ` by `σᵢσⱼ/√((σᵢ²+α)(σⱼ²+α))`.\n\nUnder\n[`CovarianceStrategy::LedoitWolf`][crate::credit::calibration::CovarianceStrategy::LedoitWolf]\nthe divergence is larger still, and affects both the diagonal and the\noff-diagonal: `config.covariance` is the shrinkage estimator's own\n`annualization_factor · (δ*·μ·I + (1 − δ*)·S)`, computed once over the\ncomplete-case rows (dates where every factor is observed), and is\nauthoritative for point-in-time risk. The rebuilt `D·ρ·D` instead\ncombines this same `ρ` with `vol_state` variances — which are\nestimated per-factor over all available observations (not just the\ncomplete-case subset) via whichever\n[`VolModelChoice`][crate::credit::calibration::VolModelChoice] was\nconfigured (`Sample` or `Ewma`). Because the diagonals come from two\ndifferent estimators over two different observation sets, `D·ρ·D`\ndeliberately differs from `config.covariance` on **both** the\ndiagonal and the off-diagonal; treat it as an approximation for\nhorizon scaling, not as a substitute for `config.covariance`."
+          "description": "Static factor correlation matrix `ρ` for `Σ(t) = D(t)·ρ·D(t)`.\n\n**Which matrix is authoritative:** vol forecasting rebuilds\n`Σ(t, h) = D·ρ·D` from this matrix plus `vol_state`; point-in-time\nrisk uses `config.covariance` directly. Under\n[`CovarianceStrategy::Ridge`][crate::credit::calibration::CovarianceStrategy::Ridge]\nthe two deliberately differ —\n`config.covariance = D·ρ·D + α·I`, so its implied correlations are\nshrunk relative to `ρ` by `σᵢσⱼ/√((σᵢ²+α)(σⱼ²+α))`.\n\nUnder\n[`CovarianceStrategy::LedoitWolf`][crate::credit::calibration::CovarianceStrategy::LedoitWolf]\nthe divergence is larger still, and affects both the diagonal and the\noff-diagonal: `config.covariance` is the shrinkage estimator's own\n`periods_per_year · (δ*·μ·I + (1 − δ*)·S)`, computed once over the\ncomplete-case rows (dates where every factor is observed), and is\nauthoritative for point-in-time risk. The rebuilt `D·ρ·D` instead\ncombines this same `ρ` with `vol_state` variances — which are\nestimated per-factor over all available observations (not just the\ncomplete-case subset) via whichever\n[`VolModelChoice`][crate::credit::calibration::VolModelChoice] was\nconfigured (`Sample` or `Ewma`). Because the diagonals come from two\ndifferent estimators over two different observation sets, `D·ρ·D`\ndeliberately differs from `config.covariance` on **both** the\ndiagonal and the off-diagonal; treat it as an approximation for\nhorizon scaling, not as a substitute for `config.covariance`."
+        },
+        "use_returns_or_levels": {
+          "$ref": "#/$defs/PanelSpace",
+          "description": "Whether calibration peeled a return panel or a raw level panel."
         },
         "vol_state": {
           "$ref": "#/$defs/VolState",
@@ -7661,6 +7688,9 @@
         "policy",
         "generic_factor",
         "hierarchy",
+        "panel_frequency",
+        "use_returns_or_levels",
+        "bucket_weighting",
         "config",
         "issuer_betas",
         "anchor_state",
@@ -11812,7 +11842,7 @@
       "type": "object"
     },
     "FactorHistories": {
-      "description": "Embedded time-series of factor returns.\n\nRecommended default: embed in the artifact (~100 KB for typical configs).\nExternal path is supported for very large calibrations.\n\n`BTreeMap<FactorId, Vec<f64>>` for deterministic serialization. All value\nvectors must have the same length as `dates`.",
+      "description": "Embedded time-series of factor **moves in bp**.\n\nThese are the official series for rebuilding vol/correlation and for\nhistorical-simulation factor P&L. Every date is a real observation\n(no `None → 0.0` holes). Under [`PanelSpace::Returns`][crate::credit::calibration::PanelSpace::Returns]\nthe stored values are already period moves; under\n[`PanelSpace::Levels`][crate::credit::calibration::PanelSpace::Levels]\nthey are peeled levels and must be first-differenced before vol or P&L.\n\n`BTreeMap<FactorId, Vec<f64>>` for deterministic serialization. All value\nvectors must have the same length as `dates`.",
       "properties": {
         "dates": {
           "description": "Ordered sequence of observation dates (aligned with value vectors).",
@@ -12204,7 +12234,7 @@
           "type": "number"
         },
         "residual_std": {
-          "description": "Residual standard deviation in spread-return units.",
+          "description": "Residual standard deviation of the through-origin peel residual\n`y − β x` in basis points of spread move.",
           "format": "double",
           "type": "number"
         }
@@ -12768,7 +12798,7 @@
     },
     "FoldUpRecord": {
       "additionalProperties": false,
-      "description": "Record of a single fold-up event during calibration.\n\nWhen a bucket lacks sufficient coverage, its issuers are promoted to a\ncoarser level. Each such event is logged here for auditability.",
+      "description": "Record of a single fold-up event during calibration.\n\nFold-up means **omit the sparse child factor** and set `β_k = 0` at that\nlevel. The issuer already sits in the parent bucket, so its residual\ncontinues to contribute to the parent mean. This is not a re-tagging of\nthe issuer into a different leaf.",
       "properties": {
         "folded_to": {
           "description": "Bucket path after the fold-up (e.g. `\"IG.EU\"`).",
@@ -16840,7 +16870,7 @@
         },
         "betas": {
           "$ref": "#/$defs/IssuerBetas",
-          "description": "Factor beta loadings (all `1.0` for `BucketOnly` issuers)."
+          "description": "Factor beta loadings (all `1.0` for `BucketOnly` issuers).\n\nFor `IssuerBeta` mode, each level loading is the with-intercept OLS\nslope of the issuer residual on the **leave-one-out** bucket mean.\nPeel and stored factor histories use the **full-bucket** mean, so\nthe level identity `S_i = β g + Σ β_k L_k + adder` has no drift term."
         },
         "fit_quality": {
           "anyOf": [
@@ -16875,6 +16905,11 @@
           "$ref": "#/$defs/IssuerBetaMode",
           "description": "Resolved regression mode for this issuer."
         },
+        "spread_duration": {
+          "description": "Option-adjusted spread duration in **years** used for DTS weights.\n\nCalibration persists the caller-supplied duration. Decompose rebuilds\n`DTS = spread_duration × current_spread_bp` when the artifact was\ncalibrated with [`BucketWeighting::Dts`][crate::credit::calibration::BucketWeighting::Dts].\nEqual-weighted artifacts still store the supplied duration (or `1.0`\nwhen none was given); it is not used at peel time.",
+          "format": "double",
+          "type": "number"
+        },
         "tags": {
           "$ref": "#/$defs/IssuerTags",
           "description": "Taxonomy tags used to assign the issuer to hierarchy buckets."
@@ -16888,7 +16923,8 @@
         "adder_at_anchor",
         "adder_vol_annualized",
         "adder_vol_source",
-        "level_fit_quality"
+        "level_fit_quality",
+        "spread_duration"
       ],
       "type": "object"
     },
@@ -19650,6 +19686,41 @@
         "upper_psa"
       ],
       "type": "object"
+    },
+    "PanelFrequency": {
+      "description": "Observation frequency of a complete, regular credit history panel.\n\nAnnualization used for sample/EWMA variance and Ledoit-Wolf covariance\nis derived from this enum (`252` / `12` / `4`). There is no free\nannualization float.",
+      "oneOf": [
+        {
+          "const": "daily",
+          "description": "One observation per calendar day. Annualizes with 252.",
+          "type": "string"
+        },
+        {
+          "const": "monthly",
+          "description": "One observation per month. Annualizes with 12.\n\nThe regular grid is generated from `dates[0]` with [`DateExt::add_months`].\nWhen the first date is a month-end, subsequent dates stay on month-end\n(Jan 31 → Feb 28/29 → Mar 31).",
+          "type": "string"
+        },
+        {
+          "const": "quarterly",
+          "description": "One observation per quarter (three calendar months). Annualizes with 4.\n\nSame month-end-preserving step as [`PanelFrequency::Monthly`], advancing\nthree months at a time.",
+          "type": "string"
+        }
+      ]
+    },
+    "PanelSpace": {
+      "description": "Whether the calibrator works in price-difference (return) or raw-level space.\n\n`Returns` (the default) matches the spec's reference math: `r_i(t) =\nS_i(t) - S_i(t-1)` and the generic factor is differenced the same way.",
+      "oneOf": [
+        {
+          "const": "returns",
+          "description": "Difference consecutive observations into a return panel before peeling.",
+          "type": "string"
+        },
+        {
+          "const": "levels",
+          "description": "Use the raw level panel as-is.",
+          "type": "string"
+        }
+      ]
     },
     "ParInterp": {
       "description": "Interpolation method for reporting par spreads stored on the curve.\n\nApplies only to *par-spread* readouts (the spreads quoted at calibration\npillars), not to the underlying hazard rates. Hazard interpolation always\nfollows piecewise-constant survival. Use `LogLinear` when spreads span\nmultiple decades (e.g. high-yield issuers) so interpolation stays in\nlog-space; otherwise the default `Linear` is fine.",

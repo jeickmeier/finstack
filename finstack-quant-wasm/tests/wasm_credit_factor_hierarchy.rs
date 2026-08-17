@@ -19,7 +19,8 @@ fn minimal_config_json() -> String {
         "covariance_strategy": "diagonal",
         "beta_shrinkage": "none",
         "use_returns_or_levels": "returns",
-        "annualization_factor": 12.0
+        "panel_frequency": "monthly",
+        "bucket_weighting": "equal"
     })
     .to_string()
 }
@@ -29,15 +30,19 @@ fn minimal_config_json() -> String {
 /// 3 issuers × 24 monthly obs (2022-04-01 … 2024-03-01), same layout as the
 /// native fixture in `credit_factor_model.rs`.
 fn minimal_inputs_json() -> String {
-    // 24 monthly dates ending 2024-03-31 (step back ~30 days each time).
+    // 24 regular month-end dates ending 2024-03-31.
     let dates: Vec<String> = {
-        let mut d = time::Date::from_calendar_date(2024, time::Month::March, 31).unwrap();
+        let end = time::Date::from_calendar_date(2024, time::Month::March, 31).unwrap();
+        let mut d = end;
         let mut v = Vec::with_capacity(24);
-        for _ in 0..24 {
+        v.push(d.to_string());
+        for _ in 1..24 {
+            d = d
+                .replace_day(1)
+                .unwrap()
+                .checked_sub(time::Duration::days(1))
+                .unwrap();
             v.push(d.to_string());
-            for _ in 0..30 {
-                d = d.previous_day().unwrap();
-            }
         }
         v.reverse();
         v
@@ -47,7 +52,7 @@ fn minimal_inputs_json() -> String {
 
     let make_series = |base: f64| -> Vec<serde_json::Value> {
         (0..n)
-            .map(|i| serde_json::Value::from(base + 5.0 * (i as f64).sin()))
+            .map(|i| serde_json::Value::from(base + 0.0005 * (i as f64).sin()))
             .collect()
     };
 
@@ -57,9 +62,9 @@ fn minimal_inputs_json() -> String {
         "history_panel": {
             "dates": dates,
             "spreads": {
-                "ISSUER-A": make_series(150.0),
-                "ISSUER-B": make_series(175.0),
-                "ISSUER-C": make_series(200.0)
+                "ISSUER-A": make_series(0.0150),
+                "ISSUER-B": make_series(0.0175),
+                "ISSUER-C": make_series(0.0200)
             }
         },
         "issuer_tags": {
@@ -71,13 +76,13 @@ fn minimal_inputs_json() -> String {
         },
         "generic_factor": {
             "spec": { "name": "CDX IG 5Y", "series_id": "cdx.ig.5y" },
-            "values": (0..n).map(|i| 100.0 + 0.5 * (i as f64).sin()).collect::<Vec<f64>>()
+            "values": (0..n).map(|i| 0.0100 + 0.00005 * (i as f64).sin()).collect::<Vec<f64>>()
         },
         "as_of": as_of,
         "as_of_spreads": {
-            "ISSUER-A": 150.0,
-            "ISSUER-B": 175.0,
-            "ISSUER-C": 200.0
+            "ISSUER-A": 0.0150,
+            "ISSUER-B": 0.0175,
+            "ISSUER-C": 0.0200
         },
         "idiosyncratic_overrides": {}
     })

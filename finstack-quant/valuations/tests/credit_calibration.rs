@@ -4,12 +4,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use finstack_quant_core::dates::{create_date, Date};
+use finstack_quant_core::dates::{create_date, Date, DateExt};
 use finstack_quant_core::types::IssuerId;
 use finstack_quant_factor_model::credit::calibration::{
-    BetaShrinkage, BucketSizeThresholds, CovarianceStrategy, CreditCalibrationConfig,
-    CreditCalibrationInputs, CreditCalibrator, GenericFactorSeries, HistoryPanel, IssuerTagPanel,
-    PanelSpace, VolModelChoice,
+    BetaShrinkage, BucketSizeThresholds, BucketWeighting, CovarianceStrategy,
+    CreditCalibrationConfig, CreditCalibrationInputs, CreditCalibrator, GenericFactorSeries,
+    HistoryPanel, IssuerTagPanel, PanelFrequency, PanelSpace, VolModelChoice,
 };
 use finstack_quant_factor_model::credit::hierarchy::{
     AdderVolSource, CreditFactorModel, CreditHierarchySpec, FactorVolModel, GenericFactorSpec,
@@ -28,11 +28,11 @@ fn monthly_dates(n: usize, end: Date) -> Vec<Date> {
     let mut current = end;
     for _ in 0..n {
         out.push(current);
-        // Naively step back by ~30 days. Calendar-month exactness doesn't
-        // matter for the calibration math (only ordering does).
-        for _ in 0..30 {
-            current = current.previous_day().expect("date in range");
-        }
+        current = if current == current.end_of_month() {
+            current.add_months(-1).end_of_month()
+        } else {
+            current.add_months(-1)
+        };
     }
     out.reverse();
     out
@@ -52,7 +52,9 @@ fn fixture_panel() -> CalibrationFixture {
     let dates = monthly_dates(n, as_of);
 
     // Generic factor: simple deterministic increments.
-    let generic_values: Vec<f64> = (0..n).map(|i| 100.0 + 0.5 * (i as f64).sin()).collect();
+    let generic_values: Vec<f64> = (0..n)
+        .map(|i| 0.0100 + 0.00005 * (i as f64).sin())
+        .collect();
 
     // 6 issuers — 3 IG (across regions) + 3 HY (across regions).
     let issuer_specs = [
@@ -70,13 +72,13 @@ fn fixture_panel() -> CalibrationFixture {
 
     for (idx, (id, rating, region)) in issuer_specs.iter().enumerate() {
         let issuer_id = IssuerId::new(*id);
-        let base = 100.0 + (idx as f64) * 25.0;
+        let base = 0.0100 + (idx as f64) * 0.0025;
         let beta_pc = 0.7 + 0.05 * (idx as f64);
         let series: Vec<Option<f64>> = (0..n)
             .map(|i| {
                 let val = base
-                    + beta_pc * (generic_values[i] - 100.0)
-                    + 0.1 * ((idx as f64) + (i as f64) * 0.5).cos();
+                    + beta_pc * (generic_values[i] - 0.0100)
+                    + 0.00001 * ((idx as f64) + (i as f64) * 0.5).cos();
                 Some(val)
             })
             .collect();
@@ -117,6 +119,7 @@ impl CalibrationFixture {
             as_of: self.as_of,
             as_of_spreads: self.as_of_spreads,
             idiosyncratic_overrides: BTreeMap::new(),
+            spread_durations: BTreeMap::new(),
         }
     }
 }
@@ -135,7 +138,8 @@ fn config_with(
         covariance_strategy: CovarianceStrategy::Diagonal,
         beta_shrinkage: BetaShrinkage::None,
         use_returns_or_levels: PanelSpace::Returns,
-        annualization_factor: 12.0,
+        panel_frequency: PanelFrequency::Monthly,
+        bucket_weighting: BucketWeighting::Equal,
     }
 }
 
@@ -526,6 +530,7 @@ fn sparse_bucket_emits_none_for_empty_dates() {
         as_of,
         as_of_spreads,
         idiosyncratic_overrides: BTreeMap::new(),
+        spread_durations: BTreeMap::new(),
     };
 
     // Use GloballyOff so betas=1 and the IG factor series = issuer's residual mean.
@@ -956,7 +961,7 @@ fn calibration_rejects_non_finite_spread_values() {
 #[test]
 fn calibration_rejects_invalid_numeric_config_values() {
     let cfg = CreditCalibrationConfig {
-        annualization_factor: 0.0,
+        vol_model: VolModelChoice::Ewma { lambda: 0.0 },
         ..config_with(
             IssuerBetaPolicy::GloballyOff,
             vec![HierarchyDimension::Rating],
@@ -967,7 +972,7 @@ fn calibration_rejects_invalid_numeric_config_values() {
         CreditCalibrator::new(cfg)
             .calibrate(fixture_panel().into_inputs())
             .is_err(),
-        "annualization_factor must be positive and finite"
+        "ewma lambda must be in (0, 1)"
     );
 }
 
@@ -1169,6 +1174,7 @@ fn bucket_only_uses_peer_proxy_at_deepest_level() {
         as_of,
         as_of_spreads,
         idiosyncratic_overrides: BTreeMap::new(),
+        spread_durations: BTreeMap::new(),
     };
 
     let model = CreditCalibrator::new(cfg)
@@ -1309,6 +1315,7 @@ fn bucket_peer_proxy_falls_back_to_parent() {
         as_of,
         as_of_spreads,
         idiosyncratic_overrides: BTreeMap::new(),
+        spread_durations: BTreeMap::new(),
     };
 
     let model = CreditCalibrator::new(cfg)
@@ -1444,6 +1451,7 @@ fn peer_proxy_cascade_falls_back_to_global() {
         as_of,
         as_of_spreads,
         idiosyncratic_overrides: BTreeMap::new(),
+        spread_durations: BTreeMap::new(),
     };
 
     let model = CreditCalibrator::new(cfg)
@@ -1574,6 +1582,7 @@ fn adder_vol_defaults_to_zero_when_history_too_short_everywhere() {
         as_of,
         as_of_spreads,
         idiosyncratic_overrides: BTreeMap::new(),
+        spread_durations: BTreeMap::new(),
     };
 
     let model = CreditCalibrator::new(cfg)
@@ -1737,6 +1746,7 @@ fn full_sample_repaired_covariance_is_psd() {
         as_of,
         as_of_spreads,
         idiosyncratic_overrides: BTreeMap::new(),
+        spread_durations: BTreeMap::new(),
     };
 
     let cfg = CreditCalibrationConfig {
@@ -1853,6 +1863,53 @@ fn full_sample_repaired_preserves_determinism() {
 
 const REGEN_CREDIT_FACTOR_MODEL_GOLDEN_ENV: &str = "FQ_UPDATE_CANONICAL_GOLDENS";
 
+fn calibrate_canonical_credit_model() -> CreditFactorModel {
+    let mut inputs = fixture_panel().into_inputs();
+    inputs.spread_durations = inputs
+        .as_of_spreads
+        .keys()
+        .cloned()
+        .map(|id| (id, 5.0))
+        .collect();
+    let cfg = CreditCalibrationConfig {
+        covariance_strategy: CovarianceStrategy::Diagonal,
+        vol_model: VolModelChoice::Sample,
+        min_bucket_size_per_level: BucketSizeThresholds {
+            per_level: vec![1, 1],
+        },
+        bucket_weighting: BucketWeighting::Dts,
+        ..config_with(
+            IssuerBetaPolicy::Dynamic {
+                min_history: 12,
+                overrides: BTreeMap::new(),
+            },
+            vec![HierarchyDimension::Rating, HierarchyDimension::Region],
+        )
+    };
+    CreditCalibrator::new(cfg)
+        .calibrate(inputs)
+        .expect("canonical credit model calibrates")
+}
+
+fn stabilize_canonical_bytes(model: &CreditFactorModel) -> Vec<u8> {
+    let mut bytes =
+        finstack_quant_core::to_canonical_bytes(model).expect("credit factor model canonicalizes");
+    for _ in 0..8 {
+        let (reloaded, _) = CreditFactorModel::from_slice_strict(
+            &bytes,
+            &finstack_quant_core::contract::LoadLimits::default(),
+        )
+        .expect("reload while stabilizing canonical bytes");
+        let next = finstack_quant_core::to_canonical_bytes(&reloaded)
+            .expect("reloaded model canonicalizes");
+        if next == bytes {
+            return bytes;
+        }
+        bytes = next;
+    }
+    panic!("credit factor model canonical bytes did not reach a JSON f64 fixed point")
+}
+
 /// Generate (or regenerate) the factor-model-owned canonical artifact and hash.
 /// Run manually with:
 /// `FQ_UPDATE_CANONICAL_GOLDENS=1 cargo test -p finstack-quant-valuations --test credit_calibration generate_golden_artifact -- --nocapture`
@@ -1871,28 +1928,14 @@ fn generate_golden_artifact() {
         "/../factor-model/tests/data/canonical/credit_factor_model.sha256"
     );
 
-    let cfg = CreditCalibrationConfig {
-        covariance_strategy: CovarianceStrategy::Diagonal,
-        vol_model: VolModelChoice::Sample,
-        min_bucket_size_per_level: BucketSizeThresholds {
-            per_level: vec![1, 1],
-        },
-        ..config_with(
-            IssuerBetaPolicy::Dynamic {
-                min_history: 12,
-                overrides: BTreeMap::new(),
-            },
-            vec![HierarchyDimension::Rating, HierarchyDimension::Region],
-        )
-    };
-
-    let model = CreditCalibrator::new(cfg)
-        .calibrate(fixture_panel().into_inputs())
-        .expect("golden fixture calibration must succeed");
-
-    let json =
-        finstack_quant_core::to_canonical_bytes(&model).expect("serialize canonical model JSON");
-    let hash = finstack_quant_core::content_hash(&model).expect("hash canonical model JSON");
+    let model = calibrate_canonical_credit_model();
+    let json = stabilize_canonical_bytes(&model);
+    let (reloaded, _) = CreditFactorModel::from_slice_strict(
+        &json,
+        &finstack_quant_core::contract::LoadLimits::default(),
+    )
+    .expect("reload stabilized golden");
+    let hash = finstack_quant_core::content_hash(&reloaded).expect("hash canonical model JSON");
     std::fs::create_dir_all(std::path::Path::new(golden_path).parent().unwrap())
         .expect("create golden dir");
     std::fs::write(golden_path, &json).expect("write golden file");
@@ -1915,50 +1958,20 @@ fn golden_credit_factor_model_matches_checked_in_json() {
         "/../factor-model/tests/data/canonical/credit_factor_model.json"
     );
 
-    let cfg = CreditCalibrationConfig {
-        covariance_strategy: CovarianceStrategy::Diagonal,
-        vol_model: VolModelChoice::Sample,
-        min_bucket_size_per_level: BucketSizeThresholds {
-            per_level: vec![1, 1],
-        },
-        ..config_with(
-            IssuerBetaPolicy::Dynamic {
-                min_history: 12,
-                overrides: BTreeMap::new(),
-            },
-            vec![HierarchyDimension::Rating, HierarchyDimension::Region],
-        )
-    };
+    let model = calibrate_canonical_credit_model();
+    let produced = stabilize_canonical_bytes(&model);
 
-    let model = CreditCalibrator::new(cfg)
-        .calibrate(fixture_panel().into_inputs())
-        .expect("golden fixture calibration must succeed");
-
-    let produced = serde_json::to_string_pretty(&model).expect("serialize to pretty JSON");
-
-    // Read the checked-in golden file. If it doesn't exist yet, the test fails
-    // with a clear message telling the developer how to bootstrap it by running
-    // the env-gated generator test.
-    let golden = std::fs::read_to_string(golden_path).unwrap_or_else(|e| {
+    let golden = std::fs::read(golden_path).unwrap_or_else(|e| {
         panic!(
             "Golden file not found at {golden_path}: {e}\n\
              Bootstrap it by running:\n  \
-             {REGEN_CREDIT_FACTOR_MODEL_GOLDEN_ENV}=1 cargo test -p finstack-quant-valuations \
-             --test credit_calibration generate_golden_artifact -- --nocapture"
+             {REGEN_CREDIT_FACTOR_MODEL_GOLDEN_ENV}=1 cargo nextest run -p finstack-quant-factor-model \
+             --test canonical_contract credit_factor_model_has_exact_canonical_bytes_and_hash"
         )
     });
 
-    // Parse both as serde_json::Value for stable comparison regardless of
-    // trailing whitespace or insignificant formatting differences; then
-    // re-serialize to canonical pretty form for a clean diff on failure.
-    let produced_val: serde_json::Value =
-        serde_json::from_str(&produced).expect("produced JSON is valid");
-    let golden_val: serde_json::Value =
-        serde_json::from_str(&golden).expect("golden JSON is valid");
-
     assert_eq!(
-        serde_json::to_string_pretty(&produced_val).expect("re-serialize produced"),
-        serde_json::to_string_pretty(&golden_val).expect("re-serialize golden"),
+        produced, golden,
         "Calibration output does not match golden file at {golden_path}.\n\
          If this change is intentional, regenerate the golden file."
     );
@@ -1994,7 +2007,8 @@ fn calibration_config_round_trips_through_json() {
         covariance_strategy: CovarianceStrategy::Ridge { alpha: 0.01 },
         beta_shrinkage: BetaShrinkage::TowardOne { alpha: 0.2 },
         use_returns_or_levels: PanelSpace::Returns,
-        annualization_factor: 12.0,
+        panel_frequency: PanelFrequency::Monthly,
+        bucket_weighting: BucketWeighting::Equal,
     };
     let json2 = serde_json::to_string(&complex_cfg).expect("serialize complex config");
     let back2: CreditCalibrationConfig =
@@ -2038,7 +2052,8 @@ fn calibration_config_serialization_matches_schema() {
         covariance_strategy: CovarianceStrategy::Diagonal,
         beta_shrinkage: BetaShrinkage::None,
         use_returns_or_levels: PanelSpace::Returns,
-        annualization_factor: 12.0,
+        panel_frequency: PanelFrequency::Monthly,
+        bucket_weighting: BucketWeighting::Equal,
     };
 
     let instance: serde_json::Value =

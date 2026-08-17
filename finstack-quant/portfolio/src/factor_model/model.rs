@@ -2001,6 +2001,7 @@ mod tests {
             adder_vol_source: AdderVolSource::Default,
             fit_quality: None,
             level_fit_quality: vec![],
+            spread_duration: 1.0,
         };
         let factors = vec![
             FactorDefinition {
@@ -2113,6 +2114,7 @@ mod tests {
             adder_vol_source: AdderVolSource::Default,
             fit_quality: None,
             level_fit_quality: vec![],
+            spread_duration: 1.0,
         };
         let factors = vec![
             FactorDefinition {
@@ -2247,6 +2249,7 @@ mod tests {
             adder_vol_source: AdderVolSource::Default,
             fit_quality: None,
             level_fit_quality: vec![],
+            spread_duration: 1.0,
         };
         let factors = vec![
             FactorDefinition {
@@ -2363,6 +2366,7 @@ mod tests {
             adder_vol_source: AdderVolSource::Default,
             fit_quality: None,
             level_fit_quality: vec![],
+            spread_duration: 1.0,
         };
         let factors = vec![
             FactorDefinition {

@@ -232,23 +232,30 @@ impl JsPeriodDecomposition {
 /// Decompose observed issuer spreads at a point in time into per-level factor
 /// values and per-issuer residual adders.
 ///
-/// - `model` — calibrated `CreditFactorModel`.
-/// - `observed_spreads_json` — JSON `{issuer_id: spread}` map.
-/// - `observed_generic` — generic (PC) factor value at `as_of`.
-/// - `as_of` — ISO 8601 date string.
-/// - `runtime_tags_json` — optional JSON `{issuer_id: {dim_key: tag}}` for
+/// Callers pass **decimal** spreads (`0.012` = 120 bp). Returned factor
+/// levels and adders are **bp**.
+///
+/// # Arguments
+///
+/// * `model` - Calibrated credit factor hierarchy used for the peel.
+/// * `observed_spreads_json` - JSON `{issuer_id: spread}` map in decimal
+///   (`0.012` = 120 bp). Values that look like bp (e.g. `100.0`) are rejected.
+/// * `observed_generic` - Generic (PC) factor value at `as_of`, same decimal
+///   convention as the spreads.
+/// * `as_of` - ISO-8601 valuation date for the snapshot.
+/// * `runtime_tags_json` - Optional JSON `{issuer_id: {dim_key: tag}}` for
 ///   issuers not present in the model artifact.
 ///
-/// Returns a `LevelsAtDate` handle.
-///
 /// # Errors
-/// Throws if an issuer has no model row and no `runtime_tags` entry, or if
-/// `as_of` cannot be parsed.
-/// @param model - Calibrated CreditFactorModel used to produce the covariance forecast.
-/// @param observed_spreads_json - JSON-serialized observed credit spreads used in the level decomposition.
-/// @param observed_generic - Observed generic-market spread component aligned with the model factors.
-/// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
-/// @param runtime_tags_json - Optional runtime-tag JSON selecting the active factor-model configuration.
+///
+/// Throws if an issuer has no model row and no `runtime_tags` entry, if
+/// `as_of` cannot be parsed, or if a spread is outside the decimal band.
+///
+/// @param model - Calibrated CreditFactorModel used for the peel.
+/// @param observedSpreadsJson - JSON `{issuer_id: spread}` map in decimal (`0.012` = 120 bp). Returned levels are bp.
+/// @param observedGeneric - Observed generic-market spread in decimal, aligned with the model factors.
+/// @param asOf - ISO-8601 valuation date used to stamp the snapshot.
+/// @param runtimeTagsJson - Optional runtime-tag JSON for issuers missing from the artifact.
 #[wasm_bindgen(js_name = decomposeLevels)]
 pub fn decompose_levels(
     model: &JsCreditFactorModel,
@@ -430,13 +437,16 @@ mod tests {
         n: usize,
         end: finstack_quant_core::dates::Date,
     ) -> Vec<finstack_quant_core::dates::Date> {
+        use finstack_quant_core::dates::DateExt;
         let mut out = Vec::with_capacity(n);
         let mut current = end;
         for _ in 0..n {
             out.push(current);
-            for _ in 0..30 {
-                current = current.previous_day().expect("in range");
-            }
+            current = if current == current.end_of_month() {
+                current.add_months(-1).end_of_month()
+            } else {
+                current.add_months(-1)
+            };
         }
         out.reverse();
         out
@@ -453,7 +463,8 @@ mod tests {
             vol_model: VolModelChoice::Sample,
             covariance_strategy: CovarianceStrategy::Diagonal,
             use_returns_or_levels: PanelSpace::Returns,
-            annualization_factor: 12.0,
+            panel_frequency: finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
+            bucket_weighting: finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
             ..Default::default()
         }
     }
@@ -463,7 +474,9 @@ mod tests {
         let as_of = d(2024, Month::March, 31);
         let dates = monthly_dates(n, as_of);
 
-        let generic_values: Vec<f64> = (0..n).map(|i| 100.0 + 0.5 * (i as f64).sin()).collect();
+        let generic_values: Vec<f64> = (0..n)
+            .map(|i| 0.0100 + 0.00005 * (i as f64).sin())
+            .collect();
 
         let issuer_specs = [
             ("ISSUER-A", "IG", "EU"),
@@ -477,12 +490,12 @@ mod tests {
 
         for (idx, (id, rating, region)) in issuer_specs.iter().enumerate() {
             let issuer_id = IssuerId::new(*id);
-            let base = 100.0 + (idx as f64) * 25.0;
+            let base = 0.0100 + (idx as f64) * 0.0025;
             let series: Vec<Option<f64>> = (0..n)
                 .map(|i| {
                     Some(
-                        base + 50.0 * generic_values[i] / 100.0
-                            + 5.0 * (i as f64 + idx as f64).sin(),
+                        base + 0.0050 * generic_values[i] / 0.0100
+                            + 0.0005 * (i as f64 + idx as f64).sin(),
                     )
                 })
                 .collect();
@@ -507,6 +520,7 @@ mod tests {
             as_of,
             as_of_spreads,
             idiosyncratic_overrides: BTreeMap::new(),
+            spread_durations: BTreeMap::new(),
         }
     }
 

@@ -334,26 +334,27 @@ class TestDateAcceptanceIsUniform:
             "covariance_strategy": "diagonal",
             "beta_shrinkage": "none",
             "use_returns_or_levels": "returns",
-            "annualization_factor": 12.0,
+            "panel_frequency": "monthly",
+            "bucket_weighting": "equal",
         })
         inputs_json = json.dumps({
             "history_panel": {
                 "dates": ["2024-01-01", "2024-02-01"],
-                "spreads": {"A": [100.0, 101.0]},
+                "spreads": {"A": [0.010, 0.0101]},
             },
             "issuer_tags": {"tags": {"A": {}}},
             "generic_factor": {
                 "spec": {"name": "G", "series_id": "G"},
-                "values": [100.0, 101.0],
+                "values": [0.010, 0.0101],
             },
             "as_of": "2024-02-01",
-            "as_of_spreads": {"A": 101.0},
+            "as_of_spreads": {"A": 0.0101},
             "idiosyncratic_overrides": {},
         })
         model = CreditCalibrator(config_json).calibrate(inputs_json)
 
-        from_str = decompose_levels(model, '{"A": 125.0}', 120.0, "2025-06-30")
-        from_date = decompose_levels(model, '{"A": 125.0}', 120.0, datetime.date(2025, 6, 30))
+        from_str = decompose_levels(model, '{"A": 0.0125}', 0.012, "2025-06-30")
+        from_date = decompose_levels(model, '{"A": 0.0125}', 0.012, datetime.date(2025, 6, 30))
         assert from_str.date == from_date.date
         assert from_str.generic == from_date.generic
 
