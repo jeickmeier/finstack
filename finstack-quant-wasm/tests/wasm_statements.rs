@@ -114,6 +114,7 @@ fn validate_waterfall_spec_roundtrips_minimal_spec() {
         available_cash_node: "cash".into(),
         ecf_sweep: None,
         pik_toggle: None,
+        ..Default::default()
     };
     let json = serde_json::to_string(&spec).unwrap();
     let out = validate_waterfall_spec_json(&json).unwrap();

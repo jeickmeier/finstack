@@ -50,6 +50,7 @@ __all__ = [
     "CheckSuiteSpec",
     "CheckReport",
     "EcfSweepSpec",
+    "PaymentClassSpec",
     "PikToggleSpec",
     "WaterfallSpec",
 ]
@@ -2268,12 +2269,14 @@ class ModelBuilder:
 
     def waterfall(self, waterfall_spec: WaterfallSpec) -> ModelBuilder:
         """
-        Attach a waterfall specification (PIK toggle + ECF sweep + priorities).
+        Attach a waterfall specification (priorities, ECF sweep, PIK toggle,
+        payment classes, and optional prepay nodes).
 
         Parameters
         ----------
-        waterfall_spec:
+        waterfall_spec : WaterfallSpec
             A :class:`WaterfallSpec` defining cash distribution priorities.
+            Bond / ConvertibleBond plus a sweep is rejected at model build.
 
         Returns
         -------
@@ -4150,11 +4153,145 @@ class PikToggleSpec:
 
     def __repr__(self) -> str: ...
 
+class PaymentClassSpec:
+    """
+    Seniority class for intra-category waterfall allocation.
+
+    When attached to :class:`WaterfallSpec`, each payment category walks class
+    rank and allocates pro-rata inside a class before the next class sees
+    remaining cash.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import PaymentClassSpec
+    >>> cls = PaymentClassSpec("1L", 0, ["TL-A"])
+    >>> (cls.id, cls.rank, cls.instrument_ids)
+    ('1L', 0, ['TL-A'])
+
+    """
+
+    def __init__(self, id: str, rank: int, instrument_ids: list[str]) -> None:
+        """
+        Construct a payment class.
+
+        Parameters
+        ----------
+        id : str
+            Class identifier (for example ``"1L"``). Must be unique within a
+            waterfall.
+        rank : int
+            Seniority rank; ``0`` is most senior. Ranks must be unique.
+        instrument_ids : list[str]
+            Debt instrument ids in this class. Each instrument may appear in
+            at most one class.
+
+        Notes
+        -----
+        Construction does not raise; arguments are stored as supplied.
+        """
+        ...
+    @staticmethod
+    def from_json(json: str) -> PaymentClassSpec:
+        """
+        Parse a payment class from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON payload containing ``id``, ``rank``, and ``instrument_ids``.
+
+        Returns
+        -------
+        PaymentClassSpec
+            Instance reconstructed from the canonical JSON payload.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or cannot be deserialized as a payment class.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import PaymentClassSpec
+        >>> cls = PaymentClassSpec("1L", 0, ["TL-A"])
+        >>> PaymentClassSpec.from_json(cls.to_json()).id
+        '1L'
+
+        """
+        ...
+    def to_json(self) -> str:
+        """
+        Serialize `PaymentClassSpec` to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON representation of this `PaymentClassSpec`, suitable
+            for a matching `from_json` call.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be serialized to JSON.
+        """
+        ...
+
+    @property
+    def id(self) -> str:
+        """
+        Class identifier (for example ``"1L"``).
+
+        Returns
+        -------
+        str
+            Unique class id within the enclosing waterfall.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def rank(self) -> int:
+        """
+        Seniority rank; ``0`` is most senior.
+
+        Returns
+        -------
+        int
+            Unique rank used to order classes when allocating a category.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def instrument_ids(self) -> list[str]:
+        """
+        Debt instrument ids that belong to this class.
+
+        Returns
+        -------
+        list[str]
+            Instrument ids allocated together inside this class.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
 class WaterfallSpec:
     """
     Waterfall specification for dynamic cash flow allocation.
 
-    Combines priority-of-payments with optional ECF sweep and PIK toggle.
+    Combines priority-of-payments with optional ECF sweep, PIK toggle,
+    payment classes, and separate mandatory / voluntary prepay nodes.
     Call :meth:`validate` before passing to a builder to surface inconsistent
     configurations (for example ``Sweep`` ordered after ``Equity``).
 
@@ -4173,6 +4310,9 @@ class WaterfallSpec:
         available_cash_node: str | None = None,
         ecf_sweep: EcfSweepSpec | None = None,
         pik_toggle: PikToggleSpec | None = None,
+        payment_classes: list[PaymentClassSpec] | None = None,
+        mandatory_prepay_node: str | None = None,
+        voluntary_prepay_node: str | None = None,
     ) -> None:
         """
         Configure dynamic cash allocation for a financial-model waterfall.
@@ -4183,11 +4323,21 @@ class WaterfallSpec:
             Ordered payment labels, from highest to lowest priority; ``None``
             applies the builder's default debt-before-equity sequence.
         available_cash_node : str or None, default None
-            Optional model node containing cash available for waterfall allocation.
+            Pre-waterfall cash-pool node or formula; ``None`` uses ``"cash"``.
+            Do not deduct ``cs`` debt-service tokens here.
         ecf_sweep : EcfSweepSpec or None, default None
             Optional excess-cash-flow sweep applied within the waterfall.
         pik_toggle : PikToggleSpec or None, default None
             Optional liquidity-driven PIK versus cash-interest configuration.
+        payment_classes : list[PaymentClassSpec] or None, default None
+            Intra-category seniority classes; ``None`` or empty is one implicit
+            class (pro-rata across all instruments).
+        mandatory_prepay_node : str or None, default None
+            Node or formula sizing the ``mandatory_prepayment`` rung. Required
+            when that priority is listed.
+        voluntary_prepay_node : str or None, default None
+            Node or formula sizing the ``voluntary_prepayment`` rung. Required
+            when that priority is listed.
 
         Raises
         ------
@@ -4269,8 +4419,8 @@ class WaterfallSpec:
         list[str]
             Snake-case priority names in allocation order — cash is applied to
             the first entry before any of the next. Allocation *within* a
-            category is single-class pro-rata across instruments; there is no
-            tranche seniority, so a shortfall is shared proportionally.
+            category is pro-rata inside each payment class, walking class rank.
+            Empty ``payment_classes`` is one implicit class.
 
         Notes
         -----
@@ -4279,17 +4429,65 @@ class WaterfallSpec:
         ...
 
     @property
-    def available_cash_node(self) -> str | None:
+    def available_cash_node(self) -> str:
         """
         Node reference or DSL formula for the cash pool the waterfall may spend.
 
         Returns
         -------
-        str | None
+        str
             A node id or expression evaluating to a monetary amount per
-            period. ``None`` keeps the fully-funded behaviour, in which
-            scheduled cashflows are paid in full without being capped against
-            available cash.
+            period. This is the **pre-waterfall** cash pool; do not deduct
+            ``cs`` debt-service tokens here. Defaults to ``"cash"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def payment_classes(self) -> list[PaymentClassSpec]:
+        """
+        Intra-category seniority classes.
+
+        Returns
+        -------
+        list[PaymentClassSpec]
+            Configured classes. Empty means one implicit class: pro-rata
+            across all instruments in each category.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def mandatory_prepay_node(self) -> str | None:
+        """
+        Node or formula sizing the ``mandatory_prepayment`` rung.
+
+        Returns
+        -------
+        str | None
+            Node id or formula, or ``None`` when that rung is unused.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def voluntary_prepay_node(self) -> str | None:
+        """
+        Node or formula sizing the ``voluntary_prepayment`` rung.
+
+        Returns
+        -------
+        str | None
+            Node id or formula, or ``None`` when that rung is unused.
 
         Notes
         -----

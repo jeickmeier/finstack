@@ -15,17 +15,12 @@ pub(super) fn priority_index(priorities: &[PaymentPriority], target: PaymentPrio
         .unwrap_or(usize::MAX)
 }
 
-/// Earliest position of any extra-principal action (sweep, mandatory/voluntary prepayment).
+/// Position of the ECF `Sweep` rung.
+///
+/// Mandatory and voluntary prepays have their own buckets and must not move
+/// the ECF amort/fee deduction to an earlier rung.
 pub(super) fn extra_principal_priority(priorities: &[PaymentPriority]) -> usize {
-    [
-        PaymentPriority::MandatoryPrepayment,
-        PaymentPriority::VoluntaryPrepayment,
-        PaymentPriority::Sweep,
-    ]
-    .into_iter()
-    .map(|priority| priority_index(priorities, priority))
-    .min()
-    .unwrap_or(usize::MAX)
+    priority_index(priorities, PaymentPriority::Sweep)
 }
 
 /// Validate that all instruments share a single currency.

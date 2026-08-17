@@ -250,7 +250,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/levered_real_estate_equity.schema.json",
-      "bytes": 830535,
+      "bytes": 830641,
       "kind": "input",
       "path": "schemas/instruments/1/equity/levered_real_estate_equity.schema.json",
       "summary": "Property equity net of its financing stack.",
@@ -314,7 +314,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/barrier_option.schema.json",
-      "bytes": 11786,
+      "bytes": 11838,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/barrier_option.schema.json",
       "summary": "Knock-in or knock-out option on a monitored barrier.",
@@ -322,7 +322,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/basket.schema.json",
-      "bytes": 830616,
+      "bytes": 830722,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/basket.schema.json",
       "summary": "Weighted basket of constituents priced as one position.",
@@ -466,7 +466,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_barrier_option.schema.json",
-      "bytes": 9865,
+      "bytes": 9919,
       "kind": "input",
       "path": "schemas/instruments/1/fx/fx_barrier_option.schema.json",
       "summary": "FX option with a knock-in or knock-out barrier.",
@@ -546,7 +546,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json",
-      "bytes": 908688,
+      "bytes": 908794,
       "kind": "input",
       "path": "schemas/instruments/1/instrument.schema.json",
       "summary": "The seventy-branch union of every instrument type. Prefer the per-type schema beside it: this document is too large to hand to a model.",

@@ -20,11 +20,13 @@
 //! - `cs.debt_balance.total` - Total outstanding debt balance
 //!
 //! Cashflows are classified by `CFKind` from `finstack-quant-cashflows`. Outstanding
-//! balances use `outstanding_by_date()`.
+//! balances use `outstanding_by_date()`. Omitted `fx_policy` converts already-
+//! aggregated `cs.*` cash items and balances on the inclusive period-end date
+//! (`PeriodEnd`), not per contractual cashflow date.
 //!
 //! ## Limitations
-//! - Waterfall allocation within a payment category is single-class pro-rata;
-//!   there is no intra-category tranche seniority (see `WaterfallSpec`).
+//! - Waterfall allocation is pro-rata inside each payment class, walking class
+//!   rank. Empty `payment_classes` is one implicit class (see `WaterfallSpec`).
 //! - Prepayment penalties, call premiums, and original issue discount (OID)
 //!   are not modeled: prepayments apply at par and no OID accretion occurs.
 //!
@@ -83,6 +85,7 @@ mod builder;
 mod cashflows;
 pub(crate) mod integration;
 pub(crate) mod period_flows;
+pub(crate) mod residual_schedule;
 mod state;
 pub mod waterfall;
 mod waterfall_spec;
@@ -93,6 +96,8 @@ pub use integration::{aggregate_instrument_cashflows, build_instrument_from_spec
 pub use period_flows::calculate_period_flows;
 pub use state::CapitalStructureState;
 pub use waterfall::{execute_waterfall, WaterfallPeriodResult};
+pub(crate) use waterfall_spec::reject_available_cash_debt_service;
 pub use waterfall_spec::{
-    default_priority_of_payments, EcfSweepSpec, PaymentPriority, PikToggleSpec, WaterfallSpec,
+    default_priority_of_payments, EcfSweepSpec, PaymentClassSpec, PaymentPriority, PikToggleSpec,
+    WaterfallSpec,
 };

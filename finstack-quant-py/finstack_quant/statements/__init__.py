@@ -35,6 +35,7 @@ normalize = _statements.normalize
 CheckSuiteSpec = _statements.CheckSuiteSpec
 CheckReport = _statements.CheckReport
 EcfSweepSpec = _statements.EcfSweepSpec
+PaymentClassSpec = _statements.PaymentClassSpec
 PikToggleSpec = _statements.PikToggleSpec
 WaterfallSpec = _statements.WaterfallSpec
 
@@ -60,6 +61,7 @@ __all__: list[str] = [
     "NodeType",
     "NormalizationConfig",
     "NumericMode",
+    "PaymentClassSpec",
     "PikToggleSpec",
     "StatementResult",
     "WaterfallSpec",

@@ -909,12 +909,25 @@ impl PyModelBuilder {
         Ok(slf)
     }
 
-    /// Attach a waterfall specification (PIK toggle + ECF sweep + priority-of-payments).
+    /// Attach a waterfall specification (priority-of-payments, ECF sweep,
+    /// PIK toggle, payment classes, and optional prepay nodes).
+    ///
+    /// Parameters
+    /// ----------
+    /// waterfall_spec : WaterfallSpec
+    ///     Validated or pending waterfall configuration attached to the
+    ///     capital structure. Bond / ConvertibleBond plus a sweep is rejected
+    ///     at model build.
     ///
     /// Returns
     /// -------
     /// ModelBuilder
     ///     This builder, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the builder has already been consumed.
     #[pyo3(text_signature = "($self, waterfall_spec)")]
     fn waterfall<'py>(
         mut slf: PyRefMut<'py, Self>,

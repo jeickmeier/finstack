@@ -15,7 +15,7 @@ from finstack_quant import statements
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.money import Money
 from finstack_quant.core.types import Rate
-from finstack_quant.valuations.instruments import Bond
+from finstack_quant.valuations.instruments import Bond, TermLoan
 
 
 def _debt_envelope_json(instrument_id: str) -> str:
@@ -70,6 +70,16 @@ class TestPikToggleSpec:
         assert restored.to_json() == pik.to_json()
 
 
+class TestPaymentClassSpec:
+    def test_construct_and_roundtrip(self) -> None:
+        cls = statements.PaymentClassSpec("1L", 0, ["TL-A", "TL-B"])
+        assert cls.id == "1L"
+        assert cls.rank == 0
+        assert cls.instrument_ids == ["TL-A", "TL-B"]
+        restored = statements.PaymentClassSpec.from_json(cls.to_json())
+        assert restored.to_json() == cls.to_json()
+
+
 class TestWaterfallSpec:
     def test_default_priority_order(self) -> None:
         ws = statements.WaterfallSpec()
@@ -82,6 +92,10 @@ class TestWaterfallSpec:
         ]
         assert not ws.has_ecf_sweep
         assert not ws.has_pik_toggle
+        assert ws.available_cash_node == "cash"
+        assert ws.payment_classes == []
+        assert ws.mandatory_prepay_node is None
+        assert ws.voluntary_prepay_node is None
 
     def test_custom_priority(self) -> None:
         ws = statements.WaterfallSpec(priority_of_payments=["interest", "sweep", "equity"])
@@ -185,10 +199,20 @@ class TestModelBuilderCapitalStructure:
             b.fx_policy("bogus_policy")
 
     def test_waterfall_attaches_to_model(self) -> None:
-        ecf = statements.EcfSweepSpec(ebitda_node="ebitda", sweep_percentage=0.5, target_instrument_id="TL-A")
-        ws = statements.WaterfallSpec(ecf_sweep=ecf, available_cash_node="cash")
+        loan = TermLoan.example()
+        ecf = statements.EcfSweepSpec(
+            ebitda_node="ebitda",
+            sweep_percentage=0.5,
+            target_instrument_id=loan.id,
+        )
+        first_lien = statements.PaymentClassSpec("1L", 0, [loan.id])
+        ws = statements.WaterfallSpec(
+            ecf_sweep=ecf,
+            available_cash_node="cash",
+            payment_classes=[first_lien],
+        )
         b = statements.ModelBuilder("deal")
-        b.add_debt("TL-A", _debt_envelope_json("TL-A"))
+        b.add_debt(loan.id, loan.to_json())
         b.waterfall(ws)
         b.periods("2025Q1..Q1", None)
         b.value("x", [("2025Q1", 1.0)])

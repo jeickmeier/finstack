@@ -108,11 +108,19 @@ pub fn validate_capital_structure_spec_json(json: &str) -> Result<String, JsValu
 /// consistency check (for example rejecting `Sweep` ordered after `Equity`
 /// when an ECF sweep is configured).
 ///
+/// # Arguments
+///
+/// * `json` - Canonical JSON string for a `WaterfallSpec`, including
+///   `priority_of_payments`, `available_cash_node`, optional `ecf_sweep`,
+///   `pik_toggle`, `payment_classes`, `mandatory_prepay_node`, and
+///   `voluntary_prepay_node`.
+///
 /// # Errors
 ///
 /// Rejects malformed or schema-incompatible `json`; duplicate or inconsistent
-/// payment priorities; incomplete available-cash priorities; invalid PIK or
-/// ECF-sweep settings; or failure to serialize the validated waterfall.
+/// payment priorities; incomplete available-cash priorities; invalid PIK,
+/// payment-class, prepay-node, or ECF-sweep settings; or failure to serialize
+/// the validated waterfall.
 /// @param json - Canonical JSON string defining the object to deserialize or normalize.
 #[wasm_bindgen(js_name = validateWaterfallSpecJson)]
 pub fn validate_waterfall_spec_json(json: &str) -> Result<String, JsValue> {
@@ -323,6 +331,7 @@ mod tests {
             available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: None,
+            ..Default::default()
         };
         let json = serde_json::to_string(&spec).expect("serialize");
         let out = validate_waterfall_spec_json(&json).expect("should accept default spec");

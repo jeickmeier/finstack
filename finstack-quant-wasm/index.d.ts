@@ -7824,8 +7824,8 @@ export interface StatementsNamespace {
    * consistency check (for example rejecting `Sweep` ordered after `Equity`
    * when an ECF sweep is configured).
    * @returns Canonical waterfall JSON after schema validation.
-   * @param json - Canonical JSON string defining the object to deserialize or normalize.
-   * @throws Error - Rejects malformed or schema-incompatible `json`; duplicate or inconsistent payment priorities; incomplete available-cash priorities; invalid PIK or ECF-sweep settings; or failure to serialize the validated waterfall.
+   * @param json - Canonical JSON string for a WaterfallSpec, including priorityOfPayments, availableCashNode, optional ecfSweep, pikToggle, paymentClasses, mandatoryPrepayNode, and voluntaryPrepayNode.
+   * @throws Error - Rejects malformed or schema-incompatible `json`; duplicate or inconsistent payment priorities; incomplete available-cash priorities; invalid PIK, payment-class, prepay-node, or ECF-sweep settings; or failure to serialize the validated waterfall.
    */
   validateWaterfallSpecJson(json: string): string;
   /**

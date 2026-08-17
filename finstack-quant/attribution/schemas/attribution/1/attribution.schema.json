@@ -2153,7 +2153,7 @@
         "rebate_timing": {
           "$ref": "#/$defs/RebateTiming",
           "default": "at_hit",
-          "description": "Timing of the knock-out rebate payment.\n\n`at_hit` (default, market standard) pays the rebate the moment a\nknock-out barrier is breached; `at_expiry` defers payment to expiry.\nKnock-in rebates always pay at expiry (a no-hit is only known then),\nso this setting does not affect them. The analytical pricer values\nat-hit rebates via the discounted first-passage closed form; the Monte\nCarlo pricers currently approximate at-hit rebates as at-expiry."
+          "description": "Timing of the knock-out rebate payment.\n\n`at_hit` (default, market standard) pays the rebate the moment a\nknock-out barrier is breached; `at_expiry` defers payment to expiry.\nKnock-in rebates always pay at expiry (a no-hit is only known then),\nso this setting does not affect them. The analytical pricer values\nat-hit rebates via the discounted first-passage closed form. Monte\nCarlo applies at-hit when `rebate_timing == AtHit` via\n`with_rebate_at_hit`; the crate primitive defaults to at-expiry."
         },
         "scenario_pricing_overrides": {
           "$ref": "#/$defs/ScenarioPricingOverrides",
@@ -13238,7 +13238,7 @@
         "rebate_timing": {
           "$ref": "#/$defs/RebateTiming",
           "default": "at_hit",
-          "description": "Timing of the knock-out rebate payment.\n\n`at_hit` (default, market standard) pays the rebate the moment a\nknock-out barrier is breached; `at_expiry` defers payment to expiry.\nKnock-in rebates always pay at expiry, so this setting does not affect\nthem. The analytical pricer values at-hit rebates via the discounted\nfirst-passage closed form; the Monte Carlo path currently approximates\nat-hit rebates as at-expiry."
+          "description": "Timing of the knock-out rebate payment.\n\n`at_hit` (default, market standard) pays the rebate the moment a\nknock-out barrier is breached; `at_expiry` defers payment to expiry.\nKnock-in rebates always pay at expiry, so this setting does not affect\nthem. The analytical pricer values at-hit rebates via the discounted\nfirst-passage closed form. Monte Carlo applies at-hit when\n`rebate_timing == AtHit` via `with_rebate_at_hit`; the crate primitive\ndefaults to at-expiry."
         },
         "scenario_pricing_overrides": {
           "$ref": "#/$defs/ScenarioPricingOverrides",

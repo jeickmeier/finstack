@@ -331,6 +331,43 @@ impl FinancialModelSpec {
         if let Some(cs) = &self.capital_structure {
             if let Some(waterfall) = &cs.waterfall {
                 waterfall.validate()?;
+                let has_prepay = waterfall.priority_of_payments.iter().any(|p| {
+                    matches!(
+                        p,
+                        crate::capital_structure::PaymentPriority::Sweep
+                            | crate::capital_structure::PaymentPriority::MandatoryPrepayment
+                            | crate::capital_structure::PaymentPriority::VoluntaryPrepayment
+                    )
+                });
+                if has_prepay {
+                    for debt in &cs.debt_instruments {
+                        match &debt.spec {
+                            FinancialStatementInstrument::Bond(_)
+                            | FinancialStatementInstrument::ConvertibleBond(_) => {
+                                return Err(Error::build(format!(
+                                    "WaterfallSpec: instrument '{}' is a bond; this waterfall \
+                                     is a loan/revolver engine and rejects Bond or \
+                                     ConvertibleBond targets when a prepayment rung \
+                                     (`Sweep`, `MandatoryPrepayment`, or \
+                                     `VoluntaryPrepayment`) is present. Bond coupons stay on \
+                                     original face.",
+                                    debt.id
+                                )));
+                            }
+                            FinancialStatementInstrument::InterestRateSwap(_)
+                            | FinancialStatementInstrument::CapFloor(_)
+                            | FinancialStatementInstrument::Swaption(_) => {
+                                return Err(Error::build(format!(
+                                    "WaterfallSpec: instrument '{}' is not a sweep target; \
+                                     swaps and options cannot appear with a prepayment rung.",
+                                    debt.id
+                                )));
+                            }
+                            FinancialStatementInstrument::TermLoan(_)
+                            | FinancialStatementInstrument::RevolvingCredit(_) => {}
+                        }
+                    }
+                }
             }
             // Period-flow classification infers expense vs income for two-leg
             // instruments from the sign of the net flow, which assumes the
@@ -408,7 +445,11 @@ pub struct CapitalStructureSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reporting_currency: Option<finstack_quant_core::currency::Currency>,
 
-    /// Optional FX conversion policy override (defaults to CashflowDate)
+    /// Optional FX conversion policy override.
+    ///
+    /// When omitted, `cs.*` cash items and balances convert on the inclusive
+    /// period-end date (`FxConversionPolicy::PeriodEnd`). Conversion applies to
+    /// the already-aggregated period bucket, not per contractual cashflow date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fx_policy: Option<finstack_quant_core::money::fx::FxConversionPolicy>,
 
@@ -498,7 +539,8 @@ pub struct DebtInstrumentSpec {
 mod period_timeline_tests {
     use super::*;
     use crate::types::AmountOrScalar;
-    use finstack_quant_core::dates::PeriodId;
+    use finstack_quant_core::dates::{Date, PeriodId};
+    use time::Month;
 
     fn period(id: PeriodId, is_actual: bool) -> Period {
         let range = finstack_quant_core::dates::build_periods(&format!("{id}..{id}"), None)
@@ -595,6 +637,56 @@ mod period_timeline_tests {
         assert!(
             err.to_string().contains("Receive"),
             "expected the Receive-side diagnostic: {err}"
+        );
+    }
+
+    /// A bond plus a prepayment rung is rejected: this engine rebuilds loan
+    /// schedules, and bond coupons stay on original face.
+    #[test]
+    fn bond_plus_sweep_in_priority_of_payments_is_rejected() {
+        let bond = Bond::fixed(
+            finstack_quant_core::types::InstrumentId::new("BOND-SWEEP"),
+            finstack_quant_core::money::Money::new(
+                1_000_000.0,
+                finstack_quant_core::currency::Currency::USD,
+            ),
+            0.05,
+            Date::from_calendar_date(2025, Month::January, 1).expect("valid date"),
+            Date::from_calendar_date(2030, Month::January, 1).expect("valid date"),
+            finstack_quant_core::types::CurveId::new("USD-OIS"),
+        )
+        .expect("bond");
+        let mut model = model_with_periods(vec![period(PeriodId::quarter(2025, 1), true)]);
+        model.capital_structure = Some(CapitalStructureSpec {
+            debt_instruments: vec![DebtInstrumentSpec {
+                id: "BOND-SWEEP".to_string(),
+                spec: FinancialStatementInstrument::Bond(bond),
+            }],
+            meta: IndexMap::new(),
+            reporting_currency: None,
+            fx_policy: None,
+            waterfall: Some(crate::capital_structure::WaterfallSpec {
+                priority_of_payments: crate::capital_structure::default_priority_of_payments(),
+                available_cash_node: "cash".into(),
+                ecf_sweep: Some(crate::capital_structure::EcfSweepSpec {
+                    ebitda_node: "ebitda".into(),
+                    taxes_node: None,
+                    capex_node: None,
+                    working_capital_node: None,
+                    cash_interest_node: None,
+                    sweep_percentage: 0.5,
+                    target_instrument_id: None,
+                }),
+                pik_toggle: None,
+                ..Default::default()
+            }),
+        });
+        let err = model
+            .validate_semantics()
+            .expect_err("Bond + Sweep must be a build error");
+        assert!(
+            err.to_string().contains("bond"),
+            "expected the Bond+sweep diagnostic: {err}"
         );
     }
 

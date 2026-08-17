@@ -99,7 +99,7 @@
         "rebate_timing": {
           "$ref": "#/$defs/RebateTiming",
           "default": "at_hit",
-          "description": "Timing of the knock-out rebate payment.\n\n`at_hit` (default, market standard) pays the rebate the moment a\nknock-out barrier is breached; `at_expiry` defers payment to expiry.\nKnock-in rebates always pay at expiry (a no-hit is only known then),\nso this setting does not affect them. The analytical pricer values\nat-hit rebates via the discounted first-passage closed form; the Monte\nCarlo pricers currently approximate at-hit rebates as at-expiry."
+          "description": "Timing of the knock-out rebate payment.\n\n`at_hit` (default, market standard) pays the rebate the moment a\nknock-out barrier is breached; `at_expiry` defers payment to expiry.\nKnock-in rebates always pay at expiry (a no-hit is only known then),\nso this setting does not affect them. The analytical pricer values\nat-hit rebates via the discounted first-passage closed form. Monte\nCarlo applies at-hit when `rebate_timing == AtHit` via\n`with_rebate_at_hit`; the crate primitive defaults to at-expiry."
         },
         "scenario_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",

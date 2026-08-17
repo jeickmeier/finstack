@@ -61,7 +61,10 @@ pub fn build_instrument_from_spec(
 /// # Arguments
 ///
 /// * `spec` - Capital-structure configuration that supplies reporting currency
-///   and FX policy for aggregating the provided instruments.
+///   and FX policy for aggregating the provided instruments. When
+///   `spec.fx_policy` is `None`, period-aggregated `cs.*` cash items and
+///   balances convert with `FxConversionPolicy::PeriodEnd` on the inclusive
+///   period-end date.
 /// * `instruments` - Map of instrument IDs to runtime cashflow providers; it
 ///   must contain every instrument to aggregate.
 /// * `periods` - Ordered model periods used to bucket emitted cashflows.
@@ -102,7 +105,9 @@ pub fn build_instrument_from_spec(
 /// reporting totals, the currency is selected in this order: explicit
 /// `spec.reporting_currency`, the market FX matrix pivot, or inferred later
 /// for a single-currency structure. Cross-currency amounts use `spec.fx_policy`
-/// or `CashflowDate` by default. Interest legs in one instrument are netted by
+/// or `PeriodEnd` by default: already-aggregated `cs.*` cash items and balances
+/// convert on the inclusive period-end date (`period.end - 1 day` under
+/// half-open `[start, end)` periods). Interest legs in one instrument are netted by
 /// signed amount before being recorded as a magnitude, preventing two-leg
 /// swaps from double-counting pay and receive coupons.
 ///
@@ -129,10 +134,11 @@ pub fn aggregate_instrument_cashflows(
     if reporting_currency.is_none() {
         reporting_currency = fx_matrix.map(|fx| fx.config().pivot_currency);
     }
-    // FX policy override (default CashflowDate)
+    // FX policy override (default PeriodEnd: convert the period aggregate
+    // on the inclusive period-end snapshot, not per cashflow date).
     let fx_policy = spec
         .fx_policy
-        .unwrap_or(finstack_quant_core::money::fx::FxConversionPolicy::CashflowDate);
+        .unwrap_or(finstack_quant_core::money::fx::FxConversionPolicy::PeriodEnd);
 
     // Initialize reporting totals if we know the reporting currency up-front
     let mut reporting_totals: Option<IndexMap<PeriodId, CashflowBreakdown>> = reporting_currency

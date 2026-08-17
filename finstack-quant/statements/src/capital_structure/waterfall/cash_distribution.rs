@@ -16,8 +16,14 @@ pub(super) struct StagedInstrumentFlow {
     pub breakdown: CashflowBreakdown,
     /// Balance at the start of this period
     pub opening_balance: Money,
-    /// Extra principal from sweep allocation
-    pub extra_principal: Money,
+    /// Extra principal from the ECF sweep rung.
+    pub sweep_principal: Money,
+    /// Extra principal from the mandatory prepay rung.
+    pub mandatory_principal: Money,
+    /// Extra principal from the voluntary prepay rung.
+    pub voluntary_principal: Money,
+    /// Payment-class rank (`0` = most senior). Empty `payment_classes` uses `0`.
+    pub class_rank: u32,
     /// Scheduled (contractual) principal payment
     pub scheduled_principal: Money,
     /// Net new funding (revolver draws + initial-exchange notional) for this
@@ -48,30 +54,43 @@ pub(super) fn apply_cash_cap_to_category<F>(
 ) where
     F: FnMut(&mut StagedInstrumentFlow) -> &mut Money,
 {
-    let planned: Vec<f64> = staged
-        .iter_mut()
-        .map(|s| {
-            let amount = field(s).amount();
-            if amount < 0.0 {
-                // A negative outflow claim is neutralized to zero. Surface it:
-                // it usually signals an upstream sign-convention bug, and it
-                // silently changes the model's totals when a cash cap is active.
-                warnings.push(EvalWarning::CapitalStructure {
-                    period: period_id,
-                    warning: CapitalStructureWarning::NegativeClaimNeutralized {
-                        category,
-                        instrument_id: s.instrument_id.clone(),
-                        amount,
-                    },
-                });
+    for s in staged.iter_mut() {
+        let amount = field(s).amount();
+        if amount < 0.0 {
+            warnings.push(EvalWarning::CapitalStructure {
+                period: period_id,
+                warning: CapitalStructureWarning::NegativeClaimNeutralized {
+                    category,
+                    instrument_id: s.instrument_id.clone(),
+                    amount,
+                },
+            });
+            let currency = field(s).currency();
+            *field(s) = Money::new(0.0, currency);
+        }
+    }
+    let mut ranks: Vec<u32> = staged.iter().map(|s| s.class_rank).collect();
+    ranks.sort_unstable();
+    ranks.dedup();
+    for rank in ranks {
+        let planned: Vec<f64> = staged
+            .iter_mut()
+            .map(|s| {
+                if s.class_rank == rank {
+                    field(s).amount().max(0.0)
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        let allocations = allocate_pro_rata(&planned, remaining_cash);
+        for (s, allocated) in staged.iter_mut().zip(allocations) {
+            if s.class_rank != rank {
+                continue;
             }
-            amount.max(0.0)
-        })
-        .collect();
-    let allocations = allocate_pro_rata(&planned, remaining_cash);
-    for (s, allocated) in staged.iter_mut().zip(allocations) {
-        let currency = field(s).currency();
-        *field(s) = Money::new(allocated, currency);
+            let currency = field(s).currency();
+            *field(s) = Money::new(allocated, currency);
+        }
     }
 }
 
@@ -109,5 +128,37 @@ pub(super) fn allocate_pro_rata(planned: &[f64], remaining_cash: &mut Money) -> 
         }
     }
     *remaining_cash = Money::new(0.0, remaining_cash.currency());
+    allocations
+}
+
+/// Allocate `remaining` across staged rows by class rank, then pro-rata
+/// within each class using `planned`.
+pub(super) fn allocate_by_class(
+    staged: &[StagedInstrumentFlow],
+    remaining: &mut Money,
+    planned: impl Fn(&StagedInstrumentFlow) -> f64,
+) -> Vec<f64> {
+    let mut allocations = vec![0.0; staged.len()];
+    let mut ranks: Vec<u32> = staged.iter().map(|s| s.class_rank).collect();
+    ranks.sort_unstable();
+    ranks.dedup();
+    for rank in ranks {
+        let class_planned: Vec<f64> = staged
+            .iter()
+            .map(|s| {
+                if s.class_rank == rank {
+                    planned(s).max(0.0)
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        let class_alloc = allocate_pro_rata(&class_planned, remaining);
+        for (idx, amount) in class_alloc.into_iter().enumerate() {
+            if staged[idx].class_rank == rank {
+                allocations[idx] = amount;
+            }
+        }
+    }
     allocations
 }

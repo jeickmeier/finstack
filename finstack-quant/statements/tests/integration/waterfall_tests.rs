@@ -1,14 +1,21 @@
 //! Integration tests for Cash Flow Waterfall & Sweep Mechanics
 
+use finstack_quant_cashflows::builder::specs::CouponType;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{Date, PeriodId};
+use finstack_quant_core::dates::{
+    BusinessDayConvention, Date, DayCount, PeriodId, StubKind, Tenor,
+};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
+use finstack_quant_core::types::CurveId;
 use finstack_quant_statements::builder::ModelBuilder;
 use finstack_quant_statements::capital_structure::{EcfSweepSpec, WaterfallSpec};
 use finstack_quant_statements::evaluator::Evaluator;
-use finstack_quant_statements::types::AmountOrScalar;
+use finstack_quant_statements::types::{AmountOrScalar, FinancialStatementInstrument};
+use finstack_quant_valuations::instruments::fixed_income::term_loan::{
+    AmortizationSpec, RateSpec, TermLoan,
+};
 use time::Month;
 
 #[test]
@@ -72,15 +79,33 @@ fn test_ecf_sweep_basic() {
                 ),
             ],
         )
-        .add_bond(
-            "BOND-001",
-            Money::new(10_000_000.0, Currency::USD),
-            0.05,
-            issue,
-            maturity,
-            "USD-OIS",
+        .add_debt(
+            "TL-001",
+            FinancialStatementInstrument::TermLoan(
+                TermLoan::builder()
+                    .id("TL-001".into())
+                    .currency(Currency::USD)
+                    .notional_limit(Money::new(10_000_000.0, Currency::USD))
+                    .issue_date(issue)
+                    .maturity(maturity)
+                    .rate(RateSpec::Fixed { rate_bp: 500 })
+                    .frequency(Tenor::quarterly())
+                    .day_count(DayCount::Act360)
+                    .business_day_convention(BusinessDayConvention::ModifiedFollowing)
+                    .calendar_id_opt(None)
+                    .stub(StubKind::None)
+                    .discount_curve_id(CurveId::from("USD-OIS"))
+                    .amortization(AmortizationSpec::None)
+                    .coupon_type(CouponType::Cash)
+                    .upfront_fee_opt(None)
+                    .ddtl_opt(None)
+                    .covenants_opt(None)
+                    .instrument_pricing_overrides(Default::default())
+                    .attributes(Default::default())
+                    .build()
+                    .expect("valid term loan"),
+            ),
         )
-        .expect("valid bond")
         .waterfall(WaterfallSpec {
             ecf_sweep: Some(EcfSweepSpec {
                 ebitda_node: "ebitda".to_string(),
@@ -95,11 +120,12 @@ fn test_ecf_sweep_basic() {
                 finstack_quant_statements::capital_structure::PaymentPriority::Fees,
                 finstack_quant_statements::capital_structure::PaymentPriority::Interest,
                 finstack_quant_statements::capital_structure::PaymentPriority::Amortization,
-                finstack_quant_statements::capital_structure::PaymentPriority::MandatoryPrepayment,
+                finstack_quant_statements::capital_structure::PaymentPriority::Sweep,
                 finstack_quant_statements::capital_structure::PaymentPriority::Equity,
             ],
             available_cash_node: "cash".into(),
             pik_toggle: None,
+            ..Default::default()
         })
         .build()
         .expect("model should build");
@@ -142,8 +168,8 @@ mod period_flow_waterfall_integration {
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::money::Money;
     use finstack_quant_statements::capital_structure::{
-        calculate_period_flows, execute_waterfall, CapitalStructureState, PikToggleSpec,
-        WaterfallSpec,
+        calculate_period_flows, execute_waterfall, CapitalStructureState, EcfSweepSpec,
+        PikToggleSpec, WaterfallSpec,
     };
     use finstack_quant_statements::evaluator::EvaluationContext;
     use finstack_quant_statements::types::NodeId;
@@ -271,6 +297,7 @@ mod period_flow_waterfall_integration {
                 target_instrument_ids: Some(vec!["TL-PIK".into()]),
                 min_periods_in_pik: 0,
             }),
+            ..Default::default()
         };
 
         let market_ctx = MarketContext::new();
@@ -278,6 +305,9 @@ mod period_flow_waterfall_integration {
         state
             .opening_balances
             .insert("TL-PIK".to_string(), Money::new(notional, Currency::USD));
+        state
+            .residual_schedules
+            .insert("TL-PIK".to_string(), instrument.schedule.clone());
 
         let mut last_pik = 0.0;
         for i in 0..8u8 {
@@ -296,6 +326,7 @@ mod period_flow_waterfall_integration {
                 .copied()
                 .unwrap_or_else(|| Money::new(0.0, Currency::USD));
 
+            let residual = state.residual_schedules.get("TL-PIK");
             let (breakdown, _, _, warnings) = calculate_period_flows(
                 &instrument,
                 &period,
@@ -303,6 +334,7 @@ mod period_flow_waterfall_integration {
                 toggled_pik,
                 &market_ctx,
                 issue,
+                residual,
             )
             .expect("period flows");
             assert!(
@@ -322,6 +354,10 @@ mod period_flow_waterfall_integration {
                 .expect("waterfall");
             last_pik = result.flows["TL-PIK"].interest_expense_pik.amount();
 
+            let snapshot = period.end - time::Duration::days(1);
+            state
+                .rebuild_residuals(snapshot)
+                .expect("rebuild residual after PIK capitalize");
             state.advance_period();
         }
 
@@ -346,6 +382,137 @@ mod period_flow_waterfall_integration {
         assert!(
             (closing - expected_balance).abs() < 1e-6,
             "balance should compound to {expected_balance}, got {closing}"
+        );
+    }
+
+    /// Sweep 50% of a 1M term loan at 8% quarterly: next-period cash interest
+    /// is the rebuilt coupon `500k × 0.08 × 0.25`, not a scale of the original.
+    #[test]
+    fn sweep_rebuilds_next_period_coupon_on_new_outstanding() {
+        let issue = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+        let notional = 1_000_000.0;
+        let q1 = quarter_period(2025, 1);
+        let q2 = quarter_period(2025, 2);
+
+        let instrument = ScheduleInstrument {
+            schedule: schedule(
+                vec![
+                    CashFlow::new(
+                        Date::from_calendar_date(2025, Month::February, 15).expect("valid date"),
+                        None,
+                        Money::new(-20_000.0, Currency::USD),
+                        CFKind::Fixed,
+                        0.25,
+                        Some(0.08),
+                    ),
+                    CashFlow::new(
+                        Date::from_calendar_date(2025, Month::May, 15).expect("valid date"),
+                        None,
+                        Money::new(-20_000.0, Currency::USD),
+                        CFKind::Fixed,
+                        0.25,
+                        Some(0.08),
+                    ),
+                ],
+                notional,
+                issue,
+            ),
+        };
+
+        let waterfall = WaterfallSpec {
+            priority_of_payments: vec![
+                finstack_quant_statements::capital_structure::PaymentPriority::Fees,
+                finstack_quant_statements::capital_structure::PaymentPriority::Interest,
+                finstack_quant_statements::capital_structure::PaymentPriority::Amortization,
+                finstack_quant_statements::capital_structure::PaymentPriority::Sweep,
+                finstack_quant_statements::capital_structure::PaymentPriority::Equity,
+            ],
+            available_cash_node: "cash".into(),
+            ecf_sweep: Some(EcfSweepSpec {
+                ebitda_node: "sweep_cash".into(),
+                taxes_node: None,
+                capex_node: None,
+                working_capital_node: None,
+                cash_interest_node: None,
+                sweep_percentage: 1.0,
+                target_instrument_id: Some("TL-1".into()),
+            }),
+            pik_toggle: None,
+            ..Default::default()
+        };
+
+        let market_ctx = MarketContext::new();
+        let mut state = CapitalStructureState::new();
+        state
+            .opening_balances
+            .insert("TL-1".to_string(), Money::new(notional, Currency::USD));
+        state
+            .residual_schedules
+            .insert("TL-1".to_string(), instrument.schedule.clone());
+
+        let residual = state.residual_schedules.get("TL-1");
+        let (breakdown, _, _, warnings) = calculate_period_flows(
+            &instrument,
+            &q1,
+            Money::new(notional, Currency::USD),
+            Money::new(0.0, Currency::USD),
+            &market_ctx,
+            issue,
+            residual,
+        )
+        .expect("q1 flows");
+        assert!(
+            warnings.is_empty(),
+            "q1 must book at scale 1, got {warnings:?}"
+        );
+
+        let mut contractual = IndexMap::new();
+        contractual.insert("TL-1".to_string(), breakdown);
+        // ECF = 500k, sweep 100% → 500k extra principal after 20k cash interest.
+        let ctx = context_with(q1.id, &[("sweep_cash", 520_000.0)]);
+        execute_waterfall(&q1.id, &ctx, &waterfall, &mut state, &contractual)
+            .expect("q1 waterfall");
+        state
+            .rebuild_residuals(q1.end - time::Duration::days(1))
+            .expect("rebuild after sweep");
+
+        let rebuilt_q2 = state
+            .residual_schedules
+            .get("TL-1")
+            .expect("residual")
+            .get_flows()
+            .iter()
+            .find(|cf| {
+                cf.date == Date::from_calendar_date(2025, Month::May, 15).expect("valid date")
+            })
+            .expect("q2 coupon");
+        assert!(
+            (rebuilt_q2.amount.amount().abs() - 10_000.0).abs() < 1e-6,
+            "rebuilt coupon must be 500k × 0.08 × 0.25, got {}",
+            rebuilt_q2.amount.amount()
+        );
+
+        state.advance_period();
+        let opening = state.opening_balances["TL-1"];
+        let residual = state.residual_schedules.get("TL-1");
+        let (q2_flows, _, _, q2_warnings) = calculate_period_flows(
+            &instrument,
+            &q2,
+            opening,
+            Money::new(0.0, Currency::USD),
+            &market_ctx,
+            issue,
+            residual,
+        )
+        .expect("q2 flows");
+        assert!(
+            q2_warnings.is_empty(),
+            "rebuilt residual must not emit a scale warning, got {q2_warnings:?}"
+        );
+        assert!(
+            (q2_flows.interest_expense_cash.amount() - 10_000.0).abs() < 1e-6,
+            "q2 cash interest must be the rebuilt 10k, got {}",
+            q2_flows.interest_expense_cash.amount()
         );
     }
 
@@ -395,6 +562,7 @@ mod period_flow_waterfall_integration {
             Money::new(0.0, Currency::USD),
             &market_ctx,
             issue,
+            None,
         )
         .expect("period flows");
         assert!(warnings.is_empty());
@@ -411,11 +579,11 @@ mod period_flow_waterfall_integration {
                 finstack_quant_statements::capital_structure::PaymentPriority::Fees,
                 finstack_quant_statements::capital_structure::PaymentPriority::Interest,
                 finstack_quant_statements::capital_structure::PaymentPriority::Amortization,
-                finstack_quant_statements::capital_structure::PaymentPriority::MandatoryPrepayment,
                 finstack_quant_statements::capital_structure::PaymentPriority::Equity,
             ],
             ecf_sweep: None,
             pik_toggle: None,
+            ..Default::default()
         };
 
         let available = 100_000.0;

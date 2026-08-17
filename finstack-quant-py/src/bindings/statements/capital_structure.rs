@@ -1,12 +1,12 @@
 //! Python wrappers for capital-structure specs (waterfall + ECF sweep + PIK toggle).
 //!
 //! Mirrors `finstack_quant_statements::capital_structure::{WaterfallSpec, EcfSweepSpec,
-//! PikToggleSpec, PaymentPriority}`. All classes support JSON round-trip via
-//! `from_json`/`to_json` and structured keyword-argument construction.
+//! PikToggleSpec, PaymentClassSpec, PaymentPriority}`. All classes support JSON
+//! round-trip via `from_json`/`to_json` and structured keyword-argument construction.
 
 use crate::errors::display_to_py;
 use finstack_quant_statements::capital_structure::{
-    EcfSweepSpec, PaymentPriority, PikToggleSpec, WaterfallSpec,
+    EcfSweepSpec, PaymentClassSpec, PaymentPriority, PikToggleSpec, WaterfallSpec,
 };
 use pyo3::prelude::*;
 
@@ -324,9 +324,113 @@ impl PyPikToggleSpec {
     }
 }
 
+/// Seniority class for intra-category waterfall allocation.
+///
+/// When attached to :class:`WaterfallSpec.payment_classes`, each category
+/// walks class rank and allocates pro-rata inside a class before the next
+/// class sees remaining cash.
+#[pyclass(
+    name = "PaymentClassSpec",
+    module = "finstack_quant.statements",
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyPaymentClassSpec {
+    pub(super) inner: PaymentClassSpec,
+}
+
+#[pymethods]
+impl PyPaymentClassSpec {
+    /// Construct a payment class.
+    ///
+    /// Parameters
+    /// ----------
+    /// id : str
+    ///     Class identifier (for example ``"1L"``). Must be unique within a
+    ///     waterfall.
+    /// rank : int
+    ///     Seniority rank; ``0`` is most senior. Ranks must be unique.
+    /// instrument_ids : list[str]
+    ///     Debt instrument ids in this class. Each instrument may appear in
+    ///     at most one class.
+    #[new]
+    #[pyo3(text_signature = "(id, rank, instrument_ids)")]
+    fn new(id: String, rank: u32, instrument_ids: Vec<String>) -> Self {
+        Self {
+            inner: PaymentClassSpec {
+                id,
+                rank,
+                instrument_ids,
+            },
+        }
+    }
+
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Deserialize from JSON.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json, /)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: PaymentClassSpec = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to JSON.
+    #[pyo3(text_signature = "($self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Class identifier (for example ``"1L"``).
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Unique class id within the enclosing waterfall.
+    #[getter]
+    fn id(&self) -> &str {
+        &self.inner.id
+    }
+
+    /// Seniority rank; ``0`` is most senior.
+    ///
+    /// Returns
+    /// -------
+    /// int
+    ///     Unique rank used to order classes when allocating a category.
+    #[getter]
+    fn rank(&self) -> u32 {
+        self.inner.rank
+    }
+
+    /// Debt instrument ids that belong to this class.
+    ///
+    /// Returns
+    /// -------
+    /// list[str]
+    ///     Instrument ids allocated together inside this class.
+    #[getter]
+    fn instrument_ids(&self) -> Vec<String> {
+        self.inner.instrument_ids.clone()
+    }
+
+    /// Return the debug representation with id, rank, and instrument ids.
+    fn __repr__(&self) -> String {
+        format!(
+            "PaymentClassSpec(id={:?}, rank={}, instrument_ids={:?})",
+            self.inner.id, self.inner.rank, self.inner.instrument_ids
+        )
+    }
+}
+
 /// Waterfall specification for dynamic cash flow allocation.
 ///
-/// Configures payment priority, optional ECF sweep, and optional PIK toggle.
+/// Configures payment priority, optional ECF sweep, optional PIK toggle,
+/// payment classes, and separate mandatory / voluntary prepay nodes.
 /// Call `validate()` before passing to a model builder to surface configuration
 /// errors (e.g. `Sweep` ordered after `Equity` when a sweep is configured).
 #[pyclass(
@@ -350,11 +454,22 @@ impl PyWaterfallSpec {
     ///     voluntary_prepayment, sweep, equity). Defaults to the standard
     ///     [fees, interest, amortization, sweep, equity] order.
     /// available_cash_node : str | None
-    ///     Optional formula/node reference for cash available to allocate.
+    ///     Pre-waterfall cash pool node or formula. ``None`` uses ``"cash"``.
+    ///     Do not deduct ``cs.interest_expense``, ``cs.principal_payment``, or
+    ///     ``cs.fees`` here — the waterfall allocates those.
     /// ecf_sweep : EcfSweepSpec | None
     ///     Optional ECF sweep configuration.
     /// pik_toggle : PikToggleSpec | None
     ///     Optional PIK toggle configuration.
+    /// payment_classes : list[PaymentClassSpec] | None
+    ///     Intra-category seniority classes. ``None`` or empty is one implicit
+    ///     class (pro-rata across all instruments).
+    /// mandatory_prepay_node : str | None
+    ///     Node or formula sizing the ``mandatory_prepayment`` rung. Required
+    ///     when that priority is listed.
+    /// voluntary_prepay_node : str | None
+    ///     Node or formula sizing the ``voluntary_prepayment`` rung. Required
+    ///     when that priority is listed.
     #[new]
     #[pyo3(
         signature = (
@@ -362,31 +477,38 @@ impl PyWaterfallSpec {
             available_cash_node=None,
             ecf_sweep=None,
             pik_toggle=None,
+            payment_classes=None,
+            mandatory_prepay_node=None,
+            voluntary_prepay_node=None,
         ),
-        text_signature = "(priority_of_payments=None, available_cash_node=None, ecf_sweep=None, pik_toggle=None)"
+        text_signature = "(priority_of_payments=None, available_cash_node=None, ecf_sweep=None, pik_toggle=None, payment_classes=None, mandatory_prepay_node=None, voluntary_prepay_node=None)"
     )]
     fn new(
         priority_of_payments: Option<Vec<String>>,
         available_cash_node: Option<String>,
         ecf_sweep: Option<&PyEcfSweepSpec>,
         pik_toggle: Option<&PyPikToggleSpec>,
+        payment_classes: Option<Vec<Bound<'_, PyPaymentClassSpec>>>,
+        mandatory_prepay_node: Option<String>,
+        voluntary_prepay_node: Option<String>,
     ) -> PyResult<Self> {
-        let mut inner = WaterfallSpec {
-            priority_of_payments:
-                finstack_quant_statements::capital_structure::default_priority_of_payments(),
-            available_cash_node: available_cash_node.clone().unwrap_or_default(),
-            ecf_sweep: None,
-            pik_toggle: None,
-        };
+        let mut inner = WaterfallSpec::default();
         if let Some(priority) = priority_of_payments {
             inner.priority_of_payments = priority
                 .into_iter()
                 .map(|s| parse_priority(&s))
                 .collect::<PyResult<Vec<_>>>()?;
         }
-        inner.available_cash_node = available_cash_node.unwrap_or_default();
+        if let Some(node) = available_cash_node {
+            inner.available_cash_node = node;
+        }
         inner.ecf_sweep = ecf_sweep.map(|p| p.inner.clone());
         inner.pik_toggle = pik_toggle.map(|p| p.inner.clone());
+        if let Some(classes) = payment_classes {
+            inner.payment_classes = classes.iter().map(|c| c.borrow().inner.clone()).collect();
+        }
+        inner.mandatory_prepay_node = mandatory_prepay_node;
+        inner.voluntary_prepay_node = voluntary_prepay_node;
         Ok(Self { inner })
     }
 
@@ -430,8 +552,8 @@ impl PyWaterfallSpec {
     /// list[str]
     ///     Snake-case priority names in allocation order — cash is applied to
     ///     the first entry before any of the next. Allocation *within* a
-    ///     category is single-class pro-rata across instruments; there is no
-    ///     tranche seniority, so a shortfall is shared proportionally.
+    ///     category is pro-rata inside each payment class, walking class rank.
+    ///     Empty ``payment_classes`` is one implicit class.
     #[getter]
     fn priority_of_payments(&self) -> Vec<&'static str> {
         self.inner
@@ -449,12 +571,50 @@ impl PyWaterfallSpec {
     /// -------
     /// str
     ///     A node id or expression evaluating to a monetary amount per
-    ///     period. Required: without it the waterfall would report scheduled
-    ///     cashflows as paid in full without capping them against available
-    ///     cash.
+    ///     period. This is the **pre-waterfall** cash pool; do not deduct
+    ///     ``cs`` debt-service tokens here.
     #[getter]
     fn available_cash_node(&self) -> &str {
         self.inner.available_cash_node.as_str()
+    }
+
+    /// Intra-category seniority classes, empty when one implicit class is used.
+    ///
+    /// Returns
+    /// -------
+    /// list[PaymentClassSpec]
+    ///     Configured classes. Empty means one implicit class: pro-rata
+    ///     across all instruments in each category.
+    #[getter]
+    fn payment_classes(&self) -> Vec<PyPaymentClassSpec> {
+        self.inner
+            .payment_classes
+            .iter()
+            .cloned()
+            .map(|inner| PyPaymentClassSpec { inner })
+            .collect()
+    }
+
+    /// Node or formula sizing the ``mandatory_prepayment`` rung, if set.
+    ///
+    /// Returns
+    /// -------
+    /// str | None
+    ///     Node id or formula, or ``None`` when that rung is unused.
+    #[getter]
+    fn mandatory_prepay_node(&self) -> Option<&str> {
+        self.inner.mandatory_prepay_node.as_deref()
+    }
+
+    /// Node or formula sizing the ``voluntary_prepayment`` rung, if set.
+    ///
+    /// Returns
+    /// -------
+    /// str | None
+    ///     Node id or formula, or ``None`` when that rung is unused.
+    #[getter]
+    fn voluntary_prepay_node(&self) -> Option<&str> {
+        self.inner.voluntary_prepay_node.as_deref()
     }
 
     /// Whether an excess-cash-flow sweep is configured.
@@ -484,6 +644,7 @@ impl PyWaterfallSpec {
 /// Register capital-structure classes.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyEcfSweepSpec>()?;
+    m.add_class::<PyPaymentClassSpec>()?;
     m.add_class::<PyPikToggleSpec>()?;
     m.add_class::<PyWaterfallSpec>()?;
     Ok(())

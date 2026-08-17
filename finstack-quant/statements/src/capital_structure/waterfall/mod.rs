@@ -72,7 +72,7 @@ use finstack_quant_core::money::Money;
 use indexmap::IndexMap;
 use std::collections::HashSet;
 
-use cash_distribution::{allocate_pro_rata, apply_cash_cap_to_category, StagedInstrumentFlow};
+use cash_distribution::{allocate_by_class, apply_cash_cap_to_category, StagedInstrumentFlow};
 use excess_cash_flow::calculate_ecf_sweep;
 use payment_in_kind::{apply_pik_transitions, evaluate_pik_toggle, is_pik_enabled};
 use payment_stack::{extra_principal_priority, priority_index, waterfall_currency};
@@ -175,6 +175,56 @@ fn money_from_expr(
     })
 }
 
+/// Payment-class rank for `instrument_id`. Empty `payment_classes` is rank `0`.
+fn class_rank_for(spec: &WaterfallSpec, instrument_id: &str) -> Result<u32> {
+    if spec.payment_classes.is_empty() {
+        return Ok(0);
+    }
+    let matches: Vec<_> = spec
+        .payment_classes
+        .iter()
+        .filter(|class| class.instrument_ids.iter().any(|id| id == instrument_id))
+        .collect();
+    match matches.as_slice() {
+        [class] => Ok(class.rank),
+        [] => Err(crate::error::Error::build(format!(
+            "WaterfallSpec: instrument '{instrument_id}' is not in any payment class."
+        ))),
+        _ => Err(crate::error::Error::build(format!(
+            "WaterfallSpec: instrument '{instrument_id}' appears in more than one payment class."
+        ))),
+    }
+}
+
+/// Size a named mandatory/voluntary prepay bucket from a node or formula.
+fn size_named_prepay(
+    context: &EvaluationContext,
+    node: Option<&str>,
+    staged: &mut [StagedInstrumentFlow],
+    currency: finstack_quant_core::currency::Currency,
+    mut field: impl FnMut(&mut StagedInstrumentFlow) -> &mut Money,
+    warnings: &mut Vec<EvalWarning>,
+) -> Result<()> {
+    let Some(expr) = node.filter(|n| !n.trim().is_empty()) else {
+        return Ok(());
+    };
+    let amount = eval_value_or_formula(context, expr, warnings)?.max(0.0);
+    let mut remaining = money_from_expr(amount, currency, expr)?;
+    let allocations = allocate_by_class(staged, &mut remaining, |s| {
+        let already = s.sweep_principal.amount()
+            + s.mandatory_principal.amount()
+            + s.voluntary_principal.amount();
+        (s.opening_balance.amount() + s.net_new_funding.amount()
+            - s.scheduled_principal.amount()
+            - already)
+            .max(0.0)
+    });
+    for (s, allocated) in staged.iter_mut().zip(allocations) {
+        *field(s) = Money::new(allocated, currency);
+    }
+    Ok(())
+}
+
 /// Execute waterfall logic for a single period.
 ///
 /// This function:
@@ -204,10 +254,10 @@ fn money_from_expr(
 ///
 /// # Limitations
 ///
-/// Allocation within a payment category is single-class **pro-rata** across
-/// all instruments — there is no intra-category tranche seniority. Prepayment
-/// penalties, call premiums, and OID are not modeled (prepayments apply at
-/// par). See [`WaterfallSpec`] for details.
+/// Allocation within a payment category is pro-rata inside each payment
+/// class, walking class rank. Empty `payment_classes` is one implicit class.
+/// Prepayment penalties, call premiums, and OID are not modeled (prepayments
+/// apply at par). See [`WaterfallSpec`] for details.
 ///
 /// # Errors
 ///
@@ -459,127 +509,75 @@ pub fn execute_waterfall(
             currency,
         );
         staged_breakdown.principal_payment = scheduled_principal;
+        let class_rank = class_rank_for(waterfall_spec, instrument_id)?;
         staged.push(StagedInstrumentFlow {
             instrument_id: instrument_id.clone(),
             breakdown: staged_breakdown,
             opening_balance,
             net_new_funding,
-            extra_principal: Money::new(0.0, currency),
+            sweep_principal: Money::new(0.0, currency),
+            mandatory_principal: Money::new(0.0, currency),
+            voluntary_principal: Money::new(0.0, currency),
+            class_rank,
             scheduled_principal,
             toggled_pik_moved: Money::new(0.0, currency),
         });
     }
 
-    // --- Step 4: Distribute sweep across instruments ---
+    // --- Step 4: Size extra-principal buckets ---
+    //
+    // Note: no separate fee, interest-priority, or amortization deduction from
+    // the ECF sweep here. When an ECF sweep is configured, `calculate_ecf_sweep`
+    // already deducts cash interest plus any fees and scheduled principal that
+    // rank ahead of the Sweep rung. When no ECF sweep is configured,
+    // `sweep_amount` is zero.
     let mut remaining_sweep = if equity_priority < extra_principal_priority {
         Money::new(0.0, sweep_amount.currency())
     } else {
         sweep_amount
     };
-
-    // Note: no separate fee, interest-priority, or amortization deduction from
-    // `remaining_sweep` here. When an ECF sweep is configured,
-    // `calculate_ecf_sweep` already deducts cash interest plus any fees and
-    // scheduled principal that rank ahead of the prepayment priority. When no
-    // ECF sweep is configured, `sweep_amount` is zero, so `remaining_sweep`
-    // starts at zero and any subtraction would be a no-op.
-
     let target_instrument_id = waterfall_spec
         .ecf_sweep
         .as_ref()
         .and_then(|spec| spec.target_instrument_id.as_deref());
-    let mut extra_capacity: IndexMap<String, f64> = IndexMap::new();
-    let mut total_extra_capacity = 0.0;
-    for s in &staged {
-        let eligible = if let Some(target_id) = target_instrument_id {
-            target_id == s.instrument_id
-        } else {
-            true
-        };
-        if !eligible || extra_principal_priority == usize::MAX {
-            extra_capacity.insert(s.instrument_id.clone(), 0.0);
-            continue;
+    let sweep_allocations = allocate_by_class(&staged, &mut remaining_sweep, |s| {
+        if extra_principal_priority == usize::MAX {
+            return 0.0;
         }
-
-        let capacity = (s.opening_balance.amount() - s.scheduled_principal.amount()).max(0.0);
-
-        total_extra_capacity += capacity;
-        extra_capacity.insert(s.instrument_id.clone(), capacity);
-    }
-
-    // Two-pass approach: compute all proportional shares first, then apply.
-    // This avoids the bug where mutating remaining_sweep during iteration
-    // gives incorrect proportions to instruments after the first.
-    let sweep_currency = remaining_sweep.currency();
-    let sweep_total = remaining_sweep.amount();
-    let staged_len = staged.len();
-    let mut sweep_allocations: Vec<f64> = vec![0.0; staged_len];
-
-    for (idx, s) in staged.iter().enumerate() {
-        let currency = s.breakdown.interest_expense_cash.currency();
-
-        sweep_allocations[idx] =
-            if extra_principal_priority == usize::MAX || sweep_currency != currency {
-                0.0
-            } else if let Some(target_id) = target_instrument_id {
-                if target_id == s.instrument_id {
-                    let capacity = *extra_capacity.get(s.instrument_id.as_str()).unwrap_or(&0.0);
-                    sweep_total.min(capacity)
-                } else {
-                    0.0
-                }
-            } else {
-                let capacity = *extra_capacity.get(s.instrument_id.as_str()).unwrap_or(&0.0);
-                if total_extra_capacity <= 0.0 || capacity <= 0.0 {
-                    0.0
-                } else {
-                    let proportional = sweep_total * (capacity / total_extra_capacity);
-                    proportional.min(capacity)
-                }
-            };
-    }
-
-    // Cascade the unallocated residual across instruments with remaining
-    // capacity until the sweep is exhausted or no capacity remains. The
-    // residual arises when proportional shares are capped at capacity; a
-    // single-instrument assignment would silently drop cash whenever the
-    // (arbitrary) last instrument lacked headroom. Only floating-point
-    // rounding residue may remain after the cascade.
-    let mut residual = sweep_total - sweep_allocations.iter().sum::<f64>();
-    for _ in 0..staged_len {
-        if residual <= MONEY_TOLERANCE {
-            break;
-        }
-        let remaining_capacity: f64 = staged
-            .iter()
-            .enumerate()
-            .map(|(idx, s)| {
-                let capacity = *extra_capacity.get(s.instrument_id.as_str()).unwrap_or(&0.0);
-                (capacity - sweep_allocations[idx]).max(0.0)
-            })
-            .sum();
-        if remaining_capacity <= 0.0 {
-            break;
-        }
-        let distributable = residual.min(remaining_capacity);
-        for (idx, s) in staged.iter().enumerate() {
-            let capacity = *extra_capacity.get(s.instrument_id.as_str()).unwrap_or(&0.0);
-            let headroom = (capacity - sweep_allocations[idx]).max(0.0);
-            if headroom <= 0.0 {
-                continue;
+        if let Some(target_id) = target_instrument_id {
+            if target_id != s.instrument_id {
+                return 0.0;
             }
-            let share = (distributable * (headroom / remaining_capacity)).min(headroom);
-            sweep_allocations[idx] += share;
-            residual -= share;
         }
+        (s.opening_balance.amount() - s.scheduled_principal.amount()).max(0.0)
+    });
+    for (s, allocated) in staged.iter_mut().zip(sweep_allocations) {
+        let currency = s.breakdown.interest_expense_cash.currency();
+        s.sweep_principal = Money::new(allocated, currency);
     }
 
-    // Second pass: apply computed shares
-    for (idx, s) in staged.iter_mut().enumerate() {
-        let currency = s.breakdown.interest_expense_cash.currency();
-        s.extra_principal = Money::new(sweep_allocations[idx], currency);
-        remaining_sweep = remaining_sweep.checked_sub(s.extra_principal)?;
-        s.breakdown.principal_payment = s.scheduled_principal.checked_add(s.extra_principal)?;
+    size_named_prepay(
+        context,
+        waterfall_spec.mandatory_prepay_node.as_deref(),
+        &mut staged,
+        cash_currency,
+        |s| &mut s.mandatory_principal,
+        &mut warnings,
+    )?;
+    size_named_prepay(
+        context,
+        waterfall_spec.voluntary_prepay_node.as_deref(),
+        &mut staged,
+        cash_currency,
+        |s| &mut s.voluntary_principal,
+        &mut warnings,
+    )?;
+    for s in &mut staged {
+        s.breakdown.principal_payment = s
+            .scheduled_principal
+            .checked_add(s.sweep_principal)?
+            .checked_add(s.mandatory_principal)?
+            .checked_add(s.voluntary_principal)?;
     }
 
     // --- Step 4b: Apply PIK mode (pre-cap) ---
@@ -601,14 +599,9 @@ pub fn execute_waterfall(
 
     // --- Step 5: Available cash caps ---
     //
-    // The three prepayment priorities (MandatoryPrepayment, VoluntaryPrepayment,
-    // Sweep) all share the single `extra_principal` bucket populated from the
-    // ECF sweep in Step 4. Because there is only one bucket, the first of the
-    // three that appears in `priority_of_payments` consumes the cash cap for
-    // that bucket; later entries are no-ops. Modelers who need strict ordering
-    // across distinct prepayment types should populate separate buckets
-    // upstream (not currently supported by this engine) and distinguish them
-    // via separate `target_instrument_id`s.
+    // Mandatory / Sweep / Voluntary each have their own principal bucket,
+    // sized in Step 4 and capped independently here so later rungs are not
+    // silent no-ops.
     let mut shortfalls: IndexMap<String, Money> = IndexMap::new();
     let equity_distribution: Option<Money>;
     {
@@ -627,7 +620,6 @@ pub fn execute_waterfall(
             .iter()
             .map(|s| s.scheduled_principal.amount().max(0.0))
             .collect();
-        let mut extra_principal_capped = false;
         for priority in &waterfall_spec.priority_of_payments {
             match priority {
                 PaymentPriority::Fees => {
@@ -651,31 +643,39 @@ pub fn execute_waterfall(
                     );
                 }
                 PaymentPriority::Amortization => {
-                    let planned: Vec<f64> = staged
-                        .iter()
-                        .map(|s| s.scheduled_principal.amount().max(0.0))
-                        .collect();
-                    let allocations = allocate_pro_rata(&planned, &mut remaining_cash);
+                    let allocations = allocate_by_class(&staged, &mut remaining_cash, |s| {
+                        s.scheduled_principal.amount().max(0.0)
+                    });
                     for (s, allocated) in staged.iter_mut().zip(allocations) {
                         s.scheduled_principal =
                             Money::new(allocated, s.scheduled_principal.currency());
                     }
                 }
-                PaymentPriority::MandatoryPrepayment
-                | PaymentPriority::VoluntaryPrepayment
-                | PaymentPriority::Sweep => {
-                    if extra_principal_capped {
-                        continue;
-                    }
-                    let planned: Vec<f64> = staged
-                        .iter()
-                        .map(|s| s.extra_principal.amount().max(0.0))
-                        .collect();
-                    let allocations = allocate_pro_rata(&planned, &mut remaining_cash);
+                PaymentPriority::MandatoryPrepayment => {
+                    let allocations = allocate_by_class(&staged, &mut remaining_cash, |s| {
+                        s.mandatory_principal.amount().max(0.0)
+                    });
                     for (s, allocated) in staged.iter_mut().zip(allocations) {
-                        s.extra_principal = Money::new(allocated, s.extra_principal.currency());
+                        s.mandatory_principal =
+                            Money::new(allocated, s.mandatory_principal.currency());
                     }
-                    extra_principal_capped = true;
+                }
+                PaymentPriority::Sweep => {
+                    let allocations = allocate_by_class(&staged, &mut remaining_cash, |s| {
+                        s.sweep_principal.amount().max(0.0)
+                    });
+                    for (s, allocated) in staged.iter_mut().zip(allocations) {
+                        s.sweep_principal = Money::new(allocated, s.sweep_principal.currency());
+                    }
+                }
+                PaymentPriority::VoluntaryPrepayment => {
+                    let allocations = allocate_by_class(&staged, &mut remaining_cash, |s| {
+                        s.voluntary_principal.amount().max(0.0)
+                    });
+                    for (s, allocated) in staged.iter_mut().zip(allocations) {
+                        s.voluntary_principal =
+                            Money::new(allocated, s.voluntary_principal.currency());
+                    }
                 }
                 PaymentPriority::Equity => {}
             }
@@ -766,11 +766,11 @@ pub fn execute_waterfall(
     // --- Step 6: Period close ---
     //
     // For each instrument:
-    // (a) principal_payment = scheduled + extra, capped at the payable
-    // balance (opening + in-period draws). If the cap truncates the sum,
-    // reduce `extra_principal` first (discretionary sweep is netted
-    // before scheduled amortization) so downstream accounting stays
-    // consistent.
+    // (a) principal_payment = scheduled + mandatory + sweep + voluntary,
+    // capped at the payable balance (opening + in-period draws). If the
+    // cap truncates the sum, reduce extra principal first (discretionary
+    // prepays are netted before scheduled amortization) so downstream
+    // accounting stays consistent.
     // (b) post_sweep_balance = opening + draws - principal_payment (with a
     // small dust floor to avoid micro-residuals). The draw term keeps a
     // revolver's in-period funding from being wiped at close.
@@ -795,7 +795,10 @@ pub fn execute_waterfall(
             mut breakdown,
             opening_balance,
             net_new_funding,
-            extra_principal,
+            sweep_principal,
+            mandatory_principal,
+            voluntary_principal,
+            class_rank: _,
             scheduled_principal,
             toggled_pik_moved,
         } = s;
@@ -803,10 +806,13 @@ pub fn execute_waterfall(
 
         // (a) Principal cap. The payable balance is the opening balance plus
         // any in-period draws (a revolver can repay against cash it just drew).
-        // `extra_principal` (the discretionary sweep bucket) is netted against
+        // Extra principal (mandatory + sweep + voluntary) is netted against
         // any overshoot before scheduled amortization is reduced, so the
         // aggregate `principal_payment` is never > payable_balance.
         let payable_balance = (opening_balance.amount() + net_new_funding.amount()).max(0.0);
+        let extra_principal = mandatory_principal
+            .checked_add(sweep_principal)?
+            .checked_add(voluntary_principal)?;
         let desired = scheduled_principal.checked_add(extra_principal)?;
         let principal_payment = if desired.amount() > payable_balance {
             Money::new(payable_balance, currency)
@@ -914,8 +920,8 @@ pub fn execute_waterfall(
 mod tests {
     use super::*;
     use crate::capital_structure::{
-        CapitalStructureState, CashflowBreakdown, EcfSweepSpec, PaymentPriority, PikToggleSpec,
-        WaterfallSpec,
+        CapitalStructureState, CashflowBreakdown, EcfSweepSpec, PaymentClassSpec, PaymentPriority,
+        PikToggleSpec, WaterfallSpec,
     };
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::PeriodId;
@@ -991,6 +997,7 @@ mod tests {
                 target_instrument_id: Some("TL-1".into()),
             }),
             pik_toggle: None,
+            ..Default::default()
         };
 
         let results = execute_waterfall(
@@ -1056,6 +1063,7 @@ mod tests {
             available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: None,
+            ..Default::default()
         };
 
         let result = execute_waterfall(
@@ -1110,6 +1118,7 @@ mod tests {
             available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: None,
+            ..Default::default()
         };
 
         let result = execute_waterfall(
@@ -1170,6 +1179,7 @@ mod tests {
             available_cash_node: "cash / 0".into(),
             ecf_sweep: None,
             pik_toggle: None,
+            ..Default::default()
         };
 
         let err = execute_waterfall(
@@ -1185,6 +1195,64 @@ mod tests {
             msg.contains("non-finite") && msg.contains("cash / 0"),
             "error must name the offending expression: {msg}"
         );
+    }
+
+    /// `available_cash_node` is the pre-waterfall cash pool. Deducting
+    /// `cs.*` debt service in that formula double-pays interest / principal.
+    #[test]
+    fn available_cash_node_rejects_cs_debt_service_formula() {
+        let period = PeriodId::quarter(2025, 1);
+        let context = build_context(
+            period,
+            &[("ebitda", 1_000_000.0), ("cash_available", 500_000.0)],
+        );
+
+        let mut contractual_flows: IndexMap<String, CashflowBreakdown> = IndexMap::new();
+        let mut breakdown = CashflowBreakdown::with_currency(Currency::USD);
+        breakdown.interest_expense_cash = Money::new(100.0, Currency::USD);
+        contractual_flows.insert("TL-1".to_string(), breakdown);
+
+        let mut state = CapitalStructureState::new();
+        state
+            .opening_balances
+            .insert("TL-1".to_string(), Money::new(10_000.0, Currency::USD));
+
+        let stack = vec![
+            PaymentPriority::Fees,
+            PaymentPriority::Interest,
+            PaymentPriority::Amortization,
+            PaymentPriority::Equity,
+        ];
+        let forbidden = WaterfallSpec {
+            priority_of_payments: stack.clone(),
+            available_cash_node: "ebitda - cs.interest_expense_cash.total".into(),
+            ecf_sweep: None,
+            pik_toggle: None,
+            ..Default::default()
+        };
+        let err = execute_waterfall(
+            &period,
+            &context,
+            &forbidden,
+            &mut state,
+            &contractual_flows,
+        )
+        .expect_err("deducting cs debt service from available cash must error");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("pre-waterfall") && msg.contains("cs.interest_expense"),
+            "error must name the pre-waterfall contract: {msg}"
+        );
+
+        let allowed = WaterfallSpec {
+            priority_of_payments: stack,
+            available_cash_node: "cash_available".into(),
+            ecf_sweep: None,
+            pik_toggle: None,
+            ..Default::default()
+        };
+        execute_waterfall(&period, &context, &allowed, &mut state, &contractual_flows)
+            .expect("a standalone cash_available node must still be accepted");
     }
 
     /// A finite-but-astronomical cash value must error rather than panic.
@@ -1215,6 +1283,7 @@ mod tests {
             available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: None,
+            ..Default::default()
         };
 
         let err = execute_waterfall(
@@ -1265,6 +1334,7 @@ mod tests {
             available_cash_node: "coalesce(cash / 0, cash)".into(),
             ecf_sweep: None,
             pik_toggle: None,
+            ..Default::default()
         };
 
         let result = execute_waterfall(
@@ -1327,6 +1397,7 @@ mod tests {
                 min_periods_in_pik: 0,
                 target_instrument_ids: Some(vec!["TL-1".to_string()]),
             }),
+            ..Default::default()
         };
 
         let err = execute_waterfall(
@@ -1375,6 +1446,7 @@ mod tests {
                 min_periods_in_pik: 0,
                 target_instrument_ids: Some(vec!["TL-1".to_string()]),
             }),
+            ..Default::default()
         };
 
         let err = execute_waterfall(
@@ -1425,6 +1497,7 @@ mod tests {
                 target_instrument_id: Some("TL-1".into()),
             }),
             pik_toggle: None,
+            ..Default::default()
         };
 
         let result = execute_waterfall(
@@ -1476,6 +1549,7 @@ mod tests {
                 target_instrument_ids: Some(vec!["TL-PIK".into()]),
                 min_periods_in_pik: 0,
             }),
+            ..Default::default()
         };
 
         execute_waterfall(
@@ -1534,6 +1608,7 @@ mod tests {
                 target_instrument_ids: Some(vec!["TL-PIK".into()]),
                 min_periods_in_pik: 3,
             }),
+            ..Default::default()
         };
 
         // Period 1: liquidity < threshold => PIK activates
@@ -1656,6 +1731,7 @@ mod tests {
                 target_instrument_id: None,
             }),
             pik_toggle: None,
+            ..Default::default()
         };
 
         let results = execute_waterfall(
@@ -1720,6 +1796,7 @@ mod tests {
                 target_instrument_ids: Some(vec!["TL-1".into()]),
                 min_periods_in_pik: 0,
             }),
+            ..Default::default()
         };
         let interest_first = WaterfallSpec {
             priority_of_payments: vec![
@@ -1732,6 +1809,7 @@ mod tests {
             available_cash_node: "cash".into(),
             ecf_sweep: sweep_first.ecf_sweep.clone(),
             pik_toggle: sweep_first.pik_toggle.clone(),
+            ..Default::default()
         };
 
         let sweep_first_result = execute_waterfall(
@@ -1785,6 +1863,7 @@ mod tests {
             available_cash_node: "cash_available".into(),
             ecf_sweep: None,
             pik_toggle: None,
+            ..Default::default()
         };
 
         let results = execute_waterfall(
@@ -1834,6 +1913,7 @@ mod tests {
             available_cash_node: "cash_available".into(),
             ecf_sweep: None,
             pik_toggle: None,
+            ..Default::default()
         };
 
         let results = execute_waterfall(
@@ -1893,6 +1973,7 @@ mod tests {
             available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: None,
+            ..Default::default()
         };
 
         let results = execute_waterfall(
@@ -1949,6 +2030,7 @@ mod tests {
                 target_instrument_id: Some("TL-1".into()),
             }),
             pik_toggle: None,
+            ..Default::default()
         };
 
         let results = execute_waterfall(
@@ -2005,6 +2087,7 @@ mod tests {
                 target_instrument_id: Some("TL-1".into()),
             }),
             pik_toggle: None,
+            ..Default::default()
         };
 
         let results = execute_waterfall(
@@ -2057,6 +2140,7 @@ mod tests {
                 target_instrument_id: Some("TL-1".into()),
             }),
             pik_toggle: None,
+            ..Default::default()
         };
 
         let results = execute_waterfall(
@@ -2099,6 +2183,7 @@ mod tests {
             available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: None,
+            ..Default::default()
         };
 
         let results = execute_waterfall(
@@ -2151,6 +2236,7 @@ mod tests {
             available_cash_node: "cash_available".into(),
             ecf_sweep: None,
             pik_toggle: None,
+            ..Default::default()
         };
 
         // Period 1: only 60 of cash against a 100 coupon.
@@ -2250,6 +2336,7 @@ mod tests {
             available_cash_node: "cash_available".into(),
             ecf_sweep: None,
             pik_toggle: None,
+            ..Default::default()
         };
 
         let ctx_short = build_context(period, &[("cash_available", 60.0)]);
@@ -2342,6 +2429,7 @@ mod tests {
             available_cash_node: "cash_available".into(),
             ecf_sweep: None,
             pik_toggle: None,
+            ..Default::default()
         };
 
         let result = execute_waterfall(
@@ -2405,6 +2493,7 @@ mod tests {
                 target_instrument_ids: Some(vec!["TL-PIK".into()]),
                 min_periods_in_pik: 0,
             }),
+            ..Default::default()
         };
 
         let result = execute_waterfall(
@@ -2480,6 +2569,7 @@ mod tests {
                 target_instrument_id: Some("TL-1".into()),
             }),
             pik_toggle: None,
+            ..Default::default()
         };
 
         let results = execute_waterfall(
@@ -2501,6 +2591,150 @@ mod tests {
             tl.debt_balance.amount(),
             0.0,
             "balance should be zero after full paydown"
+        );
+    }
+
+    #[test]
+    fn payment_classes_pay_senior_interest_before_junior() {
+        let period = PeriodId::quarter(2025, 1);
+        let context = build_context(period, &[("cash_available", 50_000.0)]);
+
+        let mut contractual_flows: IndexMap<String, CashflowBreakdown> = IndexMap::new();
+        let mut first_lien = CashflowBreakdown::with_currency(Currency::USD);
+        first_lien.interest_expense_cash = Money::new(50_000.0, Currency::USD);
+        contractual_flows.insert("1L".to_string(), first_lien);
+        let mut second_lien = CashflowBreakdown::with_currency(Currency::USD);
+        second_lien.interest_expense_cash = Money::new(50_000.0, Currency::USD);
+        contractual_flows.insert("2L".to_string(), second_lien);
+
+        let mut state = CapitalStructureState::new();
+        state
+            .opening_balances
+            .insert("1L".to_string(), Money::new(1_000_000.0, Currency::USD));
+        state
+            .opening_balances
+            .insert("2L".to_string(), Money::new(1_000_000.0, Currency::USD));
+
+        let waterfall = WaterfallSpec {
+            priority_of_payments: vec![
+                PaymentPriority::Fees,
+                PaymentPriority::Interest,
+                PaymentPriority::Amortization,
+                PaymentPriority::Equity,
+            ],
+            available_cash_node: "cash_available".into(),
+            payment_classes: vec![
+                PaymentClassSpec {
+                    id: "first-lien".into(),
+                    rank: 0,
+                    instrument_ids: vec!["1L".into()],
+                },
+                PaymentClassSpec {
+                    id: "second-lien".into(),
+                    rank: 1,
+                    instrument_ids: vec!["2L".into()],
+                },
+            ],
+            ..Default::default()
+        };
+
+        let results = execute_waterfall(
+            &period,
+            &context,
+            &waterfall,
+            &mut state,
+            &contractual_flows,
+        )
+        .expect("waterfall should execute");
+
+        let first = results.flows.get("1L").expect("1L");
+        let second = results.flows.get("2L").expect("2L");
+        assert!(
+            (first.interest_expense_cash.amount() - 50_000.0).abs() < 1e-9,
+            "1L interest should be paid in full, got {}",
+            first.interest_expense_cash.amount()
+        );
+        assert!(
+            second.interest_expense_cash.amount().abs() < 1e-9,
+            "2L interest should be unpaid, got {}",
+            second.interest_expense_cash.amount()
+        );
+        assert!(
+            results.warnings.iter().any(|w| matches!(
+                w,
+                EvalWarning::CapitalStructure {
+                    warning: CapitalStructureWarning::InterestShortfall {
+                        instrument_id,
+                        ..
+                    },
+                    ..
+                } if instrument_id == "2L"
+            )),
+            "2L should record an interest shortfall, not a pro-rata split"
+        );
+    }
+
+    #[test]
+    fn mandatory_and_sweep_rungs_apply_independently() {
+        let period = PeriodId::quarter(2025, 1);
+        let context = build_context(
+            period,
+            &[
+                ("ebitda", 300_000.0),
+                ("mandatory", 200_000.0),
+                ("cash_available", 1_000_000.0),
+            ],
+        );
+
+        let mut contractual_flows: IndexMap<String, CashflowBreakdown> = IndexMap::new();
+        contractual_flows.insert(
+            "TL-1".to_string(),
+            CashflowBreakdown::with_currency(Currency::USD),
+        );
+
+        let mut state = CapitalStructureState::new();
+        state
+            .opening_balances
+            .insert("TL-1".to_string(), Money::new(10_000_000.0, Currency::USD));
+
+        let waterfall = WaterfallSpec {
+            priority_of_payments: vec![
+                PaymentPriority::Fees,
+                PaymentPriority::Interest,
+                PaymentPriority::Amortization,
+                PaymentPriority::MandatoryPrepayment,
+                PaymentPriority::Sweep,
+                PaymentPriority::Equity,
+            ],
+            available_cash_node: "cash_available".into(),
+            mandatory_prepay_node: Some("mandatory".into()),
+            ecf_sweep: Some(EcfSweepSpec {
+                ebitda_node: "ebitda".into(),
+                taxes_node: None,
+                capex_node: None,
+                working_capital_node: None,
+                cash_interest_node: None,
+                sweep_percentage: 1.0,
+                target_instrument_id: Some("TL-1".into()),
+            }),
+            pik_toggle: None,
+            ..Default::default()
+        };
+
+        let results = execute_waterfall(
+            &period,
+            &context,
+            &waterfall,
+            &mut state,
+            &contractual_flows,
+        )
+        .expect("waterfall should execute");
+
+        let tl = results.flows.get("TL-1").expect("TL-1");
+        assert!(
+            (tl.principal_payment.amount() - 500_000.0).abs() < 1e-6,
+            "mandatory 200k + sweep 300k should both apply, got {}",
+            tl.principal_payment.amount()
         );
     }
 }

@@ -497,6 +497,20 @@ impl<State> ModelBuilder<State> {
     }
 
     /// Set the FX conversion policy used when converting capital-structure cashflows.
+    ///
+    /// When this is not set, reporting totals use
+    /// [`finstack_quant_core::money::fx::FxConversionPolicy::PeriodEnd`]:
+    /// already-aggregated `cs.*` cash items and balances convert on the inclusive
+    /// period-end date. Pass
+    /// [`finstack_quant_core::money::fx::FxConversionPolicy::CashflowDate`] only
+    /// when the model must convert on each contractual flow date instead.
+    ///
+    /// # Arguments
+    ///
+    /// * `policy` - Rate-selection hint applied to each reporting-currency
+    ///   conversion of a period-aggregated `cs.*` bucket. `PeriodEnd` uses the
+    ///   inclusive period-end snapshot; `CashflowDate` uses the flow date;
+    ///   `PeriodAverage` and `Custom` are forwarded to the FX provider.
     pub fn fx_policy(mut self, policy: finstack_quant_core::money::fx::FxConversionPolicy) -> Self {
         ensure_capital_structure(&mut self.capital_structure).fx_policy = Some(policy);
         self
@@ -505,7 +519,10 @@ impl<State> ModelBuilder<State> {
     /// Configure waterfall specification for dynamic cash flow allocation.
     ///
     /// # Arguments
-    /// * `waterfall_spec` - Waterfall configuration with ECF sweep and PIK toggle settings
+    ///
+    /// * `waterfall_spec` - Priority-of-payments, pre-waterfall cash node,
+    ///   optional ECF sweep / PIK toggle, payment classes, and optional
+    ///   mandatory / voluntary prepay nodes.
     ///
     /// # Example
     /// ```

@@ -5,7 +5,11 @@
 //! sequential evaluation and is therefore the runtime counterpart to the
 //! static [`WaterfallSpec`](super::WaterfallSpec).
 
+use crate::capital_structure::residual_schedule::rebuild_residual_interest;
+use crate::error::Result;
+use finstack_quant_cashflows::builder::CashFlowSchedule;
 use finstack_quant_core::currency::Currency;
+use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
 use indexmap::IndexMap;
 
@@ -70,6 +74,11 @@ pub struct CapitalStructureState {
     /// payable balance (`opening + funding`) and the draw-aware closing
     /// balance. Overwritten each period; instruments with no draw record zero.
     pub period_new_funding: IndexMap<String, Money>,
+
+    /// Residual cashflow schedule per instrument, rebuilt after each period's
+    /// outstanding change so the next coupon is `outstanding × rate ×
+    /// accrual_factor` rather than a scale of the original schedule.
+    pub residual_schedules: IndexMap<String, CashFlowSchedule>,
 }
 
 impl CapitalStructureState {
@@ -114,5 +123,35 @@ impl CapitalStructureState {
     /// (balance == 0) do not carry stale data into the next evaluation cycle.
     pub fn advance_period(&mut self) {
         self.opening_balances = std::mem::take(&mut self.closing_balances);
+    }
+
+    /// Rebuild remaining interest on every residual schedule from the current
+    /// closing outstanding.
+    ///
+    /// # Arguments
+    ///
+    /// * `from_date` - Inclusive period-end snapshot (`period.end - 1 day`).
+    ///   Interest flows dated after this date are rewritten onto each
+    ///   instrument's closing outstanding; scheduled amort, draws, and fees
+    ///   stay in place.
+    ///
+    /// # Errors
+    ///
+    /// Returns a capital-structure error when a residual rate cannot be
+    /// inferred or a schedule currency does not match the closing balance.
+    pub fn rebuild_residuals(&mut self, from_date: Date) -> Result<()> {
+        let updates: Vec<(String, Money)> = self
+            .closing_balances
+            .iter()
+            .filter(|(id, _)| self.residual_schedules.contains_key(*id))
+            .map(|(id, closing)| (id.clone(), *closing))
+            .collect();
+        for (id, closing) in updates {
+            if let Some(schedule) = self.residual_schedules.get(&id) {
+                let rebuilt = rebuild_residual_interest(schedule, closing, from_date)?;
+                self.residual_schedules.insert(id, rebuilt);
+            }
+        }
+        Ok(())
     }
 }

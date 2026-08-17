@@ -6,6 +6,7 @@
 use crate::error::{Error, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 /// Waterfall specification for dynamic cash flow allocation.
 ///
@@ -17,12 +18,10 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Limitations
 ///
-/// - **No intra-category seniority.** Allocation within a payment category
-///   (e.g. `Interest`, `Amortization`) is single-class **pro-rata** across all
-///   instruments; there is no tranche seniority. A cash shortfall is shared
-///   proportionally between a first-lien term loan and a mezzanine note alike.
-///   Model strict 1L/2L subordination by running separate waterfalls or by
-///   pre-allocating cash upstream.
+/// - **Payment classes.** When `payment_classes` is empty, allocation within a
+///   category is single-class pro-rata (today's behavior). When classes are
+///   set, each category walks unique ranks and allocates pro-rata inside a
+///   class before the next class sees remaining cash.
 /// - **Prepayment penalties, call premiums, and original issue discount (OID)
 ///   are unsupported.** Prepayments (sweep, mandatory, voluntary) are applied
 ///   at par with no penalty or premium, and no OID accretion is modeled.
@@ -34,6 +33,13 @@ pub struct WaterfallSpec {
     pub priority_of_payments: Vec<PaymentPriority>,
 
     /// Formula or node reference for cash available to allocate in the waterfall.
+    ///
+    /// This is the **pre-waterfall** cash pool: cash before fees, interest,
+    /// amortization, and prepays allocated by this waterfall. Point it at a
+    /// standalone cash / FCF node (`cash`, `cash_available`, `free_cash_flow`).
+    /// Do not deduct `cs.interest_expense`, `cs.interest_expense_cash`,
+    /// `cs.principal_payment`, or `cs.fees` here — those are allocated by the
+    /// waterfall, and subtracting them from the pool double-pays debt service.
     ///
     /// Required. Without a cash pool the waterfall reports every scheduled fee,
     /// coupon and amortization as paid in full regardless of whether the model
@@ -48,6 +54,55 @@ pub struct WaterfallSpec {
     /// PIK toggle specification for switching between cash and PIK interest
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pik_toggle: Option<PikToggleSpec>,
+
+    /// Payment classes for intra-category seniority (e.g. 1L then 2L).
+    ///
+    /// Empty means one implicit class: today's single-class pro-rata. When
+    /// non-empty, every contractual instrument must appear in exactly one
+    /// class, ranks and ids must be unique, and allocation walks rank order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub payment_classes: Vec<PaymentClassSpec>,
+
+    /// Formula or node for the `MandatoryPrepayment` rung.
+    ///
+    /// Required when `MandatoryPrepayment` appears in `priority_of_payments`.
+    /// Sized independently of the ECF sweep and voluntary prepay buckets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mandatory_prepay_node: Option<String>,
+
+    /// Formula or node for the `VoluntaryPrepayment` rung.
+    ///
+    /// Required when `VoluntaryPrepayment` appears in `priority_of_payments`.
+    /// Sized independently of the ECF sweep and mandatory prepay buckets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub voluntary_prepay_node: Option<String>,
+}
+
+/// A seniority class for intra-category waterfall allocation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PaymentClassSpec {
+    /// Class identifier (e.g. `"1L"`).
+    pub id: String,
+    /// Seniority rank; `0` is most senior. Ranks must be unique.
+    pub rank: u32,
+    /// Instrument ids that belong to this class. Each instrument may appear
+    /// in at most one class.
+    pub instrument_ids: Vec<String>,
+}
+
+impl Default for WaterfallSpec {
+    fn default() -> Self {
+        Self {
+            priority_of_payments: default_priority_of_payments(),
+            available_cash_node: "cash".into(),
+            ecf_sweep: None,
+            pik_toggle: None,
+            payment_classes: Vec::new(),
+            mandatory_prepay_node: None,
+            voluntary_prepay_node: None,
+        }
+    }
 }
 
 /// Canonical payment stack: fees, interest, amortization, sweep, equity.
@@ -75,6 +130,10 @@ impl WaterfallSpec {
     ///   is terminal, so every such prepayment priority necessarily precedes
     ///   equity. Otherwise the waterfall engine silently zeros or never applies
     ///   the configured sweep.
+    /// - `payment_classes` ids and ranks are unique, each class lists at least
+    ///   one instrument, and no instrument appears in more than one class.
+    /// - `MandatoryPrepayment` / `VoluntaryPrepayment` require the matching
+    ///   `mandatory_prepay_node` / `voluntary_prepay_node`.
     ///
     /// When `available_cash_node` is set, the fees, interest, and amortization
     /// priorities must all be listed so every cash-consuming category is capped
@@ -85,8 +144,9 @@ impl WaterfallSpec {
     ///
     /// Returns a build error for duplicate priorities, a non-terminal equity
     /// entry, incomplete cash-capping priorities, an empty PIK-toggle target
-    /// set, a sweep percentage outside `[0, 1]`, or a positive ECF sweep with
-    /// no prepayment priority. Validation does not confirm that referenced
+    /// set, a sweep percentage outside `[0, 1]`, a positive ECF sweep with
+    /// no prepayment priority, invalid payment classes, or a prepayment rung
+    /// without its sizing node. Validation does not confirm that referenced
     /// model nodes or instruments exist; that requires the enclosing model and
     /// evaluation context.
     pub fn validate(&self) -> Result<()> {
@@ -123,6 +183,34 @@ impl WaterfallSpec {
             return Err(Error::build(
                 "WaterfallSpec: `available_cash_node` must name a value or formula node \
                  supplying the period's available cash.",
+            ));
+        }
+        reject_available_cash_debt_service(&self.available_cash_node)?;
+        validate_payment_classes(&self.payment_classes)?;
+        if self
+            .priority_of_payments
+            .contains(&PaymentPriority::MandatoryPrepayment)
+            && self
+                .mandatory_prepay_node
+                .as_ref()
+                .is_none_or(|n| n.trim().is_empty())
+        {
+            return Err(Error::build(
+                "WaterfallSpec: `MandatoryPrepayment` in `priority_of_payments` requires \
+                 `mandatory_prepay_node`.",
+            ));
+        }
+        if self
+            .priority_of_payments
+            .contains(&PaymentPriority::VoluntaryPrepayment)
+            && self
+                .voluntary_prepay_node
+                .as_ref()
+                .is_none_or(|n| n.trim().is_empty())
+        {
+            return Err(Error::build(
+                "WaterfallSpec: `VoluntaryPrepayment` in `priority_of_payments` requires \
+                 `voluntary_prepay_node`.",
             ));
         }
 
@@ -190,6 +278,89 @@ impl WaterfallSpec {
         }
         Ok(())
     }
+}
+
+/// Tokens that mean the cash pool has already deducted waterfall debt service.
+const AVAILABLE_CASH_DEBT_SERVICE_TOKENS: &[&str] = &[
+    "cs.interest_expense",
+    "cs.interest_expense_cash",
+    "cs.principal_payment",
+    "cs.fees",
+];
+
+/// Reject an `available_cash_node` expression (or a named node's formula) that
+/// deducts capital-structure debt service from the pre-waterfall cash pool.
+///
+/// # Arguments
+///
+/// * `text` - Inline DSL formula or node `formula_text` to scan for
+///   `cs.interest_expense`, `cs.interest_expense_cash`, `cs.principal_payment`,
+///   or `cs.fees`. Those buckets are allocated by the waterfall; subtracting
+///   them here double-pays debt service.
+///
+/// # Errors
+///
+/// Returns a build error naming the pre-waterfall contract when `text`
+/// contains any of those `cs.*` debt-service identifiers.
+fn validate_payment_classes(classes: &[PaymentClassSpec]) -> Result<()> {
+    if classes.is_empty() {
+        return Ok(());
+    }
+    let mut ids = HashSet::new();
+    let mut ranks = HashSet::new();
+    let mut instruments = HashSet::new();
+    for class in classes {
+        if class.id.trim().is_empty() {
+            return Err(Error::build(
+                "WaterfallSpec: `payment_classes` entries must have a non-empty `id`.",
+            ));
+        }
+        if !ids.insert(class.id.as_str()) {
+            return Err(Error::build(format!(
+                "WaterfallSpec: duplicate payment class id '{}'.",
+                class.id
+            )));
+        }
+        if !ranks.insert(class.rank) {
+            return Err(Error::build(format!(
+                "WaterfallSpec: duplicate payment class rank {}.",
+                class.rank
+            )));
+        }
+        if class.instrument_ids.is_empty() {
+            return Err(Error::build(format!(
+                "WaterfallSpec: payment class '{}' must list at least one instrument.",
+                class.id
+            )));
+        }
+        for instrument_id in &class.instrument_ids {
+            if !instruments.insert(instrument_id.as_str()) {
+                return Err(Error::build(format!(
+                    "WaterfallSpec: instrument '{instrument_id}' appears in more than one \
+                     payment class."
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn reject_available_cash_debt_service(text: &str) -> Result<()> {
+    if let Some(token) = AVAILABLE_CASH_DEBT_SERVICE_TOKENS
+        .iter()
+        .copied()
+        .find(|token| text.contains(token))
+    {
+        return Err(Error::build(format!(
+            "WaterfallSpec: `available_cash_node` is the pre-waterfall cash pool \
+             (cash before fees, interest, amortization, and prepays allocated by \
+             this waterfall). The formula must not deduct `{token}` or other \
+             `cs.interest_expense` / `cs.interest_expense_cash` / \
+             `cs.principal_payment` / `cs.fees` terms; those are allocated by \
+             the waterfall and deducting them here double-pays debt service."
+        )));
+    }
+    Ok(())
 }
 
 /// Payment priority levels in the waterfall.
@@ -309,6 +480,7 @@ mod tests {
             available_cash_node: "cash".into(),
             ecf_sweep: None,
             pik_toggle: None,
+            ..WaterfallSpec::default()
         }
     }
 
@@ -382,6 +554,7 @@ mod tests {
                 PaymentPriority::Equity,
                 PaymentPriority::MandatoryPrepayment,
             ],
+            mandatory_prepay_node: Some("mandatory".into()),
             ..spec_with(default_priority_of_payments())
         };
         // A prepayment after Equity means Equity is not last, which the
@@ -410,11 +583,73 @@ mod tests {
     }
 
     #[test]
+    fn validate_rejects_available_cash_that_deducts_cs_debt_service() {
+        let spec = WaterfallSpec {
+            available_cash_node: "ebitda - cs.interest_expense_cash.total".into(),
+            ..spec_with(default_priority_of_payments())
+        };
+        let err = spec
+            .validate()
+            .expect_err("deducting cs debt service from available cash must be rejected");
+        assert!(
+            err.to_string().contains("pre-waterfall"),
+            "error must name the pre-waterfall contract: {err}"
+        );
+    }
+
+    #[test]
+    fn reject_available_cash_debt_service_scans_named_node_formula() {
+        reject_available_cash_debt_service("cash_available")
+            .expect("a standalone cash node name is the pre-waterfall pool");
+        let err = reject_available_cash_debt_service("ebitda - cs.principal_payment.total")
+            .expect_err("a named node's formula that deducts cs principal must be rejected");
+        assert!(err.to_string().contains("pre-waterfall"));
+    }
+
+    #[test]
     fn validate_accepts_default_spec_with_sweep() {
         let spec = WaterfallSpec {
             ecf_sweep: Some(sweep_spec(0.5)),
             ..spec_with(default_priority_of_payments())
         };
         assert!(spec.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_mandatory_prepayment_without_node() {
+        let spec = spec_with(vec![
+            PaymentPriority::Fees,
+            PaymentPriority::Interest,
+            PaymentPriority::Amortization,
+            PaymentPriority::MandatoryPrepayment,
+            PaymentPriority::Equity,
+        ]);
+        let err = spec
+            .validate()
+            .expect_err("MandatoryPrepayment requires mandatory_prepay_node");
+        assert!(err.to_string().contains("mandatory_prepay_node"));
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_payment_class_id() {
+        let spec = WaterfallSpec {
+            payment_classes: vec![
+                PaymentClassSpec {
+                    id: "1L".into(),
+                    rank: 0,
+                    instrument_ids: vec!["A".into()],
+                },
+                PaymentClassSpec {
+                    id: "1L".into(),
+                    rank: 1,
+                    instrument_ids: vec!["B".into()],
+                },
+            ],
+            ..spec_with(default_priority_of_payments())
+        };
+        let err = spec
+            .validate()
+            .expect_err("duplicate class ids must be rejected");
+        assert!(err.to_string().contains("duplicate payment class id"));
     }
 }

@@ -99,6 +99,13 @@ impl Evaluator {
 
         if let Some(cs_spec) = &model.capital_structure {
             if let Some(waterfall_spec) = &cs_spec.waterfall {
+                if let Some(node) = model.nodes.get(&crate::types::NodeId::new(
+                    &waterfall_spec.available_cash_node,
+                )) {
+                    if let Some(formula) = &node.formula_text {
+                        crate::capital_structure::reject_available_cash_debt_service(formula)?;
+                    }
+                }
                 let waterfall_result = crate::capital_structure::waterfall::execute_waterfall(
                     &period_id,
                     &context,
@@ -115,6 +122,8 @@ impl Evaluator {
                 contractual_warnings.extend(waterfall_result.warnings);
                 context.set_capital_structure_cashflows(cs_cashflows);
             }
+            let from_date = crate::capital_structure::period_flows::period_snapshot_date(period);
+            cs_state.rebuild_residuals(from_date)?;
         }
 
         if context.capital_structure_cashflows.is_some() && !cs_affected_nodes.is_empty() {
@@ -184,7 +193,10 @@ pub(crate) fn resolve_opening_balance(
         }
     };
 
-    if let Some((_, m)) = outstanding_path.iter().rfind(|(d, _)| *d <= period_start) {
+    // Same half-open rule as `calculate_period_flows`: a coupon/amort dated
+    // exactly on `period_start` belongs to this period, so opening is the
+    // balance strictly before that date.
+    if let Some((_, m)) = outstanding_path.iter().rfind(|(d, _)| *d < period_start) {
         return Ok(abs_money(m));
     }
 
@@ -244,6 +256,13 @@ fn compute_contractual_flows(
             .get(instrument_id.as_str())
             .copied()
             .unwrap_or_else(|| Money::new(0.0, opening_balance.currency()));
+        if !cs_state.residual_schedules.contains_key(instrument_id) {
+            let schedule = instrument.cashflow_schedule(market_ctx, as_of)?;
+            cs_state
+                .residual_schedules
+                .insert(instrument_id.clone(), schedule);
+        }
+        let residual = cs_state.residual_schedules.get(instrument_id.as_str());
         let (breakdown, closing_balance, net_new_funding, period_warnings) =
             calculate_period_flows(
                 instrument.as_ref(),
@@ -252,6 +271,7 @@ fn compute_contractual_flows(
                 toggled_pik,
                 market_ctx,
                 as_of,
+                residual,
             )?;
         warnings.extend(period_warnings);
 
@@ -279,6 +299,13 @@ fn build_cs_cashflows_from_contractual(
     cs
 }
 
+/// Build the reporting-FX context for one period's `cs.*` totals.
+///
+/// When `CapitalStructureSpec.fx_policy` is omitted, conversion uses
+/// [`finstack_quant_core::money::fx::FxConversionPolicy::PeriodEnd`]: cash
+/// items and balances convert on the inclusive period-end snapshot
+/// (`period.end - 1 day` under half-open `[start, end)`). Per-flow FX is not
+/// applied here.
 fn build_fx_context<'a>(
     model: &FinancialModelSpec,
     market_ctx: &'a finstack_quant_core::market_data::context::MarketContext,
@@ -291,7 +318,7 @@ fn build_fx_context<'a>(
     let fx_matrix = market_ctx.fx();
     let fx_policy = cs_spec
         .fx_policy
-        .unwrap_or(finstack_quant_core::money::fx::FxConversionPolicy::CashflowDate);
+        .unwrap_or(finstack_quant_core::money::fx::FxConversionPolicy::PeriodEnd);
     let snapshot_date = if period.end > period.start {
         period.end - time::Duration::days(1)
     } else {
@@ -427,5 +454,129 @@ fn merge_updated_flows(
             .entry(inst_id.clone())
             .or_default()
             .insert(period_id, breakdown.clone());
+    }
+}
+
+#[cfg(test)]
+mod opening_tests {
+    use super::resolve_opening_balance;
+    use finstack_quant_cashflows::builder::{CashFlowMeta, CashFlowSchedule, Notional};
+    use finstack_quant_cashflows::primitives::CFKind;
+    use finstack_quant_core::cashflow::CashFlow;
+    use finstack_quant_core::currency::Currency;
+    use finstack_quant_core::dates::{Date, DayCount};
+    use finstack_quant_core::market_data::context::MarketContext;
+    use finstack_quant_core::money::Money;
+    use time::Month;
+
+    struct ScheduleInstrument {
+        schedule: CashFlowSchedule,
+    }
+
+    impl finstack_quant_cashflows::CashflowScheduleSource for ScheduleInstrument {
+        fn raw_cashflow_schedule(
+            &self,
+            _curves: &MarketContext,
+            _as_of: Date,
+        ) -> finstack_quant_core::Result<CashFlowSchedule> {
+            Ok(self.schedule.clone())
+        }
+    }
+
+    /// First-period opening must use the same half-open `< start` snapshot as
+    /// period flows. A coupon/amort dated on the first period start belongs
+    /// to that period, so opening is the pre-payment outstanding.
+    #[test]
+    fn first_period_opening_excludes_coupon_dated_on_period_start() {
+        let issue = Date::from_calendar_date(2024, Month::October, 1).expect("valid date");
+        let period_start = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+        let coupon_date = period_start;
+
+        let instrument = ScheduleInstrument {
+            schedule: CashFlowSchedule::from_parts(
+                vec![
+                    CashFlow::new(
+                        issue,
+                        None,
+                        Money::new(-1_000_000.0, Currency::USD),
+                        CFKind::Notional,
+                        0.0,
+                        None,
+                    ),
+                    CashFlow::new(
+                        coupon_date,
+                        None,
+                        Money::new(-20_000.0, Currency::USD),
+                        CFKind::Fixed,
+                        0.25,
+                        Some(0.08),
+                    ),
+                    CashFlow::new(
+                        coupon_date,
+                        None,
+                        Money::new(100_000.0, Currency::USD),
+                        CFKind::Amortization,
+                        0.0,
+                        None,
+                    ),
+                ],
+                Notional::par(1_000_000.0, Currency::USD),
+                DayCount::Act365F,
+                CashFlowMeta {
+                    issue_date: Some(issue),
+                    ..CashFlowMeta::default()
+                },
+            ),
+        };
+
+        let market_ctx = MarketContext::new();
+        let opening = resolve_opening_balance(&instrument, &market_ctx, issue, period_start)
+            .expect("opening balance");
+
+        assert_eq!(
+            opening.amount(),
+            1_000_000.0,
+            "opening must be the pre-payment outstanding, not the post-amort snapshot on period.start"
+        );
+        assert_eq!(opening.currency(), Currency::USD);
+    }
+}
+
+#[cfg(test)]
+mod fx_policy_tests {
+    use super::build_fx_context;
+    use crate::types::{CapitalStructureSpec, FinancialModelSpec};
+    use finstack_quant_core::dates::{Date, Period, PeriodId};
+    use finstack_quant_core::market_data::context::MarketContext;
+    use finstack_quant_core::money::fx::FxConversionPolicy;
+    use time::Month;
+
+    #[test]
+    fn omitted_fx_policy_selects_period_end() {
+        let start = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+        let end = Date::from_calendar_date(2025, Month::April, 1).expect("valid date");
+        let period = Period {
+            id: PeriodId::quarter(2025, 1),
+            start,
+            end,
+            is_actual: false,
+        };
+        let mut model = FinancialModelSpec::new("fx-default", vec![period.clone()]);
+        model.capital_structure = Some(CapitalStructureSpec {
+            debt_instruments: vec![],
+            meta: indexmap::IndexMap::new(),
+            reporting_currency: None,
+            fx_policy: None,
+            waterfall: None,
+        });
+
+        let market_ctx = MarketContext::new();
+        let ctx =
+            build_fx_context(&model, &market_ctx, &period).expect("capital structure is present");
+        assert_eq!(
+            ctx.fx_policy,
+            FxConversionPolicy::PeriodEnd,
+            "omitted fx_policy must convert cs.* period aggregates on the inclusive period-end date"
+        );
     }
 }

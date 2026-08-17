@@ -162,7 +162,11 @@ matches a qualified metric id shadows that metric — prefer a distinct namespac
 A model may carry typed debt instruments (`add_bond`, `add_bond_with_convention`,
 `add_swap`, `add_swap_with_conventions`, `add_debt`) plus a reporting currency,
 FX policy, and an optional `WaterfallSpec`. Formulas then reference aggregated
-instrument flows through the `cs.*` namespace:
+instrument flows through the `cs.*` namespace.
+
+When `fx_policy` is omitted, `cs.*` cash items and balances convert on the
+inclusive period-end date (`PeriodEnd`): the already-aggregated period bucket
+is converted once, not each contractual cashflow date.
 
 ```text
 cs.<component>.<instrument_id>
@@ -177,10 +181,15 @@ Valid components: `interest_expense` (cash + PIK), `interest_expense_cash`,
 `Evaluator::evaluate_with_market(&model, &market_ctx, as_of)`; plain `evaluate`
 cannot resolve them.
 
-Known limits (also stated in the module rustdoc): waterfall allocation within a
-payment category is single-class pro-rata with no intra-category tranche
-seniority; prepayment penalties, call premiums, and OID accretion are not
-modeled.
+Known limits (also stated in the module rustdoc): waterfall allocation is
+pro-rata inside each payment class, walking class rank (empty
+`payment_classes` is one implicit class); loan residual schedules rebuild
+interest after outstanding changes, and Bond / ConvertibleBond plus a sweep
+is rejected; `available_cash_node` is the pre-waterfall cash pool and must
+not deduct `cs` debt-service tokens; omitted `fx_policy` converts
+period-aggregated `cs.*` items on the inclusive period-end date
+(`PeriodEnd`); prepayment penalties, call premiums, and OID accretion are
+not modeled.
 
 ## Checks
 
