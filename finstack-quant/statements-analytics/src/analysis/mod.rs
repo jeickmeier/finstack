@@ -87,8 +87,8 @@ pub use ecl::{
     CeclConfig, CeclEngine, CeclMethodology, CeclResult, EclBucket, EclConfig, EclConfigBuilder,
     EclEngine, EclRequest, EclResult, EclStageRequest, Exposure, ExposureEclResult, LgdType,
     MacroScenario, PdTermStructure, PortfolioEclResult, ProvisionWaterfall, QualitativeFlags,
-    RawPdCurve, ReversionMethod, Stage, StageResult, StagingConfig, StagingTrigger,
-    WeightedEclResult, ECL_POLICY_EXTENSION_KEY,
+    RatingPdMap, RawPdCurve, ReversionMethod, Stage, StageResult, StagingConfig, StagingTrigger,
+    WeightedEclResult, DEFAULT_REVOLVER_CCF, ECL_POLICY_EXTENSION_KEY,
 };
 
 pub use comps::{

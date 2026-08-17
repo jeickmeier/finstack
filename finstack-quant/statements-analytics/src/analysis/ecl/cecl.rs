@@ -315,7 +315,7 @@ impl<'a> CeclEngine<'a> {
             for (scenario, _) in &self.pd_sources {
                 let lgd = scenario.lgd_override.unwrap_or(exposure.lgd);
                 let df = self.discount_factor(exposure, t_recovery);
-                weighted_ecl += scenario.weight * lgd * exposure.ead_at(0.0) * df;
+                weighted_ecl += scenario.weight * lgd * exposure.ead_at(0.0)? * df;
             }
             return Ok(CeclResult {
                 exposure_id: exposure.id.clone(),
@@ -350,7 +350,7 @@ impl<'a> CeclEngine<'a> {
 
                 let lgd = scenario.lgd_override.unwrap_or(exposure.lgd);
                 let df = self.discount_factor(exposure, t_mid);
-                scenario_ecl += uncond_mpd * lgd * exposure.ead_at(t_mid) * df;
+                scenario_ecl += uncond_mpd * lgd * exposure.ead_at(t_mid)? * df;
             }
             weighted_ecl += scenario.weight * scenario_ecl;
         }
@@ -382,7 +382,7 @@ impl<'a> CeclEngine<'a> {
             let t_start = i as f64 * dt;
             let t_end = ((i + 1) as f64 * dt).min(horizon);
             let t_mid = (t_start + t_end) / 2.0;
-            exposure_years += exposure.ead_at(t_mid) * (t_end - t_start);
+            exposure_years += exposure.ead_at(t_mid)? * (t_end - t_start);
         }
 
         Ok(CeclResult {
@@ -546,6 +546,8 @@ mod tests {
             consecutive_performing_periods: 0,
             previous_stage: None,
             ead_schedule: None,
+            undrawn: 0.0,
+            ccf: 0.75,
         }
     }
 

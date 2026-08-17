@@ -6,7 +6,7 @@
 
 use crate::analysis::credit::{compute_credit_context, CreditContextMetrics};
 use crate::analysis::valuation::corporate::{CorporateValuationResult, DcfOptions};
-use finstack_quant_core::dates::Date;
+use finstack_quant_core::dates::{Date, Period, PeriodId};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_statements::error::Result;
 use finstack_quant_statements::evaluator::StatementResult;
@@ -94,6 +94,7 @@ pub struct CorporateAnalysisBuilder {
     as_of: Option<Date>,
     equity_mode: Option<EquityMode>,
     coverage_node: String,
+    ltv_value_node: Option<String>,
 }
 
 impl CorporateAnalysisBuilder {
@@ -127,6 +128,7 @@ impl CorporateAnalysisBuilder {
             as_of: None,
             equity_mode: None,
             coverage_node: "ebitda".to_string(),
+            ltv_value_node: None,
         }
     }
 
@@ -243,13 +245,41 @@ impl CorporateAnalysisBuilder {
         self
     }
 
+    /// Use a statement node as the per-period LTV denominator.
+    ///
+    /// When set, LTV is `debt_balance[t] / node[t]` for each requested
+    /// period. A missing or non-positive node value omits LTV for that
+    /// period only. This overrides a scalar DCF enterprise value.
+    ///
+    /// A DCF enterprise value used without this node is broadcast as a
+    /// constant denominator (current valuation versus forward debt, not a
+    /// rolled EV path).
+    ///
+    /// # Arguments
+    ///
+    /// * `node` - Statement node id whose per-period values are LTV
+    ///   denominators, in the same currency as instrument debt balances
+    ///   (typically an enterprise-value or collateral-value series).
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    pub fn ltv_value_node(mut self, node: &str) -> Self {
+        self.ltv_value_node = Some(node.to_string());
+        self
+    }
+
     /// Execute the analysis pipeline.
     ///
     /// Steps:
     /// 1. Evaluate the financial statement model
     /// 2. Run equity valuation (if configured)
-    /// 3. Compute credit context metrics for each capital structure instrument,
-    ///    using enterprise value from step 2 as the LTV reference when available
+    /// 3. Compute credit context metrics for each capital structure instrument.
+    ///    LTV is a path: `debt_t / value_t`. A configured
+    ///    [`Self::ltv_value_node`] supplies per-period statement values.
+    ///    Otherwise a positive DCF enterprise value from step 2 is broadcast
+    ///    as a constant denominator (current valuation versus forward debt,
+    ///    not a rolled EV).
     ///
     /// **Note:** The DCF equity valuation reuses the already evaluated statement
     /// results so analysis stays consistent with the active `market` / `as_of` context.
@@ -345,6 +375,13 @@ impl CorporateAnalysisBuilder {
             );
         }
 
+        let ltv_refs = ltv_reference_path(
+            &self.model.periods,
+            &statement,
+            self.ltv_value_node.as_deref(),
+            ev_for_ltv,
+        );
+
         let mut credit = IndexMap::new();
         if let Some(ref cs) = statement.cs_cashflows {
             for instrument_id in cs.by_instrument.keys() {
@@ -354,7 +391,7 @@ impl CorporateAnalysisBuilder {
                     instrument_id,
                     &self.coverage_node,
                     &self.model.periods,
-                    ev_for_ltv,
+                    ltv_refs.as_deref(),
                 );
                 credit.insert(instrument_id.clone(), metrics);
             }
@@ -366,6 +403,34 @@ impl CorporateAnalysisBuilder {
             credit,
             ev_suppressed_non_positive,
         })
+    }
+}
+
+/// Per-period LTV denominators for [`compute_credit_context`].
+///
+/// A statement node, when configured, supplies `value[t]` (missing or
+/// non-positive periods are omitted). Otherwise a positive scalar DCF
+/// enterprise value is broadcast to every requested period: current
+/// valuation versus forward debt, not a rolled EV path.
+fn ltv_reference_path(
+    periods: &[Period],
+    statement: &StatementResult,
+    ltv_value_node: Option<&str>,
+    ev_for_ltv: Option<f64>,
+) -> Option<Vec<(PeriodId, f64)>> {
+    if let Some(node) = ltv_value_node {
+        let path: Vec<(PeriodId, f64)> = periods
+            .iter()
+            .filter_map(|period| {
+                statement
+                    .get(node, &period.id)
+                    .filter(|value| value.is_finite() && *value > 0.0)
+                    .map(|value| (period.id, value))
+            })
+            .collect();
+        Some(path)
+    } else {
+        ev_for_ltv.map(|ev| periods.iter().map(|period| (period.id, ev)).collect())
     }
 }
 
@@ -551,5 +616,117 @@ mod tests {
             result.is_ok(),
             "DCF analysis should reuse the as-of aware statement evaluation"
         );
+    }
+
+    fn sample_periods() -> Vec<Period> {
+        vec![
+            Period {
+                id: PeriodId::quarter(2025, 1),
+                start: date!(2025 - 01 - 01),
+                end: date!(2025 - 04 - 01),
+                is_actual: false,
+            },
+            Period {
+                id: PeriodId::quarter(2025, 2),
+                start: date!(2025 - 04 - 01),
+                end: date!(2025 - 07 - 01),
+                is_actual: false,
+            },
+        ]
+    }
+
+    #[test]
+    fn test_ltv_reference_path_broadcasts_scalar_ev() {
+        let periods = sample_periods();
+        let statement = StatementResult::new();
+        let path = ltv_reference_path(&periods, &statement, None, Some(10_000_000.0))
+            .expect("broadcast path");
+        assert_eq!(
+            path,
+            vec![
+                (PeriodId::quarter(2025, 1), 10_000_000.0),
+                (PeriodId::quarter(2025, 2), 10_000_000.0),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_ltv_reference_path_reads_node_and_skips_missing() {
+        let periods = sample_periods();
+        let mut statement = StatementResult::new();
+        let mut values = IndexMap::new();
+        values.insert(PeriodId::quarter(2025, 1), 10_000_000.0);
+        values.insert(PeriodId::quarter(2025, 2), 12_000_000.0);
+        statement
+            .nodes
+            .insert("enterprise_value".to_string(), values);
+
+        let path = ltv_reference_path(&periods, &statement, Some("enterprise_value"), Some(1.0))
+            .expect("node path");
+        assert_eq!(
+            path,
+            vec![
+                (PeriodId::quarter(2025, 1), 10_000_000.0),
+                (PeriodId::quarter(2025, 2), 12_000_000.0),
+            ]
+        );
+
+        statement
+            .nodes
+            .get_mut("enterprise_value")
+            .expect("node")
+            .shift_remove(&PeriodId::quarter(2025, 2));
+        let path = ltv_reference_path(&periods, &statement, Some("enterprise_value"), None)
+            .expect("partial node path");
+        assert_eq!(path, vec![(PeriodId::quarter(2025, 1), 10_000_000.0)]);
+    }
+
+    #[test]
+    fn test_ltv_value_node_on_builder_uses_per_period_values() {
+        let as_of = date!(2025 - 01 - 01);
+        let market = MarketContext::new().insert(flat_discount_curve(0.05, as_of, "USD-OIS"));
+        let q1 = PeriodId::quarter(2025, 1);
+        let q2 = PeriodId::quarter(2025, 2);
+        let model = ModelBuilder::new("ltv-node")
+            .periods("2025Q1..Q2", Some("2025Q1"))
+            .expect("periods")
+            .value(
+                "enterprise_value",
+                &[
+                    (q1, AmountOrScalar::scalar(10_000_000.0)),
+                    (q2, AmountOrScalar::scalar(8_000_000.0)),
+                ],
+            )
+            .add_bond(
+                "BOND-001",
+                Money::new(4_000_000.0, finstack_quant_core::currency::Currency::USD),
+                0.05,
+                date!(2025 - 01 - 01),
+                date!(2026 - 01 - 01),
+                "USD-OIS",
+            )
+            .expect("bond")
+            .with_meta("currency", serde_json::json!("USD"))
+            .build()
+            .expect("model");
+
+        let analysis = CorporateAnalysisBuilder::new(model)
+            .market(market)
+            .as_of(as_of)
+            .ltv_value_node("enterprise_value")
+            .analyze()
+            .expect("analysis");
+
+        let metrics = analysis.credit.get("BOND-001").expect("bond credit");
+        assert_eq!(metrics.ltv.len(), 2);
+        let ev_q1 = 10_000_000.0;
+        let ev_q2 = 8_000_000.0;
+        let cs = analysis.statement.cs_cashflows.as_ref().expect("cs");
+        let inst = cs.by_instrument.get("BOND-001").expect("instrument");
+        let debt_q1 = inst.get(&q1).expect("q1 cf").debt_balance.amount();
+        let debt_q2 = inst.get(&q2).expect("q2 cf").debt_balance.amount();
+        assert!((metrics.ltv[0].1 - debt_q1 / ev_q1).abs() < 1e-12);
+        assert!((metrics.ltv[1].1 - debt_q2 / ev_q2).abs() < 1e-12);
+        assert!((metrics.ltv[0].1 - metrics.ltv[1].1).abs() > 1e-9);
     }
 }

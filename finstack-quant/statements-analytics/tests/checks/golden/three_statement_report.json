@@ -81,8 +81,8 @@
           "materiality": {
             "absolute": 7.0,
             "relative_pct": 0.0,
-            "reference_value": 65.0,
-            "reference_label": "ebitda"
+            "reference_value": 317.0,
+            "reference_label": "ttm_ebitda"
           },
           "nodes": [
             "total_debt",
@@ -114,7 +114,7 @@
         {
           "check_id": "trend",
           "severity": "warning",
-          "message": "'total_debt' deteriorating for 3 consecutive periods as of 2025Q4 (current = 455.00)",
+          "message": "'total_debt' deteriorating for 3 consecutive periods as of 2025Q4 (current = 2219.00)",
           "period": "2025Q4",
           "nodes": [
             "total_debt"

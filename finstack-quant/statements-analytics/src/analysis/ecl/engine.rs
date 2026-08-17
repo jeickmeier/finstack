@@ -132,11 +132,10 @@ pub struct EclConfig {
     /// Macro scenario specifications with probability weights.
     /// Weights must sum to 1.0 and each weight must lie in \[0, 1\].
     ///
-    /// **Note**: this field is informational for callers that store their
-    /// scenario set alongside the config. The probability weights actually
-    /// applied by [`compute_ecl_weighted`] (and [`EclEngine`]) are the ones
-    /// carried in the `pd_sources` argument, which are validated
-    /// independently; the two sets are not cross-checked.
+    /// When non-empty, [`compute_ecl_weighted`] and [`EclEngine`] require
+    /// the same ids and weights (tolerance 1e-6, same order) as the
+    /// `pd_sources` argument. The `pd_sources` weights remain the priced
+    /// weights and are still validated independently.
     pub scenarios: Vec<MacroScenario>,
 
     /// Staging configuration for IFRS 9.
@@ -619,6 +618,8 @@ fn effective_lgd(config: &EclConfig, base_lgd: f64) -> Result<f64> {
 ///     consecutive_performing_periods: 0,
 ///     previous_stage: None,
 ///     ead_schedule: None,
+///     undrawn: 0.0,
+///     ccf: 0.75,
 /// };
 /// let pd_curve = RawPdCurve::new("BBB", vec![(0.0, 0.0), (1.0, 0.02)])?;
 ///
@@ -660,7 +661,7 @@ pub fn compute_ecl_single(
         pd_source.cumulative_pd(rating, 0.0)?;
         let t_recovery = config.stage3_time_to_recovery_years;
         let lgd = effective_lgd(config, exposure.lgd)?;
-        let ead = exposure.ead_at(0.0);
+        let ead = exposure.ead_at(0.0)?;
         let df = 1.0 / (1.0 + exposure.eir).powf(t_recovery);
         let ecl = lgd * ead * df;
         return Ok(EclResult {
@@ -711,7 +712,7 @@ pub fn compute_ecl_single(
         let pd_start = pd_source.cumulative_pd(rating, t_start)?;
         let pd_end = pd_source.cumulative_pd(rating, t_end)?;
         let uncond_mpd = (pd_end - pd_start).max(0.0);
-        let ead = exposure.ead_at(t_mid);
+        let ead = exposure.ead_at(t_mid)?;
         let df = 1.0 / (1.0 + exposure.eir).powf(t_mid);
 
         let bucket_ecl = uncond_mpd * lgd * ead * df;
@@ -774,8 +775,9 @@ pub fn compute_ecl_single(
 ///
 /// Returns an error if `pd_sources` is empty, if exposure validation fails,
 /// if any scenario PD source cannot provide cumulative PDs for the exposure,
-/// or if `config.lgd_type == `[`LgdType::ThroughTheCycle`] and any scenario
-/// sets `lgd_override`.
+/// if a non-empty [`EclConfig::scenarios`] list does not match the priced
+/// scenario ids and weights, or if `config.lgd_type ==
+/// `[`LgdType::ThroughTheCycle`] and any scenario sets `lgd_override`.
 ///
 /// # Examples
 ///
@@ -800,6 +802,8 @@ pub fn compute_ecl_single(
 ///     consecutive_performing_periods: 0,
 ///     previous_stage: None,
 ///     ead_schedule: None,
+///     undrawn: 0.0,
+///     ccf: 0.75,
 /// };
 /// let pd_curve = RawPdCurve::new("BBB", vec![(0.0, 0.0), (1.0, 0.02)])?;
 /// let scenario = MacroScenario { id: "base".to_string(), weight: 1.0, lgd_override: None };
@@ -827,6 +831,7 @@ pub fn compute_ecl_weighted(
         ));
     }
     validate_scenario_weights(pd_sources.iter().map(|(scenario, _)| *scenario))?;
+    validate_config_scenarios_match_pd_sources(config, pd_sources)?;
 
     let mut weighted_ecl = 0.0;
     let mut scenario_results = Vec::with_capacity(pd_sources.len());
@@ -884,6 +889,40 @@ pub(crate) fn validate_scenario_weights<'a>(
     Ok(())
 }
 
+/// Require `config.scenarios` ids and weights to match `pd_sources` when
+/// the config list is non-empty.
+fn validate_config_scenarios_match_pd_sources(
+    config: &EclConfig,
+    pd_sources: &[(&MacroScenario, &dyn PdTermStructure)],
+) -> Result<()> {
+    if config.scenarios.is_empty() {
+        return Ok(());
+    }
+    if config.scenarios.len() != pd_sources.len() {
+        return Err(Error::Validation(format!(
+            "EclConfig.scenarios length ({}) does not match pd_sources ({})",
+            config.scenarios.len(),
+            pd_sources.len()
+        )));
+    }
+    for (config_scenario, (priced_scenario, _)) in config.scenarios.iter().zip(pd_sources.iter()) {
+        if config_scenario.id != priced_scenario.id {
+            return Err(Error::Validation(format!(
+                "EclConfig.scenarios id '{}' does not match pd_sources id '{}'",
+                config_scenario.id, priced_scenario.id
+            )));
+        }
+        if (config_scenario.weight - priced_scenario.weight).abs() > 1e-6 {
+            return Err(Error::Validation(format!(
+                "EclConfig.scenarios weight for '{}' ({}) does not match \
+                 pd_sources weight ({})",
+                config_scenario.id, config_scenario.weight, priced_scenario.weight
+            )));
+        }
+    }
+    Ok(())
+}
+
 // Stateful facade
 
 /// Stateful ECL engine wrapping staging + calculation + aggregation.
@@ -934,7 +973,9 @@ impl<'a> EclEngine<'a> {
     /// # Errors
     ///
     /// Construction does not validate `pd_sources`; [`Self::process_exposure`]
-    /// returns an error if the source list is empty.
+    /// returns an error if the source list is empty or if a non-empty
+    /// [`EclConfig::scenarios`] list does not match the priced scenario
+    /// ids and weights.
     pub fn new(
         config: EclConfig,
         pd_sources: Vec<(&'a MacroScenario, &'a dyn PdTermStructure)>,
@@ -1008,6 +1049,8 @@ mod tests {
             consecutive_performing_periods: 0,
             previous_stage: None,
             ead_schedule: None,
+            undrawn: 0.0,
+            ccf: 0.75,
         }
     }
 
@@ -1332,7 +1375,7 @@ mod tests {
             .build()
             .unwrap();
         let scenario = MacroScenario {
-            id: "downside".to_string(),
+            id: "base".to_string(),
             weight: 1.0,
             lgd_override: Some(0.30),
         };
@@ -1419,7 +1462,7 @@ mod tests {
             .build()
             .unwrap();
         let scenario = MacroScenario {
-            id: "downside".to_string(),
+            id: "base".to_string(),
             weight: 1.0,
             lgd_override: Some(0.60),
         };
@@ -1481,6 +1524,8 @@ mod tests {
             consecutive_performing_periods: 0,
             previous_stage: None,
             ead_schedule: None,
+            undrawn: 0.0,
+            ccf: 0.75,
         };
 
         let config = EclConfigBuilder::new().bucket_width(0.5).build().unwrap();
@@ -1535,8 +1580,6 @@ mod tests {
     fn test_scenario_weighting_two_scenarios() {
         let exposure = make_exposure();
         let curve = make_pd_curve();
-        let config = EclConfig::default();
-
         let base_scenario = MacroScenario {
             id: "base".into(),
             weight: 0.6,
@@ -1547,10 +1590,14 @@ mod tests {
             weight: 0.4,
             lgd_override: Some(0.60), // Higher LGD in downside
         };
+        let config = EclConfigBuilder::new()
+            .scenarios(vec![base_scenario, down_scenario])
+            .build()
+            .unwrap();
 
         let pd_sources: Vec<(&MacroScenario, &dyn PdTermStructure)> = vec![
-            (&base_scenario, &curve as &dyn PdTermStructure),
-            (&down_scenario, &curve as &dyn PdTermStructure),
+            (&config.scenarios[0], &curve as &dyn PdTermStructure),
+            (&config.scenarios[1], &curve as &dyn PdTermStructure),
         ];
 
         let result = compute_ecl_weighted(&exposure, Stage::Stage1, &pd_sources, &config).unwrap();
@@ -1605,5 +1652,83 @@ mod tests {
         let result = engine.process_exposure(&exposure);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn undrawn_ccf_scales_stage1_ecl() {
+        // drawn 1e6, undrawn 4e5, ccf 0.75 → EAD = 1.3e6
+        // eir 0, 1y 2% PD, Stage 1, LGD 0.45 → ECL = 0.02 × 0.45 × 1.3e6
+        let exposure = Exposure {
+            ead: 1_000_000.0,
+            undrawn: 400_000.0,
+            ccf: 0.75,
+            eir: 0.0,
+            remaining_maturity_years: 1.0,
+            lgd: 0.45,
+            ..make_exposure()
+        };
+        let ecl = compute_ecl_single(
+            &exposure,
+            Stage::Stage1,
+            &one_year_2pct_curve(),
+            &EclConfig::default(),
+        )
+        .unwrap()
+        .ecl;
+        let expected = 0.02 * 0.45 * 1_300_000.0;
+        assert!((ecl - expected).abs() < 1e-9, "got {ecl}, want {expected}");
+    }
+
+    #[test]
+    fn config_scenarios_must_match_pd_sources() {
+        let curve = one_year_2pct_curve();
+        let mismatch = EclConfigBuilder::new()
+            .scenarios(vec![
+                MacroScenario {
+                    id: "base".into(),
+                    weight: 0.7,
+                    lgd_override: None,
+                },
+                MacroScenario {
+                    id: "down".into(),
+                    weight: 0.3,
+                    lgd_override: None,
+                },
+            ])
+            .build()
+            .unwrap();
+        let priced = MacroScenario {
+            id: "base".into(),
+            weight: 1.0,
+            lgd_override: None,
+        };
+        let pd_sources: Vec<(&MacroScenario, &dyn PdTermStructure)> = vec![(&priced, &curve)];
+        let err = compute_ecl_weighted(&lgd_test_exposure(), Stage::Stage1, &pd_sources, &mismatch)
+            .unwrap_err();
+        assert!(err.to_string().contains("does not match"), "got {err}");
+
+        let matched = EclConfigBuilder::new()
+            .scenarios(vec![
+                MacroScenario {
+                    id: "base".into(),
+                    weight: 0.7,
+                    lgd_override: None,
+                },
+                MacroScenario {
+                    id: "down".into(),
+                    weight: 0.3,
+                    lgd_override: None,
+                },
+            ])
+            .build()
+            .unwrap();
+        let pd_sources: Vec<(&MacroScenario, &dyn PdTermStructure)> = vec![
+            (&matched.scenarios[0], &curve),
+            (&matched.scenarios[1], &curve),
+        ];
+        assert!(
+            compute_ecl_weighted(&lgd_test_exposure(), Stage::Stage1, &pd_sources, &matched)
+                .is_ok()
+        );
     }
 }

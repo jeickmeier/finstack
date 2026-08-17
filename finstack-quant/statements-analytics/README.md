@@ -78,8 +78,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 `dcf()` reads the free-cash-flow series from a node named `ufcf`.
 `net_debt_override` only takes effect when `dcf()` was called first.
 `coverage_node` defaults to `"ebitda"`. Add `.market(ctx)` and `.as_of(date)`
-when the model carries capital structure — the same context is then used for
-both statement evaluation and DCF discounting.
+when the model needs curve lookups during **statement evaluation** (for
+example `cs.interest`). DCF discounting stays WACC-only and does not read
+discount curves from the market. Year-end DCF (`mid_year_convention = false`)
+is the default. `.ltv_value_node("enterprise_value")` supplies a per-period
+LTV denominator; otherwise a positive DCF EV is broadcast as a
+constant-denominator path (current valuation versus forward debt).
 
 ## Module layout
 
@@ -127,11 +131,15 @@ comparison, metrics, periods)` compares two and returns a `ScenarioDiff`;
 
 **Credit and covenants.** `compute_credit_context` derives coverage, leverage,
 and LTV-style metrics from a `StatementResult` plus its capital-structure
-cashflows. `StatementsAdapter` implements the covenants crate's `ModelTimeSeries`
-trait over a statement result, so `forecast_covenant`, `forecast_covenants`, and
-`forecast_breaches` reach `finstack-quant-covenants` without that crate
-depending on statements. `to_table` renders a `CovenantForecast` as a
-`TableEnvelope`.
+cashflows. LTV is a path (`debt_t / value_t`); pass
+`reference_values: Option<&[(PeriodId, f64)]>` and broadcast a scalar EV as
+one entry per period. Metrics include cash DSCR, total (PIK) DSCR, and
+`dscr_incl_fees` / `dscr_incl_fees_min`
+(`coverage / (interest_cash + principal + fees)`). `StatementsAdapter`
+implements the covenants crate's `ModelTimeSeries` trait over a statement
+result, so `forecast_covenant`, `forecast_covenants`, and `forecast_breaches`
+reach `finstack-quant-covenants` without that crate depending on statements.
+`to_table` renders a `CovenantForecast` as a `TableEnvelope`.
 
 **Checks.** `analysis::checks` extends the structural checks in
 `finstack_quant_statements::checks::builtins` with cross-statement
@@ -149,20 +157,32 @@ chart of accounts: `three_statement_checks(ThreeStatementMapping)`,
 
 **ECL.** IFRS 9 staging (`classify_stage`, `StagingConfig`, `StagingTrigger`)
 and CECL (`CeclEngine`, `CeclMethodology`), with single-exposure, weighted, and
-portfolio aggregation paths plus a `ProvisionWaterfall`. `EclConfig` can be
-persisted through the `ECL_POLICY_EXTENSION_KEY` `FinstackConfig` extension.
+portfolio aggregation paths plus a `ProvisionWaterfall`. Stage 2/3 DPD
+backstops fire at `days_past_due >= 30` / `>= 90` (bank / CECL alignment);
+the display contract is `dpd_stage2 (dpd=30 >= 30)` /
+`dpd_stage3 (dpd=90 >= 90)`. `Exposure` priced EAD is
+`drawn + undrawn × ccf` via core `ead_revolver` (`undrawn` default `0.0`,
+`ccf` default `0.75` / `DEFAULT_REVOLVER_CCF`). `RatingPdMap` is a
+rating-keyed map of `RawPdCurve` values; a missing rating skips the SICR
+PD-delta rather than failing the run. `EclConfig` can be persisted through
+the `ECL_POLICY_EXTENSION_KEY` `FinstackConfig` extension.
 
 **Templates.** Build-time `ModelBuilder` extension traits:
-`TemplatesExtension::add_roll_forward` (beginning + changes = ending),
-`VintageExtension::add_vintage_buildup` (cohort convolution), and
+`TemplatesExtension::add_roll_forward` (beginning + increases − decreases =
+ending), `VintageExtension::add_vintage_buildup` (cohort convolution;
+`decay_curve[k]` is in **model periods**, not calendar years), and
 `RealEstateExtension` (`add_rent_roll`, `add_noi_buildup`, `add_ncf_buildup`,
 `add_property_operating_statement`, the last driven by `LeaseSpec`,
-`ManagementFeeSpec`, and friends). Templates only add nodes; they add no runtime
-behavior. Real-estate amounts are per model period, not annualized, unless a
-field says otherwise.
+`ManagementFeeSpec`, and friends). `LeaseGrowthConvention` defaults to
+`AnnualEscalator` (Argus/NCREIF anniversary bumps); `PerPeriod` must be set
+explicitly. Templates only add nodes; they add no runtime behavior.
+Real-estate amounts are per model period, not annualized, unless a field
+says otherwise.
 
 **Runtime extensions.** `CorkscrewExtension` validates roll-forward articulation
-after evaluation; `CreditScorecardExtension` applies weighted metric scoring with
+after evaluation (`expected = prev + Σ changes − Σ decreases`); pair
+`add_roll_forward` increase/disposal nodes with `CorkscrewAccount.changes` /
+`decreases`. `CreditScorecardExtension` applies weighted metric scoring with
 embedded S&P / Moody's / Fitch scales. Both are plain structs — `new()` /
 `with_config(cfg)` / `set_config(cfg)` then `execute(&model, &results)` — not
 trait objects, and both error if no configuration was supplied.
@@ -184,7 +204,9 @@ trait objects, and both error if no configuration was supplied.
   and leverage metrics are unitless scalars.
 - A non-positive DCF enterprise value is not used as an LTV reference; the
   pipeline records that in `CorporateAnalysis::ev_suppressed_non_positive` and
-  computes credit metrics without one.
+  computes credit metrics without one. A positive EV is broadcast as one
+  constant denominator per requested period; `.ltv_value_node` supplies a
+  varying statement path instead.
 - `SensitivityMode::Diagonal` runs in parallel on rayon on native targets and
   serially on `wasm32`. `FullGrid` and `Tornado` are always serial. Every mode
   drives `Evaluator::prepare` / `evaluate_prepared`, so the model's formulas are

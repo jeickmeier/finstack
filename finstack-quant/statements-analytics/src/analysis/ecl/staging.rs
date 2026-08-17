@@ -5,7 +5,7 @@
 //! flags (watchlist, forbearance, adverse conditions).
 //!
 //! The classification waterfall is:
-//! 1. Stage 3 DPD backstop: DPD > `dpd_stage3_threshold` (absolute, non-rebuttable)
+//! 1. Stage 3 DPD backstop: DPD >= `dpd_stage3_threshold` (absolute, non-rebuttable)
 //! 2. Stage 3 qualitative default evidence (IFRS 9 B5.5.37 "unlikely to
 //!    pay"): bankruptcy / distressed modification / cross-default / user-
 //!    supplied default-evidence flags.
@@ -13,18 +13,16 @@
 //!    OR rating downgrade exceeds the configured notch threshold (IFRS 9
 //!    B5.5.17(f))
 //! 4. Stage 2 qualitative SICR flags (IFRS 9 B5.5.17)
-//! 5. Stage 2 DPD backstop: DPD > `dpd_stage2_threshold` (rebuttable presumption)
+//! 5. Stage 2 DPD backstop: DPD >= `dpd_stage2_threshold` (rebuttable presumption)
 //! 6. Curing: If previously Stage 2/3 and now meets cure criteria, allow step-down
 //! 7. Default: Stage 1
 //!
 //! # Comparator convention
 //!
-//! IFRS 9 B5.5.37 phrases the backstops as "contractual payments are
-//! *more than* 30 / 90 days past due". This module follows that literal
-//! wording: a trigger fires when `days_past_due > threshold` (equivalently
-//! DPD >= threshold + 1). Callers who require the alternative ">=" reading
-//! (e.g. some Basel IRB implementations) should set
-//! `dpd_stage2_threshold = 29` and `dpd_stage3_threshold = 89`.
+//! Stage 2/3 DPD backstops fire when `days_past_due >= threshold`. Defaults
+//! are 30 / 90, so 30 DPD is Stage 2 and 90 DPD is Stage 3. This matches
+//! CECL's impaired-DPD test and common bank / Basel IRB practice. IFRS 9
+//! B5.5.37's "more than 30 / 90 days" wording is not applied literally.
 //!
 //! # References
 //!
@@ -121,10 +119,10 @@ impl core::fmt::Display for StagingTrigger {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             StagingTrigger::DpdStage3 { dpd, threshold } => {
-                write!(f, "dpd_stage3 (dpd={} > {})", dpd, threshold)
+                write!(f, "dpd_stage3 (dpd={} >= {})", dpd, threshold)
             }
             StagingTrigger::DpdStage2 { dpd, threshold } => {
-                write!(f, "dpd_stage2 (dpd={} > {})", dpd, threshold)
+                write!(f, "dpd_stage2 (dpd={} >= {})", dpd, threshold)
             }
             StagingTrigger::PdDeltaAbsolute { delta, threshold } => {
                 write!(
@@ -264,12 +262,13 @@ fn rating_downgrade_notches(orig: &str, curr: &str, config: &StagingConfig) -> O
 ///
 /// The classification waterfall evaluates triggers in priority order:
 ///
-/// 1. **Stage 3 backstop**: DPD exceeds `dpd_stage3_threshold` (non-rebuttable)
+/// 1. **Stage 3 backstop**: DPD is at or above `dpd_stage3_threshold`
+///    (non-rebuttable)
 /// 2. **Stage 2 quantitative**: PD delta exceeds absolute OR relative
 ///    threshold, or a rating downgrade exceeds `rating_downgrade_notches`
 ///    (IFRS 9 B5.5.17(f))
 /// 3. **Stage 2 qualitative**: Any qualitative flag is active (if enabled)
-/// 4. **Stage 2 DPD backstop**: DPD exceeds `dpd_stage2_threshold`
+/// 4. **Stage 2 DPD backstop**: DPD is at or above `dpd_stage2_threshold`
 /// 5. **Curing**: Previous stage was higher, sufficient performing periods
 /// 6. **Default**: Stage 1 (no triggers active)
 ///
@@ -289,8 +288,10 @@ fn rating_downgrade_notches(orig: &str, curr: &str, config: &StagingConfig) -> O
 /// # Errors
 ///
 /// Propagates PD-term-structure lookup errors when both origination and
-/// current ratings are present and the SICR comparison requires cumulative
-/// probabilities.
+/// current ratings are present on the PD source and the SICR comparison
+/// requires cumulative probabilities. A rating that is absent from the
+/// source skips the PD-delta test (same as an unknown notch label) and
+/// does not fail the run.
 pub fn classify_stage(
     exposure: &Exposure,
     pd_source: &dyn PdTermStructure,
@@ -299,7 +300,7 @@ pub fn classify_stage(
     let mut triggers = Vec::new();
 
     // 1. Stage 3 DPD backstop (non-rebuttable)
-    if exposure.days_past_due > config.dpd_stage3_threshold {
+    if exposure.days_past_due >= config.dpd_stage3_threshold {
         triggers.push(StagingTrigger::DpdStage3 {
             dpd: exposure.days_past_due,
             threshold: config.dpd_stage3_threshold,
@@ -327,31 +328,36 @@ pub fn classify_stage(
         });
     }
 
-    // 3. Stage 2 quantitative: PD delta (only if both ratings available)
+    // 3. Stage 2 quantitative: PD delta (only if both ratings are present
+    //    on the exposure *and* on the PD source). A missing curve skips
+    //    PD-delta the same way an unknown notch label skips the downgrade
+    //    count; rating-downgrade notches still run on the labels.
     if let (Some(orig_rating), Some(curr_rating)) =
         (&exposure.origination_rating, &exposure.current_rating)
     {
-        let horizon = exposure
-            .remaining_maturity_years
-            .min(MAX_SICR_HORIZON_YEARS);
-        let orig_pd = pd_source.cumulative_pd(orig_rating, horizon)?;
-        let curr_pd = pd_source.cumulative_pd(curr_rating, horizon)?;
+        if pd_source.contains_rating(orig_rating) && pd_source.contains_rating(curr_rating) {
+            let horizon = exposure
+                .remaining_maturity_years
+                .min(MAX_SICR_HORIZON_YEARS);
+            let orig_pd = pd_source.cumulative_pd(orig_rating, horizon)?;
+            let curr_pd = pd_source.cumulative_pd(curr_rating, horizon)?;
 
-        let delta = curr_pd - orig_pd;
-        if delta > config.pd_delta_absolute {
-            triggers.push(StagingTrigger::PdDeltaAbsolute {
-                delta,
-                threshold: config.pd_delta_absolute,
-            });
-        }
-
-        if orig_pd > 0.0 {
-            let ratio = curr_pd / orig_pd;
-            if ratio > config.pd_delta_relative {
-                triggers.push(StagingTrigger::PdDeltaRelative {
-                    ratio,
-                    threshold: config.pd_delta_relative,
+            let delta = curr_pd - orig_pd;
+            if delta > config.pd_delta_absolute {
+                triggers.push(StagingTrigger::PdDeltaAbsolute {
+                    delta,
+                    threshold: config.pd_delta_absolute,
                 });
+            }
+
+            if orig_pd > 0.0 {
+                let ratio = curr_pd / orig_pd;
+                if ratio > config.pd_delta_relative {
+                    triggers.push(StagingTrigger::PdDeltaRelative {
+                        ratio,
+                        threshold: config.pd_delta_relative,
+                    });
+                }
             }
         }
 
@@ -377,7 +383,7 @@ pub fn classify_stage(
     }
 
     // 5. Stage 2 DPD backstop
-    if exposure.days_past_due > config.dpd_stage2_threshold {
+    if exposure.days_past_due >= config.dpd_stage2_threshold {
         triggers.push(StagingTrigger::DpdStage2 {
             dpd: exposure.days_past_due,
             threshold: config.dpd_stage2_threshold,
@@ -453,7 +459,8 @@ pub fn classify_stage(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::ecl::types::{QualitativeFlags, RawPdCurve};
+    use crate::analysis::ecl::types::{QualitativeFlags, RatingPdMap, RawPdCurve};
+    use indexmap::IndexMap;
 
     fn make_pd_curve() -> RawPdCurve {
         // A simple BBB curve: cumulative PD increases over time
@@ -522,6 +529,8 @@ mod tests {
             consecutive_performing_periods: 0,
             previous_stage: None,
             ead_schedule: None,
+            undrawn: 0.0,
+            ccf: 0.75,
         }
     }
 
@@ -654,17 +663,17 @@ mod tests {
         let cases: Vec<(StagingTrigger, &str)> = vec![
             (
                 StagingTrigger::DpdStage3 {
-                    dpd: 91,
+                    dpd: 90,
                     threshold: 90,
                 },
-                "dpd_stage3 (dpd=91 > 90)",
+                "dpd_stage3 (dpd=90 >= 90)",
             ),
             (
                 StagingTrigger::DpdStage2 {
-                    dpd: 31,
+                    dpd: 30,
                     threshold: 30,
                 },
-                "dpd_stage2 (dpd=31 > 30)",
+                "dpd_stage2 (dpd=30 >= 30)",
             ),
             (
                 StagingTrigger::PdDeltaAbsolute {
@@ -737,14 +746,14 @@ mod tests {
         let curve = make_pd_curve();
         let config = StagingConfig::default();
         let mut exposure = base_exposure();
-        exposure.days_past_due = 91;
+        exposure.days_past_due = 90;
 
         let result = classify_stage(&exposure, &curve, &config).unwrap();
         assert_eq!(result.stage, Stage::Stage3);
         assert!(matches!(
             result.triggers[0],
             StagingTrigger::DpdStage3 {
-                dpd: 91,
+                dpd: 90,
                 threshold: 90
             }
         ));
@@ -755,14 +764,17 @@ mod tests {
         let curve = make_pd_curve();
         let config = StagingConfig::default();
         let mut exposure = base_exposure();
-        exposure.days_past_due = 35;
+        exposure.days_past_due = 30;
 
         let result = classify_stage(&exposure, &curve, &config).unwrap();
         assert_eq!(result.stage, Stage::Stage2);
-        assert!(result
-            .triggers
-            .iter()
-            .any(|t| matches!(t, StagingTrigger::DpdStage2 { .. })));
+        assert!(result.triggers.iter().any(|t| matches!(
+            t,
+            StagingTrigger::DpdStage2 {
+                dpd: 30,
+                threshold: 30
+            }
+        )));
     }
 
     #[test]
@@ -962,5 +974,56 @@ mod tests {
         // obligor falls back through the Stage-2 waterfall. Bankruptcy
         // is not one of the SICR flags, so we end up at Stage 1.
         assert_eq!(result.stage, Stage::Stage1);
+    }
+
+    #[test]
+    fn missing_rating_on_raw_curve_skips_pd_delta() {
+        // A → BBB on a BBB-only curve: PD-delta is skipped (A is absent),
+        // and a 1-notch downgrade is below the default 3-notch threshold.
+        let curve = make_pd_curve();
+        let config = StagingConfig::default();
+        let mut exposure = base_exposure();
+        exposure.origination_rating = Some("A".to_string());
+        exposure.current_rating = Some("BBB".to_string());
+
+        let result = classify_stage(&exposure, &curve, &config).unwrap();
+        assert_eq!(result.stage, Stage::Stage1);
+        assert!(result
+            .triggers
+            .iter()
+            .all(|t| !matches!(t, StagingTrigger::PdDeltaAbsolute { .. })));
+    }
+
+    #[test]
+    fn rating_pd_map_fires_pd_delta_across_ratings() {
+        let map = RatingPdMap::new(IndexMap::from([
+            (
+                "A".to_string(),
+                RawPdCurve::new(
+                    "A",
+                    vec![(0.0, 0.0), (1.0, 0.005), (5.0, 0.03), (10.0, 0.06)],
+                )
+                .unwrap(),
+            ),
+            (
+                "BB".to_string(),
+                RawPdCurve::new(
+                    "BB",
+                    vec![(0.0, 0.0), (1.0, 0.05), (5.0, 0.20), (10.0, 0.40)],
+                )
+                .unwrap(),
+            ),
+        ]));
+        let config = StagingConfig::default();
+        let mut exposure = base_exposure();
+        exposure.origination_rating = Some("A".to_string());
+        exposure.current_rating = Some("BB".to_string());
+
+        let result = classify_stage(&exposure, &map, &config).unwrap();
+        assert_eq!(result.stage, Stage::Stage2);
+        assert!(result
+            .triggers
+            .iter()
+            .any(|t| matches!(t, StagingTrigger::PdDeltaAbsolute { .. })));
     }
 }

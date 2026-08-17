@@ -16,6 +16,10 @@ fn q(quarter: u8) -> PeriodId {
     PeriodId::quarter(2025, quarter)
 }
 
+fn y() -> PeriodId {
+    PeriodId::annual(2025)
+}
+
 fn s(v: f64) -> AmountOrScalar {
     AmountOrScalar::scalar(v)
 }
@@ -24,7 +28,124 @@ fn s(v: f64) -> AmountOrScalar {
 
 #[test]
 fn leverage_within_range_passes() {
-    // Debt/EBITDA = 500/200 = 2.5x
+    // Annual window size 1: Debt/TTM EBITDA = 500/200 = 2.5x
+    let model = ModelBuilder::new("test")
+        .periods("2025..2025", None)
+        .unwrap()
+        .value("debt", &[(y(), s(500.0))])
+        .value("ebitda", &[(y(), s(200.0))])
+        .build()
+        .unwrap();
+
+    let mut ev = Evaluator::new();
+    let results = ev.evaluate(&model).unwrap();
+
+    let check = LeverageRangeCheck {
+        debt_node: NodeId::new("debt"),
+        ebitda_node: NodeId::new("ebitda"),
+        warn_range: (0.0, 6.0),
+        error_range: (0.0, 10.0),
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(result.passed);
+    assert!(result.findings.is_empty());
+}
+
+#[test]
+fn leverage_above_warn_flags_warning() {
+    // Annual window size 1: Debt/TTM EBITDA = 1400/200 = 7.0x → above warn 6.0, below error 10.0
+    let model = ModelBuilder::new("test")
+        .periods("2025..2025", None)
+        .unwrap()
+        .value("debt", &[(y(), s(1400.0))])
+        .value("ebitda", &[(y(), s(200.0))])
+        .build()
+        .unwrap();
+
+    let mut ev = Evaluator::new();
+    let results = ev.evaluate(&model).unwrap();
+
+    let check = LeverageRangeCheck {
+        debt_node: NodeId::new("debt"),
+        ebitda_node: NodeId::new("ebitda"),
+        warn_range: (0.0, 6.0),
+        error_range: (0.0, 10.0),
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(result.passed); // warnings don't cause failure
+    assert_eq!(result.findings.len(), 1);
+    assert_eq!(result.findings[0].severity, Severity::Warning);
+}
+
+#[test]
+fn leverage_above_error_flags_error() {
+    // Annual window size 1: Debt/TTM EBITDA = 2200/200 = 11.0x → above error 10.0
+    let model = ModelBuilder::new("test")
+        .periods("2025..2025", None)
+        .unwrap()
+        .value("debt", &[(y(), s(2200.0))])
+        .value("ebitda", &[(y(), s(200.0))])
+        .build()
+        .unwrap();
+
+    let mut ev = Evaluator::new();
+    let results = ev.evaluate(&model).unwrap();
+
+    let check = LeverageRangeCheck {
+        debt_node: NodeId::new("debt"),
+        ebitda_node: NodeId::new("ebitda"),
+        warn_range: (0.0, 6.0),
+        error_range: (0.0, 10.0),
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(!result.passed);
+    assert_eq!(result.findings[0].severity, Severity::Error);
+}
+
+#[test]
+fn leverage_flags_non_positive_ebitda_as_error() {
+    // Debt/TTM EBITDA is undefined when TTM EBITDA <= 0; the check must
+    // surface this as a high-severity finding rather than silently passing.
+    let model = ModelBuilder::new("test")
+        .periods("2025..2025", None)
+        .unwrap()
+        .value("debt", &[(y(), s(500.0))])
+        .value("ebitda", &[(y(), s(-100.0))])
+        .build()
+        .unwrap();
+
+    let mut ev = Evaluator::new();
+    let results = ev.evaluate(&model).unwrap();
+
+    let check = LeverageRangeCheck {
+        debt_node: NodeId::new("debt"),
+        ebitda_node: NodeId::new("ebitda"),
+        warn_range: (0.0, 6.0),
+        error_range: (0.0, 10.0),
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(!result.passed);
+    assert_eq!(result.findings.len(), 1);
+    assert_eq!(result.findings[0].severity, Severity::Error);
+    assert!(result.findings[0].message.contains("undefined"));
+}
+
+#[test]
+fn leverage_skips_incomplete_quarterly_ttm() {
+    // Quarterly window is 4 periods. A single quarter must not be treated as
+    // annual EBITDA (500/200 = 2.5x would otherwise pass).
     let model = ModelBuilder::new("test")
         .periods("2025Q1..Q1", None)
         .unwrap()
@@ -51,13 +172,29 @@ fn leverage_within_range_passes() {
 }
 
 #[test]
-fn leverage_above_warn_flags_warning() {
-    // Debt/EBITDA = 1400/200 = 7.0x → above warn 6.0, below error 10.0
+fn leverage_uses_four_quarter_ttm() {
+    // Debt 1400 / TTM EBITDA 200 = 7.0x at Q4; Q1–Q3 are incomplete and skipped.
     let model = ModelBuilder::new("test")
-        .periods("2025Q1..Q1", None)
+        .periods("2025Q1..Q4", None)
         .unwrap()
-        .value("debt", &[(q(1), s(1400.0))])
-        .value("ebitda", &[(q(1), s(200.0))])
+        .value(
+            "debt",
+            &[
+                (q(1), s(1400.0)),
+                (q(2), s(1400.0)),
+                (q(3), s(1400.0)),
+                (q(4), s(1400.0)),
+            ],
+        )
+        .value(
+            "ebitda",
+            &[
+                (q(1), s(50.0)),
+                (q(2), s(50.0)),
+                (q(3), s(50.0)),
+                (q(4), s(50.0)),
+            ],
+        )
         .build()
         .unwrap();
 
@@ -74,68 +211,10 @@ fn leverage_above_warn_flags_warning() {
     let ctx = CheckContext::new(&model, &results);
     let result = check.execute(&ctx).unwrap();
 
-    assert!(result.passed); // warnings don't cause failure
+    assert!(result.passed);
     assert_eq!(result.findings.len(), 1);
     assert_eq!(result.findings[0].severity, Severity::Warning);
-}
-
-#[test]
-fn leverage_above_error_flags_error() {
-    // Debt/EBITDA = 2200/200 = 11.0x → above error 10.0
-    let model = ModelBuilder::new("test")
-        .periods("2025Q1..Q1", None)
-        .unwrap()
-        .value("debt", &[(q(1), s(2200.0))])
-        .value("ebitda", &[(q(1), s(200.0))])
-        .build()
-        .unwrap();
-
-    let mut ev = Evaluator::new();
-    let results = ev.evaluate(&model).unwrap();
-
-    let check = LeverageRangeCheck {
-        debt_node: NodeId::new("debt"),
-        ebitda_node: NodeId::new("ebitda"),
-        warn_range: (0.0, 6.0),
-        error_range: (0.0, 10.0),
-    };
-
-    let ctx = CheckContext::new(&model, &results);
-    let result = check.execute(&ctx).unwrap();
-
-    assert!(!result.passed);
-    assert_eq!(result.findings[0].severity, Severity::Error);
-}
-
-#[test]
-fn leverage_flags_non_positive_ebitda_as_error() {
-    // Debt/EBITDA is undefined when EBITDA <= 0; the check must surface this
-    // as a high-severity finding rather than silently passing.
-    let model = ModelBuilder::new("test")
-        .periods("2025Q1..Q1", None)
-        .unwrap()
-        .value("debt", &[(q(1), s(500.0))])
-        .value("ebitda", &[(q(1), s(-100.0))])
-        .build()
-        .unwrap();
-
-    let mut ev = Evaluator::new();
-    let results = ev.evaluate(&model).unwrap();
-
-    let check = LeverageRangeCheck {
-        debt_node: NodeId::new("debt"),
-        ebitda_node: NodeId::new("ebitda"),
-        warn_range: (0.0, 6.0),
-        error_range: (0.0, 10.0),
-    };
-
-    let ctx = CheckContext::new(&model, &results);
-    let result = check.execute(&ctx).unwrap();
-
-    assert!(!result.passed);
-    assert_eq!(result.findings.len(), 1);
-    assert_eq!(result.findings[0].severity, Severity::Error);
-    assert!(result.findings[0].message.contains("undefined"));
+    assert_eq!(result.findings[0].period, Some(q(4)));
 }
 
 // CoverageFloorCheck

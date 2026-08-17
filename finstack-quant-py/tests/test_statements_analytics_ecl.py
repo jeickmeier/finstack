@@ -11,18 +11,20 @@ def test_classify_stage_uses_canonical_defaults_and_backstop_toggles() -> None:
 
     exposure = Exposure("loan", 100.0, 0.4, 0.05, 5.0, 0.02, 0.015)
     assert exposure.dpd == 0
+    assert exposure.undrawn == 0.0
+    assert exposure.ccf == 0.75
     assert classify_stage(exposure) == ("Stage 1", ["no_trigger"])
 
-    exposure.dpd = 31
+    exposure.dpd = 30
     stage, reasons = classify_stage(exposure)
     assert stage == "Stage 2"
-    assert reasons[0].startswith("dpd_stage2")
+    assert reasons == ["dpd_stage2 (dpd=30 >= 30)"]
     assert classify_stage(exposure, dpd_30_trigger=False) == ("Stage 1", ["no_trigger"])
 
-    exposure.dpd = 91
+    exposure.dpd = 90
     stage, reasons = classify_stage(exposure)
     assert stage == "Stage 3"
-    assert reasons[0].startswith("dpd_stage3")
+    assert reasons == ["dpd_stage3 (dpd=90 >= 90)"]
     assert classify_stage(exposure, dpd_30_trigger=False, dpd_90_trigger=False) == (
         "Stage 1",
         ["no_trigger"],
@@ -49,7 +51,7 @@ def test_compute_ecl_weighted_validates_scenario_weights() -> None:
         (0.20, [(0.0, 0.0), (1.0, 0.05)]),
     ]
 
-    with pytest.raises(ValueError, match=r"scenario weights must sum to 1\.0"):
+    with pytest.raises(ValueError, match=r"[Ss]cenario weights must sum to 1\.0"):
         compute_ecl_weighted(1_000_000.0, scenarios, 0.45, 0.06, 1.0)
 
 

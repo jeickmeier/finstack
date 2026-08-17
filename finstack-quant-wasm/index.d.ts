@@ -8140,7 +8140,7 @@ export interface StatementsAnalyticsNamespace {
    * @param waccDenominatorEpsilon - Minimum spread preserved between WACC and the terminal growth rate so 1/(wacc - g) stays defined, in decimal.
    * @param exitMultipleBump - Absolute shock applied to an exit multiple, in turns of the multiple (1.0 = +/-1.0x).
    * @param midYearConvention - Whether every DCF re-run uses the mid-year discounting convention.
-   * @param marketJson - Optional canonical market-context JSON enabling curve-based discounting.
+   * @param marketJson - Optional canonical market-context JSON used for statement evaluation, not WACC discounting.
    * @throws Error - Rejects malformed model or terminal-value JSON, model-evaluation failures, a missing UFCF series or model currency, inconsistent WACC or terminal-value assumptions, missing bridge inputs, valuation failures, or failure to serialize the sensitivity result.
    */
   dcfSensitivity(

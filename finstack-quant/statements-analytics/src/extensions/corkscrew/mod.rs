@@ -18,19 +18,29 @@
 //! {
 //!   "accounts": [
 //!     {
-//!       "node_id": "cash",
+//!       "node_id": "inventory_end",
 //!       "account_type": "asset",
-//!       "changes": ["cash_inflows", "cash_outflows"]
+//!       "beginning_balance_node": "inventory_beg",
+//!       "changes": ["additions"],
+//!       "decreases": ["disposals"]
 //!     },
 //!     {
 //!       "node_id": "debt",
 //!       "account_type": "liability",
-//!       "changes": ["debt_issuance", "debt_repayment"]
+//!       "changes": ["debt_issuance"],
+//!       "decreases": ["debt_repayment"]
 //!     }
 //!   ],
 //!   "tolerance": 0.01
 //! }
 //! ```
+//!
+//! Identity: `expected = prev + Σ changes − Σ decreases` (or
+//! `beginning + Σ changes − Σ decreases` when `beginning_balance_node` is
+//! set). Decrease nodes stay **positive** outflows. Pair a roll-forward
+//! template `{name}` as `node_id = "{name}_end"`,
+//! `beginning_balance_node = "{name}_beg"`, `changes = increases`,
+//! `decreases = disposals`.
 //!
 //! # Example Usage
 //!
@@ -50,7 +60,8 @@
 //!     accounts: vec![CorkscrewAccount {
 //!         node_id: "cash".into(),
 //!         account_type: AccountType::Asset,
-//!         changes: vec!["cash_inflows".into(), "cash_outflows".into()],
+//!         changes: vec!["cash_inflows".into()],
+//!         decreases: vec!["cash_outflows".into()],
 //!         beginning_balance_node: None,
 //!     }],
 //!     tolerance: 0.01,
@@ -109,13 +120,23 @@ pub struct CorkscrewAccount {
     /// Account type (asset, liability, equity)
     pub account_type: AccountType,
 
-    /// Node IDs representing changes to the balance.
+    /// Node IDs representing increases (or signed net changes) to the balance.
     ///
-    /// Sign convention: every change node is **added** to the prior balance
-    /// (`expected = prev_balance + Σ changes`), so reductions (repayments,
-    /// outflows, disposals) must be stored as negative values in the model.
+    /// Each change node is **added** to the prior (or beginning) balance.
+    /// Prefer [`Self::decreases`] for positive outflows so roll-forward
+    /// decrease nodes do not need to be negated.
     #[serde(default)]
     pub changes: Vec<String>,
+
+    /// Node IDs representing positive decreases (repayments, outflows,
+    /// disposals) subtracted from the balance.
+    ///
+    /// Identity: `expected = prev + Σ changes − Σ decreases`, or
+    /// `beginning + Σ changes − Σ decreases` when
+    /// [`Self::beginning_balance_node`] is set. Empty by default so existing
+    /// configs that store reductions as negative `changes` still parse.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub decreases: Vec<String>,
 
     /// Optional: Node ID for beginning balance override
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -403,26 +424,31 @@ impl CorkscrewExtension {
                 ))
             })?;
 
-            // Calculate expected balance from changes
+            // Calculate expected balance from changes and decreases.
+            // Identity: expected = prev + Σ changes − Σ decreases.
             let mut expected_balance = prev_balance;
 
-            // Add changes for this period. A missing change node or value is a
-            // configuration error: silently skipping it understates the
-            // expected balance and can mask a real roll-forward break.
-            for change_node_id in &account.changes {
-                let change_values = results.nodes.get(change_node_id).ok_or_else(|| {
-                    finstack_quant_statements::error::Error::registry(format!(
-                        "Change node '{change_node_id}' for account '{}' not found in results",
-                        account.node_id
-                    ))
-                })?;
-                let change = change_values.get(curr_period).ok_or_else(|| {
-                    finstack_quant_statements::error::Error::registry(format!(
-                        "Change node '{change_node_id}' has no value for period '{curr_period}'"
-                    ))
-                })?;
-                expected_balance += change;
-            }
+            // A missing change/decrease node or value is a configuration
+            // error: silently skipping it understates the expected balance
+            // and can mask a real roll-forward break.
+            apply_flow_nodes(
+                &mut expected_balance,
+                &account.changes,
+                1.0,
+                "Change",
+                &account.node_id,
+                curr_period,
+                results,
+            )?;
+            apply_flow_nodes(
+                &mut expected_balance,
+                &account.decreases,
+                -1.0,
+                "Decrease",
+                &account.node_id,
+                curr_period,
+                results,
+            )?;
 
             // Check if beginning balance override is used. A missing period
             // value is a hard error, consistent with the other missing-value
@@ -513,6 +539,32 @@ impl CorkscrewExtension {
     }
 }
 
+/// Add signed flow-node values for the current period into `expected_balance`.
+fn apply_flow_nodes(
+    expected_balance: &mut f64,
+    node_ids: &[String],
+    sign: f64,
+    role: &str,
+    account_id: &str,
+    curr_period: &finstack_quant_core::dates::PeriodId,
+    results: &StatementResult,
+) -> Result<()> {
+    for node_id in node_ids {
+        let values = results.nodes.get(node_id).ok_or_else(|| {
+            finstack_quant_statements::error::Error::registry(format!(
+                "{role} node '{node_id}' for account '{account_id}' not found in results"
+            ))
+        })?;
+        let value = values.get(curr_period).ok_or_else(|| {
+            finstack_quant_statements::error::Error::registry(format!(
+                "{role} node '{node_id}' has no value for period '{curr_period}'"
+            ))
+        })?;
+        *expected_balance += sign * value;
+    }
+    Ok(())
+}
+
 /// Result of validating a single account.
 struct AccountValidation {
     account_id: String,
@@ -555,6 +607,7 @@ mod tests {
                 node_id: "cash".into(),
                 account_type: AccountType::Asset,
                 changes: vec!["cash_inflows".into(), "cash_outflows".into()],
+                decreases: vec![],
                 beginning_balance_node: None,
             }],
             tolerance: 0.01,
@@ -665,6 +718,7 @@ mod tests {
                 node_id: "cash".into(),
                 account_type: AccountType::Asset,
                 changes: vec!["inflows".into()],
+                decreases: vec![],
                 beginning_balance_node: None,
             }],
             tolerance: 0.01,
@@ -696,6 +750,7 @@ mod tests {
                 node_id: "cash".into(),
                 account_type: AccountType::Asset,
                 changes: vec!["inflows".into()],
+                decreases: vec![],
                 beginning_balance_node: None,
             }],
             tolerance: 0.01,
@@ -733,6 +788,7 @@ mod tests {
                 node_id: "cash".into(),
                 account_type: AccountType::Asset,
                 changes: vec!["inflows".into()],
+                decreases: vec![],
                 beginning_balance_node: Some("cash_beg".into()),
             }],
             tolerance: 0.01,
@@ -776,6 +832,7 @@ mod tests {
                 node_id: "cash".into(),
                 account_type: AccountType::Asset,
                 changes: vec![],
+                decreases: vec![],
                 beginning_balance_node: None,
             }],
             tolerance: 0.01,
@@ -831,12 +888,14 @@ mod tests {
                     node_id: "assets".into(),
                     account_type: AccountType::Asset,
                     changes: vec![],
+                    decreases: vec![],
                     beginning_balance_node: None,
                 },
                 CorkscrewAccount {
                     node_id: "liabilities".into(),
                     account_type: AccountType::Liability,
                     changes: vec![],
+                    decreases: vec![],
                     beginning_balance_node: None,
                 },
             ],
@@ -893,18 +952,21 @@ mod tests {
                     node_id: "assets".into(),
                     account_type: AccountType::Asset,
                     changes: vec![],
+                    decreases: vec![],
                     beginning_balance_node: None,
                 },
                 CorkscrewAccount {
                     node_id: "liabilities".into(),
                     account_type: AccountType::Liability,
                     changes: vec![],
+                    decreases: vec![],
                     beginning_balance_node: None,
                 },
                 CorkscrewAccount {
                     node_id: "equity".into(),
                     account_type: AccountType::Equity,
                     changes: vec![],
+                    decreases: vec![],
                     beginning_balance_node: None,
                 },
             ],
@@ -926,5 +988,81 @@ mod tests {
             "expected articulation failure, got {:?}",
             report.errors
         );
+    }
+
+    #[test]
+    fn decreases_are_subtracted_from_expected_balance() {
+        let model = ModelBuilder::new("decreases_identity")
+            .periods("2025Q1..Q2", None)
+            .expect("valid periods")
+            .value(
+                "inventory",
+                &[
+                    (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100.0)),
+                    (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(130.0)),
+                ],
+            )
+            .value(
+                "additions",
+                &[
+                    (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(0.0)),
+                    (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(50.0)),
+                ],
+            )
+            .value(
+                "disposals",
+                &[
+                    (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(0.0)),
+                    (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(20.0)),
+                ],
+            )
+            .build()
+            .expect("model should build");
+        let mut evaluator = Evaluator::new();
+        let results = evaluator
+            .evaluate(&model)
+            .expect("evaluation should succeed");
+
+        let config = CorkscrewConfig {
+            accounts: vec![CorkscrewAccount {
+                node_id: "inventory".into(),
+                account_type: AccountType::Asset,
+                changes: vec!["additions".into()],
+                decreases: vec!["disposals".into()],
+                beginning_balance_node: None,
+            }],
+            tolerance: 0.01,
+            fail_on_error: false,
+        };
+
+        let mut extension = CorkscrewExtension::with_config(config);
+        let report = extension
+            .execute(&model, &results)
+            .expect("extension should execute");
+        assert_eq!(
+            report.data["validations"][0]["is_valid"].as_bool(),
+            Some(true)
+        );
+        assert!(
+            report
+                .warnings
+                .iter()
+                .all(|w| !w.contains("roll-forward identity failed")),
+            "decreases must keep the identity intact, got {:?}",
+            report.warnings
+        );
+    }
+
+    #[test]
+    fn omitted_decreases_field_deserializes_as_empty() {
+        let json = r#"{
+            "node_id": "cash",
+            "account_type": "asset",
+            "changes": ["inflows"]
+        }"#;
+        let account: CorkscrewAccount =
+            serde_json::from_str(json).expect("legacy corkscrew JSON should parse");
+        assert!(account.decreases.is_empty());
+        assert_eq!(account.changes, vec!["inflows".to_string()]);
     }
 }

@@ -550,7 +550,7 @@ impl PyLeaseSpec {
         base_rent,
         end=None,
         growth_rate=0.0,
-        growth_convention=PyLeaseGrowthConvention::PerPeriod,
+        growth_convention=PyLeaseGrowthConvention::AnnualEscalator,
         rent_steps=Vec::new(),
         free_rent_periods=0,
         free_rent_windows=Vec::new(),
@@ -626,7 +626,7 @@ impl PyLeaseSpec {
 
     /// Compounding convention for ``growth_rate``: every model period
     /// (``per_period``) or once per lease-start anniversary
-    /// (``annual_escalator``).
+    /// (``annual_escalator``, the default Argus/NCREIF annual bump).
     #[getter]
     fn growth_convention(&self) -> PyLeaseGrowthConvention {
         PyLeaseGrowthConvention::from_rust(self.inner.growth_convention)

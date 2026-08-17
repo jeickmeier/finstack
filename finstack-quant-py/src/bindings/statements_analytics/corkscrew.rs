@@ -99,7 +99,11 @@ impl PyAccountType {
 /// account_type : AccountType
 ///     Classifier (asset, liability, equity).
 /// changes : list[str]
-///     Node ids representing changes (additions or subtractions) to the balance.
+///     Node ids representing increases (or signed net changes) added to
+///     the balance.
+/// decreases : list[str]
+///     Node ids representing positive decreases (repayments, outflows,
+///     disposals) subtracted from the balance. Default empty.
 /// beginning_balance_node : str | None
 ///     Optional override node for the beginning balance.
 #[pyclass(
@@ -115,11 +119,12 @@ pub struct PyCorkscrewAccount {
 #[pymethods]
 impl PyCorkscrewAccount {
     #[new]
-    #[pyo3(signature = (node_id, account_type, changes=Vec::new(), beginning_balance_node=None))]
+    #[pyo3(signature = (node_id, account_type, changes=Vec::new(), decreases=Vec::new(), beginning_balance_node=None))]
     fn new(
         node_id: &str,
         account_type: PyAccountType,
         changes: Vec<String>,
+        decreases: Vec<String>,
         beginning_balance_node: Option<&str>,
     ) -> Self {
         Self {
@@ -127,6 +132,7 @@ impl PyCorkscrewAccount {
                 node_id: node_id.to_string(),
                 account_type: account_type.to_rust(),
                 changes,
+                decreases,
                 beginning_balance_node: beginning_balance_node.map(str::to_string),
             },
         }
@@ -144,15 +150,23 @@ impl PyCorkscrewAccount {
         PyAccountType::from_rust(self.inner.account_type)
     }
 
-    /// Node ids of the period changes applied to the balance.
+    /// Node ids of the period increases (or signed net changes) added to
+    /// the balance.
     ///
-    /// Sign convention: every change node is **added** to the prior balance
-    /// (``expected = prev_balance + sum(changes)``), so reductions
-    /// (repayments, outflows, disposals) must already be negative in the
-    /// model.
+    /// Identity: ``expected = prev + Σ changes − Σ decreases`` (or
+    /// ``beginning + Σ changes − Σ decreases``). Prefer
+    /// :meth:`decreases` for positive outflows so roll-forward decrease
+    /// nodes do not need to be negated.
     #[getter]
     fn changes(&self) -> Vec<String> {
         self.inner.changes.clone()
+    }
+
+    /// Node ids of positive decreases (repayments, outflows, disposals)
+    /// subtracted from the balance.
+    #[getter]
+    fn decreases(&self) -> Vec<String> {
+        self.inner.decreases.clone()
     }
 
     /// Node id overriding the beginning balance, or ``None`` to use the
@@ -243,7 +257,7 @@ impl PyCorkscrewConfig {
     /// Absolute roll-forward tolerance, in the balance node's own units.
     ///
     /// A period is flagged when
-    /// ``abs(closing - (opening + sum(changes))) > tolerance``.
+    /// ``abs(closing - (opening + sum(changes) - sum(decreases))) > tolerance``.
     #[getter]
     fn tolerance(&self) -> f64 {
         self.inner.tolerance

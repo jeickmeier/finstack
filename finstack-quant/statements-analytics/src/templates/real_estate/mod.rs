@@ -491,17 +491,20 @@ impl RenewalSpec {
 
 /// Convention that determines how `growth_rate` compounds in a lease.
 ///
-/// - `PerPeriod` (default): `growth_rate` is applied every model period.
-/// - `AnnualEscalator`: `growth_rate` is applied once per **lease-start anniversary**,
-///   measured in model periods (i.e., every `periods_per_year()` periods from the segment
-///   start). Within the same lease year rent is flat; the bump resets at each rent step.
+/// - `AnnualEscalator` (default): `growth_rate` is applied once per
+///   **lease-start anniversary**, measured in model periods (every
+///   `periods_per_year()` periods from the segment start). Matches Argus /
+///   NCREIF annual bumps: rent is flat within a lease year and steps on the
+///   anniversary. The bump counter resets at each rent step.
+/// - `PerPeriod`: `growth_rate` is applied every model period. Must be set
+///   explicitly; omitted / defaulted values are never per-period.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LeaseGrowthConvention {
     /// Growth rate compounds every model period.
-    #[default]
     PerPeriod,
     /// Growth rate compounds annually on the lease-start anniversary.
+    #[default]
     AnnualEscalator,
 }
 
@@ -531,6 +534,10 @@ pub struct LeaseSpec {
     #[serde(default)]
     pub growth_rate: f64,
     /// Convention for compounding `growth_rate`.
+    ///
+    /// Defaults to [`LeaseGrowthConvention::AnnualEscalator`]. Set
+    /// [`LeaseGrowthConvention::PerPeriod`] explicitly for per-period
+    /// compounding.
     #[serde(default)]
     pub growth_convention: LeaseGrowthConvention,
     /// Rent steps that reset rent levels at their start periods.

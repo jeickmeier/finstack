@@ -161,7 +161,7 @@ fn build_and_check_model() -> finstack_quant_statements::checks::CheckReport {
                 (q(1), s(400.0)),
                 (q(2), s(420.0)),
                 (q(3), s(440.0)),
-                (q(4), s(455.0)),
+                (q(4), s(2219.0)), // 7.0x TTM: 80+84+88+65 = 317, 317 * 7 = 2219
             ],
         )
         .build()

@@ -105,6 +105,8 @@ impl EclStageRequest {
             consecutive_performing_periods: 0,
             previous_stage: None,
             ead_schedule: None,
+            undrawn: 0.0,
+            ccf: 0.75,
         };
         let pd_source = RequestPdSource {
             current_pd: self.current_pd,
@@ -166,7 +168,23 @@ impl EclRequest {
     /// Returns an error when exposure inputs, configuration, scenario weights,
     /// or cumulative-PD schedules violate their canonical invariants.
     pub fn compute(&self) -> Result<WeightedEclResult> {
-        let mut config = EclConfigBuilder::new();
+        if self.scenarios.is_empty() {
+            return Err(Error::Validation(
+                "At least one scenario is required for weighted ECL".to_string(),
+            ));
+        }
+
+        let scenarios = self
+            .scenarios
+            .iter()
+            .enumerate()
+            .map(|(index, (weight, _))| MacroScenario {
+                id: format!("scenario_{index}"),
+                weight: *weight,
+                lgd_override: None,
+            })
+            .collect::<Vec<_>>();
+        let mut config = EclConfigBuilder::new().scenarios(scenarios.clone());
         if let Some(years) = self.bucket_width_years {
             config = config.bucket_width(years);
         }
@@ -174,12 +192,6 @@ impl EclRequest {
             config = config.stage3_time_to_recovery(years);
         }
         let config = config.build()?;
-
-        if self.scenarios.is_empty() {
-            return Err(Error::Validation(
-                "At least one scenario is required for weighted ECL".to_string(),
-            ));
-        }
 
         let exposure = Exposure {
             id: self.exposure_id.clone(),
@@ -195,17 +207,9 @@ impl EclRequest {
             consecutive_performing_periods: 0,
             previous_stage: None,
             ead_schedule: self.ead_schedule.clone(),
+            undrawn: 0.0,
+            ccf: 0.75,
         };
-        let scenarios = self
-            .scenarios
-            .iter()
-            .enumerate()
-            .map(|(index, (weight, _))| MacroScenario {
-                id: format!("scenario_{index}"),
-                weight: *weight,
-                lgd_override: None,
-            })
-            .collect::<Vec<_>>();
         let curves = self
             .scenarios
             .iter()
@@ -280,7 +284,7 @@ mod tests {
         assert_eq!(default_request.classify().unwrap().stage, Stage::Stage1);
 
         let explicit_default = EclStageRequest {
-            days_past_due: Some(31),
+            days_past_due: Some(30),
             ..stage_request()
         };
         let result = explicit_default.classify().unwrap();
@@ -288,7 +292,7 @@ mod tests {
         assert!(matches!(
             result.triggers.first(),
             Some(StagingTrigger::DpdStage2 {
-                dpd: 31,
+                dpd: 30,
                 threshold: 30
             })
         ));
@@ -372,7 +376,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             invalid_weights.to_string(),
-            "Validation error: scenario weights must sum to 1.0, got 0.400000"
+            "Validation error: Scenario weights must sum to 1.0, got 0.400000"
         );
 
         let missing_curve = EclRequest {

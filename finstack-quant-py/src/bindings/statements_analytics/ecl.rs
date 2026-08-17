@@ -50,7 +50,8 @@ fn trigger_reason(trigger: &rust_ecl::StagingTrigger) -> String {
 /// id : str
 ///     Unique identifier for the exposure.
 /// ead : float
-///     Exposure at default (drawn balance), in base currency.
+///     Drawn outstanding balance at the reporting date, in base currency.
+///     Priced EAD is ``drawn + undrawn × ccf`` (core ``ead_revolver``).
 /// lgd : float
 ///     Loss given default in decimal (0..1).
 /// eir : float
@@ -63,6 +64,13 @@ fn trigger_reason(trigger: &rust_ecl::StagingTrigger) -> String {
 ///     Lifetime PD at initial recognition, in decimal.
 /// dpd : int | None
 ///     Current days past due. If omitted, the canonical request uses zero days.
+/// undrawn : float
+///     Undrawn commitment in the same currency as ``ead``. Default ``0.0``
+///     (fully drawn term loan). Constant across the horizon.
+/// ccf : float
+///     Credit-conversion factor applied to ``undrawn``, as a decimal in
+///     ``[0, 1]``. Default ``0.75`` (Basel IRB revolver,
+///     ``DEFAULT_REVOLVER_CCF``). Unused when ``undrawn`` is zero.
 #[pyclass(
     name = "Exposure",
     module = "finstack_quant.statements_analytics",
@@ -73,9 +81,18 @@ pub struct PyExposure {
     /// Unique identifier for the exposure.
     #[pyo3(get, set)]
     pub id: String,
-    /// Exposure at default (drawn balance), in the exposure's base currency.
+    /// Drawn outstanding balance at the reporting date, in the exposure's
+    /// base currency. Priced EAD is ``drawn + undrawn × ccf``.
     #[pyo3(get, set)]
     pub ead: f64,
+    /// Undrawn commitment at the reporting date, in the same currency as
+    /// ``ead``. Default ``0.0`` (fully drawn term loan).
+    #[pyo3(get, set)]
+    pub undrawn: f64,
+    /// Credit-conversion factor applied to ``undrawn``, as a decimal in
+    /// ``[0, 1]``. Default ``0.75`` (Basel IRB revolver).
+    #[pyo3(get, set)]
+    pub ccf: f64,
     /// Loss given default as a decimal fraction in ``[0, 1]`` (``0.45`` =
     /// 45% loss).
     #[pyo3(get, set)]
@@ -103,7 +120,18 @@ pub struct PyExposure {
 #[pymethods]
 impl PyExposure {
     #[new]
-    #[pyo3(signature = (id, ead, lgd, eir, remaining_maturity, current_pd, origination_pd, dpd=None))]
+    #[pyo3(signature = (
+        id,
+        ead,
+        lgd,
+        eir,
+        remaining_maturity,
+        current_pd,
+        origination_pd,
+        dpd=None,
+        undrawn=0.0,
+        ccf=rust_ecl::DEFAULT_REVOLVER_CCF,
+    ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         id: String,
@@ -114,10 +142,14 @@ impl PyExposure {
         current_pd: f64,
         origination_pd: f64,
         dpd: Option<u32>,
+        undrawn: f64,
+        ccf: f64,
     ) -> Self {
         Self {
             id,
             ead,
+            undrawn,
+            ccf,
             lgd,
             eir,
             remaining_maturity,
@@ -145,17 +177,20 @@ impl PyExposure {
 
     /// Export the exposure as a single-row pandas ``DataFrame``.
     ///
-    /// Columns: ``id``, ``ead``, ``lgd``, ``eir``, ``remaining_maturity``,
-    /// ``current_pd``, ``origination_pd``, ``dpd``.
+    /// Columns: ``id``, ``ead``, ``undrawn``, ``ccf``, ``lgd``, ``eir``,
+    /// ``remaining_maturity``, ``current_pd``, ``origination_pd``, ``dpd``.
     ///
-    /// ``ead`` is in the exposure's base currency; ``lgd``, ``current_pd``
-    /// and ``origination_pd`` are decimal fractions in ``[0, 1]``; ``eir`` is
-    /// a decimal annual rate; ``remaining_maturity`` is in years; ``dpd`` is
-    /// a whole number of days past due.
+    /// ``ead`` and ``undrawn`` are in the exposure's base currency; ``ccf``,
+    /// ``lgd``, ``current_pd`` and ``origination_pd`` are decimal fractions
+    /// in ``[0, 1]``; ``eir`` is a decimal annual rate;
+    /// ``remaining_maturity`` is in years; ``dpd`` is a whole number of days
+    /// past due.
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let data = PyDict::new(py);
         data.set_item("id", vec![self.id.clone()])?;
         data.set_item("ead", vec![self.ead])?;
+        data.set_item("undrawn", vec![self.undrawn])?;
+        data.set_item("ccf", vec![self.ccf])?;
         data.set_item("lgd", vec![self.lgd])?;
         data.set_item("eir", vec![self.eir])?;
         data.set_item("remaining_maturity", vec![self.remaining_maturity])?;
@@ -167,10 +202,12 @@ impl PyExposure {
 
     fn __repr__(&self) -> String {
         format!(
-            "Exposure(id='{}', ead={:.2}, lgd={:.4}, eir={:.4}, maturity={:.2}y, \
-             current_pd={:.4}, origination_pd={:.4}, dpd={})",
+            "Exposure(id='{}', ead={:.2}, undrawn={:.2}, ccf={:.2}, lgd={:.4}, \
+             eir={:.4}, maturity={:.2}y, current_pd={:.4}, origination_pd={:.4}, dpd={})",
             self.id,
             self.ead,
+            self.undrawn,
+            self.ccf,
             self.lgd,
             self.eir,
             self.remaining_maturity,
@@ -221,9 +258,12 @@ impl PyExposure {
 /// pd_delta_stage2 : float
 ///     Absolute PD increase threshold (e.g. ``0.01`` = 1pp) for SICR.
 /// dpd_30_trigger : bool
-///     When ``True``, DPD > 30 is used as a Stage 2 backstop (IFRS 9 B5.5.19).
+///     When ``True``, ``days_past_due >= 30`` is used as a Stage 2 backstop
+///     (bank / CECL alignment). Display contract:
+///     ``dpd_stage2 (dpd=30 >= 30)``.
 /// dpd_90_trigger : bool
-///     When ``True``, DPD > 90 forces Stage 3 (non-rebuttable backstop).
+///     When ``True``, ``days_past_due >= 90`` forces Stage 3 (non-rebuttable
+///     backstop). Display contract: ``dpd_stage3 (dpd=90 >= 90)``.
 ///
 /// Returns
 /// -------
@@ -256,7 +296,9 @@ fn classify_stage(
 /// Parameters
 /// ----------
 /// ead : float
-///     Exposure at default.
+///     Priced exposure at default (``drawn + undrawn × ccf``). Term loans
+///     pass the drawn balance; revolvers should pre-apply core
+///     ``ead_revolver``.
 /// pd_schedule : list[tuple[float, float]]
 ///     Cumulative PD curve as ``[(time_years, cumulative_pd), ...]``,
 ///     sorted ascending in time and monotonically non-decreasing in PD.
@@ -325,7 +367,9 @@ fn compute_ecl(
 /// Parameters
 /// ----------
 /// ead : float
-///     Exposure at default.
+///     Priced exposure at default (``drawn + undrawn × ccf``). Term loans
+///     pass the drawn balance; revolvers should pre-apply core
+///     ``ead_revolver``.
 /// scenarios : list[tuple[float, list[tuple[float, float]]]]
 ///     List of ``(weight, pd_schedule)`` pairs. Weights must sum to 1.0.
 ///     A ``(0.0, 0.0)`` knot is inserted automatically into each schedule

@@ -7,6 +7,7 @@
 use crate::analysis::scenarios::sensitivity::descending_f64;
 use crate::analysis::scenarios::TornadoEntry;
 use finstack_quant_core::currency::Currency;
+use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
@@ -92,6 +93,14 @@ pub struct DcfOptions {
     /// happens to contain a curve with the conventional name cannot be
     /// mistaken for the discounting basis.
     pub discount_curve_id: Option<CurveId>,
+    /// Statement node whose last-forecast-period value supplies the
+    /// [`TerminalValueSpec::ExitMultiple`] metric (default: `None`).
+    ///
+    /// When `Some`, that period's node value replaces `terminal_metric` on
+    /// the spec. The value must exist and be finite. When `None`, the
+    /// spec's explicit `terminal_metric` is used. Ignored for Gordon
+    /// Growth and H-Model terminals.
+    pub exit_multiple_metric_node: Option<String>,
 }
 
 impl Default for DcfOptions {
@@ -105,6 +114,7 @@ impl Default for DcfOptions {
             wacc_denominator_epsilon: 0.005,
             exit_multiple_bump: ExitMultipleBump::default(),
             discount_curve_id: None,
+            exit_multiple_metric_node: None,
         }
     }
 }
@@ -137,8 +147,16 @@ pub(crate) struct DcfEvalContext<'a> {
 
 /// Evaluate a financial model using DCF methodology with optional market context.
 ///
-/// Accepts a [`MarketContext`] for curve-based discounting when instruments
-/// reference discount curves.
+/// `market` and `as_of` are used only for **statement evaluation** (for
+/// example capital-structure curve lookups such as `cs.interest`). DCF
+/// discounting stays WACC-only and does not read discount curves from
+/// `market`.
+///
+/// - `Some(market)` + `Some(as_of)` evaluates the model with
+///   [`Evaluator::evaluate_with_market`].
+/// - `Some(market)` + `None` is an error: a market without a valuation date
+///   would silently drop curve-dependent nodes.
+/// - `None` market uses plain [`Evaluator::evaluate`], ignoring `as_of`.
 ///
 /// `wacc` and any growth rates embedded in `terminal_value` must be provided as
 /// decimal fractions. Cash flows are sourced from the model's non-actual
@@ -156,9 +174,13 @@ pub(crate) struct DcfEvalContext<'a> {
 ///   periods
 /// * `net_debt_override` - Optional flat net-debt amount used instead of the
 ///   model-derived bridge
-/// * `options` - Mid-year, bridge, share-count, and discount configuration
-/// * `market` - Optional market context used when the DCF instrument references
-///   discount curves
+/// * `options` - Mid-year, bridge, share-count, exit-multiple node, and
+///   discount configuration
+/// * `market` - Optional market context for statement evaluation (curve
+///   lookups). Not used as the DCF discounting basis
+/// * `as_of` - Valuation date for market-context lookups during statement
+///   evaluation. Required when `market` is `Some`; ignored when `market` is
+///   `None`
 ///
 /// # Returns
 ///
@@ -168,9 +190,11 @@ pub(crate) struct DcfEvalContext<'a> {
 ///
 /// # Errors
 ///
-/// Returns an error if the model cannot be evaluated, if `ufcf_node` has no
-/// forecast cash flows, if the model currency cannot be inferred, or if the
-/// terminal-value assumptions are internally inconsistent.
+/// Returns an error if `market` is provided without `as_of`, if the model
+/// cannot be evaluated, if `ufcf_node` has no forecast cash flows, if the
+/// model currency cannot be inferred, if an exit-multiple metric node is
+/// missing or non-finite, or if the terminal-value assumptions are
+/// internally inconsistent.
 ///
 /// # Examples
 ///
@@ -222,6 +246,7 @@ pub(crate) struct DcfEvalContext<'a> {
 ///     None,
 ///     &DcfOptions::default(),
 ///     None,
+///     None,
 /// )?;
 ///
 /// assert_eq!(result.enterprise_value.currency().to_string(), "USD");
@@ -232,6 +257,7 @@ pub(crate) struct DcfEvalContext<'a> {
 /// # References
 ///
 /// - Discounting and terminal-value context: `docs/REFERENCES.md#hull-options-futures`
+#[allow(clippy::too_many_arguments)]
 pub fn evaluate_dcf_with_market(
     model: &FinancialModelSpec,
     wacc: f64,
@@ -240,6 +266,7 @@ pub fn evaluate_dcf_with_market(
     net_debt_override: Option<f64>,
     options: &DcfOptions,
     market: Option<&MarketContext>,
+    as_of: Option<Date>,
 ) -> Result<CorporateValuationResult> {
     let result = evaluate_dcf_impl(
         model,
@@ -251,6 +278,7 @@ pub fn evaluate_dcf_with_market(
             options,
             market,
         },
+        as_of,
     )?;
     Ok(result)
 }
@@ -676,12 +704,23 @@ fn evaluate_dcf_impl(
     terminal_value: TerminalValueSpec,
     ufcf_node: &str,
     context: DcfEvalContext<'_>,
+    as_of: Option<Date>,
 ) -> Result<CorporateValuationResult> {
-    // Create evaluator and evaluate the model. Market context is applied later
-    // during DCF discounting; passing market here with `as_of = None` is a no-op
-    // in the evaluator, so we use plain `evaluate` for clarity.
+    // Market is for statement evaluation (curve-dependent CS nodes), not
+    // DCF discounting. Require as_of whenever a market is supplied so
+    // curves cannot be silently dropped.
     let mut evaluator = Evaluator::new();
-    let results = evaluator.evaluate(model)?;
+    let results = match (context.market, as_of) {
+        (Some(market), Some(as_of)) => evaluator.evaluate_with_market(model, market, as_of)?,
+        (Some(_), None) => {
+            return Err(finstack_quant_statements::error::Error::Eval(
+                "evaluate_dcf_with_market requires as_of when a market context is provided; \
+                 market is used for statement evaluation, not DCF discounting"
+                    .into(),
+            ));
+        }
+        (None, _) => evaluator.evaluate(model)?,
+    };
 
     evaluate_dcf_from_results_impl(model, &results, wacc, terminal_value, ufcf_node, context)
 }
@@ -723,6 +762,13 @@ pub(crate) fn evaluate_dcf_from_results_impl(
             ufcf_node
         )));
     }
+
+    let terminal_value = resolve_exit_multiple_metric(
+        model,
+        results,
+        terminal_value,
+        context.options.exit_multiple_metric_node.as_deref(),
+    )?;
 
     // Validate terminal value constraints. Guards are written fail-closed
     // (negated comparisons) so NaN parameters error instead of silently
@@ -974,6 +1020,44 @@ fn calculate_net_debt_from_model(
     Ok(total_debt - cash)
 }
 
+/// Replace an exit-multiple `terminal_metric` with the last forecast
+/// period's statement node when `metric_node` is set.
+fn resolve_exit_multiple_metric(
+    model: &FinancialModelSpec,
+    results: &StatementResult,
+    terminal_value: TerminalValueSpec,
+    metric_node: Option<&str>,
+) -> Result<TerminalValueSpec> {
+    let Some(node) = metric_node else {
+        return Ok(terminal_value);
+    };
+    let TerminalValueSpec::ExitMultiple { multiple, .. } = terminal_value else {
+        return Ok(terminal_value);
+    };
+    let last_forecast = model.periods.iter().rfind(|period| !period.is_actual);
+    let Some(last_forecast) = last_forecast else {
+        return Err(finstack_quant_statements::error::Error::Eval(
+            "Exit-multiple metric node requires a forecast period".into(),
+        ));
+    };
+    let Some(metric) = results.get(node, &last_forecast.id) else {
+        return Err(finstack_quant_statements::error::Error::Eval(format!(
+            "Exit-multiple metric node '{node}' has no value at last forecast period {}",
+            last_forecast.id
+        )));
+    };
+    if !metric.is_finite() {
+        return Err(finstack_quant_statements::error::Error::Eval(format!(
+            "Exit-multiple metric node '{node}' at last forecast period {} is not finite ({metric})",
+            last_forecast.id
+        )));
+    }
+    Ok(TerminalValueSpec::ExitMultiple {
+        terminal_metric: metric,
+        multiple,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1018,6 +1102,7 @@ mod tests {
             None,
             &DcfOptions::default(),
             None,
+            None,
         );
         assert!(result.is_err(), "currency metadata must be explicit");
     }
@@ -1051,6 +1136,7 @@ mod tests {
             "ufcf",
             None,
             &DcfOptions::default(),
+            None,
             None,
         );
         assert!(
@@ -1226,6 +1312,114 @@ mod tests {
         assert!(
             wacc(f64::NAN, 0.115, 0.4, 0.06, 0.25).is_err(),
             "inputs must be finite"
+        );
+    }
+
+    fn exit_multiple_model() -> FinancialModelSpec {
+        ModelBuilder::new("exit-multiple-node")
+            .periods("2025..2027", None)
+            .expect("valid periods")
+            .value(
+                "ufcf",
+                &[
+                    (PeriodId::annual(2025), AmountOrScalar::scalar(100.0)),
+                    (PeriodId::annual(2026), AmountOrScalar::scalar(110.0)),
+                    (PeriodId::annual(2027), AmountOrScalar::scalar(120.0)),
+                ],
+            )
+            .value(
+                "ebitda",
+                &[
+                    (PeriodId::annual(2025), AmountOrScalar::scalar(100.0)),
+                    (PeriodId::annual(2026), AmountOrScalar::scalar(125.0)),
+                    (PeriodId::annual(2027), AmountOrScalar::scalar(150.0)),
+                ],
+            )
+            .with_meta("currency", serde_json::json!("USD"))
+            .build()
+            .expect("valid model")
+    }
+
+    #[test]
+    fn exit_multiple_metric_node_uses_last_forecast_period() {
+        let model = exit_multiple_model();
+        let options = DcfOptions {
+            exit_multiple_metric_node: Some("ebitda".into()),
+            ..Default::default()
+        };
+        let result = evaluate_dcf_with_market(
+            &model,
+            0.10,
+            TerminalValueSpec::ExitMultiple {
+                // Explicit metric is ignored when the node is set.
+                terminal_metric: 999.0,
+                multiple: 8.0,
+            },
+            "ufcf",
+            Some(0.0),
+            &options,
+            None,
+            None,
+        )
+        .expect("DCF evaluation");
+
+        let dcf = result.dcf_instrument.expect("instrument");
+        let tv = dcf.calculate_terminal_value().expect("terminal value");
+        assert!(
+            (tv - 1_200.0).abs() < 1e-9,
+            "last-forecast EBITDA 150 × 8x must yield TV 1200, got {tv}"
+        );
+    }
+
+    #[test]
+    fn exit_multiple_metric_node_missing_errors() {
+        let model = exit_multiple_model();
+        let options = DcfOptions {
+            exit_multiple_metric_node: Some("missing_ebitda".into()),
+            ..Default::default()
+        };
+        let result = evaluate_dcf_with_market(
+            &model,
+            0.10,
+            TerminalValueSpec::ExitMultiple {
+                terminal_metric: 150.0,
+                multiple: 8.0,
+            },
+            "ufcf",
+            Some(0.0),
+            &options,
+            None,
+            None,
+        );
+        assert!(
+            result.is_err(),
+            "missing exit-multiple metric node must fail"
+        );
+    }
+
+    #[test]
+    fn exit_multiple_explicit_metric_used_when_node_is_none() {
+        let model = exit_multiple_model();
+        let result = evaluate_dcf_with_market(
+            &model,
+            0.10,
+            TerminalValueSpec::ExitMultiple {
+                terminal_metric: 150.0,
+                multiple: 8.0,
+            },
+            "ufcf",
+            Some(0.0),
+            &DcfOptions::default(),
+            None,
+            None,
+        )
+        .expect("DCF evaluation");
+
+        let dcf = result.dcf_instrument.expect("instrument");
+        let tv = dcf.calculate_terminal_value().expect("terminal value");
+        assert!(
+            (tv - 1_200.0).abs() < 1e-9,
+            "explicit metric 150 × 8 = 1200, got {tv}"
         );
     }
 }

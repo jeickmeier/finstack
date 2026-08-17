@@ -8,6 +8,7 @@ use finstack_quant_statements_analytics::extensions::{
     AccountType, CorkscrewAccount, CorkscrewConfig, CorkscrewExtension, CorkscrewStatus,
     CreditScorecardExtension, ScorecardConfig, ScorecardMetric, ScorecardStatus,
 };
+use finstack_quant_statements_analytics::templates::TemplatesExtension;
 
 // Corkscrew Extension Full Execution Tests
 
@@ -64,6 +65,7 @@ fn test_corkscrew_extension_with_valid_config() {
             node_id: "cash".into(),
             account_type: AccountType::Asset,
             changes: vec!["cash_inflows".into(), "cash_outflows".into()],
+            decreases: vec![],
             beginning_balance_node: None,
         }],
         tolerance: 0.01,
@@ -116,12 +118,14 @@ fn test_corkscrew_with_multiple_accounts() {
                 node_id: "cash".into(),
                 account_type: AccountType::Asset,
                 changes: vec![],
+                decreases: vec![],
                 beginning_balance_node: None,
             },
             CorkscrewAccount {
                 node_id: "debt".into(),
                 account_type: AccountType::Liability,
                 changes: vec![],
+                decreases: vec![],
                 beginning_balance_node: None,
             },
         ],
@@ -145,6 +149,7 @@ fn test_corkscrew_set_config() {
             node_id: "test".into(),
             account_type: AccountType::Asset,
             changes: vec![],
+            decreases: vec![],
             beginning_balance_node: None,
         }],
         tolerance: 0.01,
@@ -154,6 +159,93 @@ fn test_corkscrew_set_config() {
     extension.set_config(config);
     assert!(extension.config().is_some());
     assert_eq!(extension.config().unwrap().tolerance, 0.01);
+}
+
+#[test]
+fn roll_forward_inventory_pairs_with_corkscrew_decreases() {
+    let model = ModelBuilder::new("inventory_roll")
+        .periods("2025Q1..Q2", None)
+        .unwrap()
+        .value(
+            "additions",
+            &[
+                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100.0)),
+                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(50.0)),
+            ],
+        )
+        .value(
+            "disposals",
+            &[
+                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(0.0)),
+                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(20.0)),
+            ],
+        )
+        .add_roll_forward("inventory", &["additions"], &["disposals"])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let results = evaluator.evaluate(&model).unwrap();
+
+    let q1 = PeriodId::quarter(2025, 1);
+    let q2 = PeriodId::quarter(2025, 2);
+    let end = results.get_node("inventory_end").expect("inventory_end");
+    assert_eq!(end[&q1], 100.0);
+    assert_eq!(end[&q2], 130.0);
+
+    let paired = CorkscrewConfig {
+        accounts: vec![CorkscrewAccount {
+            node_id: "inventory_end".into(),
+            account_type: AccountType::Asset,
+            changes: vec!["additions".into()],
+            decreases: vec!["disposals".into()],
+            beginning_balance_node: Some("inventory_beg".into()),
+        }],
+        tolerance: 0.01,
+        fail_on_error: false,
+    };
+    let mut extension = CorkscrewExtension::with_config(paired);
+    let report = extension.execute(&model, &results).unwrap();
+    assert_eq!(
+        report.data["validations"][0]["is_valid"].as_bool(),
+        Some(true)
+    );
+    assert!(
+        report
+            .warnings
+            .iter()
+            .all(|w| !w.contains("roll-forward identity failed")),
+        "roll-forward pairing must satisfy corkscrew, got {:?}",
+        report.warnings
+    );
+
+    // Positive disposals in `changes` without negation break the identity.
+    let flipped = CorkscrewConfig {
+        accounts: vec![CorkscrewAccount {
+            node_id: "inventory_end".into(),
+            account_type: AccountType::Asset,
+            changes: vec!["additions".into(), "disposals".into()],
+            decreases: vec![],
+            beginning_balance_node: Some("inventory_beg".into()),
+        }],
+        tolerance: 0.01,
+        fail_on_error: false,
+    };
+    let mut flipped_ext = CorkscrewExtension::with_config(flipped);
+    let flipped_report = flipped_ext.execute(&model, &results).unwrap();
+    assert_eq!(
+        flipped_report.data["validations"][0]["is_valid"].as_bool(),
+        Some(false)
+    );
+    assert!(
+        flipped_report
+            .warnings
+            .iter()
+            .any(|e| e.contains("roll-forward identity failed")),
+        "flipping a decrease into changes without negating must fail, got {:?}",
+        flipped_report.warnings
+    );
 }
 
 // Credit Scorecard Extension Full Execution Tests

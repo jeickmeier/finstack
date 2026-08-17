@@ -33,6 +33,12 @@
 //!   unless a specific struct field states otherwise.
 //! - Generated node ids are intended to be stable and report-friendly, so callers
 //!   should pass explicit node names when integrating with reporting layers.
+//! - Roll-forward `{name}` pairs with corkscrew as `node_id = "{name}_end"`,
+//!   `beginning_balance_node = "{name}_beg"`, `changes = increases`,
+//!   `decreases = disposals`. Decrease nodes stay positive; corkscrew subtracts
+//!   them (`expected = beginning + Σ changes − Σ decreases`).
+//! - Vintage `decay_curve[k]` is indexed in **model periods**, not calendar
+//!   years. On a quarterly model, `k = 1` is the next quarter.
 //!
 //! # Example
 //!

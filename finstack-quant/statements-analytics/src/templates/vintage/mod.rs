@@ -17,7 +17,10 @@ use finstack_quant_statements::types::{NodeId, NodeSpec, NodeType};
 /// * `builder` - Model builder (must be Ready state to access periods)
 /// * `name` - Name of the resulting total node (e.g., "revenue")
 /// * `new_volume_node` - Node ID for the new volume per period (e.g., "new_sales")
-/// * `decay_curve` - Multipliers for the vintage curve (index 0 = inception, 1 = next period, etc.)
+/// * `decay_curve` - Multipliers for the vintage curve in **model periods**
+///   (not calendar years). Index 0 is inception in the current period;
+///   index `k` is the cohort `k` model periods later. On a quarterly model,
+///   `k = 1` is the next quarter.
 ///
 /// # Errors
 ///

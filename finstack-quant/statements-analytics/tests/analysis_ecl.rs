@@ -24,6 +24,8 @@ fn exposure(id: &str) -> Exposure {
         consecutive_performing_periods: 0,
         previous_stage: None,
         ead_schedule: None,
+        undrawn: 0.0,
+        ccf: 0.75,
     }
 }
 
@@ -350,4 +352,26 @@ fn invalid_ead_schedule_is_rejected() {
 
     exp.ead_schedule = Some(vec![(0.0, f64::NAN)]); // non-finite EAD
     assert!(compute_ecl_single(&exp, Stage::Stage1, &curve, &config).is_err());
+}
+
+#[test]
+fn undrawn_ccf_scales_stage1_ecl() {
+    let mut exp = exposure("revolver");
+    exp.ead = 1_000_000.0;
+    exp.undrawn = 400_000.0;
+    exp.ccf = 0.75;
+    exp.eir = 0.0;
+    exp.remaining_maturity_years = 1.0;
+    exp.lgd = 0.45;
+
+    let curve = RawPdCurve::new("BBB", vec![(0.0, 0.0), (1.0, 0.02)]).unwrap();
+    let result = compute_ecl_single(&exp, Stage::Stage1, &curve, &EclConfig::default()).unwrap();
+
+    let expected = 0.02 * 0.45 * 1_300_000.0;
+    assert!(
+        (result.ecl - expected).abs() < 1e-9,
+        "revolver ECL {} != 0.02 × LGD × 1.3e6 {}",
+        result.ecl,
+        expected
+    );
 }

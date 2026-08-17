@@ -1346,9 +1346,16 @@ def evaluate_dcf(
     equity_bridge_json: str | None = None,
     valuation_discounts_json: str | None = None,
     market: MarketContext | str | None = None,
+    as_of: datetime.date | str | None = None,
+    exit_multiple_metric_node: str | None = None,
 ) -> dict[str, float | str]:
     """
     Evaluate DCF valuation on a financial model.
+
+    ``market`` and ``as_of`` are used only for statement evaluation (for
+    example capital-structure curve lookups). DCF discounting stays
+    WACC-only. Year-end discounting (``mid_year_convention=False``) is the
+    default.
 
     Parameters
     ----------
@@ -1363,7 +1370,7 @@ def evaluate_dcf(
     net_debt_override : float or None
         Optional flat net debt.
     mid_year_convention : bool
-        Use mid-year discounting when ``True``.
+        Use mid-year discounting when ``True``. Default ``False`` (year-end).
     shares_outstanding : float or None
         Optional basic shares for per-share equity value.
     equity_bridge_json : str or None
@@ -1371,7 +1378,19 @@ def evaluate_dcf(
     valuation_discounts_json : str or None
         Optional JSON ``ValuationDiscounts`` (DLOM, DLOC).
     market : MarketContext or str or None
-        Optional ``MarketContext`` object or JSON string for curve-based discounting.
+        Optional ``MarketContext`` object or JSON string for statement
+        evaluation. Not used as the DCF discounting basis. When set,
+        ``as_of`` is required.
+    as_of : datetime.date or str or None
+        Valuation date for market-context lookups during statement
+        evaluation. Required when ``market`` is set; ignored when
+        ``market`` is ``None``. Accepts a date-like object or an ISO 8601
+        string.
+    exit_multiple_metric_node : str or None
+        Statement node whose last-forecast-period value supplies the
+        exit-multiple terminal metric. When set, that value replaces
+        ``terminal_metric`` on an ``ExitMultiple`` spec. Ignored for
+        Gordon Growth and H-Model terminals.
 
     Returns
     -------
@@ -1382,7 +1401,9 @@ def evaluate_dcf(
     Raises
     ------
     ValueError
-        If a JSON payload is malformed or the model, cash-flow node, or DCF inputs are invalid.
+        If ``market`` is set without ``as_of``, a JSON payload is malformed,
+        or the model, cash-flow node, exit-multiple metric node, or DCF
+        inputs are invalid.
 
     Examples
     --------
@@ -1410,6 +1431,7 @@ def dcf_sensitivity(
     exit_multiple_bump: float | None = None,
     mid_year_convention: bool = False,
     market: MarketContext | str | None = None,
+    exit_multiple_metric_node: str | None = None,
 ) -> dict[str, object]:
     """
     Rank the headline DCF assumptions by enterprise-value impact.
@@ -1444,9 +1466,15 @@ def dcf_sensitivity(
         Absolute shock applied to an exit multiple, in turns (``1.0`` =
         +/-1.0x). ``None`` uses the canonical Rust ``DcfOptions`` default.
     mid_year_convention : bool
-        Use mid-year discounting on every re-run when ``True``.
+        Use mid-year discounting on every re-run when ``True``. Default
+        ``False`` (year-end).
     market : MarketContext or str or None
-        ``MarketContext`` object or JSON string for curve-based discounting.
+        ``MarketContext`` object or JSON string used for statement
+        evaluation, not WACC discounting.
+    exit_multiple_metric_node : str or None
+        Statement node whose last-forecast-period value supplies the
+        exit-multiple terminal metric when the spec is ``ExitMultiple``.
+        ``None`` keeps the spec's explicit ``terminal_metric``.
 
     Returns
     -------
@@ -1608,6 +1636,7 @@ def run_corporate_analysis(
     coverage_node: str = "ebitda",
     market: MarketContext | str | None = None,
     as_of: datetime.date | str | None = None,
+    ltv_value_node: str | None = None,
 ) -> dict[str, Any]:
     """
     Run statements plus optional DCF equity and credit context.
@@ -1625,17 +1654,26 @@ def run_corporate_analysis(
     coverage_node : str
         Node for DSCR / interest coverage (default ``ebitda``).
     market : MarketContext or str or None
-        Optional ``MarketContext`` object or JSON string.
+        Optional ``MarketContext`` object or JSON string used for
+        statement evaluation, not WACC discounting.
     as_of : datetime.date | str | None
-        Optional valuation date, either a date-like object or an ISO 8601 string.
+        Optional valuation date, either a date-like object or an ISO 8601
+        string. Required when ``market`` is set.
+    ltv_value_node : str or None
+        Optional statement node supplying a per-period LTV denominator.
+        When set, each period's node value is used when present; a missing
+        period skips LTV for that period only. When omitted, a positive DCF
+        enterprise value is broadcast as a constant-denominator path
+        (current valuation versus forward debt, not a rolled EV).
 
     Returns
     -------
     dict[str, Any]
         Dict with ``statement_json``, optional ``equity`` scalars, ``credit``
-        (instrument_id → direct metrics JSON), and
-        ``ev_suppressed_non_positive``. The credit metrics include
-        ``skipped_periods`` for periods dropped from min/max stats.
+        (instrument_id → credit metrics JSON including ``dscr_incl_fees`` /
+        ``dscr_incl_fees_min``), and ``ev_suppressed_non_positive``. The
+        credit metrics include ``skipped_periods`` for periods dropped from
+        min/max stats.
 
     Raises
     ------
@@ -2341,14 +2379,15 @@ class Exposure:
     A single credit exposure for ECL / IFRS 9 / CECL computation.
 
     All monetary fields are in the exposure's base currency; all rates and
-    probabilities are expressed as decimals (``0.05`` = 5%).
+    probabilities are expressed as decimals (``0.05`` = 5%). Priced EAD is
+    ``drawn + undrawn × ccf`` via core ``ead_revolver``.
 
     Parameters
     ----------
     id : str
         Exposure identifier.
     ead : float
-        Exposure at default.
+        Drawn outstanding balance at the reporting date.
     lgd : float
         Loss given default (decimal).
     eir : float
@@ -2361,18 +2400,25 @@ class Exposure:
         Probability of default at origination (decimal).
     dpd : int or None
         Days past due (optional).
+    undrawn : float
+        Undrawn commitment in the same currency as ``ead``. Default ``0.0``.
+    ccf : float
+        Credit-conversion factor applied to ``undrawn``, as a decimal in
+        ``[0, 1]``. Default ``0.75`` (Basel IRB revolver).
 
     Examples
     --------
     >>> from finstack_quant.statements_analytics import Exposure
     >>> exposure = Exposure("loan", 1_000_000.0, 0.4, 0.05, 3.0, 0.02, 0.01)
-    >>> (exposure.id, exposure.ead, exposure.lgd)
-    ('loan', 1000000.0, 0.4)
+    >>> (exposure.id, exposure.ead, exposure.undrawn, exposure.ccf)
+    ('loan', 1000000.0, 0.0, 0.75)
 
     """
 
     id: str
     ead: float
+    undrawn: float
+    ccf: float
     lgd: float
     eir: float
     remaining_maturity: float
@@ -2390,6 +2436,8 @@ class Exposure:
         current_pd: float,
         origination_pd: float,
         dpd: int | None = None,
+        undrawn: float = 0.0,
+        ccf: float = 0.75,
     ) -> None:
         """
         Create one exposure with IFRS 9/CECL credit and maturity assumptions.
@@ -2399,7 +2447,7 @@ class Exposure:
         id : str
             Stable exposure identifier used in ECL results.
         ead : float
-            Exposure at default in the exposure's base-currency units.
+            Drawn outstanding balance in the exposure's base-currency units.
         lgd : float
             Loss given default as a decimal fraction.
         eir : float
@@ -2413,6 +2461,12 @@ class Exposure:
         dpd : int or None, default None
             Days past due used by staging backstops; ``None`` applies the
             canonical performing-exposure default of zero days.
+        undrawn : float, default 0.0
+            Undrawn commitment in the same currency as ``ead``. ``0.0`` is a
+            fully drawn term loan.
+        ccf : float, default 0.75
+            Credit-conversion factor applied to ``undrawn``, as a decimal in
+            ``[0, 1]``. Unused when ``undrawn`` is zero.
 
         Notes
         -----
@@ -2424,13 +2478,14 @@ class Exposure:
         """
         Export the exposure as a single-row pandas ``DataFrame``.
 
-        Columns: ``id``, ``ead``, ``lgd``, ``eir``, ``remaining_maturity``,
-        ``current_pd``, ``origination_pd``, ``dpd``.
+        Columns: ``id``, ``ead``, ``undrawn``, ``ccf``, ``lgd``, ``eir``,
+        ``remaining_maturity``, ``current_pd``, ``origination_pd``, ``dpd``.
 
-        ``ead`` is in the exposure's base currency; ``lgd``, ``current_pd``
-        and ``origination_pd`` are decimal fractions in ``[0, 1]``; ``eir`` is
-        a decimal annual rate; ``remaining_maturity`` is in years; ``dpd`` is
-        a whole number of days past due.
+        ``ead`` and ``undrawn`` are in the exposure's base currency; ``ccf``,
+        ``lgd``, ``current_pd`` and ``origination_pd`` are decimal fractions
+        in ``[0, 1]``; ``eir`` is a decimal annual rate;
+        ``remaining_maturity`` is in years; ``dpd`` is a whole number of days
+        past due.
 
         Returns
         -------
@@ -2460,9 +2515,11 @@ def classify_stage(
     pd_delta_stage2 : float or None
         Absolute PD increase threshold (decimal) for SICR.
     dpd_30_trigger : bool or None
-        Apply the 30-DPD Stage 2 rebuttable backstop.
+        Apply the Stage 2 backstop when ``days_past_due >= 30``. Display
+        contract: ``dpd_stage2 (dpd=30 >= 30)``.
     dpd_90_trigger : bool or None
-        Apply the 90-DPD Stage 3 non-rebuttable backstop.
+        Apply the Stage 3 backstop when ``days_past_due >= 90``. Display
+        contract: ``dpd_stage3 (dpd=90 >= 90)``.
 
     Returns
     -------
@@ -2484,6 +2541,8 @@ def classify_stage(
     >>> exposure = Exposure("loan", 1_000_000.0, 0.4, 0.05, 3.0, 0.02, 0.01)
     >>> classify_stage(exposure)
     ('Stage 1', ['no_trigger'])
+    >>> classify_stage(Exposure("loan", 1_000_000.0, 0.4, 0.05, 3.0, 0.02, 0.01, dpd=90))
+    ('Stage 3', ['dpd_stage3 (dpd=90 >= 90)'])
 
     """
     ...
@@ -2505,7 +2564,9 @@ def compute_ecl(
     Parameters
     ----------
     ead : float
-        Exposure at default.
+        Priced exposure at default (``drawn + undrawn × ccf``). Term loans
+        pass the drawn balance; revolvers should pre-apply
+        ``finstack_quant.core.credit.ead_revolver``.
     pd_schedule : list[tuple[float, float]]
         ``[(time_years, cumulative_pd), ...]`` knots. A
         ``(0.0, 0.0)`` knot is inserted automatically if not present.
@@ -2562,7 +2623,9 @@ def compute_ecl_weighted(
     Parameters
     ----------
     ead : float
-        Exposure at default.
+        Priced exposure at default (``drawn + undrawn × ccf``). Term loans
+        pass the drawn balance; revolvers should pre-apply
+        ``finstack_quant.core.credit.ead_revolver``.
     scenarios : list[tuple[float, list[tuple[float, float]]]]
         List of ``(weight, pd_schedule)``. Weights must sum to 1.0.
         A ``(0.0, 0.0)`` knot is inserted automatically into each schedule
@@ -3591,6 +3654,11 @@ class CorkscrewAccount:
     """
     Map one balance-sheet account to its corkscrew input nodes.
 
+    Identity: ``expected = prev + Σ changes − Σ decreases`` (or
+    ``beginning + Σ changes − Σ decreases`` when
+    ``beginning_balance_node`` is set). Pair a roll-forward template with
+    ``changes`` as increases and ``decreases`` as positive disposals.
+
     Parameters
     ----------
     node_id : str
@@ -3598,7 +3666,11 @@ class CorkscrewAccount:
     account_type : AccountType
         Asset, liability, or equity classification controlling change signs.
     changes : list[str]
-        Statement node IDs whose values are added or subtracted each period.
+        Statement node IDs added to the opening balance (increases or signed
+        net changes).
+    decreases : list[str]
+        Statement node IDs subtracted from the opening balance (positive
+        repayments, outflows, disposals). Default empty.
     beginning_balance_node : str or None
         Optional node ID supplying the opening balance instead of an inferred
         first-period balance.
@@ -3606,9 +3678,9 @@ class CorkscrewAccount:
     Examples
     --------
     >>> from finstack_quant.statements_analytics import AccountType, CorkscrewAccount
-    >>> account = CorkscrewAccount("cash", AccountType.Asset, ["cash_change"])
-    >>> (account.node_id, account.changes)
-    ('cash', ['cash_change'])
+    >>> account = CorkscrewAccount("inventory_end", AccountType.Asset, ["purchases"], ["disposals"])
+    >>> (account.node_id, account.changes, account.decreases)
+    ('inventory_end', ['purchases'], ['disposals'])
 
     """
 
@@ -3617,6 +3689,7 @@ class CorkscrewAccount:
         node_id: str,
         account_type: AccountType,
         changes: list[str] = ...,
+        decreases: list[str] = ...,
         beginning_balance_node: str | None = None,
     ) -> None:
         """
@@ -3629,7 +3702,9 @@ class CorkscrewAccount:
         account_type : AccountType
             Asset, liability, or equity classification controlling change signs.
         changes : list[str]
-            Statement node IDs added to or subtracted from the opening balance.
+            Statement node IDs added to the opening balance.
+        decreases : list[str]
+            Statement node IDs subtracted from the opening balance. Default empty.
         beginning_balance_node : str or None, default None
             Optional explicit opening-balance node; ``None`` uses the account's
             prior-period balance.
@@ -3673,16 +3748,33 @@ class CorkscrewAccount:
     @property
     def changes(self) -> list[str]:
         """
-        Node ids of the period changes applied to the balance.
+        Node ids of the period increases (or signed net changes) added to the
+        balance.
 
-        Sign convention: every change node is **added** to the prior balance (``expected
-        = prev_balance + sum(changes)``), so reductions (repayments, outflows,
-        disposals) must already be negative in the model.
+        Identity: ``expected = prev + Σ changes − Σ decreases``. Prefer
+        :attr:`decreases` for positive outflows so roll-forward decrease
+        nodes do not need to be negated.
 
         Returns
         -------
         list[str]
             Node ids of the change series added to the balance.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+    @property
+    def decreases(self) -> list[str]:
+        """
+        Node ids of positive decreases (repayments, outflows, disposals)
+        subtracted from the balance.
+
+        Returns
+        -------
+        list[str]
+            Node ids of the decrease series subtracted from the balance.
 
         Notes
         -----
@@ -3817,7 +3909,8 @@ class CorkscrewConfig:
         """
         Absolute roll-forward tolerance, in the balance node's own units.
 
-        A period is flagged when ``abs(closing - (opening + sum(changes))) >
+        A period is flagged when
+        ``abs(closing - (opening + sum(changes) - sum(decreases))) >
         tolerance``.
 
         Returns
@@ -5122,7 +5215,9 @@ class LeaseSpec:
     growth_rate : float
         Decimal rent-growth rate interpreted by ``growth_convention``.
     growth_convention : LeaseGrowthConvention
-        Whether rent growth compounds every model period or as an annual step.
+        Whether rent growth compounds every model period or as an annual
+        step. Default ``AnnualEscalator`` (Argus/NCREIF anniversary bump).
+        ``PerPeriod`` must be set explicitly.
     rent_steps : list[RentStepSpec]
         Explicit rent resets applied from each step's start period onward.
     free_rent_periods : int
@@ -5138,8 +5233,8 @@ class LeaseSpec:
     --------
     >>> from finstack_quant.statements_analytics import LeaseSpec
     >>> lease = LeaseSpec("lease_a", "2025Q1", 100.0, end="2025Q4")
-    >>> (lease.node_id, lease.base_rent, lease.occupancy)
-    ('lease_a', 100.0, 1.0)
+    >>> (lease.node_id, lease.base_rent, lease.growth_convention.value())
+    ('lease_a', 100.0, 'annual_escalator')
 
     """
 
@@ -5174,7 +5269,9 @@ class LeaseSpec:
         growth_rate : float, default 0.0
             Decimal rent-growth rate interpreted by ``growth_convention``.
         growth_convention : LeaseGrowthConvention
-            Whether growth compounds every model period or as an annual step.
+            Whether growth compounds every model period or as an annual
+            step. Default ``AnnualEscalator``; set ``PerPeriod`` explicitly
+            for per-period compounding.
         rent_steps : list[RentStepSpec]
             Explicit rent resets applied from each step's start period onward.
         free_rent_periods : int, default 0

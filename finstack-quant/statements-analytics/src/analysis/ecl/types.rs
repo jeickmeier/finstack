@@ -8,10 +8,21 @@
 //! - [`QualitativeFlags`] -- qualitative SICR triggers
 //! - [`PdTermStructure`] -- trait abstracting PD curve sources
 //! - [`RawPdCurve`] -- user-supplied PD term structure with linear interpolation
+//! - [`RatingPdMap`] -- rating-keyed map of [`RawPdCurve`] values
 
+use finstack_quant_core::credit::lgd::ead_revolver;
 use finstack_quant_core::math::interp::interp_knots_flat;
 use finstack_quant_core::{Error, InputError, Result};
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+
+/// Basel IRB standardized credit-conversion factor for revolving facilities
+/// (75%). Default [`Exposure::ccf`].
+pub const DEFAULT_REVOLVER_CCF: f64 = 0.75;
+
+fn default_revolver_ccf() -> f64 {
+    DEFAULT_REVOLVER_CCF
+}
 
 /// IFRS 9 impairment stage for a credit exposure.
 ///
@@ -35,7 +46,7 @@ pub enum Stage {
     /// (SICR) detected but not yet credit-impaired.
     Stage2,
     /// Non-performing -- lifetime ECL. Credit-impaired (objective evidence of
-    /// default: DPD > 90, restructuring, etc.).
+    /// default: DPD >= 90, restructuring, etc.).
     Stage3,
 }
 
@@ -171,6 +182,19 @@ pub struct Exposure {
     /// Outstanding balance (drawn amount) at the reporting date.
     pub ead: f64,
 
+    /// Undrawn commitment at the reporting date, in the same currency as
+    /// [`Self::ead`]. Constant across the horizon (no undrawn schedule).
+    /// Default `0.0` (fully drawn term loan). EAD is
+    /// `drawn + undrawn × ccf` via core `ead_revolver`.
+    #[serde(default)]
+    pub undrawn: f64,
+
+    /// Credit-conversion factor applied to [`Self::undrawn`], as a decimal
+    /// in `[0, 1]`. Default [`DEFAULT_REVOLVER_CCF`] (0.75, Basel IRB
+    /// revolver). Unused when `undrawn` is zero.
+    #[serde(default = "default_revolver_ccf")]
+    pub ccf: f64,
+
     /// Effective interest rate (annualized, decimal). Used as the IFRS 9
     /// discount rate. Example: 0.05 = 5%.
     pub eir: f64,
@@ -221,6 +245,8 @@ impl Exposure {
     /// The ECL engine assumes:
     ///
     /// - `ead >= 0` (signed EAD is not a modelled concept here)
+    /// - `undrawn >= 0` and finite
+    /// - `ccf` ∈ \[0, 1\] and finite
     /// - `eir` is finite and non-negative (discount factors must be well-defined)
     /// - `lgd` ∈ \[0, 1\]
     /// - `remaining_maturity_years >= 0` and finite
@@ -238,6 +264,18 @@ impl Exposure {
             return Err(Error::Validation(format!(
                 "Exposure '{}': EAD must be finite and non-negative (got {})",
                 self.id, self.ead
+            )));
+        }
+        if !self.undrawn.is_finite() || self.undrawn < 0.0 {
+            return Err(Error::Validation(format!(
+                "Exposure '{}': undrawn must be finite and non-negative (got {})",
+                self.id, self.undrawn
+            )));
+        }
+        if !self.ccf.is_finite() || !(0.0..=1.0).contains(&self.ccf) {
+            return Err(Error::Validation(format!(
+                "Exposure '{}': CCF must be finite and in [0, 1] (got {})",
+                self.id, self.ccf
             )));
         }
         if !self.eir.is_finite() || self.eir < 0.0 {
@@ -303,14 +341,29 @@ impl Exposure {
 
     /// EAD at time `t` (years from the reporting date).
     ///
-    /// Uses linear interpolation over [`Exposure::ead_schedule`] with flat
-    /// extrapolation at both ends when a schedule is present; otherwise
-    /// returns the constant [`Exposure::ead`].
-    pub(crate) fn ead_at(&self, t: f64) -> f64 {
-        match &self.ead_schedule {
+    /// Drawn amount is interpolated over [`Exposure::ead_schedule`] with
+    /// flat extrapolation when a schedule is present; otherwise the
+    /// constant [`Exposure::ead`] is used. The priced EAD is
+    /// `ead_revolver(drawn, undrawn, ccf)` from core: term loans with
+    /// `undrawn = 0` keep EAD equal to drawn.
+    ///
+    /// # Arguments
+    ///
+    /// * `t` - Time in years from the reporting date at which the drawn
+    ///   balance is interpolated from [`Self::ead_schedule`], or at which
+    ///   the constant [`Self::ead`] is used when no schedule is present.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `drawn`, [`Self::undrawn`], or [`Self::ccf`]
+    /// violate the core `ead_revolver` invariants (non-finite or negative
+    /// amounts, CCF outside `[0, 1]`).
+    pub(crate) fn ead_at(&self, t: f64) -> Result<f64> {
+        let drawn = match &self.ead_schedule {
             Some(schedule) if !schedule.is_empty() => interp_knots_flat(schedule, t),
             _ => self.ead,
-        }
+        };
+        ead_revolver(drawn, self.undrawn, self.ccf)
     }
 }
 
@@ -330,7 +383,28 @@ impl Exposure {
 pub trait PdTermStructure: Send + Sync {
     /// Cumulative probability of default by time `t` (in years) for the
     /// given rating state. Returns a value in \[0, 1\].
+    ///
+    /// # Arguments
+    ///
+    /// * `rating` - Rating label on this source's scale. Must match a
+    ///   curve the implementation can resolve.
+    /// * `t` - Horizon in years from the reporting date; must be finite
+    ///   and typically non-negative.
     fn cumulative_pd(&self, rating: &str, t: f64) -> Result<f64>;
+
+    /// Returns `true` when this source has a curve for `rating`.
+    ///
+    /// The default implementation treats a successful
+    /// [`Self::cumulative_pd`] lookup at `t = 0` as evidence the rating
+    /// exists. Implementations with a cheaper membership test should
+    /// override.
+    ///
+    /// # Arguments
+    ///
+    /// * `rating` - Rating label to test for membership on this source.
+    fn contains_rating(&self, rating: &str) -> bool {
+        self.cumulative_pd(rating, 0.0).is_ok()
+    }
 
     /// Marginal (forward) PD for the interval (t1, t2\], conditional on
     /// survival to t1. Default implementation derives from cumulative PD.
@@ -478,6 +552,52 @@ impl PdTermStructure for RawPdCurve {
         }
         Ok(interp_knots_flat(&self.knots, t))
     }
+
+    fn contains_rating(&self, rating: &str) -> bool {
+        rating == self.rating
+    }
+}
+
+/// Rating-keyed map of cumulative PD curves.
+///
+/// Implements [`PdTermStructure`] by looking up [`Self::curves`] with the
+/// requested rating label. Use this when SICR and ECL need distinct
+/// origination and current rating curves. A rating absent from the map
+/// is a missing curve: staging skips PD-delta; ECL lookup still errors.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RatingPdMap {
+    /// Cumulative PD curves keyed by the rating label
+    /// [`PdTermStructure::cumulative_pd`] looks up. Lookup uses the map
+    /// key; [`RawPdCurve::rating`] need not match the key.
+    pub curves: IndexMap<String, RawPdCurve>,
+}
+
+impl RatingPdMap {
+    /// Create a rating-keyed PD map.
+    ///
+    /// # Arguments
+    ///
+    /// * `curves` - Cumulative PD curves keyed by rating label. Each key
+    ///   is the rating used by [`PdTermStructure::cumulative_pd`]. An
+    ///   empty map is valid; every lookup then reports a missing rating.
+    #[must_use]
+    pub fn new(curves: IndexMap<String, RawPdCurve>) -> Self {
+        Self { curves }
+    }
+}
+
+impl PdTermStructure for RatingPdMap {
+    fn cumulative_pd(&self, rating: &str, t: f64) -> Result<f64> {
+        let curve = self.curves.get(rating).ok_or_else(|| {
+            Error::Validation(format!("RatingPdMap has no curve for rating '{rating}'"))
+        })?;
+        Ok(interp_knots_flat(&curve.knots, t))
+    }
+
+    fn contains_rating(&self, rating: &str) -> bool {
+        self.curves.contains_key(rating)
+    }
 }
 
 #[cfg(test)]
@@ -562,6 +682,8 @@ mod tests {
         // ead_schedule is an optional part of the canonical exposure shape.
         let exposure: Exposure = serde_json::from_str(json).unwrap();
         assert!(exposure.ead_schedule.is_none());
+        assert_eq!(exposure.undrawn, 0.0);
+        assert!((exposure.ccf - DEFAULT_REVOLVER_CCF).abs() < 1e-12);
 
         // Unknown fields are rejected.
         let unknown = json.replacen("\"id\": \"E1\",", "\"id\": \"E1\", \"bogus\": 1,", 1);
@@ -585,6 +707,8 @@ mod tests {
             consecutive_performing_periods: 0,
             previous_stage: None,
             ead_schedule: None,
+            undrawn: 0.0,
+            ccf: DEFAULT_REVOLVER_CCF,
         };
         assert!(exposure.validate().is_ok());
 
@@ -595,8 +719,8 @@ mod tests {
         // Valid schedule + interpolation behaviour.
         exposure.ead_schedule = Some(vec![(0.0, 100.0), (2.0, 0.0)]);
         assert!(exposure.validate().is_ok());
-        assert!((exposure.ead_at(1.0) - 50.0).abs() < 1e-12);
-        assert!((exposure.ead_at(5.0) - 0.0).abs() < 1e-12); // flat extrapolation
+        assert!((exposure.ead_at(1.0).unwrap() - 50.0).abs() < 1e-12);
+        assert!((exposure.ead_at(5.0).unwrap() - 0.0).abs() < 1e-12); // flat extrapolation
 
         // Non-increasing times rejected.
         exposure.ead_schedule = Some(vec![(1.0, 100.0), (1.0, 50.0)]);
@@ -609,6 +733,50 @@ mod tests {
         // Empty schedule rejected.
         exposure.ead_schedule = Some(vec![]);
         assert!(exposure.validate().is_err());
+        exposure.ead_schedule = None;
+
+        exposure.undrawn = -1.0;
+        assert!(exposure.validate().is_err());
+        exposure.undrawn = 400_000.0;
+        exposure.ccf = 1.5;
+        assert!(exposure.validate().is_err());
+        exposure.ccf = 0.75;
+        assert!(exposure.validate().is_ok());
+    }
+
+    #[test]
+    fn test_ead_revolver_adds_undrawn_times_ccf() {
+        let exposure = Exposure {
+            id: "R1".to_string(),
+            segments: vec![],
+            ead: 1_000_000.0,
+            undrawn: 400_000.0,
+            ccf: 0.75,
+            eir: 0.0,
+            remaining_maturity_years: 1.0,
+            lgd: 0.4,
+            days_past_due: 0,
+            current_rating: None,
+            origination_rating: None,
+            qualitative_flags: QualitativeFlags::default(),
+            consecutive_performing_periods: 0,
+            previous_stage: None,
+            ead_schedule: None,
+        };
+        // 1_000_000 + 400_000 × 0.75 = 1_300_000
+        assert!((exposure.ead_at(0.0).unwrap() - 1_300_000.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_rating_pd_map_lookup() {
+        let map = RatingPdMap::new(IndexMap::from([(
+            "BBB".to_string(),
+            RawPdCurve::new("BBB", vec![(0.0, 0.0), (1.0, 0.02)]).unwrap(),
+        )]));
+        assert!(map.contains_rating("BBB"));
+        assert!(!map.contains_rating("A"));
+        assert!((map.cumulative_pd("BBB", 1.0).unwrap() - 0.02).abs() < 1e-12);
+        assert!(map.cumulative_pd("A", 1.0).is_err());
     }
 
     #[test]

@@ -512,8 +512,87 @@ fn real_estate_annual_escalator_resets_at_rent_step() {
 }
 
 #[test]
-fn real_estate_per_period_growth_convention_is_default_and_unchanged() {
-    // Verify that the default convention (PerPeriod) matches the original behavior.
+fn real_estate_default_growth_convention_is_annual_escalator() {
+    assert_eq!(
+        LeaseGrowthConvention::default(),
+        LeaseGrowthConvention::AnnualEscalator
+    );
+
+    // Omitted serde field must deserialize as AnnualEscalator, not PerPeriod.
+    let explicit = LeaseSpec {
+        node_id: "lease_ser".into(),
+        start: PeriodId::quarter(2025, 1),
+        end: None,
+        base_rent: 100.0,
+        growth_rate: 0.03,
+        growth_convention: LeaseGrowthConvention::PerPeriod,
+        rent_steps: vec![],
+        free_rent_periods: 0,
+        free_rent_windows: vec![],
+        occupancy: 1.0,
+        renewal: None,
+    };
+    let mut value = serde_json::to_value(&explicit).expect("serialize lease");
+    value
+        .as_object_mut()
+        .expect("lease object")
+        .remove("growth_convention");
+    let decoded: LeaseSpec = serde_json::from_value(value).expect("deserialize lease");
+    assert_eq!(
+        decoded.growth_convention,
+        LeaseGrowthConvention::AnnualEscalator
+    );
+
+    // Quarterly model, growth_rate = 0.03, default convention:
+    // rent is flat within the lease year and steps +3% on the anniversary.
+    let nodes = RentRollOutputNodes::default();
+    let leases = vec![LeaseSpec {
+        node_id: "lease_def".into(),
+        start: PeriodId::quarter(2025, 1),
+        end: Some(PeriodId::quarter(2026, 4)),
+        base_rent: 100.0,
+        growth_rate: 0.03,
+        growth_convention: LeaseGrowthConvention::default(),
+        rent_steps: vec![],
+        free_rent_periods: 0,
+        free_rent_windows: vec![],
+        occupancy: 1.0,
+        renewal: None,
+    }];
+
+    let model = ModelBuilder::new("re_default_annual")
+        .periods("2025Q1..2026Q4", None)
+        .expect("periods should parse")
+        .add_rent_roll(&leases, &nodes)
+        .expect("rent roll template")
+        .build()
+        .expect("build");
+
+    let mut eval = Evaluator::new();
+    let results = eval.evaluate(&model).expect("evaluate");
+    let pgi = results
+        .get_node("lease_def.pgi")
+        .expect("lease_def.pgi node");
+
+    for q in 1..=4 {
+        assert_eq!(
+            pgi[&PeriodId::quarter(2025, q)],
+            100.0,
+            "2025 Q{q} should stay at base rent within the lease year"
+        );
+    }
+    let year_two = 100.0 * 1.03;
+    for q in 1..=4 {
+        assert!(
+            (pgi[&PeriodId::quarter(2026, q)] - year_two).abs() < 1e-10,
+            "2026 Q{q} should be {year_two} after the anniversary bump"
+        );
+    }
+}
+
+#[test]
+fn real_estate_per_period_growth_convention_compounds_each_period() {
+    // PerPeriod remains available when set explicitly.
     // Quarterly model, base_rent=100, growth_rate=0.10 => each quarter compounds.
 
     let nodes = RentRollOutputNodes::default();

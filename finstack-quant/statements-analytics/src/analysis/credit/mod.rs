@@ -1,7 +1,7 @@
 //! Credit analysis tools.
 //!
 //! - [`crate::analysis::credit::covenants`] — covenant forecasting bridge between statements and the covenant engine
-//! - [`crate::analysis::credit::credit_context`] — coverage ratios (DSCR, interest coverage, LTV) from statement data
+//! - [`crate::analysis::credit::credit_context`] — coverage ratios (cash / total / fee-inclusive DSCR, interest coverage, LTV path) from statement data
 
 pub(crate) mod covenants;
 pub(crate) mod credit_context;

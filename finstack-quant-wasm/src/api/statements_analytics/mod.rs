@@ -187,7 +187,7 @@ pub fn generate_tornado_entries(
 /// @param wacc_denominator_epsilon - Minimum spread preserved between WACC and the terminal growth rate so 1/(wacc - g) stays defined, in decimal.
 /// @param exit_multiple_bump - Absolute shock applied to an exit multiple, in turns of the multiple (1.0 = +/-1.0x).
 /// @param mid_year_convention - Whether every DCF re-run uses the mid-year discounting convention.
-/// @param market_json - Optional canonical market-context JSON enabling curve-based discounting.
+/// @param market_json - Optional canonical market-context JSON used for statement evaluation, not WACC discounting.
 #[wasm_bindgen(js_name = dcfSensitivity)]
 #[allow(clippy::too_many_arguments)]
 pub fn dcf_sensitivity(

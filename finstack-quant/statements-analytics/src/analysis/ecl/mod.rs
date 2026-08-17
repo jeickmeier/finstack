@@ -39,6 +39,8 @@
 //!     consecutive_performing_periods: 0,
 //!     previous_stage: None,
 //!     ead_schedule: None,
+//!     undrawn: 0.0,
+//!     ccf: 0.75,
 //! };
 //!
 //! let config = EclConfigBuilder::new().bucket_width(0.25).build()?;
@@ -66,7 +68,10 @@ pub(crate) mod request;
 pub(crate) mod staging;
 pub(crate) mod types;
 
-pub use types::{Exposure, PdTermStructure, QualitativeFlags, RawPdCurve, Stage};
+pub use types::{
+    Exposure, PdTermStructure, QualitativeFlags, RatingPdMap, RawPdCurve, Stage,
+    DEFAULT_REVOLVER_CCF,
+};
 
 pub use staging::{classify_stage, StageResult, StagingConfig, StagingTrigger};
 

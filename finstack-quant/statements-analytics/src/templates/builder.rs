@@ -52,6 +52,8 @@ impl<State> TemplatesExtension<State> for ModelBuilder<State> {
 /// Extension methods for `ModelBuilder<Ready>` (requires periods).
 pub trait VintageExtension {
     /// Add a vintage buildup (cohort analysis) structure.
+    ///
+    /// `decay_curve[k]` is in **model periods**, not calendar years.
     fn add_vintage_buildup(
         self,
         name: &str,

@@ -382,9 +382,23 @@ impl Report for PLSummaryReport<'_> {
 
 /// Trailing-twelve-month sum of `node_id` ending at (and including) `at`.
 ///
-/// Returns `None` unless a full window (periods-per-year, e.g. 4 quarters) of
-/// finite values is available at or before `at`.
-fn trailing_sum_at(results: &StatementResult, node_id: &str, at: &PeriodId) -> Option<f64> {
+/// Returns `None` unless a full window (`periods_per_year` of `at`, e.g. 4
+/// quarters or 1 annual period) of finite values is available at or before
+/// `at`. Incomplete windows (for example Q1 of a quarterly model) are skipped
+/// rather than annualized from a partial year.
+///
+/// # Arguments
+///
+/// * `results` - Evaluated statement nodes to read. The named node must exist
+///   and contribute a value at each period in the trailing window.
+/// * `node_id` - Statement node whose period values are summed (typically a
+///   flow such as EBITDA or interest expense), in the model's reporting units.
+/// * `at` - Inclusive window end. Window length is `at.kind().periods_per_year()`.
+pub(crate) fn trailing_sum_at(
+    results: &StatementResult,
+    node_id: &str,
+    at: &PeriodId,
+) -> Option<f64> {
     let window = at.kind().periods_per_year() as usize;
     let mut values: Vec<(PeriodId, f64)> = results
         .get_node(node_id)?

@@ -1,5 +1,7 @@
 //! Credit context metrics — coverage ratios derived from statement + capital structure data.
 
+use std::collections::HashMap;
+
 use finstack_quant_core::dates::{Period, PeriodId};
 use finstack_quant_statements::capital_structure::CapitalStructureCashflows;
 use finstack_quant_statements::evaluator::StatementResult;
@@ -10,7 +12,7 @@ use serde::{Deserialize, Serialize};
 /// Ratios are stored as plain scalars, so `2.0` means `2.0x` coverage and
 /// `0.40` means `40%` loan-to-value.
 ///
-/// DSCR is reported in two flavours:
+/// DSCR is reported in three flavours:
 ///
 /// - [`CreditContextMetrics::dscr`] / [`CreditContextMetrics::dscr_min`]:
 ///   the "cash" DSCR, whose denominator is **cash interest + principal**
@@ -21,12 +23,15 @@ use serde::{Deserialize, Serialize};
 ///   [`CreditContextMetrics::dscr_total_min`]: the "total" DSCR whose
 ///   denominator includes PIK interest. This is the accrual-basis view
 ///   that ties back to the income statement's interest expense line.
+/// - [`CreditContextMetrics::dscr_incl_fees`] /
+///   [`CreditContextMetrics::dscr_incl_fees_min`]: cash DSCR with fees in
+///   the denominator: `coverage / (interest_cash + principal + fees)`.
 ///
-/// The two are identical when there is no PIK component. When there is,
-/// `dscr_total <= dscr_cash`. Pairing a cash-sweep denominator with a
+/// Cash and total DSCR are identical when there is no PIK component. When
+/// there is, `dscr_total <= dscr`. Pairing a cash-sweep denominator with a
 /// PIK-inclusive numerator (or vice versa) will understate DSCR and is
-/// an easy source of covenant miscalculation; by exposing both we let
-/// the caller (and the covenant engine) pick the right convention
+/// an easy source of covenant miscalculation; by exposing each convention
+/// we let the caller (and the covenant engine) pick the right one
 /// explicitly. See Standard & Poor's "Corporate Methodology" and the
 /// Tuckman / Serrat credit discussion referenced below.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -37,23 +42,34 @@ pub struct CreditContextMetrics {
     /// Total DSCR by period (includes PIK):
     /// `coverage_node_value / (interest_total + principal)`.
     pub dscr_total: Vec<(PeriodId, f64)>,
+    /// Fee-inclusive cash DSCR by period:
+    /// `coverage_node_value / (interest_cash + principal + fees)`.
+    pub dscr_incl_fees: Vec<(PeriodId, f64)>,
     /// Interest coverage by period:
     /// `coverage_node_value / interest_expense_total`.
     pub interest_coverage: Vec<(PeriodId, f64)>,
-    /// LTV by period: `debt_balance / reference_value`.
+    /// LTV by period: `debt_balance[t] / reference_value[t]`.
+    ///
+    /// A scalar DCF enterprise value is broadcast as the same denominator
+    /// on every requested period (current valuation versus forward debt,
+    /// not a rolled enterprise-value path). A per-period statement node
+    /// supplies a varying value path; a missing period omits LTV for that
+    /// period only.
     pub ltv: Vec<(PeriodId, f64)>,
     /// Minimum cash DSCR across all periods.
     pub dscr_min: Option<f64>,
     /// Minimum total DSCR across all periods.
     pub dscr_total_min: Option<f64>,
+    /// Minimum fee-inclusive cash DSCR across all periods.
+    pub dscr_incl_fees_min: Option<f64>,
     /// Minimum interest coverage across all periods.
     pub interest_coverage_min: Option<f64>,
     /// Periods requested but excluded from one or more coverage series
-    /// (`dscr`, `dscr_total`, `interest_coverage`) — e.g. missing cashflow
-    /// data, currency mismatch, missing coverage-node value, or a
-    /// non-positive denominator. The min/max statistics above only reflect
-    /// the periods *not* listed here, so consumers can assess coverage of
-    /// the computed metrics.
+    /// (`dscr`, `dscr_total`, `dscr_incl_fees`, `interest_coverage`) — e.g.
+    /// missing cashflow data, currency mismatch, missing coverage-node
+    /// value, or a non-positive denominator. The min statistics above only
+    /// reflect the periods *not* listed here, so consumers can assess
+    /// coverage of the computed metrics.
     #[serde(default)]
     pub skipped_periods: Vec<PeriodId>,
 }
@@ -72,8 +88,12 @@ pub struct CreditContextMetrics {
 /// * `coverage_node` - Statement node used as the coverage numerator, typically
 ///   EBITDA or EBIT
 /// * `periods` - Periods over which to compute metrics
-/// * `reference_value` - Optional denominator for LTV, typically enterprise
-///   value or collateral value
+/// * `reference_values` - Optional per-period LTV denominators
+///   (`debt_balance[t] / value[t]`). Typically enterprise value or
+///   collateral value. A scalar DCF EV should be broadcast as one entry
+///   per requested period with the same amount: that is current valuation
+///   versus forward debt, not a rolled EV path. A missing period omits
+///   LTV for that period only. Non-positive values are ignored.
 ///
 /// # Returns
 ///
@@ -128,7 +148,7 @@ pub struct CreditContextMetrics {
 ///     "TLB",
 ///     "ebitda",
 ///     std::slice::from_ref(&period),
-///     Some(10_000_000.0),
+///     Some(&[(period.id, 10_000_000.0)][..]),
 /// );
 ///
 /// assert_eq!(metrics.dscr.len(), 1);
@@ -144,14 +164,18 @@ pub fn compute_credit_context(
     instrument_id: &str,
     coverage_node: &str,
     periods: &[Period],
-    reference_value: Option<f64>,
+    reference_values: Option<&[(PeriodId, f64)]>,
 ) -> CreditContextMetrics {
     let Some(inst_data) = cs_cashflows.by_instrument.get(instrument_id) else {
         return CreditContextMetrics::default();
     };
 
+    let reference_by_period: HashMap<PeriodId, f64> =
+        reference_values.unwrap_or(&[]).iter().copied().collect();
+
     let mut dscr = Vec::new();
     let mut dscr_total = Vec::new();
+    let mut dscr_incl_fees = Vec::new();
     let mut interest_coverage = Vec::new();
     let mut ltv = Vec::new();
 
@@ -163,9 +187,10 @@ pub fn compute_credit_context(
             };
             let interest_cash = cf.interest_expense_cash.amount();
             let principal = cf.principal_payment.amount();
+            let fees = cf.fees.amount();
             let balance = cf.debt_balance.amount();
 
-            if let Some(ref_val) = reference_value {
+            if let Some(&ref_val) = reference_by_period.get(&period.id) {
                 if ref_val > 0.0 {
                     ltv.push((period.id, balance / ref_val));
                 }
@@ -183,6 +208,10 @@ pub fn compute_credit_context(
             if debt_service_total > 0.0 {
                 dscr_total.push((period.id, coverage_val / debt_service_total));
             }
+            let debt_service_incl_fees = interest_cash + principal + fees;
+            if debt_service_incl_fees > 0.0 {
+                dscr_incl_fees.push((period.id, coverage_val / debt_service_incl_fees));
+            }
             if interest_total > 0.0 {
                 interest_coverage.push((period.id, coverage_val / interest_total));
             }
@@ -191,6 +220,7 @@ pub fn compute_credit_context(
 
     let dscr_min = dscr.iter().map(|(_, v)| *v).reduce(f64::min);
     let dscr_total_min = dscr_total.iter().map(|(_, v)| *v).reduce(f64::min);
+    let dscr_incl_fees_min = dscr_incl_fees.iter().map(|(_, v)| *v).reduce(f64::min);
     let interest_coverage_min = interest_coverage.iter().map(|(_, v)| *v).reduce(f64::min);
 
     // Surface coverage gaps: any requested period absent from at least one
@@ -202,6 +232,7 @@ pub fn compute_credit_context(
         .filter(|pid| {
             !(dscr.iter().any(|(p, _)| p == pid)
                 && dscr_total.iter().any(|(p, _)| p == pid)
+                && dscr_incl_fees.iter().any(|(p, _)| p == pid)
                 && interest_coverage.iter().any(|(p, _)| p == pid))
         })
         .collect();
@@ -217,10 +248,12 @@ pub fn compute_credit_context(
     CreditContextMetrics {
         dscr,
         dscr_total,
+        dscr_incl_fees,
         interest_coverage,
         ltv,
         dscr_min,
         dscr_total_min,
+        dscr_incl_fees_min,
         interest_coverage_min,
         skipped_periods,
     }
@@ -278,9 +311,21 @@ mod tests {
         (result, cs, periods)
     }
 
+    fn constant_refs(periods: &[Period], value: f64) -> Vec<(PeriodId, f64)> {
+        periods.iter().map(|p| (p.id, value)).collect()
+    }
+
     #[test]
     fn test_dscr_computed_correctly() {
-        let (result, cs, periods) = make_result_and_cs();
+        let (result, mut cs, periods) = make_result_and_cs();
+        for cf in cs
+            .by_instrument
+            .get_mut("BOND-001")
+            .expect("instrument")
+            .values_mut()
+        {
+            cf.fees = Money::new(25_000.0, Currency::USD);
+        }
         let metrics = compute_credit_context(&result, &cs, "BOND-001", "ebitda", &periods, None);
 
         // DSCR = 500k / (50k + 100k) = 3.333x
@@ -288,6 +333,19 @@ mod tests {
         assert!((metrics.dscr[0].1 - 3.333).abs() < 0.01);
         assert!(metrics.dscr_min.is_some());
         assert!((metrics.dscr_min.expect("dscr_min should be set") - 3.333).abs() < 0.01);
+
+        // Fee-inclusive DSCR = 500k / (50k + 100k + 25k) ≈ 2.857x
+        let expected_incl_fees = 500_000.0 / 175_000.0;
+        assert_eq!(metrics.dscr_incl_fees.len(), 2);
+        assert!((metrics.dscr_incl_fees[0].1 - expected_incl_fees).abs() < 0.01);
+        assert!(
+            (metrics
+                .dscr_incl_fees_min
+                .expect("dscr_incl_fees_min should be set")
+                - expected_incl_fees)
+                .abs()
+                < 0.01
+        );
     }
 
     #[test]
@@ -303,13 +361,14 @@ mod tests {
     #[test]
     fn test_ltv_computed_when_reference_value_provided() {
         let (result, cs, periods) = make_result_and_cs();
+        let refs = constant_refs(&periods, 10_000_000.0);
         let metrics = compute_credit_context(
             &result,
             &cs,
             "BOND-001",
             "ebitda",
             &periods,
-            Some(10_000_000.0),
+            Some(refs.as_slice()),
         );
 
         // LTV = 4M / 10M = 0.4
@@ -318,12 +377,56 @@ mod tests {
     }
 
     #[test]
+    fn test_ltv_path_varies_with_debt() {
+        let (result, mut cs, periods) = make_result_and_cs();
+        let inst = cs.by_instrument.get_mut("BOND-001").expect("instrument");
+        inst.get_mut(&periods[0].id).expect("q1").debt_balance =
+            Money::new(4_000_000.0, Currency::USD);
+        inst.get_mut(&periods[1].id).expect("q2").debt_balance =
+            Money::new(3_000_000.0, Currency::USD);
+
+        let refs = constant_refs(&periods, 10_000_000.0);
+        let metrics = compute_credit_context(
+            &result,
+            &cs,
+            "BOND-001",
+            "ebitda",
+            &periods,
+            Some(refs.as_slice()),
+        );
+
+        assert_eq!(metrics.ltv.len(), 2);
+        assert!((metrics.ltv[0].1 - 0.4).abs() < 0.01);
+        assert!((metrics.ltv[1].1 - 0.3).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_ltv_skips_period_missing_from_reference_path() {
+        let (result, cs, periods) = make_result_and_cs();
+        let refs = vec![(periods[0].id, 10_000_000.0)];
+        let metrics = compute_credit_context(
+            &result,
+            &cs,
+            "BOND-001",
+            "ebitda",
+            &periods,
+            Some(refs.as_slice()),
+        );
+
+        assert_eq!(metrics.ltv.len(), 1);
+        assert_eq!(metrics.ltv[0].0, periods[0].id);
+        assert!((metrics.ltv[0].1 - 0.4).abs() < 0.01);
+    }
+
+    #[test]
     fn test_missing_instrument_returns_empty() {
         let (result, cs, periods) = make_result_and_cs();
         let metrics = compute_credit_context(&result, &cs, "NONEXISTENT", "ebitda", &periods, None);
         assert!(metrics.dscr.is_empty());
+        assert!(metrics.dscr_incl_fees.is_empty());
         assert!(metrics.interest_coverage.is_empty());
         assert!(metrics.dscr_min.is_none());
+        assert!(metrics.dscr_incl_fees_min.is_none());
     }
 
     #[test]
@@ -359,13 +462,14 @@ mod tests {
             ebitda.shift_remove(&PeriodId::quarter(2025, 2));
         }
 
+        let refs = constant_refs(&periods, 10_000_000.0);
         let metrics = compute_credit_context(
             &result,
             &cs,
             "BOND-001",
             "ebitda",
             &periods,
-            Some(10_000_000.0),
+            Some(refs.as_slice()),
         );
 
         assert_eq!(metrics.ltv.len(), 2);

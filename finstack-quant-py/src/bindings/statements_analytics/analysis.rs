@@ -425,7 +425,7 @@ fn goal_seek(
 /// net_debt_override : float | None
 ///     Optional flat net-debt amount.
 /// mid_year_convention : bool
-///     Enable mid-year discounting convention.
+///     Enable mid-year discounting convention. Default ``False`` (year-end).
 /// shares_outstanding : float | None
 ///     Basic shares outstanding for per-share equity value.
 /// equity_bridge_json : str | None
@@ -433,8 +433,21 @@ fn goal_seek(
 /// valuation_discounts_json : str | None
 ///     Optional JSON ``ValuationDiscounts`` (DLOM, DLOC).
 /// market : MarketContext | str | None
-///     Optional ``MarketContext`` object or JSON string for curve-based
-///     discounting.
+///     Optional ``MarketContext`` object or JSON string used for
+///     **statement evaluation** (for example capital-structure curve
+///     lookups). DCF discounting stays WACC-only and does not read
+///     discount curves from ``market``. When ``market`` is supplied,
+///     ``as_of`` is required.
+/// as_of : datetime.date | str | None
+///     Valuation date for market-context lookups during statement
+///     evaluation. Required when ``market`` is set; ignored when
+///     ``market`` is ``None``. Accepts a date-like object
+///     (``datetime.date``, ``pandas.Timestamp``) or an ISO 8601 string.
+/// exit_multiple_metric_node : str | None
+///     Statement node whose last-forecast-period value supplies the
+///     exit-multiple terminal metric. When set, that value replaces
+///     ``terminal_metric`` on an ``ExitMultiple`` spec. Ignored for
+///     Gordon Growth and H-Model terminals.
 ///
 /// Returns
 /// -------
@@ -442,6 +455,13 @@ fn goal_seek(
 ///     Result dict with ``equity_value``, ``enterprise_value``,
 ///     ``net_debt``, ``terminal_value_pv``, ``equity_value_per_share``,
 ///     ``diluted_shares`` (all floats, in model currency).
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``market`` is set without ``as_of``, a JSON payload is
+///     malformed, or the model, cash-flow node, exit-multiple metric
+///     node, or DCF inputs are invalid.
 #[pyfunction]
 #[pyo3(signature = (
     model,
@@ -454,6 +474,8 @@ fn goal_seek(
     equity_bridge_json=None,
     valuation_discounts_json=None,
     market=None,
+    as_of=None,
+    exit_multiple_metric_node=None,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn evaluate_dcf<'py>(
@@ -468,6 +490,8 @@ fn evaluate_dcf<'py>(
     equity_bridge_json: Option<&str>,
     valuation_discounts_json: Option<&str>,
     market: Option<&Bound<'py, PyAny>>,
+    as_of: Option<&Bound<'py, PyAny>>,
+    exit_multiple_metric_node: Option<&str>,
 ) -> PyResult<Bound<'py, PyDict>> {
     use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
 
@@ -488,10 +512,14 @@ fn evaluate_dcf<'py>(
         equity_bridge,
         shares_outstanding,
         valuation_discounts,
+        exit_multiple_metric_node: exit_multiple_metric_node.map(str::to_owned),
         ..Default::default()
     };
 
     let market = extract_market_opt(py, market)?;
+    let as_of = as_of
+        .map(crate::bindings::date_utils::extract_date)
+        .transpose()?;
 
     let result = py
         .detach(move || {
@@ -503,6 +531,7 @@ fn evaluate_dcf<'py>(
                 net_debt_override,
                 &options,
                 market.as_ref(),
+                as_of,
             )
         })
         .map_err(display_to_py)?;
@@ -544,8 +573,15 @@ fn evaluate_dcf<'py>(
 ///     +/-1.0x). ``None`` uses the canonical Rust ``DcfOptions`` default.
 /// mid_year_convention : bool
 ///     Enable mid-year discounting convention for every re-run.
+///     Year-end (``False``) is the default.
 /// market : MarketContext | str | None
-///     Optional ``MarketContext`` object or JSON string for curve-based discounting.
+///     Optional ``MarketContext`` object or JSON string used for
+///     statement evaluation, not WACC discounting.
+/// exit_multiple_metric_node : str | None
+///     Statement node whose last-forecast-period value supplies the
+///     exit-multiple terminal metric when the spec is
+///     ``ExitMultiple``. ``None`` keeps the spec's explicit
+///     ``terminal_metric``.
 ///
 /// Returns
 /// -------
@@ -567,6 +603,7 @@ fn evaluate_dcf<'py>(
     exit_multiple_bump=None,
     mid_year_convention=false,
     market=None,
+    exit_multiple_metric_node=None,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn dcf_sensitivity<'py>(
@@ -581,6 +618,7 @@ fn dcf_sensitivity<'py>(
     exit_multiple_bump: Option<f64>,
     mid_year_convention: bool,
     market: Option<&Bound<'py, PyAny>>,
+    exit_multiple_metric_node: Option<&str>,
 ) -> PyResult<Bound<'py, PyDict>> {
     use finstack_quant_statements_analytics::analysis::{DcfOptions, ExitMultipleBump};
     use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
@@ -602,6 +640,7 @@ fn dcf_sensitivity<'py>(
             .unwrap_or(defaults.wacc_denominator_epsilon),
         exit_multiple_bump: exit_multiple_bump
             .map_or(defaults.exit_multiple_bump, ExitMultipleBump::Absolute),
+        exit_multiple_metric_node: exit_multiple_metric_node.map(str::to_owned),
         ..DcfOptions::default()
     };
 
@@ -827,18 +866,28 @@ fn wacc(
 /// coverage_node : str
 ///     Node used for DSCR/interest-coverage (default: ``"ebitda"``).
 /// market : MarketContext | str | None
-///     Optional ``MarketContext`` object or JSON string.
+///     Optional ``MarketContext`` object or JSON string used for
+///     statement evaluation (not WACC discounting).
 /// as_of : datetime.date | str | None
 ///     Optional valuation date, either a date-like object (``datetime.date``,
-///     ``pandas.Timestamp``) or an ISO 8601 string.
+///     ``pandas.Timestamp``) or an ISO 8601 string. Required when
+///     ``market`` is set.
+/// ltv_value_node : str | None
+///     Optional statement node supplying a per-period LTV denominator.
+///     When set, each period's node value is used when present; a missing
+///     period skips LTV for that period only. When omitted, a positive DCF
+///     enterprise value is broadcast as a constant-denominator path
+///     (current valuation versus forward debt, not a rolled EV).
 ///
 /// Returns
 /// -------
 /// dict
 ///     Dict with ``statement_json`` (str), optional ``equity`` (dict of
 ///     scalar values), and ``credit`` (dict mapping instrument_id to
-///     credit metrics JSON). ``ev_suppressed_non_positive`` reports whether
-///     a non-positive DCF enterprise value was excluded from LTV metrics.
+///     credit metrics JSON, including ``dscr_incl_fees`` /
+///     ``dscr_incl_fees_min``). ``ev_suppressed_non_positive`` reports
+///     whether a non-positive DCF enterprise value was excluded from LTV
+///     metrics.
 #[pyfunction]
 #[pyo3(signature = (
     model,
@@ -848,6 +897,7 @@ fn wacc(
     coverage_node="ebitda",
     market=None,
     as_of=None,
+    ltv_value_node=None,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn run_corporate_analysis<'py>(
@@ -859,6 +909,7 @@ fn run_corporate_analysis<'py>(
     coverage_node: &str,
     market: Option<&Bound<'py, PyAny>>,
     as_of: Option<&Bound<'py, PyAny>>,
+    ltv_value_node: Option<&str>,
 ) -> PyResult<Bound<'py, PyDict>> {
     use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
 
@@ -887,6 +938,10 @@ fn run_corporate_analysis<'py>(
     if let Some(as_of) = as_of {
         let date = crate::bindings::date_utils::extract_date(as_of)?;
         builder = builder.as_of(date);
+    }
+
+    if let Some(node) = ltv_value_node {
+        builder = builder.ltv_value_node(node);
     }
 
     let analysis = py

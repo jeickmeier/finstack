@@ -450,6 +450,8 @@ def test_exposure_to_dataframe_is_one_row() -> None:
     assert list(df.columns) == [
         "id",
         "ead",
+        "undrawn",
+        "ccf",
         "lgd",
         "eir",
         "remaining_maturity",
@@ -460,6 +462,8 @@ def test_exposure_to_dataframe_is_one_row() -> None:
     row = df.iloc[0]
     assert row["id"] == "loan-1"
     assert row["ead"] == pytest.approx(1_000_000.0)
+    assert row["undrawn"] == pytest.approx(0.0)
+    assert row["ccf"] == pytest.approx(0.75)
     assert row["lgd"] == pytest.approx(0.4)
     assert row["dpd"] == 45
 
@@ -555,7 +559,7 @@ def test_lease_spec_to_dataframe_summarises_nested_collections() -> None:
         "has_renewal",
     ]
     row = df.iloc[0]
-    assert row["growth_convention"] == "per_period"
+    assert row["growth_convention"] == "annual_escalator"
     assert row["rent_step_count"] == 0
     assert row["free_rent_window_count"] == 0
     assert bool(row["has_renewal"]) is True

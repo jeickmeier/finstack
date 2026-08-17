@@ -51,6 +51,7 @@ fn test_dcf_evaluation_gordon_growth() {
         Some(50_000.0),
         &DcfOptions::default(),
         None,
+        None,
     )
     .expect("DCF evaluation should succeed");
 
@@ -165,14 +166,18 @@ fn test_dcf_with_market_context() {
         .build()
         .expect("valid model");
 
+    let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+    let options = DcfOptions::default();
+
     // Test with None market context
-    let result_no_market = finstack_quant_statements_analytics::analysis::evaluate_dcf_with_market(
+    let result_no_market = evaluate_dcf_with_market(
         &model,
         0.10,
         TerminalValueSpec::GordonGrowth { growth_rate: 0.02 },
         "ufcf",
         Some(0.0),
-        &finstack_quant_statements_analytics::analysis::DcfOptions::default(),
+        &options,
+        None,
         None,
     )
     .expect("should succeed without market context");
@@ -180,19 +185,34 @@ fn test_dcf_with_market_context() {
     assert!(result_no_market.equity_value.amount() > 0.0);
     assert_eq!(result_no_market.equity_value.currency(), Currency::USD);
 
-    // Test with explicit market context
+    // A market without as_of must not silently drop curve lookups.
     let market = MarketContext::new();
-    let result_with_market =
-        finstack_quant_statements_analytics::analysis::evaluate_dcf_with_market(
-            &model,
-            0.10,
-            TerminalValueSpec::GordonGrowth { growth_rate: 0.02 },
-            "ufcf",
-            Some(0.0),
-            &finstack_quant_statements_analytics::analysis::DcfOptions::default(),
-            Some(&market),
-        )
-        .expect("should succeed with market context");
+    let missing_as_of = evaluate_dcf_with_market(
+        &model,
+        0.10,
+        TerminalValueSpec::GordonGrowth { growth_rate: 0.02 },
+        "ufcf",
+        Some(0.0),
+        &options,
+        Some(&market),
+        None,
+    );
+    assert!(
+        missing_as_of.is_err(),
+        "market without as_of must error rather than evaluate without curves"
+    );
+
+    let result_with_market = evaluate_dcf_with_market(
+        &model,
+        0.10,
+        TerminalValueSpec::GordonGrowth { growth_rate: 0.02 },
+        "ufcf",
+        Some(0.0),
+        &options,
+        Some(&market),
+        Some(as_of),
+    )
+    .expect("should succeed with market context and as_of");
 
     assert!(result_with_market.equity_value.amount() > 0.0);
     // With empty market, results should be the same
@@ -240,6 +260,7 @@ fn test_dcf_excludes_historical_periods_from_explicit_flows() {
         "ufcf",
         Some(0.0),
         &DcfOptions::default(),
+        None,
         None,
     )
     .expect("DCF evaluation should succeed");
@@ -311,6 +332,7 @@ fn test_dcf_uses_forecast_boundary_for_valuation_date_and_auto_net_debt() {
         "ufcf",
         None,
         &DcfOptions::default(),
+        None,
         None,
     )
     .expect("DCF evaluation should succeed");
@@ -400,6 +422,7 @@ fn test_dcf_forecast_only_uses_first_forecast_boundary_for_net_debt() {
         None,
         &DcfOptions::default(),
         None,
+        None,
     )
     .expect("DCF evaluation should succeed");
 
@@ -462,6 +485,7 @@ fn parity_orchestrator_dcf_matches_standalone() {
         Some(50_000.0),
         &DcfOptions::default(),
         None,
+        None,
     )
     .expect("standalone evaluate_dcf_with_market");
 
@@ -497,6 +521,7 @@ fn quarterly_gordon_terminal_value_uses_annualized_flow() {
         "ufcf",
         Some(0.0),
         &DcfOptions::default(),
+        None,
         None,
     )
     .expect("DCF evaluation");
@@ -539,6 +564,7 @@ fn annual_gordon_terminal_value_unchanged() {
         Some(0.0),
         &DcfOptions::default(),
         None,
+        None,
     )
     .expect("DCF evaluation");
 
@@ -573,6 +599,7 @@ fn usd_discount_curve_does_not_mix_discounting_bases() {
         Some(net_debt),
         &DcfOptions::default(),
         Some(&market),
+        Some(base_date),
     )
     .expect("DCF with market");
 
@@ -583,6 +610,7 @@ fn usd_discount_curve_does_not_mix_discounting_bases() {
         "ufcf",
         Some(net_debt),
         &DcfOptions::default(),
+        None,
         None,
     )
     .expect("DCF without market");
@@ -622,6 +650,112 @@ fn nan_terminal_value_parameters_error() {
         Some(0.0),
         &DcfOptions::default(),
         None,
+        None,
     );
     assert!(result.is_err(), "NaN growth_rate must fail closed");
+}
+
+/// Standalone DCF must evaluate statements with market + as_of so
+/// curve-dependent capital-structure nodes such as `cs.interest` resolve.
+#[test]
+fn evaluate_dcf_with_market_uses_curve_for_cs_interest() {
+    let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+    let disc_curve = DiscountCurve::builder("USD-OIS")
+        .base_date(as_of)
+        .knots([(0.0, 1.0), (1.0, 0.95), (5.0, 0.8)])
+        .build()
+        .expect("curve");
+    let market = MarketContext::new().insert(disc_curve);
+
+    let model = ModelBuilder::new("dcf-cs-interest")
+        .periods("2025Q1..Q4", Some("2025Q1"))
+        .expect("periods")
+        .value(
+            "revenue",
+            &[
+                (
+                    PeriodId::quarter(2025, 1),
+                    AmountOrScalar::scalar(1_000_000.0),
+                ),
+                (
+                    PeriodId::quarter(2025, 2),
+                    AmountOrScalar::scalar(1_100_000.0),
+                ),
+                (
+                    PeriodId::quarter(2025, 3),
+                    AmountOrScalar::scalar(1_200_000.0),
+                ),
+                (
+                    PeriodId::quarter(2025, 4),
+                    AmountOrScalar::scalar(1_300_000.0),
+                ),
+            ],
+        )
+        .add_bond(
+            "BOND-001",
+            Money::new(1_000_000.0, Currency::USD),
+            0.05,
+            as_of,
+            Date::from_calendar_date(2026, Month::January, 1).expect("valid date"),
+            "USD-OIS",
+        )
+        .expect("bond")
+        .compute("ufcf", "revenue - cs.interest_expense.total")
+        .expect("formula")
+        .with_meta("currency", serde_json::json!("USD"))
+        .build()
+        .expect("model");
+
+    let no_market = evaluate_dcf_with_market(
+        &model,
+        0.10,
+        TerminalValueSpec::GordonGrowth { growth_rate: 0.02 },
+        "ufcf",
+        Some(0.0),
+        &DcfOptions::default(),
+        None,
+        None,
+    );
+    assert!(
+        no_market.is_err(),
+        "cs.interest requires market-backed statement evaluation"
+    );
+
+    let missing_as_of = evaluate_dcf_with_market(
+        &model,
+        0.10,
+        TerminalValueSpec::GordonGrowth { growth_rate: 0.02 },
+        "ufcf",
+        Some(0.0),
+        &DcfOptions::default(),
+        Some(&market),
+        None,
+    );
+    assert!(
+        missing_as_of.is_err(),
+        "market without as_of must not silently drop CS curve lookups"
+    );
+
+    let result = evaluate_dcf_with_market(
+        &model,
+        0.10,
+        TerminalValueSpec::GordonGrowth { growth_rate: 0.02 },
+        "ufcf",
+        Some(0.0),
+        &DcfOptions::default(),
+        Some(&market),
+        Some(as_of),
+    )
+    .expect("standalone DCF must evaluate CS interest from the market curve");
+
+    assert!(result.enterprise_value.amount() > 0.0);
+    let dcf = result.dcf_instrument.expect("instrument");
+    assert_eq!(dcf.flows.len(), 3, "three forecast quarters are explicit");
+    // Semi-annual US corporate coupon from 2025-01-01 pays in Q3; that
+    // period's UFCF must be revenue minus curve-priced interest.
+    let q3_ufcf = dcf.flows[1].1;
+    assert!(
+        q3_ufcf < 1_200_000.0,
+        "Q3 UFCF must deduct the July coupon, got {q3_ufcf}"
+    );
 }

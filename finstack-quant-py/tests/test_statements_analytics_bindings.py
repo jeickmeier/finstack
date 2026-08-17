@@ -13,10 +13,14 @@ import pytest
 
 from finstack_quant import statements
 from finstack_quant.core.currency import Currency
+from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.money import Money
 from finstack_quant.statements_analytics import (
+    AccountType,
+    CorkscrewAccount,
     ScorecardConfig,
     add_roll_forward_with_opening,
+    evaluate_dcf,
     goal_seek,
     run_checks,
     run_corporate_analysis,
@@ -85,6 +89,38 @@ class TestCorporateAnalysis:
     def test_suppressed_enterprise_value_status_is_top_level(self) -> None:
         result = run_corporate_analysis(_model_json())
         assert result["ev_suppressed_non_positive"] is False
+
+
+class TestEvaluateDcf:
+    def test_market_without_as_of_is_an_error(self) -> None:
+        b = statements.ModelBuilder("dcf")
+        b.periods("2025..2026")
+        b.value("ufcf", [("2025", 100.0), ("2026", 110.0)])
+        b.with_meta("currency", '"USD"')
+        terminal = '{"type":"gordon_growth","growth_rate":0.02}'
+        with pytest.raises(ValueError, match="as_of"):
+            evaluate_dcf(
+                b.build(),
+                0.10,
+                terminal,
+                net_debt_override=0.0,
+                market=MarketContext(),
+            )
+
+
+class TestCorkscrewAccount:
+    def test_decreases_default_empty_and_round_trip(self) -> None:
+        account = CorkscrewAccount(
+            "inventory_end",
+            AccountType.Asset,
+            ["purchases"],
+            ["disposals"],
+        )
+        assert account.changes == ["purchases"]
+        assert account.decreases == ["disposals"]
+        restored = CorkscrewAccount.from_json(account.to_json())
+        assert restored.decreases == ["disposals"]
+        assert CorkscrewAccount("cash", AccountType.Asset, ["cash_change"]).decreases == []
 
 
 class TestScorecardConfig:
