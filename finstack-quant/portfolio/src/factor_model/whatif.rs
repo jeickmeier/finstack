@@ -206,7 +206,7 @@ impl<'a> WhatIfEngine<'a> {
     ///
     /// Returns each position's stressed-minus-base PV and a portfolio total in
     /// the portfolio base currency. Native PVs are converted with
-    /// [`crate::fx::convert_to_base`] on the **stressed** market at `as_of`,
+    /// the portfolio spot FX helper on the **stressed** market at `as_of`,
     /// so FX-factor shocks flow through the bumped spot matrix. Position P&L
     /// is that difference times [`crate::position::Position::scale_factor`].
     ///

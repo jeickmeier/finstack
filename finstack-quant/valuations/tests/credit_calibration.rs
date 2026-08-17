@@ -45,6 +45,18 @@ fn tags_for(rating: &str, region: &str) -> IssuerTags {
     IssuerTags(t)
 }
 
+fn tags_for_sector(rating: &str, region: &str, sector: &str) -> IssuerTags {
+    let mut t = tags_for(rating, region).0;
+    t.insert("sector".to_owned(), sector.to_owned());
+    IssuerTags(t)
+}
+
+/// Convert a basis-point fixture number to the decimal spread the calibrator
+/// requires (`100.0` → `0.01`).
+fn bp(value: f64) -> f64 {
+    value / 10_000.0
+}
+
 /// Synthesize a deterministic 24-month panel with 6 issuers in 2 ratings × 3 regions.
 fn fixture_panel() -> CalibrationFixture {
     let n = 24;
@@ -468,17 +480,15 @@ fn all_bucket_only_calibration_succeeds() {
 
 // I-2: sparse bucket emits None for empty dates (factor variance excludes gap)
 
-/// Fixture with 2 issuers, each the sole member of its Rating bucket.
-/// On date index 5 (0-based), ISSUER-IG has no observation (spread = None).
-/// That date should produce a `None` factor observation for the IG bucket,
-/// which must be excluded from the annualized variance calculation.
+/// A panel with a `None` hole is rejected: calibration requires a fully
+/// aligned grid (no missing issuer observations).
 #[test]
 fn sparse_bucket_emits_none_for_empty_dates() {
     let n = 12usize; // 12-month panel
     let as_of = d(2024, Month::December, 31);
     let dates = monthly_dates(n, as_of);
 
-    let generic_values: Vec<f64> = (0..n).map(|i| 0.5 * (i as f64).sin()).collect();
+    let generic_values: Vec<f64> = (0..n).map(|i| 0.01 * (i as f64).sin()).collect();
 
     // Two issuers: IG (sole member of its bucket) and HY (sole member of its bucket).
     // IG is missing on date index 5.
@@ -495,7 +505,7 @@ fn sparse_bucket_emits_none_for_empty_dates() {
             if i == 5 {
                 None
             } else {
-                Some(100.0 + 0.8 * generic_values[i] + 0.05 * (i as f64).cos())
+                Some(bp(100.0) + 0.8 * generic_values[i] + 0.05 * (i as f64).cos())
             }
         })
         .collect();
@@ -507,7 +517,7 @@ fn sparse_bucket_emits_none_for_empty_dates() {
 
     // HY series: fully observed.
     let hy_series: Vec<Option<f64>> = (0..n)
-        .map(|i| Some(200.0 + 1.2 * generic_values[i] + 0.03 * (i as f64).sin()))
+        .map(|i| Some(bp(200.0) + 1.2 * generic_values[i] + 0.03 * (i as f64).sin()))
         .collect();
     as_of_spreads.insert(hy_id.clone(), hy_series[n - 1].unwrap());
     spreads.insert(hy_id.clone(), hy_series);
@@ -542,59 +552,14 @@ fn sparse_bucket_emits_none_for_empty_dates() {
         )
     };
 
-    let model = CreditCalibrator::new(cfg)
+    let err = CreditCalibrator::new(cfg)
         .calibrate(inputs)
-        .expect("sparse-panel calibration succeeds");
-    model.validate().expect("model validates");
-
-    // The IG factor history is in returns space (dates[1..]). A missing spread
-    // at index 5 makes both return[4] (spread[5]-spread[4]) and return[5]
-    // (spread[6]-spread[5]) uncomputable. The empty-bucket entries are stored
-    // as 0.0 (the dense-compatible sentinel) so that FactorHistories can
-    // round-trip through JSON without serde type errors.
-    let fh = model
-        .factor_histories
-        .as_ref()
-        .expect("factor_histories present");
-    let ig_factor_id = finstack_quant_factor_model::FactorId::new("credit::level0::Rating::IG");
-    let ig_history = fh
-        .values
-        .get(&ig_factor_id)
-        .expect("IG factor history present");
-
-    // No NaN values must appear in the stored history (ensuring JSON round-trip).
+        .expect_err("a None hole must be rejected");
+    let msg = err.to_string();
     assert!(
-        ig_history.iter().all(|v| v.is_finite()),
-        "IG factor history must contain no NaN or Inf (JSON round-trip requirement)"
+        msg.contains("missing an observation") && msg.contains("ISSUER-IG"),
+        "rejection must name the hole, got {msg}"
     );
-
-    // Exactly 2 zero-sentinel entries must appear (the two return periods that
-    // straddle the missing spread at index 5).
-    let zero_count = ig_history.iter().filter(|&&v| v == 0.0).count();
-    assert_eq!(
-        zero_count, 2,
-        "IG factor history must contain exactly 2 zero sentinels (empty-bucket dates)"
-    );
-
-    // The factor variance is computed before flattening, over only the observed
-    // (Some) values. It must be strictly positive (the IG series is non-constant).
-    let vol_entry = model
-        .vol_state
-        .factors
-        .get(&ig_factor_id)
-        .expect("IG factor vol present");
-    let FactorVolModel::Sample { variance } = vol_entry else {
-        panic!("expected Sample variant for IG factor vol model")
-    };
-    assert!(
-        *variance > 0.0,
-        "IG factor variance must be positive (computed over non-zero-sentinel dates)"
-    );
-
-    // Round-trip serialization must succeed without error.
-    let json = serde_json::to_string(&model).expect("serialize succeeds");
-    let model2: CreditFactorModel = serde_json::from_str(&json).expect("deserialize succeeds");
-    assert_eq!(model.as_of, model2.as_of, "round-trip preserves as_of");
 }
 
 // Additional: unsupported PR-5a/b features error cleanly
@@ -1089,30 +1054,30 @@ fn idiosyncratic_override_wins_over_bucket_only_peer_proxy() {
 
 // PR-5a Test 3: BucketOnly uses peer proxy at deepest level
 
-/// Fixture: 1 BucketOnly issuer X with tags `{rating: IG, region: EU}` plus
-/// 2 IssuerBeta peers also tagged `{rating: IG, region: EU}`.
-/// X's adder vol must equal the mean of those 2 peers' vols, and the
-/// `peer_bucket` must be `"IG.EU"` (the deepest level = level-1 path).
+/// Fixture: 1 BucketOnly issuer X tagged `{rating: IG, region: EU, sector: TECH}`
+/// plus 2 IssuerBeta peers tagged `{rating: IG, region: EU, sector: BANK}`.
+/// X is alone in `IG.EU.TECH` so its residual is degenerate and the cascade
+/// walks up to `IG.EU`, the deepest bucket that has FromHistory peers.
 #[test]
 fn bucket_only_uses_peer_proxy_at_deepest_level() {
     let n = 24usize;
     let as_of = d(2024, Month::March, 31);
     let dates = monthly_dates(n, as_of);
 
-    let generic_values: Vec<f64> = (0..n).map(|i| 0.5 * (i as f64).sin()).collect();
+    let generic_values: Vec<f64> = (0..n).map(|i| 0.01 * (i as f64).sin()).collect();
 
     let mut spreads: BTreeMap<IssuerId, Vec<Option<f64>>> = BTreeMap::new();
     let mut issuer_tags_map: BTreeMap<IssuerId, IssuerTags> = BTreeMap::new();
     let mut as_of_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
 
-    // 2 IssuerBeta peers in IG.EU bucket.
+    // 2 IssuerBeta peers in IG.EU.BANK.
     for (idx, id) in ["PEER-1", "PEER-2"].iter().enumerate() {
         let issuer_id = IssuerId::new(*id);
         let series: Vec<Option<f64>> = (0..n)
             .map(|i| {
                 Some(
-                    100.0
-                        + (idx as f64) * 20.0
+                    bp(100.0)
+                        + (idx as f64) * bp(20.0)
                         + 0.8 * generic_values[i]
                         + 0.1 * ((idx as f64) + (i as f64) * 0.3).sin(),
                 )
@@ -1120,23 +1085,18 @@ fn bucket_only_uses_peer_proxy_at_deepest_level() {
             .collect();
         as_of_spreads.insert(issuer_id.clone(), series[n - 1].unwrap());
         spreads.insert(issuer_id.clone(), series);
-        issuer_tags_map.insert(issuer_id, tags_for("IG", "EU"));
+        issuer_tags_map.insert(issuer_id, tags_for_sector("IG", "EU", "BANK"));
     }
 
-    // BucketOnly issuer X in the same IG.EU bucket.
+    // BucketOnly issuer X in IG.EU.TECH — singleton at the deepest level, so
+    // the residual is identically zero and the peer-proxy cascade engages.
     let x_id = IssuerId::new("ISSUER-X");
-    // Only the last two dates are observed -> a single usable return, which
-    // is below the 2-observation minimum for a FromHistory adder vol, so the
-    // peer-proxy cascade must engage (issuers with sufficient residual
-    // history now always take their own FromHistory vol, any mode).
     let x_series: Vec<Option<f64>> = (0..n)
-        .map(|i| {
-            (i >= n - 2).then(|| 150.0 + 0.9 * generic_values[i] + 0.05 * ((i as f64) * 0.7).cos())
-        })
+        .map(|i| Some(bp(150.0) + 0.9 * generic_values[i] + 0.05 * ((i as f64) * 0.7).cos()))
         .collect();
     as_of_spreads.insert(x_id.clone(), x_series[n - 1].unwrap());
     spreads.insert(x_id.clone(), x_series);
-    issuer_tags_map.insert(x_id.clone(), tags_for("IG", "EU"));
+    issuer_tags_map.insert(x_id.clone(), tags_for_sector("IG", "EU", "TECH"));
 
     // Policy: peers are IssuerBeta, X is BucketOnly via ForceIssuerBeta +
     // ForceBucketOnly overrides.
@@ -1151,11 +1111,15 @@ fn bucket_only_uses_peer_proxy_at_deepest_level() {
     };
     let cfg = CreditCalibrationConfig {
         min_bucket_size_per_level: BucketSizeThresholds {
-            per_level: vec![1, 1],
+            per_level: vec![1, 1, 1],
         },
         ..config_with(
             policy,
-            vec![HierarchyDimension::Rating, HierarchyDimension::Region],
+            vec![
+                HierarchyDimension::Rating,
+                HierarchyDimension::Region,
+                HierarchyDimension::Sector,
+            ],
         )
     };
 
@@ -1236,7 +1200,7 @@ fn bucket_peer_proxy_falls_back_to_parent() {
     let as_of = d(2024, Month::March, 31);
     let dates = monthly_dates(n, as_of);
 
-    let generic_values: Vec<f64> = (0..n).map(|i| 0.5 * (i as f64).sin()).collect();
+    let generic_values: Vec<f64> = (0..n).map(|i| 0.01 * (i as f64).sin()).collect();
 
     let mut spreads: BTreeMap<IssuerId, Vec<Option<f64>>> = BTreeMap::new();
     let mut issuer_tags_map: BTreeMap<IssuerId, IssuerTags> = BTreeMap::new();
@@ -1248,8 +1212,8 @@ fn bucket_peer_proxy_falls_back_to_parent() {
         let series: Vec<Option<f64>> = (0..n)
             .map(|i| {
                 Some(
-                    100.0
-                        + (idx as f64) * 20.0
+                    bp(100.0)
+                        + (idx as f64) * bp(20.0)
                         + 0.8 * generic_values[i]
                         + 0.1 * ((idx as f64) + (i as f64) * 0.3).sin(),
                 )
@@ -1262,14 +1226,10 @@ fn bucket_peer_proxy_falls_back_to_parent() {
 
     // BucketOnly issuer X in IG.APAC — no IG.APAC IssuerBeta peers.
     let x_id = IssuerId::new("ISSUER-X");
-    // Only the last two dates are observed -> a single usable return, which
-    // is below the 2-observation minimum for a FromHistory adder vol, so the
-    // peer-proxy cascade must engage (issuers with sufficient residual
-    // history now always take their own FromHistory vol, any mode).
+    // Full panel: X is alone in IG.APAC, so the residual is degenerate and
+    // the peer-proxy cascade walks up to IG.
     let x_series: Vec<Option<f64>> = (0..n)
-        .map(|i| {
-            (i >= n - 2).then(|| 150.0 + 0.9 * generic_values[i] + 0.05 * ((i as f64) * 0.7).cos())
-        })
+        .map(|i| Some(bp(150.0) + 0.9 * generic_values[i] + 0.05 * ((i as f64) * 0.7).cos()))
         .collect();
     as_of_spreads.insert(x_id.clone(), x_series[n - 1].unwrap());
     spreads.insert(x_id.clone(), x_series);
@@ -1372,7 +1332,7 @@ fn peer_proxy_cascade_falls_back_to_global() {
     let as_of = d(2024, Month::March, 31);
     let dates = monthly_dates(n, as_of);
 
-    let generic_values: Vec<f64> = (0..n).map(|i| 0.5 * (i as f64).sin()).collect();
+    let generic_values: Vec<f64> = (0..n).map(|i| 0.01 * (i as f64).sin()).collect();
 
     let mut spreads: BTreeMap<IssuerId, Vec<Option<f64>>> = BTreeMap::new();
     let mut issuer_tags_map: BTreeMap<IssuerId, IssuerTags> = BTreeMap::new();
@@ -1384,8 +1344,8 @@ fn peer_proxy_cascade_falls_back_to_global() {
         let series: Vec<Option<f64>> = (0..n)
             .map(|i| {
                 Some(
-                    100.0
-                        + (idx as f64) * 20.0
+                    bp(100.0)
+                        + (idx as f64) * bp(20.0)
                         + 0.8 * generic_values[i]
                         + 0.1 * ((idx as f64) + (i as f64) * 0.3).sin(),
                 )
@@ -1398,14 +1358,10 @@ fn peer_proxy_cascade_falls_back_to_global() {
 
     // BucketOnly issuer X in HY.APAC — no HY IssuerBeta peers at any level.
     let x_id = IssuerId::new("ISSUER-X");
-    // Only the last two dates are observed -> a single usable return, which
-    // is below the 2-observation minimum for a FromHistory adder vol, so the
-    // peer-proxy cascade must engage (issuers with sufficient residual
-    // history now always take their own FromHistory vol, any mode).
+    // Full panel: X is alone in HY.APAC with no HY IssuerBeta peers, so the
+    // cascade lands on the global Default mean.
     let x_series: Vec<Option<f64>> = (0..n)
-        .map(|i| {
-            (i >= n - 2).then(|| 250.0 + 1.2 * generic_values[i] + 0.08 * ((i as f64) * 0.4).cos())
-        })
+        .map(|i| Some(bp(250.0) + 1.2 * generic_values[i] + 0.08 * ((i as f64) * 0.4).cos()))
         .collect();
     as_of_spreads.insert(x_id.clone(), x_series[n - 1].unwrap());
     spreads.insert(x_id.clone(), x_series);
@@ -1549,15 +1505,15 @@ fn globally_off_issuers_get_from_history_adder_vols() {
 fn adder_vol_defaults_to_zero_when_history_too_short_everywhere() {
     let as_of = d(2024, Month::March, 31);
     let dates = monthly_dates(2, as_of);
-    let generic_values = vec![100.0, 100.5];
+    let generic_values = vec![bp(100.0), bp(100.5)];
 
     let issuer = IssuerId::new("ISSUER-A");
     let mut spreads: BTreeMap<IssuerId, Vec<Option<f64>>> = BTreeMap::new();
-    spreads.insert(issuer.clone(), vec![Some(120.0), Some(121.0)]);
+    spreads.insert(issuer.clone(), vec![Some(bp(120.0)), Some(bp(121.0))]);
     let mut tags: BTreeMap<IssuerId, IssuerTags> = BTreeMap::new();
     tags.insert(issuer.clone(), tags_for("IG", "EU"));
     let mut as_of_spreads = BTreeMap::new();
-    as_of_spreads.insert(issuer, 121.0);
+    as_of_spreads.insert(issuer, bp(121.0));
 
     let cfg = CreditCalibrationConfig {
         min_bucket_size_per_level: BucketSizeThresholds {
@@ -1700,7 +1656,7 @@ fn full_sample_repaired_covariance_is_psd() {
     let n = 3usize; // 3 dates → 2 returns
     let as_of = d(2024, Month::March, 31);
     let dates = monthly_dates(n, as_of);
-    let generic_values: Vec<f64> = vec![0.0, 1.0, -0.5];
+    let generic_values: Vec<f64> = vec![0.0, 0.01, -0.004];
 
     let issuer_specs = [
         ("ISSUER-A", "IG", "EU"),
@@ -1721,8 +1677,8 @@ fn full_sample_repaired_covariance_is_psd() {
         let series: Vec<Option<f64>> = (0..n)
             .map(|i| {
                 Some(
-                    100.0
-                        + (idx as f64) * 10.0
+                    bp(100.0)
+                        + (idx as f64) * bp(10.0)
                         + generic_values[i]
                         + 0.01 * ((idx * n + i) as f64).sin(),
                 )

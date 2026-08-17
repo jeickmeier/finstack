@@ -360,7 +360,7 @@ pub struct IssuerBetaRow {
     ///
     /// Calibration persists the caller-supplied duration. Decompose rebuilds
     /// `DTS = spread_duration × current_spread_bp` when the artifact was
-    /// calibrated with [`BucketWeighting::Dts`][crate::credit::calibration::BucketWeighting::Dts].
+    /// calibrated with [`BucketWeighting::Dts`].
     /// Equal-weighted artifacts still store the supplied duration (or `1.0`
     /// when none was given); it is not used at peel time.
     pub spread_duration: f64,
@@ -637,9 +637,9 @@ pub struct VolState {
 ///
 /// These are the official series for rebuilding vol/correlation and for
 /// historical-simulation factor P&L. Every date is a real observation
-/// (no `None → 0.0` holes). Under [`PanelSpace::Returns`][crate::credit::calibration::PanelSpace::Returns]
+/// (no `None → 0.0` holes). Under [`PanelSpace::Returns`]
 /// the stored values are already period moves; under
-/// [`PanelSpace::Levels`][crate::credit::calibration::PanelSpace::Levels]
+/// [`PanelSpace::Levels`]
 /// they are peeled levels and must be first-differenced before vol or P&L.
 ///
 /// `BTreeMap<FactorId, Vec<f64>>` for deterministic serialization. All value

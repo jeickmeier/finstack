@@ -293,7 +293,7 @@ impl FactorModel {
     /// Compute the weighted position-factor sensitivity matrix for `portfolio`.
     ///
     /// Each engine cell is a central difference of base-currency PVs. Native
-    /// instrument values are converted with [`crate::fx::convert_to_base`] on
+    /// instrument values are converted with the portfolio spot FX helper on
     /// the bumped market at `as_of`. The row weight is
     /// [`crate::position::Position::scale_factor`].
     ///

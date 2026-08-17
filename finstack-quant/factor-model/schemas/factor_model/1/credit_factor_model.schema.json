@@ -1299,7 +1299,7 @@
       "type": "object"
     },
     "FactorHistories": {
-      "description": "Embedded time-series of factor **moves in bp**.\n\nThese are the official series for rebuilding vol/correlation and for\nhistorical-simulation factor P&L. Every date is a real observation\n(no `None → 0.0` holes). Under [`PanelSpace::Returns`][crate::credit::calibration::PanelSpace::Returns]\nthe stored values are already period moves; under\n[`PanelSpace::Levels`][crate::credit::calibration::PanelSpace::Levels]\nthey are peeled levels and must be first-differenced before vol or P&L.\n\n`BTreeMap<FactorId, Vec<f64>>` for deterministic serialization. All value\nvectors must have the same length as `dates`.",
+      "description": "Embedded time-series of factor **moves in bp**.\n\nThese are the official series for rebuilding vol/correlation and for\nhistorical-simulation factor P&L. Every date is a real observation\n(no `None → 0.0` holes). Under [`PanelSpace::Returns`]\nthe stored values are already period moves; under\n[`PanelSpace::Levels`]\nthey are peeled levels and must be first-differenced before vol or P&L.\n\n`BTreeMap<FactorId, Vec<f64>>` for deterministic serialization. All value\nvectors must have the same length as `dates`.",
       "properties": {
         "dates": {
           "description": "Ordered sequence of observation dates (aligned with value vectors).",
@@ -1862,7 +1862,7 @@
           "description": "Resolved regression mode for this issuer."
         },
         "spread_duration": {
-          "description": "Option-adjusted spread duration in **years** used for DTS weights.\n\nCalibration persists the caller-supplied duration. Decompose rebuilds\n`DTS = spread_duration × current_spread_bp` when the artifact was\ncalibrated with [`BucketWeighting::Dts`][crate::credit::calibration::BucketWeighting::Dts].\nEqual-weighted artifacts still store the supplied duration (or `1.0`\nwhen none was given); it is not used at peel time.",
+          "description": "Option-adjusted spread duration in **years** used for DTS weights.\n\nCalibration persists the caller-supplied duration. Decompose rebuilds\n`DTS = spread_duration × current_spread_bp` when the artifact was\ncalibrated with [`BucketWeighting::Dts`].\nEqual-weighted artifacts still store the supplied duration (or `1.0`\nwhen none was given); it is not used at peel time.",
           "format": "double",
           "type": "number"
         },

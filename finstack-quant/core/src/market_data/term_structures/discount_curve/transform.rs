@@ -266,8 +266,9 @@ impl DiscountCurve {
     ///     .build()
     ///     ?;
     ///
-    /// // Roll 6 months forward - the 0.5Y point expires
-    /// let rolled = curve.roll_forward(182)?;
+    /// // Roll past the 0.5Y knot so that point expires (182 days is still
+    /// // short of 0.5 Act/365F years).
+    /// let rolled = curve.roll_forward(200)?;
     /// assert!(rolled.knots().len() < curve.knots().len());
     /// # Ok(())
     /// # }

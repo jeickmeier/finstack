@@ -490,7 +490,7 @@ impl PortfolioMarginAggregator {
 
     /// Convert a monetary amount to base currency using the FX matrix.
     ///
-    /// Thin wrapper over [`crate::fx::convert_to_base`] that returns the
+    /// Thin wrapper over the portfolio spot FX helper that returns the
     /// converted amount as `f64` (margin aggregation works in scalar space).
     fn convert_to_base(&self, amount: Money, market: &MarketContext, as_of: Date) -> Result<f64> {
         crate::fx::convert_to_base(amount, as_of, market, self.base_currency).map(|m| m.amount())

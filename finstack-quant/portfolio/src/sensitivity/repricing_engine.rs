@@ -134,7 +134,7 @@ impl FullRepricingEngine {
     /// Collect unscaled base-currency PVs on the unbumped market.
     ///
     /// Each instrument is priced native via `value_raw_with_currency`, then
-    /// converted with [`crate::fx::convert_to_base`] on this market at `as_of`.
+    /// converted with the portfolio spot FX helper on this market at `as_of`.
     /// Mixed native currencies are allowed; missing FX fails closed.
     fn collect_base_pvs(
         positions: &[(String, &dyn Instrument, f64)],
@@ -160,7 +160,7 @@ impl FullRepricingEngine {
     ///
     /// Each factor is evaluated over this engine's ordered scenario grid. A
     /// profile row holds `weight * (PV_bumped_base - PV_base)` for each input
-    /// position. Native PVs are converted with [`crate::fx::convert_to_base`]
+    /// position. Native PVs are converted with the portfolio spot FX helper
     /// on the scenario market at `as_of`, so FX factors flow through the
     /// bumped spot matrix.
     ///

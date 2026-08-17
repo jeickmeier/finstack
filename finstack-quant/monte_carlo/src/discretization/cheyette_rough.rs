@@ -538,6 +538,7 @@ mod tests {
     /// ρ-proportional drift), and the rate driver was the rescaled fBM
     /// increment (autocorrelated across steps, non-unit variance).
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn stochastic_increment_sum_has_zero_mean() {
         use super::super::super::rng::fbm::FractionalNoiseGenerator;
         use super::super::super::rng::philox::PhiloxRng;

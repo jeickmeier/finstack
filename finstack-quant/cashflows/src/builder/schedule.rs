@@ -1180,7 +1180,8 @@ impl CashFlowSchedule {
         }
     }
 
-    /// Periodized PVs from a market context, using [`DateContext::with_default_context`].
+    /// Periodized PVs from a market context, using
+    /// [`crate::aggregation::DateContext::with_default_context`].
     ///
     /// When `day_count` is omitted, discount times use Act/365F.
     ///

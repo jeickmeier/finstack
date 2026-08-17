@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## [0.7.0] - 2026-08-17
+
 ### Removed — legacy pathways, waves 1-6 (BREAKING)
 
 Behavioral legacy: opt-in flags that restored pre-audit behavior, `Option`
@@ -597,3 +599,11 @@ this work removes, so they are listed as paired follow-ups in
   limits, default haircuts, and notification hours. Invalid publicly
   constructible values fail serialization instead of producing JSON that the
   same type cannot deserialize.
+
+### Fixed
+
+- Period cash / total-return carry no longer treats a deposit's opening
+  notional draw (effective start) as buy-and-hold income. Bonds already
+  skipped the issue-date draw; deposits now use the same rule, so a
+  position opened on `as_of_t0` does not book `−notional` (FX-converted)
+  into `carry` and `total_pnl`.

@@ -2,7 +2,7 @@
 //!
 //! Callers pass **decimal** spreads (`0.01` = 100 bp). Calibration and
 //! [`decompose_levels`][crate::credit::decomposition::decompose_levels] convert
-//! with [`BP_PER_UNIT`] at the entry boundary. Artifact internals, factor
+//! with [`crate::credit::units::BP_PER_UNIT`] at the entry boundary. Artifact internals, factor
 //! histories, anchor/decompose outputs, and Σ remain **bp**.
 
 use finstack_quant_core::{Error, Result};

@@ -1470,7 +1470,7 @@
           "description": "Resolved regression mode for this issuer."
         },
         "spread_duration": {
-          "description": "Option-adjusted spread duration in **years** used for DTS weights.\n\nCalibration persists the caller-supplied duration. Decompose rebuilds\n`DTS = spread_duration × current_spread_bp` when the artifact was\ncalibrated with [`BucketWeighting::Dts`][crate::credit::calibration::BucketWeighting::Dts].\nEqual-weighted artifacts still store the supplied duration (or `1.0`\nwhen none was given); it is not used at peel time.",
+          "description": "Option-adjusted spread duration in **years** used for DTS weights.\n\nCalibration persists the caller-supplied duration. Decompose rebuilds\n`DTS = spread_duration × current_spread_bp` when the artifact was\ncalibrated with [`BucketWeighting::Dts`].\nEqual-weighted artifacts still store the supplied duration (or `1.0`\nwhen none was given); it is not used at peel time.",
           "format": "double",
           "type": "number"
         },

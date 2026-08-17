@@ -35,7 +35,12 @@
 //! ## Example 1: Computing Bucketed DV01 for a Bond
 //!
 //! ```
-//! use finstack_quant_valuations::instruments::{Bond, Instrument, PricingOptions};
+//! use finstack_quant_core::currency::Currency;
+//! use finstack_quant_core::money::Money;
+//! use finstack_quant_core::types::Rate;
+//! use finstack_quant_valuations::instruments::{
+//!     Bond, BondConvention, Instrument, PricingOptions,
+//! };
 //! use finstack_quant_valuations::metrics::MetricId;
 //! use finstack_quant_core::market_data::context::MarketContext;
 //! use finstack_quant_core::market_data::term_structures::DiscountCurve;
@@ -43,11 +48,18 @@
 //!
 //! # fn main() -> finstack_quant_core::Result<()> {
 //! let as_of = date!(2025-01-01);
-//! let bond = Bond::example().unwrap();
+//! let bond = Bond::with_convention(
+//!     "CORP-001",
+//!     Money::new(1_000_000.0, Currency::USD),
+//!     Rate::from_decimal(0.05),
+//!     date!(2024-01-15),
+//!     date!(2034-01-15),
+//!     BondConvention::UsCorporate,
+//!     "USD-OIS",
+//! )?;
 //!
-//! // The bond discounts off USD-TREASURY, so that curve must be in the context.
 //! let market = MarketContext::new().insert(
-//!     DiscountCurve::builder("USD-TREASURY")
+//!     DiscountCurve::builder("USD-OIS")
 //!         .base_date(as_of)
 //!         .knots([(0.0, 1.0), (30.0, 0.40)])
 //!         .build()?,

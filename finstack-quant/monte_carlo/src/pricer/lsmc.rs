@@ -323,6 +323,11 @@ impl LsmcConfig {
     /// counterpart from the same Gaussian draws. The price estimator averages
     /// each pair, so [`Estimate::num_paths`] stays `num_paths` while
     /// [`Estimate::num_simulated_paths`] is `2 * num_paths`.
+    ///
+    /// # Arguments
+    ///
+    /// * `enabled` - `true` pairs every path with its sign-flipped counterpart
+    ///   from the same Gaussian draws; `false` leaves the path count unchanged.
     #[must_use]
     pub fn with_antithetic(mut self, enabled: bool) -> Self {
         self.antithetic = enabled;

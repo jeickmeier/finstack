@@ -91,7 +91,7 @@ pub(crate) fn evaluate_portfolio(input: EvaluationInput<'_>) -> Result<Portfolio
 /// Evaluate unscaled factor-stress endpoints in the portfolio base currency.
 ///
 /// Each instrument is priced native via `value_raw_with_currency`, then
-/// converted with [`crate::fx::convert_to_base`] on **this** market at
+/// converted with the portfolio spot FX helper on **this** market at
 /// `as_of`. Callers multiply the stressed-minus-base difference by
 /// [`Position::scale_factor`]. This intentionally returns a dedicated `f64`
 /// rather than forcing sensitivity endpoints through `Money` or

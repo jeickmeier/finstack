@@ -185,10 +185,9 @@ pub fn fx_pip_size(base: Currency, quote: Currency) -> f64 {
 
 /// Reciprocal of a strictly positive finite FX rate.
 ///
-/// Reuses [`reciprocal_rate_or_err`]: non-finite inputs are rejected, zero is
-/// rejected, and the reciprocal itself must be a valid FX rate (finite and
-/// strictly positive). The pair stamped on currency-bearing errors is USD/USD
-/// because this helper is pair-agnostic.
+/// Non-finite inputs are rejected, zero is rejected, and the reciprocal itself
+/// must be a valid FX rate (finite and strictly positive). The pair stamped on
+/// currency-bearing errors is USD/USD because this helper is pair-agnostic.
 ///
 /// # Arguments
 ///

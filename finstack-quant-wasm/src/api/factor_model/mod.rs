@@ -566,14 +566,14 @@ mod tests {
         let model = cal.calibrate(fixture_inputs()).expect("calibrate");
 
         let spreads_t0: BTreeMap<IssuerId, f64> = [
-            (IssuerId::new("ISSUER-A"), 150.0_f64),
-            (IssuerId::new("ISSUER-B"), 175.0_f64),
+            (IssuerId::new("ISSUER-A"), 0.0150_f64),
+            (IssuerId::new("ISSUER-B"), 0.0175_f64),
         ]
         .into_iter()
         .collect();
         let spreads_t1: BTreeMap<IssuerId, f64> = [
-            (IssuerId::new("ISSUER-A"), 155.0_f64),
-            (IssuerId::new("ISSUER-B"), 170.0_f64),
+            (IssuerId::new("ISSUER-A"), 0.0155_f64),
+            (IssuerId::new("ISSUER-B"), 0.0170_f64),
         ]
         .into_iter()
         .collect();
@@ -581,7 +581,7 @@ mod tests {
         let levels_t0 = finstack_quant_factor_model::credit::decomposition::decompose_levels(
             &model,
             &spreads_t0,
-            100.0,
+            0.0100,
             d(2024, Month::March, 28),
             None,
         )
@@ -590,7 +590,7 @@ mod tests {
         let levels_t1 = finstack_quant_factor_model::credit::decomposition::decompose_levels(
             &model,
             &spreads_t1,
-            100.5,
+            0.01005,
             d(2024, Month::March, 29),
             None,
         )
@@ -661,8 +661,8 @@ mod tests {
         let model = cal.calibrate(fixture_inputs()).expect("calibrate");
 
         let spreads: std::collections::BTreeMap<IssuerId, f64> = [
-            (IssuerId::new("ISSUER-A"), 150.0_f64),
-            (IssuerId::new("ISSUER-B"), 175.0_f64),
+            (IssuerId::new("ISSUER-A"), 0.0150_f64),
+            (IssuerId::new("ISSUER-B"), 0.0175_f64),
         ]
         .into_iter()
         .collect();
@@ -670,7 +670,7 @@ mod tests {
         let levels = finstack_quant_factor_model::credit::decomposition::decompose_levels(
             &model,
             &spreads,
-            100.0,
+            0.0100,
             d(2024, Month::March, 28),
             None,
         )

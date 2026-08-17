@@ -1893,7 +1893,7 @@
         "compounding": {
           "$ref": "#/$defs/FloatingLegCompounding",
           "default": "simple",
-          "description": "Overnight vs term compounding for this floating leg.\n\nDefaults to [`FloatingLegCompounding::Simple`] so tenor-basis swaps\n(3s1s, EURIBOR 6s3s) keep term projection. Set a compounded variant\nfor an overnight RFR leg such as SOFR OIS or €STR."
+          "description": "Overnight vs term compounding for this floating leg.\n\nDefaults to [`crate::instruments::rates::irs::FloatingLegCompounding::Simple`] so tenor-basis swaps\n(3s1s, EURIBOR 6s3s) keep term projection. Set a compounded variant\nfor an overnight RFR leg such as SOFR OIS or €STR."
         },
         "day_count": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",

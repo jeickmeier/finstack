@@ -94,7 +94,7 @@ pub struct PortfolioValuation {
 }
 
 /// Default FX policy stamped on a [`PortfolioValuation`]: the spot-equivalent
-/// `as_of` conversion used by [`crate::fx::convert_to_base`].
+/// `as_of` conversion used by the portfolio spot FX helper.
 fn default_fx_collapse_policy() -> FxConversionPolicy {
     FxConversionPolicy::CashflowDate
 }

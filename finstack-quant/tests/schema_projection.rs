@@ -2,7 +2,9 @@
 //!
 //! The per-pass behaviour is unit-tested in `finstack_quant_core::schema`;
 //! these are the properties that only hold once every crate's registry is
-//! visible at once.
+//! visible at once. Rendering and projecting the full corpus is too slow
+//! for the default suite; every test here is
+//! `#[ignore = "slow: covered by mise rust-test-slow"]`.
 
 use finstack_quant_core::schema::{project_llm, LlmProfile, RESOLVES_FROM_KEYWORD};
 use serde_json::Value;
@@ -34,6 +36,7 @@ fn count_absolute_refs(node: &Value) -> usize {
 }
 
 #[test]
+#[ignore = "slow: covered by mise rust-test-slow"]
 fn every_artifact_projects_and_becomes_self_contained() {
     // The whole point: published schemas reference an unresolvable host, so an
     // unprojected artifact cannot be handed to anything that will not fetch.
@@ -58,6 +61,7 @@ fn every_artifact_projects_and_becomes_self_contained() {
 }
 
 #[test]
+#[ignore = "slow: covered by mise rust-test-slow"]
 fn projection_is_deterministic() {
     let (documents, artifacts) = corpus();
     let resolve = |id: &str| documents.get(id).cloned();
@@ -76,6 +80,7 @@ fn projection_is_deterministic() {
 }
 
 #[test]
+#[ignore = "slow: covered by mise rust-test-slow"]
 fn currency_collapses_from_a_union_of_consts_to_a_flat_enum() {
     // The single largest avoidable cost in the corpus: 159 branches, inlined
     // wherever Money appears.
@@ -114,6 +119,7 @@ fn currency_collapses_from_a_union_of_consts_to_a_flat_enum() {
 }
 
 #[test]
+#[ignore = "slow: covered by mise rust-test-slow"]
 fn an_oversized_reference_becomes_a_handle_rather_than_dominating() {
     // A portfolio bundle names the instrument union; inlining it would make a
     // small contract inherit all seventy branches.
@@ -148,6 +154,7 @@ fn an_oversized_reference_becomes_a_handle_rather_than_dominating() {
 }
 
 #[test]
+#[ignore = "slow: covered by mise rust-test-slow"]
 fn projection_is_not_a_validator() {
     // It is deliberately both stricter and looser than the runtime contract, so
     // a caller that reached for it as a schema would silently mis-validate.
@@ -195,6 +202,7 @@ fn projection_is_not_a_validator() {
 }
 
 #[test]
+#[ignore = "slow: covered by mise rust-test-slow"]
 fn every_projected_artifact_is_still_a_valid_schema_document() {
     // The projection rewrites structure, so it can produce something that is
     // no longer JSON Schema at all - an array-form `items` was exactly that.
@@ -219,6 +227,7 @@ fn every_projected_artifact_is_still_a_valid_schema_document() {
 }
 
 #[test]
+#[ignore = "slow: covered by mise rust-test-slow"]
 fn the_inline_budget_separates_primitives_from_pricing_bags() {
     // The default ceiling is a boundary in the corpus, not a tuning knob: every
     // shared primitive must stay inline, and the override bags - which drag the
@@ -249,6 +258,7 @@ fn the_inline_budget_separates_primitives_from_pricing_bags() {
 }
 
 #[test]
+#[ignore = "slow: covered by mise rust-test-slow"]
 fn a_projected_instrument_keeps_its_primitives_and_defers_its_override_bags() {
     let (documents, artifacts) = corpus();
     let resolve = |id: &str| documents.get(id).cloned();
@@ -298,6 +308,7 @@ fn a_projected_instrument_keeps_its_primitives_and_defers_its_override_bags() {
 }
 
 #[test]
+#[ignore = "slow: covered by mise rust-test-slow"]
 fn every_published_artifact_carries_a_valid_example() {
     // An example is the cheapest thing a payload author can copy, and a schema
     // without one makes them guess. This is also the guard that a *new*

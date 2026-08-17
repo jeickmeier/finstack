@@ -33,9 +33,9 @@ impl Bond {
     /// Create a standard fixed-rate bond (most common use case).
     ///
     /// Delegates to [`Self::with_convention`] with
-    /// [`BondConvention::UsCorporate`]: 30/360, semi-annual, T+1, Modified
-    /// Following, `usny`. For EUR corporates use
-    /// `BondConvention::EurCorporate` (ACT/ACT ICMA, annual, T+2, TARGET2).
+    /// [`crate::instruments::common_impl::parameters::BondConvention::UsCorporate`]:
+    /// 30/360, semi-annual, T+1, Modified Following, `usny`. For EUR corporates
+    /// use `BondConvention::EurCorporate` (ACT/ACT ICMA, annual, T+2, TARGET2).
     ///
     /// # Arguments
     ///

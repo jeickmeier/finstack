@@ -351,7 +351,7 @@ pub struct BasisSwapLeg {
     pub reset_lag_days: i32,
     /// Overnight vs term compounding for this floating leg.
     ///
-    /// Defaults to [`FloatingLegCompounding::Simple`] so tenor-basis swaps
+    /// Defaults to [`crate::instruments::rates::irs::FloatingLegCompounding::Simple`] so tenor-basis swaps
     /// (3s1s, EURIBOR 6s3s) keep term projection. Set a compounded variant
     /// for an overnight RFR leg such as SOFR OIS or €STR.
     #[serde(default)]

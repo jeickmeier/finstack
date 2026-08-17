@@ -290,6 +290,12 @@ impl FxSpot {
     /// uses joint calendar logic: a date is valid only if it's a business day in both
     /// currencies' calendars. This matches professional FX settlement conventions.
     ///
+    /// # Arguments
+    ///
+    /// * `as_of` - Trade/valuation date used as the T+0 origin when
+    ///   `settlement` is unset. The spot lag and joint-calendar roll are
+    ///   applied from this date; an explicit `settlement` is only
+    ///   business-day-adjusted and ignores `as_of`.
     pub fn effective_settlement_date(&self, as_of: Date) -> Result<Date> {
         use crate::instruments::common_impl::fx_dates::{
             adjust_joint_calendar, fx_spot_date_for_pair,

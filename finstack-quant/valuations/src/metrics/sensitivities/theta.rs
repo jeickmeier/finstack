@@ -46,7 +46,7 @@
 //! - **Positive theta**: Instrument gains value over time (e.g., short options, carry trades)
 //! - **Zero theta**: No time-dependent value change (rare)
 
-use crate::instruments::Bond;
+use crate::instruments::{Bond, Deposit};
 use finstack_quant_core::cashflow::CFKind;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DateExt};
@@ -166,7 +166,7 @@ pub(crate) fn calculate_theta_date(
 /// Uses the full `cashflow_schedule()` so that each flow's [`CFKind`] is
 /// available for filtering. A flow enters the sum when its **payment date**
 /// falls in the half-open interval `[start_date, end_date)` and
-/// [`is_period_economic_cash`] is true. Amounts are signed: positive is cash
+/// the period-cash policy below includes it. Amounts are signed: positive is cash
 /// to the long holder, negative is cash paid by the long holder.
 ///
 /// # Period-cash policy
@@ -187,9 +187,10 @@ pub(crate) fn calculate_theta_date(
 /// - [`CFKind::DefaultedNotional`] (write-down, not a cash transfer)
 /// - Collateral/margin transfers: IM/VM post/return and collateral
 ///   substitution
-/// - A bond's issue-date initial draw (`CFKind::Notional` < 0 on
-///   `Bond.issue_date`): trade-level purchase cash, not in PV and not
-///   buy-and-hold period income
+/// - An opening notional draw (`CFKind::Notional` < 0 on
+///   `Bond.issue_date` or a deposit's effective start): trade-level
+///   purchase / funding cash, not in PV and not buy-and-hold period
+///   income
 ///
 /// The half-open interval `[start_date, end_date)` aligns with the PV
 /// boundary convention: `value(as_of)` includes same-day flows
@@ -223,7 +224,7 @@ pub fn collect_cashflows_in_period(
         start_date,
         end_date,
         base_currency,
-        bond_issue_draw_date(instrument),
+        opening_notional_draw_date(instrument),
     )
 }
 
@@ -234,7 +235,7 @@ pub(crate) fn collect_cashflows_in_period_cached(
     base_currency: Currency,
 ) -> Result<f64> {
     let instrument_id = context.instrument.id().to_string();
-    let skip_issue_draw_on = bond_issue_draw_date(context.instrument.as_ref());
+    let skip_issue_draw_on = opening_notional_draw_date(context.instrument.as_ref());
     let flows = context.tagged_cashflows_cached()?;
     collect_cashflows_from_flows(
         flows,
@@ -246,11 +247,14 @@ pub(crate) fn collect_cashflows_in_period_cached(
     )
 }
 
-fn bond_issue_draw_date(instrument: &dyn crate::instruments::Instrument) -> Option<Date> {
-    instrument
-        .as_any()
-        .downcast_ref::<Bond>()
-        .map(|bond| bond.issue_date)
+fn opening_notional_draw_date(instrument: &dyn crate::instruments::Instrument) -> Option<Date> {
+    if let Some(bond) = instrument.as_any().downcast_ref::<Bond>() {
+        return Some(bond.issue_date);
+    }
+    if let Some(deposit) = instrument.as_any().downcast_ref::<Deposit>() {
+        return deposit.effective_start_date().ok();
+    }
+    None
 }
 
 /// Whether `kind` is period economic cash for total-return / theta add-back.
@@ -592,6 +596,17 @@ mod tests {
         assert!(
             (sum + 50.0).abs() < 1e-12,
             "issue-date draw is excluded; later signed notional remains, got {sum}"
+        );
+    }
+
+    #[test]
+    fn opening_notional_draw_date_uses_deposit_effective_start() {
+        let deposit = Deposit::example().expect("example deposit");
+        let expected = deposit.effective_start_date().expect("effective start");
+        assert_eq!(opening_notional_draw_date(&deposit), Some(expected));
+        assert_ne!(
+            expected, deposit.start_date,
+            "example deposit applies spot lag so effective start differs from trade date"
         );
     }
 

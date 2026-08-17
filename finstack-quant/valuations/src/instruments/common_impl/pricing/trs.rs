@@ -302,7 +302,8 @@ impl TrsEngine {
     /// # Arguments
     /// * `params` — Parameters for the total return leg calculation
     /// * `context` — Market context containing curves and market data
-    /// * `as_of` — Valuation date
+    /// * `as_of` — Valuation date; total-return cashflows on or before this
+    ///   date are excluded from the present value
     /// * `model` — Model implementing TrsReturnModel for underlying-specific logic
     ///
     /// # Returns
@@ -398,7 +399,8 @@ impl TrsEngine {
     /// * `schedule` — Schedule specification for payment periods
     /// * `notional` — Notional amount for the leg
     /// * `context` — Market context containing curves and market data
-    /// * `as_of` — Valuation date
+    /// * `as_of` — Valuation date; financing cashflows on or before this date
+    ///   are excluded from the present value
     ///
     /// # Returns
     /// Present value of the financing leg in the instrument's currency.

@@ -243,6 +243,9 @@ def _credit_model() -> CreditFactorModel:
             "policy": "globally_off",
             "generic_factor": {"name": "CDX IG", "series_id": "cdx.ig.5y"},
             "hierarchy": {"levels": ["rating", "region"]},
+            "panel_frequency": "monthly",
+            "use_returns_or_levels": "returns",
+            "bucket_weighting": "equal",
             "config": {
                 "factors": [],
                 "covariance": {"n": 0, "factor_ids": [], "data": []},

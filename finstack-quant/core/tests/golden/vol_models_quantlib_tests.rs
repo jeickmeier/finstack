@@ -257,6 +257,7 @@ fn load_vol_suite() -> GoldenSuite<VolCase> {
 }
 
 #[test]
+#[ignore = "slow: covered by mise rust-test-slow"]
 fn test_vol_models_quantlib_parity() {
     let suite = load_vol_suite();
     let mut failures: Vec<String> = Vec::new();

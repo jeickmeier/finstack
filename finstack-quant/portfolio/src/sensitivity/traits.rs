@@ -190,7 +190,7 @@ impl FactorRepricingPlan {
 /// Factor stress, delta, and full-reprice endpoints all use this path so FX
 /// factors flow through the bumped market's spot matrix rather than an
 /// implied PV ratio. Same-currency amounts short-circuit inside
-/// [`crate::fx::convert_to_base`]. Non-finite native PVs are returned
+/// the portfolio spot FX helper. Non-finite native PVs are returned
 /// unchanged so callers can emit their position-specific validation error
 /// without constructing `Money`. Missing FX for a cross-currency position
 /// fails the same way NAV does.
@@ -205,7 +205,7 @@ impl FactorRepricingPlan {
 ///
 /// # Errors
 ///
-/// Propagates instrument pricing failures and [`crate::fx::convert_to_base`]
+/// Propagates instrument pricing failures and portfolio spot FX conversion
 /// errors (missing FX matrix or missing pair).
 pub(crate) fn raw_pv_in_base(
     instrument: &dyn Instrument,
@@ -242,7 +242,7 @@ pub trait FactorSensitivityEngine: Send + Sync {
     ///
     /// Each cell is a central difference of **base-currency** PVs:
     /// `(PV_up_base − PV_down_base) / (2h) * weight`. Native PVs are converted
-    /// with [`crate::fx::convert_to_base`] on the **bumped** market at `as_of`.
+    /// with the portfolio spot FX helper on the **bumped** market at `as_of`.
     /// When the caller wraps a [`crate::Portfolio`], `weight` is
     /// [`crate::position::Position::scale_factor`].
     ///

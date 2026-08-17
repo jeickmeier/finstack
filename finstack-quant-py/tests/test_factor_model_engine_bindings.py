@@ -59,6 +59,9 @@ def test_build_credit_vol_report_from_typed_inputs() -> None:
             "policy": "globally_off",
             "generic_factor": {"name": "CDX IG", "series_id": "cdx.ig.5y"},
             "hierarchy": {"levels": ["rating", "region"]},
+            "panel_frequency": "monthly",
+            "use_returns_or_levels": "returns",
+            "bucket_weighting": "equal",
             "config": {
                 "factors": [],
                 "covariance": {"n": 0, "factor_ids": [], "data": []},

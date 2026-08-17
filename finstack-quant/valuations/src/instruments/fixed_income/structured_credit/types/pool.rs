@@ -729,6 +729,14 @@ impl AssetPool {
     ///
     /// This is the market-standard calculation that should be used when
     /// full cashflow schedules are available.
+    ///
+    /// # Arguments
+    ///
+    /// * `cashflows` - Principal payment dates and amounts used as the WAL
+    ///   weights. Interest-only rows should be omitted; the helper treats
+    ///   each amount as principal.
+    /// * `as_of` - Origin date for the year-fraction clock. Payments on or
+    ///   before this date do not contribute to WAL.
     pub fn weighted_avg_life_from_cashflows(
         &self,
         cashflows: &[(Date, Money)],

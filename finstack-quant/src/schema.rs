@@ -508,6 +508,9 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    // `validate` / `index` compile the full published corpus. Selector
+    // lookups stay on the default path; the rest run via rust-test-slow.
+
     fn bond() -> &'static SchemaArtifact {
         find("bond.schema.json").expect("bond artifact")
     }
@@ -517,12 +520,14 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn published_example_validates_clean() {
         let failures = validate(bond(), &bond_example()).expect("validate");
         assert_eq!(failures, Vec::new(), "published example must validate");
     }
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn wrong_enum_spelling_names_the_field_and_lists_accepted_values() {
         let mut payload = bond_example();
         payload["instrument"]["spec"]["cashflow_spec"]["fixed"]["day_count"] = json!("ACT/365");
@@ -547,6 +552,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn decimal_as_json_number_points_at_the_decimal_field() {
         let mut payload = bond_example();
         payload["instrument"]["spec"]["cashflow_spec"]["fixed"]["rate"] = json!(0.0425);
@@ -562,6 +568,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn malformed_date_fails_validation_not_only_the_typed_loader() {
         let mut payload = bond_example();
         payload["instrument"]["spec"]["maturity"] = json!("01/15/2034");
@@ -577,6 +584,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn unknown_property_still_names_the_property() {
         let mut payload = bond_example();
         payload["instrument"]["spec"]["notionall"] = json!(1);
@@ -592,6 +600,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn index_labels_every_artifact_with_its_domain() {
         let index = index().expect("index");
         let rows = index["artifacts"].as_array().expect("rows");
@@ -611,6 +620,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn index_covers_all_nine_domains() {
         let index = index().expect("index");
         let rows = index["artifacts"].as_array().expect("rows");

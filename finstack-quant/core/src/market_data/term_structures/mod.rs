@@ -34,7 +34,8 @@
 //! ```
 //!
 //! The simple money-market forward `(DF(t₁)/DF(t₂) − 1) / (t₂ − t₁)` lives on
-//! [`ForwardCurve::rate_between`], not on the discount curve.
+//! [`crate::market_data::term_structures::ForwardCurve::rate_between`], not on
+//! the discount curve.
 //!
 //! ## Hazard Curve
 //!

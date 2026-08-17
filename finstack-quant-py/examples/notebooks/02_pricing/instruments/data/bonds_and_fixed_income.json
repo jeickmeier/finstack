@@ -94,7 +94,8 @@
       },
       "instrument_pricing_overrides": {
         "market_quotes": {
-          "quoted_clean_price": 99.0
+          "quoted_clean_price": 99.0,
+          "implied_volatility": 0.01
         }
       },
       "settlement_days": 1

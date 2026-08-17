@@ -185,6 +185,13 @@ impl BarrierOptionPayoff {
     /// convention for knock-out rebates. Knock-in rebates (paid when the
     /// barrier is never touched) are unaffected — there is no hit time and
     /// they pay at expiry by definition.
+    ///
+    /// # Arguments
+    ///
+    /// * `rate` - Continuously compounded flat rate (decimal, annualized) used
+    ///   to compound a knock-out rebate from the hit time τ to maturity T so
+    ///   the engine's maturity discount nets to `DF(τ)`. Knock-in rebates are
+    ///   unaffected.
     #[must_use]
     pub fn with_rebate_at_hit(mut self, rate: f64) -> Self {
         self.rebate_at_hit_rate = Some(rate);

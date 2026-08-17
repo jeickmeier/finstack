@@ -781,6 +781,7 @@ mod tests {
     // European pricing
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn call_price_positive_and_bounded() {
         let params = RoughHestonFourierParams::new(0.04, 2.0, 0.04, 0.3, -0.7, 0.1).expect("valid");
         let call = params.price_european(100.0, 100.0, 0.05, 0.0, 1.0, true);
@@ -789,6 +790,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn put_price_positive_and_bounded() {
         let params = RoughHestonFourierParams::new(0.04, 2.0, 0.04, 0.3, -0.7, 0.1).expect("valid");
         let put = params.price_european(100.0, 100.0, 0.05, 0.0, 1.0, false);
@@ -797,6 +799,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn put_call_parity() {
         let params = RoughHestonFourierParams::new(0.04, 2.0, 0.04, 0.3, -0.7, 0.1).expect("valid");
         let s = 100.0;
@@ -818,6 +821,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn moneyness_ordering() {
         let params = RoughHestonFourierParams::new(0.04, 2.0, 0.04, 0.3, -0.7, 0.1).expect("valid");
         let itm = params.price_european(100.0, 90.0, 0.05, 0.0, 1.0, true);
@@ -859,6 +863,7 @@ mod tests {
     /// genuine external reference (no circularity): the pre-fix pricer
     /// returned 34.22 / 12.66 / 0.00 against the true 24.59 / 10.45 / 3.25.
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn bs_limit_call_prices_across_moneyness() {
         let vol = 0.2;
         let params = RoughHestonFourierParams::new(vol * vol, 2.0, vol * vol, 1e-3, 0.0, 0.1)
@@ -890,6 +895,7 @@ mod tests {
     /// Direct put pricing against the same Black-Scholes limit — guards the
     /// put leg independently rather than only through put-call parity.
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn bs_limit_put_prices_across_moneyness() {
         let vol = 0.2;
         let params = RoughHestonFourierParams::new(vol * vol, 2.0, vol * vol, 1e-3, 0.0, 0.1)
@@ -917,6 +923,7 @@ mod tests {
     // Convergence to standard Heston at H → 0.5
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn matches_standard_heston_near_h_half_across_moneyness() {
         // With H close to 0.5 (α → 1) the fractional Riccati reduces to the
         // classical Heston Riccati and I^{1−α}D → D(T), so rough Heston must
@@ -955,6 +962,7 @@ mod tests {
     // Price sensitivity
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn price_increases_with_vol_of_vol() {
         // Higher sigma generally increases OTM option value
         let base = RoughHestonFourierParams::new(0.04, 2.0, 0.04, 0.2, -0.7, 0.3).expect("valid");
@@ -984,6 +992,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn price_increases_with_time() {
         let params = RoughHestonFourierParams::new(0.04, 2.0, 0.04, 0.3, -0.7, 0.1).expect("valid");
         let short_t = params.price_european(100.0, 100.0, 0.05, 0.0, 0.25, true);
@@ -996,6 +1005,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn implied_vol_produces_valid_result() {
         let params = RoughHestonFourierParams::new(0.04, 2.0, 0.04, 0.3, -0.7, 0.1).expect("valid");
         let iv = params.implied_vol(100.0, 100.0, 0.05, 0.0, 1.0, true);
@@ -1008,6 +1018,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: covered by mise rust-test-slow"]
     fn implied_vol_round_trip() {
         let params = RoughHestonFourierParams::new(0.04, 2.0, 0.04, 0.3, -0.7, 0.1).expect("valid");
         let spot = 100.0;
