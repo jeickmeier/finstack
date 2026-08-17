@@ -57,7 +57,7 @@ fn get_f64(value: &JsValue, key: &str) -> f64 {
 fn portfolio_result_get_metric_returns_undefined_for_missing() {
     let spec = portfolio_spec_json();
     let market = empty_market_json();
-    let valuation = value_portfolio(&spec, &market, false, None).unwrap();
+    let valuation = value_portfolio(&spec, &market, Some(false), None).unwrap();
     let result = finstack_quant_portfolio::results::PortfolioResult::new(
         serde_wasm_bindgen::from_value(valuation).unwrap(),
         Default::default(),
@@ -72,7 +72,7 @@ fn portfolio_result_get_metric_returns_undefined_for_missing() {
 fn value_portfolio_returns_a_structured_object() {
     let spec = portfolio_spec_json();
     let market = empty_market_json();
-    let valuation = value_portfolio(&spec, &market, false, None).unwrap();
+    let valuation = value_portfolio(&spec, &market, Some(false), None).unwrap();
     // Direct property reads: a `Map` would give `undefined` for each of these.
     for key in ["as_of", "position_values", "total_base_currency"] {
         assert!(
@@ -91,7 +91,7 @@ fn value_portfolio_returns_a_structured_object() {
 fn aggregate_full_cashflows_returns_a_structured_object_for_an_empty_portfolio() {
     let spec = portfolio_spec_json();
     let market = empty_market_json();
-    let result = aggregate_full_cashflows(&spec, &market).unwrap();
+    let result = aggregate_full_cashflows(&spec, &market, None).unwrap();
     let parsed = as_json(&result);
 
     assert_eq!(parsed["events"], serde_json::json!([]));
@@ -107,8 +107,8 @@ fn aggregate_full_cashflows_built_matches_the_spec_path() {
     let handle = JsPortfolio::from_spec(&spec_json).unwrap();
     let market = empty_market_json();
 
-    let via_built = aggregate_full_cashflows_built(&handle, &market).unwrap();
-    let via_spec = aggregate_full_cashflows(&spec_json, &market).unwrap();
+    let via_built = aggregate_full_cashflows_built(&handle, &market, None).unwrap();
+    let via_spec = aggregate_full_cashflows(&spec_json, &market, None).unwrap();
     assert_eq!(as_json(&via_built), as_json(&via_spec));
 }
 
@@ -116,7 +116,7 @@ fn aggregate_full_cashflows_built_matches_the_spec_path() {
 fn aggregate_metrics_returns_a_structured_object() {
     let spec = portfolio_spec_json();
     let market = empty_market_json();
-    let valuation = value_portfolio(&spec, &market, false, None).unwrap();
+    let valuation = value_portfolio(&spec, &market, Some(false), None).unwrap();
     let valuation_json = js_sys::JSON::stringify(&valuation)
         .unwrap()
         .as_string()

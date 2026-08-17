@@ -140,30 +140,42 @@ A larger end-to-end program lives in
   native and base currency; summable risk metrics are FX-converted before
   aggregation. `aggregate_metrics` rejects a `base_currency` or `as_of` that
   disagrees with the valuation it was handed.
-- **FX rate source.** `aggregate_metrics` prefers the market context's FX
-  matrix spot for `(native → base, as_of)`; the PV-implied ratio
-  `value_base / value_native` is only a fallback for when the matrix or the
-  pair is missing, and it is rejected when `|value_native| <= 1e-6` (an
-  `FxConversionFailed` error rather than a distorted rate). The market spot is
-  preferred because `value_base` was already rounded to currency decimals, and
-  that quantization noise would scale every summable risk metric.
-- **`quantity` is not always a share count.** `PositionUnit` decides:
-  - `Units` — scale by share or contract count.
-  - `Notional(Option<Currency>)` — scale by notional; the per-unit PV must be
-    computed against a notional of 1. The currency is a validation tag only and
-    does not change the scale factor.
-  - `FaceValue` — scale by held face amount.
+- **Spot FX for NAV, P&L, and risk.** Position PV, metric rollup, attribution,
+  scenario P&L, margin, and factor endpoints convert native amounts to base
+  with the market FX-matrix spot at `as_of`. `aggregate_metrics` prefers that
+  spot; the PV-implied ratio `value_base / value_native` is only a fallback
+  when the matrix or pair is missing, and is rejected when
+  `|value_native| <= 1e-6` (`FxConversionFailed` rather than a distorted
+  rate). The market spot is preferred because `value_base` was already
+  rounded to currency decimals, and that quantization would scale every
+  summable risk metric.
+- **`quantity` is a lot multiplier under `Notional`.** Instruments carry
+  deal notional. `Position.quantity` scales the already-built instrument:
+  - `Units` — share or contract count.
+  - `Notional(Option<Currency>)` — lots (`1` = one deal, `2` = two deals).
+    Scale is `quantity`. The optional currency is a validation tag only.
+  - `FaceValue` — held face amount.
   - `Percentage` — percentage points (`50.0` → `0.50` internally).
+- **CIP forwards for future cashflow collapse.** `PortfolioCashflows` is
+  currency-preserving. `collapse_to_base_by_date_kind` uses spot at `as_of`
+  when `payment_date <= as_of`, and the covered-interest-parity forward
+  `F(T) = S × DF_from(T) / DF_base(T)` when `payment_date > as_of`. Discount
+  curves come from an optional `Currency → CurveId` map, else
+  `market.get_discount(currency)`; a missing or zero DF fails closed.
+- **Multi-currency factor risk.** Factor stress, delta, and full-reprice
+  engines price each instrument native, then convert through that (possibly
+  bumped) market's spot FX at `as_of`, so FX factors flow through. A missing
+  cross-currency spot fails the same way NAV does.
+- **`strict_risk` defaults to true.** A standard-metric risk run fails if a
+  requested metric cannot be computed. Set `strict_risk` to `false` only for
+  an intentional PV-preserving fallback. Cashflow aggregation is fail-closed
+  unless the caller sets `allow_partial`.
 - **Selective repricing.** `revalue_affected` consults the `DependencyIndex`.
   Positions whose dependencies could not be resolved are repriced
   unconditionally. A changed FX quote additionally forces a base-currency
   refresh for every reused position, because a cross may be triangulated
   through that quote. Mutating positions directly requires
   `Portfolio::rebuild_index` before the next selective call.
-- **Cashflow FX.** `PortfolioCashflows` is currency-preserving. The
-  base-currency projection (`collapse_to_base_by_date_kind`) uses
-  spot-equivalent FX at every date, which is *not* forward FX; derive forward
-  rates from discount curves when NPV-grade accuracy matters.
 - **Serialization.** `Portfolio` intentionally has no direct
   `Serialize`/`Deserialize` — positions hold `Arc<dyn Instrument>`. Use
   `to_spec` / `from_spec`. `to_spec` records `instrument_spec: None` for any

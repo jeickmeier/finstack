@@ -18,41 +18,40 @@ use std::sync::Arc;
 ///
 /// # Scaling contract
 ///
-/// Position value is computed as ``scale_factor(unit) * per_unit_pv``, where the
-/// per-unit PV is the monetary value returned by the underlying instrument's
-/// pricing. Each variant defines the scale factor explicitly:
+/// Position value is ``scale_factor(unit) * instrument.value()``. The instrument
+/// is already built with its deal notional (or face, or one share). Each variant
+/// defines the scale factor explicitly:
 ///
-/// | Variant       | Scale factor              | Per-unit PV interpretation           |
+/// | Variant       | Scale factor              | Quantity interpretation              |
 /// |---------------|---------------------------|--------------------------------------|
-/// | `Units`       | `quantity`                | PV of one instrument unit/share      |
-/// | `Notional(_)` | `quantity`                | PV of **one unit of notional** (``$1`` / 1 FX unit) |
-/// | `FaceValue`   | `quantity`                | PV per one face-value unit           |
-/// | `Percentage`  | `quantity / 100`          | PV of 100% of the instrument         |
+/// | `Units`       | `quantity`                | Number of instrument units/shares    |
+/// | `Notional(_)` | `quantity`                | Lot multiplier (`1` = one deal)      |
+/// | `FaceValue`   | `quantity`                | Held face-value multiplier           |
+/// | `Percentage`  | `quantity / 100`          | Percentage points of the instrument  |
 ///
-/// ## `Notional` semantics (important)
+/// ## `Notional` semantics
 ///
-/// `Notional(ccy)` means *"position notional multiplied by per-unit PV"*. The
-/// per-unit PV MUST therefore be priced assuming **unit notional size = 1**
-/// (``$1``, £1, 1 unit of the notional currency). The binding builders for
-/// notional-quoted instruments (swaps, FX forwards, CDS, etc.) follow this
-/// convention by default; do not double-count by pricing the instrument with
-/// its full deal notional and then scaling by `quantity`, as that yields
-/// ``quantity * notional * per-unit PV`` instead of the intended
-/// ``quantity * per-unit PV``.
+/// `Notional(ccy)` means the instrument stores the deal notional and
+/// `quantity` is a lot multiplier: `1` is one deal, `2` is two deals.
+/// Position PV is ``quantity × instrument.value()``. Do not build the
+/// instrument with unit notional of 1 and put the dollar notional in
+/// `quantity`.
 ///
-/// The optional [`Currency`] records the notional currency for validation; it
-/// does not change the scale factor. A warning is emitted when it disagrees
-/// with the instrument's valuation currency.
+/// Optional `Notional(Some(ccy))` only validates currency against the
+/// instrument's native PV currency. It does not change the scale factor.
+/// A warning is emitted when it disagrees with the instrument's valuation
+/// currency.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum PositionUnit {
     /// Number of units/shares (for equities, baskets). Scale factor = `quantity`.
     Units,
 
-    /// Notional amount, optionally tagged with a currency (for derivatives, FX).
+    /// Lot multiplier for a notional-quoted instrument, optionally tagged
+    /// with a currency (for derivatives, FX).
     ///
-    /// Scale factor = `quantity`. The per-unit PV must be computed with a
-    /// unit notional of 1 (e.g., ``$1`` notional swap PV). The optional
+    /// Scale factor = `quantity`. The instrument already carries deal
+    /// notional; `1` is one deal and `2` is two deals. The optional
     /// [`Currency`] is a validation tag and does not alter scaling.
     Notional(Option<Currency>),
 
@@ -85,7 +84,10 @@ pub struct Position {
     /// The actual instrument being held
     pub instrument: Arc<dyn Instrument>,
 
-    /// Signed quantity (positive=long, negative=short)
+    /// Signed quantity (positive=long, negative=short).
+    ///
+    /// For [`PositionUnit::Notional`], this is a lot multiplier (`1` = one
+    /// deal), not a dollar notional.
     pub quantity: f64,
 
     /// Unit of measurement for the quantity
@@ -118,7 +120,7 @@ pub struct PositionSpec {
     /// If `None`, the position can still be serialized but cannot be
     /// reconstructed without an external instrument registry.
     pub instrument_spec: Option<InstrumentJson>,
-    /// Signed quantity
+    /// Signed quantity. For [`PositionUnit::Notional`], a lot multiplier.
     pub quantity: f64,
     /// Unit of measurement
     pub unit: PositionUnit,
@@ -402,8 +404,9 @@ impl Position {
     ///
     /// This function applies unit-aware scaling logic:
     /// - `Units`: Direct multiplication (quantity = number of units)
-    /// - `Notional`: Direct multiplication (quantity = notional amount; instrument should return unit price)
-    /// - `FaceValue`: Direct multiplication (quantity = face value; instrument returns PV per face unit)
+    /// - `Notional`: Direct multiplication (quantity = lot count; the
+    ///   instrument already carries deal notional)
+    /// - `FaceValue`: Direct multiplication (quantity = face-value multiplier)
     /// - `Percentage`: Quantity represents percentage points (e.g., 50 = 50%), always divided by 100
     ///
     /// # Arguments
@@ -450,9 +453,8 @@ impl Position {
     /// # }
     /// ```
     pub fn scale_value(&self, value: Money) -> Money {
-        // See [`PositionUnit`] for the full scaling contract. `Notional` expects
-        // `value` to be the per-unit-notional PV (priced with unit notional = 1),
-        // so the scale factor is simply `quantity`.
+        // See [`PositionUnit`] for the full scaling contract. `Notional` treats
+        // `quantity` as a lot multiplier, so the scale factor is simply `quantity`.
         if let PositionUnit::Notional(Some(notional_currency)) = self.unit {
             if notional_currency != value.currency() {
                 tracing::warn!(
@@ -465,11 +467,11 @@ impl Position {
         Money::new(value.amount() * self.scale_factor(), value.currency())
     }
 
-    /// Unit-aware scale factor applied to per-unit P&L or PV.
+    /// Unit-aware scale factor applied to instrument P&L or PV.
     ///
     /// Returns the multiplier defined by [`PositionUnit`]: `quantity` for
-    /// `Units`, `Notional`, and `FaceValue`; `quantity / 100` for
-    /// `Percentage`. Callers that compute raw P&L (not `Money`) should
+    /// `Units`, `Notional` (lot count), and `FaceValue`; `quantity / 100`
+    /// for `Percentage`. Callers that compute raw P&L (not `Money`) should
     /// multiply by this factor to honor the scaling contract.
     ///
     /// This complements [`Self::scale_value`] for callers that work in
@@ -683,5 +685,34 @@ mod tests {
         .expect_err("minor 1: percentage quantities below -100 should be invalid");
 
         assert!(err.to_string().contains("Percentage quantity"));
+    }
+
+    #[test]
+    fn notional_two_lots_scales_deal_pv_not_unit_notional() {
+        let deposit = Deposit::builder()
+            .id("DEP_1M".into())
+            .notional(Money::new(1_000_000.0, Currency::USD))
+            .start_date(date!(2024 - 01 - 01))
+            .maturity(date!(2024 - 02 - 01))
+            .day_count(finstack_quant_core::dates::DayCount::Act360)
+            .discount_curve_id("USD".into())
+            .build()
+            .expect("test should succeed");
+
+        let position = Position::new(
+            "POS_2LOT",
+            "FUND_A",
+            "DEP_1M",
+            Arc::new(deposit),
+            2.0,
+            PositionUnit::Notional(Some(Currency::USD)),
+        )
+        .expect("two-lot notional position should build");
+
+        assert_eq!(position.scale_factor(), 2.0);
+        let deal_pv = Money::new(1_000_000.0, Currency::USD);
+        let scaled = position.scale_value(deal_pv);
+        assert_eq!(scaled.amount(), 2_000_000.0);
+        assert!((scaled.amount() - 2e6 * deal_pv.amount()).abs() > 1.0);
     }
 }

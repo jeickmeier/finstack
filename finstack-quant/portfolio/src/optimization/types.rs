@@ -21,13 +21,24 @@ pub enum WeightingScheme {
     /// differ from `1` because shorts enter the denominator as absolute value
     /// while contributing negatively to `w_i`.
     ///
-    /// Quantity reconstruction uses `w_i * gross_pv_base / pv_per_unit_i`,
-    /// so each candidate must have non-zero `pv_per_unit`. Zero-PV
-    /// candidates are rejected at decision-space construction time under
-    /// this scheme because their implied quantity would be undefined.
+    /// Quantity reconstruction converts the target PV share back to
+    /// `Position::quantity` via `pv_per_unit`, which is base-currency PV per
+    /// 1.0 of [`crate::position::Position::scale_factor`] (a `Percentage`
+    /// holding of `50` uses scale `0.5`, not raw `50`). Each candidate must
+    /// have non-zero `pv_per_unit`. Zero-PV candidates are rejected at
+    /// decision-space construction time under this scheme because their
+    /// implied quantity would be undefined.
     ValueWeight,
 
-    /// `w_i` is share of some notional exposure; still normalized so `∑ w_i = 1`.
+    /// `w_i` is share of signed deal notional; still normalized so `∑ w_i = 1`
+    /// on a long-only book (shorts enter the denominator as absolute value).
+    ///
+    /// Per-position notional is `|instrument.notional().amount()| * scale_factor()`.
+    /// Instruments that do not expose `notional()` fail under this scheme —
+    /// there is no silent fallback to `scale_factor()` as a dollar proxy.
+    /// Quantity reconstruction divides the target notional share by the
+    /// instrument deal notional and writes the result back in
+    /// `Position::quantity` units (lots, shares, or percentage points).
     NotionalWeight,
 
     /// `w_i` scales the current quantity (e.g. units or face value).
@@ -87,7 +98,13 @@ pub enum MissingMetricPolicy {
     #[default]
     Zero,
 
-    /// Exclude position from constraint evaluation (position keeps current weight).
+    /// Freeze the position at its current weight and drop it from metric
+    /// coefficient vectors (`WeightedSum` and `ValueWeightedAverage` alike).
+    ///
+    /// Missing metrics are not treated as zero in the objective or in
+    /// constraint rows: the coefficient is `0` and the name is omitted from
+    /// a `ValueWeightedAverage` denominator, matching “excluded from
+    /// constraint evaluation”.
     Exclude,
 
     /// Fail with error if any required metric is missing.

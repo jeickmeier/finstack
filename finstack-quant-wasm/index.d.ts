@@ -9232,14 +9232,14 @@ export interface PortfolioNamespace {
    * @returns Returns a plain structured JavaScript object; `JSON.stringify` it for a canonical JSON string.
    * @param specJson - Canonical portfolio specification JSON defining positions, quantities, and base currency.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
-   * @param strictRisk - Whether unavailable risk metrics are treated as calculation errors.
+   * @param strictRisk - Optional; when omitted or `undefined`, defaults to `true` (fail closed on unavailable requested risk metrics), matching Rust `PortfolioValuationOptions`. Pass `false` only for an intentional PV-preserving fallback.
    * @param metrics - Optional exact risk-metric ids to compute. Omit for the standard set; an empty array performs PV-only valuation. Names are validated strictly against the standard `MetricId` set — an unknown name throws. Mirrors the Python `metrics=` keyword.
    * @throws Error - Throws a JavaScript exception if the portfolio or market JSON is malformed, a requested metric name is unknown, portfolio construction or valuation fails, strict risk calculation cannot produce a requested metric, a required FX conversion is unavailable, or the valuation cannot be converted to a JavaScript value.
    */
   valuePortfolio(
     specJson: string,
     marketJson: string,
-    strictRisk: boolean,
+    strictRisk?: boolean,
     metrics?: string[]
   ): Record<string, unknown>;
   /**
@@ -9250,14 +9250,14 @@ export interface PortfolioNamespace {
    * @returns Returns a plain structured JavaScript object; `JSON.stringify` it for a canonical JSON string.
    * @param portfolio - Built portfolio object whose positions and weights are used by the calculation.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
-   * @param strictRisk - Whether unavailable risk metrics are treated as calculation errors.
+   * @param strictRisk - Optional; when omitted or `undefined`, defaults to `true` (fail closed on unavailable requested risk metrics), matching Rust `PortfolioValuationOptions`. Pass `false` only for an intentional PV-preserving fallback.
    * @param metrics - Optional exact risk-metric ids to compute. Omit for the standard set; an empty array performs PV-only valuation. Names are validated strictly against the standard `MetricId` set — an unknown name throws instead of silently degrading to PV-only valuation. Mirrors the Python `metrics=` keyword.
    * @throws Error - Throws a JavaScript exception if `marketJson` is malformed, a requested metric name is unknown, portfolio valuation fails, strict risk calculation cannot produce a requested metric, a required FX conversion is unavailable, or the valuation cannot be converted to a JavaScript value.
    */
   valuePortfolioBuilt(
     portfolio: Portfolio,
     marketJson: string,
-    strictRisk: boolean,
+    strictRisk?: boolean,
     metrics?: string[]
   ): Record<string, unknown>;
   /**
@@ -9265,9 +9265,14 @@ export interface PortfolioNamespace {
    * @returns Returns a plain structured JavaScript object; `JSON.stringify` it for a canonical JSON string.
    * @param specJson - Canonical portfolio specification JSON defining positions, quantities, and base currency.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
-   * @throws Error - Throws a JavaScript exception if the portfolio or market JSON is malformed, portfolio construction fails, monetary cash-flow aggregation overflows, or the aggregate cannot be converted to a JavaScript value.
+   * @param allowPartial - Optional; when omitted or `undefined`, defaults to `false` (fail closed if any position fails schedule construction). Pass `true` to keep a partial ladder with issues on the result.
+   * @throws Error - Throws a JavaScript exception if the portfolio or market JSON is malformed, portfolio construction fails, any position fails schedule construction while `allowPartial` is not `true`, monetary cash-flow aggregation overflows, or the aggregate cannot be converted to a JavaScript value.
    */
-  aggregateFullCashflows(specJson: string, marketJson: string): Record<string, unknown>;
+  aggregateFullCashflows(
+    specJson: string,
+    marketJson: string,
+    allowPartial?: boolean
+  ): Record<string, unknown>;
   /**
    * Aggregate the full classified cashflow ladder for an already-built
    * [`Portfolio`] handle.
@@ -9278,9 +9283,14 @@ export interface PortfolioNamespace {
    * @returns Returns a plain structured JavaScript object; `JSON.stringify` it for a canonical JSON string.
    * @param portfolio - Built portfolio object whose positions and weights are used by the calculation.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
-   * @throws Error - Throws a JavaScript exception if `marketJson` is malformed, monetary cash-flow aggregation overflows, or the aggregate cannot be converted to a JavaScript value.
+   * @param allowPartial - Optional; when omitted or `undefined`, defaults to `false` (fail closed if any position fails schedule construction). Pass `true` to keep a partial ladder with issues on the result.
+   * @throws Error - Throws a JavaScript exception if `marketJson` is malformed, any position fails schedule construction while `allowPartial` is not `true`, monetary cash-flow aggregation overflows, or the aggregate cannot be converted to a JavaScript value.
    */
-  aggregateFullCashflowsBuilt(portfolio: Portfolio, marketJson: string): Record<string, unknown>;
+  aggregateFullCashflowsBuilt(
+    portfolio: Portfolio,
+    marketJson: string,
+    allowPartial?: boolean
+  ): Record<string, unknown>;
   /**
    * Apply a scenario to a portfolio and revalue.
    *

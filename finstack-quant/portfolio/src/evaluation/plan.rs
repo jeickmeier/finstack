@@ -688,7 +688,10 @@ mod tests {
         let mut plan = PortfolioEvaluationPlan::new(&config);
         let portfolio_state = plan.register_portfolio(&portfolio);
         let market_state = plan.register_market(&market, portfolio.as_of);
-        let best_effort = EvaluationProfile::from_options(&Default::default());
+        let best_effort = EvaluationProfile::from_options(&PortfolioValuationOptions {
+            strict_risk: false,
+            metrics: RequestedMetrics::Standard,
+        });
 
         let first = plan
             .register_evaluation(market_state, portfolio_state, best_effort.clone())

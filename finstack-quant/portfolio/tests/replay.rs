@@ -780,7 +780,10 @@ mod replay_tests {
         let config = ReplayConfig {
             mode: ReplayMode::FullAttribution,
             attribution_method: AttributionMethod::MetricsBased,
-            valuation_options: PortfolioValuationOptions::default(),
+            valuation_options: PortfolioValuationOptions {
+                strict_risk: false,
+                ..Default::default()
+            },
             on_error: ReplayErrorPolicy::BestEffort,
         };
         let error = finstack_quant_portfolio::replay::replay_portfolio(

@@ -32,6 +32,21 @@
 //! year-fractions produced by the caller's day-count convention; this
 //! module is day-count agnostic.
 //!
+//! ## Dietz vs XIRR cashflow signs
+//!
+//! Modified Dietz and XIRR use **opposite** signs for the same economic
+//! flow. Do not pass one signed series to both APIs without flipping.
+//!
+//! | Economic flow | [`DietzFlow::amount`] / [`TwrrPeriod`] | [`DatedCashflow`] / [`mwr_xirr`] |
+//! | --- | --- | --- |
+//! | Contribution into the portfolio | **positive** | **negative** |
+//! | Withdrawal / distribution to the investor | **negative** | **positive** |
+//! | Terminal market value | `ending_market_value` (not a flow) | **positive** |
+//!
+//! Dietz is written from the portfolio's books (GIPS / CFA): a contribution
+//! increases assets under management. XIRR solves NPV = 0 from the
+//! investor's cash account, so the opening investment is an outflow.
+//!
 //! # References
 //!
 //! - CFA Institute, *GIPS Standards* (2020 edition), §2.A — Calculation
@@ -66,14 +81,17 @@ pub struct TwrrPeriod {
     /// Sign convention: **positive** = contribution into the portfolio
     /// (capital added by the client); **negative** = withdrawal. This
     /// matches `ReplaySummary.total_pnl` conventions already in use in
-    /// `portfolio::replay`.
+    /// `portfolio::replay` and is the **opposite** of [`DatedCashflow`] /
+    /// [`mwr_xirr`]. See the module-level Dietz vs XIRR table.
     pub cashflows: Vec<DietzFlow>,
 }
 
 /// A single external cashflow within a TWRR sub-period.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct DietzFlow {
-    /// Signed flow amount (positive = contribution; negative = withdrawal).
+    /// Signed flow amount from the portfolio's books: positive = contribution
+    /// into the portfolio; negative = withdrawal. Opposite of
+    /// [`DatedCashflow::amount`].
     pub amount: f64,
     /// Day-weighted fraction of the period from the flow to period end,
     /// `w = (T − t_flow) / T ∈ [0, 1]`. Flow at period start has `w = 1`;
@@ -160,8 +178,9 @@ pub struct LinkedReturn {
 pub struct DatedCashflow {
     /// Cashflow date.
     pub date: Date,
-    /// Signed amount. Contributions from the investor are negative; terminal
-    /// value or distributions back to the investor are positive.
+    /// Signed amount from the investor's cash account: contributions are
+    /// negative; terminal value or distributions back to the investor are
+    /// positive. Opposite of [`DietzFlow::amount`].
     pub amount: f64,
 }
 

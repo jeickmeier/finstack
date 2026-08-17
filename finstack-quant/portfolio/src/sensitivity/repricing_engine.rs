@@ -1,7 +1,10 @@
 //! Finite-difference and repricing utilities for portfolio sensitivities.
 //!
 use super::delta_engine::mapping_to_market_bumps;
-use super::traits::{FactorRepricingPlan, FactorSensitivityEngine};
+use super::traits::{
+    mapping_bumps_fx, raw_pv_in_base, FactorRepricingPlan, FactorSensitivityEngine,
+};
+use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::{Error, Result};
@@ -128,34 +131,21 @@ impl FullRepricingEngine {
         }
     }
 
-    /// Collect base PVs while validating a common pricing currency.
+    /// Collect unscaled base-currency PVs on the unbumped market.
     ///
-    /// The combined raw-value API retains the high-precision finite-difference
-    /// convention and returns the reporting currency from the same pricing
-    /// call. The ordered traversal preserves first-error semantics.
-    fn collect_validated_base_pvs(
+    /// Each instrument is priced native via `value_raw_with_currency`, then
+    /// converted with [`crate::fx::convert_to_base`] on this market at `as_of`.
+    /// Mixed native currencies are allowed; missing FX fails closed.
+    fn collect_base_pvs(
         positions: &[(String, &dyn Instrument, f64)],
         market: &MarketContext,
         as_of: Date,
+        base_currency: Currency,
     ) -> Result<Vec<f64>> {
-        let mut first_currency = None;
         positions
             .iter()
             .map(|(position_id, instrument, _)| {
-                let (pv, currency) = instrument.value_raw_with_currency(market, as_of)?;
-                if let Some((first_id, first_currency)) = first_currency {
-                    if first_currency != currency {
-                        return Err(Error::Validation(format!(
-                            "Factor sensitivity engine requires a single pricing currency: \
-                             position '{first_id}' prices in {first_currency} but position \
-                             '{position_id}' prices in {currency}; convert positions to a \
-                             common base currency before computing factor sensitivities"
-                        )));
-                    }
-                } else {
-                    first_currency = Some((position_id.as_str(), currency));
-                }
-
+                let pv = raw_pv_in_base(*instrument, market, as_of, base_currency)?;
                 if !pv.is_finite() {
                     return Err(Error::Validation(format!(
                         "minor 15: non-finite base PV for position '{position_id}' ({pv})"
@@ -169,23 +159,33 @@ impl FullRepricingEngine {
     /// Compute full-repricing scenario P&L profiles for every factor.
     ///
     /// Each factor is evaluated over this engine's ordered scenario grid. A
-    /// profile row holds `weight * (PV_bumped - PV_base)` for each input
-    /// position, so rows retain position order and values use the positions'
-    /// common pricing currency.
+    /// profile row holds `weight * (PV_bumped_base - PV_base)` for each input
+    /// position. Native PVs are converted with [`crate::fx::convert_to_base`]
+    /// on the scenario market at `as_of`, so FX factors flow through the
+    /// bumped spot matrix.
+    ///
+    /// # Arguments
+    ///
+    /// * `positions` - `(id, instrument, weight)` rows in profile order.
+    /// * `factors` - Factor definitions that select the market bumps.
+    /// * `market` - Unbumped market snapshot; each grid point bumps it.
+    /// * `as_of` - Valuation date for pricing and spot FX lookup.
+    /// * `base_currency` - Reporting currency for every converted PV.
     ///
     /// # Errors
     ///
-    /// Returns validation errors for mixed pricing currencies, non-finite base
-    /// or bumped PVs, or a non-finite/zero bump. Propagates market-bump and
-    /// instrument-pricing failures.
+    /// Returns validation errors for non-finite base or bumped PVs, or a
+    /// non-finite/zero bump. Propagates market-bump, instrument-pricing, and
+    /// FX-conversion failures.
     pub fn compute_pnl_profiles(
         &self,
         positions: &[(String, &dyn Instrument, f64)],
         factors: &[FactorDefinition],
         market: &MarketContext,
         as_of: Date,
+        base_currency: Currency,
     ) -> Result<Vec<FactorPnlProfile>> {
-        let base_pvs = Self::collect_validated_base_pvs(positions, market, as_of)?;
+        let base_pvs = Self::collect_base_pvs(positions, market, as_of, base_currency)?;
         let repricing_plan = FactorRepricingPlan::build(positions, factors, market);
 
         // Each factor's profile is an independent, side-effect-free function of
@@ -204,6 +204,7 @@ impl FullRepricingEngine {
                     .bump_size_with_unit_for_factor(&factor.id, &factor.factor_type);
                 Self::validate_bump_size(factor, bump_size)?;
                 let affected_positions = repricing_plan.affected(factor_index);
+                let reconvert_all = mapping_bumps_fx(&factor.market_mapping);
                 let mut position_pnls = Vec::with_capacity(self.scenario_grid.shifts().len());
 
                 for &shift in self.scenario_grid.shifts() {
@@ -224,10 +225,10 @@ impl FullRepricingEngine {
                         .enumerate()
                         .map(
                             |(position_idx, ((_, instrument, weight), affected))| {
-                                if !affected {
+                                if !affected && !reconvert_all {
                                     return Ok(0.0);
                                 }
-                            let pv = instrument.value_raw(&bumped_market, as_of)?;
+                            let pv = raw_pv_in_base(*instrument, &bumped_market, as_of, base_currency)?;
                             if !pv.is_finite() {
                                 let position_id = &positions[position_idx].0;
                                 return Err(Error::Validation(format!(
@@ -260,8 +261,10 @@ impl FactorSensitivityEngine for FullRepricingEngine {
         factors: &[FactorDefinition],
         market: &MarketContext,
         as_of: Date,
+        base_currency: Currency,
     ) -> Result<SensitivityMatrix> {
-        let profiles = self.compute_pnl_profiles(positions, factors, market, as_of)?;
+        let profiles =
+            self.compute_pnl_profiles(positions, factors, market, as_of, base_currency)?;
         let position_ids = positions.iter().map(|(id, _, _)| id.clone()).collect();
         let factor_ids = factors.iter().map(|factor| factor.id.clone()).collect();
         let mut matrix = SensitivityMatrix::zeros(position_ids, factor_ids);
@@ -561,7 +564,8 @@ mod tests {
         }];
 
         let engine = FullRepricingEngine::new(BumpSizeConfig::default(), 5);
-        let matrix = engine.compute_sensitivities(&positions, &factors, &market, as_of)?;
+        let matrix =
+            engine.compute_sensitivities(&positions, &factors, &market, as_of, Currency::USD)?;
 
         assert!((matrix.delta(0, 0) - 1.0).abs() < 1e-3);
         Ok(())
@@ -582,8 +586,13 @@ mod tests {
             description: None,
         }];
 
-        let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5)
-            .compute_sensitivities(&positions, &factors, &market, as_of)?;
+        let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5).compute_sensitivities(
+            &positions,
+            &factors,
+            &market,
+            as_of,
+            Currency::USD,
+        )?;
 
         assert!(
             matrix.delta(0, 0).abs() > 1e-12,
@@ -611,8 +620,13 @@ mod tests {
 
         let mut bump_config = BumpSizeConfig::default();
         bump_config.overrides.insert(factor_id, 5.0);
-        let matrix = FullRepricingEngine::new(bump_config, 5)
-            .compute_sensitivities(&positions, &factors, &market, as_of)?;
+        let matrix = FullRepricingEngine::new(bump_config, 5).compute_sensitivities(
+            &positions,
+            &factors,
+            &market,
+            as_of,
+            Currency::USD,
+        )?;
 
         assert!(
             (matrix.delta(0, 0) - 1.0).abs() < 1e-3,
@@ -640,8 +654,13 @@ mod tests {
 
         let mut bump_config = BumpSizeConfig::default();
         bump_config.overrides.insert(factor_id, 0.0);
-        let result = FullRepricingEngine::new(bump_config, 5)
-            .compute_sensitivities(&positions, &factors, &market, as_of);
+        let result = FullRepricingEngine::new(bump_config, 5).compute_sensitivities(
+            &positions,
+            &factors,
+            &market,
+            as_of,
+            Currency::USD,
+        );
 
         assert!(
             result.is_err(),
@@ -683,7 +702,7 @@ mod tests {
         bump_config.overrides.insert(second_id, 0.0);
 
         let error = FullRepricingEngine::new(bump_config, 5)
-            .compute_pnl_profiles(&positions, &factors, &market, as_of)
+            .compute_pnl_profiles(&positions, &factors, &market, as_of, Currency::USD)
             .expect_err("both factors are invalid");
         let message = error.to_string();
         assert!(
@@ -714,7 +733,7 @@ mod tests {
         }];
 
         let err = FullRepricingEngine::new(BumpSizeConfig::default(), 5)
-            .compute_pnl_profiles(&positions, &factors, &market, as_of)
+            .compute_pnl_profiles(&positions, &factors, &market, as_of, Currency::USD)
             .expect_err("minor 15: non-finite base PV must fail fast");
         assert!(
             err.to_string().contains("minor 15"),
@@ -740,7 +759,7 @@ mod tests {
         }];
 
         let profiles = FullRepricingEngine::new(BumpSizeConfig::default(), 5)
-            .compute_pnl_profiles(&positions, &factors, &market, as_of)?;
+            .compute_pnl_profiles(&positions, &factors, &market, as_of, Currency::USD)?;
 
         assert_eq!(profiles.len(), 1);
         let profile = &profiles[0];
@@ -770,7 +789,7 @@ mod tests {
         }];
 
         let profiles = FullRepricingEngine::new(BumpSizeConfig::default(), 5)
-            .compute_pnl_profiles(&positions, &factors, &market, as_of)?;
+            .compute_pnl_profiles(&positions, &factors, &market, as_of, Currency::USD)?;
 
         assert_eq!(profiles[0].position_pnls[2], vec![0.0]);
         assert_eq!(
@@ -787,7 +806,7 @@ mod tests {
     }
 
     #[test]
-    fn full_repricing_combined_base_pricing_rejects_mixed_currencies() -> Result<()> {
+    fn full_repricing_fails_closed_when_cross_currency_fx_is_missing() -> Result<()> {
         let as_of = date!(2025 - 01 - 01);
         let market = test_market(as_of)?;
         let usd = MockInstrument::new("usd-inst", "USD-OIS", 5.0, 10_000.0);
@@ -808,13 +827,13 @@ mod tests {
         }];
 
         let error = FullRepricingEngine::new(BumpSizeConfig::default(), 5)
-            .compute_pnl_profiles(&positions, &factors, &market, as_of)
-            .expect_err("mixed raw-PV currencies must be rejected");
+            .compute_pnl_profiles(&positions, &factors, &market, as_of, Currency::USD)
+            .expect_err("cross-currency conversion without FX must fail");
         let message = error.to_string();
-        assert!(message.contains("usd-pos"), "unexpected error: {message}");
-        assert!(message.contains("eur-pos"), "unexpected error: {message}");
-        assert!(message.contains("USD"), "unexpected error: {message}");
-        assert!(message.contains("EUR"), "unexpected error: {message}");
+        assert!(
+            message.contains("FX matrix") || message.contains("FX conversion"),
+            "unexpected error: {message}"
+        );
         Ok(())
     }
 
@@ -846,13 +865,24 @@ mod tests {
             description: None,
         }];
 
-        let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5)
-            .compute_sensitivities(&positions, &factors, &market, as_of)?;
+        let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5).compute_sensitivities(
+            &positions,
+            &factors,
+            &market,
+            as_of,
+            Currency::USD,
+        )?;
         let reference = MockInstrument::new("reference", "USD-OIS", 5.0, 10_000.0);
         let reference_positions =
             vec![("reference".to_string(), &reference as &dyn Instrument, 1.0)];
         let reference_matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5)
-            .compute_sensitivities(&reference_positions, &factors, &market, as_of)?;
+            .compute_sensitivities(
+                &reference_positions,
+                &factors,
+                &market,
+                as_of,
+                Currency::USD,
+            )?;
 
         assert!((matrix.delta(0, 0) - reference_matrix.delta(0, 0)).abs() < 1e-12);
         assert_eq!(matrix.delta(1, 0), 0.0);
@@ -892,8 +922,13 @@ mod tests {
             description: None,
         }];
 
-        let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5)
-            .compute_sensitivities(&positions, &factors, &market, as_of)?;
+        let matrix = FullRepricingEngine::new(BumpSizeConfig::default(), 5).compute_sensitivities(
+            &positions,
+            &factors,
+            &market,
+            as_of,
+            Currency::USD,
+        )?;
 
         assert_eq!(matrix.delta(0, 0), 0.0);
         assert_eq!(
@@ -922,8 +957,13 @@ mod tests {
             description: None,
         }];
 
-        FullRepricingEngine::new(BumpSizeConfig::default(), 5)
-            .compute_sensitivities(&positions, &factors, &market, as_of)?;
+        FullRepricingEngine::new(BumpSizeConfig::default(), 5).compute_sensitivities(
+            &positions,
+            &factors,
+            &market,
+            as_of,
+            Currency::USD,
+        )?;
 
         assert_eq!(
             calls.load(Ordering::Relaxed),

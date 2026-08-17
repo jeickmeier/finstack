@@ -407,12 +407,13 @@ impl PortfolioMarginAggregator {
 
             match calculator.calculate(marginable, market, as_of) {
                 Ok(im_result) => {
-                    // B-6: the calculator prices the marginable's per-unit
-                    // exposure (unit-notional contract, matching `mtm_for_vm`),
-                    // so scale the IM contribution by the signed position
-                    // factor. The sign is preserved: identical cleared
-                    // contracts are fungible at the CCP, so an offsetting
-                    // short cancels its long's IM contribution.
+                    // B-6: the calculator prices the marginable's deal
+                    // exposure (instrument already carries deal notional,
+                    // matching `mtm_for_vm`), so scale the IM contribution
+                    // by the signed lot multiplier. The sign is preserved:
+                    // identical cleared contracts are fungible at the CCP,
+                    // so an offsetting short cancels its long's IM
+                    // contribution.
                     let scaled_im = position.scale_value(im_result.amount);
                     let amount = if scaled_im.currency() == self.base_currency {
                         Ok(scaled_im.amount())
@@ -458,8 +459,8 @@ impl PortfolioMarginAggregator {
 
     /// Get MTM for a position in its native currency, scaled by position quantity.
     ///
-    /// The underlying `mtm_for_vm` returns unit-notional MTM; this method
-    /// applies [`Position::scale_value`] so VM reflects the actual holding.
+    /// `mtm_for_vm` returns the instrument's deal MTM; this method applies
+    /// [`Position::scale_value`] so VM reflects the lot multiplier.
     fn get_position_mtm(
         &self,
         position: &Position,

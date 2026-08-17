@@ -118,9 +118,13 @@ pub struct PortfolioOptimizationResult {
 
     /// Implied target quantities for each position (units / face / notional).
     ///
-    /// Reconstruction depends on the weighting scheme:
-    /// - `ValueWeight`: convert target PV share back to quantity using `pv_per_unit`
-    /// - `NotionalWeight`: apply the target notional share directly
+    /// Reconstruction depends on the weighting scheme and is always written
+    /// in `Position::quantity` units (lots, shares, face multiplier, or
+    /// percentage points):
+    /// - `ValueWeight`: convert the target PV share through `pv_per_unit`
+    ///   (base PV per 1.0 of `scale_factor()`) and map scale back to quantity
+    /// - `NotionalWeight`: convert the target notional share through
+    ///   `|instrument.notional().amount()|` and map scale back to quantity
     /// - `UnitScaling`: treat the optimized weight as a quantity multiplier for
     ///   existing positions, or as the direct target quantity for new candidates
     pub implied_quantities: IndexMap<PositionId, f64>,

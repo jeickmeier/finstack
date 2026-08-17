@@ -17,9 +17,12 @@
 //! # Conventions
 //!
 //! - Optimization weights are abstract and must be interpreted via
-//!   [`crate::optimization::WeightingScheme`]. In particular, `ValueWeight` means share of
-//!   base-currency portfolio value, while `UnitScaling` means a multiplier on
-//!   the current quantity for existing positions.
+//!   [`crate::optimization::WeightingScheme`]. `ValueWeight` is share of
+//!   base-currency portfolio PV (`pv_per_unit` is PV per `scale_factor()`,
+//!   not raw quantity). `NotionalWeight` is share of
+//!   `|instrument.notional()| × scale_factor()` and fails if the instrument
+//!   does not expose deal notional. `UnitScaling` is a multiplier on the
+//!   current quantity for existing positions.
 //! - Portfolio-level constraints assume metrics are comparable across positions.
 //!   Mixed-currency portfolios therefore use base-currency quantities where the
 //!   linearization would otherwise be ambiguous.

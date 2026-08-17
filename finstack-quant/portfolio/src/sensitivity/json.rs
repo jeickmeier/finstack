@@ -4,10 +4,12 @@ use super::{
     pricing_positions, DeltaBasedEngine, FactorPnlProfile, FactorSensitivityEngine,
     FullRepricingEngine, SensitivityMatrix,
 };
+use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::{Error, Result};
 use finstack_quant_factor_model::{BumpSizeConfig, FactorDefinition};
+use finstack_quant_valuations::instruments::Instrument;
 use serde::Serialize;
 
 /// Default scenario count for symmetric P&L profile grids.
@@ -77,11 +79,29 @@ pub fn parse_bump_config_json(json: Option<&str>) -> Result<BumpSizeConfig> {
     }
 }
 
+/// Reporting currency for standalone JSON factor endpoints.
+///
+/// The JSON façade has no [`crate::Portfolio`], so it reports in the first
+/// position's native pricing currency and converts every other row into that
+/// currency on the (bumped) market. An empty book never converts.
+fn json_reporting_currency(
+    positions: &[(String, &dyn Instrument, f64)],
+    market: &MarketContext,
+    as_of: Date,
+) -> Result<Currency> {
+    match positions.first() {
+        Some((_, instrument, _)) => Ok(instrument.value_raw_with_currency(market, as_of)?.1),
+        None => Ok(Currency::USD),
+    }
+}
+
 /// Compute position-by-factor sensitivities from JSON binding inputs.
 ///
 /// Positions and factor definitions are parsed from JSON, while `market` and
 /// `as_of` are already-typed Rust values. The result preserves engine ordering:
 /// rows correspond to priced positions and columns to the supplied factors.
+/// Sensitivities are in the first position's native currency; other positions
+/// are converted into that currency on each bumped market.
 ///
 /// # Arguments
 ///
@@ -112,7 +132,8 @@ pub fn compute_factor_sensitivities_from_json(
     let factors = parse_factor_definitions_json(factors_json)?;
     let bump_config = parse_bump_config_json(bump_config_json)?;
     let engine = DeltaBasedEngine::new(bump_config);
-    engine.compute_sensitivities(&positions, &factors, market, as_of)
+    let base_currency = json_reporting_currency(&positions, market, as_of)?;
+    engine.compute_sensitivities(&positions, &factors, market, as_of, base_currency)
 }
 
 /// Compute factor sensitivities from fully serialized binding inputs.
@@ -163,7 +184,8 @@ pub fn compute_factor_sensitivities_json(
 ///
 /// Each factor is shifted across `n_scenario_points` around its configured
 /// bump. The resulting profiles hold per-position P&L rows indexed by shift;
-/// their units are the positions' reporting/base-currency valuation amounts.
+/// their units are base-currency amounts (first position's native currency
+/// on this JSON path; [`crate::Portfolio::base_currency`] when wrapping a book).
 ///
 /// # Arguments
 ///
@@ -195,7 +217,8 @@ pub fn compute_pnl_profiles_from_json(
     let factors = parse_factor_definitions_json(factors_json)?;
     let bump_config = parse_bump_config_json(bump_config_json)?;
     let engine = FullRepricingEngine::try_new(bump_config, n_scenario_points)?;
-    engine.compute_pnl_profiles(&positions, &factors, market, as_of)
+    let base_currency = json_reporting_currency(&positions, market, as_of)?;
+    engine.compute_pnl_profiles(&positions, &factors, market, as_of, base_currency)
 }
 
 /// Compute repriced P&L profiles from fully serialized binding inputs.

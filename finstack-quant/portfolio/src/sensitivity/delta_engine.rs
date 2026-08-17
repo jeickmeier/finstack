@@ -1,6 +1,9 @@
 //! Finite-difference and repricing utilities for portfolio sensitivities.
 //!
-use super::traits::{FactorRepricingPlan, FactorSensitivityEngine};
+use super::traits::{
+    mapping_bumps_fx, raw_pv_in_base, FactorRepricingPlan, FactorSensitivityEngine,
+};
+use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::bumps::{BumpMode, BumpSpec, BumpType, MarketBump};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -33,6 +36,7 @@ impl DeltaBasedEngine {
         factor: &FactorDefinition,
         market: &MarketContext,
         as_of: Date,
+        base_currency: Currency,
     ) -> Result<Vec<f64>> {
         let (bump_size, bump_unit) = self
             .bump_config
@@ -54,15 +58,16 @@ impl DeltaBasedEngine {
             as_of,
         )?)?;
 
+        let reconvert_all = mapping_bumps_fx(&factor.market_mapping);
         positions
             .iter()
             .zip(affected_positions)
             .map(|((position_id, instrument, weight), affected)| {
-                if !affected {
+                if !affected && !reconvert_all {
                     return Ok(0.0);
                 }
-                let pv_up = instrument.value_raw(&up_market, as_of)?;
-                let pv_down = instrument.value_raw(&down_market, as_of)?;
+                let pv_up = raw_pv_in_base(*instrument, &up_market, as_of, base_currency)?;
+                let pv_down = raw_pv_in_base(*instrument, &down_market, as_of, base_currency)?;
                 if !pv_up.is_finite() || !pv_down.is_finite() {
                     return Err(Error::Validation(format!(
                         "minor 15: non-finite bumped PV for position '{position_id}' on factor '{}' (up = {pv_up}, down = {pv_down})",
@@ -265,8 +270,8 @@ impl FactorSensitivityEngine for DeltaBasedEngine {
         factors: &[FactorDefinition],
         market: &MarketContext,
         as_of: Date,
+        base_currency: Currency,
     ) -> Result<SensitivityMatrix> {
-        super::traits::validate_single_currency(positions, market, as_of)?;
         let position_ids = positions.iter().map(|(id, _, _)| id.clone()).collect();
         let factor_ids = factors.iter().map(|factor| factor.id.clone()).collect();
         let mut matrix = SensitivityMatrix::zeros(position_ids, factor_ids);
@@ -282,6 +287,7 @@ impl FactorSensitivityEngine for DeltaBasedEngine {
                     factor,
                     market,
                     as_of,
+                    base_currency,
                 )
             })
             .collect();
@@ -468,6 +474,14 @@ mod tests {
                 calls.fetch_add(1, Ordering::Relaxed);
             }
             self.raw_value(market, as_of)
+        }
+
+        fn base_value_raw_with_currency(
+            &self,
+            market: &MarketContext,
+            as_of: Date,
+        ) -> Result<(f64, Currency)> {
+            Ok((self.base_value_raw(market, as_of)?, Currency::USD))
         }
 
         fn market_dependencies(&self) -> Result<MarketDependencies> {
@@ -662,8 +676,13 @@ mod tests {
             description: None,
         }];
 
-        let matrix = DeltaBasedEngine::new(BumpSizeConfig::default())
-            .compute_sensitivities(&positions, &factors, &market, as_of)?;
+        let matrix = DeltaBasedEngine::new(BumpSizeConfig::default()).compute_sensitivities(
+            &positions,
+            &factors,
+            &market,
+            as_of,
+            Currency::USD,
+        )?;
 
         assert_eq!(matrix.n_positions(), 1);
         assert_eq!(matrix.n_factors(), 1);
@@ -688,7 +707,7 @@ mod tests {
         }];
 
         let err = DeltaBasedEngine::new(BumpSizeConfig::default())
-            .compute_sensitivities(&positions, &factors, &market, as_of)
+            .compute_sensitivities(&positions, &factors, &market, as_of, Currency::USD)
             .expect_err("minor 15: non-finite bumped PV must fail fast");
         assert!(
             err.to_string().contains("minor 15"),
@@ -725,7 +744,7 @@ mod tests {
         ];
 
         let error = DeltaBasedEngine::new(BumpSizeConfig::default())
-            .compute_sensitivities(&positions, &factors, &market, as_of)
+            .compute_sensitivities(&positions, &factors, &market, as_of, Currency::USD)
             .expect_err("both factor mappings reference missing curves");
         let message = error.to_string();
         assert!(
@@ -754,8 +773,13 @@ mod tests {
             description: None,
         }];
 
-        let matrix = DeltaBasedEngine::new(BumpSizeConfig::default())
-            .compute_sensitivities(&positions, &factors, &market, as_of)?;
+        let matrix = DeltaBasedEngine::new(BumpSizeConfig::default()).compute_sensitivities(
+            &positions,
+            &factors,
+            &market,
+            as_of,
+            Currency::USD,
+        )?;
 
         assert!((matrix.delta(0, 0) - 1.0).abs() < 1e-9);
         Ok(())
@@ -776,8 +800,13 @@ mod tests {
             description: None,
         }];
 
-        let matrix = DeltaBasedEngine::new(BumpSizeConfig::default())
-            .compute_sensitivities(&positions, &factors, &market, as_of)?;
+        let matrix = DeltaBasedEngine::new(BumpSizeConfig::default()).compute_sensitivities(
+            &positions,
+            &factors,
+            &market,
+            as_of,
+            Currency::USD,
+        )?;
 
         assert!(
             matrix.delta(0, 0).abs() > 1e-12,
@@ -814,13 +843,24 @@ mod tests {
             description: None,
         }];
 
-        let matrix = DeltaBasedEngine::new(BumpSizeConfig::default())
-            .compute_sensitivities(&positions, &factors, &market, as_of)?;
+        let matrix = DeltaBasedEngine::new(BumpSizeConfig::default()).compute_sensitivities(
+            &positions,
+            &factors,
+            &market,
+            as_of,
+            Currency::USD,
+        )?;
         let reference = MockInstrument::curve_zero("reference", "USD-OIS", 5.0, 10_000.0);
         let reference_positions =
             vec![("reference".to_string(), &reference as &dyn Instrument, 1.0)];
         let reference_matrix = DeltaBasedEngine::new(BumpSizeConfig::default())
-            .compute_sensitivities(&reference_positions, &factors, &market, as_of)?;
+            .compute_sensitivities(
+                &reference_positions,
+                &factors,
+                &market,
+                as_of,
+                Currency::USD,
+            )?;
 
         assert!((matrix.delta(0, 0) - reference_matrix.delta(0, 0)).abs() < 1e-12);
         assert_eq!(matrix.delta(1, 0), 0.0);
@@ -856,8 +896,13 @@ mod tests {
             description: None,
         }];
 
-        let matrix = DeltaBasedEngine::new(BumpSizeConfig::default())
-            .compute_sensitivities(&positions, &factors, &market, as_of)?;
+        let matrix = DeltaBasedEngine::new(BumpSizeConfig::default()).compute_sensitivities(
+            &positions,
+            &factors,
+            &market,
+            as_of,
+            Currency::USD,
+        )?;
 
         assert_eq!(matrix.delta(0, 0), 0.0);
         assert_eq!(
@@ -886,8 +931,13 @@ mod tests {
             description: None,
         }];
 
-        DeltaBasedEngine::new(BumpSizeConfig::default())
-            .compute_sensitivities(&positions, &factors, &market, as_of)?;
+        DeltaBasedEngine::new(BumpSizeConfig::default()).compute_sensitivities(
+            &positions,
+            &factors,
+            &market,
+            as_of,
+            Currency::USD,
+        )?;
 
         assert_eq!(
             calls.load(Ordering::Relaxed),

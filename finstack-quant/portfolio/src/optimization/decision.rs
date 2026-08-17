@@ -4,9 +4,11 @@ use super::problem::PortfolioOptimizationProblem;
 use super::tolerances::{GROSS_BASE_TOL, MIN_WEIGHT_TOL, PV_PER_UNIT_TOL};
 use super::types::{MissingMetricPolicy, WeightingScheme};
 use crate::error::{Error, Result};
+use crate::position::PositionUnit;
 use crate::types::{AttributeValue, EntityId, PositionId};
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::MetricId;
 use indexmap::IndexMap;
 
@@ -39,6 +41,10 @@ pub(crate) struct DecisionItem {
     /// solutions, where the optimized weight is a dimensionless multiplier on
     /// the live quantity rather than a PV share.
     pub current_quantity: f64,
+    /// Quantity unit, used to convert scale-factor units back to
+    /// [`crate::position::Position::quantity`] after ValueWeight /
+    /// NotionalWeight reconstruction.
+    pub unit: PositionUnit,
 }
 
 /// Per‑decision‑variable features used to build linear forms.
@@ -48,8 +54,15 @@ pub(crate) struct DecisionFeatures {
     pub pv_base: f64,
     /// Current native-currency PV (scaled by quantity; 0 for candidates).
     pub pv_native: f64,
-    /// Base‑currency PV per unit of quantity (for implied quantities).
+    /// Base-currency PV per 1.0 of [`crate::position::Position::scale_factor`]
+    /// (not raw `Position::quantity`). A `Percentage` holding of `50`
+    /// therefore uses scale `0.5`. Used to reconstruct implied quantities
+    /// under [`WeightingScheme::ValueWeight`].
     pub pv_per_unit: f64,
+    /// Absolute instrument deal notional per 1.0 of scale
+    /// (`|instrument.notional().amount()|`). Zero when the weighting scheme
+    /// is not [`WeightingScheme::NotionalWeight`].
+    pub deal_notional_abs: f64,
     /// Metric measures by string key (as in `ValuationResult::measures`).
     pub measures: IndexMap<String, f64>,
     /// Attributes used by attribute‑based constraints and filters.
@@ -76,6 +89,42 @@ fn is_missing_required_metrics(
     required_metrics
         .iter()
         .any(|metric| !measures.contains_key(metric.as_str()))
+}
+
+/// Convert a scale-factor holding back to [`crate::position::Position::quantity`] units.
+pub(crate) fn quantity_from_scale(unit: PositionUnit, scale: f64) -> f64 {
+    match unit {
+        PositionUnit::Units | PositionUnit::Notional(_) | PositionUnit::FaceValue => scale,
+        PositionUnit::Percentage => scale * 100.0,
+    }
+}
+
+fn scale_of_quantity(unit: PositionUnit, quantity: f64) -> f64 {
+    match unit {
+        PositionUnit::Units | PositionUnit::Notional(_) | PositionUnit::FaceValue => quantity,
+        PositionUnit::Percentage => quantity / 100.0,
+    }
+}
+
+fn pv_per_scale_unit(pv_base: f64, scale: f64) -> f64 {
+    if scale != 0.0 {
+        pv_base / scale
+    } else {
+        0.0
+    }
+}
+
+/// `|instrument.notional().amount()|`, or an error under `NotionalWeight`.
+fn require_deal_notional_abs(instrument: &dyn Instrument, id: &str) -> Result<f64> {
+    instrument
+        .notional()
+        .map(|m| m.amount().abs())
+        .ok_or_else(|| {
+            Error::invalid_input(format!(
+                "NotionalWeight requires instrument.notional() for '{id}'; \
+                 the instrument does not carry deal notional"
+            ))
+        })
 }
 
 /// Build decision items and associated features from the portfolio and trade universe.
@@ -112,12 +161,18 @@ pub(crate) fn build_decision_space(
         let pv_base = pv_entry.value_base.amount();
         let pv_native = pv_entry.value_native.amount();
         gross_pv_base += pv_base.abs();
-        // For NotionalWeight: use the same unit-aware scale factor that
-        // portfolio valuation and factor risk use, so Percentage positions
-        // contribute 50% as 0.5 instead of raw 50.0.
-        let notional_proxy = position.scale_factor();
-        position_notionals.insert(position.position_id.clone(), notional_proxy);
-        gross_notional += notional_proxy.abs();
+        let deal_notional_abs = if matches!(problem.weighting, WeightingScheme::NotionalWeight) {
+            let deal_abs = require_deal_notional_abs(
+                position.instrument.as_ref(),
+                position.position_id.as_str(),
+            )?;
+            let signed_notional = deal_abs * position.scale_factor();
+            position_notionals.insert(position.position_id.clone(), signed_notional);
+            gross_notional += signed_notional.abs();
+            deal_abs
+        } else {
+            0.0
+        };
 
         // Extract measures
         let mut measures = IndexMap::new();
@@ -156,14 +211,10 @@ pub(crate) fn build_decision_space(
             && matches!(problem.missing_metric_policy, MissingMetricPolicy::Exclude);
         let is_held = explicit_hold || is_excluded || freeze_for_missing_metrics;
 
-        let pv_per_unit = if position.quantity != 0.0 {
-            pv_base / position.quantity
-        } else {
-            0.0
-        };
+        let pv_per_unit = pv_per_scale_unit(pv_base, position.scale_factor());
         if matches!(problem.weighting, WeightingScheme::ValueWeight)
             && !is_held
-            && position.quantity.abs() > PV_PER_UNIT_TOL
+            && position.scale_factor().abs() > PV_PER_UNIT_TOL
             && pv_per_unit.abs() < PV_PER_UNIT_TOL
         {
             return Err(Error::invalid_input(format!(
@@ -179,6 +230,7 @@ pub(crate) fn build_decision_space(
             is_existing: true,
             is_held,
             current_quantity: position.quantity,
+            unit: position.unit,
         });
 
         // M-7: Preserve the sign of existing positions by default. Longs remain
@@ -192,8 +244,9 @@ pub(crate) fn build_decision_space(
         features.push(DecisionFeatures {
             pv_base,
             pv_native,
-            // When quantity == 0, treat pv_per_unit as 0 to avoid division by zero.
+            // When scale_factor == 0, treat pv_per_unit as 0 to avoid division by zero.
             pv_per_unit,
+            deal_notional_abs,
             measures,
             attributes: position.attributes.clone(),
             min_weight,
@@ -259,14 +312,21 @@ pub(crate) fn build_decision_space(
             .ok_or_else(|| Error::valuation(candidate.id.clone(), "failed to value candidate"))?;
 
         let pv_unit = val_entry.value_base.amount();
+        let unit_scale = scale_of_quantity(candidate.unit, 1.0);
+        let pv_per_unit = pv_per_scale_unit(pv_unit, unit_scale);
+        let deal_notional_abs = if matches!(problem.weighting, WeightingScheme::NotionalWeight) {
+            require_deal_notional_abs(candidate.instrument.as_ref(), candidate.id.as_str())?
+        } else {
+            0.0
+        };
         // ValueWeight reconstructs implied quantities as
-        // `(w_star * gross_pv_base) / pv_per_unit`. A zero `pv_unit`
-        // candidate would silently collapse to zero quantity for any
-        // non-zero target weight, producing a meaningless trade. Reject
-        // up-front so the caller can either re-price or remove the
-        // candidate rather than discovering the no-op after solving.
+        // `(w_star * gross_pv_base) / pv_per_unit` in scale-factor units.
+        // A zero `pv_per_unit` candidate would silently collapse to zero
+        // quantity for any non-zero target weight, producing a meaningless
+        // trade. Reject up-front so the caller can either re-price or remove
+        // the candidate rather than discovering the no-op after solving.
         if matches!(problem.weighting, WeightingScheme::ValueWeight)
-            && pv_unit.abs() < PV_PER_UNIT_TOL
+            && pv_per_unit.abs() < PV_PER_UNIT_TOL
             && candidate.max_weight.abs() > PV_PER_UNIT_TOL
         {
             return Err(Error::invalid_input(format!(
@@ -292,6 +352,7 @@ pub(crate) fn build_decision_space(
             is_held: missing_required_metrics
                 && matches!(problem.missing_metric_policy, MissingMetricPolicy::Exclude),
             current_quantity: 0.0,
+            unit: candidate.unit,
         });
 
         let candidate_min_weight = if problem.trade_universe.allow_short_candidates
@@ -305,7 +366,8 @@ pub(crate) fn build_decision_space(
         features.push(DecisionFeatures {
             pv_base: 0.0, // Currently held value is 0
             pv_native: val_entry.value_native.amount(),
-            pv_per_unit: pv_unit,
+            pv_per_unit,
+            deal_notional_abs,
             measures,
             attributes: candidate.attributes.clone(),
             min_weight: candidate_min_weight,
@@ -316,8 +378,8 @@ pub(crate) fn build_decision_space(
     // Populate current weights based on weighting scheme.
     match problem.weighting {
         WeightingScheme::NotionalWeight => {
-            // For NotionalWeight: use signed quantity / gross absolute quantity
-            // This gives weights based on notional exposure, not PV
+            // Signed deal-notional / gross absolute deal-notional.
+            // notional_i = |instrument.notional().amount()| * scale_factor().
             if gross_notional.abs() > GROSS_BASE_TOL {
                 for item in &items {
                     if item.is_existing {

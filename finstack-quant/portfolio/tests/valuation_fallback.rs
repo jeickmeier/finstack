@@ -177,7 +177,10 @@ fn valuation_falls_back_when_metrics_fail() {
         &portfolio,
         &market,
         &config,
-        &Default::default(),
+        &PortfolioValuationOptions {
+            strict_risk: false,
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -233,7 +236,10 @@ fn fallback_valuation_stamps_caller_config() {
         &portfolio,
         &market_with_usd(),
         &config,
-        &Default::default(),
+        &PortfolioValuationOptions {
+            strict_risk: false,
+            ..Default::default()
+        },
     )
     .expect("fallback valuation");
     let result = valuation

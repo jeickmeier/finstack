@@ -2,7 +2,8 @@
 //!
 use super::constraints::{Constraint, Inequality};
 use super::decision::{
-    build_decision_space, DecisionFeatures, DecisionItem, OptimizationDenominators,
+    build_decision_space, quantity_from_scale, DecisionFeatures, DecisionItem,
+    OptimizationDenominators,
 };
 use super::problem::PortfolioOptimizationProblem;
 use super::result::{OptimizationStatus, PortfolioOptimizationResult};
@@ -185,6 +186,18 @@ impl DefaultLpOptimizer {
                             coeffs.push(0.0);
                             continue;
                         }
+                    }
+                    // Under `MissingMetricPolicy::Exclude` a position with a
+                    // missing metric keeps its current weight and is dropped
+                    // from constraint / objective evaluation. `WeightedSum`
+                    // and unfiltered `ValueWeightedAverage` share this
+                    // coefficient builder; skip here the same way VWA bounds
+                    // drop the name from both numerator and denominator.
+                    if matches!(missing_policy, MissingMetricPolicy::Exclude)
+                        && Self::per_position_metric_raw(metric, feat).is_none()
+                    {
+                        coeffs.push(0.0);
+                        continue;
                     }
                     // Aggregated objectives sum across positions, so the per-
                     // position metric must be expressed in a common numeraire.
@@ -693,10 +706,22 @@ impl DefaultLpOptimizer {
                 .copied()
                 .unwrap_or(0.0);
             let qty = match problem.weighting {
-                WeightingScheme::NotionalWeight => w_star * reconstruction_denominator,
+                WeightingScheme::NotionalWeight => {
+                    if feat.deal_notional_abs > PV_PER_UNIT_TOL {
+                        quantity_from_scale(
+                            item.unit,
+                            (w_star * reconstruction_denominator) / feat.deal_notional_abs,
+                        )
+                    } else {
+                        0.0
+                    }
+                }
                 WeightingScheme::ValueWeight => {
                     if feat.pv_per_unit.abs() > PV_PER_UNIT_TOL {
-                        (w_star * reconstruction_denominator) / feat.pv_per_unit
+                        quantity_from_scale(
+                            item.unit,
+                            (w_star * reconstruction_denominator) / feat.pv_per_unit,
+                        )
                     } else {
                         0.0
                     }
@@ -1009,6 +1034,7 @@ mod tests {
             pv_base: 125.0,
             pv_native: 100.0,
             pv_per_unit: 125.0,
+            deal_notional_abs: 0.0,
             measures: IndexMap::new(),
             attributes: IndexMap::new(),
             min_weight: 0.0,
@@ -1036,6 +1062,7 @@ mod tests {
             pv_base: 100.0,
             pv_native: 100.0,
             pv_per_unit: 100.0,
+            deal_notional_abs: 0.0,
             measures: IndexMap::new(),
             attributes,
             min_weight: 0.0,
@@ -1071,6 +1098,7 @@ mod tests {
             pv_base: 100.0,
             pv_native: 100.0,
             pv_per_unit: 100.0,
+            deal_notional_abs: 0.0,
             measures: IndexMap::new(),
             attributes,
             min_weight: 0.0,
@@ -1084,5 +1112,72 @@ mod tests {
         )
         .expect("should resolve");
         assert_eq!(value, 650.0);
+    }
+
+    #[test]
+    fn weighted_sum_exclude_skips_missing_metric_like_vwa() {
+        use crate::position::PositionUnit;
+        use crate::types::{EntityId, PositionId};
+
+        let scored = DecisionFeatures {
+            pv_base: 50.0,
+            pv_native: 50.0,
+            pv_per_unit: 50.0,
+            deal_notional_abs: 0.0,
+            measures: IndexMap::from([("ytm".to_string(), 10.0)]),
+            attributes: IndexMap::new(),
+            min_weight: 0.0,
+            max_weight: 1.0,
+        };
+        let missing = DecisionFeatures {
+            pv_base: 50.0,
+            pv_native: 50.0,
+            pv_per_unit: 50.0,
+            deal_notional_abs: 0.0,
+            measures: IndexMap::new(),
+            attributes: IndexMap::new(),
+            min_weight: 0.0,
+            max_weight: 1.0,
+        };
+        let items = vec![
+            DecisionItem {
+                position_id: PositionId::from("SCORED"),
+                entity_id: EntityId::from("ENT"),
+                is_existing: true,
+                is_held: false,
+                current_quantity: 1.0,
+                unit: PositionUnit::Units,
+            },
+            DecisionItem {
+                position_id: PositionId::from("MISSING"),
+                entity_id: EntityId::from("ENT"),
+                is_existing: true,
+                is_held: true,
+                current_quantity: 1.0,
+                unit: PositionUnit::Units,
+            },
+        ];
+        let expr = MetricExpr::WeightedSum {
+            metric: PerPositionMetric::Metric(MetricId::Ytm),
+            filter: None,
+        };
+
+        let zero_coeffs = DefaultLpOptimizer::build_metric_coefficients(
+            &expr,
+            &[scored.clone(), missing.clone()],
+            MissingMetricPolicy::Zero,
+            &items,
+        )
+        .expect("Zero policy should resolve missing as 0");
+        assert_eq!(zero_coeffs, vec![10.0, 0.0]);
+
+        let exclude_coeffs = DefaultLpOptimizer::build_metric_coefficients(
+            &expr,
+            &[scored, missing],
+            MissingMetricPolicy::Exclude,
+            &items,
+        )
+        .expect("Exclude policy should skip missing names");
+        assert_eq!(exclude_coeffs, vec![10.0, 0.0]);
     }
 }

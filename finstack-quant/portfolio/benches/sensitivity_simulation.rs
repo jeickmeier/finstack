@@ -210,7 +210,7 @@ fn bench_full_repricing(c: &mut Criterion) {
             |b, _| {
                 b.iter(|| {
                     let profiles = engine
-                        .compute_pnl_profiles(&positions, &factors, &market, as_of)
+                        .compute_pnl_profiles(&positions, &factors, &market, as_of, Currency::USD)
                         .expect("bench: pnl profiles should compute");
                     std::hint::black_box(profiles);
                 });
@@ -238,6 +238,7 @@ fn bench_full_repricing(c: &mut Criterion) {
                             &sparse_factors,
                             &sparse_market,
                             as_of,
+                            Currency::USD,
                         )
                         .expect("bench: dependency-routed pnl profiles should compute");
                     std::hint::black_box(profiles);

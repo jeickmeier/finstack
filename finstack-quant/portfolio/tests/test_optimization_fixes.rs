@@ -43,6 +43,24 @@ fn build_mock_market() -> finstack_quant_core::market_data::context::MarketConte
     market
 }
 
+fn test_deposit(
+    id: &str,
+    notional: f64,
+    as_of: Date,
+) -> Result<Deposit, Box<dyn std::error::Error>> {
+    Ok(Deposit::builder()
+        .id(id.into())
+        .notional(Money::new(notional, Currency::USD))
+        .start_date(as_of)
+        .maturity(create_date(2024, Month::February, 1)?)
+        .day_count(DayCount::Act365F)
+        .discount_curve_id("USD-OIS".into())
+        .quote_rate_opt(Some(
+            rust_decimal::Decimal::try_from(0.045).expect("valid literal"),
+        ))
+        .build()?)
+}
+
 fn build_multi_currency_market() -> finstack_quant_core::market_data::context::MarketContext {
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
@@ -936,8 +954,7 @@ fn mo8_value_weight_existing_zero_pv_position_errors() -> Result<(), Box<dyn std
 }
 
 #[test]
-fn minor14_notional_weight_uses_unit_aware_scale_factor() -> Result<(), Box<dyn std::error::Error>>
-{
+fn notional_weight_rejects_missing_instrument_notional() -> Result<(), Box<dyn std::error::Error>> {
     let as_of = create_date(2024, Month::January, 1)?;
     let percentage = Position::new(
         "POS_PERCENT",
@@ -979,14 +996,13 @@ fn minor14_notional_weight_uses_unit_aware_scale_factor() -> Result<(), Box<dyn 
     );
     problem.weighting = WeightingScheme::NotionalWeight;
 
-    let optimizer = DefaultLpOptimizer;
-    let result = optimizer.optimize(&problem, &MarketContext::new(), &FinstackConfig::default())?;
-
+    let err = DefaultLpOptimizer
+        .optimize(&problem, &MarketContext::new(), &FinstackConfig::default())
+        .expect_err("NotionalWeight must fail when instrument.notional() is None");
     assert!(
-        (result.current_weights["POS_PERCENT"] - (1.0 / 3.0)).abs() < 1e-12,
-        "minor 14: percentage notional should use quantity / 100"
+        err.to_string().contains("NotionalWeight"),
+        "unexpected error: {err}"
     );
-    assert!((result.current_weights["POS_UNIT"] - (2.0 / 3.0)).abs() < 1e-12);
     Ok(())
 }
 
@@ -997,12 +1013,8 @@ fn test_notional_weighting_implied_quantities_use_notional_denominator() {
     let pos1 = Position::new(
         "POS_1",
         "ENT_A",
-        "INST_1",
-        Arc::new(MetricInstrument::new(
-            "INST_1",
-            Money::new(100.0, Currency::USD),
-            IndexMap::new(),
-        )),
+        "DEP_1",
+        Arc::new(test_deposit("DEP_1", 1_000_000.0, as_of).unwrap()),
         1.0,
         PositionUnit::Notional(Some(Currency::USD)),
     )
@@ -1010,12 +1022,8 @@ fn test_notional_weighting_implied_quantities_use_notional_denominator() {
     let pos2 = Position::new(
         "POS_2",
         "ENT_A",
-        "INST_2",
-        Arc::new(MetricInstrument::new(
-            "INST_2",
-            Money::new(50.0, Currency::USD),
-            IndexMap::new(),
-        )),
+        "DEP_2",
+        Arc::new(test_deposit("DEP_2", 1_000_000.0, as_of).unwrap()),
         3.0,
         PositionUnit::Notional(Some(Currency::USD)),
     )
@@ -1537,4 +1545,248 @@ fn mo9_unit_scaling_without_budget_does_not_synthesize_sum_multiplier_budget() {
         .optimize(&problem, &build_mock_market(), &FinstackConfig::default())
         .expect_err("MO-9: UnitScaling must not get a synthetic budget");
     assert!(err.to_string().contains("MO-9"), "unexpected error: {err}");
+}
+
+#[test]
+fn notional_weight_uses_instrument_deal_notional() -> Result<(), Box<dyn std::error::Error>> {
+    let as_of = create_date(2024, Month::January, 1)?;
+    let small = Position::new(
+        "POS_1M",
+        "ENT_A",
+        "DEP_1M",
+        Arc::new(test_deposit("DEP_1M", 1_000_000.0, as_of)?),
+        1.0,
+        PositionUnit::Notional(Some(Currency::USD)),
+    )?;
+    let large = Position::new(
+        "POS_2M",
+        "ENT_A",
+        "DEP_2M",
+        Arc::new(test_deposit("DEP_2M", 2_000_000.0, as_of)?),
+        1.0,
+        PositionUnit::Notional(Some(Currency::USD)),
+    )?;
+    let portfolio = PortfolioBuilder::new("DEAL_NOTIONAL")
+        .base_currency(Currency::USD)
+        .as_of(as_of)
+        .entity(Entity::new("ENT_A"))
+        .position(small)
+        .position(large)
+        .build()?;
+    let mut problem = PortfolioOptimizationProblem::new(
+        portfolio,
+        Objective::Maximize(MetricExpr::WeightedSum {
+            metric: PerPositionMetric::Constant(0.0),
+            filter: None,
+        }),
+    );
+    problem.weighting = WeightingScheme::NotionalWeight;
+    problem = problem
+        .with_constraint(
+            finstack_quant_portfolio::optimization::Constraint::WeightBounds {
+                label: Some("pin_1m".to_string()),
+                filter: finstack_quant_portfolio::optimization::PositionFilter::ByPositionIds(
+                    vec!["POS_1M".into()],
+                ),
+                min: 1.0 / 3.0,
+                max: 1.0 / 3.0,
+            },
+        )
+        .with_constraint(
+            finstack_quant_portfolio::optimization::Constraint::WeightBounds {
+                label: Some("pin_2m".to_string()),
+                filter: finstack_quant_portfolio::optimization::PositionFilter::ByPositionIds(
+                    vec!["POS_2M".into()],
+                ),
+                min: 2.0 / 3.0,
+                max: 2.0 / 3.0,
+            },
+        );
+
+    let result =
+        DefaultLpOptimizer.optimize(&problem, &build_mock_market(), &FinstackConfig::default())?;
+    assert!(
+        (result.current_weights["POS_1M"] - (1.0 / 3.0)).abs() < 1e-9,
+        "1M deal should be one-third of 3M gross, got {}",
+        result.current_weights["POS_1M"]
+    );
+    assert!(
+        (result.current_weights["POS_2M"] - (2.0 / 3.0)).abs() < 1e-9,
+        "2M deal should be two-thirds of 3M gross, got {}",
+        result.current_weights["POS_2M"]
+    );
+    assert!(
+        (result.implied_quantities["POS_1M"] - 1.0).abs() < 1e-9,
+        "implied lots must stay 1, not dollar notional, got {}",
+        result.implied_quantities["POS_1M"]
+    );
+    assert!(
+        (result.implied_quantities["POS_2M"] - 1.0).abs() < 1e-9,
+        "implied lots must stay 1, not dollar notional, got {}",
+        result.implied_quantities["POS_2M"]
+    );
+    Ok(())
+}
+
+#[test]
+fn value_weight_percentage_reconstructs_via_scale_factor() -> Result<(), Box<dyn std::error::Error>>
+{
+    let as_of = create_date(2024, Month::January, 1)?;
+    let percentage = Position::new(
+        "POS_PERCENT",
+        "ENT_A",
+        "PERCENT_INST",
+        Arc::new(MetricInstrument::new(
+            "PERCENT_INST",
+            Money::new(100.0, Currency::USD),
+            IndexMap::new(),
+        )),
+        50.0,
+        PositionUnit::Percentage,
+    )?;
+    let unit = Position::new(
+        "POS_UNIT",
+        "ENT_A",
+        "UNIT_INST",
+        Arc::new(MetricInstrument::new(
+            "UNIT_INST",
+            Money::new(50.0, Currency::USD),
+            IndexMap::new(),
+        )),
+        1.0,
+        PositionUnit::Units,
+    )?;
+    let portfolio = PortfolioBuilder::new("PCT_SCALE")
+        .base_currency(Currency::USD)
+        .as_of(as_of)
+        .entity(Entity::new("ENT_A"))
+        .position(percentage)
+        .position(unit)
+        .build()?;
+    let mut problem = PortfolioOptimizationProblem::new(
+        portfolio,
+        Objective::Maximize(MetricExpr::WeightedSum {
+            metric: PerPositionMetric::Constant(1.0),
+            filter: None,
+        }),
+    );
+    problem = problem
+        .with_constraint(
+            finstack_quant_portfolio::optimization::Constraint::WeightBounds {
+                label: Some("pin_pct".to_string()),
+                filter: finstack_quant_portfolio::optimization::PositionFilter::ByPositionIds(
+                    vec!["POS_PERCENT".into()],
+                ),
+                min: 0.25,
+                max: 0.25,
+            },
+        )
+        .with_constraint(
+            finstack_quant_portfolio::optimization::Constraint::WeightBounds {
+                label: Some("pin_unit".to_string()),
+                filter: finstack_quant_portfolio::optimization::PositionFilter::ByPositionIds(
+                    vec!["POS_UNIT".into()],
+                ),
+                min: 0.75,
+                max: 0.75,
+            },
+        );
+
+    let result =
+        DefaultLpOptimizer.optimize(&problem, &MarketContext::new(), &FinstackConfig::default())?;
+    assert!(
+        (result.implied_quantities["POS_PERCENT"] - 25.0).abs() < 1e-9,
+        "Percentage 50 at half the current PV share must reconstruct 25 points, not scale 0.25; got {}",
+        result.implied_quantities["POS_PERCENT"]
+    );
+    assert!(
+        (result.implied_quantities["POS_UNIT"] - 1.5).abs() < 1e-9,
+        "Units position should reconstruct 1.5, got {}",
+        result.implied_quantities["POS_UNIT"]
+    );
+    Ok(())
+}
+
+/// `MissingMetricPolicy::Exclude` freezes the missing name and drops it from
+/// a `WeightedSum` coefficient vector the same way VWA already does.
+#[test]
+fn exclude_policy_skips_missing_metric_in_weighted_sum() {
+    let as_of = create_date(2024, Month::January, 1).unwrap();
+    let mut high_measures = IndexMap::new();
+    high_measures.insert(MetricId::Ytm, 0.10);
+    let mut low_measures = IndexMap::new();
+    low_measures.insert(MetricId::Ytm, 0.01);
+
+    let high = Position::new(
+        "POS_HI",
+        "ENT_A",
+        "HI_INST",
+        Arc::new(MetricInstrument::new(
+            "HI_INST",
+            Money::new(100.0, Currency::USD),
+            high_measures,
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .unwrap();
+    let low = Position::new(
+        "POS_LO",
+        "ENT_A",
+        "LO_INST",
+        Arc::new(MetricInstrument::new(
+            "LO_INST",
+            Money::new(100.0, Currency::USD),
+            low_measures,
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .unwrap();
+    let missing = Position::new(
+        "POS_MISSING",
+        "ENT_A",
+        "MISSING_INST",
+        Arc::new(MetricInstrument::new(
+            "MISSING_INST",
+            Money::new(100.0, Currency::USD),
+            IndexMap::new(),
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .unwrap();
+
+    let portfolio = PortfolioBuilder::new("EXCLUDE_WS")
+        .base_currency(Currency::USD)
+        .as_of(as_of)
+        .entity(Entity::new("ENT_A"))
+        .position(high)
+        .position(low)
+        .position(missing)
+        .build()
+        .unwrap();
+
+    let mut problem = PortfolioOptimizationProblem::new(
+        portfolio,
+        Objective::Maximize(MetricExpr::WeightedSum {
+            metric: PerPositionMetric::Metric(MetricId::Ytm),
+            filter: None,
+        }),
+    );
+    problem.missing_metric_policy = MissingMetricPolicy::Exclude;
+
+    let result = DefaultLpOptimizer
+        .optimize(&problem, &MarketContext::new(), &FinstackConfig::default())
+        .expect("Exclude WeightedSum should solve");
+    assert!(result.status.is_feasible(), "got {:?}", result.status);
+    assert!(
+        (result.optimal_weights["POS_MISSING"] - (1.0 / 3.0)).abs() < 1e-9,
+        "missing Ytm must stay frozen at current weight, got {}",
+        result.optimal_weights["POS_MISSING"]
+    );
+    assert!(
+        result.optimal_weights["POS_HI"] > result.optimal_weights["POS_LO"],
+        "free weight should move toward the high-Ytm name"
+    );
 }

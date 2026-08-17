@@ -226,7 +226,10 @@ fn degraded_positions_are_reported_on_portfolio_metrics() {
         &portfolio,
         &market,
         &FinstackConfig::default(),
-        &Default::default(),
+        &finstack_quant_portfolio::valuation::PortfolioValuationOptions {
+            strict_risk: false,
+            ..Default::default()
+        },
     )
     .unwrap();
     let metrics = finstack_quant_portfolio::metrics::aggregate_metrics(

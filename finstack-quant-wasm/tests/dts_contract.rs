@@ -389,7 +389,11 @@ fn portfolio_cashflow_api_uses_full_cashflow_name_everywhere() {
 
     assert!(contains_signature(
         &dts,
-        "aggregateFullCashflows(specJson: string, marketJson: string): Record<string, unknown>;",
+        "aggregateFullCashflows(specJson: string, marketJson: string, allowPartial?: boolean): Record<string, unknown>;",
+    ));
+    assert!(contains_signature(
+        &dts,
+        "aggregateFullCashflowsBuilt(portfolio: Portfolio, marketJson: string, allowPartial?: boolean): Record<string, unknown>;",
     ));
     assert!(!dts.contains("aggregateCashflows("));
     assert!(bench.contains("aggregateFullCashflows"));
@@ -442,19 +446,20 @@ fn portfolio_dts_uses_full_word_base_currency() {
 }
 
 /// Python-parity optional parameters on the portfolio risk entry points:
-/// `metrics` on the valuation pair, `computeIncremental` on the parametric
-/// VaR decomposition, and the Rust-defaulted `utilizationThreshold`.
+/// `strictRisk` (default `true`) and `metrics` on the valuation pair,
+/// `computeIncremental` on the parametric VaR decomposition, and the
+/// Rust-defaulted `utilizationThreshold`.
 #[test]
 fn portfolio_dts_pins_python_parity_optional_parameters() {
     let dts = index_dts();
 
     assert!(contains_ignoring_ws(
         &dts,
-        "valuePortfolio(specJson: string, marketJson: string, strictRisk: boolean, metrics?: string[]): Record<string, unknown>;",
+        "valuePortfolio(specJson: string, marketJson: string, strictRisk?: boolean, metrics?: string[]): Record<string, unknown>;",
     ));
     assert!(contains_ignoring_ws(
         &dts,
-        "valuePortfolioBuilt(portfolio: Portfolio, marketJson: string, strictRisk: boolean, metrics?: string[]): Record<string, unknown>;",
+        "valuePortfolioBuilt(portfolio: Portfolio, marketJson: string, strictRisk?: boolean, metrics?: string[]): Record<string, unknown>;",
     ));
     assert!(contains_ignoring_ws(
         &dts,

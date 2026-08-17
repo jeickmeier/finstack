@@ -211,21 +211,32 @@ impl RequestedMetrics {
 
 /// Options controlling portfolio valuation behaviour.
 ///
-/// By default, risk metrics are treated as best-effort: if metrics fail for
-/// a position, the engine falls back to PV-only valuation for that position.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+/// The default is a risk run: [`strict_risk`](Self::strict_risk) is `true`
+/// and [`metrics`](Self::metrics) is [`RequestedMetrics::Standard`]. A
+/// failed requested risk metric aborts the valuation. Set `strict_risk` to
+/// `false` only when a PV-preserving best-effort fallback is intentional.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PortfolioValuationOptions {
-    /// When `true`, any failure to compute requested risk metrics for a
-    /// position causes the entire portfolio valuation to fail.
+    /// When `true` (default), any failure to compute requested risk metrics
+    /// for a position causes the entire portfolio valuation to fail.
     ///
-    /// When `false` (default), the engine falls back to PV-only
-    /// valuation for that position if metrics fail, preserving
-    /// aggregate PV but potentially leaving some risk metrics missing.
+    /// When `false`, the engine falls back to PV-only valuation for that
+    /// position if metrics fail, preserving aggregate PV but leaving those
+    /// risk metrics missing (see [`PortfolioValuation::degraded_positions`]).
     pub strict_risk: bool,
 
     /// Which metric set to request. See [`RequestedMetrics`].
-    #[serde(default)]
     pub metrics: RequestedMetrics,
+}
+
+impl Default for PortfolioValuationOptions {
+    fn default() -> Self {
+        Self {
+            strict_risk: true,
+            metrics: RequestedMetrics::Standard,
+        }
+    }
 }
 
 /// Value all positions in a portfolio with full metrics.
@@ -245,7 +256,11 @@ pub struct PortfolioValuationOptions {
 /// * `portfolio` - Portfolio to value.
 /// * `market` - Market data context supplying curves and FX.
 /// * `config` - Runtime configuration for the valuation engine.
-/// * `options` - Portfolio valuation options controlling risk behaviour.
+/// * `options` - Valuation and risk-metric selection. The default
+///   ([`PortfolioValuationOptions::default`]) requests the standard risk
+///   set with `strict_risk = true`, so an unavailable requested metric
+///   fails the run. Set `strict_risk` to `false` only for an intentional
+///   PV-only fallback.
 ///
 /// # Returns
 ///
@@ -255,7 +270,9 @@ pub struct PortfolioValuationOptions {
 ///
 /// Returns [`crate::error::Error`] in the following cases:
 ///
-/// - [`crate::error::Error::ValuationError`] - Instrument pricing failed for a position
+/// - [`crate::error::Error::ValuationError`] - Instrument pricing failed for a
+///   position, or a requested risk metric failed while `strict_risk` is `true`
+///   (the default)
 /// - [`crate::error::Error::MissingMarketData`] - FX matrix unavailable for cross-currency conversion
 /// - [`crate::error::Error::FxConversionFailed`] - Required FX rate not found in the matrix
 /// - [`crate::error::Error::Core`] - Monetary arithmetic overflow during aggregation
@@ -309,9 +326,10 @@ pub fn value_portfolio(
 /// portfolio definition has a static book date but each market snapshot must
 /// be priced and FX-converted at the snapshot date.
 ///
-/// The result is stamped with `as_of`; `options.strict_risk` determines whether
-/// a failed risk-metric calculation aborts the valuation or is recorded while
-/// retaining a PV-only position value.
+/// The result is stamped with `as_of`. The default options treat this as a
+/// risk run (`strict_risk = true`): a failed requested metric aborts the
+/// valuation. `strict_risk = false` records the failure and retains a
+/// PV-only position value.
 ///
 /// # Arguments
 ///
@@ -321,8 +339,9 @@ pub fn value_portfolio(
 ///   required by each instrument valuation.
 /// * `config` - Library configuration controlling market-data lookup and
 ///   financial-convention behavior.
-/// * `options` - Valuation and risk-metric selection; `strict_risk` controls
-///   whether an unavailable requested metric invalidates the full valuation.
+/// * `options` - Valuation and risk-metric selection. Default is
+///   `strict_risk = true` with [`RequestedMetrics::Standard`]; an
+///   unavailable requested metric then invalidates the full valuation.
 /// * `as_of` - Explicit valuation date stamped on the result and used for
 ///   pricing, cashflow eligibility, and FX conversion.
 ///

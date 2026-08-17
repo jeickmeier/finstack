@@ -233,7 +233,9 @@ fn replace_portfolio_instruments(
 /// Apply a scenario and re-value the portfolio.
 ///
 /// Convenience function that applies a scenario and immediately
-/// re-values the portfolio with the modified market data.
+/// re-values the portfolio with the modified market data. Revaluation
+/// uses [`PortfolioValuationOptions::default`](crate::valuation::PortfolioValuationOptions::default)
+/// (standard risk set, `strict_risk = true`).
 ///
 /// # Arguments
 ///
@@ -249,7 +251,10 @@ fn replace_portfolio_instruments(
 ///
 /// # Errors
 ///
-/// Propagates errors from the internal `apply_scenario` helper and [`value_portfolio`](crate::valuation::value_portfolio).
+/// Propagates errors from the internal `apply_scenario` helper and
+/// [`value_portfolio`](crate::valuation::value_portfolio). Revaluation uses
+/// the default valuation options, so a failed requested risk metric aborts
+/// the call.
 ///
 /// # Examples
 ///

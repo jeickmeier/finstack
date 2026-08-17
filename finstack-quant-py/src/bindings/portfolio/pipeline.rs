@@ -70,7 +70,9 @@ fn run_portfolio_valuation(
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON string.
 /// strict_risk : bool
-///     If ``True``, any risk metric failure aborts the entire valuation.
+///     If ``True`` (the default), any risk metric failure aborts the entire
+///     valuation. Set ``False`` only for an intentional PV-preserving
+///     fallback that records failed metrics as diagnostics.
 /// metrics : list[str] | None
 ///     Exact risk metrics to compute. ``None`` requests the standard set;
 ///     an empty list performs PV-only valuation. Names are validated
@@ -83,7 +85,7 @@ fn run_portfolio_valuation(
 ///     Typed valuation wrapper that can be passed directly to
 ///     ``aggregate_metrics`` without a JSON round-trip.
 #[pyfunction]
-#[pyo3(signature = (portfolio, market, strict_risk=false, metrics=None))]
+#[pyo3(signature = (portfolio, market, strict_risk=true, metrics=None))]
 fn value_portfolio(
     py: Python<'_>,
     portfolio: &Bound<'_, PyAny>,
@@ -100,7 +102,15 @@ fn value_portfolio(
 /// Parameters
 /// ----------
 /// portfolio : Portfolio | str
+///     A :class:`Portfolio` object (fast path, no rebuild) or a
+///     JSON-serialized ``PortfolioSpec`` string.
 /// market : MarketContext | str
+///     A ``MarketContext`` object or a JSON string used to build
+///     instrument schedules.
+/// allow_partial : bool
+///     If ``False`` (the default), any schedule-construction issue aborts
+///     the call. If ``True``, remaining positions still contribute to the
+///     ladder and issues are returned on the result.
 ///
 /// Returns
 /// -------
@@ -109,19 +119,33 @@ fn value_portfolio(
 ///     ``to_json()``/``from_json()`` for round-tripping and typed accessors
 ///     (``events_json``, ``by_date_json``, ``collapse_to_base_by_date_kind``)
 ///     to drill in without re-parsing.
+///
+/// Raises
+/// ------
+/// PortfolioError
+///     If any position fails schedule construction while
+///     ``allow_partial`` is ``False``, or same-date same-currency
+///     same-kind amounts cannot be added.
 #[pyfunction]
+#[pyo3(signature = (portfolio, market, allow_partial=false))]
 fn aggregate_full_cashflows(
     py: Python<'_>,
     portfolio: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
+    allow_partial: bool,
 ) -> PyResult<PyPortfolioCashflows> {
     let portfolio = extract_portfolio_ref(py, portfolio)?;
     let market = extract_market_ref(py, market)?;
     let portfolio_ref: &finstack_quant_portfolio::Portfolio = &portfolio;
     let market_ref: &finstack_quant_core::market_data::context::MarketContext = &market;
+    let options = finstack_quant_portfolio::cashflows::CashflowAggregationOptions { allow_partial };
     let cashflows = py
         .detach(|| {
-            finstack_quant_portfolio::cashflows::aggregate_full_cashflows(portfolio_ref, market_ref)
+            finstack_quant_portfolio::cashflows::aggregate_full_cashflows(
+                portfolio_ref,
+                market_ref,
+                &options,
+            )
         })
         .map_err(portfolio_to_py)?;
     Ok(PyPortfolioCashflows::from_inner(cashflows))

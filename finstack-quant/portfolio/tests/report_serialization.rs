@@ -6,7 +6,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, Month};
 use finstack_quant_core::money::Money;
 use finstack_quant_portfolio::cashflows::{
-    CashflowExtractionIssue, CashflowExtractionIssueKind, PortfolioCashflowEvent,
+    CashflowExtractionIssue, CashflowExtractionIssueKind, CashflowFxPolicy, PortfolioCashflowEvent,
     PortfolioCashflowPositionSummary, PortfolioCashflows,
 };
 use finstack_quant_portfolio::types::PositionId;
@@ -102,6 +102,7 @@ fn test_cashflow_report_types_roundtrip() {
             kind: CashflowExtractionIssueKind::BuildFailed,
             message: "cashflow provider unavailable".to_string(),
         }],
+        fx_collapse_policy: CashflowFxPolicy::CipForward,
     });
 }
 

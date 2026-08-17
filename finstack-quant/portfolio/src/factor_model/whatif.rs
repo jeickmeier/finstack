@@ -205,14 +205,17 @@ impl<'a> WhatIfEngine<'a> {
     /// Shock factors, reprice positions, and recompute the stressed decomposition.
     ///
     /// Returns each position's stressed-minus-base PV and a portfolio total in
-    /// the portfolio base currency. The helper does not apply an FX conversion
-    /// policy: every position must already price in that base currency.
+    /// the portfolio base currency. Native PVs are converted with
+    /// [`crate::fx::convert_to_base`] on the **stressed** market at `as_of`,
+    /// so FX-factor shocks flow through the bumped spot matrix. Position P&L
+    /// is that difference times [`crate::position::Position::scale_factor`].
     ///
     /// # Errors
     ///
     /// Propagates invalid factor shocks, market-stress construction, pricing,
-    /// and decomposition errors. Returns validation errors for non-finite PVs
-    /// or a position whose pricing currency differs from the portfolio base.
+    /// FX conversion, and decomposition errors. Returns validation errors for
+    /// non-finite PVs. Missing FX for a cross-currency position fails the same
+    /// way NAV does.
     pub fn factor_stress(&self, stresses: &[(FactorId, f64)]) -> Result<StressResult> {
         factor_stress(
             self.model,
@@ -249,11 +252,26 @@ pub(super) fn factor_stress(
         seed: None,
     })?;
 
-    let affected_indices = changed_factor_keys.as_ref().map(|changed_factor_keys| {
-        portfolio
-            .dependency_index()
-            .affected_positions(changed_factor_keys)
-    });
+    let affected_indices = changed_factor_keys
+        .as_ref()
+        .and_then(|changed_factor_keys| {
+            if changed_factor_keys
+                .iter()
+                .any(|key| matches!(key, crate::MarketFactorKey::Fx { .. }))
+            {
+                // Translation through bumped spot FX can move every cross-currency
+                // position, including instruments that do not declare an FX
+                // dependency. Reprice the whole book so convert_to_base sees the
+                // bumped matrix.
+                None
+            } else {
+                Some(
+                    portfolio
+                        .dependency_index()
+                        .affected_positions(changed_factor_keys),
+                )
+            }
+        });
     let stressed_valuation = if let Some(affected_indices) = &affected_indices {
         evaluate_raw_portfolio(RawEvaluationInput {
             portfolio,
@@ -738,7 +756,7 @@ mod tests {
     }
 
     #[test]
-    fn m2_factor_stress_rejects_non_base_currency_positions() {
+    fn factor_stress_fails_when_cross_currency_fx_is_missing() {
         let Some((model, _portfolio, market)) = build_test_model() else {
             panic!("setup");
         };
@@ -775,8 +793,12 @@ mod tests {
                 date!(2024 - 01 - 01),
             )
             .factor_stress(&[(FactorId::new("Rates"), 1.0)])
-            .expect_err("M-2: cross-currency factor stress must fail fast");
-        assert!(err.to_string().contains("M-2"), "unexpected error: {err}");
+            .expect_err("cross-currency factor stress without FX must fail");
+        let message = err.to_string();
+        assert!(
+            message.contains("FX matrix") || message.contains("FX conversion"),
+            "unexpected error: {message}"
+        );
     }
 
     #[test]
@@ -1207,6 +1229,7 @@ mod tests {
             factors: &[FactorDefinition],
             _market: &MarketContext,
             _as_of: finstack_quant_core::dates::Date,
+            _base_currency: finstack_quant_core::currency::Currency,
         ) -> finstack_quant_core::Result<SensitivityMatrix> {
             let mut matrix = SensitivityMatrix::zeros(
                 positions

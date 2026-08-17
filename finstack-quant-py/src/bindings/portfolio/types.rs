@@ -6,6 +6,7 @@
 //! accept either the typed object or a JSON string via the `*Access` helpers
 //! in [`crate::bindings::extract`].
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use pyo3::exceptions::PyKeyError;
@@ -14,6 +15,8 @@ use pyo3::types::{PyDict, PyModule};
 
 use crate::bindings::pandas_utils::{dict_to_dataframe, serde_to_py, table_to_dataframe};
 use crate::errors::{core_to_py, display_to_py, portfolio_to_py};
+use finstack_quant_core::currency::Currency;
+use finstack_quant_core::types::CurveId;
 
 /// Python wrapper around a built [`finstack_quant_portfolio::Portfolio`].
 ///
@@ -639,30 +642,45 @@ impl PyPortfolioCashflows {
     }
 
     /// Collapse multi-currency flows into a single base-currency
-    /// ``(date, CFKind) → Money`` ladder using **spot-equivalent** FX at each
-    /// payment date.
+    /// ``(date, CFKind) → Money`` ladder.
+    ///
+    /// Payments on or before ``as_of`` use spot FX at ``as_of``. Later
+    /// payments use the CIP forward ``F(T) = S × DF_from(T) / DF_base(T)``.
+    /// ``discount_curves`` maps ISO currency codes to discount-curve ids;
+    /// omitted currencies fall back to ``market.get_discount(currency)``.
     ///
     /// See :func:`finstack_quant_portfolio::cashflows::PortfolioCashflows::collapse_to_base_by_date_kind`
     /// for the exact convention. Returns JSON.
     ///
     /// ``as_of`` accepts either a date-like object (``datetime.date``,
     /// ``pandas.Timestamp``) or an ISO 8601 string.
-    #[pyo3(text_signature = "(self, market, base_currency, as_of)")]
+    #[pyo3(
+        signature = (market, base_currency, as_of, discount_curves=None),
+        text_signature = "(self, market, base_currency, as_of, discount_curves=None)"
+    )]
     fn collapse_to_base_by_date_kind(
         &self,
         py: Python<'_>,
         market: &Bound<'_, PyAny>,
         base_currency: &str,
         as_of: &Bound<'_, PyAny>,
+        discount_curves: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<String> {
         let market = crate::bindings::extract::extract_market_ref(py, market)?;
-        let ccy: finstack_quant_core::currency::Currency =
-            base_currency.parse().map_err(display_to_py)?;
+        let ccy: Currency = base_currency.parse().map_err(display_to_py)?;
         let as_of_date = crate::bindings::date_utils::extract_date(as_of)?;
+        let curves = extract_discount_curve_map(discount_curves)?;
         let market_ref: &finstack_quant_core::market_data::context::MarketContext = &market;
         let cashflows = &self.inner;
         let collapsed = py
-            .detach(|| cashflows.collapse_to_base_by_date_kind(market_ref, ccy, as_of_date))
+            .detach(|| {
+                cashflows.collapse_to_base_by_date_kind(
+                    market_ref,
+                    ccy,
+                    as_of_date,
+                    curves.as_ref(),
+                )
+            })
             .map_err(portfolio_to_py)?;
         py.detach(move || serde_json::to_string(&collapsed))
             .map_err(display_to_py)
@@ -687,6 +705,22 @@ impl PyPortfolioCashflows {
         let frame = self.to_dataframe(py).ok()?;
         frame.call_method0("_repr_html_").ok()?.extract().ok()
     }
+}
+
+fn extract_discount_curve_map(
+    discount_curves: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Option<HashMap<Currency, CurveId>>> {
+    let Some(dict) = discount_curves else {
+        return Ok(None);
+    };
+    let mut map = HashMap::with_capacity(dict.len());
+    for (key, value) in dict.iter() {
+        let currency_code: String = key.extract()?;
+        let curve_id: String = value.extract()?;
+        let currency: Currency = currency_code.parse().map_err(display_to_py)?;
+        map.insert(currency, CurveId::new(curve_id));
+    }
+    Ok(Some(map))
 }
 
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

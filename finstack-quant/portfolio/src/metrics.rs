@@ -10,10 +10,11 @@
 //! For example, a EUR position's DV01 (reported in EUR) and a USD position's DV01
 //! (reported in USD) cannot be meaningfully summed without FX conversion.
 //!
-//! `aggregate_metrics` performs this conversion automatically using the FX rate
-//! implied by each position's native and base-currency valuations. Positions with
-//! zero native PV fall back to the FX matrix in the
-//! [`finstack_quant_core::market_data::context::MarketContext`].
+//! `aggregate_metrics` converts each summable metric using the market
+//! FX-matrix spot at `as_of` when the pair is available. If the matrix (or
+//! the pair) is missing and native PV is large enough, it falls back to the
+//! rate implied by `value_base / value_native`. Positions with near-zero
+//! native PV and no matrix quote fail closed.
 
 use crate::error::{Error, Result};
 use crate::types::{EntityId, PositionId};
@@ -33,23 +34,24 @@ use std::sync::LazyLock;
 ///
 /// Contains portfolio-wide totals as well as breakdowns by entity.
 ///
-/// # Cross-axis warning for spot and volatility Greeks
+/// # Spot and volatility Greeks are not portfolio-summable
 ///
 /// Summing currency-denominated rate and credit sensitivities across
 /// positions is standard desk practice: `dv01`, `cs01`, `pv01` and their
 /// bucketed series all measure a change per basis point of the *same* kind of
 /// risk factor, and their sum is a portfolio-level number a risk manager can
-/// hedge with (Tuckman & Serrat, *Fixed Income Securities*).
+/// hedge with (Tuckman & Serrat, *Fixed Income Securities*). `fx_delta` and
+/// `index_delta` are likewise currency-denominated and linear in size.
 ///
-/// Scalar spot and volatility Greeks are different. `delta`, `gamma` and
-/// `vega` totals here add sensitivities that belong to **unrelated
-/// underlyings and unrelated volatility surfaces** — an equity delta and an
-/// FX delta, or vega against two different surfaces, land in the same total.
-/// That sum has no hedging interpretation. Prefer the per-underlying and
-/// per-bucket composite series (for example `bucketed_vega::<surface>::<bucket>`
-/// via [`PortfolioMetrics::metric_series`], or the per-position values in
-/// [`PortfolioMetrics::by_position`]) when reading spot or vol risk, and treat
-/// the scalar totals as a coarse magnitude indicator only.
+/// Scalar `delta`, `gamma` and `vega` are **not** aggregated. Those labels
+/// mix unrelated underlyings and unrelated volatility surfaces — an equity
+/// delta and an FX delta, or vega against two different surfaces, would
+/// otherwise land in the same total with no hedging interpretation. They
+/// remain in [`PortfolioMetrics::by_position`] (native currency) and are
+/// listed on [`PortfolioMetrics::unaggregated_metrics`]. Prefer
+/// `fx_delta`, `index_delta`, and the per-bucket composite series (for
+/// example `bucketed_vega::<surface>::<bucket>` via
+/// [`PortfolioMetrics::metric_series`]).
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AggregatedMetric {
     /// Metric identifier
@@ -246,9 +248,6 @@ static SUMMABLE_SET: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
         "theta",
         "dv01",
         "cs01",
-        "delta",
-        "gamma",
-        "vega",
         "rho",
         "pv01",
         "ir01",
@@ -319,14 +318,13 @@ pub(crate) fn is_summable(metric_id: &str) -> bool {
 /// For positions where the native PV is zero (or the position is already in
 /// base currency), no conversion is applied.
 ///
-/// # Warning: scalar spot and vol Greeks cross risk axes
+/// # Warning: scalar spot and vol Greeks are not summed
 ///
-/// `dv01` / `cs01` / `pv01` totals are standard portfolio-level numbers. The
-/// scalar `delta`, `gamma` and `vega` totals produced here sum sensitivities
-/// across **unrelated underlyings and unrelated volatility surfaces** and have
-/// no hedging interpretation; prefer the per-underlying / per-bucket composite
-/// series or the per-position values. See [`AggregatedMetric`] for the full
-/// discussion.
+/// `dv01` / `cs01` / `pv01` / `fx_delta` / `index_delta` totals are
+/// portfolio-level numbers. Scalar `delta`, `gamma` and `vega` are excluded
+/// from those totals because they mix unrelated underlyings and volatility
+/// surfaces; read them per position or via the bucketed series. See
+/// [`AggregatedMetric`] for the full discussion.
 ///
 /// # Completeness
 ///
@@ -633,13 +631,18 @@ mod tests {
     fn test_is_summable() {
         assert!(is_summable("dv01"));
         assert!(is_summable("cs01"));
-        assert!(is_summable("delta"));
+        assert!(is_summable("fx_delta"));
+        assert!(is_summable("index_delta"));
+        assert!(!is_summable("delta"));
+        assert!(!is_summable("gamma"));
+        assert!(!is_summable("vega"));
         assert!(!is_summable("ytm"));
         assert!(!is_summable("duration"));
 
         // Test bucketed/composite keys
         assert!(is_summable("bucketed_dv01::2y"));
         assert!(is_summable("bucketed_cs01::AAA::5y"));
+        assert!(is_summable("bucketed_vega::SURFACE::1y"));
         assert!(!is_summable("unknown::2y"));
     }
 
@@ -891,7 +894,7 @@ mod tests {
             let mut metrics = indexmap::IndexMap::new();
             metrics.insert("dv01".into(), 100.0);
             metrics.insert("cs01".into(), 50.0);
-            metrics.insert("delta".into(), 25.0);
+            metrics.insert("fx_delta".into(), 25.0);
             PositionMetricData {
                 position_id: PositionId::from(name.to_string()),
                 entity_id: EntityId::from(entity.to_string()),

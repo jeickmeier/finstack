@@ -664,7 +664,10 @@ pub fn aggregate_metrics(
 /// Value a portfolio from its spec and market context.
 /// @param spec_json - Canonical portfolio specification JSON defining positions, quantities, and base currency.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
-/// @param strict_risk - Whether unavailable risk metrics are treated as calculation errors.
+/// @param strict_risk - Optional; when omitted or `undefined`, defaults to
+///   `true` (fail closed on unavailable requested risk metrics), matching
+///   Rust `PortfolioValuationOptions`. Pass `false` only for an intentional
+///   PV-preserving fallback.
 /// @param metrics - Optional exact risk-metric ids to compute. Omit for the
 ///   standard set; an empty array performs PV-only valuation. Names are
 ///   validated strictly against the standard `MetricId` set — an unknown
@@ -681,7 +684,7 @@ pub fn aggregate_metrics(
 pub fn value_portfolio(
     spec_json: &str,
     market_json: &str,
-    strict_risk: bool,
+    strict_risk: Option<bool>,
     metrics: Option<Vec<String>>,
 ) -> Result<JsValue, JsValue> {
     let portfolio = JsPortfolio::from_spec(spec_json)?;
@@ -691,16 +694,24 @@ pub fn value_portfolio(
 /// Aggregate the full classified cashflow ladder for a portfolio.
 /// @param spec_json - Canonical portfolio specification JSON defining positions, quantities, and base currency.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
+/// @param allow_partial - Optional; when omitted or `undefined`, defaults to
+///   `false` (fail closed if any position fails schedule construction).
+///   Pass `true` to keep a partial ladder with issues on the result.
 ///
 /// # Errors
 ///
 /// Throws a JavaScript exception if the portfolio or market JSON is malformed,
-/// portfolio construction fails, monetary cash-flow aggregation overflows, or
-/// the aggregate cannot be converted to a JavaScript value.
+/// portfolio construction fails, any position fails schedule construction
+/// while `allowPartial` is not `true`, monetary cash-flow aggregation
+/// overflows, or the aggregate cannot be converted to a JavaScript value.
 #[wasm_bindgen(js_name = aggregateFullCashflows)]
-pub fn aggregate_full_cashflows(spec_json: &str, market_json: &str) -> Result<JsValue, JsValue> {
+pub fn aggregate_full_cashflows(
+    spec_json: &str,
+    market_json: &str,
+    allow_partial: Option<bool>,
+) -> Result<JsValue, JsValue> {
     let portfolio = JsPortfolio::from_spec(spec_json)?;
-    aggregate_full_cashflows_built(&portfolio, market_json)
+    aggregate_full_cashflows_built(&portfolio, market_json, allow_partial)
 }
 
 /// Aggregate the full classified cashflow ladder for an already-built
@@ -711,22 +722,33 @@ pub fn aggregate_full_cashflows(spec_json: &str, market_json: &str) -> Result<Js
 /// scenarios on the same portfolio), this is the cheap path.
 /// @param portfolio - Built portfolio object whose positions and weights are used by the calculation.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
+/// @param allow_partial - Optional; when omitted or `undefined`, defaults to
+///   `false` (fail closed if any position fails schedule construction).
+///   Pass `true` to keep a partial ladder with issues on the result.
 ///
 /// # Errors
 ///
-/// Throws a JavaScript exception if `marketJson` is malformed, monetary
-/// cash-flow aggregation overflows, or the aggregate cannot be converted to a
-/// JavaScript value.
+/// Throws a JavaScript exception if `marketJson` is malformed, any position
+/// fails schedule construction while `allowPartial` is not `true`, monetary
+/// cash-flow aggregation overflows, or the aggregate cannot be converted to
+/// a JavaScript value.
 #[wasm_bindgen(js_name = aggregateFullCashflowsBuilt)]
 pub fn aggregate_full_cashflows_built(
     portfolio: &JsPortfolio,
     market_json: &str,
+    allow_partial: Option<bool>,
 ) -> Result<JsValue, JsValue> {
     let market: finstack_quant_core::market_data::context::MarketContext =
         serde_json::from_str(market_json).map_err(to_js_err)?;
-    let cashflows =
-        finstack_quant_portfolio::cashflows::aggregate_full_cashflows(&portfolio.inner, &market)
-            .map_err(to_js_err)?;
+    let options = finstack_quant_portfolio::cashflows::CashflowAggregationOptions {
+        allow_partial: allow_partial.unwrap_or(false),
+    };
+    let cashflows = finstack_quant_portfolio::cashflows::aggregate_full_cashflows(
+        &portfolio.inner,
+        &market,
+        &options,
+    )
+    .map_err(to_js_err)?;
     to_js_value(&cashflows)
 }
 
@@ -736,7 +758,10 @@ pub fn aggregate_full_cashflows_built(
 /// against a fixed portfolio.
 /// @param portfolio - Built portfolio object whose positions and weights are used by the calculation.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
-/// @param strict_risk - Whether unavailable risk metrics are treated as calculation errors.
+/// @param strict_risk - Optional; when omitted or `undefined`, defaults to
+///   `true` (fail closed on unavailable requested risk metrics), matching
+///   Rust `PortfolioValuationOptions`. Pass `false` only for an intentional
+///   PV-preserving fallback.
 /// @param metrics - Optional exact risk-metric ids to compute. Omit for the
 ///   standard set; an empty array performs PV-only valuation. Names are
 ///   validated strictly against the standard `MetricId` set — an unknown
@@ -753,7 +778,7 @@ pub fn aggregate_full_cashflows_built(
 pub fn value_portfolio_built(
     portfolio: &JsPortfolio,
     market_json: &str,
-    strict_risk: bool,
+    strict_risk: Option<bool>,
     metrics: Option<Vec<String>>,
 ) -> Result<JsValue, JsValue> {
     let market: finstack_quant_core::market_data::context::MarketContext =
@@ -763,7 +788,7 @@ pub fn value_portfolio_built(
     // the Python binding): an unknown metric name throws instead of silently
     // degrading to PV-only valuation.
     let options = finstack_quant_portfolio::valuation::PortfolioValuationOptions {
-        strict_risk,
+        strict_risk: strict_risk.unwrap_or(true),
         metrics: finstack_quant_portfolio::valuation::RequestedMetrics::try_from_metric_names(
             metrics,
         )

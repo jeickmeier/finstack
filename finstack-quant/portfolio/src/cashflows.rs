@@ -10,11 +10,10 @@
 //! `PortfolioCashflows::collapse_to_base_by_date_kind` for a
 //! base-currency projection that preserves `CFKind` classification.
 //!
-//! Spot-equivalent FX is used for every cashflow date in base-currency
-//! projections, which is **not** the same as discounting future
-//! foreign-currency cashflows at the appropriate forward FX rate. For
-//! NPV-grade accuracy, derive forward FX rates from the relevant discount
-//! curves instead.
+//! Base-currency collapse uses spot FX at `as_of` for payments on or before
+//! the valuation date, and the covered-interest-parity forward
+//! `F(T) = S × DF_from(T) / DF_base(T)` for later dates. Missing discount
+//! curves or discount factors fail closed.
 
 use crate::error::{Error, Result};
 use crate::portfolio::Portfolio;
@@ -25,85 +24,40 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
+use finstack_quant_core::types::CurveId;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::pricer::InstrumentType;
 use indexmap::IndexMap;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::str::FromStr;
 
-/// Add a number of whole years to a date, clamping to the end of the month
-/// when the calendar day does not exist in the target year (e.g.
-/// `Feb 29 + 1Y → Feb 28`).
+/// Options for [`aggregate_full_cashflows`].
 ///
-/// Returns `None` if the resulting year overflows `i32` or is otherwise not
-/// representable as a `time::Date` even after day-clamping. This lets callers
-/// disable any far-date-dependent behaviour (e.g. FX warnings) rather than
-/// silently looping or panicking on pathological inputs.
-fn add_years_clamped(date: Date, years: i32) -> Option<Date> {
-    let target_year = date.year().checked_add(years)?;
-    let month = date.month();
-    let mut day = date.day();
-    while day > 0 {
-        if let Ok(result) = Date::from_calendar_date(target_year, month, day) {
-            return Some(result);
-        }
-        day -= 1;
-    }
-    None
+/// The default is fail-closed: any schedule-construction issue aborts the
+/// call. Set [`allow_partial`](Self::allow_partial) to keep a partial
+/// ladder with those issues recorded on [`PortfolioCashflows::issues`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct CashflowAggregationOptions {
+    /// When `false` (default), a non-empty [`PortfolioCashflows::issues`]
+    /// list fails the call. When `true`, remaining positions still
+    /// contribute to the ladder and issues are returned on the result.
+    pub allow_partial: bool,
 }
 
-/// Default threshold (in years) past which spot-equivalent FX is flagged as
-/// economically unjustifiable for cashflow conversion. Override at call
-/// sites that have a different mandate (e.g. ALM books with 50-year
-/// liabilities) by using the internal horizon-aware helper.
-const DEFAULT_FAR_FUTURE_FX_HORIZON_YEARS: i32 = 30;
-
-/// Decide whether to warn about spot-equivalent FX being used beyond the
-/// caller's valuation horizon, using the default 30-year mandate.
+/// How [`PortfolioCashflows::collapse_to_base_by_date_kind`] converts
+/// foreign-currency flows into the reporting currency.
 ///
-/// `as_of` is the analytical "today" of the run (typically the portfolio's
-/// valuation date). Payments beyond `as_of + 30Y` are flagged because
-/// spot-equivalent FX becomes economically unjustifiable at those tenors and
-/// callers should derive forward FX from the relevant discount curves
-/// instead.
-fn should_warn_far_future_fx_conversion(
-    as_of: Date,
-    payment_date: Date,
-    from_currency: Currency,
-    base_currency: Currency,
-) -> bool {
-    should_warn_far_future_fx_conversion_with_horizon(
-        as_of,
-        payment_date,
-        from_currency,
-        base_currency,
-        DEFAULT_FAR_FUTURE_FX_HORIZON_YEARS,
-    )
-}
-
-/// Like [`should_warn_far_future_fx_conversion`] but with a caller-supplied
-/// horizon. Use this for ALM / LDI books that legitimately price cashflows
-/// further out than the 30-year default mandate.
-///
-/// Returns `false` (no warning) when:
-/// - the source and base currencies match, so no FX is needed; or
-/// - `as_of + horizon_years` overflows the supported date range, in which
-///   case no useful threshold can be computed (callers see no warning
-///   rather than a panic).
-fn should_warn_far_future_fx_conversion_with_horizon(
-    as_of: Date,
-    payment_date: Date,
-    from_currency: Currency,
-    base_currency: Currency,
-    horizon_years: i32,
-) -> bool {
-    if from_currency == base_currency {
-        return false;
-    }
-    let Some(threshold) = add_years_clamped(as_of, horizon_years) else {
-        return false;
-    };
-    payment_date > threshold
+/// This is not [`finstack_quant_core::money::fx::FxConversionPolicy::CashflowDate`]:
+/// that policy names a spot-equivalent provider lookup on the payment date.
+/// Collapse uses spot at `as_of` for due-or-past flows and CIP forwards for
+/// later dates.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CashflowFxPolicy {
+    /// Spot FX at `as_of` when `payment_date <= as_of`; otherwise the CIP
+    /// forward `F(T) = S × DF_from(T) / DF_base(T)`.
+    #[default]
+    CipForward,
 }
 
 /// Why a position did not contribute classified cashflows to a portfolio ladder.
@@ -184,6 +138,13 @@ pub struct PortfolioCashflows {
 
     /// Extraction issues for unsupported instruments and provider failures.
     pub issues: Vec<CashflowExtractionIssue>,
+
+    /// FX policy applied by [`Self::collapse_to_base_by_date_kind`].
+    ///
+    /// Stamped so callers do not infer a spot-on-payment-date conversion from
+    /// [`finstack_quant_core::money::fx::FxConversionPolicy::CashflowDate`].
+    #[serde(default)]
+    pub fx_collapse_policy: CashflowFxPolicy,
 }
 
 /// Build the canonical signed schedule for a single instrument.
@@ -201,32 +162,36 @@ impl PortfolioCashflows {
     ///
     /// ### FX convention
     ///
-    /// Each foreign-currency flow on payment date `T` is converted to
-    /// `base_currency` using whatever rate the `FxMatrix` resolves for
-    /// `(from → base_currency, T)`. For most market setups this will be a
-    /// spot-equivalent rate rather than a true forward FX rate derived from
-    /// discount curves; the module-level docstring explains the trade-off.
-    /// For NPV-grade accuracy, convert via forward FX on the calling side and
-    /// pass already-base-currency flows.
+    /// Each foreign-currency flow on payment date `T` is converted as:
     ///
-    /// ### `as_of`
+    /// - `T <= as_of`: spot FX at `as_of`
+    /// - `T > as_of`: CIP forward `F(T) = S × DF_from(T) / DF_base(T)`
     ///
-    /// `as_of` is the valuation / reporting date of the caller. It is used
-    /// solely to gate a warning when converting flows beyond `as_of + 30Y`,
-    /// where spot-equivalent FX is no longer defensible. It does **not**
-    /// select a curve or alter the numerical result.
+    /// Discount curves come from `discount_curves` when a currency is mapped;
+    /// otherwise from `market.get_discount(currency.to_string())`. Missing
+    /// curves or missing/zero discount factors return an error.
+    ///
+    /// # Arguments
+    ///
+    /// * `market` - Market context supplying the FX matrix and discount curves.
+    /// * `base_currency` - Reporting currency for the collapsed ladder.
+    /// * `as_of` - Valuation date for spot FX and as the start of each
+    ///   discount-factor interval.
+    /// * `discount_curves` - Optional `Currency → CurveId` map. A missing map
+    ///   or missing currency entry uses the ISO currency code as the curve id.
     ///
     /// # Errors
     ///
-    /// Returns an error when FX conversion or monetary aggregation fails.
+    /// Returns an error when FX conversion, discount-curve resolution, or
+    /// monetary aggregation fails.
     pub fn collapse_to_base_by_date_kind(
         &self,
         market: &MarketContext,
         base_currency: Currency,
         as_of: Date,
+        discount_curves: Option<&HashMap<Currency, CurveId>>,
     ) -> Result<IndexMap<Date, IndexMap<CFKind, Money>>> {
         let mut by_date_base: IndexMap<Date, IndexMap<CFKind, Money>> = IndexMap::new();
-        let mut warned_pairs: HashSet<(Currency, Currency, Date)> = HashSet::new();
 
         for (date, per_currency) in &self.by_date {
             let mut per_kind_base: IndexMap<CFKind, Money> = IndexMap::new();
@@ -239,7 +204,7 @@ impl PortfolioCashflows {
                         market,
                         base_currency,
                         as_of,
-                        &mut warned_pairs,
+                        discount_curves,
                     )?;
                     let entry = per_kind_base
                         .entry(*kind)
@@ -377,14 +342,16 @@ const AGGREGATE_CASHFLOWS_PARALLEL_MIN_POSITIONS: usize = 64;
 ///
 /// Successful positions contribute scaled events, deterministic date/currency/
 /// kind aggregates, and per-position summaries. A position whose instrument
-/// cannot build a contractual schedule is retained as a `BuildFailed` issue
-/// and does not abort extraction for the rest of the portfolio.
+/// cannot build a contractual schedule is recorded as a `BuildFailed` issue.
+/// By default those issues fail the call; pass
+/// [`CashflowAggregationOptions::allow_partial`] to keep the partial ladder.
 ///
 /// # Errors
 ///
-/// Returns an error only if successful same-date, same-currency, same-kind
-/// amounts cannot be added (for example, a monetary overflow). Per-position
-/// schedule-construction failures are reported in the returned `issues` field.
+/// Returns [`Error::InvalidInput`] when `options.allow_partial` is `false`
+/// (the default) and at least one position failed schedule construction.
+/// Also returns an error if successful same-date, same-currency, same-kind
+/// amounts cannot be added (for example, a monetary overflow).
 ///
 /// # Arguments
 ///
@@ -392,9 +359,13 @@ const AGGREGATE_CASHFLOWS_PARALLEL_MIN_POSITIONS: usize = 64;
 ///   instrument cashflows and whose `as_of` date anchors schedule generation.
 /// * `market` - Market data used by instruments that require it to construct
 ///   contractual schedules, such as floating-rate or indexed cashflows.
+/// * `options` - Fail-closed vs partial-ladder policy. Default
+///   [`CashflowAggregationOptions::default`] rejects a non-empty `issues`
+///   list; `allow_partial` keeps those issues on the result.
 pub fn aggregate_full_cashflows(
     portfolio: &Portfolio,
     market: &MarketContext,
+    options: &CashflowAggregationOptions,
 ) -> Result<PortfolioCashflows> {
     // Phase A: build per-position cashflow schedules. Each call to
     // `instrument_cashflow_schedule` is an independent, read-only function of
@@ -512,6 +483,19 @@ pub fn aggregate_full_cashflows(
         }
     }
 
+    if !options.allow_partial && !issues.is_empty() {
+        let detail = issues
+            .iter()
+            .map(|issue| format!("{}: {}", issue.position_id, issue.message))
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(Error::invalid_input(format!(
+            "cashflow extraction failed for {} position(s); \
+             set CashflowAggregationOptions.allow_partial to keep a partial ladder: {detail}",
+            issues.len()
+        )));
+    }
+
     events.sort_by_key(|event| event.date);
 
     let mut by_date: IndexMap<Date, IndexMap<Currency, IndexMap<CFKind, Money>>> = IndexMap::new();
@@ -530,6 +514,7 @@ pub fn aggregate_full_cashflows(
         by_date,
         position_summaries,
         issues,
+        fx_collapse_policy: CashflowFxPolicy::CipForward,
     })
 }
 
@@ -540,34 +525,21 @@ fn convert_money_to_base_on_date(
     market: &MarketContext,
     base_currency: Currency,
     as_of: Date,
-    warned_pairs: &mut HashSet<(Currency, Currency, Date)>,
+    discount_curves: Option<&HashMap<Currency, CurveId>>,
 ) -> Result<Money> {
-    let ccy = money.currency();
-    if ccy == base_currency {
-        return Ok(money);
-    }
-
-    // Emit the cashflow-specific far-future warning before delegating the
-    // actual FX lookup/conversion to the shared `crate::fx::convert_to_base`
-    // helper so the rate application and error mapping stay consistent across
-    // the portfolio crate.
-    if should_warn_far_future_fx_conversion(as_of, payment_date, ccy, base_currency)
-        && warned_pairs.insert((ccy, base_currency, payment_date))
-    {
-        tracing::warn!(
-            from = %ccy,
-            to = %base_currency,
-            payment_date = %payment_date,
-            "Converting cashflow beyond market as-of + 30Y using spot-equivalent FX; prefer forward FX for long-dated reporting"
-        );
-    }
-
-    crate::fx::convert_to_base(money, payment_date, market, base_currency).map_err(|e| match e {
-        // Pin the offending payment date onto the FX failure: the bare
-        // `FxConversionFailed` only names the currency pair, which is not
-        // enough to find the missing rate when a collapse spans many dates.
+    crate::fx::convert_to_base_forward(
+        money,
+        as_of,
+        payment_date,
+        market,
+        base_currency,
+        discount_curves,
+    )
+    .map_err(|e| match e {
+        // Pin the valuation date onto the FX failure: CIP and spot both look
+        // up the matrix at `as_of`, not at the payment date.
         Error::FxConversionFailed { from, to } => Error::MissingMarketData(format!(
-            "no FX rate for {from}/{to} at cashflow payment date {payment_date}"
+            "no FX rate for {from}/{to} at cashflow as-of {as_of}"
         )),
         other => other,
     })
@@ -581,9 +553,12 @@ mod tests {
     use crate::test_utils::build_test_market_at;
     use crate::types::Entity;
     use finstack_quant_core::cashflow::CFKind;
-    use finstack_quant_core::market_data::term_structures::HazardCurve;
+    use finstack_quant_core::market_data::term_structures::{
+        DiscountCurve, HazardCurve, ValidationMode,
+    };
+    use finstack_quant_core::math::interp::InterpStyle;
     use finstack_quant_core::money::fx::{FxMatrix, SimpleFxProvider};
-    use finstack_quant_core::types::Attributes;
+    use finstack_quant_core::types::{Attributes, CurveId};
     use finstack_quant_valuations::instruments::commodity::commodity_swap::CommoditySwap;
     use finstack_quant_valuations::instruments::credit_derivatives::CDSIndex;
     use finstack_quant_valuations::instruments::fixed_income::bond;
@@ -592,9 +567,20 @@ mod tests {
     use finstack_quant_valuations::instruments::Instrument as InternalInstrument;
     use finstack_quant_valuations::pricer::InstrumentType;
     use std::any::Any;
+    use std::collections::HashMap;
     use std::sync::Arc;
     use std::sync::OnceLock;
     use time::macros::date;
+
+    fn fail_closed() -> CashflowAggregationOptions {
+        CashflowAggregationOptions::default()
+    }
+
+    fn allow_partial() -> CashflowAggregationOptions {
+        CashflowAggregationOptions {
+            allow_partial: true,
+        }
+    }
 
     #[derive(Clone)]
     struct UnsupportedInstrument;
@@ -663,7 +649,10 @@ mod tests {
         provider
             .set_quote(Currency::EUR, Currency::USD, eurusd)
             .expect("test FX quote should be valid");
-        build_test_market_at(as_of).insert_fx(FxMatrix::new(provider))
+        build_test_market_at(as_of)
+            .insert(flat_discount("EUR", as_of, 1.0))
+            .insert(flat_discount("USD", as_of, 1.0))
+            .insert_fx(FxMatrix::new(provider))
     }
 
     fn full_cashflow_ladder_fixture() -> PortfolioCashflows {
@@ -715,6 +704,7 @@ mod tests {
             by_date,
             position_summaries: IndexMap::new(),
             issues: Vec::new(),
+            fx_collapse_policy: CashflowFxPolicy::CipForward,
         }
     }
 
@@ -749,8 +739,9 @@ mod tests {
             .build()
             .expect("test should succeed");
 
-        let full = aggregate_full_cashflows(&portfolio, &build_test_market_at(as_of))
-            .expect("cashflow aggregation");
+        let full =
+            aggregate_full_cashflows(&portfolio, &build_test_market_at(as_of), &fail_closed())
+                .expect("cashflow aggregation");
 
         assert!(!full.events.is_empty(), "expected non-empty events");
         assert!(
@@ -767,34 +758,7 @@ mod tests {
             CashflowRepresentation::Contractual
         );
         assert!(full.issues.is_empty(), "expected no extraction issues");
-    }
-
-    #[test]
-    fn far_future_fx_conversions_are_flagged_relative_to_as_of() {
-        let as_of = date!(2025 - 01 - 01);
-        let payment_date = date!(2055 - 01 - 02);
-
-        assert!(should_warn_far_future_fx_conversion(
-            as_of,
-            payment_date,
-            Currency::EUR,
-            Currency::USD
-        ));
-
-        let near = date!(2030 - 01 - 01);
-        assert!(!should_warn_far_future_fx_conversion(
-            as_of,
-            near,
-            Currency::EUR,
-            Currency::USD
-        ));
-
-        assert!(!should_warn_far_future_fx_conversion(
-            as_of,
-            payment_date,
-            Currency::USD,
-            Currency::USD
-        ));
+        assert_eq!(full.fx_collapse_policy, CashflowFxPolicy::CipForward);
     }
 
     #[test]
@@ -817,8 +781,15 @@ mod tests {
             .build()
             .expect("test should succeed");
 
-        let full = aggregate_full_cashflows(&portfolio, &MarketContext::new())
-            .expect("aggregation should succeed with issues");
+        let err = aggregate_full_cashflows(&portfolio, &MarketContext::new(), &fail_closed())
+            .expect_err("default aggregation must fail closed on extraction issues");
+        assert!(
+            err.to_string().contains("POS_SWAP"),
+            "fail-closed error should name the failed position: {err}"
+        );
+
+        let full = aggregate_full_cashflows(&portfolio, &MarketContext::new(), &allow_partial())
+            .expect("allow_partial should succeed with issues");
 
         assert!(full.events.is_empty(), "failed cashflows should be skipped");
         assert!(
@@ -858,8 +829,9 @@ mod tests {
             .build()
             .expect("test should succeed");
 
-        let full = aggregate_full_cashflows(&portfolio, &build_test_market_at(as_of))
-            .expect("placeholder aggregation");
+        let full =
+            aggregate_full_cashflows(&portfolio, &build_test_market_at(as_of), &fail_closed())
+                .expect("placeholder aggregation");
 
         assert!(full.events.is_empty(), "empty placeholder emits no events");
         assert!(full.by_position["POS_SWAPTION"].is_empty());
@@ -894,8 +866,9 @@ mod tests {
             .build()
             .expect("test should succeed");
 
-        let full = aggregate_full_cashflows(&portfolio, &build_test_market_at(as_of))
-            .expect("agency cashflow aggregation");
+        let full =
+            aggregate_full_cashflows(&portfolio, &build_test_market_at(as_of), &fail_closed())
+                .expect("agency cashflow aggregation");
 
         assert!(
             !full.events.is_empty(),
@@ -937,7 +910,8 @@ mod tests {
                 .expect("hazard curve should build"),
         );
 
-        let full = aggregate_full_cashflows(&portfolio, &market).expect("cdx cashflow aggregation");
+        let full = aggregate_full_cashflows(&portfolio, &market, &fail_closed())
+            .expect("cdx cashflow aggregation");
 
         assert!(
             !full.events.is_empty(),
@@ -980,8 +954,9 @@ mod tests {
             .build()
             .expect("test should succeed");
 
-        let full = aggregate_full_cashflows(&portfolio, &build_test_market_at(as_of))
-            .expect("full cashflow aggregation");
+        let full =
+            aggregate_full_cashflows(&portfolio, &build_test_market_at(as_of), &fail_closed())
+                .expect("full cashflow aggregation");
 
         assert!(
             !full.events.is_empty(),
@@ -1031,8 +1006,17 @@ mod tests {
             .build()
             .expect("test should succeed");
 
-        let full = aggregate_full_cashflows(&portfolio, &build_test_market_at(as_of))
-            .expect("unsupported instruments should produce issues, not fail the aggregation");
+        let err =
+            aggregate_full_cashflows(&portfolio, &build_test_market_at(as_of), &fail_closed())
+                .expect_err("default aggregation must fail closed on unsupported instruments");
+        assert!(
+            err.to_string().contains("POS_UNSUPPORTED"),
+            "fail-closed error should name the failed position: {err}"
+        );
+
+        let full =
+            aggregate_full_cashflows(&portfolio, &build_test_market_at(as_of), &allow_partial())
+                .expect("allow_partial should produce issues, not fail the aggregation");
 
         assert!(
             full.events.is_empty(),
@@ -1052,7 +1036,7 @@ mod tests {
         let market = market_with_eurusd_fx(as_of, 1.20);
 
         let by_date_kind = full
-            .collapse_to_base_by_date_kind(&market, Currency::USD, as_of)
+            .collapse_to_base_by_date_kind(&market, Currency::USD, as_of, None)
             .expect("base currency conversion by kind");
 
         let march = by_date_kind
@@ -1067,6 +1051,132 @@ mod tests {
             .expect("august bucket should exist");
         assert_eq!(august[&CFKind::Fixed], Money::new(50.0, Currency::USD));
         assert_eq!(august[&CFKind::Fee], Money::new(-6.0, Currency::USD));
+    }
+
+    fn single_kind_flow(date: Date, money: Money, kind: CFKind) -> PortfolioCashflows {
+        let mut by_date: IndexMap<Date, IndexMap<Currency, IndexMap<CFKind, Money>>> =
+            IndexMap::new();
+        by_date.insert(
+            date,
+            IndexMap::from([(money.currency(), IndexMap::from([(kind, money)]))]),
+        );
+        PortfolioCashflows {
+            events: Vec::new(),
+            by_position: IndexMap::new(),
+            by_date,
+            position_summaries: IndexMap::new(),
+            issues: Vec::new(),
+            fx_collapse_policy: CashflowFxPolicy::CipForward,
+        }
+    }
+
+    fn flat_discount(id: &str, as_of: Date, df_1y: f64) -> DiscountCurve {
+        DiscountCurve::builder(id)
+            .base_date(as_of)
+            .knots(vec![(0.0, 1.0), (1.0, df_1y)])
+            .interp(InterpStyle::Linear)
+            .validation(ValidationMode::Raw {
+                allow_non_monotonic: true,
+                forward_floor: None,
+            })
+            .build()
+            .expect("test discount curve should build")
+    }
+
+    fn market_with_cip_eurusd(as_of: Date, eurusd: f64, df_eur: f64, df_usd: f64) -> MarketContext {
+        let provider = Arc::new(SimpleFxProvider::new());
+        provider
+            .set_quote(Currency::EUR, Currency::USD, eurusd)
+            .expect("test FX quote should be valid");
+        MarketContext::new()
+            .insert(flat_discount("EUR", as_of, df_eur))
+            .insert(flat_discount("USD", as_of, df_usd))
+            .insert_fx(FxMatrix::new(provider))
+    }
+
+    #[test]
+    fn collapse_converts_1y_eur_flow_with_cip_forward() {
+        let as_of = date!(2025 - 01 - 01);
+        let payment = date!(2026 - 01 - 01);
+        let full = single_kind_flow(payment, Money::new(1.0, Currency::EUR), CFKind::Fixed);
+        let market = market_with_cip_eurusd(as_of, 1.10, 0.99, 0.95);
+
+        let by_date_kind = full
+            .collapse_to_base_by_date_kind(&market, Currency::USD, as_of, None)
+            .expect("CIP collapse should succeed when both discount curves exist");
+
+        let expected = 1.10 * 0.99 / 0.95;
+        assert_eq!(
+            by_date_kind[&payment][&CFKind::Fixed],
+            Money::new(expected, Currency::USD)
+        );
+    }
+
+    #[test]
+    fn collapse_uses_spot_for_payment_on_as_of() {
+        let as_of = date!(2025 - 01 - 01);
+        let full = single_kind_flow(as_of, Money::new(1.0, Currency::EUR), CFKind::Fixed);
+        let market = market_with_cip_eurusd(as_of, 1.10, 0.99, 0.95);
+
+        let by_date_kind = full
+            .collapse_to_base_by_date_kind(&market, Currency::USD, as_of, None)
+            .expect("same-date collapse should use spot");
+
+        assert_eq!(
+            by_date_kind[&as_of][&CFKind::Fixed],
+            Money::new(1.10, Currency::USD)
+        );
+    }
+
+    #[test]
+    fn collapse_errors_when_eur_discount_is_missing() {
+        let as_of = date!(2025 - 01 - 01);
+        let payment = date!(2026 - 01 - 01);
+        let full = single_kind_flow(payment, Money::new(1.0, Currency::EUR), CFKind::Fixed);
+        let provider = Arc::new(SimpleFxProvider::new());
+        provider
+            .set_quote(Currency::EUR, Currency::USD, 1.10)
+            .expect("test FX quote should be valid");
+        let market = MarketContext::new()
+            .insert(flat_discount("USD", as_of, 0.95))
+            .insert_fx(FxMatrix::new(provider));
+
+        let err = full
+            .collapse_to_base_by_date_kind(&market, Currency::USD, as_of, None)
+            .expect_err("future EUR flow must fail without an EUR discount curve");
+        let message = err.to_string();
+        assert!(
+            message.contains("EUR") && message.to_ascii_lowercase().contains("discount"),
+            "unexpected missing-curve error: {message}"
+        );
+    }
+
+    #[test]
+    fn collapse_uses_explicit_discount_curve_ids() {
+        let as_of = date!(2025 - 01 - 01);
+        let payment = date!(2026 - 01 - 01);
+        let full = single_kind_flow(payment, Money::new(1.0, Currency::EUR), CFKind::Fixed);
+        let provider = Arc::new(SimpleFxProvider::new());
+        provider
+            .set_quote(Currency::EUR, Currency::USD, 1.10)
+            .expect("test FX quote should be valid");
+        let market = MarketContext::new()
+            .insert(flat_discount("EUR-OIS", as_of, 0.99))
+            .insert(flat_discount("USD-OIS", as_of, 0.95))
+            .insert_fx(FxMatrix::new(provider));
+        let mut curves = HashMap::new();
+        curves.insert(Currency::EUR, CurveId::new("EUR-OIS"));
+        curves.insert(Currency::USD, CurveId::new("USD-OIS"));
+
+        let by_date_kind = full
+            .collapse_to_base_by_date_kind(&market, Currency::USD, as_of, Some(&curves))
+            .expect("explicit curve-id map should resolve CIP discounts");
+
+        let expected = 1.10 * 0.99 / 0.95;
+        assert_eq!(
+            by_date_kind[&payment][&CFKind::Fixed],
+            Money::new(expected, Currency::USD)
+        );
     }
 
     #[test]

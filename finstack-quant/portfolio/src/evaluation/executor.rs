@@ -88,12 +88,15 @@ pub(crate) fn evaluate_portfolio(input: EvaluationInput<'_>) -> Result<Portfolio
     assemble_valuation(position_values, input.portfolio, input.profile, input.as_of)
 }
 
-/// Evaluate raw, native-currency endpoints for finite-difference workflows.
+/// Evaluate unscaled factor-stress endpoints in the portfolio base currency.
 ///
-/// This intentionally returns a dedicated `f64` result rather than forcing
-/// sensitivity endpoints through `Money` or `PortfolioValuation`. It shares
-/// the executor's position-axis policy, deterministic ordering, and selective
-/// endpoint reuse while preserving subtraction-before-scaling semantics.
+/// Each instrument is priced native via `value_raw_with_currency`, then
+/// converted with [`crate::fx::convert_to_base`] on **this** market at
+/// `as_of`. Callers multiply the stressed-minus-base difference by
+/// [`Position::scale_factor`]. This intentionally returns a dedicated `f64`
+/// rather than forcing sensitivity endpoints through `Money` or
+/// `PortfolioValuation`. It shares the executor's position-axis policy,
+/// deterministic ordering, and selective endpoint reuse.
 pub(crate) fn evaluate_raw_portfolio(
     input: RawEvaluationInput<'_>,
 ) -> Result<RawPortfolioEvaluation> {
@@ -391,13 +394,13 @@ fn raw_position_endpoint(
             position.position_id
         )));
     }
-    if currency != input.portfolio.base_currency {
-        return Err(Error::validation(format!(
-            "M-2: factor stress requires position '{}' to price in portfolio base currency {}; \
-             got {}. Explicit FX conversion is disabled for this workflow.",
-            position.position_id, input.portfolio.base_currency, currency
-        )));
-    }
+    let amount = crate::fx::convert_to_base(
+        Money::new(amount, currency),
+        input.as_of,
+        input.market,
+        input.portfolio.base_currency,
+    )?
+    .amount();
     Ok(RawPositionEndpoint { amount })
 }
 

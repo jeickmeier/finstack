@@ -28,7 +28,12 @@ fn bench_aggregate_full_cashflows(c: &mut Criterion) {
             &num_positions,
             |b, _| {
                 b.iter(|| {
-                    aggregate_full_cashflows(black_box(&portfolio), black_box(&market)).unwrap()
+                    aggregate_full_cashflows(
+                        black_box(&portfolio),
+                        black_box(&market),
+                        &Default::default(),
+                    )
+                    .unwrap()
                 });
             },
         );

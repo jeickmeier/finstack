@@ -3,10 +3,12 @@
 mod common;
 
 use common::*;
+use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
 use finstack_quant_portfolio::position::{Position, PositionUnit};
 use finstack_quant_portfolio::types::{AttributeValue, Entity, DUMMY_ENTITY_ID};
+use finstack_quant_portfolio::valuation::value_portfolio;
 use finstack_quant_portfolio::{Error, Portfolio, PortfolioBuilder};
 use finstack_quant_valuations::instruments::rates::deposit::Deposit;
 use std::sync::Arc;
@@ -193,4 +195,74 @@ fn builder_required_fields_and_dummy_auto_create() {
         .build()
         .unwrap();
     assert!(portfolio.has_dummy_entity());
+}
+
+#[test]
+fn notional_two_lot_deposit_native_pv_is_twice_one_lot() {
+    let as_of = base_date();
+    let maturity = as_of + time::Duration::days(30);
+    let market = market_with_usd();
+    let config = FinstackConfig::default();
+
+    let deposit = Deposit::builder()
+        .id("DEP_1M".into())
+        .notional(Money::new(1_000_000.0, Currency::USD))
+        .start_date(as_of)
+        .maturity(maturity)
+        .day_count(finstack_quant_core::dates::DayCount::Act360)
+        .discount_curve_id("USD".into())
+        .quote_rate_opt(Some(
+            rust_decimal::Decimal::try_from(0.045).expect("valid literal"),
+        ))
+        .build()
+        .unwrap();
+
+    let one_lot = Position::new(
+        "POS_1LOT",
+        "E",
+        "DEP_1M",
+        Arc::new(deposit.clone()),
+        1.0,
+        PositionUnit::Notional(Some(Currency::USD)),
+    )
+    .unwrap();
+    let two_lot = Position::new(
+        "POS_2LOT",
+        "E",
+        "DEP_1M",
+        Arc::new(deposit),
+        2.0,
+        PositionUnit::Notional(Some(Currency::USD)),
+    )
+    .unwrap();
+
+    let portfolio = PortfolioBuilder::new("P")
+        .base_currency(Currency::USD)
+        .as_of(as_of)
+        .entity(Entity::new("E"))
+        .position(one_lot)
+        .position(two_lot)
+        .build()
+        .unwrap();
+
+    let valuation = value_portfolio(&portfolio, &market, &config, &Default::default()).unwrap();
+    let pv_one = valuation
+        .get_position_value("POS_1LOT")
+        .unwrap()
+        .value_native
+        .amount();
+    let pv_two = valuation
+        .get_position_value("POS_2LOT")
+        .unwrap()
+        .value_native
+        .amount();
+
+    assert!(
+        (pv_two - 2.0 * pv_one).abs() < 1e-6,
+        "two-lot native PV should be 2 × one-lot PV, got one={pv_one} two={pv_two}"
+    );
+    assert!(
+        (pv_two - 2e6 * pv_one).abs() > 1.0,
+        "two-lot must not treat quantity as dollar notional on a deal-notional instrument"
+    );
 }

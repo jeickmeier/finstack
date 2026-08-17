@@ -1,10 +1,12 @@
 //! Finite-difference and repricing utilities for portfolio sensitivities.
 //!
 use crate::dependencies::{flatten_dependencies, MarketFactorKey};
+use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::{CurveStorage, MarketContext};
+use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
-use finstack_quant_core::{Error, Result};
+use finstack_quant_core::Result;
 use finstack_quant_factor_model::{FactorDefinition, MarketMapping, SensitivityMatrix};
 use finstack_quant_valuations::instruments::{Instrument, RatesCurveKind};
 
@@ -134,8 +136,10 @@ fn dependencies_intersect_factor(
 /// The plan is request-local. Instruments with dependency-introspection
 /// failures are included in every non-empty factor mapping, and ambiguous
 /// factor mappings include every position. Resolved positions with no matching
-/// dependency are proven unaffected and receive an exact zero without a
-/// repricing call.
+/// dependency are proven unaffected for **native** pricing and receive an
+/// exact zero unless the factor is an FX mapping: engines still reconvert
+/// those rows through the bumped spot matrix so translation P&L is not
+/// dropped.
 pub(crate) struct FactorRepricingPlan {
     affected_by_factor: Vec<Vec<bool>>,
 }
@@ -181,52 +185,81 @@ impl FactorRepricingPlan {
     }
 }
 
-/// Validate that every position prices in the same native currency.
+/// Price an instrument in its native currency, then convert on `market` at `as_of`.
 ///
-/// The factor sensitivity engines build deltas from raw native-currency PVs
-/// and the downstream decomposers column-sum them across positions. Mixing
-/// currencies would silently add e.g. USD and EUR DV01s unit-for-unit,
-/// violating the workspace no-implicit-cross-currency invariant. This check
-/// errors loudly instead of converting; callers with multi-currency
-/// portfolios must convert positions to a common base currency upstream.
+/// Factor stress, delta, and full-reprice endpoints all use this path so FX
+/// factors flow through the bumped market's spot matrix rather than an
+/// implied PV ratio. Same-currency amounts short-circuit inside
+/// [`crate::fx::convert_to_base`]. Non-finite native PVs are returned
+/// unchanged so callers can emit their position-specific validation error
+/// without constructing `Money`. Missing FX for a cross-currency position
+/// fails the same way NAV does.
+///
+/// # Arguments
+///
+/// * `instrument` - Instrument to price in its native currency.
+/// * `market` - Market used for both native pricing and the spot FX lookup.
+///   Callers must pass the **bumped** market when computing a shocked PV.
+/// * `as_of` - Valuation date for pricing and the FX matrix query.
+/// * `base_currency` - Reporting currency; same-currency amounts are identity.
 ///
 /// # Errors
 ///
-/// Returns [`Error::Validation`] naming the two positions whose pricing
-/// currencies differ, or propagates any pricing error from `base_value`.
-pub(crate) fn validate_single_currency(
-    positions: &[(String, &dyn Instrument, f64)],
+/// Propagates instrument pricing failures and [`crate::fx::convert_to_base`]
+/// errors (missing FX matrix or missing pair).
+pub(crate) fn raw_pv_in_base(
+    instrument: &dyn Instrument,
     market: &MarketContext,
     as_of: Date,
-) -> Result<()> {
-    let mut first: Option<(&str, finstack_quant_core::currency::Currency)> = None;
-    for (position_id, instrument, _) in positions {
-        let currency = instrument.value(market, as_of)?.currency();
-        match first {
-            None => first = Some((position_id.as_str(), currency)),
-            Some((first_id, first_currency)) if first_currency != currency => {
-                return Err(Error::Validation(format!(
-                    "Factor sensitivity engine requires a single pricing currency: \
-                     position '{first_id}' prices in {first_currency} but position \
-                     '{position_id}' prices in {currency}; convert positions to a \
-                     common base currency before computing factor sensitivities"
-                )));
-            }
-            Some(_) => {}
-        }
+    base_currency: Currency,
+) -> Result<f64> {
+    let (amount, currency) = instrument.value_raw_with_currency(market, as_of)?;
+    if !amount.is_finite() {
+        return Ok(amount);
     }
-    Ok(())
+    Ok(
+        crate::fx::convert_to_base(Money::new(amount, currency), as_of, market, base_currency)?
+            .amount(),
+    )
+}
+
+/// Whether a factor bump can change the FX matrix used by [`raw_pv_in_base`].
+///
+/// Instruments that do not declare an FX dependency still have a translation
+/// effect when their native currency differs from the reporting currency, so
+/// FX mappings must reprice (or at least reconvert) every position.
+///
+/// # Arguments
+///
+/// * `mapping` - Factor-to-market mapping whose bump target is inspected.
+pub(crate) fn mapping_bumps_fx(mapping: &MarketMapping) -> bool {
+    matches!(mapping, MarketMapping::FxRate { .. })
 }
 
 /// Engine for computing per-position, per-factor sensitivities.
 pub trait FactorSensitivityEngine: Send + Sync {
     /// Compute a sensitivity matrix for `positions` against `factors`.
+    ///
+    /// Each cell is a central difference of **base-currency** PVs:
+    /// `(PV_up_base − PV_down_base) / (2h) * weight`. Native PVs are converted
+    /// with [`crate::fx::convert_to_base`] on the **bumped** market at `as_of`.
+    /// When the caller wraps a [`crate::Portfolio`], `weight` is
+    /// [`crate::position::Position::scale_factor`].
+    ///
+    /// # Arguments
+    ///
+    /// * `positions` - `(id, instrument, weight)` rows in matrix order.
+    /// * `factors` - Factor definitions that select the market bumps.
+    /// * `market` - Unbumped market snapshot; engines bump it per factor.
+    /// * `as_of` - Valuation date for pricing and spot FX lookup.
+    /// * `base_currency` - Reporting currency for every converted PV.
     fn compute_sensitivities(
         &self,
         positions: &[(String, &dyn Instrument, f64)],
         factors: &[FactorDefinition],
         market: &MarketContext,
         as_of: Date,
+        base_currency: Currency,
     ) -> Result<SensitivityMatrix>;
 }
 

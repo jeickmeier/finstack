@@ -96,6 +96,10 @@ pub struct SectorPeriod {
     /// Portfolio return for the sector over the period.
     pub portfolio_return: f64,
     /// Benchmark return for the sector over the period.
+    ///
+    /// Ignored when [`benchmark_weight`](Self::benchmark_weight) is zero:
+    /// [`brinson_fachler`] substitutes the benchmark total `r_b` (Campisi
+    /// off-benchmark convention).
     pub benchmark_return: f64,
 }
 
@@ -144,27 +148,19 @@ pub struct BrinsonPeriodResult {
 ///
 /// # Conventions
 ///
-/// For a sector with **zero benchmark weight**, the supplied
-/// [`SectorPeriod::benchmark_return`] is *not* irrelevant: it never enters
-/// the benchmark total `r_b` (its weight is zero there), but it still
-/// selects the off-benchmark convention through the allocation term
-/// `(w_p,i − 0)(r_b,i − r_b)`:
+/// For a sector with **zero benchmark weight**, this function applies the
+/// same off-benchmark convention as
+/// [`crate::fi_attribution::campisi_attribution`]: `r_b,i` is replaced by
+/// the benchmark total `r_b` before the three-way split. Allocation is then
+/// identically zero (`(w_p,i − 0)(r_b − r_b)`) and the sector's active
+/// contribution flows through the interaction term
+/// `(w_p,i)(r_p,i − r_b)`. The supplied
+/// [`SectorPeriod::benchmark_return`] for that sector is ignored — it never
+/// entered `r_b` (its weight is zero there) and is no longer used to pick
+/// an alternate split.
 ///
-/// * `benchmark_return = r_b` (the benchmark total return) makes the
-///   allocation charge exactly zero — the industry off-benchmark
-///   convention, under which the sector's active contribution flows through
-///   the interaction term `(w_p,i)(r_p,i − r_b)`.
-/// * `benchmark_return = 0.0` charges the full `−w_p,i · r_b` of
-///   allocation for merely holding the sector, with the interaction term
-///   `w_p,i · r_p,i` absorbing the difference.
-///
-/// Either choice reconstructs the active return exactly (the `r_b,i` terms
-/// carry coefficient `−w_b,i = 0` in the summed effects); the split between
-/// allocation and interaction is what the caller's choice controls. This
-/// function deliberately does not second-guess the input — callers wanting
-/// the off-benchmark convention must pass `benchmark_return = r_b`
-/// themselves ([`crate::fi_attribution::campisi_attribution`] applies it
-/// automatically).
+/// The telescoping identity is unchanged: every `r_b,i` term in the summed
+/// effects carries coefficient `−w_b,i = 0` for these sectors.
 ///
 /// # Errors
 ///
@@ -230,11 +226,19 @@ pub fn brinson_fachler(sectors: &[SectorPeriod]) -> Result<BrinsonPeriodResult> 
     let mut sector_effects: Vec<SectorEffect> = Vec::with_capacity(sectors.len());
 
     for s in sectors {
-        let alloc =
-            (s.portfolio_weight - s.benchmark_weight) * (s.benchmark_return - benchmark_return);
-        let sel = s.benchmark_weight * (s.portfolio_return - s.benchmark_return);
-        let inter =
-            (s.portfolio_weight - s.benchmark_weight) * (s.portfolio_return - s.benchmark_return);
+        // Campisi off-benchmark convention: a sector absent from the
+        // benchmark inherits the benchmark total return so allocation is
+        // zero and the active contribution sits in interaction.
+        let sector_benchmark_return = if s.benchmark_weight == 0.0 {
+            benchmark_return
+        } else {
+            s.benchmark_return
+        };
+        let alloc = (s.portfolio_weight - s.benchmark_weight)
+            * (sector_benchmark_return - benchmark_return);
+        let sel = s.benchmark_weight * (s.portfolio_return - sector_benchmark_return);
+        let inter = (s.portfolio_weight - s.benchmark_weight)
+            * (s.portfolio_return - sector_benchmark_return);
 
         allocation.add(alloc);
         selection.add(sel);
@@ -534,10 +538,7 @@ mod tests {
                 portfolio_weight: 0.20,
                 benchmark_weight: 0.00,
                 portfolio_return: 0.12,
-                // NOT irrelevant despite the zero benchmark weight: this
-                // value selects the off-benchmark convention via the
-                // allocation term (see `brinson_fachler`'s `# Conventions`).
-                // 0.0 here charges the full −w_p·r_b of allocation.
+                // Overridden to r_b when w_b = 0 (Campisi off-benchmark).
                 benchmark_return: 0.00,
             },
         ];
@@ -549,22 +550,17 @@ mod tests {
         );
     }
 
-    /// Pins both branches of the zero-benchmark-weight convention documented
-    /// under `brinson_fachler`'s `# Conventions` (Mo-1): the supplied
-    /// `benchmark_return` for a zero-weight sector shifts value between
-    /// allocation and interaction (a 140 bp allocation swing in this
-    /// fixture) while the reconstructed active return is identical.
+    /// Pins the Campisi off-benchmark default: when `w_b,i = 0`, `r_b,i`
+    /// is replaced by `r_b` regardless of the supplied sector benchmark
+    /// return. Allocation is then zero and the active contribution sits
+    /// in interaction.
     ///
     /// Fixture: CORE (w_p 0.8, w_b 1.0, r 0.05/0.05), EXTRA (w_p 0.2,
     /// w_b 0.0, r_p 0.12). `r_b = 0.05`, `r_p = 0.064`, active = 0.014.
-    ///
-    /// * `benchmark_return = r_b = 0.05` (off-benchmark convention):
-    ///   EXTRA allocation `= 0.2·(0.05 − 0.05) = 0`, interaction
-    ///   `= 0.2·(0.12 − 0.05) = 0.014`.
-    /// * `benchmark_return = 0.0`: EXTRA allocation
-    ///   `= 0.2·(0 − 0.05) = −0.01`, interaction `= 0.2·0.12 = 0.024`.
+    /// EXTRA allocation `= 0.2·(0.05 − 0.05) = 0`, interaction
+    /// `= 0.2·(0.12 − 0.05) = 0.014`.
     #[test]
-    fn zero_benchmark_weight_sector_return_selects_off_benchmark_convention() {
+    fn zero_benchmark_weight_uses_benchmark_total_return() {
         let build = |extra_benchmark_return: f64| {
             brinson_fachler(&[
                 SectorPeriod {
@@ -585,39 +581,23 @@ mod tests {
             .expect("valid BF inputs")
         };
 
-        // Branch 1: benchmark_return = r_b => zero allocation charge.
-        let off_benchmark = build(0.05);
-        let extra = &off_benchmark.sectors[1];
-        assert!(
-            (extra.allocation - 0.0).abs() < 1e-15,
-            "{}",
-            extra.allocation
-        );
-        assert!(
-            (extra.interaction - 0.014).abs() < 1e-15,
-            "{}",
-            extra.interaction
-        );
-
-        // Branch 2: benchmark_return = 0.0 => full −w_p·r_b allocation charge.
-        let zero_return = build(0.0);
-        let extra = &zero_return.sectors[1];
-        assert!(
-            (extra.allocation - (-0.01)).abs() < 1e-15,
-            "{}",
-            extra.allocation
-        );
-        assert!(
-            (extra.interaction - 0.024).abs() < 1e-15,
-            "{}",
-            extra.interaction
-        );
-
-        // Both conventions reconstruct the identical active return.
-        for r in [&off_benchmark, &zero_return] {
-            let reconstructed = r.total_allocation + r.total_selection + r.total_interaction;
-            assert!((r.total_excess_return - 0.014).abs() < 1e-15);
-            assert!((reconstructed - r.total_excess_return).abs() < 1e-12);
+        for supplied in [0.05, 0.0, 0.99] {
+            let result = build(supplied);
+            let extra = &result.sectors[1];
+            assert!(
+                extra.allocation.abs() < 1e-15,
+                "supplied r_b,i = {supplied} must be overridden to r_b: allocation {}",
+                extra.allocation
+            );
+            assert!(
+                (extra.interaction - 0.014).abs() < 1e-15,
+                "supplied r_b,i = {supplied} must be overridden to r_b: interaction {}",
+                extra.interaction
+            );
+            let reconstructed =
+                result.total_allocation + result.total_selection + result.total_interaction;
+            assert!((result.total_excess_return - 0.014).abs() < 1e-15);
+            assert!((reconstructed - result.total_excess_return).abs() < 1e-12);
         }
     }
 

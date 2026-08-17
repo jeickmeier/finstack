@@ -1501,38 +1501,48 @@ class PortfolioCashflows:
         market: MarketContext | str,
         base_currency: str,
         as_of: datetime.date | str,
+        discount_curves: dict[str, str] | None = None,
     ) -> str:
         """
         Collapse the ladder to a base-currency ``(date, kind) → Money`` JSON.
 
-        Uses **spot-equivalent** FX at each payment date. ``as_of`` is the
-        valuation/run date used to flag far-future conversions.
+        Payments on or before ``as_of`` use spot FX at ``as_of``. Later
+        payments use the CIP forward ``F(T) = S × DF_from(T) / DF_base(T)``.
+        Missing discount curves or discount factors raise ``FxError``.
 
         Parameters
         ----------
         market : MarketContext or str
-            Market context object or JSON providing FX data for payment-date
-            base-currency conversion.
+            Market context object or JSON providing the FX matrix and
+            discount curves used for spot and CIP-forward conversion.
         base_currency : str
             ISO currency code into which each classified cashflow is converted.
         as_of : datetime.date | str
-            Valuation date used for conversion diagnostics and limits, either a
-            date-like object or an ISO 8601 string.
+            Valuation date for spot FX and as the start of each discount-factor
+            interval, either a date-like object or an ISO 8601 string.
+        discount_curves : dict[str, str] | None
+            Optional map of ISO currency code to discount-curve id. A missing
+            map or missing currency uses the ISO code as the curve id
+            (``market.get_discount("EUR")``). There is no silent fallback to
+            another curve in the same currency.
 
         Returns
         -------
         str
-            Date-and-kind totals converted to ``base_currency`` using payment-date FX.
+            Date-and-kind totals converted to ``base_currency`` using spot at
+            ``as_of`` or CIP forwards for later payment dates.
 
         Raises
         ------
         TypeError
-            If ``market`` is neither a ``MarketContext`` nor a JSON string.
+            If ``market`` is neither a ``MarketContext`` nor a JSON string, or
+            if ``discount_curves`` is not a string-to-string mapping.
         ValueError
-            If the market JSON, currency, or date is invalid, or monetary
-            aggregation cannot represent the result.
+            If the market JSON, currency, date, or a ``discount_curves`` key is
+            invalid, or monetary aggregation cannot represent the result.
         FxError
-            If an FX rate required for base-currency conversion is unavailable.
+            If an FX rate, discount curve, or discount factor required for
+            base-currency conversion is unavailable.
         """
         ...
 
@@ -2531,7 +2541,7 @@ def aggregate_metrics_json(
 def value_portfolio(
     portfolio: Portfolio | str,
     market: MarketContext | str,
-    strict_risk: bool = False,
+    strict_risk: bool = True,
     metrics: list[str] | None = None,
 ) -> PortfolioValuation:
     """
@@ -2546,9 +2556,11 @@ def value_portfolio(
         Built portfolio or canonical ``PortfolioSpec`` JSON to value.
     market : MarketContext or str
         Market context object or JSON supplying curves, quotes, and FX data.
-    strict_risk : bool, default False
+    strict_risk : bool, default True
         Whether absent or failed risk calculations abort the valuation rather
-        than being recorded as diagnostics.
+        than being recorded as diagnostics. The default matches Rust: a
+        standard-metric risk run fails closed. Set ``False`` only for an
+        intentional PV-preserving fallback.
     metrics : list[str] or None, default None
         Exact metric identifiers to compute. ``None`` requests the standard
         portfolio risk set; an empty list performs PV-only valuation. Names
@@ -2578,7 +2590,11 @@ def value_portfolio(
     """
     ...
 
-def aggregate_full_cashflows(portfolio: Portfolio | str, market: MarketContext | str) -> PortfolioCashflows:
+def aggregate_full_cashflows(
+    portfolio: Portfolio | str,
+    market: MarketContext | str,
+    allow_partial: bool = False,
+) -> PortfolioCashflows:
     """
     Build the full classified cashflow ladder for the portfolio.
 
@@ -2591,6 +2607,10 @@ def aggregate_full_cashflows(portfolio: Portfolio | str, market: MarketContext |
         Built portfolio or canonical ``PortfolioSpec`` JSON to expand.
     market : MarketContext or str
         Market context object or JSON needed for instrument cashflow generation.
+    allow_partial : bool, default False
+        When ``False``, any schedule-construction issue aborts the call.
+        When ``True``, remaining positions still contribute to the ladder
+        and issues are returned on :class:`PortfolioCashflows`.
 
     Returns
     -------
@@ -2605,7 +2625,9 @@ def aggregate_full_cashflows(portfolio: Portfolio | str, market: MarketContext |
         If supplied JSON is malformed or cashflow aggregation cannot represent
         a monetary result.
     PortfolioError
-        If a JSON portfolio cannot be constructed from its decoded specification.
+        If a JSON portfolio cannot be constructed from its decoded specification,
+        or if any position fails schedule construction while ``allow_partial``
+        is ``False``.
 
     Examples
     --------
@@ -11112,12 +11134,15 @@ class WeightingScheme:
     @classmethod
     def notional_weight(cls) -> WeightingScheme:
         """
-        Weight positions by notional.
+        Weight positions by instrument deal notional times lot scale.
 
         Returns
         -------
         WeightingScheme
-            Weights as normalized shares of notional exposure.
+            Weights as signed shares of
+            ``|instrument.notional().amount()| * scale_factor()``.
+            Instruments that do not expose deal notional fail; there is no
+            fallback to ``scale_factor()`` as a dollar proxy.
 
         Notes
         -----
@@ -11218,7 +11243,10 @@ class MissingMetricPolicy:
         Returns
         -------
         MissingMetricPolicy
-            Policy excluding missing-metric positions and retaining their current weights.
+            Policy that freezes missing-metric positions at their current
+            weights and drops them from ``WeightedSum`` and
+            ``ValueWeightedAverage`` coefficient vectors (coefficient 0,
+            omitted from a value-weighted-average denominator).
 
         Notes
         -----

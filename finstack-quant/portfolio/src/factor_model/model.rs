@@ -292,20 +292,27 @@ impl FactorModel {
 
     /// Compute the weighted position-factor sensitivity matrix for `portfolio`.
     ///
+    /// Each engine cell is a central difference of base-currency PVs. Native
+    /// instrument values are converted with [`crate::fx::convert_to_base`] on
+    /// the bumped market at `as_of`. The row weight is
+    /// [`crate::position::Position::scale_factor`].
+    ///
     /// # Arguments
     ///
-    /// * `portfolio` - Portfolio to analyze.
-    /// * `market` - Market context used by the sensitivity engine.
-    /// * `as_of` - Valuation date for sensitivity generation.
+    /// * `portfolio` - Portfolio to analyze. `base_currency` is the reporting
+    ///   currency for every converted PV.
+    /// * `market` - Market context used by the sensitivity engine, including
+    ///   the FX matrix required for any cross-currency position.
+    /// * `as_of` - Valuation date for sensitivity generation and spot FX.
     ///
     /// # Returns
     ///
     /// Weighted sensitivity matrix with one row per position and one column per
-    /// configured factor.
+    /// configured factor, in `portfolio.base_currency`.
     ///
     /// # Errors
     ///
-    /// Propagates assignment or sensitivity-engine failures.
+    /// Propagates assignment, sensitivity-engine, or FX-conversion failures.
     pub fn compute_sensitivities(
         &self,
         portfolio: &Portfolio,
@@ -346,6 +353,7 @@ impl FactorModel {
             &self.factors,
             market,
             as_of,
+            portfolio.base_currency,
         )?;
         self.overlay_assignment_driven_credit_sensitivities(
             portfolio,
@@ -1574,6 +1582,7 @@ mod tests {
             factors: &[FactorDefinition],
             _market: &MarketContext,
             _as_of: finstack_quant_core::dates::Date,
+            _base_currency: finstack_quant_core::currency::Currency,
         ) -> finstack_quant_core::Result<SensitivityMatrix> {
             Ok(SensitivityMatrix::zeros(
                 Vec::new(),
@@ -1593,6 +1602,7 @@ mod tests {
             factors: &[FactorDefinition],
             _market: &MarketContext,
             _as_of: finstack_quant_core::dates::Date,
+            _base_currency: finstack_quant_core::currency::Currency,
         ) -> finstack_quant_core::Result<SensitivityMatrix> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             Ok(SensitivityMatrix::zeros(
@@ -1628,6 +1638,7 @@ mod tests {
             factors: &[FactorDefinition],
             _market: &MarketContext,
             _as_of: finstack_quant_core::dates::Date,
+            _base_currency: finstack_quant_core::currency::Currency,
         ) -> finstack_quant_core::Result<SensitivityMatrix> {
             let position_ids: Vec<String> = positions.iter().map(|(id, _, _)| id.clone()).collect();
             let factor_ids: Vec<_> = factors.iter().map(|f| f.id.clone()).collect();
@@ -1648,6 +1659,7 @@ mod tests {
             factors: &[FactorDefinition],
             _market: &MarketContext,
             _as_of: finstack_quant_core::dates::Date,
+            _base_currency: finstack_quant_core::currency::Currency,
         ) -> finstack_quant_core::Result<SensitivityMatrix> {
             let position_ids: Vec<String> = positions.iter().map(|(id, _, _)| id.clone()).collect();
             let factor_ids: Vec<_> = factors.iter().map(|f| f.id.clone()).collect();
