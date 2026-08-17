@@ -601,7 +601,7 @@ class HazardCurve:
     >>> import datetime
     >>> from finstack_quant.core.market_data import HazardCurve
     >>> curve = HazardCurve("ACME", datetime.date(2025, 1, 1), [(0.0, 0.02), (5.0, 0.03)])
-    >>> curve.hazard_rate(1.0)
+    >>> curve.hazard_rate(0.0)
     0.02
 
     """

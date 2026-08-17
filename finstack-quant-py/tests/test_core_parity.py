@@ -367,8 +367,8 @@ class TestDiscountCurveParity:
         """DF at t=0 is 1.0."""
         assert curve.df(0.0) == pytest.approx(1.0, abs=1e-10)
 
-    def test_default_day_count_uses_rust_curve_id_inference(self) -> None:
-        """USD discount curves default to the Rust-inferred Act/360 market basis."""
+    def test_default_day_count_is_act_365f(self) -> None:
+        """DiscountCurve defaults to Act/365F when day_count is omitted."""
         curve = DiscountCurve(
             "USD-OIS",
             date(2024, 1, 1),
@@ -378,7 +378,7 @@ class TestDiscountCurveParity:
         context.insert(curve)
 
         state = json.loads(context.to_json())
-        assert state["curves"][0]["day_count"] == "act_360"
+        assert state["curves"][0]["day_count"] == "act_365f"
 
     def test_explicit_day_count_still_overrides_curve_id_inference(self) -> None:
         """Users can still override the inferred day-count convention explicitly."""
