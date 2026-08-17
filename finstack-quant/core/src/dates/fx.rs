@@ -31,6 +31,7 @@
 //! - [`adjust_joint_calendar`] for applying a business-day convention on a joint calendar
 //! - [`add_joint_business_days`] for T+n style symmetric joint counting
 //! - [`fx_spot_date`] for market-convention (USD-aware) spot rolling
+//! - [`fx_standard_spot_lag_days`] for the pair-aware T+1 / T+2 spot lag
 //!
 //! # References
 //!
@@ -39,12 +40,37 @@
 //! - FX settlement / spot-lag conventions: CLS settlement rules; see also
 //!   (FX spot lag finding)
 
+use crate::currency::Currency;
 use crate::dates::{
     adjust, available_calendars, calendar_by_id, BusinessDayConvention, CompositeCalendar, Date,
     HolidayCalendar, WEEKENDS_ONLY,
 };
 use crate::{Error, Result};
 use time::Duration;
+
+/// Standard FX spot lag in business days for a currency pair.
+///
+/// Returns `1` for USD↔CAD (North American same-day zone) and USD↔TRY
+/// (Istanbul convention). Every other pair, including USD/MXN and EUR/USD,
+/// returns `2`.
+///
+/// # Arguments
+///
+/// * `base` - Base currency of the pair (the currency being priced).
+/// * `quote` - Quote currency of the pair (the pricing currency).
+///
+/// # Returns
+///
+/// Spot settlement lag in business days (`1` or `2`).
+pub fn fx_standard_spot_lag_days(base: Currency, quote: Currency) -> u32 {
+    match (base, quote) {
+        (Currency::USD, Currency::CAD)
+        | (Currency::CAD, Currency::USD)
+        | (Currency::USD, Currency::TRY)
+        | (Currency::TRY, Currency::USD) => 1,
+        _ => 2,
+    }
+}
 
 /// Resolve a calendar ID to a calendar reference.
 ///
@@ -463,6 +489,16 @@ mod tests {
 
     static JAN_29_HOLIDAY: Jan29Holiday = Jan29Holiday;
     static JAN_30_AND_31_HOLIDAYS: Jan30And31Holidays = Jan30And31Holidays;
+
+    #[test]
+    fn fx_standard_spot_lag_days_t1_pairs_and_default() {
+        assert_eq!(fx_standard_spot_lag_days(Currency::USD, Currency::CAD), 1);
+        assert_eq!(fx_standard_spot_lag_days(Currency::CAD, Currency::USD), 1);
+        assert_eq!(fx_standard_spot_lag_days(Currency::USD, Currency::TRY), 1);
+        assert_eq!(fx_standard_spot_lag_days(Currency::TRY, Currency::USD), 1);
+        assert_eq!(fx_standard_spot_lag_days(Currency::USD, Currency::MXN), 2);
+        assert_eq!(fx_standard_spot_lag_days(Currency::EUR, Currency::USD), 2);
+    }
 
     #[test]
     fn test_add_joint_business_days_no_holidays() {

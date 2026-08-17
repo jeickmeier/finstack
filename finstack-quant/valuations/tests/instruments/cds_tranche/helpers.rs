@@ -26,6 +26,11 @@ pub fn maturity_5y() -> Date {
     Date::from_calendar_date(2030, Month::January, 1).unwrap()
 }
 
+fn with_imm_dates(mut tranche: CDSTranche) -> CDSTranche {
+    tranche.standard_imm_dates = true;
+    tranche
+}
+
 /// Create a standard discount curve for testing (USD-OIS)
 pub fn standard_discount_curve() -> DiscountCurve {
     DiscountCurve::builder("USD-OIS")
@@ -158,15 +163,17 @@ pub fn mezzanine_tranche() -> CDSTranche {
         500.0, // 5% running coupon
     );
     let schedule_params = ScheduleParams::quarterly_act360();
-    CDSTranche::new(
-        "CDX_IG42_3_7_5Y",
-        &tranche_params,
-        &schedule_params,
-        finstack_quant_core::types::CurveId::from("USD-OIS"),
-        finstack_quant_core::types::CurveId::from("CDX.NA.IG.42"),
-        TrancheSide::SellProtection,
+    with_imm_dates(
+        CDSTranche::new(
+            "CDX_IG42_3_7_5Y",
+            &tranche_params,
+            &schedule_params,
+            finstack_quant_core::types::CurveId::from("USD-OIS"),
+            finstack_quant_core::types::CurveId::from("CDX.NA.IG.42"),
+            TrancheSide::SellProtection,
+        )
+        .expect("Valid tranche parameters"),
     )
-    .expect("Valid tranche parameters")
 }
 
 /// Create equity tranche (0-3%)
@@ -179,15 +186,17 @@ pub fn equity_tranche() -> CDSTranche {
         1000.0, // 10% running coupon (typical for equity)
     );
     let schedule_params = ScheduleParams::quarterly_act360();
-    CDSTranche::new(
-        "CDX_IG42_0_3_5Y",
-        &tranche_params,
-        &schedule_params,
-        finstack_quant_core::types::CurveId::from("USD-OIS"),
-        finstack_quant_core::types::CurveId::from("CDX.NA.IG.42"),
-        TrancheSide::SellProtection,
+    with_imm_dates(
+        CDSTranche::new(
+            "CDX_IG42_0_3_5Y",
+            &tranche_params,
+            &schedule_params,
+            finstack_quant_core::types::CurveId::from("USD-OIS"),
+            finstack_quant_core::types::CurveId::from("CDX.NA.IG.42"),
+            TrancheSide::SellProtection,
+        )
+        .expect("Valid tranche parameters"),
     )
-    .expect("Valid tranche parameters")
 }
 
 /// Create senior tranche (7-10%)
@@ -202,15 +211,17 @@ pub fn senior_tranche() -> CDSTranche {
         100.0, // 1% running coupon (typical for senior)
     );
     let schedule_params = ScheduleParams::quarterly_act360();
-    CDSTranche::new(
-        "CDX_IG42_7_10_5Y",
-        &tranche_params,
-        &schedule_params,
-        finstack_quant_core::types::CurveId::from("USD-OIS"),
-        finstack_quant_core::types::CurveId::from("CDX.NA.IG.42"),
-        TrancheSide::SellProtection,
+    with_imm_dates(
+        CDSTranche::new(
+            "CDX_IG42_7_10_5Y",
+            &tranche_params,
+            &schedule_params,
+            finstack_quant_core::types::CurveId::from("USD-OIS"),
+            finstack_quant_core::types::CurveId::from("CDX.NA.IG.42"),
+            TrancheSide::SellProtection,
+        )
+        .expect("Valid tranche parameters"),
     )
-    .expect("Valid tranche parameters")
 }
 
 /// Create custom tranche with specified parameters
@@ -230,15 +241,17 @@ pub fn custom_tranche(
         running_coupon_bp,
     );
     let schedule_params = ScheduleParams::quarterly_act360();
-    CDSTranche::new(
-        "CDX_IG42_CUSTOM",
-        &tranche_params,
-        &schedule_params,
-        finstack_quant_core::types::CurveId::from("USD-OIS"),
-        finstack_quant_core::types::CurveId::from("CDX.NA.IG.42"),
-        side,
+    with_imm_dates(
+        CDSTranche::new(
+            "CDX_IG42_CUSTOM",
+            &tranche_params,
+            &schedule_params,
+            finstack_quant_core::types::CurveId::from("USD-OIS"),
+            finstack_quant_core::types::CurveId::from("CDX.NA.IG.42"),
+            side,
+        )
+        .expect("Valid tranche parameters"),
     )
-    .expect("Valid tranche parameters")
 }
 
 /// Assertion helper: check value is finite and non-negative

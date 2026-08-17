@@ -45,15 +45,19 @@ impl PyCDSTranche {
 impl PyCDSTranche {
     /// Create a fluent builder (mirrors Rust ``CDSTranche::builder()``).
     ///
-    /// The builder pre-seeds ``accumulated_loss(0.0)`` and
-    /// ``standard_imm_dates(True)``, matching ``CDSTranche::new``.
-    /// :meth:`CDSTrancheBuilder.accumulated_loss` and
-    /// :meth:`CDSTrancheBuilder.standard_imm_dates` can override.
+    /// The builder pre-seeds ``accumulated_loss(0.0)``. Coupon dates follow
+    /// the supplied schedule (``standard_imm_dates`` defaults to ``False``),
+    /// matching ``CDSTranche::new``. Call
+    /// :meth:`CDSTrancheBuilder.standard_imm_dates` for IMM rolls.
     ///
     /// Returns
     /// -------
     /// CDSTrancheBuilder
     ///     A builder with fluent, consuming setter methods.
+    ///
+    /// Notes
+    /// -----
+    /// This factory does not raise; it returns a new instance with the documented defaults.
     ///
     /// Examples
     /// --------
@@ -66,9 +70,7 @@ impl PyCDSTranche {
     fn builder() -> PyCDSTrancheBuilder {
         PyCDSTrancheBuilder {
             inner: Some(
-                finstack_quant_valuations::instruments::CDSTranche::builder()
-                    .accumulated_loss(0.0)
-                    .standard_imm_dates(true),
+                finstack_quant_valuations::instruments::CDSTranche::builder().accumulated_loss(0.0),
             ),
         }
     }

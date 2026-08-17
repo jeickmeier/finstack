@@ -767,6 +767,15 @@ impl PyCapFloor {
     /// CapFloorBuilder
     ///     A builder with fluent, consuming setter methods.
     ///
+    /// Notes
+    /// -----
+    /// This factory does not raise; it returns a new instance with the documented defaults.
+    /// Unset ``vol_type`` defaults to ``"auto"``: the surface is treated as
+    /// a lognormal quote. Each caplet uses Black-76 when forward and strike
+    /// are positive; otherwise the lognormal vol is converted to an
+    /// equivalent normal vol and priced with Bachelier. A normal-vol
+    /// surface must set ``vol_type`` to ``"normal"``.
+    ///
     /// Examples
     /// --------
     /// >>> from finstack_quant.valuations.instruments import CapFloor

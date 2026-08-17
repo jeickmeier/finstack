@@ -850,11 +850,13 @@ mod tests {
 
         let usd_curve = DiscountCurve::builder("USD-OIS")
             .base_date(curve_base)
+            .day_count(DayCount::Act360)
             .knots([(0.0, 1.0), (2.0, (-0.06_f64).exp())])
             .build()
             .expect("usd curve");
         let eur_curve = DiscountCurve::builder("EUR-OIS")
             .base_date(curve_base)
+            .day_count(DayCount::Act360)
             .knots([(0.0, 1.0), (2.0, (-0.02_f64).exp())])
             .build()
             .expect("eur curve");

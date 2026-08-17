@@ -165,7 +165,7 @@ them, and pulls almost every child module's surface up to `dates::`.
 | `tenor.rs` | `Tenor`, `TenorUnit` | Private `mod` |
 | `periods.rs` | `Period`, `PeriodId`, `PeriodKind`, `PeriodPlan`, `FiscalConfig`, `build_periods`, `build_fiscal_periods` | Private `mod` |
 | `date_extensions.rs` | `DateExt` | Private `mod` |
-| `fx.rs` | Joint two-calendar FX settlement: `resolve_calendar`, `adjust_joint_calendar`, `add_joint_business_days`, `fx_spot_date`, `ResolvedCalendarPair` | **`pub mod fx`** — one of only two public child modules under `dates`. Consumed by `finstack-quant-valuations`' FX instruments |
+| `fx.rs` | Joint two-calendar FX settlement: `resolve_calendar`, `adjust_joint_calendar`, `add_joint_business_days`, `fx_spot_date`, `fx_standard_spot_lag_days`, `ResolvedCalendarPair` | **`pub mod fx`** — one of only two public child modules under `dates`. Consumed by `finstack-quant-valuations`' FX instruments |
 
 <a name="credit"></a>
 

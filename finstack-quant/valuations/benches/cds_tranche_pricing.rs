@@ -45,7 +45,7 @@ fn create_tranche(attach_pct: f64, detach_pct: f64, tenor_years: i32) -> CDSTran
 
     let schedule_params = ScheduleParams::quarterly_act360();
 
-    CDSTranche::new(
+    let mut tranche = CDSTranche::new(
         format!("CDX_IG42_{}_{}_{}", attach_pct, detach_pct, tenor_years),
         &tranche_params,
         &schedule_params,
@@ -53,7 +53,9 @@ fn create_tranche(attach_pct: f64, detach_pct: f64, tenor_years: i32) -> CDSTran
         "CDX.NA.IG.42",
         TrancheSide::SellProtection,
     )
-    .expect("Valid tranche parameters")
+    .expect("Valid tranche parameters");
+    tranche.standard_imm_dates = true;
+    tranche
 }
 
 fn create_market() -> MarketContext {

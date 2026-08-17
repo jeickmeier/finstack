@@ -116,6 +116,26 @@ pub fn generate_three_factor_paths(
     ) = match &facility.base_rate_spec {
         BaseRateSpec::Fixed { rate } => (InterestRateSpec::Fixed { rate: *rate }, None, 0.0),
         BaseRateSpec::Floating(spec) => {
+            let overnight = crate::instruments::common_impl::pricing::overnight_conventions::resolved_overnight_compounding(
+                spec.index_id.as_str(),
+                spec.overnight_compounding.as_ref(),
+            )?;
+            if overnight.is_some()
+                && matches!(
+                    &mc_config.interest_rate_process,
+                    Some(InterestRateProcessSpec::HullWhite1F { sigma, .. }) if *sigma > 0.0
+                )
+            {
+                return Err(finstack_quant_core::Error::Validation(
+                    "Overnight RFR revolving-credit facilities cannot be priced with \
+                     stochastic Hull-White rates: the path generator records short \
+                     rates only on payment dates, not the daily fixing path required \
+                     to compound an overnight coupon. Use a term index, set \
+                     Hull-White sigma to 0, or price overnight facilities on the \
+                     static forward curve."
+                        .to_string(),
+                ));
+            }
             match &mc_config.interest_rate_process {
                 Some(InterestRateProcessSpec::HullWhite1F {
                     kappa,

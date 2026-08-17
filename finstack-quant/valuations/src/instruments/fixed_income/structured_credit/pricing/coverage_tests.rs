@@ -428,6 +428,16 @@ fn carried_deferred(context: &TestContext<'_>, tranche_id: &str) -> f64 {
     if !context.interest_claim_caps.contains_key(tranche_id) {
         return 0.0;
     }
+    // PIK shortfalls accrete into balance (OC denominator), not the deferred
+    // map. A stale deferred entry must not inflate the IC denominator.
+    if context
+        .tranches
+        .tranches
+        .iter()
+        .any(|tranche| tranche.id.as_str() == tranche_id && tranche.pik_enabled)
+    {
+        return 0.0;
+    }
     context
         .deferred_interest
         .and_then(|deferred| deferred.get(tranche_id))
@@ -803,6 +813,64 @@ mod tests {
             result.current_ratio
         );
         assert!(!result.is_passing);
+    }
+
+    /// PIK shortfalls live in balance, not the deferred map. A stale deferred
+    /// entry on a PIK tranche must not inflate the IC denominator.
+    #[test]
+    fn ic_denominator_ignores_deferred_on_pik_tranche() {
+        let pool = AssetPool::new("TEST", DealType::Clo, Currency::USD);
+        let test = CoverageTest::new_ic(1.20);
+        let mut tranche = Tranche::new(
+            "TEST_TRANCHE",
+            0.0,
+            100.0,
+            TrancheSeniority::Senior,
+            Money::new(100_000.0, Currency::USD),
+            TrancheCoupon::Fixed { rate: 0.05 },
+            Date::from_calendar_date(2030, Month::January, 1).expect("Valid date"),
+        )
+        .expect("Valid tranche");
+        tranche.pik_enabled = true;
+        let tranches = TrancheStructure::new(vec![tranche]).expect("Valid tranche structure");
+        let mut deferred = HashMap::default();
+        deferred.insert(
+            "TEST_TRANCHE".to_string(),
+            Money::new(1_250.0, Currency::USD),
+        );
+        let context = TestContext {
+            pool: &pool,
+            tranches: &tranches,
+            tranche_id: "TEST_TRANCHE",
+            as_of: Date::from_calendar_date(2025, Month::January, 1).expect("Valid date"),
+            period_start: None,
+            cash_balance: Money::new(0.0, Currency::USD),
+            interest_collections: Money::new(1_500.0, Currency::USD),
+            haircuts: None,
+            par_value_threshold: None,
+            market: None,
+            tranche_balances: None,
+            payable_principal_tranche_ids: None,
+            asset_balances: None,
+            current_pool_balance: None,
+            senior_fees: Money::new(0.0, Currency::USD),
+            restricted_cash: Money::new(0.0, Currency::USD),
+            interest_claim_caps: &uncapped_claims(&["TEST_TRANCHE"]),
+            floating_rate_shift: 0.0,
+            deferred_interest: Some(&deferred),
+        };
+
+        let result = test
+            .calculate(&context)
+            .expect("calculation should succeed");
+        // Coupon ≈ 100k × 5% / 4 = 1,250; stale deferred is ignored.
+        // Collections 1,500 / 1,250 = 1.20.
+        assert!(
+            (result.current_ratio - 1.20).abs() < 0.02,
+            "PIK IC denominator must be coupon only; got {}",
+            result.current_ratio
+        );
+        assert!(result.is_passing);
     }
 
     /// W-22: the OC cure amount must account for the cash term leaving the

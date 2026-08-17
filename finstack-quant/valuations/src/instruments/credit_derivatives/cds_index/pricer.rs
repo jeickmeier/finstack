@@ -1323,7 +1323,10 @@ mod tests {
         // branch. Switching from clean-price (Bloomberg default) to
         // full-premium-AoD must produce a measurably DIFFERENT (typically
         // slightly lower) par spread, confirming the flag is honoured.
-        let as_of = date(2024, 1, 1);
+        // Mid first coupon (20 Mar–20 Jun 2024): valuation before
+        // `premium.start` has no running accrual, so AoD does not move
+        // the par-spread denominator.
+        let as_of = date(2024, 5, 15);
         let market = sample_market(as_of);
         let index = CDSIndex::example();
         assert_eq!(index.pricing, IndexPricing::SingleCurve);

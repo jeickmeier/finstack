@@ -214,7 +214,11 @@ class Bond:
         """
         Create a floating-rate bond (FRN) linked to a forward index.
 
-        Mirrors Rust ``Bond::floating``.
+        Mirrors Rust ``Bond::floating``. Settlement, calendar, and
+        business-day convention come from the notional currency:
+        USD ``UsCorporate`` (T+1, ``usny``), EUR ``EurCorporate`` (T+2,
+        ``target2``), GBP ``UkGilt`` (T+1), JPY ``Jgb`` (T+2). Other
+        currencies raise ``ValueError``.
 
         Parameters
         ----------
@@ -245,7 +249,8 @@ class Bond:
         Raises
         ------
         ValueError
-            If validation fails.
+            If the notional currency has no mapped settlement convention
+            or validation fails.
 
         Examples
         --------
@@ -2603,9 +2608,11 @@ class CapFloor:
         Notes
         -----
         This factory does not raise; it returns a new instance with the documented defaults.
-        Unset ``vol_type`` defaults to ``"auto"`` (Black when forward and
-        strike are positive, otherwise Bachelier). Tests that need Black
-        must call :meth:`CapFloorBuilder.vol_type` with ``"lognormal"``.
+        Unset ``vol_type`` defaults to ``"auto"``: the surface is treated as
+        a lognormal quote. Each caplet uses Black-76 when forward and strike
+        are positive; otherwise the lognormal vol is converted to an
+        equivalent normal vol and priced with Bachelier. A normal-vol
+        surface must set ``vol_type`` to ``"normal"``.
 
         Examples
         --------
@@ -3931,10 +3938,10 @@ class CDSTranche:
         """
         Create a fluent builder (mirrors Rust ``CDSTranche::builder()``).
 
-        The builder pre-seeds ``accumulated_loss(0.0)`` and
-        ``standard_imm_dates(True)``, matching ``CDSTranche::new``.
-        :meth:`CDSTrancheBuilder.accumulated_loss` and
-        :meth:`CDSTrancheBuilder.standard_imm_dates` can override.
+        The builder pre-seeds ``accumulated_loss(0.0)``. Coupon dates follow
+        the supplied schedule (``standard_imm_dates`` defaults to ``False``),
+        matching ``CDSTranche::new``. Call
+        :meth:`CDSTrancheBuilder.standard_imm_dates` for IMM rolls.
 
         Returns
         -------

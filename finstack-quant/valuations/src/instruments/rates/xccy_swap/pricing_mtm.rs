@@ -37,16 +37,7 @@ use finstack_quant_core::Result;
 fn build_xccy_mtm_periods(
     leg: &crate::instruments::rates::xccy_swap::XccySwapLeg,
 ) -> Result<Vec<crate::cashflow::builder::periods::SchedulePeriod>> {
-    let cal_id = match leg.calendar_id.as_deref() {
-        Some(id) if crate::cashflow::builder::calendar::resolve_calendar_strict(id).is_ok() => id,
-        _ if leg.allow_calendar_fallback => crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID,
-        _ => {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "XccySwap MtM leg {} requires a resolvable calendar_id",
-                leg.currency
-            )))
-        }
-    };
+    let cal_id = super::XccySwap::resolve_leg_calendar_id(leg)?;
     build_periods(BuildPeriodsParams {
         start: leg.start,
         end: leg.end,
@@ -228,7 +219,7 @@ pub(crate) fn pv_mtm_reset(
         if period.payment_date <= as_of {
             continue;
         }
-        let rate = super::XccySwap::projected_leg_period_rate(
+        let projected = super::XccySwap::projected_leg_period(
             constant_leg,
             fwd_c.as_ref(),
             fixings_c,
@@ -237,11 +228,8 @@ pub(crate) fn pv_mtm_reset(
         )?;
         let df = robust_relative_df(disc_c.as_ref(), as_of, period.payment_date)?;
         let df = require_positive_df(df, &swap.id, "constant-leg", period.payment_date)?;
-        let coupon = constant_leg.side.coupon_sign()
-            * n_c
-            * (rate + spread_c)
-            * period.accrual_year_fraction
-            * df;
+        let coupon =
+            constant_leg.side.coupon_sign() * projected.unsigned_coupon(n_c, spread_c) * df;
         pv.add(convert(coupon, constant_leg.currency)?);
     }
 
@@ -301,7 +289,7 @@ pub(crate) fn pv_mtm_reset(
 
         // Resetting-leg floating coupon on N_j^R (notional captured at this period's start,
         //    NOT n_r_prev which is the prior period's notional). Includes the basis spread.
-        let rate_r = super::XccySwap::projected_leg_period_rate(
+        let projected_r = super::XccySwap::projected_leg_period(
             resetting_leg,
             fwd_r.as_ref(),
             fixings_r,
@@ -311,9 +299,7 @@ pub(crate) fn pv_mtm_reset(
         let spread_decimal =
             decimal_to_f64(resetting_leg.spread_bp, "XccySwap resetting leg spread_bp")? / 10_000.0;
         let coupon_r = resetting_leg.side.coupon_sign()
-            * n_r_j
-            * (rate_r + spread_decimal)
-            * period.accrual_year_fraction
+            * projected_r.unsigned_coupon(n_r_j, spread_decimal)
             * df_r_pay;
         pv.add(convert(coupon_r, resetting_leg.currency)?);
 
@@ -486,23 +472,23 @@ pub(crate) fn mtm_cashflow_schedule(
         if period.payment_date < as_of {
             continue;
         }
-        let rate = super::XccySwap::projected_leg_period_rate(
+        let projected = super::XccySwap::projected_leg_period(
             constant_leg,
             fwd_c.as_ref(),
             fixings_c,
             period,
             as_of,
         )?;
-        let all_in = rate + spread_c;
+        let all_in = projected.all_in_rate(spread_c);
         flows.push(CashFlow::new(
             period.payment_date,
-            period.reset_date,
+            projected.fixing_date.or(period.reset_date),
             Money::new(
-                constant_leg.side.coupon_sign() * n_c * all_in * period.accrual_year_fraction,
+                constant_leg.side.coupon_sign() * projected.unsigned_coupon(n_c, spread_c),
                 constant_leg.currency,
             ),
             CFKind::FloatReset,
-            period.accrual_year_fraction,
+            projected.year_fraction,
             Some(all_in),
         ));
     }
@@ -539,7 +525,7 @@ pub(crate) fn mtm_cashflow_schedule(
 
         // Coupon at payment date on the period-start notional N_j^R.
         if period.payment_date >= as_of {
-            let rate_r = super::XccySwap::projected_leg_period_rate(
+            let projected_r = super::XccySwap::projected_leg_period(
                 resetting_leg,
                 fwd_r.as_ref(),
                 fixings_r,
@@ -547,16 +533,14 @@ pub(crate) fn mtm_cashflow_schedule(
                 as_of,
             )?;
             let coupon_amount = resetting_leg.side.coupon_sign()
-                * n_r_j
-                * (rate_r + spread_decimal)
-                * period.accrual_year_fraction;
+                * projected_r.unsigned_coupon(n_r_j, spread_decimal);
             flows.push(CashFlow::new(
                 period.payment_date,
-                period.reset_date,
+                projected_r.fixing_date.or(period.reset_date),
                 Money::new(coupon_amount, resetting_leg.currency),
                 CFKind::FloatReset,
-                period.accrual_year_fraction,
-                Some(rate_r + spread_decimal),
+                projected_r.year_fraction,
+                Some(projected_r.all_in_rate(spread_decimal)),
             ));
         }
 

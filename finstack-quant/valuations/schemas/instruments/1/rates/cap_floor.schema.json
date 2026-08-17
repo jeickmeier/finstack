@@ -119,7 +119,7 @@
         "vol_type": {
           "$ref": "#/$defs/CapFloorVolType",
           "default": "auto",
-          "description": "Volatility type convention (lognormal/Black or normal/Bachelier).\n\n**Critical**: This must match the convention of your vol surface data.\nUsing lognormal vol with a normal surface (or vice versa) will produce\nincorrect prices.\n\n- `Auto` (default): Black when forward and strike are positive, else Normal\n- `Lognormal`: Standard Black model, requires positive rates/strikes\n- `Normal`: Bachelier model, handles negative rates"
+          "description": "Volatility type convention (lognormal/Black or normal/Bachelier).\n\n**Critical**: This must match the convention of your vol surface data.\nUsing lognormal vol with a normal surface (or vice versa) will produce\nincorrect prices.\n\n- `Auto` (default): treat the surface as a lognormal quote; Black-76\n  when forward and strike are positive, otherwise convert to an\n  equivalent normal vol and price with Bachelier. A normal-vol\n  surface must set `vol_type = Normal`.\n- `Lognormal`: Standard Black model, requires positive rates/strikes\n- `Normal`: Bachelier model, handles negative rates"
         }
       },
       "required": [
@@ -158,7 +158,7 @@
         },
         {
           "const": "auto",
-          "description": "Automatic model selection based on forward rate and strike.\n\nInspects the forward rate for each caplet/floorlet:\n- If both forward > 0 and strike > 0: uses Black (lognormal)\n- Otherwise: uses Normal (Bachelier)\n\nThis is useful for portfolios spanning multiple currencies or rate\nregimes where some periods may have negative forwards.\n\n**Recommended default for production use** — safely handles mixed\npositive/negative rate environments without manual intervention.",
+          "description": "Lognormal (Black) surface quote with a negative-rate fallback.\n\nTreats the volatility surface as a **lognormal** quote. Each\ncaplet/floorlet uses Black-76 when the forward and strike are\npositive; otherwise the lognormal vol is converted to an equivalent\nnormal vol and priced with Bachelier.\n\nThis does **not** inspect the surface quote type. A normal-vol\nsurface must set `vol_type = Normal`. Explicit `Lognormal`,\n`ShiftedLognormal`, and `Normal` remain explicit.",
           "type": "string"
         }
       ]

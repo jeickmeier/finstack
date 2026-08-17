@@ -393,10 +393,17 @@ fn test_equity_trs_sensitivity_to_dividend_yield() {
     let market_bumped = market.insert_price("SPX-DIV-YIELD", MarketScalar::Unitless(div_higher));
     let npv_bumped = trs.value(&market_bumped, as_of).unwrap();
 
-    // Assert - Higher div yield reduces forward price, lowering TR leg PV
+    // A gross total-return swap passes through price + dividends. Higher q
+    // lowers the equity forward and raises the dividend leg by approximately
+    // the same amount, so NPV is not required to fall.
+    assert!(npv_base.amount().is_finite());
+    assert!(npv_bumped.amount().is_finite());
+    let notional = trs.notional.amount();
     assert!(
-        npv_bumped.amount() < npv_base.amount(),
-        "Higher dividend yield should reduce NPV for receive TR side"
+        (npv_bumped.amount() - npv_base.amount()).abs() / notional < 0.02,
+        "gross TRS NPV should stay near dividend-neutral, base={} bumped={}",
+        npv_base.amount(),
+        npv_bumped.amount()
     );
 }
 

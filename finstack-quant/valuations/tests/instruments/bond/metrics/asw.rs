@@ -35,7 +35,7 @@ fn simple_fixed_bond(as_of: time::Date) -> Bond {
         Money::new(100.0, Currency::USD),
         0.05,
         as_of,
-        date!(2030 - 01 - 01),
+        date!(2030 - 01 - 15),
         "USD-OIS",
     )
     .expect("Test bond creation should succeed")
@@ -51,7 +51,7 @@ fn simple_forward_curve(id: &str, as_of: time::Date) -> ForwardCurve {
 
 #[test]
 fn test_asw_market_requires_accrued_when_clean_price_present() {
-    let as_of = date!(2025 - 01 - 01);
+    let as_of = date!(2025 - 01 - 15);
     let mut bond = simple_fixed_bond(as_of);
     // Attach a clean price so the market ASW calculator will require Accrued.
     bond.instrument_pricing_overrides =
@@ -91,7 +91,7 @@ fn test_asw_market_requires_accrued_when_clean_price_present() {
 
 #[test]
 fn test_asw_par_with_config_uses_fixed_leg_conventions() {
-    let as_of = date!(2025 - 01 - 01);
+    let as_of = date!(2025 - 01 - 15);
     let bond = simple_fixed_bond(as_of);
 
     let disc = simple_discount_curve("USD-OIS", as_of);
@@ -140,7 +140,7 @@ fn test_asw_par_with_config_uses_fixed_leg_conventions() {
 
 #[test]
 fn test_asw_par_tracks_coupon_minus_par_rate() {
-    let as_of = date!(2025 - 01 - 01);
+    let as_of = date!(2025 - 01 - 15);
     let bond = simple_fixed_bond(as_of);
 
     let disc = simple_discount_curve("USD-OIS", as_of);
@@ -218,7 +218,7 @@ fn test_asw_par_tracks_coupon_minus_par_rate() {
 
 #[test]
 fn test_asw_market_tightens_when_price_rises() {
-    let as_of = date!(2025 - 01 - 01);
+    let as_of = date!(2025 - 01 - 15);
     let mut rich_bond = simple_fixed_bond(as_of);
     rich_bond.instrument_pricing_overrides =
         InstrumentPricingOverrides::default().with_quoted_clean_price(101.0);
@@ -283,7 +283,7 @@ fn test_asw_market_fallback_amortizes_upfront_over_float_annuity() {
         fixed_leg_annuity, par_rate_and_annuity_from_discount,
     };
 
-    let as_of = date!(2025 - 01 - 01);
+    let as_of = date!(2025 - 01 - 15);
     let clean_px = 97.0;
     let mut bond = simple_fixed_bond(as_of);
     // Quote on the valuation date (no settlement lag) so the test schedule
@@ -383,8 +383,8 @@ fn test_asw_market_fallback_amortizes_upfront_over_float_annuity() {
 
 #[test]
 fn test_asw_par_metric_rejects_matured_schedule() {
-    let issue = date!(2020 - 01 - 01);
-    let maturity = date!(2025 - 01 - 01);
+    let issue = date!(2020 - 01 - 15);
+    let maturity = date!(2025 - 01 - 15);
     let as_of = maturity;
 
     let bond = Bond::fixed(
@@ -420,8 +420,8 @@ fn test_asw_par_metric_rejects_matured_schedule() {
 
 #[test]
 fn test_asw_market_metric_rejects_matured_schedule() {
-    let issue = date!(2020 - 01 - 01);
-    let maturity = date!(2025 - 01 - 01);
+    let issue = date!(2020 - 01 - 15);
+    let maturity = date!(2025 - 01 - 15);
     let as_of = maturity;
 
     let mut bond = Bond::fixed(
@@ -459,7 +459,7 @@ fn test_asw_market_metric_rejects_matured_schedule() {
 
 #[test]
 fn test_asw_par_with_forward_day_count_override_changes_result() {
-    let as_of = date!(2025 - 01 - 01);
+    let as_of = date!(2025 - 01 - 15);
     let bond = simple_fixed_bond(as_of);
     let disc = simple_discount_curve("USD-OIS", as_of);
     let fwd = simple_forward_curve("USD-SOFR-3M", as_of);
@@ -499,7 +499,7 @@ fn test_asw_par_with_forward_day_count_override_changes_result() {
 
 #[test]
 fn test_asw_market_with_forward_requires_dirty_price() {
-    let as_of = date!(2025 - 01 - 01);
+    let as_of = date!(2025 - 01 - 15);
     let bond = simple_fixed_bond(as_of);
     let disc = simple_discount_curve("USD-OIS", as_of);
     let fwd = simple_forward_curve("USD-SOFR-3M", as_of);
@@ -525,7 +525,7 @@ fn test_asw_market_with_forward_requires_dirty_price() {
 
 #[test]
 fn test_asw_market_with_forward_moves_with_dirty_price() {
-    let as_of = date!(2025 - 01 - 01);
+    let as_of = date!(2025 - 01 - 15);
     let bond = simple_fixed_bond(as_of);
     let disc = simple_discount_curve("USD-OIS", as_of);
     let fwd = simple_forward_curve("USD-SOFR-3M", as_of);
@@ -577,7 +577,7 @@ fn test_asw_market_with_forward_moves_with_dirty_price() {
 
 #[test]
 fn test_asw_par_forward_returns_zero_for_zero_notional() {
-    let as_of = date!(2025 - 01 - 01);
+    let as_of = date!(2025 - 01 - 15);
     let mut bond = simple_fixed_bond(as_of);
     bond.notional = Money::new(0.0, Currency::USD);
 
@@ -600,8 +600,8 @@ fn test_asw_par_forward_returns_zero_for_zero_notional() {
 
 #[test]
 fn test_asw_par_forward_rejects_matured_schedule() {
-    let issue = date!(2020 - 01 - 01);
-    let maturity = date!(2025 - 01 - 01);
+    let issue = date!(2020 - 01 - 15);
+    let maturity = date!(2025 - 01 - 15);
     let as_of = maturity;
 
     let bond = Bond::fixed(
@@ -636,8 +636,8 @@ fn test_asw_par_forward_rejects_matured_schedule() {
 
 #[test]
 fn test_asw_market_forward_rejects_matured_schedule() {
-    let issue = date!(2020 - 01 - 01);
-    let maturity = date!(2025 - 01 - 01);
+    let issue = date!(2020 - 01 - 15);
+    let maturity = date!(2025 - 01 - 15);
     let as_of = maturity;
 
     let bond = Bond::fixed(

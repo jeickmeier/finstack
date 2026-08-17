@@ -467,7 +467,7 @@ impl InflationLinkedBond {
             indexation_method: IndexationMethod::Tips,
             lag: IndexationMethod::Tips.standard_lag(),
             deflation_protection: DeflationProtection::MaturityOnly,
-            business_day_convention: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Unadjusted,
             stub: StubKind::None,
             calendar_id: None,
             discount_curve_id: CurveId::new("USD-OIS"),

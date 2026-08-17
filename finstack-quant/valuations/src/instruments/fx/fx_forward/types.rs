@@ -288,21 +288,7 @@ impl FxForward {
     ///
     /// Number of business days for spot settlement (1 or 2).
     pub fn standard_spot_days(base: Currency, quote: Currency) -> u32 {
-        // T+1 pairs (same time zone or specific market conventions)
-        // Aligned with FxSpot::is_t1_pair for consistency
-        let is_t1 = matches!(
-            (base, quote),
-            (Currency::USD, Currency::CAD)
-                | (Currency::CAD, Currency::USD)
-                | (Currency::USD, Currency::TRY)
-                | (Currency::TRY, Currency::USD)
-        );
-
-        if is_t1 {
-            1
-        } else {
-            2
-        }
+        finstack_quant_core::dates::fx::fx_standard_spot_lag_days(base, quote)
     }
 
     /// Construct an FX forward from trade date with automatic settlement detection.
@@ -992,5 +978,25 @@ mod tests {
             .unwrap();
         assert!((eur_flow.1.amount() - 1_000_000.0).abs() < 1e-10);
         assert!((usd_flow.1.amount() + 1_120_000.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn standard_spot_days_matches_core_helper() {
+        assert_eq!(
+            FxForward::standard_spot_days(Currency::USD, Currency::CAD),
+            1
+        );
+        assert_eq!(
+            FxForward::standard_spot_days(Currency::USD, Currency::TRY),
+            1
+        );
+        assert_eq!(
+            FxForward::standard_spot_days(Currency::EUR, Currency::USD),
+            2
+        );
+        assert_eq!(
+            FxForward::standard_spot_days(Currency::USD, Currency::MXN),
+            2
+        );
     }
 }

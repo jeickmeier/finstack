@@ -98,7 +98,13 @@ pub struct CDSTranche {
     pub effective_date: Option<Date>,
     /// Accumulated realized loss as fraction of original portfolio notional
     pub accumulated_loss: f64,
-    /// Whether to enforce standard IMM dates (20th of Mar, Jun, Sep, Dec)
+    /// Whether to enforce standard IMM dates (20th of Mar, Jun, Sep, Dec).
+    ///
+    /// Defaults to `false` so [`Self::new`] and the builder honor
+    /// `ScheduleParams` frequency. Use [`Self::standard`] or set this to
+    /// `true` for IMM rolls.
+    #[builder(default)]
+    #[serde(default)]
     pub standard_imm_dates: bool,
     /// Optional upfront payment (date, amount). Positive means paid by protection buyer.
     #[serde(default)]
@@ -230,7 +236,6 @@ impl CDSTranche {
     /// Create a canonical example CDS tranche (CDX.NA.IG 0-3% equity tranche).
     #[allow(clippy::expect_used)] // Example uses hardcoded valid values
     pub fn example() -> Self {
-        use crate::cashflow::builder::ScheduleParams;
         use finstack_quant_core::currency::Currency;
         use time::macros::date;
         let params = super::parameters::CDSTrancheParams::equity_tranche(
@@ -240,21 +245,9 @@ impl CDSTranche {
             date!(2029 - 12 - 20),
             100.0,
         );
-        let sched = ScheduleParams {
-            frequency: Tenor::quarterly(),
-            day_count: DayCount::Act360,
-            business_day_convention: BusinessDayConvention::Following,
-            calendar_id: "weekends_only".to_string(),
-            stub: StubKind::ShortFront,
-            end_of_month: false,
-            payment_lag_days: 0,
-            adjust_accrual_dates: false,
-            roll_rule: crate::cashflow::builder::specs::RollRule::None,
-        };
-        CDSTranche::new(
+        CDSTranche::standard(
             InstrumentId::new("CDXIG-42-0X3"),
             &params,
-            &sched,
             CurveId::new("USD-OIS"),
             CurveId::new("CDX.NA.IG.HAZARD"),
             TrancheSide::BuyProtection,
@@ -263,11 +256,25 @@ impl CDSTranche {
     }
     /// Create a new CDS tranche using parameter structs.
     ///
-    /// Coupon dates default to standard IMM (20th of Mar/Jun/Sep/Dec).
-    /// Pass `standard_imm_dates: false` after construction for a non-IMM
-    /// schedule. [`Self::standard`] is the named IMM constructor.
+    /// Honors `schedule_params` for coupon frequency, day count, business-day
+    /// convention, and calendar. Coupon dates follow that frequency
+    /// (`standard_imm_dates` is `false`). Use [`Self::standard`] for the IMM
+    /// (20th of Mar/Jun/Sep/Dec) constructor.
     ///
-    /// # Panics
+    /// # Arguments
+    ///
+    /// * `id` - Unique instrument identifier.
+    /// * `tranche_params` - Attachment/detachment points (percent), notional,
+    ///   maturity, running coupon in basis points, and index identity.
+    /// * `schedule_params` - Coupon frequency, day count, business-day
+    ///   convention, and calendar used when `standard_imm_dates` is `false`.
+    /// * `discount_curve_id` - Discount curve identifier in the tranche quote
+    ///   currency.
+    /// * `credit_index_id` - Credit-index / hazard identifier used for
+    ///   survival and expected-loss.
+    /// * `side` - Buy or sell protection.
+    ///
+    /// # Errors
     ///
     /// Returns an error if tranche parameters are invalid:
     /// - `attach_pct` must be less than `detach_pct`
@@ -330,7 +337,7 @@ impl CDSTranche {
             side,
             effective_date: None,
             accumulated_loss: tranche_params.accumulated_loss,
-            standard_imm_dates: true,
+            standard_imm_dates: false,
             upfront: None,
             instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides::default(),
             metric_pricing_overrides: Default::default(),
@@ -339,7 +346,26 @@ impl CDSTranche {
         })
     }
 
-    /// Create a standard CDS tranche with IMM dates and market conventions
+    /// Create a standard CDS tranche with IMM coupon dates and market conventions.
+    ///
+    /// After [`Self::new`], sets `standard_imm_dates` to `true` and clears
+    /// `calendar_id` so the IMM path uses CDS roll dates (20th of
+    /// Mar/Jun/Sep/Dec).
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Unique instrument identifier.
+    /// * `tranche_params` - Attachment/detachment points (percent), notional,
+    ///   maturity, running coupon in basis points, and index identity.
+    /// * `discount_curve_id` - Discount curve identifier in the tranche quote
+    ///   currency.
+    /// * `credit_index_id` - Credit-index / hazard identifier used for
+    ///   survival and expected-loss.
+    /// * `side` - Buy or sell protection.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same validation errors as [`Self::new`].
     #[allow(clippy::too_many_arguments)]
     pub fn standard(
         id: impl Into<InstrumentId>,

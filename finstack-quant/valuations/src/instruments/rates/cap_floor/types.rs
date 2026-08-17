@@ -78,17 +78,16 @@ pub enum CapFloorVolType {
     /// Required for negative rate environments.
     Normal,
 
-    /// Automatic model selection based on forward rate and strike.
+    /// Lognormal (Black) surface quote with a negative-rate fallback.
     ///
-    /// Inspects the forward rate for each caplet/floorlet:
-    /// - If both forward > 0 and strike > 0: uses Black (lognormal)
-    /// - Otherwise: uses Normal (Bachelier)
+    /// Treats the volatility surface as a **lognormal** quote. Each
+    /// caplet/floorlet uses Black-76 when the forward and strike are
+    /// positive; otherwise the lognormal vol is converted to an equivalent
+    /// normal vol and priced with Bachelier.
     ///
-    /// This is useful for portfolios spanning multiple currencies or rate
-    /// regimes where some periods may have negative forwards.
-    ///
-    /// **Recommended default for production use** — safely handles mixed
-    /// positive/negative rate environments without manual intervention.
+    /// This does **not** inspect the surface quote type. A normal-vol
+    /// surface must set `vol_type = Normal`. Explicit `Lognormal`,
+    /// `ShiftedLognormal`, and `Normal` remain explicit.
     #[default]
     Auto,
 }
@@ -299,7 +298,10 @@ pub struct CapFloor {
     /// Using lognormal vol with a normal surface (or vice versa) will produce
     /// incorrect prices.
     ///
-    /// - `Auto` (default): Black when forward and strike are positive, else Normal
+    /// - `Auto` (default): treat the surface as a lognormal quote; Black-76
+    ///   when forward and strike are positive, otherwise convert to an
+    ///   equivalent normal vol and price with Bachelier. A normal-vol
+    ///   surface must set `vol_type = Normal`.
     /// - `Lognormal`: Standard Black model, requires positive rates/strikes
     /// - `Normal`: Bachelier model, handles negative rates
     #[serde(default)]

@@ -53,7 +53,11 @@
       "underlying_float_leg": {
         "business_day_convention": "modified_following",
         "calendar_id": null,
-        "compounding": "simple",
+        "compounding": {
+          "compounded_in_arrears": {
+            "lookback_days": 0
+          }
+        },
         "day_count": "act_360",
         "discount_curve_id": "USD-OIS",
         "end": "2037-01-17",

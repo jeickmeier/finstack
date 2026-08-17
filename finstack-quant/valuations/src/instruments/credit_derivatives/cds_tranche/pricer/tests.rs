@@ -153,7 +153,7 @@ fn sample_tranche() -> CDSTranche {
             500.0,                                   // running_coupon_bp (5%)
         );
         let schedule_params = crate::cashflow::builder::ScheduleParams::quarterly_act360();
-        CDSTranche::new(
+        let mut tranche = CDSTranche::new(
             "CDX_IG42_3_7_5Y",
             &tranche_params,
             &schedule_params,
@@ -161,7 +161,9 @@ fn sample_tranche() -> CDSTranche {
             finstack_quant_core::types::CurveId::from("CDX.NA.IG.42"),
             TrancheSide::SellProtection,
         )
-        .expect("Valid tranche parameters")
+        .expect("Valid tranche parameters");
+        tranche.standard_imm_dates = true;
+        tranche
     }
 }
 
@@ -799,6 +801,97 @@ fn test_payment_schedule_imm_vs_non_imm() {
             .iter()
             .any(|d| !finstack_quant_core::dates::is_cds_date(*d)),
         "Non-IMM schedule should include non-CDS dates"
+    );
+}
+
+#[test]
+fn new_honors_monthly_schedule_params() {
+    let model = CDSTranchePricer::new();
+    let as_of = Date::from_calendar_date(2025, Month::January, 15).expect("Valid test date");
+    let maturity = Date::from_calendar_date(2026, Month::January, 15).expect("Valid test date");
+    let tranche_params = CDSTrancheParams::new(
+        "CDX.NA.IG.42",
+        42,
+        3.0,
+        7.0,
+        Money::new(10_000_000.0, Currency::USD),
+        maturity,
+        500.0,
+    );
+    let mut schedule_params = crate::cashflow::builder::ScheduleParams::quarterly_act360();
+    schedule_params.frequency = finstack_quant_core::dates::Tenor::monthly();
+    let tranche = CDSTranche::new(
+        "CDX_MONTHLY",
+        &tranche_params,
+        &schedule_params,
+        finstack_quant_core::types::CurveId::from("USD-OIS"),
+        finstack_quant_core::types::CurveId::from("CDX.NA.IG.42"),
+        TrancheSide::SellProtection,
+    )
+    .expect("Valid tranche parameters");
+
+    assert!(
+        !tranche.standard_imm_dates,
+        "CDSTranche::new must honor ScheduleParams rather than implicit IMM"
+    );
+    assert_eq!(
+        tranche.frequency,
+        finstack_quant_core::dates::Tenor::monthly()
+    );
+    assert_eq!(tranche.calendar_id.as_deref(), Some("weekends_only"));
+
+    let dates = model
+        .generate_full_payment_schedule(&tranche, as_of)
+        .expect("monthly non-IMM schedule");
+    assert!(
+        dates
+            .iter()
+            .any(|d| !finstack_quant_core::dates::is_cds_date(*d)),
+        "monthly new() schedule must use the frequency branch, not next_cds_date"
+    );
+    // Short-front monthly from 15 Jan 2025 to 15 Jan 2026 is 12 coupons plus the start date.
+    assert_eq!(
+        dates.len(),
+        13,
+        "monthly frequency should produce 12 payment dates plus the start, got {dates:?}"
+    );
+}
+
+#[test]
+fn standard_constructor_uses_imm_cds_dates() {
+    let model = CDSTranchePricer::new();
+    let as_of = Date::from_calendar_date(2025, Month::January, 15).expect("Valid test date");
+    let maturity = Date::from_calendar_date(2030, Month::March, 20).expect("cds date");
+    let tranche_params = CDSTrancheParams::new(
+        "CDX.NA.IG.42",
+        42,
+        3.0,
+        7.0,
+        Money::new(10_000_000.0, Currency::USD),
+        maturity,
+        500.0,
+    );
+    let tranche = CDSTranche::standard(
+        "CDX_STANDARD",
+        &tranche_params,
+        finstack_quant_core::types::CurveId::from("USD-OIS"),
+        finstack_quant_core::types::CurveId::from("CDX.NA.IG.42"),
+        TrancheSide::SellProtection,
+    )
+    .expect("Valid tranche parameters");
+
+    assert!(tranche.standard_imm_dates);
+    assert!(tranche.calendar_id.is_none());
+
+    let dates = model
+        .generate_full_payment_schedule(&tranche, as_of)
+        .expect("IMM schedule");
+    assert!(
+        dates
+            .iter()
+            .skip(1)
+            .all(|d| finstack_quant_core::dates::is_cds_date(*d)),
+        "standard() must roll with next_cds_date: {dates:?}"
     );
 }
 

@@ -125,6 +125,13 @@ pub(super) fn vanilla_underlier(
         payment_lag_days: 0,
         end_of_month: false,
     };
+    let compounding =
+        crate::instruments::common_impl::pricing::overnight_conventions::compounding_from_index_id(
+            underlier.forward_curve_id.as_str(),
+        )
+        .ok()
+        .flatten()
+        .unwrap_or(FloatingLegCompounding::Simple);
     let float = FloatLegSpec {
         discount_curve_id: underlier.discount_curve_id,
         forward_curve_id: underlier.forward_curve_id,
@@ -140,7 +147,7 @@ pub(super) fn vanilla_underlier(
         fixing_calendar_id: calendar,
         start: underlier.swap_start,
         end: underlier.swap_end,
-        compounding: FloatingLegCompounding::Simple,
+        compounding,
         payment_lag_days: 0,
         end_of_month: false,
     };

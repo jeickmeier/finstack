@@ -3078,7 +3078,8 @@
           "description": "Tranche side (buy/sell protection)"
         },
         "standard_imm_dates": {
-          "description": "Whether to enforce standard IMM dates (20th of Mar, Jun, Sep, Dec)",
+          "default": false,
+          "description": "Whether to enforce standard IMM dates (20th of Mar, Jun, Sep, Dec).\n\nDefaults to `false` so [`Self::new`] and the builder honor\n`ScheduleParams` frequency. Use [`Self::standard`] or set this to\n`true` for IMM rolls.",
           "type": "boolean"
         },
         "upfront": {
@@ -3115,7 +3116,6 @@
         "credit_index_id",
         "side",
         "accumulated_loss",
-        "standard_imm_dates",
         "attributes"
       ],
       "type": "object"
@@ -3466,7 +3466,7 @@
         "vol_type": {
           "$ref": "#/$defs/CapFloorVolType",
           "default": "auto",
-          "description": "Volatility type convention (lognormal/Black or normal/Bachelier).\n\n**Critical**: This must match the convention of your vol surface data.\nUsing lognormal vol with a normal surface (or vice versa) will produce\nincorrect prices.\n\n- `Auto` (default): Black when forward and strike are positive, else Normal\n- `Lognormal`: Standard Black model, requires positive rates/strikes\n- `Normal`: Bachelier model, handles negative rates"
+          "description": "Volatility type convention (lognormal/Black or normal/Bachelier).\n\n**Critical**: This must match the convention of your vol surface data.\nUsing lognormal vol with a normal surface (or vice versa) will produce\nincorrect prices.\n\n- `Auto` (default): treat the surface as a lognormal quote; Black-76\n  when forward and strike are positive, otherwise convert to an\n  equivalent normal vol and price with Bachelier. A normal-vol\n  surface must set `vol_type = Normal`.\n- `Lognormal`: Standard Black model, requires positive rates/strikes\n- `Normal`: Bachelier model, handles negative rates"
         }
       },
       "required": [
@@ -3505,7 +3505,7 @@
         },
         {
           "const": "auto",
-          "description": "Automatic model selection based on forward rate and strike.\n\nInspects the forward rate for each caplet/floorlet:\n- If both forward > 0 and strike > 0: uses Black (lognormal)\n- Otherwise: uses Normal (Bachelier)\n\nThis is useful for portfolios spanning multiple currencies or rate\nregimes where some periods may have negative forwards.\n\n**Recommended default for production use** — safely handles mixed\npositive/negative rate environments without manual intervention.",
+          "description": "Lognormal (Black) surface quote with a negative-rate fallback.\n\nTreats the volatility surface as a **lognormal** quote. Each\ncaplet/floorlet uses Black-76 when the forward and strike are\npositive; otherwise the lognormal vol is converted to an equivalent\nnormal vol and priced with Bachelier.\n\nThis does **not** inspect the surface quote type. A normal-vol\nsurface must set `vol_type = Normal`. Explicit `Lognormal`,\n`ShiftedLognormal`, and `Normal` remain explicit.",
           "type": "string"
         }
       ]
@@ -10043,7 +10043,7 @@
     },
     "FxSpot": {
       "additionalProperties": false,
-      "description": "FX Spot instrument (1 unit of `base` priced in `quote`).\n\nRepresents the spot exchange rate between two currencies following\nstandard market quoting conventions (base/quote or CCY1/CCY2).\n\n# Quote Convention\n\nThe rate is interpreted as: **1 unit of base = rate units of quote**\n\nFor example, if `base = EUR`, `quote = USD`, and `spot_rate = 1.10`:\n- 1 EUR = 1.10 USD\n- This is the \"EUR/USD\" rate\n\n# Settlement\n\nFX spot typically settles T+2 (two business days after trade date).\nThis can be customized via `settlement_lag_days`.\n\nSee module-level documentation for comprehensive FX quoting conventions.",
+      "description": "FX Spot instrument (1 unit of `base` priced in `quote`).\n\nRepresents the spot exchange rate between two currencies following\nstandard market quoting conventions (base/quote or CCY1/CCY2).\n\n# Quote Convention\n\nThe rate is interpreted as: **1 unit of base = rate units of quote**\n\nFor example, if `base = EUR`, `quote = USD`, and `spot_rate = 1.10`:\n- 1 EUR = 1.10 USD\n- This is the \"EUR/USD\" rate\n\n# Settlement\n\nWhen `settlement_lag_days` is `None`, the pair-aware default is T+1 for\nUSD↔CAD and USD↔TRY and T+2 otherwise (including EUR/USD). An explicit\n`settlement_lag_days` overrides that default.\n\nSee module-level documentation for comprehensive FX quoting conventions.",
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
@@ -10127,7 +10127,7 @@
           "description": "Optional settlement date (T+2 typically for spot)"
         },
         "settlement_lag_days": {
-          "description": "Optional settlement lag in business days when `settlement` is not provided (default: 2)",
+          "description": "Optional settlement lag in business days when `settlement` is not provided.\n\n`None` uses the pair-aware default: T+1 for USD↔CAD and USD↔TRY, T+2 otherwise.",
           "format": "int32",
           "type": [
             "integer",
@@ -19671,7 +19671,7 @@
           "attributes": {},
           "base_date": "2024-01-15",
           "base_index": 100.0,
-          "business_day_convention": "following",
+          "business_day_convention": "unadjusted",
           "calendar_id": null,
           "day_count": "act_act_isma",
           "deflation_protection": "maturity_only",
@@ -20317,7 +20317,11 @@
           "underlying_float_leg": {
             "business_day_convention": "modified_following",
             "calendar_id": null,
-            "compounding": "simple",
+            "compounding": {
+              "compounded_in_arrears": {
+                "lookback_days": 0
+              }
+            },
             "day_count": "act_360",
             "discount_curve_id": "USD-OIS",
             "end": "2032-01-17",
@@ -20396,7 +20400,11 @@
           "underlying_float_leg": {
             "business_day_convention": "modified_following",
             "calendar_id": null,
-            "compounding": "simple",
+            "compounding": {
+              "compounded_in_arrears": {
+                "lookback_days": 0
+              }
+            },
             "day_count": "act_360",
             "discount_curve_id": "USD-OIS",
             "end": "2037-01-17",
@@ -20743,7 +20751,7 @@
           "attach_pct": 0.0,
           "attributes": {},
           "business_day_convention": "following",
-          "calendar_id": "weekends_only",
+          "calendar_id": null,
           "credit_index_id": "CDX.NA.IG.HAZARD",
           "day_count": "act_360",
           "detach_pct": 3.0,

@@ -66,7 +66,11 @@ fn test_yield_duration_convexity_act_act_isma() {
     .unwrap();
     if let CashflowSpec::Fixed(spec) = &mut bond.cashflow_spec {
         spec.schedule.day_count = DayCount::ActActIsma;
+        spec.schedule.business_day_convention =
+            finstack_quant_core::dates::BusinessDayConvention::Unadjusted;
+        spec.schedule.calendar_id = "weekends_only".to_string();
     }
+    bond.settlement_convention = None;
     bond.instrument_pricing_overrides =
         InstrumentPricingOverrides::default().with_quoted_clean_price(98.0);
 

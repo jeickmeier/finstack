@@ -31,6 +31,45 @@ use rust_decimal::Decimal;
 /// Even JPY/CHF/EUR rarely go below -1%, so -5% indicates potential curve issues.
 const EXTREME_NEGATIVE_RATE_THRESHOLD: f64 = -0.05;
 
+/// Projected economics of one XCCY floating period.
+///
+/// Overnight legs store the shared projector's compound factor and
+/// holiday-adjusted year fraction. Term legs reconstruct the same
+/// `N × (CF − 1) + N × spread × τ` coupon from the simple forward.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ProjectedXccyPeriod {
+    /// Index rate excluding spread.
+    pub rate: f64,
+    /// Accrual fraction used for the coupon amount.
+    pub year_fraction: f64,
+    /// Last overnight observation or the term fixing date.
+    pub fixing_date: Option<Date>,
+    /// Compound factor `∏(1 + rᵢ dᵢ)` or `1 + rate × τ` for term legs.
+    compound_factor: f64,
+}
+
+impl ProjectedXccyPeriod {
+    /// Unsigned coupon `N × (compound_factor − 1) + N × spread × τ`.
+    ///
+    /// # Arguments
+    ///
+    /// * `notional` - Period notional in the leg currency. MtM resetting
+    ///   legs pass the reset notional, not the original contractual amount.
+    /// * `spread` - Arithmetic spread in decimal rate units, not basis points.
+    pub(crate) fn unsigned_coupon(&self, notional: f64, spread: f64) -> f64 {
+        notional * (self.compound_factor - 1.0) + notional * spread * self.year_fraction
+    }
+
+    /// All-in simple rate including the arithmetic spread.
+    ///
+    /// # Arguments
+    ///
+    /// * `spread` - Arithmetic spread in decimal rate units, not basis points.
+    pub(crate) fn all_in_rate(&self, spread: f64) -> f64 {
+        self.rate + spread
+    }
+}
+
 /// Whether the holder pays or receives a leg.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
@@ -544,6 +583,42 @@ impl XccySwap {
         Ok(())
     }
 
+    /// Resolve the calendar ID used for both schedule build and overnight
+    /// observation. Unresolved IDs error unless `allow_calendar_fallback`.
+    ///
+    /// # Arguments
+    ///
+    /// * `leg` - XCCY leg whose `calendar_id` and fallback flag are consulted.
+    pub(crate) fn resolve_leg_calendar_id(leg: &XccySwapLeg) -> Result<&str> {
+        match leg.calendar_id.as_deref() {
+            Some(id)
+                if crate::cashflow::builder::calendar::resolve_calendar_strict(id).is_ok() =>
+            {
+                Ok(id)
+            }
+            _ if leg.allow_calendar_fallback => {
+                Ok(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID)
+            }
+            _ => Err(finstack_quant_core::Error::Validation(format!(
+                "XccySwap leg {} requires a resolvable calendar_id; set allow_calendar_fallback=true to opt into weekends_only",
+                leg.currency
+            ))),
+        }
+    }
+
+    /// Holiday calendar matching [`Self::resolve_leg_calendar_id`].
+    ///
+    /// # Arguments
+    ///
+    /// * `leg` - XCCY leg whose resolved calendar ID is turned into a calendar.
+    fn resolve_leg_calendar(
+        leg: &XccySwapLeg,
+    ) -> Result<&'static dyn finstack_quant_core::dates::HolidayCalendar> {
+        crate::cashflow::builder::calendar::resolve_calendar_strict(Self::resolve_leg_calendar_id(
+            leg,
+        )?)
+    }
+
     /// Build one leg's accrual periods. Single source for both the pricing
     /// path (`pv_leg_in_reporting_currency`) and the reporting path
     /// (`leg_coupon_schedule`), so period boundaries, payment dates, and
@@ -571,18 +646,24 @@ impl XccySwap {
         )
     }
 
-    /// The single floating-rate projection shared by pricing and reporting:
-    /// a recorded fixing when the period's fixing date has passed (the reset
-    /// lag selects that date), otherwise the window-consistent simple forward
-    /// over the accrual period (which, on a deterministic curve, is
-    /// independent of the observation lag).
-    pub(crate) fn projected_leg_period_rate(
+    /// Projected index rate, coupon year fraction, and compound factor for one
+    /// floating period. Overnight legs use the shared projector on the same
+    /// calendar that built the schedule.
+    ///
+    /// # Arguments
+    ///
+    /// * `leg` - Floating XCCY leg supplying compounding, day count, and calendar.
+    /// * `fwd` - Forward curve used to project unfixed overnight or term rates.
+    /// * `fixings` - Optional historical fixing series for past reset dates.
+    /// * `period` - Accrual period whose coupon is being projected.
+    /// * `as_of` - Valuation date that splits realized fixings from forwards.
+    pub(crate) fn projected_leg_period(
         leg: &XccySwapLeg,
         fwd: &finstack_quant_core::market_data::term_structures::ForwardCurve,
         fixings: Option<&finstack_quant_core::market_data::scalars::ScalarTimeSeries>,
         period: &crate::cashflow::builder::periods::SchedulePeriod,
         as_of: Date,
-    ) -> Result<f64> {
+    ) -> Result<ProjectedXccyPeriod> {
         use crate::instruments::common_impl::pricing::overnight::{
             adjust_overnight_accrual_boundaries, project_overnight_coupon,
             OvernightCouponProjectionInput, OvernightProjectionCurve,
@@ -590,14 +671,8 @@ impl XccySwap {
         use crate::instruments::common_impl::pricing::time::rate_between_on_dates;
         use crate::instruments::rates::irs::FloatingLegCompounding;
 
-        let forward_rate = if !matches!(leg.compounding, FloatingLegCompounding::Simple) {
-            let calendar_id = leg.calendar_id.as_deref();
-            let calendar =
-                crate::instruments::common_impl::pricing::overnight::resolve_overnight_fixing_calendar(
-                    calendar_id,
-                    leg.currency,
-                    "XccySwap",
-                )?;
+        let projected = if !matches!(leg.compounding, FloatingLegCompounding::Simple) {
+            let calendar = Self::resolve_leg_calendar(leg)?;
             let (accrual_start, accrual_end) = adjust_overnight_accrual_boundaries(
                 period.accrual_start,
                 period.accrual_end,
@@ -605,9 +680,14 @@ impl XccySwap {
                 calendar,
             )?;
             if accrual_end <= accrual_start {
-                0.0
+                ProjectedXccyPeriod {
+                    rate: 0.0,
+                    year_fraction: 0.0,
+                    fixing_date: None,
+                    compound_factor: 1.0,
+                }
             } else {
-                project_overnight_coupon(OvernightCouponProjectionInput {
+                let projection = project_overnight_coupon(OvernightCouponProjectionInput {
                     curve: OvernightProjectionCurve::Forward(fwd),
                     fixings,
                     fixing_id: leg.forward_curve_id.as_str(),
@@ -619,12 +699,17 @@ impl XccySwap {
                     compounding: &leg.compounding,
                     fixing_calendar: calendar,
                     compounded_spread: 0.0,
-                })?
-                .rate
+                })?;
+                ProjectedXccyPeriod {
+                    rate: projection.rate,
+                    year_fraction: projection.accrual_year_fraction,
+                    fixing_date: Some(projection.fixing_date),
+                    compound_factor: projection.compound_factor,
+                }
             }
         } else {
             let fixing_date = period.reset_date.unwrap_or(period.accrual_start);
-            if fixing_date < as_of {
+            let forward_rate = if fixing_date < as_of {
                 finstack_quant_core::market_data::fixings::require_fixing_value_exact(
                     fixings,
                     leg.forward_curve_id.as_str(),
@@ -633,47 +718,35 @@ impl XccySwap {
                 )?
             } else {
                 rate_between_on_dates(fwd, period.accrual_start, period.accrual_end)?
+            };
+            ProjectedXccyPeriod {
+                rate: forward_rate,
+                year_fraction: period.accrual_year_fraction,
+                fixing_date: Some(fixing_date),
+                compound_factor: 1.0 + forward_rate * period.accrual_year_fraction,
             }
         };
-        if !forward_rate.is_finite() {
+        if !projected.rate.is_finite() || !projected.compound_factor.is_finite() {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "Non-finite forward rate for period {} to {}",
                 period.accrual_start, period.accrual_end
             )));
         }
-        Ok(forward_rate)
+        Ok(projected)
     }
 
     /// Coupon schedule for one leg, projected through the SAME rate path the
-    /// pricer discounts (`projected_leg_period_rate`): window-consistent
+    /// pricer discounts (`projected_leg_period`): window-consistent
     /// forwards for future fixings, recorded fixings for past ones. Keeping a
     /// single projection prevents the reported cashflows from silently
     /// drifting away from what `base_value` actually prices.
-    ///
-    /// The only intentional difference from the pricing path is calendar
-    /// resolution: reporting is strict (an unresolvable `calendar_id` is an
-    /// error unless `allow_calendar_fallback` is set), while pricing falls
-    /// back to weekends-only.
     fn leg_coupon_schedule(
         &self,
         leg: &XccySwapLeg,
         market: &MarketContext,
         as_of: Date,
     ) -> Result<CashFlowSchedule> {
-        let calendar_id = match leg.calendar_id.as_deref() {
-            Some(id) if crate::cashflow::builder::calendar::resolve_calendar_strict(id).is_ok() => {
-                id
-            }
-            _ if leg.allow_calendar_fallback => {
-                crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID
-            }
-            _ => {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "XccySwap '{}' leg {} requires a resolvable calendar_id",
-                    self.id, leg.currency
-                )))
-            }
-        };
+        let calendar_id = Self::resolve_leg_calendar_id(leg)?;
         let periods = self.leg_build_periods(leg, calendar_id)?;
         let fwd = market.get_forward(&leg.forward_curve_id)?;
         let fixing_series_id = finstack_quant_core::market_data::fixings::fixing_series_id(
@@ -684,19 +757,17 @@ impl XccySwap {
 
         let mut flows = Vec::with_capacity(periods.len());
         for period in &periods {
-            let rate = Self::projected_leg_period_rate(leg, fwd.as_ref(), fixings, period, as_of)?
-                + spread;
-            let amount = leg.side.coupon_sign()
-                * leg.notional.amount()
-                * rate
-                * period.accrual_year_fraction;
+            let projected = Self::projected_leg_period(leg, fwd.as_ref(), fixings, period, as_of)?;
+            let all_in = projected.all_in_rate(spread);
+            let amount =
+                leg.side.coupon_sign() * projected.unsigned_coupon(leg.notional.amount(), spread);
             flows.push(crate::cashflow::primitives::CashFlow::new(
                 period.payment_date,
-                period.reset_date,
+                projected.fixing_date.or(period.reset_date),
                 Money::new(amount, leg.currency),
                 crate::cashflow::primitives::CFKind::FloatReset,
-                period.accrual_year_fraction,
-                Some(rate),
+                projected.year_fraction,
+                Some(all_in),
             ));
         }
         Ok(crate::cashflow::traits::schedule_from_classified_flows(
@@ -765,15 +836,7 @@ impl XccySwap {
     ) -> Result<Money> {
         self.validate_leg(leg)?;
 
-        // Pricing keeps the historical weekends-only fallback for an
-        // unresolvable calendar; reporting (`leg_coupon_schedule`) is strict.
-        let calendar_id = if leg.calendar_id.as_deref().is_some_and(|id| {
-            crate::cashflow::builder::calendar::resolve_calendar_strict(id).is_ok()
-        }) {
-            leg.calendar_id.as_deref().unwrap_or_default()
-        } else {
-            crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID
-        };
+        let calendar_id = Self::resolve_leg_calendar_id(leg)?;
         let periods = self.leg_build_periods(leg, calendar_id)?;
 
         if periods.is_empty() {
@@ -858,27 +921,23 @@ impl XccySwap {
                 continue;
             }
 
-            let forward_rate =
-                Self::projected_leg_period_rate(leg, fwd.as_ref(), fixings, &period, as_of)?;
+            let projected = Self::projected_leg_period(leg, fwd.as_ref(), fixings, &period, as_of)?;
             // Warn about extremely negative forward rates which may indicate curve issues.
             // Even in negative rate environments (JPY/CHF/EUR), rates below -5% are unusual.
-            if forward_rate < EXTREME_NEGATIVE_RATE_THRESHOLD {
+            if projected.rate < EXTREME_NEGATIVE_RATE_THRESHOLD {
                 tracing::warn!(
                     instrument_id = %self.id.as_str(),
                     period_start = %period.accrual_start,
                     period_end = %period.accrual_end,
-                    forward_rate = forward_rate,
+                    forward_rate = projected.rate,
                     threshold = EXTREME_NEGATIVE_RATE_THRESHOLD,
                     "Forward rate is highly negative; verify curve construction"
                 );
             }
 
-            let spread = decimal_to_f64(leg.spread_bp, "XccySwap leg spread_bp")?;
-            let total_rate = forward_rate + spread / 10_000.0;
-            let coupon = leg.side.coupon_sign()
-                * leg.notional.amount()
-                * total_rate
-                * period.accrual_year_fraction;
+            let spread = decimal_to_f64(leg.spread_bp, "XccySwap leg spread_bp")? / 10_000.0;
+            let coupon =
+                leg.side.coupon_sign() * projected.unsigned_coupon(leg.notional.amount(), spread);
 
             // Use robust_relative_df for numerical stability
             let df = robust_relative_df(disc.as_ref(), as_of, period.payment_date)?;
@@ -1532,8 +1591,10 @@ mod tests {
             allow_calendar_fallback: false,
             compounding: compounding.clone(),
         };
-        let projected = XccySwap::projected_leg_period_rate(&leg, &fwd, None, &period, start)
-            .expect("overnight xccy rate");
+        let mut mismatched = period;
+        mismatched.accrual_year_fraction = 0.50;
+        let projected = XccySwap::projected_leg_period(&leg, &fwd, None, &mismatched, start)
+            .expect("overnight xccy period");
         let calendar = calendar_by_id("target2").expect("target2");
         let expected = project_overnight_coupon(OvernightCouponProjectionInput {
             curve: OvernightProjectionCurve::Forward(&fwd),
@@ -1550,9 +1611,98 @@ mod tests {
         })
         .expect("shared engine");
         assert!(
-            (projected - expected.rate).abs() < 1e-12,
-            "xccy overnight rate {projected} != shared engine {}",
+            (projected.rate - expected.rate).abs() < 1e-12,
+            "xccy overnight rate {} != shared engine {}",
+            projected.rate,
             expected.rate
+        );
+        let amount = projected.unsigned_coupon(leg.notional.amount(), 0.0);
+        let expected_amount = 1_000_000.0 * (expected.compound_factor - 1.0);
+        assert!(
+            (amount - expected_amount).abs() < 1e-6,
+            "xccy overnight amount {amount} != N*(CF-1) {expected_amount}"
+        );
+        let wrong_schedule_amount = projected.rate * 1_000_000.0 * mismatched.accrual_year_fraction;
+        assert!(
+            (amount - wrong_schedule_amount).abs() > 1.0,
+            "overnight coupon must not use the unadjusted schedule year fraction"
+        );
+    }
+
+    #[test]
+    fn overnight_unresolvable_calendar_without_fallback_errors() {
+        use crate::instruments::rates::irs::FloatingLegCompounding;
+        use finstack_quant_core::market_data::term_structures::ForwardCurve;
+
+        let start = Date::from_calendar_date(2025, time::Month::January, 2).expect("date");
+        let end = Date::from_calendar_date(2025, time::Month::April, 2).expect("date");
+        let fwd = ForwardCurve::builder("EUR-ESTR-OIS", 1.0 / 365.0)
+            .base_date(start)
+            .knots(vec![(0.0, 0.03), (1.0, 0.03)])
+            .build()
+            .expect("estr forward");
+        let period = crate::cashflow::builder::periods::SchedulePeriod {
+            accrual_start: start,
+            accrual_end: end,
+            payment_date: end,
+            reset_date: Some(start),
+            accrual_year_fraction: 0.25,
+            unadjusted_start: start,
+            unadjusted_end: end,
+        };
+        let mut leg = XccySwapLeg {
+            currency: Currency::EUR,
+            notional: Money::new(1_000_000.0, Currency::EUR),
+            side: LegSide::Pay,
+            forward_curve_id: CurveId::new("EUR-ESTR-OIS"),
+            discount_curve_id: CurveId::new("EUR-OIS"),
+            start,
+            end,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
+            stub: StubKind::ShortFront,
+            spread_bp: Decimal::ZERO,
+            payment_lag_days: 0,
+            calendar_id: Some("not-a-calendar".to_string()),
+            reset_lag_days: None,
+            allow_calendar_fallback: false,
+            compounding: FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
+        };
+        let err = XccySwap::projected_leg_period(&leg, &fwd, None, &period, start)
+            .expect_err("unresolvable calendar must fail");
+        assert!(
+            err.to_string().contains("calendar"),
+            "expected calendar error, got {err}"
+        );
+
+        let disc =
+            finstack_quant_core::market_data::term_structures::DiscountCurve::builder("EUR-OIS")
+                .base_date(start)
+                .knots(vec![(0.0, 1.0), (1.0, 0.97)])
+                .build()
+                .expect("discount");
+        let market = MarketContext::new().insert(disc).insert(fwd);
+        let swap = XccySwap::new(
+            "EUR-OIS-BAD-CAL",
+            leg.clone(),
+            {
+                leg.currency = Currency::USD;
+                leg.notional = Money::new(1_000_000.0, Currency::USD);
+                leg.forward_curve_id = CurveId::new("USD-SOFR-3M");
+                leg.discount_curve_id = CurveId::new("USD-OIS");
+                leg.compounding = FloatingLegCompounding::Simple;
+                leg.calendar_id = Some("usny".to_string());
+                leg
+            },
+            Currency::USD,
+        );
+        let err = swap
+            .base_value(&market, start)
+            .expect_err("pricing must reject the unresolvable overnight calendar");
+        assert!(
+            err.to_string().contains("calendar"),
+            "expected calendar error from base_value, got {err}"
         );
     }
 

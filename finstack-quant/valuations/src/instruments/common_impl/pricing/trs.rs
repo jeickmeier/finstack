@@ -28,8 +28,9 @@
 //!   The simple average would drop the daily-compounding convexity (~12–15 bp
 //!   of rate at current levels).
 //!
-//! [`TrsEngine::financing_annuity`] projects no rate (it sums discounted year
-//! fractions only) and is therefore independent of the compounding choice.
+//! [`TrsEngine::financing_annuity`] sums discounted accrual fractions. Term
+//! legs use the schedule year fraction; overnight legs use the projector
+//! year fraction so `pv_financing_leg = pv_financing_float_only + spread × annuity`.
 
 use crate::instruments::common_impl::parameters::legs::{
     FinancingLegSpec, FinancingRateCompounding,
@@ -67,30 +68,72 @@ use finstack_quant_core::currency::Currency;
 /// Fully-future periods (`period_start > as_of`) are projected entirely from the
 /// forward curve via `compounded_forward_projection`. A missing realized fixing
 /// for an in-progress period is a hard error (not a silent projection).
+/// Projected TRS financing coupon for one accrual window.
+struct FinancingPeriodProjection {
+    /// Index rate excluding spread.
+    rate: f64,
+    /// Accrual fraction used for the coupon amount.
+    year_fraction: f64,
+    /// Compound factor `∏(1 + rᵢ dᵢ)` or `1 + rate × τ` for term financing.
+    compound_factor: f64,
+}
+
+impl FinancingPeriodProjection {
+    fn new(
+        rate: f64,
+        year_fraction: f64,
+        compound_factor: f64,
+    ) -> finstack_quant_core::Result<Self> {
+        let projection = Self {
+            rate,
+            year_fraction,
+            compound_factor,
+        };
+        if !projection.rate.is_finite()
+            || !projection.compound_factor.is_finite()
+            || !projection.year_fraction.is_finite()
+        {
+            return Err(finstack_quant_core::Error::Validation(
+                "Non-finite TRS financing projection".to_string(),
+            ));
+        }
+        Ok(projection)
+    }
+
+    fn unsigned_coupon(&self, notional: f64, spread: f64) -> f64 {
+        notional * (self.compound_factor - 1.0) + notional * spread * self.year_fraction
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
-fn financing_period_rate(
+fn financing_period_projection(
     financing: &FinancingLegSpec,
     fwd: &ForwardCurve,
     fixings: Option<&ScalarTimeSeries>,
     period_start: Date,
     period_end: Date,
-    _period_year_fraction: f64,
+    period_year_fraction: f64,
     as_of: Date,
     calendar_id: &str,
     currency: Currency,
-) -> finstack_quant_core::Result<f64> {
+) -> finstack_quant_core::Result<FinancingPeriodProjection> {
     match financing.compounding {
         FinancingRateCompounding::TermRate => {
-            if period_start <= as_of {
+            let rate = if period_start <= as_of {
                 finstack_quant_core::market_data::fixings::require_fixing_value_exact(
                     fixings,
                     financing.forward_curve_id.as_str(),
                     period_start,
                     as_of,
-                )
+                )?
             } else {
-                rate_between_on_dates(fwd, period_start, period_end)
-            }
+                rate_between_on_dates(fwd, period_start, period_end)?
+            };
+            FinancingPeriodProjection::new(
+                rate,
+                period_year_fraction,
+                1.0 + rate * period_year_fraction,
+            )
         }
         FinancingRateCompounding::OvernightCompounded => {
             let calendar: &dyn finstack_quant_core::dates::HolidayCalendar =
@@ -117,9 +160,9 @@ fn financing_period_rate(
                 calendar,
             )?;
             if accrual_end <= accrual_start {
-                return Ok(0.0);
+                return FinancingPeriodProjection::new(0.0, 0.0, 1.0);
             }
-            Ok(project_overnight_coupon(OvernightCouponProjectionInput {
+            let projection = project_overnight_coupon(OvernightCouponProjectionInput {
                 curve: OvernightProjectionCurve::Forward(fwd),
                 fixings,
                 fixing_id: financing.forward_curve_id.as_str(),
@@ -131,10 +174,41 @@ fn financing_period_rate(
                 compounding: &compounding,
                 fixing_calendar: calendar,
                 compounded_spread: 0.0,
-            })?
-            .rate)
+            })?;
+            FinancingPeriodProjection::new(
+                projection.rate,
+                projection.accrual_year_fraction,
+                projection.compound_factor,
+            )
         }
     }
+}
+
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+fn financing_period_rate(
+    financing: &FinancingLegSpec,
+    fwd: &ForwardCurve,
+    fixings: Option<&ScalarTimeSeries>,
+    period_start: Date,
+    period_end: Date,
+    period_year_fraction: f64,
+    as_of: Date,
+    calendar_id: &str,
+    currency: Currency,
+) -> finstack_quant_core::Result<f64> {
+    Ok(financing_period_projection(
+        financing,
+        fwd,
+        fixings,
+        period_start,
+        period_end,
+        period_year_fraction,
+        as_of,
+        calendar_id,
+        currency,
+    )?
+    .rate)
 }
 
 /// Parameters for total return leg calculation.
@@ -384,7 +458,7 @@ impl TrsEngine {
             // (simple term-rate average vs daily-compounded OIS).
             // For in-progress OIS periods, splices realized fixings with projected
             // forwards; fully-future periods use forward-curve projection only.
-            let fwd_rate = financing_period_rate(
+            let projected = financing_period_projection(
                 financing,
                 fwd.as_ref(),
                 fixings,
@@ -395,8 +469,7 @@ impl TrsEngine {
                 schedule.params.calendar_id.as_str(),
                 currency,
             )?;
-            let total_rate = fwd_rate + spread_decimal;
-            let payment = notional.amount() * total_rate * yf;
+            let payment = projected.unsigned_coupon(notional.amount(), spread_decimal);
 
             // Discount to payment date (accrual end + payment lag).
             // The full-period payment already captures accrued value; discounting
@@ -411,19 +484,28 @@ impl TrsEngine {
 
     /// Calculates the financing annuity for par spread calculation.
     ///
+    /// Term legs sum discounted schedule year fractions. Overnight legs sum
+    /// the projector accrual fractions used by [`Self::pv_financing_leg`] so
+    /// `pv_financing_leg = pv_financing_float_only + spread × annuity`.
+    ///
     /// # Arguments
-    /// * `financing` — Financing leg specification
-    /// * `schedule` — Schedule specification for payment periods
-    /// * `notional` — Notional amount for the leg
-    /// * `context` — Market context containing curves and market data
-    /// * `as_of` — Valuation date
+    /// * `financing` — Discount/forward curve ids, day count, and compounding
+    ///   that select schedule versus overnight projector year fractions.
+    /// * `schedule` — Payment dates, calendar, and lag used to discount each
+    ///   period's accrual fraction.
+    /// * `notional` — Scale of the annuity (currency amount, not percent of par).
+    /// * `context` — Must contain `financing.discount_curve_id` and
+    ///   `financing.forward_curve_id` (overnight legs also read fixings).
+    /// * `as_of` — Valuation date; periods ending on or before this date are
+    ///   excluded.
     ///
     /// # Returns
     /// Financing annuity (sum of discounted year fractions × notional).
     ///
     /// # Errors
     ///
-    /// Returns an error if the computed annuity is below
+    /// Returns an error if a required curve is missing, overnight projection
+    /// fails, or the computed annuity is below
     /// [`crate::instruments::common_impl::pricing::swap_legs::ANNUITY_EPSILON`] (1e-12),
     /// which would cause divide-by-zero in downstream par spread calculations.
     /// This typically occurs when:
@@ -443,6 +525,12 @@ impl TrsEngine {
         }
 
         let disc = context.get_discount(financing.discount_curve_id.as_str())?;
+        let fwd = context.get_forward(financing.forward_curve_id.as_str())?;
+        let fixings = finstack_quant_core::market_data::fixings::get_fixing_series(
+            context,
+            financing.forward_curve_id.as_str(),
+        )
+        .ok();
         let period_schedule = schedule.period_schedule()?;
 
         let mut annuity = NeumaierAccumulator::new();
@@ -456,10 +544,24 @@ impl TrsEngine {
                 continue;
             }
 
-            // Use the financing leg's day count for accrual year fraction.
-            let yf = financing
+            // Term legs accrue on the schedule year fraction. Overnight legs
+            // use the projector fraction so the spread term matches
+            // `unsigned_coupon` (`N × spread × proj_yf`).
+            let schedule_yf = financing
                 .day_count
                 .year_fraction(period_start, period_end, ctx)?;
+            let yf = financing_period_projection(
+                financing,
+                fwd.as_ref(),
+                fixings,
+                period_start,
+                period_end,
+                schedule_yf,
+                as_of,
+                schedule.params.calendar_id.as_str(),
+                notional.currency(),
+            )?
+            .year_fraction;
 
             // Discount to payment date (accrual end + payment lag).
             let payment_date = schedule.payment_date_for(period_end)?;
@@ -530,7 +632,7 @@ impl TrsEngine {
             // Project the period rate per the leg's compounding convention
             // (simple term-rate average vs daily-compounded OIS).
             // In-progress OIS periods splice realized fixings with projected forwards.
-            let fwd_rate = financing_period_rate(
+            let projected = financing_period_projection(
                 financing,
                 fwd.as_ref(),
                 fixings,
@@ -541,7 +643,7 @@ impl TrsEngine {
                 schedule.params.calendar_id.as_str(),
                 notional.currency(),
             )?;
-            let payment = notional.amount() * fwd_rate * yf;
+            let payment = projected.unsigned_coupon(notional.amount(), 0.0);
 
             let payment_date = schedule.payment_date_for(period_end)?;
             let df = relative_df_discount_curve(disc.as_ref(), as_of, payment_date)?;
@@ -554,7 +656,10 @@ impl TrsEngine {
 
 #[cfg(test)]
 mod tests {
-    use super::{financing_period_rate, TotalReturnLegParams, TrsEngine, TrsReturnModel};
+    use super::{
+        financing_period_projection, financing_period_rate, TotalReturnLegParams, TrsEngine,
+        TrsReturnModel,
+    };
     use crate::cashflow::builder::ScheduleParams;
     use crate::instruments::common_impl::parameters::legs::{
         FinancingLegSpec, FinancingRateCompounding,
@@ -1213,6 +1318,29 @@ mod tests {
             (actual - expected.rate).abs() < 1e-12,
             "TRS overnight {actual} != shared engine {}",
             expected.rate
+        );
+        let projected = financing_period_projection(
+            &financing,
+            &fwd,
+            None,
+            start,
+            end,
+            0.50,
+            start,
+            "usny",
+            Currency::USD,
+        )
+        .expect("trs overnight projection");
+        let amount = projected.unsigned_coupon(1_000_000.0, 0.0);
+        let expected_amount = 1_000_000.0 * (expected.compound_factor - 1.0);
+        assert!(
+            (amount - expected_amount).abs() < 1e-6,
+            "TRS overnight amount {amount} != N*(CF-1) {expected_amount}"
+        );
+        let wrong = actual * 1_000_000.0 * 0.50;
+        assert!(
+            (amount - wrong).abs() > 1.0,
+            "TRS overnight coupon must not use the unadjusted schedule year fraction"
         );
     }
 }

@@ -82,8 +82,9 @@ use finstack_quant_core::Result;
 ///
 /// # Settlement
 ///
-/// FX spot typically settles T+2 (two business days after trade date).
-/// This can be customized via `settlement_lag_days`.
+/// When `settlement_lag_days` is `None`, the pair-aware default is T+1 for
+/// USD↔CAD and USD↔TRY and T+2 otherwise (including EUR/USD). An explicit
+/// `settlement_lag_days` overrides that default.
 ///
 /// See module-level documentation for comprehensive FX quoting conventions.
 #[derive(
@@ -109,7 +110,11 @@ pub struct FxSpot {
     #[serde(default, with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub settlement: Option<Date>,
-    /// Optional settlement lag in business days when `settlement` is not provided (default: 2)
+    /// Optional settlement lag in business days when `settlement` is not provided.
+    ///
+    /// `None` uses the pair-aware default from
+    /// [`finstack_quant_core::dates::fx::fx_standard_spot_lag_days`]: T+1 for
+    /// USD↔CAD and USD↔TRY, T+2 otherwise.
     #[builder(optional)]
     pub settlement_lag_days: Option<i32>,
     /// Optional spot rate (if not provided, will look up from market data)
@@ -181,7 +186,9 @@ struct FxSpotUnchecked {
     #[serde(default, with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     settlement: Option<Date>,
-    /// Optional settlement lag in business days when `settlement` is not provided (default: 2)
+    /// Optional settlement lag in business days when `settlement` is not provided.
+    ///
+    /// `None` uses the pair-aware default: T+1 for USD↔CAD and USD↔TRY, T+2 otherwise.
     settlement_lag_days: Option<i32>,
     /// Optional spot rate (if not provided, will look up from market data)
     spot_rate: Option<f64>,
@@ -306,9 +313,9 @@ impl FxSpot {
             }
         } else {
             // Compute T+N from as_of date
-            let lag_days =
-                self.settlement_lag_days
-                    .unwrap_or(if self.is_t1_pair() { 1 } else { 2 });
+            let lag_days = self
+                .settlement_lag_days
+                .unwrap_or(self.standard_spot_lag() as i32);
 
             if use_joint_calendar {
                 // CLS-consistent spot roll: a US holiday on an intermediate day
@@ -525,14 +532,13 @@ impl FxSpot {
     /// When `settlement_lag_days` is unset, [`Self::effective_settlement_date`]
     /// uses this list to choose T+1 versus T+2.
     pub fn is_t1_pair(&self) -> bool {
-        // USD/CAD and USD/TRY are the most common T+1 pairs
-        let pair = (self.base_currency, self.quote_currency);
-        matches!(
-            pair,
-            (Currency::USD, Currency::CAD)
-                | (Currency::CAD, Currency::USD)
-                | (Currency::USD, Currency::TRY)
-                | (Currency::TRY, Currency::USD)
+        self.standard_spot_lag() == 1
+    }
+
+    fn standard_spot_lag(&self) -> u32 {
+        finstack_quant_core::dates::fx::fx_standard_spot_lag_days(
+            self.base_currency,
+            self.quote_currency,
         )
     }
 }

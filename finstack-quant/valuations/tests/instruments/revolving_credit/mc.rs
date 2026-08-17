@@ -535,3 +535,99 @@ fn test_mc_stochastic_floating_rate_index_cap() {
         diff
     );
 }
+
+#[test]
+fn overnight_rfr_rejects_stochastic_hull_white_and_prices_when_sigma_is_zero() {
+    use finstack_quant_cashflows::builder::FloatingRateSpec;
+    use finstack_quant_core::market_data::term_structures::ForwardCurve;
+    use finstack_quant_valuations::instruments::fixed_income::revolving_credit::{
+        CreditSpreadProcessSpec, InterestRateProcessSpec, McConfig, RevolvingCreditPricer,
+    };
+    use rust_decimal::Decimal;
+
+    let val_date = date!(2025 - 01 - 02);
+    let maturity_date = date!(2026 - 01 - 02);
+    let float_spec = FloatingRateSpec {
+        index_id: "USD-SOFR-OIS".into(),
+        spread_bp: Decimal::ZERO,
+        gearing: Decimal::ONE,
+        gearing_includes_spread: true,
+        index_floor_bp: None,
+        all_in_floor_bp: None,
+        all_in_cap_bp: None,
+        index_cap_bp: None,
+        overnight_index_constraints: Default::default(),
+        reset_frequency: Tenor::quarterly(),
+        index_tenor: None,
+        reset_lag_days: 0,
+        fixing_calendar_id: Some("usny".into()),
+        overnight_compounding: None,
+        overnight_basis: None,
+        fallback: Default::default(),
+    };
+    let fwd = ForwardCurve::builder("USD-SOFR-OIS", 1.0 / 365.0)
+        .base_date(val_date)
+        .day_count(DayCount::Act360)
+        .knots([(0.0, 0.04), (1.0, 0.04)])
+        .build()
+        .expect("sofr ois forward");
+    let market = MarketContext::new()
+        .insert(build_flat_discount_curve(0.03, val_date, "USD-OIS"))
+        .insert(fwd);
+
+    let make_facility = |sigma: f64| {
+        RevolvingCredit::builder()
+            .id("RC-OIS-HW".into())
+            .commitment_amount(Money::new(10_000_000.0, Currency::USD))
+            .drawn_amount(Money::new(5_000_000.0, Currency::USD))
+            .commitment_date(val_date)
+            .maturity(maturity_date)
+            .base_rate_spec(BaseRateSpec::Floating(float_spec.clone()))
+            .day_count(DayCount::Act360)
+            .frequency(Tenor::quarterly())
+            .fees(RevolvingCreditFees::default())
+            .draw_repay_spec(DrawRepaySpec::Stochastic(Box::new(
+                StochasticUtilizationSpec {
+                    utilization_process: UtilizationProcess::MeanReverting {
+                        target_rate: 0.5,
+                        speed: 0.5,
+                        volatility: 1e-8,
+                    },
+                    num_paths: 64,
+                    seed: Some(42),
+                    antithetic: false,
+                    use_sobol_qmc: false,
+                    mc_config: Some(McConfig {
+                        correlation_matrix: None,
+                        recovery_rate: 0.40,
+                        credit_spread_process: CreditSpreadProcessSpec::Constant(0.01),
+                        interest_rate_process: Some(InterestRateProcessSpec::HullWhite1F {
+                            kappa: 0.03,
+                            sigma,
+                            initial: 0.04,
+                            theta: 0.04,
+                        }),
+                        util_credit_corr: None,
+                    }),
+                },
+            )))
+            .discount_curve_id("USD-OIS".into())
+            .recovery_rate(0.4)
+            .build()
+            .expect("overnight revolver")
+    };
+
+    let err = RevolvingCreditPricer::price_with_paths(&make_facility(0.01), &market, val_date)
+        .expect_err("overnight + HW sigma>0 must fail");
+    assert!(
+        err.to_string().contains("daily fixing path"),
+        "unexpected error: {err}"
+    );
+
+    let priced = RevolvingCreditPricer::price_with_paths(&make_facility(0.0), &market, val_date)
+        .expect("overnight + HW sigma=0 must price");
+    assert!(
+        priced.mc_result.estimate.mean.amount().is_finite(),
+        "deterministic overnight MC PV must be finite"
+    );
+}

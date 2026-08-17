@@ -844,7 +844,7 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
             adjust_accrual_dates: false,
             roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         };
-        let tranche = CDSTranche::new(
+        let mut tranche = CDSTranche::new(
             tranche_id.clone(),
             &tranche_params,
             &schedule_params,
@@ -853,6 +853,7 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
             TrancheSide::BuyProtection,
         )
         .expect("Valid tranche parameters");
+        tranche.standard_imm_dates = true;
         let entity_id = format!("FUND_{}", (i % 5) + 1);
         builder = builder.position(
             Position::new(

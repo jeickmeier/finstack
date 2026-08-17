@@ -586,16 +586,79 @@ impl BasisSwap {
             ));
         }
 
+        let overnight = !matches!(
+            leg.compounding,
+            crate::instruments::rates::irs::FloatingLegCompounding::Simple
+        );
+        let overnight_calendar = if overnight {
+            Some(
+                crate::instruments::common_impl::pricing::overnight::resolve_overnight_fixing_calendar(
+                    Some(self.resolve_leg_calendar("cashflow", leg)?),
+                    self.notional.currency(),
+                    "BasisSwap",
+                )?,
+            )
+        } else {
+            None
+        };
+        let overnight_fwd = if overnight {
+            Some(curves.get_forward(&leg.forward_curve_id)?)
+        } else {
+            None
+        };
+        let overnight_fixings = if overnight {
+            finstack_quant_core::market_data::fixings::get_fixing_series(
+                curves,
+                leg.forward_curve_id.as_str(),
+            )
+            .ok()
+        } else {
+            None
+        };
+
         let mut annuity = 0.0;
         for period in periods {
-            if period.payment_date > as_of {
-                let df = crate::instruments::common_impl::pricing::swap_legs::robust_relative_df(
-                    disc.as_ref(),
-                    as_of,
-                    period.payment_date,
-                )?;
-                annuity += period.accrual_year_fraction * df;
+            if period.payment_date <= as_of {
+                continue;
             }
+            let df = crate::instruments::common_impl::pricing::swap_legs::robust_relative_df(
+                disc.as_ref(),
+                as_of,
+                period.payment_date,
+            )?;
+            let year_fraction =
+                if let (Some(calendar), Some(fwd)) = (overnight_calendar, overnight_fwd.as_ref()) {
+                    use crate::instruments::common_impl::pricing::overnight::{
+                        adjust_overnight_accrual_boundaries, project_overnight_coupon,
+                        OvernightCouponProjectionInput, OvernightProjectionCurve,
+                    };
+                    let (accrual_start, accrual_end) = adjust_overnight_accrual_boundaries(
+                        period.accrual_start,
+                        period.accrual_end,
+                        leg.business_day_convention,
+                        calendar,
+                    )?;
+                    if accrual_end <= accrual_start {
+                        continue;
+                    }
+                    project_overnight_coupon(OvernightCouponProjectionInput {
+                        curve: OvernightProjectionCurve::Forward(fwd.as_ref()),
+                        fixings: overnight_fixings,
+                        fixing_id: leg.forward_curve_id.as_str(),
+                        as_of,
+                        accrual_start,
+                        accrual_end,
+                        day_count: leg.day_count,
+                        coupon_frequency: Some(leg.frequency),
+                        compounding: &leg.compounding,
+                        fixing_calendar: calendar,
+                        compounded_spread: 0.0,
+                    })?
+                    .accrual_year_fraction
+                } else {
+                    period.accrual_year_fraction
+                };
+            annuity += year_fraction * df;
         }
 
         const ANNUITY_EPSILON: f64 = 1e-12;
@@ -731,12 +794,12 @@ impl BasisSwap {
                 fixing_calendar: calendar,
                 compounded_spread: 0.0,
             })?;
-            let interest = self.notional.amount() * (projection.compound_factor - 1.0);
-            let spread_contrib = self.notional.amount()
-                * spread_bp
-                * crate::constants::ONE_BASIS_POINT
-                * projection.accrual_year_fraction;
-            let coupon_amount = interest + spread_contrib;
+            let coupon_amount =
+                crate::instruments::common_impl::pricing::overnight::overnight_coupon_amount(
+                    self.notional.amount(),
+                    &projection,
+                    spread_bp * crate::constants::ONE_BASIS_POINT,
+                );
             let all_in_rate = if projection.accrual_year_fraction.abs() > f64::EPSILON {
                 (projection.compound_factor - 1.0) / projection.accrual_year_fraction
                     + spread_bp * crate::constants::ONE_BASIS_POINT
@@ -1657,6 +1720,130 @@ mod tests {
             (first.amount.amount() - expected_amount).abs() < 1e-6,
             "basis overnight coupon {} != shared engine {expected_amount}",
             first.amount.amount()
+        );
+    }
+
+    #[test]
+    fn overnight_annuity_uses_projector_year_fraction() {
+        use crate::instruments::rates::irs::FloatingLegCompounding;
+        use finstack_quant_core::dates::calendar_by_id;
+
+        let start = date(2025, 7, 4);
+        let end = date(2025, 10, 6);
+        let disc = DiscountCurve::builder("USD-OIS")
+            .base_date(start)
+            .knots(vec![(0.0, 1.0), (1.0, 0.96)])
+            .build()
+            .expect("discount");
+        let ois = ForwardCurve::builder("USD-SOFR-OIS", 1.0 / 365.0)
+            .base_date(start)
+            .knots(vec![(0.0, 0.04), (1.0, 0.04)])
+            .build()
+            .expect("ois forward");
+        let term = ForwardCurve::builder("USD-SOFR-3M", 0.25)
+            .base_date(start)
+            .knots(vec![(0.0, 0.041), (1.0, 0.041)])
+            .build()
+            .expect("term forward");
+        let market = MarketContext::new().insert(disc).insert(ois).insert(term);
+        let primary = BasisSwapLeg {
+            forward_curve_id: CurveId::new("USD-SOFR-OIS"),
+            discount_curve_id: CurveId::new("USD-OIS"),
+            start,
+            end,
+            frequency: Tenor::annual(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
+            calendar_id: Some("usny".to_string()),
+            stub: StubKind::ShortFront,
+            spread_bp: Decimal::ZERO,
+            payment_lag_days: 0,
+            reset_lag_days: 0,
+            compounding: FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
+        };
+        let reference = BasisSwapLeg {
+            forward_curve_id: CurveId::new("USD-SOFR-3M"),
+            compounding: FloatingLegCompounding::Simple,
+            ..primary.clone()
+        };
+        let swap = BasisSwap::new(
+            "SOFR-OIS-ANN",
+            Money::new(10_000_000.0, Currency::USD),
+            primary,
+            reference,
+        )
+        .expect("overnight vs term basis");
+        let annuity = swap
+            .annuity_for_leg(&swap.primary_leg, &market, start)
+            .expect("overnight annuity");
+        let periods = crate::cashflow::builder::periods::build_periods(
+            crate::cashflow::builder::periods::BuildPeriodsParams {
+                start,
+                end,
+                frequency: Tenor::annual(),
+                stub: StubKind::ShortFront,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
+                calendar_id: "usny",
+                end_of_month: false,
+                day_count: DayCount::Act360,
+                payment_lag_days: 0,
+                reset_lag_days: Some(0),
+                adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
+            },
+        )
+        .expect("periods");
+        let calendar = calendar_by_id("usny").expect("usny");
+        let disc = market.get_discount("USD-OIS").expect("discount");
+        let fwd = market.get_forward("USD-SOFR-OIS").expect("forward");
+        let mut expected = 0.0;
+        let mut schedule_yf = 0.0;
+        for period in &periods {
+            if period.payment_date <= start {
+                continue;
+            }
+            let df = crate::instruments::common_impl::pricing::swap_legs::robust_relative_df(
+                disc.as_ref(),
+                start,
+                period.payment_date,
+            )
+            .expect("df");
+            schedule_yf += period.accrual_year_fraction * df;
+            let (accrual_start, accrual_end) =
+                crate::instruments::common_impl::pricing::overnight::adjust_overnight_accrual_boundaries(
+                    period.accrual_start,
+                    period.accrual_end,
+                    BusinessDayConvention::ModifiedFollowing,
+                    calendar,
+                )
+                .expect("adjust");
+            let projection = crate::instruments::common_impl::pricing::overnight::project_overnight_coupon(
+                crate::instruments::common_impl::pricing::overnight::OvernightCouponProjectionInput {
+                    curve: crate::instruments::common_impl::pricing::overnight::OvernightProjectionCurve::Forward(
+                        fwd.as_ref(),
+                    ),
+                    fixings: None,
+                    fixing_id: "USD-SOFR-OIS",
+                    as_of: start,
+                    accrual_start,
+                    accrual_end,
+                    day_count: DayCount::Act360,
+                    coupon_frequency: Some(Tenor::quarterly()),
+                    compounding: &FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
+                    fixing_calendar: calendar,
+                    compounded_spread: 0.0,
+                },
+            )
+            .expect("projection");
+            expected += projection.accrual_year_fraction * df;
+        }
+        assert!(
+            (annuity - expected).abs() < 1e-12,
+            "overnight annuity {annuity} != projector yf annuity {expected}"
+        );
+        assert!(
+            (annuity - schedule_yf).abs() > 1e-8,
+            "holiday-adjusted overnight annuity must differ from raw schedule yf"
         );
     }
 

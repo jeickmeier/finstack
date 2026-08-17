@@ -5159,7 +5159,7 @@ export interface BondConstructor {
     discountCurveId: string
   ): Bond;
   /**
-   * Create a floating-rate bond (FRN) linked to a forward index. Mirrors Rust `Bond::floating`.
+   * Create a floating-rate bond (FRN) linked to a forward index. Mirrors Rust `Bond::floating`. Settlement, calendar, and business-day convention come from the notional currency: USD UsCorporate (T+1, usny), EUR EurCorporate (T+2, target2), GBP UkGilt (T+1), JPY Jgb (T+2). Unmapped currencies throw.
    * @param id - Unique instrument identifier.
    * @param notional - Principal amount of the bond.
    * @param indexId - Forward curve identifier (e.g. `"USD-SOFR-3M"`).
@@ -5170,7 +5170,7 @@ export interface BondConstructor {
    * @param dayCount - Day count convention (e.g. `DayCount.act360()`).
    * @param discountCurveId - Discount curve identifier used for pricing.
    * @returns The validated floating-rate note.
-   * @throws If validation fails.
+   * @throws If the notional currency has no mapped settlement convention or validation fails.
    */
   floating(
     id: string,

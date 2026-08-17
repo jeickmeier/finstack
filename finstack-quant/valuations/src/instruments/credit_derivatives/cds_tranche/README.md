@@ -5,9 +5,9 @@ detachment are percents, not fractions.
 
 ## Conventions
 
-- `CDSTranche::new` and `example()` default `standard_imm_dates` to **true**
-  (20th of Mar/Jun/Sep/Dec). `standard()` is the named IMM constructor.
-  Non-IMM schedules set `standard_imm_dates: false` after construction.
+- `CDSTranche::new` honors `ScheduleParams` (`standard_imm_dates` is
+  **false**). `standard()` and `example()` are the IMM constructors
+  (20th of Mar/Jun/Sep/Dec).
 - Single-name CDS valuation still defaults to Bloomberg CDSW clean; that
   is independent of the tranche IMM flag.
 

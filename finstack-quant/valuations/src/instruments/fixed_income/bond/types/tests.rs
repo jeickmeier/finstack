@@ -826,3 +826,108 @@ fn bond_maturing_after_issue_validates() {
 
     assert!(bond.validate_for_pricing().is_ok());
 }
+
+fn floating_test_dates() -> (Date, Date) {
+    (
+        Date::from_calendar_date(2025, Month::January, 15).expect("Valid test date"),
+        Date::from_calendar_date(2030, Month::January, 15).expect("Valid test date"),
+    )
+}
+
+#[test]
+fn bond_floating_usd_uses_us_corporate_settlement() {
+    let (issue, maturity) = floating_test_dates();
+    let bond = Bond::floating(
+        "FRN-USD",
+        Money::new(1_000_000.0, Currency::USD),
+        "USD-SOFR-3M",
+        100,
+        issue,
+        maturity,
+        Tenor::quarterly(),
+        DayCount::Act360,
+        "USD-OIS",
+    )
+    .expect("USD FRN");
+    assert_eq!(bond.settlement_days(), Some(1));
+    let CashflowSpec::Floating(spec) = &bond.cashflow_spec else {
+        panic!("expected floating spec");
+    };
+    assert_eq!(spec.schedule.calendar_id, "usny");
+    assert_eq!(
+        spec.schedule.business_day_convention,
+        BusinessDayConvention::ModifiedFollowing
+    );
+}
+
+#[test]
+fn bond_floating_eur_uses_eur_corporate_settlement() {
+    let (issue, maturity) = floating_test_dates();
+    let bond = Bond::floating(
+        "FRN-EUR",
+        Money::new(1_000_000.0, Currency::EUR),
+        "EUR-EURIBOR-3M",
+        100,
+        issue,
+        maturity,
+        Tenor::quarterly(),
+        DayCount::Act360,
+        "EUR-OIS",
+    )
+    .expect("EUR FRN");
+    assert_eq!(bond.settlement_days(), Some(2));
+    let CashflowSpec::Floating(spec) = &bond.cashflow_spec else {
+        panic!("expected floating spec");
+    };
+    assert_eq!(spec.schedule.calendar_id, "target2");
+    assert_eq!(
+        spec.schedule.business_day_convention,
+        BusinessDayConvention::ModifiedFollowing
+    );
+}
+
+#[test]
+fn bond_floating_gbp_uses_uk_gilt_t1_not_t2() {
+    let (issue, maturity) = floating_test_dates();
+    let bond = Bond::floating(
+        "FRN-GBP",
+        Money::new(1_000_000.0, Currency::GBP),
+        "GBP-SONIA",
+        100,
+        issue,
+        maturity,
+        Tenor::quarterly(),
+        DayCount::Act365F,
+        "GBP-SONIA",
+    )
+    .expect("GBP FRN");
+    assert_eq!(bond.settlement_days(), Some(1));
+    let CashflowSpec::Floating(spec) = &bond.cashflow_spec else {
+        panic!("expected floating spec");
+    };
+    assert_eq!(
+        spec.schedule.business_day_convention,
+        BusinessDayConvention::Following
+    );
+}
+
+#[test]
+fn bond_floating_unmapped_currency_requires_convention() {
+    let (issue, maturity) = floating_test_dates();
+    let err = Bond::floating(
+        "FRN-CHF",
+        Money::new(1_000_000.0, Currency::CHF),
+        "CHF-SARON",
+        100,
+        issue,
+        maturity,
+        Tenor::quarterly(),
+        DayCount::Act360,
+        "CHF-SARON",
+    )
+    .expect_err("CHF has no mapped FRN convention");
+    assert!(
+        err.to_string().contains("floating_with_convention"),
+        "unexpected error: {err}"
+    );
+}

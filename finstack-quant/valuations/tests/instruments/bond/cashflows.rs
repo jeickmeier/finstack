@@ -72,8 +72,8 @@ fn test_fixed_rate_cashflows() {
 
 #[test]
 fn test_cashflow_dates_alignment() {
-    let as_of = date!(2025 - 01 - 01);
-    let maturity = date!(2030 - 01 - 01);
+    let as_of = date!(2025 - 01 - 15);
+    let maturity = date!(2030 - 01 - 15);
 
     let bond = Bond::fixed(
         "CF_DATES",
@@ -374,8 +374,8 @@ fn test_cashflows_with_short_front_stub() {
 
 #[test]
 fn test_zero_coupon_cashflows() {
-    let as_of = date!(2025 - 01 - 01);
-    let maturity = date!(2030 - 01 - 01);
+    let as_of = date!(2025 - 01 - 15);
+    let maturity = date!(2030 - 01 - 15);
 
     let bond = Bond::fixed(
         "ZERO",

@@ -155,8 +155,10 @@ fn run_analytical_parity_test(tc: &AnalyticalParityTestCase) {
     let as_of_t0 = create_date(2025, Month::January, 15).unwrap();
     let as_of_t1 = create_date(2025, Month::January, 16).unwrap();
 
-    let issue = create_date(2025, Month::January, 1).unwrap();
-    let maturity = create_date(2025 + tc.maturity_years as i32, Month::January, 1).unwrap();
+    // Avoid New Year's Day so USNY Modified Following does not roll coupons
+    // and distort the Taylor DV01/convexity reference.
+    let issue = create_date(2025, Month::January, 15).unwrap();
+    let maturity = create_date(2025 + tc.maturity_years as i32, Month::January, 15).unwrap();
 
     let bond = Bond::fixed(
         "PARITY-TEST-BOND",

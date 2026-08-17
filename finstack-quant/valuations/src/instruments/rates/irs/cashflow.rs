@@ -224,12 +224,12 @@ pub(crate) fn projected_compounded_float_leg_schedule(
         let accrual_year_fraction = projection.accrual_year_fraction;
 
         let spread_bp = decimal_to_f64(float.spread_bp, "float leg spread_bp")?;
-        let interest = irs.notional.amount() * (compound_factor - 1.0);
-        let spread_contrib = irs.notional.amount()
-            * spread_bp
-            * crate::constants::ONE_BASIS_POINT
-            * accrual_year_fraction;
-        let coupon_amount = interest + spread_contrib;
+        let coupon_amount =
+            crate::instruments::common_impl::pricing::overnight::overnight_coupon_amount(
+                irs.notional.amount(),
+                &projection,
+                spread_bp * crate::constants::ONE_BASIS_POINT,
+            );
         let all_in_rate = if accrual_year_fraction.abs() > f64::EPSILON {
             (compound_factor - 1.0) / accrual_year_fraction
                 + spread_bp * crate::constants::ONE_BASIS_POINT

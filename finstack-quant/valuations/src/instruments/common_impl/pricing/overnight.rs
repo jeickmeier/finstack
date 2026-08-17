@@ -213,6 +213,7 @@ pub(crate) fn project_overnight_coupon(
     let day_count_context = DayCountContext {
         calendar: Some(input.fixing_calendar),
         frequency: input.coupon_frequency,
+        coupon_period: Some((input.accrual_start, input.accrual_end)),
         ..DayCountContext::default()
     };
     let accrual_year_fraction =
@@ -424,11 +425,54 @@ pub(crate) fn project_overnight_coupon(
     })
 }
 
+/// Cash coupon from a compounded overnight projection plus an arithmetic spread.
+///
+/// Index interest is `N × (compound_factor − 1)`. The spread accrues on the
+/// projector's holiday-adjusted year fraction, not the unadjusted schedule
+/// fraction. IRS, XCCY, TRS, and basis-swap overnight legs must use this
+/// helper so coupon amounts cannot drift apart.
+///
+/// # Arguments
+///
+/// * `notional` - Leg notional in currency units. Sign is the caller's
+///   responsibility; this helper returns an unsigned economic amount.
+/// * `projection` - Compounded overnight coupon already projected on the
+///   adjusted accrual window.
+/// * `spread` - Arithmetic spread in decimal rate units (not basis points).
+pub(crate) fn overnight_coupon_amount(
+    notional: f64,
+    projection: &OvernightCouponProjection,
+    spread: f64,
+) -> f64 {
+    notional * (projection.compound_factor - 1.0)
+        + notional * spread * projection.accrual_year_fraction
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
     use time::macros::date;
+
+    #[test]
+    fn overnight_coupon_amount_uses_compound_factor_and_projection_yf() {
+        let projection = OvernightCouponProjection {
+            rate: 0.04,
+            accrual_year_fraction: 0.25,
+            compound_factor: 1.01,
+            parallel_forward_sensitivity: 0.0,
+            parallel_forward_second_sensitivity: 0.0,
+            fixing_date: date!(2025 - 04 - 02),
+            observation_exposures: Vec::new(),
+        };
+        let notional = 1_000_000.0;
+        let amount = overnight_coupon_amount(notional, &projection, 0.001);
+        let expected = notional * (1.01 - 1.0) + notional * 0.001 * 0.25;
+        assert!(
+            (amount - expected).abs() < 1e-12,
+            "overnight coupon amount {amount} != N*(CF-1) + N*spread*yf {expected}"
+        );
+    }
 
     #[test]
     fn discount_projection_uses_coupon_day_count_and_telescopes() {
@@ -725,7 +769,7 @@ mod tests {
 
     #[test]
     fn projector_uses_coupon_frequency_for_act_act_isma_accrual() {
-        let as_of = date!(2025 - 01 - 02);
+        let as_of = date!(2025 - 01 - 01);
         let forward = ForwardCurve::builder("ICMA-OVERNIGHT", 1.0 / 365.0)
             .base_date(as_of)
             .day_count(DayCount::Act365F)
@@ -743,7 +787,7 @@ mod tests {
             fixing_id: "ICMA-OVERNIGHT",
             as_of,
             accrual_start: as_of,
-            accrual_end: date!(2025 - 07 - 02),
+            accrual_end: date!(2025 - 07 - 01),
             day_count: DayCount::ActActIsma,
             coupon_frequency: Some(Tenor::semi_annual()),
             compounding: &compounding,

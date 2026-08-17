@@ -246,9 +246,18 @@ impl Bond {
     /// Create a floating-rate bond (FRN).
     ///
     /// Creates a bond with floating-rate coupons linked to a forward index
-    /// (e.g., SOFR, EURIBOR) plus a margin. Settlement defaults to T+1 for
-    /// USD notionals and T+2 otherwise. Use
-    /// [`Self::floating_with_convention`] for full calendar and BDC.
+    /// (e.g., SOFR, EURIBOR) plus a margin. Settlement, calendar, and
+    /// business-day convention come from a currency →
+    /// [`crate::instruments::common_impl::parameters::BondConvention`] map:
+    ///
+    /// - `USD` → `UsCorporate` (T+1, Modified Following, `usny`)
+    /// - `EUR` → `EurCorporate` (T+2, Modified Following, `target2`)
+    /// - `GBP` → `UkGilt` (T+1, Following, `gblo`)
+    /// - `JPY` → `Jgb` (T+2, Following, `jpto`)
+    ///
+    /// Coupon frequency and day count remain caller-supplied. Unmapped
+    /// currencies return a validation error; use
+    /// [`Self::floating_with_convention`] to supply the convention.
     ///
     /// # Arguments
     ///
@@ -265,10 +274,6 @@ impl Bond {
     /// # Returns
     ///
     /// A `Bond` instance configured as a floating-rate note.
-    ///
-    /// # Panics
-    ///
-    /// Panics if bond construction fails (should not occur with valid inputs).
     ///
     /// # Example
     /// ```
@@ -297,7 +302,8 @@ impl Bond {
     /// ```
     /// # Errors
     ///
-    /// Returns an error if the builder fails validation.
+    /// Returns an error if the notional currency has no mapped settlement
+    /// convention, or if the builder fails validation.
     #[allow(clippy::too_many_arguments)]
     pub fn floating(
         id: impl Into<InstrumentId>,
@@ -310,35 +316,32 @@ impl Bond {
         day_count: DayCount,
         discount_curve_id: impl Into<CurveId>,
     ) -> finstack_quant_core::Result<Self> {
-        let settlement_days = if notional.currency() == Currency::USD {
-            1
-        } else {
-            2
+        use crate::instruments::common_impl::parameters::BondConvention;
+        let convention = match notional.currency() {
+            Currency::USD => BondConvention::UsCorporate,
+            Currency::EUR => BondConvention::EurCorporate,
+            Currency::GBP => BondConvention::UkGilt,
+            Currency::JPY => BondConvention::Jgb,
+            other => {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "Bond::floating has no settlement convention for {other}; \
+                     use Bond::floating_with_convention to supply settlement, \
+                     calendar, and business-day convention"
+                )));
+            }
         };
-        let margin_bp = margin_bp.into();
-        let bond = Self::builder()
-            .id(id.into())
-            .notional(notional)
-            .issue_date(issue)
-            .maturity(maturity)
-            .cashflow_spec(CashflowSpec::floating_bp(
-                index_id.into(),
-                margin_bp,
-                frequency,
-                day_count,
-            ))
-            .discount_curve_id(discount_curve_id.into())
-            .credit_curve_id_opt(None)
-            .instrument_pricing_overrides(InstrumentPricingOverrides::default())
-            .attributes(Attributes::new())
-            .settlement_convention_opt(Some(BondSettlementConvention {
-                settlement_days,
-                ..Default::default()
-            }))
-            .build()?;
-
-        bond.validate()?;
-        Ok(bond)
+        Self::floating_with_convention(
+            id,
+            notional,
+            index_id,
+            margin_bp,
+            issue,
+            maturity,
+            frequency,
+            day_count,
+            convention,
+            discount_curve_id,
+        )
     }
 
     /// Create a floating-rate bond using a regional settlement and calendar template.

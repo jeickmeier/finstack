@@ -53,16 +53,16 @@ pub fn build_xccy_instrument(quote: &XccyQuote, ctx: &BuildCtx) -> Result<Box<dy
                 .curve_id("foreign_forward")
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| conv.base_index_id.to_string());
-            let foreign_compounding =
-                crate::instruments::common_impl::pricing::overnight_conventions::compounding_from_index_id(
-                    &foreign_forward,
-                )?
-                .unwrap_or_default();
-            let domestic_compounding =
-                crate::instruments::common_impl::pricing::overnight_conventions::compounding_from_index_id(
-                    &domestic_forward,
-                )?
-                .unwrap_or_default();
+            let foreign_compounding = contractual_leg_compounding(
+                conv.base_index_id.as_str(),
+                base_index,
+                &foreign_forward,
+            )?;
+            let domestic_compounding = contractual_leg_compounding(
+                conv.quote_index_id.as_str(),
+                quote_index,
+                &domestic_forward,
+            )?;
 
             let fx_spot = spot_fx.ok_or_else(|| {
                 finstack_quant_core::Error::Validation(
@@ -157,6 +157,41 @@ pub fn build_xccy_instrument(quote: &XccyQuote, ctx: &BuildCtx) -> Result<Box<dy
             Ok(Box::new(swap))
         }
     }
+}
+
+/// Compounding follows the contractual rate index, not a curve-id override.
+///
+/// An unregistered forward-curve alias keeps the contractual compounding. A
+/// registered override whose overnight/term kind disagrees with the
+/// convention index is rejected so a term curve cannot silently re-type an
+/// OIS leg.
+///
+/// # Arguments
+///
+/// * `contractual_index_id` - Convention index id used in the error text.
+/// * `contractual_index` - Registry conventions for that contractual index.
+/// * `forward_curve_id` - Pricing-curve override that must not re-type the leg.
+fn contractual_leg_compounding(
+    contractual_index_id: &str,
+    contractual_index: &crate::market::conventions::RateIndexConventions,
+    forward_curve_id: &str,
+) -> Result<crate::instruments::rates::irs::FloatingLegCompounding> {
+    use crate::instruments::common_impl::pricing::overnight_conventions::{
+        compounding_from_conventions, rate_index_conventions,
+    };
+
+    let compounding = compounding_from_conventions(contractual_index)?;
+    if let Some(override_conv) = rate_index_conventions(forward_curve_id)? {
+        if override_conv.kind != contractual_index.kind {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "XCCY forward curve '{forward_curve_id}' is a {:?} index but the \
+                 contractual index '{contractual_index_id}' is {:?}; do not re-type \
+                 the leg via a curve-id override",
+                override_conv.kind, contractual_index.kind
+            )));
+        }
+    }
+    Ok(compounding)
 }
 
 fn resolve_far_date(

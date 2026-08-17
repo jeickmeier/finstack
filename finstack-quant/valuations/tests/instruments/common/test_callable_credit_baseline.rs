@@ -150,13 +150,13 @@ fn apply_baseline_regime(
 /// Both passes now share one non-negative transform, so the lattice reproduces
 /// the survival curve the valuator consumes. The remaining gap to the
 /// deterministic-credit price is genuine hazard-volatility convexity.
-const BASELINE_BOND_PV: f64 = 979_291.972_611_376;
+const BASELINE_BOND_PV: f64 = 982_040.340_830_378;
 /// PV of the callable credit-risky term loan under the same regime, corrected
 /// by the same calibration/valuation consistency fix.
-const BASELINE_LOAN_PV: f64 = 9_790_919.149_191_16;
+const BASELINE_LOAN_PV: f64 = 9_817_924.463_984_11;
 /// OAS (bp) recovered by re-solving at the term loan's own model price.
 /// Non-zero only by the clean/dirty accrued conversion inside the solve.
-const BASELINE_LOAN_OAS_BP: f64 = -1.182_775_425_0;
+const BASELINE_LOAN_OAS_BP: f64 = -1.215_370_145_7;
 
 #[test]
 fn callable_credit_bond_pv_baseline() {

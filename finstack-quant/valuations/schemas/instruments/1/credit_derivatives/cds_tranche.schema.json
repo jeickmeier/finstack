@@ -108,7 +108,8 @@
           "description": "Tranche side (buy/sell protection)"
         },
         "standard_imm_dates": {
-          "description": "Whether to enforce standard IMM dates (20th of Mar, Jun, Sep, Dec)",
+          "default": false,
+          "description": "Whether to enforce standard IMM dates (20th of Mar, Jun, Sep, Dec).\n\nDefaults to `false` so [`Self::new`] and the builder honor\n`ScheduleParams` frequency. Use [`Self::standard`] or set this to\n`true` for IMM rolls.",
           "type": "boolean"
         },
         "upfront": {
@@ -145,7 +146,6 @@
         "credit_index_id",
         "side",
         "accumulated_loss",
-        "standard_imm_dates",
         "attributes"
       ],
       "type": "object"
@@ -200,7 +200,7 @@
           "attach_pct": 0.0,
           "attributes": {},
           "business_day_convention": "following",
-          "calendar_id": "weekends_only",
+          "calendar_id": null,
           "credit_index_id": "CDX.NA.IG.HAZARD",
           "day_count": "act_360",
           "detach_pct": 3.0,

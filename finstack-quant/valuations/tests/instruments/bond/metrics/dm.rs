@@ -1,10 +1,23 @@
 //! Discount margin calculator tests.
 
 use finstack_quant_core::currency::Currency;
+use finstack_quant_core::dates::BusinessDayConvention;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::{Error, InputError};
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
+use finstack_quant_valuations::instruments::fixed_income::bond::CashflowSpec;
 use finstack_quant_valuations::instruments::fixed_income::bond::DiscountMarginCalculator;
+
+/// Quote-date DM round-trips assume zero accrual. Clear T+1 settlement and
+/// holiday rolls so `as_of` is an unadjusted coupon date.
+fn prepare_dm_roundtrip_frn(mut bond: Bond) -> Bond {
+    bond.settlement_convention = None;
+    if let CashflowSpec::Floating(spec) = &mut bond.cashflow_spec {
+        spec.schedule.business_day_convention = BusinessDayConvention::Unadjusted;
+        spec.schedule.calendar_id = "weekends_only".to_string();
+    }
+    bond
+}
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::{MetricCalculator, MetricContext, MetricId};
 use std::sync::Arc;
@@ -154,42 +167,48 @@ fn test_dm_solver_convergence_across_spread_regimes() {
     let market = MarketContext::new().insert(disc).insert(fwd);
 
     // Base FRNs for different maturities.
-    let frn_ig = Bond::floating(
-        "DM-CONV-IG",
-        notional,
-        "USD-SOFR-3M",
-        150,
-        as_of,
-        maturity_ig,
-        Tenor::quarterly(),
-        DayCount::Act360,
-        "USD-OIS",
-    )
-    .unwrap();
-    let frn_hy = Bond::floating(
-        "DM-CONV-HY",
-        notional,
-        "USD-SOFR-3M",
-        300,
-        as_of,
-        maturity_hy,
-        Tenor::quarterly(),
-        DayCount::Act360,
-        "USD-OIS",
-    )
-    .unwrap();
-    let frn_distressed = Bond::floating(
-        "DM-CONV-DIST",
-        notional,
-        "USD-SOFR-3M",
-        500,
-        as_of,
-        maturity_distressed,
-        Tenor::quarterly(),
-        DayCount::Act360,
-        "USD-OIS",
-    )
-    .unwrap();
+    let frn_ig = prepare_dm_roundtrip_frn(
+        Bond::floating(
+            "DM-CONV-IG",
+            notional,
+            "USD-SOFR-3M",
+            150,
+            as_of,
+            maturity_ig,
+            Tenor::quarterly(),
+            DayCount::Act360,
+            "USD-OIS",
+        )
+        .unwrap(),
+    );
+    let frn_hy = prepare_dm_roundtrip_frn(
+        Bond::floating(
+            "DM-CONV-HY",
+            notional,
+            "USD-SOFR-3M",
+            300,
+            as_of,
+            maturity_hy,
+            Tenor::quarterly(),
+            DayCount::Act360,
+            "USD-OIS",
+        )
+        .unwrap(),
+    );
+    let frn_distressed = prepare_dm_roundtrip_frn(
+        Bond::floating(
+            "DM-CONV-DIST",
+            notional,
+            "USD-SOFR-3M",
+            500,
+            as_of,
+            maturity_distressed,
+            Tenor::quarterly(),
+            DayCount::Act360,
+            "USD-OIS",
+        )
+        .unwrap(),
+    );
 
     // (target DM, bond) pairs covering IG, HY, and distressed regimes.
     let scenarios: Vec<(f64, Bond)> = vec![
@@ -386,18 +405,20 @@ fn test_dm_monotone_residual_does_not_break_valid_solve() {
     let as_of = date!(2025 - 01 - 01);
     let notional = Money::new(1_000_000.0, Currency::USD);
 
-    let bond = Bond::floating(
-        "DM-MONOTONE-HAPPY-PATH",
-        notional,
-        "USD-SOFR-3M",
-        150,
-        as_of,
-        date!(2028 - 01 - 01),
-        Tenor::quarterly(),
-        DayCount::Act360,
-        "USD-OIS",
-    )
-    .expect("bond should build");
+    let bond = prepare_dm_roundtrip_frn(
+        Bond::floating(
+            "DM-MONOTONE-HAPPY-PATH",
+            notional,
+            "USD-SOFR-3M",
+            150,
+            as_of,
+            date!(2028 - 01 - 01),
+            Tenor::quarterly(),
+            DayCount::Act360,
+            "USD-OIS",
+        )
+        .expect("bond should build"),
+    );
 
     let disc = DiscountCurve::builder("USD-OIS")
         .base_date(as_of)
