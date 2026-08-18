@@ -131,64 +131,17 @@ fn apply_shock<M>(
     raw_value: f64,
 ) -> InstrumentShockOutcome
 where
-    M: Fn(&Box<dyn Instrument>) -> bool,
+    M: Fn(&dyn Instrument) -> bool,
 {
     let delta = kind.internal_value(raw_value);
     let mut changed_indices = Vec::new();
     let mut warnings = Vec::new();
 
     for (index, instrument) in instruments.iter_mut().enumerate() {
-        if !matcher(instrument) {
-            continue;
+        let changed = apply_shock_to_instrument(instrument, &matcher, kind, delta, &mut warnings);
+        if changed > 0 {
+            changed_indices.push(index);
         }
-
-        match kind {
-            ShockKind::Price => {
-                if let Some(overrides) = instrument.get_scenario_pricing_overrides_mut() {
-                    overrides.scenario_price_shock_pct = Some(accumulate_optional_shock(
-                        overrides.scenario_price_shock_pct,
-                        delta,
-                    ));
-                } else {
-                    let label = instrument_label(instrument.attributes());
-                    let instrument_type = instrument.key();
-                    accumulate_meta_shock(instrument.attributes_mut(), kind.meta_key(), delta);
-                    warnings.push(Warning::InstrumentShockFallback {
-                        shock_kind: kind.label().to_string(),
-                        inst_type: instrument_type,
-                        label,
-                    });
-                }
-            }
-            ShockKind::Spread => {
-                // First-class path: pricers that consume the shock exactly
-                // (e.g. vanilla bonds via flat Z-spread repricing) accumulate
-                // it in the scenario overrides. Everything else falls back to
-                // metadata tagging with an explicit warning so the shock never
-                // silently no-ops.
-                let routed = instrument.scenario_spread_shock_supported()
-                    && instrument
-                        .get_scenario_pricing_overrides_mut()
-                        .map(|overrides| {
-                            overrides.scenario_spread_shock_bp = Some(accumulate_optional_shock(
-                                overrides.scenario_spread_shock_bp,
-                                delta,
-                            ));
-                        })
-                        .is_some();
-                if !routed {
-                    let label = instrument_label(instrument.attributes());
-                    let instrument_type = instrument.key();
-                    accumulate_meta_shock(instrument.attributes_mut(), kind.meta_key(), delta);
-                    warnings.push(Warning::InstrumentShockFallback {
-                        shock_kind: kind.label().to_string(),
-                        inst_type: instrument_type,
-                        label,
-                    });
-                }
-            }
-        }
-        changed_indices.push(index);
     }
 
     InstrumentShockOutcome {
@@ -196,6 +149,101 @@ where
         changed_indices,
         warnings,
     }
+}
+
+/// Apply at the first matching node on each instrument branch.
+///
+/// A matching composite receives the shock once and stops descent. Otherwise
+/// its self-contained legs are rebuilt recursively with unchanged quantities,
+/// so scenario application cannot trigger a rebalance.
+fn apply_shock_to_instrument<M>(
+    instrument: &mut Box<dyn Instrument>,
+    matcher: &M,
+    kind: ShockKind,
+    delta: f64,
+    warnings: &mut Vec<Warning>,
+) -> usize
+where
+    M: Fn(&dyn Instrument) -> bool,
+{
+    if matcher(instrument.as_ref()) {
+        apply_shock_to_matching_instrument(instrument.as_mut(), kind, delta, warnings);
+        return 1;
+    }
+
+    let Some(composite) = instrument
+        .as_any_mut()
+        .downcast_mut::<finstack_quant_valuations::instruments::CompositeInstrument>(
+    ) else {
+        return 0;
+    };
+
+    let mut changed = 0usize;
+    for leg in &mut composite.spec.legs {
+        let Ok(mut child) = leg.instrument.as_ref().clone().into_boxed() else {
+            continue;
+        };
+        let child_changed = apply_shock_to_instrument(&mut child, matcher, kind, delta, warnings);
+        if child_changed == 0 {
+            continue;
+        }
+        if let Some(updated) = child.to_instrument_json() {
+            leg.instrument = Box::new(updated);
+            changed += child_changed;
+        }
+    }
+    changed
+}
+
+fn apply_shock_to_matching_instrument(
+    instrument: &mut dyn Instrument,
+    kind: ShockKind,
+    delta: f64,
+    warnings: &mut Vec<Warning>,
+) {
+    match kind {
+        ShockKind::Price => {
+            if let Some(overrides) = instrument.get_scenario_pricing_overrides_mut() {
+                overrides.scenario_price_shock_pct = Some(accumulate_optional_shock(
+                    overrides.scenario_price_shock_pct,
+                    delta,
+                ));
+            } else {
+                record_fallback(instrument, kind, delta, warnings);
+            }
+        }
+        ShockKind::Spread => {
+            let routed = instrument.scenario_spread_shock_supported()
+                && instrument
+                    .get_scenario_pricing_overrides_mut()
+                    .map(|overrides| {
+                        overrides.scenario_spread_shock_bp = Some(accumulate_optional_shock(
+                            overrides.scenario_spread_shock_bp,
+                            delta,
+                        ));
+                    })
+                    .is_some();
+            if !routed {
+                record_fallback(instrument, kind, delta, warnings);
+            }
+        }
+    }
+}
+
+fn record_fallback(
+    instrument: &mut dyn Instrument,
+    kind: ShockKind,
+    delta: f64,
+    warnings: &mut Vec<Warning>,
+) {
+    let label = instrument_label(instrument.attributes());
+    let instrument_type = instrument.key();
+    accumulate_meta_shock(instrument.attributes_mut(), kind.meta_key(), delta);
+    warnings.push(Warning::InstrumentShockFallback {
+        shock_kind: kind.label().to_string(),
+        inst_type: instrument_type,
+        label,
+    });
 }
 
 /// Apply a percentage price shock to instruments matching the provided types.
@@ -286,4 +334,87 @@ fn normalise_filters(attrs: &indexmap::IndexMap<String, String>) -> Vec<(String,
         .iter()
         .map(|(k, v)| (k.to_lowercase(), v.to_lowercase()))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use finstack_quant_valuations::instruments::CompositeInstrument;
+
+    #[test]
+    fn type_shock_descends_into_composite_without_rebalancing() {
+        let composite = CompositeInstrument::example().expect("composite example should build");
+        let quantities: Vec<f64> = composite
+            .state
+            .resolved_legs
+            .iter()
+            .map(|leg| leg.quantity)
+            .collect();
+        let mut instruments: Vec<Box<dyn Instrument>> = vec![Box::new(composite)];
+
+        let outcome =
+            apply_instrument_type_price_shock(&mut instruments, &[InstrumentType::Equity], 10.0);
+        assert_eq!(outcome.count, 1);
+        let shocked = instruments[0]
+            .as_any()
+            .downcast_ref::<CompositeInstrument>()
+            .expect("root should remain a composite");
+        assert_eq!(
+            quantities,
+            shocked
+                .state
+                .resolved_legs
+                .iter()
+                .map(|leg| leg.quantity)
+                .collect::<Vec<_>>()
+        );
+        for leg in &shocked.spec.legs {
+            let child = leg
+                .instrument
+                .as_ref()
+                .clone()
+                .into_boxed()
+                .expect("embedded child should materialize");
+            assert_eq!(
+                child
+                    .get_scenario_pricing_overrides()
+                    .and_then(|overrides| overrides.scenario_price_shock_pct),
+                Some(0.1)
+            );
+        }
+    }
+
+    #[test]
+    fn matching_composite_root_stops_branch_descent() {
+        let composite = CompositeInstrument::example().expect("composite example should build");
+        let mut instruments: Vec<Box<dyn Instrument>> = vec![Box::new(composite)];
+
+        let outcome =
+            apply_instrument_type_price_shock(&mut instruments, &[InstrumentType::Composite], 10.0);
+        assert_eq!(outcome.count, 1);
+        let shocked = instruments[0]
+            .as_any()
+            .downcast_ref::<CompositeInstrument>()
+            .expect("root should remain a composite");
+        assert_eq!(
+            shocked
+                .get_scenario_pricing_overrides()
+                .and_then(|overrides| overrides.scenario_price_shock_pct),
+            Some(0.1)
+        );
+        for leg in &shocked.spec.legs {
+            let child = leg
+                .instrument
+                .as_ref()
+                .clone()
+                .into_boxed()
+                .expect("embedded child should materialize");
+            assert_eq!(
+                child
+                    .get_scenario_pricing_overrides()
+                    .and_then(|overrides| overrides.scenario_price_shock_pct),
+                None
+            );
+        }
+    }
 }

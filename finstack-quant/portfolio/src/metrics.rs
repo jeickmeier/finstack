@@ -23,18 +23,18 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::summation::neumaier_sum;
 use finstack_quant_core::money::fx::FxQuery;
-use finstack_quant_core::{HashMap, HashSet};
+use finstack_quant_core::HashMap;
+use finstack_quant_core::HashSet;
 use finstack_quant_valuations::metrics::MetricId;
 use indexmap::IndexMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::sync::LazyLock;
 
 /// Aggregated metric across the portfolio.
 ///
 /// Contains portfolio-wide totals as well as breakdowns by entity.
 ///
-/// # Spot and volatility Greeks are not portfolio-summable
+/// # Additive versus non-additive metrics
 ///
 /// Summing currency-denominated rate and credit sensitivities across
 /// positions is standard desk practice: `dv01`, `cs01`, `pv01` and their
@@ -43,15 +43,14 @@ use std::sync::LazyLock;
 /// hedge with (Tuckman & Serrat, *Fixed Income Securities*). `fx_delta` and
 /// `index_delta` are likewise currency-denominated and linear in size.
 ///
-/// Scalar `delta`, `gamma` and `vega` are **not** aggregated. Those labels
-/// mix unrelated underlyings and unrelated volatility surfaces — an equity
-/// delta and an FX delta, or vega against two different surfaces, would
-/// otherwise land in the same total with no hedging interpretation. They
-/// remain in [`PortfolioMetrics::by_position`] (native currency) and are
-/// listed on [`PortfolioMetrics::unaggregated_metrics`]. Prefer
-/// `fx_delta`, `index_delta`, and the per-bucket composite series (for
-/// example `bucketed_vega::<surface>::<bucket>` via
-/// [`PortfolioMetrics::metric_series`]).
+/// Linear scalar Greeks such as `delta`, `gamma`, and `vega` use the same
+/// additive policy as composite valuation after position scaling and FX
+/// conversion. Risk reports that need hedgeable factor totals should prefer
+/// qualified bucket keys (for example `bucketed_vega::<surface>::<bucket>`),
+/// which remain distinct through [`PortfolioMetrics::metric_series`].
+/// Instrument-specific measures such as yield and duration remain in
+/// [`PortfolioMetrics::by_position`] and are listed on
+/// [`PortfolioMetrics::unaggregated_metrics`].
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AggregatedMetric {
     /// Metric identifier
@@ -243,31 +242,6 @@ impl Default for PortfolioMetrics {
 /// portfolio-level meaning. Metrics that appear per position but are absent
 /// here are reported on
 /// [`PortfolioMetrics::unaggregated_metrics`] so the omission is visible.
-static SUMMABLE_SET: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
-    [
-        "theta",
-        "dv01",
-        "cs01",
-        "rho",
-        "pv01",
-        "ir01",
-        "hazard_cs01",
-        "index_delta",
-        "fx_delta",
-        "foreign_rho",
-        "bucketed_dv01",
-        "bucketed_cs01",
-        "bucketed_vega",
-        "accrued_interest",
-        "pv_fixed",
-        "pv_float",
-        "pv_primary",
-        "pv_reference",
-    ]
-    .into_iter()
-    .collect()
-});
-
 /// Check if a metric can be summed across positions.
 ///
 /// This treats both base IDs (e.g. `bucketed_dv01`) and structured
@@ -283,17 +257,7 @@ static SUMMABLE_SET: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
 /// `true` when the metric is safe to sum across positions after any required
 /// FX conversion.
 pub(crate) fn is_summable(metric_id: &str) -> bool {
-    if SUMMABLE_SET.contains(metric_id) {
-        return true;
-    }
-
-    // Handle composite keys produced by `MetricId::composite`, which uses the
-    // pattern `base::label[::sub_label...]`.
-    if let Some((base, _rest)) = metric_id.split_once("::") {
-        return SUMMABLE_SET.contains(base);
-    }
-
-    false
+    finstack_quant_valuations::metrics::is_additive_metric(&MetricId::custom(metric_id))
 }
 
 /// Aggregate metrics from portfolio valuation results.
@@ -633,9 +597,9 @@ mod tests {
         assert!(is_summable("cs01"));
         assert!(is_summable("fx_delta"));
         assert!(is_summable("index_delta"));
-        assert!(!is_summable("delta"));
-        assert!(!is_summable("gamma"));
-        assert!(!is_summable("vega"));
+        assert!(is_summable("delta"));
+        assert!(is_summable("gamma"));
+        assert!(is_summable("vega"));
         assert!(!is_summable("ytm"));
         assert!(!is_summable("duration"));
 

@@ -96,7 +96,7 @@ deserialize time. `InstrumentJson::into_boxed()` produces a
 The `with_instrument_json_registry!` macro is the single source of truth for the
 registry: the `InstrumentJson` enum definition, the deserialize tag map,
 `into_boxed`, `registry_tags`, and the schema-parity check are all generated
-from it. It currently lists 70 instrument types.
+from it. It currently lists 71 instrument types.
 
 ## Adding an instrument
 

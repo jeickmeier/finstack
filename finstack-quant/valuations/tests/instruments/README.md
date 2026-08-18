@@ -15,7 +15,7 @@ Everything here is compiled into one integration target,
 instruments/
 ├── common/                 # Shared fixtures, tolerances, parity helpers (see common/README.md)
 ├── <instrument>/           # 48 directories: one per instrument, plus exotic_harness/
-├── json_examples/          # 70 GENERATED canonical instrument fixtures (do not hand-edit)
+├── json_examples/          # 71 GENERATED canonical instrument fixtures (do not hand-edit)
 ├── coverage_manifest.toml  # registry tag -> fixture path -> persistence policy
 │
 ├── registry_coverage.rs    # Every registry tag has a manifest entry, fixture, schema, and strict round-trip

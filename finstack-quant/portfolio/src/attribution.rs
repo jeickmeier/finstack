@@ -17,8 +17,10 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::summation::NeumaierAccumulator;
 use finstack_quant_core::money::{fx::FxQuery, Money};
+use finstack_quant_valuations::instruments::{CompositeInstrument, Instrument, PricingOptions};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// Re-export attribution types appearing in this module's public API so direct
 /// portfolio consumers do not need a separate, version-sensitive dependency.
@@ -347,6 +349,216 @@ struct MethodOwnedAttributionRequest<'a> {
     method: &'a AttributionMethod,
 }
 
+fn attribute_composite_primitives(
+    composite: &CompositeInstrument,
+    market_t0: &MarketContext,
+    market_t1: &MarketContext,
+    as_of_t0: Date,
+    as_of_t1: Date,
+    config: &FinstackConfig,
+    method: &AttributionMethod,
+) -> Result<PnlAttribution> {
+    let reporting_currency = composite.spec.reporting_currency;
+    let mut aggregate = PnlAttribution::new(
+        Money::new(0.0, reporting_currency),
+        composite.id(),
+        as_of_t0,
+        as_of_t1,
+        method.clone(),
+    );
+    aggregate.mark_to_market_pnl = Some(Money::new(0.0, reporting_currency));
+    aggregate.residual = Money::new(0.0, reporting_currency);
+
+    for exposure in composite.flatten_primitives().map_err(Error::Core)? {
+        let definition = exposure.instrument_definition().ok_or_else(|| {
+            Error::valuation(
+                composite.id(),
+                format!(
+                    "primitive path '{}' lost its embedded definition",
+                    exposure.path.join("/")
+                ),
+            )
+        })?;
+        let instrument: Arc<dyn finstack_quant_valuations::instruments::Instrument> =
+            Arc::from(definition.clone().into_boxed().map_err(Error::Core)?);
+        let value_t0 = instrument.value(market_t0, as_of_t0).map_err(Error::Core)?;
+        let value_t1 = instrument.value(market_t1, as_of_t1).map_err(Error::Core)?;
+        let mut primitive = if matches!(method, AttributionMethod::MetricsBased) {
+            let metrics = default_attribution_metrics();
+            let options = PricingOptions::default().with_config(config);
+            let result_t0 = instrument
+                .price_with_metrics(market_t0, as_of_t0, &metrics, options.clone())
+                .map_err(Error::Core)?;
+            let result_t1 = instrument
+                .price_with_metrics(market_t1, as_of_t1, &metrics, options)
+                .map_err(Error::Core)?;
+            attribute_pnl_metrics_based(
+                &instrument,
+                market_t0,
+                market_t1,
+                &result_t0,
+                &result_t1,
+                as_of_t0,
+                as_of_t1,
+            )
+            .map_err(Error::Core)?
+        } else {
+            finstack_quant_attribution::__private::attribute_pnl_prepared(
+                &instrument,
+                market_t0,
+                market_t1,
+                as_of_t0,
+                as_of_t1,
+                config,
+                method,
+                ExecutionPolicy::Serial,
+                value_t0,
+                value_t1,
+            )
+            .map_err(Error::Core)?
+        };
+        primitive.scale(exposure.quantity);
+        translate_primitive_attribution(
+            &mut primitive,
+            value_t0.amount() * exposure.quantity,
+            market_t0,
+            market_t1,
+            as_of_t0,
+            as_of_t1,
+            reporting_currency,
+        )?;
+        add_primitive_attribution(&mut aggregate, primitive);
+    }
+
+    aggregate.meta.notes.push(
+        "Composite attribution is the reporting-currency sum of frozen primitive paths; detailed leaf reports remain available through primitive decomposition"
+            .to_string(),
+    );
+    aggregate.compute_residual().map_err(Error::Core)?;
+    Ok(aggregate)
+}
+
+fn translate_primitive_attribution(
+    attribution: &mut PnlAttribution,
+    opening_value: f64,
+    market_t0: &MarketContext,
+    market_t1: &MarketContext,
+    as_of_t0: Date,
+    as_of_t1: Date,
+    reporting_currency: Currency,
+) -> Result<()> {
+    let native_currency = attribution.total_pnl.currency();
+    let rate_t0 = crate::fx::convert_to_base(
+        Money::new(1.0, native_currency),
+        as_of_t0,
+        market_t0,
+        reporting_currency,
+    )?
+    .amount();
+    let rate_t1 = crate::fx::convert_to_base(
+        Money::new(1.0, native_currency),
+        as_of_t1,
+        market_t1,
+        reporting_currency,
+    )?
+    .amount();
+    let principal_translation = opening_value * (rate_t1 - rate_t0);
+    attribution.total_pnl = translated(attribution.total_pnl, rate_t1, reporting_currency);
+    attribution.total_pnl = Money::new(
+        attribution.total_pnl.amount() + principal_translation,
+        reporting_currency,
+    );
+    attribution.mark_to_market_pnl = attribution.mark_to_market_pnl.map(|value| {
+        Money::new(
+            value.amount() * rate_t1 + principal_translation,
+            reporting_currency,
+        )
+    });
+    attribution.carry = translated(attribution.carry, rate_t1, reporting_currency);
+    attribution.rates_curves_pnl =
+        translated(attribution.rates_curves_pnl, rate_t1, reporting_currency);
+    attribution.credit_curves_pnl =
+        translated(attribution.credit_curves_pnl, rate_t1, reporting_currency);
+    attribution.inflation_curves_pnl = translated(
+        attribution.inflation_curves_pnl,
+        rate_t1,
+        reporting_currency,
+    );
+    attribution.correlations_pnl =
+        translated(attribution.correlations_pnl, rate_t1, reporting_currency);
+    attribution.fx_pnl = translated(attribution.fx_pnl, rate_t1, reporting_currency);
+    attribution.vol_pnl = translated(attribution.vol_pnl, rate_t1, reporting_currency);
+    attribution.cross_factor_pnl =
+        translated(attribution.cross_factor_pnl, rate_t1, reporting_currency);
+    attribution.model_params_pnl =
+        translated(attribution.model_params_pnl, rate_t1, reporting_currency);
+    attribution.market_scalars_pnl =
+        translated(attribution.market_scalars_pnl, rate_t1, reporting_currency);
+    attribution.fx_translation_pnl = Money::new(
+        attribution.fx_translation_pnl.amount() * rate_t1 + principal_translation,
+        reporting_currency,
+    );
+    attribution.residual = translated(attribution.residual, rate_t1, reporting_currency);
+    attribution.carry_detail = None;
+    attribution.rates_detail = None;
+    attribution.credit_detail = None;
+    attribution.inflation_detail = None;
+    attribution.correlations_detail = None;
+    attribution.fx_detail = None;
+    attribution.vol_detail = None;
+    attribution.cross_factor_detail = None;
+    attribution.model_params_detail = None;
+    attribution.scalars_detail = None;
+    attribution.credit_factor_detail = None;
+    attribution.credit_carry_decomposition = None;
+    Ok(())
+}
+
+fn translated(value: Money, rate: f64, currency: Currency) -> Money {
+    Money::new(value.amount() * rate, currency)
+}
+
+fn add_money(target: &mut Money, source: Money) {
+    *target = Money::new(target.amount() + source.amount(), target.currency());
+}
+
+fn add_primitive_attribution(aggregate: &mut PnlAttribution, primitive: PnlAttribution) {
+    add_money(&mut aggregate.total_pnl, primitive.total_pnl);
+    match (
+        aggregate.mark_to_market_pnl.as_mut(),
+        primitive.mark_to_market_pnl,
+    ) {
+        (Some(target), Some(source)) => add_money(target, source),
+        _ => aggregate.mark_to_market_pnl = None,
+    }
+    add_money(&mut aggregate.carry, primitive.carry);
+    add_money(&mut aggregate.rates_curves_pnl, primitive.rates_curves_pnl);
+    add_money(
+        &mut aggregate.credit_curves_pnl,
+        primitive.credit_curves_pnl,
+    );
+    add_money(
+        &mut aggregate.inflation_curves_pnl,
+        primitive.inflation_curves_pnl,
+    );
+    add_money(&mut aggregate.correlations_pnl, primitive.correlations_pnl);
+    add_money(&mut aggregate.fx_pnl, primitive.fx_pnl);
+    add_money(&mut aggregate.vol_pnl, primitive.vol_pnl);
+    add_money(&mut aggregate.cross_factor_pnl, primitive.cross_factor_pnl);
+    add_money(&mut aggregate.model_params_pnl, primitive.model_params_pnl);
+    add_money(
+        &mut aggregate.market_scalars_pnl,
+        primitive.market_scalars_pnl,
+    );
+    add_money(
+        &mut aggregate.fx_translation_pnl,
+        primitive.fx_translation_pnl,
+    );
+    aggregate.result_invalid |= primitive.result_invalid;
+    aggregate.meta.num_repricings += primitive.meta.num_repricings;
+    aggregate.meta.notes.extend(primitive.meta.notes);
+}
+
 /// Exact canonical evaluation profile required by an attribution method.
 pub(crate) fn attribution_endpoint_profile(method: &AttributionMethod) -> EvaluationProfile {
     if matches!(method, AttributionMethod::MetricsBased) {
@@ -372,6 +584,28 @@ fn attribute_single_position_method_owned(
     val_t0: Money,
     val_t1: Money,
 ) -> Result<PositionAttributionData> {
+    if let Some(composite) = position
+        .instrument
+        .as_any()
+        .downcast_ref::<CompositeInstrument>()
+    {
+        let mut pos_attr = attribute_composite_primitives(
+            composite,
+            request.market_t0,
+            request.market_t1,
+            request.as_of_t0,
+            request.as_of_t1,
+            request.config,
+            request.method,
+        )?;
+        pos_attr.scale(position.scale_factor());
+        return Ok(PositionAttributionData {
+            position_id: position.position_id.clone(),
+            pos_attr,
+            val_t0_native,
+            inst_currency: composite.spec.reporting_currency,
+        });
+    }
     let mut pos_attr = finstack_quant_attribution::__private::attribute_pnl_prepared(
         &position.instrument,
         request.market_t0,
@@ -506,13 +740,14 @@ fn prepared_valuation_result<'a>(
 /// already-scaled `PositionValue`.
 pub(crate) fn reduce_metrics_based_prepared(
     portfolio: &Portfolio,
-    market_t0: &MarketContext,
-    market_t1: &MarketContext,
-    as_of_t0: Date,
-    as_of_t1: Date,
+    markets: (&MarketContext, &MarketContext),
+    dates: (Date, Date),
+    config: &FinstackConfig,
     prepared_t0: &PortfolioValuation,
     prepared_t1: &PortfolioValuation,
 ) -> Result<PortfolioAttribution> {
+    let (market_t0, market_t1) = markets;
+    let (as_of_t0, as_of_t1) = dates;
     if prepared_t0.as_of != as_of_t0 {
         return Err(Error::invalid_input(format!(
             "prepared attribution T0 portfolio valuation is stamped {} instead of {as_of_t0}",
@@ -547,19 +782,35 @@ pub(crate) fn reduce_metrics_based_prepared(
 
         let val_t0 = prepared_valuation_result(position, position_t0, as_of_t0, "T0", true)?;
         let val_t1 = prepared_valuation_result(position, position_t1, as_of_t1, "T1", true)?;
-        let mut pos_attr = attribute_pnl_metrics_based(
-            &position.instrument,
-            market_t0,
-            market_t1,
-            val_t0,
-            val_t1,
-            as_of_t0,
-            as_of_t1,
-        )
-        .map_err(|error| Error::ValuationError {
-            position_id: position.position_id.clone(),
-            message: format!("Attribution failed: {error}"),
-        })?;
+        let mut pos_attr = if let Some(composite) = position
+            .instrument
+            .as_any()
+            .downcast_ref::<CompositeInstrument>()
+        {
+            attribute_composite_primitives(
+                composite,
+                market_t0,
+                market_t1,
+                as_of_t0,
+                as_of_t1,
+                config,
+                &AttributionMethod::MetricsBased,
+            )?
+        } else {
+            attribute_pnl_metrics_based(
+                &position.instrument,
+                market_t0,
+                market_t1,
+                val_t0,
+                val_t1,
+                as_of_t0,
+                as_of_t1,
+            )
+            .map_err(|error| Error::ValuationError {
+                position_id: position.position_id.clone(),
+                message: format!("Attribution failed: {error}"),
+            })?
+        };
 
         pos_attr.scale(position.scale_factor());
         let inst_currency = pos_attr.total_pnl.currency();
@@ -772,10 +1023,9 @@ fn attribute_portfolio_pnl_metrics_prepared(
 
     reduce_metrics_based_prepared(
         portfolio,
-        market_t0,
-        market_t1,
-        as_of_t0,
-        as_of_t1,
+        (market_t0, market_t1),
+        (as_of_t0, as_of_t1),
+        config,
         prepared_t0.as_ref(),
         prepared_t1.as_ref(),
     )
@@ -1000,6 +1250,12 @@ impl PortfolioAttribution {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::position::{Position, PositionUnit};
+    use crate::types::Entity;
+    use finstack_quant_core::market_data::scalars::MarketScalar;
+    use finstack_quant_valuations::instruments::composite::{
+        CompositeLegSpec, CompositeSpec, RebalanceRule, WeightingMethod,
+    };
     use finstack_quant_valuations::instruments::{Attributes, Instrument, PricingOptions};
     use finstack_quant_valuations::metrics::MetricId;
     use finstack_quant_valuations::pricer::InstrumentType;
@@ -1010,6 +1266,85 @@ mod tests {
         Arc,
     };
     use time::macros::date;
+
+    #[test]
+    fn composite_attribution_reconciles_to_frozen_primitive_pnl() -> Result<()> {
+        let spec = CompositeSpec::new(
+            "A-B",
+            Currency::USD,
+            Money::new(100.0, Currency::USD),
+            vec![
+                CompositeLegSpec::new(
+                    "A",
+                    finstack_quant_valuations::instruments::InstrumentJson::Equity(
+                        finstack_quant_valuations::instruments::Equity::new(
+                            "A",
+                            "A",
+                            Currency::USD,
+                        ),
+                    ),
+                    1.0,
+                ),
+                CompositeLegSpec::new(
+                    "B",
+                    finstack_quant_valuations::instruments::InstrumentJson::Equity(
+                        finstack_quant_valuations::instruments::Equity::new(
+                            "B",
+                            "B",
+                            Currency::USD,
+                        ),
+                    ),
+                    -1.0,
+                ),
+            ],
+            WeightingMethod::FixedQuantity,
+            RebalanceRule::Manual,
+        );
+        let composite = spec.initialize_fixed(date!(2025 - 01 - 01))?.instrument;
+        let position = Position::new(
+            "P-COMPOSITE",
+            "ENTITY",
+            "A-B",
+            Arc::new(composite),
+            2.0,
+            PositionUnit::Units,
+        )?;
+        let portfolio = Portfolio::builder("PORTFOLIO")
+            .base_currency(Currency::USD)
+            .as_of(date!(2025 - 01 - 01))
+            .entity(Entity::new("ENTITY"))
+            .position(position)
+            .build()?;
+        let market_t0 = MarketContext::new()
+            .insert_price("A", MarketScalar::Unitless(100.0))
+            .insert_price("B", MarketScalar::Unitless(90.0));
+        let market_t1 = MarketContext::new()
+            .insert_price("A", MarketScalar::Unitless(110.0))
+            .insert_price("B", MarketScalar::Unitless(95.0));
+
+        let attribution = attribute_portfolio_pnl(
+            &portfolio,
+            &market_t0,
+            &market_t1,
+            date!(2025 - 01 - 01),
+            date!(2025 - 01 - 02),
+            &FinstackConfig::default(),
+            AttributionMethod::Parallel,
+        )?;
+        assert_eq!(attribution.total_pnl.amount(), 10.0);
+        assert!(attribution.reconciliation_check(1.0e-9).is_reconciled);
+        let position = attribution
+            .by_position
+            .get("P-COMPOSITE")
+            .ok_or_else(|| Error::validation("missing composite attribution"))?;
+        assert_eq!(position.total_pnl.amount(), 10.0);
+        assert!(position
+            .meta
+            .notes
+            .iter()
+            .any(|note| note.contains("frozen primitive")));
+        Ok(())
+    }
 
     #[derive(Clone)]
     struct ConfigRequiredInstrument {

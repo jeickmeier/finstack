@@ -20671,14 +20671,14 @@
       ],
       "type": "object"
     },
-    "basket": {
+    "composite": {
       "additionalProperties": false,
       "properties": {
         "spec": {
-          "$ref": "#/$defs/Basket"
+          "$ref": "#/$defs/CompositeInstrument"
         },
         "type": {
-          "const": "basket",
+          "const": "composite",
           "type": "string"
         }
       },
@@ -20689,7 +20689,7 @@
       "type": "object"
     }
   },
-  "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/basket.schema.json",
+  "$id": "https://finstack_quant.dev/schemas/instrument/1/composite/composite.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Canonical single-instrument v1 envelope generated from its serde type.",
@@ -20697,56 +20697,84 @@
     {
       "instrument": {
         "spec": {
-          "attributes": {},
-          "constituents": [
-            {
-              "id": "EQ-AAPL",
-              "reference": {
-                "kind": "market_data",
-                "value": {
-                  "asset_type": "equity",
-                  "price_id": "AAPL-SPOT"
-                }
-              },
-              "ticker": "AAPL",
-              "units": null,
-              "weight": 0.6
+          "spec": {
+            "attributes": {},
+            "capital": {
+              "amount": "100",
+              "currency": "USD"
             },
-            {
-              "id": "BOND-UST10",
-              "reference": {
-                "kind": "market_data",
-                "value": {
-                  "asset_type": "bond",
-                  "price_id": "UST10Y-PRICE"
-                }
+            "id": "COMPOSITE-EXAMPLE",
+            "legs": [
+              {
+                "instrument": {
+                  "spec": {
+                    "attributes": {},
+                    "currency": "USD",
+                    "discount_curve_id": "USD",
+                    "discrete_dividends": [],
+                    "div_yield_id": null,
+                    "id": "COMPOSITE-LONG",
+                    "price_id": null,
+                    "price_quote": 100.0,
+                    "shares": 1.0,
+                    "ticker": "LONG"
+                  },
+                  "type": "equity"
+                },
+                "instrument_id": "COMPOSITE-LONG",
+                "weight": 1.0
               },
-              "ticker": "UST10Y",
-              "units": null,
-              "weight": 0.4
+              {
+                "instrument": {
+                  "spec": {
+                    "attributes": {},
+                    "currency": "USD",
+                    "discount_curve_id": "USD",
+                    "discrete_dividends": [],
+                    "div_yield_id": null,
+                    "id": "COMPOSITE-SHORT",
+                    "price_id": null,
+                    "price_quote": 90.0,
+                    "shares": 1.0,
+                    "ticker": "SHORT"
+                  },
+                  "type": "equity"
+                },
+                "instrument_id": "COMPOSITE-SHORT",
+                "weight": -1.0
+              }
+            ],
+            "rebalance_rule": {
+              "kind": "manual"
+            },
+            "reporting_currency": "USD",
+            "weighting_method": {
+              "kind": "fixed_quantity"
             }
-          ],
-          "currency": "USD",
-          "discount_curve_id": "USD-OIS",
-          "expense_ratio": 0.0025,
-          "id": "BASKET-60-40",
-          "notional": {
-            "amount": "1000000",
-            "currency": "USD"
           },
-          "pricing_config": {
-            "days_in_year": 365.25,
-            "fx_policy": "cashflow_date"
+          "state": {
+            "effective_date": "2025-01-01",
+            "resolved_legs": [
+              {
+                "instrument_id": "COMPOSITE-LONG",
+                "quantity": 1.0
+              },
+              {
+                "instrument_id": "COMPOSITE-SHORT",
+                "quantity": -1.0
+              }
+            ],
+            "weighting_inputs": {}
           }
         },
-        "type": "basket"
+        "type": "composite"
       },
       "schema": "finstack_quant.instrument/1"
     }
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/basket"
+      "$ref": "#/$defs/composite"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"
@@ -20756,6 +20784,6 @@
     "schema",
     "instrument"
   ],
-  "title": "basket",
+  "title": "composite",
   "type": "object"
 }

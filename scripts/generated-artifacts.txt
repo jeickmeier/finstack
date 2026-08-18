@@ -95,6 +95,7 @@ finstack-quant/valuations/tests/instruments/json_examples/commodity_option.json
 finstack-quant/valuations/tests/instruments/json_examples/commodity_spread_option.json
 finstack-quant/valuations/tests/instruments/json_examples/commodity_swap.json
 finstack-quant/valuations/tests/instruments/json_examples/commodity_swaption.json
+finstack-quant/valuations/tests/instruments/json_examples/composite.json
 finstack-quant/valuations/tests/instruments/json_examples/convertible_bond.json
 finstack-quant/valuations/tests/instruments/json_examples/credit_default_swap.json
 finstack-quant/valuations/tests/instruments/json_examples/deposit.json

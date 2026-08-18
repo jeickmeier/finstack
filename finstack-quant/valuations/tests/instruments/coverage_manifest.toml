@@ -595,3 +595,12 @@ partial_eq_blocker = "DiscountedCashFlow.terminal_value: TerminalValueSpec"
 required_keys = ["id"]
 no_market_dependencies = true
 rationale = "DiscountedCashFlow.terminal_value: TerminalValueSpec lacks PartialEq across perpetuity-growth and exit-multiple variants. DCF also discounts at its own WACC (rate sensitivity bumps the risk-free component inside the WACC), so it loads no market curve."
+
+[[instrument]]
+tag = "composite"
+fixture = "json_examples/composite.json"
+lossless = false
+partial_eq_blocker = "CompositeSpec.legs: Vec<CompositeLegSpec>"
+required_keys = ["spec", "state"]
+no_market_dependencies = false
+rationale = "CompositeSpec.legs: Vec<CompositeLegSpec> lacks PartialEq because its embedded InstrumentJson definitions do not share a complete equality contract."

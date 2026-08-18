@@ -10,6 +10,12 @@ use super::{register_generic, InstrumentType, ModelKey, PricerRegistry};
 pub(crate) fn register_exotic_pricers(registry: &mut PricerRegistry) {
     register_generic!(
         registry,
+        InstrumentType::Composite,
+        crate::instruments::CompositeInstrument
+    );
+
+    register_generic!(
+        registry,
         InstrumentType::Basket,
         crate::instruments::exotics::basket::Basket
     );

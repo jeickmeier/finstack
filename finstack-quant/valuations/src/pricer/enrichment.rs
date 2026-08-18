@@ -47,6 +47,28 @@ pub(super) fn enrich(
     let err_ctx = PricingErrorContext::from_instrument(instrument).model(model);
     let metric_registry = pricer_registry.metric_registry_override();
 
+    if let Some(composite) = instrument
+        .as_any()
+        .downcast_ref::<crate::instruments::CompositeInstrument>()
+    {
+        let options = crate::instruments::PricingOptions {
+            config: cfg,
+            market_history,
+            model: None,
+            registry: Some(Arc::clone(&pricer_registry)),
+            hazard_recalibration_cache,
+            rate_recalibration_cache,
+        };
+        let (metric_measures, details) = composite
+            .valuation_details_with_metrics(market.as_ref(), as_of, metrics, options)
+            .map_err(|error| {
+                PricingError::model_failure_with_context(error.to_string(), err_ctx.clone())
+            })?;
+        base_result.details = Some(crate::results::ValuationDetails::Composite(details));
+        attach_metric_measures(&mut base_result, metric_measures);
+        return Ok(base_result);
+    }
+
     if model == ModelKey::Discounting || !instrument.has_custom_metrics_equivalent() {
         let metric_measures = compute_metrics_dyn(
             Arc::from(instrument.clone_box()),

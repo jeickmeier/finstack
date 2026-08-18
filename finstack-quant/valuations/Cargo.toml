@@ -179,6 +179,10 @@ name = "fx_exotics_pricing"
 harness = false
 
 [[bench]]
+name = "composite_pricing"
+harness = false
+
+[[bench]]
 name = "xccy_pricing"
 harness = false
 

@@ -174,6 +174,8 @@ pub use position::Position;
 
 /// Commodity derivatives.
 pub mod commodity;
+/// Generic cross-asset composite and synthetic instruments.
+pub mod composite;
 /// Credit derivatives: CDS and related instruments.
 pub mod credit_derivatives;
 /// Equity instruments and equity derivatives.
@@ -220,6 +222,13 @@ pub use fx::{FxBarrierOption, FxForward, FxOption, FxSpot, FxSwap, Ndf, QuantoOp
 pub use commodity::{
     CommodityAsianOption, CommodityForward, CommodityOption, CommoditySpreadOption, CommoditySwap,
     CommoditySwaption,
+};
+
+pub use composite::{
+    CompositeExposureReport, CompositeHistoryEngine, CompositeHistoryRow, CompositeInstrument,
+    CompositeLegSpec, CompositeMarketObservation, CompositeRebalanceResult, CompositeSpec,
+    CompositeState, CompositeTrade, CompositeValuationDetails, PrimitiveAggregate,
+    PrimitiveExposure, RebalanceFrequency, RebalanceRule, ResolvedCompositeLeg, WeightingMethod,
 };
 
 pub use exotics::{

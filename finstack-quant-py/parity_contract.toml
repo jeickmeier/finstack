@@ -728,6 +728,7 @@ status = "exists"
 instruments  = { python = "finstack_quant.valuations.instruments",  status = "exists", note = "Instrument JSON validation and pricing helpers live under finstack_quant.valuations.instruments" }
 models       = { python = "finstack_quant.valuations.models",       status = "exists", note = "Pricing model wrappers; structural credit lives under finstack_quant.valuations.models.credit" }
 calibration  = { python = "finstack_quant.valuations",              status = "flattened", note = "calibrate, dry_run, validate_calibration_json, dependency_graph_json exported from finstack_quant.valuations root" }
+composite    = { python = "finstack_quant.valuations.composite",    status = "exists", note = "Resolved generic composite instruments, primitive exposure reports, explicit rebalancing, and dated history." }
 correlation  = { python = "finstack_quant.valuations.correlation",  status = "exists", note = "Former standalone finstack-correlation crate; nested under valuations" }
 credit_derivatives = { python = "finstack_quant.valuations.credit_derivatives", status = "exists", note = "CDS-family example-payload factories; mirrors WASM valuations.creditDerivatives" }
 schema       = { python = "finstack_quant.valuations.schema",       status = "exists", note = "Compiled-in JSON Schema accessors and envelope/type validators; no WASM twin" }
@@ -785,6 +786,21 @@ public = [
     "validate_calibration_json",
     "vanilla_expiry_payoff",
     "vg_cos_price",
+]
+
+[crates.valuations.composite]
+python_package = "finstack_quant.valuations.composite"
+public = [
+    "CompositeExposureReport",
+    "CompositeHistoryEngine",
+    "CompositeHistoryResult",
+    "CompositeInstrument",
+    "CompositeLegSpec",
+    "CompositeRebalanceResult",
+    "CompositeSpec",
+    "CompositeState",
+    "RebalanceRule",
+    "WeightingMethod",
 ]
 
 # Symbol-level pinning for finstack_quant.valuations.schema. Names mirror the
@@ -2504,7 +2520,7 @@ rust_module_root = "../finstack-quant-wasm/src/api/valuations/"
 js_export_file   = "../finstack-quant-wasm/exports/valuations.js"
 
 # Nested facade keys on `valuations` (camelCase).
-nested = ["correlation", "credit", "creditDerivatives", "fx", "instruments"]
+nested = ["composite", "correlation", "credit", "creditDerivatives", "fx", "instruments"]
 
 # Root-level `valuations.<name>` exports (camelCase / PascalCase as in JS).
 # Instrument pricing helpers live under `valuations.instruments`.
@@ -2623,6 +2639,14 @@ instruments = ["fx"]
 # subsets; Python uses the consolidated JSON-first instrument API instead of
 # mirroring the WASM host wrappers class-for-class.
 [wasm_valuations_subset.nested_exports]
+composite = [
+    "executionTrades",
+    "history",
+    "historyFromSpec",
+    "initialize",
+    "primitiveExposures",
+    "rebalance",
+]
 # Known kind mismatch: `trancheLossStatistics` is a free FUNCTION on the WASM
 # facade, while Python's `TrancheLossStatistics` is a result CLASS (pinned in
 # [crates.valuations.correlation]). The WASM function returns the same

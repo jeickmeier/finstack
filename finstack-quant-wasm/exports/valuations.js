@@ -1,5 +1,6 @@
 import * as wasm from '../pkg/finstack_quant_wasm.js';
 import { correlation } from './valuations/correlation.js';
+import { composite } from './valuations/composite.js';
 import { credit } from './valuations/credit.js';
 import { creditDerivatives } from './valuations/creditDerivatives.js';
 import { fx } from './valuations/fx.js';
@@ -7,6 +8,7 @@ import { instruments } from './valuations/instruments.js';
 
 export const valuations = {
   correlation,
+  composite,
   credit,
   creditDerivatives,
   fx,

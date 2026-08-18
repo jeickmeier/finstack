@@ -208,6 +208,8 @@ pub mod performance;
 pub mod portfolio;
 /// Position primitives and units.
 pub mod position;
+/// Primitive exposure and overlapping-concentration reports.
+pub mod primitive;
 pub mod schema;
 
 /// Embedded portfolio defaults registries.
@@ -294,6 +296,10 @@ pub use performance::{
 };
 pub use portfolio::PortfolioSpec;
 pub use position::{Position, PositionUnit};
+pub use primitive::{
+    primitive_exposure_report, PortfolioPrimitiveAggregate, PortfolioPrimitiveExposureReport,
+    PortfolioPrimitivePath,
+};
 pub use results::PortfolioResult;
 pub use valuation::{
     revalue_affected, value_portfolio, PortfolioValuation, PortfolioValuationOptions,

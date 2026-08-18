@@ -7048,6 +7048,272 @@ export interface CreditDerivativesNamespace {
 }
 
 /**
+ * JSON object or pre-serialized JSON accepted by composite façade methods.
+ */
+export type CompositeJsonInput = Record<string, unknown> | string;
+
+/**
+ * Primitive execution delta emitted by composite initialization or rebalance.
+ */
+export interface CompositeTrade {
+  /**
+   * Primitive instrument identifier.
+   */
+  instrument_id: string;
+  /**
+   * Canonical primitive instrument discriminator.
+   */
+  instrument_type: string;
+  /**
+   * Signed primitive quantity change.
+   */
+  quantity_delta: number;
+}
+
+/**
+ * Canonical resolved composite envelope plus primitive trade deltas.
+ */
+export interface CompositeRebalanceResult {
+  /**
+   * Canonical `finstack_quant.instrument/1` envelope accepted by `priceInstrument`.
+   */
+  instrument: Record<string, unknown>;
+  /**
+   * Net primitive quantity deltas required to establish the returned state.
+   */
+  trades: CompositeTrade[];
+}
+
+/**
+ * One primitive exposure path in a resolved composite.
+ */
+export interface CompositePrimitivePath {
+  /**
+   * Composite/leg identifiers from root to primitive.
+   */
+  path: string[];
+  /**
+   * Primitive instrument identifier.
+   */
+  instrument_id: string;
+  /**
+   * Canonical primitive instrument discriminator.
+   */
+  instrument_type: string;
+  /**
+   * Signed frozen primitive quantity.
+   */
+  quantity: number;
+  /**
+   * Signed value in composite reporting currency.
+   */
+  value: MoneyValue;
+  /**
+   * Additive risk amounts keyed by canonical metric identifier.
+   */
+  measures: Record<string, number>;
+}
+
+/**
+ * Net and gross concentration for one primitive identifier.
+ */
+export interface CompositePrimitiveAggregate {
+  /**
+   * Primitive instrument identifier.
+   */
+  instrument_id: string;
+  /**
+   * Canonical primitive instrument discriminator.
+   */
+  instrument_type: string;
+  /**
+   * Algebraic primitive quantity across paths.
+   */
+  net_quantity: number;
+  /**
+   * Sum of absolute path quantities.
+   */
+  gross_quantity: number;
+  /**
+   * Algebraic value in composite reporting currency.
+   */
+  net_value: MoneyValue;
+  /**
+   * Sum of absolute path values.
+   */
+  gross_value: MoneyValue;
+  /**
+   * Algebraic additive risk by metric.
+   */
+  net_measures: Record<string, number>;
+  /**
+   * Sum of absolute additive risk by metric.
+   */
+  gross_measures: Record<string, number>;
+}
+
+/**
+ * Recursive primitive exposure report for one resolved composite.
+ */
+export interface CompositeExposureReport {
+  /**
+   * ISO reporting-currency code.
+   */
+  reporting_currency: string;
+  /**
+   * Path-level primitive exposures before overlap netting.
+   */
+  paths: CompositePrimitivePath[];
+  /**
+   * Net and gross aggregates ordered by primitive identifier.
+   */
+  aggregates: CompositePrimitiveAggregate[];
+}
+
+/**
+ * One dated composite total-return and rebalance observation.
+ */
+export interface CompositeHistoryRow {
+  /**
+   * ISO-8601 observation date.
+   */
+  date: string;
+  /**
+   * Pre-rebalance close value.
+   */
+  value: MoneyValue;
+  /**
+   * Signed underlying cashflows received during the interval.
+   */
+  cashflows: MoneyValue;
+  /**
+   * Total-return P&L before external rebalance financing.
+   */
+  pnl: MoneyValue;
+  /**
+   * Interval P&L divided by explicit composite capital.
+   */
+  period_return: number;
+  /**
+   * Chained return index starting at 100.
+   */
+  return_index: number;
+  /**
+   * Effective date of quantities held over the interval.
+   */
+  held_state_effective_date: string;
+  /**
+   * New close-effective state date, when a rebalance occurred.
+   */
+  next_state_effective_date?: string | null;
+  /**
+   * Primitive exposures under the held state.
+   */
+  exposures: CompositeExposureReport;
+  /**
+   * Primitive close-of-period rebalance trades.
+   */
+  rebalance_trades: CompositeTrade[];
+}
+
+/**
+ * Composite-instrument construction, decomposition, execution, and history.
+ * @example
+ * ```typescript
+ * import init, { valuations } from "finstack-quant-wasm";
+ * await init();
+ * const fixed = { kind: "fixed_quantity" };
+ * console.log(fixed.kind, typeof valuations.composite.initialize);
+ * ```
+ */
+export interface CompositeNamespace {
+  /**
+   * Resolve a bare specification into an immutable priceable envelope.
+   * @param spec - Bare canonical `CompositeSpec` object or JSON string.
+   * @param market - Complete market-context object or JSON string at `asOf`.
+   * @param asOf - ISO-8601 state effective date.
+   * @param history - Optional chronological market-observation array or JSON.
+   * @returns Canonical resolved envelope plus primitive establishment trades.
+   * @throws Error - Throws when JSON, dates, specifications, market inputs, history, metrics, notionals, or resolved quantities are invalid.
+   */
+  initialize(
+    spec: CompositeJsonInput,
+    market: CompositeJsonInput,
+    asOf: string,
+    history?: Record<string, unknown>[] | string
+  ): CompositeRebalanceResult;
+  /**
+   * Explicitly resolve a distinct state without mutating prior quantities.
+   * @param instrument - Canonical resolved composite envelope object or JSON.
+   * @param market - Complete rebalance-date market-context object or JSON.
+   * @param asOf - ISO-8601 effective date for the new state.
+   * @param history - Optional chronological market-observation array or JSON.
+   * @returns New canonical envelope plus net primitive quantity deltas.
+   * @throws Error - Throws for malformed inputs, invalid history, missing market data, or quantity-resolution failures.
+   */
+  rebalance(
+    instrument: CompositeJsonInput,
+    market: CompositeJsonInput,
+    asOf: string,
+    history?: Record<string, unknown>[] | string
+  ): CompositeRebalanceResult;
+  /**
+   * Price frozen primitive paths and aggregate net/gross value and risk.
+   * @param instrument - Canonical resolved composite envelope object or JSON.
+   * @param market - Complete valuation and FX context object or JSON.
+   * @param asOf - ISO-8601 valuation date.
+   * @param metrics - Optional additive metric identifiers.
+   * @returns Path-level primitive exposures and net/gross aggregates.
+   * @throws Error - Throws for non-additive metrics, invalid state, missing market data, FX failures, or primitive pricing failures.
+   */
+  primitiveExposures(
+    instrument: CompositeJsonInput,
+    market: CompositeJsonInput,
+    asOf: string,
+    metrics?: string[]
+  ): CompositeExposureReport;
+  /**
+   * Flatten target holdings or a transition into executable primitive deltas.
+   * @param instrument - Canonical target resolved composite envelope.
+   * @param previous - Optional prior resolved envelope; omit for establishment trades.
+   * @returns Net primitive quantity-delta array.
+   * @throws Error - Throws for malformed envelopes, invalid frozen states, or conflicting primitive definitions.
+   */
+  executionTrades(
+    instrument: CompositeJsonInput,
+    previous?: CompositeJsonInput
+  ): CompositeTrade[];
+  /**
+   * Initialize on the first supplied snapshot and calculate dated history.
+   * @param spec - Bare canonical `CompositeSpec` object or JSON string.
+   * @param observations - Strictly increasing complete observation array or JSON.
+   * @param warmup - Optional complete observations strictly before the output period.
+   * @param metrics - Optional additive primitive metrics reported on every row.
+   * @returns Chronological value, cashflow, P&L, return, index, exposure, state, and trade rows.
+   * @throws Error - Throws for empty, duplicate, unordered, or overlapping observations and any initialization, pricing, FX, or rebalance failure.
+   */
+  historyFromSpec(
+    spec: CompositeJsonInput,
+    observations: Record<string, unknown>[] | string,
+    warmup?: Record<string, unknown>[] | string,
+    metrics?: string[]
+  ): CompositeHistoryRow[];
+  /**
+   * Calculate dated history from an already-resolved initial state.
+   * @param instrument - Canonical resolved composite envelope object or JSON.
+   * @param observations - Strictly increasing complete observation array or JSON.
+   * @param metrics - Optional additive primitive metrics reported on every row.
+   * @returns Chronological composite history rows.
+   * @throws Error - Throws for invalid states or observations, missing inputs, or valuation and rebalance failures.
+   */
+  history(
+    instrument: CompositeJsonInput,
+    observations: Record<string, unknown>[] | string,
+    metrics?: string[]
+  ): CompositeHistoryRow[];
+}
+
+/**
  * Namespaced TypeScript entry points for valuations calculations and types.
  * @example
  * ```typescript
@@ -7057,6 +7323,10 @@ export interface CreditDerivativesNamespace {
  * ```
  */
 export interface ValuationsNamespace {
+  /**
+   * Generic cross-asset composite instruments and primitive exposure reporting.
+   */
+  composite: CompositeNamespace;
   /**
    * Copula/correlation toolkit for credit portfolio modelling: copula and
    * recovery specs, correlation-matrix helpers, and portfolio-loss

@@ -1,8 +1,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const ALLOWED: &[&str] =
-    &["src/instruments/fixed_income/structured_credit/pricing/stochastic/default/spec.rs"];
+const ALLOWED: &[&str] = &[
+    "src/instruments/composite/types.rs",
+    "src/instruments/fixed_income/structured_credit/pricing/stochastic/default/spec.rs",
+];
 
 fn rust_sources(root: &Path, files: &mut Vec<PathBuf>) {
     for entry in fs::read_dir(root).expect("instrument source directory is readable") {
@@ -44,9 +46,13 @@ fn serde_skip_is_limited_to_documented_derived_artifacts() {
         unexpected.is_empty(),
         "undocumented #[serde(skip)] fields: {unexpected:?}"
     );
+    allowed_hits.sort();
     assert_eq!(
         allowed_hits,
-        [(ALLOWED[0].to_owned(), 1)],
-        "the allowlist must identify exactly one documented derived-artifact skip"
+        ALLOWED
+            .iter()
+            .map(|path| ((*path).to_owned(), 1))
+            .collect::<Vec<_>>(),
+        "the allowlist must identify only documented derived-artifact skips"
     );
 }

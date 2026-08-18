@@ -97,6 +97,7 @@ pub(crate) fn instrument_summary(tag: &str) -> &'static str {
         "commodity_spread_option" => "Option on the spread between two commodity legs.",
         "commodity_swap" => "Fixed-versus-floating commodity swap on an average price.",
         "commodity_swaption" => "Option to enter a commodity swap.",
+        "composite" => "Resolved cross-asset synthetic instrument with immutable leg quantities.",
         "convertible_bond" => "Corporate bond convertible into a fixed number of shares.",
         "credit_default_swap" => "Single-name CDS priced on the ISDA standard model.",
         "deposit" => "Money-market deposit quoted as a simple rate.",
@@ -227,6 +228,7 @@ macro_rules! with_instrument_json_registry {
             boxed: BondFuture(BondFuture) => "bond_future" @ "fixed_income" = BondFuture::example();
             boxed: StructuredCredit(StructuredCredit) => "structured_credit" @ "fixed_income" = infallible_example(StructuredCredit::example());
             boxed: LeveredRealEstateEquity(crate::instruments::equity::real_estate::LeveredRealEstateEquity) => "levered_real_estate_equity" @ "equity" = crate::instruments::equity::real_estate::LeveredRealEstateEquity::example();
+            boxed: Composite(CompositeInstrument) => "composite" @ "composite" = CompositeInstrument::example();
         }
     };
 }

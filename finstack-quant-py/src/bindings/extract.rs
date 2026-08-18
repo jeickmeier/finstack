@@ -16,6 +16,7 @@ use crate::bindings::core::market_data::context::PyMarketContext;
 use crate::bindings::portfolio::types::{PyPortfolio, PyPortfolioResult, PyPortfolioValuation};
 use crate::bindings::statements::evaluator::PyStatementResult;
 use crate::bindings::statements::types::PyFinancialModelSpec;
+use crate::bindings::valuations::composite::PyCompositeInstrument;
 use crate::bindings::valuations::instruments::{PyBond, PyTermLoan};
 use crate::bindings::valuations::typed_credit::{
     PyCDSIndex, PyCDSTranche, PyConvertibleBond, PyCreditDefaultSwap,
@@ -48,8 +49,12 @@ use crate::errors::{display_to_py as to_py, portfolio_to_py};
 ///
 /// Currently wired: `Bond`, `TermLoan`, `InterestRateSwap`, `Swaption`,
 /// `CapFloor`, `CreditDefaultSwap`, `CDSIndex`, `FxForward`, `FxOption`,
-/// `CDSTranche`, `ConvertibleBond`, `EquityOption`, `StructuredCredit`.
+/// `CDSTranche`, `ConvertibleBond`, `EquityOption`, `StructuredCredit`,
+/// `CompositeInstrument`.
 pub fn extract_instrument_json(obj: &Bound<'_, PyAny>) -> PyResult<String> {
+    if let Ok(composite) = obj.cast::<PyCompositeInstrument>() {
+        return composite.borrow().envelope_json();
+    }
     if let Ok(bond) = obj.cast::<PyBond>() {
         return bond.borrow().envelope_json();
     }

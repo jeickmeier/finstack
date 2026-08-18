@@ -26,7 +26,7 @@ use core::hash::{Hash, Hasher};
 ///
 /// Deserialization is strict (`deny_unknown_fields`): unknown fields on
 /// inbound payloads are rejected rather than silently ignored.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Expr {
     /// Unique identifier for this expression node (for DAG planning).
@@ -39,7 +39,7 @@ pub struct Expr {
 ///
 /// Deserialization is strict (`deny_unknown_fields`): unknown fields inside
 /// struct variants (`CsRef`, `BinOp`, `UnaryOp`, `IfThenElse`) are rejected.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ExprNode {
     /// Reference a column by name.
@@ -83,7 +83,17 @@ pub enum ExprNode {
 }
 
 /// Binary operators for expressions.
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum BinOp {
     // Arithmetic
@@ -120,7 +130,17 @@ pub enum BinOp {
 }
 
 /// Unary operators for expressions.
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum UnaryOp {
     /// Negation (-)
@@ -324,7 +344,17 @@ impl PartialEq for Expr {
 impl Eq for Expr {}
 
 /// Built-in function identifiers.
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Function {
     /// Previous N values (shift down).

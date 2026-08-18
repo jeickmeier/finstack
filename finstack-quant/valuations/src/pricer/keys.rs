@@ -177,6 +177,8 @@ pub enum InstrumentType {
     CallableRangeAccrual = 81,
     /// Snowball / Inverse Floater structured note.
     Snowball = 82,
+    /// Generic resolved basket of signed underlying instrument quantities.
+    Composite = 83,
 }
 
 use strum::IntoEnumIterator;
@@ -256,6 +258,7 @@ impl InstrumentType {
             InstrumentType::CmsSpreadOption => "cms_spread_option",
             InstrumentType::CallableRangeAccrual => "callable_range_accrual",
             InstrumentType::Snowball => "snowball",
+            InstrumentType::Composite => "composite",
         }
     }
 }

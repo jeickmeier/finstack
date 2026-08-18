@@ -1318,6 +1318,11 @@
           "const": "snowball",
           "description": "Snowball / Inverse Floater structured note.",
           "type": "string"
+        },
+        {
+          "const": "composite",
+          "description": "Generic resolved basket of signed underlying instrument quantities.",
+          "type": "string"
         }
       ]
     },

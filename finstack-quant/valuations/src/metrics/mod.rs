@@ -275,12 +275,14 @@
 
 // Internal submodules (organized by concern)
 
+mod aggregation;
 mod core;
 pub mod risk;
 pub(crate) mod sensitivities;
 mod shared;
 
 // Core surface (supported)
+pub use aggregation::{is_additive_metric, metric_aggregation, MetricAggregation};
 pub use core::finite_difference::bump_surface_vol_absolute;
 pub use core::ids::{MetricGroup, MetricId};
 pub use core::registry::MetricRegistry;

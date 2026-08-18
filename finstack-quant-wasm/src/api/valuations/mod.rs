@@ -15,6 +15,7 @@
 
 pub mod analytic;
 pub mod calibration;
+pub mod composite;
 pub mod correlation;
 pub mod credit;
 pub mod credit_derivatives;

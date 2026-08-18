@@ -575,10 +575,9 @@ pub fn replay_portfolio(
                 let attr = if metrics_attribution {
                     reduce_metrics_based_prepared(
                         portfolio,
-                        prev_market,
-                        market,
-                        prev_step.date,
-                        date,
+                        (prev_market, market),
+                        (prev_step.date, date),
+                        finstack_config,
                         prev_endpoint,
                         endpoint,
                     )?

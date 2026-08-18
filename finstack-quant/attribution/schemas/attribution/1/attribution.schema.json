@@ -2711,6 +2711,76 @@
         }
       ]
     },
+    "BinOp": {
+      "description": "Binary operators for expressions.",
+      "oneOf": [
+        {
+          "const": "add",
+          "description": "Addition (+)",
+          "type": "string"
+        },
+        {
+          "const": "sub",
+          "description": "Subtraction (-)",
+          "type": "string"
+        },
+        {
+          "const": "mul",
+          "description": "Multiplication (*)",
+          "type": "string"
+        },
+        {
+          "const": "div",
+          "description": "Division (/)",
+          "type": "string"
+        },
+        {
+          "const": "mod",
+          "description": "Modulo (%)",
+          "type": "string"
+        },
+        {
+          "const": "eq",
+          "description": "Equal (==)",
+          "type": "string"
+        },
+        {
+          "const": "ne",
+          "description": "Not equal (!=)",
+          "type": "string"
+        },
+        {
+          "const": "lt",
+          "description": "Less than (<)",
+          "type": "string"
+        },
+        {
+          "const": "le",
+          "description": "Less than or equal (<=)",
+          "type": "string"
+        },
+        {
+          "const": "gt",
+          "description": "Greater than (>)",
+          "type": "string"
+        },
+        {
+          "const": "ge",
+          "description": "Greater than or equal (>=)",
+          "type": "string"
+        },
+        {
+          "const": "and",
+          "description": "Logical AND",
+          "type": "string"
+        },
+        {
+          "const": "or",
+          "description": "Logical OR",
+          "type": "string"
+        }
+      ]
+    },
     "Bond": {
       "additionalProperties": false,
       "description": "Bond instrument with fixed, floating, or amortizing cashflows.\n\nCashflow sign convention (holder view):\n- All contractual cashflows **received by a long holder** (coupons,\n  amortization, final redemption) are represented as **positive** amounts.\n- Cash outflows for the holder (e.g., purchase price, funding, short\n  positions) are represented as **negative** amounts and are handled at\n  trade level rather than in the bond's contractual schedule.\n\nSupports call/put schedules, quoted prices for yield-to-maturity calculations,\nand custom cashflow schedule overrides. Uses a clean `CashflowSpec` that wraps\nthe canonical builder coupon specs for maximum flexibility and parity.\n\n[`crate::instruments::Instrument::value`] is the **dirty NPV at `as_of`**,\nnot the market dirty quote at settlement. Quoted YTM, z-spread, and DM\nremain settlement-anchored.",
@@ -6746,6 +6816,140 @@
         "forward_curve_id",
         "discount_curve_id",
         "vol_surface_id"
+      ],
+      "type": "object"
+    },
+    "CompositeInstrument": {
+      "additionalProperties": false,
+      "description": "Priceable composite instrument containing an unresolved policy and immutable state.",
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/CompositeSpec",
+          "description": "Economic definition and future rebalance policy."
+        },
+        "state": {
+          "$ref": "#/$defs/CompositeState",
+          "description": "Frozen quantities used for every valuation until explicit rebalance."
+        }
+      },
+      "required": [
+        "spec",
+        "state"
+      ],
+      "type": "object"
+    },
+    "CompositeLegSpec": {
+      "additionalProperties": false,
+      "description": "One self-contained leg in a composite specification.",
+      "properties": {
+        "instrument": {
+          "$ref": "#/$defs/InstrumentJson",
+          "description": "Canonical typed definition of the underlying instrument."
+        },
+        "instrument_id": {
+          "$ref": "#/$defs/Id",
+          "description": "Stable identifier of the embedded instrument; must equal `instrument.id()`."
+        },
+        "weight": {
+          "description": "Signed quantity for fixed weighting or signed target score for dynamic weighting.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "instrument_id",
+        "instrument",
+        "weight"
+      ],
+      "type": "object"
+    },
+    "CompositeSpec": {
+      "additionalProperties": false,
+      "description": "Unresolved composite definition and rebalance policy.",
+      "properties": {
+        "attributes": {
+          "$ref": "#/$defs/Attributes",
+          "description": "Scenario-selection and reporting metadata."
+        },
+        "capital": {
+          "$ref": "#/$defs/Money",
+          "description": "Positive return denominator per composite unit."
+        },
+        "id": {
+          "$ref": "#/$defs/Id",
+          "description": "Stable composite instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "#/$defs/InstrumentPricingOverrides",
+          "description": "Instrument-level pricing inputs shared with the normal valuation lifecycle."
+        },
+        "legs": {
+          "description": "Self-contained underlying instrument definitions.",
+          "items": {
+            "$ref": "#/$defs/CompositeLegSpec"
+          },
+          "type": "array"
+        },
+        "metric_pricing_overrides": {
+          "$ref": "#/$defs/MetricPricingOverrides",
+          "description": "Metric bump and calculation controls."
+        },
+        "rebalance_rule": {
+          "$ref": "#/$defs/RebalanceRule",
+          "description": "Dates on which explicit dynamic resolution becomes eligible."
+        },
+        "reporting_currency": {
+          "$ref": "#/$defs/Currency",
+          "description": "Currency in which value, P&L, additive risk, and capital are reported."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "#/$defs/ScenarioPricingOverrides",
+          "description": "Scenario-only price adjustments applied to the composite after leg aggregation."
+        },
+        "weighting_method": {
+          "$ref": "#/$defs/WeightingMethod",
+          "description": "Rule used to resolve quantities at initialization and rebalance."
+        }
+      },
+      "required": [
+        "id",
+        "reporting_currency",
+        "capital",
+        "legs",
+        "weighting_method",
+        "rebalance_rule",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "CompositeState": {
+      "additionalProperties": false,
+      "description": "Immutable holdings state used by pricing, risk, scenarios, and history.",
+      "properties": {
+        "effective_date": {
+          "$ref": "#/$defs/DateWire",
+          "description": "Date from which the resolved quantities are effective."
+        },
+        "resolved_legs": {
+          "description": "Resolved top-level quantities in specification order.",
+          "items": {
+            "$ref": "#/$defs/ResolvedCompositeLeg"
+          },
+          "type": "array"
+        },
+        "weighting_inputs": {
+          "additionalProperties": {
+            "format": "double",
+            "type": "number"
+          },
+          "description": "Finite scalar inputs retained for rebalance audit and reproducibility.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "effective_date",
+        "resolved_legs",
+        "weighting_inputs"
       ],
       "type": "object"
     },
@@ -11653,6 +11857,209 @@
         }
       ]
     },
+    "Expr": {
+      "additionalProperties": false,
+      "description": "Expression AST with optional unique ID for DAG planning.\n\nDeserialization is strict (`deny_unknown_fields`): unknown fields on\ninbound payloads are rejected rather than silently ignored.",
+      "properties": {
+        "id": {
+          "description": "Unique identifier for this expression node (for DAG planning).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "node": {
+          "$ref": "#/$defs/ExprNode",
+          "description": "The actual expression node."
+        }
+      },
+      "required": [
+        "node"
+      ],
+      "type": "object"
+    },
+    "ExprNode": {
+      "description": "The core expression node types.\n\nDeserialization is strict (`deny_unknown_fields`): unknown fields inside\nstruct variants (`CsRef`, `BinOp`, `UnaryOp`, `IfThenElse`) are rejected.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Reference a column by name.",
+          "properties": {
+            "column": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "column"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Domain-specific capital-structure reference.",
+          "properties": {
+            "cs_ref": {
+              "additionalProperties": false,
+              "properties": {
+                "component": {
+                  "description": "Capital-structure component.",
+                  "type": "string"
+                },
+                "instrument_or_total": {
+                  "description": "Instrument id or `total`.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "component",
+                "instrument_or_total"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "cs_ref"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Literal scalar value using the crate's numeric type alias.",
+          "properties": {
+            "literal": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "literal"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Call a registered function with positional arguments.",
+          "properties": {
+            "call": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "$ref": "#/$defs/Function"
+                },
+                {
+                  "items": {
+                    "$ref": "#/$defs/Expr"
+                  },
+                  "type": "array"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "call"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Binary operation (arithmetic, comparison, logical).",
+          "properties": {
+            "bin_op": {
+              "additionalProperties": false,
+              "properties": {
+                "left": {
+                  "$ref": "#/$defs/Expr",
+                  "description": "Left operand"
+                },
+                "op": {
+                  "$ref": "#/$defs/BinOp",
+                  "description": "Operator"
+                },
+                "right": {
+                  "$ref": "#/$defs/Expr",
+                  "description": "Right operand"
+                }
+              },
+              "required": [
+                "op",
+                "left",
+                "right"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "bin_op"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Unary operation.",
+          "properties": {
+            "unary_op": {
+              "additionalProperties": false,
+              "properties": {
+                "op": {
+                  "$ref": "#/$defs/UnaryOp",
+                  "description": "Operator"
+                },
+                "operand": {
+                  "$ref": "#/$defs/Expr",
+                  "description": "Operand"
+                }
+              },
+              "required": [
+                "op",
+                "operand"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "unary_op"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "If-then-else conditional.",
+          "properties": {
+            "if_then_else": {
+              "additionalProperties": false,
+              "properties": {
+                "condition": {
+                  "$ref": "#/$defs/Expr",
+                  "description": "Condition expression"
+                },
+                "else_expr": {
+                  "$ref": "#/$defs/Expr",
+                  "description": "Else branch"
+                },
+                "then_expr": {
+                  "$ref": "#/$defs/Expr",
+                  "description": "Then branch"
+                }
+              },
+              "required": [
+                "condition",
+                "then_expr",
+                "else_expr"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "if_then_else"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "ExtrapolationPolicy": {
       "description": "Extrapolation policy for evaluation outside the knot range.\n\nAll [`InterpolationStrategy`](super::traits::InterpolationStrategy)\nimplementations honour this policy at both ends of the knot range.\nChoose based on what behaviour the downstream pricer expects:\n\n- `FlatZero` (default): hold the boundary value constant. Safe for\n  discount factors and survival probabilities.\n- `FlatForward`: extend the boundary slope. Useful for forward-rate\n  curves where extrapolated rates should track the local term-structure\n  slope.\n- `Nan`: refuse to extrapolate; return `NaN` and require the caller to\n  detect and handle out-of-range queries explicitly. Recommended for\n  production risk systems.\n\n`#[non_exhaustive]` so that future policies (e.g. linear-zero,\nasymptotic) can be added without breaking downstream code.",
       "oneOf": [
@@ -12949,6 +13356,256 @@
         "attributes"
       ],
       "type": "object"
+    },
+    "Function": {
+      "description": "Built-in function identifiers.",
+      "oneOf": [
+        {
+          "const": "lag",
+          "description": "Previous N values (shift down).",
+          "type": "string"
+        },
+        {
+          "const": "lead",
+          "description": "Next N values (shift up).",
+          "type": "string"
+        },
+        {
+          "const": "diff",
+          "description": "First/lagged difference with step N (default 1).",
+          "type": "string"
+        },
+        {
+          "const": "pct_change",
+          "description": "Percentage change over step N (default 1).",
+          "type": "string"
+        },
+        {
+          "const": "cum_sum",
+          "description": "Cumulative sum.",
+          "type": "string"
+        },
+        {
+          "const": "cum_prod",
+          "description": "Cumulative product.",
+          "type": "string"
+        },
+        {
+          "const": "cum_min",
+          "description": "Cumulative minimum.",
+          "type": "string"
+        },
+        {
+          "const": "cum_max",
+          "description": "Cumulative maximum.",
+          "type": "string"
+        },
+        {
+          "const": "rolling_mean",
+          "description": "Rolling arithmetic mean over a fixed row window size.",
+          "type": "string"
+        },
+        {
+          "const": "rolling_sum",
+          "description": "Rolling sum over a fixed row window size.",
+          "type": "string"
+        },
+        {
+          "const": "ewm_mean",
+          "description": "`ewm_mean(series, alpha, adjust?)`, with `alpha` normalized to\n`[1e-12, 1]`. An omitted or nonzero `adjust` uses normalized weights;\nzero selects the recursive form. Leading and interior NaNs are preserved,\nand the recursion starts at the first non-NaN observation.",
+          "type": "string"
+        },
+        {
+          "const": "std",
+          "description": "Sample standard deviation (n−1, Bessel's correction; pandas `ddof=1`).",
+          "type": "string"
+        },
+        {
+          "const": "var",
+          "description": "Sample variance (n−1, Bessel's correction; pandas `ddof=1`).",
+          "type": "string"
+        },
+        {
+          "const": "median",
+          "description": "Median.",
+          "type": "string"
+        },
+        {
+          "const": "rolling_std",
+          "description": "Rolling standard deviation over a fixed row window size.",
+          "type": "string"
+        },
+        {
+          "const": "rolling_var",
+          "description": "Rolling variance over a fixed row window size.",
+          "type": "string"
+        },
+        {
+          "const": "rolling_median",
+          "description": "Rolling median over a fixed row window size.",
+          "type": "string"
+        },
+        {
+          "const": "shift",
+          "description": "Shift values by N positions (positive = shift down, negative = shift up).",
+          "type": "string"
+        },
+        {
+          "const": "rank",
+          "description": "Rank values (min ranking; ties share the minimum rank, pandas\n`method='min'`).",
+          "type": "string"
+        },
+        {
+          "const": "quantile",
+          "description": "Calculate quantile/percentile of values.\n\nNote: This function reduces the entire series to a single scalar value\nand broadcasts that scalar across the output length. It is not a\nrolling/windowed quantile. For windowed behavior, prefer `RollingMedian`\nor a domain-specific rolling estimator.",
+          "type": "string"
+        },
+        {
+          "const": "rolling_min",
+          "description": "Rolling minimum over a fixed row window size.",
+          "type": "string"
+        },
+        {
+          "const": "rolling_max",
+          "description": "Rolling maximum over a fixed row window size.",
+          "type": "string"
+        },
+        {
+          "const": "rolling_count",
+          "description": "Count non-null values in rolling window.",
+          "type": "string"
+        },
+        {
+          "const": "ewm_std",
+          "description": "`ewm_std(series, alpha, adjust?)`, with `alpha` normalized to\n`[1e-12, 1]`. An omitted or positive `adjust` uses adjusted weights;\nzero or a negative value selects the recursive form. Leading and interior\nNaNs are preserved, and the recursion starts at the first non-NaN value.",
+          "type": "string"
+        },
+        {
+          "const": "ewm_var",
+          "description": "`ewm_var(series, alpha, adjust?)`, with `alpha` normalized to\n`[1e-12, 1]`. An omitted or positive `adjust` uses adjusted weights;\nzero or a negative value selects the recursive form. Leading and interior\nNaNs are preserved, and the recursion starts at the first non-NaN value.",
+          "type": "string"
+        },
+        {
+          "const": "sum",
+          "description": "Sum multiple values, skipping NaN values.",
+          "type": "string"
+        },
+        {
+          "const": "mean",
+          "description": "Average of multiple values, skipping NaN values.",
+          "type": "string"
+        },
+        {
+          "const": "annualize",
+          "description": "Annualize a flow value by multiplying by periods per year.\n\nUse this for cash flows, income, and expense items.\nFor periodic rates, use `AnnualizeRate` instead.",
+          "type": "string"
+        },
+        {
+          "const": "annualize_rate",
+          "description": "Annualize a periodic rate with simple or compound methodology.\n\nArguments: (rate, periods_per_year, compounding)\n- compounding = 0.0: Simple (rate * periods_per_year)\n- compounding = 1.0: Compound ((1 + rate)^periods_per_year - 1)\n\nUse this for interest rates, returns, and growth rates.\nFor cash flows, use `Annualize` instead.",
+          "type": "string"
+        },
+        {
+          "const": "ttm",
+          "description": "Trailing twelve months over a window of `periods_per_year` periods.\n\nEvaluated in the `statements` layer (not in `core::expr`), where the\nperiod frequency (monthly, quarterly, etc.) is known.",
+          "type": "string"
+        },
+        {
+          "const": "ytd",
+          "description": "Calendar year-to-date sum.\n\nEvaluated in the `statements` layer, using the period's calendar year\nand frequency (monthly, quarterly, weekly, semi-annual, annual).",
+          "type": "string"
+        },
+        {
+          "const": "qtd",
+          "description": "Quarter-to-date sum for monthly statement models.\n\nEvaluated in the `statements` layer; only valid for monthly periods.",
+          "type": "string"
+        },
+        {
+          "const": "fiscal_ytd",
+          "description": "Fiscal year-to-date sum with configurable fiscal start month.\n\nEvaluated in the `statements` layer for monthly periods. The fiscal\nstart month is provided as a numeric argument (1-12).",
+          "type": "string"
+        },
+        {
+          "const": "coalesce",
+          "description": "Return first non-NaN/non-zero value (coalesce).",
+          "type": "string"
+        },
+        {
+          "const": "min",
+          "description": "Minimum of two or more values.\n\nEvaluated in the `statements` layer as an n-ary reducer. NaN handling\nis order-dependent and follows IEEE 754 comparison semantics: with a\nleft-to-right fold of `if acc < arg { acc } else { arg }`, a leading\n`NaN` is dropped in favor of a finite peer while a trailing `NaN`\npropagates.",
+          "type": "string"
+        },
+        {
+          "const": "max",
+          "description": "Maximum of two or more values.\n\nEvaluated in the `statements` layer as an n-ary reducer. NaN handling\nis order-dependent and follows IEEE 754 comparison semantics (see\n[`Function::Min`]).",
+          "type": "string"
+        },
+        {
+          "const": "abs",
+          "description": "Absolute value helper (`abs(expr)`).",
+          "type": "string"
+        },
+        {
+          "const": "sign",
+          "description": "Sign helper returning -1, 0, or 1 (`sign(expr)`).",
+          "type": "string"
+        },
+        {
+          "const": "growth_rate",
+          "description": "Compound annual growth rate between current and lagged periods.\n\nEvaluated in the statements layer where period spacing is known.",
+          "type": "string"
+        },
+        {
+          "const": "pow",
+          "description": "Exponentiation (`pow(base, exp)`), computed as `base^exp` with IEEE 754\nsemantics: `pow(-1, 0.5)` is NaN, `pow(0, -1)` is +inf, and overflow\nsaturates to ±inf.",
+          "type": "string"
+        },
+        {
+          "const": "round",
+          "description": "Round to a number of decimal digits (`round(expr[, digits])`).\n\nTies round half away from zero (Excel convention): `round(2.5)` is 3,\n`round(-2.5)` is -3. `digits` defaults to 0 and may be negative to\nround to tens/hundreds (`round(1234, -2)` is 1200). Non-finite inputs\npass through unchanged.",
+          "type": "string"
+        },
+        {
+          "const": "floor",
+          "description": "Largest integer less than or equal to the value (`floor(expr)`).",
+          "type": "string"
+        },
+        {
+          "const": "ceil",
+          "description": "Smallest integer greater than or equal to the value (`ceil(expr)`).",
+          "type": "string"
+        },
+        {
+          "const": "ln",
+          "description": "Natural logarithm (`ln(expr)`), IEEE semantics: `ln(0)` is -inf and\n`ln(x)` for `x < 0` is NaN.",
+          "type": "string"
+        },
+        {
+          "const": "exp",
+          "description": "Natural exponential (`exp(expr)`); overflow saturates to +inf.",
+          "type": "string"
+        },
+        {
+          "const": "log10",
+          "description": "Base-10 logarithm (`log10(expr)`), IEEE semantics: `log10(0)` is -inf\nand `log10(x)` for `x < 0` is NaN.",
+          "type": "string"
+        },
+        {
+          "const": "sqrt",
+          "description": "Square root (`sqrt(expr)`), IEEE semantics: `sqrt(x)` for `x < 0` is\nNaN.",
+          "type": "string"
+        },
+        {
+          "const": "clamp",
+          "description": "Clamp a value to an inclusive range (`clamp(expr, lo, hi)`),\nequivalent to `min(max(expr, lo), hi)`. Returns NaN when any argument\nis NaN or when `lo > hi`; it never panics on an inverted range.",
+          "type": "string"
+        },
+        {
+          "const": "is_missing",
+          "description": "Missing-value predicate (`is_missing(expr)`), returning 1 when the\nvalue is non-finite (NaN or ±inf) and 0 otherwise — the same\n\"finite\" convention used by `coalesce`.",
+          "type": "string"
+        }
+      ]
     },
     "FundEvent": {
       "additionalProperties": false,
@@ -16366,6 +17023,24 @@
             "spec"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Canonical `composite` instrument payload.",
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/CompositeInstrument"
+            },
+            "type": {
+              "const": "composite",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -18511,6 +19186,10 @@
         }
       },
       "type": "object"
+    },
+    "MetricId": {
+      "description": "Strongly-typed metric identifier.\n\nProvides compile-time validation, autocomplete support, and safe refactoring\nwhen metric names change. Covers bond, IRS, deposit, and risk metrics.\n\nSee unit tests and `examples/` for usage.",
+      "type": "string"
     },
     "MetricPricingOverrides": {
       "additionalProperties": false,
@@ -22035,6 +22714,118 @@
         }
       ]
     },
+    "RebalanceFrequency": {
+      "description": "Calendar cadence for automatic composite rebalancing.",
+      "oneOf": [
+        {
+          "const": "daily",
+          "description": "Every calendar day, adjusted by the configured business-day convention.",
+          "type": "string"
+        },
+        {
+          "const": "weekly",
+          "description": "Every seven calendar days from the schedule start.",
+          "type": "string"
+        },
+        {
+          "const": "monthly",
+          "description": "Every calendar month from the schedule start.",
+          "type": "string"
+        },
+        {
+          "const": "quarterly",
+          "description": "Every three calendar months from the schedule start.",
+          "type": "string"
+        }
+      ]
+    },
+    "RebalanceRule": {
+      "description": "Rule controlling when dynamic quantities may be explicitly recalculated.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Rebalance only when the caller explicitly invokes `rebalance`.",
+          "properties": {
+            "kind": {
+              "const": "manual",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Rebalance on the supplied adjusted dates.",
+          "properties": {
+            "dates": {
+              "description": "Strictly increasing dates on which the new state becomes eligible.",
+              "items": {
+                "$ref": "#/$defs/DateWire"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "dates",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "dates"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Generate dates from a calendar-aware cadence.",
+          "properties": {
+            "business_day_convention": {
+              "$ref": "#/$defs/BusinessDayConvention",
+              "description": "Business-day adjustment applied to each generated date."
+            },
+            "calendar_id": {
+              "description": "Registered holiday-calendar identifier.",
+              "type": "string"
+            },
+            "end": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/DateWire"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Optional final unadjusted schedule date."
+            },
+            "frequency": {
+              "$ref": "#/$defs/RebalanceFrequency",
+              "description": "Daily, weekly, monthly, or quarterly cadence."
+            },
+            "kind": {
+              "const": "calendar",
+              "type": "string"
+            },
+            "start": {
+              "$ref": "#/$defs/DateWire",
+              "description": "Unadjusted schedule start."
+            }
+          },
+          "required": [
+            "kind",
+            "start",
+            "frequency",
+            "calendar_id",
+            "business_day_convention"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "RebateTiming": {
       "description": "Timing of a knock-out rebate payment.\n\nMarket-standard KO rebates pay **at hit** (the moment the barrier is\nbreached); paying at expiry is the less common variant. Knock-in rebates\nalways pay at expiry by definition (only at expiry is it known that the\noption failed to knock in), so this setting does not affect them.",
       "oneOf": [
@@ -22639,6 +23430,26 @@
           "type": "string"
         }
       ]
+    },
+    "ResolvedCompositeLeg": {
+      "additionalProperties": false,
+      "description": "Immutable resolved quantity for one top-level composite leg.",
+      "properties": {
+        "instrument_id": {
+          "$ref": "#/$defs/Id",
+          "description": "Identifier of the corresponding leg specification."
+        },
+        "quantity": {
+          "description": "Signed quantity held from the state's effective date until the next rebalance.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "instrument_id",
+        "quantity"
+      ],
+      "type": "object"
     },
     "ReturnFloorKind": {
       "description": "Which return metric is guaranteed by the floor, and its target.\n\nUse [`ReturnFloorKind::Moic`] for money-multiple protection (common in\nleveraged loans and private credit) or [`ReturnFloorKind::Xirr`] for\nannualized IRR protection.",
@@ -25699,6 +26510,21 @@
         }
       ]
     },
+    "UnaryOp": {
+      "description": "Unary operators for expressions.",
+      "oneOf": [
+        {
+          "const": "neg",
+          "description": "Negation (-)",
+          "type": "string"
+        },
+        {
+          "const": "not",
+          "description": "Logical NOT",
+          "type": "string"
+        }
+      ]
+    },
     "UnmatchedPolicy": {
       "description": "Policy for handling dependencies that do not match any factor.\n\nSerializes in `snake_case`, matching the crate-wide wire convention and\nthis type's own `Display`/`FromStr` representation.",
       "oneOf": [
@@ -26677,6 +27503,154 @@
         "divertible"
       ],
       "type": "object"
+    },
+    "WeightingMethod": {
+      "description": "Policy used to resolve signed leg quantities at initialization or rebalance.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Use each leg's signed `weight` directly as its resolved quantity.",
+          "properties": {
+            "kind": {
+              "const": "fixed_quantity",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Allocate signed scores across a fixed gross reporting-currency notional.",
+          "properties": {
+            "gross_notional": {
+              "$ref": "#/$defs/Money",
+              "description": "Positive gross notional in the composite reporting currency."
+            },
+            "kind": {
+              "const": "notional_weighted",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "gross_notional"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Target relative per-leg contributions to a valuation metric.",
+          "properties": {
+            "anchor_leg_id": {
+              "$ref": "#/$defs/Id",
+              "description": "Leg whose resolved quantity fixes the overall scale."
+            },
+            "anchor_quantity": {
+              "description": "Non-zero signed quantity assigned to the anchor leg.",
+              "format": "double",
+              "type": "number"
+            },
+            "kind": {
+              "const": "metric_weighted",
+              "type": "string"
+            },
+            "metric": {
+              "$ref": "#/$defs/MetricId",
+              "description": "Metric used as the weighting measure, such as `dv01` or `delta`."
+            },
+            "neutralize": {
+              "description": "Whether positive and negative scores are normalized to `+1` and `-1`.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "metric",
+            "anchor_leg_id",
+            "anchor_quantity",
+            "neutralize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Inverse annualized unit-P&L volatility weighting.",
+          "properties": {
+            "anchor_leg_id": {
+              "$ref": "#/$defs/Id",
+              "description": "Leg whose resolved quantity fixes the overall scale."
+            },
+            "anchor_quantity": {
+              "description": "Non-zero signed quantity assigned to the anchor leg.",
+              "format": "double",
+              "type": "number"
+            },
+            "annualization_factor": {
+              "description": "Positive periods-per-year factor used to annualize sample volatility.",
+              "format": "double",
+              "type": "number"
+            },
+            "kind": {
+              "const": "volatility_weighted",
+              "type": "string"
+            },
+            "lookback": {
+              "description": "Maximum number of most-recent P&L observations used.",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "min_observations": {
+              "description": "Minimum P&L observations required for every active leg.",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "anchor_leg_id",
+            "anchor_quantity",
+            "lookback",
+            "min_observations",
+            "annualization_factor"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Deterministic expression-defined quantities.",
+          "properties": {
+            "kind": {
+              "const": "user_defined",
+              "type": "string"
+            },
+            "quantity_expressions": {
+              "additionalProperties": {
+                "$ref": "#/$defs/Expr"
+              },
+              "description": "One scalar expression per leg, keyed by instrument identifier.",
+              "type": "object"
+            },
+            "required_metrics": {
+              "description": "Metrics populated into the expression context for every leg.",
+              "items": {
+                "$ref": "#/$defs/MetricId"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "required_metrics",
+            "quantity_expressions"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "XccySwap": {
       "additionalProperties": false,
