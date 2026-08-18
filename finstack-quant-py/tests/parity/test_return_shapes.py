@@ -51,6 +51,7 @@ ENTRY_SHAPES: list[tuple[str, str, str]] = [
     ("finstack_quant.scenarios", "apply_scenario", "wrapper"),
     ("finstack_quant.scenarios", "apply_scenario_to_market", "wrapper"),
     # statements analytics
+    ("finstack_quant.statements_analytics", "generate_tornado_entries", "list"),
     ("finstack_quant.statements_analytics", "run_checks", "wrapper"),
     ("finstack_quant.statements_analytics", "run_three_statement_checks", "wrapper"),
     ("finstack_quant.statements_analytics", "run_credit_underwriting_checks", "wrapper"),
@@ -111,6 +112,9 @@ RESULT_CLASSES: list[tuple[str, str]] = [
     ("finstack_quant.attribution", "ReturnContributionResult"),
     ("finstack_quant.scenarios", "ApplicationReport"),
     ("finstack_quant.scenarios", "ScenarioSpec"),
+    ("finstack_quant.statements_analytics", "TornadoEntry"),
+    ("finstack_quant.factor_model.credit", "FactorCovarianceMatrix"),
+    ("finstack_quant.factor_model.credit", "FactorModelConfig"),
     ("finstack_quant.scenarios", "HorizonResult"),
     ("finstack_quant.analytics", "PeriodStats"),
     ("finstack_quant.analytics", "BetaResult"),

@@ -41,9 +41,9 @@ where
 pub enum SimmRiskClass {
     /// Interest rate risk
     InterestRate,
-    /// Credit qualifying (investment grade)
+    /// Credit qualifying (corporate, sovereign, and index credit, including high yield)
     CreditQualifying,
-    /// Credit non-qualifying (high yield, emerging markets)
+    /// Credit non-qualifying (securitizations and designated non-qualifying exposures)
     CreditNonQualifying,
     /// Equity risk
     Equity,
@@ -167,9 +167,9 @@ pub struct SimmSensitivitiesJson {
     /// Interest-rate vega buckets as `(currency, tenor, amount)`.
     #[serde(default)]
     pub ir_vega: Vec<(Currency, String, f64)>,
-    /// Credit qualifying delta buckets as `(name, tenor, amount)`.
+    /// Credit qualifying deltas as `(sector, name, tenor, amount)`.
     #[serde(default)]
-    pub credit_qualifying_delta: Vec<(String, String, f64)>,
+    pub credit_qualifying_delta: Vec<(SimmCreditSector, String, String, f64)>,
     /// Credit non-qualifying delta buckets as `(name, tenor, amount)`.
     #[serde(default)]
     pub credit_non_qualifying_delta: Vec<(String, String, f64)>,
@@ -191,9 +191,6 @@ pub struct SimmSensitivitiesJson {
     /// Curvature buckets as `(risk_class, amount)`.
     #[serde(default)]
     pub curvature: Vec<(SimmRiskClass, f64)>,
-    /// Bucketed credit qualifying deltas as `(sector, name, tenor, amount)`.
-    #[serde(default)]
-    pub credit_qualifying_delta_bucketed: Vec<(SimmCreditSector, String, String, f64)>,
 }
 
 impl From<&SimmSensitivities> for SimmSensitivitiesJson {
@@ -213,7 +210,9 @@ impl From<&SimmSensitivities> for SimmSensitivitiesJson {
             credit_qualifying_delta: sens
                 .credit_qualifying_delta
                 .iter()
-                .map(|((name, tenor), amount)| (name.clone(), tenor.clone(), *amount))
+                .map(|((sector, name, tenor), amount)| {
+                    (*sector, name.clone(), tenor.clone(), *amount)
+                })
                 .collect(),
             credit_non_qualifying_delta: sens
                 .credit_non_qualifying_delta
@@ -250,13 +249,6 @@ impl From<&SimmSensitivities> for SimmSensitivitiesJson {
                 .iter()
                 .map(|(risk_class, amount)| (*risk_class, *amount))
                 .collect(),
-            credit_qualifying_delta_bucketed: sens
-                .credit_qualifying_delta_bucketed
-                .iter()
-                .map(|((sector, name, tenor), amount)| {
-                    (*sector, name.clone(), tenor.clone(), *amount)
-                })
-                .collect(),
         };
         for entries in [&mut json.ir_delta, &mut json.ir_vega] {
             entries.sort_by(|left, right| {
@@ -266,12 +258,8 @@ impl From<&SimmSensitivities> for SimmSensitivitiesJson {
                     .then_with(|| left.1.cmp(&right.1))
             });
         }
-        for entries in [
-            &mut json.credit_qualifying_delta,
-            &mut json.credit_non_qualifying_delta,
-        ] {
-            entries.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
-        }
+        json.credit_non_qualifying_delta
+            .sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
         for entries in [&mut json.equity_delta, &mut json.equity_vega] {
             entries.sort_by(|left, right| left.0.cmp(&right.0));
         }
@@ -286,13 +274,12 @@ impl From<&SimmSensitivities> for SimmSensitivitiesJson {
             .sort_by(|left, right| left.0.cmp(&right.0));
         json.curvature
             .sort_by_key(|entry| simm_risk_class_sort_key(entry.0));
-        json.credit_qualifying_delta_bucketed
-            .sort_by(|left, right| {
-                simm_credit_sector_sort_key(left.0)
-                    .cmp(&simm_credit_sector_sort_key(right.0))
-                    .then_with(|| left.1.cmp(&right.1))
-                    .then_with(|| left.2.cmp(&right.2))
-            });
+        json.credit_qualifying_delta.sort_by(|left, right| {
+            simm_credit_sector_sort_key(left.0)
+                .cmp(&simm_credit_sector_sort_key(right.0))
+                .then_with(|| left.1.cmp(&right.1))
+                .then_with(|| left.2.cmp(&right.2))
+        });
         json
     }
 }
@@ -335,11 +322,11 @@ impl From<SimmSensitivitiesJson> for SimmSensitivities {
         for (currency, tenor, amount) in value.ir_vega {
             sens.add_ir_vega(currency, tenor, amount);
         }
-        for (name, tenor, amount) in value.credit_qualifying_delta {
-            sens.add_credit_delta(name, true, tenor, amount);
+        for (sector, name, tenor, amount) in value.credit_qualifying_delta {
+            sens.add_credit_qualifying_delta(sector, name, tenor, amount);
         }
         for (name, tenor, amount) in value.credit_non_qualifying_delta {
-            sens.add_credit_delta(name, false, tenor, amount);
+            sens.add_credit_non_qualifying_delta(name, tenor, amount);
         }
         for (underlier, amount) in value.equity_delta {
             sens.add_equity_delta(underlier, amount);
@@ -358,9 +345,6 @@ impl From<SimmSensitivitiesJson> for SimmSensitivities {
         }
         for (risk_class, amount) in value.curvature {
             sens.add_curvature(risk_class, amount);
-        }
-        for (sector, name, tenor, amount) in value.credit_qualifying_delta_bucketed {
-            sens.add_credit_delta_bucketed(sector, name, tenor, amount);
         }
         sens
     }
@@ -389,7 +373,7 @@ impl From<SimmSensitivitiesJson> for SimmSensitivities {
 /// # Example
 ///
 /// ```
-/// use finstack_quant_margin::SimmSensitivities;
+/// use finstack_quant_margin::{SimmCreditSector, SimmSensitivities};
 /// use finstack_quant_core::currency::Currency;
 ///
 /// let mut sensitivities = SimmSensitivities::new(Currency::USD);
@@ -399,8 +383,13 @@ impl From<SimmSensitivitiesJson> for SimmSensitivities {
 /// sensitivities.add_ir_delta(Currency::USD, "5Y", 45_000.0);
 /// sensitivities.add_ir_delta(Currency::USD, "10Y", 25_000.0);
 ///
-/// // Add credit delta
-/// sensitivities.add_credit_delta("CDX.NA.IG", true, "5Y", 50_000.0);
+/// // Add sector-bucketed credit qualifying delta
+/// sensitivities.add_credit_qualifying_delta(
+///     SimmCreditSector::Financial,
+///     "CDX.NA.IG",
+///     "5Y",
+///     50_000.0,
+/// );
 /// ```
 ///
 /// # References
@@ -425,14 +414,15 @@ pub struct SimmSensitivities {
     /// SIMM vega weights.
     pub ir_vega: HashMap<(Currency, String), f64>,
 
-    /// Credit qualifying delta by (issuer/index, tenor bucket).
+    /// Credit qualifying delta by `(sector, issuer/index, tenor bucket)`.
     ///
-    /// For single-name CDS and investment-grade indices.
-    pub credit_qualifying_delta: HashMap<(String, String), f64>,
+    /// Sector assignment is mandatory so the calculator can apply ISDA SIMM
+    /// intra- and inter-bucket aggregation without a scalar approximation.
+    pub credit_qualifying_delta: HashMap<(SimmCreditSector, String, String), f64>,
 
     /// Credit non-qualifying delta by (issuer/index, tenor bucket).
     ///
-    /// For high-yield, distressed, and emerging market credit.
+    /// For securitizations and exposures explicitly classified as non-qualifying.
     pub credit_non_qualifying_delta: HashMap<(String, String), f64>,
 
     /// Equity delta by underlier.
@@ -463,17 +453,6 @@ pub struct SimmSensitivities {
     /// Values should be the signed curvature contributions in currency units
     /// before the SIMM curvature scale factor is applied.
     pub curvature: HashMap<SimmRiskClass, f64>,
-
-    /// Credit qualifying delta with sector bucket assignment.
-    ///
-    /// Keyed by `(sector, issuer/index, tenor)`. When populated, the SIMM
-    /// calculator uses bucket-level aggregation with intra/inter-bucket
-    /// diversification per ISDA SIMM v2.6 instead of the scalar fallback.
-    ///
-    /// This field is additive: callers that do not assign sectors can leave it
-    /// empty and only populate [`credit_qualifying_delta`](Self::credit_qualifying_delta),
-    /// which triggers the legacy scalar code path.
-    pub credit_qualifying_delta_bucketed: HashMap<(SimmCreditSector, String, String), f64>,
 }
 
 impl SimmSensitivities {
@@ -500,7 +479,6 @@ impl SimmSensitivities {
             fx_vega: HashMap::default(),
             commodity_delta: HashMap::default(),
             curvature: HashMap::default(),
-            credit_qualifying_delta_bucketed: HashMap::default(),
         }
     }
 
@@ -522,51 +500,15 @@ impl SimmSensitivities {
         *self.ir_vega.entry(key).or_insert(0.0) += vega;
     }
 
-    /// Add a credit delta sensitivity bucket.
+    /// Add a sector-bucketed credit-qualifying delta sensitivity.
     ///
     /// # Arguments
     ///
-    /// * `name` - Issuer or index identifier
-    /// * `qualifying` - `true` for qualifying credit, `false` for non-qualifying credit
-    /// * `tenor` - Tenor bucket such as `"5Y"`
-    /// * `delta` - Signed CS01-style currency amount, typically currency per 1bp move
-    ///
-    /// # Sector bucketing
-    ///
-    /// Qualifying deltas land in the flat `credit_qualifying_delta` map, which
-    /// the calculator aggregates on a single scalar risk weight rather than the
-    /// ISDA §3.B per-sector buckets. This is the only path instruments can use
-    /// today: they carry no `SimmCreditSector`. Populating
-    /// `credit_qualifying_delta_bucketed` requires an issuer -> sector
-    /// classifier that does not exist yet.
-    pub fn add_credit_delta(
-        &mut self,
-        name: impl Into<String>,
-        qualifying: bool,
-        tenor: impl Into<String>,
-        delta: f64,
-    ) {
-        let key = (name.into(), tenor.into());
-        if qualifying {
-            *self.credit_qualifying_delta.entry(key).or_insert(0.0) += delta;
-        } else {
-            *self.credit_non_qualifying_delta.entry(key).or_insert(0.0) += delta;
-        }
-    }
-
-    /// Add a credit delta sensitivity bucket with sector assignment.
-    ///
-    /// This populates the bucketed credit qualifying delta map used by the
-    /// SIMM bucket-level aggregation path. Sensitivities added here are
-    /// aggregated with intra/inter-bucket diversification.
-    ///
-    /// # Arguments
-    ///
-    /// * `sector` - ISDA SIMM credit qualifying sector bucket
-    /// * `name` - Issuer or index identifier
-    /// * `tenor` - Tenor bucket such as `"5Y"`
-    /// * `delta` - Signed CS01-style currency amount, typically currency per 1bp move
-    pub fn add_credit_delta_bucketed(
+    /// * `sector` - ISDA SIMM credit-qualifying sector bucket.
+    /// * `name` - Issuer or index identifier.
+    /// * `tenor` - Tenor bucket such as `"5Y"`.
+    /// * `delta` - Signed CS01-style currency amount, typically currency per 1bp move.
+    pub fn add_credit_qualifying_delta(
         &mut self,
         sector: SimmCreditSector,
         name: impl Into<String>,
@@ -574,10 +516,24 @@ impl SimmSensitivities {
         delta: f64,
     ) {
         let key = (sector, name.into(), tenor.into());
-        *self
-            .credit_qualifying_delta_bucketed
-            .entry(key)
-            .or_insert(0.0) += delta;
+        *self.credit_qualifying_delta.entry(key).or_insert(0.0) += delta;
+    }
+
+    /// Add a credit non-qualifying delta sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Securitization or other non-qualifying exposure identifier.
+    /// * `tenor` - Tenor bucket such as `"5Y"`.
+    /// * `delta` - Signed CS01-style currency amount, typically currency per 1bp move.
+    pub fn add_credit_non_qualifying_delta(
+        &mut self,
+        name: impl Into<String>,
+        tenor: impl Into<String>,
+        delta: f64,
+    ) {
+        let key = (name.into(), tenor.into());
+        *self.credit_non_qualifying_delta.entry(key).or_insert(0.0) += delta;
     }
 
     /// Add an equity delta sensitivity bucket.
@@ -661,7 +617,6 @@ impl SimmSensitivities {
             && self.fx_vega.is_empty()
             && self.commodity_delta.is_empty()
             && self.curvature.is_empty()
-            && self.credit_qualifying_delta_bucketed.is_empty()
     }
 
     /// Merge another set of sensitivities into this one.
@@ -688,10 +643,6 @@ impl SimmSensitivities {
         merge_into(&mut self.fx_vega, &other.fx_vega);
         merge_into(&mut self.commodity_delta, &other.commodity_delta);
         merge_into(&mut self.curvature, &other.curvature);
-        merge_into(
-            &mut self.credit_qualifying_delta_bucketed,
-            &other.credit_qualifying_delta_bucketed,
-        );
     }
 
     /// Return a copy of these sensitivities re-expressed in `target_currency`.
@@ -782,9 +733,6 @@ impl SimmSensitivities {
             *v *= factor;
         }
         for v in self.curvature.values_mut() {
-            *v *= factor;
-        }
-        for v in self.credit_qualifying_delta_bucketed.values_mut() {
             *v *= factor;
         }
     }
@@ -901,18 +849,10 @@ mod tests {
             reverse,
         );
         insert_entries(
-            &mut sensitivities.credit_qualifying_delta,
-            [
-                (("ZETA".to_string(), "5Y".to_string()), 50.0),
-                (("ALPHA".to_string(), "3Y".to_string()), 60.0),
-            ],
-            reverse,
-        );
-        insert_entries(
             &mut sensitivities.credit_non_qualifying_delta,
             [
-                (("HY_ZETA".to_string(), "5Y".to_string()), 70.0),
-                (("HY_ALPHA".to_string(), "3Y".to_string()), 80.0),
+                (("RMBS_ZETA".to_string(), "5Y".to_string()), 70.0),
+                (("RMBS_ALPHA".to_string(), "3Y".to_string()), 80.0),
             ],
             reverse,
         );
@@ -953,7 +893,7 @@ mod tests {
             reverse,
         );
         insert_entries(
-            &mut sensitivities.credit_qualifying_delta_bucketed,
+            &mut sensitivities.credit_qualifying_delta,
             [
                 (
                     (
@@ -984,7 +924,12 @@ mod tests {
 
         sens.add_ir_delta(Currency::USD, "5Y", 100_000.0);
         sens.add_ir_delta(Currency::USD, "10Y", 50_000.0);
-        sens.add_credit_delta("ACME_CORP", true, "5Y", 25_000.0);
+        sens.add_credit_qualifying_delta(
+            SimmCreditSector::BasicMaterials,
+            "ACME_CORP",
+            "5Y",
+            25_000.0,
+        );
         sens.add_fx_vega(Currency::EUR, Currency::USD, 1_000.0);
         sens.add_commodity_delta("energy", 2_000.0);
         sens.add_curvature(SimmRiskClass::Equity, 3_000.0);
@@ -1040,6 +985,17 @@ mod tests {
     }
 
     #[test]
+    fn simm_json_rejects_scalar_credit_qualifying_shape() {
+        let payload = serde_json::json!({
+            "base_currency": "USD",
+            "credit_qualifying_delta": [["CDX.NA.IG", "5Y", 1000.0]]
+        });
+
+        SimmSensitivities::from_json(&payload.to_string())
+            .expect_err("sector is mandatory for credit qualifying delta");
+    }
+
+    #[test]
     fn simm_pretty_json_sorts_every_sensitivity_family() {
         let first = populated_simm_sensitivities(false);
         let second = populated_simm_sensitivities(true);
@@ -1051,18 +1007,18 @@ mod tests {
             serde_json::from_str(&first_json).expect("canonical DTO parses");
         assert_eq!(json.ir_delta[0].0, Currency::USD);
         assert_eq!(json.ir_vega[0].0, Currency::USD);
-        assert_eq!(json.credit_qualifying_delta[0].0, "ALPHA");
-        assert_eq!(json.credit_non_qualifying_delta[0].0, "HY_ALPHA");
+        assert_eq!(
+            json.credit_qualifying_delta[0].0,
+            SimmCreditSector::Sovereign
+        );
+        assert_eq!(json.credit_qualifying_delta[0].1, "UST");
+        assert_eq!(json.credit_non_qualifying_delta[0].0, "RMBS_ALPHA");
         assert_eq!(json.equity_delta[0].0, "AAPL");
         assert_eq!(json.equity_vega[0].0, "AAPL");
         assert_eq!(json.fx_delta[0].0, Currency::USD);
         assert_eq!(json.fx_vega[0].0, Currency::USD);
         assert_eq!(json.commodity_delta[0].0, "Crude");
         assert_eq!(json.curvature[0].0, SimmRiskClass::InterestRate);
-        assert_eq!(
-            json.credit_qualifying_delta_bucketed[0].0,
-            SimmCreditSector::Sovereign
-        );
     }
 
     #[test]

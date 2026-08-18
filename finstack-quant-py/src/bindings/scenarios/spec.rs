@@ -295,6 +295,13 @@ impl PyTemplateMetadata {
         self.inner.components.clone()
     }
 
+    /// Deserialize template metadata from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
     /// Serialize this metadata to canonical JSON.
     ///
     /// Returns
@@ -308,6 +315,11 @@ impl PyTemplateMetadata {
     ///     If serialization fails.
     fn to_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
     fn __repr__(&self) -> String {

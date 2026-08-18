@@ -203,10 +203,8 @@ they must be done as paired changes:
 
 | Domain | Entry points |
 |--------|-------------|
-| statements_analytics | `generate_tornado_entries` |
 | attribution | `attribute_pnl_from_spec` |
 | features | `transform_panel` (the typed twin `transform_panel_spec` is already public in Rust) |
-| factor_model | `covariance_at`, `factor_model_at` |
 
 The scenarios group is arguably fine as-is — those emit spec *documents* meant
 for re-ingest, so they are wire surfaces and only need `_json`/`Json` suffixes.

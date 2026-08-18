@@ -14,7 +14,7 @@ use crate::bindings::pandas_utils::serde_to_py;
 use crate::bindings::statements::checks::PyCheckReport;
 use crate::bindings::statements_analytics::typed::{
     PyBridgeChart, PyScenarioDiff, PyScenarioResults, PyScenarioSet, PySensitivityConfig,
-    PySensitivityResult, PyVarianceConfig, PyVarianceReport,
+    PySensitivityResult, PyTornadoEntry, PyVarianceConfig, PyVarianceReport,
 };
 use crate::errors::display_to_py;
 use finstack_quant_statements_analytics::analysis::CorporateValuationResult;
@@ -117,25 +117,29 @@ fn run_sensitivity(
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized list of ``TornadoEntry``.
+/// list[TornadoEntry]
+///     Typed entries sorted by descending absolute swing.
 #[pyfunction]
 #[pyo3(signature = (result, metric_node, period=None))]
 fn generate_tornado_entries(
     result: &Bound<'_, PyAny>,
     metric_node: &str,
     period: Option<&str>,
-) -> PyResult<String> {
+) -> PyResult<Vec<PyTornadoEntry>> {
     let result = extract_sensitivity_result(result)?;
     let period_id: Option<finstack_quant_core::dates::PeriodId> = period
         .map(|p| p.parse().map_err(display_to_py))
         .transpose()?;
-    let entries = finstack_quant_statements_analytics::analysis::generate_tornado_entries(
-        &result,
-        metric_node,
-        period_id,
-    );
-    serde_json::to_string(&entries).map_err(display_to_py)
+    Ok(
+        finstack_quant_statements_analytics::analysis::generate_tornado_entries(
+            &result,
+            metric_node,
+            period_id,
+        )
+        .into_iter()
+        .map(PyTornadoEntry::from_inner)
+        .collect(),
+    )
 }
 
 /// Run variance analysis comparing two statement results.

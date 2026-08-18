@@ -231,8 +231,6 @@ pub struct SimmParams {
     pub mpor_days: u32,
     /// Interest-rate delta risk weights keyed by tenor label.
     pub ir_delta_weights: HashMap<String, f64>,
-    /// Credit-qualifying delta risk weights keyed by sector or bucket label.
-    pub cq_delta_weights: HashMap<String, f64>,
     /// Credit-non-qualifying delta risk weight.
     pub cnq_delta_weight: f64,
     /// Equity delta risk weight.
@@ -690,7 +688,6 @@ fn parse_simm(value: Option<&Value>) -> Result<HashMap<String, SimmParams>> {
         let record = entry.record;
         let version = parse_simm_version(entry.ids.first().map(String::as_str))?;
         let ir_delta_weights = parse_number_map(&record.ir_delta_weights, "simm.ir_delta_weights")?;
-        let cq_delta_weights = parse_number_map(&record.cq_delta_weights, "simm.cq_delta_weights")?;
         let commodity_bucket_weights = parse_number_map(
             &record.commodity_bucket_weights,
             "simm.commodity_bucket_weights",
@@ -776,7 +773,6 @@ fn parse_simm(value: Option<&Value>) -> Result<HashMap<String, SimmParams>> {
             version,
             mpor_days: record.mpor_days,
             ir_delta_weights,
-            cq_delta_weights,
             cnq_delta_weight: record.cnq_delta_weight,
             equity_delta_weight: record.equity_delta_weight,
             fx_delta_weight: record.fx_delta_weight,
@@ -1106,9 +1102,6 @@ fn validate_simm_params(p: &SimmParams) -> Result<()> {
     }
     for (k, v) in &p.ir_delta_weights {
         validate_non_negative(&format!("simm.ir_delta_weights[{k}]"), *v)?;
-    }
-    for (k, v) in &p.cq_delta_weights {
-        validate_non_negative(&format!("simm.cq_delta_weights[{k}]"), *v)?;
     }
     for (k, v) in &p.commodity_bucket_weights {
         validate_non_negative(&format!("simm.commodity_bucket_weights[{k}]"), *v)?;
@@ -1460,8 +1453,10 @@ mod tests {
             "5y IR weight should be present"
         );
         assert!(
-            params.cq_delta_weights.contains_key("corporates"),
-            "corporates CQ weight should be present"
+            params
+                .cq_bucket_weights
+                .contains_key(&SimmCreditSector::Financial),
+            "financial CQ bucket weight should be present"
         );
         assert!(params.cnq_delta_weight > 0.0, "CNQ weight should be > 0");
         assert!(
@@ -1742,7 +1737,7 @@ mod tests {
     fn v26_overlay_missing_cq_bucket_weights_is_rejected() {
         // Build a minimal v2.6-tagged record that omits cq_bucket_weights
         // entirely; the parser must reject because v2.6 requires the
-        // explicit table (the legacy fallback is only valid for v2.5).
+        // explicit table and no fabricated fallback is permitted.
         let val = serde_json::json!({
             "schema": "simm.v1",
             "version": 1,
@@ -1750,7 +1745,6 @@ mod tests {
                 "ids": ["v2_6"],
                 "record": {
                     "ir_delta_weights": { "5Y": 50.0 },
-                    "cq_delta_weights": { "corporates": 73.0 },
                     "cnq_delta_weight": 169.0,
                     "equity_delta_weight": 25.0,
                     "fx_delta_weight": 8.1,

@@ -57,6 +57,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "VarianceConfig",
             "ScenarioSet",
             "SensitivityResult",
+            "TornadoEntry",
             "VarianceRow",
             "VarianceReport",
             "ScenarioResults",

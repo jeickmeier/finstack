@@ -60,17 +60,17 @@ attributes and no `serde(alias)`, so none of this was annotation-visible.
   selectable only when their ISDA-published tables are present. `"v2_5"` no
   longer parses.
 
-**Not removed — SIMM credit-qualifying scalar path (waves 15-16)**
+**Breaking (Rust, JSON, Python) — waves 15-16: explicit SIMM credit classification**
 
-The scalar aggregation in `SimmCalculator` looks like legacy next to the
-bucketed ISDA §3.B path, but it is the only reachable one: nothing populates
-`credit_qualifying_delta_bucketed`. Instruments report credit risk through
-`SimmSensitivities::add_credit_delta`, which writes the flat map because they
-carry no `SimmCreditSector` — there is no issuer to sector classifier in
-`valuations`. Deleting the scalar branch would drop credit-qualifying margin to
-zero for every CDS and CDSIndex. Removing it is feature work: add the
-classifier, emit bucketed entries from `Marginable::simm_sensitivities`, then
-delete the branch. Documented in-code at both sites.
+- CDS and CDS-index products using SIMM require
+  `OtcMarginSpec.simm_credit_classification`. Qualifying exposures carry an
+  explicit ISDA sector; non-qualifying is reserved for securitizations and
+  designated CNQ exposures.
+- Removed the scalar credit-qualifying map and approximation. The canonical
+  `credit_qualifying_delta` shape is now `(sector, name, tenor, amount)` and
+  always follows ISDA §3.B bucket aggregation.
+- Replaced boolean `add_credit_delta` with explicit
+  `add_credit_qualifying_delta` and `add_credit_non_qualifying_delta` APIs.
 
 **Breaking (Rust, JSON, Python) — wave 12: the waterfall can now report insolvency**
 
@@ -154,8 +154,8 @@ delete the branch. Documented in-code at both sites.
 - `FxMatrixState.pinned_quotes` is required. A snapshot omitting it previously
   restored a matrix with no pinned fixings, silently re-deriving those dates
   from the provider.
-- `SimmSensitivitiesWire.credit_qualifying_delta_bucketed` is required. The
-  default silently selected the scalar credit aggregation.
+- `SimmSensitivitiesWire.credit_qualifying_delta` requires a sector on every
+  entry; the former scalar and parallel `*_bucketed` fields are removed.
 - `IssuerBetaRow.level_fit_quality` is required; `FactorVolModel` now denies
   unknown fields.
 - `LoadPhase::Migrate` removed (never constructed; no migration code existed).

@@ -17,6 +17,7 @@ SensitivityConfig = _sa.SensitivityConfig
 VarianceConfig = _sa.VarianceConfig
 ScenarioSet = _sa.ScenarioSet
 SensitivityResult = _sa.SensitivityResult
+TornadoEntry = _sa.TornadoEntry
 VarianceRow = _sa.VarianceRow
 VarianceReport = _sa.VarianceReport
 ScenarioResults = _sa.ScenarioResults
@@ -132,6 +133,7 @@ __all__: list[str] = [
     "SensitivityConfig",
     "SensitivityResult",
     "SimpleLeaseSpec",
+    "TornadoEntry",
     "VarianceConfig",
     "VarianceReport",
     "VarianceRow",

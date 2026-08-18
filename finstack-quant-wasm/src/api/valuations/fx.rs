@@ -12,7 +12,7 @@
 //! deterministic stream set `mc_seed_scenario` inside the instrument JSON.
 
 use super::pricing::{
-    metric_value_with_context, parse_market_json, price_instrument_with_context,
+    metric_value_with_context, parse_market_json, price_result_with_context,
     standard_option_greeks_with_context, validate_pricing_instrument_json,
 };
 use crate::utils::{to_js_err, to_js_error, to_js_value};
@@ -57,7 +57,7 @@ fn price_payload(
     metrics: Option<JsValue>,
     pricing_options: Option<String>,
     market_history: Option<String>,
-) -> Result<String, JsValue> {
+) -> Result<JsValue, JsValue> {
     validate_pricing_instrument_json(json, pricing_options.as_deref())?;
     let market = parse_market_json(market_json)?;
     let metrics: Vec<String> = match metrics {
@@ -65,7 +65,7 @@ fn price_payload(
         Some(value) if value.is_undefined() || value.is_null() => Vec::new(),
         Some(value) => serde_wasm_bindgen::from_value(value).map_err(to_js_err)?,
     };
-    price_instrument_with_context(
+    let result = price_result_with_context(
         json,
         &market,
         as_of,
@@ -73,7 +73,8 @@ fn price_payload(
         metrics,
         pricing_options.as_deref(),
         market_history.as_deref(),
-    )
+    )?;
+    to_js_value(&result)
 }
 
 fn metric_value(
@@ -200,7 +201,7 @@ macro_rules! fx_class {
             /// `undefined` to use the envelope as-is.
             /// @param market_history - Optional serialized market-history JSON
             /// required by historical risk metrics such as historical VaR.
-            /// @returns Canonical JSON `ValuationResult` for the selected model.
+            /// @returns Structured `ValuationResult` for the selected model.
             ///
             /// # Errors
             ///
@@ -208,7 +209,7 @@ macro_rules! fx_class {
             /// option, or market-history payload is invalid; `metrics` is not a
             /// string array; `asOf`, `model`, or a metric identifier is invalid;
             /// required market data is missing; pricing or a metric fails; or the
-            /// valuation cannot be serialized.
+            /// valuation cannot be converted to JavaScript.
             pub fn price(
                 &self,
                 market_json: &str,
@@ -217,7 +218,7 @@ macro_rules! fx_class {
                 metrics: Option<JsValue>,
                 pricing_options: Option<String>,
                 market_history: Option<String>,
-            ) -> Result<String, JsValue> {
+            ) -> Result<JsValue, JsValue> {
                 price_payload(
                     &self.json,
                     market_json,

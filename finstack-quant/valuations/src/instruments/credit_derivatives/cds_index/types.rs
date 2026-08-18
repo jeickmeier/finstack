@@ -204,8 +204,10 @@ pub struct CDSIndex {
     /// Optional OTC margin specification for VM/IM.
     ///
     /// CDS indices are typically cleared through ICE Clear Credit. Use
-    /// `OtcMarginSpec::cleared("ICE", Currency::USD)` for standard
-    /// cleared indices.
+    /// `OtcMarginSpec::cleared("ICE", Currency::USD)` for standard cleared
+    /// indices. Bilateral SIMM indices must attach an explicit
+    /// `SimmCreditClassification` rather than infer qualifying status from the
+    /// index name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub margin_spec: Option<OtcMarginSpec>,
     /// Attributes for tagging and selection
@@ -401,6 +403,9 @@ impl CDSIndex {
                 self.id,
                 self.notional.amount()
             )));
+        }
+        if let Some(margin_spec) = &self.margin_spec {
+            margin_spec.validate_for_credit()?;
         }
         if let Some(upfront) = self
             .instrument_pricing_overrides
@@ -665,3 +670,34 @@ impl finstack_quant_cashflows::CashflowScheduleSource for CDSIndex {
 // Declare canonical market dependencies for the DV01 calculator.
 // In Constituents mode, include per-constituent credit curves so that DV01/BucketedDV01
 // correctly bump all credit curves, not just the index-level one.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn simm_margin_spec_without_credit_classification_is_rejected() {
+        let mut index = CDSIndex::example();
+        index.margin_spec =
+            Some(finstack_quant_margin::OtcMarginSpec::usd_bilateral().expect("margin spec"));
+
+        let error = index.validate().expect_err("classification is mandatory");
+        assert!(error.to_string().contains("simm_credit_classification"));
+    }
+
+    #[test]
+    fn classified_simm_margin_spec_is_valid() {
+        let mut index = CDSIndex::example();
+        index.margin_spec = Some(
+            finstack_quant_margin::OtcMarginSpec::usd_bilateral()
+                .expect("margin spec")
+                .with_simm_credit_classification(
+                    finstack_quant_margin::SimmCreditClassification::Qualifying {
+                        sector: finstack_quant_margin::SimmCreditSector::Residual,
+                    },
+                ),
+        );
+
+        index.validate().expect("classified index");
+    }
+}

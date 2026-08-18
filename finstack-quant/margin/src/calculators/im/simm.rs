@@ -231,18 +231,9 @@ fn resolve_simm_params(
 ///
 /// * Every `(tenor_i, tenor_j)` pair from `ir_delta_weights` must have a
 ///   corresponding entry in `ir_tenor_correlations` (ordered pair form).
-/// * `cq_delta_weights` must contain the `"corporates"` key used by the legacy
-///   scalar qualifying-credit path.
 /// * SIMM v2.6 must include explicit CQ bucket weights, inter-bucket
 ///   correlations, and per-bucket concentration thresholds.
 fn validate_simm_params(params: &SimmParams) -> finstack_quant_core::Result<()> {
-    if !params.cq_delta_weights.contains_key("corporates") {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "SIMM registry {:?}: cq_delta_weights missing required 'corporates' key",
-            params.version
-        )));
-    }
-
     let tenors: Vec<&String> = params.ir_delta_weights.keys().collect();
     let mut missing_pairs: Vec<(String, String)> = Vec::new();
     for (i, tenor_i) in tenors.iter().enumerate() {
@@ -655,45 +646,18 @@ impl SimmCalculator {
         sum.max(0.0).sqrt()
     }
 
-    /// Calculate credit delta margin from CS01-style sensitivities.
+    /// Calculate credit non-qualifying delta margin from aggregate CS01.
     ///
     /// # Arguments
     ///
-    /// * `cs01` - Signed currency CS01 per 1bp par-spread move
-    /// * `qualifying` - Whether the credit is investment grade (qualifying)
+    /// * `cs01` - Signed currency CS01 per 1bp par-spread move for explicitly
+    ///   non-qualifying exposures.
     ///
     /// # Returns
     ///
-    /// The credit delta margin contribution after the applicable SIMM risk weight.
-    ///
-    /// # Invariant
-    ///
-    /// For `qualifying = true`, the `"corporates"` key must be present in
-    /// `params.cq_delta_weights`. `validate_simm_params` enforces this at
-    /// construction time, so the fallback below should be dead code; it is
-    /// retained as a defensive safety net that logs loudly if ever hit.
-    pub fn calculate_credit_delta(&self, cs01: f64, qualifying: bool) -> f64 {
-        let weight = if qualifying {
-            match self.params.cq_delta_weights.get("corporates").copied() {
-                Some(w) => w,
-                None => {
-                    // Post-validation, this branch is unreachable. If it fires,
-                    // registry mutation bypassed the constructor's validation.
-                    // Fall back to the non-qualifying weight (still a
-                    // registry-sourced value) rather than a magic literal that
-                    // could hide a schedule drift.
-                    tracing::error!(
-                        "SIMM: cq_delta_weights['corporates'] missing post-validation; \
-                         falling back to cnq_delta_weight"
-                    );
-                    self.params.cnq_delta_weight
-                }
-            }
-        } else {
-            self.params.cnq_delta_weight
-        };
-
-        (cs01 * weight).abs()
+    /// The non-qualifying credit delta margin after the registry risk weight.
+    pub fn calculate_credit_non_qualifying_delta(&self, cs01: f64) -> f64 {
+        (cs01 * self.params.cnq_delta_weight).abs()
     }
 
     /// Calculate credit qualifying delta margin with bucket-level aggregation.
@@ -723,7 +687,7 @@ impl SimmCalculator {
     /// # Returns
     ///
     /// The credit qualifying delta margin after bucket diversification.
-    pub fn calculate_credit_delta_bucketed(
+    pub fn calculate_credit_qualifying_delta(
         &self,
         bucketed_delta: &HashMap<(SimmCreditSector, String, String), f64>,
     ) -> f64 {
@@ -1086,43 +1050,16 @@ impl SimmCalculator {
             }
         }
 
-        // Credit Delta (Qualifying).
-        //
-        // The bucketed branch is the ISDA SIMM §3.B two-level aggregation and
-        // is the correct one. The scalar `else` branch below is NOT removable
-        // legacy despite looking like it: nothing in the workspace populates
-        // `credit_qualifying_delta_bucketed`. Every instrument reports credit
-        // risk through `SimmSensitivities::add_credit_delta`, which writes the
-        // flat `credit_qualifying_delta` map because instruments carry no
-        // `SimmCreditSector` — there is no issuer -> sector classifier in
-        // `valuations`. Deleting the scalar branch therefore drops CQ margin to
-        // zero for every CDS and CDSIndex rather than improving accuracy.
-        //
-        // Removing it is feature work, in this order:
-        //   1. add an issuer -> SimmCreditSector classifier in valuations,
-        //   2. have `Marginable::simm_sensitivities` emit bucketed entries,
-        //   3. then delete this branch and `add_credit_delta`'s qualifying arm.
-        if !sensitivities.credit_qualifying_delta_bucketed.is_empty() {
-            let credit_margin = self
-                .calculate_credit_delta_bucketed(&sensitivities.credit_qualifying_delta_bucketed);
+        // Credit Delta (Qualifying): mandatory ISDA SIMM sector aggregation.
+        if !sensitivities.credit_qualifying_delta.is_empty() {
+            let credit_margin =
+                self.calculate_credit_qualifying_delta(&sensitivities.credit_qualifying_delta);
             if credit_margin > 0.0 {
                 breakdown.insert(
                     "Credit_Qualifying_Delta".to_string(),
                     Money::new(credit_margin, currency),
                 );
                 risk_class_margins.insert(SimmRiskClass::CreditQualifying, credit_margin);
-            }
-        } else {
-            let qualifying_total = sensitivities.credit_qualifying_delta.values().sum::<f64>();
-            if qualifying_total.abs() > 0.0 {
-                let credit_margin = self.calculate_credit_delta(qualifying_total, true);
-                if credit_margin > 0.0 {
-                    breakdown.insert(
-                        "Credit_Qualifying_Delta".to_string(),
-                        Money::new(credit_margin, currency),
-                    );
-                    risk_class_margins.insert(SimmRiskClass::CreditQualifying, credit_margin);
-                }
             }
         }
 
@@ -1132,7 +1069,7 @@ impl SimmCalculator {
             .values()
             .sum::<f64>();
         if non_qual_total.abs() > 0.0 {
-            let credit_margin = self.calculate_credit_delta(non_qual_total, false);
+            let credit_margin = self.calculate_credit_non_qualifying_delta(non_qual_total);
             if credit_margin > 0.0 {
                 breakdown.insert(
                     "Credit_NonQualifying_Delta".to_string(),
@@ -1207,18 +1144,12 @@ impl SimmCalculator {
         // - InterestRate: per-currency CF already applied inside
         //   `calculate_ir_delta_multi_currency`.
         // - Fx: per-currency CF already applied in the FX block above.
-        // - CreditQualifying (bucketed path): per-bucket CF already
-        //   applied inside `calculate_credit_delta_bucketed`.
+        // - CreditQualifying: per-bucket CF already applied inside
+        //   `calculate_credit_qualifying_delta`.
         //
-        // For the legacy-scalar credit paths and for Equity / Commodity
-        // (where the inputs are pooled by construction), the pool-level
-        // CF is the best available approximation.
-        let uses_bucketed_cq = !sensitivities.credit_qualifying_delta_bucketed.is_empty();
+        // For CreditNonQualifying, Equity, and Commodity (where the inputs are
+        // pooled by construction), the pool-level CF is the available model.
         let net_sensitivities: HashMap<SimmRiskClass, f64> = [
-            (
-                SimmRiskClass::CreditQualifying,
-                sensitivities.credit_qualifying_delta.values().sum::<f64>(),
-            ),
             (
                 SimmRiskClass::CreditNonQualifying,
                 sensitivities
@@ -1237,8 +1168,9 @@ impl SimmCalculator {
 
         for (rc, margin) in risk_class_margins.iter_mut() {
             match *rc {
-                SimmRiskClass::InterestRate | SimmRiskClass::Fx => continue,
-                SimmRiskClass::CreditQualifying if uses_bucketed_cq => continue,
+                SimmRiskClass::InterestRate
+                | SimmRiskClass::CreditQualifying
+                | SimmRiskClass::Fx => continue,
                 _ => {}
             }
             let Some(&net) = net_sensitivities.get(rc) else {
@@ -1406,20 +1338,6 @@ mod tests {
     }
 
     #[test]
-    fn validate_rejects_missing_corporates_weight() {
-        let mut params = SimmCalculator::new(SimmVersion::V2_6)
-            .expect("registry should load")
-            .params;
-        params.cq_delta_weights.remove("corporates");
-        let err = validate_simm_params(&params).expect_err("should reject missing corporates");
-        let msg = err.to_string();
-        assert!(
-            msg.contains("corporates"),
-            "error should name the key: {msg}"
-        );
-    }
-
-    #[test]
     fn validate_rejects_missing_ir_tenor_pair() {
         let mut params = SimmCalculator::new(SimmVersion::V2_6)
             .expect("registry should load")
@@ -1484,17 +1402,12 @@ mod tests {
     }
 
     #[test]
-    fn credit_delta_calculation() {
+    fn credit_non_qualifying_delta_calculation() {
         let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
 
-        let cs01 = 50_000.0; // $50K CS01
+        let cs01 = 50_000.0;
+        let cnq_margin = calc.calculate_credit_non_qualifying_delta(cs01);
 
-        let cq_margin = calc.calculate_credit_delta(cs01, true);
-        let cnq_margin = calc.calculate_credit_delta(cs01, false);
-
-        // Qualifying uses lower weight (~73), non-qualifying uses 500
-        assert!(cq_margin < cnq_margin);
-        assert!((cq_margin - 3_650_000.0).abs() < 1.0); // 50K * 73
         assert!((cnq_margin - 25_000_000.0).abs() < 1.0); // 50K * 500
     }
 
@@ -1519,7 +1432,10 @@ mod tests {
         let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
         assert_eq!(calc.version(), SimmVersion::V2_6);
         assert!(calc.params.ir_delta_weights.contains_key("5Y"));
-        assert!(calc.params.cq_delta_weights.contains_key("corporates"));
+        assert!(calc
+            .params
+            .cq_bucket_weights
+            .contains_key(&SimmCreditSector::Financial));
     }
 
     #[test]
@@ -1788,7 +1704,7 @@ mod tests {
         // Bucketed path: single name in one bucket.
         let mut bucketed: HashMap<(SimmCreditSector, String, String), f64> = HashMap::default();
         bucketed.insert((sector, "ISSUER_A".to_string(), "5Y".to_string()), cs01);
-        let bucketed_margin = calc.calculate_credit_delta_bucketed(&bucketed);
+        let bucketed_margin = calc.calculate_credit_qualifying_delta(&bucketed);
 
         let expected = (raw_ws * cf).abs();
         assert!(
@@ -1840,7 +1756,7 @@ mod tests {
             ),
             cs01_per_name,
         );
-        let bucketed_margin = calc.calculate_credit_delta_bucketed(&bucketed);
+        let bucketed_margin = calc.calculate_credit_qualifying_delta(&bucketed);
         let gross_weighted: f64 = bucketed
             .iter()
             .map(|((sector, _, _), cs01)| (cs01 * calc.params.cq_bucket_weight(*sector)).abs())
@@ -1888,7 +1804,7 @@ mod tests {
         let mut bucketed: HashMap<(SimmCreditSector, String, String), f64> = HashMap::default();
         bucketed.insert((sector_a, "GOVT_A".to_string(), "5Y".to_string()), cs01_a);
         bucketed.insert((sector_b, "BANK_A".to_string(), "5Y".to_string()), cs01_b);
-        let actual = calc.calculate_credit_delta_bucketed(&bucketed);
+        let actual = calc.calculate_credit_qualifying_delta(&bucketed);
 
         assert!(
             (actual - expected).abs() < 1.0,
@@ -1920,7 +1836,7 @@ mod tests {
         let mut bucketed: HashMap<(SimmCreditSector, String, String), f64> = HashMap::default();
         bucketed.insert((sector, "BANK_A".to_string(), "5Y".to_string()), cs01_1);
         bucketed.insert((sector, "BANK_B".to_string(), "5Y".to_string()), cs01_2);
-        let actual = calc.calculate_credit_delta_bucketed(&bucketed);
+        let actual = calc.calculate_credit_qualifying_delta(&bucketed);
 
         assert!(
             (actual - expected).abs() < 1.0,
@@ -1929,14 +1845,12 @@ mod tests {
     }
 
     #[test]
-    fn calculate_from_sensitivities_uses_bucketed_when_available() {
-        // Verify that calculate_from_sensitivities dispatches to the bucketed
-        // path when credit_qualifying_delta_bucketed is populated.
+    fn calculate_from_sensitivities_uses_sector_bucketed_credit_qualifying_delta() {
         let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
 
         let mut sens = SimmSensitivities::new(Currency::USD);
-        sens.add_credit_delta_bucketed(SimmCreditSector::Sovereign, "GOVT_A", "5Y", 50_000.0);
-        sens.add_credit_delta_bucketed(SimmCreditSector::Financial, "BANK_A", "5Y", 50_000.0);
+        sens.add_credit_qualifying_delta(SimmCreditSector::Sovereign, "GOVT_A", "5Y", 50_000.0);
+        sens.add_credit_qualifying_delta(SimmCreditSector::Financial, "BANK_A", "5Y", 50_000.0);
 
         let (total_im, breakdown) = calc.calculate_from_sensitivities(&sens, Currency::USD);
         assert!(total_im > 0.0, "total IM should be positive");
@@ -1946,7 +1860,7 @@ mod tests {
         );
 
         // The bucketed margin should match the direct bucketed calculation.
-        let expected = calc.calculate_credit_delta_bucketed(&sens.credit_qualifying_delta_bucketed);
+        let expected = calc.calculate_credit_qualifying_delta(&sens.credit_qualifying_delta);
         let actual = breakdown
             .get("Credit_Qualifying_Delta")
             .expect("CQ delta breakdown entry")
@@ -1955,34 +1869,6 @@ mod tests {
             (actual - expected).abs() < 1.0,
             "calculate_from_sensitivities should delegate to bucketed: \
              expected {expected}, got {actual}"
-        );
-    }
-
-    #[test]
-    fn legacy_scalar_path_still_works() {
-        // Verify backward compatibility: when only the old
-        // credit_qualifying_delta map is populated, the scalar path is used.
-        let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
-
-        let mut sens = SimmSensitivities::new(Currency::USD);
-        sens.add_credit_delta("CDX.NA.IG", true, "5Y", 100_000.0);
-
-        let (total_im, breakdown) = calc.calculate_from_sensitivities(&sens, Currency::USD);
-        assert!(total_im > 0.0, "total IM should be positive");
-        assert!(
-            breakdown.contains_key("Credit_Qualifying_Delta"),
-            "breakdown should contain Credit_Qualifying_Delta"
-        );
-
-        // Should match scalar calculation.
-        let expected = calc.calculate_credit_delta(100_000.0, true);
-        let actual = breakdown
-            .get("Credit_Qualifying_Delta")
-            .expect("CQ delta breakdown entry")
-            .amount();
-        assert!(
-            (actual - expected).abs() < 1.0,
-            "legacy scalar path: expected {expected}, got {actual}"
         );
     }
 }

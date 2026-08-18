@@ -375,7 +375,8 @@ def test_simm_sensitivities_to_dataframe_is_long_and_sorted() -> None:
     sens.add_ir_delta("USD", "5Y", 100_000.0)
     sens.add_ir_delta("EUR", "2Y", 50_000.0)
     sens.add_ir_vega("USD", "5Y", 10_000.0)
-    sens.add_credit_delta("ACME", True, "5Y", 20_000.0)
+    sens.add_credit_qualifying_delta("financial", "ACME", "5Y", 20_000.0)
+    sens.add_credit_non_qualifying_delta("RMBS-1", "5Y", 15_000.0)
     sens.add_equity_delta("AAPL", 250_000.0)
     sens.add_fx_delta("EUR", 75_000.0)
     sens.add_commodity_delta("crude", 30_000.0)
@@ -385,7 +386,7 @@ def test_simm_sensitivities_to_dataframe_is_long_and_sorted() -> None:
 
     assert isinstance(df, pd.DataFrame)
     assert list(df.columns) == SENSITIVITY_COLUMNS
-    assert len(df) == 8
+    assert len(df) == 9
 
     keys = _sort_keys(df)
     assert keys == sorted(keys), "rows must be sorted by their key columns"
@@ -403,12 +404,16 @@ def test_simm_sensitivities_to_dataframe_is_long_and_sorted() -> None:
 
     credit = df[df["risk_class"] == "credit_qualifying"]
     assert list(credit["issuer"]) == ["ACME"]
-    assert credit["bucket"].isna().all(), "unbucketed credit has no sector"
+    assert list(credit["bucket"]) == ["financial"]
+
+    non_qualifying = df[df["risk_class"] == "credit_non_qualifying"]
+    assert list(non_qualifying["issuer"]) == ["RMBS-1"]
+    assert non_qualifying["bucket"].isna().all()
 
 
-def test_simm_sensitivities_bucketed_credit_carries_sector_label() -> None:
+def test_simm_sensitivities_credit_qualifying_carries_sector_label() -> None:
     sens = SimmSensitivities("USD")
-    sens.add_credit_delta_bucketed("sovereign", "GOVT_A", "5Y", 40_000.0)
+    sens.add_credit_qualifying_delta("sovereign", "GOVT_A", "5Y", 40_000.0)
     df = sens.to_dataframe()
 
     assert len(df) == 1

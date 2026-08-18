@@ -142,6 +142,10 @@ fn computation_results_are_structured_not_strings() {
         "runChecks",
         "runThreeStatementChecks",
         "runCreditUnderwritingChecks",
+        "generateTornadoEntries",
+        "covarianceAt",
+        "factorModelAt",
+        "price",
     ] {
         let Some(ret) = declared_return(&dts, export) else {
             panic!("{export} is missing from index.d.ts");

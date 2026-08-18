@@ -11,8 +11,9 @@ use finstack_quant_statements_analytics::analysis::{
     BridgeChart as RustBridgeChart, ParameterSpec, ScenarioDefinition,
     ScenarioDiff as RustScenarioDiff, ScenarioResults, ScenarioSet as RustScenarioSet,
     SensitivityConfig as RustSensitivityConfig, SensitivityMode,
-    SensitivityResult as RustSensitivityResult, VarianceConfig as RustVarianceConfig,
-    VarianceReport as RustVarianceReport, VarianceRow as RustVarianceRow,
+    SensitivityResult as RustSensitivityResult, TornadoEntry as RustTornadoEntry,
+    VarianceConfig as RustVarianceConfig, VarianceReport as RustVarianceReport,
+    VarianceRow as RustVarianceRow,
 };
 use indexmap::IndexMap;
 use pyo3::exceptions::{PyIndexError, PyValueError};
@@ -326,6 +327,83 @@ impl PyScenarioSet {
     /// `to_json()` or a DataFrame exit when the contents matter.
     fn __repr__(&self) -> String {
         crate::bindings::repr_support::repr_from_serde("ScenarioSet", &self.inner)
+    }
+}
+
+/// One parameter's downside and upside impact in a tornado chart.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.statements_analytics import TornadoEntry
+/// >>> entry = TornadoEntry.from_json('{"parameter_id":"revenue","downside":-5.0,"upside":7.0}')
+/// >>> entry.swing
+/// 12.0
+#[pyclass(
+    name = "TornadoEntry",
+    module = "finstack_quant.statements_analytics",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyTornadoEntry {
+    pub(crate) inner: RustTornadoEntry,
+}
+
+impl PyTornadoEntry {
+    pub(crate) fn from_inner(inner: RustTornadoEntry) -> Self {
+        Self { inner }
+    }
+}
+
+#[pymethods]
+impl PyTornadoEntry {
+    /// Deserialize one tornado entry from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize this entry to canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Parameter node identifier represented by this entry.
+    #[getter]
+    fn parameter_id(&self) -> &str {
+        &self.inner.parameter_id
+    }
+
+    /// Metric change at the parameter's minimum perturbation.
+    #[getter]
+    fn downside(&self) -> f64 {
+        self.inner.downside
+    }
+
+    /// Metric change at the parameter's maximum perturbation.
+    #[getter]
+    fn upside(&self) -> f64 {
+        self.inner.upside
+    }
+
+    /// Total swing magnitude, calculated as `upside - downside`.
+    #[getter]
+    fn swing(&self) -> f64 {
+        self.inner.swing()
+    }
+
+    /// Support pickle through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "TornadoEntry(parameter_id='{}', downside={}, upside={})",
+            self.inner.parameter_id, self.inner.downside, self.inner.upside
+        )
     }
 }
 
@@ -1006,6 +1084,7 @@ pub fn register(_py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyVarianceConfig>()?;
     module.add_class::<PyScenarioSet>()?;
     module.add_class::<PySensitivityResult>()?;
+    module.add_class::<PyTornadoEntry>()?;
     module.add_class::<PyVarianceRow>()?;
     module.add_class::<PyVarianceReport>()?;
     module.add_class::<PyScenarioResults>()?;

@@ -50,8 +50,3 @@ pub mod tenor_buckets {
     /// 20 year bucket threshold.
     pub const BUCKET_20Y: f64 = 20.0;
 }
-
-/// Default credit qualifying spread threshold in basis points.
-///
-/// Spreads below this level are typically considered investment grade.
-pub const INVESTMENT_GRADE_SPREAD_THRESHOLD_BP: f64 = 200.0;

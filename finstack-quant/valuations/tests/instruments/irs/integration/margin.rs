@@ -66,6 +66,7 @@ fn create_bilateral_margin_spec() -> OtcMarginSpec {
         csa,
         clearing_status: ClearingStatus::Bilateral,
         im_methodology: ImMethodology::Simm,
+        simm_credit_classification: None,
         vm_frequency: MarginTenor::Daily,
         settlement_lag: 1,
     }
@@ -106,6 +107,7 @@ fn create_cleared_margin_spec() -> OtcMarginSpec {
             ccp: "LCH".to_string(),
         },
         im_methodology: ImMethodology::ClearingHouse,
+        simm_credit_classification: None,
         vm_frequency: MarginTenor::Daily,
         settlement_lag: 0,
     }

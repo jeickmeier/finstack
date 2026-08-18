@@ -5,7 +5,9 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use finstack_quant_wasm::api::factor_model::{JsCreditCalibrator, JsCreditFactorModel};
+use finstack_quant_wasm::api::factor_model::{
+    JsCreditCalibrator, JsCreditFactorModel, JsFactorCovarianceForecast,
+};
 use wasm_bindgen_test::*;
 
 // ---- helpers ----------------------------------------------------------------
@@ -132,4 +134,24 @@ fn calibrate_then_decompose_round_trip() {
         "schema must match the canonical v1 marker"
     );
     assert_eq!(model.schema(), "finstack_quant.credit_factor_model/1");
+}
+
+#[wasm_bindgen_test]
+fn covariance_forecast_returns_structured_objects() {
+    let calibrator = JsCreditCalibrator::new(&minimal_config_json()).expect("calibrator");
+    let model = calibrator.calibrate(&minimal_inputs_json()).expect("model");
+    let forecast = JsFactorCovarianceForecast::new(&model);
+
+    let covariance = forecast.covariance_at("one_step").expect("covariance");
+    let covariance: serde_json::Value = serde_wasm_bindgen::from_value(covariance).unwrap();
+    assert!(covariance["factor_ids"].is_array());
+    assert!(covariance["data"].is_array());
+
+    let config = forecast
+        .factor_model_at("one_step", "\"variance\"")
+        .expect("factor model");
+    let config: serde_json::Value = serde_wasm_bindgen::from_value(config).unwrap();
+    assert!(config["factors"].is_array());
+    assert!(config["covariance"].is_object());
+    assert_eq!(config["risk_measure"], "variance");
 }

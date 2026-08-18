@@ -41,11 +41,8 @@ fn sample_simm_sensitivities() -> SimmSensitivities {
         .ir_vega
         .insert((Currency::USD, "10Y".to_string()), 3_250.0);
     sensitivities
-        .credit_qualifying_delta
-        .insert(("CDX.NA.IG".to_string(), "5Y".to_string()), 4_500.0);
-    sensitivities
         .credit_non_qualifying_delta
-        .insert(("HY_INDEX".to_string(), "3Y".to_string()), -1_100.0);
+        .insert(("RMBS_INDEX".to_string(), "3Y".to_string()), -1_100.0);
     sensitivities.equity_delta.insert("AAPL".to_string(), 800.0);
     sensitivities.equity_vega.insert("AAPL".to_string(), 125.0);
     sensitivities.fx_delta.insert(Currency::JPY, 2_200.0);
@@ -58,7 +55,7 @@ fn sample_simm_sensitivities() -> SimmSensitivities {
     sensitivities
         .curvature
         .insert(SimmRiskClass::InterestRate, -75.0);
-    sensitivities.credit_qualifying_delta_bucketed.insert(
+    sensitivities.credit_qualifying_delta.insert(
         (
             SimmCreditSector::Financial,
             "BANK_A".to_string(),
@@ -72,7 +69,7 @@ fn sample_simm_sensitivities() -> SimmSensitivities {
 #[test]
 fn simm_sensitivities_serialize_deterministically_across_insertion_orders() {
     let mut first = sample_simm_sensitivities();
-    first.credit_qualifying_delta_bucketed.insert(
+    first.credit_qualifying_delta.insert(
         (
             SimmCreditSector::Sovereign,
             "UST".to_string(),
@@ -89,8 +86,8 @@ fn simm_sensitivities_serialize_deterministically_across_insertion_orders() {
     second
         .ir_delta
         .insert((Currency::USD, "5Y".to_string()), 12_500.0);
-    second.credit_qualifying_delta_bucketed.clear();
-    second.credit_qualifying_delta_bucketed.insert(
+    second.credit_qualifying_delta.clear();
+    second.credit_qualifying_delta.insert(
         (
             SimmCreditSector::Sovereign,
             "UST".to_string(),
@@ -98,7 +95,7 @@ fn simm_sensitivities_serialize_deterministically_across_insertion_orders() {
         ),
         350.0,
     );
-    second.credit_qualifying_delta_bucketed.insert(
+    second.credit_qualifying_delta.insert(
         (
             SimmCreditSector::Financial,
             "BANK_A".to_string(),
@@ -174,17 +171,16 @@ fn im_breakdown_serializes_in_sorted_order_across_reversed_insertions() {
 }
 
 #[test]
-fn simm_margin_without_bucketed_credit_is_rejected() {
-    // `credit_qualifying_delta_bucketed` is required: a payload that omits it
-    // must fail closed rather than defaulting to an empty bucketed map, which
-    // silently selects the scalar credit aggregation.
+fn simm_margin_with_scalar_credit_qualifying_delta_is_rejected() {
+    // The old `(label, tenor, value)` CQ shape must fail closed because sector
+    // assignment is mandatory for ISDA SIMM bucket aggregation.
     let err = serde_json::from_str::<NettingSetMargin>(include_str!(
         "data/simm_margin_without_bucketed_credit.json"
     ))
-    .expect_err("a payload missing the bucketed credit map must be rejected");
+    .expect_err("the scalar credit-qualifying shape must be rejected");
     assert!(
-        err.to_string().contains("credit_qualifying_delta_bucketed"),
-        "error must name the missing field, got: {err}"
+        err.to_string().contains("sector"),
+        "error must name the missing sector, got: {err}"
     );
 }
 
@@ -223,7 +219,7 @@ fn test_netting_set_margin_json_roundtrip() {
     assert!(json["sensitivities"]["ir_delta"].is_array());
     assert!(json["sensitivities"]["fx_vega"].is_array());
     assert_eq!(
-        json["sensitivities"]["credit_qualifying_delta_bucketed"]
+        json["sensitivities"]["credit_qualifying_delta"]
             .as_array()
             .expect("bucketed credit delta is an array")
             .len(),

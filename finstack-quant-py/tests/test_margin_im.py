@@ -20,7 +20,8 @@ def test_simm_calculator_from_sensitivities() -> None:
     sens = SimmSensitivities("USD")
     sens.add_ir_delta("USD", "5Y", 25_000.0)
     sens.add_ir_vega("USD", "5Y", 5_000.0)
-    sens.add_credit_delta_bucketed("financial", "BANK_A", "5Y", 12_000.0)
+    sens.add_credit_qualifying_delta("financial", "BANK_A", "5Y", 12_000.0)
+    sens.add_credit_non_qualifying_delta("RMBS-1", "5Y", 3_000.0)
     sens.add_equity_delta("SPX", 40_000.0)
     sens.add_fx_delta("EUR", 15_000.0)
 
@@ -42,10 +43,18 @@ def test_simm_calculator_from_sensitivities() -> None:
     assert result.breakdown_amount("IR_Delta") is not None
 
 
+def test_ambiguous_credit_delta_methods_are_removed() -> None:
+    sensitivities = SimmSensitivities("USD")
+
+    assert not hasattr(sensitivities, "add_credit_delta")
+    assert not hasattr(sensitivities, "add_credit_delta_bucketed")
+
+
 def test_simm_sensitivities_json_round_trip() -> None:
     sens = SimmSensitivities("USD")
     sens.add_ir_delta("USD", "2Y", 10_000.0)
     sens.add_fx_vega("EUR", "USD", 2_500.0)
+    sens.add_credit_qualifying_delta("sovereign", "GOVT_A", "5Y", 4_000.0)
     sens.add_commodity_delta("energy", 7_500.0)
     sens.add_curvature("equity", 1_250.0)
 
@@ -53,6 +62,7 @@ def test_simm_sensitivities_json_round_trip() -> None:
     parsed = json.loads(out.to_json())
 
     assert parsed["base_currency"] == "USD"
+    assert parsed["credit_qualifying_delta"] == [["sovereign", "GOVT_A", "5Y", 4_000.0]]
     assert not out.is_empty()
 
 

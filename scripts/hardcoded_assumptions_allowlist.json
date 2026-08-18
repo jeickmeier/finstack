@@ -1054,12 +1054,6 @@
     {
       "path": "finstack-quant/margin/src/calculators/im/simm.rs",
       "category": "margin_regulatory",
-      "contains": "SIMM: cq_delta_weights['corporates'] missing post-validation",
-      "reason": "Defensive validation error text; SIMM credit qualifying weights are sourced from the SIMM registry."
-    },
-    {
-      "path": "finstack-quant/margin/src/calculators/im/simm.rs",
-      "category": "margin_regulatory",
       "contains": "cq_bucket_weights missing",
       "reason": "Post-registry validation error text; SIMM credit qualifying bucket weights are sourced from the SIMM registry."
     },
@@ -1068,12 +1062,6 @@
       "category": "margin_regulatory",
       "contains": "cq_concentration_thresholds missing",
       "reason": "Post-registry validation error text; SIMM credit qualifying concentration thresholds are sourced from the SIMM registry."
-    },
-    {
-      "path": "finstack-quant/margin/src/calculators/im/simm.rs",
-      "category": "margin_regulatory",
-      "contains": "cq_delta_weights missing required 'corporates' key",
-      "reason": "Post-registry validation error text; SIMM credit qualifying weights are sourced from the SIMM registry."
     },
     {
       "path": "finstack-quant/margin/src/calculators/im/simm.rs",

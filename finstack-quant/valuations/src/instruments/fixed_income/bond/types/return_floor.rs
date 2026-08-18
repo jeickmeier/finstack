@@ -204,10 +204,6 @@ pub enum ProtectionWindow {
 ///   with a return floor in v1 — attempting this returns a validation error.
 ///   Make-whole effective prices are path-dependent and cannot be pre-computed
 ///   statically when lowering the floor.
-/// - **Amortizing bonds (to-worst)**: the `MoicToWorst` / `XirrToWorst`
-///   metrics use the initial notional as the redemption basis rather than the
-///   outstanding notional at the exit date. This is exact for bullet bonds but
-///   overstates the redemption for amortizing structures (TODO v2).
 /// - **`min_moic` / `min_xirr` shortcuts**: these set
 ///   [`ProtectionWindow::Full`] (prepayable across the bond's entire life).
 ///   Narrow the window via [`ReturnFloorSpec::window`] if a no-call period

@@ -141,8 +141,9 @@ pub fn backtest_forecast(actual: JsValue, forecast: JsValue) -> Result<JsValue, 
 /// # Errors
 ///
 /// Rejects malformed `result_json`, an invalid optional `period` identifier, or
-/// failure to serialize the generated entries. A missing metric produces no
+/// failure to convert the entries to JavaScript. A missing metric produces no
 /// entry rather than rejecting.
+/// @returns Structured tornado entries sorted by descending absolute swing.
 /// @param result_json - Result JSON produced by a prior call.
 /// @param metric_node - Statement metric node identifier selected for the requested analysis.
 /// @param period - Model period label for the requested statement value or calculation.
@@ -151,7 +152,7 @@ pub fn generate_tornado_entries(
     result_json: &str,
     metric_node: &str,
     period: Option<String>,
-) -> Result<String, JsValue> {
+) -> Result<JsValue, JsValue> {
     let result: finstack_quant_statements_analytics::analysis::SensitivityResult =
         serde_json::from_str(result_json).map_err(to_js_err)?;
     let period_id: Option<finstack_quant_core::dates::PeriodId> =
@@ -161,7 +162,7 @@ pub fn generate_tornado_entries(
         metric_node,
         period_id,
     );
-    serde_json::to_string(&entries).map_err(to_js_err)
+    to_js_value(&entries)
 }
 
 /// Rank the headline DCF assumptions by enterprise-value impact.
@@ -869,12 +870,12 @@ mod tests {
         let analyzer =
             finstack_quant_statements_analytics::analysis::SensitivityAnalyzer::new(&model);
         let result = analyzer.run(&config).expect("sensitivity");
-        // `generateTornadoEntries` still takes the sensitivity result as JSON,
-        // so JS callers stringify the object `runSensitivity` now returns.
-        let result_str = serde_json::to_string(&result).expect("serialize sensitivity");
-        let entries = generate_tornado_entries(&result_str, "gross_profit", None).expect("tornado");
-        let parsed: serde_json::Value = serde_json::from_str(&entries).expect("parse");
-        assert!(parsed.is_array());
+        let entries = finstack_quant_statements_analytics::analysis::generate_tornado_entries(
+            &result,
+            "gross_profit",
+            None,
+        );
+        assert!(!entries.is_empty());
     }
 
     #[test]

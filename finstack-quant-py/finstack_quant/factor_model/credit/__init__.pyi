@@ -21,6 +21,7 @@ from __future__ import annotations
 import datetime
 
 import pandas as pd
+from typing import Any
 
 class CreditFactorModel:
     """
@@ -653,13 +654,388 @@ class PeriodDecomposition:
 
     def __repr__(self) -> str: ...
 
+class FactorCovarianceMatrix:
+    """
+    Validated factor covariance matrix with deterministic row-major storage.
+
+    Examples
+    --------
+    >>> from finstack_quant.factor_model.credit import FactorCovarianceMatrix
+    >>> matrix = FactorCovarianceMatrix.from_json('{"factor_ids":["credit::generic"],"n":1,"data":[0.04]}')
+    >>> matrix.variance("credit::generic")
+    0.04
+    """
+
+    @staticmethod
+    def from_json(json: str) -> FactorCovarianceMatrix:
+        """Deserialize and validate a covariance matrix from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Object with ordered ``factor_ids``, dimension ``n``, and row-major ``data``.
+
+        Returns
+        -------
+        FactorCovarianceMatrix
+            Validated symmetric positive-semidefinite covariance matrix.
+
+        Raises
+        ------
+        ValueError
+            If JSON is malformed, dimensions disagree, IDs repeat, or the matrix is invalid.
+
+        Examples
+        --------
+        >>> FactorCovarianceMatrix.from_json('{"factor_ids":[],"n":0,"data":[]}').n_factors
+        0
+        """
+        ...
+
+    def to_json(self) -> str:
+        """Serialize this matrix to canonical JSON.
+
+        Returns
+        -------
+        str
+            Compact JSON with ordered axes and row-major covariance data.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+        """
+        ...
+
+    @property
+    def n_factors(self) -> int:
+        """Return the number of covariance axes.
+
+        Returns
+        -------
+        int
+            Number of factor IDs, equal to the matrix row and column count.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+
+    @property
+    def factor_ids(self) -> list[str]:
+        """Return ordered factor identifiers for rows and columns.
+
+        Returns
+        -------
+        list[str]
+            Independent copy of the canonical covariance-axis order.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+
+    @property
+    def data(self) -> list[float]:
+        """Return row-major annualized covariance values.
+
+        Returns
+        -------
+        list[float]
+            ``n_factors * n_factors`` entries in canonical factor order.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+
+    def variance(self, factor_id: str) -> float:
+        """Return one factor's annualized variance.
+
+        Parameters
+        ----------
+        factor_id : str
+            Canonical factor identifier to query.
+
+        Returns
+        -------
+        float
+            Diagonal covariance entry, or ``0.0`` when the factor is unknown.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+        """
+        ...
+
+    def covariance(self, lhs: str, rhs: str) -> float:
+        """Return annualized covariance between two factors.
+
+        Parameters
+        ----------
+        lhs : str
+            Row factor identifier.
+        rhs : str
+            Column factor identifier.
+
+        Returns
+        -------
+        float
+            Covariance entry, or ``0.0`` when either factor is unknown.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+        """
+        ...
+
+    def correlation(self, lhs: str, rhs: str) -> float:
+        """Return correlation between two factors.
+
+        Parameters
+        ----------
+        lhs : str
+            First factor identifier.
+        rhs : str
+            Second factor identifier.
+
+        Returns
+        -------
+        float
+            Covariance normalized by both standard deviations; ``0.0`` for unknown or zero-variance factors.
+
+        Raises
+        ------
+        None
+            This method does not raise.
+        """
+        ...
+
+class FactorModelConfig:
+    """
+    Portfolio factor-model configuration assembled at a forecast horizon.
+
+    Examples
+    --------
+    >>> from finstack_quant.factor_model.credit import FactorModelConfig
+    >>> config = FactorModelConfig.from_json(
+    ...     '{"factors":[],"covariance":{"factor_ids":[],"n":0,"data":[]},"matching":{"mapping_table":[]},"pricing_mode":"delta_based","risk_measure":"variance"}'
+    ... )
+    >>> config.n_factors
+    0
+    """
+
+    @staticmethod
+    def from_json(json: str) -> FactorModelConfig:
+        """Deserialize and validate a factor-model configuration.
+
+        Parameters
+        ----------
+        json : str
+            Canonical Rust ``FactorModelConfig`` JSON.
+
+        Returns
+        -------
+        FactorModelConfig
+            Typed configuration with matching and covariance invariants checked.
+
+        Raises
+        ------
+        ValueError
+            If JSON is malformed or matching rules reference undeclared factors.
+
+        Examples
+        --------
+        >>> FactorModelConfig.from_json(
+        ...     '{"factors":[],"covariance":{"factor_ids":[],"n":0,"data":[]},"matching":{"mapping_table":[]},"pricing_mode":"delta_based","risk_measure":"variance"}'
+        ... ).factor_ids
+        []
+        """
+        ...
+
+    def to_json(self) -> str:
+        """Serialize this configuration to canonical JSON.
+
+        Returns
+        -------
+        str
+            Compact JSON accepted by factor-risk workflows.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+        """
+        ...
+
+    def validate(self) -> None:
+        """Validate that matching rules emit only declared factor IDs.
+
+        Raises
+        ------
+        ValueError
+            If a matcher references an undeclared factor or duplicates issuer rows.
+        """
+        ...
+
+    @property
+    def n_factors(self) -> int:
+        """Return the number of configured factors.
+
+        Returns
+        -------
+        int
+            Length of the factor definition list.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+
+    @property
+    def factor_ids(self) -> list[str]:
+        """Return factor-definition IDs in canonical order.
+
+        Returns
+        -------
+        list[str]
+            Ordered IDs aligned to covariance axes.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+
+    @property
+    def factors(self) -> list[dict[str, Any]]:
+        """Return structured factor definitions.
+
+        Returns
+        -------
+        list[dict[str, Any]]
+            Independent Python representation of canonical factor-definition fields.
+
+        Raises
+        ------
+        ValueError
+            If conversion to Python values fails.
+        """
+        ...
+
+    @property
+    def covariance(self) -> FactorCovarianceMatrix:
+        """Return the covariance matrix aligned to ``factor_ids``.
+
+        Returns
+        -------
+        FactorCovarianceMatrix
+            Independent typed covariance wrapper.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+
+    @property
+    def matching(self) -> dict[str, Any]:
+        """Return the declarative factor-matching configuration.
+
+        Returns
+        -------
+        dict[str, Any]
+            Structured Python representation of the canonical matching variant.
+
+        Raises
+        ------
+        ValueError
+            If conversion to Python values fails.
+        """
+        ...
+
+    @property
+    def pricing_mode(self) -> str:
+        """Return the sensitivity extraction strategy.
+
+        Returns
+        -------
+        str
+            ``"delta_based"`` or ``"full_repricing"``.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+
+    @property
+    def risk_measure(self) -> str | dict[str, Any]:
+        """Return the canonical risk-measure value.
+
+        Returns
+        -------
+        str or dict[str, Any]
+            Scalar label for variance/volatility or structured VaR/ES parameters.
+
+        Raises
+        ------
+        ValueError
+            If conversion to Python values fails.
+        """
+        ...
+
+    @property
+    def bump_size(self) -> dict[str, Any] | None:
+        """Return optional finite-difference bump overrides.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Structured bump configuration, or ``None`` when defaults apply.
+
+        Raises
+        ------
+        ValueError
+            If conversion to Python values fails.
+        """
+        ...
+
+    @property
+    def unmatched_policy(self) -> str | None:
+        """Return the policy for unmatched dependencies.
+
+        Returns
+        -------
+        str or None
+            ``"strict"``, ``"residual"``, ``"warn"``, or ``None`` for the default.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+
 class FactorCovarianceForecast:
     """
     Factor covariance and idiosyncratic vol forecasts from a credit factor model.
 
     Examples
     --------
-    >>> import json
     >>> from finstack_quant.factor_model.credit import CreditCalibrator, FactorCovarianceForecast
     >>> config_json = (
     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
@@ -674,7 +1050,7 @@ class FactorCovarianceForecast:
     ... )
     >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
     >>> forecast = FactorCovarianceForecast(model)
-    >>> json.loads(forecast.covariance_at("one_step"))["factor_ids"]
+    >>> forecast.covariance_at("one_step").factor_ids
     ['credit::generic']
     """
 
@@ -693,20 +1069,19 @@ class FactorCovarianceForecast:
         """
         ...
 
-    def covariance_at(self, horizon: str) -> str:
+    def covariance_at(self, horizon: str) -> FactorCovarianceMatrix:
         """
-        Return factor covariance matrix JSON at a forecast horizon.
+        Return a typed factor covariance matrix at a forecast horizon.
 
         Parameters
         ----------
         horizon : str
-            Tenor string parseable by the core date/tenor utilities (e.g.
-            ``"3M"``, ``"1Y"``).
+            ``"one_step"``, ``"unconditional"``, or JSON ``'{"n_steps": N}'``.
 
         Returns
         -------
-        str
-            JSON-encoded covariance matrix for systematic factors.
+        FactorCovarianceMatrix
+            Typed covariance matrix with ordered factor axes and row-major data.
 
         Raises
         ------
@@ -724,7 +1099,7 @@ class FactorCovarianceForecast:
         issuer_id : str
             Issuer identifier present in the model artifact.
         horizon : str
-            Forecast horizon tenor string.
+            ``"one_step"``, ``"unconditional"``, or JSON ``'{"n_steps": N}'``.
 
         Returns
         -------
@@ -738,21 +1113,21 @@ class FactorCovarianceForecast:
         """
         ...
 
-    def factor_model_at(self, horizon: str, risk_measure_json: str) -> str:
+    def factor_model_at(self, horizon: str, risk_measure_json: str) -> FactorModelConfig:
         """
-        Return a portfolio-ready factor model JSON at a horizon.
+        Return a typed portfolio-ready factor model at a horizon.
 
         Parameters
         ----------
         horizon : str
-            Forecast horizon tenor string.
+            ``"one_step"``, ``"unconditional"``, or JSON ``'{"n_steps": N}'``.
         risk_measure_json : str
             JSON-encoded risk-measure configuration (e.g. VaR horizon, scaling).
 
         Returns
         -------
-        str
-            JSON factor model suitable for portfolio risk decomposition.
+        FactorModelConfig
+            Typed configuration suitable for portfolio risk decomposition or ``to_json()``.
 
         Raises
         ------
@@ -868,6 +1243,8 @@ __all__ = [
     "LevelsAtDate",
     "PeriodDecomposition",
     "FactorCovarianceForecast",
+    "FactorCovarianceMatrix",
+    "FactorModelConfig",
     "decompose_levels",
     "decompose_period",
 ]

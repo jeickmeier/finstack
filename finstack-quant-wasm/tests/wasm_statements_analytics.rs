@@ -85,6 +85,24 @@ fn backtest_forecast_returns_metrics() {
 }
 
 #[wasm_bindgen_test]
+fn generate_tornado_entries_returns_structured_array() {
+    let result = run_sensitivity(&test_model_json(), r#"{"mode":"tornado","parameters":[{"node_id":"revenue","period_id":"2024Q1","base_value":100000.0,"perturbations":[90000.0,110000.0]}],"target_metrics":["revenue"]}"#)
+        .unwrap();
+    let result: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
+    let entries = generate_tornado_entries(
+        &serde_json::to_string(&result).unwrap(),
+        "revenue",
+        Some("2024Q1".to_string()),
+    )
+    .unwrap();
+    let entries: Vec<finstack_quant_statements_analytics::analysis::TornadoEntry> =
+        serde_wasm_bindgen::from_value(entries).unwrap();
+
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].parameter_id, "revenue");
+}
+
+#[wasm_bindgen_test]
 fn compute_multiple_uses_canonical_company_metric_fields() {
     let metrics = std::collections::BTreeMap::from([
         ("enterprise_value".to_string(), 8_500.0),

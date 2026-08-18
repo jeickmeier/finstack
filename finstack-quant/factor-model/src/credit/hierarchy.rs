@@ -953,12 +953,10 @@ impl CreditFactorModel {
         // Every factor ID the matcher can emit must exist in config.factors;
         // an undeclared factor would silently contribute zero risk at
         // covariance-lookup time.
-        self.config.validate_matching_factor_ids()?;
+        self.config.validate()?;
 
-        // The covariance, static correlation, and vol-state factor universes
-        // must all agree with `config.factors`. `FactorCovarianceMatrix`
-        // returns 0.0 for unknown factor IDs, so a set mismatch silently
-        // zeroes risk instead of failing.
+        // The static correlation and vol-state factor universes must agree
+        // with `config.factors`; otherwise unknown IDs silently zero risk.
         let declared: BTreeSet<&FactorId> = self.config.factors.iter().map(|f| &f.id).collect();
         let check_ids = |label: &str, ids: BTreeSet<&FactorId>| {
             if ids != declared {
@@ -972,10 +970,6 @@ impl CreditFactorModel {
             }
             Ok(())
         };
-        check_ids(
-            "config.covariance",
-            self.config.covariance.factor_ids().iter().collect(),
-        )?;
         check_ids(
             "static_correlation",
             self.static_correlation.factor_ids.iter().collect(),

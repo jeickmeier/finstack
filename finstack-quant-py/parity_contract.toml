@@ -183,22 +183,34 @@ rust_lib   = "finstack-quant/factor-model/src/lib.rs"
 python_package = "finstack_quant.factor_model"
 visibility = "pub"
 status = "exists"
-note = "Generic factor-model types are exported at the Rust crate root and cross host boundaries through JSON contracts; credit hierarchy APIs are exposed under finstack_quant.factor_model.credit. Known asymmetry: WASM handles (finstack-quant-wasm/src/api/factor_model/mod.rs) are toJson-only, while Python exposes typed accessors on CreditFactorModel/LevelsAtDate/PeriodDecomposition; this is an accepted host-language divergence, not drift."
+note = "Generic factor-model types are exported at the Rust crate root. FactorCovarianceMatrix and FactorModelConfig are typed output wrappers under finstack_quant.factor_model.credit; WASM returns equivalent plain objects. Remaining generic configuration primitives cross host boundaries through explicit JSON inputs. Credit hierarchy APIs are exposed under finstack_quant.factor_model.credit."
 
 [crates.factor_model.modules]
 matching           = { python = "finstack_quant.factor_model.matching", status = "missing", note = "MatchingConfig typed host-language constructors deferred; JSON contracts remain Rust-owned. The crate-root matching re-exports (CascadeMatcher, HierarchicalMatcher, MappingTableMatcher, FactorMatcher trait family, MappingRule, AttributeFilter, DependencyFilter) are Rust-only." }
-credit             = { python = "finstack_quant.factor_model.credit", status = "exists", note = "CreditFactorModel, CreditCalibrator, LevelsAtDate, PeriodDecomposition, FactorCovarianceForecast, decompose_levels, decompose_period. Rust submodules credit::calibration, credit::decomposition, and credit::hierarchy are flattened into this one Python namespace; their remaining Rust items (calibration internals, peel helpers, hierarchy node types) are Rust-only. FactorCovarianceForecast is bound here but its canonical Rust home is finstack-quant-portfolio::factor_model::credit_vol_forecast (cross-crate; see the portfolio section)." }
+credit             = { python = "finstack_quant.factor_model.credit", status = "exists", note = "Credit hierarchy artifacts plus typed FactorCovarianceMatrix/FactorModelConfig forecast outputs are flattened into this namespace. FactorCovarianceForecast is bound here but its canonical Rust home is finstack-quant-portfolio::factor_model::credit_vol_forecast; WASM returns equivalent forecast outputs as plain objects." }
 schema             = { python = "finstack_quant.factor_model.schema", status = "exists", note = "Compiled-in JSON Schema accessors; no WASM twin." }
 
-# The crate-root `pub use` surface (FactorModelConfig, BumpSizeConfig,
-# FactorBumpUnit, PricingMode, RiskMeasure, UnmatchedPolicy,
-# FactorCovarianceMatrix, SensitivityMatrix, the envelope types, and the
-# primitives FactorId/FactorType/FactorDefinition/MarketDependency/
-# MarketMapping/CurveType/DependencyType) is Rust-only: hosts consume these
-# through JSON contracts (factor_model.schema / covariance_at /
-# factor_model_at), not as typed bindings.
+# The remaining crate-root `pub use` surface (BumpSizeConfig, FactorBumpUnit,
+# PricingMode, RiskMeasure, UnmatchedPolicy, SensitivityMatrix, envelope types,
+# and primitive factor/dependency types) remains Rust-owned. Hosts consume these
+# inside FactorModelConfig or through explicit JSON inputs rather than parallel
+# constructor APIs.
 [crates.factor_model.symbols]
 public = []
+
+[crates.factor_model.module_symbols.credit]
+python_package = "finstack_quant.factor_model.credit"
+public = [
+    "CreditCalibrator",
+    "CreditFactorModel",
+    "FactorCovarianceForecast",
+    "FactorCovarianceMatrix",
+    "FactorModelConfig",
+    "LevelsAtDate",
+    "PeriodDecomposition",
+    "decompose_levels",
+    "decompose_period",
+]
 
 [crates.factor_model.module_symbols.schema]
 python_package = "finstack_quant.factor_model.schema"
@@ -214,7 +226,7 @@ public = [
 
 [wasm_factor_model_subset]
 status = "explicit_subset"
-note = "WASM factor_model exposes a single nested `credit` namespace mirroring finstack_quant.factor_model.credit (toJson-only handles; see the crate note). `schema` has no WASM twin."
+note = "WASM factor_model exposes a single nested `credit` namespace mirroring finstack_quant.factor_model.credit. Artifact handles retain toJson methods; covariance/config forecasts return plain structured objects matching the Python wrappers' serde shape. `schema` has no WASM twin."
 js_export_file = "../finstack-quant-wasm/exports/factor_model.js"
 root_exports = [
   "credit",
@@ -503,7 +515,7 @@ constants   = { python = "finstack_quant.margin", status = "flattened", note = "
 metrics     = { python = "finstack_quant.margin", status = "flattened", note = "MarginUtilization, ExcessCollateral, MarginFundingCost, and Haircut01 exposed flat on finstack_quant.margin" }
 regulatory  = { python = "finstack_quant.margin", status = "flattened", note = "FRTB and SA-CCR regulatory classes/functions exposed flat on finstack_quant.margin. Rust-only, uncontracted-by-design leaves: FRTB-SBA leaf functions and parameter tables, and SA-CCR leaf functions (pfe, replacement_cost, maturity_factor_*, supervisory tables) — hosts consume them through FrtbSbaEngine / SaCcrEngine / frtb_sba_charge / saccr_ead rather than as standalone bindings." }
 traits      = { python = "finstack_quant.margin.traits",      status = "missing" }
-types       = { python = "finstack_quant.margin", status = "flattened", note = "CSA, collateral, netting, and enum wrappers exposed flat on finstack_quant.margin. Rust-only, uncontracted-by-design: the CSA spec detail types (OtcMarginSpec, RepoMarginSpec, VmParameters, ImParameters, CollateralEligibility, MarginCall, MarginCallTiming, MaturityConstraints, ConcentrationBreach) reachable through CsaSpec JSON, and the margin cashflow generators (generate_margin_cashflows, generate_margin_interest_cashflows, margin_calls_to_cashflows)." }
+types       = { python = "finstack_quant.margin", status = "flattened", note = "CSA, collateral, netting, and enum wrappers exposed flat on finstack_quant.margin. SimmSensitivities exposes explicit add_credit_qualifying_delta(sector, ...) and add_credit_non_qualifying_delta(...) methods; the scalar boolean API is removed. Rust-only, uncontracted-by-design: CSA detail types including OtcMarginSpec and mandatory-for-credit SimmCreditClassification (carried through nested instrument JSON and the published margin schema), RepoMarginSpec, VmParameters, ImParameters, CollateralEligibility, MarginCall, MarginCallTiming, MaturityConstraints, and ConcentrationBreach; margin cashflow generators also remain Rust-only." }
 xva         = { python = "finstack_quant.margin", status = "flattened", note = "XVA config/result/netting container wrappers plus MVA (ImDecayProfile, ImProfile, MvaResult, compute_mva, im_profile_from_simm) and compute_bilateral_xva exposed flat on finstack_quant.margin. PathValuer and PathImModel are Rust-only traits (not bindable). Rust-only, uncontracted-by-design leaves: compute_cva/compute_dva/compute_fva and the netting/collateral appliers — hosts consume them through compute_bilateral_xva." }
 schema = { python = "finstack_quant.margin.schema", status = "exists", note = "Registry-backed index/get/validate over the crate's published JSON Schemas; no WASM twin." }
 
@@ -1110,7 +1122,7 @@ status = "exists"
 analysis                    = { python = "finstack_quant.statements_analytics.analysis",         status = "missing", note = "Bindings are currently exported from finstack_quant.statements_analytics root" }
 comps                       = { python = "finstack_quant.statements_analytics",                  status = "flattened", note = "analysis::comps is pub(crate) in Rust — not a crate-boundary module — reached only via the flattened comparable-company functions/types re-exported through analysis and bound flat on finstack_quant.statements_analytics" }
 extensions                  = { python = "finstack_quant.statements_analytics",                  status = "flattened", note = "Credit-scorecard and corkscrew extensions exposed flat on finstack_quant.statements_analytics (ScorecardMetric/Config/Report, CreditScorecardExtension, AccountType, CorkscrewAccount/Config/Report, CorkscrewExtension, validate_scorecard_config)" }
-templates                   = { python = "finstack_quant.statements_analytics",                  status = "flattened", note = "Vintage, roll-forward, and real-estate templates exposed flat on finstack_quant.statements_analytics (add_vintage_buildup, add_roll_forward, add_roll_forward_with_opening, add_noi_buildup, add_ncf_buildup, add_rent_roll, add_rent_roll_rental_revenue, add_property_operating_statement, plus LeaseSpec/SimpleLeaseSpec/RentStepSpec/FreeRentWindowSpec/RenewalSpec/LeaseGrowthConvention/RentRollOutputNodes/ManagementFeeBase/ManagementFeeSpec/PropertyTemplateNodes)" }
+templates                   = { python = "finstack_quant.statements_analytics",                  status = "flattened", note = "Python-only typed authoring surface: vintage, roll-forward, and real-estate template mutators return FinancialModelSpec directly and are exported flat with their typed spec classes. WASM intentionally leaves these builder-oriented templates unbound; browser callers consume completed model JSON through the statements APIs." }
 
 # Rust-only surfaces (categories, not every name), deliberately unbound in
 # both hosts for now:
@@ -1161,6 +1173,7 @@ public = [
     "SensitivityConfig",
     "SensitivityResult",
     "SimpleLeaseSpec",
+    "TornadoEntry",
     "VarianceConfig",
     "VarianceReport",
     "VarianceRow",
@@ -1357,6 +1370,7 @@ python_only = [
     "SensitivityConfig",
     "SensitivityResult",
     "SimpleLeaseSpec",
+    "TornadoEntry",
     "VarianceConfig",
     "VarianceReport",
     "VarianceRow",
@@ -2821,10 +2835,7 @@ FxOption = [
 #   (`__reduce__`), a host-runtime concern.
 # - WASM-only: the `new(spec)` constructor taking a bare JS spec object;
 #   Python builds through the typed builder or `from_json`.
-# - Return-shape divergence on `price`: Python returns the
-#   typed `ValuationResult`; WASM returns the valuation JSON string (its
-#   class methods predate the typed-object migration of the free
-#   `priceInstrument*` functions). Tracked, not silently equivalent.
+# Shared `price` methods now return the same structured `ValuationResult` shape.
 [wasm_valuations_subset.class_method_gaps]
 python_only = ["builder", "__reduce__"]
 wasm_only = ["new"]

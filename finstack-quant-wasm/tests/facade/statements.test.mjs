@@ -85,15 +85,15 @@ test('statements_analytics.runSensitivity returns a structured object', () => {
   const result = statements_analytics.runSensitivity(MODEL_JSON, SENSITIVITY_CONFIG_JSON);
   assertStructured(result, 'runSensitivity result');
 
-  // The tornado helper still takes JSON, so the object must stringify into a
-  // payload the Rust side can re-ingest.
   const entries = statements_analytics.generateTornadoEntries(
     JSON.stringify(result),
     'revenue',
     '2025Q1'
   );
-  assert.equal(typeof entries, 'string', 'generateTornadoEntries stays a JSON string');
-  assert.ok(Array.isArray(JSON.parse(entries)));
+  assert.ok(Array.isArray(entries), 'generateTornadoEntries returns an array');
+  assert.equal(entries[0].parameter_id, 'revenue');
+  assert.equal(typeof entries[0].downside, 'number');
+  assert.equal(typeof entries[0].upside, 'number');
 });
 
 test('statements_analytics.runChecks returns a structured CheckReport', () => {

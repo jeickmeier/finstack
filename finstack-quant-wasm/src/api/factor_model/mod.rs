@@ -339,7 +339,7 @@ impl JsFactorCovarianceForecast {
 
     /// Build the factor covariance matrix `Σ(t, h) = D · ρ_static · D`.
     ///
-    /// Returns pretty-printed JSON of a `FactorCovarianceMatrix`.
+    /// Returns a structured `FactorCovarianceMatrix` JavaScript object.
     ///
     /// `horizon_json` accepts `"one_step"`, `"unconditional"`, or
     /// `'{"n_steps": N}'`.
@@ -347,15 +347,16 @@ impl JsFactorCovarianceForecast {
     /// # Errors
     /// Throws if the horizon string is invalid or the model data is
     /// inconsistent.
+    /// @returns Structured covariance matrix with ordered factor axes and row-major data.
     /// @param horizon_json - JSON-serialized forecast horizon defining the future covariance date or period.
     #[wasm_bindgen(js_name = covarianceAt)]
-    pub fn covariance_at(&self, horizon_json: &str) -> Result<String, JsValue> {
+    pub fn covariance_at(&self, horizon_json: &str) -> Result<JsValue, JsValue> {
         let h = parse_vol_horizon(horizon_json)?;
         let forecast =
             finstack_quant_portfolio::factor_model::FactorCovarianceForecast::new(&self.model);
         let cov = forecast.covariance_at(h).map_err(to_js_err)?;
         ensure_covariance_finite(&cov)?;
-        serde_json::to_string_pretty(&cov).map_err(to_js_err)
+        crate::utils::to_js_value(&cov)
     }
 
     /// Idiosyncratic vol (std dev) for a specific issuer at the requested
@@ -377,14 +378,13 @@ impl JsFactorCovarianceForecast {
         Ok(vol)
     }
 
-    /// Build a portfolio-level `FactorModel` JSON using `Σ(t, h)` at the
-    /// given horizon and risk measure.
-    ///
-    /// Returns pretty-printed JSON of the assembled `FactorModelConfig`.
+    /// Build a structured portfolio-level `FactorModelConfig` using `Σ(t, h)`
+    /// at the given horizon and risk measure.
     ///
     /// # Errors
     /// Throws if the horizon or risk measure is invalid, or the model builder
     /// rejects the assembled configuration.
+    /// @returns Structured factor-model configuration ready for portfolio risk workflows.
     /// @param horizon_json - JSON-serialized forecast horizon defining the future covariance date or period.
     /// @param risk_measure_json - Risk-measure configuration JSON applied when constructing the horizon factor model.
     #[wasm_bindgen(js_name = factorModelAt)]
@@ -392,7 +392,7 @@ impl JsFactorCovarianceForecast {
         &self,
         horizon_json: &str,
         risk_measure_json: &str,
-    ) -> Result<String, JsValue> {
+    ) -> Result<JsValue, JsValue> {
         let h = parse_vol_horizon(horizon_json)?;
         let measure: finstack_quant_factor_model::RiskMeasure =
             serde_json::from_str(risk_measure_json).map_err(to_js_err)?;
@@ -402,7 +402,7 @@ impl JsFactorCovarianceForecast {
             .factor_model_config_at(h, measure)
             .map_err(to_js_err)?;
         ensure_covariance_finite(&config.covariance)?;
-        serde_json::to_string_pretty(&config).map_err(to_js_err)
+        crate::utils::to_js_value(&config)
     }
 }
 

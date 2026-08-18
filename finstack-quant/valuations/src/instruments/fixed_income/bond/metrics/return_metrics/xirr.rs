@@ -210,4 +210,86 @@ mod tests {
             "bullet bond: to-maturity {xirr_mat:.6} should equal to-worst {xirr_worst:.6}"
         );
     }
+
+    #[test]
+    fn amortizing_bond_xirr_to_worst_redeems_only_outstanding_principal() {
+        use crate::cashflow::primitives::CFKind;
+        use crate::instruments::fixed_income::bond::{CallPut, CallPutSchedule};
+
+        let curves = Arc::new(MarketContext::new());
+        let mut bond = Bond::example_amortizing().expect("amortizing bond");
+        let schedule = bond
+            .full_cashflow_schedule(&curves)
+            .expect("cashflow schedule");
+        let call_date = schedule
+            .get_flows()
+            .iter()
+            .find(|flow| flow.kind == CFKind::Amortization && flow.amount.amount() > 0.0)
+            .map(|flow| flow.date)
+            .expect("amortization date");
+        bond.call_put = Some(CallPutSchedule {
+            calls: vec![CallPut {
+                start_date: call_date,
+                end_date: call_date,
+                price_pct_of_par: 90.0,
+                make_whole: None,
+            }],
+            puts: Vec::new(),
+        });
+        bond.validate().expect("valid callable bond");
+
+        let schedule = bond
+            .full_cashflow_schedule(&curves)
+            .expect("cashflow schedule");
+        let amortized: f64 = schedule
+            .get_flows()
+            .iter()
+            .filter(|flow| {
+                flow.date <= call_date
+                    && matches!(flow.kind, CFKind::Amortization | CFKind::Notional)
+                    && flow.amount.amount() > 0.0
+            })
+            .map(|flow| flow.amount.amount())
+            .sum();
+        let outstanding = bond.notional.amount() - amortized;
+        assert!(outstanding < bond.notional.amount());
+
+        let distributions: Vec<_> = lifetime_dated_cashflows(&bond, &curves)
+            .expect("lifetime flows")
+            .into_iter()
+            .filter(|(date, _)| *date > bond.issue_date && *date <= call_date)
+            .collect();
+        let mut expected_path = vec![(bond.issue_date, -bond.notional.amount())];
+        expected_path.extend(
+            distributions
+                .iter()
+                .map(|(date, amount)| (*date, amount.amount())),
+        );
+        expected_path.push((call_date, 0.90 * outstanding));
+        let expected = xirr(&expected_path, None).expect("independent outstanding-principal XIRR");
+
+        let mut initial_notional_path = expected_path[..expected_path.len() - 1].to_vec();
+        initial_notional_path.push((call_date, 0.90 * bond.notional.amount()));
+        let initial_notional_result =
+            xirr(&initial_notional_path, None).expect("initial-notional comparison XIRR");
+
+        let mut ctx = MetricContext::new(
+            Arc::new(bond.clone()),
+            curves,
+            bond.issue_date,
+            bond.notional,
+            MetricContext::default_config(),
+        );
+        let maturity = XirrCalculator.calculate(&mut ctx).expect("maturity XIRR");
+        assert!(expected < maturity, "fixture must make the call path worst");
+        let actual = XirrToWorstCalculator
+            .calculate(&mut ctx)
+            .expect("XIRR to worst");
+
+        assert!(
+            (actual - expected).abs() < 1e-12,
+            "actual={actual}, expected={expected}"
+        );
+        assert!((actual - initial_notional_result).abs() > 0.01);
+    }
 }

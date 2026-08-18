@@ -230,7 +230,6 @@ pub(super) struct SimmFile {
 pub(super) struct SimmRecord {
     pub(super) mpor_days: u32,
     pub(super) ir_delta_weights: Value,
-    pub(super) cq_delta_weights: Value,
     #[serde(default)]
     pub(super) cq_bucket_weights: Value,
     pub(super) cnq_delta_weight: f64,

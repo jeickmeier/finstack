@@ -5,11 +5,63 @@
 
 use super::csa::CsaSpec;
 use super::enums::{ClearingStatus, ImMethodology, MarginTenor};
+use super::simm_types::SimmCreditSector;
 use crate::registry::{embedded_registry, margin_registry_from_config};
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
+
+/// Explicit ISDA SIMM credit risk-class and bucket assignment.
+///
+/// Corporate, sovereign, and index credit exposures belong to credit
+/// qualifying, including high-yield sectors represented by SIMM buckets 7-12.
+/// Credit non-qualifying is reserved for securitizations and other exposures
+/// governed by the non-qualifying risk class.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, schemars::JsonSchema)]
+#[serde(tag = "risk_class", rename_all = "snake_case", deny_unknown_fields)]
+#[non_exhaustive]
+pub enum SimmCreditClassification {
+    /// Credit-qualifying exposure assigned to an ISDA SIMM sector bucket.
+    Qualifying {
+        /// Sector bucket used for credit-qualifying delta aggregation.
+        sector: SimmCreditSector,
+    },
+    /// Credit non-qualifying exposure, typically a securitization.
+    NonQualifying,
+}
+
+impl<'de> serde::Deserialize<'de> for SimmCreditClassification {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "snake_case")]
+        enum RiskClass {
+            Qualifying,
+            NonQualifying,
+        }
+
+        #[derive(serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Wire {
+            risk_class: RiskClass,
+            #[serde(default)]
+            sector: Option<SimmCreditSector>,
+        }
+
+        let wire = <Wire as serde::Deserialize>::deserialize(deserializer)?;
+        match (wire.risk_class, wire.sector) {
+            (RiskClass::Qualifying, Some(sector)) => Ok(Self::Qualifying { sector }),
+            (RiskClass::Qualifying, None) => Err(serde::de::Error::missing_field("sector")),
+            (RiskClass::NonQualifying, None) => Ok(Self::NonQualifying),
+            (RiskClass::NonQualifying, Some(_)) => Err(serde::de::Error::custom(
+                "non-qualifying SIMM credit classification must not include sector",
+            )),
+        }
+    }
+}
 
 /// OTC derivative margin specification (ISDA CSA compliant).
 ///
@@ -27,11 +79,18 @@ use finstack_quant_core::Result;
 /// # Example
 ///
 /// ```
-/// use finstack_quant_margin::{OtcMarginSpec, CsaSpec, ClearingStatus, ImMethodology, MarginTenor};
+/// use finstack_quant_margin::{
+///     OtcMarginSpec, CsaSpec, SimmCreditClassification, SimmCreditSector,
+/// };
 ///
 /// # fn main() -> finstack_quant_core::Result<()> {
 /// // Bilateral (uncleared) derivative
 /// let bilateral_spec = OtcMarginSpec::bilateral_simm(CsaSpec::usd_regulatory()?);
+/// let credit_spec = bilateral_spec.with_simm_credit_classification(
+///     SimmCreditClassification::Qualifying {
+///         sector: SimmCreditSector::Financial,
+///     },
+/// );
 ///
 /// // Cleared derivative
 /// let cleared_spec = OtcMarginSpec::cleared("LCH", finstack_quant_core::currency::Currency::USD)?;
@@ -55,6 +114,13 @@ pub struct OtcMarginSpec {
     /// - Cleared: ClearingHouse (CCP-specific)
     pub im_methodology: ImMethodology,
 
+    /// Explicit SIMM credit classification for credit-sensitive instruments.
+    ///
+    /// Required when a credit product uses `ImMethodology::Simm`; leave `None`
+    /// for non-credit instruments and non-SIMM margin methodologies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub simm_credit_classification: Option<SimmCreditClassification>,
+
     /// Variation margin exchange frequency
     pub vm_frequency: MarginTenor,
 
@@ -73,6 +139,7 @@ impl OtcMarginSpec {
             csa,
             clearing_status: ClearingStatus::Bilateral,
             im_methodology: ImMethodology::Simm,
+            simm_credit_classification: None,
             vm_frequency: MarginTenor::Daily,
             settlement_lag: 1,
         }
@@ -87,6 +154,7 @@ impl OtcMarginSpec {
             csa,
             clearing_status: ClearingStatus::Bilateral,
             im_methodology: ImMethodology::Schedule,
+            simm_credit_classification: None,
             vm_frequency: MarginTenor::Daily,
             settlement_lag: 1,
         }
@@ -170,6 +238,7 @@ impl OtcMarginSpec {
             csa,
             clearing_status: ClearingStatus::Cleared { ccp: ccp_name },
             im_methodology: ImMethodology::ClearingHouse,
+            simm_credit_classification: None,
             vm_frequency: MarginTenor::Daily,
             settlement_lag: registry.defaults.cleared_settlement.settlement_lag,
         }
@@ -211,6 +280,36 @@ impl OtcMarginSpec {
             &registry,
             eligible_collateral,
         ))
+    }
+
+    /// Attach an explicit SIMM credit risk-class and sector assignment.
+    ///
+    /// # Arguments
+    ///
+    /// * `classification` - Canonical qualifying-sector or non-qualifying
+    ///   assignment used when credit delta is generated for the instrument.
+    #[must_use]
+    pub fn with_simm_credit_classification(
+        mut self,
+        classification: SimmCreditClassification,
+    ) -> Self {
+        self.simm_credit_classification = Some(classification);
+        self
+    }
+
+    /// Validate margin terms required by credit-sensitive instruments.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error when SIMM is selected without an explicit
+    /// credit risk-class and sector classification.
+    pub fn validate_for_credit(&self) -> Result<()> {
+        if self.im_methodology == ImMethodology::Simm && self.simm_credit_classification.is_none() {
+            return Err(finstack_quant_core::Error::Validation(
+                "SIMM credit products require simm_credit_classification".to_string(),
+            ));
+        }
+        Ok(())
     }
 
     /// Check if this is a cleared trade.
@@ -260,6 +359,7 @@ mod tests {
         assert!(!spec.is_cleared());
         assert_eq!(spec.im_methodology, ImMethodology::Simm);
         assert_eq!(spec.vm_frequency, MarginTenor::Daily);
+        assert!(spec.simm_credit_classification.is_none());
         assert!(spec.ccp().is_none());
     }
 
@@ -285,5 +385,57 @@ mod tests {
     fn csa_thresholds() {
         let spec = OtcMarginSpec::cleared("CME", Currency::EUR).expect("registry should load");
         assert_eq!(spec.csa.vm_params.threshold, Money::new(0.0, Currency::EUR));
+    }
+
+    #[test]
+    fn simm_credit_classification_has_explicit_tagged_wire_shape() {
+        let spec = OtcMarginSpec::usd_bilateral()
+            .expect("registry should load")
+            .with_simm_credit_classification(SimmCreditClassification::Qualifying {
+                sector: SimmCreditSector::Financial,
+            });
+
+        let json = serde_json::to_value(&spec).expect("serialize spec");
+        assert_eq!(
+            json["simm_credit_classification"],
+            serde_json::json!({"risk_class": "qualifying", "sector": "financial"})
+        );
+        let roundtrip: OtcMarginSpec = serde_json::from_value(json).expect("deserialize spec");
+        assert_eq!(roundtrip, spec);
+    }
+
+    #[test]
+    fn non_qualifying_classification_does_not_accept_a_sector() {
+        let payload = serde_json::json!({
+            "risk_class": "non_qualifying",
+            "sector": "financial"
+        });
+
+        assert!(serde_json::from_value::<SimmCreditClassification>(payload).is_err());
+    }
+
+    #[test]
+    fn qualifying_classification_requires_a_sector() {
+        let payload = serde_json::json!({"risk_class": "qualifying"});
+
+        assert!(serde_json::from_value::<SimmCreditClassification>(payload).is_err());
+    }
+
+    #[test]
+    fn simm_credit_products_require_classification() {
+        let spec = OtcMarginSpec::usd_bilateral().expect("registry should load");
+
+        assert!(spec.validate_for_credit().is_err());
+    }
+
+    #[test]
+    fn classified_simm_credit_product_validates() {
+        let spec = OtcMarginSpec::usd_bilateral()
+            .expect("registry should load")
+            .with_simm_credit_classification(SimmCreditClassification::Qualifying {
+                sector: SimmCreditSector::Financial,
+            });
+
+        assert!(spec.validate_for_credit().is_ok());
     }
 }

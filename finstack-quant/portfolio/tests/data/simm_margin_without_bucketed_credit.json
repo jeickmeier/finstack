@@ -29,7 +29,13 @@
       }
     ],
     "ir_vega": [],
-    "credit_qualifying_delta": [],
+    "credit_qualifying_delta": [
+      {
+        "label": "CDX.NA.IG",
+        "tenor_bucket": "5Y",
+        "value": 1000.0
+      }
+    ],
     "credit_non_qualifying_delta": [],
     "equity_delta": [],
     "equity_vega": [],

@@ -62,7 +62,7 @@ test('listStandardMetricsGrouped returns a plain object of string arrays', () =>
   }
 });
 
-test('FxOption.greeks returns a plain object keyed by metric name', () => {
+test('FxOption price and greeks return plain objects', () => {
   // Reuse the canonical FX-option golden fixture (instrument + calibration
   // envelope) so the market shape cannot drift from the pricing pipeline.
   const fixturePath = join(
@@ -87,6 +87,16 @@ test('FxOption.greeks returns a plain object keyed by metric name', () => {
   assertPlainObject(calibrated, 'calibrate result');
   const marketJson = JSON.stringify(calibrated.result.final_market);
   const option = new wasm.FxOption(fixture.instrument.instrument.spec);
+
+  const valuation = option.price(marketJson, asOf);
+  assertPlainObject(valuation, 'FxOption.price result');
+  assert.equal(typeof valuation.instrument_id, 'string', 'instrument_id is directly readable');
+  assert.equal(
+    typeof valuation.value.amount,
+    'string',
+    'exact decimal amount is directly readable'
+  );
+  assert.ok(Number.isFinite(Number(valuation.value.amount)), 'value.amount converts to a number');
 
   const greeks = option.greeks(marketJson, asOf);
   assertPlainObject(greeks, 'FxOption.greeks result');

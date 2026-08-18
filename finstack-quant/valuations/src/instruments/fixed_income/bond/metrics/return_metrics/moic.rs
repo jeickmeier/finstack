@@ -289,4 +289,75 @@ mod tests {
             "bullet bond: to-maturity {moic_mat} should equal to-worst {moic_worst}"
         );
     }
+
+    #[test]
+    fn amortizing_bond_moic_to_worst_redeems_only_outstanding_principal() {
+        use crate::cashflow::primitives::CFKind;
+        use crate::instruments::fixed_income::bond::{CallPut, CallPutSchedule};
+
+        let curves = Arc::new(MarketContext::new());
+        let mut bond = Bond::example_amortizing().expect("amortizing bond");
+        let schedule = bond
+            .full_cashflow_schedule(&curves)
+            .expect("cashflow schedule");
+        let call_date = schedule
+            .get_flows()
+            .iter()
+            .find(|flow| flow.kind == CFKind::Amortization && flow.amount.amount() > 0.0)
+            .map(|flow| flow.date)
+            .expect("amortization date");
+        bond.call_put = Some(CallPutSchedule {
+            calls: vec![CallPut {
+                start_date: call_date,
+                end_date: call_date,
+                price_pct_of_par: 90.0,
+                make_whole: None,
+            }],
+            puts: Vec::new(),
+        });
+        bond.validate().expect("valid callable bond");
+
+        let schedule = bond
+            .full_cashflow_schedule(&curves)
+            .expect("cashflow schedule");
+        let amortized: f64 = schedule
+            .get_flows()
+            .iter()
+            .filter(|flow| {
+                flow.date <= call_date
+                    && matches!(flow.kind, CFKind::Amortization | CFKind::Notional)
+                    && flow.amount.amount() > 0.0
+            })
+            .map(|flow| flow.amount.amount())
+            .sum();
+        let outstanding = bond.notional.amount() - amortized;
+        assert!(outstanding < bond.notional.amount());
+
+        let distributions: f64 = lifetime_dated_cashflows(&bond, &curves)
+            .expect("lifetime flows")
+            .into_iter()
+            .filter(|(date, _)| *date > bond.issue_date && *date <= call_date)
+            .map(|(_, amount)| amount.amount().max(0.0))
+            .sum();
+        let expected = (distributions + 0.90 * outstanding) / bond.notional.amount();
+        let initial_notional_result =
+            (distributions + 0.90 * bond.notional.amount()) / bond.notional.amount();
+
+        let mut ctx = MetricContext::new(
+            Arc::new(bond.clone()),
+            curves,
+            bond.issue_date,
+            bond.notional,
+            MetricContext::default_config(),
+        );
+        let actual = MoicToWorstCalculator
+            .calculate(&mut ctx)
+            .expect("MOIC to worst");
+
+        assert!(
+            (actual - expected).abs() < 1e-12,
+            "actual={actual}, expected={expected}"
+        );
+        assert!((actual - initial_notional_result).abs() > 0.01);
+    }
 }

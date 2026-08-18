@@ -25,6 +25,7 @@ __all__ = [
     "VarianceConfig",
     "ScenarioSet",
     "SensitivityResult",
+    "TornadoEntry",
     "VarianceRow",
     "VarianceReport",
     "ScenarioResults",
@@ -532,6 +533,123 @@ class ScenarioSet:
         Notes
         -----
         This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+class TornadoEntry:
+    """
+    One parameter's downside and upside impact in a tornado chart.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements_analytics import TornadoEntry
+    >>> entry = TornadoEntry.from_json('{"parameter_id":"revenue","downside":-5.0,"upside":7.0}')
+    >>> entry.swing
+    12.0
+    """
+
+    @staticmethod
+    def from_json(json: str) -> TornadoEntry:
+        """Deserialize one tornado entry from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON object containing ``parameter_id``, ``downside``, and ``upside``.
+
+        Returns
+        -------
+        TornadoEntry
+            Typed tornado entry reconstructed from the wire representation.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or has an incompatible shape.
+
+        Examples
+        --------
+        >>> TornadoEntry.from_json('{"parameter_id":"cost","downside":-2.0,"upside":3.0}').parameter_id
+        'cost'
+        """
+        ...
+
+    def to_json(self) -> str:
+        """Serialize this entry to canonical JSON.
+
+        Returns
+        -------
+        str
+            Compact JSON containing the canonical Rust fields.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+        """
+        ...
+
+    @property
+    def parameter_id(self) -> str:
+        """Return the parameter node identifier.
+
+        Returns
+        -------
+        str
+            Node identifier represented by this entry.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+
+    @property
+    def downside(self) -> float:
+        """Return the metric change at the minimum perturbation.
+
+        Returns
+        -------
+        float
+            Downside delta in the target metric's units.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+
+    @property
+    def upside(self) -> float:
+        """Return the metric change at the maximum perturbation.
+
+        Returns
+        -------
+        float
+            Upside delta in the target metric's units.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+
+    @property
+    def swing(self) -> float:
+        """Return ``upside - downside`` in target-metric units.
+
+        Returns
+        -------
+        float
+            Total tornado swing; values may be negative for nonstandard inputs.
+
+        Raises
+        ------
+        None
+            This property does not raise.
         """
         ...
 
@@ -1129,9 +1247,9 @@ def generate_tornado_entries(
     result: SensitivityResult | str,
     metric_node: str,
     period: str | None = None,
-) -> str:
+) -> list[TornadoEntry]:
     """
-    Build tornado chart entries from a sensitivity result (JSON in/out).
+    Build typed tornado chart entries from a sensitivity result.
 
     Parameters
     ----------
@@ -1144,8 +1262,8 @@ def generate_tornado_entries(
 
     Returns
     -------
-    str
-        JSON-serialized list of ``TornadoEntry``.
+    list[TornadoEntry]
+        Typed entries sorted by descending absolute swing.
 
     Raises
     ------
@@ -1154,7 +1272,6 @@ def generate_tornado_entries(
 
     Examples
     --------
-    >>> import json
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import SensitivityConfig, generate_tornado_entries, run_sensitivity
     >>> builder = ModelBuilder("demo")
@@ -1162,8 +1279,9 @@ def generate_tornado_entries(
     >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
     >>> _ = builder.compute("profit", "revenue * 0.5")
     >>> config = SensitivityConfig("Tornado", [("revenue", "2025Q1", 100.0, [90.0, 110.0])], ["profit"])
-    >>> len(json.loads(generate_tornado_entries(run_sensitivity(builder.build(), config), "profit", "2025Q1")))
-    1
+    >>> entries = generate_tornado_entries(run_sensitivity(builder.build(), config), "profit", "2025Q1")
+    >>> (len(entries), entries[0].parameter_id)
+    (1, 'revenue')
 
     """
     ...

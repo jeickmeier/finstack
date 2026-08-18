@@ -22,11 +22,6 @@
           "20Y": 54.0,
           "30Y": 62.0
         },
-        "cq_delta_weights": {
-          "sovereigns": 85.0,
-          "financials": 85.0,
-          "corporates": 73.0
-        },
         "cq_bucket_weights": {
           "sovereign": 75.0,
           "financial": 90.0,

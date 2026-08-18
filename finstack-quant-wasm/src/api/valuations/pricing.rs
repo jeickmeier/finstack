@@ -78,7 +78,8 @@ pub(super) fn price_result_with_context(
     .map_err(|e| to_js_error(&e))
 }
 
-pub(super) fn price_instrument_with_context(
+#[cfg(test)]
+fn price_instrument_with_context(
     instrument_json: &str,
     market: &MarketContext,
     as_of: &str,

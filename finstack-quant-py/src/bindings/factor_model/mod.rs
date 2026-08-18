@@ -42,6 +42,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "LevelsAtDate",
             "PeriodDecomposition",
             "FactorCovarianceForecast",
+            "FactorCovarianceMatrix",
+            "FactorModelConfig",
             "decompose_levels",
             "decompose_period",
         ],

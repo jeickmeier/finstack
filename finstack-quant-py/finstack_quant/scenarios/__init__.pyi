@@ -364,6 +364,35 @@ class TemplateMetadata:
             This property does not raise.
         """
         ...
+
+    @staticmethod
+    def from_json(json: str) -> TemplateMetadata:
+        """Deserialize template metadata from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            Canonical metadata JSON produced by :meth:`to_json`.
+
+        Returns
+        -------
+        TemplateMetadata
+            Typed metadata reconstructed from the wire representation.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or incompatible with the metadata schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import TemplateMetadata, list_builtin_template_metadata
+        >>> original = list_builtin_template_metadata()[0]
+        >>> TemplateMetadata.from_json(original.to_json()).id == original.id
+        True
+        """
+        ...
+
     def to_json(self) -> str:
         """Return compact JSON matching the canonical Rust serde contract.
 

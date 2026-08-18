@@ -3645,6 +3645,132 @@ export declare class PeriodDecomposition {
 }
 
 /**
+ * Validated factor covariance matrix in deterministic row-major order.
+ */
+export interface FactorCovarianceMatrix {
+  /**
+   * Factor identifiers in row and column order.
+   */
+  factor_ids: string[];
+  /**
+   * Matrix dimension, equal to `factor_ids.length`.
+   */
+  n: number;
+  /**
+   * Annualized covariance values in row-major order.
+   */
+  data: number[];
+}
+
+/**
+ * Canonical broad factor classification.
+ */
+export type FactorTypeValue =
+  | 'rates'
+  | 'credit'
+  | 'equity'
+  | 'fx'
+  | 'volatility'
+  | 'commodity'
+  | 'inflation'
+  | { custom: string };
+
+/**
+ * Canonical risk-factor definition used by a factor-model configuration.
+ */
+export interface FactorDefinition {
+  /**
+   * Stable factor identifier.
+   */
+  id: string;
+  /**
+   * Canonical factor classification.
+   */
+  factor_type: FactorTypeValue;
+  /**
+   * Structured mapping from factor moves to market-data perturbations.
+   */
+  market_mapping: Record<string, unknown>;
+  /**
+   * Optional human-readable description.
+   */
+  description?: string;
+}
+
+/**
+ * Risk measure used when aggregating factor exposures.
+ */
+export type FactorRiskMeasure =
+  | 'variance'
+  | 'volatility'
+  | { var: { confidence: number } }
+  | { expected_shortfall: { confidence: number } };
+
+/**
+ * Finite-difference bump magnitudes in each factor type's canonical units.
+ */
+export interface FactorBumpSizeConfig {
+  /**
+   * Rates bump in basis points.
+   */
+  rates_bp: number;
+  /**
+   * Credit bump in basis points.
+   */
+  credit_bp: number;
+  /**
+   * Equity and commodity spot bump in percent.
+   */
+  equity_pct: number;
+  /**
+   * FX spot bump in percent.
+   */
+  fx_pct: number;
+  /**
+   * Volatility bump in vol points.
+   */
+  vol_points: number;
+  /**
+   * Per-factor overrides in the factor type's canonical units.
+   */
+  overrides: Record<string, number>;
+}
+
+/**
+ * Portfolio factor-model configuration assembled at a forecast horizon.
+ */
+export interface FactorModelConfig {
+  /**
+   * Ordered factor definitions spanning the model universe.
+   */
+  factors: FactorDefinition[];
+  /**
+   * Covariance matrix aligned to `factors`.
+   */
+  covariance: FactorCovarianceMatrix;
+  /**
+   * Declarative dependency-to-factor matching configuration.
+   */
+  matching: Record<string, unknown>;
+  /**
+   * Sensitivity extraction strategy.
+   */
+  pricing_mode: 'delta_based' | 'full_repricing';
+  /**
+   * Risk measure used for factor aggregation.
+   */
+  risk_measure: FactorRiskMeasure;
+  /**
+   * Optional finite-difference bump overrides.
+   */
+  bump_size?: FactorBumpSizeConfig;
+  /**
+   * Optional policy for unmatched dependencies.
+   */
+  unmatched_policy?: 'strict' | 'residual' | 'warn';
+}
+
+/**
  * Vol-forecast view over a calibrated `CreditFactorModel`.
  *
  * `VolHorizon::Custom` is intentionally **not** exposed.
@@ -3663,12 +3789,11 @@ export declare class FactorCovarianceForecast {
   constructor(model: CreditFactorModel);
   /**
    * Build the factor covariance matrix at the requested horizon.
-   * Returns pretty-printed JSON of a `FactorCovarianceMatrix`.
-   * @returns Pretty-printed `FactorCovarianceMatrix` JSON at the requested horizon.
    * @param horizonJson - JSON-serialized forecast horizon defining the future covariance date or period.
+   * @returns Structured covariance matrix with ordered factor axes and row-major data.
    * @throws Error - Throws if the horizon string is invalid or the model data is inconsistent.
    */
-  covarianceAt(horizonJson: string): string;
+  covarianceAt(horizonJson: string): FactorCovarianceMatrix;
   /**
    * Idiosyncratic vol (std dev) for a specific issuer at the requested horizon.
    * @returns Issuer idiosyncratic volatility as a decimal standard deviation at `horizonJson`.
@@ -3678,14 +3803,13 @@ export declare class FactorCovarianceForecast {
    */
   idiosyncraticVol(issuerId: string, horizonJson: string): number;
   /**
-   * Build a portfolio-level `FactorModelConfig` JSON at the given horizon and
-   * risk measure.
-   * @returns Pretty-printed `FactorModelConfig` JSON at the requested horizon.
+   * Build a portfolio-level `FactorModelConfig` at the given horizon and risk measure.
    * @param horizonJson - JSON-serialized forecast horizon defining the future covariance date or period.
    * @param riskMeasureJson - Risk-measure configuration JSON applied when constructing the horizon factor model.
+   * @returns Structured factor-model configuration ready for portfolio risk workflows.
    * @throws Error - Throws if the horizon or risk measure is invalid, or the model builder rejects the assembled configuration.
    */
-  factorModelAt(horizonJson: string, riskMeasureJson: string): string;
+  factorModelAt(horizonJson: string, riskMeasureJson: string): FactorModelConfig;
   /**
    * Release the underlying wasm heap allocation. Do not use this handle after calling `free()`.
    */
@@ -5972,8 +6096,8 @@ export interface FxInstrument extends WasmOwned {
    * @param metrics - Optional canonical metric IDs such as `"delta"`, `"vega"`, `"hvar"`, or `"expected_shortfall"`. Omit, `null`, or `undefined` for a valuation-only result.
    * @param pricingOptions - Optional JSON metric-pricing overrides merged into the envelope before validation. Omit, `null`, or `undefined` to use the envelope as-is.
    * @param marketHistory - Optional serialized market-history JSON required by historical risk metrics such as historical VaR.
-   * @returns Canonical JSON `ValuationResult` for the selected model; parse or `JSON.parse` it for field access.
-   * @throws Error - Throws a JavaScript exception if the instrument, market, pricing-option, or market-history JSON is invalid; `metrics` is not a string array; `asOf`, `model`, or a metric identifier is invalid; required market data is missing; pricing or a metric calculation fails; or the valuation cannot be serialized.
+   * @returns Structured `ValuationResult` for the selected model.
+   * @throws Error - Throws a JavaScript exception if the instrument, market, pricing-option, or market-history JSON is invalid; `metrics` is not a string array; `asOf`, `model`, or a metric identifier is invalid; required market data is missing; pricing or a metric calculation fails; or the valuation cannot be converted to JavaScript.
    */
   price(
     marketJson: string,
@@ -5982,7 +6106,7 @@ export interface FxInstrument extends WasmOwned {
     metrics?: string[] | null,
     pricingOptions?: string | null,
     marketHistory?: string | null
-  ): string;
+  ): ValuationResult;
 }
 
 /**
@@ -8031,6 +8155,24 @@ export interface GoalSeekResult {
 }
 
 /**
+ * One parameter's downside and upside impact in a tornado chart.
+ */
+export interface TornadoEntry {
+  /**
+   * Parameter node identifier represented by this entry.
+   */
+  parameter_id: string;
+  /**
+   * Metric change at the parameter's minimum perturbation.
+   */
+  downside: number;
+  /**
+   * Metric change at the parameter's maximum perturbation.
+   */
+  upside: number;
+}
+
+/**
  * Severity assigned to one statement-check finding.
  */
 export type CheckSeverity = 'info' | 'warning' | 'error';
@@ -8229,13 +8371,13 @@ export interface StatementsAnalyticsNamespace {
   backtestForecast(actual: number[], forecast: number[]): BacktestForecastMetricsJson;
   /**
    * Generate tornado chart entries for a sensitivity result.
-   * @returns Tornado-chart entries as canonical JSON.
    * @param resultJson - Result JSON produced by a prior call.
    * @param metricNode - Statement metric node identifier selected for the requested analysis.
    * @param period - Model period label for the requested statement value or calculation.
-   * @throws Error - Rejects malformed `result_json`, an invalid optional `period` identifier, or failure to serialize the generated entries. A missing metric produces no entry rather than rejecting.
+   * @returns Structured tornado entries sorted by descending absolute swing.
+   * @throws Error - Rejects malformed `result_json`, an invalid optional `period` identifier, or failure to convert the entries to JavaScript. A missing metric produces no entry rather than rejecting.
    */
-  generateTornadoEntries(resultJson: string, metricNode: string, period?: string): string;
+  generateTornadoEntries(resultJson: string, metricNode: string, period?: string): TornadoEntry[];
   /**
    * Find the driver value that makes a target node reach a target value.
    * @returns Solved input value and optional updated model JSON.

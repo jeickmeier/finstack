@@ -6,8 +6,8 @@
 //! `finstack-quant-portfolio`.
 
 use crate::bindings::pandas_utils::labeled_values_to_series;
-use crate::bindings::pandas_utils::serde_rows_to_dataframe_with_schema;
 use crate::bindings::pandas_utils::ColumnSchema;
+use crate::bindings::pandas_utils::{serde_rows_to_dataframe_with_schema, serde_to_py};
 use crate::errors::{core_to_py, display_to_py};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -799,6 +799,220 @@ fn decompose_period(
     Ok(PyPeriodDecomposition::from_inner(result))
 }
 
+/// Validated factor covariance matrix with deterministic row-major storage.
+///
+/// Example:
+///     >>> from finstack_quant.factor_model.credit import FactorCovarianceMatrix
+///     >>> matrix = FactorCovarianceMatrix.from_json('{"factor_ids":["credit::generic"],"n":1,"data":[0.04]}')
+///     >>> matrix.variance("credit::generic")
+///     0.04
+#[pyclass(
+    name = "FactorCovarianceMatrix",
+    module = "finstack_quant.factor_model.credit",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyFactorCovarianceMatrix {
+    pub(crate) inner: finstack_quant_factor_model::FactorCovarianceMatrix,
+}
+
+impl PyFactorCovarianceMatrix {
+    fn from_inner(inner: finstack_quant_factor_model::FactorCovarianceMatrix) -> Self {
+        Self { inner }
+    }
+}
+
+#[pymethods]
+impl PyFactorCovarianceMatrix {
+    /// Deserialize and validate a covariance matrix from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize this covariance matrix to canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Number of factors represented by the matrix.
+    #[getter]
+    fn n_factors(&self) -> usize {
+        self.inner.n_factors()
+    }
+
+    /// Ordered factor identifiers corresponding to rows and columns.
+    #[getter]
+    fn factor_ids(&self) -> Vec<String> {
+        self.inner
+            .factor_ids()
+            .iter()
+            .map(ToString::to_string)
+            .collect()
+    }
+
+    /// Row-major covariance data with `n_factors * n_factors` entries.
+    #[getter]
+    fn data(&self) -> Vec<f64> {
+        self.inner.as_slice().to_vec()
+    }
+
+    /// Variance for `factor_id`, or zero when the factor is unknown.
+    fn variance(&self, factor_id: &str) -> f64 {
+        self.inner
+            .variance(&finstack_quant_factor_model::FactorId::new(factor_id))
+    }
+
+    /// Covariance between two factors, or zero when either factor is unknown.
+    fn covariance(&self, lhs: &str, rhs: &str) -> f64 {
+        self.inner.covariance(
+            &finstack_quant_factor_model::FactorId::new(lhs),
+            &finstack_quant_factor_model::FactorId::new(rhs),
+        )
+    }
+
+    /// Correlation between two factors, or zero for unknown/zero-variance factors.
+    fn correlation(&self, lhs: &str, rhs: &str) -> f64 {
+        self.inner.correlation(
+            &finstack_quant_factor_model::FactorId::new(lhs),
+            &finstack_quant_factor_model::FactorId::new(rhs),
+        )
+    }
+
+    /// Support pickle through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "FactorCovarianceMatrix(n_factors={})",
+            self.inner.n_factors()
+        )
+    }
+}
+
+/// Portfolio factor-model configuration assembled at a forecast horizon.
+///
+/// Example:
+///     >>> from finstack_quant.factor_model.credit import FactorModelConfig
+///     >>> config = FactorModelConfig.from_json('{"factors":[],"covariance":{"factor_ids":[],"n":0,"data":[]},"matching":{"mapping_table":[]},"pricing_mode":"delta_based","risk_measure":"variance"}')
+///     >>> config.n_factors
+///     0
+#[pyclass(
+    name = "FactorModelConfig",
+    module = "finstack_quant.factor_model.credit",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyFactorModelConfig {
+    pub(crate) inner: finstack_quant_factor_model::FactorModelConfig,
+}
+
+impl PyFactorModelConfig {
+    fn from_inner(inner: finstack_quant_factor_model::FactorModelConfig) -> Self {
+        Self { inner }
+    }
+}
+
+#[pymethods]
+impl PyFactorModelConfig {
+    /// Deserialize and validate a factor-model configuration from canonical JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: finstack_quant_factor_model::FactorModelConfig =
+            serde_json::from_str(json).map_err(display_to_py)?;
+        inner.validate().map_err(core_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize this configuration to canonical JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Number of configured factors.
+    #[getter]
+    fn n_factors(&self) -> usize {
+        self.inner.factors.len()
+    }
+
+    /// Ordered factor identifiers used by definitions and covariance axes.
+    #[getter]
+    fn factor_ids(&self) -> Vec<String> {
+        self.inner
+            .factors
+            .iter()
+            .map(|factor| factor.id.to_string())
+            .collect()
+    }
+
+    /// Factor definitions as Python dictionaries following canonical serde fields.
+    #[getter]
+    fn factors<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.factors)
+    }
+
+    /// Covariance matrix aligned to `factor_ids`.
+    #[getter]
+    fn covariance(&self) -> PyFactorCovarianceMatrix {
+        PyFactorCovarianceMatrix::from_inner(self.inner.covariance.clone())
+    }
+
+    /// Declarative dependency-to-factor matching configuration.
+    #[getter]
+    fn matching<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.matching)
+    }
+
+    /// Sensitivity extraction strategy (`delta_based` or `full_repricing`).
+    #[getter]
+    fn pricing_mode(&self) -> String {
+        self.inner.pricing_mode.to_string()
+    }
+
+    /// Risk measure represented as its canonical Python scalar or dictionary.
+    #[getter]
+    fn risk_measure<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.risk_measure)
+    }
+
+    /// Optional finite-difference bump overrides as a Python dictionary.
+    #[getter]
+    fn bump_size<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .bump_size
+            .as_ref()
+            .map(|value| serde_to_py(py, value))
+            .transpose()
+    }
+
+    /// Policy for unmatched dependencies, or `None` when the default applies.
+    #[getter]
+    fn unmatched_policy(&self) -> Option<String> {
+        self.inner.unmatched_policy.map(|policy| policy.to_string())
+    }
+
+    /// Validate that matching rules emit only declared factor identifiers.
+    fn validate(&self) -> PyResult<()> {
+        self.inner.validate().map_err(core_to_py)
+    }
+
+    /// Support pickle through the canonical JSON representation.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("FactorModelConfig(n_factors={})", self.inner.factors.len())
+    }
+}
+
 /// Vol-forecast view over a calibrated :class:`CreditFactorModel`.
 ///
 /// The forecaster is a thin wrapper; all business logic stays in Rust.
@@ -814,7 +1028,6 @@ fn decompose_period(
 /// - ``{"n_steps": N}`` (JSON string) — variance scaled by ``N``.
 ///
 /// Example:
-///     >>> import json
 ///     >>> from finstack_quant.factor_model.credit import CreditCalibrator, FactorCovarianceForecast
 ///     >>> config_json = (
 ///     ...     '{"policy":"globally_off","hierarchy":{"levels":[]},"min_bucket_size_per_level":{"per_level":[]},'
@@ -829,7 +1042,7 @@ fn decompose_period(
 ///     ... )
 ///     >>> model = CreditCalibrator(config_json).calibrate(inputs_json)
 ///     >>> forecast = FactorCovarianceForecast(model)
-///     >>> json.loads(forecast.covariance_at("one_step"))["factor_ids"]
+///     >>> forecast.covariance_at("one_step").factor_ids
 ///     ['credit::generic']
 #[pyclass(
     name = "FactorCovarianceForecast",
@@ -876,12 +1089,12 @@ impl PyFactorCovarianceForecast {
     ///         ``"unconditional"``, or a JSON string ``'{"n_steps": N}'``.
     ///
     /// Returns:
-    ///     Pretty-printed JSON of a ``FactorCovarianceMatrix``.
+    ///     Typed :class:`FactorCovarianceMatrix` with row-major data and factor accessors.
     ///
     /// Raises:
     ///     ValueError: If the horizon string is invalid or the model data is
     ///         inconsistent (mismatched axes, negative variance).
-    fn covariance_at(&self, py: Python<'_>, horizon: &str) -> PyResult<String> {
+    fn covariance_at(&self, py: Python<'_>, horizon: &str) -> PyResult<PyFactorCovarianceMatrix> {
         let h = parse_vol_horizon(horizon)?;
         let cov = py
             .detach(|| {
@@ -892,7 +1105,7 @@ impl PyFactorCovarianceForecast {
                 forecast.covariance_at(h)
             })
             .map_err(display_to_py)?;
-        serde_json::to_string(&cov).map_err(display_to_py)
+        Ok(PyFactorCovarianceMatrix::from_inner(cov))
     }
 
     /// Idiosyncratic vol (std dev) for a specific issuer at the requested horizon.
@@ -918,11 +1131,8 @@ impl PyFactorCovarianceForecast {
         .map_err(display_to_py)
     }
 
-    /// Build a portfolio-level ``FactorModel`` JSON using ``Σ(t, h)`` at the
-    /// given horizon and risk measure.
-    ///
-    /// The returned JSON can be passed to the portfolio risk decomposition
-    /// pipeline.
+    /// Build a typed portfolio-level factor-model configuration using
+    /// ``Σ(t, h)`` at the given horizon and risk measure.
     ///
     /// Args:
     ///     horizon: Horizon descriptor (same vocabulary as :meth:`covariance_at`).
@@ -930,7 +1140,7 @@ impl PyFactorCovarianceForecast {
     ///         or a JSON string (e.g. ``'{"var": {"confidence": 0.99}}'``).
     ///
     /// Returns:
-    ///     Pretty-printed JSON of the assembled :class:`FactorModel` configuration.
+    ///     Typed :class:`FactorModelConfig` ready for inspection or ``to_json()``.
     ///
     /// Raises:
     ///     ValueError: If the horizon or risk measure is invalid, or the model
@@ -940,7 +1150,7 @@ impl PyFactorCovarianceForecast {
         py: Python<'_>,
         horizon: &str,
         risk_measure_json: &str,
-    ) -> PyResult<String> {
+    ) -> PyResult<PyFactorModelConfig> {
         let h = parse_vol_horizon(horizon)?;
         let measure: finstack_quant_factor_model::RiskMeasure =
             serde_json::from_str(risk_measure_json).map_err(display_to_py)?;
@@ -953,7 +1163,7 @@ impl PyFactorCovarianceForecast {
                 forecast.factor_model_config_at(h, measure)
             })
             .map_err(display_to_py)?;
-        serde_json::to_string(&config).map_err(display_to_py)
+        Ok(PyFactorModelConfig::from_inner(config))
     }
 
     fn __repr__(&self) -> String {
@@ -970,6 +1180,8 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCreditCalibrator>()?;
     m.add_class::<PyLevelsAtDate>()?;
     m.add_class::<PyPeriodDecomposition>()?;
+    m.add_class::<PyFactorCovarianceMatrix>()?;
+    m.add_class::<PyFactorModelConfig>()?;
     m.add_class::<PyFactorCovarianceForecast>()?;
     m.add_function(pyo3::wrap_pyfunction!(decompose_levels, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(decompose_period, m)?)?;

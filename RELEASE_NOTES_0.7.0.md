@@ -141,17 +141,15 @@ None. This release does not keep deprecated aliases.
 - Deposit total-return carry no longer books the opening notional draw on
   the start date as period income (bonds already skipped the issue-date
   draw).
+- Amortizing-bond MOIC/XIRR-to-worst redemption uses outstanding principal
+  after scheduled principal paid through the exercise date, with independent
+  cashflow regressions covering both metrics.
+- SIMM credit-qualifying delta now always uses explicit ISDA sector buckets.
+  CDS and CDS-index products using SIMM require `simm_credit_classification`;
+  the scalar CQ approximation and boolean-classification APIs are removed.
 
 ## Known Limitations
 
-- Amortizing-bond MOIC/XIRR-to-worst still uses initial notional as the
-  redemption basis (documented TODO for a follow-up).
-- Statements-analytics `generate_tornado_entries` and factor-model
-  covariance/config forecast methods still return JSON strings under
-  unsuffixed names in **both** Python and WASM. They match each other;
-  converting one side alone would reintroduce divergence.
-- The SIMM scalar credit-qualifying path remains: instruments do not yet emit
-  bucketed CQ deltas. Removing it would zero CDS/CDSIndex margin.
 - Umbrella-crate `cargo semver-checks` skips 0.x API-diff checks once the
   minor bump is already applied; treat this file and `CHANGELOG.md` as
   authoritative for breaks.

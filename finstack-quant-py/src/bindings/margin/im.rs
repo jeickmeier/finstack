@@ -106,15 +106,9 @@ impl PySimmSensitivities {
         Ok(())
     }
 
-    /// Add a credit delta sensitivity.
-    #[pyo3(signature = (name, qualifying, tenor, amount))]
-    fn add_credit_delta(&mut self, name: &str, qualifying: bool, tenor: &str, amount: f64) {
-        self.inner.add_credit_delta(name, qualifying, tenor, amount);
-    }
-
-    /// Add a bucketed credit-qualifying delta sensitivity.
+    /// Add a sector-bucketed credit-qualifying delta sensitivity.
     #[pyo3(signature = (sector, name, tenor, amount))]
-    fn add_credit_delta_bucketed(
+    fn add_credit_qualifying_delta(
         &mut self,
         sector: &str,
         name: &str,
@@ -122,8 +116,15 @@ impl PySimmSensitivities {
         amount: f64,
     ) -> PyResult<()> {
         self.inner
-            .add_credit_delta_bucketed(parse_credit_sector(sector)?, name, tenor, amount);
+            .add_credit_qualifying_delta(parse_credit_sector(sector)?, name, tenor, amount);
         Ok(())
+    }
+
+    /// Add a credit non-qualifying delta sensitivity.
+    #[pyo3(signature = (name, tenor, amount))]
+    fn add_credit_non_qualifying_delta(&mut self, name: &str, tenor: &str, amount: f64) {
+        self.inner
+            .add_credit_non_qualifying_delta(name, tenor, amount);
     }
 
     /// Add an equity delta sensitivity.
@@ -229,17 +230,7 @@ impl PySimmSensitivities {
             );
         }
 
-        for ((name, tenor), amount) in &sens.credit_qualifying_delta {
-            rows.push(
-                "credit_qualifying",
-                "delta",
-                Some(name.clone()),
-                None,
-                Some(tenor.clone()),
-                *amount,
-            );
-        }
-        for ((sector, name, tenor), amount) in &sens.credit_qualifying_delta_bucketed {
+        for ((sector, name, tenor), amount) in &sens.credit_qualifying_delta {
             rows.push(
                 "credit_qualifying",
                 "delta",

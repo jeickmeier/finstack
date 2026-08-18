@@ -3534,7 +3534,7 @@
               "type": "null"
             }
           ],
-          "description": "Optional OTC margin specification for VM/IM.\n\nCDS indices are typically cleared through ICE Clear Credit. Use\n`OtcMarginSpec::cleared(\"ICE\", Currency::USD)` for standard\ncleared indices."
+          "description": "Optional OTC margin specification for VM/IM.\n\nCDS indices are typically cleared through ICE Clear Credit. Use\n`OtcMarginSpec::cleared(\"ICE\", Currency::USD)` for standard cleared\nindices. Bilateral SIMM indices must attach an explicit\n`SimmCreditClassification` rather than infer qualifying status from the\nindex name."
         },
         "metric_pricing_overrides": {
           "$ref": "#/$defs/MetricPricingOverrides",
@@ -7480,7 +7480,7 @@
               "type": "null"
             }
           ],
-          "description": "Optional OTC margin specification for VM/IM.\n\nFor cleared CDS (e.g., via ICE Clear Credit), use\n`OtcMarginSpec::cleared(\"ICE\", Currency::USD)`. For bilateral\nCDS, use `OtcMarginSpec::bilateral_simm(...)`."
+          "description": "Optional OTC margin specification for VM/IM.\n\nFor cleared CDS (e.g., via ICE Clear Credit), use\n`OtcMarginSpec::cleared(\"ICE\", Currency::USD)`. For bilateral\nCDS, use `OtcMarginSpec::bilateral_simm(...)`; an explicit\n`SimmCreditClassification` is required so CS01 is routed to the correct CQ sector\nbucket or the credit non-qualifying risk class."
         },
         "metric_pricing_overrides": {
           "$ref": "#/$defs/MetricPricingOverrides",
@@ -19391,7 +19391,7 @@
     },
     "OtcMarginSpec": {
       "additionalProperties": false,
-      "description": "OTC derivative margin specification (ISDA CSA compliant).\n\nThis is the standard margin specification for bilateral and cleared\nOTC derivatives. It combines CSA terms with clearing-specific parameters.\n\n# Usage\n\nAttach this to any OTC derivative instrument that requires margining:\n- Interest Rate Swaps (IRS)\n- Credit Default Swaps (CDS)\n- CDS Indices\n- Total Return Swaps (TRS)\n\n# Example\n\n```\nuse finstack_quant_margin::{OtcMarginSpec, CsaSpec, ClearingStatus, ImMethodology, MarginTenor};\n\n# fn main() -> finstack_quant_core::Result<()> {\n// Bilateral (uncleared) derivative\nlet bilateral_spec = OtcMarginSpec::bilateral_simm(CsaSpec::usd_regulatory()?);\n\n// Cleared derivative\nlet cleared_spec = OtcMarginSpec::cleared(\"LCH\", finstack_quant_core::currency::Currency::USD)?;\n# Ok(())\n# }\n```",
+      "description": "OTC derivative margin specification (ISDA CSA compliant).\n\nThis is the standard margin specification for bilateral and cleared\nOTC derivatives. It combines CSA terms with clearing-specific parameters.\n\n# Usage\n\nAttach this to any OTC derivative instrument that requires margining:\n- Interest Rate Swaps (IRS)\n- Credit Default Swaps (CDS)\n- CDS Indices\n- Total Return Swaps (TRS)\n\n# Example\n\n```\nuse finstack_quant_margin::{\n    OtcMarginSpec, CsaSpec, SimmCreditClassification, SimmCreditSector,\n};\n\n# fn main() -> finstack_quant_core::Result<()> {\n// Bilateral (uncleared) derivative\nlet bilateral_spec = OtcMarginSpec::bilateral_simm(CsaSpec::usd_regulatory()?);\nlet credit_spec = bilateral_spec.with_simm_credit_classification(\n    SimmCreditClassification::Qualifying {\n        sector: SimmCreditSector::Financial,\n    },\n);\n\n// Cleared derivative\nlet cleared_spec = OtcMarginSpec::cleared(\"LCH\", finstack_quant_core::currency::Currency::USD)?;\n# Ok(())\n# }\n```",
       "properties": {
         "clearing_status": {
           "$ref": "#/$defs/ClearingStatus",
@@ -19410,6 +19410,17 @@
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
+        },
+        "simm_credit_classification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SimmCreditClassification"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Explicit SIMM credit classification for credit-sensitive instruments.\n\nRequired when a credit product uses `ImMethodology::Simm`; leave `None`\nfor non-credit instruments and non-SIMM margin methodologies."
         },
         "vm_frequency": {
           "$ref": "#/$defs/MarginTenor",
@@ -22664,7 +22675,7 @@
     },
     "ReturnFloorSpec": {
       "additionalProperties": false,
-      "description": "Guaranteed minimum-return call protection on a bond or loan.\n\nAttaching this spec declares that on any early issuer-called or prepaid\nredemption within the protection window, the redemption price will be\nfloored so the investor's realized return meets the target. This is the\nstandard private-credit loan model (often called a \"prepayment premium\" or\n\"call protection\" in credit agreements). The floor is anchored at the issue\ndate and issue price `V0`. The spec is lowered into a concrete call schedule\nat pricing time; see `bond/pricing/return_floor.rs`.\n\n**Call-protection only**: the floor applies to EARLY issuer redemptions\nwithin the [`ProtectionWindow`] and never at maturity. The held-to-maturity\npath is unfloored. Use [`crate::metrics::MetricId::MoicToWorst`] /\n[`crate::metrics::MetricId::XirrToWorst`] to see the honest worst-case\nreturn across all paths including the unfloored maturity path.\n\n# Mathematical Foundation\n\nLet:\n- `V0` = invested capital (issue price).\n- `t` = early-redemption date.\n- `cash_through(t)` = sum of positive cashflows received by the holder in\n  the half-open interval `(issue, t]` (coupons and amortization; excludes\n  the redemption itself).\n- `yf(a, b)` = year fraction from date `a` to date `b` under `Act/365F`.\n\n**MOIC floor** — minimum money-on-invested-capital multiple `m`:\n\n```text\nR(t) = m · V0 − cash_through(t)\n```\n\nThe required redemption at `t` is `max(R(t), contractual_call(t), V0)`.\n\n**XIRR floor** — minimum annualized IRR `r`:\n\n```text\nR(t) = (1 + r)^yf(issue, t) · (V0 − Σ_{q ≤ t} coupon_q / (1 + r)^yf(issue, q))\n```\n\nThe day-count convention for `yf` defaults to `Act/365F`, matching\n[`finstack_quant_core::cashflow::xirr`] so the verification metrics\nreproduce the floor target exactly.\n\nBoth floors are then clamped to `max(R(t), 100.0)` (never below par) and\ndivided by the outstanding notional at `t`.\n\n# Limitations (v1)\n\n- **Floating-rate coupons**: forward-projected using the yield curve at\n  pricing time. Path-accurate LSMC (where rate paths determine both coupon\n  magnitudes and call-trigger probabilities simultaneously) is deferred to v2.\n- **Make-whole calls**: contractual make-whole provisions cannot compose\n  with a return floor in v1 — attempting this returns a validation error.\n  Make-whole effective prices are path-dependent and cannot be pre-computed\n  statically when lowering the floor.\n- **Amortizing bonds (to-worst)**: the `MoicToWorst` / `XirrToWorst`\n  metrics use the initial notional as the redemption basis rather than the\n  outstanding notional at the exit date. This is exact for bullet bonds but\n  overstates the redemption for amortizing structures (TODO v2).\n- **`min_moic` / `min_xirr` shortcuts**: these set\n  [`ProtectionWindow::Full`] (prepayable across the bond's entire life).\n  Narrow the window via [`ReturnFloorSpec::window`] if a no-call period\n  applies.\n\n# Invariants\n\n- MOIC multiple must be positive (`> 0`).\n- XIRR rate must be finite and greater than `-1` (i.e., `-100%`).\n- A [`ProtectionWindow::Between`] window must have `start < end`.\n\n# References\n\n- **MOIC**: Standard private-equity and private-credit return metric.\n  MOIC = total distributions / invested capital. See e.g. Rosenbaum, J. &\n  Pearl, J. (2013). *Investment Banking: Valuation, Leveraged Buyouts, and\n  Mergers & Acquisitions* (2nd ed.). Wiley Finance. `docs/REFERENCES.md#rosenbaum-pearl-2020`\n- **XIRR / IRR**: Internal rate of return. See Brealey, R. A., Myers, S.\n  C. & Allen, F. (2023). *Principles of Corporate Finance* (14th ed.).\n  McGraw-Hill. Chapter 5 (\"Net Present Value and Other Investment Criteria\").\n- **Call-protection / prepayment premiums**: Standard private-credit\n  agreement term. LSTA (Loan Syndications and Trading Association).\n  *The Handbook of Loan Syndications and Trading* (2nd ed.). Chapter on\n  loan documentation and call protection.\n- **Act/365F day count**: ISDA 2006 Definitions, Section 4.16(f). `docs/REFERENCES.md#isda-2006-definitions`\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::fixed_income::bond::{\n    ReturnFloorSpec, IssuePrice,\n};\nuse finstack_quant_core::types::Rate;\n\n// 1.20× MOIC floor at par, full protection window\nlet spec = ReturnFloorSpec::moic(1.20);\nassert!(spec.validate().is_ok());\n\n// 10% XIRR floor with 98 OID, validated\nlet spec = ReturnFloorSpec::xirr(Rate::from_percent(10.0))\n    .issue_price(IssuePrice::PctOfPar(98.0));\nassert!(spec.validate().is_ok());\n```\n\nAttach to a bond using the fluent builder:\n\n```rust\nuse finstack_quant_valuations::instruments::fixed_income::bond::{\n    Bond, ReturnFloorSpec, ProtectionWindow,\n};\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::money::Money;\nuse time::macros::date;\n\n// 5-year loan with 1.25× MOIC floor active after a 2-year no-call period.\nlet loan = Bond::fixed(\n    \"LOAN-001\",\n    Money::new(1_000_000.0, Currency::USD),\n    0.10,\n    date!(2025 - 01 - 01),\n    date!(2030 - 01 - 01),\n    \"USD-OIS\",\n)?\n.with_return_floor(\n    ReturnFloorSpec::moic(1.25)\n        .window(ProtectionWindow::From(date!(2027 - 01 - 01))),\n);\n# Ok::<(), Box<dyn std::error::Error>>(())\n```",
+      "description": "Guaranteed minimum-return call protection on a bond or loan.\n\nAttaching this spec declares that on any early issuer-called or prepaid\nredemption within the protection window, the redemption price will be\nfloored so the investor's realized return meets the target. This is the\nstandard private-credit loan model (often called a \"prepayment premium\" or\n\"call protection\" in credit agreements). The floor is anchored at the issue\ndate and issue price `V0`. The spec is lowered into a concrete call schedule\nat pricing time; see `bond/pricing/return_floor.rs`.\n\n**Call-protection only**: the floor applies to EARLY issuer redemptions\nwithin the [`ProtectionWindow`] and never at maturity. The held-to-maturity\npath is unfloored. Use [`crate::metrics::MetricId::MoicToWorst`] /\n[`crate::metrics::MetricId::XirrToWorst`] to see the honest worst-case\nreturn across all paths including the unfloored maturity path.\n\n# Mathematical Foundation\n\nLet:\n- `V0` = invested capital (issue price).\n- `t` = early-redemption date.\n- `cash_through(t)` = sum of positive cashflows received by the holder in\n  the half-open interval `(issue, t]` (coupons and amortization; excludes\n  the redemption itself).\n- `yf(a, b)` = year fraction from date `a` to date `b` under `Act/365F`.\n\n**MOIC floor** — minimum money-on-invested-capital multiple `m`:\n\n```text\nR(t) = m · V0 − cash_through(t)\n```\n\nThe required redemption at `t` is `max(R(t), contractual_call(t), V0)`.\n\n**XIRR floor** — minimum annualized IRR `r`:\n\n```text\nR(t) = (1 + r)^yf(issue, t) · (V0 − Σ_{q ≤ t} coupon_q / (1 + r)^yf(issue, q))\n```\n\nThe day-count convention for `yf` defaults to `Act/365F`, matching\n[`finstack_quant_core::cashflow::xirr`] so the verification metrics\nreproduce the floor target exactly.\n\nBoth floors are then clamped to `max(R(t), 100.0)` (never below par) and\ndivided by the outstanding notional at `t`.\n\n# Limitations (v1)\n\n- **Floating-rate coupons**: forward-projected using the yield curve at\n  pricing time. Path-accurate LSMC (where rate paths determine both coupon\n  magnitudes and call-trigger probabilities simultaneously) is deferred to v2.\n- **Make-whole calls**: contractual make-whole provisions cannot compose\n  with a return floor in v1 — attempting this returns a validation error.\n  Make-whole effective prices are path-dependent and cannot be pre-computed\n  statically when lowering the floor.\n- **`min_moic` / `min_xirr` shortcuts**: these set\n  [`ProtectionWindow::Full`] (prepayable across the bond's entire life).\n  Narrow the window via [`ReturnFloorSpec::window`] if a no-call period\n  applies.\n\n# Invariants\n\n- MOIC multiple must be positive (`> 0`).\n- XIRR rate must be finite and greater than `-1` (i.e., `-100%`).\n- A [`ProtectionWindow::Between`] window must have `start < end`.\n\n# References\n\n- **MOIC**: Standard private-equity and private-credit return metric.\n  MOIC = total distributions / invested capital. See e.g. Rosenbaum, J. &\n  Pearl, J. (2013). *Investment Banking: Valuation, Leveraged Buyouts, and\n  Mergers & Acquisitions* (2nd ed.). Wiley Finance. `docs/REFERENCES.md#rosenbaum-pearl-2020`\n- **XIRR / IRR**: Internal rate of return. See Brealey, R. A., Myers, S.\n  C. & Allen, F. (2023). *Principles of Corporate Finance* (14th ed.).\n  McGraw-Hill. Chapter 5 (\"Net Present Value and Other Investment Criteria\").\n- **Call-protection / prepayment premiums**: Standard private-credit\n  agreement term. LSTA (Loan Syndications and Trading Association).\n  *The Handbook of Loan Syndications and Trading* (2nd ed.). Chapter on\n  loan documentation and call protection.\n- **Act/365F day count**: ISDA 2006 Definitions, Section 4.16(f). `docs/REFERENCES.md#isda-2006-definitions`\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::fixed_income::bond::{\n    ReturnFloorSpec, IssuePrice,\n};\nuse finstack_quant_core::types::Rate;\n\n// 1.20× MOIC floor at par, full protection window\nlet spec = ReturnFloorSpec::moic(1.20);\nassert!(spec.validate().is_ok());\n\n// 10% XIRR floor with 98 OID, validated\nlet spec = ReturnFloorSpec::xirr(Rate::from_percent(10.0))\n    .issue_price(IssuePrice::PctOfPar(98.0));\nassert!(spec.validate().is_ok());\n```\n\nAttach to a bond using the fluent builder:\n\n```rust\nuse finstack_quant_valuations::instruments::fixed_income::bond::{\n    Bond, ReturnFloorSpec, ProtectionWindow,\n};\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::money::Money;\nuse time::macros::date;\n\n// 5-year loan with 1.25× MOIC floor active after a 2-year no-call period.\nlet loan = Bond::fixed(\n    \"LOAN-001\",\n    Money::new(1_000_000.0, Currency::USD),\n    0.10,\n    date!(2025 - 01 - 01),\n    date!(2030 - 01 - 01),\n    \"USD-OIS\",\n)?\n.with_return_floor(\n    ReturnFloorSpec::moic(1.25)\n        .window(ProtectionWindow::From(date!(2027 - 01 - 01))),\n);\n# Ok::<(), Box<dyn std::error::Error>>(())\n```",
       "properties": {
         "day_count": {
           "anyOf": [
@@ -23282,6 +23293,114 @@
         {
           "const": "d",
           "description": "Class D: Balloons, ARMs, multifamily, and other non-standard products.",
+          "type": "string"
+        }
+      ]
+    },
+    "SimmCreditClassification": {
+      "description": "Explicit ISDA SIMM credit risk-class and bucket assignment.\n\nCorporate, sovereign, and index credit exposures belong to credit\nqualifying, including high-yield sectors represented by SIMM buckets 7-12.\nCredit non-qualifying is reserved for securitizations and other exposures\ngoverned by the non-qualifying risk class.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Credit-qualifying exposure assigned to an ISDA SIMM sector bucket.",
+          "properties": {
+            "risk_class": {
+              "const": "qualifying",
+              "type": "string"
+            },
+            "sector": {
+              "$ref": "#/$defs/SimmCreditSector",
+              "description": "Sector bucket used for credit-qualifying delta aggregation."
+            }
+          },
+          "required": [
+            "risk_class",
+            "sector"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Credit non-qualifying exposure, typically a securitization.",
+          "properties": {
+            "risk_class": {
+              "const": "non_qualifying",
+              "type": "string"
+            }
+          },
+          "required": [
+            "risk_class"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SimmCreditSector": {
+      "description": "SIMM credit sector for bucket assignment.\n\nMaps reference entities to ISDA SIMM credit qualifying buckets.\nSee ISDA SIMM v2.6 Table 2.",
+      "oneOf": [
+        {
+          "const": "sovereign",
+          "description": "Bucket 1: IG sovereigns including central banks.",
+          "type": "string"
+        },
+        {
+          "const": "financial",
+          "description": "Bucket 2: IG financials including government-backed financials.",
+          "type": "string"
+        },
+        {
+          "const": "basic_materials",
+          "description": "Bucket 3: IG basic materials, energy, and industrials.",
+          "type": "string"
+        },
+        {
+          "const": "consumer_goods",
+          "description": "Bucket 4: IG consumer goods and services.",
+          "type": "string"
+        },
+        {
+          "const": "technology_media",
+          "description": "Bucket 5: IG technology, telecommunications.",
+          "type": "string"
+        },
+        {
+          "const": "health_care",
+          "description": "Bucket 6: IG health care, utilities, local government, and government-backed corporates.",
+          "type": "string"
+        },
+        {
+          "const": "high_yield_sovereign",
+          "description": "Bucket 7: HY / non-rated sovereigns including central banks.",
+          "type": "string"
+        },
+        {
+          "const": "high_yield_financial",
+          "description": "Bucket 8: HY / non-rated financials including government-backed financials.",
+          "type": "string"
+        },
+        {
+          "const": "high_yield_basic_materials",
+          "description": "Bucket 9: HY / non-rated basic materials, energy, and industrials.",
+          "type": "string"
+        },
+        {
+          "const": "high_yield_consumer_goods",
+          "description": "Bucket 10: HY / non-rated consumer goods and services.",
+          "type": "string"
+        },
+        {
+          "const": "high_yield_technology_media",
+          "description": "Bucket 11: HY / non-rated technology, telecommunications.",
+          "type": "string"
+        },
+        {
+          "const": "high_yield_health_care",
+          "description": "Bucket 12: HY / non-rated health care, utilities, local government, and government-backed corporates.",
+          "type": "string"
+        },
+        {
+          "const": "residual",
+          "description": "Residual bucket.",
           "type": "string"
         }
       ]

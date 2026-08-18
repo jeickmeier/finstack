@@ -101,6 +101,6 @@ pub use types::{
     ClearingStatus, CollateralAssetClass, CollateralEligibility, ConcentrationBreach, CsaSpec,
     EligibleCollateralSchedule, ImMethodology, ImParameters, MarginCall, MarginCallTiming,
     MarginCallType, MarginTenor, MaturityConstraints, NettingSetId, OtcMarginSpec, RepoMarginSpec,
-    RepoMarginType, SimmCreditSector, SimmRiskClass, SimmSensitivities, SimmSensitivitiesJson,
-    VmParameters,
+    RepoMarginType, SimmCreditClassification, SimmCreditSector, SimmRiskClass, SimmSensitivities,
+    SimmSensitivitiesJson, VmParameters,
 };

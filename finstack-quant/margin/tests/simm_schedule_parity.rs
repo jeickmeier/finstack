@@ -67,15 +67,6 @@ impl SimmV26GoldenValues {
         ]
     }
 
-    // ISDA SIMM v2.6 — Section E.3, Table 5: Credit Qualifying delta weights
-    fn cq_delta_weights() -> &'static [(&'static str, f64)] {
-        &[
-            ("sovereigns", 85.0),
-            ("financials", 85.0),
-            ("corporates", 73.0),
-        ]
-    }
-
     // ISDA SIMM v2.6 — Section E.3, Table 6: Credit Non-Qualifying delta weight
     fn cnq_delta_weight() -> f64 {
         500.0
@@ -153,25 +144,7 @@ fn simm_v2_6_ir_delta_weights_match_isda_schedule() {
 }
 
 #[test]
-fn simm_v2_6_cq_delta_weights_match_isda_schedule() {
-    let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry loads");
-    for (bucket, expected) in SimmV26GoldenValues::cq_delta_weights() {
-        let actual = calc
-            .params
-            .cq_delta_weights
-            .get(*bucket)
-            .copied()
-            .unwrap_or_else(|| panic!("SIMM v2.6 missing CQ delta weight for bucket '{bucket}'"));
-        assert!(
-            close(actual, *expected),
-            "SIMM v2.6 CQ delta weight drift at bucket '{bucket}': expected {expected}, \
-             got {actual}. Update this test only if an ISDA schedule update has been reviewed."
-        );
-    }
-}
-
-#[test]
-fn simm_v2_6_scalar_weights_match_isda_schedule() {
+fn simm_v2_6_non_bucketed_weights_match_isda_schedule() {
     let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry loads");
 
     assert!(

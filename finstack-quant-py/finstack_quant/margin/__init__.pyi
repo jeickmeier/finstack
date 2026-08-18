@@ -2063,39 +2063,16 @@ class SimmSensitivities:
         """
         ...
 
-    def add_credit_delta(self, name: str, qualifying: bool, tenor: str, amount: float) -> None:
+    def add_credit_qualifying_delta(self, sector: str, name: str, tenor: str, amount: float) -> None:
         """
-        Add a credit delta bucket.
-
-        Parameters
-        ----------
-        name : str
-            Issuer, index, or reference-entity identifier.
-        qualifying : bool
-            ``True`` for SIMM credit qualifying, ``False`` for credit
-            non-qualifying.
-        tenor : str
-            Credit tenor bucket, such as ``"5Y"``.
-        amount : float
-            Signed CS01-style currency amount per 1bp move.
-
-        Notes
-        -----
-        This method does not raise; it updates stored state in place.
-        """
-        ...
-
-    def add_credit_delta_bucketed(self, sector: str, name: str, tenor: str, amount: float) -> None:
-        """
-        Add a bucketed credit-qualifying delta sensitivity.
+        Add a sector-bucketed credit-qualifying delta sensitivity.
 
         Parameters
         ----------
         sector : str
-            SIMM credit sector alias. Supported aliases include
-            ``"sovereign"``, ``"financial"``, ``"basic_materials"``,
-            ``"technology_media"``, ``"health_care"``, ``"hy_financial"``,
-            ``"index"``, ``"securitized"``, and ``"residual"``.
+            Canonical ISDA SIMM sector, such as ``"sovereign"``,
+            ``"financial"``, ``"basic_materials"``,
+            ``"high_yield_financial"``, or ``"residual"``.
         name : str
             Issuer, index, or reference-entity identifier.
         tenor : str
@@ -2106,7 +2083,26 @@ class SimmSensitivities:
         Raises
         ------
         ValueError
-            If ``sector`` is not recognized.
+            If ``sector`` is not a canonical SIMM credit sector.
+        """
+        ...
+
+    def add_credit_non_qualifying_delta(self, name: str, tenor: str, amount: float) -> None:
+        """
+        Add a credit non-qualifying delta sensitivity.
+
+        Parameters
+        ----------
+        name : str
+            Securitization or other explicitly non-qualifying exposure identifier.
+        tenor : str
+            Credit tenor bucket, such as ``"5Y"``.
+        amount : float
+            Signed CS01-style currency amount per 1bp move.
+
+        Notes
+        -----
+        This method does not raise; it updates stored state in place.
         """
         ...
 

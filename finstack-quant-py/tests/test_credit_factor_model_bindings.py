@@ -21,6 +21,8 @@ from finstack_quant.factor_model.credit import (
     CreditCalibrator,
     CreditFactorModel,
     FactorCovarianceForecast,
+    FactorCovarianceMatrix,
+    FactorModelConfig,
     LevelsAtDate,
     PeriodDecomposition,
     decompose_levels,
@@ -414,25 +416,24 @@ def test_decompose_period_date_order_error() -> None:
 # T5 — FactorCovarianceForecast
 
 
-def test_factor_covariance_forecast_one_step_returns_valid_json() -> None:
+def test_factor_covariance_forecast_one_step_returns_typed_matrix() -> None:
     model = _calibrate()
     fcf = FactorCovarianceForecast(model)
-    cov_json = fcf.covariance_at("one_step")
-    parsed = json.loads(cov_json)
-    assert "factor_ids" in parsed
-    assert "data" in parsed
-    n = len(parsed["factor_ids"])
-    assert len(parsed["data"]) == n * n
+    covariance = fcf.covariance_at("one_step")
+    assert isinstance(covariance, FactorCovarianceMatrix)
+    assert len(covariance.data) == covariance.n_factors * covariance.n_factors
+    assert covariance.variance(covariance.factor_ids[0]) == pytest.approx(covariance.data[0])
+    assert FactorCovarianceMatrix.from_json(covariance.to_json()).factor_ids == covariance.factor_ids
 
 
 def test_factor_covariance_forecast_unconditional_matches_one_step() -> None:
     """Under the Sample vol model, one_step and unconditional must agree."""
     model = _calibrate()
     fcf = FactorCovarianceForecast(model)
-    cov_one = json.loads(fcf.covariance_at("one_step"))
-    cov_unc = json.loads(fcf.covariance_at("unconditional"))
-    assert cov_one["factor_ids"] == cov_unc["factor_ids"]
-    for a, b in zip(cov_one["data"], cov_unc["data"], strict=True):
+    cov_one = fcf.covariance_at("one_step")
+    cov_unc = fcf.covariance_at("unconditional")
+    assert cov_one.factor_ids == cov_unc.factor_ids
+    for a, b in zip(cov_one.data, cov_unc.data, strict=True):
         assert abs(a - b) < 1e-12
 
 
@@ -440,17 +441,17 @@ def test_factor_covariance_forecast_n_steps_scales_variance() -> None:
     """NSteps(4) covariance should be 4× the OneStep covariance."""
     model = _calibrate()
     fcf = FactorCovarianceForecast(model)
-    cov_one = json.loads(fcf.covariance_at("one_step"))
-    cov_four = json.loads(fcf.covariance_at('{"n_steps": 4}'))
-    for a, b in zip(cov_one["data"], cov_four["data"], strict=True):
+    cov_one = fcf.covariance_at("one_step")
+    cov_four = fcf.covariance_at('{"n_steps": 4}')
+    for a, b in zip(cov_one.data, cov_four.data, strict=True):
         assert abs(4.0 * a - b) < 1e-10, f"expected 4·{a} ≈ {b}"
 
 
 def test_factor_covariance_forecast_n_steps_zero_is_zero() -> None:
     model = _calibrate()
     fcf = FactorCovarianceForecast(model)
-    cov = json.loads(fcf.covariance_at('{"n_steps": 0}'))
-    for v in cov["data"]:
+    cov = fcf.covariance_at('{"n_steps": 0}')
+    for v in cov.data:
         assert abs(v) < 1e-12
 
 
@@ -479,10 +480,11 @@ def test_factor_covariance_forecast_invalid_horizon_raises() -> None:
 def test_factor_covariance_forecast_factor_model_at_runs() -> None:
     model = _calibrate()
     fcf = FactorCovarianceForecast(model)
-    config_json = fcf.factor_model_at("one_step", '"variance"')
-    parsed = json.loads(config_json)
-    assert "factors" in parsed
-    assert "covariance" in parsed
+    config = fcf.factor_model_at("one_step", '"variance"')
+    assert isinstance(config, FactorModelConfig)
+    assert config.factor_ids == config.covariance.factor_ids
+    assert config.risk_measure == "variance"
+    assert FactorModelConfig.from_json(config.to_json()).factor_ids == config.factor_ids
 
 
 def test_factor_covariance_forecast_repr_is_informative() -> None:

@@ -427,6 +427,27 @@ pub struct FactorModelConfig {
 }
 
 impl FactorModelConfig {
+    /// Validate factor ordering, matching rules, and the selected risk measure.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error when covariance axes do not exactly match the
+    /// ordered factor definitions, matching rules emit undeclared factor IDs,
+    /// issuer rows are duplicated, or a confidence-bearing risk measure is
+    /// outside its accepted range.
+    pub fn validate(&self) -> finstack_quant_core::Result<()> {
+        let factor_ids: Vec<&FactorId> = self.factors.iter().map(|factor| &factor.id).collect();
+        let covariance_ids: Vec<&FactorId> = self.covariance.factor_ids().iter().collect();
+        if factor_ids != covariance_ids {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "FactorModelConfig: covariance factor ids must exactly match factors in order; \
+                 factors={factor_ids:?}, covariance={covariance_ids:?}"
+            )));
+        }
+        self.risk_measure.validate()?;
+        self.validate_matching_factor_ids()
+    }
+
     /// Validates that every factor identifier the matcher can emit is also
     /// present in `factors`.
     ///
@@ -952,8 +973,34 @@ mod tests {
             bump_size: None,
             unmatched_policy: None,
         };
-        assert!(config.validate_matching_factor_ids().is_ok());
+        assert!(config.validate().is_ok());
     }
+
+    #[test]
+    fn validate_rejects_covariance_axis_order_mismatch() {
+        let factor_id = FactorId::new("Rates");
+        let config = FactorModelConfig {
+            factors: vec![FactorDefinition {
+                id: factor_id,
+                factor_type: FactorType::Rates,
+                market_mapping: MarketMapping::CurveParallel {
+                    curve_ids: vec![CurveId::new("USD-OIS")],
+                    units: BumpUnits::RateBp,
+                },
+                description: None,
+            }],
+            covariance: FactorCovarianceMatrix::new(vec![FactorId::new("Other")], vec![0.04])
+                .unwrap(),
+            matching: MatchingConfig::MappingTable(Vec::new()),
+            pricing_mode: PricingMode::DeltaBased,
+            risk_measure: RiskMeasure::Variance,
+            bump_size: None,
+            unmatched_policy: None,
+        };
+
+        assert!(config.validate().is_err());
+    }
+
     #[test]
     fn validate_matching_factor_ids_rejects_duplicate_issuer_rows() {
         use crate::credit::hierarchy::{

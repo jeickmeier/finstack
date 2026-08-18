@@ -17,12 +17,12 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
 use finstack_quant_margin::constants::{
     self, CALENDAR_DAYS_PER_YEAR, DEFAULT_BOND_INDEX_DURATION, DURATION_APPROXIMATION_FACTOR,
-    INVESTMENT_GRADE_SPREAD_THRESHOLD_BP, ONE_BP, STANDARD_CDS_MATURITY_YEARS,
+    ONE_BP, STANDARD_CDS_MATURITY_YEARS,
 };
 use finstack_quant_margin::{
-    ClearingStatus, Marginable, NettingSetId, OtcMarginSpec, RepoMarginSpec, SimmSensitivities,
+    ClearingStatus, Marginable, NettingSetId, OtcMarginSpec, RepoMarginSpec,
+    SimmCreditClassification, SimmSensitivities,
 };
-use rust_decimal::prelude::ToPrimitive;
 
 /// Reprice an instrument and return a single scalar metric from its measures.
 ///
@@ -173,23 +173,32 @@ fn extract_reference_entity(credit_curve_id: &str) -> Result<&str> {
     Ok(remaining)
 }
 
-/// Determine if a credit entity is qualifying (investment grade) for SIMM bucketing.
-///
-/// Uses a combination of heuristics based on:
-/// 1. Well-known index names (CDX.NA.IG, iTraxx Main = qualifying)
-/// 2. Spread level as fallback (< 200bp threshold)
-///
-/// In production, this should be replaced with a lookup against a ratings database
-/// or ISDA SIMM bucket mapping table.
-fn is_credit_qualifying(name: &str, spread_bp: f64) -> bool {
-    let upper = name.to_ascii_uppercase();
-    if upper.contains("CDX.NA.IG") || (upper.contains("ITRAXX") && !upper.contains("XOVER")) {
-        return true;
+fn add_classified_credit_delta(
+    sensitivities: &mut SimmSensitivities,
+    margin_spec: Option<&OtcMarginSpec>,
+    name: &str,
+    tenor: &str,
+    amount: f64,
+) -> Result<()> {
+    match margin_spec.and_then(|spec| spec.simm_credit_classification) {
+        Some(SimmCreditClassification::Qualifying { sector }) => {
+            sensitivities.add_credit_qualifying_delta(sector, name, tenor, amount);
+        }
+        Some(SimmCreditClassification::NonQualifying) => {
+            sensitivities.add_credit_non_qualifying_delta(name, tenor, amount);
+        }
+        None => {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "credit instrument '{name}' requires OtcMarginSpec.simm_credit_classification"
+            )));
+        }
+        Some(_) => {
+            return Err(finstack_quant_core::Error::Validation(
+                "unsupported SIMM credit classification".to_string(),
+            ));
+        }
     }
-    if upper.contains("CDX.NA.HY") || upper.contains("XOVER") || upper.contains("CDX.EM") {
-        return false;
-    }
-    spread_bp < INVESTMENT_GRADE_SPREAD_THRESHOLD_BP
+    Ok(())
 }
 
 /// Derive a netting set ID from an OTC margin specification.
@@ -349,15 +358,19 @@ impl Marginable for CreditDefaultSwap {
         };
 
         let ref_entity = extract_reference_entity(self.protection.credit_curve_id.as_str())?;
-        let spread_bp_f64 = self.premium.spread_bp.to_f64().unwrap_or(f64::MAX);
-        let qualifying = is_credit_qualifying(ref_entity, spread_bp_f64);
         let tenor = assign_credit_tenor_bucket(years_to_maturity);
 
         // Preferred path: repriced CS01 (respects the survival curve, discount
         // curve, recovery and premium schedule). The metric is computed on the
         // actual CDS, so its sign already reflects the protection side.
         if let Some(cs01) = repriced_metric(self, market, as_of, crate::metrics::MetricId::Cs01) {
-            sens.add_credit_delta(ref_entity, qualifying, tenor, cs01);
+            add_classified_credit_delta(
+                &mut sens,
+                self.margin_spec.as_ref(),
+                ref_entity,
+                tenor,
+                cs01,
+            )?;
             return Ok(sens);
         }
 
@@ -376,7 +389,13 @@ impl Marginable for CreditDefaultSwap {
             crate::instruments::common_impl::parameters::legs::PayReceive::Pay => cs01,
             crate::instruments::common_impl::parameters::legs::PayReceive::Receive => -cs01,
         };
-        sens.add_credit_delta(ref_entity, qualifying, tenor, signed_cs01);
+        add_classified_credit_delta(
+            &mut sens,
+            self.margin_spec.as_ref(),
+            ref_entity,
+            tenor,
+            signed_cs01,
+        )?;
 
         Ok(sens)
     }
@@ -430,13 +449,18 @@ impl Marginable for CDSIndex {
             years_to_maturity
         };
 
-        let qualifying = is_credit_qualifying(&self.index_name, 0.0);
         let tenor = assign_credit_tenor_bucket(years_to_maturity);
 
         // Preferred path: repriced CS01 (respects the index survival/discount
         // curves, recovery and schedule). Sign reflects the actual index side.
         if let Some(cs01) = repriced_metric(self, market, as_of, crate::metrics::MetricId::Cs01) {
-            sens.add_credit_delta(&self.index_name, qualifying, tenor, cs01);
+            add_classified_credit_delta(
+                &mut sens,
+                self.margin_spec.as_ref(),
+                &self.index_name,
+                tenor,
+                cs01,
+            )?;
             return Ok(sens);
         }
 
@@ -454,7 +478,13 @@ impl Marginable for CDSIndex {
             crate::instruments::common_impl::parameters::legs::PayReceive::Pay => cs01,
             crate::instruments::common_impl::parameters::legs::PayReceive::Receive => -cs01,
         };
-        sens.add_credit_delta(&self.index_name, qualifying, tenor, signed_cs01);
+        add_classified_credit_delta(
+            &mut sens,
+            self.margin_spec.as_ref(),
+            &self.index_name,
+            tenor,
+            signed_cs01,
+        )?;
 
         Ok(sens)
     }
@@ -792,6 +822,7 @@ mod tests {
                 ccp: "LCH".to_string(),
             },
             im_methodology: ImMethodology::ClearingHouse,
+            simm_credit_classification: None,
             vm_frequency: MarginTenor::Daily,
             settlement_lag: 0,
         });
@@ -799,5 +830,93 @@ mod tests {
         let netting_set = swap.netting_set_id().expect("netting set");
         assert!(netting_set.is_cleared());
         assert_eq!(netting_set.ccp_id(), Some("LCH"));
+    }
+
+    #[test]
+    fn explicit_qualifying_classification_routes_credit_delta_to_sector_bucket() {
+        use finstack_quant_margin::{SimmCreditClassification, SimmCreditSector};
+
+        let spec = OtcMarginSpec::usd_bilateral()
+            .expect("margin spec")
+            .with_simm_credit_classification(SimmCreditClassification::Qualifying {
+                sector: SimmCreditSector::HighYieldFinancial,
+            });
+        let mut sensitivities = SimmSensitivities::new(Currency::USD);
+
+        add_classified_credit_delta(&mut sensitivities, Some(&spec), "CDX.NA.HY", "5Y", 12_500.0)
+            .expect("classified delta");
+
+        assert_eq!(
+            sensitivities.credit_qualifying_delta.get(&(
+                SimmCreditSector::HighYieldFinancial,
+                "CDX.NA.HY".to_string(),
+                "5Y".to_string(),
+            )),
+            Some(&12_500.0)
+        );
+        assert!(sensitivities.credit_non_qualifying_delta.is_empty());
+    }
+
+    #[test]
+    fn cds_marginable_uses_explicit_sector_classification() {
+        use finstack_quant_margin::{SimmCreditClassification, SimmCreditSector};
+
+        let mut cds = CreditDefaultSwap::example();
+        cds.margin_spec = Some(
+            OtcMarginSpec::usd_bilateral()
+                .expect("margin spec")
+                .with_simm_credit_classification(SimmCreditClassification::Qualifying {
+                    sector: SimmCreditSector::HighYieldFinancial,
+                }),
+        );
+        let as_of = cds.premium.start;
+
+        let sensitivities = cds
+            .simm_sensitivities(&MarketContext::new(), as_of)
+            .expect("CDS sensitivities");
+
+        assert!(sensitivities
+            .credit_qualifying_delta
+            .keys()
+            .any(|(sector, _, _)| *sector == SimmCreditSector::HighYieldFinancial));
+        assert!(sensitivities.credit_non_qualifying_delta.is_empty());
+    }
+
+    #[test]
+    fn explicit_non_qualifying_classification_routes_credit_delta_to_cnq() {
+        use finstack_quant_margin::SimmCreditClassification;
+
+        let spec = OtcMarginSpec::usd_bilateral()
+            .expect("margin spec")
+            .with_simm_credit_classification(SimmCreditClassification::NonQualifying);
+        let mut sensitivities = SimmSensitivities::new(Currency::USD);
+
+        add_classified_credit_delta(&mut sensitivities, Some(&spec), "RMBS-1", "5Y", 8_000.0)
+            .expect("classified delta");
+
+        assert_eq!(
+            sensitivities
+                .credit_non_qualifying_delta
+                .get(&("RMBS-1".to_string(), "5Y".to_string())),
+            Some(&8_000.0)
+        );
+        assert!(sensitivities.credit_qualifying_delta.is_empty());
+    }
+
+    #[test]
+    fn missing_classification_rejects_credit_delta_generation() {
+        let mut sensitivities = SimmSensitivities::new(Currency::USD);
+
+        let error = add_classified_credit_delta(
+            &mut sensitivities,
+            None,
+            "UNCLASSIFIED-CDS",
+            "5Y",
+            5_000.0,
+        )
+        .expect_err("classification is mandatory");
+
+        assert!(error.to_string().contains("simm_credit_classification"));
+        assert!(sensitivities.is_empty());
     }
 }

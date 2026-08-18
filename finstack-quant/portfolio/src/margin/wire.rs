@@ -78,7 +78,7 @@ struct SimmSensitivitiesWire {
     base_currency: Currency,
     ir_delta: Vec<CurrencyTenorEntry>,
     ir_vega: Vec<CurrencyTenorEntry>,
-    credit_qualifying_delta: Vec<LabelTenorEntry>,
+    credit_qualifying_delta: Vec<BucketedCreditEntry>,
     credit_non_qualifying_delta: Vec<LabelTenorEntry>,
     equity_delta: Vec<LabelEntry>,
     equity_vega: Vec<LabelEntry>,
@@ -86,7 +86,6 @@ struct SimmSensitivitiesWire {
     fx_vega: Vec<CurrencyPairEntry>,
     commodity_delta: Vec<LabelEntry>,
     curvature: Vec<CurvatureEntry>,
-    credit_qualifying_delta_bucketed: Vec<BucketedCreditEntry>,
 }
 
 impl From<&SimmSensitivities> for SimmSensitivitiesWire {
@@ -121,19 +120,21 @@ impl From<&SimmSensitivities> for SimmSensitivitiesWire {
                 .then_with(|| a.tenor_bucket.cmp(&b.tenor_bucket))
         });
 
-        let mut credit_qualifying_delta: Vec<LabelTenorEntry> = s
+        let mut credit_qualifying_delta: Vec<BucketedCreditEntry> = s
             .credit_qualifying_delta
             .iter()
-            .map(|((label, tenor), &v)| LabelTenorEntry {
-                label: label.clone(),
+            .map(|((sector, name, tenor), &value)| BucketedCreditEntry {
+                sector: *sector,
+                name: name.clone(),
                 tenor_bucket: tenor.clone(),
-                value: v,
+                value,
             })
             .collect();
-        credit_qualifying_delta.sort_by(|a, b| {
-            a.label
-                .cmp(&b.label)
-                .then_with(|| a.tenor_bucket.cmp(&b.tenor_bucket))
+        credit_qualifying_delta.sort_by(|left, right| {
+            simm_credit_sector_key(left.sector)
+                .cmp(&simm_credit_sector_key(right.sector))
+                .then_with(|| left.name.cmp(&right.name))
+                .then_with(|| left.tenor_bucket.cmp(&right.tenor_bucket))
         });
 
         let mut credit_non_qualifying_delta: Vec<LabelTenorEntry> = s
@@ -212,23 +213,6 @@ impl From<&SimmSensitivities> for SimmSensitivitiesWire {
             .collect();
         curvature.sort_by_key(|entry| simm_risk_class_key(entry.risk_class));
 
-        let mut credit_qualifying_delta_bucketed: Vec<BucketedCreditEntry> = s
-            .credit_qualifying_delta_bucketed
-            .iter()
-            .map(|((sector, name, tenor), &value)| BucketedCreditEntry {
-                sector: *sector,
-                name: name.clone(),
-                tenor_bucket: tenor.clone(),
-                value,
-            })
-            .collect();
-        credit_qualifying_delta_bucketed.sort_by(|left, right| {
-            simm_credit_sector_key(left.sector)
-                .cmp(&simm_credit_sector_key(right.sector))
-                .then_with(|| left.name.cmp(&right.name))
-                .then_with(|| left.tenor_bucket.cmp(&right.tenor_bucket))
-        });
-
         Self {
             base_currency: s.base_currency,
             ir_delta,
@@ -241,7 +225,6 @@ impl From<&SimmSensitivities> for SimmSensitivitiesWire {
             fx_vega,
             commodity_delta,
             curvature,
-            credit_qualifying_delta_bucketed,
         }
     }
 }
@@ -255,9 +238,9 @@ impl From<SimmSensitivitiesWire> for SimmSensitivities {
         for e in w.ir_vega {
             s.ir_vega.insert((e.currency, e.tenor_bucket), e.value);
         }
-        for e in w.credit_qualifying_delta {
+        for entry in w.credit_qualifying_delta {
             s.credit_qualifying_delta
-                .insert((e.label, e.tenor_bucket), e.value);
+                .insert((entry.sector, entry.name, entry.tenor_bucket), entry.value);
         }
         for e in w.credit_non_qualifying_delta {
             s.credit_non_qualifying_delta
@@ -280,10 +263,6 @@ impl From<SimmSensitivitiesWire> for SimmSensitivities {
         }
         for e in w.curvature {
             s.curvature.insert(e.risk_class, e.value);
-        }
-        for entry in w.credit_qualifying_delta_bucketed {
-            s.credit_qualifying_delta_bucketed
-                .insert((entry.sector, entry.name, entry.tenor_bucket), entry.value);
         }
         s
     }

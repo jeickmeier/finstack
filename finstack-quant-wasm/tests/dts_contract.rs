@@ -59,13 +59,15 @@ fn credit_factor_hierarchy_dts_exposes_public_surface() {
     assert!(dts.contains("export declare class PeriodDecomposition {"));
 
     assert!(dts.contains("export declare class FactorCovarianceForecast {"));
+    assert!(dts.contains("export interface FactorCovarianceMatrix"));
+    assert!(dts.contains("export interface FactorModelConfig"));
     assert!(contains_signature(
         &dts,
         "constructor(model: CreditFactorModel);"
     ));
     assert!(contains_signature(
         &dts,
-        "covarianceAt(horizonJson: string): string;"
+        "covarianceAt(horizonJson: string): FactorCovarianceMatrix;"
     ));
     assert!(contains_signature(
         &dts,
@@ -73,7 +75,7 @@ fn credit_factor_hierarchy_dts_exposes_public_surface() {
     ));
     assert!(contains_signature(
         &dts,
-        "factorModelAt(horizonJson: string, riskMeasureJson: string): string;"
+        "factorModelAt(horizonJson: string, riskMeasureJson: string): FactorModelConfig;"
     ));
 
     // Free functions
@@ -307,6 +309,10 @@ fn valuations_dts_exposes_direct_fx_instruments() {
     // wrappers' `id` property.
     let fx_instrument = interface_block(&dts, "FxInstrument");
     assert!(fx_instrument.contains("readonly id: string;"));
+    assert!(contains_ignoring_ws(
+        fx_instrument,
+        "price(marketJson: string, asOf: string, model?: string | null, metrics?: string[] | null, pricingOptions?: string | null, marketHistory?: string | null): ValuationResult;",
+    ));
 }
 
 #[test]
@@ -717,6 +723,11 @@ fn statements_analytics_dts_matches_runtime_exports() {
         "dcfSensitivity(modelJson: string, wacc: number, terminalValueJson: string, ufcfNode: string, netDebtOverride?: number | null, waccSensitivityBump?: number | null, waccDenominatorEpsilon?: number | null, exitMultipleBump?: number | null, midYearConvention?: boolean | null, marketJson?: string | null): DcfSensitivityResult;",
     ));
     assert!(dts.contains("export interface LboResult"));
+    assert!(dts.contains("export interface TornadoEntry"));
+    assert!(contains_ignoring_ws(
+        &dts,
+        "generateTornadoEntries(resultJson: string, metricNode: string, period?: string): TornadoEntry[];"
+    ));
     assert!(dts.contains("export interface CheckReport"));
     assert!(dts.contains("export interface CheckResult"));
     assert!(dts.contains("export interface CheckFinding"));

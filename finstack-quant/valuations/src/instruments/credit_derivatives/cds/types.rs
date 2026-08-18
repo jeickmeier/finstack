@@ -651,7 +651,9 @@ pub struct CreditDefaultSwap {
     ///
     /// For cleared CDS (e.g., via ICE Clear Credit), use
     /// `OtcMarginSpec::cleared("ICE", Currency::USD)`. For bilateral
-    /// CDS, use `OtcMarginSpec::bilateral_simm(...)`.
+    /// CDS, use `OtcMarginSpec::bilateral_simm(...)`; an explicit
+    /// `SimmCreditClassification` is required so CS01 is routed to the correct CQ sector
+    /// bucket or the credit non-qualifying risk class.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub margin_spec: Option<OtcMarginSpec>,
     /// Additional attributes
@@ -938,6 +940,10 @@ impl CreditDefaultSwap {
                     currency
                 )));
             }
+        }
+
+        if let Some(margin_spec) = &self.margin_spec {
+            margin_spec.validate_for_credit()?;
         }
 
         // Note: Zero notional is allowed for testing scenarios
@@ -1238,5 +1244,31 @@ mod tests {
         let isda_na = CDSConvention::IsdaNa.registry();
 
         assert_eq!(conv, isda_na);
+    }
+
+    #[test]
+    fn simm_margin_spec_without_credit_classification_is_rejected() {
+        let mut cds = CreditDefaultSwap::example();
+        cds.margin_spec =
+            Some(finstack_quant_margin::OtcMarginSpec::usd_bilateral().expect("margin spec"));
+
+        let error = cds.validate().expect_err("classification is mandatory");
+        assert!(error.to_string().contains("simm_credit_classification"));
+    }
+
+    #[test]
+    fn classified_simm_margin_spec_is_valid() {
+        let mut cds = CreditDefaultSwap::example();
+        cds.margin_spec = Some(
+            finstack_quant_margin::OtcMarginSpec::usd_bilateral()
+                .expect("margin spec")
+                .with_simm_credit_classification(
+                    finstack_quant_margin::SimmCreditClassification::Qualifying {
+                        sector: finstack_quant_margin::SimmCreditSector::Financial,
+                    },
+                ),
+        );
+
+        cds.validate().expect("classified CDS");
     }
 }
