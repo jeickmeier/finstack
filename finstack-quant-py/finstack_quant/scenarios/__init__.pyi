@@ -40,6 +40,8 @@ __all__ = [
     "HorizonResult",
     "OperationSpec",
     "RateBindingSpec",
+    "ScenarioSpec",
+    "TemplateMetadata",
     "CurveKind",
     "TenorMatchMode",
     "TimeRollMode",
@@ -47,7 +49,337 @@ __all__ = [
     "schema",
 ]
 
-def parse_scenario_spec(json_str: str) -> str:
+class ScenarioSpec:
+    """
+    Validated scenario specification executed by the scenario engine.
+
+    Parameters
+    ----------
+    id : str
+        Stable scenario identifier used for lookup and serialization.
+    operations : list[OperationSpec]
+        Ordered operations applied by the scenario engine.
+    name : str, optional
+        Human-readable scenario name.
+    description : str, optional
+        Human-readable explanation of the scenario.
+    priority : int, default 0
+        Composition priority; lower values execute first.
+    resolution_mode : {"most_specific_wins", "cumulative"}
+        Hierarchy conflict policy.
+
+    Raises
+    ------
+    ValueError
+        If the resolution mode or resulting scenario is invalid.
+
+    Examples
+    --------
+    >>> from finstack_quant.scenarios import CurveKind, OperationSpec, ScenarioSpec
+    >>> operation = OperationSpec.curve_parallel_bp(CurveKind.discount(), "USD-OIS", 25.0)
+    >>> ScenarioSpec("rates_up", [operation]).id
+    'rates_up'
+    """
+
+    def __init__(
+        self,
+        id: str,
+        operations: list[OperationSpec],
+        name: str | None = None,
+        description: str | None = None,
+        priority: int = 0,
+        resolution_mode: Literal["most_specific_wins", "cumulative"] = "most_specific_wins",
+    ) -> None: ...
+    @staticmethod
+    def from_json(json: str) -> ScenarioSpec:
+        """Deserialize and validate canonical scenario JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON object matching the Rust ``ScenarioSpec`` serde contract.
+
+        Returns
+        -------
+        ScenarioSpec
+            Validated typed scenario specification.
+
+        Raises
+        ------
+        ValueError
+            If JSON parsing or scenario validation fails.
+
+        Examples
+        --------
+        >>> from finstack_quant.scenarios import ScenarioSpec
+        >>> ScenarioSpec.from_json('{"id":"typed","operations":[]}').id
+        'typed'
+        """
+        ...
+
+    def to_json(self) -> str:
+        """Return compact JSON matching the canonical Rust serde contract.
+
+        Returns
+        -------
+        str
+            Canonical scenario JSON.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+        """
+        ...
+
+    def validate(self) -> None:
+        """Validate identifiers, operations, numeric fields, and composition rules.
+
+        Raises
+        ------
+        ValueError
+            If the scenario violates a canonical Rust validation rule.
+        """
+        ...
+
+    @property
+    def id(self) -> str:
+        """Return the stable scenario identifier.
+
+        Returns
+        -------
+        str
+            Identifier used for lookup and serialization.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+    @property
+    def name(self) -> str | None:
+        """Return the optional human-readable scenario name.
+
+        Returns
+        -------
+        str or None
+            Display name, or ``None`` when absent.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+    @property
+    def description(self) -> str | None:
+        """Return the optional human-readable scenario explanation.
+
+        Returns
+        -------
+        str or None
+            Scenario description, or ``None`` when absent.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+    @property
+    def operations(self) -> list[OperationSpec]:
+        """Return independent typed operations in execution order.
+
+        Returns
+        -------
+        list[OperationSpec]
+            Ordered operations applied by the scenario engine.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+    @property
+    def priority(self) -> int:
+        """Return the scenario composition priority.
+
+        Returns
+        -------
+        int
+            Priority where lower values execute first.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+    @property
+    def resolution_mode(self) -> Literal["most_specific_wins", "cumulative"]:
+        """Return the canonical hierarchy conflict policy.
+
+        Returns
+        -------
+        {"most_specific_wins", "cumulative"}
+            Policy used when targeted operations overlap.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+
+class TemplateMetadata:
+    """
+    Discovery metadata for one built-in historical scenario template.
+
+    Examples
+    --------
+    >>> from finstack_quant.scenarios import list_builtin_template_metadata
+    >>> list_builtin_template_metadata()[0].id
+    'gfc_2008'
+    """
+
+    @property
+    def id(self) -> str:
+        """Return the stable built-in template identifier.
+
+        Returns
+        -------
+        str
+            Identifier accepted by template build functions.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+    @property
+    def name(self) -> str:
+        """Return the human-readable template name.
+
+        Returns
+        -------
+        str
+            Display name from the embedded registry.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+    @property
+    def description(self) -> str:
+        """Return the historical event and modeled-effects description.
+
+        Returns
+        -------
+        str
+            Narrative description from the embedded registry.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+    @property
+    def event_date(self) -> datetime.date:
+        """Return the primary historical event date.
+
+        Returns
+        -------
+        datetime.date
+            Date of the modeled market dislocation.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+    @property
+    def asset_classes(self) -> list[str]:
+        """Return canonical affected asset-class labels.
+
+        Returns
+        -------
+        list[str]
+            Labels drawn from rates, credit, equity, fx, volatility, and commodity.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+    @property
+    def tags(self) -> list[str]:
+        """Return freeform discovery tags.
+
+        Returns
+        -------
+        list[str]
+            Tags in embedded registry order.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+    @property
+    def severity(self) -> Literal["mild", "moderate", "severe"]:
+        """Return the canonical scenario severity label.
+
+        Returns
+        -------
+        {"mild", "moderate", "severe"}
+            Discovery severity assigned by the template registry.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+    @property
+    def components(self) -> list[str]:
+        """Return component identifiers in deterministic build order.
+
+        Returns
+        -------
+        list[str]
+            IDs accepted by :func:`build_template_component`.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+    def to_json(self) -> str:
+        """Return compact JSON matching the canonical Rust serde contract.
+
+        Returns
+        -------
+        str
+            Canonical template-metadata JSON.
+
+        Raises
+        ------
+        ValueError
+            If serialization fails.
+        """
+        ...
+
+def parse_scenario_spec(json_str: str) -> ScenarioSpec:
     """
     Parse, validate, and re-serialize a ``ScenarioSpec`` from JSON.
 
@@ -58,8 +390,8 @@ def parse_scenario_spec(json_str: str) -> str:
 
     Returns
     -------
-    str
-        Validated canonical JSON string.
+    ScenarioSpec
+        Validated typed scenario specification.
 
     Raises
     ------
@@ -68,31 +400,30 @@ def parse_scenario_spec(json_str: str) -> str:
 
     Examples
     --------
-    >>> import json
     >>> from finstack_quant.scenarios import parse_scenario_spec
     >>> parsed = parse_scenario_spec('{"id":"s","name":"S","operations":[]}')
-    >>> json.loads(parsed)["resolution_mode"]
+    >>> parsed.resolution_mode
     'most_specific_wins'
     """
     ...
 
 def build_scenario_spec(
     id: str,
-    operations_json: str,
+    operations: list[OperationSpec],
     name: str | None = None,
     description: str | None = None,
     priority: int = 0,
     resolution_mode: Literal["most_specific_wins", "cumulative"] = "most_specific_wins",
-) -> str:
+) -> ScenarioSpec:
     """
-    Construct a ``ScenarioSpec`` from fields plus a JSON operations list.
+    Construct a typed ``ScenarioSpec`` from fields and ordered operations.
 
     Parameters
     ----------
     id : str
         Stable scenario identifier.
-    operations_json : str
-        JSON list of ``OperationSpec``.
+    operations : list[OperationSpec]
+        Ordered typed scenario operations.
     name : str, optional
         Display name.
     description : str, optional
@@ -105,49 +436,46 @@ def build_scenario_spec(
 
     Returns
     -------
-    str
-        Validated JSON ``ScenarioSpec``.
+    ScenarioSpec
+        Validated typed scenario specification.
 
     Raises
     ------
     ValueError
-        If ``operations_json`` is not valid JSON, ``resolution_mode`` is not
-        recognized, or the resulting scenario fails validation.
+        If ``resolution_mode`` is not recognized or the resulting scenario fails validation.
 
     Examples
     --------
     >>> from finstack_quant.scenarios import build_scenario_spec
-    >>> import json
-    >>> built = build_scenario_spec("s1", "[]", resolution_mode="cumulative")
-    >>> json.loads(built)["resolution_mode"]
+    >>> built = build_scenario_spec("s1", [], resolution_mode="cumulative")
+    >>> built.resolution_mode
     'cumulative'
     """
     ...
 
-def compose_scenarios(specs_json: str) -> str:
+def compose_scenarios(specs: list[ScenarioSpec]) -> ScenarioSpec:
     """
     Merge multiple scenario specs using the scenario engine composer.
 
     Parameters
     ----------
-    specs_json : str
-        JSON list of ``ScenarioSpec``.
+    specs : list[ScenarioSpec]
+        Typed scenario specifications to compose.
 
     Returns
     -------
-    str
-        JSON-serialized composed ``ScenarioSpec``.
+    ScenarioSpec
+        Typed composed scenario specification.
 
     Raises
     ------
     ValueError
-        If ``specs_json`` is not valid JSON or composition fails.
+        If scenario composition fails.
 
     Examples
     --------
-    >>> import json
     >>> from finstack_quant.scenarios import compose_scenarios
-    >>> json.loads(compose_scenarios("[]"))["operations"]
+    >>> compose_scenarios([]).operations
     []
     """
     ...
@@ -203,14 +531,14 @@ def list_builtin_templates() -> list[str]:
     """
     ...
 
-def list_builtin_template_metadata() -> str:
+def list_builtin_template_metadata() -> list[TemplateMetadata]:
     """
-    Serialize metadata for all built-in templates to JSON.
+    Return typed metadata for all built-in templates.
 
     Returns
     -------
-    str
-        JSON list of ``TemplateMetadata`` objects.
+    list[TemplateMetadata]
+        Metadata in deterministic registry order.
 
     Raises
     ------
@@ -220,11 +548,12 @@ def list_builtin_template_metadata() -> str:
     Examples
     --------
     >>> from finstack_quant.scenarios import list_builtin_template_metadata
-    >>> meta_json = list_builtin_template_metadata()
+    >>> list_builtin_template_metadata()[0].id
+    'gfc_2008'
     """
     ...
 
-def build_from_template(template_id: str) -> str:
+def build_from_template(template_id: str) -> ScenarioSpec:
     """
     Instantiate a ``ScenarioSpec`` from a built-in template.
 
@@ -235,8 +564,8 @@ def build_from_template(template_id: str) -> str:
 
     Returns
     -------
-    str
-        JSON-serialized ``ScenarioSpec``.
+    ScenarioSpec
+        Typed scenario specification built from the template.
 
     Raises
     ------
@@ -245,9 +574,8 @@ def build_from_template(template_id: str) -> str:
 
     Examples
     --------
-    >>> import json
     >>> from finstack_quant.scenarios import build_from_template
-    >>> json.loads(build_from_template("gfc_2008"))["id"]
+    >>> build_from_template("gfc_2008").id
     'gfc_2008'
     """
     ...
@@ -279,7 +607,7 @@ def list_template_components(template_id: str) -> list[str]:
     """
     ...
 
-def build_template_component(template_id: str, component_id: str) -> str:
+def build_template_component(template_id: str, component_id: str) -> ScenarioSpec:
     """
     Build a single component spec from a composite template.
 
@@ -292,8 +620,8 @@ def build_template_component(template_id: str, component_id: str) -> str:
 
     Returns
     -------
-    str
-        JSON-serialized component ``ScenarioSpec``.
+    ScenarioSpec
+        Typed component scenario specification.
 
     Raises
     ------
@@ -302,10 +630,9 @@ def build_template_component(template_id: str, component_id: str) -> str:
 
     Examples
     --------
-    >>> import json
     >>> from finstack_quant.scenarios import build_template_component
     >>> component = build_template_component("gfc_2008", "gfc_2008_rates")
-    >>> json.loads(component)["id"]
+    >>> component.id
     'gfc_2008_rates'
     """
     ...
@@ -326,7 +653,7 @@ class ApplicationReport:
     --------
     >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.scenarios import apply_scenario_to_market, compose_scenarios
-    >>> report = apply_scenario_to_market(compose_scenarios("[]"), MarketContext(), "2025-01-15").report
+    >>> report = apply_scenario_to_market(compose_scenarios([]).to_json(), MarketContext(), "2025-01-15").report
     >>> (report.operations_applied, report.user_operations, report.warnings)
     (0, 0, [])
     """
@@ -530,7 +857,7 @@ class ApplicationResult:
     --------
     >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.scenarios import apply_scenario_to_market, compose_scenarios
-    >>> applied = apply_scenario_to_market(compose_scenarios("[]"), MarketContext(), "2025-01-15")
+    >>> applied = apply_scenario_to_market(compose_scenarios([]).to_json(), MarketContext(), "2025-01-15")
     >>> (type(applied.market).__name__, applied.model, applied.report.operations_applied)
     ('MarketContext', None, 0)
     """
@@ -689,7 +1016,7 @@ def apply_scenario(
     ...     '{"id":"2025Q1","start":"2025-01-01","end":"2025-04-01",'
     ...     '"is_actual":false}],"nodes":{}}'
     ... )
-    >>> applied = apply_scenario(compose_scenarios("[]"), MarketContext(), model, "2025-01-15")
+    >>> applied = apply_scenario(compose_scenarios([]).to_json(), MarketContext(), model, "2025-01-15")
     >>> applied.report.operations_applied
     0
     """
@@ -733,7 +1060,7 @@ def apply_scenario_to_market(
     --------
     >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.scenarios import apply_scenario_to_market, compose_scenarios
-    >>> applied = apply_scenario_to_market(compose_scenarios("[]"), MarketContext(), "2025-01-15")
+    >>> applied = apply_scenario_to_market(compose_scenarios([]).to_json(), MarketContext(), "2025-01-15")
     >>> applied.report.operations_applied
     0
     """
@@ -752,7 +1079,7 @@ class HorizonResult:
     >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.scenarios import compose_scenarios, compute_horizon_return
     >>> try:
-    ...     compute_horizon_return("{}", MarketContext(), "2025-01-15", compose_scenarios("[]"))
+    ...     compute_horizon_return("{}", MarketContext(), "2025-01-15", compose_scenarios([]).to_json())
     ... except ValueError as exc:
     ...     print(str(exc).split(":")[0])
     Validation error
@@ -1102,7 +1429,7 @@ def compute_horizon_return(
     >>> from finstack_quant.core.market_data import MarketContext
     >>> from finstack_quant.scenarios import compose_scenarios, compute_horizon_return
     >>> try:
-    ...     compute_horizon_return("{}", MarketContext(), "2025-01-15", compose_scenarios("[]"))
+    ...     compute_horizon_return("{}", MarketContext(), "2025-01-15", compose_scenarios([]).to_json())
     ... except ValueError as exc:
     ...     print(str(exc).split(":")[0])
     Validation error

@@ -377,6 +377,8 @@ class TestScenariosNamespace:
     def test_scenarios_exports(self) -> None:
         """Scenarios should export spec builders and template functions."""
         from finstack_quant.scenarios import (  # noqa: F401
+            ScenarioSpec,
+            TemplateMetadata,
             build_from_template,
             build_scenario_spec,
             build_template_component,

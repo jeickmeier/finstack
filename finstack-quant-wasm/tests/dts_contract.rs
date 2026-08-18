@@ -415,10 +415,12 @@ fn package_dts_documents_hand_facade_over_raw_wasm_bindgen_types() {
 }
 
 #[test]
-fn scenarios_dts_matches_json_bridge_surface() {
+fn scenarios_dts_matches_structured_surface() {
     let dts = index_dts();
 
     assert!(dts.contains("export interface ScenariosNamespace"));
+    assert!(dts.contains("export interface ScenarioSpec"));
+    assert!(dts.contains("export interface TemplateMetadata"));
     assert!(dts.contains("export interface ScenarioWarning"));
     assert!(contains_ignoring_ws(&dts, "warnings: ScenarioWarning[];"));
     assert!(contains_ignoring_ws(
@@ -429,7 +431,7 @@ fn scenarios_dts_matches_json_bridge_surface() {
     // default, so it must stay optional.
     assert!(contains_ignoring_ws(
         &dts,
-        "buildScenarioSpec(id: string, operationsJson: string, name?: string, description?: string, priority?: number, resolutionMode?: 'most_specific_wins' | 'cumulative'): string;",
+        "buildScenarioSpec(id: string, operations: ScenarioOperation[], name?: string, description?: string, priority?: number, resolutionMode?: 'most_specific_wins' | 'cumulative'): ScenarioSpec;",
     ));
     assert!(dts.contains("export declare const scenarios: ScenariosNamespace;"));
 }

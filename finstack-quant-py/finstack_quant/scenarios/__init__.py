@@ -28,6 +28,8 @@ compute_horizon_return = _scenarios.compute_horizon_return
 HorizonResult = _scenarios.HorizonResult
 ApplicationReport = _scenarios.ApplicationReport
 ApplicationResult = _scenarios.ApplicationResult
+ScenarioSpec = _scenarios.ScenarioSpec
+TemplateMetadata = _scenarios.TemplateMetadata
 
 # Operation specifications
 OperationSpec = _scenarios.OperationSpec
@@ -51,6 +53,8 @@ __all__: list[str] = [
     "HorizonResult",
     "OperationSpec",
     "RateBindingSpec",
+    "ScenarioSpec",
+    "TemplateMetadata",
     "TenorMatchMode",
     "TimeRollMode",
     "apply_scenario",

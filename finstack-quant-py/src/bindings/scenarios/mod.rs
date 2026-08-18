@@ -1,26 +1,19 @@
 //! Python bindings for the `finstack-quant-scenarios` crate.
 //!
-//! Scenarios are spec-based (serde), so this module exposes JSON round-trip
-//! functions for [`ScenarioSpec`] construction, validation, template
-//! registry discovery, and scenario engine application.
+//! Scenarios are spec-based (serde), so this module exposes typed specification
+//! construction, validation, template registry discovery, and scenario engine
+//! application with explicit JSON round-trips on wrapper methods.
 
 pub(crate) mod engine;
 mod horizon;
 mod operation_spec;
 mod schema;
+mod spec;
 
+use operation_spec::PyOperationSpec;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-
-fn parse_json<T: DeserializeOwned>(json: &str, context: &str) -> PyResult<T> {
-    serde_json::from_str(json).map_err(|e| crate::errors::value_error(format!("{context}: {e}")))
-}
-
-fn to_json<T: Serialize>(value: &T, context: &str) -> PyResult<String> {
-    serde_json::to_string(value).map_err(|e| crate::errors::value_error(format!("{context}: {e}")))
-}
+use spec::{PyScenarioSpec, PyTemplateMetadata};
 
 fn validate_spec(spec: &finstack_quant_scenarios::ScenarioSpec) -> PyResult<()> {
     spec.validate()
@@ -28,21 +21,14 @@ fn validate_spec(spec: &finstack_quant_scenarios::ScenarioSpec) -> PyResult<()> 
 }
 
 fn parse_spec(json_str: &str) -> PyResult<finstack_quant_scenarios::ScenarioSpec> {
-    parse_json(json_str, "Failed to parse ScenarioSpec JSON")
+    serde_json::from_str(json_str).map_err(|error| {
+        crate::errors::value_error(format!("Failed to parse ScenarioSpec JSON: {error}"))
+    })
 }
 
 fn builtin_registry() -> PyResult<finstack_quant_scenarios::TemplateRegistry> {
     finstack_quant_scenarios::TemplateRegistry::with_embedded_builtins()
         .map_err(|e| crate::errors::value_error(format!("Failed to load embedded templates: {e}")))
-}
-
-fn template_entry<'a>(
-    registry: &'a finstack_quant_scenarios::TemplateRegistry,
-    template_id: &str,
-) -> PyResult<&'a finstack_quant_scenarios::RegisteredTemplate> {
-    registry
-        .get(template_id)
-        .ok_or_else(|| crate::errors::value_error(format!("Unknown template: '{template_id}'")))
 }
 
 /// Parse a scenario specification and re-emit it in canonical form.
@@ -58,8 +44,8 @@ fn template_entry<'a>(
 ///
 /// Returns
 /// -------
-/// str
-///     Canonical JSON-serialized ``ScenarioSpec``.
+/// ScenarioSpec
+///     Validated typed scenario specification.
 ///
 /// Raises
 /// ------
@@ -67,20 +53,20 @@ fn template_entry<'a>(
 ///     If the JSON is malformed or does not match the ``ScenarioSpec`` schema.
 ///     Unknown fields are rejected rather than ignored.
 #[pyfunction]
-fn parse_scenario_spec(json_str: &str) -> PyResult<String> {
+fn parse_scenario_spec(json_str: &str) -> PyResult<PyScenarioSpec> {
     let spec = parse_spec(json_str)?;
     validate_spec(&spec)?;
-    to_json(&spec, "Failed to serialize ScenarioSpec")
+    Ok(PyScenarioSpec::from_inner(spec))
 }
 
-/// Build and validate a scenario specification as JSON.
+/// Build and validate a typed scenario specification.
 ///
 /// Parameters
 /// ----------
 /// id : str
 ///     Stable scenario identifier written to the returned specification.
-/// operations_json : str
-///     JSON array of scenario operations in execution order.
+/// operations : list[OperationSpec]
+///     Typed scenario operations in execution order.
 /// name : str, optional
 ///     Optional human-readable scenario name.
 /// description : str, optional
@@ -93,27 +79,25 @@ fn parse_scenario_spec(json_str: &str) -> PyResult<String> {
 ///
 /// Returns
 /// -------
-/// str
-///     Validated serialized ``ScenarioSpec`` JSON.
+/// ScenarioSpec
+///     Validated typed scenario specification.
 ///
 /// Raises
 /// ------
 /// ValueError
-///     If ``operations_json`` is malformed, ``resolution_mode`` is not one of
-///     the accepted values, the resulting scenario fails validation, or the
-///     specification cannot be serialized.
+///     If ``resolution_mode`` is not accepted or the resulting scenario fails
+///     validation.
 ///
 /// Examples
 /// --------
 /// >>> from finstack_quant.scenarios import build_scenario_spec
-/// >>> import json
-/// >>> spec = build_scenario_spec("stress", "[]", resolution_mode="cumulative")
-/// >>> json.loads(spec)["resolution_mode"]
+/// >>> spec = build_scenario_spec("stress", [], resolution_mode="cumulative")
+/// >>> spec.resolution_mode
 /// 'cumulative'
 #[pyfunction]
 #[pyo3(signature = (
     id,
-    operations_json,
+    operations,
     name=None,
     description=None,
     priority=0,
@@ -121,30 +105,13 @@ fn parse_scenario_spec(json_str: &str) -> PyResult<String> {
 ))]
 fn build_scenario_spec(
     id: &str,
-    operations_json: &str,
+    operations: Vec<PyOperationSpec>,
     name: Option<&str>,
     description: Option<&str>,
     priority: i32,
     resolution_mode: &str,
-) -> PyResult<String> {
-    let operations: Vec<finstack_quant_scenarios::OperationSpec> =
-        parse_json(operations_json, "Failed to parse operations JSON")?;
-    let resolution_mode = serde_json::from_value(serde_json::Value::String(
-        resolution_mode.to_string(),
-    ))
-    .map_err(|error| {
-        crate::errors::value_error(format!("Invalid scenario resolution_mode: {error}"))
-    })?;
-    let spec = finstack_quant_scenarios::ScenarioSpec {
-        id: id.to_string(),
-        name: name.map(str::to_string),
-        description: description.map(str::to_string),
-        operations,
-        priority,
-        resolution_mode,
-    };
-    validate_spec(&spec)?;
-    to_json(&spec, "Failed to serialize ScenarioSpec")
+) -> PyResult<PyScenarioSpec> {
+    PyScenarioSpec::build(id, operations, name, description, priority, resolution_mode)
 }
 
 /// Compose several scenario specifications into one.
@@ -156,37 +123,35 @@ fn build_scenario_spec(
 ///
 /// Parameters
 /// ----------
-/// specs_json : str
-///     JSON array of ``ScenarioSpec`` objects, in application order.
+/// specs : list[ScenarioSpec]
+///     Typed scenario specifications in application order.
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized composed ``ScenarioSpec``.
+/// ScenarioSpec
+///     Typed composed scenario specification.
 ///
 /// Raises
 /// ------
 /// ValueError
-///     If the JSON is malformed or the specs cannot be composed.
+///     If the specifications cannot be composed.
 ///
 /// Examples
 /// --------
-/// >>> import json
 /// >>> from finstack_quant.scenarios import build_scenario_spec, compose_scenarios
-/// >>> rates = build_scenario_spec("rates", json.dumps([]))
-/// >>> credit = build_scenario_spec("credit", json.dumps([]))
-/// >>> composed = compose_scenarios(json.dumps([json.loads(rates), json.loads(credit)]))
-/// >>> json.loads(composed)["id"] is not None
-/// True
+/// >>> rates = build_scenario_spec("rates", [])
+/// >>> credit = build_scenario_spec("credit", [])
+/// >>> compose_scenarios([rates, credit]).operations
+/// []
 #[pyfunction]
-fn compose_scenarios(specs_json: &str) -> PyResult<String> {
-    let specs: Vec<finstack_quant_scenarios::ScenarioSpec> =
-        parse_json(specs_json, "Failed to parse specs JSON")?;
-    let engine = finstack_quant_scenarios::ScenarioEngine::new();
-    let composed = engine
+fn compose_scenarios(specs: Vec<PyScenarioSpec>) -> PyResult<PyScenarioSpec> {
+    let specs = specs.into_iter().map(|spec| spec.inner).collect();
+    let composed = finstack_quant_scenarios::ScenarioEngine::new()
         .try_compose(specs)
-        .map_err(|e| crate::errors::value_error(format!("Scenario composition failed: {e}")))?;
-    to_json(&composed, "Failed to serialize composed spec")
+        .map_err(|error| {
+            crate::errors::value_error(format!("Scenario composition failed: {error}"))
+        })?;
+    Ok(PyScenarioSpec::from_inner(composed))
 }
 
 /// Validate a scenario specification without applying it.
@@ -245,19 +210,21 @@ fn list_builtin_templates() -> PyResult<Vec<String>> {
 ///
 /// Returns
 /// -------
-/// str
-///     JSON array of template metadata objects, each carrying at least ``id``,
-///     ``name`` and ``description``. Parse with ``json.loads`` — or load
-///     straight into pandas with ``pd.read_json(...)`` — to browse the catalog.
+/// list[TemplateMetadata]
+///     Typed metadata objects in deterministic registry order.
 ///
 /// See Also
 /// --------
 /// list_builtin_templates : Just the identifiers.
 #[pyfunction]
-fn list_builtin_template_metadata() -> PyResult<String> {
+fn list_builtin_template_metadata() -> PyResult<Vec<PyTemplateMetadata>> {
     let registry = builtin_registry()?;
-    let metadata: Vec<&finstack_quant_scenarios::TemplateMetadata> = registry.list();
-    to_json(&metadata, "Failed to serialize template metadata")
+    Ok(registry
+        .list()
+        .into_iter()
+        .cloned()
+        .map(PyTemplateMetadata::from_inner)
+        .collect())
 }
 
 /// Build a complete scenario specification from a built-in template.
@@ -271,9 +238,9 @@ fn list_builtin_template_metadata() -> PyResult<String> {
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``ScenarioSpec``, ready for
-///     :func:`apply_scenario_to_market` or :func:`compute_horizon_return`.
+/// ScenarioSpec
+///     Typed scenario specification. Call :meth:`ScenarioSpec.to_json` when
+///     passing it to an explicitly JSON-input API.
 ///
 /// Raises
 /// ------
@@ -285,14 +252,11 @@ fn list_builtin_template_metadata() -> PyResult<String> {
 /// --------
 /// list_template_components : Build only part of a template.
 #[pyfunction]
-fn build_from_template(template_id: &str) -> PyResult<String> {
-    let registry = builtin_registry()?;
-    let entry = template_entry(&registry, template_id)?;
-    let spec = entry
-        .builder()
-        .build()
-        .map_err(|e| crate::errors::value_error(format!("Failed to build template spec: {e}")))?;
-    to_json(&spec, "Failed to serialize spec")
+fn build_from_template(template_id: &str) -> PyResult<PyScenarioSpec> {
+    let spec = builtin_registry()?
+        .build(template_id)
+        .map_err(|error| crate::errors::value_error(error.to_string()))?;
+    Ok(PyScenarioSpec::from_inner(spec))
 }
 
 /// List the component identifiers within a built-in template.
@@ -316,13 +280,10 @@ fn build_from_template(template_id: &str) -> PyResult<String> {
 ///     If ``template_id`` is not a built-in template.
 #[pyfunction]
 fn list_template_components(template_id: &str) -> PyResult<Vec<String>> {
-    let registry = builtin_registry()?;
-    let entry = template_entry(&registry, template_id)?;
-    Ok(entry
-        .component_ids()
-        .into_iter()
-        .map(str::to_string)
-        .collect())
+    builtin_registry()?
+        .component_ids(template_id)
+        .map(|ids| ids.into_iter().map(str::to_string).collect())
+        .map_err(|error| crate::errors::value_error(error.to_string()))
 }
 
 /// Build a scenario specification from one component of a built-in template.
@@ -336,26 +297,19 @@ fn list_template_components(template_id: &str) -> PyResult<Vec<String>> {
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``ScenarioSpec`` covering only that component.
+/// ScenarioSpec
+///     Typed scenario specification covering only that component.
 ///
 /// Raises
 /// ------
 /// ValueError
 ///     If either identifier is unknown, or the component fails to build.
 #[pyfunction]
-fn build_template_component(template_id: &str, component_id: &str) -> PyResult<String> {
-    let registry = builtin_registry()?;
-    let entry = template_entry(&registry, template_id)?;
-    let builder = entry.component(component_id).ok_or_else(|| {
-        crate::errors::value_error(format!(
-            "Unknown component '{component_id}' in template '{template_id}'"
-        ))
-    })?;
-    let spec = builder
-        .build()
-        .map_err(|e| crate::errors::value_error(format!("Failed to build component spec: {e}")))?;
-    to_json(&spec, "Failed to serialize component spec")
+fn build_template_component(template_id: &str, component_id: &str) -> PyResult<PyScenarioSpec> {
+    let spec = builtin_registry()?
+        .build_component(template_id, component_id)
+        .map_err(|error| crate::errors::value_error(error.to_string()))?;
+    Ok(PyScenarioSpec::from_inner(spec))
 }
 
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -365,6 +319,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "Scenario specification, validation, composition, application, and built-in templates.",
     )?;
 
+    m.add_class::<PyScenarioSpec>()?;
+    m.add_class::<PyTemplateMetadata>()?;
     m.add_function(wrap_pyfunction!(parse_scenario_spec, &m)?)?;
     m.add_function(wrap_pyfunction!(build_scenario_spec, &m)?)?;
     m.add_function(wrap_pyfunction!(compose_scenarios, &m)?)?;
@@ -390,6 +346,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "HorizonResult",
             "OperationSpec",
             "RateBindingSpec",
+            "ScenarioSpec",
+            "TemplateMetadata",
             "TenorMatchMode",
             "TimeRollMode",
             "apply_scenario",

@@ -595,10 +595,21 @@ fn campisi_reconciliation_check_honours_tolerance_and_denies_unknown_fields() {
     assert!(campisi_carino_link(&format!("[{bogus}]")).is_err());
 }
 
+fn empty_scenario_json() -> String {
+    let operations =
+        serde_wasm_bindgen::to_value(&Vec::<finstack_quant_scenarios::OperationSpec>::new())
+            .expect("operations");
+    let value =
+        build_scenario_spec("stress", operations, None, None, None, None).expect("scenario");
+    let spec: finstack_quant_scenarios::ScenarioSpec =
+        serde_wasm_bindgen::from_value(value).expect("typed scenario");
+    serde_json::to_string(&spec).expect("scenario json")
+}
+
 #[wasm_bindgen_test]
 fn apply_scenario_and_revalue_empty_portfolio() {
     let spec = portfolio_spec_json();
-    let scenario = build_scenario_spec("stress", "[]", None, None, None, None).unwrap();
+    let scenario = empty_scenario_json();
     let market = empty_market_json();
     let result = apply_scenario_and_revalue(&spec, &scenario, &market).unwrap();
     let obj = as_json(&result);
@@ -610,7 +621,7 @@ fn apply_scenario_and_revalue_empty_portfolio() {
 fn apply_scenario_and_revalue_built_empty_portfolio() {
     let spec = portfolio_spec_json();
     let portfolio = JsPortfolio::from_spec(&spec).unwrap();
-    let scenario = build_scenario_spec("stress", "[]", None, None, None, None).unwrap();
+    let scenario = empty_scenario_json();
     let market = empty_market_json();
     let result = apply_scenario_and_revalue_built(&portfolio, &scenario, &market).unwrap();
     let obj = as_json(&result);

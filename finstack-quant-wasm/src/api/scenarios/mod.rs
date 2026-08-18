@@ -1,7 +1,7 @@
 //! WASM bindings for the `finstack-quant-scenarios` crate.
 //!
 //! Exposes scenario specification parsing, validation, composition,
-//! and built-in template access via JSON round-trip functions.
+//! and built-in template access via structured JavaScript values.
 
 use crate::utils::{parse_iso_date, to_js_err};
 use std::sync::OnceLock;
@@ -39,7 +39,7 @@ fn apply_with_context(
 
 /// Parse and validate a scenario specification from JSON.
 ///
-/// Returns the validated, re-serialized JSON.
+/// Returns the validated scenario as a plain JavaScript object.
 ///
 /// # Errors
 ///
@@ -48,13 +48,18 @@ fn apply_with_context(
 /// fields, variant-specific operation violations, or serialization failure.
 /// @param json_str - Canonical JSON string to validate and re-serialize.
 #[wasm_bindgen(js_name = parseScenarioSpec)]
-pub fn parse_scenario_spec(json_str: &str) -> Result<String, JsValue> {
+pub fn parse_scenario_spec(json_str: &str) -> Result<JsValue, JsValue> {
+    let spec = parse_scenario_spec_inner(json_str).map_err(to_js_err)?;
+    crate::utils::to_js_value(&spec)
+}
+
+fn parse_scenario_spec_inner(
+    json_str: &str,
+) -> Result<finstack_quant_scenarios::ScenarioSpec, String> {
     let spec: finstack_quant_scenarios::ScenarioSpec =
-        serde_json::from_str(json_str).map_err(to_js_err)?;
-
-    spec.validate().map_err(to_js_err)?;
-
-    serde_json::to_string(&spec).map_err(to_js_err)
+        serde_json::from_str(json_str).map_err(|error| error.to_string())?;
+    spec.validate().map_err(|error| error.to_string())?;
+    Ok(spec)
 }
 
 /// Compose multiple scenario specs (JSON array) into a single scenario.
@@ -63,23 +68,23 @@ pub fn parse_scenario_spec(json_str: &str) -> Result<String, JsValue> {
 ///
 /// # Errors
 ///
-/// Rejects malformed or schema-incompatible `specs_json`, composition that
-/// contains more than one time-roll operation, or failure to serialize the
-/// composed specification.
-/// @param specs_json - JSON array of validated ScenarioSpec objects to compose in priority order.
+/// Rejects malformed structured specs, composition that contains more than one
+/// time-roll operation, or failure to convert the composed specification.
+/// @param specs - Validated ScenarioSpec objects to compose in priority order.
 #[wasm_bindgen(js_name = composeScenarios)]
-pub fn compose_scenarios(specs_json: &str) -> Result<String, JsValue> {
-    compose_scenarios_json(specs_json).map_err(to_js_err)
+pub fn compose_scenarios(specs: JsValue) -> Result<JsValue, JsValue> {
+    let specs: Vec<finstack_quant_scenarios::ScenarioSpec> =
+        serde_wasm_bindgen::from_value(specs).map_err(to_js_err)?;
+    let composed = compose_scenarios_inner(specs).map_err(to_js_err)?;
+    crate::utils::to_js_value(&composed)
 }
 
-fn compose_scenarios_json(specs_json: &str) -> Result<String, String> {
-    let specs: Vec<finstack_quant_scenarios::ScenarioSpec> =
-        serde_json::from_str(specs_json).map_err(|e| e.to_string())?;
-
-    let engine = finstack_quant_scenarios::ScenarioEngine::new();
-    let composed = engine.try_compose(specs).map_err(|e| e.to_string())?;
-
-    serde_json::to_string(&composed).map_err(|e| e.to_string())
+fn compose_scenarios_inner(
+    specs: Vec<finstack_quant_scenarios::ScenarioSpec>,
+) -> Result<finstack_quant_scenarios::ScenarioSpec, String> {
+    finstack_quant_scenarios::ScenarioEngine::new()
+        .try_compose(specs)
+        .map_err(|error| error.to_string())
 }
 
 /// Validate a scenario specification JSON without executing it.
@@ -119,22 +124,21 @@ pub fn list_builtin_templates() -> Result<JsValue, JsValue> {
     crate::utils::to_js_value(&ids)
 }
 
-/// Get metadata for all built-in templates as a JSON string.
+/// Get typed metadata for all built-in templates as plain JavaScript objects.
 ///
 /// # Errors
 ///
 /// Rejects if the embedded template registry cannot be parsed and validated,
 /// or if its metadata cannot be serialized to JSON.
 #[wasm_bindgen(js_name = listBuiltinTemplateMetadata)]
-pub fn list_builtin_template_metadata() -> Result<String, JsValue> {
-    let registry = builtin_registry()?;
-    let metadata: Vec<&finstack_quant_scenarios::TemplateMetadata> = registry.list();
-    serde_json::to_string(&metadata).map_err(to_js_err)
+pub fn list_builtin_template_metadata() -> Result<JsValue, JsValue> {
+    let metadata = builtin_registry()?.list();
+    crate::utils::to_js_value(&metadata)
 }
 
 /// Build a scenario spec from a built-in template.
 ///
-/// Returns JSON-serialized `ScenarioSpec`.
+/// Returns a structured `ScenarioSpec` object.
 ///
 /// # Errors
 ///
@@ -143,14 +147,9 @@ pub fn list_builtin_template_metadata() -> Result<String, JsValue> {
 /// the scenario.
 /// @param template_id - Identifier of a built-in scenario template in the embedded registry.
 #[wasm_bindgen(js_name = buildFromTemplate)]
-pub fn build_from_template(template_id: &str) -> Result<String, JsValue> {
-    let registry = builtin_registry()?;
-    let entry = registry
-        .get(template_id)
-        .ok_or_else(|| to_js_err(format!("Unknown template: '{template_id}'")))?;
-
-    let spec = entry.builder().build().map_err(to_js_err)?;
-    serde_json::to_string(&spec).map_err(to_js_err)
+pub fn build_from_template(template_id: &str) -> Result<JsValue, JsValue> {
+    let spec = builtin_registry()?.build(template_id).map_err(to_js_err)?;
+    crate::utils::to_js_value(&spec)
 }
 
 /// List component IDs for a built-in composite template.
@@ -164,13 +163,9 @@ pub fn build_from_template(template_id: &str) -> Result<String, JsValue> {
 /// @param template_id - Identifier of a built-in scenario template in the embedded registry.
 #[wasm_bindgen(js_name = listTemplateComponents)]
 pub fn list_template_components(template_id: &str) -> Result<JsValue, JsValue> {
-    let registry = builtin_registry()?;
-    let entry = registry
-        .get(template_id)
-        .ok_or_else(|| to_js_err(format!("Unknown template: '{template_id}'")))?;
-
-    let ids: Vec<String> = entry
-        .component_ids()
+    let ids: Vec<String> = builtin_registry()?
+        .component_ids(template_id)
+        .map_err(to_js_err)?
         .into_iter()
         .map(str::to_string)
         .collect();
@@ -187,30 +182,23 @@ pub fn list_template_components(template_id: &str) -> Result<JsValue, JsValue> {
 /// @param template_id - Identifier of a built-in scenario template in the embedded registry.
 /// @param component_id - Identifier of a component within the selected composite template.
 #[wasm_bindgen(js_name = buildTemplateComponent)]
-pub fn build_template_component(template_id: &str, component_id: &str) -> Result<String, JsValue> {
-    let registry = builtin_registry()?;
-    let entry = registry
-        .get(template_id)
-        .ok_or_else(|| to_js_err(format!("Unknown template: '{template_id}'")))?;
-    let builder = entry.component(component_id).ok_or_else(|| {
-        to_js_err(format!(
-            "Unknown component '{component_id}' in template '{template_id}'"
-        ))
-    })?;
-    let spec = builder.build().map_err(to_js_err)?;
-    serde_json::to_string(&spec).map_err(to_js_err)
+pub fn build_template_component(template_id: &str, component_id: &str) -> Result<JsValue, JsValue> {
+    let spec = builtin_registry()?
+        .build_component(template_id, component_id)
+        .map_err(to_js_err)?;
+    crate::utils::to_js_value(&spec)
 }
 
 /// Build a scenario spec from fields.
 ///
 /// # Errors
 ///
-/// Rejects malformed or schema-incompatible `operations_json`, an unsupported
+/// Rejects malformed or schema-incompatible `operations`, an unsupported
 /// `resolution_mode`, a blank scenario ID, multiple time-roll operations,
 /// invalid operation identifiers or numeric fields, variant-specific operation
 /// violations, or failure to serialize the scenario.
 /// @param id - Scenario identifier stored on the constructed spec.
-/// @param operations_json - JSON array of scenario operation specifications in execution order.
+/// @param operations - Structured scenario operation specifications in execution order.
 /// @param name - Optional human-readable scenario name.
 /// @param description - Optional human-readable description of the scenario purpose.
 /// @param priority - Optional execution priority; lower values run earlier
@@ -221,16 +209,14 @@ pub fn build_template_component(template_id: &str, component_id: &str) -> Result
 #[wasm_bindgen(js_name = buildScenarioSpec)]
 pub fn build_scenario_spec(
     id: &str,
-    operations_json: &str,
+    operations: JsValue,
     name: Option<String>,
     description: Option<String>,
     priority: Option<i32>,
     resolution_mode: Option<String>,
-) -> Result<String, JsValue> {
+) -> Result<JsValue, JsValue> {
     let operations: Vec<finstack_quant_scenarios::OperationSpec> =
-        serde_json::from_str(operations_json).map_err(to_js_err)?;
-    // Both defaults come from the same place as the Rust serde defaults on
-    // `ScenarioSpec` (`#[serde(default)]` = `Default::default()`).
+        serde_wasm_bindgen::from_value(operations).map_err(to_js_err)?;
     let resolution_mode = resolution_mode
         .map(|value| serde_json::from_value(serde_json::Value::String(value)))
         .transpose()
@@ -245,7 +231,7 @@ pub fn build_scenario_spec(
         resolution_mode,
     };
     spec.validate().map_err(to_js_err)?;
-    serde_json::to_string(&spec).map_err(to_js_err)
+    crate::utils::to_js_value(&spec)
 }
 
 /// Apply a scenario to a market context and financial model.
@@ -409,115 +395,69 @@ pub fn compute_horizon_return(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use finstack_quant_core::market_data::hierarchy::ResolutionMode;
+    use finstack_quant_scenarios::{OperationSpec, ScenarioSpec, TimeRollMode};
 
-    #[test]
-    fn list_builtin_template_metadata_is_non_empty_json_array() {
-        let json = list_builtin_template_metadata().expect("metadata");
-        let v: serde_json::Value = serde_json::from_str(&json).expect("parse metadata");
-        let arr = v.as_array().expect("array");
-        assert!(!arr.is_empty());
+    fn empty_spec(id: &str, priority: i32) -> ScenarioSpec {
+        ScenarioSpec {
+            id: id.into(),
+            name: None,
+            description: None,
+            operations: Vec::new(),
+            priority,
+            resolution_mode: ResolutionMode::default(),
+        }
     }
 
     #[test]
-    fn build_from_template_and_build_template_component_succeed_for_builtin() {
-        let meta = list_builtin_template_metadata().expect("metadata");
-        let items: Vec<serde_json::Value> = serde_json::from_str(&meta).expect("parse");
-        let first_id = items[0]["id"].as_str().expect("template id");
-        let built = build_from_template(first_id).expect("build_from_template");
-        assert!(!built.is_empty());
+    fn parse_and_compose_helpers_return_typed_specs() {
+        let json = serde_json::to_string(&empty_spec("parsed", 0)).expect("serialize");
+        let parsed = parse_scenario_spec_inner(&json).expect("parse");
+        assert_eq!(parsed.id, "parsed");
 
-        let component_json =
-            build_template_component("gfc_2008", "gfc_2008_rates").expect("component");
-        assert!(!component_json.is_empty());
+        let composed =
+            compose_scenarios_inner(vec![empty_spec("a", 0), empty_spec("b", 1)]).expect("compose");
+        assert!(!composed.id.is_empty());
     }
 
     #[test]
-    fn build_validate_parse_compose_roundtrip_empty_operations() {
-        let spec_json =
-            build_scenario_spec("test_id", "[]", Some("Test".to_string()), None, None, None)
-                .expect("build_scenario_spec");
-        validate_scenario_spec(&spec_json).expect("validate");
-        let parsed = parse_scenario_spec(&spec_json).expect("parse");
-        let before: serde_json::Value = serde_json::from_str(&spec_json).expect("before");
-        let after: serde_json::Value = serde_json::from_str(&parsed).expect("after");
-        assert_eq!(before, after);
+    fn compose_helper_rejects_duplicate_time_rolls() {
+        let operations = |period: &str| {
+            vec![OperationSpec::TimeRollForward {
+                period: period.into(),
+                apply_shocks: true,
+                roll_mode: TimeRollMode::BusinessDays,
+            }]
+        };
+        let mut first = empty_spec("roll_1m", 0);
+        first.operations = operations("1M");
+        first.resolution_mode = ResolutionMode::Cumulative;
+        let mut second = empty_spec("roll_3m", 1);
+        second.operations = operations("3M");
+        second.resolution_mode = ResolutionMode::Cumulative;
 
-        let composed = compose_scenarios("[]").expect("compose");
-        validate_scenario_spec(&composed).expect("composed valid");
+        let error = compose_scenarios_inner(vec![first, second])
+            .expect_err("duplicate time rolls should be rejected");
+        assert!(
+            error.contains("TimeRollForward"),
+            "unexpected error: {error}"
+        );
     }
 
     #[test]
-    fn build_scenario_with_name_and_description() {
-        let spec_json = build_scenario_spec(
-            "stress_1",
-            "[]",
-            Some("Stress scenario".to_string()),
-            Some("A description".to_string()),
-            Some(10),
-            Some("cumulative".to_string()),
-        )
-        .expect("build");
-        let parsed: serde_json::Value = serde_json::from_str(&spec_json).expect("json");
-        assert_eq!(parsed["id"], "stress_1");
-        assert_eq!(parsed["priority"], 10);
-        assert_eq!(parsed["resolution_mode"], "cumulative");
-    }
-
-    #[test]
-    fn compose_multiple_scenarios() {
-        let s1 = build_scenario_spec("s1", "[]", None, None, Some(0), None).expect("s1");
-        let s2 = build_scenario_spec("s2", "[]", None, None, Some(1), None).expect("s2");
-        let arr = format!("[{s1},{s2}]");
-        let composed = compose_scenarios(&arr).expect("compose");
-        validate_scenario_spec(&composed).expect("valid");
-    }
-
-    #[test]
-    fn compose_scenarios_rejects_duplicate_time_rolls() {
-        use finstack_quant_core::market_data::hierarchy::ResolutionMode;
-        use finstack_quant_scenarios::{OperationSpec, ScenarioSpec, TimeRollMode};
-
-        let specs = serde_json::to_string(&vec![
-            ScenarioSpec {
-                id: "roll_1m".into(),
-                name: None,
-                description: None,
-                operations: vec![OperationSpec::TimeRollForward {
-                    period: "1M".into(),
-                    apply_shocks: true,
-                    roll_mode: TimeRollMode::BusinessDays,
-                }],
-                priority: 0,
-                resolution_mode: ResolutionMode::Cumulative,
-            },
-            ScenarioSpec {
-                id: "roll_3m".into(),
-                name: None,
-                description: None,
-                operations: vec![OperationSpec::TimeRollForward {
-                    period: "3M".into(),
-                    apply_shocks: true,
-                    roll_mode: TimeRollMode::BusinessDays,
-                }],
-                priority: 1,
-                resolution_mode: ResolutionMode::Cumulative,
-            },
-        ])
-        .expect("serialize specs");
-
-        let err =
-            compose_scenarios_json(&specs).expect_err("duplicate time rolls should be rejected");
-        assert!(err.contains("TimeRollForward"), "unexpected error: {err}");
-    }
-
-    #[test]
-    fn build_all_builtin_templates() {
-        let meta = list_builtin_template_metadata().expect("metadata");
-        let items: Vec<serde_json::Value> = serde_json::from_str(&meta).expect("parse");
-        for item in &items {
-            let id = item["id"].as_str().expect("id");
-            let built = build_from_template(id).expect("build");
-            assert!(!built.is_empty(), "template {id} produced empty output");
+    fn builtin_registry_builds_typed_templates_and_components() {
+        let registry =
+            finstack_quant_scenarios::TemplateRegistry::with_embedded_builtins().expect("registry");
+        assert!(!registry.list().is_empty());
+        for metadata in registry.list() {
+            let built = registry.build(&metadata.id).expect("template");
+            assert_eq!(built.id, metadata.id);
+            for component_id in registry.component_ids(&metadata.id).expect("components") {
+                let component = registry
+                    .build_component(&metadata.id, component_id)
+                    .expect("component");
+                assert_eq!(component.id, component_id);
+            }
         }
     }
 }

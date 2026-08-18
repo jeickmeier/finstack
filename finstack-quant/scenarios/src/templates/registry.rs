@@ -173,6 +173,80 @@ impl TemplateRegistry {
         self.entries.get(id)
     }
 
+    /// Build a registered scenario template by identifier.
+    ///
+    /// # Arguments
+    ///
+    /// - `template_id`: Identifier returned by [`Self::list`].
+    ///
+    /// # Returns
+    ///
+    /// A validated, independently owned scenario specification.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Validation`] when `template_id` is unknown or the
+    /// registered builder fails scenario validation.
+    pub fn build(&self, template_id: &str) -> Result<ScenarioSpec> {
+        self.entries
+            .get(template_id)
+            .ok_or_else(|| Error::validation(format!("Unknown template: '{template_id}'")))?
+            .builder()
+            .build()
+    }
+
+    /// Build one component of a registered scenario template.
+    ///
+    /// # Arguments
+    ///
+    /// - `template_id`: Identifier returned by [`Self::list`].
+    /// - `component_id`: Component identifier returned by
+    ///   [`Self::component_ids`].
+    ///
+    /// # Returns
+    ///
+    /// A validated, independently owned scenario specification for the selected
+    /// component.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Validation`] when either identifier is unknown or the
+    /// component builder fails scenario validation.
+    pub fn build_component(&self, template_id: &str, component_id: &str) -> Result<ScenarioSpec> {
+        let entry = self
+            .entries
+            .get(template_id)
+            .ok_or_else(|| Error::validation(format!("Unknown template: '{template_id}'")))?;
+        entry
+            .component(component_id)
+            .ok_or_else(|| {
+                Error::validation(format!(
+                    "Unknown component '{component_id}' in template '{template_id}'"
+                ))
+            })?
+            .build()
+    }
+
+    /// List component identifiers for a registered template.
+    ///
+    /// # Arguments
+    ///
+    /// - `template_id`: Identifier returned by [`Self::list`].
+    ///
+    /// # Returns
+    ///
+    /// Component identifiers in deterministic template order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Validation`] when `template_id` is unknown.
+    pub fn component_ids(&self, template_id: &str) -> Result<Vec<&str>> {
+        self.entries
+            .get(template_id)
+            .ok_or_else(|| Error::validation(format!("Unknown template: '{template_id}'")))
+            .map(RegisteredTemplate::component_ids)
+    }
+
     /// List all registered template metadata in deterministic insertion order.
     ///
     /// # Returns
@@ -534,27 +608,38 @@ mod tests {
     }
 
     #[test]
-    fn json_registration_exposes_components_in_order() {
+    fn registry_builds_templates_and_components_by_id() {
         let registry = registry_with_templates();
-        let entry = registry
-            .get("hybrid_shock")
-            .expect("template entry should exist");
 
-        assert_eq!(entry.component_ids(), vec!["rates_shock", "equity_shock"]);
+        assert_eq!(
+            registry
+                .component_ids("hybrid_shock")
+                .expect("template should exist"),
+            vec!["rates_shock", "equity_shock"]
+        );
 
-        let rates = entry
-            .component("rates_shock")
-            .expect("rates component should exist")
-            .build()
-            .expect("component should build");
-        let equity = entry
-            .component("equity_shock")
-            .expect("equity component should exist")
-            .build()
-            .expect("component should build");
+        let composite = registry
+            .build("hybrid_shock")
+            .expect("template should build");
+        let rates = registry
+            .build_component("hybrid_shock", "rates_shock")
+            .expect("rates component should build");
+        let equity = registry
+            .build_component("hybrid_shock", "equity_shock")
+            .expect("equity component should build");
 
+        assert_eq!(composite.id, "hybrid_shock");
         assert_eq!(rates.id, "rates_shock");
         assert_eq!(equity.id, "equity_shock");
+    }
+
+    #[test]
+    fn registry_build_operations_reject_unknown_ids() {
+        let registry = registry_with_templates();
+
+        assert!(registry.build("missing").is_err());
+        assert!(registry.component_ids("missing").is_err());
+        assert!(registry.build_component("hybrid_shock", "missing").is_err());
     }
 
     #[test]
@@ -570,19 +655,17 @@ mod tests {
         let registry =
             TemplateRegistry::with_embedded_builtins().expect("embedded builtins should load");
         for template_id in builtin_template_ids() {
-            let entry = registry
-                .get(template_id)
-                .expect("builtin template should be registered");
-            let scenario = entry.builder().build().expect("scenario should build");
+            let scenario = registry.build(template_id).expect("scenario should build");
+            let component_ids = registry
+                .component_ids(template_id)
+                .expect("components should be listed");
 
             assert_eq!(scenario.id, template_id);
-            assert_eq!(entry.component_ids().len(), 5);
+            assert_eq!(component_ids.len(), 5);
 
-            for component_id in entry.component_ids() {
-                let component = entry
-                    .component(component_id)
-                    .expect("component should exist")
-                    .build()
+            for component_id in component_ids {
+                let component = registry
+                    .build_component(template_id, component_id)
                     .expect("component should build");
                 assert_eq!(component.id, component_id);
             }

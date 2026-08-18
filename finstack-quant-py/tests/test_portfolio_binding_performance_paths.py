@@ -21,7 +21,7 @@ from finstack_quant.portfolio import (
     scenario_pnl_batch_json,
     value_portfolio,
 )
-from finstack_quant.scenarios import build_scenario_spec
+from finstack_quant.scenarios import parse_scenario_spec
 
 AS_OF = "2025-01-15"
 
@@ -82,7 +82,8 @@ def _scenario_batch_json() -> str:
                 "bp": bp,
             }
         ]
-        scenarios.append(json.loads(build_scenario_spec(scenario_id, json.dumps(operations))))
+        spec = parse_scenario_spec(json.dumps({"id": scenario_id, "operations": operations}))
+        scenarios.append(json.loads(spec.to_json()))
     return json.dumps(scenarios)
 
 

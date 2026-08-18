@@ -78,6 +78,8 @@ from finstack_quant.portfolio import (
     value_portfolio,
 )
 from finstack_quant.scenarios import (
+    CurveKind,
+    OperationSpec,
     build_from_template,
     build_scenario_spec,
     compose_scenarios,
@@ -341,12 +343,15 @@ def _build_curve_scenario_jsons(n_scenarios: int) -> tuple[str, ...]:
     return tuple(
         build_scenario_spec(
             f"bench-parallel-{index}",
-            (
-                '[{"kind":"curve_parallel_bp","curve_kind":"discount",'
-                f'"curve_id":"USD-OIS","discount_curve_id":null,"bp":{float(index + 1)}}}]'
-            ),
+            [
+                OperationSpec.curve_parallel_bp(
+                    CurveKind.discount(),
+                    "USD-OIS",
+                    float(index + 1),
+                )
+            ],
             priority=index,
-        )
+        ).to_json()
         for index in range(n_scenarios)
     )
 
@@ -1189,37 +1194,37 @@ class TestScenariosBenchmarks:
         templates = list_builtin_templates()
         if not templates:
             pytest.skip("no built-in templates available")
-        spec_json = build_from_template(templates[0])
+        spec_json = build_from_template(templates[0]).to_json()
 
         def _parse_validate():
             parsed = parse_scenario_spec(spec_json)
-            validate_scenario_spec(parsed)
+            validate_scenario_spec(parsed.to_json())
 
         benchmark(_parse_validate)
 
     def test_build_scenario_spec(self, benchmark) -> None:
-        ops = json.dumps([
-            {"kind": "stmt_forecast_assign", "node_id": "revenue", "value": 120.0},
-        ])
-        benchmark(build_scenario_spec, "bench-scenario", ops, "Bench", "A benchmark scenario")
+        operations = [OperationSpec.stmt_forecast_assign("revenue", 120.0)]
+        benchmark(
+            build_scenario_spec,
+            "bench-scenario",
+            operations,
+            "Bench",
+            "A benchmark scenario",
+        )
 
     def test_compose_scenarios(self, benchmark) -> None:
-        specs = json.dumps([
-            {
-                "id": "s1",
-                "operations": [
-                    {"kind": "stmt_forecast_assign", "node_id": "revenue", "value": 120.0},
-                ],
-                "priority": 0,
-            },
-            {
-                "id": "s2",
-                "operations": [
-                    {"kind": "stmt_forecast_assign", "node_id": "cogs", "value": 70.0},
-                ],
-                "priority": 1,
-            },
-        ])
+        specs = [
+            build_scenario_spec(
+                "s1",
+                [OperationSpec.stmt_forecast_assign("revenue", 120.0)],
+                priority=0,
+            ),
+            build_scenario_spec(
+                "s2",
+                [OperationSpec.stmt_forecast_assign("cogs", 70.0)],
+                priority=1,
+            ),
+        ]
         benchmark(compose_scenarios, specs)
 
     def test_list_template_components(self, benchmark) -> None:

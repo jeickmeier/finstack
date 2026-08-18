@@ -1982,8 +1982,8 @@ status = "exists"
 # internal engine/spec/enums/reports partitioning is not surfaced as a
 # separate Python import path to keep a single pathway.
 #
-# NOTE: ``finstack_quant.scenarios`` now exposes a typed authoring path alongside the
-# original JSON helpers — ``OperationSpec`` (typed classmethod constructors,
+# NOTE: ``finstack_quant.scenarios`` exposes a typed authoring path —
+# ``ScenarioSpec``, ``TemplateMetadata``, ``OperationSpec`` (typed classmethod constructors,
 # one per Rust enum variant), ``RateBindingSpec``, and the supporting enums
 # (``CurveKind``, ``TenorMatchMode``, ``TimeRollMode``, ``Compounding``).
 # Round-trip is delegated to serde on the Rust types so the
@@ -1997,8 +1997,8 @@ engine    = { python = "finstack_quant.scenarios",           status = "flattened
 envelope  = { python = "finstack_quant.scenarios.envelope",  status = "missing", note = "Versioned persistence envelope (ScenarioEnvelope, ScenarioSchema, SCENARIO_CONTRACT) is bound in no host; Rust-only" }
 error     = { python = "finstack_quant.scenarios.error",     status = "missing", note = "Scenario errors surface in Python as ValueError/RuntimeError text; no typed exception classes are bound" }
 horizon   = { python = "finstack_quant.scenarios",           status = "flattened", note = "compute_horizon_return and the typed HorizonResult are exported flat on finstack_quant.scenarios; HorizonAnalysis (builder-style analyzer) remains Rust-only. Both hosts parse the attribution method through the canonical scenarios::horizon::attribution_method_from_str" }
-spec      = { python = "finstack_quant.scenarios",           status = "flattened", note = "OperationSpec (typed classmethod constructors), RateBindingSpec, and the enums CurveKind/TenorMatchMode/TimeRollMode/Compounding are exported flat, alongside the ScenarioSpec JSON helpers (parse/build/compose/validate); the ScenarioSpec struct itself crosses the boundary only as JSON" }
-templates = { python = "finstack_quant.scenarios",           status = "flattened", note = "Template registry access (list_builtin_templates, list_builtin_template_metadata, build_from_template, list_template_components, build_template_component) is exported flat; TemplateRegistry/RegisteredTemplate/ScenarioSpecBuilder types remain Rust-only" }
+spec      = { python = "finstack_quant.scenarios",           status = "flattened", note = "ScenarioSpec, OperationSpec (typed classmethod constructors), RateBindingSpec, and the enums CurveKind/TenorMatchMode/TimeRollMode/Compounding are exported flat. Unsuffixed parse/build/compose helpers return typed ScenarioSpec values; JSON is explicit through ScenarioSpec.from_json/to_json and validate_scenario_spec(json_str)." }
+templates = { python = "finstack_quant.scenarios",           status = "flattened", note = "TemplateMetadata plus registry access (list_builtin_templates, list_builtin_template_metadata, build_from_template, list_template_components, build_template_component) are exported flat; TemplateRegistry/RegisteredTemplate/ScenarioSpecBuilder types remain Rust-only. WASM returns equivalent plain objects." }
 warning   = { python = "finstack_quant.scenarios.warning",   status = "missing", note = "The structured Warning enum is bound in no host; warnings surface as rendered strings plus warnings_json on report objects" }
 schema = { python = "finstack_quant.scenarios.schema", status = "exists", note = "Registry-backed index/get/validate over the crate's published JSON Schemas; no WASM twin." }
 
@@ -2020,6 +2020,8 @@ public = [
     "HorizonResult",
     "OperationSpec",
     "RateBindingSpec",
+    "ScenarioSpec",
+    "TemplateMetadata",
     "TenorMatchMode",
     "TimeRollMode",
     "apply_scenario",
@@ -2044,9 +2046,9 @@ public = ["get", "index", "validate"]
 # WASM scenarios subset
 #
 # Python tracks the full scenarios surface via [crates.scenarios.symbols].
-# WASM exposes the 12 JSON-bridge entry points through
-# finstack-quant-wasm/exports/scenarios.js with camelCase facade names; the
-# typed authoring surface is Python-only.
+# WASM exposes the 12 scenario entry points through
+# finstack-quant-wasm/exports/scenarios.js with camelCase facade names. Typed
+# specs and metadata cross as plain serde-backed JavaScript objects.
 # ---------------------------------------------------------------------------
 [wasm_scenarios_subset]
 rust_module_root = "../finstack-quant-wasm/src/api/scenarios/"
@@ -2078,6 +2080,8 @@ python_only = [
   "HorizonResult",
   "OperationSpec",
   "RateBindingSpec",
+  "ScenarioSpec",
+  "TemplateMetadata",
   "TenorMatchMode",
   "TimeRollMode",
   "schema",

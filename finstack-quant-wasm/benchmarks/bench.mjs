@@ -327,10 +327,10 @@ const MONTE_CARLO_CONFIG_JSON = JSON.stringify({
   percentiles: [0.05, 0.5, 0.95],
 });
 
-const COMPOSE_SCENARIOS_JSON = JSON.stringify([
+const COMPOSE_SCENARIOS = [
   { id: 'sc-a', operations: [], priority: 0 },
   { id: 'sc-b', operations: [], priority: 1 },
-]);
+];
 
 const returns = Array.from({ length: 252 }, (_, i) => ((i % 17) - 8) * 0.001);
 const prices = Array.from({ length: 128 }, (_, i) => 100 * (1 + 0.001 * Math.sin(i)));
@@ -1014,11 +1014,11 @@ async function main() {
   });
 
   bench('scenarios', 'composeScenarios', 3000, () => {
-    w.composeScenarios(COMPOSE_SCENARIOS_JSON);
+    w.composeScenarios(COMPOSE_SCENARIOS);
   });
 
   bench('scenarios', 'buildScenarioSpec', 4000, () => {
-    w.buildScenarioSpec('composed-inline', '[]', undefined, undefined, 0);
+    w.buildScenarioSpec('composed-inline', [], undefined, undefined, 0);
   });
 
   let firstTemplateComponentId = null;

@@ -224,8 +224,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Bindings
 
-+ **Python:** `finstack_quant.scenarios` — `OperationSpec`, `CurveKind`,
-  `TimeRollMode`, `TenorMatchMode`, `Compounding`, `RateBindingSpec`,
++ **Python:** `finstack_quant.scenarios` — `ScenarioSpec`, `TemplateMetadata`,
+  `OperationSpec`, `CurveKind`, `TimeRollMode`, `TenorMatchMode`, `Compounding`, `RateBindingSpec`,
   `apply_scenario`, `apply_scenario_to_market`, `compose_scenarios`,
   `validate_scenario_spec`, `parse_scenario_spec`, `build_scenario_spec`,
   `compute_horizon_return`, the template helpers, and
@@ -234,7 +234,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
   (`exports/scenarios.js`) — `parseScenarioSpec`, `buildScenarioSpec`,
   `composeScenarios`, `validateScenarioSpec`, `applyScenario`,
   `applyScenarioToMarket`, `computeHorizonReturn`, and the template helpers.
-  Specs cross the boundary as JSON matching the schema below.
+  Unsuffixed builders, composers, and template helpers return structured specs;
+  JSON remains explicit through Python `to_json`/`from_json` or JSON-named inputs.
 
 ## Schemas
 

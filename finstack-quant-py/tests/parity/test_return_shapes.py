@@ -42,6 +42,12 @@ ENTRY_SHAPES: list[tuple[str, str, str]] = [
     ("finstack_quant.attribution", "attribute_return_contribution", "wrapper"),
     ("finstack_quant.attribution", "attribute_pnl_from_spec", "json"),
     # scenarios
+    ("finstack_quant.scenarios", "parse_scenario_spec", "wrapper"),
+    ("finstack_quant.scenarios", "build_scenario_spec", "wrapper"),
+    ("finstack_quant.scenarios", "compose_scenarios", "wrapper"),
+    ("finstack_quant.scenarios", "build_from_template", "wrapper"),
+    ("finstack_quant.scenarios", "build_template_component", "wrapper"),
+    ("finstack_quant.scenarios", "list_builtin_template_metadata", "list"),
     ("finstack_quant.scenarios", "apply_scenario", "wrapper"),
     ("finstack_quant.scenarios", "apply_scenario_to_market", "wrapper"),
     # portfolio
@@ -92,6 +98,7 @@ RESULT_CLASSES: list[tuple[str, str]] = [
     ("finstack_quant.attribution", "PnlAttribution"),
     ("finstack_quant.attribution", "ReturnContributionResult"),
     ("finstack_quant.scenarios", "ApplicationReport"),
+    ("finstack_quant.scenarios", "ScenarioSpec"),
     ("finstack_quant.scenarios", "HorizonResult"),
     ("finstack_quant.analytics", "PeriodStats"),
     ("finstack_quant.analytics", "BetaResult"),

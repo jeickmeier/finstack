@@ -7824,7 +7824,8 @@ export interface StatementsNamespace {
    * consistency check (for example rejecting `Sweep` ordered after `Equity`
    * when an ECF sweep is configured).
    * @returns Canonical waterfall JSON after schema validation.
-   * @param json - Canonical JSON string for a WaterfallSpec, including priorityOfPayments, availableCashNode, optional ecfSweep, pikToggle, paymentClasses, mandatoryPrepayNode, and voluntaryPrepayNode.
+   * @param json - Canonical JSON string for a `WaterfallSpec`, including `priority_of_payments`, `available_cash_node`, optional `ecf_sweep`, `pik_toggle`, `payment_classes`, `mandatory_prepay_node`, and `voluntary_prepay_node`.
+   * @param json - Canonical JSON string defining the object to deserialize or normalize.
    * @throws Error - Rejects malformed or schema-incompatible `json`; duplicate or inconsistent payment priorities; incomplete available-cash priorities; invalid PIK, payment-class, prepay-node, or ECF-sweep settings; or failure to serialize the validated waterfall.
    */
   validateWaterfallSpecJson(json: string): string;
@@ -9829,6 +9830,79 @@ export interface ScenarioApplyMarketResult {
 }
 
 /**
+ * A structured scenario operation using the canonical Rust `kind` discriminator.
+ */
+export type ScenarioOperation = Record<string, unknown> & { kind: string };
+
+/**
+ * Validated scenario specification consumed by the scenario engine.
+ */
+export interface ScenarioSpec {
+  /**
+   * Stable scenario identifier.
+   */
+  id: string;
+  /**
+   * Optional human-readable name.
+   */
+  name?: string;
+  /**
+   * Optional human-readable description.
+   */
+  description?: string;
+  /**
+   * Ordered scenario operations.
+   */
+  operations: ScenarioOperation[];
+  /**
+   * Composition priority; lower values execute first.
+   */
+  priority: number;
+  /**
+   * Hierarchy conflict policy.
+   */
+  resolution_mode: 'most_specific_wins' | 'cumulative';
+}
+
+/**
+ * Discovery metadata for one built-in historical scenario template.
+ */
+export interface TemplateMetadata {
+  /**
+   * Stable template identifier.
+   */
+  id: string;
+  /**
+   * Human-readable template name.
+   */
+  name: string;
+  /**
+   * Historical event and modeled-effects description.
+   */
+  description: string;
+  /**
+   * Primary historical event date in ISO-8601 form.
+   */
+  event_date: string;
+  /**
+   * Canonical asset-class labels affected by the scenario.
+   */
+  asset_classes: Array<'rates' | 'credit' | 'equity' | 'fx' | 'volatility' | 'commodity'>;
+  /**
+   * Freeform discovery tags.
+   */
+  tags: string[];
+  /**
+   * Scenario severity classification.
+   */
+  severity: 'mild' | 'moderate' | 'severe';
+  /**
+   * Component identifiers in deterministic build order.
+   */
+  components: string[];
+}
+
+/**
  * Namespaced TypeScript entry points for scenarios calculations and types.
  * @example
  * ```typescript
@@ -9841,21 +9915,21 @@ export interface ScenariosNamespace {
   /**
    * Parse and validate a scenario specification from JSON.
    *
-   * Returns the validated, re-serialized JSON.
-   * @returns Canonical scenario-specification JSON after validation.
+   * Returns the validated scenario as a plain JavaScript object.
+   * @returns Validated structured scenario specification.
    * @param jsonStr - Canonical JSON string to validate and re-serialize.
    * @throws Error - Rejects malformed or schema-incompatible `json_str`, a blank scenario ID, multiple time-roll operations, invalid operation identifiers or numeric fields, variant-specific operation violations, or serialization failure.
    */
-  parseScenarioSpec(jsonStr: string): string;
+  parseScenarioSpec(jsonStr: string): ScenarioSpec;
   /**
-   * Compose multiple scenario specs (JSON array) into a single scenario.
+   * Compose multiple structured scenario specs into a single scenario.
    *
    * Specs are merged in priority order (lower number runs first).
-   * @returns Canonical composed scenario-specification JSON.
-   * @param specsJson - JSON array of validated ScenarioSpec objects to compose in priority order.
-   * @throws Error - Rejects malformed or schema-incompatible `specs_json`, composition that contains more than one time-roll operation, or failure to serialize the composed specification.
+   * @returns Structured composed scenario specification.
+   * @param specs - Validated scenario specifications to compose in priority order.
+   * @throws Error - Rejects malformed structured specs, composition that contains more than one time-roll operation, or failure to convert the composed specification.
    */
-  composeScenarios(specsJson: string): string;
+  composeScenarios(specs: ScenarioSpec[]): ScenarioSpec;
   /**
    * Validate a scenario specification JSON without executing it.
    *
@@ -9877,20 +9951,20 @@ export interface ScenariosNamespace {
    */
   listBuiltinTemplates(): string[];
   /**
-   * Get metadata for all built-in templates as a JSON string.
-   * @returns Metadata for every built-in scenario template as JSON.
+   * Get typed metadata for all built-in templates.
+   * @returns Metadata objects in deterministic registry order.
    * @throws Error - Rejects if the embedded template registry cannot be parsed and validated, or if its metadata cannot be serialized to JSON.
    */
-  listBuiltinTemplateMetadata(): string;
+  listBuiltinTemplateMetadata(): TemplateMetadata[];
   /**
    * Build a scenario spec from a built-in template.
    *
-   * Returns JSON-serialized `ScenarioSpec`.
-   * @returns Canonical `ScenarioSpec` JSON from the built-in template.
+   * Returns a structured `ScenarioSpec`.
+   * @returns Validated scenario specification from the built-in template.
    * @param templateId - Identifier of a built-in scenario template in the embedded registry.
    * @throws Error - Rejects a failure to load the embedded registry, an unknown `template_id`, a template whose resolved scenario fails validation, or failure to serialize the scenario.
    */
-  buildFromTemplate(templateId: string): string;
+  buildFromTemplate(templateId: string): ScenarioSpec;
   /**
    * List component IDs for a built-in composite template.
    *
@@ -9902,31 +9976,31 @@ export interface ScenariosNamespace {
   listTemplateComponents(templateId: string): string[];
   /**
    * Build a specific component from a built-in composite template.
-   * @returns Canonical `ScenarioSpec` JSON for the selected template component.
+   * @returns Validated structured scenario specification for the selected component.
    * @param templateId - Identifier of a built-in scenario template in the embedded registry.
    * @param componentId - Identifier of a component within the selected composite template.
    * @throws Error - Rejects a failure to load the embedded registry, an unknown `template_id` or `component_id`, a component scenario that fails validation, or failure to serialize the scenario.
    */
-  buildTemplateComponent(templateId: string, componentId: string): string;
+  buildTemplateComponent(templateId: string, componentId: string): ScenarioSpec;
   /**
    * Build a scenario spec from fields.
-   * @returns Canonical `ScenarioSpec` JSON from the supplied fields.
+   * @returns Validated structured scenario specification from the supplied fields.
    * @param id - Scenario identifier stored on the constructed spec.
-   * @param operationsJson - JSON array of scenario operation specifications in execution order.
+   * @param operations - Structured scenario operations in execution order.
    * @param name - Optional human-readable scenario name.
    * @param description - Optional human-readable description of the scenario purpose.
    * @param priority - Optional execution priority; lower values run earlier during composition. Omit for the Rust serde default (`0`), matching the Python `priority=0` keyword default.
    * @param resolutionMode - Optional hierarchy conflict policy: `"most_specific_wins"` (default) or `"cumulative"`.
-   * @throws Error - Rejects malformed or schema-incompatible `operations_json`, an unsupported `resolution_mode`, a blank scenario ID, multiple time-roll operations, invalid operation identifiers or numeric fields, variant-specific operation violations, or failure to serialize the scenario.
+   * @throws Error - Rejects malformed or schema-incompatible `operations`, an unsupported `resolution_mode`, a blank scenario ID, multiple time-roll operations, invalid operation identifiers or numeric fields, variant-specific operation violations, or failure to serialize the scenario.
    */
   buildScenarioSpec(
     id: string,
-    operationsJson: string,
+    operations: ScenarioOperation[],
     name?: string,
     description?: string,
     priority?: number,
     resolutionMode?: 'most_specific_wins' | 'cumulative'
-  ): string;
+  ): ScenarioSpec;
   /**
    * Apply a scenario to a market context and financial model.
    *
