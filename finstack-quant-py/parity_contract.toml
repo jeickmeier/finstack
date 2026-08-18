@@ -2672,8 +2672,6 @@ instruments = [
     "listStandardMetricsGrouped",
     "priceInstrument",
     "priceInstrumentWithMarket",
-    "priceInstrument",
-    "priceInstrumentWithMarket",
     "structuredCreditTrancheBreakevenCdr",
     "structuredCreditTrancheDiscountMargin",
     "structuredCreditTrancheMetrics",
@@ -2705,7 +2703,6 @@ fx = [
 # base entry points instead, so no snake_case twins exist.
 instruments = [
     "instrumentCashflowsWithMarket",
-    "priceInstrumentWithMarket",
     "priceInstrumentWithMarket",
 ]
 
