@@ -118,7 +118,13 @@ impl PyCheckSuiteSpec {
 )]
 #[derive(Clone)]
 pub struct PyCheckReport {
-    pub(super) inner: finstack_quant_statements::checks::CheckReport,
+    pub(crate) inner: finstack_quant_statements::checks::CheckReport,
+}
+
+impl PyCheckReport {
+    pub(crate) fn from_inner(inner: finstack_quant_statements::checks::CheckReport) -> Self {
+        Self { inner }
+    }
 }
 
 #[pymethods]

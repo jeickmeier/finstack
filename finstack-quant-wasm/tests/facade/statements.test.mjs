@@ -96,6 +96,28 @@ test('statements_analytics.runSensitivity returns a structured object', () => {
   assert.ok(Array.isArray(JSON.parse(entries)));
 });
 
+test('statements_analytics.runChecks returns a structured CheckReport', () => {
+  const spec = JSON.stringify({
+    name: 'formula suite',
+    builtin_checks: [],
+    formula_checks: [
+      {
+        id: 'revenue_positive',
+        name: 'Revenue must be positive',
+        category: 'internal_consistency',
+        severity: 'error',
+        formula: 'revenue > 0',
+        message_template: 'Revenue not positive in {period}',
+        tolerance: null,
+      },
+    ],
+  });
+  const report = statements_analytics.runChecks(MODEL_JSON, spec);
+  assertStructured(report, 'runChecks result');
+  assert.equal(report.results[0].check_id, 'revenue_positive');
+  assert.equal(report.summary.failed, 0);
+});
+
 test('statements_analytics.evaluateScenarioSet returns a structured object', () => {
   const scenarioSet = JSON.stringify({
     scenarios: { upside: { parent: null, overrides: { revenue: 200000.0 } } },

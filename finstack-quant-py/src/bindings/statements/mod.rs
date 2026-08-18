@@ -6,7 +6,7 @@
 mod adjustments;
 pub(crate) mod builder;
 pub(crate) mod capital_structure;
-mod checks;
+pub(crate) mod checks;
 mod dsl;
 pub(crate) mod evaluator;
 mod monte_carlo;

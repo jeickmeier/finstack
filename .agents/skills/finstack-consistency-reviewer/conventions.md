@@ -203,10 +203,9 @@ they must be done as paired changes:
 
 | Domain | Entry points |
 |--------|-------------|
-| statements_analytics | `run_checks`, `run_three_statement_checks`, `run_credit_underwriting_checks`, `generate_tornado_entries` |
+| statements_analytics | `generate_tornado_entries` |
 | attribution | `attribute_pnl_from_spec` |
 | features | `transform_panel` (the typed twin `transform_panel_spec` is already public in Rust) |
-| scenarios | `parse_scenario_spec`, `compose_scenarios`, `build_scenario_spec`, `build_from_template`, `build_template_component`, `list_builtin_template_metadata` |
 | factor_model | `covariance_at`, `factor_model_at` |
 
 The scenarios group is arguably fine as-is — those emit spec *documents* meant

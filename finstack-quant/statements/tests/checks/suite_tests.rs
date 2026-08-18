@@ -5,10 +5,12 @@
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements::builder::ModelBuilder;
 use finstack_quant_statements::checks::{
-    BuiltinCheckSpec, CheckSuiteSpec, FormulaCheckSpec, PeriodScope, Severity,
+    BuiltinCheckSpec, CheckCategory, CheckSuite, CheckSuiteSpec, FormulaCheckSpec, PeriodScope,
+    Severity,
 };
 use finstack_quant_statements::evaluator::Evaluator;
-use finstack_quant_statements::types::{AmountOrScalar, NodeId};
+use finstack_quant_statements::types::{AmountOrScalar, ForecastMethod, ForecastSpec, NodeId};
+use indexmap::indexmap;
 
 fn q(quarter: u8) -> PeriodId {
     PeriodId::quarter(2025, quarter)
@@ -16,6 +18,20 @@ fn q(quarter: u8) -> PeriodId {
 
 fn s(v: f64) -> AmountOrScalar {
     AmountOrScalar::scalar(v)
+}
+
+fn positive_revenue_suite() -> CheckSuite {
+    CheckSuite::builder("positive revenue")
+        .add_check(FormulaCheckSpec {
+            id: "revenue_positive".into(),
+            name: "Revenue must be positive".into(),
+            category: CheckCategory::InternalConsistency,
+            severity: Severity::Error,
+            formula: "revenue > 0".into(),
+            message_template: "Revenue was non-positive in {period}".into(),
+            tolerance: None,
+        })
+        .build()
 }
 
 // JSON roundtrip: serialize → deserialize → resolve → check count
@@ -226,6 +242,51 @@ fn resolved_suite_runs_against_model() {
     let report = suite.run(&model, &results).unwrap();
     assert!(!report.has_errors());
     assert_eq!(report.summary.passed, 1);
+}
+
+#[test]
+fn run_model_evaluates_with_value_forecast_formula_precedence() {
+    let model = ModelBuilder::new("precedence")
+        .periods("2025Q1..Q4", Some("2025Q2"))
+        .unwrap()
+        .mixed("revenue")
+        .values(&[(q(1), s(100.0)), (q(2), s(110.0))])
+        .forecast(ForecastSpec {
+            method: ForecastMethod::GrowthPct,
+            params: indexmap! { "rate".into() => serde_json::json!(0.05) },
+        })
+        .formula("0")
+        .unwrap()
+        .build()
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let report = positive_revenue_suite().run_model(&model, None).unwrap();
+
+    assert!(!report.has_errors());
+}
+
+#[test]
+fn run_model_uses_supplied_results_without_recomputation() {
+    let model = ModelBuilder::new("supplied")
+        .periods("2025Q1..Q1", None)
+        .unwrap()
+        .value("revenue", &[(q(1), s(100.0))])
+        .build()
+        .unwrap();
+    let mut supplied = Evaluator::new().evaluate(&model).unwrap();
+    supplied
+        .nodes
+        .get_mut("revenue")
+        .unwrap()
+        .insert(q(1), -1.0);
+
+    let report = positive_revenue_suite()
+        .run_model(&model, Some(&supplied))
+        .unwrap();
+
+    assert!(report.has_errors());
 }
 
 // Materiality is a reporting filter, not a verdict knob: an Error finding

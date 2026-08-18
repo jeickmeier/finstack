@@ -601,18 +601,18 @@ pub fn credit_assessment(results_json: &str, as_of: &str) -> Result<JsValue, JsV
     to_js_value(&assessment)
 }
 
-/// Run checks from a suite spec against a model (JSON in/out).
+/// Run checks from a suite spec against a model.
 ///
-/// Evaluates the model, resolves the suite spec into runnable checks
-/// (built-in **and** user-defined formula checks), and returns a JSON
-/// check report.
+/// Evaluates the model when results are absent, resolves built-in and formula
+/// checks, and returns a structured check report.
 ///
 /// # Errors
 ///
 /// Rejects malformed model, suite, or supplied result JSON; check-suite
 /// resolution failures; model-evaluation failures when results are omitted;
 /// missing nodes, incompatible data, or invalid check configuration during
-/// execution; or failure to serialize the report.
+/// execution; or failure to convert the report to JavaScript.
+/// @returns Structured check report with individual results and aggregate summary.
 /// @param model_json - Financial-model specification JSON.
 /// @param suite_spec_json - Check-suite specification JSON.
 /// @param results_json - Evaluated statement-result JSON.
@@ -621,26 +621,29 @@ pub fn run_checks(
     model_json: &str,
     suite_spec_json: &str,
     results_json: Option<String>,
-) -> Result<String, JsValue> {
+) -> Result<JsValue, JsValue> {
     let model = parse_validated_model(model_json)?;
     let spec: finstack_quant_statements::checks::CheckSuiteSpec =
         serde_json::from_str(suite_spec_json).map_err(to_js_err)?;
     let suite = spec.resolve().map_err(to_js_err)?;
-    let results = evaluate_or_parse_results(&model, results_json)?;
-    let report = suite.run(&model, &results).map_err(to_js_err)?;
-    serde_json::to_string(&report).map_err(to_js_err)
+    let results = parse_optional_results(results_json)?;
+    let report = suite
+        .run_model(&model, results.as_ref())
+        .map_err(to_js_err)?;
+    to_js_value(&report)
 }
 
 /// Run three-statement checks using node mappings.
 ///
-/// Accepts a model and a mapping JSON, builds the appropriate check
-/// suite, evaluates the model, runs the checks, and returns the report.
+/// Accepts a model and a mapping JSON, builds the appropriate check suite, and
+/// evaluates the model only when precomputed results are absent.
 ///
 /// # Errors
 ///
 /// Rejects malformed model, mapping, or supplied result JSON; model-evaluation
 /// failures when results are omitted; missing mapped nodes, incompatible data,
-/// or invalid check configuration; or failure to serialize the report.
+/// or invalid check configuration; or failure to convert the report to JavaScript.
+/// @returns Structured three-statement check report with results and aggregate summary.
 /// @param model_json - Financial-model specification JSON.
 /// @param mapping_json - Node-mapping JSON from statement nodes to check inputs.
 /// @param results_json - Evaluated statement-result JSON.
@@ -649,14 +652,16 @@ pub fn run_three_statement_checks(
     model_json: &str,
     mapping_json: &str,
     results_json: Option<String>,
-) -> Result<String, JsValue> {
+) -> Result<JsValue, JsValue> {
     let model = parse_validated_model(model_json)?;
     let mapping: finstack_quant_statements_analytics::analysis::ThreeStatementMapping =
         serde_json::from_str(mapping_json).map_err(to_js_err)?;
     let suite = finstack_quant_statements_analytics::analysis::three_statement_checks(mapping);
-    let results = evaluate_or_parse_results(&model, results_json)?;
-    let report = suite.run(&model, &results).map_err(to_js_err)?;
-    serde_json::to_string(&report).map_err(to_js_err)
+    let results = parse_optional_results(results_json)?;
+    let report = suite
+        .run_model(&model, results.as_ref())
+        .map_err(to_js_err)?;
+    to_js_value(&report)
 }
 
 /// Run credit underwriting checks using credit-specific mappings.
@@ -665,7 +670,8 @@ pub fn run_three_statement_checks(
 ///
 /// Rejects malformed model, mapping, or supplied result JSON; model-evaluation
 /// failures when results are omitted; missing mapped nodes, incompatible data,
-/// or invalid check configuration; or failure to serialize the report.
+/// or invalid check configuration; or failure to convert the report to JavaScript.
+/// @returns Structured credit-underwriting check report with results and aggregate summary.
 /// @param model_json - Financial-model specification JSON.
 /// @param mapping_json - Node-mapping JSON from statement nodes to check inputs.
 /// @param results_json - Evaluated statement-result JSON.
@@ -674,28 +680,24 @@ pub fn run_credit_underwriting_checks(
     model_json: &str,
     mapping_json: &str,
     results_json: Option<String>,
-) -> Result<String, JsValue> {
+) -> Result<JsValue, JsValue> {
     let model = parse_validated_model(model_json)?;
     let mapping: finstack_quant_statements_analytics::analysis::CreditMapping =
         serde_json::from_str(mapping_json).map_err(to_js_err)?;
     let suite = finstack_quant_statements_analytics::analysis::credit_underwriting_checks(mapping);
-    let results = evaluate_or_parse_results(&model, results_json)?;
-    let report = suite.run(&model, &results).map_err(to_js_err)?;
-    serde_json::to_string(&report).map_err(to_js_err)
+    let results = parse_optional_results(results_json)?;
+    let report = suite
+        .run_model(&model, results.as_ref())
+        .map_err(to_js_err)?;
+    to_js_value(&report)
 }
 
-fn evaluate_or_parse_results(
-    model: &finstack_quant_statements::FinancialModelSpec,
+fn parse_optional_results(
     results_json: Option<String>,
-) -> Result<finstack_quant_statements::evaluator::StatementResult, JsValue> {
-    if let Some(results_json) = results_json {
-        // A supplied-but-blank payload is rejected (like any other malformed
-        // JSON) rather than silently re-evaluating the model — the Python twin
-        // errors on the same input, and falling back would hide a caller bug.
-        return serde_json::from_str(&results_json).map_err(to_js_err);
-    }
-    let mut evaluator = finstack_quant_statements::evaluator::Evaluator::new();
-    evaluator.evaluate(model).map_err(to_js_err)
+) -> Result<Option<finstack_quant_statements::evaluator::StatementResult>, JsValue> {
+    results_json
+        .map(|json| serde_json::from_str(&json).map_err(to_js_err))
+        .transpose()
 }
 
 /// Render a check report as plain text.
@@ -951,15 +953,17 @@ mod tests {
             }]
         })
         .to_string();
-        let report_json = run_checks(&model_json, &spec_json, None).expect("run checks");
-        let report: serde_json::Value = serde_json::from_str(&report_json).expect("parse report");
-        // The formula check must appear in the report's executed results,
-        // not be silently dropped.
-        assert!(
-            report_json.contains("revenue_positive"),
-            "formula check missing from report: {report_json}"
-        );
-        assert!(report.is_object());
+        let model: finstack_quant_statements::FinancialModelSpec =
+            serde_json::from_str(&model_json).expect("model");
+        let spec: finstack_quant_statements::checks::CheckSuiteSpec =
+            serde_json::from_str(&spec_json).expect("spec");
+        let report = spec
+            .resolve()
+            .expect("resolve")
+            .run_model(&model, None)
+            .expect("run checks");
+
+        assert_eq!(report.results[0].check_id, "revenue_positive");
     }
 
     #[test]

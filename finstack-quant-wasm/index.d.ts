@@ -8031,6 +8031,143 @@ export interface GoalSeekResult {
 }
 
 /**
+ * Severity assigned to one statement-check finding.
+ */
+export type CheckSeverity = 'info' | 'warning' | 'error';
+
+/**
+ * Category grouping for a statement check.
+ */
+export type CheckCategory =
+  | 'accounting_identity'
+  | 'cross_statement_reconciliation'
+  | 'internal_consistency'
+  | 'credit_reasonableness'
+  | 'data_quality';
+
+/**
+ * Quantitative materiality context attached to a check finding.
+ */
+export interface CheckMateriality {
+  /**
+   * Absolute discrepancy in the compared nodes' units.
+   */
+  absolute: number;
+  /**
+   * Discrepancy as a percentage of the reference value.
+   */
+  relative_pct: number;
+  /**
+   * Denominator used to calculate `relative_pct`.
+   */
+  reference_value: number;
+  /**
+   * Human-readable denominator label.
+   */
+  reference_label: string;
+}
+
+/**
+ * One diagnostic produced by a statement check.
+ */
+export interface CheckFinding {
+  /**
+   * Identifier of the check that produced this finding.
+   */
+  check_id: string;
+  /**
+   * Diagnostic severity.
+   */
+  severity: CheckSeverity;
+  /**
+   * Human-readable issue description.
+   */
+  message: string;
+  /**
+   * Optional statement period associated with the finding.
+   */
+  period?: string;
+  /**
+   * Optional quantitative materiality context.
+   */
+  materiality?: CheckMateriality;
+  /**
+   * Statement node identifiers involved in the finding.
+   */
+  nodes?: string[];
+}
+
+/**
+ * Outcome of one statement-check execution.
+ */
+export interface CheckResult {
+  /**
+   * Stable check identifier.
+   */
+  check_id: string;
+  /**
+   * Human-readable check name.
+   */
+  check_name: string;
+  /**
+   * Category of this `CheckResult`.
+   */
+  category: CheckCategory;
+  /**
+   * Whether no error-severity finding was retained.
+   */
+  passed: boolean;
+  /**
+   * Retained findings after suite reporting filters.
+   */
+  findings: CheckFinding[];
+}
+
+/**
+ * Aggregate counts for a completed statement-check run.
+ */
+export interface CheckSummary {
+  /**
+   * Number of checks executed.
+   */
+  total_checks: number;
+  /**
+   * Number of checks that passed.
+   */
+  passed: number;
+  /**
+   * Number of checks that failed.
+   */
+  failed: number;
+  /**
+   * Number of retained error findings.
+   */
+  errors: number;
+  /**
+   * Number of retained warning findings.
+   */
+  warnings: number;
+  /**
+   * Number of retained informational findings.
+   */
+  infos: number;
+}
+
+/**
+ * Structured report returned by statement-check runners.
+ */
+export interface CheckReport {
+  /**
+   * One result per executed check.
+   */
+  results: CheckResult[];
+  /**
+   * Aggregate check and finding counts.
+   */
+  summary: CheckSummary;
+}
+
+/**
  * Namespaced TypeScript entry points for statements analytics calculations and types.
  * @example
  * ```typescript
@@ -8271,47 +8408,46 @@ export interface StatementsAnalyticsNamespace {
    */
   creditAssessment(resultsJson: string, asOf: string): Record<string, unknown>;
   /**
-   * Run checks from a suite spec against a model (JSON in/out).
+   * Run checks from a suite spec against a model.
    *
-   * Evaluates the model, resolves the suite spec into runnable checks
-   * (built-in **and** user-defined formula checks), and returns a JSON
-   * check report.
-   * @returns Check-report JSON for the suite against the model.
+   * Evaluates the model only when results are absent, then runs built-in and
+   * formula checks against the canonical statement results.
    * @param modelJson - Financial-model specification JSON.
    * @param suiteSpecJson - Check-suite specification JSON.
    * @param resultsJson - Evaluated statement-result JSON.
-   * @throws Error - Rejects malformed model, suite, or supplied result JSON; check-suite resolution failures; model-evaluation failures when results are omitted; missing nodes, incompatible data, or invalid check configuration during execution; or failure to serialize the report.
+   * @returns Structured check report with individual results and aggregate summary.
+   * @throws Error - Rejects malformed model, suite, or supplied result JSON; check-suite resolution failures; model-evaluation failures when results are omitted; missing nodes, incompatible data, or invalid check configuration during execution; or failure to convert the report to JavaScript.
    */
-  runChecks(modelJson: string, suiteSpecJson: string, resultsJson?: string | null): string;
+  runChecks(modelJson: string, suiteSpecJson: string, resultsJson?: string | null): CheckReport;
   /**
    * Run three-statement checks using node mappings.
    *
-   * Accepts a model and a mapping JSON, builds the appropriate check
-   * suite, evaluates the model, runs the checks, and returns the report.
-   * @returns Three-statement check-report JSON using the node mappings.
+   * Accepts a model and mapping JSON, builds the appropriate suite, and
+   * evaluates the model only when results are absent.
    * @param modelJson - Financial-model specification JSON.
    * @param mappingJson - Node-mapping JSON from statement nodes to check inputs.
    * @param resultsJson - Evaluated statement-result JSON.
-   * @throws Error - Rejects malformed model, mapping, or supplied result JSON; model-evaluation failures when results are omitted; missing mapped nodes, incompatible data, or invalid check configuration; or failure to serialize the report.
+   * @returns Structured three-statement check report with results and aggregate summary.
+   * @throws Error - Rejects malformed model, mapping, or supplied result JSON; model-evaluation failures when results are omitted; missing mapped nodes, incompatible data, or invalid check configuration; or failure to convert the report to JavaScript.
    */
   runThreeStatementChecks(
     modelJson: string,
     mappingJson: string,
     resultsJson?: string | null
-  ): string;
+  ): CheckReport;
   /**
    * Run credit underwriting checks using credit-specific mappings.
-   * @returns Credit-underwriting check-report JSON using the credit mappings.
    * @param modelJson - Financial-model specification JSON.
    * @param mappingJson - Node-mapping JSON from statement nodes to check inputs.
    * @param resultsJson - Evaluated statement-result JSON.
-   * @throws Error - Rejects malformed model, mapping, or supplied result JSON; model-evaluation failures when results are omitted; missing mapped nodes, incompatible data, or invalid check configuration; or failure to serialize the report.
+   * @returns Structured credit-underwriting check report with results and aggregate summary.
+   * @throws Error - Rejects malformed model, mapping, or supplied result JSON; model-evaluation failures when results are omitted; missing mapped nodes, incompatible data, or invalid check configuration; or failure to convert the report to JavaScript.
    */
   runCreditUnderwritingChecks(
     modelJson: string,
     mappingJson: string,
     resultsJson?: string | null
-  ): string;
+  ): CheckReport;
   /**
    * Render a check report as plain text.
    * @returns Plain-text check report.
@@ -9926,7 +10062,7 @@ export interface ScenariosNamespace {
    *
    * Specs are merged in priority order (lower number runs first).
    * @returns Structured composed scenario specification.
-   * @param specs - Validated scenario specifications to compose in priority order.
+   * @param specs - Validated ScenarioSpec objects to compose in priority order.
    * @throws Error - Rejects malformed structured specs, composition that contains more than one time-roll operation, or failure to convert the composed specification.
    */
   composeScenarios(specs: ScenarioSpec[]): ScenarioSpec;
@@ -9986,7 +10122,7 @@ export interface ScenariosNamespace {
    * Build a scenario spec from fields.
    * @returns Validated structured scenario specification from the supplied fields.
    * @param id - Scenario identifier stored on the constructed spec.
-   * @param operations - Structured scenario operations in execution order.
+   * @param operations - Structured scenario operation specifications in execution order.
    * @param name - Optional human-readable scenario name.
    * @param description - Optional human-readable description of the scenario purpose.
    * @param priority - Optional execution priority; lower values run earlier during composition. Omit for the Rust serde default (`0`), matching the Python `priority=0` keyword default.

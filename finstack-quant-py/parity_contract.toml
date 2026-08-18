@@ -1286,9 +1286,9 @@ symbols = [
 # ---------------------------------------------------------------------------
 # WASM statements_analytics subset
 #
-# WASM intentionally keeps the JSON analysis surface plus comps helpers through
-# `exports/statements_analytics.js` with camelCase facade names. Python exposes
-# typed analysis config/result wrappers and typed extension/template wrappers.
+# WASM accepts JSON analysis inputs through `exports/statements_analytics.js`
+# with camelCase facade names and returns structured result objects, including
+# CheckReport. Python exposes typed analysis and check-report wrappers.
 # ---------------------------------------------------------------------------
 [wasm_statements_analytics_subset]
 rust_module_root = "../finstack-quant-wasm/src/api/statements_analytics/"

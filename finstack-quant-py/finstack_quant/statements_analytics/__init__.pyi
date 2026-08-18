@@ -16,7 +16,7 @@ from typing import Any
 
 import pandas as pd
 
-from finstack_quant.statements import FinancialModelSpec, StatementResult
+from finstack_quant.statements import CheckReport, FinancialModelSpec, StatementResult
 from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.table import ArrowTable
 
@@ -2186,9 +2186,9 @@ def run_checks(
     model: FinancialModelSpec | str,
     suite_spec_json: str,
     results: StatementResult | str | None = None,
-) -> str:
+) -> CheckReport:
     """
-    Run checks from a suite spec against a model (JSON in/out).
+    Run checks from a suite spec against a model.
 
     Resolves both built-in and formula checks, evaluates the model,
     and returns a full check report.
@@ -2205,8 +2205,8 @@ def run_checks(
 
     Returns
     -------
-    str
-        JSON-serialized ``CheckReport``.
+    CheckReport
+        Typed report with summary, findings, JSON, and DataFrame accessors.
 
     Raises
     ------
@@ -2215,14 +2215,13 @@ def run_checks(
 
     Examples
     --------
-    >>> import json
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import run_checks
     >>> builder = ModelBuilder("demo")
     >>> _ = builder.periods("2025Q1..Q1")
     >>> _ = builder.value("revenue", [("2025Q1", 100.0)])
     >>> suite = '{"name":"basic","builtin_checks":[],"formula_checks":[]}'
-    >>> json.loads(run_checks(builder.build(), suite))["summary"]["total_checks"]
+    >>> run_checks(builder.build(), suite).total_checks
     0
 
     """
@@ -2232,9 +2231,9 @@ def run_three_statement_checks(
     model: FinancialModelSpec | str,
     mapping_json: str,
     results: StatementResult | str | None = None,
-) -> str:
+) -> CheckReport:
     """
-    Run three-statement checks using a node mapping (JSON in/out).
+    Run three-statement checks using a JSON node mapping.
 
     Parameters
     ----------
@@ -2248,8 +2247,8 @@ def run_three_statement_checks(
 
     Returns
     -------
-    str
-        JSON-serialized ``CheckReport``.
+    CheckReport
+        Typed report with summary, findings, JSON, and DataFrame accessors.
 
     Raises
     ------
@@ -2258,7 +2257,6 @@ def run_three_statement_checks(
 
     Examples
     --------
-    >>> import json
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import run_three_statement_checks
     >>> builder = ModelBuilder("demo")
@@ -2266,7 +2264,7 @@ def run_three_statement_checks(
     >>> for node in ["assets", "liabilities", "equity", "cash", "retained_earnings", "net_income"]:
     ...     _ = builder.value(node, [("2025Q1", 0.0)])
     >>> mapping = '{"assets_nodes":["assets"],"liabilities_nodes":["liabilities"],"equity_nodes":["equity"],"cash_node":"cash","retained_earnings_node":"retained_earnings","ppe_node":null,"net_income_node":"net_income","depreciation_node":null,"interest_expense_node":null,"tax_expense_node":null,"pretax_income_node":null,"cfo_node":null,"cfi_node":null,"cff_node":null,"total_cf_node":null,"capex_node":null,"dividends_node":null}'
-    >>> json.loads(run_three_statement_checks(builder.build(), mapping))["summary"]["total_checks"] > 0
+    >>> run_three_statement_checks(builder.build(), mapping).total_checks > 0
     True
 
     """
@@ -2276,9 +2274,9 @@ def run_credit_underwriting_checks(
     model: FinancialModelSpec | str,
     mapping_json: str,
     results: StatementResult | str | None = None,
-) -> str:
+) -> CheckReport:
     """
-    Run credit underwriting checks using a node mapping (JSON in/out).
+    Run credit underwriting checks using a JSON node mapping.
 
     Parameters
     ----------
@@ -2292,8 +2290,8 @@ def run_credit_underwriting_checks(
 
     Returns
     -------
-    str
-        JSON-serialized ``CheckReport``.
+    CheckReport
+        Typed report with summary, findings, JSON, and DataFrame accessors.
 
     Raises
     ------
@@ -2302,7 +2300,6 @@ def run_credit_underwriting_checks(
 
     Examples
     --------
-    >>> import json
     >>> from finstack_quant.statements import ModelBuilder
     >>> from finstack_quant.statements_analytics import run_credit_underwriting_checks
     >>> builder = ModelBuilder("demo")
@@ -2310,7 +2307,7 @@ def run_credit_underwriting_checks(
     >>> for node, value in [("total_debt", 100.0), ("ebitda", 50.0), ("interest_expense", 5.0)]:
     ...     _ = builder.value(node, [("2025Q1", value)])
     >>> mapping = '{"debt_node":"total_debt","ebitda_node":"ebitda","interest_expense_node":"interest_expense","fcf_node":null,"cash_node":null,"cash_burn_node":null,"leverage_warn":null,"coverage_min_warn":null}'
-    >>> json.loads(run_credit_underwriting_checks(builder.build(), mapping))["summary"]["total_checks"] > 0
+    >>> run_credit_underwriting_checks(builder.build(), mapping).total_checks > 0
     True
 
     """

@@ -50,6 +50,10 @@ ENTRY_SHAPES: list[tuple[str, str, str]] = [
     ("finstack_quant.scenarios", "list_builtin_template_metadata", "list"),
     ("finstack_quant.scenarios", "apply_scenario", "wrapper"),
     ("finstack_quant.scenarios", "apply_scenario_to_market", "wrapper"),
+    # statements analytics
+    ("finstack_quant.statements_analytics", "run_checks", "wrapper"),
+    ("finstack_quant.statements_analytics", "run_three_statement_checks", "wrapper"),
+    ("finstack_quant.statements_analytics", "run_credit_underwriting_checks", "wrapper"),
     # portfolio
     ("finstack_quant.portfolio", "value_portfolio", "wrapper"),
     ("finstack_quant.portfolio", "aggregate_full_cashflows", "wrapper"),

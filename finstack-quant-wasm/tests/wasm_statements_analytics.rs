@@ -100,6 +100,30 @@ fn compute_multiple_uses_canonical_company_metric_fields() {
 }
 
 #[wasm_bindgen_test]
+fn run_checks_returns_structured_report() {
+    let spec = serde_json::json!({
+        "name": "formula suite",
+        "builtin_checks": [],
+        "formula_checks": [{
+            "id": "revenue_positive",
+            "name": "Revenue must be positive",
+            "category": "internal_consistency",
+            "severity": "error",
+            "formula": "revenue > 0",
+            "message_template": "Revenue not positive in {period}",
+            "tolerance": null
+        }]
+    });
+
+    let value = run_checks(&test_model_json(), &spec.to_string(), None).unwrap();
+    let report: serde_json::Value = serde_wasm_bindgen::from_value(value).unwrap();
+
+    assert!(report.is_object());
+    assert_eq!(report["results"][0]["check_id"], "revenue_positive");
+    assert_eq!(report["summary"]["failed"], 0);
+}
+
+#[wasm_bindgen_test]
 fn pl_summary_report_text_returns_text() {
     let results_json = evaluated_results_json();
     let line_items: JsValue = serde_wasm_bindgen::to_value(&vec![

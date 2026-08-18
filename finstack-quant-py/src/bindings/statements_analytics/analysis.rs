@@ -11,6 +11,7 @@
 
 use crate::bindings::extract::{extract_market_opt, extract_model_ref, extract_results_ref};
 use crate::bindings::pandas_utils::serde_to_py;
+use crate::bindings::statements::checks::PyCheckReport;
 use crate::bindings::statements_analytics::typed::{
     PyBridgeChart, PyScenarioDiff, PyScenarioResults, PyScenarioSet, PySensitivityConfig,
     PySensitivityResult, PyVarianceConfig, PyVarianceReport,
@@ -1314,7 +1315,21 @@ fn explain_formula_text(
     Ok(explanation.to_string_detailed())
 }
 
-/// Run checks from a suite spec against a model (JSON in/out).
+fn run_check_suite(
+    py: Python<'_>,
+    model: finstack_quant_statements::FinancialModelSpec,
+    suite: finstack_quant_statements::checks::CheckSuite,
+    results: Option<finstack_quant_statements::evaluator::StatementResult>,
+) -> PyResult<PyCheckReport> {
+    py.detach(move || {
+        suite
+            .run_model(&model, results.as_ref())
+            .map(PyCheckReport::from_inner)
+            .map_err(display_to_py)
+    })
+}
+
+/// Run checks from a suite spec against a model.
 ///
 /// Resolves both built-in and formula checks from the spec, evaluates the
 /// model, and returns a full check report.
@@ -1331,8 +1346,8 @@ fn explain_formula_text(
 ///
 /// Returns
 /// -------
-/// str
-///   JSON-serialized ``CheckReport``.
+/// CheckReport
+///   Typed report with summary, findings, JSON, and DataFrame accessors.
 #[pyfunction]
 #[pyo3(signature = (model, suite_spec_json, results=None))]
 fn run_checks(
@@ -1340,30 +1355,19 @@ fn run_checks(
     model: &Bound<'_, PyAny>,
     suite_spec_json: &str,
     results: Option<&Bound<'_, PyAny>>,
-) -> PyResult<String> {
+) -> PyResult<PyCheckReport> {
     let model = extract_model_ref(model)?.into_owned();
     let spec: finstack_quant_statements::checks::CheckSuiteSpec =
         serde_json::from_str(suite_spec_json).map_err(display_to_py)?;
     let suite = spec.resolve().map_err(display_to_py)?;
-    let provided_results = match results {
-        Some(r) => Some(extract_results_ref(r)?.into_owned()),
-        None => None,
-    };
-    py.detach(move || {
-        let report = match &provided_results {
-            Some(r) => suite.run(&model, r),
-            None => {
-                let mut evaluator = finstack_quant_statements::evaluator::Evaluator::new();
-                let evaluated = evaluator.evaluate(&model).map_err(display_to_py)?;
-                suite.run(&model, &evaluated)
-            }
-        }
-        .map_err(display_to_py)?;
-        serde_json::to_string(&report).map_err(display_to_py)
-    })
+    let results = results
+        .map(extract_results_ref)
+        .transpose()?
+        .map(|results| results.into_owned());
+    run_check_suite(py, model, suite, results)
 }
 
-/// Run three-statement checks using a node mapping (JSON in/out).
+/// Run three-statement checks using a JSON node mapping.
 ///
 /// Parameters
 /// ----------
@@ -1376,8 +1380,8 @@ fn run_checks(
 ///
 /// Returns
 /// -------
-/// str
-///   JSON-serialized ``CheckReport``.
+/// CheckReport
+///   Typed report with summary, findings, JSON, and DataFrame accessors.
 #[pyfunction]
 #[pyo3(signature = (model, mapping_json, results=None))]
 fn run_three_statement_checks(
@@ -1385,30 +1389,19 @@ fn run_three_statement_checks(
     model: &Bound<'_, PyAny>,
     mapping_json: &str,
     results: Option<&Bound<'_, PyAny>>,
-) -> PyResult<String> {
+) -> PyResult<PyCheckReport> {
     let model = extract_model_ref(model)?.into_owned();
     let mapping: finstack_quant_statements_analytics::analysis::ThreeStatementMapping =
         serde_json::from_str(mapping_json).map_err(display_to_py)?;
     let suite = finstack_quant_statements_analytics::analysis::three_statement_checks(mapping);
-    let provided_results = match results {
-        Some(r) => Some(extract_results_ref(r)?.into_owned()),
-        None => None,
-    };
-    py.detach(move || {
-        let report = match &provided_results {
-            Some(r) => suite.run(&model, r),
-            None => {
-                let mut evaluator = finstack_quant_statements::evaluator::Evaluator::new();
-                let evaluated = evaluator.evaluate(&model).map_err(display_to_py)?;
-                suite.run(&model, &evaluated)
-            }
-        }
-        .map_err(display_to_py)?;
-        serde_json::to_string(&report).map_err(display_to_py)
-    })
+    let results = results
+        .map(extract_results_ref)
+        .transpose()?
+        .map(|results| results.into_owned());
+    run_check_suite(py, model, suite, results)
 }
 
-/// Run credit underwriting checks using a node mapping (JSON in/out).
+/// Run credit underwriting checks using a JSON node mapping.
 ///
 /// Parameters
 /// ----------
@@ -1421,8 +1414,8 @@ fn run_three_statement_checks(
 ///
 /// Returns
 /// -------
-/// str
-///   JSON-serialized ``CheckReport``.
+/// CheckReport
+///   Typed report with summary, findings, JSON, and DataFrame accessors.
 #[pyfunction]
 #[pyo3(signature = (model, mapping_json, results=None))]
 fn run_credit_underwriting_checks(
@@ -1430,27 +1423,16 @@ fn run_credit_underwriting_checks(
     model: &Bound<'_, PyAny>,
     mapping_json: &str,
     results: Option<&Bound<'_, PyAny>>,
-) -> PyResult<String> {
+) -> PyResult<PyCheckReport> {
     let model = extract_model_ref(model)?.into_owned();
     let mapping: finstack_quant_statements_analytics::analysis::CreditMapping =
         serde_json::from_str(mapping_json).map_err(display_to_py)?;
     let suite = finstack_quant_statements_analytics::analysis::credit_underwriting_checks(mapping);
-    let provided_results = match results {
-        Some(r) => Some(extract_results_ref(r)?.into_owned()),
-        None => None,
-    };
-    py.detach(move || {
-        let report = match &provided_results {
-            Some(r) => suite.run(&model, r),
-            None => {
-                let mut evaluator = finstack_quant_statements::evaluator::Evaluator::new();
-                let evaluated = evaluator.evaluate(&model).map_err(display_to_py)?;
-                suite.run(&model, &evaluated)
-            }
-        }
-        .map_err(display_to_py)?;
-        serde_json::to_string(&report).map_err(display_to_py)
-    })
+    let results = results
+        .map(extract_results_ref)
+        .transpose()?
+        .map(|results| results.into_owned());
+    run_check_suite(py, model, suite, results)
 }
 
 /// Render a check report as plain text.

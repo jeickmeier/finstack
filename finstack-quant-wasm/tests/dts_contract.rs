@@ -717,18 +717,21 @@ fn statements_analytics_dts_matches_runtime_exports() {
         "dcfSensitivity(modelJson: string, wacc: number, terminalValueJson: string, ufcfNode: string, netDebtOverride?: number | null, waccSensitivityBump?: number | null, waccDenominatorEpsilon?: number | null, exitMultipleBump?: number | null, midYearConvention?: boolean | null, marketJson?: string | null): DcfSensitivityResult;",
     ));
     assert!(dts.contains("export interface LboResult"));
-    // Report renderers and the tornado helper stay JSON/text strings.
+    assert!(dts.contains("export interface CheckReport"));
+    assert!(dts.contains("export interface CheckResult"));
+    assert!(dts.contains("export interface CheckFinding"));
+    assert!(dts.contains("export interface CheckSummary"));
     assert!(contains_ignoring_ws(
         &dts,
-        "runChecks(modelJson: string, suiteSpecJson: string, resultsJson?: string | null): string;"
+        "runChecks(modelJson: string, suiteSpecJson: string, resultsJson?: string | null): CheckReport;"
     ));
     assert!(contains_ignoring_ws(
         &dts,
-        "runThreeStatementChecks(modelJson: string, mappingJson: string, resultsJson?: string | null): string;"
+        "runThreeStatementChecks(modelJson: string, mappingJson: string, resultsJson?: string | null): CheckReport;"
     ));
     assert!(contains_ignoring_ws(
         &dts,
-        "runCreditUnderwritingChecks(modelJson: string, mappingJson: string, resultsJson?: string | null): string;"
+        "runCreditUnderwritingChecks(modelJson: string, mappingJson: string, resultsJson?: string | null): CheckReport;"
     ));
     assert!(dts.contains("renderCheckReportText(reportJson: string): string;"));
     assert!(dts.contains("renderCheckReportHtml(reportJson: string): string;"));

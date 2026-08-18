@@ -139,6 +139,9 @@ fn computation_results_are_structured_not_strings() {
         "structuredCreditTrancheOas",
         "structuredCreditTrancheMetrics",
         "structuredCreditTrancheScenarioTable",
+        "runChecks",
+        "runThreeStatementChecks",
+        "runCreditUnderwritingChecks",
     ] {
         let Some(ret) = declared_return(&dts, export) else {
             panic!("{export} is missing from index.d.ts");

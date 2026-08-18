@@ -11,7 +11,7 @@ use super::types::{
     CheckCategory, CheckConfig, CheckReport, CheckResult, CheckSummary, PeriodScope, Severity,
     SignConventionPolicy,
 };
-use crate::evaluator::StatementResult;
+use crate::evaluator::{Evaluator, StatementResult};
 use crate::types::{FinancialModelSpec, NodeId};
 use crate::Result;
 
@@ -134,6 +134,38 @@ impl CheckSuite {
                 infos,
             },
         })
+    }
+
+    /// Run this suite against supplied results or evaluate the model first.
+    ///
+    /// # Arguments
+    ///
+    /// * `model` - Financial model whose node definitions and periods provide
+    ///   check context.
+    /// * `results` - Optional precomputed statement results for `model`. When
+    ///   absent, a fresh [`Evaluator`] applies the canonical value, forecast,
+    ///   and formula precedence before checks run.
+    ///
+    /// # Returns
+    ///
+    /// A complete report containing one result per check and aggregate counts.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first model-evaluation or check-execution error. Supplied
+    /// results are used directly and are never recomputed.
+    pub fn run_model(
+        &self,
+        model: &FinancialModelSpec,
+        results: Option<&StatementResult>,
+    ) -> Result<CheckReport> {
+        match results {
+            Some(results) => self.run(model, results),
+            None => {
+                let evaluated = Evaluator::new().evaluate(model)?;
+                self.run(model, &evaluated)
+            }
+        }
     }
 
     /// Number of checks in the suite.

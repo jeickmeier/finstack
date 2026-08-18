@@ -81,8 +81,34 @@ class TestRunChecks:
                 }
             ],
         }
-        report_json = run_checks(_model_json(), json.dumps(spec))
-        assert "revenue_positive" in report_json
+        report = run_checks(_model_json(), json.dumps(spec))
+        assert isinstance(report, statements.CheckReport)
+        assert report.total_checks == 1
+        assert "revenue_positive" in report.to_json()
+
+    def test_precomputed_results_are_not_recomputed(self) -> None:
+        spec = {
+            "name": "formula suite",
+            "builtin_checks": [],
+            "formula_checks": [
+                {
+                    "id": "revenue_positive",
+                    "name": "Revenue must be positive",
+                    "category": "internal_consistency",
+                    "severity": "error",
+                    "formula": "revenue > 0",
+                    "message_template": "Revenue not positive in {period}",
+                }
+            ],
+        }
+        builder = statements.ModelBuilder("negative")
+        builder.periods("2024Q1..Q2", None)
+        builder.value("revenue", [("2024Q1", -1.0), ("2024Q2", -1.0)])
+        results = statements.Evaluator().evaluate(builder.build())
+
+        report = run_checks(_model_json(), json.dumps(spec), results)
+
+        assert report.has_errors()
 
 
 class TestCorporateAnalysis:
