@@ -60,6 +60,29 @@ def test_contract_uses_known_module_statuses() -> None:
     assert unknown == []
 
 
+def _duplicate_string_lists(value: Any, path: str = "") -> list[tuple[str, list[str]]]:
+    duplicates: list[tuple[str, list[str]]] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else key
+            duplicates.extend(_duplicate_string_lists(child, child_path))
+    elif isinstance(value, list):
+        if all(isinstance(item, str) for item in value):
+            counts = Counter(value)
+            repeated = sorted(item for item, count in counts.items() if count > 1)
+            if repeated:
+                duplicates.append((path, repeated))
+        else:
+            for index, child in enumerate(value):
+                duplicates.extend(_duplicate_string_lists(child, f"{path}[{index}]"))
+    return duplicates
+
+
+def test_contract_string_lists_have_unique_entries() -> None:
+    """Every string inventory should name each contracted entry exactly once."""
+    assert _duplicate_string_lists(CONTRACT) == []
+
+
 def _umbrella_reexports() -> list[tuple[str, str]]:
     """Return ``(alias, rust_crate)`` pairs from the canonical umbrella crate."""
     umbrella_path = CONTRACT_PATH.parents[1] / CONTRACT["meta"]["umbrella_lib"]
