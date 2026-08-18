@@ -3,6 +3,13 @@ target = "wasm32-unknown-unknown"
 
 [target.wasm32-unknown-unknown]
 linker = "rust-lld"
+# `-C debuginfo=0` is required: rust-lld 1.91 / LLVM 21 SIGBUS-crashes while
+# writing custom sections when linking debug wasm-bindgen test binaries. Those
+# crates export thousands of `__wbindgen_describe___wbg_*` symbols; four
+# parallel `-O0` links of that graph OOMed CI with
+# `linking with rust-lld failed: signal: 7 (SIGBUS)`. See
+# https://github.com/llvm/llvm-project/issues/195482.
 rustflags = [
     "--cfg", "getrandom_backend=\"wasm_js\"",
+    "-C", "debuginfo=0",
 ]

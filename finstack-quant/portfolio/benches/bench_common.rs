@@ -271,7 +271,7 @@ fn build_market_context(base: Date, rate_shift: f64) -> MarketContext {
     let cds_spread_vol = VolSurface::from_grid(
         "CDS-SPREAD-VOL",
         &[0.25, 0.5, 1.0, 2.0],
-        &[50.0, 100.0, 150.0, 200.0, 300.0],
+        &[0.005, 0.01, 0.015, 0.02, 0.03],
         &[0.30; 20],
     )
     .unwrap();

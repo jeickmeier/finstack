@@ -296,9 +296,15 @@ jobs:
     needs: prime-cache
 
     env:
-      CARGO_BUILD_JOBS: 4
+      # Four parallel rust-lld links of the wasm-bindgen test graph SIGBUS on
+      # ubuntu-latest (~7 GiB). Keep this below the native-job default of 4.
+      CARGO_BUILD_JOBS: 2
       CARGO_INCREMENTAL: 1
       CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-C debuginfo=0 -C strip=symbols -C linker=cc -C link-arg=-fuse-ld=bfd"
+      # Must include the getrandom cfg: this env replaces crate `.cargo/config.toml`
+      # rustflags rather than appending. `debuginfo=0` avoids the rust-lld
+      # SIGBUS on huge wasm-bindgen describe-export lists (LLVM #195482).
+      CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS: "--cfg getrandom_backend=\"wasm_js\" -C debuginfo=0"
 
     steps:
       - name: Checkout repository
