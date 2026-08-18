@@ -146,10 +146,10 @@ None. This release does not keep deprecated aliases.
 
 - Amortizing-bond MOIC/XIRR-to-worst still uses initial notional as the
   redemption basis (documented TODO for a follow-up).
-- Some statements-analytics, factor-model, and scenario spec builders still
-  return JSON strings under unsuffixed names in **both** Python and WASM.
-  They match each other; converting one side alone would reintroduce
-  divergence.
+- Statements-analytics `generate_tornado_entries` and factor-model
+  covariance/config forecast methods still return JSON strings under
+  unsuffixed names in **both** Python and WASM. They match each other;
+  converting one side alone would reintroduce divergence.
 - The SIMM scalar credit-qualifying path remains: instruments do not yet emit
   bucketed CQ deltas. Removing it would zero CDS/CDSIndex margin.
 - Umbrella-crate `cargo semver-checks` skips 0.x API-diff checks once the

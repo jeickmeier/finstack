@@ -2,17 +2,15 @@
 //!
 //! Wraps [`finstack_quant_statements_analytics::templates::roll_forward::add_roll_forward`].
 //!
-//! Mirrors the JSON-in / JSON-out shape used for vintage: rebuild a Rust
-//! `ModelBuilder` from a serialized [`FinancialModelSpec`], apply the
-//! template, then serialize the resulting spec back out.
+//! Reconstructs the canonical Rust builder, applies the selected template,
+//! and returns a typed model specification.
 
-use crate::bindings::extract::extract_model_ref;
+use crate::bindings::statements::types::PyFinancialModelSpec;
 use crate::errors::display_to_py;
-use finstack_quant_statements::types::FinancialModelSpec;
 use finstack_quant_statements_analytics::templates::roll_forward as rust_roll_forward;
 use pyo3::prelude::*;
 
-use super::templates_common::{finalize_spec, rebuild_builder};
+use super::templates_common::{extract_builder, finish_builder};
 
 /// Apply the roll-forward template to a model spec.
 ///
@@ -34,20 +32,25 @@ use super::templates_common::{finalize_spec, rebuild_builder};
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``FinancialModelSpec`` with the roll-forward nodes added.
+/// FinancialModelSpec
+///     Typed model specification with the roll-forward nodes added.
 #[pyfunction]
 fn add_roll_forward(
     model: &Bound<'_, PyAny>,
     name: &str,
     increases: Vec<String>,
     decreases: Vec<String>,
-) -> PyResult<String> {
-    let spec = extract_model_ref(model)?.into_owned();
+) -> PyResult<PyFinancialModelSpec> {
     let increases_refs: Vec<&str> = increases.iter().map(String::as_str).collect();
     let decreases_refs: Vec<&str> = decreases.iter().map(String::as_str).collect();
-    let updated = apply_roll_forward(spec, name, &increases_refs, &decreases_refs)?;
-    serde_json::to_string(&updated).map_err(display_to_py)
+    let builder = rust_roll_forward::add_roll_forward(
+        extract_builder(model)?,
+        name,
+        &increases_refs,
+        &decreases_refs,
+    )
+    .map_err(display_to_py)?;
+    finish_builder(builder)
 }
 
 /// Apply the roll-forward template with an explicit opening balance.
@@ -70,8 +73,8 @@ fn add_roll_forward(
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``FinancialModelSpec`` with the roll-forward nodes added.
+/// FinancialModelSpec
+///     Typed model specification with the roll-forward nodes added.
 #[pyfunction]
 fn add_roll_forward_with_opening(
     model: &Bound<'_, PyAny>,
@@ -79,33 +82,18 @@ fn add_roll_forward_with_opening(
     increases: Vec<String>,
     decreases: Vec<String>,
     opening: f64,
-) -> PyResult<String> {
-    let spec = extract_model_ref(model)?.into_owned();
+) -> PyResult<PyFinancialModelSpec> {
     let increases_refs: Vec<&str> = increases.iter().map(String::as_str).collect();
     let decreases_refs: Vec<&str> = decreases.iter().map(String::as_str).collect();
-    let (builder, meta, capital_structure) = rebuild_builder(spec)?;
     let builder = rust_roll_forward::add_roll_forward_with_opening(
-        builder,
+        extract_builder(model)?,
         name,
         &increases_refs,
         &decreases_refs,
         opening,
     )
     .map_err(display_to_py)?;
-    let updated = finalize_spec(builder, meta, capital_structure)?;
-    serde_json::to_string(&updated).map_err(display_to_py)
-}
-
-fn apply_roll_forward(
-    spec: FinancialModelSpec,
-    name: &str,
-    increases: &[&str],
-    decreases: &[&str],
-) -> PyResult<FinancialModelSpec> {
-    let (builder, meta, capital_structure) = rebuild_builder(spec)?;
-    let builder = rust_roll_forward::add_roll_forward(builder, name, increases, decreases)
-        .map_err(display_to_py)?;
-    finalize_spec(builder, meta, capital_structure)
+    finish_builder(builder)
 }
 
 /// Register the roll-forward template bindings on the parent module.

@@ -234,6 +234,42 @@ impl ModelBuilder<NeedPeriods> {
 }
 
 impl ModelBuilder<Ready> {
+    /// Reconstruct a ready builder from a complete model specification.
+    ///
+    /// This is the canonical path for applying builder-based transformations to
+    /// an existing model. It preserves period order and actual/forecast flags,
+    /// node definitions, metadata, and capital-structure configuration. Calling
+    /// [`Self::build`] after reconstruction revalidates the complete model.
+    ///
+    /// # Arguments
+    ///
+    /// * `spec` - Existing model specification whose owned state will seed the
+    ///   reconstructed builder.
+    ///
+    /// # Returns
+    ///
+    /// A ready builder that can accept additional nodes or transformations.
+    ///
+    /// # Errors
+    ///
+    /// Returns a period error when `spec` has no periods. Other semantic model
+    /// invariants are checked by [`Self::build`] after transformations finish.
+    pub fn from_spec(spec: FinancialModelSpec) -> Result<Self> {
+        if spec.periods.is_empty() {
+            return Err(Error::period(
+                "Period list must contain at least one period",
+            ));
+        }
+        Ok(Self {
+            id: spec.id,
+            periods: spec.periods,
+            nodes: spec.nodes,
+            meta: spec.meta,
+            capital_structure: spec.capital_structure,
+            _state: PhantomData,
+        })
+    }
+
     fn insert_metric_node(
         &mut self,
         qualified_id: &str,

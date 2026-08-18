@@ -612,3 +612,39 @@ fn test_reserved_prefix_rejected_in_mixed_node() {
 
     assert!(result.is_err());
 }
+
+#[test]
+fn from_spec_roundtrip_preserves_complete_model_state() {
+    use finstack_quant_statements::types::CapitalStructureSpec;
+    use indexmap::indexmap;
+
+    let mut spec = ModelBuilder::new("roundtrip")
+        .periods("2025Q1..Q2", Some("2025Q1"))
+        .unwrap()
+        .value(
+            "revenue",
+            &[(PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100.0))],
+        )
+        .with_meta("source", serde_json::json!({"system": "test"}))
+        .build()
+        .unwrap();
+    spec.capital_structure = Some(CapitalStructureSpec {
+        debt_instruments: Vec::new(),
+        meta: indexmap! { "desk".into() => serde_json::json!("credit") },
+        reporting_currency: Some(Currency::USD),
+        fx_policy: None,
+        waterfall: None,
+    });
+    let expected = serde_json::to_value(&spec).unwrap();
+
+    let rebuilt = ModelBuilder::from_spec(spec).unwrap().build().unwrap();
+
+    assert_eq!(serde_json::to_value(rebuilt).unwrap(), expected);
+}
+
+#[test]
+fn from_spec_rejects_empty_period_plan() {
+    let spec = FinancialModelSpec::new("empty", Vec::new());
+
+    assert!(ModelBuilder::from_spec(spec).is_err());
+}

@@ -1691,6 +1691,36 @@ class ModelBuilder:
         """
         ...
 
+    @staticmethod
+    def from_spec(spec: FinancialModelSpec) -> ModelBuilder:
+        """Reconstruct a ready builder from an existing model specification.
+
+        Parameters
+        ----------
+        spec : FinancialModelSpec
+            Typed model whose periods, nodes, metadata, and capital structure
+            seed the builder.
+
+        Returns
+        -------
+        ModelBuilder
+            Ready builder that can accept additional transformations.
+
+        Raises
+        ------
+        ValueError
+            If ``spec`` has no periods.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import ModelBuilder
+        >>> original = ModelBuilder("demo").periods("2025Q1..Q1").build()
+        >>> rebuilt = ModelBuilder.from_spec(original).value("revenue", [("2025Q1", 100.0)]).build()
+        >>> rebuilt.node_ids()
+        ['revenue']
+        """
+        ...
+
     def periods(self, range: str, actuals_until: str | None = None) -> ModelBuilder:
         """
         Define the model's period lattice from a range expression.

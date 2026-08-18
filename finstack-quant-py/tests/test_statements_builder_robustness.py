@@ -23,6 +23,22 @@ def test_name_normalization_surface_is_removed() -> None:
     assert not hasattr(builder, "with_name_normalization")
 
 
+def test_model_builder_from_spec_preserves_state_and_accepts_transformations() -> None:
+    original = statements.ModelBuilder("rebuild")
+    original.periods("2025Q1..Q2", "2025Q1")
+    original.value("revenue", [("2025Q1", 100.0)])
+    model = original.build()
+
+    rebuilt = statements.ModelBuilder.from_spec(model)
+    rebuilt.compute("margin", "revenue * 0.5")
+    transformed = rebuilt.build()
+
+    assert transformed.id == "rebuild"
+    assert transformed.has_node("revenue")
+    assert transformed.has_node("margin")
+    assert transformed.to_json() != model.to_json()
+
+
 class TestBuilderSurvivesBadInput:
     def test_bad_compute_does_not_brick_the_builder(self) -> None:
         b = statements.ModelBuilder("brick")

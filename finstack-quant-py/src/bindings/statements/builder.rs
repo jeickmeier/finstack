@@ -261,6 +261,31 @@ impl PyModelBuilder {
         Self::start(id)
     }
 
+    /// Reconstruct a ready builder from an existing model specification.
+    ///
+    /// Parameters
+    /// ----------
+    /// spec : FinancialModelSpec
+    ///     Typed model whose periods, nodes, metadata, and capital structure
+    ///     seed the builder.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     Ready builder that can accept additional transformations.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the model has no periods.
+    #[staticmethod]
+    fn from_spec(spec: &PyFinancialModelSpec) -> PyResult<Self> {
+        let builder = ModelBuilder::from_spec(spec.inner.clone()).map_err(statements_to_py)?;
+        Ok(Self {
+            inner: Some(BuilderState::Ready(builder)),
+        })
+    }
+
     /// Define periods using a range expression (e.g. ``"2025Q1..Q4"``).
     ///
     /// Parameters

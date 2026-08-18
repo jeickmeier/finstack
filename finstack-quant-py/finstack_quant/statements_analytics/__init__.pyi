@@ -4276,11 +4276,11 @@ def add_vintage_buildup(
     name: str,
     new_volume_node: str,
     decay_curve: list[float],
-) -> str:
+) -> FinancialModelSpec:
     """
     Apply the vintage (cohort) buildup template to a model spec.
 
-    Returns a JSON-serialized ``FinancialModelSpec`` with the convolution
+    Returns a typed ``FinancialModelSpec`` with the convolution
     node added.
 
     Parameters
@@ -4297,8 +4297,8 @@ def add_vintage_buildup(
 
     Returns
     -------
-    str
-        JSON-serialized model specification containing the generated vintage-convolution node.
+    FinancialModelSpec
+        Typed model specification containing the generated vintage-convolution node.
 
     Raises
     ------
@@ -4313,7 +4313,7 @@ def add_vintage_buildup(
     >>> _ = builder.periods("2025Q1..Q2")
     >>> _ = builder.value("new_volume", [("2025Q1", 10.0), ("2025Q2", 12.0)])
     >>> model = builder.build()
-    >>> updated = FinancialModelSpec.from_json(add_vintage_buildup(model, "customers", "new_volume", [1.0, 0.8]))
+    >>> updated = add_vintage_buildup(model, "customers", "new_volume", [1.0, 0.8])
     >>> updated.node_count > model.node_count
     True
 
@@ -4327,11 +4327,11 @@ def add_roll_forward(
     name: str,
     increases: list[str],
     decreases: list[str],
-) -> str:
+) -> FinancialModelSpec:
     """
     Apply the roll-forward template (Beginning + Increases - Decreases = Ending) to a model spec.
 
-    Returns a JSON-serialized ``FinancialModelSpec`` with ``{name}_beg`` and
+    Returns a typed ``FinancialModelSpec`` with ``{name}_beg`` and
     ``{name}_end`` nodes added. The first period opens at zero; use
     ``add_roll_forward_with_opening`` for an explicit opening balance.
 
@@ -4348,8 +4348,8 @@ def add_roll_forward(
 
     Returns
     -------
-    str
-        JSON-serialized model specification containing zero-opening beginning- and ending-balance nodes.
+    FinancialModelSpec
+        Typed model specification containing zero-opening beginning- and ending-balance nodes.
 
     Raises
     ------
@@ -4364,7 +4364,7 @@ def add_roll_forward(
     >>> _ = builder.periods("2025Q1..Q2")
     >>> _ = builder.value("adds", [("2025Q1", 10.0), ("2025Q2", 12.0)])
     >>> model = builder.build()
-    >>> updated = FinancialModelSpec.from_json(add_roll_forward(model, "balance", ["adds"], []))
+    >>> updated = add_roll_forward(model, "balance", ["adds"], [])
     >>> updated.has_node("balance_end")
     True
 
@@ -4377,13 +4377,12 @@ def add_roll_forward_with_opening(
     increases: list[str],
     decreases: list[str],
     opening: float,
-) -> str:
+) -> FinancialModelSpec:
     """
     Apply the roll-forward template with an explicit first-period opening balance.
 
     Same as ``add_roll_forward`` except the first period's beginning balance
-    is ``opening`` instead of zero. Returns a JSON-serialized
-    ``FinancialModelSpec``.
+    is ``opening`` instead of zero. Returns a typed ``FinancialModelSpec``.
 
     Parameters
     ----------
@@ -4400,8 +4399,8 @@ def add_roll_forward_with_opening(
 
     Returns
     -------
-    str
-        JSON-serialized model specification containing the seeded beginning- and ending-balance nodes.
+    FinancialModelSpec
+        Typed model specification containing the seeded beginning- and ending-balance nodes.
 
     Raises
     ------
@@ -4416,8 +4415,8 @@ def add_roll_forward_with_opening(
     >>> _ = builder.periods("2025Q1..Q2")
     >>> _ = builder.value("adds", [("2025Q1", 10.0), ("2025Q2", 12.0)])
     >>> model = builder.build()
-    >>> payload = add_roll_forward_with_opening(model, "balance", ["adds"], [], 100.0)
-    >>> FinancialModelSpec.from_json(payload).has_node("balance_beg")
+    >>> updated = add_roll_forward_with_opening(model, "balance", ["adds"], [], 100.0)
+    >>> updated.has_node("balance_beg")
     True
 
     """
@@ -6135,9 +6134,9 @@ def add_noi_buildup(
     total_expenses_node: str,
     expense_nodes: list[str],
     noi_node: str,
-) -> str:
+) -> FinancialModelSpec:
     """
-    Apply the NOI buildup template and return JSON ``FinancialModelSpec``.
+    Apply the NOI buildup template and return a typed ``FinancialModelSpec``.
 
     Parameters
     ----------
@@ -6156,8 +6155,8 @@ def add_noi_buildup(
 
     Returns
     -------
-    str
-        JSON-serialized model specification containing revenue, expense, and NOI aggregation nodes.
+    FinancialModelSpec
+        Typed model specification containing revenue, expense, and NOI aggregation nodes.
 
     Raises
     ------
@@ -6173,8 +6172,8 @@ def add_noi_buildup(
     >>> _ = builder.value("rent", [("2025Q1", 100.0)])
     >>> _ = builder.value("opex", [("2025Q1", 30.0)])
     >>> model = builder.build()
-    >>> payload = add_noi_buildup(model, "revenue", ["rent"], "expenses", ["opex"], "noi")
-    >>> FinancialModelSpec.from_json(payload).has_node("noi")
+    >>> updated = add_noi_buildup(model, "revenue", ["rent"], "expenses", ["opex"], "noi")
+    >>> updated.has_node("noi")
     True
 
     """
@@ -6185,9 +6184,9 @@ def add_ncf_buildup(
     noi_node: str,
     capex_nodes: list[str],
     ncf_node: str,
-) -> str:
+) -> FinancialModelSpec:
     """
-    Apply the NCF buildup template and return JSON ``FinancialModelSpec``.
+    Apply the NCF buildup template and return a typed ``FinancialModelSpec``.
 
     Parameters
     ----------
@@ -6202,8 +6201,8 @@ def add_ncf_buildup(
 
     Returns
     -------
-    str
-        JSON-serialized model specification containing the NCF node after deducting the selected capex nodes.
+    FinancialModelSpec
+        Typed model specification containing the NCF node after deducting the selected capex nodes.
 
     Raises
     ------
@@ -6219,7 +6218,7 @@ def add_ncf_buildup(
     >>> _ = builder.value("noi", [("2025Q1", 70.0)])
     >>> _ = builder.value("capex", [("2025Q1", 10.0)])
     >>> model = builder.build()
-    >>> FinancialModelSpec.from_json(add_ncf_buildup(model, "noi", ["capex"], "ncf")).has_node("ncf")
+    >>> add_ncf_buildup(model, "noi", ["capex"], "ncf").has_node("ncf")
     True
 
     """
@@ -6229,9 +6228,9 @@ def add_rent_roll(
     model: FinancialModelSpec | str,
     leases: list[LeaseSpec],
     nodes: RentRollOutputNodes | None = None,
-) -> str:
+) -> FinancialModelSpec:
     """
-    Apply the rich rent-roll template and return JSON ``FinancialModelSpec``.
+    Apply the rich rent-roll template and return a typed ``FinancialModelSpec``.
 
     Parameters
     ----------
@@ -6244,8 +6243,8 @@ def add_rent_roll(
 
     Returns
     -------
-    str
-        JSON-serialized model specification containing per-lease schedules and aggregate rent-roll nodes.
+    FinancialModelSpec
+        Typed model specification containing per-lease schedules and aggregate rent-roll nodes.
 
     Raises
     ------
@@ -6260,7 +6259,7 @@ def add_rent_roll(
     >>> _ = builder.periods("2025Q1..Q2")
     >>> model = builder.build()
     >>> lease = LeaseSpec("lease_a", "2025Q1", 100.0)
-    >>> FinancialModelSpec.from_json(add_rent_roll(model, [lease])).has_node("rent_effective")
+    >>> add_rent_roll(model, [lease]).has_node("rent_effective")
     True
 
     """
@@ -6270,9 +6269,9 @@ def add_rent_roll_rental_revenue(
     model: FinancialModelSpec | str,
     leases: list[SimpleLeaseSpec],
     total_rent_node: str,
-) -> str:
+) -> FinancialModelSpec:
     """
-    Apply the simple rent-roll template and return JSON ``FinancialModelSpec``.
+    Apply the simple rent-roll template and return a typed ``FinancialModelSpec``.
 
     Parameters
     ----------
@@ -6285,8 +6284,8 @@ def add_rent_roll_rental_revenue(
 
     Returns
     -------
-    str
-        JSON-serialized model specification containing simple lease schedules and total rental revenue.
+    FinancialModelSpec
+        Typed model specification containing simple lease schedules and total rental revenue.
 
     Raises
     ------
@@ -6301,8 +6300,8 @@ def add_rent_roll_rental_revenue(
     >>> _ = builder.periods("2025Q1..Q2")
     >>> model = builder.build()
     >>> lease = SimpleLeaseSpec("lease_a", "2025Q1", 100.0)
-    >>> payload = add_rent_roll_rental_revenue(model, [lease], "rental_revenue")
-    >>> FinancialModelSpec.from_json(payload).has_node("rental_revenue")
+    >>> updated = add_rent_roll_rental_revenue(model, [lease], "rental_revenue")
+    >>> updated.has_node("rental_revenue")
     True
 
     """
@@ -6316,9 +6315,9 @@ def add_property_operating_statement(
     capex_nodes: list[str] = ...,
     management_fee: ManagementFeeSpec | None = None,
     nodes: PropertyTemplateNodes | None = None,
-) -> str:
+) -> FinancialModelSpec:
     """
-    Apply the full property operating-statement template and return JSON.
+    Apply the full property operating-statement template and return a typed model.
 
     Parameters
     ----------
@@ -6339,8 +6338,8 @@ def add_property_operating_statement(
 
     Returns
     -------
-    str
-        JSON-serialized model specification containing the rent roll, EGI, NOI, capex, and NCF buildup.
+    FinancialModelSpec
+        Typed model specification containing the rent roll, EGI, NOI, capex, and NCF buildup.
 
     Raises
     ------
@@ -6355,8 +6354,8 @@ def add_property_operating_statement(
     >>> _ = builder.periods("2025Q1..Q2")
     >>> model = builder.build()
     >>> lease = LeaseSpec("lease_a", "2025Q1", 100.0)
-    >>> payload = add_property_operating_statement(model, [lease])
-    >>> FinancialModelSpec.from_json(payload).has_node("ncf")
+    >>> updated = add_property_operating_statement(model, [lease])
+    >>> updated.has_node("ncf")
     True
 
     """

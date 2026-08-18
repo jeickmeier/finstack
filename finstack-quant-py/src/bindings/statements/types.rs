@@ -580,6 +580,12 @@ pub struct PyFinancialModelSpec {
     pub(crate) inner: finstack_quant_statements::FinancialModelSpec,
 }
 
+impl PyFinancialModelSpec {
+    pub(crate) fn from_inner(inner: finstack_quant_statements::FinancialModelSpec) -> Self {
+        Self { inner }
+    }
+}
+
 #[pymethods]
 impl PyFinancialModelSpec {
     /// Start a staged model build.

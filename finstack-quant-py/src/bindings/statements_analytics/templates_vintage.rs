@@ -2,19 +2,15 @@
 //!
 //! Wraps [`finstack_quant_statements_analytics::templates::vintage`].
 //!
-//! The Rust trait method takes a `ModelBuilder<Ready>` and threads it through
-//! `add_vintage_buildup`. Because the Python `ModelBuilder` private state is
-//! not accessible from this module, we expose a JSON-in / JSON-out form that
-//! rebuilds the Rust builder from a serialized [`FinancialModelSpec`], applies
-//! the template, and serializes the resulting spec back out.
+//! The binding reconstructs the canonical Rust builder from the supplied model,
+//! applies `add_vintage_buildup`, and returns a typed model specification.
 
-use crate::bindings::extract::extract_model_ref;
+use crate::bindings::statements::types::PyFinancialModelSpec;
 use crate::errors::display_to_py;
-use finstack_quant_statements::types::FinancialModelSpec;
 use finstack_quant_statements_analytics::templates::vintage as rust_vintage;
 use pyo3::prelude::*;
 
-use super::templates_common::{finalize_spec, rebuild_builder};
+use super::templates_common::{extract_builder, finish_builder};
 
 /// Apply the vintage (cohort) buildup template to a model spec.
 ///
@@ -35,30 +31,23 @@ use super::templates_common::{finalize_spec, rebuild_builder};
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``FinancialModelSpec`` with the vintage node added.
+/// FinancialModelSpec
+///     Typed model specification with the vintage node added.
 #[pyfunction]
 fn add_vintage_buildup(
     model: &Bound<'_, PyAny>,
     name: &str,
     new_volume_node: &str,
     decay_curve: Vec<f64>,
-) -> PyResult<String> {
-    let spec = extract_model_ref(model)?.into_owned();
-    let updated = apply_vintage(spec, name, new_volume_node, &decay_curve)?;
-    serde_json::to_string(&updated).map_err(display_to_py)
-}
-
-fn apply_vintage(
-    spec: FinancialModelSpec,
-    name: &str,
-    new_volume_node: &str,
-    decay_curve: &[f64],
-) -> PyResult<FinancialModelSpec> {
-    let (builder, meta, capital_structure) = rebuild_builder(spec)?;
-    let builder = rust_vintage::add_vintage_buildup(builder, name, new_volume_node, decay_curve)
-        .map_err(display_to_py)?;
-    finalize_spec(builder, meta, capital_structure)
+) -> PyResult<PyFinancialModelSpec> {
+    let builder = rust_vintage::add_vintage_buildup(
+        extract_builder(model)?,
+        name,
+        new_volume_node,
+        &decay_curve,
+    )
+    .map_err(display_to_py)?;
+    finish_builder(builder)
 }
 
 /// Register the vintage template binding on the parent module.
