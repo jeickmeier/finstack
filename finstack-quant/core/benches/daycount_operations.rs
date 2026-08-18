@@ -67,7 +67,7 @@ fn bench_daycount_actact_isma(c: &mut Criterion) {
                         calendar: None,
                         frequency: Some(frequency),
                         bus_basis: None,
-                        coupon_period: None,
+                        coupon_period: Some((start, end)),
                         end_is_termination_date: false,
                     },
                 )

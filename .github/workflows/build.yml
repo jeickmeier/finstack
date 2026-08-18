@@ -328,6 +328,77 @@ jobs:
       - name: Run WASM tests
         run: mise run wasm-test
 
+  # ============================================
+  # Rust performance regression — compare PR head against its base commit
+  # on the same runner so Criterion measurements share the same machine.
+  # ============================================
+  performance-regression:
+    name: Rust Benchmark Regression
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    needs: prime-cache
+
+    env:
+      CARGO_BUILD_JOBS: 4
+      CARGO_INCREMENTAL: 1
+      FQ_BENCH_SAMPLE_SIZE: "10"
+      FQ_BENCH_WARM_UP_TIME: "1"
+      FQ_BENCH_MEASUREMENT_TIME: "1"
+      FQ_BENCH_NRESAMPLES: "1000"
+
+    steps:
+      - name: Checkout PR base
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Set up swap space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 10
+
+      - name: Provision toolchain (mise)
+        uses: jdx/mise-action@v4
+        with:
+          cache: true
+          cache_save: false
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: rust-benchmarks
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+
+      - name: Set up Python environment
+        run: |
+          uv venv --python 3.12
+          echo "${{ github.workspace }}/.venv/bin" >> "$GITHUB_PATH"
+          uv sync --no-install-project
+
+      - name: Establish base benchmark
+        run: mise run rust-bench-baseline
+
+      # Preserve target/criterion, including the named `main` baseline, while
+      # switching tracked source files to the exact PR head revision.
+      - name: Checkout PR head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          clean: false
+
+      - name: Compare PR benchmarks
+        run: mise run rust-bench-compare
+
+      - name: Upload Criterion report
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: criterion-regression-report
+          path: target/criterion
+          retention-days: 7
 
   # ============================================
   # Supply-chain security (cargo-deny): Rust advisories, licenses, bans
