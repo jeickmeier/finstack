@@ -452,6 +452,8 @@ jobs:
   # Covers Cargo.lock, uv.lock, and package-lock.json against the OSV database.
   # Uses the PR-diff reusable workflow on pull_request (only reports newly
   # introduced vulns) and the full-scan reusable workflow on push to master.
+  # Skip GitHub code-scanning SARIF upload: this private repo does not have
+  # code scanning / GHAS enabled, and upload-sarif fails the job otherwise.
   # ============================================
   osv-scan-pr:
     name: Supply-chain Security (OSV-Scanner, PR diff)
@@ -467,6 +469,7 @@ jobs:
         --lockfile=Cargo.lock
         --lockfile=uv.lock
         --lockfile=finstack-quant-wasm/package-lock.json
+      upload-sarif: false
 
   osv-scan-full:
     name: Supply-chain Security (OSV-Scanner, full)
@@ -481,6 +484,7 @@ jobs:
         --lockfile=Cargo.lock
         --lockfile=uv.lock
         --lockfile=finstack-quant-wasm/package-lock.json
+      upload-sarif: false
 
   # ============================================
   # Semver checks for API stability
