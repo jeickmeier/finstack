@@ -1,0 +1,702 @@
+{
+  "schema": "finstack_quant.listed_product_catalog/1",
+  "products": [
+    {
+      "exchange": "cme",
+      "symbols": "SR3",
+      "name": "Three-Month SOFR futures",
+      "asset_class": "rates",
+      "product_kind": "future",
+      "instrument_type": "interest_rate_future",
+      "status": "native",
+      "features": [
+        "compounded_overnight",
+        "imm_quarter",
+        "daily_margin"
+      ],
+      "source_url": "https://www.cmegroup.com/sofr"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "SR1",
+      "name": "One-Month SOFR futures",
+      "asset_class": "rates",
+      "product_kind": "future",
+      "instrument_type": "interest_rate_future",
+      "status": "native",
+      "features": [
+        "arithmetic_overnight",
+        "calendar_month",
+        "daily_margin"
+      ],
+      "source_url": "https://www.cmegroup.com/sofr"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "ZQ",
+      "name": "30-Day Federal Funds futures",
+      "asset_class": "rates",
+      "product_kind": "future",
+      "instrument_type": "interest_rate_future",
+      "status": "native",
+      "features": [
+        "arithmetic_overnight",
+        "calendar_month",
+        "daily_margin"
+      ],
+      "source_url": "https://www.cmegroup.com/markets.html"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "SR3,SR1,ZQ",
+      "name": "SOFR and Fed Funds options",
+      "asset_class": "rates",
+      "product_kind": "option_on_future",
+      "instrument_type": "interest_rate_future_option",
+      "status": "native",
+      "features": [
+        "normal_vol",
+        "american_exercise",
+        "future_delivery",
+        "premium_paid"
+      ],
+      "source_url": "https://www.cmegroup.com/sofr"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "ZT,ZF,ZN,ZB,UB",
+      "name": "U.S. Treasury futures",
+      "asset_class": "fixed_income",
+      "product_kind": "future",
+      "instrument_type": "bond_future",
+      "status": "partial",
+      "features": [
+        "deliverable_basket",
+        "conversion_factor",
+        "ctd",
+        "invoice_price"
+      ],
+      "residual_gap": "delivery-day timing and wildcard optionality are not model-valued",
+      "source_url": "https://www.cmegroup.com/markets.html"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "ZT,ZF,ZN,ZB,UB",
+      "name": "Options on U.S. Treasury futures",
+      "asset_class": "fixed_income",
+      "product_kind": "option_on_future",
+      "instrument_type": "interest_rate_future_option",
+      "status": "native",
+      "features": [
+        "black76",
+        "american_exercise",
+        "future_delivery"
+      ],
+      "source_url": "https://www.cmegroup.com/markets.html"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "ES,NQ,RTY,YM",
+      "name": "E-mini U.S. equity-index futures",
+      "asset_class": "equity",
+      "product_kind": "future",
+      "instrument_type": "equity_future",
+      "status": "native",
+      "features": [
+        "cost_of_carry",
+        "dividends",
+        "daily_margin"
+      ],
+      "source_url": "https://www.cmegroup.com/markets.html"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "ES,NQ,RTY,YM",
+      "name": "Options on U.S. equity-index futures",
+      "asset_class": "equity",
+      "product_kind": "option_on_future",
+      "instrument_type": "equity_future_option",
+      "status": "native",
+      "features": [
+        "black76",
+        "american_or_european",
+        "future_delivery",
+        "weekly_expiry"
+      ],
+      "source_url": "https://www.cmegroup.com/markets.html"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "6E,6J,6B,6C,6A,6S",
+      "name": "Major-currency FX futures",
+      "asset_class": "fx",
+      "product_kind": "future",
+      "instrument_type": "fx_future",
+      "status": "native",
+      "features": [
+        "covered_interest_parity",
+        "deliverable",
+        "daily_margin"
+      ],
+      "source_url": "https://www.cmegroup.com/markets.html"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "6E,6J,6B,6C,6A,6S",
+      "name": "Options on major-currency FX futures",
+      "asset_class": "fx",
+      "product_kind": "option_on_future",
+      "instrument_type": "fx_future_option",
+      "status": "native",
+      "features": [
+        "black76",
+        "american_exercise",
+        "future_delivery"
+      ],
+      "source_url": "https://www.cmegroup.com/markets.html"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "CL,NG,RB,HO",
+      "name": "Benchmark energy futures",
+      "asset_class": "commodity",
+      "product_kind": "future",
+      "instrument_type": "commodity_future",
+      "status": "native",
+      "features": [
+        "price_curve",
+        "cash_or_physical_settlement",
+        "delivery_obligation"
+      ],
+      "source_url": "https://www.cmegroup.com/markets.html"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "GC,SI,HG",
+      "name": "Gold, silver, and copper futures",
+      "asset_class": "commodity",
+      "product_kind": "future",
+      "instrument_type": "commodity_future",
+      "status": "native",
+      "features": [
+        "price_curve",
+        "physical_settlement",
+        "delivery_obligation"
+      ],
+      "source_url": "https://www.cmegroup.com/markets.html"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "ZC,ZS,ZW,LE,LH",
+      "name": "Grain, oilseed, and livestock futures",
+      "asset_class": "commodity",
+      "product_kind": "future",
+      "instrument_type": "commodity_future",
+      "status": "native",
+      "features": [
+        "price_curve",
+        "cash_or_physical_settlement",
+        "delivery_obligation"
+      ],
+      "source_url": "https://www.cmegroup.com/markets.html"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "CL,NG,GC,SI,ZC,ZS,ZW",
+      "name": "Options on benchmark commodity futures",
+      "asset_class": "commodity",
+      "product_kind": "option_on_future",
+      "instrument_type": "commodity_future_option",
+      "status": "native",
+      "features": [
+        "black76",
+        "american_exercise",
+        "future_delivery"
+      ],
+      "source_url": "https://www.cmegroup.com/markets.html"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "BTC,ETH",
+      "name": "Bitcoin and Ether futures",
+      "asset_class": "digital_assets",
+      "product_kind": "future",
+      "instrument_type": "commodity_future",
+      "status": "native",
+      "features": [
+        "cash_settlement",
+        "daily_margin"
+      ],
+      "source_url": "https://www.cmegroup.com/markets.html"
+    },
+    {
+      "exchange": "cme",
+      "symbols": "BTC,ETH",
+      "name": "Options on cryptocurrency futures",
+      "asset_class": "digital_assets",
+      "product_kind": "option_on_future",
+      "instrument_type": "commodity_future_option",
+      "status": "native",
+      "features": [
+        "black76",
+        "future_delivery",
+        "weekly_expiry"
+      ],
+      "source_url": "https://www.cmegroup.com/markets.html"
+    },
+    {
+      "exchange": "eurex",
+      "symbols": "FESX,FDAX,FDXM",
+      "name": "EURO STOXX 50 and DAX futures",
+      "asset_class": "equity",
+      "product_kind": "future",
+      "instrument_type": "equity_future",
+      "status": "native",
+      "features": [
+        "cost_of_carry",
+        "dividends",
+        "cash_settlement"
+      ],
+      "source_url": "https://www.eurex.com/ex-en/markets/productSearch"
+    },
+    {
+      "exchange": "eurex",
+      "symbols": "OESX,ODAX",
+      "name": "EURO STOXX 50 and DAX index options",
+      "asset_class": "equity",
+      "product_kind": "option",
+      "instrument_type": "equity_option",
+      "status": "native",
+      "features": [
+        "cash_settlement",
+        "european_exercise",
+        "vol_surface"
+      ],
+      "source_url": "https://www.eurex.com/ex-en/markets/productSearch"
+    },
+    {
+      "exchange": "eurex",
+      "symbols": "FGBS,FGBM,FGBL,FGBX",
+      "name": "German government bond futures",
+      "asset_class": "fixed_income",
+      "product_kind": "future",
+      "instrument_type": "bond_future",
+      "status": "partial",
+      "features": [
+        "deliverable_basket",
+        "conversion_factor",
+        "ctd",
+        "invoice_price"
+      ],
+      "residual_gap": "delivery-day timing optionality is not model-valued",
+      "source_url": "https://www.eurex.com/ex-en/markets/productSearch"
+    },
+    {
+      "exchange": "eurex",
+      "symbols": "OGBL",
+      "name": "Options on Euro-Bund futures",
+      "asset_class": "fixed_income",
+      "product_kind": "option_on_future",
+      "instrument_type": "interest_rate_future_option",
+      "status": "native",
+      "features": [
+        "black76",
+        "future_delivery",
+        "american_exercise"
+      ],
+      "source_url": "https://www.eurex.com/ex-en/markets/productSearch"
+    },
+    {
+      "exchange": "eurex",
+      "symbols": "FESQ",
+      "name": "USD-quanto EURO STOXX 50 futures",
+      "asset_class": "equity",
+      "product_kind": "future",
+      "instrument_type": "equity_future",
+      "status": "native",
+      "features": [
+        "fixed_currency_quanto",
+        "equity_fx_correlation",
+        "daily_margin"
+      ],
+      "source_url": "https://www.eurex.com/ex-en/markets/productSearch"
+    },
+    {
+      "exchange": "eurex",
+      "symbols": "TESX",
+      "name": "EURO STOXX 50 total-return futures",
+      "asset_class": "equity",
+      "product_kind": "future",
+      "instrument_type": "equity_total_return_future",
+      "status": "native",
+      "features": [
+        "accrued_distributions",
+        "accrued_funding",
+        "basis_spread",
+        "spread01"
+      ],
+      "source_url": "https://www.eurex.com/ex-en/markets/productSearch"
+    },
+    {
+      "exchange": "eurex",
+      "symbols": "FEXD",
+      "name": "EURO STOXX 50 dividend futures",
+      "asset_class": "equity",
+      "product_kind": "future",
+      "instrument_type": "commodity_future",
+      "status": "native",
+      "features": [
+        "single_index_settlement",
+        "daily_margin"
+      ],
+      "source_url": "https://www.eurex.com/ex-en/markets/productSearch"
+    },
+    {
+      "exchange": "eurex",
+      "symbols": "FVS",
+      "name": "VSTOXX futures",
+      "asset_class": "volatility",
+      "product_kind": "future",
+      "instrument_type": "volatility_index_future",
+      "status": "native",
+      "features": [
+        "volatility_index_forward",
+        "cash_settlement"
+      ],
+      "source_url": "https://www.eurex.com/ex-en/markets/productSearch"
+    },
+    {
+      "exchange": "eurex",
+      "symbols": "OVS2",
+      "name": "Options on VSTOXX futures",
+      "asset_class": "volatility",
+      "product_kind": "option_on_future",
+      "instrument_type": "volatility_index_future_option",
+      "status": "native",
+      "features": [
+        "black76",
+        "american_exercise",
+        "future_delivery",
+        "futures_style"
+      ],
+      "source_url": "https://www.eurex.com/ex-en/markets/productSearch"
+    },
+    {
+      "exchange": "eurex",
+      "symbols": "FESX,FDAX,FGBL,FGBM",
+      "name": "Listed futures spreads",
+      "asset_class": "cross_asset",
+      "product_kind": "future",
+      "instrument_type": "composite",
+      "status": "composed",
+      "features": [
+        "signed_legs",
+        "shared_market_context"
+      ],
+      "source_url": "https://www.eurex.com/ex-en/markets/productSearch"
+    },
+    {
+      "exchange": "montreal",
+      "symbols": "CRA",
+      "name": "Three-Month CORRA futures",
+      "asset_class": "rates",
+      "product_kind": "future",
+      "instrument_type": "interest_rate_future",
+      "status": "native",
+      "features": [
+        "compounded_overnight",
+        "imm_quarter",
+        "act365f"
+      ],
+      "source_url": "https://www.m-x.ca/en/markets"
+    },
+    {
+      "exchange": "montreal",
+      "symbols": "COA",
+      "name": "One-Month CORRA futures",
+      "asset_class": "rates",
+      "product_kind": "future",
+      "instrument_type": "interest_rate_future",
+      "status": "native",
+      "features": [
+        "compounded_overnight",
+        "business_month",
+        "act365f"
+      ],
+      "source_url": "https://www.m-x.ca/en/markets"
+    },
+    {
+      "exchange": "montreal",
+      "symbols": "OCR",
+      "name": "Options on Three-Month CORRA futures",
+      "asset_class": "rates",
+      "product_kind": "option_on_future",
+      "instrument_type": "interest_rate_future_option",
+      "status": "native",
+      "features": [
+        "normal_vol",
+        "american_exercise",
+        "future_delivery"
+      ],
+      "source_url": "https://www.m-x.ca/en/markets"
+    },
+    {
+      "exchange": "montreal",
+      "symbols": "CGZ,CGF,CGB,LGB",
+      "name": "Government of Canada bond futures",
+      "asset_class": "fixed_income",
+      "product_kind": "future",
+      "instrument_type": "bond_future",
+      "status": "partial",
+      "features": [
+        "deliverable_basket",
+        "conversion_factor",
+        "ctd",
+        "invoice_price"
+      ],
+      "residual_gap": "delivery-day timing optionality is not model-valued",
+      "source_url": "https://www.m-x.ca/en/markets"
+    },
+    {
+      "exchange": "montreal",
+      "symbols": "OGZ,OGF,OGB",
+      "name": "Options on Government of Canada bond futures",
+      "asset_class": "fixed_income",
+      "product_kind": "option_on_future",
+      "instrument_type": "interest_rate_future_option",
+      "status": "native",
+      "features": [
+        "black76",
+        "future_delivery",
+        "american_exercise"
+      ],
+      "source_url": "https://www.m-x.ca/en/markets"
+    },
+    {
+      "exchange": "montreal",
+      "symbols": "SXF,SXM",
+      "name": "S&P/TSX 60 index futures",
+      "asset_class": "equity",
+      "product_kind": "future",
+      "instrument_type": "equity_future",
+      "status": "native",
+      "features": [
+        "cost_of_carry",
+        "dividends",
+        "cash_settlement"
+      ],
+      "source_url": "https://www.m-x.ca/en/markets"
+    },
+    {
+      "exchange": "montreal",
+      "symbols": "SXO",
+      "name": "S&P/TSX 60 index options",
+      "asset_class": "equity",
+      "product_kind": "option",
+      "instrument_type": "equity_option",
+      "status": "native",
+      "features": [
+        "cash_settlement",
+        "european_exercise",
+        "vol_surface"
+      ],
+      "source_url": "https://www.m-x.ca/en/markets"
+    },
+    {
+      "exchange": "montreal",
+      "symbols": "AXF",
+      "name": "Adjusted-interest-rate S&P/TSX 60 TRF",
+      "asset_class": "equity",
+      "product_kind": "future",
+      "instrument_type": "equity_total_return_future",
+      "status": "native",
+      "features": [
+        "accrued_distributions",
+        "accrued_funding",
+        "basis_spread",
+        "spread01"
+      ],
+      "source_url": "https://www.m-x.ca/en/markets"
+    },
+    {
+      "exchange": "montreal",
+      "symbols": "SDV",
+      "name": "S&P/TSX 60 dividend futures",
+      "asset_class": "equity",
+      "product_kind": "future",
+      "instrument_type": "commodity_future",
+      "status": "native",
+      "features": [
+        "single_index_settlement",
+        "daily_margin"
+      ],
+      "source_url": "https://www.m-x.ca/en/markets"
+    },
+    {
+      "exchange": "sgx",
+      "symbols": "CN",
+      "name": "FTSE China A50 index futures",
+      "asset_class": "equity",
+      "product_kind": "future",
+      "instrument_type": "equity_future",
+      "status": "native",
+      "features": [
+        "cash_settlement",
+        "cost_of_carry",
+        "daily_margin"
+      ],
+      "source_url": "https://www.sgx.com/derivatives/products?code=all&productsforUS=true"
+    },
+    {
+      "exchange": "sgx",
+      "symbols": "NK,NS,STW,SGP,FCH",
+      "name": "Nikkei, Taiwan, Singapore, and China H50 index futures",
+      "asset_class": "equity",
+      "product_kind": "future",
+      "instrument_type": "equity_future",
+      "status": "native",
+      "features": [
+        "cash_settlement",
+        "quanto_when_fixed_currency",
+        "daily_margin"
+      ],
+      "source_url": "https://www.sgx.com/derivatives/products?code=all&productsforUS=true"
+    },
+    {
+      "exchange": "sgx",
+      "symbols": "CN,NK,NS,STW,SGP,FCH",
+      "name": "Options on SGX equity-index futures",
+      "asset_class": "equity",
+      "product_kind": "option_on_future",
+      "instrument_type": "equity_future_option",
+      "status": "native",
+      "features": [
+        "black76",
+        "automatic_future_delivery",
+        "cash_final_settlement"
+      ],
+      "source_url": "https://www.sgx.com/derivatives/products?code=all&productsforUS=true"
+    },
+    {
+      "exchange": "sgx",
+      "symbols": "UC,MUC,IU,INR,US,SND",
+      "name": "Asian-currency FX futures",
+      "asset_class": "fx",
+      "product_kind": "future",
+      "instrument_type": "fx_future",
+      "status": "native",
+      "features": [
+        "covered_interest_parity",
+        "cash_settlement",
+        "custom_fixing_date"
+      ],
+      "source_url": "https://www.sgx.com/derivatives/products?code=all&productsforUS=true"
+    },
+    {
+      "exchange": "sgx",
+      "symbols": "CUC,PUC,CINR,PINR",
+      "name": "USD/CNH and INR options on futures",
+      "asset_class": "fx",
+      "product_kind": "option_on_future",
+      "instrument_type": "fx_future_option",
+      "status": "native",
+      "features": [
+        "black76",
+        "future_delivery",
+        "cash_final_settlement"
+      ],
+      "source_url": "https://www.sgx.com/derivatives/products?code=all&productsforUS=true"
+    },
+    {
+      "exchange": "sgx",
+      "symbols": "FEF",
+      "name": "TSI 62% iron ore futures",
+      "asset_class": "commodity",
+      "product_kind": "future",
+      "instrument_type": "commodity_future",
+      "status": "native",
+      "features": [
+        "monthly_arithmetic_average",
+        "strict_realized_fixings",
+        "cash_settlement"
+      ],
+      "source_url": "https://www.sgx.com/derivatives/products?code=all&productsforUS=true"
+    },
+    {
+      "exchange": "sgx",
+      "symbols": "FEF",
+      "name": "Options on TSI iron ore futures",
+      "asset_class": "commodity",
+      "product_kind": "option_on_future",
+      "instrument_type": "commodity_future_option",
+      "status": "native",
+      "features": [
+        "black76",
+        "future_delivery"
+      ],
+      "source_url": "https://www.sgx.com/derivatives/products?code=all&productsforUS=true"
+    },
+    {
+      "exchange": "sgx",
+      "symbols": "FFA,FO,LNG",
+      "name": "Freight, fuel-oil, and LNG futures",
+      "asset_class": "commodity",
+      "product_kind": "future",
+      "instrument_type": "commodity_future",
+      "status": "native",
+      "features": [
+        "monthly_arithmetic_average",
+        "strict_realized_fixings",
+        "cash_settlement"
+      ],
+      "source_url": "https://www.sgx.com/derivatives/products?code=all&productsforUS=true"
+    },
+    {
+      "exchange": "sgx",
+      "symbols": "TF,RT",
+      "name": "SICOM rubber futures",
+      "asset_class": "commodity",
+      "product_kind": "future",
+      "instrument_type": "commodity_future",
+      "status": "native",
+      "features": [
+        "price_curve",
+        "cash_or_physical_settlement",
+        "delivery_obligation"
+      ],
+      "source_url": "https://www.sgx.com/derivatives/products?code=all&productsforUS=true"
+    },
+    {
+      "exchange": "sgx",
+      "symbols": "SORA,TONA",
+      "name": "Three-month overnight-rate futures",
+      "asset_class": "rates",
+      "product_kind": "future",
+      "instrument_type": "interest_rate_future",
+      "status": "native",
+      "features": [
+        "compounded_overnight",
+        "imm_quarter",
+        "daily_margin"
+      ],
+      "source_url": "https://www.sgx.com/derivatives/products?code=all&productsforUS=true"
+    },
+    {
+      "exchange": "sgx",
+      "symbols": "JB",
+      "name": "Japanese Government Bond futures",
+      "asset_class": "fixed_income",
+      "product_kind": "future",
+      "instrument_type": "bond_future",
+      "status": "partial",
+      "features": [
+        "deliverable_basket",
+        "conversion_factor",
+        "ctd",
+        "invoice_price"
+      ],
+      "residual_gap": "exchange-specific delivery-day timing optionality is not model-valued",
+      "source_url": "https://www.sgx.com/derivatives/products?code=all&productsforUS=true"
+    }
+  ]
+}

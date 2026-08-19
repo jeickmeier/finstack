@@ -24,10 +24,10 @@
 //! - Position_Sign = +1 for long, -1 for short
 //!
 //! This is standard futures mark-to-market: a long gains when the forward mark
-//! rises above its entry price (matching [`EquityIndexFuture`]). The MTM is
+//! rises above its entry price (matching [`EquityFuture`]). The MTM is
 //! undiscounted because the position is daily margined.
 //!
-//! [`EquityIndexFuture`]: crate::instruments::equity::EquityIndexFuture
+//! [`EquityFuture`]: crate::instruments::equity::EquityFuture
 //!
 //! No convexity adjustment is applied. This is exact only when the vol index
 //! curve is built directly from quoted futures/forward vol levels (the curve

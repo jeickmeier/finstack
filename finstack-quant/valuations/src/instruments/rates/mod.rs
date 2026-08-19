@@ -120,7 +120,7 @@ pub mod inflation_cap_floor;
 pub mod inflation_swap;
 /// IR future module - Interest rate futures.
 pub mod ir_future;
-/// IR future option module - Options on interest rate futures.
+/// Exchange-listed options on interest-rate futures.
 pub mod ir_future_option;
 /// IRS module - Interest rate swaps.
 pub mod irs;
@@ -140,8 +140,8 @@ pub use deposit::{ConventionDepositParams, Deposit};
 pub use fra::{ConventionFraParams, ForwardRateAgreement};
 pub use inflation_cap_floor::{InflationCapFloor, InflationCapFloorType};
 pub use inflation_swap::{InflationSwap, YoYInflationSwap};
-pub use ir_future::InterestRateFuture;
-pub use ir_future_option::IrFutureOption;
+pub use ir_future::{FutureContractSpecs, InterestRateFuture, RateAveragingMethod};
+pub use ir_future_option::InterestRateFutureOption;
 pub use irs::InterestRateSwap;
 pub use repo::{CollateralSpec, CollateralType, Repo, RepoType};
 pub use swaption::{BermudanSwaption, Swaption};

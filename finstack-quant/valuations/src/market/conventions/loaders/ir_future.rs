@@ -1,6 +1,6 @@
 //! Loader for interest rate future conventions embedded in JSON registries.
 
-use crate::market::conventions::defs::IrFutureConventions;
+use crate::market::conventions::defs::{IrFutureConventions, IrFutureReferencePeriod};
 use crate::market::conventions::ids::IrFutureContractId;
 use finstack_quant_core::types::IndexId;
 use finstack_quant_core::Error;
@@ -10,6 +10,8 @@ use finstack_quant_core::HashMap;
 #[serde(deny_unknown_fields)]
 struct IrFutureConventionsRecord {
     index_id: String,
+    rate_averaging: crate::instruments::RateAveragingMethod,
+    reference_period: IrFutureReferencePeriod,
     calendar_id: String,
     settlement_days: i32,
     delivery_months: u8,
@@ -47,9 +49,36 @@ impl IrFutureConventionsRecord {
                 "IR future conventions settlement_days must be non-negative".to_string(),
             ));
         }
+        if self.reference_period != IrFutureReferencePeriod::ForwardStarting
+            && self.settlement_days != 0
+        {
+            return Err(Error::Validation(
+                "IR future conventions settlement_days must be zero for in-arrears contracts"
+                    .to_string(),
+            ));
+        }
+        if self.reference_period == IrFutureReferencePeriod::ImmQuarterInArrears
+            && self.delivery_months != 3
+        {
+            return Err(Error::Validation(
+                "IMM-quarter IR future conventions delivery_months must equal 3".to_string(),
+            ));
+        }
+        if matches!(
+            self.reference_period,
+            IrFutureReferencePeriod::CalendarMonthInArrears
+                | IrFutureReferencePeriod::BusinessMonthInArrears
+        ) && self.delivery_months != 1
+        {
+            return Err(Error::Validation(
+                "calendar-month IR future conventions delivery_months must equal 1".to_string(),
+            ));
+        }
 
         Ok(IrFutureConventions {
             index_id: IndexId::new(self.index_id),
+            rate_averaging: self.rate_averaging,
+            reference_period: self.reference_period,
             calendar_id: self.calendar_id,
             settlement_days: self.settlement_days,
             delivery_months: self.delivery_months,
@@ -84,6 +113,14 @@ mod tests {
             .expect("ICE:ER conventions");
 
         assert_eq!(euribor.index_id, IndexId::new("EUR-EURIBOR-3M"));
+        assert_eq!(
+            euribor.rate_averaging,
+            crate::instruments::RateAveragingMethod::Term
+        );
+        assert_eq!(
+            euribor.reference_period,
+            IrFutureReferencePeriod::ForwardStarting
+        );
         assert_eq!(euribor.calendar_id, "target2");
         assert_eq!(euribor.settlement_days, 2);
         assert_eq!(euribor.delivery_months, 3);

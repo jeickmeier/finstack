@@ -6,12 +6,16 @@ use crate::instruments::rates::ir_future::{FutureContractSpecs, InterestRateFutu
 use crate::instruments::rates::irs::{InterestRateSwap, IrsLegConventions};
 use crate::instruments::{Instrument, Position};
 use crate::market::build::helpers::{resolve_calendar, resolve_spot_date};
-use crate::market::conventions::defs::{RateIndexConventions, RateIndexKind};
+use crate::market::conventions::defs::{
+    IrFutureReferencePeriod, RateIndexConventions, RateIndexKind,
+};
 use crate::market::conventions::registry::ConventionRegistry;
 use crate::market::quotes::ids::Pillar;
 use crate::market::quotes::rates::RateQuote;
 use crate::market::BuildCtx;
-use finstack_quant_core::dates::{adjust, Date, DateExt, TenorUnit};
+use finstack_quant_core::dates::{
+    adjust, third_wednesday, BusinessDayConvention, Date, DateExt, TenorUnit,
+};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_core::{Error, InputError, Result};
@@ -227,15 +231,70 @@ pub(crate) fn resolve_rate_quote_dates(
             let cal = resolve_calendar(&fut_conv.calendar_id)?;
             let business_day_convention = idx_conv.market_business_day_convention;
             let expiry = adjust(*expiry, business_day_convention, cal)?;
-            let period_start_unadj = expiry.add_business_days(fut_conv.settlement_days, cal)?;
-            let period_start = adjust(period_start_unadj, business_day_convention, cal)?;
-            let delivery_tenor = finstack_quant_core::dates::Tenor::new(
-                fut_conv.delivery_months as u32,
-                TenorUnit::Months,
-            );
-            let period_end =
-                delivery_tenor.add_to_date(period_start, Some(cal), business_day_convention)?;
-            let fixing = resolve_fixing_date(period_start, idx_conv)?;
+            let (period_start, period_end) = match fut_conv.reference_period {
+                IrFutureReferencePeriod::ForwardStarting => {
+                    let period_start_unadj =
+                        expiry.add_business_days(fut_conv.settlement_days, cal)?;
+                    let period_start = adjust(period_start_unadj, business_day_convention, cal)?;
+                    let delivery_tenor = finstack_quant_core::dates::Tenor::new(
+                        fut_conv.delivery_months as u32,
+                        TenorUnit::Months,
+                    );
+                    let period_end = delivery_tenor.add_to_date(
+                        period_start,
+                        Some(cal),
+                        business_day_convention,
+                    )?;
+                    (period_start, period_end)
+                }
+                IrFutureReferencePeriod::ImmQuarterInArrears => {
+                    let period_end = third_wednesday(expiry.month(), expiry.year());
+                    let expected_expiry = period_end.add_business_days(-1, cal)?;
+                    if expiry != expected_expiry {
+                        return Err(Error::Validation(format!(
+                            "IR future {contract} expiry {expiry} must be the business day before ending IMM date {period_end}"
+                        )));
+                    }
+                    let start_month_anchor =
+                        period_end.add_months(-(fut_conv.delivery_months as i32));
+                    let period_start =
+                        third_wednesday(start_month_anchor.month(), start_month_anchor.year());
+                    (period_start, period_end)
+                }
+                IrFutureReferencePeriod::CalendarMonthInArrears => {
+                    let period_start = Date::from_calendar_date(expiry.year(), expiry.month(), 1)
+                        .map_err(|err| Error::Validation(err.to_string()))?;
+                    let period_end = period_start.add_months(1);
+                    let expected_expiry = period_end.add_business_days(-1, cal)?;
+                    if expiry != expected_expiry {
+                        return Err(Error::Validation(format!(
+                            "IR future {contract} expiry {expiry} must be the last business day of its reference month ({expected_expiry})"
+                        )));
+                    }
+                    (period_start, period_end)
+                }
+                IrFutureReferencePeriod::BusinessMonthInArrears => {
+                    let calendar_start = Date::from_calendar_date(expiry.year(), expiry.month(), 1)
+                        .map_err(|err| Error::Validation(err.to_string()))?;
+                    let calendar_end = calendar_start.add_months(1);
+                    let expected_expiry = calendar_end.add_business_days(-1, cal)?;
+                    if expiry != expected_expiry {
+                        return Err(Error::Validation(format!(
+                            "IR future {contract} expiry {expiry} must be the last business day of its reference month ({expected_expiry})"
+                        )));
+                    }
+                    (
+                        adjust(calendar_start, BusinessDayConvention::Following, cal)?,
+                        adjust(calendar_end, BusinessDayConvention::Following, cal)?,
+                    )
+                }
+            };
+            let fixing = if fut_conv.rate_averaging == crate::instruments::RateAveragingMethod::Term
+            {
+                resolve_fixing_date(period_start, idx_conv)?
+            } else {
+                period_end - time::Duration::days(1)
+            };
             Ok(RateResolvedDates::Future {
                 expiry,
                 period_start,
@@ -415,6 +474,9 @@ fn build_future(
         .contract_specs(contract_specs)
         .discount_curve_id(CurveId::new(ctx.require_curve_id("discount")?.to_string()))
         .forward_curve_id(CurveId::new(ctx.require_curve_id("forward")?.to_string()))
+        .rate_averaging(fut_conv.rate_averaging)
+        .fixing_index_id_opt(Some(fut_conv.index_id.clone()))
+        .fixing_calendar_id_opt(Some(fut_conv.calendar_id.clone()))
         .attributes(Default::default())
         .build()?;
 

@@ -3,10 +3,10 @@
 //! Covers:
 //! - [`Equity`]: spot equity PV.
 //! - [`EquityTotalReturnSwap`]: floating financing vs equity total return.
-//! - [`EquityIndexFuture`]: cost-of-carry future pricing.
+//! - [`EquityFuture`]: cost-of-carry future pricing.
 //! - [`VarianceSwap`]: fair-strike via Carr-Madan replication.
 //! - [`VolatilityIndexFuture`]: VIX-style forward contract.
-//! - [`VolatilityIndexOption`]: options on volatility indices.
+//! - [`EquityFutureOption`]: options on listed equity/volatility-index futures.
 
 #![allow(clippy::unwrap_used)]
 
@@ -23,9 +23,6 @@ use finstack_quant_core::market_data::term_structures::{
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
-use finstack_quant_valuations::instruments::equity::equity_index_future::{
-    EquityFutureSpecs, EquityIndexFuture,
-};
 use finstack_quant_valuations::instruments::equity::equity_trs::EquityTotalReturnSwap;
 use finstack_quant_valuations::instruments::equity::variance_swap::{
     PayReceive, RealizedVarMethod, VarianceSwap,
@@ -33,13 +30,14 @@ use finstack_quant_valuations::instruments::equity::variance_swap::{
 use finstack_quant_valuations::instruments::equity::vol_index_future::{
     VolIndexContractSpecs, VolatilityIndexFuture,
 };
-use finstack_quant_valuations::instruments::equity::vol_index_option::{
-    VolIndexOptionSpecs, VolatilityIndexOption,
-};
 use finstack_quant_valuations::instruments::equity::Equity;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::Position;
 use finstack_quant_valuations::instruments::{Attributes, ExerciseStyle, OptionType};
+use finstack_quant_valuations::instruments::{
+    EquityFuture, EquityFutureOption, FutureOptionModel, FutureOptionPremiumStyle,
+    FutureOptionSettlement, FutureOptionTerms, ListedFutureTerms,
+};
 use finstack_quant_valuations::instruments::{
     EquityUnderlyingParams, FinancingLegSpec, TrsScheduleSpec, TrsSide,
 };
@@ -167,19 +165,26 @@ fn equity_trs(tenor_years: i32) -> EquityTotalReturnSwap {
         .unwrap()
 }
 
-fn equity_index_future(expiry: Date, last_trade: Date, label: &str) -> EquityIndexFuture {
-    EquityIndexFuture::builder()
+fn equity_future(settlement: Date, last_trade: Date, label: &str) -> EquityFuture {
+    EquityFuture::builder()
         .id(InstrumentId::new(label))
         .underlying_ticker("SPX".to_string())
-        .notional(Money::new(2_250_000.0, Currency::USD))
-        .expiry(expiry)
-        .last_trading_date(last_trade)
-        .entry_price_opt(Some(4500.0))
-        .quoted_price_opt(Some(4550.0))
-        .position(Position::Long)
-        .contract_specs(EquityFutureSpecs::sp500_emini())
+        .underlying_currency(Currency::USD)
+        .terms(
+            ListedFutureTerms::new(
+                10.0,
+                50.0,
+                Currency::USD,
+                4500.0,
+                last_trade,
+                settlement,
+                Position::Long,
+            )
+            .unwrap(),
+        )
         .discount_curve_id(CurveId::new("USD-OIS"))
         .spot_id("SPX-SPOT".into())
+        .div_yield_id_opt(Some("SPX-DIVYIELD".into()))
         .attributes(Attributes::new())
         .build()
         .unwrap()
@@ -238,14 +243,14 @@ fn bench_equity_trs_pv(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_equity_index_future_pv(c: &mut Criterion) {
-    let mut group = c.benchmark_group("equity_index_future_pv");
+fn bench_equity_future_pv(c: &mut Criterion) {
+    let mut group = c.benchmark_group("equity_future_pv");
     let market = create_equity_market();
     let as_of = base_date();
 
-    let near_expiry = Date::from_calendar_date(2025, Month::June, 20).unwrap();
+    let near_settlement = Date::from_calendar_date(2025, Month::June, 20).unwrap();
     let near_last = Date::from_calendar_date(2025, Month::June, 19).unwrap();
-    let near = equity_index_future(near_expiry, near_last, "ES-NEAR");
+    let near = equity_future(near_settlement, near_last, "ES-NEAR");
 
     group.bench_function("near_expiry", |b| {
         b.iter(|| near.value(black_box(&market), black_box(as_of)));
@@ -307,30 +312,42 @@ fn bench_vol_index_future_pv(c: &mut Criterion) {
     group.finish();
 }
 
-/// Benchmark VIX call/put option pricing via Black-76 on VIX forward.
+/// Benchmark a listed volatility-future call via Black-76.
 ///
 /// Measures vol-of-vol surface lookup, Black-76 evaluation, and discount
 /// factor interpolation for options on a volatility index.
-fn bench_vol_index_option_pv(c: &mut Criterion) {
+fn bench_equity_future_option_pv(c: &mut Criterion) {
     let market = create_equity_market();
     let as_of = base_date();
 
-    let mut group = c.benchmark_group("vol_index_option/type");
+    let mut group = c.benchmark_group("equity_future_option/type");
     {
         let (label, opt_type) = ("call", OptionType::Call);
         let expiry = as_of + time::Duration::days(90);
-        let opt = VolatilityIndexOption::builder()
-            .id(InstrumentId::new(format!("VIX-OPT-{label}")))
-            .notional(Money::new(10_000.0, Currency::USD))
+        let terms = FutureOptionTerms::builder()
+            .underlying("VIX-FUT".to_string())
+            .futures_price(20.0)
             .strike(20.0)
+            .contracts(100.0)
+            .multiplier(100.0)
+            .currency(Currency::USD)
             .option_type(opt_type)
+            .position(Position::Long)
             .exercise_style(ExerciseStyle::European)
             .expiry(expiry)
-            .contract_specs(VolIndexOptionSpecs::vix())
+            .settlement(FutureOptionSettlement::Cash {
+                payment_date: expiry,
+            })
+            .volatility(0.80)
+            .model(FutureOptionModel::Black76)
+            .premium_style(FutureOptionPremiumStyle::PremiumPaid)
             .day_count(DayCount::Act365F)
             .discount_curve_id(CurveId::new("USD-OIS"))
-            .vol_index_curve_id(CurveId::new("VIX"))
-            .vol_of_vol_surface_id(CurveId::new("VIX-VOLVOL"))
+            .build()
+            .unwrap();
+        let opt = EquityFutureOption::builder()
+            .id(InstrumentId::new(format!("VIX-OPT-{label}")))
+            .terms(terms)
             .attributes(Attributes::new())
             .build()
             .unwrap();
@@ -346,9 +363,9 @@ criterion_group!(
     equity_pricing,
     bench_equity_pv,
     bench_equity_trs_pv,
-    bench_equity_index_future_pv,
+    bench_equity_future_pv,
     bench_variance_swap_pv,
     bench_vol_index_future_pv,
-    bench_vol_index_option_pv,
+    bench_equity_future_option_pv,
 );
 criterion_main!(equity_pricing);

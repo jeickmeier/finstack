@@ -118,15 +118,39 @@ fn all_examples_roundtrip() {
     let ex = VarianceSwap::example().unwrap();
     let id = ex.id.as_str().to_string();
     assert_roundtrip(&id, json_loader::InstrumentJson::VarianceSwap(ex));
-    let ex = EquityIndexFuture::example().unwrap();
+    let ex = EquityFuture::example().unwrap();
     let id = ex.id.as_str().to_string();
-    assert_roundtrip(&id, json_loader::InstrumentJson::EquityIndexFuture(ex));
+    assert_roundtrip(&id, json_loader::InstrumentJson::EquityFuture(ex));
     let ex = VolatilityIndexFuture::example().unwrap();
     let id = ex.id.as_str().to_string();
     assert_roundtrip(&id, json_loader::InstrumentJson::VolatilityIndexFuture(ex));
-    let ex = VolatilityIndexOption::example().unwrap();
+    let ex = InterestRateFutureOption::example().unwrap();
     let id = ex.id.as_str().to_string();
-    assert_roundtrip(&id, json_loader::InstrumentJson::VolatilityIndexOption(ex));
+    assert_roundtrip(
+        &id,
+        json_loader::InstrumentJson::InterestRateFutureOption(ex),
+    );
+    let ex = EquityFutureOption::example().unwrap();
+    let id = ex.id.as_str().to_string();
+    assert_roundtrip(&id, json_loader::InstrumentJson::EquityFutureOption(ex));
+    let ex = FxFutureOption::example().unwrap();
+    let id = ex.id.as_str().to_string();
+    assert_roundtrip(&id, json_loader::InstrumentJson::FxFutureOption(ex));
+    let ex = CommodityFutureOption::example().unwrap();
+    let id = ex.id.as_str().to_string();
+    assert_roundtrip(&id, json_loader::InstrumentJson::CommodityFutureOption(ex));
+    let ex = CommodityFuture::example().unwrap();
+    let id = ex.id.as_str().to_string();
+    assert_roundtrip(&id, json_loader::InstrumentJson::CommodityFuture(ex));
+    let ex = FxFuture::example().unwrap();
+    let id = ex.id.as_str().to_string();
+    assert_roundtrip(&id, json_loader::InstrumentJson::FxFuture(ex));
+    let ex = EquityTotalReturnFuture::example().unwrap();
+    let id = ex.id.as_str().to_string();
+    assert_roundtrip(
+        &id,
+        json_loader::InstrumentJson::EquityTotalReturnFuture(ex),
+    );
     //
     // FX
     let ex = FxSwap::example();

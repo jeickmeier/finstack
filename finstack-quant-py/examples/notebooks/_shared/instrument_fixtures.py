@@ -339,6 +339,7 @@ def ir_future(idx: int) -> tuple[str, dict]:
         "period_start": f"{y}-{m}-19",
         "period_end": f"{ey}-{em}-18",
         "quoted_price": price, "day_count": "act_360",
+        "rate_averaging": "term",
         "position": "long" if idx % 2 == 0 else "short",
         "contract_specs": {"face_value": 1000000.0, "tick_size": 0.0025,
                            "tick_value": 6.25, "delivery_months": 3, "convexity_adjustment": 0.0002},

@@ -75,7 +75,7 @@ mod schema_roundtrip {
     test_roundtrip!(plain: cms_option, CmsOption, CmsOption::example());
     test_roundtrip!(plain: cms_spread_option, CmsSpreadOption, CmsSpreadOption::example());
     test_roundtrip!(plain: cms_swap, CmsSwap, CmsSwap::example());
-    test_roundtrip!(plain: ir_future_option, IrFutureOption, IrFutureOption::example().expect("irfo"));
+    test_roundtrip!(plain: interest_rate_future_option, InterestRateFutureOption, InterestRateFutureOption::example().expect("interest-rate future option"));
     test_roundtrip!(plain: deposit, Deposit, Deposit::example().expect("dep"));
     test_roundtrip!(plain: repo, Repo, Repo::example());
     test_roundtrip!(plain: range_accrual, RangeAccrual, RangeAccrual::example());
@@ -128,9 +128,14 @@ mod schema_roundtrip {
     test_roundtrip!(plain: autocallable, Autocallable, Autocallable::example().expect("auto"));
     test_roundtrip!(plain: cliquet_option, CliquetOption, CliquetOption::example().expect("cliq"));
     test_roundtrip!(plain: variance_swap, VarianceSwap, VarianceSwap::example().expect("vs"));
-    test_roundtrip!(plain: equity_index_future, EquityIndexFuture, EquityIndexFuture::example().expect("eif"));
+    test_roundtrip!(plain: equity_future, EquityFuture, EquityFuture::example().expect("equity future"));
+    test_roundtrip!(plain: equity_future_option, EquityFutureOption, EquityFutureOption::example().expect("equity future option"));
     test_roundtrip!(plain: volatility_index_future, VolatilityIndexFuture, VolatilityIndexFuture::example().expect("vif"));
-    test_roundtrip!(plain: volatility_index_option, VolatilityIndexOption, VolatilityIndexOption::example().expect("vio"));
+    test_roundtrip!(plain: commodity_future, CommodityFuture, CommodityFuture::example().expect("commodity future"));
+    test_roundtrip!(plain: commodity_future_option, CommodityFutureOption, CommodityFutureOption::example().expect("commodity future option"));
+    test_roundtrip!(plain: fx_future, FxFuture, FxFuture::example().expect("fx future"));
+    test_roundtrip!(plain: fx_future_option, FxFutureOption, FxFutureOption::example().expect("FX future option"));
+    test_roundtrip!(plain: equity_total_return_future, EquityTotalReturnFuture, EquityTotalReturnFuture::example().expect("trf"));
     test_roundtrip!(plain: trs_equity, TrsEquity, EquityTotalReturnSwap::example().expect("etrs"));
     test_roundtrip!(plain: private_markets_fund, PrivateMarketsFund, PrivateMarketsFund::example().expect("pmf"));
     test_roundtrip!(plain: real_estate_asset, RealEstateAsset, RealEstateAsset::example().expect("rea"));

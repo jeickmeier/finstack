@@ -203,12 +203,44 @@ no_market_dependencies = false
 rationale = "The complete persisted cms_option spec implements PartialEq; registry coverage compares the concrete Rust values."
 
 [[instrument]]
-tag = "ir_future_option"
-fixture = "json_examples/ir_future_option.json"
+tag = "interest_rate_future_option"
+fixture = "json_examples/interest_rate_future_option.json"
 lossless = true
-required_keys = ["id"]
+required_keys = ["id", "terms"]
 no_market_dependencies = false
-rationale = "The complete persisted ir_future_option spec implements PartialEq; registry coverage compares the concrete Rust values."
+rationale = "The complete persisted interest_rate_future_option spec implements PartialEq; registry coverage compares the concrete Rust values."
+
+[[instrument]]
+tag = "equity_future_option"
+fixture = "json_examples/equity_future_option.json"
+lossless = true
+required_keys = ["id", "terms"]
+no_market_dependencies = false
+rationale = "The complete persisted equity_future_option spec implements PartialEq; registry coverage compares the concrete Rust values."
+
+[[instrument]]
+tag = "volatility_index_future_option"
+fixture = "json_examples/volatility_index_future_option.json"
+lossless = true
+required_keys = ["id", "terms"]
+no_market_dependencies = false
+rationale = "The complete persisted volatility_index_future_option spec implements PartialEq; registry coverage compares the concrete Rust values."
+
+[[instrument]]
+tag = "fx_future_option"
+fixture = "json_examples/fx_future_option.json"
+lossless = true
+required_keys = ["id", "terms"]
+no_market_dependencies = false
+rationale = "The complete persisted fx_future_option spec implements PartialEq; registry coverage compares the concrete Rust values."
+
+[[instrument]]
+tag = "commodity_future_option"
+fixture = "json_examples/commodity_future_option.json"
+lossless = true
+required_keys = ["id", "terms"]
+no_market_dependencies = false
+rationale = "The complete persisted commodity_future_option spec implements PartialEq; registry coverage compares the concrete Rust values."
 
 [[instrument]]
 tag = "deposit"
@@ -309,13 +341,36 @@ no_market_dependencies = false
 rationale = "The complete persisted variance_swap spec implements PartialEq; registry coverage compares the concrete Rust values."
 
 [[instrument]]
-tag = "equity_index_future"
-fixture = "json_examples/equity_index_future.json"
-lossless = false
-partial_eq_blocker = "EquityIndexFuture.contract_specs: EquityFutureSpecs"
+tag = "commodity_future"
+fixture = "json_examples/commodity_future.json"
+lossless = true
 required_keys = ["id"]
 no_market_dependencies = false
-rationale = "EquityIndexFuture.contract_specs: EquityFutureSpecs lacks PartialEq across exchange tick and multiplier terms."
+rationale = "The complete persisted commodity_future spec implements PartialEq; registry coverage compares the concrete Rust values."
+
+[[instrument]]
+tag = "fx_future"
+fixture = "json_examples/fx_future.json"
+lossless = true
+required_keys = ["id"]
+no_market_dependencies = false
+rationale = "The complete persisted fx_future spec implements PartialEq; registry coverage compares the concrete Rust values."
+
+[[instrument]]
+tag = "equity_future"
+fixture = "json_examples/equity_future.json"
+lossless = true
+required_keys = ["id"]
+no_market_dependencies = false
+rationale = "The complete persisted equity_future spec implements PartialEq; registry coverage compares the concrete Rust values."
+
+[[instrument]]
+tag = "equity_total_return_future"
+fixture = "json_examples/equity_total_return_future.json"
+lossless = true
+required_keys = ["id"]
+no_market_dependencies = false
+rationale = "The complete persisted equity_total_return_future spec implements PartialEq; registry coverage compares the concrete Rust values."
 
 [[instrument]]
 tag = "volatility_index_future"
@@ -325,15 +380,6 @@ partial_eq_blocker = "VolatilityIndexFuture.contract_specs: VolIndexContractSpec
 required_keys = ["id"]
 no_market_dependencies = false
 rationale = "VolatilityIndexFuture.contract_specs: VolIndexContractSpecs lacks PartialEq across settlement and multiplier terms."
-
-[[instrument]]
-tag = "volatility_index_option"
-fixture = "json_examples/volatility_index_option.json"
-lossless = false
-partial_eq_blocker = "VolatilityIndexOption.contract_specs: VolIndexOptionSpecs"
-required_keys = ["id"]
-no_market_dependencies = false
-rationale = "VolatilityIndexOption.contract_specs: VolIndexOptionSpecs lacks PartialEq across option settlement conventions."
 
 [[instrument]]
 tag = "fx_spot"

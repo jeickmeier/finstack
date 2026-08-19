@@ -68,7 +68,6 @@ pub fn standard_registry() -> &'static MetricRegistry {
         register_fx_instrument_metrics(&mut registry);
         register_commodity_instrument_metrics(&mut registry);
         register_exotic_instrument_metrics(&mut registry);
-
         registry
     })
 }
@@ -76,17 +75,19 @@ pub fn standard_registry() -> &'static MetricRegistry {
 fn register_equity_instrument_metrics(registry: &mut MetricRegistry) {
     crate::instruments::equity::spot::metrics::register_equity_metrics(registry);
     crate::instruments::equity::equity_option::metrics::register_equity_option_metrics(registry);
+    crate::instruments::equity::equity_future::metrics::register_equity_future_metrics(registry);
+    crate::instruments::equity::equity_total_return_future::metrics::register_equity_total_return_future_metrics(registry);
+    crate::instruments::equity::equity_future_option::metrics::register_equity_future_option_metrics(
+        registry,
+    );
+    crate::instruments::equity::vol_index_future_option::metrics::register_vol_index_future_option_metrics(
+        registry,
+    );
     crate::instruments::equity::equity_trs::metrics::register_equity_trs_metrics(registry);
     crate::instruments::equity::variance_swap::metrics::register_variance_swap_metrics(registry);
     crate::instruments::equity::pe_fund::metrics::register_private_markets_fund_metrics(registry);
     crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(registry);
     crate::instruments::equity::vol_index_future::metrics::register_vol_index_future_metrics(
-        registry,
-    );
-    crate::instruments::equity::vol_index_option::metrics::register_vol_index_option_metrics(
-        registry,
-    );
-    crate::instruments::equity::equity_index_future::metrics::register_equity_index_future_metrics(
         registry,
     );
     crate::instruments::equity::real_estate::metrics::register_real_estate_metrics(registry);
@@ -124,7 +125,7 @@ fn register_rates_instrument_metrics(registry: &mut MetricRegistry) {
     crate::instruments::rates::deposit::metrics::register_deposit_metrics(registry);
     crate::instruments::rates::fra::metrics::register_fra_metrics(registry);
     crate::instruments::rates::ir_future::metrics::register_ir_future_metrics(registry);
-    crate::instruments::rates::ir_future_option::metrics::register_ir_future_option_metrics(
+    crate::instruments::rates::ir_future_option::metrics::register_interest_rate_future_option_metrics(
         registry,
     );
     crate::instruments::rates::inflation_swap::metrics::register_inflation_swap_metrics(registry);
@@ -172,6 +173,8 @@ fn register_fx_instrument_metrics(registry: &mut MetricRegistry) {
     crate::instruments::fx::fx_spot::metrics::register_fx_spot_metrics(registry);
     crate::instruments::fx::fx_swap::metrics::register_fx_swap_metrics(registry);
     crate::instruments::fx::fx_forward::metrics::register_fx_forward_metrics(registry);
+    crate::instruments::fx::fx_future::metrics::register_fx_future_metrics(registry);
+    crate::instruments::fx::fx_future_option::metrics::register_fx_future_option_metrics(registry);
     crate::instruments::fx::ndf::metrics::register_ndf_metrics(registry);
     crate::instruments::fx::fx_option::metrics::register_fx_option_metrics(registry);
     crate::instruments::fx::fx_variance_swap::metrics::register_fx_variance_swap_metrics(registry);
@@ -186,6 +189,12 @@ fn register_fx_instrument_metrics(registry: &mut MetricRegistry) {
 
 fn register_commodity_instrument_metrics(registry: &mut MetricRegistry) {
     crate::instruments::commodity::commodity_forward::metrics::register_commodity_forward_metrics(
+        registry,
+    );
+    crate::instruments::commodity::commodity_future::metrics::register_commodity_future_metrics(
+        registry,
+    );
+    crate::instruments::commodity::commodity_future_option::metrics::register_commodity_future_option_metrics(
         registry,
     );
     crate::instruments::commodity::commodity_swap::metrics::register_commodity_swap_metrics(

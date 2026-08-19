@@ -499,7 +499,7 @@
             },
             "expiry": {
               "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-              "description": "Expiry date of the future."
+              "description": "Last trading date of the future.\n\nThe convention registry derives the underlying reference period from\nthis date. For in-arrears IMM contracts such as `CME:SR3`, pass the\nbusiness day before the ending IMM Wednesday, not the named contract\nmonth's starting IMM date."
             },
             "id": {
               "$ref": "#/$defs/QuoteId",

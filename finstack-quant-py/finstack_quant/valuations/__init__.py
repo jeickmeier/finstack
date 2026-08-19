@@ -20,6 +20,7 @@ from finstack_quant.valuations import (
     correlation as correlation,
     credit_derivatives as credit_derivatives,
     instruments as instruments,
+    market as market,
     models as models,
 )
 from finstack_quant.valuations.envelope import CalibrationEnvelope as CalibrationEnvelope
@@ -150,6 +151,7 @@ __all__: list[str] = [
     "instruments",
     "inverse_floater_coupon_profile",
     "lookback_option_price",
+    "market",
     "merton_jump_cos_price",
     "models",
     "quanto_option_price",

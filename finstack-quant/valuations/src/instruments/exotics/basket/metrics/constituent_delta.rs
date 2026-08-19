@@ -167,7 +167,7 @@ fn asset_type_for_instrument_key(key: crate::pricer::InstrumentType) -> AssetTyp
     match key {
         InstrumentType::Equity
         | InstrumentType::EquityOption
-        | InstrumentType::EquityIndexFuture
+        | InstrumentType::EquityFuture
         | InstrumentType::EquityTotalReturnSwap => AssetType::Equity,
         InstrumentType::Bond
         | InstrumentType::BondFuture

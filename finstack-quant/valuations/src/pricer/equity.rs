@@ -1,13 +1,36 @@
 //! Pricer registrations for equity instruments.
 //!
-//! Covers: Equity, EquityOption, EquityTotalReturnSwap, VarianceSwap,
-//! EquityIndexFuture, VolatilityIndexFuture, VolatilityIndexOption,
+//! Covers: Equity, EquityFuture, EquityFutureOption, VolatilityIndexFutureOption,
+//! EquityTotalReturnFuture, EquityOption,
+//! EquityTotalReturnSwap, VarianceSwap,
+//! VolatilityIndexFuture,
 //! RealEstateAsset, LeveredRealEstateEquity, PrivateMarketsFund.
 
 use super::{register_generic, InstrumentType, ModelKey, PricerRegistry};
 
 /// Register pricers for equity instruments.
 pub(crate) fn register_equity_pricers(registry: &mut PricerRegistry) {
+    register_generic!(
+        registry,
+        InstrumentType::EquityFuture,
+        crate::instruments::EquityFuture
+    );
+    register_generic!(
+        registry,
+        InstrumentType::EquityTotalReturnFuture,
+        crate::instruments::EquityTotalReturnFuture
+    );
+    register_generic!(
+        registry,
+        InstrumentType::EquityFutureOption,
+        crate::instruments::EquityFutureOption
+    );
+    register_generic!(
+        registry,
+        InstrumentType::VolatilityIndexFutureOption,
+        crate::instruments::VolatilityIndexFutureOption
+    );
+
     register_generic!(
         registry,
         InstrumentType::Equity,
@@ -48,25 +71,11 @@ pub(crate) fn register_equity_pricers(registry: &mut PricerRegistry) {
         crate::instruments::equity::variance_swap::VarianceSwap
     );
 
-    // Equity Index Future - uses GenericInstrumentPricer
-    register_generic!(
-        registry,
-        InstrumentType::EquityIndexFuture,
-        crate::instruments::EquityIndexFuture
-    );
-
     // Volatility Index Future
     register_generic!(
         registry,
         InstrumentType::VolatilityIndexFuture,
         crate::instruments::equity::vol_index_future::VolatilityIndexFuture
-    );
-
-    // Volatility Index Option
-    register_generic!(
-        registry,
-        InstrumentType::VolatilityIndexOption,
-        crate::instruments::equity::vol_index_option::VolatilityIndexOption
     );
 
     // Real Estate Asset - uses GenericInstrumentPricer (curve dependencies)

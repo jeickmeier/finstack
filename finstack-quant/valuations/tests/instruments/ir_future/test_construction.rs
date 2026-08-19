@@ -5,7 +5,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::rates::ir_future::{
-    FutureContractSpecs, InterestRateFuture,
+    FutureContractSpecs, InterestRateFuture, RateAveragingMethod,
 };
 use finstack_quant_valuations::instruments::Position;
 
@@ -82,11 +82,15 @@ fn test_multiple_contracts() {
         period_start: Some(start),
         period_end: Some(end),
         quoted_price: 97.50,
+        settlement_price: None,
         day_count: DayCount::Act360,
         position: Position::Long,
         contract_specs: FutureContractSpecs::default(),
         discount_curve_id: "USD_OIS".into(),
         forward_curve_id: "USD_LIBOR_3M".into(),
+        rate_averaging: RateAveragingMethod::Term,
+        fixing_index_id: None,
+        fixing_calendar_id: None,
         vol_surface_id: None,
         instrument_pricing_overrides: Default::default(),
         metric_pricing_overrides: Default::default(),
@@ -116,11 +120,15 @@ fn test_different_day_counts() {
             period_start: Some(start),
             period_end: Some(end),
             quoted_price: 97.50,
+            settlement_price: None,
             day_count,
             position: Position::Long,
             contract_specs: FutureContractSpecs::default(),
             discount_curve_id: "USD_OIS".into(),
             forward_curve_id: "USD_LIBOR_3M".into(),
+            rate_averaging: RateAveragingMethod::Term,
+            fixing_index_id: None,
+            fixing_calendar_id: None,
             vol_surface_id: None,
             instrument_pricing_overrides: Default::default(),
             metric_pricing_overrides: Default::default(),

@@ -12,20 +12,21 @@ Instruments are grouped by asset class. Each leaf directory is one instrument.
 
 ```
 instruments/
-├── common_impl/          # crate-private: Instrument trait, parameters, pricing helpers
-├── commodity/            # asian option, forward, option, spread option, swap, swaption
+├── common_impl/          # crate-private: traits, shared listed terms/future-option mechanics,
+│                         # parameters and pricing helpers
+├── commodity/            # asian option, forward, listed commodity future, option, swap
 ├── credit_derivatives/   # cds, cds_index, cds_option, cds_tranche
 ├── equity/               # spot, option, TRS, variance swap, autocallable, cliquet,
-│                         # DCF, PE fund, real estate, index/vol-index futures & options
+│                         # DCF, listed equity/TRF futures, PE fund, real estate, vol future
 ├── exotics/              # asian, barrier, basket, lookback, range accrual,
 │                         # callable range accrual, snowball, tarn
 ├── fixed_income/         # bond, bond future, convertible, ILB, term loan,
 │                         # revolving credit, structured credit, MBS/TBA/CMO,
 │                         # dollar roll, FI index TRS
-├── fx/                   # spot, forward, swap, NDF, option, barrier, digital,
-│                         # touch, variance swap, quanto
+├── fx/                   # spot, forward, listed future, swap, NDF, option, barrier,
+│                         # digital, touch, variance swap, quanto
 └── rates/                # irs, basis swap, xccy swap, cap/floor, swaption,
-                          # deposit, fra, repo, IR future & option, CMS family,
+                          # deposit, fra, repo, IR future, CMS family,
                           # inflation swap / cap-floor, hw1f
 ```
 
@@ -96,7 +97,7 @@ deserialize time. `InstrumentJson::into_boxed()` produces a
 The `with_instrument_json_registry!` macro is the single source of truth for the
 registry: the `InstrumentJson` enum definition, the deserialize tag map,
 `into_boxed`, `registry_tags`, and the schema-parity check are all generated
-from it. It currently lists 71 instrument types.
+from it.
 
 ## Adding an instrument
 
@@ -130,6 +131,6 @@ from it. It currently lists 71 instrument types.
   [cds_option](credit_derivatives/cds_option/README.md),
   [cds_tranche](credit_derivatives/cds_tranche/README.md),
   [bond_future](fixed_income/bond_future/README.md),
-  [equity_index_future](equity/equity_index_future/README.md),
+  [listed instrument mechanics](common_impl/listed/README.md),
   [real_estate](equity/real_estate/README.md),
   [range_accrual](exotics/range_accrual/README.md)

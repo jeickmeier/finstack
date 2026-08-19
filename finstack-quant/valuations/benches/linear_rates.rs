@@ -17,7 +17,7 @@ use finstack_quant_valuations::instruments::rates::cap_floor::{CapFloor, RateOpt
 use finstack_quant_valuations::instruments::rates::deposit::Deposit;
 use finstack_quant_valuations::instruments::rates::fra::ForwardRateAgreement;
 use finstack_quant_valuations::instruments::rates::ir_future::{
-    FutureContractSpecs, InterestRateFuture,
+    FutureContractSpecs, InterestRateFuture, RateAveragingMethod,
 };
 use finstack_quant_valuations::instruments::rates::repo::{CollateralSpec, Repo};
 use finstack_quant_valuations::instruments::Position;
@@ -241,6 +241,7 @@ fn ir_future() -> InterestRateFuture {
         period_start: Some(start),
         period_end: Some(end),
         quoted_price: 97.50,
+        settlement_price: None,
         day_count: DayCount::Act360,
         position: Position::Long,
         contract_specs: FutureContractSpecs {
@@ -249,6 +250,9 @@ fn ir_future() -> InterestRateFuture {
         },
         discount_curve_id: CurveId::new("USD-OIS"),
         forward_curve_id: CurveId::new("USD-SOFR-3M"),
+        rate_averaging: RateAveragingMethod::Term,
+        fixing_index_id: None,
+        fixing_calendar_id: None,
         vol_surface_id: None,
         instrument_pricing_overrides: Default::default(),
         metric_pricing_overrides: Default::default(),

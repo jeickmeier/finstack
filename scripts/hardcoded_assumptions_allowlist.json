@@ -2078,12 +2078,6 @@
       "reason": "Market-convention plumbing, validation, or canonical constructor label; mutable convention tables live in registries."
     },
     {
-      "path": "finstack-quant/valuations/src/instruments/equity/vol_index_option/pricer.rs",
-      "category": "contract_spec",
-      "contains": "Ok(vega_per_point * option.contract_specs.multiplier * option.num_contracts() * df * 0.01)",
-      "reason": "Contract-spec formula, unit multiplier, or API label; exchange/product specs live in contract-spec registries."
-    },
-    {
       "path": "finstack-quant/valuations/src/instruments/fixed_income/bond/cashflow_spec.rs",
       "category": "market_convention",
       "contains": "calendar_id: \"weekends_only\".to_string(),",
@@ -2682,30 +2676,6 @@
       "category": "contract_spec",
       "contains": "contracts_scale = if self.contract_specs.face_value > 0.0",
       "reason": "Runtime scale guard, not a contract-spec default."
-    },
-    {
-      "path": "finstack-quant/valuations/src/instruments/rates/ir_future_option/types.rs",
-      "category": "contract_spec",
-      "contains": "if !self.tick_size.is_finite() || self.tick_size <= 0.0 {",
-      "reason": "Contract-spec formula, unit multiplier, or API label; exchange/product specs live in contract-spec registries."
-    },
-    {
-      "path": "finstack-quant/valuations/src/instruments/rates/ir_future_option/types.rs",
-      "category": "contract_spec",
-      "contains": "if !self.tick_value.is_finite() || self.tick_value <= 0.0 {",
-      "reason": "Contract-spec formula, unit multiplier, or API label; exchange/product specs live in contract-spec registries."
-    },
-    {
-      "path": "finstack-quant/valuations/src/instruments/rates/ir_future_option/types.rs",
-      "category": "contract_spec",
-      "contains": "tick_size must be positive",
-      "reason": "Validation error text; default tick specs are sourced from IR future conventions."
-    },
-    {
-      "path": "finstack-quant/valuations/src/instruments/rates/ir_future_option/types.rs",
-      "category": "contract_spec",
-      "contains": "tick_value must be positive",
-      "reason": "Validation error text; default tick specs are sourced from IR future conventions."
     },
     {
       "path": "finstack-quant/valuations/src/instruments/rates/irs/cashflow.rs",

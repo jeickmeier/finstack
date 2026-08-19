@@ -7,6 +7,81 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::fx::FxQuery;
 use finstack_quant_core::types::{CurveId, PriceId};
 
+/// Inputs for a covered-interest-parity FX forward rate.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct FxForwardRateRequest<'a> {
+    /// Market data context.
+    pub(crate) market: &'a MarketContext,
+    /// Valuation date.
+    pub(crate) as_of: Date,
+    /// Forward maturity date.
+    pub(crate) maturity: Date,
+    /// Base currency of the quoted pair.
+    pub(crate) base_currency: Currency,
+    /// Quote currency of the quoted pair.
+    pub(crate) quote_currency: Currency,
+    /// Quote-currency discount curve.
+    pub(crate) domestic_discount_curve_id: &'a CurveId,
+    /// Base-currency discount curve.
+    pub(crate) foreign_discount_curve_id: &'a CurveId,
+    /// Optional quote-per-base spot override.
+    pub(crate) spot_rate_override: Option<f64>,
+    /// Label included in validation errors.
+    pub(crate) context: &'a str,
+}
+
+/// Compute `S × DF_base / DF_quote` with date-based discount factors.
+pub(crate) fn covered_interest_parity_forward(
+    request: FxForwardRateRequest<'_>,
+) -> finstack_quant_core::Result<f64> {
+    if request.maturity <= request.as_of {
+        return Err(finstack_quant_core::InputError::Invalid.into());
+    }
+    let domestic = request
+        .market
+        .get_discount(request.domestic_discount_curve_id.as_str())?;
+    let foreign = request
+        .market
+        .get_discount(request.foreign_discount_curve_id.as_str())?;
+    let df_domestic = domestic.df_between_dates(request.as_of, request.maturity)?;
+    let df_foreign = foreign.df_between_dates(request.as_of, request.maturity)?;
+    if !df_domestic.is_finite() || df_domestic <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "{} domestic discount factor ({df_domestic}) is invalid for maturity {}",
+            request.context, request.maturity
+        )));
+    }
+    if !df_foreign.is_finite() || df_foreign <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "{} foreign discount factor ({df_foreign}) is invalid for maturity {}",
+            request.context, request.maturity
+        )));
+    }
+    let spot = if let Some(spot) = request.spot_rate_override {
+        spot
+    } else {
+        let matrix = request.market.fx().ok_or_else(|| {
+            finstack_quant_core::Error::from(finstack_quant_core::InputError::NotFound {
+                id: "fx_matrix".to_string(),
+            })
+        })?;
+        matrix
+            .rate(FxQuery::new(
+                request.base_currency,
+                request.quote_currency,
+                request.as_of,
+            ))?
+            .rate
+    };
+    if !spot.is_finite() || spot <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "{} spot must be finite and positive, got {spot}",
+            request.context
+        )));
+    }
+    Ok(spot * df_foreign / df_domestic)
+}
+
 /// Source for the FX spot used by an option-style FX pricer.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum FxSpotSource<'a> {

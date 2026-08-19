@@ -199,29 +199,40 @@ pub use fixed_income::{
 pub use rates::{
     BasisSwap, BermudanSwaption, CapFloor, CmsOption, CmsSpreadOption, CmsSpreadOptionType,
     CmsSwap, CollateralSpec, CollateralType, Deposit, ForwardRateAgreement, InflationCapFloor,
-    InflationCapFloorType, InflationSwap, InterestRateFuture, InterestRateSwap, IrFutureOption,
-    RateOptionType, Repo, RepoType, Swaption, XccySwap, YoYInflationSwap,
+    InflationCapFloorType, InflationSwap, InterestRateFuture, InterestRateSwap,
+    RateAveragingMethod, RateOptionType, Repo, RepoType, Swaption, XccySwap, YoYInflationSwap,
 };
 
 pub use credit_derivatives::{CDSIndex, CDSOption, CDSTranche, CreditDefaultSwap};
 
 pub use equity::{
-    Autocallable, CliquetOption, DiscountedCashFlow, Equity, EquityFutureSpecs, EquityIndexFuture,
-    EquityOption, EquityTotalReturnSwap, FinalPayoffType, LeveredRealEstateEquity,
-    PrivateMarketsFund, RealEstateAsset, RealEstateValuationMethod, TerminalValueSpec,
-    VarianceSwap, VolIndexContractSpecs, VolIndexOptionSpecs, VolatilityIndexFuture,
-    VolatilityIndexOption,
+    Autocallable, CliquetOption, DiscountedCashFlow, Equity, EquityFuture, EquityFutureOption,
+    EquityFutureQuantoSpec, EquityOption, EquityTotalReturnFuture, EquityTotalReturnSwap,
+    FinalPayoffType, LeveredRealEstateEquity, PrivateMarketsFund, RealEstateAsset,
+    RealEstateValuationMethod, TerminalValueSpec, VarianceSwap, VolIndexContractSpecs,
+    VolatilityIndexFuture, VolatilityIndexFutureOption,
 };
 
 pub use fx::FxVarianceSwap;
 pub use fx::{
     BarrierDirection, DigitalPayoutType, FxDigitalOption, FxTouchOption, PayoutTiming, TouchType,
 };
-pub use fx::{FxBarrierOption, FxForward, FxOption, FxSpot, FxSwap, Ndf, QuantoOption};
+pub use fx::{
+    FxBarrierOption, FxForward, FxFuture, FxFutureOption, FxOption, FxSpot, FxSwap, Ndf,
+    QuantoOption,
+};
 
 pub use commodity::{
-    CommodityAsianOption, CommodityForward, CommodityOption, CommoditySpreadOption, CommoditySwap,
+    CommodityAsianOption, CommodityForward, CommodityFuture, CommodityFutureOption,
+    CommodityFutureSettlement, CommodityOption, CommoditySpreadOption, CommoditySwap,
     CommoditySwaption,
+};
+
+pub use rates::InterestRateFutureOption;
+
+pub use common_impl::listed::{
+    FutureOptionExercise, FutureOptionModel, FutureOptionPremiumStyle, FutureOptionSettlement,
+    FutureOptionTerms, ListedDeliveryObligation, ListedFutureSettlement, ListedFutureTerms,
 };
 
 pub use composite::{

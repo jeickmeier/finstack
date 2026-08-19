@@ -178,6 +178,12 @@ impl MetricId {
     /// Running coupon sensitivity per basis point (CDS Tranche)
     pub const SpreadDv01: Self = Self(Cow::Borrowed("spread_dv01"));
 
+    /// Listed total-return-future value sensitivity to a +1bp financing-spread move.
+    ///
+    /// Units: settlement currency per 1bp change in the contract's quoted
+    /// annualized financing spread.
+    pub const Spread01: Self = Self(Cow::Borrowed("spread01"));
+
     /// Correlation sensitivity per 1% change (unified for all correlation risks)
     pub const Correlation01: Self = Self(Cow::Borrowed("correlation01"));
 

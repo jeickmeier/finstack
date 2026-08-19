@@ -106,12 +106,14 @@ pub(crate) fn instrument_summary(tag: &str) -> &'static str {
         }
         "dollar_roll" => "Simultaneous TBA sale and forward repurchase.",
         "equity" => "Cash equity position.",
-        "equity_index_future" => "Future on an equity index.",
+        "equity_future" => "Listed equity future with optional fixed-currency quanto.",
+        "equity_total_return_future" => "Listed equity total-return future and financing spread.",
         "equity_option" => "European or American option on a single equity.",
         "forward_rate_agreement" => "Single-period forward rate agreement.",
         "fx_barrier_option" => "FX option with a knock-in or knock-out barrier.",
         "fx_digital_option" => "FX option paying a fixed amount if in the money.",
         "fx_forward" => "Outright FX forward.",
+        "fx_future" => "Exchange-listed future on a deliverable currency pair.",
         "fx_option" => "Vanilla European FX option.",
         "fx_spot" => "Spot foreign-exchange trade.",
         "fx_swap" => "Near- and far-leg FX swap.",
@@ -121,8 +123,10 @@ pub(crate) fn instrument_summary(tag: &str) -> &'static str {
         "inflation_linked_bond" => "Bond whose principal and coupons index to a price level.",
         "inflation_swap" => "Zero-coupon inflation swap on a price index.",
         "interest_rate_future" => "Exchange-traded short-rate future.",
+        "interest_rate_future_option" => {
+            "Listed or bilateral option on an interest-rate futures price."
+        }
         "interest_rate_swap" => "Vanilla fixed-versus-floating interest-rate swap.",
-        "ir_future_option" => "Option on a short-rate future, Black or Bachelier quoted.",
         "levered_real_estate_equity" => "Property equity net of its financing stack.",
         "lookback_option" => "Option struck on the path maximum or minimum.",
         "ndf" => "Non-deliverable forward cash-settled against a fixing.",
@@ -132,6 +136,10 @@ pub(crate) fn instrument_summary(tag: &str) -> &'static str {
         "quanto_option" => {
             "Option on a foreign asset settled in the domestic currency at a fixed rate."
         }
+        "commodity_future" => "Linear listed future on a single or average observed price.",
+        "commodity_future_option" => "Exchange-listed option on a commodity future.",
+        "equity_future_option" => "Exchange-listed option on an equity future.",
+        "fx_future_option" => "Exchange-listed option on an FX future.",
         "range_accrual" => "Coupon accruing only on days the index sits inside a range.",
         "real_estate_asset" => "Direct property asset with rent roll and exit assumptions.",
         "repo" => "Repurchase agreement against posted collateral.",
@@ -147,7 +155,7 @@ pub(crate) fn instrument_summary(tag: &str) -> &'static str {
         }
         "variance_swap" => "Swap on realised variance against a strike.",
         "volatility_index_future" => "Future on a volatility index such as VIX.",
-        "volatility_index_option" => "Option on a volatility-index future.",
+        "volatility_index_future_option" => "Exchange-listed option on a volatility-index future.",
         "xccy_swap" => "Cross-currency swap with notional exchange and a basis spread.",
         "yoy_inflation_swap" => "Year-on-year inflation swap.",
         _ => "Canonical single-instrument v1 envelope.",
@@ -177,10 +185,10 @@ macro_rules! with_instrument_json_registry {
             plain: Swaption(Swaption) => "swaption" @ "rates" = infallible_example(Swaption::example());
             plain: BermudanSwaption(BermudanSwaption) => "bermudan_swaption" @ "rates" = infallible_example(BermudanSwaption::example());
             plain: InterestRateFuture(InterestRateFuture) => "interest_rate_future" @ "rates" = InterestRateFuture::example();
+            plain: InterestRateFutureOption(InterestRateFutureOption) => "interest_rate_future_option" @ "rates" = InterestRateFutureOption::example();
             plain: CapFloor(CapFloor) => "cap_floor" @ "rates" = CapFloor::example();
             plain: CmsSwap(CmsSwap) => "cms_swap" @ "rates" = infallible_example(CmsSwap::example());
             plain: CmsOption(CmsOption) => "cms_option" @ "rates" = infallible_example(CmsOption::example());
-            plain: IrFutureOption(IrFutureOption) => "ir_future_option" @ "rates" = IrFutureOption::example();
             plain: Deposit(Deposit) => "deposit" @ "rates" = Deposit::example();
             plain: Repo(Repo) => "repo" @ "rates" = infallible_example(Repo::example());
             plain: CreditDefaultSwap(CreditDefaultSwap) => "credit_default_swap" @ "credit_derivatives" = infallible_example(CreditDefaultSwap::example());
@@ -193,9 +201,8 @@ macro_rules! with_instrument_json_registry {
             plain: BarrierOption(BarrierOption) => "barrier_option" @ "exotics" = BarrierOption::example();
             plain: LookbackOption(LookbackOption) => "lookback_option" @ "exotics" = LookbackOption::example();
             plain: VarianceSwap(VarianceSwap) => "variance_swap" @ "equity" = VarianceSwap::example();
-            plain: EquityIndexFuture(EquityIndexFuture) => "equity_index_future" @ "equity" = EquityIndexFuture::example();
             plain: VolatilityIndexFuture(VolatilityIndexFuture) => "volatility_index_future" @ "equity" = VolatilityIndexFuture::example();
-            plain: VolatilityIndexOption(VolatilityIndexOption) => "volatility_index_option" @ "equity" = VolatilityIndexOption::example();
+            plain: VolatilityIndexFutureOption(VolatilityIndexFutureOption) => "volatility_index_future_option" @ "equity" = VolatilityIndexFutureOption::example();
             plain: FxSpot(FxSpot) => "fx_spot" @ "fx" = FxSpot::example();
             plain: FxSwap(FxSwap) => "fx_swap" @ "fx" = infallible_example(FxSwap::example());
             plain: FxForward(FxForward) => "fx_forward" @ "fx" = FxForward::example();
@@ -212,6 +219,13 @@ macro_rules! with_instrument_json_registry {
             plain: CommoditySwap(CommoditySwap) => "commodity_swap" @ "commodity" = infallible_example(CommoditySwap::example());
             plain: CommoditySwaption(CommoditySwaption) => "commodity_swaption" @ "commodity" = infallible_example(CommoditySwaption::example());
             plain: CommoditySpreadOption(CommoditySpreadOption) => "commodity_spread_option" @ "commodity" = CommoditySpreadOption::example();
+            plain: CommodityFuture(CommodityFuture) => "commodity_future" @ "commodity" = CommodityFuture::example();
+            plain: CommodityFutureOption(CommodityFutureOption) => "commodity_future_option" @ "commodity" = CommodityFutureOption::example();
+            plain: FxFuture(FxFuture) => "fx_future" @ "fx" = FxFuture::example();
+            plain: FxFutureOption(FxFutureOption) => "fx_future_option" @ "fx" = FxFutureOption::example();
+            plain: EquityFuture(EquityFuture) => "equity_future" @ "equity" = EquityFuture::example();
+            plain: EquityFutureOption(EquityFutureOption) => "equity_future_option" @ "equity" = EquityFutureOption::example();
+            plain: EquityTotalReturnFuture(EquityTotalReturnFuture) => "equity_total_return_future" @ "equity" = EquityTotalReturnFuture::example();
             plain: Autocallable(Autocallable) => "autocallable" @ "equity" = Autocallable::example();
             plain: CliquetOption(CliquetOption) => "cliquet_option" @ "equity" = CliquetOption::example();
             plain: RangeAccrual(RangeAccrual) => "range_accrual" @ "exotics" = infallible_example(RangeAccrual::example());
@@ -895,7 +909,6 @@ mod tests {
             "DilutionSecurity",
             "DrawRepayEvent",
             "EquityBridge",
-            "EquityFutureSpecs",
             "FutureContractSpecs",
             "PacCollar",
             "RevolvingCreditFees",
@@ -904,7 +917,6 @@ mod tests {
             "TrancheStructure",
             "ValuationDiscounts",
             "VolIndexContractSpecs",
-            "VolIndexOptionSpecs",
         ] {
             assert_eq!(
                 schema["$defs"][definition]["additionalProperties"], false,

@@ -1,12 +1,23 @@
 //! Pricer registrations for FX instruments.
 //!
-//! Covers: FxSpot, FxSwap, XccySwap, FxOption, FxVarianceSwap, FxForward, Ndf,
+//! Covers: FxSpot, FxFuture, FxFutureOption, FxSwap, XccySwap, FxOption, FxVarianceSwap, FxForward, Ndf,
 //! FxBarrierOption, FxDigitalOption, FxTouchOption.
 
 use super::{register_generic, InstrumentType, ModelKey, PricerRegistry};
 
 /// Register pricers for FX instruments.
 pub(crate) fn register_fx_pricers(registry: &mut PricerRegistry) {
+    register_generic!(
+        registry,
+        InstrumentType::FxFuture,
+        crate::instruments::FxFuture
+    );
+    register_generic!(
+        registry,
+        InstrumentType::FxFutureOption,
+        crate::instruments::FxFutureOption
+    );
+
     // FX Spot
     register_generic!(registry, InstrumentType::FxSpot, crate::instruments::FxSpot);
 

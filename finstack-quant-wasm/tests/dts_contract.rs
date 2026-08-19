@@ -280,6 +280,7 @@ fn cashflows_dts_matches_json_bridge_surface() {
         + cashflows_start;
     assert!(!dts[cashflows_start..cashflows_end].contains("bondFromCashflowsJson("));
     assert!(dts.contains("export interface ValuationInstrumentsNamespace"));
+    assert!(dts.contains("export interface ValuationMarketNamespace"));
     assert!(dts.contains("bondFromCashflowsJson("));
     assert!(dts.contains("export declare const cashflows: CashflowsNamespace;"));
 }

@@ -120,6 +120,7 @@ impl MetricId {
         MetricId::RiskyPv01,
         MetricId::RiskyAnnuity,
         MetricId::SpreadDv01,
+        MetricId::Spread01,
         MetricId::Correlation01,
         MetricId::Default01,
         MetricId::ProtectionLegPv,

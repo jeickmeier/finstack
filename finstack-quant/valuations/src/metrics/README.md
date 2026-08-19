@@ -42,7 +42,7 @@ Everything supported is re-exported from `crate::metrics`. `risk` is public.
 ## MetricId
 
 Standard IDs live in [`core/ids/`](core/ids/) and are enumerated by
-`MetricId::ALL_STANDARD` — **206 metrics** partitioned across the ten
+`MetricId::ALL_STANDARD` — **209 metrics** partitioned across the ten
 `MetricGroup` values (`Pricing`, `Carry`, `Sensitivity`, `Greeks`, `Credit`,
 `Rates`, `Fx`, `Equity`, `StructuredCredit`, `Alternatives`). Every standard
 metric belongs to exactly one group, and the union of the group slices equals

@@ -14,6 +14,9 @@
 //! 3. **Builders** (`build/`): Quote-to-instrument construction logic that resolves conventions,
 //!    calculates dates, and creates concrete instrument instances ready for pricing.
 //!
+//! 4. **Listed catalog** (`listed/`): Maintained exchange product-family coverage and routing
+//!    metadata for canonical asset-class instruments.
+//!
 //! # Documentation Rules For Market APIs
 //!
 //! Market-facing docs should explicitly call out:
@@ -81,6 +84,8 @@ pub(crate) mod build;
 /// Market conventions and registries.
 pub mod conventions;
 pub mod credit_option_vol;
+/// Exchange-listed product-family coverage and valuation routes.
+pub mod listed;
 /// Market quote schemas.
 pub mod quotes;
 

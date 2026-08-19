@@ -6,7 +6,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::rates::ir_future::{
-    FutureContractSpecs, InterestRateFuture,
+    FutureContractSpecs, InterestRateFuture, RateAveragingMethod,
 };
 pub use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::Position;
@@ -55,6 +55,7 @@ pub fn create_standard_future(start: Date, end: Date) -> InterestRateFuture {
         period_start: Some(start),
         period_end: Some(end),
         quoted_price: 97.50, // Implies 2.5% rate
+        settlement_price: None,
         day_count: DayCount::Act360,
         position: Position::Long,
         contract_specs: FutureContractSpecs {
@@ -63,6 +64,9 @@ pub fn create_standard_future(start: Date, end: Date) -> InterestRateFuture {
         },
         discount_curve_id: "USD_OIS".into(),
         forward_curve_id: "USD_LIBOR_3M".into(),
+        rate_averaging: RateAveragingMethod::Term,
+        fixing_index_id: None,
+        fixing_calendar_id: None,
         vol_surface_id: None,
         instrument_pricing_overrides: Default::default(),
         metric_pricing_overrides: Default::default(),
@@ -89,6 +93,7 @@ pub fn create_custom_future(
         period_start: Some(period_start),
         period_end: Some(period_end),
         quoted_price,
+        settlement_price: None,
         day_count: DayCount::Act360,
         position,
         contract_specs: FutureContractSpecs {
@@ -97,6 +102,9 @@ pub fn create_custom_future(
         },
         discount_curve_id: "USD_OIS".into(),
         forward_curve_id: "USD_LIBOR_3M".into(),
+        rate_averaging: RateAveragingMethod::Term,
+        fixing_index_id: None,
+        fixing_calendar_id: None,
         vol_surface_id: None,
         instrument_pricing_overrides: Default::default(),
         metric_pricing_overrides: Default::default(),

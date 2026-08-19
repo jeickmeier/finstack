@@ -16,14 +16,14 @@
 //!   `expect_inst`
 //!
 //! The registration logic is split into asset-class submodules:
-//! - `rates`: Bond, IRS, FRA, BasisSwap, Deposit, CapFloor, Swaption, Repo, DCF, IR futures
+//! - `rates`: Bond, IRS, FRA, BasisSwap, Deposit, CapFloor, Swaption, Repo, DCF, IR futures/options
 //! - `credit`: CDS, CDSIndex, CDSTranche, CDSOption, StructuredCredit
-//! - `equity`: Equity, EquityOption, EquityTRS, VarianceSwap, EquityIndexFuture, RealEstate, PE fund
-//! - `fx`: FxSpot, FxSwap, XccySwap, FxOption, FxVarianceSwap, FxForward, NDF, FX barrier/digital/touch
+//! - `equity`: Equity, EquityFuture, EquityFutureOption, EquityTotalReturnFuture, EquityOption, EquityTRS, VarianceSwap, VolatilityIndexFuture, RealEstate, PE fund
+//! - `fx`: FxSpot, FxFuture, FxFutureOption, FxSwap, XccySwap, FxOption, FxVarianceSwap, FxForward, NDF, FX barrier/digital/touch
 //! - `fixed_income`: FIIndexTRS, Convertible, InflationLinkedBond, RevolvingCredit, TermLoan, MBS, TBA, CMO
 //! - `inflation`: InflationSwap, YoYInflationSwap, InflationCapFloor
 //! - `exotics`: Basket, Asian, Barrier, Lookback, Quanto, Autocallable, CMS, Cliquet, RangeAccrual, BermudanSwaption
-//! - `commodity`: CommodityForward, CommoditySwap, CommodityOption, CommoditySwaption, CommoditySpreadOption
+//! - `commodity`: CommodityFuture, CommodityFutureOption, CommodityForward, CommoditySwap, CommodityOption, CommoditySwaption, CommoditySpreadOption
 
 // Core submodules
 mod enrichment;

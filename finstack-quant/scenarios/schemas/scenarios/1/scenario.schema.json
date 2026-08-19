@@ -1085,11 +1085,6 @@
           "type": "string"
         },
         {
-          "const": "ir_future_option",
-          "description": "Option on interest rate future (e.g., SOFR futures option).",
-          "type": "string"
-        },
-        {
           "const": "variance_swap",
           "description": "Variance swap (volatility exposure).",
           "type": "string"
@@ -1250,16 +1245,6 @@
           "type": "string"
         },
         {
-          "const": "volatility_index_option",
-          "description": "Volatility index option (options on VIX, etc.).",
-          "type": "string"
-        },
-        {
-          "const": "equity_index_future",
-          "description": "Equity index future (ES, NQ, FESX, FDAX, Z, NK).",
-          "type": "string"
-        },
-        {
           "const": "fx_forward",
           "description": "FX forward (outright forward, single exchange at maturity).",
           "type": "string"
@@ -1322,6 +1307,51 @@
         {
           "const": "composite",
           "description": "Generic resolved basket of signed underlying instrument quantities.",
+          "type": "string"
+        },
+        {
+          "const": "commodity_future",
+          "description": "Linear listed future on a single or average observed price.",
+          "type": "string"
+        },
+        {
+          "const": "fx_future",
+          "description": "Exchange-listed future on a deliverable currency pair.",
+          "type": "string"
+        },
+        {
+          "const": "equity_future",
+          "description": "Exchange-listed equity or equity-index future, including fixed-currency quantos.",
+          "type": "string"
+        },
+        {
+          "const": "equity_total_return_future",
+          "description": "Listed equity total-return future quoted as an annualized financing spread.",
+          "type": "string"
+        },
+        {
+          "const": "interest_rate_future_option",
+          "description": "Listed or bilateral option on an interest-rate futures price.",
+          "type": "string"
+        },
+        {
+          "const": "equity_future_option",
+          "description": "Exchange-listed option on an equity or equity-index futures contract.",
+          "type": "string"
+        },
+        {
+          "const": "fx_future_option",
+          "description": "Exchange-listed option on an FX futures contract.",
+          "type": "string"
+        },
+        {
+          "const": "commodity_future_option",
+          "description": "Exchange-listed option on a commodity futures contract.",
+          "type": "string"
+        },
+        {
+          "const": "volatility_index_future_option",
+          "description": "Exchange-listed option on a volatility-index futures contract.",
           "type": "string"
         }
       ]

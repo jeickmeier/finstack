@@ -1,8 +1,6 @@
 //! Embedded exchange contract-specification registry.
 
-use crate::instruments::equity::equity_index_future::EquityFutureSpecs;
 use crate::instruments::equity::vol_index_future::VolIndexContractSpecs;
-use crate::instruments::equity::vol_index_option::VolIndexOptionSpecs;
 use crate::instruments::fixed_income::bond_future::BondFutureSpecs;
 use finstack_quant_core::dates::{BusinessDayConvention, DayCount};
 use finstack_quant_core::{Error, Result};
@@ -19,9 +17,7 @@ static EMBEDDED_REGISTRY: OnceLock<Result<ContractSpecRegistry>> = OnceLock::new
 pub(crate) struct ContractSpecRegistry {
     schema: String,
     bond_futures: Vec<BondFutureSpecRecord>,
-    equity_index_futures: Vec<EquityFutureSpecRecord>,
     vol_index_futures: Vec<VolIndexFutureSpecRecord>,
-    vol_index_options: Vec<VolIndexOptionSpecRecord>,
     repo_defaults: Vec<RepoDefaultRecord>,
 }
 
@@ -44,20 +40,6 @@ impl ContractSpecRegistry {
         })
     }
 
-    pub(crate) fn equity_index_future_specs(&self, id: &str) -> Result<EquityFutureSpecs> {
-        let record = self
-            .equity_index_futures
-            .iter()
-            .find(|record| has_id(&record.ids, id))
-            .ok_or_else(|| not_found("equity index future contract spec", id))?;
-        Ok(EquityFutureSpecs {
-            multiplier: record.multiplier,
-            tick_size: record.tick_size,
-            tick_value: record.tick_value,
-            settlement_method: record.settlement_method.clone(),
-        })
-    }
-
     pub(crate) fn vol_index_future_specs(&self, id: &str) -> Result<VolIndexContractSpecs> {
         let record = self
             .vol_index_futures
@@ -68,18 +50,6 @@ impl ContractSpecRegistry {
             multiplier: record.multiplier,
             tick_size: record.tick_size,
             tick_value: record.tick_value,
-            index_id: record.index_id.clone(),
-        })
-    }
-
-    pub(crate) fn vol_index_option_specs(&self, id: &str) -> Result<VolIndexOptionSpecs> {
-        let record = self
-            .vol_index_options
-            .iter()
-            .find(|record| has_id(&record.ids, id))
-            .ok_or_else(|| not_found("volatility index option contract spec", id))?;
-        Ok(VolIndexOptionSpecs {
-            multiplier: record.multiplier,
             index_id: record.index_id.clone(),
         })
     }
@@ -105,20 +75,8 @@ impl ContractSpecRegistry {
             self.bond_futures.iter().map(|record| record.ids.as_slice()),
         )?;
         validate_ids(
-            "equity index future contract spec",
-            self.equity_index_futures
-                .iter()
-                .map(|record| record.ids.as_slice()),
-        )?;
-        validate_ids(
             "volatility index future contract spec",
             self.vol_index_futures
-                .iter()
-                .map(|record| record.ids.as_slice()),
-        )?;
-        validate_ids(
-            "volatility index option contract spec",
-            self.vol_index_options
                 .iter()
                 .map(|record| record.ids.as_slice()),
         )?;
@@ -131,13 +89,7 @@ impl ContractSpecRegistry {
         for record in &self.bond_futures {
             record.validate()?;
         }
-        for record in &self.equity_index_futures {
-            record.validate()?;
-        }
         for record in &self.vol_index_futures {
-            record.validate()?;
-        }
-        for record in &self.vol_index_options {
             record.validate()?;
         }
         for record in &self.repo_defaults {
@@ -206,37 +158,6 @@ impl BondFutureSpecRecord {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct EquityFutureSpecRecord {
-    ids: Vec<String>,
-    source: String,
-    source_version: String,
-    effective_date: String,
-    multiplier: f64,
-    tick_size: f64,
-    tick_value: f64,
-    settlement_method: String,
-}
-
-impl EquityFutureSpecRecord {
-    fn validate(&self) -> Result<()> {
-        validate_metadata(
-            "equity index future contract spec",
-            &self.source,
-            &self.source_version,
-        )?;
-        validate_nonblank("equity index future effective date", &self.effective_date)?;
-        validate_positive(self.multiplier, "equity index future multiplier")?;
-        validate_positive(self.tick_size, "equity index future tick size")?;
-        validate_positive(self.tick_value, "equity index future tick value")?;
-        validate_nonblank(
-            "equity index future settlement method",
-            &self.settlement_method,
-        )
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 struct VolIndexFutureSpecRecord {
     ids: Vec<String>,
     source: String,
@@ -263,33 +184,6 @@ impl VolIndexFutureSpecRecord {
         validate_positive(self.tick_size, "volatility index future tick size")?;
         validate_positive(self.tick_value, "volatility index future tick value")?;
         validate_nonblank("volatility index future index id", &self.index_id)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct VolIndexOptionSpecRecord {
-    ids: Vec<String>,
-    source: String,
-    source_version: String,
-    effective_date: String,
-    multiplier: f64,
-    index_id: String,
-}
-
-impl VolIndexOptionSpecRecord {
-    fn validate(&self) -> Result<()> {
-        validate_metadata(
-            "volatility index option contract spec",
-            &self.source,
-            &self.source_version,
-        )?;
-        validate_nonblank(
-            "volatility index option effective date",
-            &self.effective_date,
-        )?;
-        validate_positive(self.multiplier, "volatility index option multiplier")?;
-        validate_nonblank("volatility index option index id", &self.index_id)
     }
 }
 
@@ -459,25 +353,13 @@ mod tests {
     }
 
     #[test]
-    fn embedded_registry_preserves_equity_and_vol_specs() {
+    fn embedded_registry_preserves_vol_future_specs() {
         let registry = embedded_registry().expect("registry should load");
-        let es = registry
-            .equity_index_future_specs("cme.es")
-            .expect("ES spec");
-        assert_eq!(es.multiplier, 50.0);
-        assert_eq!(es.tick_value, 12.5);
-
         let vix_future = registry
             .vol_index_future_specs("cboe.vix_future")
             .expect("VIX future spec");
         assert_eq!(vix_future.multiplier, 1000.0);
         assert_eq!(vix_future.index_id, "VIX");
-
-        let vix_option = registry
-            .vol_index_option_specs("cboe.vix_option")
-            .expect("VIX option spec");
-        assert_eq!(vix_option.multiplier, 100.0);
-        assert_eq!(vix_option.index_id, "VIX");
     }
 
     #[test]

@@ -51,7 +51,7 @@
 //!
 //! - [`VolatilityIndexFuture`] for instrument struct
 //! - [`VolIndexContractSpecs`] for contract specifications
-//! - [`crate::instruments::equity::vol_index_option`] for VIX options
+//! - [`crate::instruments::equity::equity_option`] for cash-settled volatility-index options
 
 pub(crate) mod metrics;
 pub(crate) mod pricer;

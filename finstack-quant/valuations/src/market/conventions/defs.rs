@@ -188,19 +188,42 @@ pub struct XccyConventions {
     pub notional_exchange: crate::instruments::rates::xccy_swap::NotionalExchange,
 }
 
+/// Rule for deriving an interest-rate future's reference period from its expiry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IrFutureReferencePeriod {
+    /// The quoted expiry precedes the term-rate period; the period starts after the
+    /// configured business-day settlement lag.
+    ForwardStarting,
+    /// The quoted expiry is the business day before the ending IMM Wednesday; the
+    /// reference period runs between IMM Wednesdays and settles in arrears.
+    ImmQuarterInArrears,
+    /// The reference period is the complete calendar month containing the quoted
+    /// expiry and settles in arrears.
+    CalendarMonthInArrears,
+    /// The reference period runs from the first business day in the expiry month
+    /// to the first business day of the following month and settles in arrears.
+    BusinessMonthInArrears,
+}
+
 /// Conventions for Interest Rate Futures.
 ///
 /// Defines market-standard parameters for interest rate future contracts, including contract
-/// specifications (face value, tick size, tick value), delivery months, settlement lags, and
-/// optional convexity adjustments. Used by futures builders to construct instruments with
-/// correct market conventions.
+/// specifications, reference-period construction, settlement lags, and optional convexity
+/// adjustments.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IrFutureConventions {
     /// Underlying rate index identifier.
     pub index_id: IndexId,
+    /// Exchange-defined averaging or fixing method for final settlement.
+    pub rate_averaging: crate::instruments::RateAveragingMethod,
+    /// Rule used to derive the rate reference period from the quoted expiry.
+    pub reference_period: IrFutureReferencePeriod,
     /// Calendar for business day adjustments.
     pub calendar_id: String,
-    /// Settlement lag in business days between expiry and period start.
+    /// Business-day lag from expiry to period start for forward-starting contracts.
+    ///
+    /// This must be zero for in-arrears reference-period rules.
     pub settlement_days: i32,
     /// Number of delivery months for the underlying rate period.
     pub delivery_months: u8,

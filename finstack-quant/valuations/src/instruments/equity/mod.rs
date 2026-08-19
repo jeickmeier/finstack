@@ -78,10 +78,14 @@ pub mod autocallable;
 pub mod cliquet_option;
 /// DCF equity module - Discounted cash flow for equity (renamed from dcf).
 pub mod dcf_equity;
-/// Equity index future module.
-pub mod equity_index_future;
+/// Exchange-listed equity, equity-index, and fixed-currency quanto futures.
+pub mod equity_future;
+/// Exchange-listed options on equity futures.
+pub mod equity_future_option;
 /// Equity option module - Vanilla equity options.
 pub mod equity_option;
+/// Exchange-listed equity and equity-index total-return futures.
+pub mod equity_total_return_future;
 /// Equity TRS module - Equity total return swaps.
 pub mod equity_trs;
 /// PE fund module - Private equity/markets funds (renamed from private_markets_fund).
@@ -97,18 +101,20 @@ pub mod spot;
 pub mod variance_swap;
 /// Volatility index future module.
 pub mod vol_index_future;
-/// Volatility index option module.
-pub mod vol_index_option;
+/// Exchange-listed options on volatility-index futures.
+pub mod vol_index_future_option;
 
 pub use autocallable::{Autocallable, FinalPayoffType};
 pub use cliquet_option::CliquetOption;
 pub use dcf_equity::{DiscountedCashFlow, TerminalValueSpec};
-pub use equity_index_future::{EquityFutureSpecs, EquityIndexFuture};
+pub use equity_future::{EquityFuture, EquityFutureQuantoSpec};
+pub use equity_future_option::EquityFutureOption;
 pub use equity_option::{EquityOption, EquityOptionMarketData};
+pub use equity_total_return_future::EquityTotalReturnFuture;
 pub use equity_trs::EquityTotalReturnSwap;
 pub use pe_fund::PrivateMarketsFund;
 pub use real_estate::{LeveredRealEstateEquity, RealEstateAsset, RealEstateValuationMethod};
 pub use spot::Equity;
 pub use variance_swap::VarianceSwap;
 pub use vol_index_future::{VolIndexContractSpecs, VolatilityIndexFuture};
-pub use vol_index_option::{VolIndexOptionSpecs, VolatilityIndexOption};
+pub use vol_index_future_option::VolatilityIndexFutureOption;

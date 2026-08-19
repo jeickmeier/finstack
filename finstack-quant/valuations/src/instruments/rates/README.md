@@ -23,8 +23,7 @@ rather than repeating it.
 | `deposit/` | Money-market deposits | Simple (uncompounded) interest. Day count and spot lag come from the index convention registry, not from the instrument: ACT/360 and T+2 for USD, EUR and CHF; ACT/365F for GBP (T+0) and JPY (T+2). Calibrates the overnight-to-1Y end of the discount curve | no |
 | `fra/` | Forward rate agreements | Settled at period start with the characteristic `1/(1 + F·τ)` adjustment; "3×6" names a 3-month rate fixing in 3 months | no |
 | `repo/` | Term, open and overnight repurchase agreements | Cash-lender perspective: outflow on the adjusted start date, principal plus simple repo interest on the adjusted maturity date. `CollateralType::Special` may move the repo rate; the haircut sizes required collateral but does not change cashflows or base PV. Implements `Marginable` with an optional `RepoMarginSpec`; margin calls, substitutions and tri-party operations are caller-generated, not modeled here | no |
-| `ir_future/` | STIR futures (SOFR, EURIBOR, historical ED/Short Sterling) | Quoted `100 − rate`; IMM expiries (third Wednesday of Mar/Jun/Sep/Dec); a convexity adjustment separates the futures rate from the forward rate when calibrating. Contract specs resolve from the convention registry (e.g. `CME:SR3`) | no |
-| `ir_future_option/` | Exchange-listed options on STIR futures | Futures price is the forward, so there is no convexity adjustment. The instrument's `vol_model` field (`swaption::VolatilityModel`) picks Black-76 (`Black`, decimal lognormal vol) or Bachelier (`Normal`, basis-point vol) — the normal leg is what makes the leaf usable on negative-rate contracts. Listed contracts are American-style but priced European, which is standard practice because futures options carry no cost of carry | no |
+| `ir_future/` | STIR futures (SOFR, CORRA, Fed Funds, EURIBOR, historical ED/Short Sterling) | Quoted `100 − rate`; supports term rates, arithmetic overnight averages, and compounded overnight rates over explicit exchange reference periods. Historical observations are strict fixings; only unobserved days project from the forward curve. Contract specs and reference-period rules resolve from the convention registry (for example `CME:SR3`, `CME:SR1`, `CME:ZQ`, `MX:COA`, and `MX:CRA`) | no |
 | `cms_swap/` | Constant-maturity swaps | Default `Black76` applies the first-order Hagan (2003) linear-swap-rate convexity adjustment at the ATM vol. Beyond roughly 10Y tenor or in high-vol regimes that understates the adjustment by ~5–10 bp; select `StaticReplication` for smile-aware pricing (requires positive forward swap rates) | no |
 | `cms_option/` | Caps, floors and options on a CMS rate | Black-76 on the convexity-adjusted CMS forward, or static replication over a swaption portfolio (Hagan 2003; Brigo–Mercurio §13.7) | no |
 | `cms_spread_option/` | Options on the spread between two CMS rates (steepener/flattener) | SABR marginals joined by a Gaussian copula, with CMS convexity from static replication. Default model is `StaticReplication` | no |
@@ -48,7 +47,7 @@ re-exported flat at `finstack_quant_valuations::instruments`:
 `InterestRateSwap`, `BasisSwap`, `XccySwap`, `CapFloor`, `RateOptionType`,
 `Swaption`, `BermudanSwaption`, `CmsSwap`, `CmsOption`, `CmsSpreadOption`,
 `CmsSpreadOptionType`, `Deposit`, `ForwardRateAgreement`, `InterestRateFuture`,
-`IrFutureOption`, `Repo`, `RepoType`, `CollateralSpec`, `CollateralType`,
+`Repo`, `RepoType`, `CollateralSpec`, `CollateralType`,
 `InflationSwap`, `YoYInflationSwap`, `InflationCapFloor`,
 `InflationCapFloorType`.
 
@@ -120,7 +119,7 @@ Landing sites for this family are spread across four pricer shards, which are
 
 | Leaf | Pricer shard |
 |------|--------------|
-| `irs`, `basis_swap`, `deposit`, `fra`, `repo`, `ir_future`, `ir_future_option`, `cap_floor`, `swaption` (European: Black-76, Discounting, HullWhite1F) | `src/pricer/rates.rs` |
+| `irs`, `basis_swap`, `deposit`, `fra`, `repo`, `ir_future`, `cap_floor`, `swaption` (European: Black-76, Discounting, HullWhite1F) | `src/pricer/rates.rs` |
 | `xccy_swap` | `src/pricer/fx.rs` |
 | `cms_swap`, `cms_option`, `cms_spread_option`, `swaption` (Bermudan) | `src/pricer/exotics.rs` |
 | `inflation_swap`, `inflation_cap_floor` | `src/pricer/inflation.rs` |
@@ -133,7 +132,7 @@ Other steps:
   `inflation_swap`, `yoy_inflation_swap`, `inflation_cap_floor`,
   `forward_rate_agreement`, `swaption`, `bermudan_swaption`,
   `interest_rate_future`, `cap_floor`, `cms_swap`, `cms_option`,
-  `cms_spread_option`, `ir_future_option`, `deposit`, `repo`. Note `swaption/`
+  `cms_spread_option`, `deposit`, `repo`. Note `swaption/`
   and `inflation_swap/` each own two tags.
 - `register_<name>_metrics` in the leaf's `metrics/`, called from
   `register_rates_instrument_metrics` in
@@ -147,7 +146,7 @@ Other steps:
 
 Integration tests live in `../../../tests/instruments/<leaf>/`, compiled into
 the single `instruments` target. Dedicated directories exist for `irs`,
-`basis_swap`, `cap_floor`, `deposit`, `fra`, `ir_future`, `ir_future_option`,
+`basis_swap`, `cap_floor`, `deposit`, `fra`, `ir_future`,
 `cms_option`, `inflation_swap`, `inflation_cap_floor`, `repo`, `swaption` and
 `xccy_swap`. `cms_swap`, `cms_spread_option` and `hw1f` are covered by colocated
 `#[cfg(test)]` modules plus the registry/serde/dependency contract tests;

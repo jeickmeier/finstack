@@ -552,46 +552,19 @@ impl FxForward {
     /// - Required discount curves are not found
     /// - FX rate is not available and no spot override is set
     pub fn market_forward_rate(&self, market: &MarketContext, as_of: Date) -> Result<f64> {
-        use finstack_quant_core::money::fx::FxQuery;
-
-        if self.maturity <= as_of {
-            return Err(finstack_quant_core::Error::from(
-                finstack_quant_core::InputError::Invalid,
-            ));
-        }
-
-        let domestic_disc = market.get_discount(self.domestic_discount_curve_id.as_str())?;
-        let foreign_disc = market.get_discount(self.foreign_discount_curve_id.as_str())?;
-
-        let df_domestic = domestic_disc.df_between_dates(as_of, self.maturity)?;
-        let df_foreign = foreign_disc.df_between_dates(as_of, self.maturity)?;
-
-        // Guard against near-zero domestic discount factor to prevent division by zero.
-        // A DF very close to zero implies an extreme rate environment or a data error.
-        const DF_NEAR_ZERO_THRESHOLD: f64 = 1e-14;
-        if df_domestic.abs() < DF_NEAR_ZERO_THRESHOLD {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "FxForward: domestic discount factor ({}) is near zero for maturity {}, \
-                 which would cause division by zero in CIRP forward rate calculation",
-                df_domestic, self.maturity
-            )));
-        }
-
-        let spot = if let Some(rate) = self.spot_rate_override {
-            rate
-        } else if let Some(fx) = market.fx() {
-            (**fx)
-                .rate(FxQuery::new(self.base_currency, self.quote_currency, as_of))?
-                .rate
-        } else {
-            return Err(finstack_quant_core::Error::from(
-                finstack_quant_core::InputError::NotFound {
-                    id: "fx_matrix".to_string(),
-                },
-            ));
-        };
-
-        Ok(spot * df_foreign / df_domestic)
+        crate::instruments::fx::shared::covered_interest_parity_forward(
+            crate::instruments::fx::shared::FxForwardRateRequest {
+                market,
+                as_of,
+                maturity: self.maturity,
+                base_currency: self.base_currency,
+                quote_currency: self.quote_currency,
+                domestic_discount_curve_id: &self.domestic_discount_curve_id,
+                foreign_discount_curve_id: &self.foreign_discount_curve_id,
+                spot_rate_override: self.spot_rate_override,
+                context: "FxForward",
+            },
+        )
     }
 
     fn contractual_forward_rate(&self, market: &MarketContext, as_of: Date) -> Result<f64> {

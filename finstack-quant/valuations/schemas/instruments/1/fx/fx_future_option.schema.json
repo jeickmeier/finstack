@@ -1,0 +1,390 @@
+{
+  "$defs": {
+    "ExerciseStyle": {
+      "description": "Exercise style for options",
+      "oneOf": [
+        {
+          "const": "european",
+          "description": "European exercise (only at expiry)",
+          "type": "string"
+        },
+        {
+          "const": "american",
+          "description": "American exercise (any time before/at expiry)",
+          "type": "string"
+        },
+        {
+          "const": "bermudan",
+          "description": "Bermudan exercise (specific dates before expiry)",
+          "type": "string"
+        }
+      ]
+    },
+    "FutureOptionExercise": {
+      "additionalProperties": false,
+      "description": "Exercise or assignment observation for an option on a future.",
+      "properties": {
+        "date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Exercise date. European options require this to equal contractual expiry."
+        },
+        "futures_price": {
+          "description": "Official underlying futures price used to determine exercise.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "date",
+        "futures_price"
+      ],
+      "type": "object"
+    },
+    "FutureOptionModel": {
+      "description": "Quotation model used for an option on a futures price.",
+      "oneOf": [
+        {
+          "const": "black76",
+          "description": "Black-76 with decimal lognormal volatility and positive price/strike.",
+          "type": "string"
+        },
+        {
+          "const": "normal",
+          "description": "Bachelier with normal volatility in futures-price points per square-root year.",
+          "type": "string"
+        }
+      ]
+    },
+    "FutureOptionPremiumStyle": {
+      "description": "Premium-settlement convention.",
+      "oneOf": [
+        {
+          "const": "premium_paid",
+          "description": "Premium is paid up front, so the expected expiry payoff is discounted.",
+          "type": "string"
+        },
+        {
+          "const": "futures_style",
+          "description": "Option value is variation-margined, so its quoted value is undiscounted.",
+          "type": "string"
+        }
+      ]
+    },
+    "FutureOptionSettlement": {
+      "description": "Settlement delivered by exercise or assignment.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Cash payment of intrinsic value on the supplied date.",
+          "properties": {
+            "payment_date": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Date on which the fixed exercise payoff is paid."
+            },
+            "type": {
+              "const": "cash",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "payment_date"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Delivery of a futures position entered at the option strike.",
+          "properties": {
+            "type": {
+              "const": "future",
+              "type": "string"
+            },
+            "underlying_last_trading_date": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Last trading date of the delivered underlying future."
+            },
+            "underlying_settlement_date": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Final settlement date of the delivered underlying future."
+            },
+            "underlying_settlement_price": {
+              "description": "Official final settlement of the delivered future once trading has ended.",
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "underlying_last_trading_date",
+            "underlying_settlement_date"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "FutureOptionTerms": {
+      "additionalProperties": false,
+      "description": "Shared contractual and pricing terms for an asset-owned option on a future.",
+      "properties": {
+        "contracts": {
+          "description": "Number of option contracts.",
+          "format": "double",
+          "type": "number"
+        },
+        "currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Premium, variation-margin, and settlement currency."
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day-count convention for option time and discount-rate inference."
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Settlement-currency discount curve."
+        },
+        "exercise": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FutureOptionExercise"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Recorded early-exercise or expiry observation. Required from expiry onward."
+        },
+        "exercise_style": {
+          "$ref": "#/$defs/ExerciseStyle",
+          "description": "European or American exercise convention."
+        },
+        "expiry": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Contractual option expiry."
+        },
+        "futures_price": {
+          "description": "Current futures mark in the contract's price units.",
+          "format": "double",
+          "type": "number"
+        },
+        "model": {
+          "$ref": "#/$defs/FutureOptionModel",
+          "description": "Black-76 or normal quotation model."
+        },
+        "multiplier": {
+          "description": "Settlement-currency value of one underlying futures price point per contract.",
+          "format": "double",
+          "type": "number"
+        },
+        "option_reference_price": {
+          "description": "Option trade or settlement reference price in option price points.\n\nRequired for [`FutureOptionPremiumStyle::FuturesStyle`]. Set this to the\ntrade price for cumulative P&L since inception or to the preceding\nofficial settlement price for one-day variation margin.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "option_type": {
+          "$ref": "#/$defs/OptionType",
+          "description": "Call or put payoff."
+        },
+        "position": {
+          "$ref": "#/$defs/Position",
+          "default": "long",
+          "description": "Long-holder or short-writer position."
+        },
+        "premium_style": {
+          "$ref": "#/$defs/FutureOptionPremiumStyle",
+          "description": "Up-front premium or futures-style variation-margin convention."
+        },
+        "settlement": {
+          "$ref": "#/$defs/FutureOptionSettlement",
+          "description": "Cash payment or delivery of an underlying future."
+        },
+        "strike": {
+          "description": "Option strike in the same futures-price points.",
+          "format": "double",
+          "type": "number"
+        },
+        "underlying": {
+          "description": "Underlying futures identifier or descriptive label.",
+          "type": "string"
+        },
+        "underlying_price_change_per_bp": {
+          "description": "Optional change in the underlying futures price, in price points, for\na one-basis-point increase in its mapped rate or yield risk factor.\n\nRate-futures-option wrappers use this caller-supplied transform to\nreport DV01 without inferring economics from an exchange symbol.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "volatility": {
+          "description": "Annualized volatility. Decimal lognormal units for Black-76; futures-price\npoints per square-root year for the normal model.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "underlying",
+        "futures_price",
+        "strike",
+        "contracts",
+        "multiplier",
+        "currency",
+        "option_type",
+        "exercise_style",
+        "expiry",
+        "settlement",
+        "volatility",
+        "model",
+        "premium_style",
+        "day_count",
+        "discount_curve_id"
+      ],
+      "type": "object"
+    },
+    "FxFutureOption": {
+      "additionalProperties": false,
+      "description": "Exchange-listed option on an arbitrary FX futures contract.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for selection and reporting."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs, including optional tree-step overrides."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "terms": {
+          "$ref": "#/$defs/FutureOptionTerms",
+          "description": "Caller-supplied option-on-future pricing and settlement terms."
+        }
+      },
+      "required": [
+        "id",
+        "terms"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "const": "finstack_quant.instrument/1",
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "type": "string"
+    },
+    "OptionType": {
+      "description": "Option type for pricing",
+      "oneOf": [
+        {
+          "const": "call",
+          "description": "Call option",
+          "type": "string"
+        },
+        {
+          "const": "put",
+          "description": "Put option",
+          "type": "string"
+        }
+      ]
+    },
+    "Position": {
+      "description": "Position direction for futures and forwards.",
+      "oneOf": [
+        {
+          "const": "long",
+          "description": "Long position (buyer of the contract).",
+          "type": "string"
+        },
+        {
+          "const": "short",
+          "description": "Short position (seller of the contract).",
+          "type": "string"
+        }
+      ]
+    },
+    "fx_future_option": {
+      "additionalProperties": false,
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/FxFutureOption"
+        },
+        "type": {
+          "const": "fx_future_option",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "spec"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_future_option.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
+  "examples": [
+    {
+      "instrument": {
+        "spec": {
+          "attributes": {},
+          "id": "FX-FUTURE-OPTION-EXAMPLE",
+          "terms": {
+            "contracts": 1.0,
+            "currency": "USD",
+            "day_count": "act_365f",
+            "discount_curve_id": "USD-OIS",
+            "exercise_style": "european",
+            "expiry": "2026-12-14",
+            "futures_price": 100.0,
+            "model": "black76",
+            "multiplier": 1.0,
+            "option_type": "call",
+            "position": "long",
+            "premium_style": "premium_paid",
+            "settlement": {
+              "payment_date": "2026-12-14",
+              "type": "cash"
+            },
+            "strike": 100.0,
+            "underlying": "UNDERLYING-FUTURE",
+            "volatility": 0.2
+          }
+        },
+        "type": "fx_future_option"
+      },
+      "schema": "finstack_quant.instrument/1"
+    }
+  ],
+  "properties": {
+    "instrument": {
+      "$ref": "#/$defs/fx_future_option"
+    },
+    "schema": {
+      "$ref": "#/$defs/InstrumentSchema"
+    }
+  },
+  "required": [
+    "schema",
+    "instrument"
+  ],
+  "title": "fx_future_option",
+  "type": "object"
+}

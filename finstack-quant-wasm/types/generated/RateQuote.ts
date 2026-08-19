@@ -90,7 +90,12 @@ id: string,
  */
 contract: string,
 /**
- * Expiry date of the future.
+ * Last trading date of the future.
+ *
+ * The convention registry derives the underlying reference period from
+ * this date. For in-arrears IMM contracts such as `CME:SR3`, pass the
+ * business day before the ending IMM Wednesday, not the named contract
+ * month's starting IMM date.
  */
 expiry: string,
 /**

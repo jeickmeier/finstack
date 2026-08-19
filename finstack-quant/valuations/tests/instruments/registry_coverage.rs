@@ -128,17 +128,55 @@ fn typed_semantic_equality(
             InstrumentJson::InterestRateFuture(first),
             InstrumentJson::InterestRateFuture(second),
         ) => Some(first == second),
+        (
+            "commodity_future",
+            InstrumentJson::CommodityFuture(first),
+            InstrumentJson::CommodityFuture(second),
+        ) => Some(first == second),
+        ("fx_future", InstrumentJson::FxFuture(first), InstrumentJson::FxFuture(second)) => {
+            Some(first == second)
+        }
+        (
+            "equity_future",
+            InstrumentJson::EquityFuture(first),
+            InstrumentJson::EquityFuture(second),
+        ) => Some(first == second),
+        (
+            "equity_total_return_future",
+            InstrumentJson::EquityTotalReturnFuture(first),
+            InstrumentJson::EquityTotalReturnFuture(second),
+        ) => Some(first == second),
+        (
+            "interest_rate_future_option",
+            InstrumentJson::InterestRateFutureOption(first),
+            InstrumentJson::InterestRateFutureOption(second),
+        ) => Some(first == second),
+        (
+            "equity_future_option",
+            InstrumentJson::EquityFutureOption(first),
+            InstrumentJson::EquityFutureOption(second),
+        ) => Some(first == second),
+        (
+            "volatility_index_future_option",
+            InstrumentJson::VolatilityIndexFutureOption(first),
+            InstrumentJson::VolatilityIndexFutureOption(second),
+        ) => Some(first == second),
+        (
+            "fx_future_option",
+            InstrumentJson::FxFutureOption(first),
+            InstrumentJson::FxFutureOption(second),
+        ) => Some(first == second),
+        (
+            "commodity_future_option",
+            InstrumentJson::CommodityFutureOption(first),
+            InstrumentJson::CommodityFutureOption(second),
+        ) => Some(first == second),
         ("cap_floor", InstrumentJson::CapFloor(first), InstrumentJson::CapFloor(second)) => {
             Some(first == second)
         }
         ("cms_option", InstrumentJson::CmsOption(first), InstrumentJson::CmsOption(second)) => {
             Some(first == second)
         }
-        (
-            "ir_future_option",
-            InstrumentJson::IrFutureOption(first),
-            InstrumentJson::IrFutureOption(second),
-        ) => Some(first == second),
         ("deposit", InstrumentJson::Deposit(first), InstrumentJson::Deposit(second)) => {
             Some(first == second)
         }
@@ -282,7 +320,7 @@ fn registry_coverage_manifest_is_checked_in() {
 /// Kept in Rust so `mise run rust-test` / CI Test Rust do not require `uv` or a
 /// Python runtime. The Python script remains the mise/`gen-check` entry point.
 fn generated_fixtures_are_valid(root: &Path) -> bool {
-    const EXPECTED_CANONICAL_FIXTURES: usize = 71;
+    const EXPECTED_CANONICAL_FIXTURES: usize = 77;
     let manifest_path = root
         .join("finstack-quant")
         .join("valuations")
@@ -416,7 +454,7 @@ fn generator_freshness_check_rejects_non_registry_fixtures() {
 #[test]
 fn public_registry_lists_only_canonical_tags() {
     let registry = registry_tags();
-    assert_eq!(registry.len(), 71, "canonical registry tag count drifted");
+    assert_eq!(registry.len(), 77, "canonical registry tag count drifted");
     assert!(registry.contains(&"snowball"));
     assert!(!registry.contains(&"inverse_floater"));
 }

@@ -1,0 +1,332 @@
+{
+  "$defs": {
+    "CommodityFuture": {
+      "additionalProperties": false,
+      "description": "Exchange-listed future whose settlement is one price or an average of prices.\n\nThis covers linear commodity and price-index futures, including monthly\naverage-settled contracts such as iron ore, energy, and freight futures.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for selection and reporting."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "price_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Price-curve identifier used for projected observations."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "settlement": {
+          "$ref": "#/$defs/CommodityFutureSettlement",
+          "description": "Official final-settlement observation rule."
+        },
+        "terms": {
+          "$ref": "#/$defs/ListedFutureTerms",
+          "description": "Standard listed position and lifecycle terms."
+        },
+        "underlying": {
+          "description": "Exchange symbol or underlying label.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "underlying",
+        "terms",
+        "price_curve_id",
+        "settlement"
+      ],
+      "type": "object"
+    },
+    "CommodityFutureSettlement": {
+      "description": "Exchange final-settlement rule for a linear commodity future.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "One official observation at the supplied date.",
+          "properties": {
+            "observation_date": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Date whose forward or realized price determines final settlement."
+            },
+            "realized_price": {
+              "description": "Official observed price once the observation date has passed.",
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "single",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "observation_date"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Equal-weight arithmetic average over explicit exchange observation dates.",
+          "properties": {
+            "fixing_dates": {
+              "description": "Ordered, unique exchange observation dates.",
+              "items": {
+                "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+              },
+              "type": "array"
+            },
+            "realized_fixings": {
+              "default": [],
+              "description": "Official prices already fixed, keyed by observation date.",
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+                  },
+                  {
+                    "format": "double",
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "arithmetic_average",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "fixing_dates"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "InstrumentSchema": {
+      "const": "finstack_quant.instrument/1",
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "type": "string"
+    },
+    "ListedFutureSettlement": {
+      "description": "Final settlement mode for a listed future.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Cash settlement of final variation margin.",
+          "properties": {
+            "type": {
+              "const": "cash",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Delivery of a standardized quantity of an identified asset.",
+          "properties": {
+            "asset": {
+              "description": "Deliverable asset, grade, location, or basket identifier.",
+              "type": "string"
+            },
+            "quantity_per_contract": {
+              "description": "Physical units delivered per exchange contract.",
+              "format": "double",
+              "type": "number"
+            },
+            "type": {
+              "const": "physical",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "asset",
+            "quantity_per_contract"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ListedFutureTerms": {
+      "additionalProperties": false,
+      "description": "Standardized position, multiplier, and lifecycle terms for a listed future.",
+      "properties": {
+        "contracts": {
+          "description": "Number of exchange contracts. Fractional values are permitted for\nportfolio aggregation but must be finite and strictly positive.",
+          "format": "double",
+          "type": "number"
+        },
+        "currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Currency in which variation margin is paid."
+        },
+        "entry_price": {
+          "description": "Trade fill price in the same price-point units as the market mark.",
+          "format": "double",
+          "type": "number"
+        },
+        "last_trading_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Final date on which the contract trades."
+        },
+        "multiplier": {
+          "description": "Settlement-currency value of one full price point per contract.",
+          "format": "double",
+          "type": "number"
+        },
+        "position": {
+          "$ref": "#/$defs/Position",
+          "description": "Long or short position direction."
+        },
+        "quoted_price": {
+          "description": "Optional live exchange mark, in price points.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "settlement": {
+          "$ref": "#/$defs/ListedFutureSettlement",
+          "default": {
+            "type": "cash"
+          },
+          "description": "Cash or physical final settlement convention."
+        },
+        "settlement_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Date on which final cash settlement is completed."
+        },
+        "settlement_price": {
+          "description": "Optional official final settlement price, in price points.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "contracts",
+        "multiplier",
+        "currency",
+        "entry_price",
+        "last_trading_date",
+        "settlement_date",
+        "position"
+      ],
+      "type": "object"
+    },
+    "Position": {
+      "description": "Position direction for futures and forwards.",
+      "oneOf": [
+        {
+          "const": "long",
+          "description": "Long position (buyer of the contract).",
+          "type": "string"
+        },
+        {
+          "const": "short",
+          "description": "Short position (seller of the contract).",
+          "type": "string"
+        }
+      ]
+    },
+    "commodity_future": {
+      "additionalProperties": false,
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/CommodityFuture"
+        },
+        "type": {
+          "const": "commodity_future",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "spec"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_future.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
+  "examples": [
+    {
+      "instrument": {
+        "spec": {
+          "attributes": {},
+          "id": "SGX-IRON-ORE-DEC26",
+          "price_curve_id": "IRON-ORE-FORWARD",
+          "settlement": {
+            "fixing_dates": [
+              "2026-12-29",
+              "2026-12-30",
+              "2026-12-31"
+            ],
+            "realized_fixings": [],
+            "type": "arithmetic_average"
+          },
+          "terms": {
+            "contracts": 10.0,
+            "currency": "USD",
+            "entry_price": 105.25,
+            "last_trading_date": "2026-12-31",
+            "multiplier": 100.0,
+            "position": "long",
+            "settlement": {
+              "type": "cash"
+            },
+            "settlement_date": "2027-01-04"
+          },
+          "underlying": "TSI-62-FE"
+        },
+        "type": "commodity_future"
+      },
+      "schema": "finstack_quant.instrument/1"
+    }
+  ],
+  "properties": {
+    "instrument": {
+      "$ref": "#/$defs/commodity_future"
+    },
+    "schema": {
+      "$ref": "#/$defs/InstrumentSchema"
+    }
+  },
+  "required": [
+    "schema",
+    "instrument"
+  ],
+  "title": "commodity_future",
+  "type": "object"
+}

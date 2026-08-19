@@ -9,7 +9,7 @@ import tomllib
 
 MANIFEST = Path("finstack-quant/valuations/tests/instruments/coverage_manifest.toml")
 INSTRUMENTS_DIR = MANIFEST.parent
-EXPECTED_CANONICAL_FIXTURES = 71
+EXPECTED_CANONICAL_FIXTURES = 77
 
 
 def canonical_fixture_entries(root: Path) -> list[tuple[str, Path]]:
@@ -22,7 +22,9 @@ def canonical_fixture_entries(root: Path) -> list[tuple[str, Path]]:
     paths = [path for _, path in entries]
     unique_paths = set(paths)
     if len(paths) != EXPECTED_CANONICAL_FIXTURES or len(unique_paths) != len(paths):
-        raise ValueError("coverage manifest must declare exactly 71 unique canonical fixtures")
+        raise ValueError(
+            f"coverage manifest must declare exactly {EXPECTED_CANONICAL_FIXTURES} unique canonical fixtures"
+        )
     return sorted(entries, key=lambda entry: entry[1].as_posix())
 
 

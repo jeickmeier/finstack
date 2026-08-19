@@ -37,6 +37,7 @@
         "period_start": "2026-06-19",
         "position": "long",
         "quoted_price": 95.7,
+        "rate_averaging": "term",
         "vol_surface_id": null
       },
       "type": "interest_rate_future"

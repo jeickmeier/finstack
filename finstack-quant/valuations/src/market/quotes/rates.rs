@@ -95,7 +95,12 @@ pub enum RateQuote {
         /// Future contract identifier (e.g. "CME:SR3").
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
         contract: IrFutureContractId,
-        /// Expiry date of the future.
+        /// Last trading date of the future.
+        ///
+        /// The convention registry derives the underlying reference period from
+        /// this date. For in-arrears IMM contracts such as `CME:SR3`, pass the
+        /// business day before the ending IMM Wednesday, not the named contract
+        /// month's starting IMM date.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
         #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]

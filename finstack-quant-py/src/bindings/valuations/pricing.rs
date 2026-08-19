@@ -164,6 +164,46 @@ fn list_models_grouped() -> std::collections::BTreeMap<String, Vec<String>> {
     finstack_quant_valuations::pricer::list_models_grouped()
 }
 
+/// Return the maintained liquid listed-derivatives coverage catalog.
+///
+/// Parameters
+/// ----------
+/// exchange : str | None, optional
+///     Exact venue filter: ``"cme"``, ``"eurex"``, ``"montreal"``, or
+///     ``"sgx"``. ``None`` returns all venues.
+///
+/// Returns
+/// -------
+/// list[dict[str, object]]
+///     Product-family rows with the canonical instrument type, exercised
+///     features, source URL, and any residual modelling gap.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``exchange`` is not one of the accepted canonical venue names, or
+///     if the embedded listed-product sidecar is invalid.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.valuations.market import listed_product_catalog
+/// >>> rows = listed_product_catalog("cme")
+/// >>> all(row["exchange"] == "cme" for row in rows)
+/// True
+#[pyfunction(signature = (exchange=None))]
+fn listed_product_catalog<'py>(
+    py: Python<'py>,
+    exchange: Option<&str>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let exchange = exchange
+        .map(str::parse::<finstack_quant_valuations::market::listed::ListedExchange>)
+        .transpose()
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
+    let rows = finstack_quant_valuations::market::listed::listed_product_catalog(exchange)
+        .map_err(core_to_py)?;
+    crate::bindings::pandas_utils::serde_to_py(py, &rows)
+}
+
 /// Per-flow cashflow envelope (DF / survival / PV) for a discountable instrument.
 ///
 /// Supported ``model`` values are ``"discounting"`` (DF-only PV) and
@@ -229,5 +269,11 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(list_standard_metrics, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(list_standard_metrics_grouped, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(instrument_cashflows_json, m)?)?;
+    Ok(())
+}
+
+/// Register listed-market catalog functions on the valuations market submodule.
+pub fn register_market(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(pyo3::wrap_pyfunction!(listed_product_catalog, m)?)?;
     Ok(())
 }

@@ -69,24 +69,26 @@ serde_contract!(
         .expect("example")
 );
 serde_contract!(
-    serde_ir_future_option,
-    finstack_quant_valuations::instruments::rates::ir_future_option::IrFutureOption,
-    finstack_quant_valuations::instruments::rates::ir_future_option::IrFutureOption::example()
-        .expect("example")
+    serde_interest_rate_future_option,
+    finstack_quant_valuations::instruments::InterestRateFutureOption,
+    finstack_quant_valuations::instruments::InterestRateFutureOption::example().expect("example")
 );
 
 #[test]
-fn serde_ir_future_option_requires_vol_model() {
-    use finstack_quant_valuations::instruments::rates::ir_future_option::IrFutureOption;
+fn serde_interest_rate_future_option_requires_model() {
+    use finstack_quant_valuations::instruments::InterestRateFutureOption;
 
-    let option = IrFutureOption::example().expect("example");
+    let option = InterestRateFutureOption::example().expect("example");
     let mut value = serde_json::to_value(option).expect("serialize option");
     value
         .as_object_mut()
         .expect("option must serialize as an object")
-        .remove("vol_model");
+        .get_mut("terms")
+        .and_then(serde_json::Value::as_object_mut)
+        .expect("option terms must serialize as an object")
+        .remove("model");
 
-    assert!(serde_json::from_value::<IrFutureOption>(value).is_err());
+    assert!(serde_json::from_value::<InterestRateFutureOption>(value).is_err());
 }
 serde_contract!(
     serde_cms_option,
@@ -251,10 +253,50 @@ serde_contract!(
         .expect("example")
 );
 serde_contract!(
-    serde_equity_index_future,
-    finstack_quant_valuations::instruments::equity::equity_index_future::EquityIndexFuture,
-    finstack_quant_valuations::instruments::equity::equity_index_future::EquityIndexFuture::example()
+    serde_equity_future,
+    finstack_quant_valuations::instruments::equity::equity_future::EquityFuture,
+    finstack_quant_valuations::instruments::equity::equity_future::EquityFuture::example()
         .expect("example")
+);
+serde_contract!(
+    serde_equity_future_option,
+    finstack_quant_valuations::instruments::equity::equity_future_option::EquityFutureOption,
+    finstack_quant_valuations::instruments::equity::equity_future_option::EquityFutureOption::example()
+        .expect("example")
+);
+serde_contract!(
+    serde_volatility_index_future_option,
+    finstack_quant_valuations::instruments::equity::vol_index_future_option::VolatilityIndexFutureOption,
+    finstack_quant_valuations::instruments::equity::vol_index_future_option::VolatilityIndexFutureOption::example()
+        .expect("example")
+);
+serde_contract!(
+    serde_commodity_future,
+    finstack_quant_valuations::instruments::commodity::commodity_future::CommodityFuture,
+    finstack_quant_valuations::instruments::commodity::commodity_future::CommodityFuture::example()
+        .expect("example")
+);
+serde_contract!(
+    serde_commodity_future_option,
+    finstack_quant_valuations::instruments::commodity::commodity_future_option::CommodityFutureOption,
+    finstack_quant_valuations::instruments::commodity::commodity_future_option::CommodityFutureOption::example()
+        .expect("example")
+);
+serde_contract!(
+    serde_fx_future,
+    finstack_quant_valuations::instruments::fx::fx_future::FxFuture,
+    finstack_quant_valuations::instruments::fx::fx_future::FxFuture::example().expect("example")
+);
+serde_contract!(
+    serde_fx_future_option,
+    finstack_quant_valuations::instruments::fx::fx_future_option::FxFutureOption,
+    finstack_quant_valuations::instruments::fx::fx_future_option::FxFutureOption::example()
+        .expect("example")
+);
+serde_contract!(
+    serde_equity_total_return_future,
+    finstack_quant_valuations::instruments::equity::equity_total_return_future::EquityTotalReturnFuture,
+    finstack_quant_valuations::instruments::equity::equity_total_return_future::EquityTotalReturnFuture::example().expect("example")
 );
 serde_contract!(
     serde_equity_trs,
@@ -272,12 +314,6 @@ serde_contract!(
     serde_vol_index_future,
     finstack_quant_valuations::instruments::equity::vol_index_future::VolatilityIndexFuture,
     finstack_quant_valuations::instruments::equity::vol_index_future::VolatilityIndexFuture::example()
-        .expect("example")
-);
-serde_contract!(
-    serde_vol_index_option,
-    finstack_quant_valuations::instruments::equity::vol_index_option::VolatilityIndexOption,
-    finstack_quant_valuations::instruments::equity::vol_index_option::VolatilityIndexOption::example()
         .expect("example")
 );
 serde_contract!(

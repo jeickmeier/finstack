@@ -67,3 +67,33 @@ test('TermLoan.example round-trips through the canonical envelope', () => {
   assert.equal(payload.instrument.type, 'term_loan');
   assert.equal(valuations.instruments.TermLoan.fromJson(json).toJson(), json);
 });
+
+test('listedProductCatalog exposes exact venue-filtered valuation routes', () => {
+  const montreal = valuations.market.listedProductCatalog('montreal');
+  assert.ok(montreal.length > 0);
+  assert.ok(montreal.every((row) => row.exchange === 'montreal'));
+  assert.ok(montreal.some((row) => row.symbols.includes('CRA')));
+  assert.ok(montreal.some((row) => row.instrument_type === 'interest_rate_future'));
+  assert.ok(
+    valuations.market
+      .listedProductCatalog('sgx')
+      .some((row) => row.instrument_type === 'commodity_future')
+  );
+  const optionRoutes = new Set(
+    valuations.market
+      .listedProductCatalog()
+      .filter((row) => row.product_kind === 'option_on_future')
+      .map((row) => row.instrument_type)
+  );
+  assert.deepEqual(
+    optionRoutes,
+    new Set([
+      'commodity_future_option',
+      'equity_future_option',
+      'fx_future_option',
+      'interest_rate_future_option',
+      'volatility_index_future_option',
+    ])
+  );
+  assert.throws(() => valuations.market.listedProductCatalog('mx'));
+});

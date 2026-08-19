@@ -10,6 +10,8 @@
       ],
       "record": {
         "index_id": "USD-SOFR-3M",
+        "rate_averaging": "compounded_overnight",
+        "reference_period": "imm_quarter_in_arrears",
         "calendar_id": "usny",
         "settlement_days": 0,
         "delivery_months": 3,
@@ -26,8 +28,82 @@
       ],
       "record": {
         "index_id": "USD-LIBOR-3M",
+        "rate_averaging": "term",
+        "reference_period": "forward_starting",
         "calendar_id": "usny",
         "settlement_days": 2,
+        "delivery_months": 3,
+        "face_value": 1000000.0,
+        "tick_size": 0.0025,
+        "tick_value": 6.25,
+        "convexity_adjustment": null
+      }
+    },
+    {
+      "ids": [
+        "CME:SR1",
+        "SR1"
+      ],
+      "record": {
+        "index_id": "USD-SOFR",
+        "rate_averaging": "arithmetic_average",
+        "reference_period": "calendar_month_in_arrears",
+        "calendar_id": "usny",
+        "settlement_days": 0,
+        "delivery_months": 1,
+        "face_value": 5000000.0,
+        "tick_size": 0.005,
+        "tick_value": 20.835,
+        "convexity_adjustment": null
+      }
+    },
+    {
+      "ids": [
+        "CME:ZQ",
+        "ZQ"
+      ],
+      "record": {
+        "index_id": "USD-FEDFUNDS",
+        "rate_averaging": "arithmetic_average",
+        "reference_period": "calendar_month_in_arrears",
+        "calendar_id": "usny",
+        "settlement_days": 0,
+        "delivery_months": 1,
+        "face_value": 5000000.0,
+        "tick_size": 0.005,
+        "tick_value": 20.835,
+        "convexity_adjustment": null
+      }
+    },
+    {
+      "ids": [
+        "MX:COA",
+        "COA"
+      ],
+      "record": {
+        "index_id": "CAD-CORRA",
+        "rate_averaging": "compounded_overnight",
+        "reference_period": "business_month_in_arrears",
+        "calendar_id": "cato",
+        "settlement_days": 0,
+        "delivery_months": 1,
+        "face_value": 3000000.0,
+        "tick_size": 0.0025,
+        "tick_value": 6.25,
+        "convexity_adjustment": null
+      }
+    },
+    {
+      "ids": [
+        "MX:CRA",
+        "CRA"
+      ],
+      "record": {
+        "index_id": "CAD-CORRA",
+        "rate_averaging": "compounded_overnight",
+        "reference_period": "imm_quarter_in_arrears",
+        "calendar_id": "cato",
+        "settlement_days": 0,
         "delivery_months": 3,
         "face_value": 1000000.0,
         "tick_size": 0.0025,
@@ -43,6 +119,8 @@
       ],
       "record": {
         "index_id": "EUR-EURIBOR-3M",
+        "rate_averaging": "term",
+        "reference_period": "forward_starting",
         "calendar_id": "target2",
         "settlement_days": 2,
         "delivery_months": 3,

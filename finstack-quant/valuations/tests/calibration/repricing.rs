@@ -536,12 +536,12 @@ fn forward_curve_fra_repricing() {
 }
 
 #[test]
-fn forward_curve_future_global_solve_reprices_df_implied_quote() {
+fn forward_curve_future_global_solve_reprices_compounded_settlement_quote() {
     let base_date = Date::from_calendar_date(2025, Month::January, 2).expect("base date");
     let quote = RateQuote::Futures {
-        id: QuoteId::new("SR3-MAR25"),
+        id: QuoteId::new("SR3-JUN25"),
         contract: IrFutureContractId::new("CME:SR3"),
-        expiry: Date::from_calendar_date(2025, Month::March, 17).expect("expiry"),
+        expiry: Date::from_calendar_date(2025, Month::June, 17).expect("expiry"),
         price: 95.0,
         convexity_adjustment: 0.0,
     };
@@ -559,7 +559,9 @@ fn forward_curve_future_global_solve_reprices_df_implied_quote() {
     );
     let context = MarketContext::try_from(output.result.final_market).expect("calibrated context");
     let curve = context.get_forward("USD-SOFR-3M").expect("forward curve");
-    assert!(curve.projection_grid().is_some());
+    let projection_grid = curve
+        .projection_grid()
+        .expect("calibrated curve must retain contractual projection boundaries");
     let build_ctx = BuildCtx::new(
         base_date,
         fixtures::STANDARD_NOTIONAL,
@@ -585,10 +587,16 @@ fn forward_curve_future_global_solve_reprices_df_implied_quote() {
         .day_count()
         .year_fraction(curve.base_date(), period_end, DayCountContext::default())
         .expect("end time");
-    let implied = curve
-        .rate_between(t_start, t_end)
-        .expect("DF-implied futures rate");
-    assert!((implied - 0.05).abs() < 1e-8);
+    assert!(projection_grid
+        .iter()
+        .any(|time| (*time - t_start).abs() < 1e-12));
+    assert!(projection_grid
+        .iter()
+        .any(|time| (*time - t_end).abs() < 1e-12));
+    let settlement_rate = future
+        .model_settlement_rate(&context, base_date)
+        .expect("compounded futures settlement rate");
+    assert!((settlement_rate - 0.05).abs() < 1e-8);
     let pv = instrument
         .value(&context, base_date)
         .expect("future repricing");

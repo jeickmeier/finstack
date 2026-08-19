@@ -72,78 +72,6 @@
       "repo_day_count": "act_365f"
     }
   ],
-  "equity_index_futures": [
-    {
-      "ids": ["cme.es", "sp500_emini", "es"],
-      "source": "CME E-mini S&P 500 Futures contract specifications",
-      "source_version": "2026-04",
-      "effective_date": "2026-04-26",
-      "multiplier": 50.0,
-      "tick_size": 0.25,
-      "tick_value": 12.5,
-      "settlement_method": "Cash settled to Special Opening Quotation"
-    },
-    {
-      "ids": ["cme.nq", "nasdaq100_emini", "nq"],
-      "source": "CME E-mini Nasdaq-100 Futures contract specifications",
-      "source_version": "2026-04",
-      "effective_date": "2026-04-26",
-      "multiplier": 20.0,
-      "tick_size": 0.25,
-      "tick_value": 5.0,
-      "settlement_method": "Cash settled to Special Opening Quotation"
-    },
-    {
-      "ids": ["cme.mes", "sp500_micro_emini", "mes"],
-      "source": "CME Micro E-mini S&P 500 Futures contract specifications",
-      "source_version": "2026-04",
-      "effective_date": "2026-04-26",
-      "multiplier": 5.0,
-      "tick_size": 0.25,
-      "tick_value": 1.25,
-      "settlement_method": "Cash settled to Special Opening Quotation"
-    },
-    {
-      "ids": ["eurex.fesx", "euro_stoxx_50", "fesx"],
-      "source": "Eurex EURO STOXX 50 Index Futures contract specifications",
-      "source_version": "2026-04",
-      "effective_date": "2026-04-26",
-      "multiplier": 10.0,
-      "tick_size": 1.0,
-      "tick_value": 10.0,
-      "settlement_method": "Cash settled to final settlement price"
-    },
-    {
-      "ids": ["eurex.fdax", "dax", "fdax"],
-      "source": "Eurex DAX Futures contract specifications",
-      "source_version": "2026-04",
-      "effective_date": "2026-04-26",
-      "multiplier": 25.0,
-      "tick_size": 0.5,
-      "tick_value": 12.5,
-      "settlement_method": "Cash settled to final settlement price"
-    },
-    {
-      "ids": ["ice.ftse_100", "ftse_100", "z"],
-      "source": "ICE FTSE 100 Index Futures contract specifications",
-      "source_version": "2026-04",
-      "effective_date": "2026-04-26",
-      "multiplier": 10.0,
-      "tick_size": 0.5,
-      "tick_value": 5.0,
-      "settlement_method": "Cash settled to Exchange Delivery Settlement Price"
-    },
-    {
-      "ids": ["ose.nikkei_225", "nikkei_225", "nk"],
-      "source": "OSE Nikkei 225 Futures contract specifications",
-      "source_version": "2026-04",
-      "effective_date": "2026-04-26",
-      "multiplier": 500.0,
-      "tick_size": 5.0,
-      "tick_value": 2500.0,
-      "settlement_method": "Cash settled to Special Quotation"
-    }
-  ],
   "vol_index_futures": [
     {
       "ids": ["cboe.vix_future", "vix_future", "vix"],
@@ -173,24 +101,6 @@
       "multiplier": 100.0,
       "tick_size": 0.05,
       "tick_value": 5.0,
-      "index_id": "VSTOXX"
-    }
-  ],
-  "vol_index_options": [
-    {
-      "ids": ["cboe.vix_option", "vix_option", "vix"],
-      "source": "Cboe VIX Options contract specifications",
-      "source_version": "2026-04",
-      "effective_date": "2026-04-26",
-      "multiplier": 100.0,
-      "index_id": "VIX"
-    },
-    {
-      "ids": ["eurex.vstoxx_option", "vstoxx_option", "vstoxx"],
-      "source": "Eurex VSTOXX Options contract specifications",
-      "source_version": "2026-04",
-      "effective_date": "2026-04-26",
-      "multiplier": 100.0,
       "index_id": "VSTOXX"
     }
   ],

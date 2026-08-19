@@ -65,6 +65,10 @@ pub mod fx_barrier_option;
 pub mod fx_digital_option;
 /// FX forward module.
 pub mod fx_forward;
+/// Exchange-listed currency futures.
+pub mod fx_future;
+/// Exchange-listed options on FX futures.
+pub mod fx_future_option;
 /// FX option module - Vanilla FX options.
 pub mod fx_option;
 /// FX spot module - FX spot trades.
@@ -84,6 +88,8 @@ pub(crate) mod shared;
 pub use fx_barrier_option::FxBarrierOption;
 pub use fx_digital_option::{DigitalPayoutType, FxDigitalOption};
 pub use fx_forward::FxForward;
+pub use fx_future::FxFuture;
+pub use fx_future_option::FxFutureOption;
 pub use fx_option::FxOption;
 pub use fx_spot::FxSpot;
 pub use fx_swap::FxSwap;

@@ -88,6 +88,44 @@ pub(crate) struct OvernightCouponProjection {
     pub observation_exposures: Vec<OvernightObservationExposure>,
 }
 
+/// Inputs for an arithmetic-average overnight-rate projection.
+///
+/// This is the settlement convention used by contracts such as one-month
+/// SOFR and Federal Funds futures. Calendar-day weights are produced by
+/// advancing between fixing-calendar business days, so a Friday observation
+/// naturally carries through the weekend.
+pub(crate) struct OvernightArithmeticProjectionInput<'a> {
+    /// Projection source for future observations.
+    pub curve: OvernightProjectionCurve<'a>,
+    /// Historical fixing series for observations before `as_of`.
+    pub fixings: Option<&'a ScalarTimeSeries>,
+    /// Fixing/index identifier used in missing-fixing errors.
+    pub fixing_id: &'a str,
+    /// Valuation date separating realized and projected observations.
+    pub as_of: Date,
+    /// Contractual averaging-period start.
+    pub accrual_start: Date,
+    /// Contractual averaging-period end.
+    pub accrual_end: Date,
+    /// Day-count basis used for the published overnight rate.
+    pub day_count: DayCount,
+    /// Resolved fixing calendar.
+    pub fixing_calendar: &'a dyn HolidayCalendar,
+}
+
+/// Projected economics of an arithmetic-average overnight rate.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct OvernightArithmeticProjection {
+    /// Calendar-day-weighted annualized rate in decimal units.
+    pub rate: f64,
+    /// Derivative of `rate` to a parallel bump of every projected observation.
+    pub parallel_forward_sensitivity: f64,
+    /// Last distinct overnight observation date determining the average.
+    pub fixing_date: Date,
+    /// Per-observation derivatives; realized observations carry zero derivative.
+    pub observation_exposures: Vec<OvernightObservationExposure>,
+}
+
 /// Resolve the explicit or currency-standard fixing calendar for an RFR coupon.
 pub(crate) fn resolve_overnight_fixing_calendar(
     calendar_id: Option<&str>,
@@ -200,6 +238,120 @@ fn projected_rate(
             Ok((1.0 / discount.df_between_dates(obs_start, obs_end)? - 1.0) / dcf)
         }
     }
+}
+
+/// Project an arithmetic average of overnight fixings and its forward sensitivity.
+///
+/// The average is `sum(r_i * d_i) / sum(d_i)` on the supplied day-count basis.
+/// Observations strictly before `as_of` must be present in the historical fixing
+/// series. The same-day observation remains projected because valuation occurs at
+/// the start of day, before publication.
+pub(crate) fn project_arithmetic_overnight_rate(
+    input: OvernightArithmeticProjectionInput<'_>,
+) -> Result<OvernightArithmeticProjection> {
+    let day_count_context = DayCountContext {
+        calendar: Some(input.fixing_calendar),
+        coupon_period: Some((input.accrual_start, input.accrual_end)),
+        ..DayCountContext::default()
+    };
+    let total_accrual =
+        input
+            .day_count
+            .year_fraction(input.accrual_start, input.accrual_end, day_count_context)?;
+    if input.accrual_end <= input.accrual_start
+        || !total_accrual.is_finite()
+        || total_accrual <= 0.0
+    {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Invalid arithmetic overnight averaging period {} -> {} with year fraction {}",
+            input.accrual_start, input.accrual_end, total_accrual
+        )));
+    }
+
+    let mut weighted_sum = 0.0;
+    let mut parallel_forward_sensitivity = 0.0;
+    let mut observation_exposures = Vec::new();
+    let mut fixing_date = None;
+    let mut date = input.accrual_start;
+    let mut observation_date = if input.fixing_calendar.is_business_day(date) {
+        date
+    } else {
+        date.add_business_days(-1, input.fixing_calendar)?
+    };
+    while date < input.accrual_end {
+        let next_observation_date = observation_date.add_business_days(1, input.fixing_calendar)?;
+        let step_end = next_observation_date.min(input.accrual_end);
+        let accrual = input
+            .day_count
+            .year_fraction(date, step_end, day_count_context)?;
+        if !accrual.is_finite() || accrual <= 0.0 {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Arithmetic overnight observation has non-positive accrual for {date} -> \
+                 {step_end}"
+            )));
+        }
+        let (rate, stochastic_exposure) = if observation_date < input.as_of {
+            (
+                finstack_quant_core::market_data::fixings::require_fixing_value_exact(
+                    input.fixings,
+                    input.fixing_id,
+                    observation_date,
+                    input.as_of,
+                )?,
+                0.0,
+            )
+        } else {
+            (
+                projected_rate(
+                    input.curve,
+                    observation_date,
+                    next_observation_date,
+                    input.day_count,
+                    day_count_context,
+                )?,
+                1.0,
+            )
+        };
+        if !rate.is_finite() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Arithmetic overnight observation rate must be finite for {date} -> \
+                 {step_end}, got {rate}"
+            )));
+        }
+        let weight = accrual / total_accrual;
+        weighted_sum += rate * weight;
+        let derivative = weight * stochastic_exposure;
+        parallel_forward_sensitivity += derivative;
+        observation_exposures.push(OvernightObservationExposure {
+            observation_start: observation_date,
+            observation_end: step_end,
+            projected_rate: rate,
+            rate_accrual_year_fraction: accrual,
+            factor_accrual_year_fraction: accrual,
+            coupon_forward_derivative: derivative,
+        });
+        fixing_date = Some(fixing_date.map_or(observation_date, |current: Date| {
+            current.max(observation_date)
+        }));
+        date = step_end;
+        observation_date = next_observation_date;
+    }
+
+    if !weighted_sum.is_finite() || !parallel_forward_sensitivity.is_finite() {
+        return Err(finstack_quant_core::Error::Validation(
+            "Arithmetic overnight rate and sensitivity must remain finite".into(),
+        ));
+    }
+    Ok(OvernightArithmeticProjection {
+        rate: weighted_sum,
+        parallel_forward_sensitivity,
+        fixing_date: fixing_date.ok_or_else(|| {
+            finstack_quant_core::Error::Validation(
+                "Arithmetic overnight projection produced no observations".into(),
+            )
+        })?,
+        observation_exposures,
+    })
 }
 
 /// Project one compounded overnight coupon and its parallel-forward sensitivity.

@@ -35,10 +35,31 @@ use crate::instruments::common_impl::traits::Attributes;
 use finstack_quant_core::dates::{Date, DateExt, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{CurveId, InstrumentId, Rate};
+use finstack_quant_core::types::{CurveId, IndexId, InstrumentId, Rate};
 use time::macros::date;
 
 use crate::instruments::Position;
+
+/// Exchange settlement method for the reference rate underlying a listed future.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum RateAveragingMethod {
+    /// One term fixing or forward rate over the contractual reference period.
+    Term,
+    /// Calendar-day-weighted arithmetic average of overnight observations.
+    ArithmeticAverage,
+    /// Daily compounded overnight observations over the reference period.
+    CompoundedOvernight,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RateFutureProjection {
+    pub(crate) rate: f64,
+    pub(crate) parallel_forward_sensitivity: f64,
+}
 
 /// Interest Rate Future instrument.
 #[derive(
@@ -89,6 +110,13 @@ pub struct InterestRateFuture {
     pub period_end: Option<Date>,
     /// Quoted future price (e.g., 99.25)
     pub quoted_price: f64,
+    /// Optional official final settlement price in futures price points.
+    ///
+    /// Required after the last trading date for in-arrears contracts whose
+    /// final settlement occurs after trading terminates.
+    #[builder(optional)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settlement_price: Option<f64>,
     /// Day count convention
     pub day_count: DayCount,
     /// Position side (Long or Short)
@@ -99,6 +127,22 @@ pub struct InterestRateFuture {
     pub discount_curve_id: CurveId,
     /// Forward curve identifier
     pub forward_curve_id: CurveId,
+    /// Rate settlement method defined by the exchange contract.
+    pub rate_averaging: RateAveragingMethod,
+    /// Optional fixing-index identifier.
+    ///
+    /// When omitted, historical fixings use `forward_curve_id`. Fixing series
+    /// are looked up strictly as `FIXING:{id}` without alias fallback.
+    #[builder(optional)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fixing_index_id: Option<IndexId>,
+    /// Optional overnight fixing calendar identifier.
+    ///
+    /// Required only when the contract currency has no registered standard
+    /// overnight calendar. Otherwise the currency standard is used.
+    #[builder(optional)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fixing_calendar_id: Option<String>,
     /// Optional volatility surface identifier for convexity adjustment
     pub vol_surface_id: Option<CurveId>,
     /// Attributes
@@ -228,12 +272,30 @@ impl InterestRateFuture {
                 "{context} quoted_price must be finite"
             )));
         }
+        if self
+            .settlement_price
+            .is_some_and(|price| !price.is_finite())
+        {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "{context} settlement_price must be finite when supplied"
+            )));
+        }
         self.contract_specs.validate(&context)?;
         let (fixing, period_start, period_end) = self.resolve_dates()?;
-        if period_start < fixing {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "{context} period_start cannot precede fixing_date"
-            )));
+        match self.rate_averaging {
+            RateAveragingMethod::Term if period_start < fixing => {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "{context} term-rate period_start cannot precede fixing_date"
+                )));
+            }
+            RateAveragingMethod::ArithmeticAverage | RateAveragingMethod::CompoundedOvernight
+                if fixing < period_start || fixing > period_end =>
+            {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "{context} overnight final fixing date must lie within the reference period"
+                )));
+            }
+            _ => {}
         }
         if period_end <= period_start {
             return Err(finstack_quant_core::Error::Validation(format!(
@@ -245,6 +307,24 @@ impl InterestRateFuture {
         {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "{context} curve identifiers cannot be empty"
+            )));
+        }
+        if self
+            .fixing_index_id
+            .as_ref()
+            .is_some_and(|id| id.as_str().trim().is_empty())
+        {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "{context} fixing_index_id cannot be empty"
+            )));
+        }
+        if self
+            .fixing_calendar_id
+            .as_ref()
+            .is_some_and(|id| id.trim().is_empty())
+        {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "{context} fixing_calendar_id cannot be blank"
             )));
         }
         if self
@@ -296,6 +376,7 @@ impl InterestRateFuture {
             })
             .discount_curve_id(CurveId::new("USD-OIS"))
             .forward_curve_id(CurveId::new("USD-SOFR-3M"))
+            .rate_averaging(RateAveragingMethod::Term)
             .attributes(Attributes::new())
             .build()
     }
@@ -314,18 +395,129 @@ impl InterestRateFuture {
         Rate::from_percent(100.0 - self.quoted_price)
     }
 
-    /// Forward rate over the underlying futures accrual period.
-    pub(crate) fn model_forward_rate(
+    fn fixing_index_id(&self) -> &str {
+        self.fixing_index_id
+            .as_ref()
+            .map_or(self.forward_curve_id.as_str(), IndexId::as_str)
+    }
+
+    /// Calculate the exchange-defined settlement rate over the reference period.
+    ///
+    /// Historical observations strictly before the valuation date are read from
+    /// the canonical fixing series. Future and same-day observations are projected
+    /// from the configured forward curve.
+    ///
+    /// # Arguments
+    ///
+    /// * `context` - Market context containing the forward curve and any required
+    ///   `FIXING:{index}` historical series.
+    /// * `as_of` - Valuation date separating published fixings from projected
+    ///   observations; valuation is assumed to occur before the same-day fixing.
+    pub fn model_settlement_rate(
         &self,
         context: &MarketContext,
+        as_of: Date,
     ) -> finstack_quant_core::Result<f64> {
-        let (_fixing_date, period_start, period_end) = self.resolve_dates()?;
+        Ok(self.rate_projection(context, as_of)?.rate)
+    }
+
+    pub(crate) fn rate_projection(
+        &self,
+        context: &MarketContext,
+        as_of: Date,
+    ) -> finstack_quant_core::Result<RateFutureProjection> {
+        use crate::instruments::common_impl::pricing::overnight::{
+            project_arithmetic_overnight_rate, project_overnight_coupon,
+            resolve_overnight_fixing_calendar, OvernightArithmeticProjectionInput,
+            OvernightCouponProjectionInput, OvernightProjectionCurve,
+        };
+        use crate::instruments::rates::irs::FloatingLegCompounding;
+        use finstack_quant_core::market_data::fixings::{
+            get_fixing_series, require_fixing_value_exact,
+        };
+
+        let (fixing_date, period_start, period_end) = self.resolve_dates()?;
         let fwd = context.get_forward(&self.forward_curve_id)?;
-        crate::instruments::common_impl::pricing::time::rate_between_on_dates(
-            fwd.as_ref(),
-            period_start,
-            period_end,
-        )
+        let fixing_id = self.fixing_index_id();
+        let fixings_required = match self.rate_averaging {
+            RateAveragingMethod::Term => fixing_date < as_of,
+            RateAveragingMethod::ArithmeticAverage | RateAveragingMethod::CompoundedOvernight => {
+                period_start < as_of
+            }
+        };
+        let fixings = if fixings_required {
+            Some(get_fixing_series(context, fixing_id)?)
+        } else {
+            None
+        };
+
+        match self.rate_averaging {
+            RateAveragingMethod::Term => {
+                if fixing_date < as_of {
+                    Ok(RateFutureProjection {
+                        rate: require_fixing_value_exact(fixings, fixing_id, fixing_date, as_of)?,
+                        parallel_forward_sensitivity: 0.0,
+                    })
+                } else {
+                    Ok(RateFutureProjection {
+                        rate:
+                            crate::instruments::common_impl::pricing::time::rate_between_on_dates(
+                                fwd.as_ref(),
+                                period_start,
+                                period_end,
+                            )?,
+                        parallel_forward_sensitivity: 1.0,
+                    })
+                }
+            }
+            RateAveragingMethod::ArithmeticAverage => {
+                let calendar = resolve_overnight_fixing_calendar(
+                    self.fixing_calendar_id.as_deref(),
+                    self.notional.currency(),
+                    &format!("IR future '{}'", self.id),
+                )?;
+                let projection =
+                    project_arithmetic_overnight_rate(OvernightArithmeticProjectionInput {
+                        curve: OvernightProjectionCurve::Forward(fwd.as_ref()),
+                        fixings,
+                        fixing_id,
+                        as_of,
+                        accrual_start: period_start,
+                        accrual_end: period_end,
+                        day_count: self.day_count,
+                        fixing_calendar: calendar,
+                    })?;
+                Ok(RateFutureProjection {
+                    rate: projection.rate,
+                    parallel_forward_sensitivity: projection.parallel_forward_sensitivity,
+                })
+            }
+            RateAveragingMethod::CompoundedOvernight => {
+                let calendar = resolve_overnight_fixing_calendar(
+                    self.fixing_calendar_id.as_deref(),
+                    self.notional.currency(),
+                    &format!("IR future '{}'", self.id),
+                )?;
+                let compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };
+                let projection = project_overnight_coupon(OvernightCouponProjectionInput {
+                    curve: OvernightProjectionCurve::Forward(fwd.as_ref()),
+                    fixings,
+                    fixing_id,
+                    as_of,
+                    accrual_start: period_start,
+                    accrual_end: period_end,
+                    day_count: self.day_count,
+                    coupon_frequency: None,
+                    compounding: &compounding,
+                    fixing_calendar: calendar,
+                    compounded_spread: 0.0,
+                })?;
+                Ok(RateFutureProjection {
+                    rate: projection.rate,
+                    parallel_forward_sensitivity: projection.parallel_forward_sensitivity,
+                })
+            }
+        }
     }
 
     /// Convexity adjustment applied to the model forward rate.
@@ -335,27 +527,113 @@ impl InterestRateFuture {
         as_of: Date,
     ) -> finstack_quant_core::Result<f64> {
         use finstack_quant_core::dates::DayCountContext;
-        if let Some(adjustment) = self.contract_specs.convexity_adjustment {
-            return Ok(adjustment);
-        }
         let (_fixing_date, period_start, period_end) = self.resolve_dates()?;
+        let projection = self.rate_projection(context, as_of)?;
+        if projection.parallel_forward_sensitivity == 0.0 {
+            return Ok(0.0);
+        }
+        if let Some(adjustment) = self.contract_specs.convexity_adjustment {
+            return Ok(adjustment * projection.parallel_forward_sensitivity);
+        }
         let fwd = context.get_forward(&self.forward_curve_id)?;
         let fwd_day_count = fwd.day_count();
-        let t_start = fwd_day_count
-            .year_fraction(as_of, period_start, DayCountContext::default())?
-            .max(0.0);
-        let t_end = fwd_day_count
-            .year_fraction(as_of, period_end, DayCountContext::default())?
-            .max(t_start);
-        let forward_rate = crate::instruments::common_impl::pricing::time::rate_between_on_dates(
-            fwd.as_ref(),
-            period_start,
-            period_end,
-        )?;
-        Ok(
-            self.calculate_convexity_adjusted_rate(context, forward_rate, t_start, t_end)?
-                - forward_rate,
-        )
+        let t_start = if period_start <= as_of {
+            0.0
+        } else {
+            fwd_day_count.year_fraction(as_of, period_start, DayCountContext::default())?
+        };
+        let t_end = if period_end <= as_of {
+            t_start
+        } else {
+            fwd_day_count
+                .year_fraction(as_of, period_end, DayCountContext::default())?
+                .max(t_start)
+        };
+        let adjustment =
+            self.calculate_convexity_adjusted_rate(context, projection.rate, t_start, t_end)?
+                - projection.rate;
+        Ok(adjustment * projection.parallel_forward_sensitivity)
+    }
+
+    fn terminal_date(&self, period_end: Date) -> Date {
+        match self.rate_averaging {
+            RateAveragingMethod::Term => self.expiry,
+            RateAveragingMethod::ArithmeticAverage | RateAveragingMethod::CompoundedOvernight => {
+                period_end
+            }
+        }
+    }
+
+    fn position_value_from_mark(&self, mark: f64) -> finstack_quant_core::Result<f64> {
+        if !mark.is_finite() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "IR future '{}' mark must be finite",
+                self.id
+            )));
+        }
+        let contracts_scale = self.notional.amount() / self.contract_specs.face_value;
+        let price_delta = mark - self.quoted_price;
+        let pv_per_contract =
+            price_delta / self.contract_specs.tick_size * self.contract_specs.tick_value;
+        Ok(self.position.sign() * contracts_scale * pv_per_contract)
+    }
+
+    /// Return the live model mark or official final settlement price.
+    ///
+    /// # Arguments
+    ///
+    /// * `context` - Market context containing the projection, discount, fixing, and volatility inputs.
+    /// * `as_of` - Valuation date controlling live versus final-settlement state.
+    pub fn mark_price(
+        &self,
+        context: &MarketContext,
+        as_of: Date,
+    ) -> finstack_quant_core::Result<f64> {
+        self.validate()?;
+        if as_of > self.expiry {
+            return self.settlement_price.ok_or_else(|| {
+                finstack_quant_core::Error::Validation(format!(
+                    "IR future '{}' requires settlement_price after expiry {}",
+                    self.id, self.expiry
+                ))
+            });
+        }
+
+        use finstack_quant_core::dates::DayCountContext;
+        let (_fixing_date, period_start, period_end) = self.resolve_dates()?;
+
+        // Validate both curve dependencies while the contract is live. Futures
+        // are not discounted, but the discount curve remains a declared market
+        // dependency for consistent rate-market validation.
+        let _disc = context.get_discount(&self.discount_curve_id)?;
+        let projection = self.rate_projection(context, as_of)?;
+        let effective_adjustment =
+            if let Some(adjustment) = self.contract_specs.convexity_adjustment {
+                adjustment * projection.parallel_forward_sensitivity
+            } else {
+                let fwd = context.get_forward(&self.forward_curve_id)?;
+                let fwd_day_count = fwd.day_count();
+                let t_start_remaining = if period_start <= as_of {
+                    0.0
+                } else {
+                    fwd_day_count.year_fraction(as_of, period_start, DayCountContext::default())?
+                };
+                let t_end_remaining = if period_end <= as_of {
+                    t_start_remaining
+                } else {
+                    fwd_day_count
+                        .year_fraction(as_of, period_end, DayCountContext::default())?
+                        .max(t_start_remaining)
+                };
+                (self.calculate_convexity_adjusted_rate(
+                    context,
+                    projection.rate,
+                    t_start_remaining,
+                    t_end_remaining,
+                )? - projection.rate)
+                    * projection.parallel_forward_sensitivity
+            };
+        Ok(100.0 * (1.0 - projection.rate - effective_adjustment))
     }
 
     /// Calculates the present value of the interest rate future.
@@ -387,58 +665,11 @@ impl InterestRateFuture {
         as_of: Date,
     ) -> finstack_quant_core::Result<f64> {
         self.validate()?;
-        use finstack_quant_core::dates::DayCountContext;
-        let (_fixing_date, period_start, period_end) = self.resolve_dates()?;
-        if as_of >= self.expiry {
+        let (_fixing_date, _period_start, period_end) = self.resolve_dates()?;
+        if as_of > self.terminal_date(period_end) {
             return Ok(0.0);
         }
-
-        // Validate discount curve exists (required for curve dependencies, even though
-        // futures don't discount due to daily margining)
-        let _disc = context.get_discount(&self.discount_curve_id)?;
-        let fwd = context.get_forward(&self.forward_curve_id)?;
-
-        // The rate period for the forward rate calculation uses the forward
-        // curve's day-count basis for consistency with curve construction.
-        let fwd_day_count = fwd.day_count();
-        let t_start_remaining = fwd_day_count
-            .year_fraction(as_of, period_start, DayCountContext::default())?
-            .max(0.0);
-        let t_end_remaining = fwd_day_count
-            .year_fraction(as_of, period_end, DayCountContext::default())?
-            .max(t_start_remaining);
-        // Forward rate over the period
-        let forward_rate = crate::instruments::common_impl::pricing::time::rate_between_on_dates(
-            fwd.as_ref(),
-            period_start,
-            period_end,
-        )?;
-
-        // Apply convexity adjustment policy
-        let adjusted_rate = if let Some(ca) = self.contract_specs.convexity_adjustment {
-            forward_rate + ca
-        } else {
-            self.calculate_convexity_adjusted_rate(
-                context,
-                forward_rate,
-                t_start_remaining,
-                t_end_remaining,
-            )?
-        };
-
-        // Position sign: Long benefits when implied > model (rates down → price up)
-        let sign = self.position.sign();
-
-        // Scale by contracts: notional may represent multiples of face value.
-        // Zero face value means zero exposure (no contracts).
-        let contracts_scale = self.notional.amount() / self.contract_specs.face_value;
-
-        let model_price = 100.0 * (1.0 - adjusted_rate);
-        let price_delta = model_price - self.quoted_price;
-        let pv_per_contract =
-            price_delta / self.contract_specs.tick_size * self.contract_specs.tick_value;
-        let pv_total = sign * contracts_scale * pv_per_contract;
-        Ok(pv_total)
+        self.position_value_from_mark(self.mark_price(context, as_of)?)
     }
 
     /// Derive contract tick value for the instrument accrual.
@@ -699,6 +930,7 @@ mod tests {
             .contract_specs(FutureContractSpecs::default())
             .discount_curve_id(CurveId::new("USD-OIS"))
             .forward_curve_id(CurveId::new("USD-SOFR-3M"))
+            .rate_averaging(RateAveragingMethod::Term)
             .attributes(Attributes::new())
             .build()
             .expect("build");
@@ -726,6 +958,7 @@ mod tests {
             .contract_specs(FutureContractSpecs::default())
             .discount_curve_id(CurveId::new("USD-OIS"))
             .forward_curve_id(CurveId::new("USD-SOFR-3M"))
+            .rate_averaging(RateAveragingMethod::Term)
             .attributes(Attributes::new())
             .build()
             .expect("build");
@@ -733,6 +966,94 @@ mod tests {
         let (_fixing, period_start, period_end) = irf.resolve_dates().expect("resolve dates");
         assert_eq!(period_start, date!(2025 - 03 - 20));
         assert_eq!(period_end, date!(2025 - 06 - 20));
+    }
+
+    #[test]
+    fn term_future_has_no_value_after_expiry_even_before_reference_period_end() {
+        let future = InterestRateFuture::example().expect("example future");
+        let value = future
+            .npv_raw(&MarketContext::new(), date!(2025 - 03 - 18))
+            .expect("expired term future");
+        assert_eq!(value, 0.0);
+    }
+
+    #[test]
+    fn in_arrears_future_uses_official_settlement_after_expiry() {
+        let mut future = InterestRateFuture::example().expect("example future");
+        future.rate_averaging = RateAveragingMethod::CompoundedOvernight;
+        future.fixing_date = future.period_end;
+        future.settlement_price = Some(96.0);
+
+        let mark = future
+            .mark_price(&MarketContext::new(), date!(2025 - 03 - 18))
+            .expect("official settlement mark");
+        assert_eq!(mark, 96.0);
+        let expected =
+            (96.0 - 95.50) / future.contract_specs.tick_size * future.contract_specs.tick_value;
+        let value = future
+            .npv_raw(&MarketContext::new(), date!(2025 - 03 - 18))
+            .expect("post-expiry in-arrears value");
+        assert!((value - expected).abs() < 1.0e-12);
+    }
+
+    #[test]
+    fn fixed_convexity_metric_matches_partially_fixed_mark_adjustment() {
+        use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
+        use finstack_quant_core::market_data::term_structures::DiscountCurve;
+
+        let as_of = date!(2025 - 01 - 03);
+        let future = InterestRateFuture::builder()
+            .id(InstrumentId::new("SR1-PARTIAL-CONVEXITY"))
+            .notional(Money::new(1_000_000.0, Currency::USD))
+            .expiry(date!(2025 - 01 - 07))
+            .fixing_date_opt(Some(date!(2025 - 01 - 07)))
+            .period_start_opt(Some(date!(2025 - 01 - 02)))
+            .period_end_opt(Some(date!(2025 - 01 - 07)))
+            .quoted_price(95.0)
+            .day_count(DayCount::Act360)
+            .position(Position::Long)
+            .contract_specs(FutureContractSpecs {
+                convexity_adjustment: Some(0.001),
+                ..FutureContractSpecs::default()
+            })
+            .discount_curve_id(CurveId::new("USD-OIS"))
+            .forward_curve_id(CurveId::new("USD-SOFR"))
+            .rate_averaging(RateAveragingMethod::ArithmeticAverage)
+            .fixing_index_id_opt(Some(IndexId::new("USD-SOFR")))
+            .attributes(Attributes::new())
+            .build()
+            .expect("future");
+        let market = MarketContext::new()
+            .insert(
+                DiscountCurve::builder("USD-OIS")
+                    .base_date(as_of)
+                    .knots([(0.0, 1.0), (1.0, 0.97)])
+                    .build()
+                    .expect("discount curve"),
+            )
+            .insert(
+                ForwardCurve::builder("USD-SOFR", 1.0 / 365.0)
+                    .base_date(as_of)
+                    .day_count(DayCount::Act360)
+                    .knots([(0.0, 0.05), (1.0, 0.05)])
+                    .build()
+                    .expect("forward curve"),
+            )
+            .insert_series(
+                ScalarTimeSeries::new("FIXING:USD-SOFR", vec![(date!(2025 - 01 - 02), 0.04)], None)
+                    .expect("fixings"),
+            );
+
+        let projected_rate = future
+            .model_settlement_rate(&market, as_of)
+            .expect("partially fixed rate");
+        let effective_adjustment = future
+            .convexity_adjustment(&market, as_of)
+            .expect("effective convexity");
+        let mark = future.mark_price(&market, as_of).expect("model mark");
+
+        assert!((effective_adjustment - 0.0008).abs() < 1.0e-12);
+        assert!((mark - 100.0 * (1.0 - projected_rate - effective_adjustment)).abs() < 1.0e-12);
     }
 
     #[test]
@@ -847,6 +1168,7 @@ mod tests {
             })
             .discount_curve_id(CurveId::new("USD-OIS"))
             .forward_curve_id(CurveId::new("USD-SOFR-3M"))
+            .rate_averaging(RateAveragingMethod::Term)
             .attributes(Attributes::new())
             .build()
             .expect("future");
@@ -859,8 +1181,8 @@ mod tests {
         );
 
         let error = future
-            .model_forward_rate(&market)
+            .model_settlement_rate(&market, date!(2025 - 02 - 01))
             .expect_err("pre-base futures period must not be clamped");
-        assert!(error.to_string().contains("historical fixing"));
+        assert!(error.to_string().contains("fixing series"));
     }
 }

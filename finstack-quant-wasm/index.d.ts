@@ -5664,6 +5664,74 @@ export interface ValuationResult {
 }
 
 /**
+ * Maintained valuation-routing row for one liquid exchange-listed derivative family.
+ */
+export interface ListedProductCoverage {
+  /**
+   * Exchange venue that lists the product family.
+   */
+  exchange: "cme" | "eurex" | "montreal" | "sgx";
+  /**
+   * Comma-separated exchange root symbols covered by this row.
+   */
+  symbols: string;
+  /**
+   * Human-readable name of the exchange product family.
+   */
+  name: string;
+  /**
+   * Broad asset class used to organize the product family.
+   */
+  asset_class: string;
+  /**
+   * Exchange form: future, option on future, or direct option.
+   */
+  product_kind: "future" | "option_on_future" | "option";
+  /**
+   * Canonical Finstack instrument-type tag used for valuation dispatch.
+   */
+  instrument_type: string;
+  /**
+   * Core valuation readiness of the mapped instrument route.
+   */
+  status: "native" | "composed" | "partial";
+  /**
+   * Exchange-contract features exercised by the mapped valuation route.
+   */
+  features: string[];
+  /**
+   * Residual exchange feature not included in the model value, when applicable.
+   */
+  residual_gap?: string;
+  /**
+   * Official exchange page used to verify the listed product family.
+   */
+  source_url: string;
+}
+
+/**
+ * Listed-market product coverage and exchange routing metadata.
+ * @example
+ * ```typescript
+ * import init, { valuations } from "finstack-quant-wasm";
+ * await init();
+ * const rows = valuations.market.listedProductCatalog("cme");
+ * console.log(rows.every((row) => row.exchange === "cme"));
+ * ```
+ */
+export interface ValuationMarketNamespace {
+  /**
+   * Return the maintained liquid listed-derivatives coverage catalog.
+   * @param exchange - Optional exact filter: `"cme"`, `"eurex"`, `"montreal"`, or `"sgx"`.
+   * @returns Product-family coverage rows with instrument routes and official source URLs.
+   * @throws Error - Throws when `exchange` is unsupported, the embedded listed-product sidecar is invalid, or rows cannot be converted to JavaScript.
+   */
+  listedProductCatalog(
+    exchange?: "cme" | "eurex" | "montreal" | "sgx" | null
+  ): ListedProductCoverage[];
+}
+
+/**
  * Namespaced TypeScript entry points for valuation instruments calculations and types.
  * @example
  * ```typescript
@@ -7353,6 +7421,10 @@ export interface ValuationsNamespace {
    * Instrument JSON validation and pricing helpers.
    */
   instruments: ValuationInstrumentsNamespace;
+  /**
+   * Listed-market coverage metadata and canonical instrument routing.
+   */
+  market: ValuationMarketNamespace;
   /**
    * Deserialize a `ValuationResult` from JSON and return the canonical JSON.
    *

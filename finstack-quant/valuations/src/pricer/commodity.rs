@@ -1,12 +1,24 @@
 //! Pricer registrations for commodity instruments.
 //!
-//! Covers: CommodityForward, CommoditySwap, CommodityOption,
-//! CommodityAsianOption, CommoditySwaption, CommoditySpreadOption.
+//! Covers: CommodityForward, CommodityFuture, CommodityFutureOption,
+//! CommoditySwap, CommodityOption, CommodityAsianOption, CommoditySwaption,
+//! CommoditySpreadOption.
 
 use super::{register_generic, InstrumentType, ModelKey, PricerRegistry};
 
 /// Register pricers for commodity instruments.
 pub(crate) fn register_commodity_pricers(registry: &mut PricerRegistry) {
+    register_generic!(
+        registry,
+        InstrumentType::CommodityFuture,
+        crate::instruments::CommodityFuture
+    );
+    register_generic!(
+        registry,
+        InstrumentType::CommodityFutureOption,
+        crate::instruments::CommodityFutureOption
+    );
+
     // Commodity Forward
     register_generic!(
         registry,

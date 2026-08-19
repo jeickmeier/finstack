@@ -1,6 +1,6 @@
 //! Pricer registrations for rates instruments.
 //!
-//! Covers: Bond, IRS, FRA, BasisSwap, Deposit, InterestRateFuture, IrFutureOption,
+//! Covers: Bond, IRS, FRA, BasisSwap, Deposit, InterestRateFuture, InterestRateFutureOption,
 //! BondFuture, CapFloor, Swaption, Repo, DCF.
 
 use super::{register_generic, InstrumentType, ModelKey, PricerRegistry};
@@ -64,12 +64,10 @@ pub(crate) fn register_rates_pricers(registry: &mut PricerRegistry) {
         InstrumentType::InterestRateFuture,
         crate::instruments::rates::ir_future::InterestRateFuture
     );
-
-    // IR Future Option
-    registry.register(
-        InstrumentType::IrFutureOption,
-        ModelKey::Discounting,
-        crate::instruments::rates::ir_future_option::pricer::IrFutureOptionPricer::default(),
+    register_generic!(
+        registry,
+        InstrumentType::InterestRateFutureOption,
+        crate::instruments::InterestRateFutureOption
     );
 
     // Bond Future

@@ -1,0 +1,265 @@
+{
+  "$defs": {
+    "FxFuture": {
+      "additionalProperties": false,
+      "description": "Exchange-listed future on a deliverable currency pair.\n\nPrices are quote-currency units per one base-currency unit. The listed\nmultiplier is the base-currency contract size, so a one-unit price move is\nworth `multiplier` units of the quote currency per contract.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for selection and reporting."
+        },
+        "base_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Base currency, the numerator of the quoted pair."
+        },
+        "domestic_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Quote-currency discount curve."
+        },
+        "foreign_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Base-currency discount curve."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "quote_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Quote and variation-margin currency."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "spot_rate_override": {
+          "description": "Optional spot override in quote currency per base currency.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "terms": {
+          "$ref": "#/$defs/ListedFutureTerms",
+          "description": "Standard listed position and lifecycle terms."
+        }
+      },
+      "required": [
+        "id",
+        "base_currency",
+        "quote_currency",
+        "terms",
+        "domestic_discount_curve_id",
+        "foreign_discount_curve_id"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "const": "finstack_quant.instrument/1",
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "type": "string"
+    },
+    "ListedFutureSettlement": {
+      "description": "Final settlement mode for a listed future.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Cash settlement of final variation margin.",
+          "properties": {
+            "type": {
+              "const": "cash",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Delivery of a standardized quantity of an identified asset.",
+          "properties": {
+            "asset": {
+              "description": "Deliverable asset, grade, location, or basket identifier.",
+              "type": "string"
+            },
+            "quantity_per_contract": {
+              "description": "Physical units delivered per exchange contract.",
+              "format": "double",
+              "type": "number"
+            },
+            "type": {
+              "const": "physical",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "asset",
+            "quantity_per_contract"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ListedFutureTerms": {
+      "additionalProperties": false,
+      "description": "Standardized position, multiplier, and lifecycle terms for a listed future.",
+      "properties": {
+        "contracts": {
+          "description": "Number of exchange contracts. Fractional values are permitted for\nportfolio aggregation but must be finite and strictly positive.",
+          "format": "double",
+          "type": "number"
+        },
+        "currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Currency in which variation margin is paid."
+        },
+        "entry_price": {
+          "description": "Trade fill price in the same price-point units as the market mark.",
+          "format": "double",
+          "type": "number"
+        },
+        "last_trading_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Final date on which the contract trades."
+        },
+        "multiplier": {
+          "description": "Settlement-currency value of one full price point per contract.",
+          "format": "double",
+          "type": "number"
+        },
+        "position": {
+          "$ref": "#/$defs/Position",
+          "description": "Long or short position direction."
+        },
+        "quoted_price": {
+          "description": "Optional live exchange mark, in price points.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "settlement": {
+          "$ref": "#/$defs/ListedFutureSettlement",
+          "default": {
+            "type": "cash"
+          },
+          "description": "Cash or physical final settlement convention."
+        },
+        "settlement_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Date on which final cash settlement is completed."
+        },
+        "settlement_price": {
+          "description": "Optional official final settlement price, in price points.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "contracts",
+        "multiplier",
+        "currency",
+        "entry_price",
+        "last_trading_date",
+        "settlement_date",
+        "position"
+      ],
+      "type": "object"
+    },
+    "Position": {
+      "description": "Position direction for futures and forwards.",
+      "oneOf": [
+        {
+          "const": "long",
+          "description": "Long position (buyer of the contract).",
+          "type": "string"
+        },
+        {
+          "const": "short",
+          "description": "Short position (seller of the contract).",
+          "type": "string"
+        }
+      ]
+    },
+    "fx_future": {
+      "additionalProperties": false,
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/FxFuture"
+        },
+        "type": {
+          "const": "fx_future",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "spec"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_future.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
+  "examples": [
+    {
+      "instrument": {
+        "spec": {
+          "attributes": {},
+          "base_currency": "EUR",
+          "domestic_discount_curve_id": "USD-OIS",
+          "foreign_discount_curve_id": "EUR-OIS",
+          "id": "CME-6E-DEC26",
+          "quote_currency": "USD",
+          "terms": {
+            "contracts": 4.0,
+            "currency": "USD",
+            "entry_price": 1.1,
+            "last_trading_date": "2026-12-14",
+            "multiplier": 125000.0,
+            "position": "long",
+            "settlement": {
+              "type": "cash"
+            },
+            "settlement_date": "2026-12-16"
+          }
+        },
+        "type": "fx_future"
+      },
+      "schema": "finstack_quant.instrument/1"
+    }
+  ],
+  "properties": {
+    "instrument": {
+      "$ref": "#/$defs/fx_future"
+    },
+    "schema": {
+      "$ref": "#/$defs/InstrumentSchema"
+    }
+  },
+  "required": [
+    "schema",
+    "instrument"
+  ],
+  "title": "fx_future",
+  "type": "object"
+}

@@ -63,8 +63,6 @@ mod cms_option;
 /// Interest rate future tests - Exchange-traded IR futures
 #[path = "instruments/ir_future/mod.rs"]
 mod ir_future;
-#[path = "instruments/ir_future_option/mod.rs"]
-mod ir_future_option;
 
 /// Inflation swap tests - Zero-coupon and year-on-year inflation swaps
 #[path = "instruments/inflation_swap/mod.rs"]
@@ -122,10 +120,6 @@ mod basket;
 /// Equity option tests - Vanilla and exotic equity options
 #[path = "instruments/equity_option/mod.rs"]
 mod equity_option;
-
-/// Equity index future tests - Index futures (ES, NQ, FESX, etc.)
-#[path = "instruments/equity_index_future/mod.rs"]
-mod equity_index_future;
 
 /// Lookback option tests
 #[path = "instruments/lookback_option/mod.rs"]

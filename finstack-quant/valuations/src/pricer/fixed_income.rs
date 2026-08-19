@@ -1,7 +1,8 @@
 //! Pricer registrations for fixed-income instruments.
 //!
 //! Covers: FIIndexTotalReturnSwap, Convertible, InflationLinkedBond,
-//! RevolvingCredit, TermLoan, AgencyMbsPassthrough, AgencyTba, DollarRoll, AgencyCmo.
+//! RevolvingCredit, TermLoan, AgencyMbsPassthrough, AgencyTba, DollarRoll,
+//! AgencyCmo.
 
 use super::{register_generic, InstrumentType, ModelKey, PricerRegistry};
 

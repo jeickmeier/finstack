@@ -327,6 +327,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     credit_derivatives::register(py, &m)?;
     schema::register(py, &m)?;
     register_instruments(py, &m)?;
+    register_market(py, &m)?;
     register_models(py, &m)?;
 
     let all = PyList::new(
@@ -364,6 +365,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "composite",
             "credit_derivatives",
             "instruments",
+            "market",
             "models",
             "schema",
         ],
@@ -460,6 +462,26 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
     exports.sort_unstable();
     exports.dedup();
     let all = PyList::new(py, exports)?;
+    m.setattr("__all__", all)?;
+    crate::bindings::module_utils::register_submodule_at(py, parent, &m, &qual)?;
+    Ok(())
+}
+
+fn register_market(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
+    let m = PyModule::new(py, "market")?;
+    let qual = crate::bindings::module_utils::set_submodule_package_by_package(
+        parent,
+        &m,
+        "market",
+        "finstack_quant.valuations",
+    )?;
+    m.setattr(
+        "__doc__",
+        "Listed-market product coverage and exchange routing metadata.",
+    )?;
+
+    pricing::register_market(py, &m)?;
+    let all = PyList::new(py, ["listed_product_catalog"])?;
     m.setattr("__all__", all)?;
     crate::bindings::module_utils::register_submodule_at(py, parent, &m, &qual)?;
     Ok(())

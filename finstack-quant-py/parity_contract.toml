@@ -737,7 +737,7 @@ envelope     = { python = "finstack_quant.valuations.envelope",     status = "ex
 # inventory covers the whole crate root. None is surfaced as a host namespace.
 constants    = { python = "finstack_quant.valuations.constants",    status = "missing", note = "Rust-only numeric/convention constants; hosts see the values through APIs that consume them (e.g. theta_days defaults), not as a namespace" }
 error        = { python = "finstack_quant.valuations.error",        status = "missing", note = "Rust-only error types; hosts receive mapped exceptions (Python ValueError/KeyError, JS Error), not the enum" }
-market       = { python = "finstack_quant.valuations.market",       status = "missing", note = "Rust-only market-object builders behind the calibrate JSON pipeline; not yet surfaced to hosts" }
+market       = { python = "finstack_quant.valuations.market",       status = "exists", note = "Listed-product coverage metadata; Rust-only market-object builders remain behind the calibration pipeline" }
 metrics      = { python = "finstack_quant.valuations.metrics",      status = "missing", note = "Rust-only MetricId/MetricRegistry plumbing; hosts enumerate metrics via list_standard_metrics* instead" }
 pricer       = { python = "finstack_quant.valuations.pricer",       status = "missing", note = "Rust-only pricer registry and JSON pricing entry points; hosts reach them through the flattened price_* / validate_* helpers under instruments" }
 prelude      = { python = "finstack_quant.valuations.prelude",      status = "missing", note = "Rust-only re-export bag; no host-language meaning" }
@@ -817,6 +817,12 @@ public = [
     "validate_instrument_envelope_json",
     "validate_instrument_type_json",
     "valuation_result_schema",
+]
+
+[crates.valuations.module_symbols.market]
+python_package = "finstack_quant.valuations.market"
+public = [
+    "listed_product_catalog",
 ]
 
 # Symbol-level pinning for finstack_quant.valuations.correlation — every name in
@@ -2520,7 +2526,7 @@ rust_module_root = "../finstack-quant-wasm/src/api/valuations/"
 js_export_file   = "../finstack-quant-wasm/exports/valuations.js"
 
 # Nested facade keys on `valuations` (camelCase).
-nested = ["composite", "correlation", "credit", "creditDerivatives", "fx", "instruments"]
+nested = ["composite", "correlation", "credit", "creditDerivatives", "fx", "instruments", "market"]
 
 # Root-level `valuations.<name>` exports (camelCase / PascalCase as in JS).
 # Instrument pricing helpers live under `valuations.instruments`.
@@ -2621,6 +2627,7 @@ dry_run = "dryRun"
 "instruments.structured_credit_tranche_oas" = "structuredCreditTrancheOas"
 "instruments.structured_credit_tranche_scenario_table" = "structuredCreditTrancheScenarioTable"
 "instruments.validate_instrument_json" = "validateInstrumentJson"
+"market.listed_product_catalog" = "listedProductCatalog"
 
 # Explicit alias pins for `python_path_js_map` namespace resolution.
 #
@@ -2720,6 +2727,9 @@ instruments = [
     "structuredCreditTrancheOas",
     "structuredCreditTrancheScenarioTable",
     "validateInstrumentJson",
+]
+market = [
+    "listedProductCatalog",
 ]
 
 # Per-namespace WASM-only exports (no Python twin). Documentation-grade

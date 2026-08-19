@@ -348,14 +348,15 @@ mod repo_contract {
 
 mod empty_schedule_contract {
     use super::*;
-    use finstack_quant_valuations::instruments::equity::equity_index_future::EquityIndexFuture;
     use finstack_quant_valuations::instruments::equity::spot::Equity;
     use finstack_quant_valuations::instruments::equity::variance_swap::VarianceSwap;
     use finstack_quant_valuations::instruments::equity::vol_index_future::VolatilityIndexFuture;
-    use finstack_quant_valuations::instruments::equity::vol_index_option::VolatilityIndexOption;
     use finstack_quant_valuations::instruments::fx::fx_variance_swap::FxVarianceSwap;
     use finstack_quant_valuations::instruments::rates::ir_future::InterestRateFuture;
-    use finstack_quant_valuations::instruments::rates::ir_future_option::IrFutureOption;
+    use finstack_quant_valuations::instruments::{
+        CommodityFuture, CommodityFutureOption, EquityFuture, EquityFutureOption,
+        EquityTotalReturnFuture, FxFuture, FxFutureOption, InterestRateFutureOption,
+    };
 
     #[test]
     fn no_residual_products_emit_empty_no_residual_schedules() {
@@ -375,13 +376,31 @@ mod empty_schedule_contract {
             CashflowRepresentation::NoResidual,
         );
         verify_empty_schedule_surface(
-            &EquityIndexFuture::example().expect("equity index future example"),
+            &EquityFuture::example().expect("equity future example"),
             &market,
             as_of,
             CashflowRepresentation::NoResidual,
         );
         verify_empty_schedule_surface(
             &VolatilityIndexFuture::example().expect("vol index future example"),
+            &market,
+            as_of,
+            CashflowRepresentation::NoResidual,
+        );
+        verify_empty_schedule_surface(
+            &CommodityFuture::example().expect("commodity future example"),
+            &market,
+            as_of,
+            CashflowRepresentation::NoResidual,
+        );
+        verify_empty_schedule_surface(
+            &FxFuture::example().expect("fx future example"),
+            &market,
+            as_of,
+            CashflowRepresentation::NoResidual,
+        );
+        verify_empty_schedule_surface(
+            &EquityTotalReturnFuture::example().expect("TRF example"),
             &market,
             as_of,
             CashflowRepresentation::NoResidual,
@@ -406,13 +425,25 @@ mod empty_schedule_contract {
             CashflowRepresentation::Placeholder,
         );
         verify_empty_schedule_surface(
-            &IrFutureOption::example().expect("ir future option example"),
+            &InterestRateFutureOption::example().expect("interest-rate future option example"),
             &market,
             as_of,
             CashflowRepresentation::Placeholder,
         );
         verify_empty_schedule_surface(
-            &VolatilityIndexOption::example().expect("vol index option example"),
+            &EquityFutureOption::example().expect("equity future option example"),
+            &market,
+            as_of,
+            CashflowRepresentation::Placeholder,
+        );
+        verify_empty_schedule_surface(
+            &FxFutureOption::example().expect("FX future option example"),
+            &market,
+            as_of,
+            CashflowRepresentation::Placeholder,
+        );
+        verify_empty_schedule_surface(
+            &CommodityFutureOption::example().expect("commodity future option example"),
             &market,
             as_of,
             CashflowRepresentation::Placeholder,

@@ -23,6 +23,7 @@
       "period_start": "2025-03-19",
       "position": "long",
       "quoted_price": 95.5,
+      "rate_averaging": "term",
       "vol_surface_id": null
     },
     "type": "interest_rate_future"

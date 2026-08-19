@@ -237,7 +237,7 @@ mod tests {
         let quote = RateQuote::Futures {
             id: QuoteId::new("USD-FUT-SEP25"),
             contract: "SR3".into(),
-            expiry: Date::from_calendar_date(2025, Month::September, 15).expect("valid expiry"),
+            expiry: Date::from_calendar_date(2025, Month::December, 16).expect("valid expiry"),
             price: 96.50,
             convexity_adjustment: 0.0,
         };
@@ -254,6 +254,14 @@ mod tests {
         assert_eq!(
             prepared.pillar_date,
             future.period_end.expect("future period_end")
+        );
+        assert_eq!(
+            future.period_start,
+            Some(Date::from_calendar_date(2025, Month::September, 17).expect("valid start"))
+        );
+        assert_eq!(
+            future.period_end,
+            Some(Date::from_calendar_date(2025, Month::December, 17).expect("valid end"))
         );
     }
 

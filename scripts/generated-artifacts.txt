@@ -91,6 +91,8 @@ finstack-quant/valuations/tests/instruments/json_examples/cms_spread_option.json
 finstack-quant/valuations/tests/instruments/json_examples/cms_swap.json
 finstack-quant/valuations/tests/instruments/json_examples/commodity_asian_option.json
 finstack-quant/valuations/tests/instruments/json_examples/commodity_forward.json
+finstack-quant/valuations/tests/instruments/json_examples/commodity_future.json
+finstack-quant/valuations/tests/instruments/json_examples/commodity_future_option.json
 finstack-quant/valuations/tests/instruments/json_examples/commodity_option.json
 finstack-quant/valuations/tests/instruments/json_examples/commodity_spread_option.json
 finstack-quant/valuations/tests/instruments/json_examples/commodity_swap.json
@@ -102,12 +104,16 @@ finstack-quant/valuations/tests/instruments/json_examples/deposit.json
 finstack-quant/valuations/tests/instruments/json_examples/discounted_cash_flow.json
 finstack-quant/valuations/tests/instruments/json_examples/dollar_roll.json
 finstack-quant/valuations/tests/instruments/json_examples/equity.json
-finstack-quant/valuations/tests/instruments/json_examples/equity_index_future.json
+finstack-quant/valuations/tests/instruments/json_examples/equity_future.json
+finstack-quant/valuations/tests/instruments/json_examples/equity_future_option.json
 finstack-quant/valuations/tests/instruments/json_examples/equity_option.json
+finstack-quant/valuations/tests/instruments/json_examples/equity_total_return_future.json
 finstack-quant/valuations/tests/instruments/json_examples/forward_rate_agreement.json
 finstack-quant/valuations/tests/instruments/json_examples/fx_barrier_option.json
 finstack-quant/valuations/tests/instruments/json_examples/fx_digital_option.json
 finstack-quant/valuations/tests/instruments/json_examples/fx_forward.json
+finstack-quant/valuations/tests/instruments/json_examples/fx_future.json
+finstack-quant/valuations/tests/instruments/json_examples/fx_future_option.json
 finstack-quant/valuations/tests/instruments/json_examples/fx_option.json
 finstack-quant/valuations/tests/instruments/json_examples/fx_spot.json
 finstack-quant/valuations/tests/instruments/json_examples/fx_swap.json
@@ -117,8 +123,8 @@ finstack-quant/valuations/tests/instruments/json_examples/inflation_cap_floor.js
 finstack-quant/valuations/tests/instruments/json_examples/inflation_linked_bond.json
 finstack-quant/valuations/tests/instruments/json_examples/inflation_swap.json
 finstack-quant/valuations/tests/instruments/json_examples/interest_rate_future.json
+finstack-quant/valuations/tests/instruments/json_examples/interest_rate_future_option.json
 finstack-quant/valuations/tests/instruments/json_examples/interest_rate_swap.json
-finstack-quant/valuations/tests/instruments/json_examples/ir_future_option.json
 finstack-quant/valuations/tests/instruments/json_examples/levered_real_estate_equity.json
 finstack-quant/valuations/tests/instruments/json_examples/lookback_option.json
 finstack-quant/valuations/tests/instruments/json_examples/ndf.json
@@ -137,6 +143,6 @@ finstack-quant/valuations/tests/instruments/json_examples/trs_equity.json
 finstack-quant/valuations/tests/instruments/json_examples/trs_fixed_income_index.json
 finstack-quant/valuations/tests/instruments/json_examples/variance_swap.json
 finstack-quant/valuations/tests/instruments/json_examples/volatility_index_future.json
-finstack-quant/valuations/tests/instruments/json_examples/volatility_index_option.json
+finstack-quant/valuations/tests/instruments/json_examples/volatility_index_future_option.json
 finstack-quant/valuations/tests/instruments/json_examples/xccy_swap.json
 finstack-quant/valuations/tests/instruments/json_examples/yoy_inflation_swap.json

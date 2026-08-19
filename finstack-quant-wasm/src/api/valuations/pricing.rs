@@ -369,6 +369,26 @@ pub fn list_models_grouped() -> Result<JsValue, JsValue> {
     to_js_value(&grouped)
 }
 
+/// Return the maintained liquid listed-derivatives coverage catalog.
+///
+/// The catalog maps stable CME, Eurex, Montréal, and SGX product families to
+/// canonical Finstack instrument types and names residual model gaps. It is not
+/// a live contract-month or liquidity feed.
+/// @param exchange - Optional exact filter: `"cme"`, `"eurex"`, `"montreal"`, or `"sgx"`.
+/// @returns Product-family coverage rows with instrument routes and official source URLs.
+/// @throws Error - Throws when `exchange` is unsupported, the embedded listed-product sidecar is invalid, or rows cannot be converted to JavaScript.
+#[wasm_bindgen(js_name = listedProductCatalog)]
+pub fn listed_product_catalog(exchange: Option<String>) -> Result<JsValue, JsValue> {
+    let exchange = exchange
+        .as_deref()
+        .map(str::parse::<finstack_quant_valuations::market::listed::ListedExchange>)
+        .transpose()
+        .map_err(|error| JsValue::from_str(&error))?;
+    let rows = finstack_quant_valuations::market::listed::listed_product_catalog(exchange)
+        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    to_js_value(&rows)
+}
+
 // JsMarket overloads — parse market once, reuse across pricing calls
 
 /// Price an instrument using a pre-parsed [`JsMarket`].

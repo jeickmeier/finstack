@@ -79,8 +79,6 @@ pub enum InstrumentType {
     InflationCapFloor = 66,
     /// Interest rate futures contract.
     InterestRateFuture = 21,
-    /// Option on interest rate future (e.g., SOFR futures option).
-    IrFutureOption = 76,
     /// Variance swap (volatility exposure).
     VarianceSwap = 22,
     /// FX variance swap (volatility exposure on FX).
@@ -149,10 +147,6 @@ pub enum InstrumentType {
     CommoditySpreadOption = 75,
     /// Volatility index future (VIX, VXN, VSTOXX).
     VolatilityIndexFuture = 57,
-    /// Volatility index option (options on VIX, etc.).
-    VolatilityIndexOption = 58,
-    /// Equity index future (ES, NQ, FESX, FDAX, Z, NK).
-    EquityIndexFuture = 59,
     /// FX forward (outright forward, single exchange at maturity).
     FxForward = 60,
     /// Non-deliverable forward (NDF) for restricted currencies.
@@ -179,6 +173,24 @@ pub enum InstrumentType {
     Snowball = 82,
     /// Generic resolved basket of signed underlying instrument quantities.
     Composite = 83,
+    /// Linear listed future on a single or average observed price.
+    CommodityFuture = 84,
+    /// Exchange-listed future on a deliverable currency pair.
+    FxFuture = 85,
+    /// Exchange-listed equity or equity-index future, including fixed-currency quantos.
+    EquityFuture = 86,
+    /// Listed equity total-return future quoted as an annualized financing spread.
+    EquityTotalReturnFuture = 87,
+    /// Listed or bilateral option on an interest-rate futures price.
+    InterestRateFutureOption = 88,
+    /// Exchange-listed option on an equity or equity-index futures contract.
+    EquityFutureOption = 89,
+    /// Exchange-listed option on an FX futures contract.
+    FxFutureOption = 90,
+    /// Exchange-listed option on a commodity futures contract.
+    CommodityFutureOption = 91,
+    /// Exchange-listed option on a volatility-index futures contract.
+    VolatilityIndexFutureOption = 92,
 }
 
 use strum::IntoEnumIterator;
@@ -211,7 +223,6 @@ impl InstrumentType {
             InstrumentType::YoYInflationSwap => "yoy_inflation_swap",
             InstrumentType::InflationCapFloor => "inflation_cap_floor",
             InstrumentType::InterestRateFuture => "interest_rate_future",
-            InstrumentType::IrFutureOption => "ir_future_option",
             InstrumentType::VarianceSwap => "variance_swap",
             InstrumentType::FxVarianceSwap => "fx_variance_swap",
             InstrumentType::Equity => "equity",
@@ -244,8 +255,15 @@ impl InstrumentType {
             InstrumentType::CommoditySwaption => "commodity_swaption",
             InstrumentType::CommoditySpreadOption => "commodity_spread_option",
             InstrumentType::VolatilityIndexFuture => "volatility_index_future",
-            InstrumentType::VolatilityIndexOption => "volatility_index_option",
-            InstrumentType::EquityIndexFuture => "equity_index_future",
+            InstrumentType::CommodityFuture => "commodity_future",
+            InstrumentType::FxFuture => "fx_future",
+            InstrumentType::EquityFuture => "equity_future",
+            InstrumentType::EquityTotalReturnFuture => "equity_total_return_future",
+            InstrumentType::InterestRateFutureOption => "interest_rate_future_option",
+            InstrumentType::EquityFutureOption => "equity_future_option",
+            InstrumentType::FxFutureOption => "fx_future_option",
+            InstrumentType::CommodityFutureOption => "commodity_future_option",
+            InstrumentType::VolatilityIndexFutureOption => "volatility_index_future_option",
             InstrumentType::FxForward => "fx_forward",
             InstrumentType::Ndf => "ndf",
             InstrumentType::AgencyMbsPassthrough => "agency_mbs_passthrough",

@@ -5375,6 +5375,166 @@
       ],
       "type": "object"
     },
+    "CommodityFuture": {
+      "additionalProperties": false,
+      "description": "Exchange-listed future whose settlement is one price or an average of prices.\n\nThis covers linear commodity and price-index futures, including monthly\naverage-settled contracts such as iron ore, energy, and freight futures.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for selection and reporting."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "price_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Price-curve identifier used for projected observations."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "settlement": {
+          "$ref": "#/$defs/CommodityFutureSettlement",
+          "description": "Official final-settlement observation rule."
+        },
+        "terms": {
+          "$ref": "#/$defs/ListedFutureTerms",
+          "description": "Standard listed position and lifecycle terms."
+        },
+        "underlying": {
+          "description": "Exchange symbol or underlying label.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "underlying",
+        "terms",
+        "price_curve_id",
+        "settlement"
+      ],
+      "type": "object"
+    },
+    "CommodityFutureOption": {
+      "additionalProperties": false,
+      "description": "Exchange-listed option on an arbitrary commodity futures contract.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for selection and reporting."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs, including optional tree-step overrides."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "terms": {
+          "$ref": "#/$defs/FutureOptionTerms",
+          "description": "Caller-supplied option-on-future pricing and settlement terms."
+        }
+      },
+      "required": [
+        "id",
+        "terms"
+      ],
+      "type": "object"
+    },
+    "CommodityFutureSettlement": {
+      "description": "Exchange final-settlement rule for a linear commodity future.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "One official observation at the supplied date.",
+          "properties": {
+            "observation_date": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Date whose forward or realized price determines final settlement."
+            },
+            "realized_price": {
+              "description": "Official observed price once the observation date has passed.",
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "single",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "observation_date"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Equal-weight arithmetic average over explicit exchange observation dates.",
+          "properties": {
+            "fixing_dates": {
+              "description": "Ordered, unique exchange observation dates.",
+              "items": {
+                "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+              },
+              "type": "array"
+            },
+            "realized_fixings": {
+              "default": [],
+              "description": "Official prices already fixed, keyed by observation date.",
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+                  },
+                  {
+                    "format": "double",
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "arithmetic_average",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "fixing_dates"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "CommodityOption": {
       "additionalProperties": false,
       "description": "Commodity option (option on commodity forward or spot).\n\n# Pricing\n\n- **European options**: Black-76 model using the forward price from the `PriceCurve`\n- **American options**: Binomial tree (Leisen-Reimer) with cost-of-carry derived from\n  the forward/spot relationship\n\n# American Option Assumptions\n\nFor American exercise, the model requires a spot price to build the binomial tree.\nIf `spot_id` is provided, it uses that spot price. Otherwise, the forward\nprice is used as a proxy for spot, which may underestimate early exercise value.\nThe convenience yield (cost-of-carry) is implied from the forward/spot ratio:\n`q = r - ln(F/S)/T`\n\nBermudan exercise uses the configured exercise schedule and a binomial\ntree. The schedule must contain at least one strictly future date when the\noption is priced before expiry.\n\n# Forward Price Retrieval\n\nForward prices are retrieved from a `PriceCurve` (not a `ForwardCurve`).\nThe curve must be added via `MarketContext::insert_price_curve()`.\nIf `quoted_forward` is provided, it overrides the curve lookup.",
@@ -8290,63 +8450,21 @@
       },
       "type": "object"
     },
-    "EquityFutureSpecs": {
+    "EquityFuture": {
       "additionalProperties": false,
-      "description": "Contract specifications for equity index futures.\n\nContains exchange-specific contract parameters such as multiplier,\ntick size, and settlement method.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::equity::equity_index_future::EquityFutureSpecs;\n\n// E-mini S&P 500 specifications\nlet es_specs = EquityFutureSpecs::sp500_emini();\nassert_eq!(es_specs.multiplier, 50.0);\nassert_eq!(es_specs.tick_size, 0.25);\nassert_eq!(es_specs.tick_value, 12.50);\n```",
-      "properties": {
-        "multiplier": {
-          "description": "Contract multiplier (USD per index point).\nE-mini S&P 500: 50.0 (each point = $50)",
-          "format": "double",
-          "type": "number"
-        },
-        "settlement_method": {
-          "description": "Settlement method description.",
-          "type": "string"
-        },
-        "tick_size": {
-          "description": "Tick size in index points.\nE-mini S&P 500: 0.25 points",
-          "format": "double",
-          "type": "number"
-        },
-        "tick_value": {
-          "description": "Tick value in currency units.\nE-mini S&P 500: $12.50 per tick (0.25 × 50)",
-          "format": "double",
-          "type": "number"
-        }
-      },
-      "required": [
-        "multiplier",
-        "tick_size",
-        "tick_value",
-        "settlement_method"
-      ],
-      "type": "object"
-    },
-    "EquityIndexFuture": {
-      "additionalProperties": false,
-      "description": "Equity Index Future instrument.\n\nRepresents a futures contract on an equity index such as S&P 500, Nasdaq-100,\nEuro Stoxx 50, DAX, FTSE 100, or Nikkei 225.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::equity::equity_index_future::{\n    EquityIndexFuture, EquityFutureSpecs,\n};\nuse finstack_quant_valuations::instruments::Position;\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::dates::Date;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse time::Month;\n\nlet future = EquityIndexFuture::builder()\n    .id(InstrumentId::new(\"ES-2025M03\"))\n    .underlying_ticker(\"SPX\".to_string())\n    .notional(Money::new(2_250_000.0, Currency::USD))\n    .expiry(Date::from_calendar_date(2025, Month::March, 21).expect(\"EquityIndexFuture example is valid\"))\n    .last_trading_date(Date::from_calendar_date(2025, Month::March, 20).expect(\"EquityIndexFuture example is valid\"))\n    .position(Position::Long)\n    .contract_specs(EquityFutureSpecs::sp500_emini())\n    .discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .spot_id(\"SPX-SPOT\".into())\n    .build()\n    .expect(\"Valid future\");\n```",
+      "description": "Exchange-listed future on an equity, equity index, or fixed-currency quanto index.",
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
           "default": {},
-          "description": "Attributes for scenario selection and tagging"
-        },
-        "contract_specs": {
-          "$ref": "#/$defs/EquityFutureSpecs",
-          "default": {
-            "multiplier": 50.0,
-            "settlement_method": "Cash settled to Special Opening Quotation",
-            "tick_size": 0.25,
-            "tick_value": 12.5
-          },
-          "description": "Contract specifications."
+          "description": "Attributes for selection and reporting."
         },
         "discount_curve_id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-          "description": "Discount curve identifier for present value calculations."
+          "description": "Underlying-currency discount curve used for equity carry."
         },
         "discrete_dividends": {
-          "description": "Optional discrete cash dividend schedule `(ex_date, amount)` for index carry.\n\nWhen non-empty, fair forward pricing uses PV spot adjustment and treats\ncontinuous dividend yield as zero to avoid double counting.",
+          "description": "Optional discrete dividends `(ex_date, amount)` in index points.",
           "items": {
             "maxItems": 2,
             "minItems": 2,
@@ -8372,19 +8490,7 @@
               "type": "null"
             }
           ],
-          "description": "Optional dividend yield identifier for fair value calculation."
-        },
-        "entry_price": {
-          "description": "Entry price at trade inception (optional for new trades).",
-          "format": "double",
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "expiry": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-          "description": "Future expiry/settlement date."
+          "description": "Optional continuous dividend-yield scalar in decimal annual units."
         },
         "id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
@@ -8392,62 +8498,122 @@
         },
         "instrument_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
-          "description": "Attributes for tagging and selection."
-        },
-        "last_trading_date": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-          "description": "Last trading date (typically one day before expiry)."
+          "description": "Instrument-owned pricing inputs."
         },
         "metric_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
           "description": "Metric-only pricing controls."
         },
-        "notional": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-          "description": "Notional exposure in settlement currency."
-        },
-        "position": {
-          "$ref": "#/$defs/Position",
-          "description": "Position side (Long or Short)."
-        },
-        "quoted_price": {
-          "description": "Current quoted market price (if available, overrides fair value).",
-          "format": "double",
-          "type": [
-            "number",
-            "null"
-          ]
+        "quanto": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EquityFutureQuantoSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Required quanto adjustment when settlement and underlying currencies differ."
         },
         "scenario_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
-          "description": "Scenario-only valuation adjustments."
-        },
-        "settlement_price": {
-          "description": "Official settlement price fixed after the last trading date.",
-          "format": "double",
-          "type": [
-            "number",
-            "null"
-          ]
+          "description": "Scenario-only pricing adjustments."
         },
         "spot_id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-          "description": "Index spot price identifier for fair value calculation."
+          "description": "Current equity or index level."
+        },
+        "terms": {
+          "$ref": "#/$defs/ListedFutureTerms",
+          "description": "Standard listed position and lifecycle terms."
+        },
+        "underlying_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Currency in which the underlying spot and dividends are quoted."
         },
         "underlying_ticker": {
-          "description": "Index ticker symbol (e.g., \"SPX\", \"NDX\", \"SX5E\").",
+          "description": "Equity or index ticker.",
           "type": "string"
         }
       },
       "required": [
         "id",
         "underlying_ticker",
-        "notional",
-        "expiry",
-        "last_trading_date",
-        "position",
+        "underlying_currency",
+        "terms",
         "discount_curve_id",
         "spot_id"
+      ],
+      "type": "object"
+    },
+    "EquityFutureOption": {
+      "additionalProperties": false,
+      "description": "Exchange-listed option on an arbitrary equity or equity-index futures contract.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for selection and reporting."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs, including optional tree-step overrides."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "terms": {
+          "$ref": "#/$defs/FutureOptionTerms",
+          "description": "Caller-supplied option-on-future pricing and settlement terms."
+        }
+      },
+      "required": [
+        "id",
+        "terms"
+      ],
+      "type": "object"
+    },
+    "EquityFutureQuantoSpec": {
+      "additionalProperties": false,
+      "description": "Market inputs for a fixed-currency quanto equity future.",
+      "properties": {
+        "correlation": {
+          "description": "Correlation between equity returns and the settlement-per-underlying FX rate.",
+          "format": "double",
+          "type": "number"
+        },
+        "equity_vol_surface_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Equity volatility surface in decimal volatility per square-root year."
+        },
+        "fx_spot_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "FX spot scalar in settlement currency per underlying currency."
+        },
+        "fx_vol_surface_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "FX volatility surface for settlement currency per underlying currency."
+        },
+        "settlement_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Settlement-currency discount curve used to form the ATM FX forward."
+        }
+      },
+      "required": [
+        "settlement_discount_curve_id",
+        "equity_vol_surface_id",
+        "fx_vol_surface_id",
+        "fx_spot_id",
+        "correlation"
       ],
       "type": "object"
     },
@@ -8575,6 +8741,72 @@
         "spot_id",
         "vol_surface_id",
         "attributes"
+      ],
+      "type": "object"
+    },
+    "EquityTotalReturnFuture": {
+      "additionalProperties": false,
+      "description": "Exchange-listed equity or index total-return future.\n\nThe clearing price follows the Eurex-style decomposition\n`TRF = spot + accrued_distributions - accrued_funding + basis`, where\n`basis = spot × spread_basis_points × 1e-4 × year_fraction(as_of, settlement)`.",
+      "properties": {
+        "accrued_distributions_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Cumulative distribution points published by the exchange."
+        },
+        "accrued_funding_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Cumulative funding points published by the exchange."
+        },
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for selection and reporting."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "spot_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Current underlying close or exchange-prescribed reference level."
+        },
+        "spread_basis_points_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Current annualized TRF spread scalar expressed in basis points."
+        },
+        "spread_day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day-count basis used to convert the annualized spread into index points."
+        },
+        "terms": {
+          "$ref": "#/$defs/ListedFutureTerms",
+          "description": "Standard listed position and lifecycle terms."
+        },
+        "underlying_ticker": {
+          "description": "Equity or equity-index ticker.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "underlying_ticker",
+        "terms",
+        "spot_id",
+        "accrued_distributions_id",
+        "accrued_funding_id",
+        "spread_basis_points_id",
+        "spread_day_count"
       ],
       "type": "object"
     },
@@ -10248,6 +10480,233 @@
       ],
       "type": "object"
     },
+    "FutureOptionExercise": {
+      "additionalProperties": false,
+      "description": "Exercise or assignment observation for an option on a future.",
+      "properties": {
+        "date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Exercise date. European options require this to equal contractual expiry."
+        },
+        "futures_price": {
+          "description": "Official underlying futures price used to determine exercise.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "date",
+        "futures_price"
+      ],
+      "type": "object"
+    },
+    "FutureOptionModel": {
+      "description": "Quotation model used for an option on a futures price.",
+      "oneOf": [
+        {
+          "const": "black76",
+          "description": "Black-76 with decimal lognormal volatility and positive price/strike.",
+          "type": "string"
+        },
+        {
+          "const": "normal",
+          "description": "Bachelier with normal volatility in futures-price points per square-root year.",
+          "type": "string"
+        }
+      ]
+    },
+    "FutureOptionPremiumStyle": {
+      "description": "Premium-settlement convention.",
+      "oneOf": [
+        {
+          "const": "premium_paid",
+          "description": "Premium is paid up front, so the expected expiry payoff is discounted.",
+          "type": "string"
+        },
+        {
+          "const": "futures_style",
+          "description": "Option value is variation-margined, so its quoted value is undiscounted.",
+          "type": "string"
+        }
+      ]
+    },
+    "FutureOptionSettlement": {
+      "description": "Settlement delivered by exercise or assignment.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Cash payment of intrinsic value on the supplied date.",
+          "properties": {
+            "payment_date": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Date on which the fixed exercise payoff is paid."
+            },
+            "type": {
+              "const": "cash",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "payment_date"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Delivery of a futures position entered at the option strike.",
+          "properties": {
+            "type": {
+              "const": "future",
+              "type": "string"
+            },
+            "underlying_last_trading_date": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Last trading date of the delivered underlying future."
+            },
+            "underlying_settlement_date": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Final settlement date of the delivered underlying future."
+            },
+            "underlying_settlement_price": {
+              "description": "Official final settlement of the delivered future once trading has ended.",
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "underlying_last_trading_date",
+            "underlying_settlement_date"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "FutureOptionTerms": {
+      "additionalProperties": false,
+      "description": "Shared contractual and pricing terms for an asset-owned option on a future.",
+      "properties": {
+        "contracts": {
+          "description": "Number of option contracts.",
+          "format": "double",
+          "type": "number"
+        },
+        "currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Premium, variation-margin, and settlement currency."
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day-count convention for option time and discount-rate inference."
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Settlement-currency discount curve."
+        },
+        "exercise": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FutureOptionExercise"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Recorded early-exercise or expiry observation. Required from expiry onward."
+        },
+        "exercise_style": {
+          "$ref": "#/$defs/ExerciseStyle",
+          "description": "European or American exercise convention."
+        },
+        "expiry": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Contractual option expiry."
+        },
+        "futures_price": {
+          "description": "Current futures mark in the contract's price units.",
+          "format": "double",
+          "type": "number"
+        },
+        "model": {
+          "$ref": "#/$defs/FutureOptionModel",
+          "description": "Black-76 or normal quotation model."
+        },
+        "multiplier": {
+          "description": "Settlement-currency value of one underlying futures price point per contract.",
+          "format": "double",
+          "type": "number"
+        },
+        "option_reference_price": {
+          "description": "Option trade or settlement reference price in option price points.\n\nRequired for [`FutureOptionPremiumStyle::FuturesStyle`]. Set this to the\ntrade price for cumulative P&L since inception or to the preceding\nofficial settlement price for one-day variation margin.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "option_type": {
+          "$ref": "#/$defs/OptionType",
+          "description": "Call or put payoff."
+        },
+        "position": {
+          "$ref": "#/$defs/Position",
+          "default": "long",
+          "description": "Long-holder or short-writer position."
+        },
+        "premium_style": {
+          "$ref": "#/$defs/FutureOptionPremiumStyle",
+          "description": "Up-front premium or futures-style variation-margin convention."
+        },
+        "settlement": {
+          "$ref": "#/$defs/FutureOptionSettlement",
+          "description": "Cash payment or delivery of an underlying future."
+        },
+        "strike": {
+          "description": "Option strike in the same futures-price points.",
+          "format": "double",
+          "type": "number"
+        },
+        "underlying": {
+          "description": "Underlying futures identifier or descriptive label.",
+          "type": "string"
+        },
+        "underlying_price_change_per_bp": {
+          "description": "Optional change in the underlying futures price, in price points, for\na one-basis-point increase in its mapped rate or yield risk factor.\n\nRate-futures-option wrappers use this caller-supplied transform to\nreport DV01 without inferring economics from an exchange symbol.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "volatility": {
+          "description": "Annualized volatility. Decimal lognormal units for Black-76; futures-price\npoints per square-root year for the normal model.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "underlying",
+        "futures_price",
+        "strike",
+        "contracts",
+        "multiplier",
+        "currency",
+        "option_type",
+        "exercise_style",
+        "expiry",
+        "settlement",
+        "volatility",
+        "model",
+        "premium_style",
+        "day_count",
+        "discount_curve_id"
+      ],
+      "type": "object"
+    },
     "FxBarrierOption": {
       "additionalProperties": false,
       "description": "FX barrier option instrument.",
@@ -10603,6 +11062,106 @@
         "domestic_discount_curve_id",
         "foreign_discount_curve_id",
         "attributes"
+      ],
+      "type": "object"
+    },
+    "FxFuture": {
+      "additionalProperties": false,
+      "description": "Exchange-listed future on a deliverable currency pair.\n\nPrices are quote-currency units per one base-currency unit. The listed\nmultiplier is the base-currency contract size, so a one-unit price move is\nworth `multiplier` units of the quote currency per contract.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for selection and reporting."
+        },
+        "base_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Base currency, the numerator of the quoted pair."
+        },
+        "domestic_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Quote-currency discount curve."
+        },
+        "foreign_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Base-currency discount curve."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "quote_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Quote and variation-margin currency."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "spot_rate_override": {
+          "description": "Optional spot override in quote currency per base currency.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "terms": {
+          "$ref": "#/$defs/ListedFutureTerms",
+          "description": "Standard listed position and lifecycle terms."
+        }
+      },
+      "required": [
+        "id",
+        "base_currency",
+        "quote_currency",
+        "terms",
+        "domestic_discount_curve_id",
+        "foreign_discount_curve_id"
+      ],
+      "type": "object"
+    },
+    "FxFutureOption": {
+      "additionalProperties": false,
+      "description": "Exchange-listed option on an arbitrary FX futures contract.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for selection and reporting."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs, including optional tree-step overrides."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "terms": {
+          "$ref": "#/$defs/FutureOptionTerms",
+          "description": "Caller-supplied option-on-future pricing and settlement terms."
+        }
+      },
+      "required": [
+        "id",
+        "terms"
       ],
       "type": "object"
     },
@@ -12167,6 +12726,24 @@
         },
         {
           "additionalProperties": false,
+          "description": "Canonical `interest_rate_future_option` instrument payload.",
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/InterestRateFutureOption"
+            },
+            "type": {
+              "const": "interest_rate_future_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Canonical `cap_floor` instrument payload.",
           "properties": {
             "spec": {
@@ -12210,24 +12787,6 @@
             },
             "type": {
               "const": "cms_option",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Canonical `ir_future_option` instrument payload.",
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/IrFutureOption"
-            },
-            "type": {
-              "const": "ir_future_option",
               "type": "string"
             }
           },
@@ -12455,24 +13014,6 @@
         },
         {
           "additionalProperties": false,
-          "description": "Canonical `equity_index_future` instrument payload.",
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/EquityIndexFuture"
-            },
-            "type": {
-              "const": "equity_index_future",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
           "description": "Canonical `volatility_index_future` instrument payload.",
           "properties": {
             "spec": {
@@ -12491,13 +13032,13 @@
         },
         {
           "additionalProperties": false,
-          "description": "Canonical `volatility_index_option` instrument payload.",
+          "description": "Canonical `volatility_index_future_option` instrument payload.",
           "properties": {
             "spec": {
-              "$ref": "#/$defs/VolatilityIndexOption"
+              "$ref": "#/$defs/VolatilityIndexFutureOption"
             },
             "type": {
-              "const": "volatility_index_option",
+              "const": "volatility_index_future_option",
               "type": "string"
             }
           },
@@ -12786,6 +13327,132 @@
             },
             "type": {
               "const": "commodity_spread_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Canonical `commodity_future` instrument payload.",
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/CommodityFuture"
+            },
+            "type": {
+              "const": "commodity_future",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Canonical `commodity_future_option` instrument payload.",
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/CommodityFutureOption"
+            },
+            "type": {
+              "const": "commodity_future_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Canonical `fx_future` instrument payload.",
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/FxFuture"
+            },
+            "type": {
+              "const": "fx_future",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Canonical `fx_future_option` instrument payload.",
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/FxFutureOption"
+            },
+            "type": {
+              "const": "fx_future_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Canonical `equity_future` instrument payload.",
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/EquityFuture"
+            },
+            "type": {
+              "const": "equity_future",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Canonical `equity_future_option` instrument payload.",
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/EquityFutureOption"
+            },
+            "type": {
+              "const": "equity_future_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Canonical `equity_total_return_future` instrument payload.",
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/EquityTotalReturnFuture"
+            },
+            "type": {
+              "const": "equity_total_return_future",
               "type": "string"
             }
           },
@@ -13132,6 +13799,13 @@
           "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
           "description": "Future expiry/delivery date"
         },
+        "fixing_calendar_id": {
+          "description": "Optional overnight fixing calendar identifier.\n\nRequired only when the contract currency has no registered standard\novernight calendar. Otherwise the currency standard is used.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "fixing_date": {
           "anyOf": [
             {
@@ -13142,6 +13816,17 @@
             }
           ],
           "description": "Underlying rate fixing date.\n\nDefaults to `expiry` when omitted."
+        },
+        "fixing_index_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional fixing-index identifier.\n\nWhen omitted, historical fixings use `forward_curve_id`. Fixing series\nare looked up strictly as `FIXING:{id}` without alias fallback."
         },
         "forward_curve_id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
@@ -13194,9 +13879,21 @@
           "format": "double",
           "type": "number"
         },
+        "rate_averaging": {
+          "$ref": "#/$defs/RateAveragingMethod",
+          "description": "Rate settlement method defined by the exchange contract."
+        },
         "scenario_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
           "description": "Scenario-only pricing adjustments."
+        },
+        "settlement_price": {
+          "description": "Optional official final settlement price in futures price points.\n\nRequired after the last trading date for in-arrears contracts whose\nfinal settlement occurs after trading terminates.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "vol_surface_id": {
           "anyOf": [
@@ -13220,7 +13917,44 @@
         "contract_specs",
         "discount_curve_id",
         "forward_curve_id",
+        "rate_averaging",
         "attributes"
+      ],
+      "type": "object"
+    },
+    "InterestRateFutureOption": {
+      "additionalProperties": false,
+      "description": "Option on an arbitrary interest-rate futures price.\n\nOne instrument covers exchange-listed contracts and bilateral/OTC trades.\nAll economics are caller-supplied; no exchange symbol or contract definition\nis embedded in the type.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for selection and reporting."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs, including optional tree-step overrides."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "terms": {
+          "$ref": "#/$defs/FutureOptionTerms",
+          "description": "Complete listed or bilateral option-on-future terms."
+        }
+      },
+      "required": [
+        "id",
+        "terms"
       ],
       "type": "object"
     },
@@ -13324,98 +14058,6 @@
         "fixed",
         "float",
         "attributes"
-      ],
-      "type": "object"
-    },
-    "IrFutureOption": {
-      "additionalProperties": false,
-      "description": "Exchange-traded option on an interest rate future (e.g., SOFR futures).\n\nPriced using Black-76 on the futures price. The underlying is the futures\nprice itself (100 - rate), so no convexity adjustment is needed.",
-      "properties": {
-        "attributes": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-          "default": {},
-          "description": "Attributes for scenario selection and tagging"
-        },
-        "discount_curve_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-          "description": "Discount curve ID for PV calculation"
-        },
-        "expiry": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-          "description": "Option expiry date"
-        },
-        "face_value": {
-          "default": 1000000.0,
-          "description": "Face value of one underlying futures contract (e.g., $1,000,000 for\nSOFR futures). The position size is `notional / face_value` contracts,\nconsistent with [`InterestRateFuture`](crate::instruments::rates::ir_future).",
-          "format": "double",
-          "type": "number"
-        },
-        "futures_price": {
-          "description": "Underlying futures price (e.g., 95.50 for a 4.50% implied rate)",
-          "format": "double",
-          "type": "number"
-        },
-        "id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-          "description": "Unique identifier"
-        },
-        "instrument_pricing_overrides": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
-          "description": "Pricing overrides\nInstrument-owned pricing inputs."
-        },
-        "metric_pricing_overrides": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
-          "description": "Metric-time pricing configuration."
-        },
-        "notional": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-          "description": "Notional amount per contract"
-        },
-        "option_type": {
-          "$ref": "#/$defs/OptionType",
-          "description": "Call or Put"
-        },
-        "scenario_pricing_overrides": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
-          "description": "Scenario-only pricing adjustments."
-        },
-        "strike": {
-          "description": "Option strike price (in futures price terms, e.g., 95.00)",
-          "format": "double",
-          "type": "number"
-        },
-        "tick_size": {
-          "description": "Tick size (e.g., 0.0025 for SOFR options)",
-          "format": "double",
-          "type": "number"
-        },
-        "tick_value": {
-          "description": "Tick value in currency units (e.g., $6.25 for 1M SOFR, $25 for 3M)",
-          "format": "double",
-          "type": "number"
-        },
-        "vol_model": {
-          "$ref": "#/$defs/SwaptionVolatilityModel",
-          "description": "Volatility model the quote refers to. CME SOFR/STIR options are quoted\nin normal (basis-point) vols — use [`VolatilityModel::Normal`] for\nthose. The persisted contract requires this convention explicitly."
-        },
-        "volatility": {
-          "description": "Annualized volatility. Units follow `vol_model`: a decimal lognormal\nvol of the futures price for [`VolatilityModel::Black`] (e.g. `0.006`),\nor a normal vol in **price points** for [`VolatilityModel::Normal`]\n(e.g. `0.60` ≈ 60 bp of annualized rate vol).",
-          "format": "double",
-          "type": "number"
-        }
-      },
-      "required": [
-        "id",
-        "futures_price",
-        "strike",
-        "expiry",
-        "option_type",
-        "notional",
-        "tick_size",
-        "tick_value",
-        "volatility",
-        "vol_model",
-        "discount_curve_id"
       ],
       "type": "object"
     },
@@ -13527,6 +14169,120 @@
         "currency",
         "asset",
         "attributes"
+      ],
+      "type": "object"
+    },
+    "ListedFutureSettlement": {
+      "description": "Final settlement mode for a listed future.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Cash settlement of final variation margin.",
+          "properties": {
+            "type": {
+              "const": "cash",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Delivery of a standardized quantity of an identified asset.",
+          "properties": {
+            "asset": {
+              "description": "Deliverable asset, grade, location, or basket identifier.",
+              "type": "string"
+            },
+            "quantity_per_contract": {
+              "description": "Physical units delivered per exchange contract.",
+              "format": "double",
+              "type": "number"
+            },
+            "type": {
+              "const": "physical",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "asset",
+            "quantity_per_contract"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ListedFutureTerms": {
+      "additionalProperties": false,
+      "description": "Standardized position, multiplier, and lifecycle terms for a listed future.",
+      "properties": {
+        "contracts": {
+          "description": "Number of exchange contracts. Fractional values are permitted for\nportfolio aggregation but must be finite and strictly positive.",
+          "format": "double",
+          "type": "number"
+        },
+        "currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Currency in which variation margin is paid."
+        },
+        "entry_price": {
+          "description": "Trade fill price in the same price-point units as the market mark.",
+          "format": "double",
+          "type": "number"
+        },
+        "last_trading_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Final date on which the contract trades."
+        },
+        "multiplier": {
+          "description": "Settlement-currency value of one full price point per contract.",
+          "format": "double",
+          "type": "number"
+        },
+        "position": {
+          "$ref": "#/$defs/Position",
+          "description": "Long or short position direction."
+        },
+        "quoted_price": {
+          "description": "Optional live exchange mark, in price points.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "settlement": {
+          "$ref": "#/$defs/ListedFutureSettlement",
+          "default": {
+            "type": "cash"
+          },
+          "description": "Cash or physical final settlement convention."
+        },
+        "settlement_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Date on which final cash settlement is completed."
+        },
+        "settlement_price": {
+          "description": "Optional official final settlement price, in price points.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "contracts",
+        "multiplier",
+        "currency",
+        "entry_price",
+        "last_trading_date",
+        "settlement_date",
+        "position"
       ],
       "type": "object"
     },
@@ -16031,6 +16787,26 @@
         "attributes"
       ],
       "type": "object"
+    },
+    "RateAveragingMethod": {
+      "description": "Exchange settlement method for the reference rate underlying a listed future.",
+      "oneOf": [
+        {
+          "const": "term",
+          "description": "One term fixing or forward rate over the contractual reference period.",
+          "type": "string"
+        },
+        {
+          "const": "arithmetic_average",
+          "description": "Calendar-day-weighted arithmetic average of overnight observations.",
+          "type": "string"
+        },
+        {
+          "const": "compounded_overnight",
+          "description": "Daily compounded overnight observations over the reference period.",
+          "type": "string"
+        }
+      ]
     },
     "RateOptionType": {
       "description": "Type of interest rate option",
@@ -19860,26 +20636,6 @@
       ],
       "type": "object"
     },
-    "VolIndexOptionSpecs": {
-      "additionalProperties": false,
-      "description": "Contract specifications for volatility index options.",
-      "properties": {
-        "index_id": {
-          "description": "Index identifier (e.g., \"VIX\", \"VXN\", \"VSTOXX\").",
-          "type": "string"
-        },
-        "multiplier": {
-          "description": "Contract multiplier (USD per index point).\nVIX options standard: 100 (each point = $100)",
-          "format": "double",
-          "type": "number"
-        }
-      },
-      "required": [
-        "multiplier",
-        "index_id"
-      ],
-      "type": "object"
-    },
     "VolatilityIndexFuture": {
       "additionalProperties": false,
       "description": "Volatility Index Future instrument.\n\nRepresents a futures contract on a volatility index such as VIX, VXN,\nor VSTOXX. These contracts provide exposure to expected future volatility.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::equity::vol_index_future::{\n    VolatilityIndexFuture, VolIndexContractSpecs,\n};\nuse finstack_quant_valuations::instruments::Position;\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::dates::Date;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse time::Month;\n\nlet future = VolatilityIndexFuture::builder()\n    .id(InstrumentId::new(\"VIX-FUT-2025M03\"))\n    .notional(Money::new(100_000.0, Currency::USD))\n    .expiry(Date::from_calendar_date(2025, Month::March, 19).unwrap())\n    .settlement_date(Date::from_calendar_date(2025, Month::March, 19).unwrap())\n    .quoted_price(21.50)\n    .position(Position::Long)\n    .contract_specs(VolIndexContractSpecs::default())\n    .discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .vol_index_curve_id(CurveId::new(\"VIX\"))\n    .build()\n    .expect(\"Valid future\");\n```",
@@ -19966,115 +20722,39 @@
       ],
       "type": "object"
     },
-    "VolatilityIndexOption": {
+    "VolatilityIndexFutureOption": {
       "additionalProperties": false,
-      "description": "Volatility Index Option instrument.\n\nEuropean-style options on volatility indices (VIX, VXN, VSTOXX).\nPriced using the Black model with the vol index forward as underlying.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::equity::vol_index_option::VolatilityIndexOption;\nuse finstack_quant_valuations::instruments::OptionType;\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::dates::{Date, DayCount};\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse time::Month;\n\nlet option = VolatilityIndexOption::builder()\n    .id(InstrumentId::new(\"VIX-CALL-20-2025M03\"))\n    .notional(Money::new(10_000.0, Currency::USD))\n    .strike(20.0)\n    .option_type(OptionType::Call)\n    .expiry(Date::from_calendar_date(2025, Month::March, 19).unwrap())\n    .day_count(DayCount::Act365F)\n    .discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .vol_index_curve_id(CurveId::new(\"VIX\"))\n    .vol_of_vol_surface_id(CurveId::new(\"VIX-VOLVOL\"))\n    .build()\n    .expect(\"Valid option\");\n```",
+      "description": "Exchange-listed option on a volatility-index futures contract.",
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
           "default": {},
-          "description": "Attributes for scenario selection and tagging"
-        },
-        "contract_specs": {
-          "$ref": "#/$defs/VolIndexOptionSpecs",
-          "default": {
-            "index_id": "VIX",
-            "multiplier": 100.0
-          },
-          "description": "Contract specifications."
-        },
-        "day_count": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-          "description": "Day count convention (default: Act365F)."
-        },
-        "discount_curve_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-          "description": "Discount curve identifier for present value calculations."
-        },
-        "exercise_style": {
-          "$ref": "#/$defs/ExerciseStyle",
-          "default": "european",
-          "description": "Exercise style (always European for VIX options)."
-        },
-        "expiry": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
-          "description": "Option expiry date."
-        },
-        "expiry_fixing": {
-          "default": null,
-          "description": "Observed volatility-index settlement fixing, required after expiry when\ncash settlement occurs later than expiry.",
-          "format": "double",
-          "type": [
-            "number",
-            "null"
-          ]
+          "description": "Attributes for selection and reporting."
         },
         "id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-          "description": "Unique identifier."
+          "description": "Unique instrument identifier."
         },
         "instrument_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
-          "default": {},
-          "description": "Attributes for tagging and selection."
+          "description": "Instrument-owned pricing inputs, including optional tree-step overrides."
         },
         "metric_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
-          "default": {
-            "mc_seed_scenario": null,
-            "theta_period": null
-          },
           "description": "Metric-only pricing controls."
-        },
-        "notional": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-          "description": "Notional exposure in currency units."
-        },
-        "option_type": {
-          "$ref": "#/$defs/OptionType",
-          "description": "Option type (Call or Put)."
         },
         "scenario_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
-          "default": {},
-          "description": "Scenario-only valuation adjustments."
+          "description": "Scenario-only pricing adjustments."
         },
-        "settlement_date": {
-          "anyOf": [
-            {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Settlement date (typically same as expiry for cash-settled)."
-        },
-        "strike": {
-          "description": "Strike price (in index points, e.g., 20.0).",
-          "format": "double",
-          "type": "number"
-        },
-        "vol_index_curve_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-          "description": "Volatility index forward curve identifier."
-        },
-        "vol_of_vol_surface_id": {
-          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-          "description": "Vol-of-vol surface identifier for option implied volatility."
+        "terms": {
+          "$ref": "#/$defs/FutureOptionTerms",
+          "description": "Caller-supplied option-on-future pricing and settlement terms."
         }
       },
       "required": [
         "id",
-        "notional",
-        "strike",
-        "option_type",
-        "expiry",
-        "day_count",
-        "discount_curve_id",
-        "vol_index_curve_id",
-        "vol_of_vol_surface_id"
+        "terms"
       ],
       "type": "object"
     },

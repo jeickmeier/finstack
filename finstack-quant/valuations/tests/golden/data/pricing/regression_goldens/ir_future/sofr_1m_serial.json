@@ -10,7 +10,7 @@
     "captured_by": "jeickmeier",
     "captured_on": "2026-04-30",
     "last_reviewed_by": "jeickmeier",
-    "last_reviewed_on": "2026-07-11",
+    "last_reviewed_on": "2026-08-18",
     "review_interval_months": 6,
     "regen_command": "manual formula fixture; values captured from canonical pricing runner",
     "screenshots": []
@@ -140,6 +140,7 @@
         },
         "discount_curve_id": "USD-OIS",
         "forward_curve_id": "USD-SOFR-3M",
+        "rate_averaging": "term",
         "vol_surface_id": null,
         "attributes": {
           "tags": [
@@ -153,7 +154,7 @@
   "expected": {
     "npv": 638.8888888889,
     "dv01": -249.99999999995,
-    "futures_price": 95.95,
+    "futures_price": 95.97555555555556,
     "implied_forward": 0.04024444444444445,
     "convexity_adjustment": 0.0
   },

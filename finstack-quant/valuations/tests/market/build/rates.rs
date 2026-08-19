@@ -115,7 +115,7 @@ fn test_build_futures() {
     let quote = RateQuote::Futures {
         id: "USD-FUT-SEP25".into(),
         contract: "SR3".into(),
-        expiry: Date::from_calendar_date(2025, time::Month::September, 15).unwrap(),
+        expiry: Date::from_calendar_date(2025, time::Month::September, 16).unwrap(),
         price: 96.50,
         convexity_adjustment: 0.0,
     };
@@ -123,11 +123,19 @@ fn test_build_futures() {
     let instrument = build_rate_instrument(&quote, &ctx).expect("build futures");
     assert_eq!(instrument.id(), "USD-FUT-SEP25");
 
-    if instrument
+    if let Some(future) = instrument
         .as_any()
         .downcast_ref::<finstack_quant_valuations::instruments::rates::ir_future::InterestRateFuture>()
-        .is_none()
     {
+        assert_eq!(
+            future.period_start,
+            Some(Date::from_calendar_date(2025, time::Month::June, 18).unwrap())
+        );
+        assert_eq!(
+            future.period_end,
+            Some(Date::from_calendar_date(2025, time::Month::September, 17).unwrap())
+        );
+    } else {
         panic!("Expected InterestRateFuture");
     }
 }

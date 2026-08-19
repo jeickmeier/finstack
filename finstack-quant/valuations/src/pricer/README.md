@@ -48,20 +48,18 @@ in a different crate, reached by the MC instrument pricers.
 | [`json.rs`](json.rs) | Envelope parse/validate, model + metric discovery, the JSON pricing entry points | `pub mod` |
 | [`structured_credit_json.rs`](structured_credit_json.rs) | Five structured-credit tranche analytics that the generic metric registry cannot carry | `pub mod` |
 | [`cos.rs`](cos.rs) | Fang-Oosterlee COS Fourier pricer (`CosConfig`, `CosPricer`, `bs_cos_price`, `vg_cos_price`, `merton_jump_cos_price`) | `pub mod` |
-| [`rates.rs`](rates.rs) | Registrations: Bond, Irs, Fra, BasisSwap, Deposit, InterestRateFuture, IrFutureOption, BondFuture, CapFloor, Swaption, Repo, Dcf | private mod |
+| [`rates.rs`](rates.rs) | Registrations: Bond, Irs, Fra, BasisSwap, Deposit, InterestRateFuture, BondFuture, CapFloor, Swaption, Repo, Dcf | private mod |
 | [`credit.rs`](credit.rs) | Registrations: Cds, CdsIndex, CdsTranche, CdsOption, StructuredCredit | private mod |
-| [`equity.rs`](equity.rs) | Registrations: Equity, EquityOption, EquityTotalReturnSwap, VarianceSwap, EquityIndexFuture, VolatilityIndexFuture/Option, RealEstateAsset, LeveredRealEstateEquity, PrivateMarketsFund | private mod |
-| [`fx.rs`](fx.rs) | Registrations: FxSpot, FxSwap, XccySwap, FxOption, FxVarianceSwap, FxForward, Ndf, FxBarrierOption, FxDigitalOption, FxTouchOption | private mod |
+| [`equity.rs`](equity.rs) | Registrations: Equity, EquityFuture, EquityTotalReturnFuture, EquityOption, EquityTotalReturnSwap, VarianceSwap, VolatilityIndexFuture, RealEstateAsset, LeveredRealEstateEquity, PrivateMarketsFund | private mod |
+| [`fx.rs`](fx.rs) | Registrations: FxSpot, FxFuture, FxSwap, XccySwap, FxOption, FxVarianceSwap, FxForward, Ndf, FxBarrierOption, FxDigitalOption, FxTouchOption | private mod |
 | [`fixed_income.rs`](fixed_income.rs) | Registrations: FiIndexTotalReturnSwap, Convertible, InflationLinkedBond, RevolvingCredit, TermLoan, AgencyMbsPassthrough, AgencyTba, DollarRoll, AgencyCmo | private mod |
 | [`inflation.rs`](inflation.rs) | Registrations: InflationSwap, YoYInflationSwap, InflationCapFloor | private mod |
 | [`exotics.rs`](exotics.rs) | Registrations: Basket, AsianOption, BarrierOption, LookbackOption, QuantoOption, Autocallable, CmsOption/Swap/SpreadOption, CliquetOption, RangeAccrual, CallableRangeAccrual, Tarn, Snowball, BermudanSwaption | private mod |
-| [`commodity.rs`](commodity.rs) | Registrations: CommodityForward, CommoditySwap, CommodityOption, CommodityAsianOption, CommoditySwaption, CommoditySpreadOption | private mod |
+| [`commodity.rs`](commodity.rs) | Registrations: CommodityFuture, CommodityForward, CommoditySwap, CommodityOption, CommodityAsianOption, CommoditySwaption, CommoditySpreadOption | private mod |
 
-The eight asset-class shards contain no logic beyond registration: 105
-`register` / `register_generic!` calls in total (rates 18, credit 6, equity 18,
-fx 11, fixed_income 11, inflation 4, exotics 29, commodity 8), plus the only two
-hand-written `Pricer` impls in any shard, both in `credit.rs`. They are private
-modules whose only public effect is what `register_all_pricers` assembles.
+The asset-class shards contain no logic beyond registration, apart from the two
+hand-written `Pricer` implementations in `credit.rs`. They are private modules
+whose only public effect is what `register_all_pricers` assembles.
 
 ## Public API vs internal plumbing
 
@@ -92,7 +90,7 @@ registry from `standard_registry().clone()` and mutate it, then pass it via
 
 ## Keys
 
-`InstrumentType` has **71** variants; `ModelKey` has **29**. Both are
+`InstrumentType` and `ModelKey` are
 `#[repr(u16)]` with explicit discriminants, `#[non_exhaustive]`, serde
 `rename_all = "snake_case"`, and derive `strum::EnumIter`. `PricerKey` is
 `#[repr(C)]` (4 bytes) with `deny_unknown_fields`; `keys::tests::abi_is_stable`
@@ -177,7 +175,7 @@ turns a collision into a failing build.
 needs an `Arc<PricerRegistry>` so calculators can reprice through the same
 dispatch table; `price_with_metrics` and `price_batch` compare `self` against
 the singleton with `std::ptr::eq` and reuse its `Arc` on a hit, deep-cloning the
-105-entry map only for a bespoke registry.
+registry map only for a bespoke registry.
 
 ## Pricing pipeline
 

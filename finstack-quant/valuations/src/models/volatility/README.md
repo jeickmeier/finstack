@@ -23,8 +23,8 @@ Consumed by [`models::closed_form`](../closed_form/) and
 `calibration::hull_white` (`normal::bachelier_price`), by
 `calibration::targets::vol` (`SABRCalibrator::calibrate_auto_shift`, the
 SABR slice fitter behind `VolSurfaceModel::Sabr`), and by the rates/FX/vol
-instrument pricers — `rates/{swaption, cap_floor, cms_option, cms_swap,
-ir_future_option}`, `fx/fx_digital_option`, `equity/vol_index_option`,
+instrument pricers — `rates/{swaption, cap_floor, cms_option, cms_swap}`,
+the asset-owned futures-option instruments, `fx/fx_digital_option`,
 `exotics/range_accrual` — which reach for `normal::{bachelier_price,
 d_bachelier}`, `black::{d1_d2, d1_black76, d2_black76, d1_d2_black76}`, and
 `SABRParameters` / `sabr::SabrVolType`.
