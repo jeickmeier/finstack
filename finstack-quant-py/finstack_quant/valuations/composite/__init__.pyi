@@ -123,7 +123,11 @@ class CompositeLegSpec:
 
         Examples
         --------
-        >>> _leg_loader = CompositeLegSpec.from_json
+        >>> from finstack_quant.valuations.instruments import TermLoan
+        >>> _loan = TermLoan.example()
+        >>> _leg = CompositeLegSpec(_loan.id, _loan, -2.0)
+        >>> CompositeLegSpec.from_json(_leg.to_json()).weight
+        -2.0
         """
         ...
 
@@ -687,7 +691,26 @@ class CompositeSpec:
 
         Examples
         --------
-        >>> _spec_loader = CompositeSpec.from_json
+        >>> import json
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.valuations.instruments import TermLoan
+        >>> _loan = TermLoan.example()
+        >>> _other = json.loads(_loan.to_json())
+        >>> _other["instrument"]["spec"]["id"] = "TERM-LOAN-ALT"
+        >>> _spec = CompositeSpec(
+        ...     "LOAN-SPREAD",
+        ...     Currency("USD"),
+        ...     Money(1_000_000.0, Currency("USD")),
+        ...     [
+        ...         CompositeLegSpec(_loan.id, _loan, 1.0),
+        ...         CompositeLegSpec("TERM-LOAN-ALT", json.dumps(_other), -1.0),
+        ...     ],
+        ...     WeightingMethod.fixed_quantity(),
+        ...     RebalanceRule.manual(),
+        ... )
+        >>> CompositeSpec.from_json(_spec.to_json()).id
+        'LOAN-SPREAD'
         """
         ...
 
@@ -763,6 +786,13 @@ class CompositeSpec:
         ------
         ValueError
             If validation, history, metric, notional, FX, or quantity resolution fails.
+
+        Notes
+        -----
+        There is no separate ``initialize_fixed`` binding. ``fixed_quantity``
+        specs resolve through this method and do not require historical
+        observations. Volatility weighting requires ``history_json`` to be
+        strictly increasing and to end on ``as_of``.
         """
         ...
 
@@ -905,7 +935,28 @@ class CompositeInstrument:
 
         Examples
         --------
-        >>> _instrument_loader = CompositeInstrument.from_json
+        >>> import datetime, json
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.market_data import MarketContext
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.valuations.instruments import TermLoan
+        >>> _loan = TermLoan.example()
+        >>> _other = json.loads(_loan.to_json())
+        >>> _other["instrument"]["spec"]["id"] = "TERM-LOAN-ALT"
+        >>> _spec = CompositeSpec(
+        ...     "LOAN-SPREAD",
+        ...     Currency("USD"),
+        ...     Money(1_000_000.0, Currency("USD")),
+        ...     [
+        ...         CompositeLegSpec(_loan.id, _loan, 1.0),
+        ...         CompositeLegSpec("TERM-LOAN-ALT", json.dumps(_other), -1.0),
+        ...     ],
+        ...     WeightingMethod.fixed_quantity(),
+        ...     RebalanceRule.manual(),
+        ... )
+        >>> _instrument = _spec.initialize(MarketContext(), datetime.date(2025, 1, 1)).instrument
+        >>> CompositeInstrument.from_json(_instrument.to_json()).id
+        'LOAN-SPREAD'
         """
         ...
 
@@ -1100,7 +1151,28 @@ class CompositeRebalanceResult:
 
         Examples
         --------
-        >>> _rebalance_loader = CompositeRebalanceResult.from_json
+        >>> import datetime, json
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.market_data import MarketContext
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.valuations.instruments import TermLoan
+        >>> _loan = TermLoan.example()
+        >>> _other = json.loads(_loan.to_json())
+        >>> _other["instrument"]["spec"]["id"] = "TERM-LOAN-ALT"
+        >>> _spec = CompositeSpec(
+        ...     "LOAN-SPREAD",
+        ...     Currency("USD"),
+        ...     Money(1_000_000.0, Currency("USD")),
+        ...     [
+        ...         CompositeLegSpec(_loan.id, _loan, 1.0),
+        ...         CompositeLegSpec("TERM-LOAN-ALT", json.dumps(_other), -1.0),
+        ...     ],
+        ...     WeightingMethod.fixed_quantity(),
+        ...     RebalanceRule.manual(),
+        ... )
+        >>> _result = _spec.initialize(MarketContext(), datetime.date(2025, 1, 1))
+        >>> CompositeRebalanceResult.from_json(_result.to_json()).instrument.id
+        'LOAN-SPREAD'
         """
         ...
 
@@ -1159,7 +1231,42 @@ class CompositeExposureReport:
 
     Examples
     --------
-    >>> _exposure_type = CompositeExposureReport.__name__
+    >>> import datetime, json
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.core.money import Money
+    >>> def _equity(instrument_id: str, price: float) -> str:
+    ...     return json.dumps({
+    ...         "schema": "finstack_quant.instrument/1",
+    ...         "instrument": {
+    ...             "type": "equity",
+    ...             "spec": {
+    ...                 "id": instrument_id,
+    ...                 "ticker": instrument_id,
+    ...                 "currency": "USD",
+    ...                 "shares": 1.0,
+    ...                 "price_quote": price,
+    ...                 "price_id": None,
+    ...                 "div_yield_id": None,
+    ...                 "discrete_dividends": [],
+    ...                 "discount_curve_id": "USD",
+    ...                 "attributes": {"tags": [], "meta": {}},
+    ...             },
+    ...         },
+    ...     })
+    >>> _spec = CompositeSpec(
+    ...     "A-B",
+    ...     Currency("USD"),
+    ...     Money(100.0, Currency("USD")),
+    ...     [CompositeLegSpec("A", _equity("A", 100.0), 1.0), CompositeLegSpec("B", _equity("B", 90.0), -1.0)],
+    ...     WeightingMethod.fixed_quantity(),
+    ...     RebalanceRule.manual(),
+    ... )
+    >>> _report = _spec.initialize(MarketContext(), datetime.date(2025, 1, 1)).instrument.primitive_exposures(
+    ...     MarketContext(), datetime.date(2025, 1, 2)
+    ... )
+    >>> [item["instrument_id"] for item in json.loads(_report.to_json())["aggregates"]]
+    ['A', 'B']
     """
 
     @staticmethod
@@ -1210,7 +1317,47 @@ class CompositeHistoryResult:
 
     Examples
     --------
-    >>> _history_type = CompositeHistoryResult.__name__
+    >>> import datetime, json
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.core.money import Money
+    >>> def _equity(instrument_id: str, price: float) -> str:
+    ...     return json.dumps({
+    ...         "schema": "finstack_quant.instrument/1",
+    ...         "instrument": {
+    ...             "type": "equity",
+    ...             "spec": {
+    ...                 "id": instrument_id,
+    ...                 "ticker": instrument_id,
+    ...                 "currency": "USD",
+    ...                 "shares": 1.0,
+    ...                 "price_quote": price,
+    ...                 "price_id": None,
+    ...                 "div_yield_id": None,
+    ...                 "discrete_dividends": [],
+    ...                 "discount_curve_id": "USD",
+    ...                 "attributes": {"tags": [], "meta": {}},
+    ...             },
+    ...         },
+    ...     })
+    >>> _spec = CompositeSpec(
+    ...     "A-B",
+    ...     Currency("USD"),
+    ...     Money(100.0, Currency("USD")),
+    ...     [CompositeLegSpec("A", _equity("A", 100.0), 1.0), CompositeLegSpec("B", _equity("B", 90.0), -1.0)],
+    ...     WeightingMethod.fixed_quantity(),
+    ...     RebalanceRule.manual(),
+    ... )
+    >>> _state = json.loads(MarketContext().to_json())
+    >>> _history = CompositeHistoryEngine.run_from_spec(
+    ...     _spec,
+    ...     json.dumps([
+    ...         {"date": "2025-01-01", "state": _state},
+    ...         {"date": "2025-01-02", "state": _state},
+    ...     ]),
+    ... )
+    >>> (len(_history), json.loads(_history.row_json(0))["return_index"])
+    (2, 100.0)
     """
 
     @staticmethod
@@ -1241,7 +1388,18 @@ class CompositeHistoryResult:
         ...
 
     def __len__(self) -> int:
-        """Return the number of chronological output rows."""
+        """
+        Return the number of chronological output rows.
+
+        Returns
+        -------
+        int
+            Count of dated history rows in chronological order.
+
+        Notes
+        -----
+        This accessor does not raise; an empty result has length ``0``.
+        """
         ...
 
     def row_json(self, index: int) -> str:
@@ -1289,7 +1447,43 @@ class CompositeHistoryEngine:
 
     Examples
     --------
-    >>> _engine_type = CompositeHistoryEngine.__name__
+    >>> import json
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.core.money import Money
+    >>> def _equity(instrument_id: str, price: float) -> str:
+    ...     return json.dumps({
+    ...         "schema": "finstack_quant.instrument/1",
+    ...         "instrument": {
+    ...             "type": "equity",
+    ...             "spec": {
+    ...                 "id": instrument_id,
+    ...                 "ticker": instrument_id,
+    ...                 "currency": "USD",
+    ...                 "shares": 1.0,
+    ...                 "price_quote": price,
+    ...                 "price_id": None,
+    ...                 "div_yield_id": None,
+    ...                 "discrete_dividends": [],
+    ...                 "discount_curve_id": "USD",
+    ...                 "attributes": {"tags": [], "meta": {}},
+    ...             },
+    ...         },
+    ...     })
+    >>> _spec = CompositeSpec(
+    ...     "A-B",
+    ...     Currency("USD"),
+    ...     Money(100.0, Currency("USD")),
+    ...     [CompositeLegSpec("A", _equity("A", 100.0), 1.0), CompositeLegSpec("B", _equity("B", 90.0), -1.0)],
+    ...     WeightingMethod.fixed_quantity(),
+    ...     RebalanceRule.manual(),
+    ... )
+    >>> _state = json.loads(MarketContext().to_json())
+    >>> len(CompositeHistoryEngine.run_from_spec(
+    ...     _spec,
+    ...     json.dumps([{"date": "2025-01-01", "state": _state}, {"date": "2025-01-02", "state": _state}]),
+    ... ))
+    2
     """
 
     @staticmethod
@@ -1322,7 +1516,43 @@ class CompositeHistoryEngine:
 
         Examples
         --------
-        >>> _run_from_spec = CompositeHistoryEngine.run_from_spec
+        >>> import json
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.market_data import MarketContext
+        >>> from finstack_quant.core.money import Money
+        >>> def _equity(instrument_id: str, price: float) -> str:
+        ...     return json.dumps({
+        ...         "schema": "finstack_quant.instrument/1",
+        ...         "instrument": {
+        ...             "type": "equity",
+        ...             "spec": {
+        ...                 "id": instrument_id,
+        ...                 "ticker": instrument_id,
+        ...                 "currency": "USD",
+        ...                 "shares": 1.0,
+        ...                 "price_quote": price,
+        ...                 "price_id": None,
+        ...                 "div_yield_id": None,
+        ...                 "discrete_dividends": [],
+        ...                 "discount_curve_id": "USD",
+        ...                 "attributes": {"tags": [], "meta": {}},
+        ...             },
+        ...         },
+        ...     })
+        >>> _spec = CompositeSpec(
+        ...     "A-B",
+        ...     Currency("USD"),
+        ...     Money(100.0, Currency("USD")),
+        ...     [CompositeLegSpec("A", _equity("A", 100.0), 1.0), CompositeLegSpec("B", _equity("B", 90.0), -1.0)],
+        ...     WeightingMethod.fixed_quantity(),
+        ...     RebalanceRule.manual(),
+        ... )
+        >>> _state = json.loads(MarketContext().to_json())
+        >>> json.loads(CompositeHistoryEngine.run_from_spec(
+        ...     _spec,
+        ...     json.dumps([{"date": "2025-01-01", "state": _state}, {"date": "2025-01-02", "state": _state}]),
+        ... ).to_json())[0]["return_index"]
+        100.0
         """
         ...
 
@@ -1354,6 +1584,43 @@ class CompositeHistoryEngine:
 
         Examples
         --------
-        >>> _run = CompositeHistoryEngine.run
+        >>> import datetime, json
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.market_data import MarketContext
+        >>> from finstack_quant.core.money import Money
+        >>> def _equity(instrument_id: str, price: float) -> str:
+        ...     return json.dumps({
+        ...         "schema": "finstack_quant.instrument/1",
+        ...         "instrument": {
+        ...             "type": "equity",
+        ...             "spec": {
+        ...                 "id": instrument_id,
+        ...                 "ticker": instrument_id,
+        ...                 "currency": "USD",
+        ...                 "shares": 1.0,
+        ...                 "price_quote": price,
+        ...                 "price_id": None,
+        ...                 "div_yield_id": None,
+        ...                 "discrete_dividends": [],
+        ...                 "discount_curve_id": "USD",
+        ...                 "attributes": {"tags": [], "meta": {}},
+        ...             },
+        ...         },
+        ...     })
+        >>> _spec = CompositeSpec(
+        ...     "A-B",
+        ...     Currency("USD"),
+        ...     Money(100.0, Currency("USD")),
+        ...     [CompositeLegSpec("A", _equity("A", 100.0), 1.0), CompositeLegSpec("B", _equity("B", 90.0), -1.0)],
+        ...     WeightingMethod.fixed_quantity(),
+        ...     RebalanceRule.manual(),
+        ... )
+        >>> _instrument = _spec.initialize(MarketContext(), datetime.date(2025, 1, 1)).instrument
+        >>> _state = json.loads(MarketContext().to_json())
+        >>> len(CompositeHistoryEngine.run(
+        ...     _instrument,
+        ...     json.dumps([{"date": "2025-01-01", "state": _state}, {"date": "2025-01-02", "state": _state}]),
+        ... ))
+        2
         """
         ...

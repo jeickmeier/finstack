@@ -16,9 +16,9 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-/// Maximum permitted nested composite depth.
+/// Maximum nesting depth of composite-in-composite trees, counting the root.
 pub const MAX_COMPOSITE_DEPTH: usize = 8;
-/// Maximum total leg nodes permitted in one composite tree.
+/// Maximum number of leg nodes permitted across one composite tree.
 pub const MAX_COMPOSITE_LEGS: usize = 64;
 const MIN_ABS_INPUT: f64 = 1.0e-12;
 
@@ -45,11 +45,18 @@ pub struct CompositeLegSpec {
 impl CompositeLegSpec {
     /// Construct a self-contained composite leg.
     ///
+    /// `weight` is the resolved quantity under [`WeightingMethod::FixedQuantity`]
+    /// and the signed target score for every dynamic method. Validation requires
+    /// a finite value with absolute magnitude greater than `1e-12`.
+    ///
     /// # Arguments
     ///
-    /// * `instrument_id` - Identifier that must match the embedded instrument.
-    /// * `instrument` - Canonical typed underlying instrument definition.
-    /// * `weight` - Signed fixed quantity or dynamic target score.
+    /// * `instrument_id` - Identifier that must equal `instrument.id()` after
+    ///   the embedded definition is boxed.
+    /// * `instrument` - Canonical typed underlying instrument; nested
+    ///   composites are permitted within [`MAX_COMPOSITE_DEPTH`].
+    /// * `weight` - Signed fixed quantity or dynamic target score; must be
+    ///   finite and non-zero.
     #[must_use]
     pub fn new(
         instrument_id: impl Into<InstrumentId>,
@@ -124,6 +131,10 @@ pub enum RebalanceRule {
 impl RebalanceRule {
     /// Validate ordering, calendar, and schedule bounds.
     ///
+    /// Explicit dates must be strictly increasing. Calendar rules must have
+    /// `end >= start` when an end date is supplied, and the named holiday
+    /// calendar plus business-day convention must produce a valid schedule.
+    ///
     /// # Errors
     ///
     /// Returns an error for duplicate or unordered explicit dates, invalid
@@ -163,9 +174,15 @@ impl RebalanceRule {
 
     /// Return eligible rebalance dates up to a supplied horizon.
     ///
+    /// [`Self::Manual`] yields an empty list. Explicit dates are filtered to
+    /// `date <= horizon`. Calendar dates are generated from `start` through
+    /// `min(end, horizon)` (or `horizon` when `end` is omitted) and then
+    /// business-day adjusted.
+    ///
     /// # Arguments
     ///
-    /// * `horizon` - Latest date to include after business-day adjustment.
+    /// * `horizon` - Latest date, inclusive, to include after business-day
+    ///   adjustment; dates after this cutoff are omitted.
     ///
     /// # Errors
     ///
@@ -204,6 +221,34 @@ impl RebalanceRule {
 }
 
 /// Policy used to resolve signed leg quantities at initialization or rebalance.
+///
+/// Each variant consumes the signed `weight` on [`CompositeLegSpec`] as either
+/// the quantity itself or a target score. Resolution happens only in
+/// [`CompositeSpec::initialize`] / [`CompositeSpec::initialize_fixed`] or
+/// [`CompositeInstrument::rebalance`].
+///
+/// # Formulas
+///
+/// Let `w_i` be the leg score, `G` a positive reporting-currency gross
+/// notional, `N_i` the absolute unit notional, `m_i` the unit metric, `s_i`
+/// the (optionally neutralized) score, and `σ_i` annualized unit-P&L
+/// volatility. With an anchor quantity `q_a`:
+///
+/// ```text
+/// FixedQuantity:     q_i = w_i
+/// NotionalWeighted:  q_i = sign(w_i) · G · |w_i| / Σ|w| / N_i
+/// MetricWeighted:    q_i = (s_i / s_a) · (q_a · m_a) / m_i
+/// VolatilityWeighted:q_i = (w_i / w_a) · q_a · σ_a / σ_i
+/// ```
+///
+/// Neutralization rescales positive scores to sum to `+1` and negative scores
+/// to sum to `-1` before metric weighting. User-defined expressions replace
+/// these closed forms and must return a finite non-zero quantity per leg.
+///
+/// # References
+///
+/// - DV01-neutral and duration-weighted curve trades:
+///   `docs/REFERENCES.md#tuckman-serrat-fixed-income`
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum WeightingMethod {
@@ -243,6 +288,12 @@ pub enum WeightingMethod {
         /// Metrics populated into the expression context for every leg.
         required_metrics: Vec<MetricId>,
         /// One scalar expression per leg, keyed by instrument identifier.
+        ///
+        /// Available columns: `as_of_days`, `leg.{id}.weight`,
+        /// `leg.{id}.value`, `leg.{id}.fx_rate`, optional `leg.{id}.notional`,
+        /// `leg.{id}.metric.{metric}` for each required metric, and
+        /// `leg.{id}.volatility` when history has at least three observations
+        /// (annualized with `sqrt(252)`).
         quantity_expressions: IndexMap<String, Expr>,
     },
 }
@@ -250,10 +301,16 @@ pub enum WeightingMethod {
 impl WeightingMethod {
     /// Construct parallel-DV01-neutral weighting.
     ///
+    /// Equivalent to [`Self::MetricWeighted`] with `metric = dv01` and
+    /// `neutralize = true`. Positive and negative score groups are normalized
+    /// separately so a steepener or butterfly can split wing risk.
+    ///
     /// # Arguments
     ///
-    /// * `anchor_leg_id` - Leg that fixes the quantity scale.
-    /// * `anchor_quantity` - Signed quantity assigned to the anchor.
+    /// * `anchor_leg_id` - Existing leg whose signed quantity fixes overall
+    ///   scale; must be present on the specification.
+    /// * `anchor_quantity` - Finite non-zero signed quantity assigned to the
+    ///   anchor; `q_a · m_a` must have the same sign as the anchor score.
     #[must_use]
     pub fn dv01_neutral(anchor_leg_id: impl Into<InstrumentId>, anchor_quantity: f64) -> Self {
         Self::MetricWeighted {
@@ -266,10 +323,15 @@ impl WeightingMethod {
 
     /// Construct curve-neutral weighting, defined as parallel-DV01 neutrality.
     ///
+    /// Alias of [`Self::dv01_neutral`]. Use for 2s10s, butterflies, and other
+    /// curve packages whose wing split follows signed scores.
+    ///
     /// # Arguments
     ///
-    /// * `anchor_leg_id` - Leg that fixes the quantity scale.
-    /// * `anchor_quantity` - Signed quantity assigned to the anchor.
+    /// * `anchor_leg_id` - Existing curve leg whose signed quantity fixes
+    ///   overall scale.
+    /// * `anchor_quantity` - Finite non-zero signed quantity assigned to the
+    ///   anchor; sign must match the anchor score.
     #[must_use]
     pub fn curve_neutral(anchor_leg_id: impl Into<InstrumentId>, anchor_quantity: f64) -> Self {
         Self::dv01_neutral(anchor_leg_id, anchor_quantity)
@@ -277,10 +339,15 @@ impl WeightingMethod {
 
     /// Construct delta-neutral weighting.
     ///
+    /// Equivalent to [`Self::MetricWeighted`] with `metric = delta` and
+    /// `neutralize = true`.
+    ///
     /// # Arguments
     ///
-    /// * `anchor_leg_id` - Leg that fixes the quantity scale.
-    /// * `anchor_quantity` - Signed quantity assigned to the anchor.
+    /// * `anchor_leg_id` - Existing delta-bearing leg whose signed quantity
+    ///   fixes overall scale.
+    /// * `anchor_quantity` - Finite non-zero signed quantity assigned to the
+    ///   anchor; `q_a · Δ_a` must have the same sign as the anchor score.
     #[must_use]
     pub fn delta_neutral(anchor_leg_id: impl Into<InstrumentId>, anchor_quantity: f64) -> Self {
         Self::MetricWeighted {
@@ -293,10 +360,15 @@ impl WeightingMethod {
 
     /// Construct modified-duration weighting without neutrality normalization.
     ///
+    /// Equivalent to [`Self::MetricWeighted`] with `metric = duration_mod` and
+    /// `neutralize = false`. Scores are used as raw relative weights.
+    ///
     /// # Arguments
     ///
-    /// * `anchor_leg_id` - Leg that fixes the quantity scale.
-    /// * `anchor_quantity` - Signed quantity assigned to the anchor.
+    /// * `anchor_leg_id` - Existing duration-bearing leg whose signed quantity
+    ///   fixes overall scale.
+    /// * `anchor_quantity` - Finite non-zero signed quantity assigned to the
+    ///   anchor; `q_a · D_a` must have the same sign as the anchor score.
     #[must_use]
     pub fn duration_weighted(anchor_leg_id: impl Into<InstrumentId>, anchor_quantity: f64) -> Self {
         Self::MetricWeighted {
@@ -309,13 +381,25 @@ impl WeightingMethod {
 
     /// Construct inverse unit-P&L-volatility weighting.
     ///
+    /// Unit P&L is value change plus signed cashflows on `(t_{k-1}, t_k]`,
+    /// converted to the composite reporting currency. Sample volatility uses
+    /// Bessel's correction (`n - 1`) and is annualized by
+    /// `sqrt(annualization_factor)`. History supplied to `initialize` or
+    /// `rebalance` must be strictly increasing and must end on the effective
+    /// date.
+    ///
     /// # Arguments
     ///
-    /// * `anchor_leg_id` - Leg that fixes the quantity scale.
-    /// * `anchor_quantity` - Signed quantity assigned to the anchor.
-    /// * `lookback` - Maximum number of most-recent P&L observations.
-    /// * `min_observations` - Minimum required P&L observations.
-    /// * `annualization_factor` - Positive periods-per-year annualization factor.
+    /// * `anchor_leg_id` - Existing leg whose signed quantity fixes overall
+    ///   scale.
+    /// * `anchor_quantity` - Finite non-zero signed quantity assigned to the
+    ///   anchor; sign must match the anchor score.
+    /// * `lookback` - Maximum number of most-recent unit-P&L observations
+    ///   retained; must be at least `min_observations`.
+    /// * `min_observations` - Minimum finite P&L observations required for
+    ///   every active leg; must satisfy `lookback >= min_observations >= 2`.
+    /// * `annualization_factor` - Positive periods-per-year factor, such as
+    ///   `252.0` for daily observations.
     #[must_use]
     pub fn volatility_weighted(
         anchor_leg_id: impl Into<InstrumentId>,
@@ -373,10 +457,15 @@ pub struct CompositeMarketObservation {
 impl CompositeMarketObservation {
     /// Capture a market context as a dated immutable observation.
     ///
+    /// The snapshot stores the complete [`MarketContextState`]. Dynamic
+    /// weighting and history restore it rather than mutating the live market.
+    ///
     /// # Arguments
     ///
-    /// * `date` - Date represented by the supplied market context.
-    /// * `market` - Complete market context to snapshot.
+    /// * `date` - Observation date; sequences must be strictly increasing and
+    ///   volatility history must end on the rebalance date.
+    /// * `market` - Complete market context whose curves, prices, and FX
+    ///   matrix are materialized for this date.
     #[must_use]
     pub fn new(date: Date, market: &MarketContext) -> Self {
         Self {
@@ -422,14 +511,23 @@ pub struct CompositeSpec {
 impl CompositeSpec {
     /// Construct an unresolved composite specification.
     ///
+    /// The constructor does not validate. Call [`Self::validate`] or
+    /// [`Self::initialize`] / [`Self::initialize_fixed`] before pricing.
+    ///
     /// # Arguments
     ///
-    /// * `id` - Stable composite identifier.
-    /// * `reporting_currency` - Currency for value, risk, P&L, and returns.
-    /// * `capital` - Positive return denominator in `reporting_currency`.
-    /// * `legs` - At least two self-contained signed leg definitions.
-    /// * `weighting_method` - Fixed or dynamically resolved weighting policy.
-    /// * `rebalance_rule` - Manual, explicit-date, or calendar-aware rule.
+    /// * `id` - Stable composite identifier used for pricing, serialization,
+    ///   and primitive exposure paths.
+    /// * `reporting_currency` - Currency for capital, value, additive risk,
+    ///   cashflows, P&L, and period returns.
+    /// * `capital` - Positive return denominator per composite unit; amount
+    ///   must be finite and denominated in `reporting_currency`.
+    /// * `legs` - At least two self-contained signed legs with unique
+    ///   identifiers that match their embedded instruments.
+    /// * `weighting_method` - Policy used only during initialization or
+    ///   explicit rebalance; pricing never re-solves quantities.
+    /// * `rebalance_rule` - Manual, explicit-date, or calendar-aware rule
+    ///   that marks when a new state becomes eligible.
     #[must_use]
     pub fn new(
         id: impl Into<InstrumentId>,
@@ -457,7 +555,8 @@ impl CompositeSpec {
     ///
     /// # Arguments
     ///
-    /// * `attributes` - Tags and metadata stored on the resulting instrument.
+    /// * `attributes` - Tags and metadata copied onto the unresolved
+    ///   specification and retained on every resolved instrument.
     #[must_use]
     pub fn with_attributes(mut self, attributes: Attributes) -> Self {
         self.attributes = attributes;
@@ -652,9 +751,17 @@ impl CompositeSpec {
 
     /// Resolve a fixed-quantity specification without consulting market data.
     ///
+    /// Each leg's `weight` becomes its frozen quantity. Dynamic weighting
+    /// methods must use [`Self::initialize`] instead.
+    ///
+    /// Python and WASM expose only [`Self::initialize`]; that path also
+    /// resolves [`WeightingMethod::FixedQuantity`] and does not require
+    /// historical observations.
+    ///
     /// # Arguments
     ///
-    /// * `effective_date` - Date from which the fixed quantities are held.
+    /// * `effective_date` - Date from which the fixed quantities are held
+    ///   until the next explicit rebalance.
     ///
     /// # Errors
     ///
@@ -672,11 +779,19 @@ impl CompositeSpec {
 
     /// Resolve quantities using current and, when required, historical market data.
     ///
+    /// Volatility weighting requires `history` to be strictly increasing and
+    /// to end on `as_of`. User-defined expressions populate
+    /// `leg.{id}.volatility` only when `history` has at least three
+    /// observations (two unit-P&L increments), annualized with `sqrt(252)`.
+    ///
     /// # Arguments
     ///
-    /// * `market` - Current complete market context used for valuation and metrics.
-    /// * `as_of` - Effective date of the new immutable holdings state.
-    /// * `history` - Strictly increasing dated snapshots available through `as_of`.
+    /// * `market` - Complete current market used for unit values, additive
+    ///   metrics, notionals, and reporting-currency FX conversion.
+    /// * `as_of` - Effective date of the new immutable holdings state; no
+    ///   later history observation is permitted.
+    /// * `history` - Strictly increasing dated snapshots available through
+    ///   `as_of`. Required for volatility weighting; optional otherwise.
     ///
     /// # Errors
     ///
@@ -1063,6 +1178,20 @@ impl CompositeSpec {
 }
 
 /// Priceable composite instrument containing an unresolved policy and immutable state.
+///
+/// Valuation and risk use `state` exactly as stored. Call [`Self::rebalance`]
+/// to obtain a distinct instrument; this type does not mutate in place.
+///
+/// # Examples
+///
+/// ```
+/// use finstack_quant_valuations::instruments::{CompositeInstrument, Instrument};
+///
+/// let composite = CompositeInstrument::example()?;
+/// assert_eq!(composite.id(), "COMPOSITE-EXAMPLE");
+/// assert_eq!(composite.state.resolved_legs.len(), 2);
+/// # Ok::<(), finstack_quant_core::Error>(())
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CompositeInstrument {
@@ -1077,8 +1206,10 @@ impl CompositeInstrument {
     ///
     /// # Arguments
     ///
-    /// * `spec` - Self-contained composite definition.
-    /// * `state` - Immutable resolved quantities and audit inputs.
+    /// * `spec` - Self-contained composite definition, including future
+    ///   rebalance policy.
+    /// * `state` - Immutable resolved quantities, effective date, and finite
+    ///   weighting-audit inputs; leg order must match `spec.legs`.
     ///
     /// # Errors
     ///
@@ -1089,7 +1220,14 @@ impl CompositeInstrument {
         Ok(instrument)
     }
 
-    /// Return a canonical fixed-quantity example used by generated contracts.
+    /// Return a canonical fixed-quantity long/short equity example.
+    ///
+    /// Long `COMPOSITE-LONG` at 100 and short `COMPOSITE-SHORT` at 90, each
+    /// with quantity `±1`, effective `2025-01-01`, and USD 100 capital.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the generated example fails validation.
     pub fn example() -> Result<Self> {
         let long = crate::instruments::Equity::new("COMPOSITE-LONG", "LONG", Currency::USD)
             .with_shares(1.0)
@@ -1149,11 +1287,17 @@ impl CompositeInstrument {
 
     /// Explicitly resolve a new immutable state and primitive execution deltas.
     ///
+    /// The receiver is not mutated. Trades are net primitive quantity deltas
+    /// from this state to the newly resolved state.
+    ///
     /// # Arguments
     ///
-    /// * `market` - Current complete market context.
-    /// * `as_of` - Effective date for the new state.
-    /// * `history` - Strictly increasing observations available through `as_of`.
+    /// * `market` - Complete current market used to resolve dynamic quantities
+    ///   and convert notionals, metrics, and FX into `reporting_currency`.
+    /// * `as_of` - Effective date for the distinct returned state; no later
+    ///   history observation is permitted.
+    /// * `history` - Strictly increasing observations available through
+    ///   `as_of`. Required for volatility weighting and must end on `as_of`.
     ///
     /// # Errors
     ///
@@ -1173,9 +1317,15 @@ impl CompositeInstrument {
 
     /// Return frozen top-level quantities as execution deltas from an optional prior state.
     ///
+    /// Nested composites are flattened first. Deltas smaller than `1e-12` in
+    /// absolute value are omitted. A reused primitive identifier must carry
+    /// the same definition in both states.
+    ///
     /// # Arguments
     ///
-    /// * `previous` - Prior resolved state, or `None` for initial establishment trades.
+    /// * `previous` - Prior resolved state used as the trade baseline, or
+    ///   `None` to treat every current primitive quantity as an establishment
+    ///   trade.
     ///
     /// # Errors
     ///
@@ -1234,13 +1384,16 @@ impl CompositeInstrument {
     ///
     /// Only additive metrics can be requested because a top-level value for
     /// yield, duration, implied volatility, or another non-linear measure would
-    /// conceal instrument-specific meaning.
+    /// conceal instrument-specific meaning. Path values and additive measures
+    /// are converted to `reporting_currency` on `as_of`.
     ///
     /// # Arguments
     ///
-    /// * `market` - Market context used to price every primitive.
+    /// * `market` - Complete market used to price every primitive and convert
+    ///   native amounts into `reporting_currency`.
     /// * `as_of` - Valuation date and FX conversion date.
-    /// * `metrics` - Additive risk metrics to aggregate.
+    /// * `metrics` - Additive risk metrics to aggregate; an empty slice
+    ///   reports value only. Non-additive identifiers are rejected.
     ///
     /// # Errors
     ///

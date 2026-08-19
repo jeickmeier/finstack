@@ -1,4 +1,10 @@
 //! WASM façade for composite initialization, rebalancing, decomposition, and history.
+//!
+//! Pricing uses frozen quantities. Only `initialize` / `rebalance` calculate a
+//! new state. Period return is `pnl / capital`; `return_index` starts at `100`.
+//! Close-effective rebalances report pre-trade P&L, then open the next interval
+//! at the post-trade financed value. There is no separate `initializeFixed`
+//! export; `initialize` resolves `fixed_quantity` without history.
 
 use crate::utils::{to_js_err, to_js_error, to_js_value};
 use finstack_quant_valuations::instruments::composite::{
@@ -55,6 +61,10 @@ fn rebalance_value(result: CompositeRebalanceResult) -> Result<JsValue, JsValue>
 
 /// Resolve an unresolved composite specification into a priceable instrument.
 ///
+/// Fixed-quantity specs resolve without historical observations. Volatility
+/// weighting requires `history_json` to be strictly increasing and to end on
+/// `as_of`. There is no separate `initializeFixed` export.
+///
 /// @param spec_json - Bare canonical `CompositeSpec` JSON.
 /// @param market_json - Complete canonical market-context JSON at the effective date.
 /// @param as_of - ISO-8601 effective date for the resolved holdings state.
@@ -64,9 +74,11 @@ fn rebalance_value(result: CompositeRebalanceResult) -> Result<JsValue, JsValue>
 /// # Arguments
 ///
 /// * `spec_json` - Bare serialized composite definition with embedded instruments.
-/// * `market_json` - Complete market context used to resolve dynamic quantities.
+/// * `market_json` - Complete market used for unit values, additive metrics,
+///   notionals, and reporting-currency FX conversion.
 /// * `as_of` - ISO-8601 state effective date; no later history is permitted.
-/// * `history_json` - Optional strictly increasing dated observations for volatility or expression inputs.
+/// * `history_json` - Optional strictly increasing dated observations. Required
+///   for volatility weighting and must end on `as_of`; unused for `fixed_quantity`.
 ///
 /// # Errors
 ///
@@ -91,6 +103,9 @@ pub fn initialize_composite(
 
 /// Explicitly rebalance a resolved composite without mutating the prior state.
 ///
+/// Trades are net primitive quantity deltas from the supplied envelope to the
+/// newly resolved state. Volatility weighting requires history ending on `as_of`.
+///
 /// @param instrument_json - Canonical resolved composite instrument envelope.
 /// @param market_json - Complete canonical market-context JSON at the rebalance date.
 /// @param as_of - ISO-8601 effective date for the new state.
@@ -100,9 +115,11 @@ pub fn initialize_composite(
 /// # Arguments
 ///
 /// * `instrument_json` - Existing resolved composite envelope used as the trade baseline.
-/// * `market_json` - Complete market context used to resolve new quantities.
+/// * `market_json` - Complete market used to resolve new quantities and convert
+///   notionals, metrics, and FX into the reporting currency.
 /// * `as_of` - ISO-8601 effective date for the distinct returned state.
-/// * `history_json` - Optional strictly increasing dated observations for dynamic inputs.
+/// * `history_json` - Optional strictly increasing dated observations. Required
+///   for volatility weighting and must end on `as_of`.
 ///
 /// # Errors
 ///
@@ -127,6 +144,10 @@ pub fn rebalance_composite(
 
 /// Return path-level plus net/gross primitive value and additive risk.
 ///
+/// Only additive metrics can be requested. Yield, duration, implied
+/// volatility, and other non-linear measures are rejected. Amounts are
+/// converted to the composite reporting currency on `as_of`.
+///
 /// @param instrument_json - Canonical resolved composite instrument envelope.
 /// @param market_json - Complete canonical market-context JSON used for primitive pricing and FX.
 /// @param as_of - ISO-8601 valuation date.
@@ -137,8 +158,9 @@ pub fn rebalance_composite(
 ///
 /// * `instrument_json` - Resolved composite whose frozen quantities are decomposed.
 /// * `market_json` - Complete valuation and FX context.
-/// * `as_of` - ISO-8601 valuation date.
-/// * `metrics` - Optional JavaScript array of additive metric identifiers.
+/// * `as_of` - ISO-8601 valuation date used for prices, metrics, and FX.
+/// * `metrics` - Optional JavaScript array of additive metric identifiers;
+///   omit or pass `[]` to report value only.
 ///
 /// # Errors
 ///
@@ -194,6 +216,12 @@ pub fn composite_execution_trades(
 
 /// Initialize a specification at the first snapshot and calculate dated history.
 ///
+/// Warmup snapshots feed dynamic weighting only. Each row values the state
+/// held into that close. A scheduled rebalance is close-effective: the row
+/// reports pre-trade P&L, then the next interval opens at the post-trade
+/// financed value. Period return is `pnl / capital`. The first row has
+/// `return_index = 100` and zero P&L, cashflows, and period return.
+///
 /// @param spec_json - Bare canonical `CompositeSpec` JSON.
 /// @param observations_json - Strictly increasing output observation array JSON.
 /// @param warmup_json - Optional strictly earlier observation array used only for weighting inputs.
@@ -202,10 +230,14 @@ pub fn composite_execution_trades(
 ///
 /// # Arguments
 ///
-/// * `spec_json` - Unresolved composite specification.
-/// * `observations_json` - Complete chronological market snapshots to report.
-/// * `warmup_json` - Optional complete snapshots strictly preceding the output period.
-/// * `metrics` - Optional additive primitive metrics reported on every row.
+/// * `spec_json` - Unresolved composite specification initialized from warmup
+///   plus the first output observation.
+/// * `observations_json` - Non-empty strictly increasing complete snapshots
+///   that become output rows.
+/// * `warmup_json` - Optional complete snapshots whose last date precedes the
+///   first output observation; used only for weighting inputs.
+/// * `metrics` - Optional additive primitive metrics reported on every row;
+///   omit or pass `[]` to report value only.
 ///
 /// # Errors
 ///
@@ -229,6 +261,10 @@ pub fn composite_history_from_spec(
 
 /// Calculate dated history from an already-resolved composite state.
 ///
+/// The initial state's effective date must be on or before the first
+/// observation. Scheduled rebalances after that date are close-effective.
+/// Period return is `pnl / capital`; `return_index` starts at `100`.
+///
 /// @param instrument_json - Canonical resolved composite instrument envelope.
 /// @param observations_json - Strictly increasing complete market observation array JSON.
 /// @param metrics - Optional additive primitive metric identifier array.
@@ -236,9 +272,12 @@ pub fn composite_history_from_spec(
 ///
 /// # Arguments
 ///
-/// * `instrument_json` - Resolved immutable initial holdings state.
-/// * `observations_json` - Complete chronological market snapshots to report.
-/// * `metrics` - Optional additive primitive metrics reported on every row.
+/// * `instrument_json` - Resolved immutable holdings held from the first
+///   observation until a later scheduled rebalance.
+/// * `observations_json` - Non-empty strictly increasing complete snapshots
+///   that become output rows.
+/// * `metrics` - Optional additive primitive metrics reported on every row;
+///   omit or pass `[]` to report value only.
 ///
 /// # Errors
 ///

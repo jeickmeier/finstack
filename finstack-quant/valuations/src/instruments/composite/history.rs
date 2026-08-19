@@ -1,3 +1,13 @@
+//! Dated-market engine for composite value, P&L, returns, and rebalancing.
+//!
+//! [`CompositeHistoryEngine`] values a resolved composite on each strictly
+//! increasing observation. Warmup snapshots feed dynamic weighting only. A
+//! scheduled rebalance is close-effective: the emitted row still uses the
+//! holdings that entered the close, and the next interval opens at the
+//! post-trade financed value.
+//!
+//! Period return is `pnl / capital` for one composite unit. The chained
+//! `return_index` starts at `100` on the first output row.
 use super::types::{cashflows_between, validate_history};
 use super::{
     CompositeExposureReport, CompositeInstrument, CompositeMarketObservation, CompositeSpec,
@@ -12,24 +22,30 @@ use finstack_quant_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 
 /// One dated output row from the focused composite history engine.
+///
+/// The first output row reports `cashflows = 0`, `pnl = 0`,
+/// `period_return = 0`, and `return_index = 100`. Later rows use
+/// `period_return = pnl / capital` and chain
+/// `return_index *= 1 + period_return`.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CompositeHistoryRow {
-    /// Market observation date.
+    /// Market observation date of this close.
     #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
-    /// Composite value before any close-of-period rebalance.
+    /// Composite value before any close-of-period rebalance, in reporting currency.
     pub value: Money,
-    /// Signed underlying cashflows during the preceding interval.
+    /// Signed primitive cashflows on `(previous_date, date]`; zero on the first row.
     pub cashflows: Money,
-    /// Value change plus signed cashflows for the preceding interval.
+    /// `Δvalue + cashflows` versus the prior interval's financed opening value;
+    /// zero on the first row.
     pub pnl: Money,
-    /// `pnl / capital` for one composite unit.
+    /// `pnl / capital` for one composite unit; zero on the first row.
     pub period_return: f64,
-    /// Chained total-return index, initialized to `100`.
+    /// Chained total-return index, initialized to `100` on the first row.
     pub return_index: f64,
-    /// Effective date of quantities held during the preceding interval.
+    /// Effective date of quantities held into this close.
     #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub held_state_effective_date: Date,
@@ -37,7 +53,7 @@ pub struct CompositeHistoryRow {
     #[serde(default, with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub next_state_effective_date: Option<Date>,
-    /// Primitive path, net, and gross exposures before rebalancing.
+    /// Primitive path, net, and gross exposures under the held (pre-rebalance) state.
     pub exposures: CompositeExposureReport,
     /// Primitive quantity deltas emitted by a close-of-period rebalance.
     pub rebalance_trades: Vec<CompositeTrade>,
@@ -56,10 +72,15 @@ impl CompositeHistoryEngine {
     ///
     /// # Arguments
     ///
-    /// * `spec` - Unresolved composite specification.
-    /// * `warmup` - Strictly increasing observations preceding `observations`.
-    /// * `observations` - Strictly increasing output observations.
-    /// * `metrics` - Additive primitive risk metrics included in each exposure report.
+    /// * `spec` - Unresolved composite specification initialized from warmup
+    ///   plus the first output observation.
+    /// * `warmup` - Strictly increasing complete snapshots whose last date
+    ///   precedes the first output observation; used only for weighting
+    ///   inputs.
+    /// * `observations` - Non-empty strictly increasing complete snapshots
+    ///   that become output rows.
+    /// * `metrics` - Additive primitive risk metrics included in each
+    ///   exposure report; an empty slice reports value only.
     ///
     /// # Errors
     ///
@@ -86,11 +107,18 @@ impl CompositeHistoryEngine {
 
     /// Run an already-resolved composite over dated market snapshots.
     ///
+    /// The initial state's `effective_date` must be on or before the first
+    /// observation. Scheduled rebalances after that date are applied
+    /// close-effectively.
+    ///
     /// # Arguments
     ///
-    /// * `initial` - Resolved quantities held from the first observation.
-    /// * `observations` - Strictly increasing complete market snapshots.
-    /// * `metrics` - Additive primitive risk metrics included in each exposure report.
+    /// * `initial` - Resolved quantities held from the first observation
+    ///   until a later scheduled or explicit rebalance.
+    /// * `observations` - Non-empty strictly increasing complete market
+    ///   snapshots that become output rows.
+    /// * `metrics` - Additive primitive risk metrics included in each
+    ///   exposure report; an empty slice reports value only.
     ///
     /// # Errors
     ///

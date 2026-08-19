@@ -7240,34 +7240,41 @@ export interface CompositeExposureReport {
 
 /**
  * One dated composite total-return and rebalance observation.
+ *
+ * The first row reports zero cashflows, P&L, and period return, with
+ * `return_index` equal to 100. Later rows use `period_return = pnl / capital`
+ * and chain `return_index *= 1 + period_return`. A scheduled rebalance is
+ * close-effective: this row still uses pre-trade holdings, and the next
+ * interval opens at the post-trade financed value.
  */
 export interface CompositeHistoryRow {
   /**
-   * ISO-8601 observation date.
+   * ISO-8601 observation date of this close.
    */
   date: string;
   /**
-   * Pre-rebalance close value.
+   * Pre-rebalance close value in the composite reporting currency.
    */
   value: MoneyValue;
   /**
-   * Signed underlying cashflows received during the interval.
+   * Signed primitive cashflows on `(previousDate, date]`; zero on the first row.
    */
   cashflows: MoneyValue;
   /**
-   * Total-return P&L before external rebalance financing.
+   * `Δvalue + cashflows` versus the prior interval's financed opening value;
+   * zero on the first row. External rebalance financing is excluded.
    */
   pnl: MoneyValue;
   /**
-   * Interval P&L divided by explicit composite capital.
+   * `pnl / capital` for one composite unit; zero on the first row.
    */
   period_return: number;
   /**
-   * Chained return index starting at 100.
+   * Chained total-return index, initialized to 100 on the first row.
    */
   return_index: number;
   /**
-   * Effective date of quantities held over the interval.
+   * Effective date of quantities held into this close.
    */
   held_state_effective_date: string;
   /**
@@ -7275,32 +7282,39 @@ export interface CompositeHistoryRow {
    */
   next_state_effective_date?: string | null;
   /**
-   * Primitive exposures under the held state.
+   * Primitive exposures under the held (pre-rebalance) state.
    */
   exposures: CompositeExposureReport;
   /**
-   * Primitive close-of-period rebalance trades.
+   * Primitive quantity deltas emitted by a close-of-period rebalance.
    */
   rebalance_trades: CompositeTrade[];
 }
 
 /**
  * Composite-instrument construction, decomposition, execution, and history.
+ *
+ * Pricing uses frozen quantities. Only `initialize` and `rebalance` calculate
+ * a new state. There is no `initializeFixed` export; `initialize` also
+ * resolves `fixed_quantity` without history. Period return is `pnl / capital`.
  * @example
  * ```typescript
  * import init, { valuations } from "finstack-quant-wasm";
  * await init();
  * const fixed = { kind: "fixed_quantity" };
- * console.log(fixed.kind, typeof valuations.composite.initialize);
+ * console.log(fixed.kind === "fixed_quantity");
  * ```
  */
 export interface CompositeNamespace {
   /**
    * Resolve a bare specification into an immutable priceable envelope.
+   *
+   * Fixed-quantity specs do not require `history`. Volatility weighting
+   * requires strictly increasing observations that end on `asOf`.
    * @param spec - Bare canonical `CompositeSpec` object or JSON string.
    * @param market - Complete market-context object or JSON string at `asOf`.
-   * @param asOf - ISO-8601 state effective date.
-   * @param history - Optional chronological market-observation array or JSON.
+   * @param asOf - ISO-8601 state effective date; no later history is permitted.
+   * @param history - Optional chronological market-observation array or JSON for volatility or expression inputs.
    * @returns Canonical resolved envelope plus primitive establishment trades.
    * @throws Error - Throws when JSON, dates, specifications, market inputs, history, metrics, notionals, or resolved quantities are invalid.
    */
@@ -7312,10 +7326,12 @@ export interface CompositeNamespace {
   ): CompositeRebalanceResult;
   /**
    * Explicitly resolve a distinct state without mutating prior quantities.
+   *
+   * Trades are net primitive quantity deltas from `instrument` to the new state.
    * @param instrument - Canonical resolved composite envelope object or JSON.
    * @param market - Complete rebalance-date market-context object or JSON.
    * @param asOf - ISO-8601 effective date for the new state.
-   * @param history - Optional chronological market-observation array or JSON.
+   * @param history - Optional chronological market-observation array or JSON; required for volatility weighting and must end on `asOf`.
    * @returns New canonical envelope plus net primitive quantity deltas.
    * @throws Error - Throws for malformed inputs, invalid history, missing market data, or quantity-resolution failures.
    */
@@ -7327,10 +7343,13 @@ export interface CompositeNamespace {
   ): CompositeRebalanceResult;
   /**
    * Price frozen primitive paths and aggregate net/gross value and risk.
+   *
+   * Only additive metrics are accepted. Amounts are converted to the
+   * composite reporting currency on `asOf`.
    * @param instrument - Canonical resolved composite envelope object or JSON.
    * @param market - Complete valuation and FX context object or JSON.
-   * @param asOf - ISO-8601 valuation date.
-   * @param metrics - Optional additive metric identifiers.
+   * @param asOf - ISO-8601 valuation date used for prices, metrics, and FX.
+   * @param metrics - Optional additive metric identifiers; omit or pass `[]` to report value only.
    * @returns Path-level primitive exposures and net/gross aggregates.
    * @throws Error - Throws for non-additive metrics, invalid state, missing market data, FX failures, or primitive pricing failures.
    */
@@ -7353,10 +7372,13 @@ export interface CompositeNamespace {
   ): CompositeTrade[];
   /**
    * Initialize on the first supplied snapshot and calculate dated history.
+   *
+   * Warmup observations feed weighting only. The first output row has
+   * `return_index = 100` and zero P&L. Scheduled rebalances are close-effective.
    * @param spec - Bare canonical `CompositeSpec` object or JSON string.
-   * @param observations - Strictly increasing complete observation array or JSON.
+   * @param observations - Non-empty strictly increasing complete observation array or JSON.
    * @param warmup - Optional complete observations strictly before the output period.
-   * @param metrics - Optional additive primitive metrics reported on every row.
+   * @param metrics - Optional additive primitive metrics reported on every row; omit or pass `[]` for value only.
    * @returns Chronological value, cashflow, P&L, return, index, exposure, state, and trade rows.
    * @throws Error - Throws for empty, duplicate, unordered, or overlapping observations and any initialization, pricing, FX, or rebalance failure.
    */
@@ -7368,9 +7390,12 @@ export interface CompositeNamespace {
   ): CompositeHistoryRow[];
   /**
    * Calculate dated history from an already-resolved initial state.
+   *
+   * The initial effective date must be on or before the first observation.
+   * Period return is `pnl / capital`; `return_index` starts at 100.
    * @param instrument - Canonical resolved composite envelope object or JSON.
-   * @param observations - Strictly increasing complete observation array or JSON.
-   * @param metrics - Optional additive primitive metrics reported on every row.
+   * @param observations - Non-empty strictly increasing complete observation array or JSON.
+   * @param metrics - Optional additive primitive metrics reported on every row; omit or pass `[]` for value only.
    * @returns Chronological composite history rows.
    * @throws Error - Throws for invalid states or observations, missing inputs, or valuation and rebalance failures.
    */
@@ -7392,7 +7417,10 @@ export interface CompositeNamespace {
  */
 export interface ValuationsNamespace {
   /**
-   * Generic cross-asset composite instruments and primitive exposure reporting.
+   * Generic cross-asset composite instruments, primitive exposures, and dated history.
+   *
+   * Frozen quantities are used for pricing. Host bindings expose `initialize`
+   * for both fixed and dynamic weighting; there is no `initializeFixed` export.
    */
   composite: CompositeNamespace;
   /**

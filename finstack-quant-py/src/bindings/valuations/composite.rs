@@ -1,4 +1,9 @@
 //! Python wrappers for resolved composite instruments and dated history.
+//!
+//! Runtime ``help()`` text lives on these wrappers. The ``.pyi`` stub remains
+//! the IDE surface. Host bindings expose only ``initialize``; Rust
+//! ``initialize_fixed`` is not wrapped because that path also resolves
+//! ``fixed_quantity`` without historical observations.
 
 use crate::bindings::core::currency::PyCurrency;
 use crate::bindings::core::money::PyMoney;
@@ -88,13 +93,38 @@ impl PyCompositeLegSpec {
         })
     }
 
-    /// Deserialize a bare ``CompositeLegSpec`` JSON object.
+    /// Deserialize a bare canonical leg object.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     JSON produced by ``to_json`` for exactly one leg.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeLegSpec
+    ///     Parsed leg retaining the embedded instrument definition.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the JSON is malformed or does not match the strict leg schema.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         parse_json(json, "CompositeLegSpec").map(|inner| Self { inner })
     }
 
-    /// Serialize this leg as a bare ``CompositeLegSpec`` JSON object.
+    /// Serialize this leg as a bare canonical JSON object.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Strict ``CompositeLegSpec`` JSON including its embedded instrument.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the canonical Rust value cannot be serialized.
     fn to_json(&self) -> PyResult<String> {
         to_json(&self.inner, "CompositeLegSpec")
     }
@@ -105,19 +135,47 @@ impl PyCompositeLegSpec {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
-    /// Declared and embedded instrument identifier.
+    /// Return the declared embedded-instrument identifier.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Stable identifier that matches the embedded instrument.
+    ///
+    /// Notes
+    /// -----
+    /// This accessor does not raise; it returns the stored identifier.
     #[getter]
     fn instrument_id(&self) -> String {
         self.inner.instrument_id.to_string()
     }
 
-    /// Signed fixed quantity or dynamic weighting score.
+    /// Return the signed fixed quantity or dynamic weighting score.
+    ///
+    /// Returns
+    /// -------
+    /// float
+    ///     Finite non-zero signed leg input.
+    ///
+    /// Notes
+    /// -----
+    /// This accessor does not raise; it returns the validated stored value.
     #[getter]
     fn weight(&self) -> f64 {
         self.inner.weight
     }
 
-    /// Canonical envelope for the embedded instrument.
+    /// Return the embedded instrument as a canonical v1 envelope.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     ``finstack_quant.instrument/1`` JSON for the embedded instrument.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If canonical JSON serialization fails.
     #[getter]
     fn instrument_json(&self) -> PyResult<String> {
         to_json(
@@ -141,7 +199,16 @@ pub struct PyWeightingMethod {
 
 #[pymethods]
 impl PyWeightingMethod {
-    /// Use signed leg weights directly as quantities.
+    /// Use signed leg weights directly as quantities without market data.
+    ///
+    /// Returns
+    /// -------
+    /// WeightingMethod
+    ///     Fixed-quantity policy.
+    ///
+    /// Notes
+    /// -----
+    /// This factory does not raise; validation occurs when a specification is built.
     #[staticmethod]
     fn fixed_quantity() -> Self {
         Self {
@@ -149,7 +216,21 @@ impl PyWeightingMethod {
         }
     }
 
-    /// Normalize scores to a requested gross reporting-currency notional.
+    /// Normalize absolute scores to a target gross reporting-currency notional.
+    ///
+    /// Parameters
+    /// ----------
+    /// gross_notional : Money
+    ///     Positive gross allocation denominated in the composite reporting currency.
+    ///
+    /// Returns
+    /// -------
+    /// WeightingMethod
+    ///     Gross-notional weighting policy preserving score signs.
+    ///
+    /// Notes
+    /// -----
+    /// This factory does not raise; currency and positivity are validated by ``CompositeSpec``.
     #[staticmethod]
     fn notional_weighted(gross_notional: PyRef<'_, PyMoney>) -> Self {
         Self {
@@ -159,7 +240,27 @@ impl PyWeightingMethod {
         }
     }
 
-    /// Build general anchored metric weighting.
+    /// Resolve quantities from unit metric contributions and an anchor scale.
+    ///
+    /// Parameters
+    /// ----------
+    /// metric : str
+    ///     Canonical unit metric identifier such as ``dv01`` or ``delta``.
+    /// anchor_leg_id : str
+    ///     Existing leg whose signed quantity fixes overall scale.
+    /// anchor_quantity : float
+    ///     Finite non-zero signed quantity assigned to the anchor leg.
+    /// neutralize : bool
+    ///     Whether positive and negative score groups normalize separately.
+    ///
+    /// Returns
+    /// -------
+    /// WeightingMethod
+    ///     Anchored metric-weighting policy.
+    ///
+    /// Notes
+    /// -----
+    /// This factory does not raise; anchors and quantities are validated by ``CompositeSpec``.
     #[staticmethod]
     #[pyo3(signature = (metric, anchor_leg_id, anchor_quantity, neutralize=false))]
     fn metric_weighted(
@@ -178,7 +279,23 @@ impl PyWeightingMethod {
         }
     }
 
-    /// Build parallel-DV01-neutral weighting.
+    /// Construct parallel-DV01-neutral weighting.
+    ///
+    /// Parameters
+    /// ----------
+    /// anchor_leg_id : str
+    ///     Existing rates leg that fixes quantity scale.
+    /// anchor_quantity : float
+    ///     Signed non-zero quantity assigned to the anchor.
+    ///
+    /// Returns
+    /// -------
+    /// WeightingMethod
+    ///     Neutral metric policy using ``dv01``.
+    ///
+    /// Notes
+    /// -----
+    /// This factory does not raise; the anchor is validated by ``CompositeSpec``.
     #[staticmethod]
     fn dv01_neutral(anchor_leg_id: &str, anchor_quantity: f64) -> Self {
         Self {
@@ -186,7 +303,23 @@ impl PyWeightingMethod {
         }
     }
 
-    /// Build parallel-DV01-neutral curve weighting.
+    /// Construct parallel-DV01-neutral curve weighting for spreads or flies.
+    ///
+    /// Parameters
+    /// ----------
+    /// anchor_leg_id : str
+    ///     Existing curve leg that fixes quantity scale.
+    /// anchor_quantity : float
+    ///     Signed non-zero quantity assigned to the anchor.
+    ///
+    /// Returns
+    /// -------
+    /// WeightingMethod
+    ///     Curve-neutral policy whose wing split follows signed scores.
+    ///
+    /// Notes
+    /// -----
+    /// This factory does not raise; the anchor is validated by ``CompositeSpec``.
     #[staticmethod]
     fn curve_neutral(anchor_leg_id: &str, anchor_quantity: f64) -> Self {
         Self {
@@ -194,7 +327,23 @@ impl PyWeightingMethod {
         }
     }
 
-    /// Build delta-neutral weighting.
+    /// Construct delta-neutral weighting for cross-asset hedges.
+    ///
+    /// Parameters
+    /// ----------
+    /// anchor_leg_id : str
+    ///     Existing delta-bearing leg that fixes quantity scale.
+    /// anchor_quantity : float
+    ///     Signed non-zero quantity assigned to the anchor.
+    ///
+    /// Returns
+    /// -------
+    /// WeightingMethod
+    ///     Neutral metric policy using ``delta``.
+    ///
+    /// Notes
+    /// -----
+    /// This factory does not raise; the anchor is validated by ``CompositeSpec``.
     #[staticmethod]
     fn delta_neutral(anchor_leg_id: &str, anchor_quantity: f64) -> Self {
         Self {
@@ -202,7 +351,23 @@ impl PyWeightingMethod {
         }
     }
 
-    /// Build modified-duration weighting without sign-group normalization.
+    /// Construct modified-duration weighting without sign-group neutrality.
+    ///
+    /// Parameters
+    /// ----------
+    /// anchor_leg_id : str
+    ///     Existing duration-bearing leg that fixes quantity scale.
+    /// anchor_quantity : float
+    ///     Signed non-zero quantity assigned to the anchor.
+    ///
+    /// Returns
+    /// -------
+    /// WeightingMethod
+    ///     Anchored policy using modified duration.
+    ///
+    /// Notes
+    /// -----
+    /// This factory does not raise; the anchor is validated by ``CompositeSpec``.
     #[staticmethod]
     fn duration_weighted(anchor_leg_id: &str, anchor_quantity: f64) -> Self {
         Self {
@@ -210,7 +375,29 @@ impl PyWeightingMethod {
         }
     }
 
-    /// Build inverse unit-P&L volatility weighting.
+    /// Construct inverse annualized unit-P&L-volatility weighting.
+    ///
+    /// Parameters
+    /// ----------
+    /// anchor_leg_id : str
+    ///     Existing leg whose quantity fixes overall scale.
+    /// anchor_quantity : float
+    ///     Signed non-zero quantity assigned to the anchor.
+    /// lookback : int
+    ///     Maximum number of most-recent P&L observations used.
+    /// min_observations : int
+    ///     Minimum finite P&L observations required for every leg.
+    /// annualization_factor : float
+    ///     Positive periods-per-year multiplier, such as ``252`` for daily data.
+    ///
+    /// Returns
+    /// -------
+    /// WeightingMethod
+    ///     Inverse-volatility policy using one-unit total P&L.
+    ///
+    /// Notes
+    /// -----
+    /// This factory does not raise; window and anchor validation occurs in ``CompositeSpec``.
     #[staticmethod]
     fn volatility_weighted(
         anchor_leg_id: &str,
@@ -230,13 +417,38 @@ impl PyWeightingMethod {
         }
     }
 
-    /// Deserialize any weighting policy, including user-defined expressions.
+    /// Deserialize any canonical weighting policy, including expressions.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     Strict weighting-method JSON using its ``kind`` discriminator.
+    ///
+    /// Returns
+    /// -------
+    /// WeightingMethod
+    ///     Parsed canonical weighting policy.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If JSON is malformed or carries an unknown field or variant.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         parse_json(json, "WeightingMethod").map(|inner| Self { inner })
     }
 
     /// Serialize the canonical weighting policy.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Strict tagged weighting-method JSON.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If serialization of the canonical Rust policy fails.
     fn to_json(&self) -> PyResult<String> {
         to_json(&self.inner, "WeightingMethod")
     }
@@ -262,7 +474,16 @@ pub struct PyRebalanceRule {
 
 #[pymethods]
 impl PyRebalanceRule {
-    /// Rebalance only when explicitly requested.
+    /// Require callers to invoke rebalance explicitly.
+    ///
+    /// Returns
+    /// -------
+    /// RebalanceRule
+    ///     Manual rule with no scheduled dates.
+    ///
+    /// Notes
+    /// -----
+    /// This factory does not raise; it returns a fixed manual policy.
     #[staticmethod]
     fn manual() -> Self {
         Self {
@@ -270,7 +491,22 @@ impl PyRebalanceRule {
         }
     }
 
-    /// Rebalance on strictly increasing ISO-8601 dates.
+    /// Schedule rebalances on strictly increasing ISO dates.
+    ///
+    /// Parameters
+    /// ----------
+    /// dates : list[str]
+    ///     ISO-8601 dates; duplicates and descending dates are rejected.
+    ///
+    /// Returns
+    /// -------
+    /// RebalanceRule
+    ///     Validated explicit-date schedule.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If a date is invalid or the sequence is not strictly increasing.
     #[staticmethod]
     fn dates(dates: Vec<String>) -> PyResult<Self> {
         let dates = dates
@@ -282,7 +518,30 @@ impl PyRebalanceRule {
         Ok(Self { inner })
     }
 
-    /// Build a calendar-aware cadence from canonical snake-case enum values.
+    /// Build a calendar-adjusted daily, weekly, monthly, or quarterly cadence.
+    ///
+    /// Parameters
+    /// ----------
+    /// start : str
+    ///     ISO-8601 unadjusted schedule start date.
+    /// frequency : str
+    ///     One of ``daily``, ``weekly``, ``monthly``, or ``quarterly``.
+    /// calendar_id : str
+    ///     Registered calendar identifier such as ``weekends``.
+    /// business_day_convention : str
+    ///     Canonical convention such as ``following`` or ``modified_following``.
+    /// end : str | None
+    ///     Optional final ISO date; omit for an open-ended cadence.
+    ///
+    /// Returns
+    /// -------
+    /// RebalanceRule
+    ///     Validated calendar-aware schedule.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If dates, enums, bounds, or the calendar identifier are invalid.
     #[staticmethod]
     #[pyo3(signature = (start, frequency, calendar_id, business_day_convention, end=None))]
     fn calendar(
@@ -311,7 +570,22 @@ impl PyRebalanceRule {
         Ok(Self { inner })
     }
 
-    /// Deserialize a canonical rebalance rule.
+    /// Deserialize and validate a canonical rebalance rule.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     Strict tagged rebalance-rule JSON.
+    ///
+    /// Returns
+    /// -------
+    /// RebalanceRule
+    ///     Parsed and validated scheduling policy.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If JSON, dates, schedule ordering, or calendar lookup is invalid.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: RebalanceRule = parse_json(json, "RebalanceRule")?;
@@ -319,7 +593,17 @@ impl PyRebalanceRule {
         Ok(Self { inner })
     }
 
-    /// Serialize the canonical rebalance rule.
+    /// Serialize the canonical tagged rebalance rule.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Strict rebalance-rule JSON.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If serialization of the canonical Rust rule fails.
     fn to_json(&self) -> PyResult<String> {
         to_json(&self.inner, "RebalanceRule")
     }
@@ -345,7 +629,27 @@ pub struct PyCompositeSpec {
 
 #[pymethods]
 impl PyCompositeSpec {
-    /// Build a composite definition from typed legs and policies.
+    /// Construct and validate a self-contained composite specification.
+    ///
+    /// Parameters
+    /// ----------
+    /// id : str
+    ///     Stable composite identifier used for pricing and serialization.
+    /// reporting_currency : Currency
+    ///     Currency used for capital, values, risk, P&L, and return reporting.
+    /// capital : Money
+    ///     Positive return denominator in exactly ``reporting_currency``.
+    /// legs : list[CompositeLegSpec]
+    ///     At least two unique signed legs with matching embedded identifiers.
+    /// weighting_method : WeightingMethod
+    ///     Policy used only during initialization or explicit rebalance.
+    /// rebalance_rule : RebalanceRule
+    ///     Manual or scheduled rule controlling state transitions.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If any specification invariant or embedded definition is invalid.
     #[new]
     fn new(
         id: &str,
@@ -367,7 +671,22 @@ impl PyCompositeSpec {
         Ok(Self { inner })
     }
 
-    /// Deserialize and validate a bare ``CompositeSpec`` JSON object.
+    /// Deserialize and validate a bare composite specification.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     Bare strict ``CompositeSpec`` JSON produced by ``to_json``.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeSpec
+    ///     Parsed unresolved economic definition.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If JSON or any nested specification invariant is invalid.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: CompositeSpec = parse_json(json, "CompositeSpec")?;
@@ -375,7 +694,17 @@ impl PyCompositeSpec {
         Ok(Self { inner })
     }
 
-    /// Serialize this unresolved specification.
+    /// Serialize this unresolved definition as bare JSON.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Strict ``CompositeSpec`` JSON with embedded instruments.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If canonical serialization fails.
     fn to_json(&self) -> PyResult<String> {
         to_json(&self.inner, "CompositeSpec")
     }
@@ -386,19 +715,61 @@ impl PyCompositeSpec {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
-    /// Stable composite identifier.
+    /// Return the stable composite identifier.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Identifier stored on the unresolved specification.
+    ///
+    /// Notes
+    /// -----
+    /// This accessor does not raise; it returns the stored identifier.
     #[getter]
     fn id(&self) -> String {
         self.inner.id.to_string()
     }
 
-    /// ISO reporting-currency code.
+    /// Return the ISO code used for values, risk, P&L, and returns.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Three-letter reporting-currency code.
+    ///
+    /// Notes
+    /// -----
+    /// This accessor does not raise; it returns the validated stored currency.
     #[getter]
     fn reporting_currency(&self) -> String {
         self.inner.reporting_currency.to_string()
     }
 
-    /// Resolve a new immutable state using market data available through ``as_of``.
+    /// Resolve immutable quantities from information available through a date.
+    ///
+    /// There is no separate ``initialize_fixed`` binding. ``fixed_quantity``
+    /// specs resolve through this method and do not require historical
+    /// observations. Volatility weighting requires ``history_json`` to end on
+    /// ``as_of``.
+    ///
+    /// Parameters
+    /// ----------
+    /// market : MarketContext | str
+    ///     Complete current market object or canonical market JSON.
+    /// as_of : datetime.date | str
+    ///     Effective date as a date-like value or ISO-8601 string.
+    /// history_json : str
+    ///     Strict chronological ``CompositeMarketObservation`` array JSON.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeRebalanceResult
+    ///     New priceable instrument and primitive establishment trades.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If validation, history, metric, notional, FX, or quantity resolution fails.
     #[pyo3(signature = (market, as_of, history_json="[]"))]
     fn initialize(
         &self,
@@ -431,13 +802,38 @@ pub struct PyCompositeState {
 
 #[pymethods]
 impl PyCompositeState {
-    /// Deserialize a bare ``CompositeState`` JSON object.
+    /// Deserialize a bare resolved-state object.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     Strict state JSON produced by ``to_json``.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeState
+    ///     Parsed immutable state data.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If JSON does not match the strict state schema.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         parse_json(json, "CompositeState").map(|inner| Self { inner })
     }
 
-    /// Serialize this frozen state.
+    /// Serialize the frozen state as canonical JSON.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     State effective date, resolved legs, and finite weighting inputs.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If canonical serialization fails.
     fn to_json(&self) -> PyResult<String> {
         to_json(&self.inner, "CompositeState")
     }
@@ -448,13 +844,31 @@ impl PyCompositeState {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
-    /// ISO-8601 state effective date.
+    /// Return the ISO date from which these quantities are held.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Effective date formatted as ``YYYY-MM-DD``.
+    ///
+    /// Notes
+    /// -----
+    /// This accessor does not raise; it returns the stored state date.
     #[getter]
     fn effective_date(&self) -> String {
         self.inner.effective_date.to_string()
     }
 
-    /// Resolved signed top-level quantities keyed by leg identifier.
+    /// Return signed top-level quantities keyed by leg identifier.
+    ///
+    /// Returns
+    /// -------
+    /// dict[str, float]
+    ///     New mapping from top-level leg IDs to frozen signed quantities.
+    ///
+    /// Notes
+    /// -----
+    /// This accessor does not raise; it copies the validated resolved legs.
     #[getter]
     fn resolved_quantities(&self) -> std::collections::BTreeMap<String, f64> {
         self.inner
@@ -486,12 +900,37 @@ impl PyCompositeInstrument {
 #[pymethods]
 impl PyCompositeInstrument {
     /// Deserialize and validate a canonical composite instrument envelope.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     Required ``finstack_quant.instrument/1`` composite envelope.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeInstrument
+    ///     Parsed priceable resolved composite.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If JSON is malformed, non-composite, unresolved, or internally inconsistent.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         parse_composite_envelope(json).map(|inner| Self { inner })
     }
 
-    /// Serialize as a canonical ``finstack_quant.instrument/1`` envelope.
+    /// Serialize as the canonical instrument envelope accepted by pricing APIs.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Validated ``finstack_quant.instrument/1`` composite JSON.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If canonical serialization fails.
     fn to_json(&self) -> PyResult<String> {
         self.envelope_json()
     }
@@ -502,13 +941,31 @@ impl PyCompositeInstrument {
         crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
     }
 
-    /// Stable composite identifier.
+    /// Return the stable composite identifier.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Identifier stored on the composite specification.
+    ///
+    /// Notes
+    /// -----
+    /// This accessor does not raise; it returns the stored identifier.
     #[getter]
     fn id(&self) -> String {
         self.inner.spec.id.to_string()
     }
 
-    /// Clone the unresolved economic specification.
+    /// Return a clone of the unresolved economic definition.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeSpec
+    ///     Independent wrapper around a cloned specification.
+    ///
+    /// Notes
+    /// -----
+    /// This accessor does not raise; cloning preserves the immutable definition.
     #[getter]
     fn spec(&self) -> PyCompositeSpec {
         PyCompositeSpec {
@@ -516,7 +973,16 @@ impl PyCompositeInstrument {
         }
     }
 
-    /// Clone the frozen resolved state.
+    /// Return a clone of the immutable resolved holdings state.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeState
+    ///     Independent wrapper around the frozen effective-date state.
+    ///
+    /// Notes
+    /// -----
+    /// This accessor does not raise; cloning cannot rebalance the instrument.
     #[getter]
     fn state(&self) -> PyCompositeState {
         PyCompositeState {
@@ -524,7 +990,26 @@ impl PyCompositeInstrument {
         }
     }
 
-    /// Explicitly resolve a new immutable state and primitive quantity deltas.
+    /// Explicitly return a distinct resolved state and primitive trade deltas.
+    ///
+    /// Parameters
+    /// ----------
+    /// market : MarketContext | str
+    ///     Complete rebalance-date market object or canonical JSON.
+    /// as_of : datetime.date | str
+    ///     Effective date for the new state.
+    /// history_json : str
+    ///     Strict chronological observation array available through ``as_of``.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeRebalanceResult
+    ///     New immutable instrument plus net primitive quantity deltas.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If market/history inputs or quantity resolution are invalid.
     #[pyo3(signature = (market, as_of, history_json="[]"))]
     fn rebalance(
         &self,
@@ -542,7 +1027,26 @@ impl PyCompositeInstrument {
             .map_err(core_to_py)
     }
 
-    /// Price and aggregate primitive net/gross value and additive risk.
+    /// Price recursive primitive paths and report net/gross value and risk.
+    ///
+    /// Parameters
+    /// ----------
+    /// market : MarketContext | str
+    ///     Complete valuation and FX market context.
+    /// as_of : datetime.date | str
+    ///     Valuation date used for prices, metrics, and FX conversion.
+    /// metrics : list[str] | None
+    ///     Additive metric IDs; normalized non-additive measures are rejected.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeExposureReport
+    ///     Path-level and primitive net/gross concentration report.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If state, metrics, market data, FX, or primitive pricing are invalid.
     #[pyo3(signature = (market, as_of, metrics=None))]
     fn primitive_exposures(
         &self,
@@ -564,7 +1068,22 @@ impl PyCompositeInstrument {
             .map_err(core_to_py)
     }
 
-    /// Return primitive execution deltas from an optional prior resolved state.
+    /// Flatten target holdings or a transition into primitive quantity deltas.
+    ///
+    /// Parameters
+    /// ----------
+    /// previous : CompositeInstrument | None
+    ///     Prior resolved state, or ``None`` for establishment trades.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     JSON array of primitive identifiers, types, and signed quantity deltas.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If either state is invalid or primitive definitions conflict.
     #[pyo3(signature = (previous=None))]
     fn execution_trades(&self, previous: Option<&PyCompositeInstrument>) -> PyResult<String> {
         let trades = self
@@ -595,7 +1114,22 @@ impl PyCompositeRebalanceResult {
 
 #[pymethods]
 impl PyCompositeRebalanceResult {
-    /// Deserialize a complete rebalance result.
+    /// Deserialize a complete resolved instrument and primitive trade list.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     Strict JSON produced by ``to_json``.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeRebalanceResult
+    ///     Parsed immutable instrument and its primitive execution deltas.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If JSON is malformed or the embedded composite state is invalid.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: CompositeRebalanceResult = parse_json(json, "CompositeRebalanceResult")?;
@@ -603,7 +1137,16 @@ impl PyCompositeRebalanceResult {
         Ok(Self { inner })
     }
 
-    /// Newly resolved immutable composite instrument.
+    /// Return the newly resolved priceable composite instrument.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeInstrument
+    ///     Independent wrapper around the new immutable resolved state.
+    ///
+    /// Notes
+    /// -----
+    /// This accessor does not raise; it clones the stored result instrument.
     #[getter]
     fn instrument(&self) -> PyCompositeInstrument {
         PyCompositeInstrument {
@@ -611,13 +1154,33 @@ impl PyCompositeRebalanceResult {
         }
     }
 
-    /// JSON array of net primitive quantity deltas.
+    /// Return net primitive quantity deltas as a JSON array.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Primitive IDs, type tags, and signed quantity deltas.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If canonical JSON serialization fails.
     #[getter]
     fn trades_json(&self) -> PyResult<String> {
         to_json(&self.inner.trades, "composite rebalance trades")
     }
 
     /// Serialize the complete rebalance result.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     JSON containing the resolved instrument data and primitive trades.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If canonical serialization fails.
     fn to_json(&self) -> PyResult<String> {
         to_json(&self.inner, "CompositeRebalanceResult")
     }
@@ -649,13 +1212,38 @@ impl PyCompositeExposureReport {
 
 #[pymethods]
 impl PyCompositeExposureReport {
-    /// Deserialize a primitive exposure report.
+    /// Deserialize primitive paths and net/gross aggregate exposures.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     Strict JSON produced by ``to_json``.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeExposureReport
+    ///     Parsed report in its declared reporting currency.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If JSON is malformed or does not match the report contract.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         parse_json(json, "CompositeExposureReport").map(|inner| Self { inner })
     }
 
-    /// Serialize path-level and aggregate exposures as JSON.
+    /// Serialize paths and aggregate quantity, value, and additive risk.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Canonical exposure-report JSON in the composite reporting currency.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If canonical serialization fails.
     fn to_json(&self) -> PyResult<String> {
         to_json(&self.inner, "CompositeExposureReport")
     }
@@ -682,17 +1270,58 @@ pub struct PyCompositeHistoryResult {
 #[pymethods]
 impl PyCompositeHistoryResult {
     /// Deserialize a chronological array of composite history rows.
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     Strict history-row array JSON produced by ``to_json``.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeHistoryResult
+    ///     Parsed immutable row collection.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If JSON is malformed or a row violates its serialized contract.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         parse_json(json, "composite history").map(|inner| Self { inner })
     }
 
-    /// Number of dated output rows.
+    /// Return the number of chronological output rows.
+    ///
+    /// Returns
+    /// -------
+    /// int
+    ///     Count of dated history rows in chronological order.
+    ///
+    /// Notes
+    /// -----
+    /// This accessor does not raise; an empty result has length ``0``.
     fn __len__(&self) -> usize {
         self.inner.len()
     }
 
-    /// Serialize one zero-based history row.
+    /// Serialize one zero-based dated history row.
+    ///
+    /// Parameters
+    /// ----------
+    /// index : int
+    ///     Zero-based row index in chronological order.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     JSON for the selected value, P&L, return, exposure, and trade row.
+    ///
+    /// Raises
+    /// ------
+    /// IndexError
+    ///     If ``index`` is outside the result bounds.
+    /// ValueError
+    ///     If the selected row cannot be serialized.
     fn row_json(&self, index: usize) -> PyResult<String> {
         let row = self.inner.get(index).ok_or_else(|| {
             pyo3::exceptions::PyIndexError::new_err(format!(
@@ -703,6 +1332,16 @@ impl PyCompositeHistoryResult {
     }
 
     /// Serialize every dated history row as a JSON array.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Chronological array containing values, cashflows, P&L, returns, indices, exposures, and trades.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If canonical serialization fails.
     fn to_json(&self) -> PyResult<String> {
         to_json(&self.inner, "composite history")
     }
@@ -725,7 +1364,32 @@ pub struct PyCompositeHistoryEngine;
 
 #[pymethods]
 impl PyCompositeHistoryEngine {
-    /// Initialize a specification at the first observation and run history.
+    /// Initialize at the first observation and calculate chronological rows.
+    ///
+    /// Warmup observations feed dynamic weighting only. The first output row
+    /// has ``return_index = 100`` and zero P&L. Scheduled rebalances are
+    /// close-effective.
+    ///
+    /// Parameters
+    /// ----------
+    /// spec : CompositeSpec
+    ///     Unresolved definition initialized using only available warmup and first-date information.
+    /// observations_json : str
+    ///     Non-empty strictly increasing complete market-observation array.
+    /// warmup_json : str
+    ///     Optional strictly earlier complete observations used for weighting only.
+    /// metrics : list[str] | None
+    ///     Optional additive primitive metrics included on every output row.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeHistoryResult
+    ///     Dated value, cashflow, P&L, return, index, exposure, state, and trade rows.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If observations, warmup, initialization, pricing, FX, or rebalancing fail.
     #[staticmethod]
     #[pyo3(signature = (spec, observations_json, warmup_json="[]", metrics=None))]
     fn run_from_spec(
@@ -746,7 +1410,29 @@ impl PyCompositeHistoryEngine {
             .map_err(core_to_py)
     }
 
-    /// Run history from an already-resolved immutable composite.
+    /// Calculate chronological rows from an already-resolved initial state.
+    ///
+    /// Period return is ``pnl / capital``. The initial effective date must be
+    /// on or before the first observation.
+    ///
+    /// Parameters
+    /// ----------
+    /// instrument : CompositeInstrument
+    ///     Immutable resolved state held from the first supplied observation.
+    /// observations_json : str
+    ///     Non-empty strictly increasing complete market-observation array.
+    /// metrics : list[str] | None
+    ///     Optional additive primitive metrics included on every output row.
+    ///
+    /// Returns
+    /// -------
+    /// CompositeHistoryResult
+    ///     Dated total-return rows with close-effective rebalance transitions.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If state, observations, market inputs, pricing, FX, or rebalancing fail.
     #[staticmethod]
     #[pyo3(signature = (instrument, observations_json, metrics=None))]
     fn run(
@@ -790,7 +1476,7 @@ pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult
     )?;
     module.setattr(
         "__doc__",
-        "Resolved cross-asset composite instruments, primitive exposures, and dated history.",
+        "Resolved cross-asset composite instruments, primitive exposures, and dated history. Pricing uses frozen quantities; initialize covers fixed_quantity without a separate initialize_fixed binding.",
     )?;
     module.add_class::<PyCompositeLegSpec>()?;
     module.add_class::<PyWeightingMethod>()?;

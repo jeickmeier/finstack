@@ -31,6 +31,7 @@
 //! - `fx`: Spots, forwards, swaps, options, barriers, quantos
 //! - `commodity`: Forwards, swaps, options
 //! - `exotics`: Asian, barrier, lookback, basket options
+//! - `composite`: Cross-asset baskets, spreads, and synthetics with frozen quantities
 //!
 //! # Core Trait
 //!
@@ -123,6 +124,11 @@
 //! | `FxOption` | FX options (Garman-Kohlhagen) |
 //! | `VarianceSwap` | Variance/volatility swaps |
 //! | `FxSwap` | FX forwards and swaps |
+//!
+//! ## Composite
+//! | Type | Description |
+//! |------|-------------|
+//! | `CompositeInstrument` | Cross-asset basket or synthetic with frozen quantities |
 //!
 //! # See Also
 //!

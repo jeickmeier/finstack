@@ -1,5 +1,8 @@
 """Generic cross-asset composite instruments with frozen resolved quantities.
 
+Host bindings expose ``initialize`` for both fixed and dynamic weighting;
+there is no separate ``initialize_fixed`` export.
+
 Examples:
 --------
 >>> from finstack_quant.valuations.composite import RebalanceRule, WeightingMethod
