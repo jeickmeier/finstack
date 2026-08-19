@@ -1479,10 +1479,12 @@ class CompositeHistoryEngine:
     ...     RebalanceRule.manual(),
     ... )
     >>> _state = json.loads(MarketContext().to_json())
-    >>> len(CompositeHistoryEngine.run_from_spec(
-    ...     _spec,
-    ...     json.dumps([{"date": "2025-01-01", "state": _state}, {"date": "2025-01-02", "state": _state}]),
-    ... ))
+    >>> len(
+    ...     CompositeHistoryEngine.run_from_spec(
+    ...         _spec,
+    ...         json.dumps([{"date": "2025-01-01", "state": _state}, {"date": "2025-01-02", "state": _state}]),
+    ...     )
+    ... )
     2
     """
 
@@ -1548,10 +1550,12 @@ class CompositeHistoryEngine:
         ...     RebalanceRule.manual(),
         ... )
         >>> _state = json.loads(MarketContext().to_json())
-        >>> json.loads(CompositeHistoryEngine.run_from_spec(
-        ...     _spec,
-        ...     json.dumps([{"date": "2025-01-01", "state": _state}, {"date": "2025-01-02", "state": _state}]),
-        ... ).to_json())[0]["return_index"]
+        >>> json.loads(
+        ...     CompositeHistoryEngine.run_from_spec(
+        ...         _spec,
+        ...         json.dumps([{"date": "2025-01-01", "state": _state}, {"date": "2025-01-02", "state": _state}]),
+        ...     ).to_json()
+        ... )[0]["return_index"]
         100.0
         """
         ...
@@ -1617,10 +1621,12 @@ class CompositeHistoryEngine:
         ... )
         >>> _instrument = _spec.initialize(MarketContext(), datetime.date(2025, 1, 1)).instrument
         >>> _state = json.loads(MarketContext().to_json())
-        >>> len(CompositeHistoryEngine.run(
-        ...     _instrument,
-        ...     json.dumps([{"date": "2025-01-01", "state": _state}, {"date": "2025-01-02", "state": _state}]),
-        ... ))
+        >>> len(
+        ...     CompositeHistoryEngine.run(
+        ...         _instrument,
+        ...         json.dumps([{"date": "2025-01-01", "state": _state}, {"date": "2025-01-02", "state": _state}]),
+        ...     )
+        ... )
         2
         """
         ...
