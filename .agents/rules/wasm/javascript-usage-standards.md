@@ -130,12 +130,30 @@ console.log(amount.amount); // 1000.5
 ```javascript
 const date = core.createDate(2024, 9, 30);
 
-console.log(date); // "2024-09-30"
+console.log(date); // 19996  (epoch days, NOT an ISO string)
 
 const nextBD = core.adjust(date, "modified_following", "nyse");
+
+// Decompose back into calendar parts when you need them:
+const [year, month, day] = core.dateFromEpochDays(nextBD);
 ```
 
-Dates are represented as ISO strings at the JavaScript facade boundary.
+**The date representation is not uniform across namespaces — check the function
+you are calling.** There are two conventions in use:
+
+| Surface | Representation | Example |
+| --- | --- | --- |
+| `core` date utilities (`createDate`, `adjust`, `dateFromEpochDays`) | **integer epoch days** (days since 1970-01-01) | `core.createDate(2024, 9, 30)` → `19996` |
+| Panel/series ingestion (e.g. `analytics.Performance.fromReturns`) | **ISO date strings** | `["2024-01-01", "2024-01-02"]` |
+
+`core.createDate` and `core.adjust` both return `number`, and `core.adjust` expects
+that same integer as input. Never pass an ISO string to a `core` date function, and
+never pass epoch days to a panel constructor — neither coerces, and
+`serde_wasm_bindgen` will surface a type error rather than silently converting.
+
+Use `core.dateFromEpochDays(days)` to convert epoch days back to a
+`[year, month, day]` triple. To interoperate with the host `Date` type, convert
+explicitly — for example `new Date(epochDays * 86_400_000)` for a UTC instant.
 
 ## Error Handling
 

@@ -188,7 +188,7 @@ where
             continue;
         }
         if let Some(updated) = child.to_instrument_json() {
-            leg.instrument = Box::new(updated);
+            *leg.instrument = updated;
             changed += child_changed;
         }
     }

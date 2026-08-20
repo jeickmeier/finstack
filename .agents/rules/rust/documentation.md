@@ -333,7 +333,7 @@ pub fn method(&self, param: Type) -> ReturnType {
 /// # Returns
 ///
 /// A formatted string representation of the monetary amount. If `show_currency`
-/// is true, returns format "value CURRENCY" (e.g., "1042315.67 USD").
+/// is true, returns format "CURRENCY value" (e.g., "USD 1042315.67").
 /// Otherwise returns just the numeric value (e.g., "1042315.67").
 ///
 /// # Examples
@@ -343,9 +343,9 @@ pub fn method(&self, param: Type) -> ReturnType {
 /// use finstack_quant_core::currency::Currency;
 ///
 /// let amount = Money::new(1_042_315.67, Currency::USD);
-/// assert_eq!(amount.format(2, true), "1042315.67 USD");
+/// assert_eq!(amount.format(2, true), "USD 1042315.67");
 /// assert_eq!(amount.format(2, false), "1042315.67");
-/// assert_eq!(amount.format(0, true), "1042316 USD");
+/// assert_eq!(amount.format(0, true), "USD 1042316");
 /// ```
 pub fn format(&self, decimals: usize, show_currency: bool) -> String {
     // implementation

@@ -39,6 +39,7 @@ use serde::{Deserialize, Serialize};
 
 /// Configuration for the structured-credit OAS calculation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OasConfig {
     /// Number of Monte-Carlo scenarios (forced to 1 when neither dimension is
     /// stochastic, since every scenario is then identical).
@@ -587,5 +588,41 @@ mod tests {
             assert!(w[1] <= w[0] + 1e-15, "adjustment must be non-increasing");
         }
         assert!(*adj.last().unwrap() < 1.0);
+    }
+    /// Every [`OasConfig`] field is mandatory, so a misspelled key previously
+    /// surfaced as a confusing "missing field" naming the *correct* key rather
+    /// than the typo the caller actually wrote. `deny_unknown_fields` makes the
+    /// error name the offending key, and guards the silent-default hole that
+    /// would open the moment any field gained `#[serde(default)]`.
+    #[test]
+    fn typo_in_oas_config_field_is_rejected_by_name() {
+        let json = r#"{
+            "num_path": 128,
+            "stochastic_rates": false,
+            "stochastic_credit": true,
+            "hw_kappa": 0.05,
+            "hw_sigma": 0.01,
+            "prepay_beta": 7.0,
+            "credit_loading": 0.3,
+            "seed": 42,
+            "tolerance": 1e-7
+        }"#;
+        let err = serde_json::from_str::<OasConfig>(json)
+            .expect_err("a misspelled num_paths must be rejected");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("num_path"),
+            "the error must name the key the caller typed, not the one they meant; got: {msg}"
+        );
+    }
+
+    /// The fully specified config must still parse, so strictness has not made
+    /// any legitimate field unreachable.
+    #[test]
+    fn well_formed_oas_config_still_parses() {
+        let json = serde_json::to_string(&OasConfig::default()).expect("serializable");
+        let cfg: OasConfig =
+            serde_json::from_str(&json).expect("the default config must round-trip");
+        assert_eq!(cfg.num_paths, OasConfig::default().num_paths);
     }
 }

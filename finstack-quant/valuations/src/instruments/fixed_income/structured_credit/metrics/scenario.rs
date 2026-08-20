@@ -17,6 +17,7 @@ use super::calculate_tranche_wal;
 
 /// Grid of behavioral scenarios to evaluate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ScenarioGrid {
     /// Annual CPR values (decimal) to sweep.
     pub cprs: Vec<f64>,
@@ -33,6 +34,7 @@ pub struct ScenarioGrid {
 
 /// One evaluated cell of the scenario table.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ScenarioCell {
     /// Annual CPR (decimal) for this cell.
     pub cpr: f64,
@@ -50,6 +52,7 @@ pub struct ScenarioCell {
 
 /// Scenario table for a single tranche.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ScenarioTable {
     /// Identifier of the tranche evaluated.
     pub tranche_id: String,
@@ -183,5 +186,50 @@ mod scenario_guard_tests {
             msg.contains("1000000") && msg.contains("cap"),
             "the error must state the requested cell count and the cap; got: {msg}"
         );
+    }
+    /// `recovery_lag` is the only `#[serde(default)]` field on [`ScenarioGrid`],
+    /// which made it the one key whose misspelling changed recovery timing
+    /// without any error: the typo was ignored and the deal's own lag silently
+    /// applied. `deny_unknown_fields` converts that into a parse failure.
+    #[test]
+    fn typo_in_scenario_grid_recovery_lag_is_rejected() {
+        let json = r#"{
+            "cprs": [0.05],
+            "cdrs": [0.02],
+            "severities": [0.4],
+            "recovery_leg": 0
+        }"#;
+        let err = serde_json::from_str::<ScenarioGrid>(json)
+            .expect_err("a misspelled recovery_lag must not be silently ignored");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("recovery_leg"),
+            "the error must name the offending key so the typo is findable; got: {msg}"
+        );
+    }
+
+    /// The correctly spelled optional field must still be accepted, so the
+    /// strictness above has not made a legitimate override unreachable.
+    #[test]
+    fn correctly_spelled_scenario_grid_recovery_lag_is_accepted() {
+        let json = r#"{
+            "cprs": [0.05],
+            "cdrs": [0.02],
+            "severities": [0.4],
+            "recovery_lag": 3
+        }"#;
+        let grid: ScenarioGrid =
+            serde_json::from_str(json).expect("a well-formed grid must still parse");
+        assert_eq!(grid.recovery_lag, Some(3));
+    }
+
+    /// Omitting the optional field entirely remains valid and still means
+    /// "use the deal's own recovery lag".
+    #[test]
+    fn scenario_grid_recovery_lag_remains_optional() {
+        let json = r#"{"cprs": [0.05], "cdrs": [0.02], "severities": [0.4]}"#;
+        let grid: ScenarioGrid =
+            serde_json::from_str(json).expect("recovery_lag must stay optional");
+        assert_eq!(grid.recovery_lag, None);
     }
 }
