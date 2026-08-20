@@ -144,6 +144,9 @@ file digest.
 
 `mise run rust-gen-schemas` is the sole schema write path. Every generator
 supports `--write`, `--check`, `--list`, and `--output-root`.
+`mise run gen-write` is the local umbrella that runs that write path plus
+`wasm-gen-bindings`. `mise run all-ci` always regenerates through `gen-write`
+before tests and the rest of the verification suite.
 
 `mise run rust-check-schemas` is non-mutating. It verifies registry inventory,
 checked-in bytes, unique `$id` values, resolvable references, and v1-only

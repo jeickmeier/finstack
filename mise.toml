@@ -122,7 +122,13 @@ description = "Verify Rust, Python, and WASM documentation (CI docs job)"
 depends = ["rust-doc", "python-doc", "wasm-doc", "materialization-benchmark-doc-check"]
 
 [tasks.all-ci]
-description = "Run CI build.yml checks locally (lint, tests, docs, cargo-deny, publish checks)"
+description = "Regenerate derived artifacts, then run CI build.yml checks locally"
+depends = ["gen-write"]
+run = [{ task = "all-ci-verify" }]
+
+[tasks.all-ci-verify]
+description = "CI verification suite after derived artifacts are current"
+hide = true
 depends = [
   "pre-commit-run",
   "gen-check",
@@ -575,6 +581,10 @@ run = [
   "cargo run -p finstack-quant-valuations --bin gen_schemas -- --write",
   "cargo run -p finstack-quant-portfolio --bin gen_materialization_schemas -- --write",
 ]
+
+[tasks.gen-write]
+description = "Regenerate checked-in schemas, fixtures, and TypeScript bindings"
+depends = ["rust-gen-schemas", "wasm-gen-bindings"]
 
 [tasks.gen-check]
 description = "Verify schemas and bindings; fail if generated artifacts drift"

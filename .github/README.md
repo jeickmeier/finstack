@@ -93,9 +93,11 @@ task cannot be reproduced locally at all.
 
 The local mirrors are partial, so know what they do and do not cover:
 
-- `mise run all-ci` covers the Lint, Test Rust, Test Python, Test WASM,
-  Supply-chain Security, and Rust Publish Checks jobs of `build.yml`. It does
-  **not** run Rust MSRV, Rust release build, OSV-Scanner, or Semver Checks.
+- `mise run all-ci` regenerates derived artifacts first, then covers the Lint,
+  Test Rust, Test Python, Test WASM, Supply-chain Security, and Rust Publish
+  Checks jobs of `build.yml`. It does **not** run Rust MSRV, Rust release
+  build, OSV-Scanner, or Semver Checks. GitHub CI still uses `gen-check` as a
+  non-mutating drift gate so uncommitted generated files fail the Lint job.
 - `mise run all-doc` mirrors `docs.yml`.
 - `slow-rust-tests.yml` is `mise run rust-test-slow`; `release.yml` has no local
   equivalent.

@@ -368,13 +368,14 @@ rest are narrower (`goldens-*`, `wheel-*`, `pre-commit-*`, `materialization-*`,
 | `mise run all-lint` | Lint Rust, Python, and WASM (check-only) |
 | `mise run all-fmt` | Format and auto-fix Rust, Python, and WASM (mutating) |
 | `mise run all-test` | Run Rust, Python, and WASM tests |
-| `mise run all-ci` | Reproduce the CI job set locally (lint, tests, docs, cargo-deny, publish checks) |
+| `mise run all-ci` | Regenerate derived artifacts, then reproduce the CI job set locally |
 | `mise run rust-build` | Build the Rust workspace excluding the binding crates |
 | `mise run rust-test` | Run native Rust tests via `cargo nextest` |
 | `mise run rust-lint` | `cargo fmt --check` plus clippy with `-D warnings` across the workspace |
 | `mise run rust-doc` | Build workspace docs, enforce input docs, and run doctests |
 | `mise run rust-msrv` | Check production targets against the declared Rust 1.90 MSRV |
 | `mise run rust-bench` | Run Criterion benchmarks with reduced measurement timing |
+| `mise run gen-write` | Regenerate checked-in schemas, fixtures, and TypeScript bindings |
 | `mise run rust-gen-schemas` | Regenerate typed JSON schemas from Rust types |
 | `mise run rust-check-schemas` | Verify JSON schemas match Rust types |
 | `mise run python-build` | Build the Python extension in place (dev profile) |
