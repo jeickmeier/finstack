@@ -49,6 +49,7 @@ venv.bak/
 *.swp
 *.swo
 *~
+.vscode/
 
 # macOS
 .DS_Store

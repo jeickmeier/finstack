@@ -105,10 +105,8 @@ scenarios:
 Product builders are split by asset class: `bonds.py`, `credit.py`,
 `deposits.py`, `fx.py`, `fx_exotics.py`, `options.py`, `rate_options.py`,
 `rates.py`, `attribution.py`, with shared determinism helpers in `common.py`
-(fixed valuation/capture dates, QuantLib >= 1.41 floor).
-`cds_option_flat_black.py` is a standalone flat-curve Black CDS-option
-benchmark. `generate.py` is the CLI; `--check` reports generator drift instead
-of writing.
+(fixed valuation/capture dates, QuantLib >= 1.41 floor). `generate.py` is the
+CLI; `--check` reports generator drift instead of writing.
 
 ```bash
 mise run goldens-quantlib-generate              # rewrite pricing fixtures
