@@ -331,9 +331,9 @@ mise run python-examples
 exact stable Rust with `clippy`, `rustfmt`, and the `wasm32-unknown-unknown`
 target, plus nightly (needed only for the rustdoc JSON that `cargo-public-api`
 consumes), Node, `wasm-pack`, `cargo-nextest`, `cargo-llvm-cov`, `cargo-deny`,
-`cargo-public-api`, `maturin`, and `osv-scanner`. The pinned toolchain is ahead
-of the declared MSRV; `mise run rust-msrv` checks production targets against
-Rust 1.90.
+`cargo-public-api`, `flamegraph`, `maturin`, and `osv-scanner`. The pinned
+toolchain is ahead of the declared MSRV; `mise run rust-msrv` checks production
+targets against Rust 1.90.
 
 ```bash
 # Install mise on macOS or Linux
@@ -375,6 +375,7 @@ rest are narrower (`goldens-*`, `wheel-*`, `pre-commit-*`, `materialization-*`,
 | `mise run rust-doc` | Build workspace docs, enforce input docs, and run doctests |
 | `mise run rust-msrv` | Check production targets against the declared Rust 1.90 MSRV |
 | `mise run rust-bench` | Run Criterion benchmarks with reduced measurement timing |
+| `mise run rust-flamegraph` | Generate a CPU flamegraph (`cargo flamegraph --profile bench`; pass extra args after `--`) |
 | `mise run gen-write` | Regenerate checked-in schemas, fixtures, and TypeScript bindings |
 | `mise run rust-gen-schemas` | Regenerate typed JSON schemas from Rust types |
 | `mise run rust-check-schemas` | Verify JSON schemas match Rust types |

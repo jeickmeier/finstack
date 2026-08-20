@@ -28,6 +28,7 @@ node = "24"
 "cargo:cargo-llvm-cov" = "latest"
 "cargo:cargo-deny" = "latest"
 "cargo:cargo-public-api" = "latest"
+"cargo:flamegraph" = "latest"
 "cargo:maturin" = "latest"
 "aqua:google/osv-scanner" = "2.3.5"
 
@@ -649,6 +650,10 @@ run = [
   "uv run pytest scripts/tests/test_check_tiny_loc.py -q",
   "uv run python scripts/check_tiny_loc.py",
 ]
+
+[tasks.rust-flamegraph]
+description = "Generate a CPU flamegraph using the bench profile (keeps symbols; pass cargo-flamegraph args after --). Example: mise run rust-flamegraph -- -p finstack-quant-portfolio --bench materialization --open"
+run = "cargo flamegraph --profile bench"
 
 [tasks.rust-bench]
 description = "Run Rust benchmarks with reduced Criterion timing (override: FQ_BENCH_SAMPLE_SIZE, FQ_BENCH_WARM_UP_TIME, FQ_BENCH_MEASUREMENT_TIME, FQ_BENCH_NRESAMPLES)"

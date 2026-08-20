@@ -97,6 +97,11 @@ libverification_test.rlib
 *.profraw
 *.profdata
 
+# cargo-flamegraph / perf sampling outputs
+flamegraph.svg
+perf.data
+perf.data.old
+
 # Script Outputs
 finstack-quant-py/examples/outputs/
 
