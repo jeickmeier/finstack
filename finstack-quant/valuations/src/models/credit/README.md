@@ -29,7 +29,14 @@ both route through `market_anchored`; and by both host bindings — see
 | File | Contents |
 |------|----------|
 | [`mod.rs`](mod.rs) | Re-exports |
-| [`merton.rs`](merton.rs) | `MertonModel`, `AssetDynamics`, `BarrierType`, `SimulatedPaths` |
+| [`merton/mod.rs`](merton/mod.rs) | Re-exports `MertonModel`, `AssetDynamics`, `BarrierType`, `SimulatedPaths` |
+| [`merton/dynamics.rs`](merton/dynamics.rs) | `AssetDynamics`, `BarrierType` |
+| [`merton/model.rs`](merton/model.rs) | `MertonModel`, `RawMertonModel`, constructors, accessors |
+| [`merton/default_probability.rs`](merton/default_probability.rs) | Distance-to-default, PD, KMV default point |
+| [`merton/spreads.rs`](merton/spreads.rs) | `implied_spread`, `debt_spread`, `cds_par_spread` |
+| [`merton/calibration.rs`](merton/calibration.rs) | `from_equity`, `from_cds_spread`, `from_target_pd`, `credit_grades` |
+| [`merton/hazard_curve.rs`](merton/hazard_curve.rs) | `to_hazard_curve` |
+| [`merton/simulation.rs`](merton/simulation.rs) | `SimulatedPaths`, `simulate_paths` |
 | [`dynamic_recovery.rs`](dynamic_recovery.rs) | `DynamicRecoverySpec`, `RecoveryModel` |
 | [`endogenous_hazard.rs`](endogenous_hazard.rs) | `EndogenousHazardSpec`, `LeverageHazardMap` |
 | [`toggle_exercise.rs`](toggle_exercise.rs) | `ToggleExerciseModel`, `CreditState`, `ThresholdToggle`, `StochasticToggle`, `OptimalToggle` |
@@ -41,7 +48,7 @@ Re-exported at the `credit` root: `AssetDynamics`, `BarrierType`,
 `OptimalToggle`, `ThresholdDirection`, `ToggleExerciseModel`. `ThresholdToggle`
 and `StochasticToggle` are reachable through `credit::toggle_exercise::`.
 
-## Merton structural model (`merton.rs`)
+## Merton structural model (`merton/`)
 
 Equity is a call option on firm assets; default is triggered when the asset
 value crosses the debt barrier.
