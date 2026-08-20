@@ -19,17 +19,20 @@
 # `mise run rust-doc`) can only build rustdoc JSON with nightly; see
 # scripts/check_public_api_input_docs.py.
 rust = [
-  { version = "1.91.1", components = "clippy,rustfmt", targets = "wasm32-unknown-unknown", profile = "minimal" },
+  { version = "1.97.1", components = "clippy,rustfmt", targets = "wasm32-unknown-unknown", profile = "minimal" },
   { version = "nightly", profile = "minimal" },
 ]
+# Tool versions are pinned exactly, not "latest": these are the test runner,
+# the supply-chain gate and the wheel builder, and a floating pin lets CI go
+# red with no code change. Bump deliberately, one tool at a time.
 node = "24"
-"aqua:rustwasm/wasm-pack" = "latest"
-"cargo:cargo-nextest" = "latest"
-"cargo:cargo-llvm-cov" = "latest"
-"cargo:cargo-deny" = "latest"
-"cargo:cargo-public-api" = "latest"
-"cargo:flamegraph" = "latest"
-"cargo:maturin" = "latest"
+"aqua:rustwasm/wasm-pack" = "0.15.0"
+"cargo:cargo-nextest" = "0.9.143"
+"cargo:cargo-llvm-cov" = "0.9.0"
+"cargo:cargo-deny" = "0.20.2"
+"cargo:cargo-public-api" = "0.52.0"
+"cargo:flamegraph" = "latest"    # local profiling only, never gates CI
+"cargo:maturin" = "1.14.1"
 "aqua:google/osv-scanner" = "2.3.5"
 
 [env]

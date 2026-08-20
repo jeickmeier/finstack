@@ -47,6 +47,102 @@ mod tests {
         Date::from_calendar_date(y, time::Month::try_from(m).unwrap(), d).unwrap()
     }
 
+    /// A NaN springing metric is indeterminate — it must NOT silently deactivate
+    /// the covenant and report a pass. `NaN <= t` and `NaN >= t` are both false,
+    /// so a raw comparison concluded "condition not met" and returned
+    /// `passed: true` with detail "Springing condition not met" — a covenant on
+    /// undefined data reporting a clean bill of health.
+    ///
+    /// The crate's established convention is NaN ⇒ breached
+    /// (`helpers::is_covenant_breached`, and the forecast path's
+    /// "Mirror the point-in-time engine convention: NaN ⇒ breached"). The
+    /// fail-closed analogue for a springing trigger is to ACTIVATE, so the
+    /// covenant is then evaluated and its own NaN handling applies.
+    #[test]
+    fn nan_springing_metric_activates_rather_than_silently_passing() {
+        let covenant = Covenant::new(
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
+            Tenor::quarterly(),
+            "springing_leverage",
+        )
+        .with_springing_condition(SpringingCondition {
+            metric_id: "revolver_utilization".into(),
+            test: ThresholdTest::Minimum(0.35),
+        });
+        let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
+        let mut engine = CovenantEngine::new();
+        engine.add_spec(spec);
+
+        // Healthy underlying metric: activation is still the correct outcome, and
+        // the covenant then legitimately passes on its own merits (3.2 < 4.5).
+        // What must NOT happen is the covenant being skipped as "inactive".
+        let mut metrics = HashMapMetricSource::from_pairs([
+            ("revolver_utilization", f64::NAN),
+            ("debt_to_ebitda", 3.2),
+        ]);
+        let reports = engine.evaluate(&mut metrics, date(2024, 3, 31)).unwrap();
+        let report = &reports["springing_leverage"];
+        assert_eq!(
+            report.actual_value,
+            Some(3.2),
+            "the covenant must be ACTIVATED and evaluated, not skipped; details {:?}",
+            report.details
+        );
+        assert_ne!(
+            report.details.as_deref(),
+            Some("Springing condition not met"),
+            "a NaN springing metric must not be reported as an unmet condition"
+        );
+
+        // Breaching underlying metric: activation now surfaces a real breach that
+        // the old behaviour hid entirely behind a passing "inactive" report.
+        let mut breaching = HashMapMetricSource::from_pairs([
+            ("revolver_utilization", f64::NAN),
+            ("debt_to_ebitda", 5.0),
+        ]);
+        let reports = engine.evaluate(&mut breaching, date(2024, 3, 31)).unwrap();
+        let report = &reports["springing_leverage"];
+        assert!(
+            !report.passed,
+            "NaN springing + breaching metric must report a breach, not a pass"
+        );
+    }
+
+    /// The ordinary springing paths must keep working unchanged.
+    #[test]
+    fn springing_condition_still_gates_on_finite_metrics() {
+        let build = |utilization: f64| {
+            let covenant = Covenant::new(
+                CovenantType::MaxDebtToEbitda { threshold: 4.5 },
+                Tenor::quarterly(),
+                "springing_leverage",
+            )
+            .with_springing_condition(SpringingCondition {
+                metric_id: "revolver_utilization".into(),
+                test: ThresholdTest::Minimum(0.35),
+            });
+            let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
+            let mut engine = CovenantEngine::new();
+            engine.add_spec(spec);
+            let mut metrics = HashMapMetricSource::from_pairs([
+                ("revolver_utilization", utilization),
+                ("debt_to_ebitda", 5.0),
+            ]);
+            let reports = engine.evaluate(&mut metrics, date(2024, 3, 31)).unwrap();
+            reports["springing_leverage"].clone()
+        };
+
+        // Below the trigger: covenant inactive, reports pass.
+        let inactive = build(0.10);
+        assert!(inactive.passed);
+        assert_eq!(inactive.actual_value, None);
+
+        // At/above the trigger: covenant active and breaching at 5.0 > 4.5.
+        let active = build(0.50);
+        assert!(!active.passed);
+        assert_eq!(active.actual_value, Some(5.0));
+    }
+
     #[test]
     fn max_leverage_passes_when_below_threshold() {
         let covenant = Covenant::new(

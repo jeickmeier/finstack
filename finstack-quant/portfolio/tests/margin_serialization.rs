@@ -52,6 +52,21 @@ fn sample_simm_sensitivities() -> SimmSensitivities {
     sensitivities
         .commodity_delta
         .insert("Power".to_string(), -95.0);
+    // The three vega buckets the portfolio wire previously dropped on round-trip.
+    sensitivities
+        .commodity_vega
+        .insert("Power".to_string(), 42.0);
+    sensitivities
+        .credit_non_qualifying_vega
+        .insert(("RMBS_INDEX".to_string(), "3Y".to_string()), 61.0);
+    sensitivities.credit_qualifying_vega.insert(
+        (
+            SimmCreditSector::Financial,
+            "BANK_A".to_string(),
+            "5Y".to_string(),
+        ),
+        77.0,
+    );
     sensitivities
         .curvature
         .insert(SimmRiskClass::InterestRate, -75.0);
@@ -311,5 +326,53 @@ fn minor17_portfolio_margin_deserialize_rejects_inconsistent_totals() {
     assert!(
         err.to_string().contains("minor 17"),
         "unexpected error: {err}"
+    );
+}
+
+/// The portfolio wire (`portfolio/src/margin/wire.rs`) mirrors `SimmSensitivities`
+/// field by field. When credit-qualifying, credit-non-qualifying and commodity
+/// vega were added to the margin crate, the wire was NOT extended — so a
+/// round-trip through a `NettingSetMargin` silently dropped all three,
+/// recreating the exact silently-lost-input class the vega fix existed to close.
+///
+/// This asserts the VALUES survive, not merely that the round-trip succeeds:
+/// the previous behaviour deserialized perfectly well, just empty.
+#[test]
+fn portfolio_wire_round_trip_preserves_credit_and_commodity_vega() {
+    let original = sample_simm_sensitivities();
+    assert!(
+        !original.credit_qualifying_vega.is_empty()
+            && !original.credit_non_qualifying_vega.is_empty()
+            && !original.commodity_vega.is_empty(),
+        "fixture must actually carry the buckets under test"
+    );
+
+    let margin = NettingSetMargin::new(
+        NettingSetId::bilateral("BANK_A", "CSA_01"),
+        date!(2025 - 01 - 15),
+        Money::new(1_250_000.0, Currency::USD),
+        Money::new(150_000.0, Currency::USD),
+        4,
+        ImMethodology::Simm,
+    )
+    .with_simm_breakdown(original.clone(), HashMap::default());
+
+    let text = serde_json::to_string(&margin).expect("netting set serializes");
+    let restored: NettingSetMargin = serde_json::from_str(&text).expect("netting set deserializes");
+    let restored = restored
+        .sensitivities
+        .expect("sensitivities survive the round-trip");
+
+    assert_eq!(
+        restored.credit_qualifying_vega, original.credit_qualifying_vega,
+        "credit-qualifying vega must survive the portfolio wire"
+    );
+    assert_eq!(
+        restored.credit_non_qualifying_vega, original.credit_non_qualifying_vega,
+        "credit-non-qualifying vega must survive the portfolio wire"
+    );
+    assert_eq!(
+        restored.commodity_vega, original.commodity_vega,
+        "commodity vega must survive the portfolio wire"
     );
 }

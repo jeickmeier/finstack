@@ -603,8 +603,16 @@ risk calculation with a standard reference.
 ### BCBS FRTB Minimum Capital Requirements
 
 - Basel Committee on Banking Supervision. *Minimum Capital Requirements for
-  Market Risk* (BCBS d457). Canonical reference for FRTB standardized-approach
+  Market Risk* (BCBS d457), published 14 January 2019; corrected version
+  published 25 February 2019. Consolidated as Basel Framework chapter
+  **MAR21**, "Standardised approach: sensitivities-based method", version
+  effective 1 January 2023 (text incorporates the FAQs published 5 July 2024
+  and 23 March 2026). Canonical reference for FRTB standardized-approach
   delta, vega, curvature, default-risk, and residual-risk add-on calculations.
+  Per-parameter paragraph and table citations, together with the recorded
+  deviations between the implementation and the standard, live in the module
+  docs of `finstack-quant/margin/src/regulatory/frtb/params/` and in
+  `finstack-quant/margin/data/margin/README.md`.
 
 <a id="gregory-xva-challenge"></a>
 

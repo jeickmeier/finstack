@@ -15,13 +15,13 @@
 //! | Risk class     | RW scale              | Expected sensitivity unit      |
 //! |----------------|-----------------------|--------------------------------|
 //! | GIRR delta     | percent (`1.7` = 1.7%)| $ per **1 percentage-point** yield shift (i.e. 100x DV01) |
-//! | GIRR vega      | decimal (`0.55`)      | $ per 1 unit of implied vol    |
+//! | GIRR vega      | decimal (`1.00`)      | $ per 1 unit of implied vol    |
 //! | CSR delta      | percent               | $ per 1 pp spread shift        |
 //! | Equity delta   | percent (`55` = 55%)  | $ per 1% price move (i.e. `100 * dV/dP * P`) |
 //! | Equity vega    | decimal (`0.78`)      | $ per 1 unit of implied vol    |
 //! | Commodity delta| percent               | $ per 1% price move            |
 //! | FX delta       | percent (`15` = 15%)  | $ per 1% FX rate move          |
-//! | Curvature      | decimal shock (e.g. `0.5`) | raw CVR up / down in $ |
+//! | Curvature      | none applied by the engine | raw `CVR+` / `CVR-` in $ |
 //!
 //! The convention is internally consistent (delta RWs are in percent
 //! across risk classes, vega RWs are in decimal across risk classes) but
@@ -31,6 +31,14 @@
 //! DV01 per 1bp, raw dollar delta per $1 of price), **pre-scale the
 //! sensitivities before calling into this engine** — do not change the
 //! weight tables.
+//!
+//! Curvature is the exception: the engine applies **no** risk weight to
+//! `CVR+` / `CVR-`. MAR21.98 makes the FX and equity curvature shock a
+//! relative shift equal to the delta risk weight, and MAR21.99 makes the
+//! GIRR/CSR/commodity shock a shift sized by the highest prescribed delta
+//! risk weight **in the bucket** — both are properties of how the caller
+//! computes `CVR`, not of the aggregation. Supply `CVR+` / `CVR-` already
+//! shocked and already net of the delta-hedged component, loss-positive.
 
 pub mod aggregation;
 pub mod curvature;

@@ -260,6 +260,12 @@ pub fn forecast_covenant_generic<MTS: ModelTimeSeries>(
     }
 
     validate_config(&config)?;
+    // The point-in-time path validates via `CovenantEngine::evaluate`; the
+    // forecast path had no equivalent, so a non-finite threshold reached the
+    // model. `3.0 > NaN` is false => "not breached", and `headroom_for` returns
+    // NaN => `None`, indistinguishable from an inactive covenant. A garbage
+    // threshold produced a clean bill of health.
+    covenant.validate()?;
 
     let id = covenant.covenant.instance_key();
     let description = covenant.covenant.description();
@@ -518,6 +524,12 @@ pub fn forecast_breaches_generic<MTS: ModelTimeSeries>(
     periods: &[PeriodId],
     config: CovenantForecastConfig,
 ) -> Result<Vec<FutureBreach>> {
+    // Same gap as `forecast_covenant_generic`: this entry point validated
+    // nothing at all, so an unvalidated engine could forecast against
+    // non-finite thresholds and report zero breaches.
+    validate_config(&config)?;
+    engine.validate()?;
+
     let mut breaches = Vec::new();
 
     for spec in &engine.specs {
@@ -767,9 +779,22 @@ fn springing_condition_active<MTS: ModelTimeSeries>(
                 id: format!("springing_metric:{metric_name}"),
             })
         })?;
-        let active = match cond.test {
-            ThresholdTest::Maximum(threshold) => value <= threshold,
-            ThresholdTest::Minimum(threshold) => value >= threshold,
+        // NaN is indeterminate, not "inactive": both comparisons are false for
+        // NaN, which would drop the covenant out of the forecast entirely and
+        // report breach probability 0.0 ("definitely safe") on undefined data.
+        // Mirror the point-in-time convention (NaN => breached) by activating.
+        let active = if value.is_nan() {
+            tracing::warn!(
+                metric = metric_name,
+                "springing condition metric is NaN \u{2014} activating the covenant \
+                 rather than silently excluding it from the forecast",
+            );
+            true
+        } else {
+            match cond.test {
+                ThresholdTest::Maximum(threshold) => value <= threshold,
+                ThresholdTest::Minimum(threshold) => value >= threshold,
+            }
         };
         Ok(active)
     } else {

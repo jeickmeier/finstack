@@ -24,7 +24,11 @@ fn sample_dates() -> Vec<Date> {
     // One full year of consecutive dates: the shape a schedule build produces.
     let start = Date::from_calendar_date(2025, Month::January, 1).expect("valid");
     (0..365)
-        .map(|i| start.checked_add(time::Duration::days(i)).expect("in range"))
+        .map(|i| {
+            start
+                .checked_add(time::Duration::days(i))
+                .expect("in range")
+        })
         .collect()
 }
 
@@ -34,7 +38,9 @@ fn bench_is_holiday_by_rule_count(c: &mut Criterion) {
     let dates = sample_dates();
     let mut group = c.benchmark_group("calendar_is_holiday_by_rule_count");
     for (id, rules) in CALENDARS {
-        let Some(cal) = calendar_by_id(id) else { continue };
+        let Some(cal) = calendar_by_id(id) else {
+            continue;
+        };
         group.bench_with_input(BenchmarkId::new(*id, rules), rules, |b, _| {
             b.iter(|| {
                 let mut n = 0usize;
@@ -55,7 +61,9 @@ fn bench_is_business_day(c: &mut Criterion) {
     let dates = sample_dates();
     let mut group = c.benchmark_group("calendar_is_business_day");
     for (id, rules) in CALENDARS {
-        let Some(cal) = calendar_by_id(id) else { continue };
+        let Some(cal) = calendar_by_id(id) else {
+            continue;
+        };
         group.bench_with_input(BenchmarkId::new(*id, rules), rules, |b, _| {
             b.iter(|| {
                 let mut n = 0usize;

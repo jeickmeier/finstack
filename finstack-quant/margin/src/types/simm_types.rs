@@ -170,9 +170,15 @@ pub struct SimmSensitivitiesJson {
     /// Credit qualifying deltas as `(sector, name, tenor, amount)`.
     #[serde(default)]
     pub credit_qualifying_delta: Vec<(SimmCreditSector, String, String, f64)>,
+    /// Credit qualifying vegas as `(sector, name, tenor, amount)`.
+    #[serde(default)]
+    pub credit_qualifying_vega: Vec<(SimmCreditSector, String, String, f64)>,
     /// Credit non-qualifying delta buckets as `(name, tenor, amount)`.
     #[serde(default)]
     pub credit_non_qualifying_delta: Vec<(String, String, f64)>,
+    /// Credit non-qualifying vega buckets as `(name, tenor, amount)`.
+    #[serde(default)]
+    pub credit_non_qualifying_vega: Vec<(String, String, f64)>,
     /// Equity delta buckets as `(underlier, amount)`.
     #[serde(default)]
     pub equity_delta: Vec<(String, f64)>,
@@ -188,6 +194,9 @@ pub struct SimmSensitivitiesJson {
     /// Commodity delta buckets as `(bucket, amount)`.
     #[serde(default)]
     pub commodity_delta: Vec<(String, f64)>,
+    /// Commodity vega buckets as `(bucket, amount)`.
+    #[serde(default)]
+    pub commodity_vega: Vec<(String, f64)>,
     /// Curvature buckets as `(risk_class, amount)`.
     #[serde(default)]
     pub curvature: Vec<(SimmRiskClass, f64)>,
@@ -214,8 +223,20 @@ impl From<&SimmSensitivities> for SimmSensitivitiesJson {
                     (*sector, name.clone(), tenor.clone(), *amount)
                 })
                 .collect(),
+            credit_qualifying_vega: sens
+                .credit_qualifying_vega
+                .iter()
+                .map(|((sector, name, tenor), amount)| {
+                    (*sector, name.clone(), tenor.clone(), *amount)
+                })
+                .collect(),
             credit_non_qualifying_delta: sens
                 .credit_non_qualifying_delta
+                .iter()
+                .map(|((name, tenor), amount)| (name.clone(), tenor.clone(), *amount))
+                .collect(),
+            credit_non_qualifying_vega: sens
+                .credit_non_qualifying_vega
                 .iter()
                 .map(|((name, tenor), amount)| (name.clone(), tenor.clone(), *amount))
                 .collect(),
@@ -244,6 +265,11 @@ impl From<&SimmSensitivities> for SimmSensitivitiesJson {
                 .iter()
                 .map(|(bucket, amount)| (bucket.clone(), *amount))
                 .collect(),
+            commodity_vega: sens
+                .commodity_vega
+                .iter()
+                .map(|(bucket, amount)| (bucket.clone(), *amount))
+                .collect(),
             curvature: sens
                 .curvature
                 .iter()
@@ -258,8 +284,12 @@ impl From<&SimmSensitivities> for SimmSensitivitiesJson {
                     .then_with(|| left.1.cmp(&right.1))
             });
         }
-        json.credit_non_qualifying_delta
-            .sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
+        for entries in [
+            &mut json.credit_non_qualifying_delta,
+            &mut json.credit_non_qualifying_vega,
+        ] {
+            entries.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
+        }
         for entries in [&mut json.equity_delta, &mut json.equity_vega] {
             entries.sort_by(|left, right| left.0.cmp(&right.0));
         }
@@ -270,16 +300,22 @@ impl From<&SimmSensitivities> for SimmSensitivitiesJson {
                 .cmp(&right.0.numeric())
                 .then_with(|| left.1.numeric().cmp(&right.1.numeric()))
         });
-        json.commodity_delta
-            .sort_by(|left, right| left.0.cmp(&right.0));
+        for entries in [&mut json.commodity_delta, &mut json.commodity_vega] {
+            entries.sort_by(|left, right| left.0.cmp(&right.0));
+        }
         json.curvature
             .sort_by_key(|entry| simm_risk_class_sort_key(entry.0));
-        json.credit_qualifying_delta.sort_by(|left, right| {
-            simm_credit_sector_sort_key(left.0)
-                .cmp(&simm_credit_sector_sort_key(right.0))
-                .then_with(|| left.1.cmp(&right.1))
-                .then_with(|| left.2.cmp(&right.2))
-        });
+        for entries in [
+            &mut json.credit_qualifying_delta,
+            &mut json.credit_qualifying_vega,
+        ] {
+            entries.sort_by(|left, right| {
+                simm_credit_sector_sort_key(left.0)
+                    .cmp(&simm_credit_sector_sort_key(right.0))
+                    .then_with(|| left.1.cmp(&right.1))
+                    .then_with(|| left.2.cmp(&right.2))
+            });
+        }
         json
     }
 }
@@ -325,8 +361,14 @@ impl From<SimmSensitivitiesJson> for SimmSensitivities {
         for (sector, name, tenor, amount) in value.credit_qualifying_delta {
             sens.add_credit_qualifying_delta(sector, name, tenor, amount);
         }
+        for (sector, name, tenor, amount) in value.credit_qualifying_vega {
+            sens.add_credit_qualifying_vega(sector, name, tenor, amount);
+        }
         for (name, tenor, amount) in value.credit_non_qualifying_delta {
             sens.add_credit_non_qualifying_delta(name, tenor, amount);
+        }
+        for (name, tenor, amount) in value.credit_non_qualifying_vega {
+            sens.add_credit_non_qualifying_vega(name, tenor, amount);
         }
         for (underlier, amount) in value.equity_delta {
             sens.add_equity_delta(underlier, amount);
@@ -342,6 +384,9 @@ impl From<SimmSensitivitiesJson> for SimmSensitivities {
         }
         for (bucket, amount) in value.commodity_delta {
             sens.add_commodity_delta(bucket, amount);
+        }
+        for (bucket, amount) in value.commodity_vega {
+            sens.add_commodity_vega(bucket, amount);
         }
         for (risk_class, amount) in value.curvature {
             sens.add_curvature(risk_class, amount);
@@ -420,10 +465,24 @@ pub struct SimmSensitivities {
     /// intra- and inter-bucket aggregation without a scalar approximation.
     pub credit_qualifying_delta: HashMap<(SimmCreditSector, String, String), f64>,
 
+    /// Credit qualifying vega by `(sector, issuer/index, tenor bucket)`.
+    ///
+    /// Bucketed exactly like [`credit_qualifying_delta`](Self::credit_qualifying_delta)
+    /// so ISDA SIMM applies the same intra- and inter-bucket aggregation to the
+    /// vega risk class, weighted by the single credit-qualifying vega risk
+    /// weight rather than the per-bucket delta weights.
+    pub credit_qualifying_vega: HashMap<(SimmCreditSector, String, String), f64>,
+
     /// Credit non-qualifying delta by (issuer/index, tenor bucket).
     ///
     /// For securitizations and exposures explicitly classified as non-qualifying.
     pub credit_non_qualifying_delta: HashMap<(String, String), f64>,
+
+    /// Credit non-qualifying vega by `(issuer/index, tenor bucket)`.
+    ///
+    /// Pooled like [`credit_non_qualifying_delta`](Self::credit_non_qualifying_delta)
+    /// and weighted by the credit-non-qualifying vega risk weight.
+    pub credit_non_qualifying_vega: HashMap<(String, String), f64>,
 
     /// Equity delta by underlier.
     ///
@@ -447,6 +506,13 @@ pub struct SimmSensitivities {
     /// Bucket labels should match the SIMM commodity bucket naming expected by
     /// the calculator's registry-backed lookup table.
     pub commodity_delta: HashMap<String, f64>,
+
+    /// Commodity vega by bucket.
+    ///
+    /// Bucket labels follow the same SIMM commodity bucket naming as
+    /// [`commodity_delta`](Self::commodity_delta); the single commodity vega
+    /// risk weight replaces the per-bucket delta weights.
+    pub commodity_vega: HashMap<String, f64>,
 
     /// Curvature risk by risk class.
     ///
@@ -472,12 +538,15 @@ impl SimmSensitivities {
             ir_delta: HashMap::default(),
             ir_vega: HashMap::default(),
             credit_qualifying_delta: HashMap::default(),
+            credit_qualifying_vega: HashMap::default(),
             credit_non_qualifying_delta: HashMap::default(),
+            credit_non_qualifying_vega: HashMap::default(),
             equity_delta: HashMap::default(),
             equity_vega: HashMap::default(),
             fx_delta: HashMap::default(),
             fx_vega: HashMap::default(),
             commodity_delta: HashMap::default(),
+            commodity_vega: HashMap::default(),
             curvature: HashMap::default(),
         }
     }
@@ -519,6 +588,26 @@ impl SimmSensitivities {
         *self.credit_qualifying_delta.entry(key).or_insert(0.0) += delta;
     }
 
+    /// Add a sector-bucketed credit-qualifying vega sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `sector` - ISDA SIMM credit-qualifying sector bucket.
+    /// * `name` - Issuer or index identifier.
+    /// * `tenor` - Tenor bucket such as `"5Y"`.
+    /// * `vega` - Signed currency vega amount compatible with the SIMM
+    ///   credit-qualifying vega risk weight.
+    pub fn add_credit_qualifying_vega(
+        &mut self,
+        sector: SimmCreditSector,
+        name: impl Into<String>,
+        tenor: impl Into<String>,
+        vega: f64,
+    ) {
+        let key = (sector, name.into(), tenor.into());
+        *self.credit_qualifying_vega.entry(key).or_insert(0.0) += vega;
+    }
+
     /// Add a credit non-qualifying delta sensitivity.
     ///
     /// # Arguments
@@ -534,6 +623,24 @@ impl SimmSensitivities {
     ) {
         let key = (name.into(), tenor.into());
         *self.credit_non_qualifying_delta.entry(key).or_insert(0.0) += delta;
+    }
+
+    /// Add a credit non-qualifying vega sensitivity.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Securitization or other non-qualifying exposure identifier.
+    /// * `tenor` - Tenor bucket such as `"5Y"`.
+    /// * `vega` - Signed currency vega amount compatible with the SIMM
+    ///   credit-non-qualifying vega risk weight.
+    pub fn add_credit_non_qualifying_vega(
+        &mut self,
+        name: impl Into<String>,
+        tenor: impl Into<String>,
+        vega: f64,
+    ) {
+        let key = (name.into(), tenor.into());
+        *self.credit_non_qualifying_vega.entry(key).or_insert(0.0) += vega;
     }
 
     /// Add an equity delta sensitivity bucket.
@@ -566,6 +673,12 @@ impl SimmSensitivities {
     pub fn add_commodity_delta(&mut self, bucket: impl Into<String>, delta: f64) {
         let key = bucket.into();
         *self.commodity_delta.entry(key).or_insert(0.0) += delta;
+    }
+
+    /// Add a commodity vega sensitivity bucket.
+    pub fn add_commodity_vega(&mut self, bucket: impl Into<String>, vega: f64) {
+        let key = bucket.into();
+        *self.commodity_vega.entry(key).or_insert(0.0) += vega;
     }
 
     /// Add a curvature contribution for a SIMM risk class.
@@ -610,12 +723,15 @@ impl SimmSensitivities {
         self.ir_delta.is_empty()
             && self.ir_vega.is_empty()
             && self.credit_qualifying_delta.is_empty()
+            && self.credit_qualifying_vega.is_empty()
             && self.credit_non_qualifying_delta.is_empty()
+            && self.credit_non_qualifying_vega.is_empty()
             && self.equity_delta.is_empty()
             && self.equity_vega.is_empty()
             && self.fx_delta.is_empty()
             && self.fx_vega.is_empty()
             && self.commodity_delta.is_empty()
+            && self.commodity_vega.is_empty()
             && self.curvature.is_empty()
     }
 
@@ -634,14 +750,23 @@ impl SimmSensitivities {
             &other.credit_qualifying_delta,
         );
         merge_into(
+            &mut self.credit_qualifying_vega,
+            &other.credit_qualifying_vega,
+        );
+        merge_into(
             &mut self.credit_non_qualifying_delta,
             &other.credit_non_qualifying_delta,
+        );
+        merge_into(
+            &mut self.credit_non_qualifying_vega,
+            &other.credit_non_qualifying_vega,
         );
         merge_into(&mut self.equity_delta, &other.equity_delta);
         merge_into(&mut self.equity_vega, &other.equity_vega);
         merge_into(&mut self.fx_delta, &other.fx_delta);
         merge_into(&mut self.fx_vega, &other.fx_vega);
         merge_into(&mut self.commodity_delta, &other.commodity_delta);
+        merge_into(&mut self.commodity_vega, &other.commodity_vega);
         merge_into(&mut self.curvature, &other.curvature);
     }
 
@@ -714,7 +839,13 @@ impl SimmSensitivities {
         for v in self.credit_qualifying_delta.values_mut() {
             *v *= factor;
         }
+        for v in self.credit_qualifying_vega.values_mut() {
+            *v *= factor;
+        }
         for v in self.credit_non_qualifying_delta.values_mut() {
+            *v *= factor;
+        }
+        for v in self.credit_non_qualifying_vega.values_mut() {
             *v *= factor;
         }
         for v in self.equity_delta.values_mut() {
@@ -730,6 +861,9 @@ impl SimmSensitivities {
             *v *= factor;
         }
         for v in self.commodity_delta.values_mut() {
+            *v *= factor;
+        }
+        for v in self.commodity_vega.values_mut() {
             *v *= factor;
         }
         for v in self.curvature.values_mut() {
@@ -1091,5 +1225,66 @@ mod tests {
             "credit_qualifying"
         );
         assert_eq!(SimmRiskClass::Fx.to_string(), "fx");
+    }
+
+    #[test]
+    fn credit_and_commodity_vega_round_trip_through_canonical_json() {
+        let mut sens = SimmSensitivities::new(Currency::USD);
+        sens.add_credit_qualifying_vega(SimmCreditSector::Financial, "BANK_A", "5Y", 250.0);
+        sens.add_credit_non_qualifying_vega("RMBS_A", "3Y", 125.0);
+        sens.add_commodity_vega("Crude", 75.0);
+
+        let json = sens.to_json_pretty().expect("serialize sensitivities");
+        let round_tripped = SimmSensitivities::from_json(&json).expect("deserialize sensitivities");
+
+        assert_eq!(
+            round_tripped.credit_qualifying_vega[&(
+                SimmCreditSector::Financial,
+                "BANK_A".to_string(),
+                "5Y".to_string(),
+            )],
+            250.0
+        );
+        assert_eq!(
+            round_tripped.credit_non_qualifying_vega[&("RMBS_A".to_string(), "3Y".to_string())],
+            125.0
+        );
+        assert_eq!(round_tripped.commodity_vega["Crude"], 75.0);
+        assert_eq!(round_tripped, sens);
+    }
+
+    #[test]
+    fn credit_and_commodity_vega_merge_and_scale_with_every_other_bucket() {
+        let mut left = SimmSensitivities::new(Currency::USD);
+        left.add_credit_qualifying_vega(SimmCreditSector::Sovereign, "UST", "10Y", 100.0);
+        left.add_credit_non_qualifying_vega("RMBS_A", "5Y", 40.0);
+        left.add_commodity_vega("Crude", 20.0);
+        assert!(!left.is_empty());
+
+        let mut right = left.clone();
+        right.merge(&left);
+        assert_eq!(
+            right.credit_qualifying_vega[&(
+                SimmCreditSector::Sovereign,
+                "UST".to_string(),
+                "10Y".to_string(),
+            )],
+            200.0
+        );
+        assert_eq!(
+            right.credit_non_qualifying_vega[&("RMBS_A".to_string(), "5Y".to_string())],
+            80.0
+        );
+        assert_eq!(right.commodity_vega["Crude"], 40.0);
+
+        // A short position flips every new bucket so it nets an equal long.
+        let mut net = left.clone();
+        net.merge(&left.scaled(-1.0));
+        assert!(net.credit_qualifying_vega.values().all(|v| v.abs() < 1e-12));
+        assert!(net
+            .credit_non_qualifying_vega
+            .values()
+            .all(|v| v.abs() < 1e-12));
+        assert!(net.commodity_vega.values().all(|v| v.abs() < 1e-12));
     }
 }

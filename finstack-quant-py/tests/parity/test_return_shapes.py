@@ -126,6 +126,8 @@ RESULT_CLASSES: list[tuple[str, str]] = [
     ("finstack_quant.monte_carlo", "MoneyEstimate"),
     ("finstack_quant.monte_carlo", "GbmPathSummary"),
     ("finstack_quant.margin", "XvaResult"),
+    ("finstack_quant.margin", "FrtbSbaResult"),
+    ("finstack_quant.margin", "EadResult"),
     ("finstack_quant.statements", "StatementResult"),
     # portfolio attribution/performance result wrappers.
     ("finstack_quant.portfolio", "BrinsonPeriodResult"),

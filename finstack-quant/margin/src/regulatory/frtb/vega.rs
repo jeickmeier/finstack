@@ -235,45 +235,158 @@ mod tests {
     use super::*;
     use finstack_quant_core::currency::Currency;
 
+    /// Assert `actual` matches `expected` to a tight relative tolerance.
+    fn assert_charge(actual: f64, expected: f64, what: &str) {
+        let tol = expected.abs() * 1e-9;
+        assert!(
+            (actual - expected).abs() <= tol,
+            "{what}: expected {expected}, got {actual}"
+        );
+    }
+
+    // Each test below uses **non-unit, multi-factor** sensitivities so the
+    // vega risk weight genuinely multiplies and the intra/inter-bucket
+    // correlations genuinely aggregate. An earlier revision fed a single
+    // 100.0 and asserted 100.0, which passed whether or not the weight was
+    // applied at all.
+    //
+    // The 100% vega risk weight used by GIRR, CSR (all three sub-classes),
+    // commodity and FX is the **published** value, not a placeholder:
+    // MAR21.92 footnote 24 gives
+    //   RW_k = min(RW_sigma * sqrt(LH_risk class) / sqrt(10), 100%)
+    // with RW_sigma = 55%, and MAR21.92 Table 13 lists the liquidity horizon
+    // per risk class (GIRR 60 days, CSR all sub-classes 120, commodity 120,
+    // FX 40). Every one of those exceeds the 100% cap. Table 13 publishes the
+    // resulting 100% directly. Only equity (large cap / indices, LH 20 days)
+    // lands below the cap, at 77.78%.
+    //
+    // `params::tests::vega_risk_weights_match_the_mar21_92_liquidity_horizon_formula`
+    // recomputes the constants from that formula.
+
     #[test]
-    fn girr_vega_uses_liquidity_horizon_scaled_weight() {
+    fn girr_vega_applies_weight_and_mar21_89_maturity_correlation() {
         let mut sens = FrtbSensitivities::new(Currency::USD);
-        sens.add_girr_vega(Currency::USD, "1Y", "5Y", 100.0);
+        sens.add_girr_vega(Currency::USD, "1Y", "5Y", 200_000.0);
+        sens.add_girr_vega(Currency::USD, "5Y", "5Y", 100_000.0);
 
         let charge = vega_charge(FrtbRiskClass::Girr, &sens, CorrelationScenario::Medium);
 
-        assert_eq!(charge, 100.0);
+        // WS_k = vega_k * 1.00 (GIRR vega risk weight, MAR21.92 Table 13).
+        // Both factors share the 5Y underlying tenor, so rho_underlying = 1;
+        // the option maturities differ, so
+        //   rho_option = exp(-0.01 * |1 - 5| / min(1, 5)) = exp(-0.04)
+        //              = 0.9607894391523232
+        // and rho = min(rho_option * rho_underlying, 1) = 0.9607894391523232.
+        //
+        //   K^2 = 200_000^2 + 100_000^2
+        //         + 2 * 0.9607894391523232 * 200_000 * 100_000
+        //       = 4.0e10 + 1.0e10 + 3.8431577566092928e10
+        //       = 8.843157756609293e10
+        //   K   = 297_374.4736289464
+        //
+        // Single currency bucket, so the charge is K.
+        assert_charge(charge, 297_374.473_628_946_4, "GIRR vega");
     }
 
     #[test]
-    fn csr_nonsec_vega_uses_liquidity_horizon_scaled_weight() {
+    fn csr_nonsec_vega_applies_weight_and_bucket_aggregation() {
         let mut sens = FrtbSensitivities::new(Currency::USD);
         sens.csr_nonsec_vega
-            .insert(("ACME".to_string(), 1, "1Y".to_string()), 100.0);
+            .insert(("ACME".to_string(), 1, "1Y".to_string()), 300_000.0);
+        sens.csr_nonsec_vega
+            .insert(("BETA".to_string(), 1, "1Y".to_string()), 100_000.0);
+        sens.csr_nonsec_vega
+            .insert(("GAMMA".to_string(), 3, "1Y".to_string()), 200_000.0);
 
         let charge = vega_charge(FrtbRiskClass::CsrNonSec, &sens, CorrelationScenario::Medium);
 
-        assert_eq!(charge, 100.0);
+        // WS_k = vega_k * 1.00 (CSR non-sec vega risk weight, MAR21.92
+        // Table 13, LH = 120 days -> capped at 100%).
+        //
+        // Intra-bucket uses rho_name = 35% (MAR21.54):
+        //   K_1^2 = 300_000^2 + 100_000^2 + 2 * 0.35 * 300_000 * 100_000
+        //         = 9.0e10 + 1.0e10 + 2.1e10 = 1.21e11
+        //   K_1   = 347_850.5426185217, S_1 = 400_000
+        //   K_3   = S_3 = 200_000
+        //
+        // Inter-bucket gamma = 40% (flattened; see the deviation notes in
+        // `params/csr.rs`, MAR21.57):
+        //   Vega^2 = 1.21e11 + 4.0e10 + 2 * 0.40 * 400_000 * 200_000
+        //          = 1.61e11 + 6.4e10 = 2.25e11
+        //   Vega   = 474_341.6490252569
+        assert_charge(charge, 474_341.649_025_256_9, "CSR non-sec vega");
     }
 
     #[test]
-    fn commodity_vega_uses_liquidity_horizon_scaled_weight() {
+    fn commodity_vega_applies_weight_and_intra_bucket_correlation() {
         let mut sens = FrtbSensitivities::new(Currency::USD);
         sens.commodity_vega
-            .insert(("WTI".to_string(), 1, "1Y".to_string()), 100.0);
+            .insert(("COAL_A".to_string(), 1, "1Y".to_string()), 200_000.0);
+        sens.commodity_vega
+            .insert(("COAL_B".to_string(), 1, "1Y".to_string()), 100_000.0);
 
         let charge = vega_charge(FrtbRiskClass::Commodity, &sens, CorrelationScenario::Medium);
 
-        assert_eq!(charge, 100.0);
+        // WS_k = vega_k * 1.00 (commodity vega risk weight, MAR21.92
+        // Table 13, LH = 120 days -> capped at 100%).
+        //
+        //   K_1^2 = 200_000^2 + 100_000^2 + 2 * 0.55 * 200_000 * 100_000
+        //         = 4.0e10 + 1.0e10 + 2.2e10 = 7.2e10
+        //   K_1   = 268_328.15729997476
+        //
+        // Single bucket, so the charge is K_1. 55% is the MAR21.83 Table 12
+        // rho_cty for bucket 1 (correct for this bucket; see the deviation
+        // notes in `params/commodity.rs` for the others).
+        assert_charge(charge, 268_328.157_299_974_76, "commodity vega");
     }
 
     #[test]
-    fn fx_vega_uses_liquidity_horizon_scaled_weight() {
+    fn fx_vega_applies_weight_and_mar21_89_pair_correlation() {
         let mut sens = FrtbSensitivities::new(Currency::USD);
-        sens.add_fx_vega(Currency::EUR, Currency::USD, "1Y", 100.0);
+        sens.add_fx_vega(Currency::EUR, Currency::USD, "1Y", 300_000.0);
+        sens.add_fx_vega(Currency::USD, Currency::JPY, "1Y", 100_000.0);
 
         let charge = vega_charge(FrtbRiskClass::Fx, &sens, CorrelationScenario::Medium);
 
-        assert_eq!(charge, 100.0);
+        // WS_k = vega_k * 1.00 (FX vega risk weight, MAR21.92 Table 13,
+        // LH = 40 days -> 0.55 * sqrt(4) = 1.10, capped at 100%).
+        //
+        // FX is a single bucket with a uniform 60% correlation (MAR21.89):
+        //   K^2 = (1 - 0.60) * (300_000^2 + 100_000^2)
+        //         + 0.60 * (400_000)^2
+        //       = 0.40 * 1.0e11 + 0.60 * 1.6e11 = 1.36e11
+        //   K   = 368_781.7782917155
+        assert_charge(charge, 368_781.778_291_715_5, "FX vega");
+    }
+
+    #[test]
+    fn vega_charges_would_change_if_the_risk_weight_changed() {
+        // Direct guard on the audit finding that the old unit-input tests
+        // "would still pass if the weight were deleted". Scaling a
+        // sensitivity scales the charge linearly, so a charge that ignored
+        // the weight entirely could not track it.
+        let mut sens = FrtbSensitivities::new(Currency::USD);
+        sens.add_fx_vega(Currency::EUR, Currency::USD, "1Y", 300_000.0);
+
+        let base = vega_charge(FrtbRiskClass::Fx, &sens, CorrelationScenario::Medium);
+        assert_charge(
+            base,
+            300_000.0 * fx::FX_VEGA_RISK_WEIGHT,
+            "FX vega, one factor",
+        );
+
+        let mut doubled = FrtbSensitivities::new(Currency::USD);
+        doubled.add_fx_vega(Currency::EUR, Currency::USD, "1Y", 600_000.0);
+        let scaled = vega_charge(FrtbRiskClass::Fx, &doubled, CorrelationScenario::Medium);
+        assert_charge(scaled, 2.0 * base, "FX vega is linear in the sensitivity");
+    }
+
+    #[test]
+    fn empty_sensitivities_produce_zero_vega_for_every_risk_class() {
+        let sens = FrtbSensitivities::new(Currency::USD);
+        for &risk_class in FrtbRiskClass::ALL {
+            let charge = vega_charge(risk_class, &sens, CorrelationScenario::Medium);
+            assert_charge(charge, 0.0, &format!("{risk_class} vega with no inputs"));
+        }
     }
 }

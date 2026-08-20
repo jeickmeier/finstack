@@ -48,6 +48,8 @@ MarginFundingCost = _margin.MarginFundingCost
 Haircut01 = _margin.Haircut01
 FrtbSensitivities = _margin.FrtbSensitivities
 FrtbSbaEngine = _margin.FrtbSbaEngine
+FrtbSbaResult = _margin.FrtbSbaResult
+EadResult = _margin.EadResult
 SaCcrTrade = _margin.SaCcrTrade
 SaCcrNettingSetConfig = _margin.SaCcrNettingSetConfig
 SaCcrEngine = _margin.SaCcrEngine
@@ -66,11 +68,13 @@ __all__: list[str] = [
     "CollateralAssetClass",
     "CsaSpec",
     "CsaTerms",
+    "EadResult",
     "EligibleCollateralSchedule",
     "ExcessCollateral",
     "ExposureDiagnostics",
     "ExposureProfile",
     "FrtbSbaEngine",
+    "FrtbSbaResult",
     "FrtbSensitivities",
     "FundingConfig",
     "Haircut01",

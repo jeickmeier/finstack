@@ -280,7 +280,7 @@ fn hampel_value(
     if mad <= ZERO_TOLERANCE {
         return Ok(Some(current));
     }
-    let scaled_mad = 1.482_602_218_505_602 * mad;
+    let scaled_mad = crate::types::MAD_NORMAL_CONSISTENCY * mad;
     if (current - median).abs() > threshold * scaled_mad {
         Ok(Some(median))
     } else {

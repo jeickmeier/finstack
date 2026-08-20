@@ -94,6 +94,13 @@ python_files = ["test_*.py", "*_test.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
 
+# `pytest-randomly` is installed, and without an explicit seed it randomises test
+# ORDER with a fresh seed on every run — so a CI failure is not reproducible from
+# the workflow definition alone. The workspace testing standard requires seeded
+# randomness. Pin the seed so runs are reproducible; rotate it deliberately (and
+# in its own commit) when you want to shake out new inter-test coupling.
+addopts = "--randomly-seed=20260820"
+
 # Custom markers used across the test-suite
 markers = [
     "perf: performance benchmark suite",

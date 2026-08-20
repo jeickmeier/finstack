@@ -8,6 +8,31 @@
 //! - Haircut sensitivity (Haircut01)
 
 use finstack_quant_core::money::Money;
+use finstack_quant_core::Result;
+use tracing::warn;
+
+/// Reject implicit cross-currency arithmetic between two [`Money`] operands.
+///
+/// The workspace forbids implicit cross-currency math: converting requires an
+/// explicit [`finstack_quant_core::money::fx::FxProvider`] so the applied policy can be
+/// stamped into the result. Mirrors the guard in
+/// [`crate::calculators::VmCalculator::calculate`].
+///
+/// # Errors
+///
+/// Returns [`finstack_quant_core::Error::Validation`] when the two amounts are
+/// denominated in different currencies.
+fn ensure_same_currency(what: &str, left: Money, right: Money) -> Result<()> {
+    if left.currency() == right.currency() {
+        return Ok(());
+    }
+    warn!(metric = what, expected = %left.currency(), got = %right.currency(), "margin metric currency mismatch");
+    Err(finstack_quant_core::Error::Validation(format!(
+        "{what} currency mismatch: expected {}, got {}",
+        left.currency(),
+        right.currency()
+    )))
+}
 
 /// Margin utilization result.
 ///
@@ -24,7 +49,38 @@ pub struct MarginUtilization {
 
 impl MarginUtilization {
     /// Create a new margin utilization result.
-    pub fn new(posted: Money, required: Money) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] when `posted` and
+    /// `required` are denominated in different currencies. The ratio is a
+    /// same-currency quotient; converting first requires an explicit FX policy
+    /// so it cannot be done implicitly here.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use finstack_quant_core::currency::Currency;
+    /// use finstack_quant_core::money::Money;
+    /// use finstack_quant_margin::metrics::MarginUtilization;
+    ///
+    /// let util = MarginUtilization::new(
+    ///     Money::new(12_000_000.0, Currency::USD),
+    ///     Money::new(10_000_000.0, Currency::USD),
+    /// )?;
+    /// assert!(util.is_adequate());
+    ///
+    /// // Cross-currency inputs are rejected rather than silently mixed.
+    /// assert!(MarginUtilization::new(
+    ///     Money::new(12_000_000.0, Currency::EUR),
+    ///     Money::new(10_000_000.0, Currency::USD),
+    /// )
+    /// .is_err());
+    /// # Ok::<(), finstack_quant_core::Error>(())
+    /// ```
+    pub fn new(posted: Money, required: Money) -> Result<Self> {
+        ensure_same_currency("margin utilization", posted, required)?;
+
         let ratio = if required.amount() > 0.0 {
             posted.amount() / required.amount()
         } else if posted.amount() > 0.0 {
@@ -33,11 +89,11 @@ impl MarginUtilization {
             1.0
         };
 
-        Self {
+        Ok(Self {
             posted,
             required,
             ratio,
-        }
+        })
     }
 
     /// Check if margin is adequate (ratio >= 1.0).
@@ -75,18 +131,50 @@ pub struct ExcessCollateral {
 
 impl ExcessCollateral {
     /// Create a new excess collateral result.
-    pub fn new(collateral_value: Money, required_value: Money) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] when
+    /// `collateral_value` and `required_value` are denominated in different
+    /// currencies. Subtracting across currencies and stamping the difference
+    /// with the collateral currency would report arithmetic nonsense as a
+    /// currency-tagged amount.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use finstack_quant_core::currency::Currency;
+    /// use finstack_quant_core::money::Money;
+    /// use finstack_quant_margin::metrics::ExcessCollateral;
+    ///
+    /// let excess = ExcessCollateral::new(
+    ///     Money::new(105_000_000.0, Currency::USD),
+    ///     Money::new(100_000_000.0, Currency::USD),
+    /// )?;
+    /// assert!(excess.has_excess());
+    ///
+    /// // Cross-currency inputs are rejected rather than silently mixed.
+    /// assert!(ExcessCollateral::new(
+    ///     Money::new(105_000_000.0, Currency::EUR),
+    ///     Money::new(100_000_000.0, Currency::USD),
+    /// )
+    /// .is_err());
+    /// # Ok::<(), finstack_quant_core::Error>(())
+    /// ```
+    pub fn new(collateral_value: Money, required_value: Money) -> Result<Self> {
+        ensure_same_currency("excess collateral", collateral_value, required_value)?;
+
         let currency = collateral_value.currency();
         let excess = Money::new(
             collateral_value.amount() - required_value.amount(),
             currency,
         );
 
-        Self {
+        Ok(Self {
             collateral_value,
             required_value,
             excess,
-        }
+        })
     }
 
     /// Check if there is excess collateral.
@@ -207,7 +295,7 @@ mod tests {
     fn margin_utilization() {
         let posted = Money::new(12_000_000.0, Currency::USD);
         let required = Money::new(10_000_000.0, Currency::USD);
-        let util = MarginUtilization::new(posted, required);
+        let util = MarginUtilization::new(posted, required).unwrap();
 
         assert!(util.is_adequate());
         assert_eq!(util.ratio, 1.2);
@@ -218,7 +306,7 @@ mod tests {
     fn margin_shortfall() {
         let posted = Money::new(8_000_000.0, Currency::USD);
         let required = Money::new(10_000_000.0, Currency::USD);
-        let util = MarginUtilization::new(posted, required);
+        let util = MarginUtilization::new(posted, required).unwrap();
 
         assert!(!util.is_adequate());
         assert_eq!(util.ratio, 0.8);
@@ -229,7 +317,7 @@ mod tests {
     fn excess_collateral() {
         let collateral = Money::new(105_000_000.0, Currency::USD);
         let required = Money::new(100_000_000.0, Currency::USD);
-        let excess = ExcessCollateral::new(collateral, required);
+        let excess = ExcessCollateral::new(collateral, required).unwrap();
 
         assert!(excess.has_excess());
         assert!(!excess.has_shortfall());
@@ -247,6 +335,30 @@ mod tests {
 
         assert!((cost.spread() - 0.002).abs() < 1e-10); // 20bp
         assert!((cost.annual_cost.amount() - 100_000.0).abs() < 0.01); // 50M × 0.2%
+    }
+
+    #[test]
+    fn margin_utilization_rejects_currency_mismatch() {
+        let posted = Money::new(12_000_000.0, Currency::EUR);
+        let required = Money::new(10_000_000.0, Currency::USD);
+
+        let err = MarginUtilization::new(posted, required).unwrap_err();
+        assert!(
+            matches!(err, finstack_quant_core::Error::Validation(_)),
+            "expected a Validation error, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn excess_collateral_rejects_currency_mismatch() {
+        let collateral = Money::new(105_000_000.0, Currency::EUR);
+        let required = Money::new(100_000_000.0, Currency::USD);
+
+        let err = ExcessCollateral::new(collateral, required).unwrap_err();
+        assert!(
+            matches!(err, finstack_quant_core::Error::Validation(_)),
+            "expected a Validation error, got {err:?}"
+        );
     }
 
     #[test]

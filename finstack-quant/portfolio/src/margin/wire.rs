@@ -79,12 +79,15 @@ struct SimmSensitivitiesWire {
     ir_delta: Vec<CurrencyTenorEntry>,
     ir_vega: Vec<CurrencyTenorEntry>,
     credit_qualifying_delta: Vec<BucketedCreditEntry>,
+    credit_qualifying_vega: Vec<BucketedCreditEntry>,
     credit_non_qualifying_delta: Vec<LabelTenorEntry>,
+    credit_non_qualifying_vega: Vec<LabelTenorEntry>,
     equity_delta: Vec<LabelEntry>,
     equity_vega: Vec<LabelEntry>,
     fx_delta: Vec<CurrencyEntry>,
     fx_vega: Vec<CurrencyPairEntry>,
     commodity_delta: Vec<LabelEntry>,
+    commodity_vega: Vec<LabelEntry>,
     curvature: Vec<CurvatureEntry>,
 }
 
@@ -152,6 +155,38 @@ impl From<&SimmSensitivities> for SimmSensitivitiesWire {
                 .then_with(|| a.tenor_bucket.cmp(&b.tenor_bucket))
         });
 
+        let mut credit_qualifying_vega: Vec<BucketedCreditEntry> = s
+            .credit_qualifying_vega
+            .iter()
+            .map(|((sector, name, tenor), &value)| BucketedCreditEntry {
+                sector: *sector,
+                name: name.clone(),
+                tenor_bucket: tenor.clone(),
+                value,
+            })
+            .collect();
+        credit_qualifying_vega.sort_by(|left, right| {
+            simm_credit_sector_key(left.sector)
+                .cmp(&simm_credit_sector_key(right.sector))
+                .then_with(|| left.name.cmp(&right.name))
+                .then_with(|| left.tenor_bucket.cmp(&right.tenor_bucket))
+        });
+
+        let mut credit_non_qualifying_vega: Vec<LabelTenorEntry> = s
+            .credit_non_qualifying_vega
+            .iter()
+            .map(|((label, tenor), &v)| LabelTenorEntry {
+                label: label.clone(),
+                tenor_bucket: tenor.clone(),
+                value: v,
+            })
+            .collect();
+        credit_non_qualifying_vega.sort_by(|a, b| {
+            a.label
+                .cmp(&b.label)
+                .then_with(|| a.tenor_bucket.cmp(&b.tenor_bucket))
+        });
+
         let mut equity_delta: Vec<LabelEntry> = s
             .equity_delta
             .iter()
@@ -203,6 +238,16 @@ impl From<&SimmSensitivities> for SimmSensitivitiesWire {
             .collect();
         commodity_delta.sort_by(|a, b| a.name.cmp(&b.name));
 
+        let mut commodity_vega: Vec<LabelEntry> = s
+            .commodity_vega
+            .iter()
+            .map(|(name, &v)| LabelEntry {
+                name: name.clone(),
+                value: v,
+            })
+            .collect();
+        commodity_vega.sort_by(|a, b| a.name.cmp(&b.name));
+
         let mut curvature: Vec<CurvatureEntry> = s
             .curvature
             .iter()
@@ -218,12 +263,15 @@ impl From<&SimmSensitivities> for SimmSensitivitiesWire {
             ir_delta,
             ir_vega,
             credit_qualifying_delta,
+            credit_qualifying_vega,
             credit_non_qualifying_delta,
+            credit_non_qualifying_vega,
             equity_delta,
             equity_vega,
             fx_delta,
             fx_vega,
             commodity_delta,
+            commodity_vega,
             curvature,
         }
     }
@@ -246,6 +294,14 @@ impl From<SimmSensitivitiesWire> for SimmSensitivities {
             s.credit_non_qualifying_delta
                 .insert((e.label, e.tenor_bucket), e.value);
         }
+        for entry in w.credit_qualifying_vega {
+            s.credit_qualifying_vega
+                .insert((entry.sector, entry.name, entry.tenor_bucket), entry.value);
+        }
+        for e in w.credit_non_qualifying_vega {
+            s.credit_non_qualifying_vega
+                .insert((e.label, e.tenor_bucket), e.value);
+        }
         for e in w.equity_delta {
             s.equity_delta.insert(e.name, e.value);
         }
@@ -260,6 +316,9 @@ impl From<SimmSensitivitiesWire> for SimmSensitivities {
         }
         for e in w.commodity_delta {
             s.commodity_delta.insert(e.name, e.value);
+        }
+        for e in w.commodity_vega {
+            s.commodity_vega.insert(e.name, e.value);
         }
         for e in w.curvature {
             s.curvature.insert(e.risk_class, e.value);

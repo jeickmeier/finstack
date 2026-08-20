@@ -403,10 +403,10 @@ fn transform_cross_sectional_supports_mvp_signal_cleaning_ops() {
     assert_close_options(
         &robust_zscore,
         &[
-            Some(-1.348_981_518_953_190_4),
+            Some(-1.348_979_500_392_163_4),
             Some(0.0),
             Some(0.0),
-            Some(2.697_963_037_906_381),
+            Some(2.697_959_000_784_327),
             None,
             None,
         ],

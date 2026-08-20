@@ -1,8 +1,44 @@
 //! GIRR (General Interest Rate Risk) prescribed parameters.
 //!
-//! Risk weights and tenor correlations per BCBS d457.
+//! # Provenance
+//!
+//! | Item | Value |
+//! |------|-------|
+//! | Source document | Basel Committee on Banking Supervision, *Minimum capital requirements for market risk* (BCBS **d457**) |
+//! | Publication date | 14 January 2019; corrected version published 25 February 2019 |
+//! | Consolidated as | Basel Framework chapter **MAR21**, "Standardised approach: sensitivities-based method" |
+//! | MAR21 version | Effective 1 January 2023 (implementation date revised 27 March 2020); text incorporates the FAQs published 5 July 2024 and 23 March 2026 |
+//! | Paragraphs used | MAR21.42 (Table 1), MAR21.43, MAR21.46 (Table 2), MAR21.48, MAR21.49, MAR21.50, MAR21.92 (Table 13) |
+//! | Primary sources verified | <https://www.bis.org/bcbs/publ/d457.pdf> and the BIS consolidated-framework PDF export <https://www.bis.org/baselframework/BaselFramework.pdf> |
+//! | Last reviewed | 2026-08-20 |
+//! | Review procedure | See `data/margin/README.md`, "FRTB parameter review" |
+//!
+//! Every numeric parameter in this module was checked line by line against
+//! both primary sources on the review date and found identical in the two.
+//!
+//! # Known deviations from MAR21
+//!
+//! These are recorded so the gap is visible in review; none has been silently
+//! "fixed", because each one moves published capital numbers.
+//!
+//! - **Specified-currency relief not implemented** (MAR21.44). MAR21.44 lets
+//!   the delta risk weights in [`GIRR_DELTA_RISK_WEIGHTS`] be divided by
+//!   `sqrt(2)` for EUR, USD, GBP, AUD, JPY, SEK, CAD and the bank's own
+//!   domestic reporting currency. This module exposes only the unrelieved
+//!   weights, which is conservative (overstates capital for those currencies).
+//! - **Cross-curve basis correlation not implemented** (MAR21.45, MAR21.47).
+//!   Sensitivities to the same tenor on *different* curves within a currency
+//!   correlate at 99.90%, and different-tenor/different-curve pairs take the
+//!   Table 2 value multiplied by 99.90%. The sensitivity map carries no curve
+//!   dimension, so this factor is always 1 here.
+//! - **Curvature risk weight** (MAR21.99). GIRR curvature uses a parallel
+//!   shift sized by the **highest prescribed delta risk weight in the bucket**
+//!   (for GIRR, the 0.25-year weight, applied to every tenor at once). This
+//!   module deliberately exposes no curvature risk-weight constant: the
+//!   engine consumes caller-supplied, already-shocked `CVR+`/`CVR-` values.
+//!   See the `regulatory::frtb` module docs for the input convention.
 
-/// GIRR delta risk weights by tenor bucket (MAR21.45).
+/// GIRR delta risk weights by tenor bucket (MAR21.42, Table 1).
 ///
 /// Values are expressed in **percent of notional** (e.g. `1.7` means
 /// `1.7%` = `170 bp`). They multiply a delta stated as P&L per 1
@@ -24,42 +60,59 @@ pub const GIRR_DELTA_RISK_WEIGHTS: &[(&str, f64)] = &[
     ("30Y", 1.1),
 ];
 
-/// GIRR inflation delta risk weight (percentage of notional).
+/// GIRR inflation delta risk weight, percent of notional (MAR21.43).
 pub const GIRR_INFLATION_RISK_WEIGHT: f64 = 1.6;
 
-/// GIRR cross-currency basis risk weight.
+/// GIRR cross-currency basis risk weight, percent of notional (MAR21.43).
 pub const GIRR_XCCY_BASIS_RISK_WEIGHT: f64 = 1.6;
 
-/// GIRR vega risk weight after liquidity-horizon scaling.
+/// GIRR vega risk weight after liquidity-horizon scaling (MAR21.92).
+///
+/// MAR21.92 footnote 24 sets
+/// `RW_k = min(RW_sigma * sqrt(LH_risk class) / sqrt(10), 100%)` with
+/// `RW_sigma = 55%`. MAR21.92 Table 13 gives GIRR a liquidity horizon of
+/// **60 days**, so `0.55 * sqrt(60/10) = 0.55 * sqrt(6) = 1.3466`, which
+/// binds at the 100% cap. Table 13 publishes the resulting **100%**
+/// directly, so this constant is the published value and not a placeholder.
 pub const GIRR_VEGA_RISK_WEIGHT: f64 = 1.00;
 
-/// GIRR curvature risk weight scale factor.
-pub const GIRR_CURVATURE_RISK_WEIGHT: f64 = 0.5;
-
-/// Intra-bucket (same currency) tenor correlation.
-///
-/// `rho(t_k, t_l) = max(e^{-theta * |T_k - T_l| / min(T_k, T_l)}, 0.40)`
-/// where theta = 0.03.
-///
-/// Pre-computed correlations for the standard tenor grid.
-/// Rows and columns follow the order in `GIRR_DELTA_RISK_WEIGHTS`.
+/// Decay parameter `theta` in the GIRR intra-bucket tenor correlation
+/// (MAR21.46, Table 2 footnote 13).
 pub const GIRR_TENOR_CORRELATION_THETA: f64 = 0.03;
-/// Minimum allowed correlation between any two GIRR tenors.
+
+/// Floor on the GIRR intra-bucket tenor correlation (MAR21.46, Table 2).
 pub const GIRR_TENOR_CORRELATION_FLOOR: f64 = 0.40;
 
-/// Inter-bucket (cross-currency) correlation for GIRR.
+/// Inter-bucket (cross-currency) delta correlation for GIRR (MAR21.50).
 pub const GIRR_INTER_BUCKET_CORRELATION: f64 = 0.50;
 
-/// Correlation between GIRR delta and inflation within the same currency.
+/// Correlation between a GIRR yield-curve tenor and inflation within the
+/// same currency (MAR21.48).
 pub const GIRR_INFLATION_CORRELATION: f64 = 0.40;
 
-/// Correlation between GIRR delta and cross-currency basis.
+/// Correlation between a GIRR cross-currency basis factor and any other
+/// GIRR factor (MAR21.49): 0% against yield-curve tenors, against the
+/// inflation curve, and against another cross-currency basis curve.
 pub const GIRR_XCCY_BASIS_CORRELATION: f64 = 0.0;
 
-/// Compute the GIRR intra-bucket tenor correlation.
+/// Compute the GIRR intra-bucket tenor correlation (MAR21.46, Table 2).
 ///
-/// Uses the parametric formula from BCBS d457:
-/// `rho = max(exp(-theta * |T_k - T_l| / min(T_k, T_l)), floor)`
+/// Table 2 is generated by the parametric formula in MAR21.46 footnote 13:
+///
+/// ```text
+/// rho(T_k, T_l) = max( exp(-theta * |T_k - T_l| / min(T_k, T_l)), 40% )
+/// ```
+///
+/// with `theta = 3%` ([`GIRR_TENOR_CORRELATION_THETA`]) and a 40% floor
+/// ([`GIRR_TENOR_CORRELATION_FLOOR`]).
+///
+/// The denominator is verified against the worked example published in
+/// footnote 13: 1Y against 5Y gives
+/// `max(exp(-0.03 * 4 / 1), 0.40) = 0.886920...` = **88.69%**, which is the
+/// value the footnote quotes. (A `max(T_k, T_l)` denominator would give
+/// 97.63% and contradict the published example.) The example is pinned by
+/// `girr_tenor_correlation_matches_mar21_46_footnote_13` in
+/// `super::tests`.
 ///
 /// # Arguments
 ///

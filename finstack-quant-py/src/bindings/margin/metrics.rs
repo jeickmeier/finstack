@@ -27,7 +27,8 @@ impl PyMarginUtilization {
         let required = finstack_quant_core::money::Money::try_new(required_amount, ccy)
             .map_err(crate::errors::core_to_py)?;
         Ok(Self {
-            inner: finstack_quant_margin::metrics::MarginUtilization::new(posted, required),
+            inner: finstack_quant_margin::metrics::MarginUtilization::new(posted, required)
+                .map_err(crate::errors::core_to_py)?,
         })
     }
 
@@ -122,7 +123,8 @@ impl PyExcessCollateral {
         let required = finstack_quant_core::money::Money::try_new(required_value, ccy)
             .map_err(crate::errors::core_to_py)?;
         Ok(Self {
-            inner: finstack_quant_margin::metrics::ExcessCollateral::new(collateral, required),
+            inner: finstack_quant_margin::metrics::ExcessCollateral::new(collateral, required)
+                .map_err(crate::errors::core_to_py)?,
         })
     }
 

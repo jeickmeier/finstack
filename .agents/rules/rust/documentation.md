@@ -620,32 +620,31 @@ pub enum MarketDataError {
 }
 ```
 
-## Documentation for Feature-Gated Code
+## Documentation for Target-Gated Code
 
-Use `cfg_attr` and document feature requirements:
+There is no `mc` feature (or `std`, `parallel`, `decimal128`) in this workspace —
+see the feature table in `code-standards.md`. Conditional compilation here is
+gated on the **target**, so document the target, not a feature:
 
 ```rust
-/// Monte Carlo pricing engine for derivative valuation.
+/// Parallel pricing path for derivative valuation.
 ///
-/// This module is only available when the `mc` feature is enabled.
+/// This function is compiled only on native targets; `wasm32` builds get the
+/// sequential fallback, which must produce identical Decimal-mode results.
 ///
 /// # Examples
 ///
 /// ```rust
-/// # #[cfg(feature = "mc")]
-/// use finstack_quant_valuations::instruments::common::mc::prelude::*;
-///
-/// # #[cfg(feature = "mc")]
+/// # #[cfg(not(target_arch = "wasm32"))]
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let config = EuropeanPricerConfig::new(100_000);
-/// let pricer = EuropeanPricer::new(config);
+/// use finstack_quant_monte_carlo::pricer::european::EuropeanPricer;
+///
+/// let pricer = EuropeanPricer::new(100_000);
 /// # Ok(())
 /// # }
 /// ```
-#[cfg(feature = "mc")]
-pub mod mc {
-    // implementation
-}
+#[cfg(not(target_arch = "wasm32"))]
+pub fn parallel_price() { /* implementation */ }
 ```
 
 ## Academic and Industry References

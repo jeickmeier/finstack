@@ -70,6 +70,8 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "Haircut01",
             "FrtbSensitivities",
             "FrtbSbaEngine",
+            "FrtbSbaResult",
+            "EadResult",
             "SaCcrTrade",
             "SaCcrNettingSetConfig",
             "SaCcrEngine",

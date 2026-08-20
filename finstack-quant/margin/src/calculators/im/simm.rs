@@ -22,7 +22,8 @@
 //! Where K_i is the risk-weighted sensitivity for bucket i.
 //!
 //! > **Implementation note:** `calculate_from_sensitivities` applies intra-bucket
-//! > tenor correlations for IR delta, vega margin (IR, equity, FX), curvature
+//! > tenor correlations for IR delta, vega margin (IR, credit qualifying,
+//! > credit non-qualifying, equity, commodity, FX), curvature
 //! > risk, concentration add-ons, and the SIMM risk-class correlation matrix.
 //!
 //! # Conventions
@@ -660,6 +661,23 @@ impl SimmCalculator {
         (cs01 * self.params.cnq_delta_weight).abs()
     }
 
+    /// Calculate credit non-qualifying vega margin from aggregate vega.
+    ///
+    /// Mirrors [`Self::calculate_credit_non_qualifying_delta`]: the pooled
+    /// signed vega is weighted by the credit-non-qualifying vega risk weight
+    /// and reported as a magnitude.
+    ///
+    /// # Arguments
+    ///
+    /// * `vega` - Signed currency vega for explicitly non-qualifying exposures.
+    ///
+    /// # Returns
+    ///
+    /// The non-qualifying credit vega margin after the registry risk weight.
+    pub fn calculate_credit_non_qualifying_vega(&self, vega: f64) -> f64 {
+        (vega * self.params.cnq_vega_weight).abs()
+    }
+
     /// Calculate credit qualifying delta margin with bucket-level aggregation.
     ///
     /// Follows the ISDA SIMM v2.6 §3.B two-level aggregation for credit
@@ -691,11 +709,58 @@ impl SimmCalculator {
         &self,
         bucketed_delta: &HashMap<(SimmCreditSector, String, String), f64>,
     ) -> f64 {
+        self.aggregate_credit_qualifying(
+            bucketed_delta,
+            |sector| self.params.cq_bucket_weight(sector),
+            true,
+        )
+    }
+
+    /// Calculate credit-qualifying vega margin with bucket-level aggregation.
+    ///
+    /// Shares the ISDA SIMM v2.6 §3.B two-level aggregation used by
+    /// [`Self::calculate_credit_qualifying_delta`] — same sector buckets, same
+    /// intra-bucket name correlation, same inter-bucket correlation matrix —
+    /// but weights every sensitivity by the single credit-qualifying vega risk
+    /// weight `VRW_CreditQ` instead of the per-bucket delta weights.
+    ///
+    /// As with the IR, equity, and FX vega paths, no concentration factor is
+    /// applied: the registry ships delta concentration thresholds only.
+    ///
+    /// # Arguments
+    ///
+    /// * `bucketed_vega` - Map of `(sector, issuer, tenor)` to signed currency vega
+    ///
+    /// # Returns
+    ///
+    /// The credit-qualifying vega margin after bucket diversification.
+    pub fn calculate_credit_qualifying_vega(
+        &self,
+        bucketed_vega: &HashMap<(SimmCreditSector, String, String), f64>,
+    ) -> f64 {
+        let weight = self.params.cq_vega_weight;
+        self.aggregate_credit_qualifying(bucketed_vega, |_| weight, false)
+    }
+
+    /// Shared two-level credit-qualifying aggregation for the delta and vega
+    /// risk classes.
+    ///
+    /// `weight_for` supplies the risk weight per sector bucket (per-bucket for
+    /// delta, a single flat weight for vega). `apply_concentration` selects
+    /// whether the registry's per-bucket delta concentration thresholds are
+    /// applied; the vega path passes `false` to match the IR/equity/FX vega
+    /// treatment elsewhere in this calculator.
+    fn aggregate_credit_qualifying(
+        &self,
+        bucketed: &HashMap<(SimmCreditSector, String, String), f64>,
+        weight_for: impl Fn(SimmCreditSector) -> f64,
+        apply_concentration: bool,
+    ) -> f64 {
         // Group sensitivities by sector bucket.
         let mut by_sector: HashMap<SimmCreditSector, Vec<f64>> = HashMap::default();
-        for ((sector, _issuer, _tenor), delta) in bucketed_delta {
-            let weight = self.params.cq_bucket_weight(*sector);
-            let ws = *delta * weight;
+        for ((sector, _issuer, _tenor), amount) in bucketed {
+            let weight = weight_for(*sector);
+            let ws = *amount * weight;
             by_sector.entry(*sector).or_default().push(ws);
         }
 
@@ -706,7 +771,11 @@ impl SimmCalculator {
         for (sector, weighted_sensitivities) in &by_sector {
             // Per-bucket concentration factor on the raw net weighted sum.
             let raw_net: f64 = weighted_sensitivities.iter().sum();
-            let cf = self.params.cq_concentration_factor(*sector, raw_net);
+            let cf = if apply_concentration {
+                self.params.cq_concentration_factor(*sector, raw_net)
+            } else {
+                1.0
+            };
 
             // K_b = sqrt(sum_i sum_j rho_ij * (CR*WS_i) * (CR*WS_j))
             //     = |CR| * sqrt(sum_i sum_j rho_ij * WS_i * WS_j)
@@ -806,12 +875,45 @@ impl SimmCalculator {
     ///
     /// The commodity delta margin contribution after bucket weighting and inter-bucket correlation.
     pub fn calculate_commodity_delta(&self, delta_by_bucket: &HashMap<String, f64>) -> f64 {
-        let mut weighted_buckets: Vec<(u8, f64)> = delta_by_bucket
+        self.aggregate_commodity(delta_by_bucket, |bucket| {
+            self.params.commodity_bucket_weight(bucket)
+        })
+    }
+
+    /// Calculate commodity vega margin using the SIMM commodity bucket structure.
+    ///
+    /// Mirrors [`Self::calculate_commodity_delta`] — same bucket labels, same
+    /// 17x17 inter-bucket correlation matrix — but weights every bucket by the
+    /// single commodity vega risk weight `VRW_Commodity` instead of the
+    /// per-bucket delta weights.
+    ///
+    /// # Arguments
+    ///
+    /// * `vega_by_bucket` - Signed currency vega by SIMM commodity bucket label
+    ///
+    /// # Returns
+    ///
+    /// The commodity vega margin contribution after inter-bucket correlation.
+    pub fn calculate_commodity_vega(&self, vega_by_bucket: &HashMap<String, f64>) -> f64 {
+        let weight = self.params.commodity_vega_weight;
+        self.aggregate_commodity(vega_by_bucket, |_| weight)
+    }
+
+    /// Shared commodity bucket aggregation for the delta and vega risk classes.
+    ///
+    /// Buckets whose label does not resolve to a SIMM commodity bucket id are
+    /// dropped, matching the delta behaviour prior to this refactor.
+    fn aggregate_commodity(
+        &self,
+        by_bucket: &HashMap<String, f64>,
+        weight_for: impl Fn(&str) -> f64,
+    ) -> f64 {
+        let mut weighted_buckets: Vec<(u8, f64)> = by_bucket
             .iter()
-            .filter_map(|(bucket, delta)| {
+            .filter_map(|(bucket, amount)| {
                 let bucket_id = bucket_id_from_label(bucket)?;
-                let weight = self.params.commodity_bucket_weight(bucket);
-                Some((bucket_id, delta * weight))
+                let weight = weight_for(bucket);
+                Some((bucket_id, amount * weight))
             })
             .collect();
         // Canonical order so the f64 quadratic form is reproducible.
@@ -1063,6 +1165,21 @@ impl SimmCalculator {
             }
         }
 
+        // Credit Vega (Qualifying): same sector buckets as the delta path.
+        if !sensitivities.credit_qualifying_vega.is_empty() {
+            let credit_vega_margin =
+                self.calculate_credit_qualifying_vega(&sensitivities.credit_qualifying_vega);
+            if credit_vega_margin > 0.0 {
+                breakdown.insert(
+                    "Credit_Qualifying_Vega".to_string(),
+                    Money::new(credit_vega_margin, currency),
+                );
+                *risk_class_margins
+                    .entry(SimmRiskClass::CreditQualifying)
+                    .or_insert(0.0) += credit_vega_margin;
+            }
+        }
+
         // Credit Delta (Non-Qualifying)
         let non_qual_total = sensitivities
             .credit_non_qualifying_delta
@@ -1076,6 +1193,24 @@ impl SimmCalculator {
                     Money::new(credit_margin, currency),
                 );
                 risk_class_margins.insert(SimmRiskClass::CreditNonQualifying, credit_margin);
+            }
+        }
+
+        // Credit Vega (Non-Qualifying)
+        let non_qual_vega_total = sensitivities
+            .credit_non_qualifying_vega
+            .values()
+            .sum::<f64>();
+        if non_qual_vega_total.abs() > 0.0 {
+            let credit_vega_margin = self.calculate_credit_non_qualifying_vega(non_qual_vega_total);
+            if credit_vega_margin > 0.0 {
+                breakdown.insert(
+                    "Credit_NonQualifying_Vega".to_string(),
+                    Money::new(credit_vega_margin, currency),
+                );
+                *risk_class_margins
+                    .entry(SimmRiskClass::CreditNonQualifying)
+                    .or_insert(0.0) += credit_vega_margin;
             }
         }
 
@@ -1136,6 +1271,21 @@ impl SimmCalculator {
                     Money::new(commodity_margin, currency),
                 );
                 risk_class_margins.insert(SimmRiskClass::Commodity, commodity_margin);
+            }
+        }
+
+        // Commodity Vega
+        if !sensitivities.commodity_vega.is_empty() {
+            let commodity_vega_margin =
+                self.calculate_commodity_vega(&sensitivities.commodity_vega);
+            if commodity_vega_margin > 0.0 {
+                breakdown.insert(
+                    "Commodity_Vega".to_string(),
+                    Money::new(commodity_vega_margin, currency),
+                );
+                *risk_class_margins
+                    .entry(SimmRiskClass::Commodity)
+                    .or_insert(0.0) += commodity_vega_margin;
             }
         }
 
@@ -1870,5 +2020,170 @@ mod tests {
             "calculate_from_sensitivities should delegate to bucketed: \
              expected {expected}, got {actual}"
         );
+    }
+
+    /// Netting set exercising every newly wired vega risk class.
+    ///
+    /// An IR delta anchor is included so the correlated risk-class
+    /// aggregation is exercised end to end rather than degenerating to a
+    /// single-class square root.
+    fn credit_commodity_vega_sensitivities() -> SimmSensitivities {
+        let mut sens = SimmSensitivities::new(Currency::USD);
+        sens.add_ir_delta(Currency::USD, "5Y", 10_000.0);
+        sens.add_credit_qualifying_vega(SimmCreditSector::Financial, "BANK_A", "5Y", 25_000.0);
+        sens.add_credit_non_qualifying_vega("RMBS_A", "5Y", 15_000.0);
+        sens.add_commodity_vega("Crude", 20_000.0);
+        sens
+    }
+
+    /// Guard against the registry weight going silently inert: doubling the
+    /// weight MUST move the margin number.
+    #[test]
+    fn cq_vega_weight_is_read_by_the_calculation() {
+        let base = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
+        let mut bumped = base.clone();
+        bumped.params.cq_vega_weight = base.params.cq_vega_weight * 2.0;
+
+        let sens = credit_commodity_vega_sensitivities();
+        let (baseline, _) = base.calculate_from_sensitivities(&sens, Currency::USD);
+        let (with_bump, _) = bumped.calculate_from_sensitivities(&sens, Currency::USD);
+
+        assert!(baseline > 0.0, "baseline margin must be positive");
+        assert_ne!(
+            baseline, with_bump,
+            "cq_vega_weight must change the SIMM margin"
+        );
+        assert!(with_bump > baseline, "a larger vega weight must raise IM");
+    }
+
+    /// Guard against the registry weight going silently inert: doubling the
+    /// weight MUST move the margin number.
+    #[test]
+    fn cnq_vega_weight_is_read_by_the_calculation() {
+        let base = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
+        let mut bumped = base.clone();
+        bumped.params.cnq_vega_weight = base.params.cnq_vega_weight * 2.0;
+
+        let sens = credit_commodity_vega_sensitivities();
+        let (baseline, _) = base.calculate_from_sensitivities(&sens, Currency::USD);
+        let (with_bump, _) = bumped.calculate_from_sensitivities(&sens, Currency::USD);
+
+        assert!(baseline > 0.0, "baseline margin must be positive");
+        assert_ne!(
+            baseline, with_bump,
+            "cnq_vega_weight must change the SIMM margin"
+        );
+        assert!(with_bump > baseline, "a larger vega weight must raise IM");
+    }
+
+    /// Guard against the registry weight going silently inert: doubling the
+    /// weight MUST move the margin number.
+    #[test]
+    fn commodity_vega_weight_is_read_by_the_calculation() {
+        let base = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
+        let mut bumped = base.clone();
+        bumped.params.commodity_vega_weight = base.params.commodity_vega_weight * 2.0;
+
+        let sens = credit_commodity_vega_sensitivities();
+        let (baseline, _) = base.calculate_from_sensitivities(&sens, Currency::USD);
+        let (with_bump, _) = bumped.calculate_from_sensitivities(&sens, Currency::USD);
+
+        assert!(baseline > 0.0, "baseline margin must be positive");
+        assert_ne!(
+            baseline, with_bump,
+            "commodity_vega_weight must change the SIMM margin"
+        );
+        assert!(with_bump > baseline, "a larger vega weight must raise IM");
+    }
+
+    /// Each vega sensitivity family must move the aggregate margin, proving the
+    /// input path reaches the calculation rather than being dropped.
+    #[test]
+    fn credit_and_commodity_vega_sensitivities_change_total_margin() {
+        let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
+        let mut anchor = SimmSensitivities::new(Currency::USD);
+        anchor.add_ir_delta(Currency::USD, "5Y", 10_000.0);
+        let (baseline, _) = calc.calculate_from_sensitivities(&anchor, Currency::USD);
+
+        let mut with_cq = anchor.clone();
+        with_cq.add_credit_qualifying_vega(SimmCreditSector::Financial, "BANK_A", "5Y", 25_000.0);
+        let (cq_total, cq_breakdown) = calc.calculate_from_sensitivities(&with_cq, Currency::USD);
+        assert_ne!(baseline, cq_total, "CQ vega must change total IM");
+        assert!(cq_breakdown.contains_key("Credit_Qualifying_Vega"));
+
+        let mut with_cnq = anchor.clone();
+        with_cnq.add_credit_non_qualifying_vega("RMBS_A", "5Y", 15_000.0);
+        let (cnq_total, cnq_breakdown) =
+            calc.calculate_from_sensitivities(&with_cnq, Currency::USD);
+        assert_ne!(baseline, cnq_total, "CNQ vega must change total IM");
+        assert!(cnq_breakdown.contains_key("Credit_NonQualifying_Vega"));
+
+        let mut with_commodity = anchor.clone();
+        with_commodity.add_commodity_vega("Crude", 20_000.0);
+        let (commodity_total, commodity_breakdown) =
+            calc.calculate_from_sensitivities(&with_commodity, Currency::USD);
+        assert_ne!(
+            baseline, commodity_total,
+            "commodity vega must change total IM"
+        );
+        assert!(commodity_breakdown.contains_key("Commodity_Vega"));
+    }
+
+    #[test]
+    fn zero_credit_and_commodity_vega_contributes_nothing() {
+        let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
+        let mut anchor = SimmSensitivities::new(Currency::USD);
+        anchor.add_ir_delta(Currency::USD, "5Y", 10_000.0);
+
+        let mut zeroed = anchor.clone();
+        zeroed.add_credit_qualifying_vega(SimmCreditSector::Financial, "BANK_A", "5Y", 0.0);
+        zeroed.add_credit_non_qualifying_vega("RMBS_A", "5Y", 0.0);
+        zeroed.add_commodity_vega("Crude", 0.0);
+
+        let (baseline, _) = calc.calculate_from_sensitivities(&anchor, Currency::USD);
+        let (with_zero, breakdown) = calc.calculate_from_sensitivities(&zeroed, Currency::USD);
+
+        assert_eq!(baseline, with_zero, "zero vega must not move the margin");
+        assert!(!breakdown.contains_key("Credit_Qualifying_Vega"));
+        assert!(!breakdown.contains_key("Credit_NonQualifying_Vega"));
+        assert!(!breakdown.contains_key("Commodity_Vega"));
+
+        assert_eq!(
+            calc.calculate_credit_qualifying_vega(&HashMap::default()),
+            0.0
+        );
+        assert_eq!(calc.calculate_credit_non_qualifying_vega(0.0), 0.0);
+        assert_eq!(calc.calculate_commodity_vega(&HashMap::default()), 0.0);
+    }
+
+    /// A single name / single bucket reduces to `|vega * VRW|` for each of the
+    /// three risk classes, mirroring the equivalent single-factor delta cases.
+    #[test]
+    fn single_factor_credit_and_commodity_vega_match_closed_form() {
+        let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
+
+        let mut cq: HashMap<(SimmCreditSector, String, String), f64> = HashMap::default();
+        cq.insert(
+            (
+                SimmCreditSector::Financial,
+                "BANK_A".to_string(),
+                "5Y".to_string(),
+            ),
+            25_000.0,
+        );
+        let expected_cq = 25_000.0 * calc.params.cq_vega_weight;
+        assert!((calc.calculate_credit_qualifying_vega(&cq) - expected_cq).abs() < 1e-6);
+
+        let expected_cnq = 15_000.0 * calc.params.cnq_vega_weight;
+        assert!((calc.calculate_credit_non_qualifying_vega(15_000.0) - expected_cnq).abs() < 1e-6);
+        assert!(
+            (calc.calculate_credit_non_qualifying_vega(-15_000.0) - expected_cnq).abs() < 1e-6,
+            "vega margin is sign-insensitive, matching the delta path"
+        );
+
+        let mut commodity: HashMap<String, f64> = HashMap::default();
+        commodity.insert("Crude".to_string(), 20_000.0);
+        let expected_commodity = 20_000.0 * calc.params.commodity_vega_weight;
+        assert!((calc.calculate_commodity_vega(&commodity) - expected_commodity).abs() < 1e-6);
     }
 }

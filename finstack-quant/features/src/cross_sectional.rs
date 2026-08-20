@@ -329,7 +329,7 @@ fn robust_zscore(values: &[Option<f64>], indices: &[usize], output: &mut [Option
         output[idx] = if mad <= ZERO_TOLERANCE {
             Some(0.0)
         } else {
-            Some(0.674_490_759_476_595_2 * (value - center) / mad)
+            Some(crate::types::PHI_INV_075 * (value - center) / mad)
         };
     }
 }

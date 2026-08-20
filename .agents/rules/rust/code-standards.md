@@ -9,7 +9,8 @@ globs:
 
 1. **Zero-cost abstractions** - Performance should not be sacrificed for ergonomics
 2. **Type safety first** - Use the type system to prevent errors at compile time
-3. **No-std compatibility** - Core functionality must work without the standard library
+3. **Determinism** - Decimal mode results must be identical serial vs parallel,
+   and across targets; no wall-clock, no unseeded randomness, stable ordering
 4. **Clear error handling** - All fallible operations return `Result` with meaningful errors
 
 ## Module Organization
@@ -18,7 +19,13 @@ globs:
 
 - Use facade patterns for complex modules (see `market_data` as example)
 - Public re-exports at module root for ergonomic imports
-- Separate files for submodules over 500 lines
+- **File size: 1000 lines desired, 2000 lines maximum** (measured on source
+  lines, excluding colocated `#[cfg(test)]` blocks). Split a submodule out once
+  it passes ~1000; treat 2000 as a hard ceiling that needs a deliberate
+  justification, not a default. Rationale: this is a numerics library where a
+  single pricing model or waterfall is genuinely cohesive at that size, and
+  splitting purely to hit a smaller number fragments logic that reads better
+  together.
 - Group related functionality (e.g., all interpolators in `interp/`)
 
 ### Documentation
@@ -168,30 +175,42 @@ pub fn locate_segment(xs: &[F], x: F) -> Result<usize> { /* ... */ }
 
 ## Feature Flags
 
-### Organization
+**This workspace is deliberately almost feature-free. Do not invent feature gates.**
 
-```toml
-[features]
-default = ["std"]
-std = ["serde?/std"]  # Use ? for optional dependencies
-parallel = ["dep:rayon"]
-decimal128 = ["dep:rust_decimal"]
-```
+The complete set of features across all crates is:
 
-### Code Organization
+| Crate | Features |
+| --- | --- |
+| `core`, `valuations`, `portfolio`, `finstack-quant-wasm` | `default`, `ts_export` |
+| `monte_carlo` | `default` (empty) |
+| `finstack-quant-py` | `default`, `extension-module` (PyO3 requirement) |
+| everything else | none |
+
+There is **no** `std`, `parallel`, `decimal128` or `mc` feature anywhere. A
+`#[cfg(feature = "...")]` naming a feature that does not exist **compiles
+silently and excludes the code** — no error, no warning — so writing one is a
+way to make code that never runs. If you think you need a feature gate, check
+this table first.
+
+### How conditional compilation is actually done here
+
+Platform differences are gated on the **target**, not on a feature. Rayon
+parallelism is an unconditional dependency on native targets and is compiled out
+for wasm32 this way:
 
 ```rust
-#[cfg(feature = "parallel")]
+#[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 
-#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
-pub fn parallel_npv(&self) -> Money {
-    #[cfg(feature = "parallel")]
-    { /* parallel implementation */ }
+#[cfg(not(target_arch = "wasm32"))]
+fn parallel_path(&self) -> Money { /* rayon implementation */ }
 
-    #[cfg(not(feature = "parallel"))]
-    { /* sequential fallback */ }
-}
+#[cfg(target_arch = "wasm32")]
+fn parallel_path(&self) -> Money { /* sequential fallback */ }
+```
+
+Both arms must produce identical results in Decimal mode — see the determinism
+invariant.
 ```
 
 ## Testing

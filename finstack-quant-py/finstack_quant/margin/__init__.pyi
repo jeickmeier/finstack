@@ -55,6 +55,8 @@ __all__ = [
     "ExcessCollateral",
     "MarginFundingCost",
     "Haircut01",
+    "FrtbSbaResult",
+    "EadResult",
     "FrtbSensitivities",
     "FrtbSbaEngine",
     "SaCcrTrade",
@@ -5781,7 +5783,7 @@ class FrtbSbaEngine:
     >>> from finstack_quant.margin import FrtbSbaEngine, FrtbSensitivities
     >>> sensitivities = FrtbSensitivities("USD")
     >>> sensitivities.add_girr_delta("5Y", 100_000.0)
-    >>> round(FrtbSbaEngine("medium").calculate(sensitivities)[0], 2)
+    >>> round(FrtbSbaEngine("medium").calculate(sensitivities).total, 2)
     110000.0
     """
 
@@ -5803,7 +5805,7 @@ class FrtbSbaEngine:
         """
         ...
 
-    def calculate(self, sensitivities: FrtbSensitivities) -> tuple[float, dict[str, Any]]:
+    def calculate(self, sensitivities: FrtbSensitivities) -> FrtbSbaResult:
         """
         Calculate the FRTB SBA charge for a sensitivity portfolio.
 
@@ -5814,17 +5816,499 @@ class FrtbSbaEngine:
 
         Returns
         -------
-        tuple[float, dict[str, Any]]
-            ``(total_charge, breakdown)`` where ``breakdown`` has keys
-            ``delta``, ``vega``, ``curvature`` (each dict of risk class -> charge),
-            plus ``drc``, ``rrao``, ``binding_scenario``, and
-            ``scenario_charges``.
+        FrtbSbaResult
+            Total charge with the per-risk-class delta/vega/curvature
+            breakdown, DRC, RRAO, and the per-scenario charges.
 
         Raises
         ------
         ValueError
             If a sensitivity has an unsupported tenor or bucket, an empty
             required identifier, or a non-finite numeric value.
+        """
+        ...
+
+class FrtbSbaResult:
+    """
+    FRTB SBA capital-charge result (BCBS d457).
+
+    Returned by :func:`frtb_sba_charge` and :meth:`FrtbSbaEngine.calculate`.
+    Amounts are floats in the sensitivity portfolio's base currency.
+
+    Examples
+    --------
+    >>> from finstack_quant.margin import FrtbSensitivities, frtb_sba_charge
+    >>> sens = FrtbSensitivities("USD")
+    >>> sens.add_girr_delta("5Y", 100_000.0)
+    >>> result = frtb_sba_charge(sens)
+    >>> result.total > 0.0
+    True
+    >>> result.binding_scenario in {"low", "medium", "high"}
+    True
+    """
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> FrtbSbaResult:
+        """
+        Deserialize from the JSON produced by ``to_json``.
+
+        Parameters
+        ----------
+        json : str
+            JSON-encoded ``FrtbSbaResult``.
+
+        Returns
+        -------
+        FrtbSbaResult
+            The decoded result.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is not valid JSON for the ``FrtbSbaResult`` shape.
+
+        Examples
+        --------
+        >>> from finstack_quant.margin import FrtbSbaResult
+        >>> restored = FrtbSbaResult.from_json(result.to_json())  # doctest: +SKIP
+        >>> restored.to_json() == result.to_json()  # doctest: +SKIP
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize back to the same JSON shape ``from_json`` accepts.
+
+        Returns
+        -------
+        str
+            JSON-encoded ``FrtbSbaResult``.
+
+        Notes
+        -----
+        This method does not raise; it derives the value from stored state.
+        """
+        ...
+
+    @property
+    def total(self) -> float:
+        """
+        Total capital charge, in the portfolio's base currency.
+
+        Returns
+        -------
+        float
+            Total capital charge, in the portfolio's base currency.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def drc(self) -> float:
+        """
+        Default Risk Charge (credit + equity jump-to-default).
+
+        Returns
+        -------
+        float
+            Default Risk Charge (credit + equity jump-to-default).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def rrao(self) -> float:
+        """
+        Residual Risk Add-On.
+
+        Returns
+        -------
+        float
+            Residual Risk Add-On.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def binding_scenario(self) -> str:
+        """
+        Correlation scenario that bound: ``"low"``, ``"medium"``, or ``"high"``.
+
+        Returns
+        -------
+        str
+            Correlation scenario that bound: ``"low"``, ``"medium"``, or ``"high"``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def delta_by_risk_class(self) -> dict[str, float]:
+        """
+        Delta risk charge keyed by risk-class wire label (e.g. ``"girr"``).
+
+        Returns
+        -------
+        dict[str, float]
+            Delta risk charge keyed by risk-class wire label (e.g. ``"girr"``).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def vega_by_risk_class(self) -> dict[str, float]:
+        """
+        Vega risk charge keyed by risk-class wire label.
+
+        Returns
+        -------
+        dict[str, float]
+            Vega risk charge keyed by risk-class wire label.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def curvature_by_risk_class(self) -> dict[str, float]:
+        """
+        Curvature risk charge keyed by risk-class wire label.
+
+        Returns
+        -------
+        dict[str, float]
+            Curvature risk charge keyed by risk-class wire label.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def scenario_charges(self) -> dict[str, float]:
+        """
+        Delta+vega+curvature charge under each evaluated correlation scenario.
+
+        Returns
+        -------
+        dict[str, float]
+            Delta+vega+curvature charge under each evaluated correlation scenario.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_dataframe(self) -> Any:
+        """
+        Export the headline charge as a single-row pandas ``DataFrame``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``total``, ``drc``, ``rrao`` (floats) and
+            ``binding_scenario`` (string). One row.
+
+        Notes
+        -----
+        This method does not raise; it derives the value from stored state.
+        """
+        ...
+
+    def to_breakdown_dataframe(self) -> Any:
+        """
+        Export the per-risk-class breakdown as a long-format ``DataFrame``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``component`` (``"delta"``/``"vega"``/``"curvature"``),
+            ``risk_class`` and ``charge``. Components do not sum to ``total``:
+            SBA aggregates them with prescribed correlations, and ``drc`` /
+            ``rrao`` sit outside this frame.
+
+        Notes
+        -----
+        This method does not raise; it derives the value from stored state.
+        """
+        ...
+
+    def __repr__(self) -> str:
+        """
+        Return ``repr(self)``.
+
+        Returns
+        -------
+        str
+            Return ``repr(self)``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+class EadResult:
+    """
+    SA-CCR Exposure at Default result (BCBS 279).
+
+    Returned by :func:`saccr_ead` and :meth:`SaCcrEngine.calculate_ead`.
+    ``ead == alpha * (rc + pfe)`` and ``pfe == multiplier * add_on_aggregate``;
+    amounts are floats in the netting set's reporting currency.
+
+    Examples
+    --------
+    >>> from finstack_quant.margin import SaCcrEngine, SaCcrNettingSetConfig
+    >>> config = SaCcrNettingSetConfig.unmargined("CPTY", "CSA", 0.0, 2025, 1, 15)
+    >>> SaCcrEngine().calculate_ead(config, []).ead
+    0.0
+    """
+
+    def __reduce__(self) -> tuple[Any, tuple[str]]:
+        """Support ``pickle`` via the ``to_json`` / ``from_json`` round-trip."""
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> EadResult:
+        """
+        Deserialize from the JSON produced by ``to_json``.
+
+        Parameters
+        ----------
+        json : str
+            JSON-encoded ``EadResult``.
+
+        Returns
+        -------
+        EadResult
+            The decoded result.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is not valid JSON for the ``EadResult`` shape.
+
+        Examples
+        --------
+        >>> from finstack_quant.margin import EadResult
+        >>> restored = EadResult.from_json(result.to_json())  # doctest: +SKIP
+        >>> restored.to_json() == result.to_json()  # doctest: +SKIP
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize back to the same JSON shape ``from_json`` accepts.
+
+        Returns
+        -------
+        str
+            JSON-encoded ``EadResult``.
+
+        Notes
+        -----
+        This method does not raise; it derives the value from stored state.
+        """
+        ...
+
+    @property
+    def ead(self) -> float:
+        """
+        Exposure at Default: ``alpha * (rc + pfe)``.
+
+        Returns
+        -------
+        float
+            Exposure at Default: ``alpha * (rc + pfe)``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def rc(self) -> float:
+        """
+        Replacement cost component.
+
+        Returns
+        -------
+        float
+            Replacement cost component.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def pfe(self) -> float:
+        """
+        Potential future exposure: ``multiplier * add_on_aggregate``.
+
+        Returns
+        -------
+        float
+            Potential future exposure: ``multiplier * add_on_aggregate``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def multiplier(self) -> float:
+        """
+        PFE multiplier recognising over-collateralization (floored at 0.05).
+
+        Returns
+        -------
+        float
+            PFE multiplier recognising over-collateralization (floored at 0.05).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def add_on_aggregate(self) -> float:
+        """
+        Aggregate add-on across asset classes, before the multiplier.
+
+        Returns
+        -------
+        float
+            Aggregate add-on across asset classes, before the multiplier.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def alpha(self) -> float:
+        """
+        Alpha multiplier (1.4 per BCBS 279 unless overridden on the engine).
+
+        Returns
+        -------
+        float
+            Alpha multiplier (1.4 per BCBS 279 unless overridden on the engine).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def maturity_factor(self) -> float:
+        """
+        Maturity factor applied to the netting set.
+
+        Returns
+        -------
+        float
+            Maturity factor applied to the netting set.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def add_on_by_asset_class(self) -> dict[str, float]:
+        """
+        Add-on keyed by asset-class wire label (e.g. ``"interest_rate"``).
+
+        Returns
+        -------
+        dict[str, float]
+            Add-on keyed by asset-class wire label (e.g. ``"interest_rate"``).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def to_dataframe(self) -> Any:
+        """
+        Export the headline exposure as a single-row pandas ``DataFrame``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``ead``, ``rc``, ``pfe``, ``multiplier``,
+            ``add_on_aggregate``, ``alpha``, ``maturity_factor``. One row.
+
+        Notes
+        -----
+        This method does not raise; it derives the value from stored state.
+        """
+        ...
+
+    def to_add_on_dataframe(self) -> Any:
+        """
+        Export the per-asset-class add-on as a pandas ``DataFrame``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``asset_class`` and ``add_on``, one row per asset class
+            present. A netting set with no trades yields a zero-row frame that
+            still carries both columns with their real dtypes.
+
+        Notes
+        -----
+        This method does not raise; it derives the value from stored state.
+        """
+        ...
+
+    def __repr__(self) -> str:
+        """
+        Return ``repr(self)``.
+
+        Returns
+        -------
+        str
+            Return ``repr(self)``.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 
@@ -6198,7 +6682,7 @@ class SaCcrEngine:
     --------
     >>> from finstack_quant.margin import SaCcrEngine, SaCcrNettingSetConfig
     >>> config = SaCcrNettingSetConfig.unmargined("CPTY", "CSA", 0.0, 2025, 1, 15)
-    >>> SaCcrEngine().calculate_ead(config, [])["ead"]
+    >>> SaCcrEngine().calculate_ead(config, []).ead
     0.0
     """
 
@@ -6219,7 +6703,7 @@ class SaCcrEngine:
         """
         ...
 
-    def calculate_ead(self, config: SaCcrNettingSetConfig, trades: list[SaCcrTrade]) -> dict[str, Any]:
+    def calculate_ead(self, config: SaCcrNettingSetConfig, trades: list[SaCcrTrade]) -> EadResult:
         """
         Calculate SA-CCR EAD for a netting set and trade list.
 
@@ -6232,8 +6716,10 @@ class SaCcrEngine:
 
         Returns
         -------
-        dict[str, Any]
-            EAD breakdown including replacement cost, PFE, and total EAD.
+        EadResult
+            Exposure at default with replacement cost, PFE, the multiplier,
+            the aggregate and per-asset-class add-ons, alpha, and the
+            maturity factor.
 
         Raises
         ------
@@ -6349,9 +6835,7 @@ def compute_mva(
     """
     ...
 
-def frtb_sba_charge(
-    sensitivities: FrtbSensitivities, correlation_scenario: str | None = None
-) -> tuple[float, dict[str, Any]]:
+def frtb_sba_charge(sensitivities: FrtbSensitivities, correlation_scenario: str | None = None) -> FrtbSbaResult:
     """
     Compute the FRTB SBA capital charge.
 
@@ -6366,11 +6850,9 @@ def frtb_sba_charge(
 
     Returns
     -------
-    tuple[float, dict]
-        ``(total_charge, breakdown)`` where ``breakdown`` has keys
-        ``delta``, ``vega``, ``curvature`` (each dict of risk class -> charge),
-        plus ``drc``, ``rrao``, ``binding_scenario``, and
-        ``scenario_charges``.
+    FrtbSbaResult
+        Total charge with the per-risk-class delta/vega/curvature breakdown,
+        DRC, RRAO, and the per-scenario charges with the binding one named.
 
     Raises
     ------
@@ -6383,8 +6865,8 @@ def frtb_sba_charge(
     --------
     >>> sens = FrtbSensitivities("USD")
     >>> sens.add_girr_delta("5Y", 100_000.0)
-    >>> total, breakdown = frtb_sba_charge(sens)
-    >>> total > 0.0
+    >>> result = frtb_sba_charge(sens)
+    >>> result.total > 0.0
     True
     """
     ...
@@ -6402,7 +6884,7 @@ def saccr_ead(
     mpor_days: int | None = None,
     counterparty_id: str = "CPTY",
     csa_id: str = "CSA",
-) -> tuple[float, float, float]:
+) -> EadResult:
     """
     Compute SA-CCR Exposure at Default per BCBS 279.
 
@@ -6435,8 +6917,10 @@ def saccr_ead(
 
     Returns
     -------
-    tuple[float, float, float]
-        ``(rc, pfe, ead)`` where ``ead = alpha * (rc + pfe)`` with alpha = 1.4.
+    EadResult
+        ``ead = alpha * (rc + pfe)`` with alpha = 1.4, together with the
+        multiplier, the aggregate and per-asset-class add-ons, and the
+        maturity factor.
 
     Raises
     ------
@@ -6465,7 +6949,8 @@ def saccr_ead(
     ...     "option_type": None,
     ... }
     >>> trade = SaCcrTrade.from_json(json.dumps(payload))
-    >>> tuple(round(value, 2) for value in saccr_ead([trade], 2025, 1, 1))
+    >>> result = saccr_ead([trade], 2025, 1, 1)
+    >>> (round(result.rc, 2), round(result.pfe, 2), round(result.ead, 2))
     (0.0, 22130.59, 30982.83)
     """
     ...

@@ -65,7 +65,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up swap space
-        uses: pierotofy/set-swap-space@master
+        uses: pierotofy/set-swap-space@fc79b3f67fa8a838184ce84a674ca12238d2c761 # v1.0 line, master @ 2025-05-08
         with:
           swap-size-gb: 10
 
@@ -134,7 +134,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up swap space
-        uses: pierotofy/set-swap-space@master
+        uses: pierotofy/set-swap-space@fc79b3f67fa8a838184ce84a674ca12238d2c761 # v1.0 line, master @ 2025-05-08
         with:
           swap-size-gb: 10
 
@@ -173,7 +173,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up swap space
-        uses: pierotofy/set-swap-space@master
+        uses: pierotofy/set-swap-space@fc79b3f67fa8a838184ce84a674ca12238d2c761 # v1.0 line, master @ 2025-05-08
         with:
           swap-size-gb: 10
 
@@ -219,7 +219,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up swap space
-        uses: pierotofy/set-swap-space@master
+        uses: pierotofy/set-swap-space@fc79b3f67fa8a838184ce84a674ca12238d2c761 # v1.0 line, master @ 2025-05-08
         with:
           swap-size-gb: 10
 
@@ -258,7 +258,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up swap space
-        uses: pierotofy/set-swap-space@master
+        uses: pierotofy/set-swap-space@fc79b3f67fa8a838184ce84a674ca12238d2c761 # v1.0 line, master @ 2025-05-08
         with:
           swap-size-gb: 10
 
@@ -311,7 +311,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up swap space
-        uses: pierotofy/set-swap-space@master
+        uses: pierotofy/set-swap-space@fc79b3f67fa8a838184ce84a674ca12238d2c761 # v1.0 line, master @ 2025-05-08
         with:
           swap-size-gb: 10
 
@@ -330,6 +330,14 @@ jobs:
       - name: Install WASM dependencies
         run: npm ci --ignore-scripts
         working-directory: finstack-quant-wasm
+
+      # Enforces the project rule that no binding may call
+      # `serde_wasm_bindgen::to_value` directly: the raw serializer emits ES
+      # `Map`s that `JSON.stringify` silently drops. This gate previously
+      # existed only under `mise run wasm-lint`, which CI never invoked, so a
+      # silent-data-loss regression could land with every gate green.
+      - name: Check WASM serializer usage
+        run: mise run wasm-check-serializer
 
       - name: Run WASM tests
         run: mise run wasm-test
@@ -360,7 +368,7 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Set up swap space
-        uses: pierotofy/set-swap-space@master
+        uses: pierotofy/set-swap-space@fc79b3f67fa8a838184ce84a674ca12238d2c761 # v1.0 line, master @ 2025-05-08
         with:
           swap-size-gb: 10
 
@@ -513,7 +521,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up swap space
-        uses: pierotofy/set-swap-space@master
+        uses: pierotofy/set-swap-space@fc79b3f67fa8a838184ce84a674ca12238d2c761 # v1.0 line, master @ 2025-05-08
         with:
           swap-size-gb: 10
 

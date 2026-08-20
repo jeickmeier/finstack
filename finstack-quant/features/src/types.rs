@@ -6,6 +6,28 @@ use serde_json::Value;
 /// Numerical tolerance used for zero-denominator checks.
 pub(crate) const ZERO_TOLERANCE: f64 = 1e-12;
 
+/// Φ⁻¹(0.75) — the third-quartile standard-normal quantile.
+///
+/// Scaling a median-absolute-deviation by `MAD / PHI_INV_075` (equivalently
+/// multiplying by [`MAD_NORMAL_CONSISTENCY`]) makes the MAD a consistent
+/// estimator of σ for normally distributed data.
+///
+/// # References
+///
+/// - Rousseeuw, P. J., & Croux, C. (1993). "Alternatives to the Median Absolute
+///   Deviation." *Journal of the American Statistical Association*, 88(424),
+///   1273-1283.
+///
+/// Value verified against `NormalDist().inv_cdf(0.75)`; it is the exact
+/// reciprocal of [`MAD_NORMAL_CONSISTENCY`], and the two MUST stay reciprocal —
+/// they previously drifted apart by 1.5e-6, silently biasing `robust_zscore`.
+pub(crate) const PHI_INV_075: f64 = 0.674_489_750_196_081_7;
+
+/// 1 / Φ⁻¹(0.75) — the MAD-to-σ normal consistency factor.
+///
+/// See [`PHI_INV_075`] for the citation and the reciprocity invariant.
+pub(crate) const MAD_NORMAL_CONSISTENCY: f64 = 1.482_602_218_505_602;
+
 pub(crate) fn finite(value: Option<f64>) -> Option<f64> {
     value.filter(|inner| inner.is_finite())
 }
@@ -129,4 +151,35 @@ pub(crate) fn population_std(values: &[f64]) -> Option<f64> {
         .sum::<f64>()
         / values.len() as f64;
     Some(variance.sqrt())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MAD_NORMAL_CONSISTENCY, PHI_INV_075};
+
+    /// The two normal-consistency constants are reciprocals of one another and
+    /// must stay that way. They previously drifted: `cross_sectional.rs` carried
+    /// 0.674_490_759_476_595_2 (relative error 1.5e-6 against the true
+    /// Φ⁻¹(0.75)) while `advanced.rs` carried an exact reciprocal, so the same
+    /// statistic was scaled two different ways depending on which transform you
+    /// called — and a golden test pinned the wrong value, freezing the defect.
+    #[test]
+    fn normal_consistency_constants_are_exact_reciprocals() {
+        let product = PHI_INV_075 * MAD_NORMAL_CONSISTENCY;
+        assert!(
+            (product - 1.0).abs() < 1e-15,
+            "PHI_INV_075 * MAD_NORMAL_CONSISTENCY must be 1.0, got {product}"
+        );
+    }
+
+    /// Pin Φ⁻¹(0.75) against its published value so a future edit cannot
+    /// reintroduce the 1.5e-6 drift.
+    #[test]
+    fn phi_inv_075_matches_the_standard_normal_third_quartile() {
+        // scipy.stats.norm.ppf(0.75) / Python statistics.NormalDist().inv_cdf(0.75)
+        assert!(
+            (PHI_INV_075 - 0.674_489_750_196_081_7).abs() < 1e-16,
+            "PHI_INV_075 drifted from the published Φ⁻¹(0.75)"
+        );
+    }
 }

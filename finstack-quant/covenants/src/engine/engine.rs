@@ -586,9 +586,24 @@ impl CovenantEngine {
         if let Some(condition) = &spec.covenant.springing_condition {
             let condition_value =
                 self.get_metric_value(context, &condition.metric_id, test_date)?;
-            let condition_met = match condition.test {
-                ThresholdTest::Maximum(t) => condition_value <= t,
-                ThresholdTest::Minimum(t) => condition_value >= t,
+            // NaN is indeterminate, not "condition not met": both `NaN <= t` and
+            // `NaN >= t` are false, which would silently deactivate the covenant
+            // and report a pass on undefined data. Mirror the crate's
+            // point-in-time convention (`helpers::is_covenant_breached`, and the
+            // forecast path's "NaN => breached") by ACTIVATING, so the covenant is
+            // evaluated and its own NaN handling decides the outcome.
+            let condition_met = if condition_value.is_nan() {
+                tracing::warn!(
+                    metric = condition.metric_id.as_str(),
+                    "springing condition metric is NaN \u{2014} activating the covenant \
+                     rather than silently treating it as inactive",
+                );
+                true
+            } else {
+                match condition.test {
+                    ThresholdTest::Maximum(t) => condition_value <= t,
+                    ThresholdTest::Minimum(t) => condition_value >= t,
+                }
             };
 
             if !condition_met {

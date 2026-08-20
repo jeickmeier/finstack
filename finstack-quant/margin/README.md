@@ -36,7 +36,7 @@ Consumed by `finstack-quant-valuations`, re-exported from the umbrella crate as
 | `types` | CSA, collateral, repo, SIMM, netting, margin-call, and threshold types |
 | `calculators` | `VmCalculator` plus the four IM engines and the `ImCalculator` trait |
 | `traits` | `Marginable` — the integration point for consumer crates |
-| `metrics` | `MarginUtilization`, `ExcessCollateral`, `MarginFundingCost`, `Haircut01` |
+| `metrics` | `MarginUtilization`, `ExcessCollateral`, `MarginFundingCost`, `Haircut01` — the two-`Money` constructors return `Result` and reject cross-currency inputs |
 | `regulatory` | `frtb` (SBA) and `sa_ccr` (EAD) |
 | `xva` | `types`, `cva`, `mva`, `netting` |
 | `schema` | `MarginEnvelope`, `MarginSchema`, and the generated JSON Schema contract |
@@ -310,8 +310,8 @@ See [`docs/SERDE_STABILITY.md`](../../docs/SERDE_STABILITY.md) and
   `ExposureProfile`, `ExposureDiagnostics`, `XvaResult`, `CsaTerms`,
   `XvaNettingSet`, `ImProfile`, `ImDecayProfile`, `MvaResult`,
   `compute_bilateral_xva`, `compute_mva`, `im_profile_from_simm`), the four
-  metrics types, `FrtbSensitivities`/`FrtbSbaEngine`/`frtb_sba_charge`,
-  `SaCcrTrade`/`SaCcrNettingSetConfig`/`SaCcrEngine`/`saccr_ead`, `CONSTANTS`,
+  metrics types, `FrtbSensitivities`/`FrtbSbaEngine`/`FrtbSbaResult`/`frtb_sba_charge`,
+  `SaCcrTrade`/`SaCcrNettingSetConfig`/`SaCcrEngine`/`EadResult`/`saccr_ead`, `CONSTANTS`,
   and a `schema` submodule.
 - **WASM** — the `margin` namespace in
   [`exports/margin.js`](../../finstack-quant-wasm/exports/margin.js) is a much

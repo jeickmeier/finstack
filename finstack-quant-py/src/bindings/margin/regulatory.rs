@@ -8,15 +8,22 @@
 
 use super::sensitivity_frame::SensitivityRows;
 use crate::bindings::module_utils::{parse_currency, parse_date};
+use crate::bindings::pandas_utils::{
+    serde_object_to_single_row_dataframe_with_schema, serde_rows_to_dataframe_with_schema,
+    ColumnSchema,
+};
 use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_margin::regulatory::{
-    frtb::{CorrelationScenario, FrtbRiskClass, FrtbSbaEngine, FrtbSensitivities, RraoPosition},
-    sa_ccr::{SaCcrAssetClass, SaCcrEngine, SaCcrNettingSetConfig, SaCcrTrade},
+    frtb::{
+        CorrelationScenario, FrtbRiskClass, FrtbSbaEngine, FrtbSbaResult, FrtbSensitivities,
+        RraoPosition,
+    },
+    sa_ccr::{EadResult, SaCcrAssetClass, SaCcrEngine, SaCcrNettingSetConfig, SaCcrTrade},
 };
 use finstack_quant_margin::NettingSetId;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use std::collections::BTreeMap;
 
 fn parse_correlation_scenario(s: &str) -> PyResult<CorrelationScenario> {
     match s {
@@ -29,17 +36,25 @@ fn parse_correlation_scenario(s: &str) -> PyResult<CorrelationScenario> {
     }
 }
 
-fn risk_class_label(rc: FrtbRiskClass) -> &'static str {
-    match rc {
-        FrtbRiskClass::Girr => "girr",
-        FrtbRiskClass::CsrNonSec => "csr_non_sec",
-        FrtbRiskClass::CsrSecCtp => "csr_sec_ctp",
-        FrtbRiskClass::CsrSecNonCtp => "csr_sec_non_ctp",
-        FrtbRiskClass::Equity => "equity",
-        FrtbRiskClass::Commodity => "commodity",
-        FrtbRiskClass::Fx => "fx",
-        _ => "unknown",
+/// Render a value as its own canonical serde wire label.
+///
+/// Reading the serde representation rather than re-listing variants here means
+/// a new variant on a `#[non_exhaustive]` enum cannot silently collapse into a
+/// shared `"unknown"` key — which, in a breakdown map, would drop a capital
+/// charge as soon as two new variants collided.
+fn serde_label<T: serde::Serialize + std::fmt::Debug>(value: T) -> String {
+    match serde_json::to_value(&value) {
+        Ok(serde_json::Value::String(label)) => label,
+        _ => format!("{value:?}"),
     }
+}
+
+fn risk_class_label(rc: FrtbRiskClass) -> String {
+    serde_label(rc)
+}
+
+fn scenario_label(scenario: CorrelationScenario) -> String {
+    serde_label(scenario)
 }
 
 /// Render an optional bucket index as the string form used by the long-format
@@ -53,15 +68,8 @@ fn pair_label(ccy1: Currency, ccy2: Currency) -> Option<String> {
     Some(format!("{ccy1}/{ccy2}"))
 }
 
-fn asset_class_label(ac: SaCcrAssetClass) -> &'static str {
-    match ac {
-        SaCcrAssetClass::InterestRate => "interest_rate",
-        SaCcrAssetClass::ForeignExchange => "foreign_exchange",
-        SaCcrAssetClass::Credit => "credit",
-        SaCcrAssetClass::Equity => "equity",
-        SaCcrAssetClass::Commodity => "commodity",
-        _ => "unknown",
-    }
+fn asset_class_label(ac: SaCcrAssetClass) -> String {
+    serde_label(ac)
 }
 
 /// FRTB sensitivity portfolio for the Sensitivity-Based Approach.
@@ -524,15 +532,19 @@ impl PyFrtbSbaEngine {
     }
 
     /// Calculate the FRTB SBA charge for a sensitivity portfolio.
+    ///
+    /// Returns a :class:`FrtbSbaResult` carrying the total charge, the
+    /// per-risk-class delta/vega/curvature breakdown, DRC, RRAO, and the
+    /// per-scenario charges with the binding scenario named.
     fn calculate(
         &self,
         py: Python<'_>,
         sensitivities: &PyFrtbSensitivities,
-    ) -> PyResult<(f64, Py<PyDict>)> {
+    ) -> PyResult<PyFrtbSbaResult> {
         let result = py
             .detach(|| self.inner.calculate(&sensitivities.inner))
             .map_err(core_to_py)?;
-        frtb_result_to_py(py, &result)
+        Ok(PyFrtbSbaResult::from_inner(result))
     }
 }
 
@@ -585,7 +597,7 @@ impl PySaCcrTrade {
     /// ``credit``, ``equity``, or ``commodity``).
     #[getter]
     fn asset_class(&self) -> String {
-        asset_class_label(self.inner.asset_class).to_string()
+        asset_class_label(self.inner.asset_class)
     }
 
     /// Trade notional, in the netting set's reporting currency.
@@ -763,99 +775,398 @@ impl PySaCcrEngine {
     }
 
     /// Calculate SA-CCR EAD for a netting set and trade list.
+    ///
+    /// Returns an :class:`EadResult` carrying EAD, RC, PFE, the multiplier,
+    /// the aggregate and per-asset-class add-ons, alpha, and the maturity
+    /// factor.
     fn calculate_ead(
         &self,
         py: Python<'_>,
         config: &PySaCcrNettingSetConfig,
         trades: Vec<PyRef<'_, PySaCcrTrade>>,
-    ) -> PyResult<Py<PyDict>> {
+    ) -> PyResult<PyEadResult> {
         let trade_vec: Vec<SaCcrTrade> = trades.iter().map(|t| t.inner.clone()).collect();
         let result = py
             .detach(|| self.inner.calculate_ead(&config.inner, &trade_vec))
             .map_err(core_to_py)?;
-        ead_result_to_py(py, &result)
+        Ok(PyEadResult::from_inner(result))
     }
 }
 
-fn frtb_result_to_py(
-    py: Python<'_>,
-    result: &finstack_quant_margin::regulatory::frtb::FrtbSbaResult,
-) -> PyResult<(f64, Py<PyDict>)> {
-    let dict = PyDict::new(py);
-
-    let delta = PyDict::new(py);
-    for (rc, v) in &result.delta_by_risk_class {
-        delta.set_item(risk_class_label(*rc), *v)?;
-    }
-    dict.set_item("delta", delta)?;
-
-    let vega = PyDict::new(py);
-    for (rc, v) in &result.vega_by_risk_class {
-        vega.set_item(risk_class_label(*rc), *v)?;
-    }
-    dict.set_item("vega", vega)?;
-
-    let curvature = PyDict::new(py);
-    for (rc, v) in &result.curvature_by_risk_class {
-        curvature.set_item(risk_class_label(*rc), *v)?;
-    }
-    dict.set_item("curvature", curvature)?;
-
-    dict.set_item("drc", result.drc)?;
-    dict.set_item("rrao", result.rrao)?;
-
-    let binding_scenario_name = match result.binding_scenario {
-        CorrelationScenario::Low => "low",
-        CorrelationScenario::Medium => "medium",
-        CorrelationScenario::High => "high",
-    };
-    dict.set_item("binding_scenario", binding_scenario_name)?;
-
-    let scenarios = PyDict::new(py);
-    for (s, v) in &result.scenario_charges {
-        let name = match s {
-            CorrelationScenario::Low => "low",
-            CorrelationScenario::Medium => "medium",
-            CorrelationScenario::High => "high",
-        };
-        scenarios.set_item(name, *v)?;
-    }
-    dict.set_item("scenario_charges", scenarios)?;
-
-    Ok((result.total, dict.unbind()))
+/// FRTB SBA capital-charge result (BCBS d457).
+///
+/// Returned by :func:`frtb_sba_charge` and :meth:`FrtbSbaEngine.calculate`.
+/// Carries the headline charge, the per-risk-class delta/vega/curvature
+/// breakdown, the default risk charge, the residual risk add-on, and the
+/// charge under each correlation scenario together with the binding one.
+#[pyclass(
+    name = "FrtbSbaResult",
+    module = "finstack_quant.margin",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyFrtbSbaResult {
+    inner: FrtbSbaResult,
 }
 
-fn ead_result_to_py(
-    py: Python<'_>,
-    result: &finstack_quant_margin::regulatory::sa_ccr::EadResult,
-) -> PyResult<Py<PyDict>> {
-    let dict = PyDict::new(py);
-    dict.set_item("ead", result.ead)?;
-    dict.set_item("rc", result.rc)?;
-    dict.set_item("pfe", result.pfe)?;
-    dict.set_item("multiplier", result.multiplier)?;
-    dict.set_item("add_on_aggregate", result.add_on_aggregate)?;
-    dict.set_item("alpha", result.alpha)?;
-    dict.set_item("maturity_factor", result.maturity_factor)?;
-
-    let by_class = PyDict::new(py);
-    for (asset_class, value) in &result.add_on_by_asset_class {
-        by_class.set_item(asset_class_label(*asset_class), *value)?;
+impl PyFrtbSbaResult {
+    fn from_inner(inner: FrtbSbaResult) -> Self {
+        Self { inner }
     }
-    dict.set_item("add_on_by_asset_class", by_class)?;
-    Ok(dict.unbind())
+
+    fn labeled(map: &BTreeMap<FrtbRiskClass, f64>) -> BTreeMap<String, f64> {
+        map.iter()
+            .map(|(rc, v)| (risk_class_label(*rc), *v))
+            .collect()
+    }
+}
+
+#[pymethods]
+impl PyFrtbSbaResult {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Deserialize from the JSON produced by ``to_json``.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: FrtbSbaResult = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize back to the same JSON shape ``from_json`` accepts.
+    #[pyo3(text_signature = "($self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Total capital charge, in the sensitivity portfolio's base currency.
+    #[getter]
+    fn total(&self) -> f64 {
+        self.inner.total
+    }
+
+    /// Default Risk Charge (credit + equity jump-to-default).
+    #[getter]
+    fn drc(&self) -> f64 {
+        self.inner.drc
+    }
+
+    /// Residual Risk Add-On.
+    #[getter]
+    fn rrao(&self) -> f64 {
+        self.inner.rrao
+    }
+
+    /// Correlation scenario that produced the binding charge
+    /// (``"low"``, ``"medium"``, or ``"high"``).
+    #[getter]
+    fn binding_scenario(&self) -> String {
+        scenario_label(self.inner.binding_scenario)
+    }
+
+    /// Delta risk charge keyed by risk-class wire label (e.g. ``"girr"``).
+    #[getter]
+    fn delta_by_risk_class(&self) -> BTreeMap<String, f64> {
+        Self::labeled(&self.inner.delta_by_risk_class)
+    }
+
+    /// Vega risk charge keyed by risk-class wire label.
+    #[getter]
+    fn vega_by_risk_class(&self) -> BTreeMap<String, f64> {
+        Self::labeled(&self.inner.vega_by_risk_class)
+    }
+
+    /// Curvature risk charge keyed by risk-class wire label.
+    #[getter]
+    fn curvature_by_risk_class(&self) -> BTreeMap<String, f64> {
+        Self::labeled(&self.inner.curvature_by_risk_class)
+    }
+
+    /// Delta+vega+curvature charge under each evaluated correlation scenario.
+    #[getter]
+    fn scenario_charges(&self) -> BTreeMap<String, f64> {
+        self.inner
+            .scenario_charges
+            .iter()
+            .map(|(s, v)| (scenario_label(*s), *v))
+            .collect()
+    }
+
+    /// Export the headline charge as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``total``, ``drc``, ``rrao`` (floats in the portfolio's base
+    /// currency) and ``binding_scenario`` (string). Per-risk-class detail lives
+    /// in ``to_breakdown_dataframe``.
+    ///
+    /// One row, so a book of desks stacks with
+    /// ``pd.concat([r.to_dataframe() for r in results])``.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "total": self.inner.total,
+            "drc": self.inner.drc,
+            "rrao": self.inner.rrao,
+            "binding_scenario": self.binding_scenario(),
+        });
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &["total", "drc", "rrao", "binding_scenario"],
+        )
+    }
+
+    /// Export the per-risk-class breakdown as a long-format pandas ``DataFrame``.
+    ///
+    /// Columns: ``component`` (``"delta"``, ``"vega"``, or ``"curvature"``),
+    /// ``risk_class`` (wire label, e.g. ``"girr"``), and ``charge`` (float in
+    /// the portfolio's base currency). Rows are emitted component-major and
+    /// risk-class sorted so repeated runs are byte-identical.
+    ///
+    /// The components do not sum to ``total``: SBA aggregates them with
+    /// prescribed correlations, and ``drc``/``rrao`` sit outside this frame.
+    #[pyo3(text_signature = "($self)")]
+    fn to_breakdown_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        const COLUMNS: &[ColumnSchema<'_>] = &[
+            ("component", "str"),
+            ("risk_class", "str"),
+            ("charge", "float64"),
+        ];
+        let mut rows: Vec<serde_json::Value> = Vec::new();
+        for (component, map) in [
+            ("delta", &self.inner.delta_by_risk_class),
+            ("vega", &self.inner.vega_by_risk_class),
+            ("curvature", &self.inner.curvature_by_risk_class),
+        ] {
+            for (rc, charge) in map {
+                rows.push(serde_json::json!({
+                    "component": component,
+                    "risk_class": risk_class_label(*rc),
+                    "charge": charge,
+                }));
+            }
+        }
+        serde_rows_to_dataframe_with_schema(py, &rows, COLUMNS)
+    }
+
+    /// Return ``repr(self)``.
+    fn __repr__(&self) -> String {
+        format!(
+            "FrtbSbaResult(total={:.2}, drc={:.2}, rrao={:.2}, binding_scenario={})",
+            self.inner.total,
+            self.inner.drc,
+            self.inner.rrao,
+            self.binding_scenario()
+        )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
+}
+
+/// SA-CCR Exposure at Default result (BCBS 279).
+///
+/// Returned by :func:`saccr_ead` and :meth:`SaCcrEngine.calculate_ead`.
+/// ``ead == alpha * (rc + pfe)``; ``pfe == multiplier * add_on_aggregate``.
+#[pyclass(
+    name = "EadResult",
+    module = "finstack_quant.margin",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyEadResult {
+    inner: EadResult,
+}
+
+impl PyEadResult {
+    fn from_inner(inner: EadResult) -> Self {
+        Self { inner }
+    }
+}
+
+#[pymethods]
+impl PyEadResult {
+    /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
+    ///
+    /// Reconstruction goes through the same strict serde round-trip as
+    /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
+    /// format defines — there is no second state format that can drift.
+    fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+        let from_json = py.get_type::<Self>().getattr("from_json")?;
+        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+    }
+
+    /// Deserialize from the JSON produced by ``to_json``.
+    #[staticmethod]
+    #[pyo3(text_signature = "(json)")]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: EadResult = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize back to the same JSON shape ``from_json`` accepts.
+    #[pyo3(text_signature = "($self)")]
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner).map_err(display_to_py)
+    }
+
+    /// Exposure at Default: ``alpha * (rc + pfe)``, in the netting set's
+    /// reporting currency.
+    #[getter]
+    fn ead(&self) -> f64 {
+        self.inner.ead
+    }
+
+    /// Replacement cost component.
+    #[getter]
+    fn rc(&self) -> f64 {
+        self.inner.rc
+    }
+
+    /// Potential future exposure: ``multiplier * add_on_aggregate``.
+    #[getter]
+    fn pfe(&self) -> f64 {
+        self.inner.pfe
+    }
+
+    /// PFE multiplier, which recognises over-collateralization and negative
+    /// mark-to-market (1.0 when neither applies, floored at 0.05).
+    #[getter]
+    fn multiplier(&self) -> f64 {
+        self.inner.multiplier
+    }
+
+    /// Aggregate add-on across asset classes, before the multiplier.
+    #[getter]
+    fn add_on_aggregate(&self) -> f64 {
+        self.inner.add_on_aggregate
+    }
+
+    /// Alpha multiplier (1.4 per BCBS 279 unless overridden on the engine).
+    #[getter]
+    fn alpha(&self) -> f64 {
+        self.inner.alpha
+    }
+
+    /// Maturity factor applied to the netting set.
+    #[getter]
+    fn maturity_factor(&self) -> f64 {
+        self.inner.maturity_factor
+    }
+
+    /// Add-on keyed by asset-class wire label (e.g. ``"interest_rate"``).
+    #[getter]
+    fn add_on_by_asset_class(&self) -> BTreeMap<String, f64> {
+        self.inner
+            .add_on_by_asset_class
+            .iter()
+            .map(|(ac, v)| (asset_class_label(*ac), *v))
+            .collect()
+    }
+
+    /// Export the headline exposure as a single-row pandas ``DataFrame``.
+    ///
+    /// Columns: ``ead``, ``rc``, ``pfe``, ``multiplier``, ``add_on_aggregate``
+    /// (floats in the netting set's reporting currency), ``alpha`` and
+    /// ``maturity_factor`` (dimensionless floats). Per-asset-class add-on
+    /// detail lives in ``to_add_on_dataframe``.
+    ///
+    /// One row, so a book of netting sets stacks with
+    /// ``pd.concat([r.to_dataframe() for r in results])``.
+    #[pyo3(text_signature = "($self)")]
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let row = serde_json::json!({
+            "ead": self.inner.ead,
+            "rc": self.inner.rc,
+            "pfe": self.inner.pfe,
+            "multiplier": self.inner.multiplier,
+            "add_on_aggregate": self.inner.add_on_aggregate,
+            "alpha": self.inner.alpha,
+            "maturity_factor": self.inner.maturity_factor,
+        });
+        serde_object_to_single_row_dataframe_with_schema(
+            py,
+            &row,
+            &[
+                "ead",
+                "rc",
+                "pfe",
+                "multiplier",
+                "add_on_aggregate",
+                "alpha",
+                "maturity_factor",
+            ],
+        )
+    }
+
+    /// Export the per-asset-class add-on as a pandas ``DataFrame``.
+    ///
+    /// Columns: ``asset_class`` (wire label) and ``add_on`` (float in the
+    /// netting set's reporting currency). One row per asset class present,
+    /// sorted by ``asset_class`` so repeated runs are byte-identical. A netting
+    /// set with no trades yields a zero-row frame that still carries both
+    /// columns with their real dtypes.
+    #[pyo3(text_signature = "($self)")]
+    fn to_add_on_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        const COLUMNS: &[ColumnSchema<'_>] = &[("asset_class", "str"), ("add_on", "float64")];
+        let rows: Vec<serde_json::Value> = self
+            .inner
+            .add_on_by_asset_class
+            .iter()
+            .map(|(ac, add_on)| {
+                serde_json::json!({
+                    "asset_class": asset_class_label(*ac),
+                    "add_on": add_on,
+                })
+            })
+            .collect();
+        serde_rows_to_dataframe_with_schema(py, &rows, COLUMNS)
+    }
+
+    /// Return ``repr(self)``.
+    fn __repr__(&self) -> String {
+        format!(
+            "EadResult(ead={:.2}, rc={:.2}, pfe={:.2}, alpha={:.2})",
+            self.inner.ead, self.inner.rc, self.inner.pfe, self.inner.alpha
+        )
+    }
+
+    /// Render as an HTML table in Jupyter notebooks.
+    ///
+    /// Delegates to the frame from `to_dataframe`, so pandas' own row/column
+    /// truncation applies and a large result stays a small repr. Returns
+    /// `None` if the frame cannot be built, which makes IPython fall back to
+    /// `__repr__` instead of raising from the display hook.
+    fn _repr_html_(&self, py: Python<'_>) -> Option<String> {
+        let frame = self.to_dataframe(py).ok()?;
+        frame.call_method0("_repr_html_").ok()?.extract().ok()
+    }
 }
 
 /// Compute the FRTB SBA capital charge.
 ///
-/// Returns ``(total_charge, breakdown)`` where ``breakdown`` is a dict with:
-/// - ``delta``: ``{risk_class: charge}``
-/// - ``vega``: ``{risk_class: charge}``
-/// - ``curvature``: ``{risk_class: charge}``
-/// - ``drc``: default risk charge (float)
-/// - ``rrao``: residual risk add-on (float)
-/// - ``binding_scenario``: scenario name selected as binding
-/// - ``scenario_charges``: ``{scenario_name: sba_charge}``
+/// Returns a :class:`FrtbSbaResult` exposing ``total``, ``drc``, ``rrao``,
+/// ``binding_scenario``, ``scenario_charges``, and the per-risk-class
+/// ``delta_by_risk_class`` / ``vega_by_risk_class`` /
+/// ``curvature_by_risk_class`` breakdowns, plus ``to_dataframe`` /
+/// ``to_breakdown_dataframe`` exits.
 ///
 /// If ``correlation_scenario`` is provided (``"low"``, ``"medium"``, ``"high"``),
 /// only that scenario is evaluated. Otherwise all three are run and the
@@ -866,7 +1177,7 @@ pub fn frtb_sba_charge(
     py: Python<'_>,
     sensitivities: &PyFrtbSensitivities,
     correlation_scenario: Option<&str>,
-) -> PyResult<(f64, Py<PyDict>)> {
+) -> PyResult<PyFrtbSbaResult> {
     let mut builder = FrtbSbaEngine::builder();
     if let Some(s) = correlation_scenario {
         let scenario = parse_correlation_scenario(s)?;
@@ -877,15 +1188,16 @@ pub fn frtb_sba_charge(
         .detach(|| engine.calculate(&sensitivities.inner))
         .map_err(core_to_py)?;
 
-    frtb_result_to_py(py, &result)
+    Ok(PyFrtbSbaResult::from_inner(result))
 }
 
 /// Compute SA-CCR Exposure at Default for a set of trades.
 ///
-/// Returns ``(rc, pfe, ead)`` per BCBS 279:
-/// - ``rc``: replacement cost
-/// - ``pfe``: potential future exposure (multiplier × aggregate add-on)
-/// - ``ead``: exposure at default = α × (RC + PFE), with α = 1.4
+/// Returns an :class:`EadResult` per BCBS 279, carrying ``rc`` (replacement
+/// cost), ``pfe`` (potential future exposure = multiplier × aggregate add-on),
+/// ``ead`` (= α × (RC + PFE), with α = 1.4), plus ``multiplier``,
+/// ``add_on_aggregate``, ``add_on_by_asset_class``, ``alpha``, and
+/// ``maturity_factor``.
 ///
 /// ``as_of_year`` / ``as_of_month`` / ``as_of_day`` set the valuation date
 /// used for forward-start and remaining-maturity calculations; maturity
@@ -932,7 +1244,7 @@ pub fn saccr_ead(
     mpor_days: Option<u32>,
     counterparty_id: &str,
     csa_id: &str,
-) -> PyResult<(f64, f64, f64)> {
+) -> PyResult<PyEadResult> {
     if trades.is_empty() {
         return Err(crate::errors::value_error(
             "saccr_ead requires at least one trade",
@@ -972,13 +1284,15 @@ pub fn saccr_ead(
     let result = py
         .detach(|| engine.calculate_ead(&config, &trade_vec))
         .map_err(core_to_py)?;
-    Ok((result.rc, result.pfe, result.ead))
+    Ok(PyEadResult::from_inner(result))
 }
 
 /// Register FRTB / SA-CCR classes and functions on the margin module.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyFrtbSensitivities>()?;
     m.add_class::<PyFrtbSbaEngine>()?;
+    m.add_class::<PyFrtbSbaResult>()?;
+    m.add_class::<PyEadResult>()?;
     m.add_class::<PySaCcrTrade>()?;
     m.add_class::<PySaCcrNettingSetConfig>()?;
     m.add_class::<PySaCcrEngine>()?;
