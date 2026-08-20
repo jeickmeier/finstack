@@ -4,7 +4,7 @@ mod credit;
 mod discount;
 mod forward;
 mod hazard;
-mod helpers;
+pub(crate) mod helpers;
 mod inflation;
 mod price;
 mod surfaces;

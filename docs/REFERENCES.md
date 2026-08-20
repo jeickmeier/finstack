@@ -1021,6 +1021,23 @@ risk calculation with a standard reference.
 - O'Kane, D. *Modelling Single-name and Multi-name Credit Derivatives*.
   Practitioner reference for CreditGrades and CDS valuation conventions.
 
+<a id="finger-2002-creditgrades"></a>
+
+### Finger 2002 CreditGrades
+
+- Finger, C. C., Finkelstein, V., Pan, G., Lardy, J.-P., Ta, T., and Tierney, J.
+  *CreditGrades Technical Document*. RiskMetrics Group. Source of the
+  uncertain-barrier first-passage survival approximation and its lognormal
+  recovery dispersion.
+
+<a id="crosbie-bohn-2003-kmv"></a>
+
+### Crosbie Bohn 2003 KMV
+
+- Crosbie, P. and Bohn, J. *Modeling Default Risk*. Moody's KMV. Source of the
+  physical-measure distance-to-default and EDF mapping, and of the
+  short-term-debt-plus-half-long-term-debt default point.
+
 <a id="dupire-1994"></a>
 
 ### Dupire 1994

@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use crate::bindings::core::dates::utils::py_to_date;
+use crate::bindings::core::market_data::curves::helpers::parse_day_count;
 use crate::bindings::core::market_data::curves::PyHazardCurve;
 use crate::bindings::pandas_utils::{serde_object_to_single_row_dataframe, serde_to_py};
 use crate::errors::display_to_py;
@@ -268,16 +269,22 @@ impl PyMertonModel {
     ///
     /// # Arguments
     ///
-    /// * `asset_value` - Current firm asset value
-    /// * `asset_vol` - Asset volatility as a decimal
-    /// * `risk_free_rate` - Continuously compounded risk-free rate as a decimal
-    /// * `target_pd` - Target cumulative default probability in ``[0, 1]``
-    /// * `maturity` - Calibration horizon in years
+    /// * `asset_value` - Current firm asset value, strictly positive
+    /// * `asset_vol` - Annualized asset volatility as a decimal, strictly
+    ///   positive
+    /// * `risk_free_rate` - Continuously compounded risk-free rate as a
+    ///   decimal. Pass the expected physical asset return instead to
+    ///   calibrate against a real-world default rate
+    /// * `payout_rate` - Continuous payout rate on assets as a decimal; it
+    ///   enters the calibration drift and is carried on the returned model
+    /// * `target_pd` - Target cumulative default probability in ``(0, 1)``
+    /// * `maturity` - Calibration horizon in years, strictly positive
     #[staticmethod]
     fn from_target_pd(
         asset_value: f64,
         asset_vol: f64,
         risk_free_rate: f64,
+        payout_rate: f64,
         target_pd: f64,
         maturity: f64,
     ) -> PyResult<Self> {
@@ -286,11 +293,29 @@ impl PyMertonModel {
                 asset_value,
                 asset_vol,
                 risk_free_rate,
+                payout_rate,
                 target_pd,
                 maturity,
             )
             .map_err(display_to_py)?,
         })
+    }
+
+    /// Moody's KMV default point: short-term debt plus half of long-term debt.
+    ///
+    /// # Arguments
+    ///
+    /// * `short_term_debt` - Liabilities due within one year, non-negative
+    /// * `long_term_debt` - Liabilities maturing beyond one year,
+    ///   non-negative; half of it enters the default point
+    ///
+    /// # Errors
+    ///
+    /// Raises ``ValueError`` when either input is negative or non-finite, or
+    /// when the resulting default point is zero.
+    #[staticmethod]
+    fn kmv_default_point(short_term_debt: f64, long_term_debt: f64) -> PyResult<f64> {
+        MertonModel::kmv_default_point(short_term_debt, long_term_debt).map_err(display_to_py)
     }
 
     /// Construct a Merton model with explicit barrier and dynamics specifications.
@@ -430,12 +455,48 @@ impl PyMertonModel {
         self.inner.distance_to_default(horizon)
     }
 
+    /// Physical-measure (Moody's KMV) distance to default at `horizon` years.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_drift` - Expected physical total return on the firm's assets
+    ///   as a continuously compounded decimal, replacing the risk-free rate
+    /// * `horizon` - Time horizon in years
+    ///
+    /// # Errors
+    ///
+    /// Raises ``ValueError`` when `asset_drift` is not finite or the model
+    /// uses driftless CreditGrades dynamics.
+    fn distance_to_default_with_drift(&self, asset_drift: f64, horizon: f64) -> PyResult<f64> {
+        self.inner
+            .distance_to_default_with_drift(asset_drift, horizon)
+            .map_err(display_to_py)
+    }
+
     /// Risk-neutral default probability over `horizon` years.
     fn default_probability(&self, horizon: f64) -> f64 {
         self.inner.default_probability(horizon)
     }
 
-    /// Implied CDS par spread for `horizon` and `recovery` (decimal, not bp).
+    /// Physical-measure default probability (theoretical EDF) over `horizon` years.
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_drift` - Expected physical total return on the firm's assets
+    ///   as a continuously compounded decimal, replacing the risk-free rate
+    /// * `horizon` - Time horizon in years
+    ///
+    /// # Errors
+    ///
+    /// Raises ``ValueError`` when `asset_drift` is not finite or the model
+    /// uses driftless CreditGrades dynamics.
+    fn default_probability_with_drift(&self, asset_drift: f64, horizon: f64) -> PyResult<f64> {
+        self.inner
+            .default_probability_with_drift(asset_drift, horizon)
+            .map_err(display_to_py)
+    }
+
+    /// Zero-coupon bond spread with exogenous `recovery` (decimal, not bp).
     ///
     /// # Errors
     ///
@@ -443,6 +504,34 @@ impl PyMertonModel {
     fn implied_spread(&self, horizon: f64, recovery: f64) -> PyResult<f64> {
         self.inner
             .implied_spread(horizon, recovery)
+            .map_err(display_to_py)
+    }
+
+    /// Merton (1974) endogenous debt spread at `horizon` years (decimal, not bp).
+    ///
+    /// # Errors
+    ///
+    /// Raises ``ValueError`` when `horizon` is not positive, the barrier type
+    /// is not terminal, or the implied debt value is non-positive.
+    fn debt_spread(&self, horizon: f64) -> PyResult<f64> {
+        self.inner.debt_spread(horizon).map_err(display_to_py)
+    }
+
+    /// ISDA-style CDS par spread at `maturity` years (decimal, not bp).
+    ///
+    /// # Arguments
+    ///
+    /// * `maturity` - CDS maturity in years, strictly positive
+    /// * `recovery` - Recovery rate as a decimal in ``[0, 1]``; must equal the
+    ///   model's ``mean_recovery`` under CreditGrades dynamics
+    ///
+    /// # Errors
+    ///
+    /// Raises ``ValueError`` when the inputs are out of range or the implied
+    /// survival curve cannot be bootstrapped.
+    fn cds_par_spread(&self, maturity: f64, recovery: f64) -> PyResult<f64> {
+        self.inner
+            .cds_par_spread(maturity, recovery)
             .map_err(display_to_py)
     }
 
@@ -468,19 +557,25 @@ impl PyMertonModel {
     ///
     /// * `id` - Curve identifier
     /// * `base_date` - Valuation date for the curve
-    /// * `tenors` - Tenor grid in years (non-empty, strictly positive)
-    /// * `recovery` - Recovery rate assumption as a decimal in ``[0, 1]``
+    /// * `tenors` - Tenor grid in years (non-empty, strictly positive, distinct)
+    /// * `recovery` - Recovery rate assumption as a decimal in ``[0, 1]``;
+    ///   must equal the model's ``mean_recovery`` under CreditGrades dynamics
+    /// * `day_count` - Day-count convention the curve uses to turn dates into
+    ///   year fractions (default ``"act_365f"``)
+    #[pyo3(signature = (id, base_date, tenors, recovery, day_count="act_365f"))]
     fn to_hazard_curve(
         &self,
         id: &str,
         base_date: &Bound<'_, PyAny>,
         tenors: Vec<f64>,
         recovery: f64,
+        day_count: &str,
     ) -> PyResult<PyHazardCurve> {
         let base_date = py_to_date(base_date)?;
+        let day_count = parse_day_count(day_count)?;
         let curve = self
             .inner
-            .to_hazard_curve(id, base_date, &tenors, recovery)
+            .to_hazard_curve(id, base_date, &tenors, recovery, day_count)
             .map_err(display_to_py)?;
         Ok(PyHazardCurve::from_inner(Arc::new(curve)))
     }

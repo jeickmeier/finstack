@@ -759,6 +759,15 @@ fn valuations_dts_exposes_credit_namespaces() {
 
     assert!(dts.contains("export interface ValuationCreditNamespace"));
     assert!(dts.contains("mertonModelJson("));
+    assert!(dts.contains("mertonDefaultProbabilityWithDrift("));
+    assert!(dts.contains("mertonDistanceToDefaultWithDrift("));
+    assert!(
+        dts.contains("mertonKmvDefaultPoint(shortTermDebt: number, longTermDebt: number): number;")
+    );
+    assert!(dts.contains("mertonDebtSpread(modelJson: string, horizon: number): number;"));
+    assert!(dts.contains(
+        "mertonCdsParSpread(modelJson: string, maturity: number, recovery: number): number;"
+    ));
     assert!(dts.contains("creditGradesModelJson("));
     assert!(dts.contains("toggleExerciseOptimalJson("));
     assert!(dts.contains("export interface CreditDerivativesNamespace"));

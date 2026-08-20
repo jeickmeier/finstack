@@ -6,6 +6,7 @@
 //! exports are flat by `js_name`, so this is a pure source reorganisation.
 
 use crate::utils::{check_js_safe_count, parse_iso_date, to_js_err};
+use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::math::random::Pcg64Rng;
 use finstack_quant_valuations::models::credit::{
     AssetDynamics, BarrierType, CreditState, CreditStateVariable, DynamicRecoverySpec,
@@ -104,10 +105,34 @@ pub fn merton_default_probability(model_json: &str, horizon: f64) -> Result<f64,
     Ok(model.default_probability(horizon))
 }
 
+/// Compute the physical-measure (Moody's KMV) default probability, the
+/// theoretical EDF, from a Merton model JSON payload.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `model_json` is malformed, if
+/// `asset_drift` is not finite, or if the model uses driftless CreditGrades
+/// dynamics.
+/// @param model_json - Serialized Merton structural-credit model produced by this API's model builder.
+/// @param asset_drift - Expected physical total return on firm assets as a continuously compounded decimal, replacing the risk-free rate.
+/// @param horizon - Forward-looking model horizon measured in years.
+#[wasm_bindgen(js_name = mertonDefaultProbabilityWithDrift)]
+pub fn merton_default_probability_with_drift(
+    model_json: &str,
+    asset_drift: f64,
+    horizon: f64,
+) -> Result<f64, JsValue> {
+    let model: MertonModel = serde_json::from_str(model_json).map_err(to_js_err)?;
+    model
+        .default_probability_with_drift(asset_drift, horizon)
+        .map_err(to_js_err)
+}
+
 /// Compute distance-to-default from a Merton model JSON payload.
 ///
 /// Distance-to-default is `ln(V/B)/(sigma*sqrt(T))` plus drift adjustments.
-/// Lower values indicate higher default risk.
+/// Lower values indicate higher default risk. This is the risk-neutral `d2`,
+/// not the Moody's KMV distance-to-default.
 ///
 /// # Errors
 ///
@@ -121,9 +146,45 @@ pub fn merton_distance_to_default(model_json: &str, horizon: f64) -> Result<f64,
     Ok(model.distance_to_default(horizon))
 }
 
-/// Compute the implied credit spread (per year) from a Merton model JSON
-/// payload, given a recovery rate. Matches the structural-model-implied
-/// spread used to back into a hazard curve.
+/// Compute the physical-measure (Moody's KMV) distance-to-default from a
+/// Merton model JSON payload.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `model_json` is malformed, if
+/// `asset_drift` is not finite, or if the model uses driftless CreditGrades
+/// dynamics.
+/// @param model_json - Serialized Merton structural-credit model produced by this API's model builder.
+/// @param asset_drift - Expected physical total return on firm assets as a continuously compounded decimal, replacing the risk-free rate.
+/// @param horizon - Forward-looking model horizon measured in years.
+#[wasm_bindgen(js_name = mertonDistanceToDefaultWithDrift)]
+pub fn merton_distance_to_default_with_drift(
+    model_json: &str,
+    asset_drift: f64,
+    horizon: f64,
+) -> Result<f64, JsValue> {
+    let model: MertonModel = serde_json::from_str(model_json).map_err(to_js_err)?;
+    model
+        .distance_to_default_with_drift(asset_drift, horizon)
+        .map_err(to_js_err)
+}
+
+/// Compute the Moody's KMV default point, short-term debt plus half of
+/// long-term debt, for use as a structural default barrier.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either input is negative or non-finite,
+/// or if the resulting default point is zero.
+/// @param short_term_debt - Liabilities due within one year, in the firm's monetary units.
+/// @param long_term_debt - Liabilities maturing beyond one year, in the same units; half of it enters the default point.
+#[wasm_bindgen(js_name = mertonKmvDefaultPoint)]
+pub fn merton_kmv_default_point(short_term_debt: f64, long_term_debt: f64) -> Result<f64, JsValue> {
+    MertonModel::kmv_default_point(short_term_debt, long_term_debt).map_err(to_js_err)
+}
+
+/// Compute the zero-coupon bond credit spread (per year) from a Merton model
+/// JSON payload, given an exogenous recovery rate paid at maturity.
 ///
 /// # Errors
 ///
@@ -141,6 +202,44 @@ pub fn merton_implied_spread(
 ) -> Result<f64, JsValue> {
     let model: MertonModel = serde_json::from_str(model_json).map_err(to_js_err)?;
     model.implied_spread(horizon, recovery).map_err(to_js_err)
+}
+
+/// Compute the Merton (1974) endogenous debt spread (per year) from a Merton
+/// model JSON payload, where recovery is the firm's own terminal asset value.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `model_json` is malformed, if `horizon` is
+/// non-positive, if the barrier type is not terminal, or if the implied debt
+/// value is non-positive.
+/// @param model_json - Serialized Merton structural-credit model produced by this API's model builder.
+/// @param horizon - Maturity of the firm's debt measured in years.
+#[wasm_bindgen(js_name = mertonDebtSpread)]
+pub fn merton_debt_spread(model_json: &str, horizon: f64) -> Result<f64, JsValue> {
+    let model: MertonModel = serde_json::from_str(model_json).map_err(to_js_err)?;
+    model.debt_spread(horizon).map_err(to_js_err)
+}
+
+/// Compute the ISDA-style CDS par spread (per year, as a decimal) implied by a
+/// Merton model's survival curve.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `model_json` is malformed, if `maturity`
+/// is non-positive, if `recovery` is outside `[0, 1]` or contradicts the
+/// model's CreditGrades `mean_recovery`, or if the implied survival curve
+/// cannot be bootstrapped.
+/// @param model_json - Serialized Merton structural-credit model produced by this API's model builder.
+/// @param maturity - CDS maturity in years; must be positive and finite.
+/// @param recovery - Recovery rate at default expressed as a fraction of par from 0 through 1.
+#[wasm_bindgen(js_name = mertonCdsParSpread)]
+pub fn merton_cds_par_spread(
+    model_json: &str,
+    maturity: f64,
+    recovery: f64,
+) -> Result<f64, JsValue> {
+    let model: MertonModel = serde_json::from_str(model_json).map_err(to_js_err)?;
+    model.cds_par_spread(maturity, recovery).map_err(to_js_err)
 }
 
 /// Build a Merton model JSON payload from observable equity inputs (KMV
@@ -179,11 +278,16 @@ pub fn merton_from_equity_json(
 
 /// Build a Merton model JSON payload from a target CDS par spread.
 ///
+/// The objective is a full ISDA-style par spread built from the model's
+/// survival curve. A quote that no volatility in `[0.01, 2.0]` reproduces, or
+/// one consistent with several volatilities, is rejected rather than resolved
+/// arbitrarily.
+///
 /// # Errors
 ///
 /// Throws a JavaScript exception if spread, recovery, debt, rate, maturity,
-/// asset value, or payout inputs are invalid, or if the model cannot be
-/// serialized to JSON.
+/// asset value, or payout inputs are invalid, if the quote is unattainable or
+/// ambiguous, or if the model cannot be serialized to JSON.
 /// @param cds_spread_bp - Target CDS par spread in basis points.
 /// @param recovery - Recovery rate at default expressed as a fraction from 0 through 1.
 /// @param total_debt - Total debt face value in the firm's monetary units.
@@ -222,21 +326,29 @@ pub fn merton_from_cds_spread_json(
 /// Throws a JavaScript exception if asset value, volatility, rate, target PD,
 /// or maturity inputs are invalid, or if the model cannot be serialized to JSON.
 /// @param asset_value - Current fair value of the firm's assets in monetary units.
-/// @param asset_vol - Annualized volatility of firm-asset returns, expressed as a decimal.
-/// @param risk_free_rate - Annualized risk-free rate expressed as a decimal, such as 0.05 for 5%.
-/// @param target_pd - Target cumulative default probability in `[0, 1]`.
+/// @param asset_vol - Annualized volatility of firm-asset returns, expressed as a decimal; must be positive.
+/// @param risk_free_rate - Annualized risk-free rate expressed as a decimal, such as 0.05 for 5%. Pass the expected physical asset return to calibrate against a real-world default rate.
+/// @param payout_rate - Continuous payout rate on assets, expressed as a decimal; it enters the calibration drift and is carried on the returned model.
+/// @param target_pd - Target cumulative default probability in `(0, 1)`.
 /// @param maturity - Calibration horizon in years; must be positive and finite.
 #[wasm_bindgen(js_name = mertonFromTargetPdJson)]
 pub fn merton_from_target_pd_json(
     asset_value: f64,
     asset_vol: f64,
     risk_free_rate: f64,
+    payout_rate: f64,
     target_pd: f64,
     maturity: f64,
 ) -> Result<String, JsValue> {
-    let model =
-        MertonModel::from_target_pd(asset_value, asset_vol, risk_free_rate, target_pd, maturity)
-            .map_err(to_js_err)?;
+    let model = MertonModel::from_target_pd(
+        asset_value,
+        asset_vol,
+        risk_free_rate,
+        payout_rate,
+        target_pd,
+        maturity,
+    )
+    .map_err(to_js_err)?;
     serde_json::to_string(&model).map_err(to_js_err)
 }
 
@@ -310,13 +422,16 @@ fn merton_try_implied_equity_pair(model_json: &str, horizon: f64) -> Result<(f64
 ///
 /// Throws a JavaScript exception if `model_json` is malformed, if `base_date`
 /// is not a valid ISO-8601 calendar date (`YYYY-MM-DD`), if `tenors` is empty
-/// or contains non-positive values, if the implied survival curve is
-/// non-monotonic, or if the hazard curve cannot be serialized to JSON.
+/// or contains non-positive values, if `recovery` is out of range or
+/// contradicts the model's CreditGrades `mean_recovery`, if `day_count` is not
+/// a recognized convention, if the implied survival curve is non-monotonic, or
+/// if the hazard curve cannot be serialized to JSON.
 /// @param model_json - Serialized Merton structural-credit model produced by this API's model builder.
 /// @param id - Hazard-curve identifier string.
 /// @param base_date - Valuation date in ISO-8601 form, such as `"2025-01-15"`.
-/// @param tenors - Tenor grid in years as a `number[]` or `Float64Array`.
+/// @param tenors - Tenor grid in years as a `number[]` or `Float64Array`; entries must be positive and distinct.
 /// @param recovery - Recovery rate at default expressed as a fraction from 0 through 1.
+/// @param day_count - Day-count convention the curve uses to turn dates into year fractions, such as `"act_365f"` or `"act_360"`.
 #[wasm_bindgen(js_name = mertonToHazardCurveJson)]
 pub fn merton_to_hazard_curve_json(
     model_json: &str,
@@ -324,12 +439,16 @@ pub fn merton_to_hazard_curve_json(
     base_date: &str,
     tenors: JsValue,
     recovery: f64,
+    day_count: &str,
 ) -> Result<String, JsValue> {
     let model: MertonModel = serde_json::from_str(model_json).map_err(to_js_err)?;
     let base = parse_iso_date(base_date)?;
     let tenor_vec = parse_f64_tenors(tenors)?;
+    let day_count: DayCount = day_count
+        .parse()
+        .map_err(|e| to_js_err(format!("Invalid day_count {day_count:?}: {e}")))?;
     let curve = model
-        .to_hazard_curve(id, base, &tenor_vec, recovery)
+        .to_hazard_curve(id, base, &tenor_vec, recovery, day_count)
         .map_err(to_js_err)?;
     serde_json::to_string(&curve).map_err(to_js_err)
 }

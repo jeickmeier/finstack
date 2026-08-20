@@ -49,14 +49,40 @@ value crosses the debt barrier.
 | Method | Formula / behaviour |
 |--------|---------------------|
 | `distance_to_default(horizon)` | `DD = [ln(V/B) + (r − q − σ²/2)T] / (σ√T)`; returns `+∞` for `horizon <= 0` |
-| `default_probability(horizon)` | `Terminal`: `N(−DD)`. `FirstPassage`: Black-Cox closed form. `CreditGrades`: the approximate survival function |
-| `implied_spread(horizon, recovery)` | `s = −ln(1 − PD·(1−R)) / T` |
-| `try_implied_equity(horizon)` | `-> Result<(equity_value, equity_vol)>` via Black-Scholes with a continuous payout rate |
-| `to_hazard_curve(id, base_date, &tenors, recovery)` | Piecewise-constant `HazardCurve` from the structural survival curve; tenors need not be sorted |
+| `distance_to_default_with_drift(asset_drift, horizon)` | Same with the physical asset return replacing `r` — the Moody's KMV DD |
+| `default_probability(horizon)` | `Terminal`: `N(−DD)` under GBM, the Merton-1976 Poisson mixture under `JumpDiffusion`. `FirstPassage`: Black-Cox closed form. `CreditGrades`: the approximate survival function |
+| `default_probability_with_drift(asset_drift, horizon)` | Same dispatch under the physical measure — the theoretical EDF |
+| `implied_spread(horizon, recovery)` | `s = −ln(1 − PD·(1−R)) / T`, a zero-coupon bond spread with exogenous recovery paid at maturity |
+| `debt_spread(horizon)` | Merton (1974) endogenous spread `−ln(D / B·e^{−rT}) / T` with `D = V·e^{−qT} − E`; `Terminal` only |
+| `cds_par_spread(maturity, recovery)` | ISDA-style par spread from the model's survival curve, with premium leg, accrual on default, and discounting |
+| `try_implied_equity(horizon)` | `-> Result<(equity_value, equity_vol)>` via Black-Scholes with a continuous payout rate; diffusion-only |
+| `to_hazard_curve(id, base_date, &tenors, recovery, day_count)` | Piecewise-constant `HazardCurve` from the structural survival curve; tenors need not be sorted |
 | `simulate_paths(num_paths, num_steps, horizon, &mut rng, antithetic)` | `-> Result<SimulatedPaths>` |
 
 Read-only accessors: `asset_value()`, `asset_vol()`, `debt_barrier()`,
 `risk_free_rate()`, `payout_rate()`, `barrier_type()`, `dynamics()`.
+
+### Measure
+
+`distance_to_default`, `default_probability`, the spread methods, and
+`to_hazard_curve` are all **risk-neutral**. They are the right inputs for
+pricing and materially overstate real-world default rates. The `_with_drift`
+variants substitute the firm's expected physical asset return and give the
+KMV/EDF quantities; pair them with the associated function
+`MertonModel::kmv_default_point(short_term_debt, long_term_debt)`, which
+returns the KMV default point `STD + 0.5·LTD`. `CreditGrades` is driftless by
+construction, so both `_with_drift` methods reject it rather than silently
+ignoring the drift.
+
+### Spread conventions
+
+The three spreads answer different questions and are not interchangeable:
+`implied_spread` assumes an exogenous recovery paid at maturity,
+`debt_spread` lets the firm's own terminal asset value be the recovery, and
+`cds_par_spread` prices both CDS legs on a quarterly ACT/360 premium schedule
+with a half-period accrual-on-default term. `cds_par_spread` exceeds
+`implied_spread` by roughly 7% at a 30% cumulative default probability, which
+is why `from_cds_spread` calibrates against the former.
 
 ### Asset dynamics
 
@@ -70,6 +96,10 @@ Read-only accessors: `asset_value()`, `asset_vol()`, `debt_barrier()`,
 recovery rate, not a generic uncertainty scalar: it enters the survival formula
 as `a_t² = σ²t + λ²` and the barrier shift as `exp(λ²)`.
 
+Every parameter is validated at construction: jump intensity and volatility
+must be finite and non-negative, `barrier_uncertainty` finite and non-negative,
+and `mean_recovery` within `[0, 1]`.
+
 ### Barrier
 
 `BarrierType::Terminal` (classic Merton, assessed at maturity only) or
@@ -78,6 +108,14 @@ monitoring with an exponentially growing barrier). This is **not** the
 barrier-option `finstack_quant_core::types::BarrierType`; the schema name is
 `MertonBarrierType` to keep them apart on the wire.
 
+The barrier and the dynamics must agree, and mismatches are rejected at
+construction:
+
+- `JumpDiffusion` requires `Terminal` — first passage of a jump-diffusion has
+  no elementary closed form.
+- `CreditGrades` requires `FirstPassage { barrier_growth_rate: 0.0 }` — its
+  survival function *is* a first-passage law with a stochastic flat barrier.
+
 ### Constructors and calibration
 
 | Constructor | Arguments |
@@ -85,12 +123,14 @@ barrier-option `finstack_quant_core::types::BarrierType`; the schema name is
 | `new` | `(asset_value, asset_vol, debt_barrier, risk_free_rate)` |
 | `new_with_dynamics` | adds `(payout_rate, BarrierType, AssetDynamics)` |
 | `from_equity` | `(equity_value, equity_vol, total_debt, risk_free_rate, payout_rate, maturity)` — KMV fixed-point |
-| `from_cds_spread` | `(cds_spread_bp, recovery, total_debt, risk_free_rate, maturity, asset_value, payout_rate)` — Brent solve on σ |
-| `from_target_pd` | `(asset_value, asset_vol, risk_free_rate, target_pd, maturity)` — Brent solve on the barrier |
+| `from_cds_spread` | `(cds_spread_bp, recovery, total_debt, risk_free_rate, maturity, asset_value, payout_rate)` — scan-then-Brent solve on σ |
+| `from_target_pd` | `(asset_value, asset_vol, risk_free_rate, payout_rate, target_pd, maturity)` — Brent solve on the barrier |
 | `credit_grades` | `(equity_value, equity_vol, total_debt, risk_free_rate, barrier_uncertainty, mean_recovery)` |
 
 All return `Result<Self>` and reject non-positive `asset_value`, `asset_vol`,
-or `debt_barrier` with `InputError::NonPositiveValue`.
+or `debt_barrier` with `InputError::NonPositiveValue`. Deserialization is
+routed through `new_with_dynamics` via `RawMertonModel`, so a model loaded from
+JSON satisfies exactly the same invariants.
 
 `asset_value <= debt_barrier` is **intentionally accepted** — it represents a
 firm at or through its default point. Pricing then degenerates consistently:
@@ -98,9 +138,17 @@ first-passage paths default immediately, terminal-barrier PD approaches 1, and
 the CreditGrades survival formula returns PD = 1 in the zero-variance limit.
 Callers wanting a strictly solvent firm must validate that themselves.
 
-`from_equity` rejects a near-zero `equity_value` up front: the KMV inversion
-`σ_V = σ_E·E / (N(d₁)·e^{−qT}·V)` is ill-conditioned there and would drive
-iterates to inf/NaN, silently defeating the convergence test.
+`from_equity` rejects an `equity_value` that is a negligible fraction of firm
+value up front: the KMV inversion `σ_V = σ_E·E / (N(d₁)·e^{−qT}·V)` is
+ill-conditioned there and would drive iterates to inf/NaN, silently defeating
+the convergence test. The fixed point requires **both** `V` and `σ_V` to settle
+before it returns.
+
+`from_cds_spread` does not assume the par spread is monotonic in σ — for a firm
+below its barrier, raising volatility first lowers the default probability. The
+objective is scanned across `[0.01, 2.0]`; a unique sign change is refined with
+Brent, while zero or several sign changes raise a descriptive error naming the
+attainable spread range or the competing brackets.
 
 ### `SimulatedPaths`
 
@@ -109,6 +157,14 @@ Flat path storage with `values_per_path()`, `get(path_idx, time_idx)`,
 `RandomNumberGenerator` the caller passes to `simulate_paths`, so the same seed
 reproduces the same paths. `num_steps == 0` or `horizon <= 0` is a validation
 error, not a degenerate grid.
+
+`simulate_paths` returns the raw asset grid with no barrier applied. Inferring
+first-passage default by testing `V_t <= B` at grid points alone understates
+default, because a path can dip below the barrier and recover between steps;
+apply the Brownian-bridge crossing probability
+`exp(−2·ln(V_i/B)·ln(V_{i+1}/B) / (σ²·dt))` per surviving step, as the
+PIK-toggle Monte Carlo bond engine does, to match the continuous-monitoring
+`default_probability`.
 
 ## Dynamic recovery (`dynamic_recovery.rs`)
 
@@ -288,9 +344,19 @@ let pd = model.default_probability(1.0);
 let spread = model.implied_spread(5.0, 0.40)?;
 assert!(dd > 0.0 && (0.0..1.0).contains(&pd) && spread > 0.0);
 
+// The quotable CDS level exceeds the zero-coupon approximation.
+assert!(model.cds_par_spread(5.0, 0.40)? > spread);
+
+// Real-world default rate: swap the risk-free rate for the physical asset
+// return and put the barrier at the KMV default point.
+let default_point = MertonModel::kmv_default_point(40.0, 80.0)?;
+let kmv = MertonModel::new(100.0, 0.20, default_point, 0.05)?;
+let edf = kmv.default_probability_with_drift(0.12, 1.0)?;
+assert!(edf < kmv.default_probability(1.0));
+
 // Calibrate the barrier to a 5-year cumulative PD implied by a 2% annual hazard.
 let five_year_pd = 1.0 - (-0.02_f64 * 5.0).exp();
-let calibrated = MertonModel::from_target_pd(200.0, 0.25, 0.045, five_year_pd, 5.0)?;
+let calibrated = MertonModel::from_target_pd(200.0, 0.25, 0.045, 0.0, five_year_pd, 5.0)?;
 assert!((calibrated.default_probability(5.0) - five_year_pd).abs() < 1e-6);
 
 // Black-Cox first passage with a growing barrier, same parameters as `model`.
@@ -308,8 +374,13 @@ assert!(black_cox.default_probability(5.0) >= model.default_probability(5.0));
 
 // Structural PD -> hazard curve for the reduced-form engines.
 let base_date = time::Date::from_calendar_date(2024, time::Month::January, 15).unwrap();
-let hazard_curve =
-    model.to_hazard_curve("ISSUER_001", base_date, &[1.0, 3.0, 5.0, 10.0], 0.40)?;
+let hazard_curve = model.to_hazard_curve(
+    "ISSUER_001",
+    base_date,
+    &[1.0, 3.0, 5.0, 10.0],
+    0.40,
+    finstack_quant_core::dates::DayCount::Act365F,
+)?;
 
 // PIK feedback components.
 let recovery = DynamicRecoverySpec::floored_inverse(0.40, 100.0, 0.15)?;
@@ -387,8 +458,10 @@ over [`src/api/valuations/credit.rs`](../../../../../finstack-quant-wasm/src/api
 as JSON-string functions rather than classes: `mertonModelJson`,
 `mertonModelWithDynamicsJson`, `creditGradesModelJson`,
 `mertonFromEquityJson`, `mertonFromCdsSpreadJson`, `mertonFromTargetPdJson`,
-`mertonDefaultProbability`, `mertonDistanceToDefault`, `mertonImpliedSpread`,
-`mertonTryImpliedEquity`, `mertonToHazardCurveJson`,
+`mertonDefaultProbability`, `mertonDefaultProbabilityWithDrift`,
+`mertonDistanceToDefault`, `mertonDistanceToDefaultWithDrift`,
+`mertonKmvDefaultPoint`, `mertonImpliedSpread`, `mertonDebtSpread`,
+`mertonCdsParSpread`, `mertonTryImpliedEquity`, `mertonToHazardCurveJson`,
 `mertonSimulatePathsJson`, `dynamicRecoveryConstantJson`,
 `dynamicRecoveryAtNotional`, `endogenousHazardPowerLawJson`,
 `endogenousHazardAtLeverage`, `endogenousHazardAfterPikAccrual`,
@@ -463,6 +536,7 @@ new variant into the Python binding at
 | Jump diffusion | Merton, R. C. (1976). "Option Pricing When Underlying Stock Returns Are Discontinuous." *Journal of Financial Economics*, 3(1-2), 125-144. |
 | CreditGrades | Finger, C., Finkelstein, V., Pan, G., Lardy, J.-P., Ta, T. & Tierney, J. (2002). *CreditGrades Technical Document*. RiskMetrics Group. |
 | KMV calibration | Hull, J. C. *Options, Futures, and Other Derivatives*, ch. 17. |
+| Physical DD, EDF, default point | Crosbie, P. & Bohn, J. (2003). *Modeling Default Risk*. Moody's KMV. |
 | Credit triangle, CDS conventions | O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives*. Wiley, §5.4. |
 
 Full bibliography with stable anchors: [docs/REFERENCES.md](../../../../../docs/REFERENCES.md).

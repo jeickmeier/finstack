@@ -6825,10 +6825,24 @@ export interface ValuationCreditNamespace {
    */
   mertonDefaultProbability(modelJson: string, horizon: number): number;
   /**
+   * Compute the physical-measure (Moody's KMV) default probability, the theoretical EDF, from a Merton model JSON payload.
+   * @returns Physical-measure default probability in `[0, 1]` over `horizon` years.
+   * @param modelJson - Serialized Merton structural-credit model produced by this API's model builder.
+   * @param assetDrift - Expected physical total return on firm assets as a continuously compounded decimal, replacing the risk-free rate.
+   * @param horizon - Forward-looking model horizon measured in years.
+   * @throws Error - Throws a JavaScript exception if `model_json` is malformed, if `asset_drift` is not finite, or if the model uses driftless CreditGrades dynamics.
+   */
+  mertonDefaultProbabilityWithDrift(
+    modelJson: string,
+    assetDrift: number,
+    horizon: number
+  ): number;
+  /**
    * Compute distance-to-default from a Merton model JSON payload.
    *
    * Distance-to-default is `ln(V/B)/(sigma*sqrt(T))` plus drift adjustments.
-   * Lower values indicate higher default risk.
+   * Lower values indicate higher default risk. This is the risk-neutral `d2`,
+   * not the Moody's KMV distance-to-default.
    * @returns Distance-to-default in standard-deviation units over `horizon` years.
    * @param modelJson - Serialized Merton structural-credit model produced by this API's model builder.
    * @param horizon - Forward-looking model horizon measured in years.
@@ -6836,16 +6850,54 @@ export interface ValuationCreditNamespace {
    */
   mertonDistanceToDefault(modelJson: string, horizon: number): number;
   /**
-   * Compute the implied credit spread (per year) from a Merton model JSON
-   * payload, given a recovery rate. Matches the structural-model-implied
-   * spread used to back into a hazard curve.
-   * @returns Implied credit spread per year as a decimal, such as `0.015` for 150 bp.
+   * Compute the physical-measure (Moody's KMV) distance-to-default from a Merton model JSON payload.
+   * @returns Physical-measure distance-to-default in standard-deviation units over `horizon` years.
+   * @param modelJson - Serialized Merton structural-credit model produced by this API's model builder.
+   * @param assetDrift - Expected physical total return on firm assets as a continuously compounded decimal, replacing the risk-free rate.
+   * @param horizon - Forward-looking model horizon measured in years.
+   * @throws Error - Throws a JavaScript exception if `model_json` is malformed, if `asset_drift` is not finite, or if the model uses driftless CreditGrades dynamics.
+   */
+  mertonDistanceToDefaultWithDrift(
+    modelJson: string,
+    assetDrift: number,
+    horizon: number
+  ): number;
+  /**
+   * Compute the Moody's KMV default point, short-term debt plus half of long-term debt, for use as a structural default barrier.
+   * @returns Default point in the same monetary units as the debt inputs.
+   * @param shortTermDebt - Liabilities due within one year, in the firm's monetary units.
+   * @param longTermDebt - Liabilities maturing beyond one year, in the same units; half of it enters the default point.
+   * @throws Error - Throws a JavaScript exception if either input is negative or non-finite, or if the resulting default point is zero.
+   */
+  mertonKmvDefaultPoint(shortTermDebt: number, longTermDebt: number): number;
+  /**
+   * Compute the zero-coupon bond credit spread (per year) from a Merton model
+   * JSON payload, given an exogenous recovery rate paid at maturity.
+   * @returns Zero-coupon credit spread per year as a decimal, such as `0.015` for 150 bp.
    * @param modelJson - Serialized Merton structural-credit model produced by this API's model builder.
    * @param horizon - Forward-looking model horizon measured in years.
    * @param recovery - Recovery rate at default expressed as a fraction of par from 0 through 1.
    * @throws Error - Throws a JavaScript exception if `model_json` is malformed or does not deserialize as a Merton model, `horizon` is non-finite or non-positive, or `recovery` is outside `[0, 1]`.
    */
   mertonImpliedSpread(modelJson: string, horizon: number, recovery: number): number;
+  /**
+   * Compute the Merton (1974) endogenous debt spread (per year) from a Merton
+   * model JSON payload, where recovery is the firm's own terminal asset value.
+   * @returns Endogenous debt spread per year as a decimal, such as `0.004` for 40 bp.
+   * @param modelJson - Serialized Merton structural-credit model produced by this API's model builder.
+   * @param horizon - Maturity of the firm's debt measured in years.
+   * @throws Error - Throws a JavaScript exception if `model_json` is malformed, if `horizon` is non-positive, if the barrier type is not terminal, or if the implied debt value is non-positive.
+   */
+  mertonDebtSpread(modelJson: string, horizon: number): number;
+  /**
+   * Compute the ISDA-style CDS par spread (per year, as a decimal) implied by a Merton model's survival curve.
+   * @returns CDS par spread per year as a decimal, such as `0.015` for 150 bp.
+   * @param modelJson - Serialized Merton structural-credit model produced by this API's model builder.
+   * @param maturity - CDS maturity in years; must be positive and finite.
+   * @param recovery - Recovery rate at default expressed as a fraction of par from 0 through 1.
+   * @throws Error - Throws a JavaScript exception if `model_json` is malformed, if `maturity` is non-positive, if `recovery` is outside `[0, 1]` or contradicts the model's CreditGrades `mean_recovery`, or if the implied survival curve cannot be bootstrapped.
+   */
+  mertonCdsParSpread(modelJson: string, maturity: number, recovery: number): number;
   /**
    * Build a Merton model JSON payload from observable equity inputs (KMV calibration).
    * @returns Canonical Merton model JSON calibrated from equity observables.
@@ -6867,6 +6919,11 @@ export interface ValuationCreditNamespace {
   ): string;
   /**
    * Build a Merton model JSON payload from a target CDS par spread.
+   *
+   * The objective is a full ISDA-style par spread built from the model's
+   * survival curve. A quote that no volatility in `[0.01, 2.0]` reproduces, or
+   * one consistent with several volatilities, is rejected rather than resolved
+   * arbitrarily.
    * @returns Canonical Merton model JSON calibrated to a CDS par spread.
    * @param cdsSpreadBp - Target CDS par spread in basis points.
    * @param recovery - Recovery rate at default expressed as a fraction from 0 through 1.
@@ -6875,7 +6932,7 @@ export interface ValuationCreditNamespace {
    * @param maturity - Calibration horizon in years; must be positive and finite.
    * @param assetValue - Assumed initial firm asset value in monetary units.
    * @param payoutRate - Continuous payout rate on assets, expressed as a decimal.
-   * @throws Error - Throws a JavaScript exception if spread, recovery, debt, rate, maturity, asset value, or payout inputs are invalid, or if the model cannot be serialized to JSON.
+   * @throws Error - Throws a JavaScript exception if spread, recovery, debt, rate, maturity, asset value, or payout inputs are invalid, if the quote is unattainable or ambiguous, or if the model cannot be serialized to JSON.
    */
   mertonFromCdsSpreadJson(
     cdsSpreadBp: number,
@@ -6890,9 +6947,10 @@ export interface ValuationCreditNamespace {
    * Build a Merton model JSON payload calibrated to a target cumulative default probability.
    * @returns Canonical Merton model JSON calibrated to a target cumulative PD.
    * @param assetValue - Current fair value of the firm's assets in monetary units.
-   * @param assetVol - Annualized volatility of firm-asset returns, expressed as a decimal.
-   * @param riskFreeRate - Annualized risk-free rate expressed as a decimal, such as 0.05 for 5%.
-   * @param targetPd - Target cumulative default probability in `[0, 1]`.
+   * @param assetVol - Annualized volatility of firm-asset returns, expressed as a decimal; must be positive.
+   * @param riskFreeRate - Annualized risk-free rate expressed as a decimal, such as 0.05 for 5%. Pass the expected physical asset return to calibrate against a real-world default rate.
+   * @param payoutRate - Continuous payout rate on assets, expressed as a decimal; it enters the calibration drift and is carried on the returned model.
+   * @param targetPd - Target cumulative default probability in `(0, 1)`.
    * @param maturity - Calibration horizon in years; must be positive and finite.
    * @throws Error - Throws a JavaScript exception if asset value, volatility, rate, target PD, or maturity inputs are invalid, or if the model cannot be serialized to JSON.
    */
@@ -6900,6 +6958,7 @@ export interface ValuationCreditNamespace {
     assetValue: number,
     assetVol: number,
     riskFreeRate: number,
+    payoutRate: number,
     targetPd: number,
     maturity: number
   ): string;
@@ -6938,16 +6997,18 @@ export interface ValuationCreditNamespace {
    * @param modelJson - Serialized Merton structural-credit model produced by this API's model builder.
    * @param id - Hazard-curve identifier string.
    * @param baseDate - Valuation date in ISO-8601 form, such as `"2025-01-15"`.
-   * @param tenors - Tenor grid in years as a `number[]` or `Float64Array`.
+   * @param tenors - Tenor grid in years as a `number[]` or `Float64Array`; entries must be positive and distinct.
    * @param recovery - Recovery rate at default expressed as a fraction from 0 through 1.
-   * @throws Error - Throws a JavaScript exception if `model_json` is malformed, if `base_date` is not a valid ISO-8601 calendar date (`YYYY-MM-DD`), if `tenors` is empty or contains non-positive values, if the implied survival curve is non-monotonic, or if the hazard curve cannot be serialized to JSON.
+   * @param dayCount - Day-count convention the curve uses to turn dates into year fractions, such as `"act_365f"` or `"act_360"`.
+   * @throws Error - Throws a JavaScript exception if `model_json` is malformed, if `base_date` is not a valid ISO-8601 calendar date (`YYYY-MM-DD`), if `tenors` is empty or contains non-positive values, if `recovery` is out of range or contradicts the model's CreditGrades `mean_recovery`, if `day_count` is not a recognized convention, if the implied survival curve is non-monotonic, or if the hazard curve cannot be serialized to JSON.
    */
   mertonToHazardCurveJson(
     modelJson: string,
     id: string,
     baseDate: string,
     tenors: NumericArray,
-    recovery: number
+    recovery: number,
+    dayCount: string
   ): string;
   /**
    * Simulate firm-asset paths and return a JSON payload with the time grid and row-major asset values.

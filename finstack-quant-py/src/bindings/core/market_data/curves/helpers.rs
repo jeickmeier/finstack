@@ -8,7 +8,7 @@ use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
 use pyo3::prelude::*;
 
 /// Parse a DayCount from a Python string like `"act_365f"`, `"act_360"`, etc.
-pub(super) fn parse_day_count(s: &str) -> PyResult<DayCount> {
+pub(crate) fn parse_day_count(s: &str) -> PyResult<DayCount> {
     s.parse::<DayCount>()
         .map_err(|e| crate::errors::value_error(format!("Invalid day_count {s:?}: {e}")))
 }
