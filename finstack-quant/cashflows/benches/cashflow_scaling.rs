@@ -11,13 +11,20 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
+#[path = "support/fixtures.rs"]
+mod fixtures;
+
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use finstack_quant_cashflows::aggregation::DateContext;
+use finstack_quant_cashflows::builder::{PeriodDataFrameOptions, PvDiscountSource};
 use finstack_quant_cashflows::builder::{
     CashFlowSchedule, CouponType, FixedCouponSpec, ScheduleParams,
 };
 use finstack_quant_cashflows::{AccrualConfig, AccrualIndex};
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
+use finstack_quant_core::dates::{
+    BusinessDayConvention, Date, DayCount, DayCountContext, StubKind, Tenor,
+};
 use finstack_quant_core::money::Money;
 use rust_decimal_macros::dec;
 use std::hint::black_box;
@@ -191,11 +198,129 @@ fn bench_accrued_per_exercise_date(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_build_overnight_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("scaling_build_overnight_quarterly");
+    let base = fixtures::base_date();
+    let market = fixtures::make_forward_market(base);
+
+    for years in [5i32, 10, 20] {
+        let n = (years * 4) as u64;
+        group.throughput(Throughput::Elements(n));
+        group.bench_with_input(BenchmarkId::from_parameter(n), &years, |b, &y| {
+            b.iter(|| {
+                fixtures::build_overnight(
+                    black_box(base),
+                    black_box(y),
+                    finstack_quant_cashflows::builder::OvernightCompoundingMethod::CompoundedInArrears,
+                    black_box(&market),
+                )
+            });
+        });
+    }
+    group.finish();
+}
+
+fn bench_floating_term_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("scaling_build_floating_term");
+    let base = fixtures::base_date();
+    let market = fixtures::make_forward_market(base);
+
+    for years in [5i32, 10, 20, 40] {
+        let n = (years * 4) as u64;
+        group.throughput(Throughput::Elements(n));
+        group.bench_with_input(BenchmarkId::from_parameter(n), &years, |b, &y| {
+            b.iter(|| {
+                fixtures::build_floating_term(black_box(base), black_box(y), black_box(&market))
+            });
+        });
+    }
+    group.finish();
+}
+
+fn bench_pv_by_period_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("scaling_pv_by_period");
+    let base = fixtures::base_date();
+    let market = fixtures::make_discount_market(base);
+    let disc = market.get_discount("USD-OIS").unwrap();
+
+    for years in [5i32, 10, 20, 40] {
+        let n = (years * 12) as u64;
+        let schedule = fixtures::build_monthly(base, years);
+        let periods = fixtures::make_quarterly_periods(base, (years * 4) as u32 + 4);
+        group.throughput(Throughput::Elements(n));
+        group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
+            b.iter(|| {
+                black_box(&schedule)
+                    .pv_by_period(
+                        black_box(&periods),
+                        PvDiscountSource::Discount {
+                            disc: black_box(disc.as_ref()),
+                            credit: None,
+                        },
+                        DateContext::new(base, DayCount::Act365F, DayCountContext::default()),
+                    )
+                    .unwrap()
+            });
+        });
+    }
+    group.finish();
+}
+
+fn bench_period_dataframe_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("scaling_period_dataframe");
+    let base = fixtures::base_date();
+    let market = fixtures::make_discount_market(base);
+
+    for years in [5i32, 10, 20] {
+        let n = (years * 12) as u64;
+        let schedule = fixtures::build_monthly(base, years);
+        let periods = fixtures::make_quarterly_periods(base, (years * 4) as u32);
+        let options = PeriodDataFrameOptions {
+            as_of: Some(base),
+            day_count: Some(DayCount::Act365F),
+            ..Default::default()
+        };
+        group.throughput(Throughput::Elements(n));
+        group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
+            b.iter(|| {
+                black_box(&schedule)
+                    .to_period_dataframe(
+                        black_box(&periods),
+                        black_box(&market),
+                        "USD-OIS",
+                        black_box(options.clone()),
+                    )
+                    .unwrap()
+            });
+        });
+    }
+    group.finish();
+}
+
+fn bench_outstanding_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("scaling_outstanding_by_date");
+    let base = fixtures::base_date();
+
+    for n in [40usize, 80, 160, 320] {
+        let schedule = fixtures::make_amortizing_schedule(base, n);
+        group.throughput(Throughput::Elements(n as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
+            b.iter(|| black_box(&schedule).outstanding_by_date().unwrap());
+        });
+    }
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_build_scaling,
     bench_adjustment_axes,
+    bench_build_overnight_scaling,
+    bench_floating_term_scaling,
     bench_accrued_single,
     bench_accrued_per_exercise_date,
+    bench_pv_by_period_scaling,
+    bench_period_dataframe_scaling,
+    bench_outstanding_scaling,
 );
 criterion_main!(benches);

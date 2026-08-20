@@ -52,13 +52,6 @@ fn canonical_envelope() -> AttributionResultEnvelope {
 }
 
 #[test]
-fn attribution_result_without_optional_credit_detail_validates() {
-    let instance = serde_json::to_value(canonical_envelope()).expect("serialize canonical result");
-    validate(&instance, &attribution_result_schema())
-        .unwrap_or_else(|error| panic!("canonical attribution result failed validation:\n{error}"));
-}
-
-#[test]
 fn attribution_result_with_credit_detail_validates() {
     let mut envelope = canonical_envelope();
     envelope.result.attribution.credit_factor_detail = Some(CreditFactorAttribution {

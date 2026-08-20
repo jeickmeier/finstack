@@ -381,54 +381,12 @@ fn test_attribution_result_envelope_roundtrip() {
 // Attribution Type Serialization Tests
 
 #[test]
-fn test_attribution_method_parallel_roundtrip() {
-    let method = AttributionMethod::Parallel;
-    let json = serde_json::to_string(&method).unwrap();
-    assert_eq!(json, "\"parallel\"");
-    let deserialized: AttributionMethod = serde_json::from_str(&json).unwrap();
-
-    assert!(matches!(deserialized, AttributionMethod::Parallel));
+fn attribution_method_rejects_pascal_case_wire() {
     assert!(serde_json::from_str::<AttributionMethod>("\"Parallel\"").is_err());
 }
 
 #[test]
-fn test_attribution_method_waterfall_roundtrip() {
-    let method = AttributionMethod::Waterfall(vec![
-        AttributionFactor::Carry,
-        AttributionFactor::RatesCurves,
-        AttributionFactor::CreditCurves,
-    ]);
-
-    let json = serde_json::to_string(&method).unwrap();
-    let deserialized: AttributionMethod = serde_json::from_str(&json).unwrap();
-
-    if let AttributionMethod::Waterfall(factors) = deserialized {
-        assert_eq!(factors.len(), 3);
-        assert_eq!(factors[0], AttributionFactor::Carry);
-        assert_eq!(factors[1], AttributionFactor::RatesCurves);
-        assert_eq!(factors[2], AttributionFactor::CreditCurves);
-    } else {
-        panic!("Expected Waterfall variant");
-    }
-}
-
-#[test]
-fn test_attribution_method_metrics_based_roundtrip() {
-    let method = AttributionMethod::MetricsBased;
-    let json = serde_json::to_string(&method).unwrap();
-    let deserialized: AttributionMethod = serde_json::from_str(&json).unwrap();
-
-    assert!(matches!(deserialized, AttributionMethod::MetricsBased));
-}
-
-#[test]
-fn test_execution_policy_roundtrip() {
-    let policy = ExecutionPolicy::Serial;
-    let json = serde_json::to_string(&policy).unwrap();
-    assert_eq!(json, "\"serial\"");
-
-    let deserialized: ExecutionPolicy = serde_json::from_str(&json).unwrap();
-    assert_eq!(deserialized, ExecutionPolicy::Serial);
+fn execution_policy_default_is_parallel() {
     assert_eq!(ExecutionPolicy::default(), ExecutionPolicy::Parallel);
 }
 

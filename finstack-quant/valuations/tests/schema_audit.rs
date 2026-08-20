@@ -1,93 +1,55 @@
 //! Schema tests: verify every instrument example() serializes to valid JSON
 //! and roundtrips through InstrumentEnvelope serde.
 
-use finstack_quant_valuations::instruments::json_loader::{InstrumentEnvelope, InstrumentJson};
-
-macro_rules! test_roundtrip {
-    (plain: $test_name:ident, $variant:ident, $expr:expr) => {
-        #[test]
-        #[allow(clippy::expect_used)]
-        fn $test_name() {
-            let envelope = InstrumentEnvelope {
-                schema:
-                    finstack_quant_valuations::instruments::json_loader::InstrumentSchema::CURRENT,
-                instrument: InstrumentJson::$variant($expr),
-            };
-            let json = serde_json::to_string(&envelope).expect("serialize");
-            let parsed: InstrumentEnvelope = serde_json::from_str(&json).expect("deserialize");
-            assert_eq!(parsed.schema.as_str(), "finstack_quant.instrument/1");
-            // Re-serialize and verify stability
-            let json2 = serde_json::to_string(&parsed).expect("re-serialize");
-            assert_eq!(json, json2, "roundtrip should be stable");
-        }
-    };
-    (boxed: $test_name:ident, $variant:ident, $expr:expr) => {
-        #[test]
-        #[allow(clippy::expect_used)]
-        fn $test_name() {
-            let envelope = InstrumentEnvelope {
-                schema:
-                    finstack_quant_valuations::instruments::json_loader::InstrumentSchema::CURRENT,
-                instrument: InstrumentJson::$variant(Box::new($expr)),
-            };
-            let json = serde_json::to_string(&envelope).expect("serialize");
-            let parsed: InstrumentEnvelope = serde_json::from_str(&json).expect("deserialize");
-            assert_eq!(parsed.schema.as_str(), "finstack_quant.instrument/1");
-            let json2 = serde_json::to_string(&parsed).expect("re-serialize");
-            assert_eq!(json, json2, "roundtrip should be stable");
-        }
-    };
-}
+use finstack_quant_valuations::instruments::json_loader::{
+    instrument_registry, InstrumentEnvelope, InstrumentJson, InstrumentSchema,
+};
+use finstack_quant_valuations::instruments::{AgencyCmo, CDSOption};
 
 mod schema_roundtrip {
     use super::*;
-    use finstack_quant_valuations::instruments::*;
     use serde_json::Value;
     use std::path::Path;
 
-    // Fixed Income
-    test_roundtrip!(plain: bond, Bond, Bond::example().expect("bond"));
-    test_roundtrip!(plain: convertible_bond, ConvertibleBond, ConvertibleBond::example().expect("cb"));
-    test_roundtrip!(plain: inflation_linked_bond, InflationLinkedBond, InflationLinkedBond::example());
-    test_roundtrip!(plain: term_loan, TermLoan, TermLoan::example().expect("tl"));
-    test_roundtrip!(plain: revolving_credit, RevolvingCredit, RevolvingCredit::example().expect("rc"));
-    test_roundtrip!(boxed: bond_future, BondFuture, BondFuture::example().expect("bf"));
-    test_roundtrip!(plain: agency_mbs_passthrough, AgencyMbsPassthrough, AgencyMbsPassthrough::example().expect("mbs"));
-    test_roundtrip!(plain: agency_tba, AgencyTba, AgencyTba::example().expect("tba"));
-    test_roundtrip!(plain: agency_cmo, AgencyCmo, AgencyCmo::example().expect("cmo"));
-    test_roundtrip!(plain: agency_cmo_accrual, AgencyCmo, AgencyCmo::example_accrual().expect("cmo z"));
-    test_roundtrip!(plain: dollar_roll, DollarRoll, DollarRoll::example().expect("dr"));
-    test_roundtrip!(plain: trs_fixed_income_index, TrsFixedIncomeIndex, FIIndexTotalReturnSwap::example().expect("fitrs"));
-    test_roundtrip!(boxed: structured_credit, StructuredCredit, StructuredCredit::example());
+    fn assert_envelope_roundtrip_stable(label: &str, envelope: &InstrumentEnvelope) {
+        assert_eq!(
+            envelope.schema.as_str(),
+            "finstack_quant.instrument/1",
+            "{label}: schema"
+        );
+        let json = serde_json::to_string(envelope).expect("serialize");
+        let parsed: InstrumentEnvelope = serde_json::from_str(&json).expect("deserialize");
+        let json2 = serde_json::to_string(&parsed).expect("re-serialize");
+        assert_eq!(json, json2, "{label}: roundtrip should be stable");
+    }
 
-    // Rates
-    test_roundtrip!(plain: interest_rate_swap, InterestRateSwap, InterestRateSwap::example_standard().expect("irs"));
-    test_roundtrip!(plain: basis_swap, BasisSwap, BasisSwap::example().expect("bs"));
-    test_roundtrip!(plain: xccy_swap, XccySwap, XccySwap::example());
-    test_roundtrip!(plain: inflation_swap, InflationSwap, InflationSwap::example());
-    test_roundtrip!(plain: yoy_inflation_swap, YoYInflationSwap, YoYInflationSwap::example());
-    test_roundtrip!(plain: inflation_cap_floor, InflationCapFloor, InflationCapFloor::example());
-    test_roundtrip!(plain: forward_rate_agreement, ForwardRateAgreement, ForwardRateAgreement::example().expect("fra"));
-    test_roundtrip!(plain: swaption, Swaption, Swaption::example());
-    test_roundtrip!(plain: bermudan_swaption, BermudanSwaption, BermudanSwaption::example());
-    test_roundtrip!(plain: interest_rate_future, InterestRateFuture, InterestRateFuture::example().expect("irf"));
-    test_roundtrip!(plain: cap_floor, CapFloor, CapFloor::example().expect("cap floor"));
-    test_roundtrip!(plain: cms_option, CmsOption, CmsOption::example());
-    test_roundtrip!(plain: cms_spread_option, CmsSpreadOption, CmsSpreadOption::example());
-    test_roundtrip!(plain: cms_swap, CmsSwap, CmsSwap::example());
-    test_roundtrip!(plain: interest_rate_future_option, InterestRateFutureOption, InterestRateFutureOption::example().expect("interest-rate future option"));
-    test_roundtrip!(plain: deposit, Deposit, Deposit::example().expect("dep"));
-    test_roundtrip!(plain: repo, Repo, Repo::example());
-    test_roundtrip!(plain: range_accrual, RangeAccrual, RangeAccrual::example());
-    test_roundtrip!(boxed: callable_range_accrual, CallableRangeAccrual, CallableRangeAccrual::example());
-    test_roundtrip!(plain: snowball, Snowball, Snowball::example_snowball());
-    test_roundtrip!(plain: tarn, Tarn, Tarn::example());
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn every_registry_example_envelope_roundtrips_stably() {
+        for entry in instrument_registry() {
+            let examples = entry
+                .examples()
+                .unwrap_or_else(|err| panic!("{}: generate examples: {err}", entry.tag));
+            assert!(
+                !examples.is_empty(),
+                "{}: registry example list is empty",
+                entry.tag
+            );
+            for (idx, example) in examples.into_iter().enumerate() {
+                let envelope: InstrumentEnvelope = serde_json::from_value(example)
+                    .unwrap_or_else(|err| panic!("{}[{idx}]: deserialize: {err}", entry.tag));
+                assert_envelope_roundtrip_stable(&format!("{}[{idx}]", entry.tag), &envelope);
+            }
+        }
 
-    // Credit
-    test_roundtrip!(plain: credit_default_swap, CreditDefaultSwap, CreditDefaultSwap::example());
-    test_roundtrip!(plain: cds_index, CDSIndex, CDSIndex::example());
-    test_roundtrip!(plain: cds_tranche, CDSTranche, CDSTranche::example());
-    test_roundtrip!(plain: cds_option, CDSOption, CDSOption::example().expect("cdso"));
+        let accrual = InstrumentEnvelope {
+            schema: InstrumentSchema::CURRENT,
+            instrument: InstrumentJson::AgencyCmo(
+                AgencyCmo::example_accrual().expect("cmo accrual example"),
+            ),
+        };
+        assert_envelope_roundtrip_stable("agency_cmo_accrual", &accrual);
+    }
 
     #[test]
     #[allow(clippy::expect_used)]
@@ -121,53 +83,6 @@ mod schema_roundtrip {
             serde_json::to_string_pretty(&canonical).expect("pretty canonical json")
         );
     }
-
-    // Equity
-    test_roundtrip!(plain: equity, Equity, Equity::example());
-    test_roundtrip!(plain: equity_option, EquityOption, EquityOption::example().expect("eqopt"));
-    test_roundtrip!(plain: autocallable, Autocallable, Autocallable::example().expect("auto"));
-    test_roundtrip!(plain: cliquet_option, CliquetOption, CliquetOption::example().expect("cliq"));
-    test_roundtrip!(plain: variance_swap, VarianceSwap, VarianceSwap::example().expect("vs"));
-    test_roundtrip!(plain: equity_future, EquityFuture, EquityFuture::example().expect("equity future"));
-    test_roundtrip!(plain: equity_future_option, EquityFutureOption, EquityFutureOption::example().expect("equity future option"));
-    test_roundtrip!(plain: volatility_index_future, VolatilityIndexFuture, VolatilityIndexFuture::example().expect("vif"));
-    test_roundtrip!(plain: commodity_future, CommodityFuture, CommodityFuture::example().expect("commodity future"));
-    test_roundtrip!(plain: commodity_future_option, CommodityFutureOption, CommodityFutureOption::example().expect("commodity future option"));
-    test_roundtrip!(plain: fx_future, FxFuture, FxFuture::example().expect("fx future"));
-    test_roundtrip!(plain: fx_future_option, FxFutureOption, FxFutureOption::example().expect("FX future option"));
-    test_roundtrip!(plain: equity_total_return_future, EquityTotalReturnFuture, EquityTotalReturnFuture::example().expect("trf"));
-    test_roundtrip!(plain: trs_equity, TrsEquity, EquityTotalReturnSwap::example().expect("etrs"));
-    test_roundtrip!(plain: private_markets_fund, PrivateMarketsFund, PrivateMarketsFund::example().expect("pmf"));
-    test_roundtrip!(plain: real_estate_asset, RealEstateAsset, RealEstateAsset::example().expect("rea"));
-    test_roundtrip!(plain: discounted_cash_flow, DiscountedCashFlow, DiscountedCashFlow::example().expect("dcf"));
-    test_roundtrip!(boxed: levered_real_estate_equity, LeveredRealEstateEquity,
-        finstack_quant_valuations::instruments::equity::real_estate::LeveredRealEstateEquity::example().expect("lre"));
-
-    // FX
-    test_roundtrip!(plain: fx_spot, FxSpot, FxSpot::example().expect("fxs"));
-    test_roundtrip!(plain: fx_swap, FxSwap, FxSwap::example());
-    test_roundtrip!(plain: fx_forward, FxForward, FxForward::example().expect("fxf"));
-    test_roundtrip!(plain: ndf, Ndf, Ndf::example());
-    test_roundtrip!(plain: fx_option, FxOption, FxOption::example().expect("fxo"));
-    test_roundtrip!(plain: fx_digital_option, FxDigitalOption, FxDigitalOption::example().expect("fxdo"));
-    test_roundtrip!(plain: fx_touch_option, FxTouchOption, FxTouchOption::example().expect("fxto"));
-    test_roundtrip!(plain: fx_barrier_option, FxBarrierOption, FxBarrierOption::example());
-    test_roundtrip!(plain: fx_variance_swap, FxVarianceSwap, FxVarianceSwap::example());
-    test_roundtrip!(plain: quanto_option, QuantoOption, QuantoOption::example());
-
-    // Commodity
-    test_roundtrip!(plain: commodity_option, CommodityOption, CommodityOption::example());
-    test_roundtrip!(plain: commodity_asian_option, CommodityAsianOption, CommodityAsianOption::example());
-    test_roundtrip!(plain: commodity_forward, CommodityForward, CommodityForward::example());
-    test_roundtrip!(plain: commodity_swap, CommoditySwap, CommoditySwap::example());
-    test_roundtrip!(plain: commodity_swaption, CommoditySwaption, CommoditySwaption::example());
-    test_roundtrip!(plain: commodity_spread_option, CommoditySpreadOption, CommoditySpreadOption::example().expect("cso"));
-
-    // Exotics
-    test_roundtrip!(plain: asian_option, AsianOption, AsianOption::example().expect("ao"));
-    test_roundtrip!(plain: barrier_option, BarrierOption, BarrierOption::example().expect("bo"));
-    test_roundtrip!(plain: lookback_option, LookbackOption, LookbackOption::example().expect("lo"));
-    test_roundtrip!(plain: basket, Basket, Basket::example().expect("bsk"));
 }
 
 mod generated_schema_contract {

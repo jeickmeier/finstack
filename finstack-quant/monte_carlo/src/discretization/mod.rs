@@ -32,3 +32,79 @@ pub use qe_heston::QeHeston;
 pub use rough_bergomi::RoughBergomiEuler;
 pub use rough_heston::RoughHestonHybrid;
 pub use schwartz_smith::ExactSchwartzSmith;
+
+#[cfg(test)]
+mod work_size_contract {
+    use super::lmm_predictor_corrector::LmmPredictorCorrector;
+    use super::{CheyetteRoughEuler, ExactGbm, RoughBergomiEuler, RoughHestonHybrid};
+    use crate::process::cheyette_rough::{CheyetteRoughVolParams, CheyetteRoughVolProcess};
+    use crate::process::gbm::{GbmParams, GbmProcess};
+    use crate::process::lmm::{LmmParams, LmmProcess};
+    use crate::process::rough_bergomi::{RoughBergomiParams, RoughBergomiProcess};
+    use crate::process::rough_heston::{RoughHestonParams, RoughHestonProcess};
+    use crate::traits::Discretization;
+    use finstack_quant_core::market_data::term_structures::ForwardVarianceCurve;
+    use finstack_quant_core::math::fractional::HurstExponent;
+
+    #[test]
+    fn work_size_matches_scheme_layout() {
+        let hurst = HurstExponent::new(0.1).expect("valid hurst");
+
+        let gbm = GbmProcess::new(GbmParams::new(0.05, 0.02, 0.2).expect("valid gbm"));
+        assert_eq!(ExactGbm::new().work_size(&gbm), 0);
+
+        let cheyette = CheyetteRoughVolProcess::new(
+            CheyetteRoughVolParams::new(
+                0.03,
+                ForwardVarianceCurve::flat(0.005).expect("valid flat curve"),
+                hurst,
+                1.5,
+                -0.3,
+                &[(0.0, 0.02), (10.0, 0.03)],
+            )
+            .expect("valid cheyette"),
+        );
+        assert_eq!(CheyetteRoughEuler::new(hurst).work_size(&cheyette), 1);
+
+        let bergomi = RoughBergomiProcess::new(
+            RoughBergomiParams::new(
+                0.05,
+                0.02,
+                hurst,
+                1.9,
+                -0.9,
+                ForwardVarianceCurve::flat(0.04).expect("valid flat curve"),
+            )
+            .expect("valid bergomi"),
+        );
+        assert_eq!(RoughBergomiEuler::new(hurst).work_size(&bergomi), 1);
+
+        let lmm = LmmProcess::new(
+            LmmParams::try_new(
+                3,
+                2,
+                vec![0.0, 1.0, 2.0, 3.0],
+                vec![1.0, 1.0, 1.0],
+                vec![0.005, 0.005, 0.005],
+                vec![],
+                vec![vec![
+                    [0.15, 0.05, 0.0],
+                    [0.12, 0.08, 0.0],
+                    [0.10, 0.10, 0.0],
+                ]],
+                vec![0.03, 0.03, 0.03],
+            )
+            .expect("valid lmm"),
+        );
+        assert_eq!(LmmPredictorCorrector::new().work_size(&lmm), 9);
+
+        let heston = RoughHestonProcess::new(
+            RoughHestonParams::new(0.05, 0.02, hurst, 2.0, 0.04, 0.3, -0.7, 0.04)
+                .expect("valid heston"),
+        );
+        let times: Vec<f64> = (0..=50).map(|i| i as f64 / 50.0).collect();
+        let hybrid = RoughHestonHybrid::new(&times, 0.1).expect("valid hybrid");
+        // 50 drift-rate slots + 50 noise slots + 1 counter
+        assert_eq!(hybrid.work_size(&heston), 101);
+    }
+}

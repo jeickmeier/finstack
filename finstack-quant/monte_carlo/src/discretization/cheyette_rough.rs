@@ -426,14 +426,6 @@ mod tests {
     }
 
     #[test]
-    fn test_work_size() {
-        let process = make_process();
-        let disc = CheyetteRoughEuler::new(HurstExponent::new(0.1).expect("valid hurst"));
-
-        assert_eq!(disc.work_size(&process), 1);
-    }
-
-    #[test]
     fn test_multiple_steps_no_nan() {
         let process = make_process();
         let disc = CheyetteRoughEuler::new(HurstExponent::new(0.1).expect("valid hurst"));

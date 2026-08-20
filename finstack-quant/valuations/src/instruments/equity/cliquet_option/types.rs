@@ -429,20 +429,6 @@ mod validation_tests {
     use finstack_quant_core::dates::DayCount;
 
     #[test]
-    fn dividend_yield_dependency_is_a_market_scalar() {
-        let dividend_id = CurveId::new("SPX-DIV");
-        let mut option = CliquetOption::example().expect("example");
-        option.div_yield_id = Some(dividend_id.clone());
-        let deps =
-            crate::instruments::Instrument::market_dependencies(&option).expect("dependencies");
-
-        assert!(deps
-            .market_scalar_ids
-            .contains(&dividend_id.as_str().to_string()));
-        assert!(deps.series_ids.is_empty());
-    }
-
-    #[test]
     fn builder_rejects_empty_reset_dates() {
         let result = CliquetOption::builder()
             .id(InstrumentId::new("CLIQ-EMPTY"))

@@ -578,65 +578,6 @@ mod validation_tests {
     }
 
     #[test]
-    fn dividend_yield_dependency_is_a_market_scalar() {
-        let dividend_id = CurveId::new("SPX-DIV");
-        let autocall = base_builder()
-            .div_yield_id_opt(Some(dividend_id.clone()))
-            .build()
-            .expect("valid autocallable");
-        let deps =
-            crate::instruments::Instrument::market_dependencies(&autocall).expect("dependencies");
-
-        assert!(deps
-            .market_scalar_ids
-            .contains(&dividend_id.as_str().to_string()));
-        assert!(deps.series_ids.is_empty());
-    }
-
-    #[test]
-    fn focused_overrides_use_canonical_wire_shape() {
-        let mut autocall = base_builder().build().expect("valid autocallable");
-        autocall.instrument_pricing_overrides.model_config.mc_paths = Some(12_345);
-        autocall.metric_pricing_overrides.mc_seed_scenario = Some("delta_up".to_string());
-        autocall.scenario_pricing_overrides.scenario_price_shock_pct = Some(-0.08);
-
-        let value = serde_json::to_value(&autocall).expect("serialize focused overrides");
-        assert_eq!(
-            value.pointer("/instrument_pricing_overrides/model_config/mc_paths"),
-            Some(&serde_json::json!(12_345))
-        );
-        assert_eq!(
-            value.pointer("/metric_pricing_overrides/mc_seed_scenario"),
-            Some(&serde_json::json!("delta_up"))
-        );
-        assert_eq!(
-            value.pointer("/scenario_pricing_overrides/scenario_price_shock_pct"),
-            Some(&serde_json::json!(-0.08))
-        );
-        assert!(value.get("pricing_overrides").is_none());
-
-        let roundtrip: Autocallable =
-            serde_json::from_value(value).expect("deserialize canonical wire");
-        assert_eq!(
-            roundtrip.instrument_pricing_overrides.model_config.mc_paths,
-            Some(12_345)
-        );
-        assert_eq!(
-            roundtrip
-                .metric_pricing_overrides
-                .mc_seed_scenario
-                .as_deref(),
-            Some("delta_up")
-        );
-        assert_eq!(
-            roundtrip
-                .scenario_pricing_overrides
-                .scenario_price_shock_pct,
-            Some(-0.08)
-        );
-    }
-
-    #[test]
     fn builder_rejects_empty_observation_dates() {
         let result = base_builder().observation_dates(vec![]).build();
         assert!(result.is_err(), "empty observation_dates must be rejected");

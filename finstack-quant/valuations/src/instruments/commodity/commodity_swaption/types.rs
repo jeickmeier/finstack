@@ -894,55 +894,6 @@ mod tests {
         assert_eq!(swaption.fixed_price, deserialized.fixed_price);
     }
 
-    #[test]
-    fn focused_overrides_use_canonical_wire_shape() {
-        let mut swaption = CommoditySwaption::example();
-        swaption
-            .instrument_pricing_overrides
-            .market_quotes
-            .implied_volatility = Some(0.31);
-        swaption.metric_pricing_overrides.mc_seed_scenario = Some("vega_up".to_string());
-        swaption.scenario_pricing_overrides.scenario_price_shock_pct = Some(-0.05);
-
-        let value = serde_json::to_value(&swaption).expect("serialize focused overrides");
-        assert_eq!(
-            value.pointer("/instrument_pricing_overrides/market_quotes/implied_volatility"),
-            Some(&serde_json::json!(0.31))
-        );
-        assert_eq!(
-            value.pointer("/metric_pricing_overrides/mc_seed_scenario"),
-            Some(&serde_json::json!("vega_up"))
-        );
-        assert_eq!(
-            value.pointer("/scenario_pricing_overrides/scenario_price_shock_pct"),
-            Some(&serde_json::json!(-0.05))
-        );
-        assert!(value.get("pricing_overrides").is_none());
-
-        let roundtrip: CommoditySwaption =
-            serde_json::from_value(value).expect("deserialize canonical wire");
-        assert_eq!(
-            roundtrip
-                .instrument_pricing_overrides
-                .market_quotes
-                .implied_volatility,
-            Some(0.31)
-        );
-        assert_eq!(
-            roundtrip
-                .metric_pricing_overrides
-                .mc_seed_scenario
-                .as_deref(),
-            Some("vega_up")
-        );
-        assert_eq!(
-            roundtrip
-                .scenario_pricing_overrides
-                .scenario_price_shock_pct,
-            Some(-0.05)
-        );
-    }
-
     /// W-02 / M-commodity-averaging: `forward_swap_rate` must use the
     /// **period-average** forward over each half-open settlement window —
     /// the same business-day average the underlying floating leg settles on

@@ -11,7 +11,6 @@ use finstack_quant_valuations::instruments::ExerciseStyle;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::OptionType;
 use finstack_quant_valuations::instruments::SettlementType;
-use finstack_quant_valuations::pricer::InstrumentType;
 use rust_decimal::Decimal;
 use time::macros::date;
 
@@ -49,25 +48,6 @@ fn test_cds_option_construction() {
     assert_eq!(option.discount_curve_id.as_str(), "USD-OIS");
     assert_eq!(option.credit_curve_id.as_str(), "HZ-CORP");
     assert_eq!(option.vol_surface_id.as_str(), "CDS-VOL");
-}
-
-#[test]
-fn test_instrument_trait_implementation() {
-    let as_of = date!(2025 - 01 - 01);
-    let option = CDSOptionBuilder::new().build(as_of);
-
-    assert_eq!(option.id(), "CDSOPT-TEST");
-    assert_eq!(option.key(), InstrumentType::CdsOption);
-}
-
-#[test]
-fn test_instrument_clone_box() {
-    let as_of = date!(2025 - 01 - 01);
-    let option = CDSOptionBuilder::new().build(as_of);
-
-    let boxed = option.clone_box();
-    assert_eq!(boxed.id(), option.id());
-    assert_eq!(boxed.key(), option.key());
 }
 
 #[test]

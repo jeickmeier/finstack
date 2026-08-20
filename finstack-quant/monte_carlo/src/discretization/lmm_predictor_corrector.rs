@@ -298,12 +298,4 @@ mod tests {
             "dead forward 1 should be frozen"
         );
     }
-
-    #[test]
-    fn test_work_size() {
-        let params = simple_params();
-        let process = LmmProcess::new(params);
-        let disc = LmmPredictorCorrector::new();
-        assert_eq!(disc.work_size(&process), 9); // 3 * 3
-    }
 }

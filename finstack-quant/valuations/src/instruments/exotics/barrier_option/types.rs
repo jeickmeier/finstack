@@ -302,20 +302,6 @@ mod tests {
     use finstack_quant_core::money::Money;
 
     #[test]
-    fn dividend_yield_dependency_is_a_market_scalar() {
-        let dividend_id = finstack_quant_core::types::CurveId::new("SPX-DIV");
-        let mut option = super::BarrierOption::example().expect("example");
-        option.div_yield_id = Some(dividend_id.clone());
-        let deps =
-            crate::instruments::Instrument::market_dependencies(&option).expect("dependencies");
-
-        assert!(deps
-            .market_scalar_ids
-            .contains(&dividend_id.as_str().to_string()));
-        assert!(deps.series_ids.is_empty());
-    }
-
-    #[test]
     fn expired_barrier_requires_observed_state() {
         let mut option = super::BarrierOption::example().expect("BarrierOption example is valid");
         option.use_gobet_miri = false;

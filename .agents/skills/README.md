@@ -22,6 +22,7 @@ Skills use the shared Agent Skills layout: one directory per skill, each with a
 - GitHub Copilot discovers `.agents/skills` for agent mode, the CLI, and cloud
   agents.
 - Claude Code discovers `.claude/skills`, which is a symlink to this directory.
+  Project instructions load via `CLAUDE.md` (`@AGENTS.md`).
 
 Three tracked symlinks give the same trees their host-specific spellings:
 

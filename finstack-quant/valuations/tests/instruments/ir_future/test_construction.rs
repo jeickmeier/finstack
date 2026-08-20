@@ -260,14 +260,3 @@ fn test_attributes() {
         Some(&"test_value".to_string())
     );
 }
-
-#[test]
-fn test_clone_box() {
-    use finstack_quant_valuations::instruments::Instrument;
-
-    let (_, start, end) = standard_dates();
-    let future = create_standard_future(start, end);
-
-    let boxed = future.clone_box();
-    assert_eq!(boxed.id(), "IRF_TEST");
-}

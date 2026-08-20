@@ -202,7 +202,6 @@ The authoritative contract, including every known gap, is
 | [`tests/performance_smoke.rs`](tests/performance_smoke.rs) | End-to-end `Performance` construction and metric coverage |
 | [`tests/correctness_regressions.rs`](tests/correctness_regressions.rs) | Hand-checked metric values pinned to `1e-12` |
 | [`tests/correlation_validator_agreement.rs`](tests/correlation_validator_agreement.rs) | `correlation::validate_correlation_matrix` agrees with core's `math::linalg` validator |
-| [`tests/serde_roundtrip.rs`](tests/serde_roundtrip.rs) | Result-type JSON round-trips, including non-finite fields |
 | [`benches/analytics_hot_paths.rs`](benches/analytics_hot_paths.rs) | Criterion benches for the hot scalar and rolling paths |
 
 ## References

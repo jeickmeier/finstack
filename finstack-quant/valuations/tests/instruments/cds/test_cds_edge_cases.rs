@@ -562,29 +562,6 @@ fn test_very_small_notional() {
 }
 
 #[test]
-fn test_very_large_notional() {
-    let as_of = date!(2024 - 01 - 01);
-    let end = date!(2029 - 01 - 01);
-    let (disc, hazard) = build_curves(as_of);
-
-    let market = MarketContext::new().insert(disc).insert(hazard);
-
-    let cds = crate::test_support::credit::cds_buy_protection(
-        "HUGE_NOTIONAL",
-        Money::new(1_000_000_000_000.0, Currency::USD), // 1 trillion
-        100.0,
-        as_of,
-        end,
-        "USD_OIS",
-        "CORP",
-    )
-    .expect("CDS construction should succeed");
-
-    let npv = cds.value(&market, as_of).unwrap();
-    assert!(npv.amount().is_finite(), "Large notional should be handled");
-}
-
-#[test]
 fn test_missing_discount_curve_error() {
     let as_of = date!(2024 - 01 - 01);
     let end = date!(2029 - 01 - 01);

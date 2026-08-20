@@ -800,55 +800,6 @@ mod tests {
     }
 
     #[test]
-    fn focused_overrides_use_canonical_wire_shape() {
-        let mut forward = FxForward::example().expect("valid FX forward");
-        forward
-            .instrument_pricing_overrides
-            .market_quotes
-            .implied_volatility = Some(0.17);
-        forward.metric_pricing_overrides.mc_seed_scenario = Some("rho_up".to_string());
-        forward.scenario_pricing_overrides.scenario_price_shock_pct = Some(-0.03);
-
-        let value = serde_json::to_value(&forward).expect("serialize focused overrides");
-        assert_eq!(
-            value.pointer("/instrument_pricing_overrides/market_quotes/implied_volatility"),
-            Some(&serde_json::json!(0.17))
-        );
-        assert_eq!(
-            value.pointer("/metric_pricing_overrides/mc_seed_scenario"),
-            Some(&serde_json::json!("rho_up"))
-        );
-        assert_eq!(
-            value.pointer("/scenario_pricing_overrides/scenario_price_shock_pct"),
-            Some(&serde_json::json!(-0.03))
-        );
-        assert!(value.get("pricing_overrides").is_none());
-
-        let roundtrip: FxForward =
-            serde_json::from_value(value).expect("deserialize canonical wire");
-        assert_eq!(
-            roundtrip
-                .instrument_pricing_overrides
-                .market_quotes
-                .implied_volatility,
-            Some(0.17)
-        );
-        assert_eq!(
-            roundtrip
-                .metric_pricing_overrides
-                .mc_seed_scenario
-                .as_deref(),
-            Some("rho_up")
-        );
-        assert_eq!(
-            roundtrip
-                .scenario_pricing_overrides
-                .scenario_price_shock_pct,
-            Some(-0.03)
-        );
-    }
-
-    #[test]
     fn test_validation_same_currency_fails() {
         let forward = FxForward {
             id: InstrumentId::new("TEST"),

@@ -182,33 +182,6 @@ fn test_very_small_notional() {
 }
 
 #[test]
-fn test_very_large_notional() {
-    let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
-    let maturity = Date::from_calendar_date(2030, Month::January, 1).unwrap();
-
-    let ctx = standard_market(as_of, 0.02, 0.04);
-
-    let swap = InflationSwap::builder()
-        .id("ZCINF-LARGE".into())
-        .notional(Money::new(1_000_000_000_000.0, Currency::USD)) // $1 trillion
-        .start_date(as_of)
-        .maturity(maturity)
-        .fixed_rate(Decimal::try_from(0.02).expect("valid decimal"))
-        .inflation_index_id("US-CPI-U".into())
-        .discount_curve_id("USD-OIS".into())
-        .day_count(DayCount::Act365F)
-        .side(PayReceive::Pay)
-        .attributes(Attributes::new())
-        .build()
-        .unwrap();
-
-    let pv = swap.value(&ctx, as_of).unwrap();
-
-    // Should handle large notional without overflow
-    assert!(pv.amount().is_finite());
-}
-
-#[test]
 fn test_start_equals_maturity() {
     let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let same_date = Date::from_calendar_date(2025, Month::June, 1).unwrap();

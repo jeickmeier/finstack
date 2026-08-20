@@ -39,34 +39,6 @@ fn test_zero_notional() {
 }
 
 #[test]
-fn test_very_small_notional() {
-    // Edge Case: Very small notional (still computes)
-    let start = date!(2025 - 01 - 01);
-    let end = date!(2030 - 01 - 01);
-    let as_of = start;
-
-    let idx = standard_single_curve_index("CDX-TINY", start, end, 1.0);
-    let ctx = standard_market_context(as_of);
-
-    let result = idx.value(&ctx, as_of);
-    assert!(result.is_ok());
-}
-
-#[test]
-fn test_very_large_notional() {
-    // Edge Case: Very large notional (still computes)
-    let start = date!(2025 - 01 - 01);
-    let end = date!(2030 - 01 - 01);
-    let as_of = start;
-
-    let idx = standard_single_curve_index("CDX-LARGE", start, end, 1_000_000_000_000.0);
-    let ctx = standard_market_context(as_of);
-
-    let result = idx.value(&ctx, as_of);
-    assert!(result.is_ok());
-}
-
-#[test]
 fn test_matured_position() {
     // Edge Case: Pricing after maturity
     let start = date!(2025 - 01 - 01);

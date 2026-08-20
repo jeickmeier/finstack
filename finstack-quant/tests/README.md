@@ -20,12 +20,6 @@ merged. Nine of the fourteen domain crates publish schema artifacts — `core`,
 `statements` and `valuations` — and `domain_registries()` in `../src/schema.rs`
 is the list.
 
-The umbrella crate also carries a small `#[cfg(test)]` module in
-[`../src/lib.rs`](../src/lib.rs) (`umbrella_surface`) that pins the re-export
-surface: attribution types named in public `portfolio` and `scenarios`
-signatures must be reachable through `finstack_quant::attribution`. That one is
-a `--lib` test, not an integration test.
-
 ## What `schema_projection.rs` asserts
 
 The corpus is assembled from `finstack_quant::schema::documents_by_id()` and

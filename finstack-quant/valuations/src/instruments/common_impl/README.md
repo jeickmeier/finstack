@@ -207,7 +207,7 @@ The parts this directory owns:
 There is no `tests/instruments/common_impl/` directory. This layer is covered
 by unit tests colocated in `#[cfg(test)]` modules here, and by the
 cross-cutting contract tests in the `instruments` integration target:
-`registry_coverage.rs`, `serde_contract.rs`, `serde_skip_guard.rs`, the five
+`registry_coverage.rs`, `serde_skip_guard.rs`, the five
 `*_dependency_completeness.rs` files, and `cashflow_export_schema` (its own
 target).
 
@@ -217,7 +217,6 @@ cargo nextest run -p finstack-quant-valuations --test instruments
 
 # the contract tests this layer is judged by
 cargo nextest run -p finstack-quant-valuations --test instruments dependency_completeness
-cargo nextest run -p finstack-quant-valuations --test instruments serde_contract
 cargo nextest run -p finstack-quant-valuations --test cashflow_export_schema
 
 # unit tests colocated under src/

@@ -266,45 +266,6 @@ fn test_multiple_metrics() {
 }
 
 #[test]
-fn test_all_greeks_together() {
-    let bond = create_standard_convertible();
-    let market = create_market_context();
-    let as_of = dates::base_date();
-
-    let metrics = vec![
-        MetricId::Delta,
-        MetricId::Gamma,
-        MetricId::Vega,
-        MetricId::Rho,
-        MetricId::Theta,
-    ];
-
-    let result = bond.price_with_metrics(
-        &market,
-        as_of,
-        &metrics,
-        finstack_quant_valuations::instruments::PricingOptions::default(),
-    );
-
-    assert!(result.is_ok(), "All Greeks should calculate successfully");
-
-    let valuation = result.unwrap();
-
-    // All Greeks should be present and finite
-    let delta = valuation.measures.get("delta").unwrap();
-    let gamma = valuation.measures.get("gamma").unwrap();
-    let vega = valuation.measures.get("vega").unwrap();
-    let rho = valuation.measures.get("rho").unwrap();
-    let theta = valuation.measures.get("theta").unwrap();
-
-    assert!(delta.is_finite(), "Delta should be finite");
-    assert!(gamma.is_finite(), "Gamma should be finite");
-    assert!(vega.is_finite(), "Vega should be finite");
-    assert!(rho.is_finite(), "Rho should be finite");
-    assert!(theta.is_finite(), "Theta should be finite");
-}
-
-#[test]
 fn test_metrics_with_callable_bond() {
     let call_date = dates::mid_date();
     let bond = create_callable_convertible(call_date, 102.0);

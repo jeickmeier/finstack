@@ -24,7 +24,8 @@ Not everything doc-shaped is under `docs/`:
 - [`../INVARIANTS.md`](../INVARIANTS.md) — cross-crate numerical and API
   invariants. Normative; cite it rather than restating it.
 - [`../AGENTS.md`](../AGENTS.md) — engineering rules, project structure, the
-  public-API documentation contract, clippy strictness.
+  public-API documentation contract, clippy strictness. Claude Code loads the
+  same file through [`../CLAUDE.md`](../CLAUDE.md) (`@AGENTS.md`).
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — contribution workflow and the
   binding-change checklist.
 - [`../.agents/rules/`](../.agents/rules/) — per-language standards

@@ -1044,35 +1044,6 @@ fn test_asset_exposure_metric_bond() {
 // Instrument Trait Implementation Tests
 
 #[test]
-fn test_instrument_trait_id() {
-    // Arrange
-    let basket = simple_equity_basket();
-    let instrument: &dyn Instrument = &basket;
-
-    // Act
-    let id = instrument.id();
-
-    // Assert
-    assert_eq!(id, "SIMPLE_BASKET");
-}
-
-#[test]
-fn test_instrument_trait_key() {
-    // Arrange
-    let basket = simple_equity_basket();
-    let instrument: &dyn Instrument = &basket;
-
-    // Act
-    let key = instrument.key();
-
-    // Assert
-    assert_eq!(
-        key,
-        finstack_quant_valuations::pricer::InstrumentType::Basket
-    );
-}
-
-#[test]
 fn test_instrument_trait_value() {
     // Arrange
     let basket = simple_equity_basket();
@@ -1088,35 +1059,6 @@ fn test_instrument_trait_value() {
     let money = value.unwrap();
     assert!(money.amount() > 0.0);
     assert_eq!(money.currency(), Currency::USD);
-}
-
-#[test]
-fn test_instrument_trait_attributes() {
-    // Arrange
-    let mut basket = simple_equity_basket();
-    basket
-        .attributes
-        .meta
-        .insert("sector".to_string(), "technology".to_string());
-
-    // Act
-    let attrs = basket.attributes();
-
-    // Assert
-    assert!(attrs.meta.contains_key("sector"));
-}
-
-#[test]
-fn test_instrument_trait_clone_box() {
-    // Arrange
-    let basket = simple_equity_basket();
-    let instrument: &dyn Instrument = &basket;
-
-    // Act
-    let cloned = instrument.clone_box();
-
-    // Assert
-    assert_eq!(cloned.id(), "SIMPLE_BASKET");
 }
 
 // Edge Cases and Error Handling Tests

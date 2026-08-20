@@ -464,16 +464,6 @@ mod tests {
 
     // -- Work size ----------------------------------------------------------
 
-    #[test]
-    fn test_work_size() {
-        let process = make_process();
-        let times = uniform_grid(50, 1.0);
-        let disc = RoughHestonHybrid::new(&times, 0.1).expect("valid");
-
-        // 50 drift-rate slots + 50 noise slots + 1 counter
-        assert_eq!(disc.work_size(&process), 101);
-    }
-
     // -- M8 kernel weights ----------------------------------------------------
 
     /// The singular last-interval noise weight must be variance-exact:

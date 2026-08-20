@@ -5,9 +5,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::scalars::InflationLag;
 use finstack_quant_core::money::Money;
-use finstack_quant_valuations::instruments::rates::inflation_swap::{
-    InflationSwap, InflationSwapBuilder,
-};
+use finstack_quant_valuations::instruments::rates::inflation_swap::InflationSwapBuilder;
 use finstack_quant_valuations::instruments::Attributes;
 use finstack_quant_valuations::instruments::PayReceive;
 use rust_decimal::Decimal;
@@ -214,35 +212,6 @@ fn test_swap_with_attributes() {
 
     assert!(swap.attributes.has_tag("portfolio:hedge_fund_a"));
     assert!(swap.attributes.has_tag("strategy:inflation_protection"));
-}
-
-#[test]
-fn test_instrument_trait_implementations() {
-    use finstack_quant_valuations::instruments::Instrument;
-
-    let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
-    let maturity = Date::from_calendar_date(2030, Month::January, 1).unwrap();
-
-    let swap = InflationSwapBuilder::new()
-        .id("ZCINF-TRAIT".into())
-        .notional(standard_notional())
-        .start_date(as_of)
-        .maturity(maturity)
-        .fixed_rate(Decimal::try_from(0.02).expect("valid decimal"))
-        .inflation_index_id("US-CPI-U".into())
-        .discount_curve_id("USD-OIS".into())
-        .day_count(DayCount::Act365F)
-        .side(PayReceive::Pay)
-        .attributes(Attributes::new())
-        .build()
-        .unwrap();
-
-    assert_eq!(swap.id(), "ZCINF-TRAIT");
-    assert_eq!(
-        swap.key(),
-        finstack_quant_valuations::pricer::InstrumentType::InflationSwap
-    );
-    assert!(swap.as_any().is::<InflationSwap>());
 }
 
 #[test]

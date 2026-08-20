@@ -321,14 +321,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_work_size() {
-        let process = make_process();
-        let disc = RoughBergomiEuler::new(HurstExponent::new(0.1).expect("valid hurst"));
-
-        assert_eq!(disc.work_size(&process), 1);
-    }
-
     // -- rBergomi spot martingale property ---------------------------------
 
     /// Spot martingale test: with `r = q = 0` the discounted spot

@@ -20,11 +20,18 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
+#[path = "support/fixtures.rs"]
+mod fixtures;
+
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use finstack_quant_cashflows::aggregation::{
-    aggregate_by_period, aggregate_cashflows_checked, DateContext,
+    aggregate_by_period, aggregate_cashflows_checked, calendar_year_ladder, DateContext,
 };
 use finstack_quant_cashflows::builder::schedule::merge_cashflow_schedules;
+use finstack_quant_cashflows::{
+    accrued_interest_amount, build_cashflow_schedule_json, dated_flows_json,
+    validate_cashflow_schedule_json, AccrualConfig, AccrualMethod, ExCouponRule,
+};
 use finstack_quant_cashflows::builder::{
     CashFlowMeta, CashFlowSchedule, CouponType, FixedCouponSpec, Notional, PeriodDataFrameOptions,
 };
@@ -518,6 +525,138 @@ fn bench_wal(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_build_floating(c: &mut Criterion) {
+    let mut group = c.benchmark_group("cashflow_build_floating");
+    let base = fixtures::base_date();
+    let market = fixtures::make_forward_market(base);
+
+    group.bench_function("term_5y_q", |b| {
+        b.iter(|| fixtures::build_floating_term(black_box(base), 5, black_box(&market)));
+    });
+    group.bench_function("overnight_arrears_5y_q", |b| {
+        b.iter(|| {
+            fixtures::build_overnight(
+                black_box(base),
+                5,
+                finstack_quant_cashflows::builder::OvernightCompoundingMethod::CompoundedInArrears,
+                black_box(&market),
+            )
+        });
+    });
+    group.bench_function("overnight_lookback5_5y_q", |b| {
+        b.iter(|| {
+            fixtures::build_overnight(
+                black_box(base),
+                5,
+                finstack_quant_cashflows::builder::OvernightCompoundingMethod::CompoundedWithLookback {
+                    lookback_days: 5,
+                },
+                black_box(&market),
+            )
+        });
+    });
+    group.finish();
+}
+
+fn bench_build_structured(c: &mut Criterion) {
+    let mut group = c.benchmark_group("cashflow_build_structured");
+    let base = fixtures::base_date();
+    group.bench_function("amortizing_linear_5y_q", |b| {
+        b.iter(|| fixtures::build_amortizing_linear(black_box(base), 5));
+    });
+    group.bench_function("fixed_plus_periodic_fee_5y_q", |b| {
+        b.iter(|| fixtures::build_fixed_with_periodic_fee(black_box(base), 5));
+    });
+    group.finish();
+}
+
+fn bench_json_bridge(c: &mut Criterion) {
+    let mut group = c.benchmark_group("cashflow_json_bridge");
+    let spec = fixtures::five_year_fixed_json();
+    let schedule_json = build_cashflow_schedule_json(spec, None).unwrap();
+
+    group.bench_function("build_5y_q", |b| {
+        b.iter(|| build_cashflow_schedule_json(black_box(spec), None).unwrap());
+    });
+    group.bench_function("validate_5y_q", |b| {
+        b.iter(|| validate_cashflow_schedule_json(black_box(&schedule_json)).unwrap());
+    });
+    group.bench_function("dated_flows_5y_q", |b| {
+        b.iter(|| dated_flows_json(black_box(&schedule_json)).unwrap());
+    });
+    group.finish();
+}
+
+fn bench_calendar_year_ladder(c: &mut Criterion) {
+    let mut group = c.benchmark_group("cashflow_calendar_year_ladder");
+    let base = fixtures::base_date();
+    let schedule = fixtures::make_fixed_schedule(base, 10, Tenor::quarterly());
+    let dates: Vec<Date> = schedule.get_flows().iter().map(|cf| cf.date).collect();
+    let kinds: Vec<&str> = schedule
+        .get_flows()
+        .iter()
+        .map(|cf| {
+            if cf.kind.is_principal_like() {
+                "principal"
+            } else {
+                "coupon"
+            }
+        })
+        .collect();
+    let amounts: Vec<f64> = schedule
+        .get_flows()
+        .iter()
+        .map(|cf| cf.amount.amount())
+        .collect();
+    let pvs: Vec<f64> = amounts.iter().map(|amount| amount * 0.85).collect();
+
+    group.throughput(Throughput::Elements(dates.len() as u64));
+    group.bench_function("10y_80cf", |b| {
+        b.iter(|| {
+            calendar_year_ladder(
+                black_box(&dates),
+                black_box(&kinds),
+                black_box(&amounts),
+                black_box(&pvs),
+            )
+            .unwrap()
+        });
+    });
+    group.finish();
+}
+
+fn bench_accrued_variants(c: &mut Criterion) {
+    let mut group = c.benchmark_group("cashflow_accrued_variants");
+    let base = fixtures::base_date();
+    let schedule = fixtures::make_fixed_schedule(base, 5, Tenor::quarterly());
+    let as_of = base + time::Duration::days(400);
+
+    group.bench_function("compounded_5y", |b| {
+        let cfg = AccrualConfig {
+            method: AccrualMethod::Compounded,
+            ..Default::default()
+        };
+        b.iter(|| {
+            accrued_interest_amount(black_box(&schedule), black_box(as_of), black_box(&cfg))
+                .unwrap()
+        });
+    });
+    group.bench_function("ex_coupon_usny_5y", |b| {
+        let cfg = AccrualConfig {
+            ex_coupon: Some(ExCouponRule {
+                days_before_coupon: 7,
+                calendar_id: Some("usny".to_string()),
+            }),
+            ..Default::default()
+        };
+        b.iter(|| {
+            accrued_interest_amount(black_box(&schedule), black_box(as_of), black_box(&cfg))
+                .unwrap()
+        });
+    });
+    group.finish();
+}
+
 // Registration
 
 criterion_group!(
@@ -526,6 +665,11 @@ criterion_group!(
     bench_pv_by_period_credit,
     bench_period_dataframe,
     bench_build_fixed_schedule,
+    bench_build_floating,
+    bench_build_structured,
+    bench_json_bridge,
+    bench_calendar_year_ladder,
+    bench_accrued_variants,
     bench_aggregate_by_period,
     bench_aggregate_precise,
     bench_npv,

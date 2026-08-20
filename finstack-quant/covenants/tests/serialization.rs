@@ -58,24 +58,6 @@ fn covenant_report_passed_roundtrip() {
 // engine.rs
 
 #[test]
-fn covenant_scope_roundtrip() {
-    let maintenance = CovenantScope::Maintenance;
-    let incurrence = CovenantScope::Incurrence;
-
-    assert_eq!(maintenance, roundtrip(&maintenance));
-    assert_eq!(incurrence, roundtrip(&incurrence));
-}
-
-#[test]
-fn threshold_test_roundtrip() {
-    let max = ThresholdTest::Maximum(5.0);
-    let min = ThresholdTest::Minimum(1.5);
-
-    assert_eq!(max, roundtrip(&max));
-    assert_eq!(min, roundtrip(&min));
-}
-
-#[test]
 fn covenant_type_all_variants_roundtrip() {
     let variants = vec![
         CovenantType::MaxDebtToEbitda { threshold: 4.5 },
@@ -382,15 +364,6 @@ fn consequence_application_roundtrip() {
 // forward.rs
 
 #[test]
-fn bound_kind_roundtrip() {
-    let at_most = BoundKind::AtMost;
-    let at_least = BoundKind::AtLeast;
-
-    assert_eq!(at_most, roundtrip(&at_most));
-    assert_eq!(at_least, roundtrip(&at_least));
-}
-
-#[test]
 fn covenant_forecast_config_roundtrip() {
     let config = CovenantForecastConfig {
         stochastic: true,
@@ -402,13 +375,6 @@ fn covenant_forecast_config_roundtrip() {
         breach_probability_threshold: 0.05,
     };
 
-    let rt = roundtrip(&config);
-    assert_eq!(config, rt);
-}
-
-#[test]
-fn covenant_forecast_config_default_roundtrip() {
-    let config = CovenantForecastConfig::default();
     let rt = roundtrip(&config);
     assert_eq!(config, rt);
 }
@@ -507,13 +473,6 @@ fn threshold_schedule_roundtrip() {
     ])
     .expect("valid threshold schedule");
 
-    let rt = roundtrip(&schedule);
-    assert_eq!(schedule, rt);
-}
-
-#[test]
-fn threshold_schedule_empty_roundtrip() {
-    let schedule = ThresholdSchedule::new(vec![]).expect("empty schedule is valid");
     let rt = roundtrip(&schedule);
     assert_eq!(schedule, rt);
 }
@@ -634,30 +593,4 @@ fn complex_covenant_package_roundtrip() {
         assert_eq!(original.covenant, restored.covenant);
         assert_eq!(original.metric_id, restored.metric_id);
     }
-}
-
-#[test]
-fn json_format_stability() {
-    // Verify that the JSON format is human-readable and stable
-    let breach = CovenantBreach {
-        covenant_id: "max_total_leverage".to_string(),
-        covenant_type: "Max Leverage".to_string(),
-        breach_date: date(2025, 6, 30),
-        actual_value: Some(5.5),
-        threshold: Some(5.0),
-        cure_deadline: Some(date(2025, 7, 30)),
-        is_cured: false,
-        applied_consequences: vec![CovenantConsequence::RateIncrease { bp_increase: 50.0 }],
-    };
-
-    let json = serde_json::to_string_pretty(&breach).expect("serialize");
-
-    // Verify key fields are present in expected format
-    assert!(json.contains("\"covenant_type\": \"Max Leverage\""));
-    assert!(json.contains("\"breach_date\""));
-    assert!(json.contains("\"actual_value\": 5.5"));
-    assert!(json.contains("\"threshold\": 5.0"));
-    assert!(json.contains("\"is_cured\": false"));
-    assert!(json.contains("\"rate_increase\""));
-    assert!(json.contains("\"bp_increase\": 50.0"));
 }

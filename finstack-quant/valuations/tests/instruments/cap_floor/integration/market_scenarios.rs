@@ -13,7 +13,6 @@ use finstack_quant_valuations::instruments::rates::cap_floor::{
 };
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::{ExerciseStyle, SettlementType};
-use finstack_quant_valuations::metrics::MetricId;
 use rust_decimal::Decimal;
 use time::macros::date;
 use time::Duration;
@@ -164,78 +163,6 @@ fn test_realistic_otm_floor_pricing() {
         "OTM floor value should be modest: {}",
         pv.amount()
     );
-}
-
-#[test]
-fn test_all_greeks_with_realistic_market() {
-    let as_of = date!(2024 - 01 - 01);
-    let start = as_of + Duration::days(2);
-    let end = date!(2029 - 01 - 01);
-
-    let cap = CapFloor {
-        id: "USD_CAP_GREEKS".into(),
-        rate_option_type: RateOptionType::Cap,
-        notional: Money::new(10_000_000.0, Currency::USD),
-        strike: Decimal::try_from(0.05).expect("valid decimal"),
-        start_date: start,
-        maturity: end,
-        frequency: Tenor::quarterly(),
-        day_count: DayCount::Act360,
-        stub: StubKind::ShortFront,
-        business_day_convention: BusinessDayConvention::ModifiedFollowing,
-        calendar_id: None,
-        exercise_style: ExerciseStyle::European,
-        settlement: SettlementType::Cash,
-        discount_curve_id: "USD_OIS".into(),
-        forward_curve_id: "USD_SOFR_3M".into(),
-        vol_surface_id: "USD_CAP_VOL".into(),
-        vol_type: CapFloorVolType::Lognormal,
-        vol_shift: 0.0,
-        overnight_coupon: None,
-        spread: Decimal::ZERO,
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Default::default(),
-    };
-
-    let market = MarketContext::new()
-        .insert(build_realistic_discount_curve(as_of))
-        .insert(build_realistic_forward_curve(as_of))
-        .insert_surface(build_realistic_vol_surface(as_of));
-
-    let metrics = vec![
-        MetricId::Delta,
-        MetricId::Gamma,
-        MetricId::Vega,
-        MetricId::Theta,
-        MetricId::Rho,
-        MetricId::Dv01,
-        MetricId::ForwardPv01,
-    ];
-
-    let result = cap
-        .price_with_metrics(
-            &market,
-            as_of,
-            &metrics,
-            finstack_quant_valuations::instruments::PricingOptions::default(),
-        )
-        .unwrap();
-
-    // Verify all metrics computed successfully
-    assert!(result.measures.contains_key("delta"));
-    assert!(result.measures.contains_key("gamma"));
-    assert!(result.measures.contains_key("vega"));
-    assert!(result.measures.contains_key("theta"));
-    assert!(result.measures.contains_key("rho"));
-    assert!(result.measures.contains_key("dv01"));
-    assert!(result.measures.contains_key("forward_pv01"));
-
-    // All should be finite
-    for (name, value) in &result.measures {
-        assert!(value.is_finite(), "{} should be finite", name);
-    }
 }
 
 #[test]

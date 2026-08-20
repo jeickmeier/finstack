@@ -467,15 +467,6 @@ mod tests {
     }
 
     #[test]
-    fn test_work_size() {
-        let params = GbmParams::new(0.05, 0.02, 0.2).unwrap();
-        let process = GbmProcess::new(params);
-        let disc = ExactGbm::new();
-
-        assert_eq!(disc.work_size(&process), 0);
-    }
-
-    #[test]
     fn test_exact_multi_gbm_preserves_zero_and_evolves_small_positive_state() {
         let params = vec![
             GbmParams::new(0.05, 0.02, 0.2).unwrap(),

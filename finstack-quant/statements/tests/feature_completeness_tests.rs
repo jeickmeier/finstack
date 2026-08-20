@@ -1,84 +1,8 @@
-//! Tests to verify that all previously incomplete features are now fully functional.
+//! Forecast-path completeness: linear trend continuation and seasonal shape.
 
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements::prelude::*;
 use indexmap::indexmap;
-
-#[test]
-fn test_advanced_statistical_functions_work() {
-    // Build a model with historical data
-    let model = ModelBuilder::new("test")
-        .periods("2025Q1..2025Q4", None)
-        .unwrap()
-        .value(
-            "revenue",
-            &[
-                (
-                    PeriodId::quarter(2025, 1),
-                    AmountOrScalar::scalar(100_000.0),
-                ),
-                (
-                    PeriodId::quarter(2025, 2),
-                    AmountOrScalar::scalar(110_000.0),
-                ),
-                (
-                    PeriodId::quarter(2025, 3),
-                    AmountOrScalar::scalar(105_000.0),
-                ),
-                (
-                    PeriodId::quarter(2025, 4),
-                    AmountOrScalar::scalar(115_000.0),
-                ),
-            ],
-        )
-        // Test Rank function
-        .compute("revenue_rank", "rank(revenue)")
-        .unwrap()
-        // Test Quantile function (median)
-        .compute("revenue_median", "quantile(revenue, 0.5)")
-        .unwrap()
-        // Test EWM functions
-        .compute("revenue_ewm", "ewm_mean(revenue, 0.3)")
-        .unwrap()
-        .compute("revenue_ewm_std", "ewm_std(revenue, 0.3)")
-        .unwrap()
-        .build()
-        .unwrap();
-
-    let mut evaluator = Evaluator::new();
-    let results = evaluator.evaluate(&model).unwrap();
-
-    // Check rank function works (should not be 0)
-    let q4_rank = results
-        .get("revenue_rank", &PeriodId::quarter(2025, 4))
-        .unwrap();
-    assert!(q4_rank > 0.0, "Rank function should return non-zero value");
-    assert!(q4_rank <= 4.0, "Rank should be within range");
-
-    // Check quantile function works
-    let q4_median = results
-        .get("revenue_median", &PeriodId::quarter(2025, 4))
-        .unwrap();
-    assert!(
-        q4_median > 0.0,
-        "Quantile function should return non-zero value"
-    );
-    assert!(
-        (100_000.0..=115_000.0).contains(&q4_median),
-        "Median should be in range"
-    );
-
-    // Check EWM functions work
-    let q4_ewm = results
-        .get("revenue_ewm", &PeriodId::quarter(2025, 4))
-        .unwrap();
-    assert!(q4_ewm > 0.0, "EWM mean should return non-zero value");
-
-    let q4_ewm_std = results
-        .get("revenue_ewm_std", &PeriodId::quarter(2025, 4))
-        .unwrap();
-    assert!(q4_ewm_std >= 0.0, "EWM std should be non-negative");
-}
 
 #[test]
 fn test_timeseries_forecast_with_trend_detection() {

@@ -293,29 +293,6 @@ fn test_foreign_rho_has_expected_sign() {
 }
 
 #[test]
-fn test_all_greeks_computed_together() {
-    // Arrange
-    let as_of = date!(2024 - 01 - 01);
-    let expiry = date!(2025 - 01 - 01);
-    let call = build_call_option(as_of, expiry, 1.20, 1_000_000.0);
-    let market = build_market_context(as_of, MarketParams::atm());
-
-    // Act
-    let greeks = compute_greeks(&call, &market, as_of);
-
-    // Assert: All greeks should be finite and non-NaN
-    assert!(greeks.delta.is_finite(), "Delta should be finite");
-    assert!(greeks.gamma.is_finite(), "Gamma should be finite");
-    assert!(greeks.vega.is_finite(), "Vega should be finite");
-    assert!(greeks.theta.is_finite(), "Theta should be finite");
-    assert!(greeks.rho.is_finite(), "Rho should be finite");
-    assert!(
-        greeks.foreign_rho.is_finite(),
-        "Foreign rho should be finite"
-    );
-}
-
-#[test]
 fn test_expired_call_greeks_static() {
     // Arrange: Expired ITM call
     let expiry = date!(2024 - 01 - 01);

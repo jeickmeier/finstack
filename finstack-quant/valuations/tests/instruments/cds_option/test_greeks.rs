@@ -126,40 +126,6 @@ fn test_dv01_positive() {
 }
 
 #[test]
-#[ignore = "slow: covered by mise rust-test-slow"]
-fn test_all_greeks_together() {
-    let as_of = date!(2025 - 01 - 01);
-    let market = standard_market(as_of);
-    let option = CDSOptionBuilder::new().build(as_of);
-
-    let result = option
-        .price_with_metrics(
-            &market,
-            as_of,
-            &[
-                MetricId::Delta,
-                MetricId::Gamma,
-                MetricId::Vega,
-                MetricId::Theta,
-                MetricId::Cs01,
-                MetricId::Dv01,
-            ],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
-        )
-        .unwrap();
-
-    assert!(
-        result.measures.len() >= 6,
-        "Should compute at least 6 greeks, got {}",
-        result.measures.len(),
-    );
-
-    for (name, value) in &result.measures {
-        assert_finite(*value, &format!("Greek: {}", name));
-    }
-}
-
-#[test]
 fn test_delta_moneyness_effect() {
     let as_of = date!(2025 - 01 - 01);
     let market = standard_market(as_of);

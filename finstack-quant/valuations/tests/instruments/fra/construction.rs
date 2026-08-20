@@ -169,28 +169,6 @@ fn test_high_rate_environment() {
 }
 
 #[test]
-fn test_instrument_trait_key() {
-    use finstack_quant_valuations::pricer::InstrumentType;
-    let fra = create_standard_fra();
-    assert_eq!(fra.key(), InstrumentType::Fra);
-}
-
-#[test]
-fn test_instrument_trait_attributes() {
-    let fra = create_standard_fra();
-    let attrs = fra.attributes();
-    assert!(attrs.tags.is_empty());
-    assert!(attrs.meta.is_empty());
-}
-
-#[test]
-fn test_clone_box() {
-    let fra = create_standard_fra();
-    let cloned = fra.clone_box();
-    assert_eq!(cloned.id(), fra.id());
-}
-
-#[test]
 fn test_multiple_curve_ids() {
     let fra = TestFraBuilder::new()
         .curves("USD_OIS", "USD_SOFR_3M")

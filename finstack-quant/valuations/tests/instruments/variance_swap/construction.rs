@@ -129,23 +129,6 @@ fn test_different_day_count_conventions_are_supported() {
 }
 
 #[test]
-fn test_instrument_trait_returns_correct_id_and_type() {
-    // Arrange
-    let swap = sample_swap(PayReceive::Receive);
-
-    // Act
-    let id = swap.id();
-    let key = swap.key();
-
-    // Assert
-    assert!(id.contains("VAR"));
-    assert_eq!(
-        key,
-        finstack_quant_valuations::pricer::InstrumentType::VarianceSwap
-    );
-}
-
-#[test]
 fn test_attributes_can_be_accessed_and_modified() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);

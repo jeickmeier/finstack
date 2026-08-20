@@ -427,20 +427,6 @@ mod tests {
     use time::Month;
 
     #[test]
-    fn dividend_yield_dependency_is_a_market_scalar() {
-        let dividend_id = CurveId::new("SPX-DIV");
-        let mut option = AsianOption::example().expect("example");
-        option.div_yield_id = Some(dividend_id.clone());
-        let deps =
-            crate::instruments::Instrument::market_dependencies(&option).expect("dependencies");
-
-        assert!(deps
-            .market_scalar_ids
-            .contains(&dividend_id.as_str().to_string()));
-        assert!(deps.series_ids.is_empty());
-    }
-
-    #[test]
     fn test_accumulated_state() {
         let fixings = vec![
             Date::from_calendar_date(2024, Month::January, 1).expect("valid date"),

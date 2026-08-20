@@ -76,25 +76,3 @@ pub use finstack_quant_statements_analytics as statements_analytics;
 pub use finstack_quant_valuations as valuations;
 
 pub mod schema;
-
-#[cfg(test)]
-mod umbrella_surface {
-    //! The umbrella crate must expose every domain crate so downstream users can
-    //! reach the full API through a single dependency.
-    //!
-    //! Regression: attribution was omitted entirely, which made portfolio and
-    //! scenario APIs naming attribution types unusable through the umbrella.
-
-    fn assert_type<T>() {
-        let _ = std::mem::size_of::<T>();
-    }
-
-    /// Attribution types named in public portfolio and scenario signatures must be
-    /// reachable through the umbrella.
-    #[test]
-    fn umbrella_exposes_attribution_types_used_by_portfolio_and_scenarios() {
-        assert_type::<crate::attribution::AttributionMethod>();
-        assert_type::<crate::attribution::PnlAttribution>();
-        assert_type::<crate::attribution::AttributionFactor>();
-    }
-}

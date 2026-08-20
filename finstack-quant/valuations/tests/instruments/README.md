@@ -19,9 +19,9 @@ instruments/
 ├── coverage_manifest.toml  # registry tag -> fixture path -> persistence policy
 │
 ├── registry_coverage.rs    # Every registry tag has a manifest entry, fixture, schema, and strict round-trip
-├── serde_contract.rs       # Every instrument with example(): JSON round-trip + deny_unknown_fields
 ├── serde_skip_guard.rs     # #[serde(skip)] is limited to one documented derived artifact
-├── json_examples_contract.rs        # Every checked-in fixture still loads under the current schema
+├── override_wire_shape.rs  # Focused pricing-override bags use the three canonical keys
+├── dividend_yield_dependency.rs # Dividend-yield IDs are market scalars, not series
 ├── curve_dependency_completeness.rs # Instruments declare every discount curve they read
 ├── forward_curve_dependency_completeness.rs
 ├── forward_dependency_completeness.rs
@@ -159,7 +159,6 @@ cargo nextest run -p finstack-quant-valuations --test instruments bond::metrics:
 
 # Contract tests only
 cargo nextest run -p finstack-quant-valuations --test instruments registry_coverage::
-cargo nextest run -p finstack-quant-valuations --test instruments serde_contract::
 ```
 
 ### Slow tests

@@ -36,7 +36,6 @@ Single-file targets:
 | `default_attribute_consistency` | Static source audit over every instrument `types.rs`: builder defaults carry a matching `#[serde(default)]`, and no type stores the legacy full-override bag |
 | `phase2_strictness` | Persisted calibration steps reject unknown flattened fields |
 | `portfolio_loss` | Copula-based portfolio credit-loss simulation: determinism, VaR/ES estimator, overflow rejection |
-| `public_surface` | `finstack_quant_valuations::prelude` still exports the desk-quant instrument set |
 | `return_floor_example` | Readable public-API example: MOIC/XIRR return-floor loan, priced and verified through public APIs only |
 | `sabr_core_parity` | This crate's `SABRModel` vs the canonical Hagan/Obloj expansion in `finstack_quant_core` |
 | `schema_audit` | Every instrument `example()` serializes to valid JSON, round-trips through `InstrumentEnvelope`, and matches the checked-in schema |

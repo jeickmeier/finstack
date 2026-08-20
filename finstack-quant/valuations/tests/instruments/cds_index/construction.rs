@@ -249,42 +249,6 @@ fn test_to_synthetic_cds_conversion() {
 }
 
 #[test]
-fn test_instrument_trait_id() {
-    // Test: Instrument trait returns correct ID
-    let start = date!(2025 - 01 - 01);
-    let end = date!(2030 - 01 - 01);
-
-    let idx = standard_single_curve_index("CDX-TRAIT-ID", start, end, 10_000_000.0);
-
-    assert_eq!(idx.id(), "CDX-TRAIT-ID");
-}
-
-#[test]
-fn test_instrument_trait_key() {
-    // Test: Instrument trait returns CDSIndex key
-    use finstack_quant_valuations::pricer::InstrumentType;
-
-    let start = date!(2025 - 01 - 01);
-    let end = date!(2030 - 01 - 01);
-
-    let idx = standard_single_curve_index("CDX-KEY", start, end, 10_000_000.0);
-
-    assert_eq!(idx.key(), InstrumentType::CdsIndex);
-}
-
-#[test]
-fn test_instrument_trait_clone() {
-    // Test: Instrument can be cloned
-    let start = date!(2025 - 01 - 01);
-    let end = date!(2030 - 01 - 01);
-
-    let idx = standard_single_curve_index("CDX-CLONE", start, end, 10_000_000.0);
-    let cloned = idx.clone_box();
-
-    assert_eq!(cloned.id(), idx.id());
-}
-
-#[test]
 fn test_discount_curve_dependency() {
     // Test: discount curve dependency returns correct curve ID
 

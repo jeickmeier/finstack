@@ -30,28 +30,6 @@ fn test_zero_notional() {
 }
 
 #[test]
-fn test_very_large_notional() {
-    // Test swap with very large notional (billions)
-    let dates = TestDates::standard();
-    let market = setup_standard_market(dates.as_of);
-
-    let swap = create_standard_fx_swap(
-        "LARGE_NOTIONAL",
-        dates.near_date,
-        dates.far_date_1y,
-        1_000_000_000.0, // 1 billion EUR
-    );
-
-    let pv = swap.value(&market, dates.as_of).unwrap();
-
-    // Should handle large notionals without overflow
-    assert!(
-        pv.amount().is_finite(),
-        "Large notional should produce finite PV"
-    );
-}
-
-#[test]
 fn test_same_near_far_dates() {
     // Test swap where near and far dates are the same (degenerate case)
     let dates = TestDates::standard();

@@ -317,20 +317,6 @@ mod tests {
     use std::str::FromStr;
 
     #[test]
-    fn dividend_yield_dependency_is_a_market_scalar() {
-        let dividend_id = CurveId::new("SPX-DIV");
-        let mut option = LookbackOption::example().expect("example");
-        option.div_yield_id = Some(dividend_id.clone());
-        let deps =
-            crate::instruments::Instrument::market_dependencies(&option).expect("dependencies");
-
-        assert!(deps
-            .market_scalar_ids
-            .contains(&dividend_id.as_str().to_string()));
-        assert!(deps.series_ids.is_empty());
-    }
-
-    #[test]
     fn lookback_type_fromstr_display_roundtrip() {
         let variants = [LookbackType::FixedStrike, LookbackType::FloatingStrike];
         for v in variants {

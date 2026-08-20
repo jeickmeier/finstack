@@ -295,34 +295,6 @@ fn test_very_long_maturity() {
 }
 
 #[test]
-fn test_instrument_trait_methods() {
-    // Arrange
-    let ilb = sample_tips();
-
-    // Act & Assert
-    assert_eq!(ilb.id(), "TIPS-TEST");
-    assert_eq!(
-        ilb.key(),
-        finstack_quant_valuations::pricer::InstrumentType::InflationLinkedBond
-    );
-    assert!(ilb
-        .as_any()
-        .is::<finstack_quant_valuations::instruments::InflationLinkedBond>());
-}
-
-#[test]
-fn test_clone_box() {
-    // Arrange
-    let ilb = sample_tips();
-
-    // Act
-    let boxed = ilb.clone_box();
-
-    // Assert
-    assert_eq!(boxed.id(), ilb.id());
-}
-
-#[test]
 fn test_attributes_mutable() {
     // Arrange
     let mut ilb = sample_tips();

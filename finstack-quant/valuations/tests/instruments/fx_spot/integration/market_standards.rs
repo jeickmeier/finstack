@@ -9,10 +9,7 @@ use finstack_quant_core::{
     money::{fx::FxMatrix, Money},
     types::InstrumentId,
 };
-use finstack_quant_valuations::{
-    instruments::{FxSpot, Instrument},
-    pricer::InstrumentType,
-};
+use finstack_quant_valuations::instruments::{FxSpot, Instrument};
 use std::sync::Arc;
 
 #[test]
@@ -229,17 +226,4 @@ fn test_zero_value_at_par() {
 
     assert_eq!(pv.currency(), Currency::USD);
     assert_approx_eq(pv.amount(), 1_200_000.0, EPSILON, "PV at spot");
-}
-
-#[test]
-fn test_instrument_trait_compliance() {
-    let fx = eurusd_with_notional(1_000_000.0, 1.20);
-
-    // Test Instrument trait methods
-    assert_eq!(fx.id(), "EURUSD");
-    assert_eq!(fx.key(), InstrumentType::FxSpot);
-    assert!(fx.as_any().is::<FxSpot>());
-
-    // Test clone
-    let _cloned = fx.clone_box();
 }
