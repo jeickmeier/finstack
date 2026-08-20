@@ -584,7 +584,10 @@ run = [
 
 [tasks.gen-write]
 description = "Regenerate checked-in schemas, fixtures, and TypeScript bindings"
-depends = ["rust-gen-schemas", "wasm-gen-bindings"]
+run = [
+  { task = "rust-gen-schemas" },
+  { task = "wasm-gen-bindings" },
+]
 
 [tasks.gen-check]
 description = "Verify schemas and bindings; fail if generated artifacts drift"
