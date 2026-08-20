@@ -77,7 +77,9 @@ through its module path. See the rustdoc for detail
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::DayCount;
+use finstack_quant_core::decimal::f64_to_decimal;
 use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
 use finstack_quant_portfolio::position::{Position, PositionUnit};
 use finstack_quant_portfolio::types::Entity;
@@ -89,8 +91,9 @@ use time::macros::date;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let as_of = date!(2024 - 01 - 01);
-    // Populate the context with the curves your instruments declare.
-    let market = MarketContext::new();
+    // The context must carry every curve the instruments declare — here the
+    // "USD" discount curve named by the deposit below.
+    let market = MarketContext::new().insert(DiscountCurve::flat("USD", as_of, 0.045)?);
     let config = FinstackConfig::default();
 
     let deposit = Deposit::builder()
@@ -100,6 +103,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .maturity(date!(2024 - 02 - 01))
         .day_count(DayCount::Act360)
         .discount_curve_id("USD".into())
+        // Required: a Deposit prices off its own quoted rate.
+        .quote_rate_opt(Some(f64_to_decimal(0.045)?))
         .build()?;
 
     let position = Position::new(

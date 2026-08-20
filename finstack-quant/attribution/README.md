@@ -27,7 +27,7 @@ dispatching through a spec: `Parallel` (the `Default`),
 
 Default waterfall order (from [`default_waterfall_order`](src/waterfall.rs)):
 
-```
+```text
 Carry → RatesCurves → CreditCurves → InflationCurves → Correlations
       → Fx → Volatility → ModelParameters → MarketScalars
 ```
@@ -62,7 +62,7 @@ finer breakdowns:
 
 ## Layout
 
-```
+```text
 attribution/src/
 ├── lib.rs                  # Module docs, simple_pnl_bridge, public re-exports
 ├── types.rs                # types module declaration

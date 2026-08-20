@@ -23,7 +23,7 @@ Re-exported from the umbrella crate as `finstack_quant::covenants`.
 
 ## Layout
 
-```
+```text
 covenants/
 ├── engine/      CovenantEngine, Covenant, CovenantSpec, CovenantType,
 │                consequences, breaches, waivers, windows, springing conditions

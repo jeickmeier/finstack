@@ -11,11 +11,43 @@
 //!   (see [`available_calendars`] for the exact identifier list)
 //! - **Rule-based definitions**: JSON-defined rules for transparency and auditability
 //! - **Rule evaluation**: [`is_holiday`](HolidayCalendar::is_holiday) checks a
-//!   date against the calendar's `&'static` rule set (a short linear scan;
-//!   typically a handful of rules per calendar) — no per-date heap allocation
+//!   date against the calendar's `&'static` rule set by linear scan, with no
+//!   per-date heap allocation. Cost is proportional to the calendar's rule
+//!   count, which is **not** uniform across calendars — see the measured table
+//!   below before assuming it is negligible in a hot loop.
 //! - **Composite calendars**: Combine multiple calendars for multi-currency schedules
 //! - **Business day adjustments**: Following, Modified Following, Preceding,
 //!   Modified Preceding, Nearest conventions
+//!
+//! # Lookup Cost
+//!
+//! [`is_holiday`](HolidayCalendar::is_holiday) scans every rule, so per-query
+//! cost tracks the rule count. Rule counts span 7 (`asx`) to 50 (`sse`, `cnbe`)
+//! across the 26 built-in calendars, giving a **3.2x spread** in lookup cost:
+//!
+//! | calendar | rules | `is_holiday` | `is_business_day` |
+//! | -------- | ----: | -----------: | ----------------: |
+//! | `asx`    |     7 |      42 ns   |            36 ns  |
+//! | `nyse`   |    15 |      52 ns   |            31 ns  |
+//! | `jpx`    |    20 |      85 ns   |            52 ns  |
+//! | `bse`    |    44 |     117 ns   |            56 ns  |
+//! | `cnbe`   |    50 |     132 ns   |            78 ns  |
+//!
+//! Measured by `benches/calendar_lookup.rs` over 365 consecutive dates
+//! (Apple Silicon, `--release`); re-run it rather than trusting these figures
+//! after any change to rule evaluation.
+//!
+//! [`is_business_day`](HolidayCalendar::is_business_day) is cheaper and scales
+//! more gently because the weekend check short-circuits roughly two sevenths of
+//! queries before any rule is evaluated.
+//!
+//! These costs are small in absolute terms and no caching layer exists: the
+//! rule set is `&'static` and evaluation allocates nothing, so a memoized set
+//! would trade ~181 years x 26 calendars of resident holiday dates for roughly
+//! an order of magnitude on the four high-rule calendars. That trade has not
+//! been judged worthwhile. If a profile ever shows business-day adjustment
+//! dominating a schedule build on `bse`/`cnbe`/`nse`/`sse`, this is the place
+//! to revisit.
 //!
 //! # Supported Date Range
 //!

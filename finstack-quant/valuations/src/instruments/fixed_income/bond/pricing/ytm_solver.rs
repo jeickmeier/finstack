@@ -364,6 +364,64 @@ mod tests {
     use super::*;
     use finstack_quant_core::currency::Currency;
     use time::Month;
+
+    /// ACT/ACT ICMA needs a reference coupon period for any span that is not a
+    /// whole number of coupons. `calculate_initial_guess` measures settlement to
+    /// maturity, which is irregular unless settlement lands exactly on a coupon
+    /// date — so the seed calculation used to hard-error and take the whole YTM
+    /// solve down with it, even though the seed only picks Brent's starting point.
+    #[test]
+    #[ignore = "KNOWN DEFECT: YTM is unusable for ACT/ACT ICMA bonds. \
+price_from_ytm_compounded_params (quote_conversions/yield_price.rs:324,343) computes \
+every discount factor as day_count.year_fraction(as_of, flow, ctx) with frequency-only \
+context and no coupon_period. Under ActActIsma any span that is not a whole number of \
+coupons then errors, and settlement-to-coupon is irregular unless settlement falls \
+exactly on a coupon date. Fixing it means supplying reference coupon periods (see \
+cashflows::builder::date_generation::icma_coupon_period) which needs schedule context \
+the solver does not currently receive - a quant change needing its own review. \
+Run with --ignored to reproduce."]
+    fn ytm_solves_for_an_act_act_icma_bond_settling_off_a_coupon_date() {
+        // Semi-annual Jan/Jul coupons; settlement deliberately mid-period.
+        let as_of = Date::from_calendar_date(2025, Month::March, 17).expect("valid date");
+        let notional = Money::new(1000.0, Currency::USD);
+        let coupon_rate = 0.0425;
+        let mut cashflows = vec![];
+        for (year, month) in [
+            (2025, Month::July),
+            (2026, Month::January),
+            (2026, Month::July),
+            (2027, Month::January),
+        ] {
+            cashflows.push((
+                Date::from_calendar_date(year, month, 15).expect("valid date"),
+                Money::new(21.25, Currency::USD),
+            ));
+        }
+        cashflows.push((
+            Date::from_calendar_date(2027, Month::July, 15).expect("valid date"),
+            Money::new(1021.25, Currency::USD),
+        ));
+
+        let ytm = solve_ytm(
+            &cashflows,
+            as_of,
+            notional,
+            YtmPricingSpec {
+                day_count: DayCount::ActActIsma,
+                notional,
+                coupon_rate,
+                compounding: YieldCompounding::Street,
+                frequency: Tenor::semi_annual(),
+            },
+        )
+        .expect("ACT/ACT ICMA must not fail merely because settlement is mid-coupon");
+
+        // Priced at par, so the solved yield sits near the coupon.
+        assert!(
+            (ytm - coupon_rate).abs() < 0.02,
+            "expected a yield near the {coupon_rate} coupon, got {ytm}"
+        );
+    }
     #[test]
     fn test_ytm_solver_par_bond() {
         let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");

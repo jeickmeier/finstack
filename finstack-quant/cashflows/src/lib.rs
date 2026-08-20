@@ -139,3 +139,13 @@ pub type DatedFlow = (Date, Money);
 
 /// Currency-preserving schedule as a list of dated amounts.
 pub type DatedFlows = Vec<DatedFlow>;
+
+/// Compiles the crate `README.md` Rust samples as doctests.
+///
+/// The README is *not* included in the rendered crate documentation — this
+/// item exists only under `cfg(doctest)` so that every ` ```rust ` block in the
+/// README is compiled and run by `cargo test --doc`. Without it those samples
+/// are dead text and rot silently on any API change.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;
