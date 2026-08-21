@@ -73,9 +73,15 @@ These standards apply to all Rust crates in the Finstack Quant workspace (`finst
 
 ### CI and local workflow
 
-- Run `mise run all-lint` and `mise run rust-test` before committing. Fix failures rather than adding ignores.
+- **While iterating:** lint and test the affected crate only:
+  - `mise run rust-lint-crate -- <package>`
+  - `mise run rust-test-crate -- <package>` / `rust-test-integration` / `rust-test-filter`
+  - `mise run rust-bench-crate -- <package> <bench>` for performance work
+  - See `.agents/rules/selective-test-running.mdc` for the path → package table.
+- **Before commit or at plan end:** `mise run rust-lint` and `mise run rust-test` (full workspace).
 - Tests must be hermetic: no network, no external services, no reliance on machine configuration.
 - If enabling new features behind flags (e.g., parallel), ensure CI executes representative test matrices.
+- Do not run `cargo test` directly; use the `mise run rust-test-*` tasks (nextest, no doc tests).
 
 ### Integration test guidance (example‑equivalent rule)
 

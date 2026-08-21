@@ -9,3 +9,50 @@ alwaysApply: true
 - Prefer targeted unit tests, individual test files or filters, crate-specific tests, package-specific tests, and focused lint/type checks while iterating.
 - Do not run workspace-wide or otherwise full test suites between plan tasks unless the user explicitly requests it or targeted checks would be misleading.
 - Run full test suites only once, at the very end of the plan, after all targeted checks are clean.
+- Do not run `cargo test` or `cargo clippy` directly; use the scoped `mise run` tasks below (they route through nextest and skip doc tests where appropriate).
+
+## Scoped Rust tasks (preferred while iterating)
+
+| Task | Example |
+| --- | --- |
+| `rust-lint-crate` | `mise run rust-lint-crate -- finstack-quant-core` |
+| `rust-fmt-crate` | `mise run rust-fmt-crate -- finstack-quant-scenarios` |
+| `rust-test-crate` | `mise run rust-test-crate -- finstack-quant-valuations` |
+| `rust-test-integration` | `mise run rust-test-integration -- finstack-quant-valuations instruments` |
+| `rust-test-filter` | `mise run rust-test-filter -- finstack-quant-core test_bond_pricing` |
+| `rust-bench-crate` | `mise run rust-bench-crate -- finstack-quant-portfolio materialization` |
+| `rust-build-crate` | `mise run rust-build-crate -- finstack-quant-portfolio` |
+
+Add `--all-features` to `rust-lint-crate` / `rust-fmt-crate` when touching feature-gated code. Add `--slow` to test tasks for ignored tests.
+
+## Full-workspace tasks (final verification / CI only)
+
+- `mise run rust-lint` — compiles every bench target; slow. Run before commit or when the user asks for full lint.
+- `mise run rust-test` — all crates, all integration binaries.
+- `mise run rust-bench` — all Criterion targets.
+- `mise run all-lint`, `mise run all-test`, `mise run all-ci` — cross-language full gates.
+
+## Path → package mapping
+
+| Changed path prefix | Cargo package |
+| --- | --- |
+| `finstack-quant/core/` | `finstack-quant-core` |
+| `finstack-quant/analytics/` | `finstack-quant-analytics` |
+| `finstack-quant/attribution/` | `finstack-quant-attribution` |
+| `finstack-quant/cashflows/` | `finstack-quant-cashflows` |
+| `finstack-quant/covenants/` | `finstack-quant-covenants` |
+| `finstack-quant/monte_carlo/` | `finstack-quant-monte-carlo` |
+| `finstack-quant/margin/` | `finstack-quant-margin` |
+| `finstack-quant/statements/` | `finstack-quant-statements` |
+| `finstack-quant/statements-analytics/` | `finstack-quant-statements-analytics` |
+| `finstack-quant/valuations/` | `finstack-quant-valuations` |
+| `finstack-quant/factor-model/` | `finstack-quant-factor-model` |
+| `finstack-quant/features/` | `finstack-quant-features` |
+| `finstack-quant/portfolio/` | `finstack-quant-portfolio` |
+| `finstack-quant/scenarios/` | `finstack-quant-scenarios` |
+| `finstack-quant/arrow-interchange/` | `finstack-quant-arrow` |
+| `finstack-quant/` (umbrella) | `finstack-quant` |
+| `finstack-quant-py/` | `finstack-quant-py` |
+| `finstack-quant-wasm/` | `finstack-quant-wasm` |
+
+When a change spans multiple crates, lint and test each affected package separately rather than running the full workspace after every edit.

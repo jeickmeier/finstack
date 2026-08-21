@@ -24,10 +24,20 @@
 
 - `uv` is the Python package manager; use `uv run` when running Python functions
 - Tasks are defined in `mise.toml`; invoke them with `mise run <task>` (or `mise r <task>`). List everything with `mise tasks`. Common ones: `mise run all-fmt`, `mise run all-lint`, `mise run all-test`, `mise run python-build` (dev profile, fast compile), `mise run python-build -- --release` (release; faster runtime).
+- **Scoped Rust iteration (preferred while implementing):**
+  - `mise run rust-lint-crate -- <package>` — fmt check + clippy for one crate (skips workspace benches)
+  - `mise run rust-fmt-crate -- <package>` — format + clippy --fix for one crate
+  - `mise run rust-test-crate -- <package>` — lib + integration tests for one crate
+  - `mise run rust-test-integration -- <package> <test>` — one integration binary (e.g. `instruments`)
+  - `mise run rust-test-filter -- <package> <filter>` — tests matching a name
+  - `mise run rust-bench-crate -- <package> <bench>` — one Criterion target
+  - Path → package mapping lives in `.agents/rules/selective-test-running.mdc`
+- **Full-workspace gates (plan end / pre-commit / CI):** `mise run rust-lint`, `mise run rust-test`, `mise run rust-bench`, `mise run all-lint`, `mise run all-test`
 - Python test tasks rebuild the extension with the fast dev profile before running pytest. Use `mise run python-build -- --release` only for release validation, performance-sensitive runs, or when explicitly requested. Use `mise run python-sync` first (or whenever Python deps change) to refresh the `uv` virtualenv.
 - Pre-commit runs `cargo clippy` and `cargo deny check` (Rust supply-chain: advisories + licenses + bans)
 - CI additionally runs OSV-Scanner across `Cargo.lock`, `uv.lock`, and `package-lock.json` for cross-ecosystem CVE coverage
 - Clippy runs with `-D warnings`; all warnings are treated as errors
+- Do not run `cargo test` or `cargo clippy` directly during agent work; use the scoped `mise run rust-*` tasks
 
 ## Clippy Strictness
 
@@ -114,6 +124,8 @@
 
 - Preferred flow: Audit/Review → Plan → Implement (in that order)
 - When a plan file exists: do NOT edit the plan file; do not recreate todos that already exist; mark todos as `in_progress` when starting each one
-- During a plan, validate each completed task with the smallest targeted tests and focused lint/type checks that cover its changes. Run full test suites only once, at the very end of the plan, after targeted checks are clean.
+- During a plan, validate each completed task with scoped checks for the crate(s) touched:
+  - `mise run rust-lint-crate -- <package>` and `mise run rust-test-crate` / `rust-test-integration` / `rust-test-filter`
+  - Run `mise run rust-lint` and `mise run rust-test` (full workspace) only once at the very end, after scoped checks are clean
 - User reports issues by pasting terminal output (clippy, cargo deny, test failures) rather than describing them
 - When moving files, use `mv` in terminal and update all import references; then lint and format

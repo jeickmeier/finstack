@@ -4,8 +4,16 @@ Use repo-native checks first. External scanners are optional only when installed
 
 ## Rust
 
-- Lint: `mise run rust-lint`
-- Tests: `mise run rust-test`
+- **Iteration (fast):**
+  - Lint one crate: `mise run rust-lint-crate -- <package>`
+  - Test one crate: `mise run rust-test-crate -- <package>`
+  - One integration binary: `mise run rust-test-integration -- <package> <test>`
+  - Filter by name: `mise run rust-test-filter -- <package> <filter>`
+  - One bench: `mise run rust-bench-crate -- <package> <bench>`
+- **Full workspace (CI / final verification):**
+  - Lint: `mise run rust-lint`
+  - Tests: `mise run rust-test`
+  - Benches: `mise run rust-bench`
 - Focused crate checks: use the closest crate-specific command available in `mise.toml`
 - Supply chain: `cargo deny check`
 

@@ -158,7 +158,86 @@ run = "cargo build --workspace --exclude finstack-quant-py --exclude finstack-qu
 description = "Check all production Rust targets with the declared Rust 1.90 MSRV"
 run = "cargo +1.90 check --locked --workspace --all-features --lib --bins --examples"
 
+[tasks.rust-test-crate]
+description = "Run lib + integration tests for one crate (preferred during iteration)"
+usage = '''
+arg "<package>" help="Cargo package (e.g. finstack-quant-core, finstack-quant-valuations)"
+flag "--slow" help="Include ignored/slow tests"
+'''
+run = '''
+set -e
+pkg="${usage_package?}"
+if [ "${usage_slow:-false}" = "true" ]; then
+  cargo nextest run -p "$pkg" --lib --test '*' --run-ignored only --no-fail-fast
+else
+  cargo nextest run -p "$pkg" --lib --test '*' --no-fail-fast
+fi
+'''
+
+[tasks.rust-test-integration]
+description = "Run one integration test binary in a crate"
+usage = '''
+arg "<package>" help="Cargo package (e.g. finstack-quant-valuations)"
+arg "<test>" help="Integration test name without .rs (e.g. instruments, golden)"
+flag "--slow" help="Include ignored/slow tests"
+'''
+run = '''
+set -e
+pkg="${usage_package?}"
+test="${usage_test?}"
+if [ "${usage_slow:-false}" = "true" ]; then
+  cargo nextest run -p "$pkg" --test "$test" --run-ignored only --no-fail-fast
+else
+  cargo nextest run -p "$pkg" --test "$test" --no-fail-fast
+fi
+'''
+
+[tasks.rust-test-filter]
+description = "Run tests in one crate matching a name filter"
+usage = '''
+arg "<package>" help="Cargo package (e.g. finstack-quant-core)"
+arg "<filter>" help="Test name substring or exact name (nextest filter)"
+flag "--integration <test>" help="Limit to one integration test binary"
+flag "--slow" help="Include ignored/slow tests"
+'''
+run = '''
+set -e
+pkg="${usage_package?}"
+filter="${usage_filter?}"
+if [ -n "${usage_integration:-}" ]; then
+  if [ "${usage_slow:-false}" = "true" ]; then
+    cargo nextest run -p "$pkg" --test "${usage_integration?}" --run-ignored only --no-fail-fast -- "$filter"
+  else
+    cargo nextest run -p "$pkg" --test "${usage_integration?}" --no-fail-fast -- "$filter"
+  fi
+else
+  if [ "${usage_slow:-false}" = "true" ]; then
+    cargo nextest run -p "$pkg" --lib --test '*' --run-ignored only --no-fail-fast -- "$filter"
+  else
+    cargo nextest run -p "$pkg" --lib --test '*' --no-fail-fast -- "$filter"
+  fi
+fi
+'''
+
+[tasks.rust-build-crate]
+description = "Build one crate and its dependencies"
+usage = '''
+arg "<package>" help="Cargo package (e.g. finstack-quant-portfolio)"
+flag "--release" help="Release profile"
+'''
+run = '''
+set -e
+pkg="${usage_package?}"
+if [ "${usage_release:-false}" = "true" ]; then
+  cargo build -p "$pkg" --release
+else
+  cargo build -p "$pkg"
+fi
+'''
+
 [tasks.rust-test]
+# Full-workspace pass — reserve for final verification, CI, and pre-commit.
+# During iteration prefer: rust-test-crate, rust-test-integration, rust-test-filter.
 # `--exclude finstack-quant-py` is required, not an oversight: building that crate's
 # test target links against libpython (e.g. `ld: library 'python3.9' not found`), which
 # is not available in a plain `cargo` environment. Binding behavior is exercised
@@ -167,8 +246,8 @@ run = "cargo +1.90 check --locked --workspace --all-features --lib --bins --exam
 # Type-checking it is still gated: `rust-lint` runs clippy with `--workspace`, and
 # clippy type-checks without linking, so binding compile errors are caught there.
 # Native Criterion targets are compile/lint-owned by `rust-lint --all-targets`;
-# run `mise run rust-bench` or the desired `cargo bench` target for measurements.
-description = "Run native Rust tests via cargo-nextest"
+# run `mise run rust-bench-crate` or `mise run rust-bench` for measurements.
+description = "Run full-workspace Rust tests via cargo-nextest (use rust-test-crate while iterating)"
 run = [
   "cargo nextest run --workspace --exclude finstack-quant-py --exclude finstack-quant-wasm --lib --test '*' --no-fail-fast",
   "cargo nextest run -p finstack-quant-wasm --lib --test dts_contract --no-fail-fast",
@@ -202,18 +281,52 @@ LLVM_PROFILE_FILE="$PWD/target/llvm-cov/profraw/default_%m_%p.profraw" \
 echo "HTML report: target/llvm-cov/html/index.html"
 """
 
+[tasks.rust-lint-crate]
+description = "Lint one crate: fmt check + clippy on lib/tests/bins/examples (preferred during iteration)"
+usage = '''
+arg "<package>" help="Cargo package (e.g. finstack-quant-valuations, finstack-quant-py)"
+flag "--all-features" help="Enable all crate features for clippy"
+'''
+run = '''
+set -e
+pkg="${usage_package?}"
+cargo fmt --all -- --check
+if [ "${usage_all_features:-false}" = "true" ]; then
+  cargo clippy -p "$pkg" --lib --tests --bins --examples --all-features -- -D warnings
+else
+  cargo clippy -p "$pkg" --lib --tests --bins --examples -- -D warnings
+fi
+'''
+
+[tasks.rust-fmt-crate]
+description = "Format + clippy --fix for one crate (mutating; skips workspace benches)"
+usage = '''
+arg "<package>" help="Cargo package (e.g. finstack-quant-scenarios)"
+flag "--all-features" help="Enable all crate features for clippy"
+'''
+run = '''
+set -e
+pkg="${usage_package?}"
+cargo fmt --all
+if [ "${usage_all_features:-false}" = "true" ]; then
+  cargo clippy -p "$pkg" --lib --tests --bins --examples --all-features --fix --allow-dirty -- -D warnings
+else
+  cargo clippy -p "$pkg" --lib --tests --bins --examples --fix --allow-dirty -- -D warnings
+fi
+'''
+
 [tasks.rust-fmt]
 # `--workspace` keeps the mutating pass in step with `rust-lint`'s check-only pass;
 # without it, auto-fixes would skip the binding crates that rust-lint now gates on.
-description = "Format + auto-fix Rust code (cargo fmt + clippy --fix, mutating)"
+description = "Format + auto-fix full workspace (use rust-fmt-crate while iterating)"
 run = [
   "cargo fmt --all",
   "cargo clippy --workspace --all-targets --all-features --fix --allow-dirty -- -D warnings",
 ]
 
 [tasks.rust-lint]
-# `-D warnings` matches the CI pre-commit hook (.pre-commit-config.yaml) so that a
-# green local run implies a green CI run.
+# Full-workspace pass — matches CI pre-commit (.pre-commit-config.yaml).
+# During iteration prefer: rust-lint-crate (skips compiling every bench target).
 #
 # `--workspace` is deliberate: a bare `cargo clippy` operates on `default-members`,
 # which omits finstack-quant-py and finstack-quant-wasm. That blind spot let a
@@ -222,7 +335,7 @@ run = [
 # `cargo fmt --all` already covered those crates; clippy type-checks the whole
 # workspace (including `--all-features`) so feature-gated code is covered in one
 # pass at commit time.
-description = "Lint Rust (fmt --check + clippy with -D warnings, check-only)"
+description = "Lint full workspace (use rust-lint-crate while iterating; run before commit/CI)"
 run = [
   "cargo fmt --all -- --check",
   "cargo clippy --workspace --all-targets --all-features -- -D warnings",
@@ -658,8 +771,24 @@ run = [
 description = "Generate a CPU flamegraph using the bench profile (keeps symbols; pass cargo-flamegraph args after --). Example: mise run rust-flamegraph -- -p finstack-quant-portfolio --bench materialization --open"
 run = "cargo flamegraph --profile bench"
 
+[tasks.rust-bench-crate]
+description = "Run one Criterion bench in one crate (preferred during iteration)"
+usage = '''
+arg "<package>" help="Cargo package (e.g. finstack-quant-valuations, finstack-quant-portfolio)"
+arg "<bench>" help="Bench target name (e.g. bond_pricing, materialization)"
+'''
+run = '''
+set -e
+cargo bench -p "${usage_package?}" --profile bench --bench "${usage_bench?}" -- \
+  --sample-size ${FQ_BENCH_SAMPLE_SIZE:-10} \
+  --warm-up-time ${FQ_BENCH_WARM_UP_TIME:-1} \
+  --measurement-time ${FQ_BENCH_MEASUREMENT_TIME:-1} \
+  --nresamples ${FQ_BENCH_NRESAMPLES:-1000} \
+  --noplot
+'''
+
 [tasks.rust-bench]
-description = "Run Rust benchmarks with reduced Criterion timing (override: FQ_BENCH_SAMPLE_SIZE, FQ_BENCH_WARM_UP_TIME, FQ_BENCH_MEASUREMENT_TIME, FQ_BENCH_NRESAMPLES)"
+description = "Run all workspace Rust benchmarks (use rust-bench-crate while iterating)"
 run = "cargo bench --profile bench --bench '*' -- --sample-size ${FQ_BENCH_SAMPLE_SIZE:-10} --warm-up-time ${FQ_BENCH_WARM_UP_TIME:-1} --measurement-time ${FQ_BENCH_MEASUREMENT_TIME:-1} --nresamples ${FQ_BENCH_NRESAMPLES:-1000} --noplot"
 
 [tasks.rust-bench-baseline]
