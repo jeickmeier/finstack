@@ -19,6 +19,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use types::HazardApplyEnv;
 pub use types::{
     ApplicationEnvelope, ApplicationReport, ExecutionContext, RollForwardReport,
     ScenarioChangeManifest, ScenarioMarketTarget,
@@ -26,12 +27,17 @@ pub use types::{
 
 use crate::adapters::traits::ScenarioEffect;
 use crate::error::Result;
-use crate::spec::{OperationSpec, ScenarioSpec};
+use crate::spec::{HazardBumpMode, OperationSpec, ScenarioSpec};
 use crate::warning::Warning;
-use effects::{flush_pending_bumps, process_effects};
+use effects::{
+    apply_generated_effects, flush_pending_bumps, generate_replace_curve_effects_parallel,
+    independent_replace_curve_run_len, process_effects, should_parallel_replace_curves, EffectSink,
+};
 use finstack_quant_core::market_data::bumps::MarketBump;
 use finstack_quant_core::market_data::hierarchy::ResolutionMode;
+use finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache;
 use hierarchy::{expand_hierarchy_operations, ExpansionOutcome};
+use std::sync::Arc;
 
 fn results_stamp(
     config: &finstack_quant_core::config::FinstackConfig,
@@ -39,17 +45,27 @@ fn results_stamp(
     Some(finstack_quant_core::config::results_meta(config))
 }
 
+const fn hazard_bump_mode_name(mode: HazardBumpMode) -> &'static str {
+    match mode {
+        HazardBumpMode::SolveToPar => "solve_to_par",
+        HazardBumpMode::FirstOrderShift => "first_order_shift",
+    }
+}
+
 /// Orchestrates the deterministic application of a [`ScenarioSpec`].
 ///
-/// The engine is intentionally lightweight: it owns only an immutable
+/// The engine is intentionally lightweight: it owns an immutable
 /// [`FinstackConfig`](finstack_quant_core::config::FinstackConfig) (used to stamp
-/// the active rounding policy into reports) and can be cloned or reused
-/// freely. All mutable inputs are supplied via [`ExecutionContext`].
+/// the active rounding policy into reports) and an optional shared
+/// [`HazardRecalibrationCache`]. All other mutable inputs are supplied via
+/// [`ExecutionContext`].
 #[derive(Debug, Default, Clone)]
 pub struct ScenarioEngine {
     /// Active configuration; its rounding mode is stamped into
     /// [`ApplicationReport::meta`].
     config: finstack_quant_core::config::FinstackConfig,
+    /// Optional cache reused across [`Self::apply`] calls on the same unstressed snapshot.
+    hazard_cache: Option<Arc<HazardRecalibrationCache>>,
 }
 
 impl ScenarioEngine {
@@ -80,10 +96,31 @@ impl ScenarioEngine {
     ///   recorded in every application report.
     #[must_use]
     pub fn with_config(config: finstack_quant_core::config::FinstackConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            hazard_cache: None,
+        }
     }
 
-    pub(crate) fn compose_inner(&self, mut scenarios: Vec<ScenarioSpec>) -> ScenarioSpec {
+    /// Share a hazard recalibration cache across subsequent [`Self::apply`] calls.
+    ///
+    /// The cache is safe for independent applies that start from the same
+    /// unstressed market snapshot. Source-curve fingerprints prevent a
+    /// sequential second bump of an already-rewritten hazard from reusing the
+    /// first bootstrapped result.
+    ///
+    /// # Arguments
+    ///
+    /// * `cache` - Shared cache used for every subsequent [`Self::apply`] on
+    ///   this engine. Identical ParCDS solve-to-par bumps against the same
+    ///   source curve reuse the bootstrapped result.
+    #[must_use]
+    pub fn with_hazard_cache(mut self, cache: Arc<HazardRecalibrationCache>) -> Self {
+        self.hazard_cache = Some(cache);
+        self
+    }
+
+    fn compose_inner(&self, mut scenarios: Vec<ScenarioSpec>) -> ScenarioSpec {
         // Stable sort by priority (lower = higher priority)
         scenarios.sort_by_key(|s| s.priority);
 
@@ -118,6 +155,11 @@ impl ScenarioEngine {
         } else {
             ResolutionMode::Cumulative
         };
+        let hazard_bump_mode = scenarios
+            .first()
+            .map_or_else(HazardBumpMode::default, |scenario| {
+                scenario.hazard_bump_mode
+            });
 
         for scenario in scenarios {
             all_operations.extend(scenario.operations);
@@ -130,29 +172,50 @@ impl ScenarioEngine {
             operations: all_operations,
             priority: 0,
             resolution_mode,
+            hazard_bump_mode,
         }
     }
 
     /// Strict composition: returns an error at compose time when the
     /// concatenated operations would be rejected at apply time.
     ///
-    /// Currently the only compose-time-detectable pathology is the presence of
-    /// more than one [`OperationSpec::TimeRollForward`] across the composed
-    /// scenarios. Production callers should prefer this method.
+    /// Composition rejects scenarios with different [`HazardBumpMode`] values
+    /// and scenarios that contain more than one [`OperationSpec::TimeRollForward`].
+    /// Production callers should prefer this method.
     ///
     /// # Errors
     ///
-    /// Returns a validation error if composition contains multiple time-roll
-    /// operations. Other conflicts remain in the composed spec and are
-    /// validated when [`Self::apply`] is called.
+    /// Returns a validation error if `scenarios` contain conflicting
+    /// `hazard_bump_mode` values or more than one time-roll operation. Other
+    /// conflicts remain in the composed spec and are validated when
+    /// [`Self::apply`] is called.
     ///
     /// # Arguments
     ///
-    /// * `scenarios` - Scenarios supplied by the caller for this operation
+    /// * `scenarios` - Scenario specifications to merge in ascending priority
+    ///   order. Every non-empty input must use the same `hazard_bump_mode`;
+    ///   conflicting modes are rejected before composition.
     pub fn try_compose(
         &self,
         scenarios: Vec<ScenarioSpec>,
     ) -> std::result::Result<ScenarioSpec, crate::error::Error> {
+        if let Some(first) = scenarios.first() {
+            if let Some(conflicting) = scenarios
+                .iter()
+                .skip(1)
+                .find(|scenario| scenario.hazard_bump_mode != first.hazard_bump_mode)
+            {
+                return Err(crate::error::Error::validation(format!(
+                    "Cannot compose scenarios '{}' (hazard_bump_mode '{}') and '{}' \
+                     (hazard_bump_mode '{}'): all scenarios must use the same hazard_bump_mode.",
+                    first.id,
+                    hazard_bump_mode_name(first.hazard_bump_mode),
+                    conflicting.id,
+                    hazard_bump_mode_name(conflicting.hazard_bump_mode),
+                )));
+            }
+        }
+
         let composed = self.compose_inner(scenarios);
 
         let time_roll_count = composed
@@ -218,6 +281,19 @@ impl ScenarioEngine {
         // bindings (Python, WASM) deserialize JSON straight into a spec and
         // call this entry point without their own validation pass.
         spec.validate()?;
+
+        let owned_cache;
+        let hazard_cache = match &self.hazard_cache {
+            Some(cache) => cache.as_ref(),
+            None => {
+                owned_cache = HazardRecalibrationCache::new();
+                &owned_cache
+            }
+        };
+        let env = HazardApplyEnv {
+            mode: spec.hazard_bump_mode,
+            cache: hazard_cache,
+        };
 
         let mut applied = 0;
         let mut warnings: Vec<Warning> = Vec::new();
@@ -292,30 +368,46 @@ impl ScenarioEngine {
         // generating effects for the next op so adapters always observe a
         // fully-applied prior-op market state — this preserves the sequential
         // semantics that downstream cross-curve calibrations depend on.
+        //
+        // Consecutive independent ParCDS / inflation replacements (distinct
+        // curve ids) may be generated in parallel after that flush. Dependent
+        // pairs such as discount-then-hazard stay sequential.
         {
             let _span = tracing::info_span!("phase_1_market", ops = expanded_operations).entered();
-            for op in expanded_ops.iter() {
-                if let OperationSpec::TimeRollForward { .. } = op {
+            let mut sink = EffectSink {
+                pending_bumps: &mut pending_bumps,
+                deferred_stmts: &mut deferred_stmts,
+                warnings: &mut warnings,
+                applied: &mut applied,
+                changes: &mut changes,
+            };
+            let mut idx = 0;
+            while idx < expanded_ops.len() {
+                if let OperationSpec::TimeRollForward { .. } = &expanded_ops[idx] {
+                    idx += 1;
                     continue; // handled in Phase 0
                 }
 
                 // Apply any bumps queued by the previous iteration so the
                 // adapter's `ctx.market` reads reflect everything done so far.
-                flush_pending_bumps(&mut pending_bumps, ctx.market)?;
+                flush_pending_bumps(sink.pending_bumps, ctx.market)?;
 
-                process_effects(
-                    op,
-                    ctx,
-                    &mut pending_bumps,
-                    &mut deferred_stmts,
-                    &mut warnings,
-                    &mut applied,
-                    &mut changes,
-                )?;
+                let run_len = independent_replace_curve_run_len(&expanded_ops[idx..]);
+                let run = &expanded_ops[idx..idx + run_len];
+                if should_parallel_replace_curves(run) {
+                    let batches = generate_replace_curve_effects_parallel(run, ctx, &env)?;
+                    for (op, effects) in run.iter().zip(batches) {
+                        apply_generated_effects(op, effects, ctx, &mut sink)?;
+                    }
+                    idx += run_len;
+                } else {
+                    process_effects(&expanded_ops[idx], ctx, &env, &mut sink)?;
+                    idx += 1;
+                }
             }
 
             // Flush any remaining bumps before moving on to statements.
-            flush_pending_bumps(&mut pending_bumps, ctx.market)?;
+            flush_pending_bumps(sink.pending_bumps, ctx.market)?;
         }
 
         // Phase 2: Rate bindings update (from context configuration).

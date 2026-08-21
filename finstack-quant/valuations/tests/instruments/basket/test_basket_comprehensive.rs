@@ -101,9 +101,9 @@ fn multi_currency_market_context() -> MarketContext {
 
 /// Create a simple basket with market data constituents
 fn simple_equity_basket() -> Basket {
-    Basket {
-        id: "SIMPLE_BASKET".into(),
-        constituents: vec![
+    Basket::builder()
+        .id("SIMPLE_BASKET".into())
+        .constituents(vec![
             BasketConstituent {
                 id: "AAPL".to_string(),
                 reference: ConstituentReference::MarketData {
@@ -124,17 +124,18 @@ fn simple_equity_basket() -> Basket {
                 units: None,
                 ticker: Some("MSFT".to_string()),
             },
-        ],
-        expense_ratio: 0.001,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    }
+        ])
+        .expense_ratio(0.001)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap()
 }
 
 // Type Construction and Validation Tests
@@ -142,19 +143,20 @@ fn simple_equity_basket() -> Basket {
 #[test]
 fn test_basket_creation_with_minimal_fields() {
     // Arrange & Act
-    let basket = Basket {
-        id: "TEST_BASKET".into(),
-        constituents: vec![],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+    let basket = Basket::builder()
+        .id("TEST_BASKET".into())
+        .constituents(vec![])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
 
     // Assert
     assert_eq!(basket.id.as_str(), "TEST_BASKET");
@@ -226,19 +228,20 @@ fn test_basket_validation_invalid_weights_sum() {
 #[test]
 fn test_basket_validation_empty_constituents() {
     // Arrange
-    let basket = Basket {
-        id: "EMPTY_BASKET".into(),
-        constituents: vec![],
-        expense_ratio: 0.001,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+    let basket = Basket::builder()
+        .id("EMPTY_BASKET".into())
+        .constituents(vec![])
+        .expense_ratio(0.001)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
 
     // Act - empty basket with no constituents should validate (zero weight sum is OK)
     // Note: The validate() method checks abs(total_weight - 1.0) > 0.01
@@ -340,9 +343,9 @@ fn test_custom_pricing_config() {
 #[test]
 fn test_pricing_with_explicit_units() {
     // Arrange
-    let basket = Basket {
-        id: "UNITS_BASKET".into(),
-        constituents: vec![
+    let basket = Basket::builder()
+        .id("UNITS_BASKET".into())
+        .constituents(vec![
             BasketConstituent {
                 id: "AAPL".to_string(),
                 reference: ConstituentReference::MarketData {
@@ -363,17 +366,18 @@ fn test_pricing_with_explicit_units() {
                 units: Some(5.0),
                 ticker: None,
             },
-        ],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        ])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
     let context = equity_market_context();
     let calc = basket.calculator();
     let as_of = date(2025, 1, 1);
@@ -394,9 +398,9 @@ fn test_pricing_with_explicit_units() {
 #[test]
 fn test_nav_calculation_with_units() {
     // Arrange
-    let basket = Basket {
-        id: "NAV_BASKET".into(),
-        constituents: vec![BasketConstituent {
+    let basket = Basket::builder()
+        .id("NAV_BASKET".into())
+        .constituents(vec![BasketConstituent {
             id: "AAPL".to_string(),
             reference: ConstituentReference::MarketData {
                 price_id: "AAPL".into(),
@@ -405,17 +409,18 @@ fn test_nav_calculation_with_units() {
             weight: 0.0,
             units: Some(100.0),
             ticker: None,
-        }],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        }])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
     let context = equity_market_context();
     let calc = basket.calculator();
     let as_of = date(2025, 1, 1);
@@ -551,9 +556,9 @@ fn test_expense_ratio_with_custom_days_in_year() {
 #[test]
 fn test_fx_conversion_eur_to_usd() {
     // Arrange
-    let basket = Basket {
-        id: "FX_BASKET".into(),
-        constituents: vec![BasketConstituent {
+    let basket = Basket::builder()
+        .id("FX_BASKET".into())
+        .constituents(vec![BasketConstituent {
             id: "EUR_EQUITY".to_string(),
             reference: ConstituentReference::MarketData {
                 price_id: "EUR_EQUITY".into(),
@@ -562,17 +567,18 @@ fn test_fx_conversion_eur_to_usd() {
             weight: 0.0,
             units: Some(10.0),
             ticker: None,
-        }],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        }])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
     let context = multi_currency_market_context();
     let calc = basket.calculator();
     let as_of = date(2025, 1, 1);
@@ -593,9 +599,9 @@ fn test_fx_conversion_eur_to_usd() {
 #[test]
 fn test_fx_conversion_multiple_currencies() {
     // Arrange
-    let basket = Basket {
-        id: "MULTI_CCY_BASKET".into(),
-        constituents: vec![
+    let basket = Basket::builder()
+        .id("MULTI_CCY_BASKET".into())
+        .constituents(vec![
             BasketConstituent {
                 id: "EUR_EQUITY".to_string(),
                 reference: ConstituentReference::MarketData {
@@ -626,17 +632,18 @@ fn test_fx_conversion_multiple_currencies() {
                 units: Some(2.0),
                 ticker: None,
             },
-        ],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        ])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
     let context = multi_currency_market_context();
     let calc = basket.calculator();
     let as_of = date(2025, 1, 1);
@@ -657,9 +664,9 @@ fn test_fx_conversion_multiple_currencies() {
 #[test]
 fn test_fx_conversion_error_without_fx_provider() {
     // Arrange
-    let basket = Basket {
-        id: "NO_FX_BASKET".into(),
-        constituents: vec![BasketConstituent {
+    let basket = Basket::builder()
+        .id("NO_FX_BASKET".into())
+        .constituents(vec![BasketConstituent {
             id: "EUR_EQUITY".to_string(),
             reference: ConstituentReference::MarketData {
                 price_id: "EUR_EQUITY".into(),
@@ -668,17 +675,18 @@ fn test_fx_conversion_error_without_fx_provider() {
             weight: 0.0,
             units: Some(10.0),
             ticker: None,
-        }],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        }])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
     // Context without FX provider
     let context =
         minimal_market_context().insert_price("EUR_EQUITY", MarketScalar::Price(eur(100.0)));
@@ -700,9 +708,9 @@ fn test_fx_conversion_error_without_fx_provider() {
 #[test]
 fn test_mixed_units_and_weights_with_aum() {
     // Arrange
-    let basket = Basket {
-        id: "MIXED_BASKET".into(),
-        constituents: vec![
+    let basket = Basket::builder()
+        .id("MIXED_BASKET".into())
+        .constituents(vec![
             BasketConstituent {
                 id: "AAPL".to_string(),
                 reference: ConstituentReference::MarketData {
@@ -723,17 +731,18 @@ fn test_mixed_units_and_weights_with_aum() {
                 units: None,
                 ticker: None,
             },
-        ],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        ])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
     let context = equity_market_context();
     let calc = basket.calculator();
     let as_of = date(2025, 1, 1);
@@ -770,25 +779,26 @@ fn test_constituent_reference_with_bond_instrument() {
     )
     .unwrap();
 
-    let basket = Basket {
-        id: "BOND_BASKET".into(),
-        constituents: vec![BasketConstituent {
+    let basket = Basket::builder()
+        .id("BOND_BASKET".into())
+        .constituents(vec![BasketConstituent {
             id: "CORP_BOND".to_string(),
             reference: ConstituentReference::Instrument(Box::new(InstrumentJson::Bond(bond))),
             weight: 0.0,
             units: Some(10.0),
             ticker: None,
-        }],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        }])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
     let context = minimal_market_context();
     let calc = basket.calculator();
     let as_of = base_date;
@@ -809,9 +819,9 @@ fn test_constituent_reference_with_bond_instrument() {
 #[test]
 fn test_basket_with_multiple_asset_types() {
     // Arrange
-    let basket = Basket {
-        id: "MULTI_ASSET".into(),
-        constituents: vec![
+    let basket = Basket::builder()
+        .id("MULTI_ASSET".into())
+        .constituents(vec![
             BasketConstituent {
                 id: "EQUITY".to_string(),
                 reference: ConstituentReference::MarketData {
@@ -842,17 +852,18 @@ fn test_basket_with_multiple_asset_types() {
                 units: None,
                 ticker: None,
             },
-        ],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        ])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
 
     // Act & Assert
     assert_eq!(basket.constituents.len(), 3);
@@ -909,9 +920,9 @@ fn test_expense_ratio_metric() {
 #[test]
 fn test_asset_exposure_metric_equity() {
     // Arrange
-    let basket = Basket {
-        id: "EXPOSURE_TEST".into(),
-        constituents: vec![
+    let basket = Basket::builder()
+        .id("EXPOSURE_TEST".into())
+        .constituents(vec![
             BasketConstituent {
                 id: "AAPL".to_string(),
                 reference: ConstituentReference::MarketData {
@@ -942,17 +953,18 @@ fn test_asset_exposure_metric_equity() {
                 units: None,
                 ticker: None,
             },
-        ],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        ])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
     let context = equity_market_context();
     let instrument: Arc<dyn Instrument> = Arc::new(basket);
     let mut metric_context = MetricContext::new(
@@ -975,9 +987,9 @@ fn test_asset_exposure_metric_equity() {
 #[test]
 fn test_asset_exposure_metric_bond() {
     // Arrange
-    let basket = Basket {
-        id: "BOND_EXPOSURE".into(),
-        constituents: vec![
+    let basket = Basket::builder()
+        .id("BOND_EXPOSURE".into())
+        .constituents(vec![
             BasketConstituent {
                 id: "BOND1".to_string(),
                 reference: ConstituentReference::MarketData {
@@ -1008,17 +1020,18 @@ fn test_asset_exposure_metric_bond() {
                 units: None,
                 ticker: None,
             },
-        ],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        ])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
     // Need to add bond prices to context
     let context = equity_market_context()
         .insert_price("BOND_AAA", MarketScalar::Unitless(98.5))
@@ -1066,9 +1079,9 @@ fn test_instrument_trait_value() {
 #[test]
 fn test_basket_value_with_zero_shares() {
     // Arrange
-    let basket = Basket {
-        id: "ZERO_SHARES_TEST".into(),
-        constituents: vec![BasketConstituent {
+    let basket = Basket::builder()
+        .id("ZERO_SHARES_TEST".into())
+        .constituents(vec![BasketConstituent {
             id: "AAPL".to_string(),
             reference: ConstituentReference::MarketData {
                 price_id: "AAPL".into(),
@@ -1077,17 +1090,18 @@ fn test_basket_value_with_zero_shares() {
             weight: 0.0,
             units: Some(10.0),
             ticker: None,
-        }],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        }])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
     let context = equity_market_context();
     let calc = basket.calculator();
     let as_of = date(2025, 1, 1);
@@ -1105,9 +1119,9 @@ fn test_basket_value_with_zero_shares() {
 #[test]
 fn test_basket_value_with_negative_shares() {
     // Arrange
-    let basket = Basket {
-        id: "NEG_SHARES_TEST".into(),
-        constituents: vec![BasketConstituent {
+    let basket = Basket::builder()
+        .id("NEG_SHARES_TEST".into())
+        .constituents(vec![BasketConstituent {
             id: "AAPL".to_string(),
             reference: ConstituentReference::MarketData {
                 price_id: "AAPL".into(),
@@ -1116,17 +1130,18 @@ fn test_basket_value_with_negative_shares() {
             weight: 0.0,
             units: Some(10.0),
             ticker: None,
-        }],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        }])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
     let context = equity_market_context();
     let calc = basket.calculator();
     let as_of = date(2025, 1, 1);
@@ -1220,9 +1235,9 @@ fn test_very_large_expense_ratio() {
 #[test]
 fn test_single_constituent_basket() {
     // Arrange
-    let basket = Basket {
-        id: "SINGLE".into(),
-        constituents: vec![BasketConstituent {
+    let basket = Basket::builder()
+        .id("SINGLE".into())
+        .constituents(vec![BasketConstituent {
             id: "AAPL".to_string(),
             reference: ConstituentReference::MarketData {
                 price_id: "AAPL".into(),
@@ -1231,17 +1246,18 @@ fn test_single_constituent_basket() {
             weight: 1.0,
             units: None,
             ticker: None,
-        }],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        }])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
 
     // Act & Assert
     assert!(basket.validate().is_ok());
@@ -1251,9 +1267,9 @@ fn test_single_constituent_basket() {
 #[test]
 fn test_unitless_scalar_defaults_to_basket_currency() {
     // Arrange
-    let basket = Basket {
-        id: "UNITLESS_TEST".into(),
-        constituents: vec![BasketConstituent {
+    let basket = Basket::builder()
+        .id("UNITLESS_TEST".into())
+        .constituents(vec![BasketConstituent {
             id: "ASSET".to_string(),
             reference: ConstituentReference::MarketData {
                 price_id: "UNITLESS_PRICE".into(),
@@ -1262,17 +1278,18 @@ fn test_unitless_scalar_defaults_to_basket_currency() {
             weight: 0.0,
             units: Some(10.0),
             ticker: None,
-        }],
-        expense_ratio: 0.0,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        }])
+        .expense_ratio(0.0)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
     let context =
         minimal_market_context().insert_price("UNITLESS_PRICE", MarketScalar::Unitless(50.0));
     let calc = basket.calculator();
@@ -1343,9 +1360,9 @@ fn test_basket_with_mixed_constituents_serialization() {
     )
     .unwrap();
 
-    let basket = Basket {
-        id: "MIXED_BASKET".into(),
-        constituents: vec![
+    let basket = Basket::builder()
+        .id("MIXED_BASKET".into())
+        .constituents(vec![
             BasketConstituent {
                 id: "MARKET_DATA_EQUITY".to_string(),
                 reference: ConstituentReference::MarketData {
@@ -1363,17 +1380,18 @@ fn test_basket_with_mixed_constituents_serialization() {
                 units: Some(10.0),
                 ticker: Some("CORP".to_string()),
             },
-        ],
-        expense_ratio: 0.001,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        ])
+        .expense_ratio(0.001)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
 
     // Act
     let json = serde_json::to_string_pretty(&basket).unwrap();
@@ -1474,25 +1492,26 @@ fn test_basket_envelope_roundtrip_with_instruments() {
     )
     .unwrap();
 
-    let basket = Basket {
-        id: "ENVELOPE_BASKET".into(),
-        constituents: vec![BasketConstituent {
+    let basket = Basket::builder()
+        .id("ENVELOPE_BASKET".into())
+        .constituents(vec![BasketConstituent {
             id: "BOND_CONSTITUENT".to_string(),
             reference: ConstituentReference::Instrument(Box::new(InstrumentJson::Bond(bond))),
             weight: 0.0,
             units: Some(5.0),
             ticker: None,
-        }],
-        expense_ratio: 0.001,
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        }])
+        .expense_ratio(0.001)
+        .currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
 
     let envelope = InstrumentEnvelope {
         schema: finstack_quant_valuations::instruments::json_loader::InstrumentSchema::CURRENT,
@@ -1543,9 +1562,9 @@ fn test_calculator_can_be_reused() {
 #[test]
 fn test_full_pricing_workflow_units_based() {
     // Arrange
-    let basket = Basket {
-        id: "WORKFLOW_UNITS".into(),
-        constituents: vec![
+    let basket = Basket::builder()
+        .id("WORKFLOW_UNITS".into())
+        .constituents(vec![
             BasketConstituent {
                 id: "AAPL".to_string(),
                 reference: ConstituentReference::MarketData {
@@ -1566,17 +1585,19 @@ fn test_full_pricing_workflow_units_based() {
                 units: Some(30.0),
                 ticker: Some("MSFT".to_string()),
             },
-        ],
-        expense_ratio: 0.01, // 1% annual
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        ])
+        .expense_ratio(0.01)
+        .// 1% annual
+        currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
     let context = equity_market_context();
     let as_of = date(2025, 1, 1);
     let shares = 1000.0;
@@ -1621,9 +1642,9 @@ fn test_full_pricing_workflow_weight_based() {
 #[test]
 fn test_real_world_etf_scenario() {
     // Arrange - Simulate a tech-heavy ETF
-    let basket = Basket {
-        id: "TECH_ETF".into(),
-        constituents: vec![
+    let basket = Basket::builder()
+        .id("TECH_ETF".into())
+        .constituents(vec![
             BasketConstituent {
                 id: "AAPL".to_string(),
                 reference: ConstituentReference::MarketData {
@@ -1674,17 +1695,19 @@ fn test_real_world_etf_scenario() {
                 units: None,
                 ticker: None,
             },
-        ],
-        expense_ratio: 0.0009, // 9 bp (typical for equity ETF)
-        currency: Currency::USD,
-        notional: usd(1_000_000.0),
-        discount_curve_id: "USD-OIS".into(),
-        instrument_pricing_overrides: Default::default(),
-        metric_pricing_overrides: Default::default(),
-        scenario_pricing_overrides: Default::default(),
-        attributes: Attributes::new(),
-        pricing_config: BasketPricingConfig::default(),
-    };
+        ])
+        .expense_ratio(0.0009)
+        .// 9 bp (typical for equity ETF)
+        currency(Currency::USD)
+        .notional(usd(1_000_000.0))
+        .discount_curve_id("USD-OIS".into())
+        .instrument_pricing_overrides(Default::default())
+        .metric_pricing_overrides(Default::default())
+        .scenario_pricing_overrides(Default::default())
+        .attributes(Attributes::new())
+        .pricing_config(BasketPricingConfig::default())
+        .build()
+        .unwrap();
     let context = equity_market_context();
     let as_of = date(2025, 1, 1);
 

@@ -960,22 +960,53 @@ where
         let buckets = defaults.cs01_buckets_years;
         let bump_bp = defaults.credit_spread_bump_bp;
 
-        let reval = cs01_reval(context);
-
         let series_id = MetricId::custom(format!("bucketed_cs01::{}", hazard_id.as_str()));
-        let bucketed_result = compute_key_rate_cs01_series_with_context_raw(
-            context,
-            &hazard_id,
-            discount_id.as_ref(),
-            KeyRateCs01Request {
-                series_id,
-                bucket_times_years: buckets,
-                bump_bp,
-                doc_clause: Some(doc_clause),
-                cds_valuation_convention: Some(valuation_convention),
-            },
-            reval,
-        );
+        let cds_cache = match context
+            .instrument_as::<crate::instruments::credit_derivatives::cds::CreditDefaultSwap>()
+        {
+            Ok(cds) => Some(
+                crate::instruments::credit_derivatives::cds::pricer::CdsHazardRepriceCache::try_new(
+                    cds,
+                    context.curves.as_ref(),
+                    context.as_of,
+                )?,
+            ),
+            Err(_) => None,
+        };
+        let bucketed_result = if let Some(cache) = cds_cache {
+            let hazard_key = hazard_id.clone();
+            compute_key_rate_cs01_series_with_context_raw(
+                context,
+                &hazard_id,
+                discount_id.as_ref(),
+                KeyRateCs01Request {
+                    series_id,
+                    bucket_times_years: buckets,
+                    bump_bp,
+                    doc_clause: Some(doc_clause),
+                    cds_valuation_convention: Some(valuation_convention),
+                },
+                move |temp_ctx: &MarketContext| {
+                    let surv = temp_ctx.get_hazard(hazard_key.as_str())?;
+                    cache.npv(surv.as_ref())
+                },
+            )
+        } else {
+            let reval = cs01_reval(context);
+            compute_key_rate_cs01_series_with_context_raw(
+                context,
+                &hazard_id,
+                discount_id.as_ref(),
+                KeyRateCs01Request {
+                    series_id,
+                    bucket_times_years: buckets,
+                    bump_bp,
+                    doc_clause: Some(doc_clause),
+                    cds_valuation_convention: Some(valuation_convention),
+                },
+                reval,
+            )
+        };
         context.curves = original_curves;
         bucketed_result
     }

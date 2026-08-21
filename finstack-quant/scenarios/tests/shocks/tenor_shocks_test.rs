@@ -41,6 +41,7 @@ fn test_tenor_exact_match() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     // Apply scenario
@@ -102,6 +103,7 @@ fn test_tenor_exact_not_found() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     // Apply scenario - should fail
@@ -159,6 +161,7 @@ fn test_tenor_interpolate_mode() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     // Apply scenario
@@ -250,6 +253,7 @@ fn test_tenor_interpolate_delivers_full_bump_at_requested_tenor() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -324,6 +328,7 @@ fn tenor_not_found_error_names_curve() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -379,6 +384,7 @@ fn extrapolation_warning_includes_both_bounds_and_curve_id() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();

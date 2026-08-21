@@ -89,12 +89,14 @@ pub(crate) fn collect_historical_values_sorted(
             sorted_periods
         } else {
             let mut sorted_periods = BTreeMap::new();
-            for (period, values) in context.historical_results.iter() {
-                if *period > context.period_id {
-                    continue;
-                }
-                if let Some(value) = values.get(node_name) {
-                    sorted_periods.insert(*period, *value);
+            if let Some(&column) = context.node_to_column.get(node_name) {
+                for (period, row) in context.history.iter() {
+                    if period > context.period_id {
+                        continue;
+                    }
+                    if let Some(value) = row.get(column).copied().flatten() {
+                        sorted_periods.insert(period, value);
+                    }
                 }
             }
             if let Ok(current) = context.get_value(node_name) {

@@ -42,6 +42,7 @@ fn test_fx_shock() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     // Apply scenario
@@ -99,6 +100,7 @@ fn test_fx_shock_preserves_other_quotes() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let base_date = Date::from_calendar_date(2025, Month::January, 1).unwrap();
@@ -178,6 +180,7 @@ fn test_rate_binding() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     // Apply scenario with rate binding

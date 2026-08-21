@@ -22,14 +22,20 @@ impl MetricCalculator for AssetExposureCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let basket = context.instrument_as::<Basket>()?;
         let mut total_exposure = 0.0;
-        for constituent in &basket.constituents {
+        for (index, constituent) in basket.constituents.iter().enumerate() {
             let matches = match (&constituent.reference, &self.asset_type) {
                 (ConstituentReference::MarketData { asset_type, .. }, target) => {
                     std::mem::discriminant(asset_type) == std::mem::discriminant(target)
                 }
-                (ConstituentReference::Instrument(instr_json), target) => {
+                (ConstituentReference::Instrument(_), target) => {
                     use crate::pricer::InstrumentType;
-                    let boxed = instr_json.as_ref().clone().into_boxed()?;
+                    let boxed = basket.boxed_constituent_at(index)?.ok_or(
+                        finstack_quant_core::Error::Input(
+                            finstack_quant_core::InputError::NotFound {
+                                id: constituent.id.clone(),
+                            },
+                        ),
+                    )?;
                     let it = boxed.key();
                     matches!(
                         (it, target),

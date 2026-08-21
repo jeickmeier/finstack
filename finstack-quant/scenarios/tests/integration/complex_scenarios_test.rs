@@ -66,6 +66,7 @@ fn test_fx_equity_curve_combo() {
         ],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -164,6 +165,7 @@ fn test_statements_rate_bindings_curve() {
         ],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -231,6 +233,7 @@ fn test_time_roll_with_market_shocks() {
         ],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -293,6 +296,7 @@ fn test_conflicting_operations_last_wins() {
         ],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -335,6 +339,7 @@ fn test_three_scenario_composition() {
         }],
         priority: -10,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let s2 = ScenarioSpec {
@@ -347,6 +352,7 @@ fn test_three_scenario_composition() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let s3 = ScenarioSpec {
@@ -359,6 +365,7 @@ fn test_three_scenario_composition() {
         }],
         priority: 10,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -421,6 +428,7 @@ fn test_multiple_statement_operations() {
         ],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();

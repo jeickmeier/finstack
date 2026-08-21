@@ -485,7 +485,12 @@ impl TarnPricer {
         mc.price(|| payoff.clone())
     }
 
-    fn price_internal(&self, inst: &Tarn, market: &MarketContext, as_of: Date) -> Result<Money> {
+    pub(crate) fn price_internal(
+        &self,
+        inst: &Tarn,
+        market: &MarketContext,
+        as_of: Date,
+    ) -> Result<Money> {
         Ok(self.price_estimate(inst, market, as_of)?.mean)
     }
 }

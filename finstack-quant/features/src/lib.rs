@@ -76,6 +76,7 @@
 #![doc(test(attr(allow(clippy::expect_used))))]
 
 mod cross_sectional;
+mod index;
 mod multi;
 mod panel;
 mod timeseries;

@@ -18,6 +18,11 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::norm_cdf;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 
+/// Official American lattice size when `tree_steps` is omitted on PV.
+const OFFICIAL_TREE_STEPS: usize = 401;
+/// Default American lattice size for finite-difference greeks.
+const RISK_TREE_STEPS: usize = 201;
+
 /// Quotation model used for an option on a futures price.
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
@@ -481,7 +486,7 @@ impl FutureOptionTerms {
         } else {
             -df.ln() / t
         };
-        let steps = tree_steps.unwrap_or(401);
+        let steps = tree_steps.unwrap_or(OFFICIAL_TREE_STEPS);
         match self.model {
             FutureOptionModel::Black76 => {
                 let params = OptionMarketParams {
@@ -633,7 +638,8 @@ impl FutureOptionTerms {
     ///
     /// # Arguments
     ///
-    /// * `tree_steps` - Optional American lattice step count; defaults to 401.
+    /// * `tree_steps` - Optional American lattice step count; defaults to 201
+    ///   for greeks and 401 for official PV.
     /// * `market` - Market context containing the settlement discount curve.
     /// * `as_of` - Valuation date.
     pub fn cash_delta(
@@ -661,19 +667,20 @@ impl FutureOptionTerms {
             return Ok(0.0);
         }
         let bump = self.finite_difference_bump(1e-4, 1e-4);
+        let steps = Some(tree_steps.unwrap_or(RISK_TREE_STEPS));
         let up = self.live_unit_price(
             market,
             as_of,
             self.futures_price + bump,
             self.volatility,
-            tree_steps,
+            steps,
         )?;
         let down = self.live_unit_price(
             market,
             as_of,
             self.futures_price - bump,
             self.volatility,
-            tree_steps,
+            steps,
         )?;
         Ok(self.position_scale() * (up - down) / (2.0 * bump))
     }
@@ -682,7 +689,8 @@ impl FutureOptionTerms {
     ///
     /// # Arguments
     ///
-    /// * `tree_steps` - Optional American lattice step count; defaults to 401.
+    /// * `tree_steps` - Optional American lattice step count; defaults to 201
+    ///   for greeks and 401 for official PV.
     /// * `market` - Market context containing the settlement discount curve.
     /// * `as_of` - Valuation date.
     pub fn cash_gamma(
@@ -696,26 +704,22 @@ impl FutureOptionTerms {
             return Ok(0.0);
         }
         let bump = self.finite_difference_bump(1e-3, 1e-3);
-        let base = self.live_unit_price(
-            market,
-            as_of,
-            self.futures_price,
-            self.volatility,
-            tree_steps,
-        )?;
+        let steps = Some(tree_steps.unwrap_or(RISK_TREE_STEPS));
+        let base =
+            self.live_unit_price(market, as_of, self.futures_price, self.volatility, steps)?;
         let up = self.live_unit_price(
             market,
             as_of,
             self.futures_price + bump,
             self.volatility,
-            tree_steps,
+            steps,
         )?;
         let down = self.live_unit_price(
             market,
             as_of,
             self.futures_price - bump,
             self.volatility,
-            tree_steps,
+            steps,
         )?;
         Ok(self.position_scale() * (up - 2.0 * base + down) / (bump * bump))
     }
@@ -728,7 +732,8 @@ impl FutureOptionTerms {
     ///
     /// # Arguments
     ///
-    /// * `tree_steps` - Optional American lattice step count; defaults to 401.
+    /// * `tree_steps` - Optional American lattice step count; defaults to 201
+    ///   for greeks and 401 for official PV.
     /// * `market` - Market context containing the settlement discount curve.
     /// * `as_of` - Valuation date.
     pub fn cash_vega(
@@ -741,19 +746,15 @@ impl FutureOptionTerms {
         if as_of >= self.expiry || self.exercise.is_some_and(|exercise| as_of >= exercise.date) {
             return Ok(0.0);
         }
-        let base = self.live_unit_price(
-            market,
-            as_of,
-            self.futures_price,
-            self.volatility,
-            tree_steps,
-        )?;
+        let steps = Some(tree_steps.unwrap_or(RISK_TREE_STEPS));
+        let base =
+            self.live_unit_price(market, as_of, self.futures_price, self.volatility, steps)?;
         let up = self.live_unit_price(
             market,
             as_of,
             self.futures_price,
             self.volatility + 0.01,
-            tree_steps,
+            steps,
         )?;
         Ok(self.position_scale() * (up - base))
     }
@@ -762,7 +763,8 @@ impl FutureOptionTerms {
     ///
     /// # Arguments
     ///
-    /// * `tree_steps` - Optional American lattice step count; defaults to 401.
+    /// * `tree_steps` - Optional American lattice step count; defaults to 201
+    ///   for greeks and 401 for official PV.
     /// * `market` - Market context containing the settlement discount curve.
     /// * `as_of` - Valuation date.
     pub fn cash_theta(
@@ -776,19 +778,15 @@ impl FutureOptionTerms {
             return Ok(0.0);
         }
         let next_date = (as_of + time::Duration::days(1)).min(self.expiry);
-        let base = self.live_unit_price(
-            market,
-            as_of,
-            self.futures_price,
-            self.volatility,
-            tree_steps,
-        )?;
+        let steps = Some(tree_steps.unwrap_or(RISK_TREE_STEPS));
+        let base =
+            self.live_unit_price(market, as_of, self.futures_price, self.volatility, steps)?;
         let next = self.live_unit_price(
             market,
             next_date,
             self.futures_price,
             self.volatility,
-            tree_steps,
+            steps,
         )?;
         Ok(self.position_scale() * (next - base))
     }

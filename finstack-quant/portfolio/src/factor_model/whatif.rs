@@ -37,6 +37,19 @@ pub struct WhatIfResult {
     pub delta: Vec<FactorContributionDelta>,
 }
 
+/// P&L-only result of a factor-stress scenario.
+///
+/// This is the stressed-minus-base present-value path without a risk
+/// decomposition on the shocked market. Call [`FactorModel::factor_stress`]
+/// when the stressed decomposition is required.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct StressPnl {
+    /// Total portfolio P&L under the stressed market.
+    pub total_pnl: f64,
+    /// Per-position P&L contributions.
+    pub position_pnl: Vec<(PositionId, f64)>,
+}
+
 /// Result of a factor-stress scenario.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct StressResult {
@@ -202,6 +215,35 @@ impl<'a> WhatIfEngine<'a> {
         })
     }
 
+    /// Shock factors and reprice positions without a stressed risk decomposition.
+    ///
+    /// Returns each position's stressed-minus-base PV and a portfolio total in
+    /// the portfolio base currency. Native PVs are converted with
+    /// the portfolio spot FX helper on the **stressed** market at `as_of`,
+    /// so FX-factor shocks flow through the bumped spot matrix. Position P&L
+    /// is that difference times [`crate::position::Position::scale_factor`].
+    ///
+    /// # Arguments
+    ///
+    /// * `stresses` - Factor IDs and shock magnitudes in each factor's
+    ///   configured market-mapping convention.
+    ///
+    /// # Errors
+    ///
+    /// Propagates invalid factor shocks, market-stress construction, pricing,
+    /// and FX conversion errors. Returns validation errors for non-finite PVs.
+    /// Missing FX for a cross-currency position fails the same way NAV does.
+    pub fn factor_stress_pnl(&self, stresses: &[(FactorId, f64)]) -> Result<StressPnl> {
+        factor_stress_pnl(
+            self.model,
+            self.portfolio,
+            self.market,
+            self.as_of,
+            stresses,
+        )
+        .map(|(pnl, _)| pnl)
+    }
+
     /// Shock factors, reprice positions, and recompute the stressed decomposition.
     ///
     /// Returns each position's stressed-minus-base PV and a portfolio total in
@@ -209,6 +251,11 @@ impl<'a> WhatIfEngine<'a> {
     /// the portfolio spot FX helper on the **stressed** market at `as_of`,
     /// so FX-factor shocks flow through the bumped spot matrix. Position P&L
     /// is that difference times [`crate::position::Position::scale_factor`].
+    ///
+    /// # Arguments
+    ///
+    /// * `stresses` - Factor IDs and shock magnitudes in each factor's
+    ///   configured market-mapping convention.
     ///
     /// # Errors
     ///
@@ -234,13 +281,13 @@ impl<'a> WhatIfEngine<'a> {
     }
 }
 
-pub(super) fn factor_stress(
+pub(super) fn factor_stress_pnl(
     model: &FactorModel,
     portfolio: &Portfolio,
     market: &MarketContext,
     as_of: Date,
     stresses: &[(FactorId, f64)],
-) -> Result<StressResult> {
+) -> Result<(StressPnl, MarketContext)> {
     let (stressed_market, changed_factor_keys) =
         model.stressed_market_with_factor_keys(portfolio, market, as_of, stresses)?;
 
@@ -320,11 +367,28 @@ pub(super) fn factor_stress(
         total_pnl_acc.add(*pnl);
     }
 
+    Ok((
+        StressPnl {
+            total_pnl: total_pnl_acc.total(),
+            position_pnl,
+        },
+        stressed_market,
+    ))
+}
+
+pub(super) fn factor_stress(
+    model: &FactorModel,
+    portfolio: &Portfolio,
+    market: &MarketContext,
+    as_of: Date,
+    stresses: &[(FactorId, f64)],
+) -> Result<StressResult> {
+    let (pnl, stressed_market) = factor_stress_pnl(model, portfolio, market, as_of, stresses)?;
     let stressed_decomposition = model.analyze(portfolio, &stressed_market, as_of)?;
 
     Ok(StressResult {
-        total_pnl: total_pnl_acc.total(),
-        position_pnl,
+        total_pnl: pnl.total_pnl,
+        position_pnl: pnl.position_pnl,
         stressed_decomposition,
     })
 }
@@ -577,6 +641,23 @@ mod tests {
 
         assert_eq!(stress_result.position_pnl.len(), 1);
         assert!(stress_result.total_pnl.is_finite());
+    }
+
+    #[test]
+    fn factor_stress_pnl_matches_factor_stress_totals() {
+        let Some((model, portfolio, market)) = build_test_model() else {
+            panic!("setup");
+        };
+        let as_of = date!(2024 - 01 - 01);
+        let stresses = [(FactorId::new("Rates"), 1.0)];
+        let full = model
+            .factor_stress(&portfolio, &market, as_of, &stresses)
+            .expect("full factor stress");
+        let pnl = model
+            .factor_stress_pnl(&portfolio, &market, as_of, &stresses)
+            .expect("pnl-only factor stress");
+        assert_eq!(pnl.total_pnl, full.total_pnl);
+        assert_eq!(pnl.position_pnl, full.position_pnl);
     }
 
     #[test]

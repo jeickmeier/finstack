@@ -207,29 +207,11 @@ pub fn transform_timeseries_with_op(
         &[("entity", entity.len()), ("order", order.len())],
     )?;
     let mut output = vec![None; values.len()];
-    let mut indices = sorted_indices(entity, order);
-    let mut start = 0;
-    while start < indices.len() {
-        let mut end = start + 1;
-        while end < indices.len() && entity[indices[end]] == entity[indices[start]] {
-            end += 1;
-        }
-        transform_entity(values, &indices[start..end], op, params, &mut output)?;
-        start = end;
-    }
-    indices.clear();
+    let indices = crate::index::sorted_indices(entity, order);
+    crate::index::try_for_each_entity(entity, &indices, |entity_indices| {
+        transform_entity(values, entity_indices, op, params, &mut output)
+    })?;
     Ok(output)
-}
-
-fn sorted_indices(entity: &[String], order: &[String]) -> Vec<usize> {
-    let mut indices = (0..entity.len()).collect::<Vec<_>>();
-    indices.sort_by(|left, right| {
-        entity[*left]
-            .cmp(&entity[*right])
-            .then(order[*left].cmp(&order[*right]))
-            .then(left.cmp(right))
-    });
-    indices
 }
 
 fn transform_entity(

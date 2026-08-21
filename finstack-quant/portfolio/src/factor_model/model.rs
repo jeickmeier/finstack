@@ -20,7 +20,7 @@
 //!
 
 use super::assignment::{assign_position_factors, FactorAssignmentReport};
-use super::whatif::{StressResult, WhatIfEngine};
+use super::whatif::{StressPnl, StressResult, WhatIfEngine};
 use super::{
     ParametricDecomposer, PositionResidualContribution, ResidualContributionSource, RiskDecomposer,
     RiskDecomposition,
@@ -335,7 +335,7 @@ impl FactorModel {
         as_of: Date,
         credit_exposures: &mut CreditExposureMatrix<'_>,
     ) -> Result<SensitivityMatrix> {
-        let _assignment_report = self.assign_factors(portfolio)?;
+        let assignment_report = self.assign_factors(portfolio)?;
         let positions: Vec<(String, &dyn Instrument, f64)> = portfolio
             .positions
             .iter()
@@ -358,6 +358,7 @@ impl FactorModel {
         self.overlay_assignment_driven_credit_sensitivities(
             portfolio,
             as_of,
+            &assignment_report,
             &mut sensitivities,
             credit_exposures,
         )?;
@@ -368,82 +369,78 @@ impl FactorModel {
         &self,
         portfolio: &Portfolio,
         as_of: Date,
+        assignment_report: &FactorAssignmentReport,
         sensitivities: &mut SensitivityMatrix,
         credit_exposures: &mut CreditExposureMatrix<'_>,
     ) -> Result<()> {
-        for (position_idx, position) in portfolio.positions.iter().enumerate() {
-            let dependencies = flatten_dependencies(&position.instrument.market_dependencies()?);
-            for dependency in &dependencies {
+        for (position_idx, (position, assignment)) in portfolio
+            .positions
+            .iter()
+            .zip(&assignment_report.assignments)
+            .enumerate()
+        {
+            for (dependency, factor_id, beta) in &assignment.mappings {
                 let Some(curve_id) = credit_curve_id(dependency) else {
                     continue;
                 };
-                let Some(entries) = self
-                    .matcher
-                    .match_factor_with_betas(dependency, position.instrument.attributes())
-                    .map_err(|e| Error::invalid_input(e.to_string()))?
+                let Some(factor_idx) = self
+                    .factors
+                    .iter()
+                    .position(|factor| factor.id == *factor_id)
                 else {
-                    continue;
-                };
-                for entry in entries {
-                    let Some(factor_idx) = self
-                        .factors
-                        .iter()
-                        .position(|factor| factor.id == entry.factor_id)
-                    else {
-                        // The matcher emitted a factor id that is not
-                        // declared in `factors` (typically a runtime issuer
-                        // whose tags name a bucket outside the calibrated
-                        // universe). Dropping it loses real credit exposure,
-                        // so the unmatched policy decides: Strict fails,
-                        // Warn surfaces the drop, Residual continues.
-                        match self.unmatched_policy {
-                            UnmatchedPolicy::Strict => {
-                                return Err(Error::invalid_input(format!(
-                                    "Credit factor '{}' matched for position '{}' is not \
+                    // The matcher emitted a factor id that is not
+                    // declared in `factors` (typically a runtime issuer
+                    // whose tags name a bucket outside the calibrated
+                    // universe). Dropping it loses real credit exposure,
+                    // so the unmatched policy decides: Strict fails,
+                    // Warn surfaces the drop, Residual continues.
+                    match self.unmatched_policy {
+                        UnmatchedPolicy::Strict => {
+                            return Err(Error::invalid_input(format!(
+                                "Credit factor '{}' matched for position '{}' is not \
                                      declared in the factor model; its exposure would be \
                                      silently dropped",
-                                    entry.factor_id, position.position_id
-                                )));
-                            }
-                            UnmatchedPolicy::Warn => {
-                                tracing::warn!(
-                                    position_id = %position.position_id,
-                                    factor_id = %entry.factor_id,
-                                    "dropping credit exposure to a factor id not declared \
-                                     in the factor model"
-                                );
-                            }
-                            // Residual (and any future policy variants —
-                            // the enum is non_exhaustive): keep going.
-                            _ => {}
+                                factor_id, position.position_id
+                            )));
                         }
-                        continue;
-                    };
-                    if !uses_assignment_driven_credit_shock(&self.factors[factor_idx]) {
-                        continue;
+                        UnmatchedPolicy::Warn => {
+                            tracing::warn!(
+                                position_id = %position.position_id,
+                                factor_id = %factor_id,
+                                "dropping credit exposure to a factor id not declared \
+                                     in the factor model"
+                            );
+                        }
+                        // Residual (and any future policy variants —
+                        // the enum is non_exhaustive): keep going.
+                        _ => {}
                     }
-                    let bump_size = self.bump_config.bump_size_for_factor(
-                        &self.factors[factor_idx].id,
-                        &self.factors[factor_idx].factor_type,
-                    );
-                    let delta = credit_exposures.exposure(
-                        position_idx,
-                        position.instrument.as_ref(),
-                        position.scale_factor(),
-                        as_of,
-                        curve_id,
-                        bump_size,
-                    )?;
-                    // Under the credit hierarchy model Δs_i = β_pc·ΔG +
-                    // Σ_k β_k·ΔL_k + Δε_i, so exposure to a factor is the
-                    // issuer CS01 scaled by that factor's calibrated loading —
-                    // the same convention credit attribution applies
-                    // (`attribution::credit_factor`). Dropping the beta here
-                    // would overstate risk for defensive names (β < 1) and
-                    // understate it for levered ones (β > 1).
-                    let current = sensitivities.delta(position_idx, factor_idx);
-                    sensitivities.set_delta(position_idx, factor_idx, current + entry.beta * delta);
+                    continue;
+                };
+                if !uses_assignment_driven_credit_shock(&self.factors[factor_idx]) {
+                    continue;
                 }
+                let bump_size = self.bump_config.bump_size_for_factor(
+                    &self.factors[factor_idx].id,
+                    &self.factors[factor_idx].factor_type,
+                );
+                let delta = credit_exposures.exposure(
+                    position_idx,
+                    position.instrument.as_ref(),
+                    position.scale_factor(),
+                    as_of,
+                    curve_id,
+                    bump_size,
+                )?;
+                // Under the credit hierarchy model Δs_i = β_pc·ΔG +
+                // Σ_k β_k·ΔL_k + Δε_i, so exposure to a factor is the
+                // issuer CS01 scaled by that factor's calibrated loading —
+                // the same convention credit attribution applies
+                // (`attribution::credit_factor`). Dropping the beta here
+                // would overstate risk for defensive names (β < 1) and
+                // understate it for levered ones (β > 1).
+                let current = sensitivities.delta(position_idx, factor_idx);
+                sensitivities.set_delta(position_idx, factor_idx, current + *beta * delta);
             }
         }
         Ok(())
@@ -665,6 +662,42 @@ impl FactorModel {
         as_of: Date,
     ) -> WhatIfEngine<'a> {
         WhatIfEngine::new(self, base, sensitivities, portfolio, market, as_of)
+    }
+
+    /// Shock configured factors and reprice the portfolio without decomposing
+    /// stressed risk.
+    ///
+    /// Use this when only shocked-minus-base P&L is required. Call
+    /// [`Self::factor_stress`] when the stressed risk decomposition is also
+    /// needed; that path reuses this P&L evaluation and then analyzes the
+    /// shocked market once.
+    ///
+    /// # Arguments
+    ///
+    /// * `portfolio` - Portfolio whose position P&L is evaluated.
+    /// * `market` - Baseline market snapshot to shock.
+    /// * `as_of` - Valuation date used for both endpoints.
+    /// * `stresses` - Factor IDs and shock magnitudes in each factor's
+    ///   configured market-mapping convention.
+    ///
+    /// # Returns
+    ///
+    /// Total and per-position stressed-minus-base P&L in the portfolio base
+    /// currency.
+    ///
+    /// # Errors
+    ///
+    /// Propagates unknown-factor, market-bump, valuation, and
+    /// currency-validation failures.
+    pub fn factor_stress_pnl(
+        &self,
+        portfolio: &Portfolio,
+        market: &MarketContext,
+        as_of: Date,
+        stresses: &[(finstack_quant_factor_model::FactorId, f64)],
+    ) -> Result<StressPnl> {
+        super::whatif::factor_stress_pnl(self, portfolio, market, as_of, stresses)
+            .map(|(pnl, _)| pnl)
     }
 
     /// Shock configured factors, reprice the portfolio, and decompose risk

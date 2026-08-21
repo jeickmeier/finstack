@@ -19,7 +19,7 @@ instruments/
 ├── coverage_manifest.toml  # registry tag -> fixture path -> persistence policy
 │
 ├── registry_coverage.rs    # Every registry tag has a manifest entry, fixture, schema, and strict round-trip
-├── serde_skip_guard.rs     # #[serde(skip)] is limited to one documented derived artifact
+├── serde_skip_guard.rs     # #[serde(skip)] is limited to documented derived-artifact caches
 ├── override_wire_shape.rs  # Focused pricing-override bags use the three canonical keys
 ├── dividend_yield_dependency.rs # Dividend-yield IDs are market scalars, not series
 ├── curve_dependency_completeness.rs # Instruments declare every discount curve they read

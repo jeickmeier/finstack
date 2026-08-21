@@ -233,4 +233,23 @@ mod tests {
         assert_eq!(deser.id, cra.id);
         assert!((deser.range_accrual.coupon_rate - cra.range_accrual.coupon_rate).abs() < 1e-12);
     }
+
+    #[test]
+    fn value_requires_explicit_pricer() {
+        use crate::instruments::common_impl::traits::Instrument;
+        use finstack_quant_core::market_data::context::MarketContext;
+        use time::macros::date;
+
+        let cra = CallableRangeAccrual::example();
+        let market = MarketContext::default();
+        let as_of = date!(2025 - 01 - 01);
+        let err = cra
+            .value(&market, as_of)
+            .expect_err("value must require LSMC or HW tree pricer");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("LSMC") && msg.contains("HW tree"),
+            "expected LSMC/HW tree pricer in error message, got: {msg}"
+        );
+    }
 }

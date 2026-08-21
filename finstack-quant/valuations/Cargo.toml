@@ -183,6 +183,14 @@ name = "composite_pricing"
 harness = false
 
 [[bench]]
+name = "future_option_pricing"
+harness = false
+
+[[bench]]
+name = "rate_exotics_pricing"
+harness = false
+
+[[bench]]
 name = "xccy_pricing"
 harness = false
 

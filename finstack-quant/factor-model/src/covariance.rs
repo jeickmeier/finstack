@@ -41,6 +41,9 @@ pub struct FactorCovarianceMatrix {
     /// the wire.
     #[serde(skip)]
     index: HashMap<FactorId, usize>,
+    /// Cached `√max(variance, 0)` per factor, rebuilt with [`Self::new`].
+    #[serde(skip)]
+    stdevs: Vec<f64>,
 }
 
 impl FactorCovarianceMatrix {
@@ -93,11 +96,23 @@ impl FactorCovarianceMatrix {
             )));
         }
 
+        let stdevs = (0..n)
+            .map(|i| {
+                let variance = data[i * n + i];
+                if variance > 0.0 {
+                    variance.sqrt()
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+
         Ok(Self {
             factor_ids,
             n,
             data,
             index,
+            stdevs,
         })
     }
 
@@ -119,6 +134,84 @@ impl FactorCovarianceMatrix {
         &self.data
     }
 
+    /// Row/column index of `factor`, or `None` if the identifier is unknown.
+    ///
+    /// # Arguments
+    ///
+    /// * `factor` - Identifier to locate on the matrix axes. A missing id
+    ///   returns `None` rather than `0`; pair this with the `*_at` accessors
+    ///   when a caller already walked [`Self::factor_ids`].
+    #[must_use]
+    pub fn index_of(&self, factor: &FactorId) -> Option<usize> {
+        self.index.get(factor).copied()
+    }
+
+    /// Variance at a known axis index.
+    ///
+    /// # Arguments
+    ///
+    /// * `idx` - Row/column in `[0, n_factors)`. Out of range is a hard
+    ///   assert, matching [`crate::SensitivityMatrix::position_deltas`].
+    ///
+    /// # Panics
+    ///
+    /// Panics when `idx` is out of bounds.
+    #[must_use]
+    pub fn variance_at(&self, idx: usize) -> f64 {
+        assert!(
+            idx < self.n,
+            "idx {idx} out of bounds for {} factors",
+            self.n
+        );
+        self.data[idx * self.n + idx]
+    }
+
+    /// Covariance at a known pair of axis indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `i` - Row index in `[0, n_factors)`.
+    /// * `j` - Column index in `[0, n_factors)`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `i` or `j` is out of bounds.
+    #[must_use]
+    pub fn covariance_at(&self, i: usize, j: usize) -> f64 {
+        assert!(
+            i < self.n && j < self.n,
+            "covariance index ({i}, {j}) out of bounds for {} factors",
+            self.n
+        );
+        self.data[i * self.n + j]
+    }
+
+    /// Correlation at a known pair of axis indices, using cached standard
+    /// deviations.
+    ///
+    /// # Arguments
+    ///
+    /// * `i` - Row index in `[0, n_factors)`.
+    /// * `j` - Column index in `[0, n_factors)`.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `i` or `j` is out of bounds.
+    #[must_use]
+    pub fn correlation_at(&self, i: usize, j: usize) -> f64 {
+        assert!(
+            i < self.n && j < self.n,
+            "correlation index ({i}, {j}) out of bounds for {} factors",
+            self.n
+        );
+        let stdev_i = self.stdevs[i];
+        let stdev_j = self.stdevs[j];
+        if stdev_i <= 0.0 || stdev_j <= 0.0 {
+            return 0.0;
+        }
+        self.data[i * self.n + j] / (stdev_i * stdev_j)
+    }
+
     /// Return the variance for a factor, or `0.0` if the factor is unknown.
     ///
     /// The `0.0` fallback means an unknown (e.g. mistyped) factor ID silently
@@ -127,38 +220,44 @@ impl FactorCovarianceMatrix {
     /// [`crate::FactorModelConfig::validate_matching_factor_ids`] (called by
     /// `CreditFactorModel::validate`) to reject undeclared factors at
     /// config-load time.
+    ///
+    /// # Arguments
+    ///
+    /// * `factor` - Factor whose diagonal variance is requested. An identifier
+    ///   that is not a row of this matrix returns `0.0`.
     #[must_use]
     pub fn variance(&self, factor: &FactorId) -> f64 {
-        let Some(&idx) = self.index.get(factor) else {
-            return 0.0;
-        };
-        self.data[idx * self.n + idx]
+        self.index_of(factor)
+            .map_or(0.0, |idx| self.variance_at(idx))
     }
 
     /// Return the covariance between two factors, or `0.0` if either is unknown.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - First factor. Unknown identifiers return `0.0`.
+    /// * `rhs` - Second factor. Unknown identifiers return `0.0`.
     #[must_use]
     pub fn covariance(&self, lhs: &FactorId, rhs: &FactorId) -> f64 {
-        let Some(&i) = self.index.get(lhs) else {
-            return 0.0;
-        };
-        let Some(&j) = self.index.get(rhs) else {
-            return 0.0;
-        };
-        self.data[i * self.n + j]
+        match (self.index_of(lhs), self.index_of(rhs)) {
+            (Some(i), Some(j)) => self.covariance_at(i, j),
+            _ => 0.0,
+        }
     }
 
     /// Return the correlation between two factors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - First factor. Unknown identifiers, or a non-positive
+    ///   variance on either axis, return `0.0`.
+    /// * `rhs` - Second factor.
     #[must_use]
     pub fn correlation(&self, lhs: &FactorId, rhs: &FactorId) -> f64 {
-        let covariance = self.covariance(lhs, rhs);
-        let variance_lhs = self.variance(lhs);
-        let variance_rhs = self.variance(rhs);
-
-        if variance_lhs <= 0.0 || variance_rhs <= 0.0 {
-            return 0.0;
+        match (self.index_of(lhs), self.index_of(rhs)) {
+            (Some(i), Some(j)) => self.correlation_at(i, j),
+            _ => 0.0,
         }
-
-        covariance / (variance_lhs.sqrt() * variance_rhs.sqrt())
     }
 
     fn build_index(
@@ -283,6 +382,10 @@ mod tests {
         };
         assert!((covariance.variance(&FactorId::new("Rates")) - 0.04).abs() < 1e-12);
         assert!((covariance.variance(&FactorId::new("Credit")) - 0.09).abs() < 1e-12);
+        assert_eq!(covariance.index_of(&FactorId::new("Rates")), Some(0));
+        assert_eq!(covariance.index_of(&FactorId::new("missing")), None);
+        assert!((covariance.variance_at(0) - 0.04).abs() < 1e-12);
+        assert!((covariance.variance_at(1) - 0.09).abs() < 1e-12);
     }
 
     #[test]
@@ -296,6 +399,7 @@ mod tests {
         };
         let value = covariance.covariance(&FactorId::new("Rates"), &FactorId::new("Credit"));
         assert!((value - 0.01).abs() < 1e-12);
+        assert!((covariance.covariance_at(0, 1) - 0.01).abs() < 1e-12);
     }
 
     #[test]
@@ -309,6 +413,7 @@ mod tests {
         };
         let correlation = covariance.correlation(&FactorId::new("Rates"), &FactorId::new("Credit"));
         assert!((correlation - (1.0 / 6.0)).abs() < 1e-10);
+        assert!((covariance.correlation_at(0, 1) - (1.0 / 6.0)).abs() < 1e-10);
     }
 
     #[test]

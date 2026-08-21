@@ -141,16 +141,6 @@ pub fn convert_to_base_forward(
     ))
 }
 
-fn discount_curve_id(
-    currency: Currency,
-    discount_curves: Option<&HashMap<Currency, CurveId>>,
-) -> String {
-    discount_curves
-        .and_then(|map| map.get(&currency))
-        .map(ToString::to_string)
-        .unwrap_or_else(|| currency.to_string())
-}
-
 fn discount_factor(
     market: &MarketContext,
     currency: Currency,
@@ -158,8 +148,9 @@ fn discount_factor(
     payment_date: Date,
     discount_curves: Option<&HashMap<Currency, CurveId>>,
 ) -> Result<f64> {
-    let id = discount_curve_id(currency, discount_curves);
-    let curve = market.get_discount(&id).map_err(|_| {
+    let mapped = discount_curves.and_then(|map| map.get(&currency));
+    let id = mapped.map_or(currency.as_ref(), CurveId::as_str);
+    let curve = market.get_discount(id).map_err(|_| {
         Error::MissingMarketData(format!(
             "no discount curve for {currency} (looked up as '{id}')"
         ))
@@ -173,4 +164,81 @@ fn discount_factor(
         )));
     }
     Ok(df)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use finstack_quant_core::market_data::term_structures::DiscountCurve;
+    use finstack_quant_core::math::interp::InterpStyle;
+    use finstack_quant_core::money::fx::{FxMatrix, SimpleFxProvider};
+    use std::sync::Arc;
+    use time::macros::date;
+
+    fn flat_discount(id: &str, as_of: Date, df_1y: f64) -> DiscountCurve {
+        DiscountCurve::builder(id)
+            .base_date(as_of)
+            .knots([(0.0, 1.0), (1.0, df_1y)])
+            .interp(InterpStyle::Linear)
+            .build()
+            .expect("test discount curve should build")
+    }
+
+    #[test]
+    fn forward_fx_uses_iso_code_without_curve_map() {
+        let as_of = date!(2025 - 01 - 01);
+        let payment = date!(2026 - 01 - 01);
+        let provider = Arc::new(SimpleFxProvider::new());
+        provider
+            .set_quote(Currency::JPY, Currency::USD, 0.0067)
+            .expect("test FX quote should be valid");
+        let market = MarketContext::new()
+            .insert(flat_discount("JPY", as_of, 0.99))
+            .insert(flat_discount("USD", as_of, 0.95))
+            .insert_fx(FxMatrix::new(provider));
+
+        let converted = convert_to_base_forward(
+            Money::new(100.0, Currency::JPY),
+            as_of,
+            payment,
+            &market,
+            Currency::USD,
+            None,
+        )
+        .expect("ISO curve ids should resolve without a map");
+
+        let expected = 100.0 * 0.0067 * 0.99 / 0.95;
+        assert!((converted.amount() - expected).abs() < 1e-12);
+        assert_eq!(converted.currency(), Currency::USD);
+    }
+
+    #[test]
+    fn forward_fx_uses_explicit_curve_id_without_allocating_iso_fallback() {
+        let as_of = date!(2025 - 01 - 01);
+        let payment = date!(2026 - 01 - 01);
+        let provider = Arc::new(SimpleFxProvider::new());
+        provider
+            .set_quote(Currency::JPY, Currency::USD, 0.0067)
+            .expect("test FX quote should be valid");
+        let market = MarketContext::new()
+            .insert(flat_discount("JPY-OIS", as_of, 0.99))
+            .insert(flat_discount("USD-OIS", as_of, 0.95))
+            .insert_fx(FxMatrix::new(provider));
+        let mut curves = HashMap::new();
+        curves.insert(Currency::JPY, CurveId::new("JPY-OIS"));
+        curves.insert(Currency::USD, CurveId::new("USD-OIS"));
+
+        let converted = convert_to_base_forward(
+            Money::new(100.0, Currency::JPY),
+            as_of,
+            payment,
+            &market,
+            Currency::USD,
+            Some(&curves),
+        )
+        .expect("explicit curve map should resolve JPY-OIS");
+
+        let expected = 100.0 * 0.0067 * 0.99 / 0.95;
+        assert!((converted.amount() - expected).abs() < 1e-12);
+    }
 }

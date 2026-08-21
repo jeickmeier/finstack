@@ -7,11 +7,14 @@ use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::market_data::term_structures::HazardCurve;
 use finstack_quant_core::money::Money;
 use finstack_quant_scenarios::{
-    CurveKind, ExecutionContext, OperationSpec, ScenarioEngine, ScenarioSpec, TenorMatchMode,
+    CurveKind, ExecutionContext, HazardBumpMode, OperationSpec, ScenarioEngine, ScenarioSpec,
+    TenorMatchMode,
 };
 use finstack_quant_statements::FinancialModelSpec;
+use finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache;
 use finstack_quant_valuations::instruments::Bond;
 use finstack_quant_valuations::instruments::Instrument;
+use std::sync::Arc;
 use time::Month;
 
 #[test]
@@ -55,6 +58,7 @@ fn test_par_cds_bump_integration() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -134,6 +138,7 @@ fn test_par_cds_bump_reprices_credit_bond() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let mut market_after = market;
@@ -243,6 +248,7 @@ fn roll_with_discount_and_par_cds_bump_survives_knot_on_roll_tenor() {
             ],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         let engine = ScenarioEngine::new();
@@ -273,4 +279,261 @@ fn roll_with_discount_and_par_cds_bump_survives_knot_on_roll_tenor() {
             bumped.df(probe),
         );
     }
+}
+
+fn par_cds_market() -> (finstack_quant_core::dates::Date, MarketContext) {
+    let base_date = Date::from_calendar_date(2025, Month::January, 1).unwrap();
+    let discount = DiscountCurve::builder("USD-OIS")
+        .base_date(base_date)
+        .knots(vec![(0.0, 1.0), (1.0, 0.95), (5.0, 0.80), (10.0, 0.60)])
+        .build()
+        .unwrap();
+    let hazard = HazardCurve::builder("USD-CDS")
+        .base_date(base_date)
+        .recovery_rate(0.4)
+        .knots(vec![(1.0, 0.01), (5.0, 0.02)])
+        .par_spreads(vec![(1.0, 60.0), (5.0, 120.0)])
+        .build()
+        .unwrap();
+    (
+        base_date,
+        MarketContext::new().insert(discount).insert(hazard),
+    )
+}
+
+fn apply_par_cds(market: &mut MarketContext, as_of: Date, spec: &ScenarioSpec) {
+    let mut model = FinancialModelSpec::new("test", vec![]);
+    let engine = ScenarioEngine::new();
+    let mut ctx = ExecutionContext {
+        market,
+        model: Some(&mut model),
+        instruments: None,
+        rate_bindings: None,
+        calendar: None,
+        as_of,
+    };
+    engine.apply(spec, &mut ctx).expect("apply");
+}
+
+#[test]
+fn first_order_par_cds_shifts_hazard_knots_without_solve_to_par() {
+    let (base_date, market) = par_cds_market();
+    let original = market.get_hazard("USD-CDS").unwrap().hazard_rate(5.0);
+
+    let mut shifted = market.clone();
+    apply_par_cds(
+        &mut shifted,
+        base_date,
+        &ScenarioSpec {
+            id: "first_order".into(),
+            name: None,
+            description: None,
+            operations: vec![OperationSpec::CurveParallelBp {
+                curve_kind: CurveKind::ParCDS,
+                curve_id: "USD-CDS".into(),
+                discount_curve_id: Some("USD-OIS".into()),
+                bp: 25.0,
+            }],
+            priority: 0,
+            resolution_mode: Default::default(),
+            hazard_bump_mode: HazardBumpMode::FirstOrderShift,
+        },
+    );
+    let mut solved = market;
+    apply_par_cds(
+        &mut solved,
+        base_date,
+        &ScenarioSpec {
+            id: "solve".into(),
+            name: None,
+            description: None,
+            operations: vec![OperationSpec::CurveParallelBp {
+                curve_kind: CurveKind::ParCDS,
+                curve_id: "USD-CDS".into(),
+                discount_curve_id: Some("USD-OIS".into()),
+                bp: 25.0,
+            }],
+            priority: 0,
+            resolution_mode: Default::default(),
+            hazard_bump_mode: HazardBumpMode::SolveToPar,
+        },
+    );
+
+    let shifted_h = shifted.get_hazard("USD-CDS").unwrap().hazard_rate(5.0);
+    let solved_h = solved.get_hazard("USD-CDS").unwrap().hazard_rate(5.0);
+    assert!(
+        (shifted_h - (original + 0.0025)).abs() < 1e-10,
+        "first-order should add 25bp to the 5Y hazard: original={original} shifted={shifted_h}"
+    );
+    assert!(
+        (solved_h - shifted_h).abs() > 1e-6,
+        "solve-to-par must differ from the first-order knot shift: solved={solved_h} shifted={shifted_h}"
+    );
+}
+
+#[test]
+fn sequential_same_curve_par_cds_ops_compound_with_shared_cache() {
+    let (base_date, market) = par_cds_market();
+    let cache = Arc::new(HazardRecalibrationCache::new());
+    let engine = ScenarioEngine::new().with_hazard_cache(Arc::clone(&cache));
+
+    let once = ScenarioSpec {
+        id: "once".into(),
+        name: None,
+        description: None,
+        operations: vec![OperationSpec::CurveParallelBp {
+            curve_kind: CurveKind::ParCDS,
+            curve_id: "USD-CDS".into(),
+            discount_curve_id: Some("USD-OIS".into()),
+            bp: 25.0,
+        }],
+        priority: 0,
+        resolution_mode: Default::default(),
+        hazard_bump_mode: HazardBumpMode::SolveToPar,
+    };
+    let twice = ScenarioSpec {
+        id: "twice".into(),
+        name: None,
+        description: None,
+        operations: vec![
+            OperationSpec::CurveParallelBp {
+                curve_kind: CurveKind::ParCDS,
+                curve_id: "USD-CDS".into(),
+                discount_curve_id: Some("USD-OIS".into()),
+                bp: 25.0,
+            },
+            OperationSpec::CurveParallelBp {
+                curve_kind: CurveKind::ParCDS,
+                curve_id: "USD-CDS".into(),
+                discount_curve_id: Some("USD-OIS".into()),
+                bp: 25.0,
+            },
+        ],
+        priority: 0,
+        resolution_mode: Default::default(),
+        hazard_bump_mode: HazardBumpMode::SolveToPar,
+    };
+
+    let mut once_market = market.clone();
+    let mut twice_market = market;
+    let mut model = FinancialModelSpec::new("test", vec![]);
+    let mut ctx = ExecutionContext {
+        market: &mut once_market,
+        model: Some(&mut model),
+        instruments: None,
+        rate_bindings: None,
+        calendar: None,
+        as_of: base_date,
+    };
+    engine.apply(&once, &mut ctx).expect("once");
+    drop(ctx);
+    let mut model = FinancialModelSpec::new("test", vec![]);
+    let mut ctx = ExecutionContext {
+        market: &mut twice_market,
+        model: Some(&mut model),
+        instruments: None,
+        rate_bindings: None,
+        calendar: None,
+        as_of: base_date,
+    };
+    engine.apply(&twice, &mut ctx).expect("twice");
+
+    let h_once = once_market.get_hazard("USD-CDS").unwrap().hazard_rate(5.0);
+    let h_twice = twice_market.get_hazard("USD-CDS").unwrap().hazard_rate(5.0);
+    assert!(
+        h_twice > h_once + 1e-6,
+        "second sequential bump must not reuse the first cached curve: once={h_once} twice={h_twice}"
+    );
+}
+
+#[test]
+fn two_independent_par_cds_curves_match_separate_applies() {
+    let base_date = Date::from_calendar_date(2025, Month::January, 1).unwrap();
+    let discount = DiscountCurve::builder("USD-OIS")
+        .base_date(base_date)
+        .knots(vec![(0.0, 1.0), (1.0, 0.95), (5.0, 0.80), (10.0, 0.60)])
+        .build()
+        .unwrap();
+    let ig = HazardCurve::builder("IG")
+        .base_date(base_date)
+        .recovery_rate(0.4)
+        .knots(vec![(1.0, 0.01), (5.0, 0.02)])
+        .par_spreads(vec![(1.0, 60.0), (5.0, 120.0)])
+        .build()
+        .unwrap();
+    let hy = HazardCurve::builder("HY")
+        .base_date(base_date)
+        .recovery_rate(0.3)
+        .knots(vec![(1.0, 0.05), (5.0, 0.07)])
+        .par_spreads(vec![(1.0, 350.0), (5.0, 490.0)])
+        .build()
+        .unwrap();
+    let market = MarketContext::new().insert(discount).insert(ig).insert(hy);
+
+    let together = ScenarioSpec {
+        id: "both".into(),
+        name: None,
+        description: None,
+        operations: vec![
+            OperationSpec::CurveParallelBp {
+                curve_kind: CurveKind::ParCDS,
+                curve_id: "IG".into(),
+                discount_curve_id: Some("USD-OIS".into()),
+                bp: 10.0,
+            },
+            OperationSpec::CurveParallelBp {
+                curve_kind: CurveKind::ParCDS,
+                curve_id: "HY".into(),
+                discount_curve_id: Some("USD-OIS".into()),
+                bp: 25.0,
+            },
+        ],
+        priority: 0,
+        resolution_mode: Default::default(),
+        hazard_bump_mode: HazardBumpMode::FirstOrderShift,
+    };
+    let mut combined = market.clone();
+    apply_par_cds(&mut combined, base_date, &together);
+
+    let mut only_ig = market.clone();
+    apply_par_cds(
+        &mut only_ig,
+        base_date,
+        &ScenarioSpec {
+            id: "ig".into(),
+            name: None,
+            description: None,
+            operations: vec![together.operations[0].clone()],
+            priority: 0,
+            resolution_mode: Default::default(),
+            hazard_bump_mode: HazardBumpMode::FirstOrderShift,
+        },
+    );
+    let mut only_hy = market;
+    apply_par_cds(
+        &mut only_hy,
+        base_date,
+        &ScenarioSpec {
+            id: "hy".into(),
+            name: None,
+            description: None,
+            operations: vec![together.operations[1].clone()],
+            priority: 0,
+            resolution_mode: Default::default(),
+            hazard_bump_mode: HazardBumpMode::FirstOrderShift,
+        },
+    );
+
+    assert!(
+        (combined.get_hazard("IG").unwrap().hazard_rate(5.0)
+            - only_ig.get_hazard("IG").unwrap().hazard_rate(5.0))
+        .abs()
+            < 1e-12
+    );
+    assert!(
+        (combined.get_hazard("HY").unwrap().hazard_rate(5.0)
+            - only_hy.get_hazard("HY").unwrap().hazard_rate(5.0))
+        .abs()
+            < 1e-12
+    );
 }

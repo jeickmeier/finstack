@@ -22,6 +22,10 @@ fn parse_resolution_mode(
     serde_json::from_value(serde_json::Value::String(value.to_string())).map_err(display_to_py)
 }
 
+fn parse_hazard_bump_mode(value: &str) -> PyResult<finstack_quant_scenarios::HazardBumpMode> {
+    serde_json::from_value(serde_json::Value::String(value.to_string())).map_err(display_to_py)
+}
+
 /// Validated scenario specification executed by the scenario engine.
 ///
 /// Examples
@@ -54,6 +58,7 @@ impl PyScenarioSpec {
         description: Option<&str>,
         priority: i32,
         resolution_mode: &str,
+        hazard_bump_mode: &str,
     ) -> PyResult<Self> {
         let inner = finstack_quant_scenarios::ScenarioSpec {
             id: id.to_string(),
@@ -65,6 +70,7 @@ impl PyScenarioSpec {
                 .collect(),
             priority,
             resolution_mode: parse_resolution_mode(resolution_mode)?,
+            hazard_bump_mode: parse_hazard_bump_mode(hazard_bump_mode)?,
         };
         inner.validate().map_err(display_to_py)?;
         Ok(Self { inner })
@@ -89,11 +95,14 @@ impl PyScenarioSpec {
     ///     Composition priority; lower values execute first.
     /// resolution_mode : str, default "most_specific_wins"
     ///     Hierarchy conflict policy: ``"most_specific_wins"`` or ``"cumulative"``.
+    /// hazard_bump_mode : str, default "solve_to_par"
+    ///     ParCDS delivery: ``"solve_to_par"`` re-bootstraps hazard from shocked
+    ///     par spreads; ``"first_order_shift"`` shifts hazard knots in place.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the resolution mode or resulting scenario is invalid.
+    ///     If the resolution mode, hazard bump mode, or resulting scenario is invalid.
     #[new]
     #[pyo3(signature = (
         id,
@@ -101,7 +110,8 @@ impl PyScenarioSpec {
         name=None,
         description=None,
         priority=0,
-        resolution_mode="most_specific_wins"
+        resolution_mode="most_specific_wins",
+        hazard_bump_mode="solve_to_par"
     ))]
     fn new(
         id: &str,
@@ -110,8 +120,17 @@ impl PyScenarioSpec {
         description: Option<&str>,
         priority: i32,
         resolution_mode: &str,
+        hazard_bump_mode: &str,
     ) -> PyResult<Self> {
-        Self::build(id, operations, name, description, priority, resolution_mode)
+        Self::build(
+            id,
+            operations,
+            name,
+            description,
+            priority,
+            resolution_mode,
+            hazard_bump_mode,
+        )
     }
 
     /// Deserialize and validate canonical scenario JSON.
@@ -192,6 +211,12 @@ impl PyScenarioSpec {
     #[getter]
     fn resolution_mode(&self) -> PyResult<String> {
         enum_label(&self.inner.resolution_mode)
+    }
+
+    /// ParCDS hazard delivery as its canonical snake-case label.
+    #[getter]
+    fn hazard_bump_mode(&self) -> PyResult<String> {
+        enum_label(&self.inner.hazard_bump_mode)
     }
 
     /// Validate the scenario using the canonical Rust rules.

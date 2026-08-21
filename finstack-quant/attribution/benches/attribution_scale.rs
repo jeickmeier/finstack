@@ -17,18 +17,19 @@
 //! and should be benchmarked against the baseline to quantify that cost.
 
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
+
+#[path = "support/fixtures.rs"]
+mod fixtures;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use finstack_quant_attribution::{
     attribute_pnl_metrics_based, attribute_pnl_parallel, attribute_pnl_taylor,
-    attribute_pnl_waterfall, default_waterfall_order, simple_pnl_bridge, AttributionMethod,
-    ExecutionPolicy, TaylorAttributionConfig,
+    attribute_pnl_waterfall, attribute_return_contribution, default_waterfall_order,
+    simple_pnl_bridge, AttributionMethod, ExecutionPolicy, MarketRestoreFlags, MarketSnapshot,
+    TaylorAttributionConfig,
 };
-use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::market_data::term_structures::DiscountCurve;
-use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::IssuerId;
 use finstack_quant_factor_model::credit::hierarchy::{
@@ -43,86 +44,32 @@ use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 use finstack_quant_valuations::instruments::PricingOptions;
 use finstack_quant_valuations::instruments::{Attributes, Instrument};
 use finstack_quant_valuations::metrics::MetricId;
+use fixtures::{
+    market_state, multi_curve_market, return_contribution_spec, sample_bond_idx, BondMarkets,
+    BASE_RATE, USD_OIS,
+};
 use std::collections::BTreeMap;
 use std::hint::black_box;
 use std::sync::Arc;
 use time::{Date, Month};
 
-// Shared fixture
-
-const CURVE_ID: &str = "USD-OIS";
-const BASE_RATE: f64 = 0.04;
 const SHIFT_BP: f64 = 1.0;
 const PORTFOLIO_SIZES: &[usize] = &[10, 100, 1000];
-
-/// Build a flat USD-OIS-style discount curve at the given continuously
-/// compounded zero rate.
-fn build_flat_curve(as_of: Date, rate: f64) -> DiscountCurve {
-    let tenors = [0.0_f64, 1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 20.0, 30.0];
-    let knots: Vec<(f64, f64)> = tenors.iter().map(|&t| (t, (-rate * t).exp())).collect();
-
-    DiscountCurve::builder(CURVE_ID)
-        .base_date(as_of)
-        .knots(knots)
-        .interp(InterpStyle::Linear)
-        .build()
-        .unwrap()
-}
-
-/// Rolling-maturity fixed-rate USD corporate bond. Using a short-dated
-/// (1–10y) vanilla fixed-coupon bond keeps every pricing path warm without
-/// pulling in options/volatility machinery.
-fn sample_bond(idx: usize) -> Bond {
-    let issue = Date::from_calendar_date(2025, Month::January, 1).unwrap();
-    // Spread maturities across 1..=10 years so the portfolio isn't a
-    // degenerate duplicate of a single instrument.
-    let years = 1 + (idx % 10) as i32;
-    let maturity = Date::from_calendar_date(2025 + years, Month::January, 1).unwrap();
-    Bond::fixed(
-        format!("BENCH-BOND-{idx}"),
-        Money::new(1_000_000.0, Currency::USD),
-        0.05,
-        issue,
-        maturity,
-        CURVE_ID,
-    )
-    .unwrap()
-}
 
 /// Shared inputs for every methodology. Built once per N per benchmark run
 /// so we don't re-allocate curves inside `b.iter`.
 struct Fixture {
     bonds: Vec<Arc<dyn Instrument>>,
-    market_t0: MarketContext,
-    market_t1: MarketContext,
-    as_of_t0: Date,
-    as_of_t1: Date,
-    config: FinstackConfig,
+    markets: BondMarkets,
 }
 
 impl Fixture {
     fn new(n: usize) -> Self {
-        let as_of_t0 = Date::from_calendar_date(2025, Month::January, 15).unwrap();
-        let as_of_t1 = Date::from_calendar_date(2025, Month::January, 16).unwrap();
-
-        let curve_t0 = build_flat_curve(as_of_t0, BASE_RATE);
-        let curve_t1 = build_flat_curve(as_of_t1, BASE_RATE + SHIFT_BP / 10_000.0);
-
-        let market_t0 = MarketContext::new().insert(curve_t0);
-        let market_t1 = MarketContext::new().insert(curve_t1);
-
+        let markets = BondMarkets::new(SHIFT_BP);
         let bonds: Vec<Arc<dyn Instrument>> = (0..n)
-            .map(|i| Arc::new(sample_bond(i)) as Arc<dyn Instrument>)
+            .map(|i| Arc::new(sample_bond_idx(i)) as Arc<dyn Instrument>)
             .collect();
-
-        Self {
-            bonds,
-            market_t0,
-            market_t1,
-            as_of_t0,
-            as_of_t1,
-            config: FinstackConfig::default(),
-        }
+        Self { bonds, markets }
     }
 }
 
@@ -140,10 +87,10 @@ fn run_simple_bridge(fx: &Fixture) {
     for bond in &fx.bonds {
         let pnl = simple_pnl_bridge(
             bond,
-            black_box(&fx.market_t0),
-            black_box(&fx.market_t1),
-            black_box(fx.as_of_t0),
-            black_box(fx.as_of_t1),
+            black_box(&fx.markets.market_t0),
+            black_box(&fx.markets.market_t1),
+            black_box(fx.markets.as_of_t0),
+            black_box(fx.markets.as_of_t1),
             Currency::USD,
         )
         .unwrap();
@@ -156,35 +103,69 @@ fn run_metrics_based(fx: &Fixture) {
     let opts = PricingOptions::default();
     for bond in &fx.bonds {
         let val_t0 = bond
-            .price_with_metrics(&fx.market_t0, fx.as_of_t0, &metrics, opts.clone())
+            .price_with_metrics(
+                &fx.markets.market_t0,
+                fx.markets.as_of_t0,
+                &metrics,
+                opts.clone(),
+            )
             .unwrap();
         let val_t1 = bond
-            .price_with_metrics(&fx.market_t1, fx.as_of_t1, &metrics, opts.clone())
+            .price_with_metrics(
+                &fx.markets.market_t1,
+                fx.markets.as_of_t1,
+                &metrics,
+                opts.clone(),
+            )
             .unwrap();
         let attr = attribute_pnl_metrics_based(
             bond,
-            black_box(&fx.market_t0),
-            black_box(&fx.market_t1),
+            black_box(&fx.markets.market_t0),
+            black_box(&fx.markets.market_t1),
             &val_t0,
             &val_t1,
-            black_box(fx.as_of_t0),
-            black_box(fx.as_of_t1),
+            black_box(fx.markets.as_of_t0),
+            black_box(fx.markets.as_of_t1),
         )
         .unwrap();
         black_box(attr);
     }
 }
 
-fn run_parallel(fx: &Fixture) {
+/// Metrics-based attribution with valuations prepared outside the loop, so
+/// the measured cost is the linear decomposition rather than `price_with_metrics`.
+fn run_metrics_based_precomputed(
+    fx: &Fixture,
+    vals: &[(
+        finstack_quant_valuations::results::ValuationResult,
+        finstack_quant_valuations::results::ValuationResult,
+    )],
+) {
+    for (bond, (val_t0, val_t1)) in fx.bonds.iter().zip(vals) {
+        let attr = attribute_pnl_metrics_based(
+            bond,
+            black_box(&fx.markets.market_t0),
+            black_box(&fx.markets.market_t1),
+            val_t0,
+            val_t1,
+            black_box(fx.markets.as_of_t0),
+            black_box(fx.markets.as_of_t1),
+        )
+        .unwrap();
+        black_box(attr);
+    }
+}
+
+fn run_parallel(fx: &Fixture, policy: ExecutionPolicy) {
     for bond in &fx.bonds {
         let attr = attribute_pnl_parallel(
             bond,
-            black_box(&fx.market_t0),
-            black_box(&fx.market_t1),
-            black_box(fx.as_of_t0),
-            black_box(fx.as_of_t1),
-            &fx.config,
-            ExecutionPolicy::Parallel,
+            black_box(&fx.markets.market_t0),
+            black_box(&fx.markets.market_t1),
+            black_box(fx.markets.as_of_t0),
+            black_box(fx.markets.as_of_t1),
+            &fx.markets.config,
+            policy,
         )
         .unwrap();
         black_box(attr);
@@ -195,11 +176,11 @@ fn run_waterfall(fx: &Fixture, factor_order: &[finstack_quant_attribution::Attri
     for bond in &fx.bonds {
         let attr = attribute_pnl_waterfall(
             bond,
-            black_box(&fx.market_t0),
-            black_box(&fx.market_t1),
-            black_box(fx.as_of_t0),
-            black_box(fx.as_of_t1),
-            &fx.config,
+            black_box(&fx.markets.market_t0),
+            black_box(&fx.markets.market_t1),
+            black_box(fx.markets.as_of_t0),
+            black_box(fx.markets.as_of_t1),
+            &fx.markets.config,
             factor_order.to_vec(),
             false,
             None,
@@ -213,10 +194,10 @@ fn run_taylor(fx: &Fixture, taylor_cfg: &TaylorAttributionConfig) {
     for bond in &fx.bonds {
         let attr = attribute_pnl_taylor(
             bond,
-            black_box(&fx.market_t0),
-            black_box(&fx.market_t1),
-            black_box(fx.as_of_t0),
-            black_box(fx.as_of_t1),
+            black_box(&fx.markets.market_t0),
+            black_box(&fx.markets.market_t1),
+            black_box(fx.markets.as_of_t0),
+            black_box(fx.markets.as_of_t1),
             taylor_cfg,
             ExecutionPolicy::Parallel,
         )
@@ -250,8 +231,44 @@ fn bench_attribution_scale(c: &mut Criterion) {
             b.iter(|| run_metrics_based(fx));
         });
 
+        let metrics = bond_attribution_metrics();
+        let opts = PricingOptions::default();
+        let precomputed: Vec<_> = fx
+            .bonds
+            .iter()
+            .map(|bond| {
+                (
+                    bond.price_with_metrics(
+                        &fx.markets.market_t0,
+                        fx.markets.as_of_t0,
+                        &metrics,
+                        opts.clone(),
+                    )
+                    .unwrap(),
+                    bond.price_with_metrics(
+                        &fx.markets.market_t1,
+                        fx.markets.as_of_t1,
+                        &metrics,
+                        opts.clone(),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        group.bench_with_input(
+            BenchmarkId::new("metrics_based_precomputed", n),
+            &fx,
+            |b, fx| {
+                b.iter(|| run_metrics_based_precomputed(fx, &precomputed));
+            },
+        );
+
         group.bench_with_input(BenchmarkId::new("parallel", n), &fx, |b, fx| {
-            b.iter(|| run_parallel(fx));
+            b.iter(|| run_parallel(fx, ExecutionPolicy::Parallel));
+        });
+
+        group.bench_with_input(BenchmarkId::new("parallel_serial", n), &fx, |b, fx| {
+            b.iter(|| run_parallel(fx, ExecutionPolicy::Serial));
         });
 
         group.bench_with_input(BenchmarkId::new("waterfall", n), &fx, |b, fx| {
@@ -269,7 +286,6 @@ fn bench_attribution_scale(c: &mut Criterion) {
 // PR-12: 200-position portfolio with a credit factor model
 
 use finstack_quant_attribution::{AttributionEnvelope, AttributionSpec, CreditFactorDetailOptions};
-use finstack_quant_core::market_data::context::{CurveState, MarketContextState};
 use finstack_quant_valuations::instruments::json_loader::InstrumentJson;
 
 /// Build a minimal `CreditFactorModel` that covers `n` synthetic issuers.
@@ -366,29 +382,11 @@ fn sample_bond_with_issuer(idx: usize) -> Bond {
         0.05,
         issue,
         maturity,
-        CURVE_ID,
+        USD_OIS,
     )
     .unwrap();
     bond.attributes = Attributes::new().with_meta("credit::issuer_id", format!("BENCH-BOND-{idx}"));
     bond
-}
-
-fn build_market_state(as_of: Date, rate: f64) -> MarketContextState {
-    MarketContextState {
-        schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
-        curves: vec![CurveState::Discount(build_flat_curve(as_of, rate))],
-        fx: None,
-        surfaces: vec![],
-        prices: BTreeMap::new(),
-        series: vec![],
-        inflation_indices: vec![],
-        dividends: vec![],
-        credit_indices: vec![],
-        collateral: BTreeMap::new(),
-        fx_delta_vol_surfaces: vec![],
-        hierarchy: None,
-        vol_cubes: vec![],
-    }
 }
 
 struct CreditFixture {
@@ -400,8 +398,8 @@ impl CreditFixture {
     fn new(n: usize) -> Self {
         let as_of_t0 = Date::from_calendar_date(2025, Month::January, 15).unwrap();
         let as_of_t1 = Date::from_calendar_date(2025, Month::January, 16).unwrap();
-        let market_t0 = build_market_state(as_of_t0, BASE_RATE);
-        let market_t1 = build_market_state(as_of_t1, BASE_RATE + SHIFT_BP / 10_000.0);
+        let market_t0 = market_state(as_of_t0, BASE_RATE, USD_OIS);
+        let market_t1 = market_state(as_of_t1, BASE_RATE + SHIFT_BP / 10_000.0, USD_OIS);
         let credit_model = build_credit_model_for_n(n);
         let model_ref = Box::new(credit_model);
 
@@ -451,9 +449,46 @@ fn bench_attribution_with_credit_model(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_return_contribution_scale(c: &mut Criterion) {
+    let mut group = c.benchmark_group("return_contribution");
+    group.sample_size(20);
+    for &n in &[100_usize, 1_000, 10_000] {
+        let spec = return_contribution_spec(n, false);
+        let brinson = return_contribution_spec(n, true);
+        group.throughput(Throughput::Elements(n as u64));
+        group.bench_with_input(BenchmarkId::new("gross", n), &spec, |b, spec| {
+            b.iter(|| black_box(attribute_return_contribution(spec).unwrap()));
+        });
+        group.bench_with_input(BenchmarkId::new("brinson", n), &brinson, |b, spec| {
+            b.iter(|| black_box(attribute_return_contribution(spec).unwrap()));
+        });
+    }
+    group.finish();
+}
+
+fn bench_snapshot_scale(c: &mut Criterion) {
+    let mut group = c.benchmark_group("snapshot_extract_restore");
+    group.sample_size(20);
+    for &n in &[1_usize, 10, 50] {
+        let (t0, t1, _) = multi_curve_market(n);
+        group.throughput(Throughput::Elements(n as u64));
+        group.bench_with_input(BenchmarkId::new("rates", n), &(t0, t1), |b, (t0, t1)| {
+            b.iter(|| {
+                let snap = MarketSnapshot::extract(black_box(t0), MarketRestoreFlags::RATES);
+                let restored =
+                    MarketSnapshot::restore_market(black_box(t1), &snap, MarketRestoreFlags::RATES);
+                black_box(restored);
+            });
+        });
+    }
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_attribution_scale,
-    bench_attribution_with_credit_model
+    bench_attribution_with_credit_model,
+    bench_return_contribution_scale,
+    bench_snapshot_scale
 );
 criterion_main!(benches);

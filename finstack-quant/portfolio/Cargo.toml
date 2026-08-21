@@ -70,6 +70,18 @@ harness = false
 name = "materialization"
 harness = false
 
+[[bench]]
+name = "portfolio_analytics"
+harness = false
+
+[[bench]]
+name = "portfolio_margin"
+harness = false
+
+[[bench]]
+name = "portfolio_optimization"
+harness = false
+
 [lints]
 workspace = true
 

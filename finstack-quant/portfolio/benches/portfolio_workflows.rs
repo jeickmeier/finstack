@@ -39,6 +39,7 @@ fn market_scenarios(count: usize) -> Vec<ScenarioSpec> {
             }],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         })
         .collect()
 }

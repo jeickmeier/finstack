@@ -75,6 +75,7 @@ fn apply_and_revalue_succeeds() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let (shocked_valuation, report) = finstack_quant_portfolio::scenarios::apply_and_revalue(
@@ -164,6 +165,7 @@ fn scenario_pnl_reconciles_end_to_end() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let (pnl, report) =
@@ -240,6 +242,7 @@ fn scenario_pnl_no_op_scenario_is_flat() {
         operations: vec![],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let (pnl, _report) = finstack_quant_portfolio::scenarios::scenario_pnl(
@@ -267,6 +270,7 @@ fn scenario_pnl_no_op_scenario_is_flat() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
     let market = market_with_usd();
     let config = FinstackConfig::default();
@@ -418,6 +422,7 @@ fn scenario_batch_reports_earliest_error_across_application_and_valuation_phases
             }],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         },
         ScenarioSpec {
             id: "later_application_error".to_string(),
@@ -431,6 +436,7 @@ fn scenario_batch_reports_earliest_error_across_application_and_valuation_phases
             }],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         },
     ];
 

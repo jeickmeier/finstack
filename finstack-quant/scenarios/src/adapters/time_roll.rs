@@ -191,6 +191,94 @@ type InstrumentPnlResult = (
 /// `start_date < date <= end_date` (i.e. T+0 excluded, T+N included). A coupon
 /// paid on the roll-forward target date counts toward carry; a coupon paid on
 /// the starting valuation date does not.
+#[cfg(not(target_arch = "wasm32"))]
+fn time_roll_parallel_threshold() -> usize {
+    #[cfg(test)]
+    {
+        2
+    }
+    #[cfg(not(test))]
+    {
+        64
+    }
+}
+
+fn should_parallel_time_roll(instrument_count: usize) -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = instrument_count;
+        false
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        instrument_count >= time_roll_parallel_threshold()
+    }
+}
+
+enum InstrumentPnlRow {
+    Carry(String, IndexMap<Currency, Money>),
+    Failed(String, String),
+}
+
+fn one_instrument_pnl(
+    instrument: &dyn Instrument,
+    market: &finstack_quant_core::market_data::context::MarketContext,
+    rolled: &finstack_quant_core::market_data::context::MarketContext,
+    old_date: finstack_quant_core::dates::Date,
+    new_date: finstack_quant_core::dates::Date,
+) -> InstrumentPnlRow {
+    let inst_id = instrument.id().to_string();
+    let pv_old = match instrument.value(market, old_date) {
+        Ok(v) => v,
+        Err(err) => {
+            return InstrumentPnlRow::Failed(inst_id, format!("t0 valuation failed: {err}"));
+        }
+    };
+    let pv_new = match instrument.value(rolled, new_date) {
+        Ok(v) => v,
+        Err(err) => {
+            return InstrumentPnlRow::Failed(inst_id, format!("t1 valuation failed: {err}"));
+        }
+    };
+    let mut carry_by_currency: IndexMap<Currency, Money> = IndexMap::new();
+    match pv_new.checked_sub(pv_old) {
+        Ok(diff) => {
+            carry_by_currency.insert(diff.currency(), diff);
+        }
+        Err(err) => {
+            return InstrumentPnlRow::Failed(inst_id, format!("pv diff failed: {err}"));
+        }
+    }
+    for (ccy, flow) in collect_instrument_cashflows(instrument, market, old_date, new_date) {
+        carry_by_currency
+            .entry(ccy)
+            .and_modify(|m| *m += flow)
+            .or_insert(flow);
+    }
+    InstrumentPnlRow::Carry(inst_id, carry_by_currency)
+}
+
+fn fold_instrument_pnl_rows(rows: Vec<InstrumentPnlRow>) -> InstrumentPnlResult {
+    let mut instrument_carry: Vec<(String, IndexMap<Currency, Money>)> = Vec::new();
+    let mut total_carry: IndexMap<Currency, Money> = IndexMap::new();
+    let mut failed_instruments = Vec::new();
+    for row in rows {
+        match row {
+            InstrumentPnlRow::Failed(id, reason) => failed_instruments.push((id, reason)),
+            InstrumentPnlRow::Carry(id, carry_by_currency) => {
+                for (ccy, amount) in &carry_by_currency {
+                    total_carry
+                        .entry(*ccy)
+                        .and_modify(|m| *m += *amount)
+                        .or_insert(*amount);
+                }
+                instrument_carry.push((id, carry_by_currency));
+            }
+        }
+    }
+    (instrument_carry, total_carry, failed_instruments)
+}
+
 fn calculate_instrument_pnl(
     instruments: &[Box<dyn Instrument>],
     market: &finstack_quant_core::market_data::context::MarketContext,
@@ -198,64 +286,32 @@ fn calculate_instrument_pnl(
     old_date: finstack_quant_core::dates::Date,
     new_date: finstack_quant_core::dates::Date,
 ) -> Result<InstrumentPnlResult> {
-    let mut instrument_carry: Vec<(String, IndexMap<Currency, Money>)> = Vec::new();
-    let mut total_carry: IndexMap<Currency, Money> = IndexMap::new();
-    let mut failed_instruments = Vec::new();
-
-    for instrument in instruments {
-        let inst_id = instrument.id().to_string();
-
-        // Valuation at both ends is required to compute carry. Swallowing errors
-        // here and falling through to cashflow-only accumulation would produce a
-        // misleading "pure coupon" carry number with no failure indication.
-        let pv_old = match instrument.value(market, old_date) {
-            Ok(v) => v,
-            Err(err) => {
-                failed_instruments.push((inst_id.clone(), format!("t0 valuation failed: {err}")));
-                continue;
-            }
-        };
-        let pv_new = match instrument.value(rolled, new_date) {
-            Ok(v) => v,
-            Err(err) => {
-                failed_instruments.push((inst_id.clone(), format!("t1 valuation failed: {err}")));
-                continue;
-            }
-        };
-
-        let mut pv_change_by_currency: IndexMap<Currency, Money> = IndexMap::new();
-        match pv_new.checked_sub(pv_old) {
-            Ok(diff) => {
-                pv_change_by_currency.insert(diff.currency(), diff);
-            }
-            Err(err) => {
-                failed_instruments.push((inst_id.clone(), format!("pv diff failed: {err}")));
-                continue;
-            }
+    let map_one = |instrument: &dyn Instrument| {
+        one_instrument_pnl(instrument, market, rolled, old_date, new_date)
+    };
+    let rows = if should_parallel_time_roll(instruments.len()) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use rayon::prelude::*;
+            instruments
+                .par_iter()
+                .map(|instrument| map_one(instrument.as_ref()))
+                .collect()
         }
-
-        let cashflows_during_period =
-            collect_instrument_cashflows(instrument.as_ref(), market, old_date, new_date);
-
-        let mut carry_by_currency = pv_change_by_currency;
-        for (ccy, flow) in cashflows_during_period {
-            carry_by_currency
-                .entry(ccy)
-                .and_modify(|m| *m += flow)
-                .or_insert(flow);
+        #[cfg(target_arch = "wasm32")]
+        {
+            instruments
+                .iter()
+                .map(|instrument| map_one(instrument.as_ref()))
+                .collect()
         }
-
-        for (ccy, amount) in &carry_by_currency {
-            total_carry
-                .entry(*ccy)
-                .and_modify(|m| *m += *amount)
-                .or_insert(*amount);
-        }
-
-        instrument_carry.push((inst_id.clone(), carry_by_currency));
-    }
-
-    Ok((instrument_carry, total_carry, failed_instruments))
+    } else {
+        instruments
+            .iter()
+            .map(|instrument| map_one(instrument.as_ref()))
+            .collect()
+    };
+    Ok(fold_instrument_pnl_rows(rows))
 }
 
 /// Collect cashflows for an instrument during a period, grouped by currency.

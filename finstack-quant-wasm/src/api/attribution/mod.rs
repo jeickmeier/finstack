@@ -181,8 +181,9 @@ fn run_attribute_pnl(
 /// result as a structured JavaScript object whose fields carry the canonical
 /// Rust serde names (`total_pnl.amount`, `carry`, `meta`, ...); use
 /// [`attribute_pnl_json`] for the JSON wire string. `config_json` may include
-/// `"execution_policy": "serial"` for hosts that already parallelize
-/// attribution at a higher level.
+/// `"execution_policy": "parallel"` to opt into inner Rayon when the host
+/// is not already parallelizing attribution at a higher level. Serial is
+/// the default.
 ///
 /// # Errors
 ///

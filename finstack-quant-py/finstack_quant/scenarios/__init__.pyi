@@ -67,11 +67,14 @@ class ScenarioSpec:
         Composition priority; lower values execute first.
     resolution_mode : {"most_specific_wins", "cumulative"}
         Hierarchy conflict policy.
+    hazard_bump_mode : {"solve_to_par", "first_order_shift"}
+        ParCDS delivery. ``solve_to_par`` re-bootstraps hazard from shocked
+        par spreads; ``first_order_shift`` shifts hazard knots in place.
 
     Raises
     ------
     ValueError
-        If the resolution mode or resulting scenario is invalid.
+        If the resolution mode, hazard bump mode, or resulting scenario is invalid.
 
     Examples
     --------
@@ -89,6 +92,7 @@ class ScenarioSpec:
         description: str | None = None,
         priority: int = 0,
         resolution_mode: Literal["most_specific_wins", "cumulative"] = "most_specific_wins",
+        hazard_bump_mode: Literal["solve_to_par", "first_order_shift"] = "solve_to_par",
     ) -> None: ...
     @staticmethod
     def from_json(json: str) -> ScenarioSpec:
@@ -225,6 +229,22 @@ class ScenarioSpec:
         -------
         {"most_specific_wins", "cumulative"}
             Policy used when targeted operations overlap.
+
+        Raises
+        ------
+        None
+            This property does not raise.
+        """
+        ...
+    @property
+    def hazard_bump_mode(self) -> Literal["solve_to_par", "first_order_shift"]:
+        """Return the canonical ParCDS hazard delivery mode.
+
+        Returns
+        -------
+        {"solve_to_par", "first_order_shift"}
+            ``solve_to_par`` re-bootstraps hazard from shocked par spreads;
+            ``first_order_shift`` shifts hazard knots in place.
 
         Raises
         ------
@@ -443,6 +463,7 @@ def build_scenario_spec(
     description: str | None = None,
     priority: int = 0,
     resolution_mode: Literal["most_specific_wins", "cumulative"] = "most_specific_wins",
+    hazard_bump_mode: Literal["solve_to_par", "first_order_shift"] = "solve_to_par",
 ) -> ScenarioSpec:
     """
     Construct a typed ``ScenarioSpec`` from fields and ordered operations.
@@ -462,6 +483,10 @@ def build_scenario_spec(
     resolution_mode : str, default "most_specific_wins"
         Hierarchy conflict policy. Accepted values are
         ``"most_specific_wins"`` and ``"cumulative"``.
+    hazard_bump_mode : str, default "solve_to_par"
+        ParCDS delivery. Accepted values are ``"solve_to_par"`` (re-bootstrap
+        hazard from shocked par spreads) and ``"first_order_shift"`` (shift
+        hazard knots in place).
 
     Returns
     -------
@@ -471,7 +496,8 @@ def build_scenario_spec(
     Raises
     ------
     ValueError
-        If ``resolution_mode`` is not recognized or the resulting scenario fails validation.
+        If ``resolution_mode`` or ``hazard_bump_mode`` is not recognized, or
+        the resulting scenario fails validation.
 
     Examples
     --------

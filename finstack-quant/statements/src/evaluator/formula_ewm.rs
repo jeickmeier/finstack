@@ -26,13 +26,15 @@ use finstack_quant_core::math::ZERO_TOLERANCE;
 /// must still advance the decay. Trailing non-finite slots are trimmed — they
 /// scale every weight uniformly and cancel out of the normalized moments.
 fn collect_column_series(column_name: &str, context: &EvaluationContext) -> Vec<(PeriodId, f64)> {
-    let mut values = Vec::with_capacity(context.historical_results.len() + 1);
-    for (period_id, period_results) in context.historical_results.iter() {
-        if *period_id >= context.period_id {
-            continue;
-        }
-        if let Some(value) = period_results.get(column_name) {
-            values.push((*period_id, *value));
+    let mut values = Vec::with_capacity(context.history.len() + 1);
+    if let Some(&column) = context.node_to_column.get(column_name) {
+        for (period_id, row) in context.history.iter() {
+            if period_id >= context.period_id {
+                continue;
+            }
+            if let Some(value) = row.get(column).copied().flatten() {
+                values.push((period_id, value));
+            }
         }
     }
     if let Ok(current) = context.get_value(column_name) {

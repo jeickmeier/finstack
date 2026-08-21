@@ -11,7 +11,9 @@ use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::rates::swaption::{
     BermudanSchedule, BermudanSwaption, BermudanSwaptionPricer, BermudanSwaptionPricerConfig,
+    CalibratedHullWhiteModel, HullWhiteParams,
 };
+use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::pricer::Pricer;
 use std::hint::black_box;
 use time::Month;
@@ -21,7 +23,7 @@ fn build_swaption(as_of: Date) -> BermudanSwaption {
     let swap_end = Date::from_calendar_date(2030, Month::January, 1).expect("Valid date");
     let first_exercise = Date::from_calendar_date(2026, Month::January, 1).expect("Valid date");
 
-    BermudanSwaption::new_payer(
+    let mut swaption = BermudanSwaption::new_payer(
         "BERM-LSMC-BENCH",
         Money::new(10_000_000.0, Currency::USD),
         0.03,
@@ -33,7 +35,16 @@ fn build_swaption(as_of: Date) -> BermudanSwaption {
         "USD-OIS",
         "USD-VOL",
     )
-    .expect("valid Bermudan swaption")
+    .expect("valid Bermudan swaption");
+    swaption
+        .instrument_pricing_overrides
+        .model_config
+        .hw1f_mean_reversion = Some(0.03);
+    swaption
+        .instrument_pricing_overrides
+        .model_config
+        .hw1f_sigma = Some(0.01);
+    swaption
 }
 
 fn build_market(as_of: Date) -> MarketContext {
@@ -86,5 +97,67 @@ fn bench_bermudan_lsmc(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_bermudan_lsmc);
+fn bench_bermudan_hw_tree(c: &mut Criterion) {
+    let mut group = c.benchmark_group("mc_bermudan_hw_tree");
+    let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
+    let swaption = build_swaption(as_of);
+    let market = build_market(as_of);
+    let hw_params = HullWhiteParams::default();
+    let ttm = swaption.time_to_maturity(as_of).expect("ttm");
+    let disc = market.get_discount("USD-OIS").expect("USD-OIS");
+    let cached = CalibratedHullWhiteModel::calibrate(hw_params, 100, disc.as_ref(), ttm)
+        .expect("pre-calibrated HW tree");
+
+    let calibrate_each = BermudanSwaptionPricer::tree_with_config(BermudanSwaptionPricerConfig {
+        tree_steps: 100,
+        enforce_calibration: false,
+        ..Default::default()
+    });
+    group.bench_function("calibrate_each_price", |b| {
+        b.iter(|| {
+            let result = calibrate_each
+                .price_dyn(black_box(&swaption), black_box(&market), as_of)
+                .expect("hw tree price");
+            black_box(result.value)
+        });
+    });
+
+    let reused = BermudanSwaptionPricer::tree_with_config(BermudanSwaptionPricerConfig {
+        tree_steps: 100,
+        pre_calibrated_model: Some(cached),
+        enforce_calibration: false,
+        ..Default::default()
+    });
+    group.bench_function("pre_calibrated_100_steps", |b| {
+        b.iter(|| {
+            let result = reused
+                .price_dyn(black_box(&swaption), black_box(&market), as_of)
+                .expect("cached hw tree price");
+            black_box(result.value)
+        });
+    });
+    group.finish();
+}
+
+fn bench_bermudan_default_value(c: &mut Criterion) {
+    let mut group = c.benchmark_group("mc_bermudan_default_value");
+    let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
+    let swaption = build_swaption(as_of);
+    let market = build_market(as_of);
+    group.bench_function("instrument_value", |b| {
+        b.iter(|| {
+            black_box(&swaption)
+                .value(black_box(&market), black_box(as_of))
+                .expect("default Bermudan value")
+        });
+    });
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bench_bermudan_hw_tree,
+    bench_bermudan_default_value,
+    bench_bermudan_lsmc
+);
 criterion_main!(benches);

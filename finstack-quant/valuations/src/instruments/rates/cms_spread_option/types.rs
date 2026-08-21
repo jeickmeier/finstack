@@ -339,15 +339,12 @@ impl crate::instruments::common_impl::traits::Instrument for CmsSpreadOption {
 
     fn base_value(
         &self,
-        _market: &finstack_quant_core::market_data::context::MarketContext,
-        _as_of: finstack_quant_core::dates::Date,
+        market: &finstack_quant_core::market_data::context::MarketContext,
+        as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
         self.validate()?;
-        Err(finstack_quant_core::Error::Validation(
-            "CMS Spread Option pricing requires copula-based engine with SABR marginals. \
-             Use price_with_metrics with the static replication pricer."
-                .to_string(),
-        ))
+        crate::instruments::rates::cms_spread_option::pricer::CmsSpreadOptionPricer::new()
+            .price_internal(self, market, as_of)
     }
 
     fn effective_start_date(&self) -> Option<Date> {
@@ -365,6 +362,7 @@ crate::impl_empty_cashflow_provider!(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::instruments::common_impl::traits::Instrument;
     use crate::instruments::PricingOptions;
     use crate::pricer::{standard_registry, ModelKey};
     use finstack_quant_core::market_data::context::MarketContext;
@@ -486,8 +484,10 @@ mod tests {
         opt.spread_correlation = 0.50;
 
         let amount = price_amount(&opt, &market, as_of);
+        let via_value = opt.value(&market, as_of).expect("direct value");
 
         assert!(amount > 0.0);
+        assert!((via_value.amount() - amount).abs() < 1e-12);
     }
 
     #[test]

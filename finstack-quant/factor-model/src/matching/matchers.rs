@@ -13,8 +13,10 @@ use super::filter::{AttributeFilter, DependencyFilter};
 use crate::primitives::dependency::MarketDependency;
 use crate::primitives::factor_types::FactorId;
 use finstack_quant_core::types::Attributes;
+use finstack_quant_core::HashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 
 /// One factor match decorated with a beta loading.
 ///
@@ -131,14 +133,64 @@ pub struct MappingRule {
 #[derive(Debug, Clone, Default)]
 pub struct MappingTableMatcher {
     rules: Vec<MappingRule>,
+    /// Rule indices with an exact `dependency_filter.id`, grouped by that id
+    /// in declaration order.
+    exact_by_id: HashMap<String, Vec<usize>>,
+    /// Rule indices with `dependency_filter.id == None`, in declaration order.
+    wildcards: Vec<usize>,
 }
 
 impl MappingTableMatcher {
     /// Creates a matcher from an ordered set of rules.
+    ///
+    /// First-match-wins is preserved: an earlier wildcard still beats a later
+    /// exact-id rule when both match.
+    ///
+    /// # Arguments
+    ///
+    /// * `rules` - Ordered mapping rules. Exact-id rules are indexed for
+    ///   lookup; rules with no id remain a sequential wildcard scan.
     #[must_use]
     pub fn new(rules: Vec<MappingRule>) -> Self {
-        Self { rules }
+        let (exact_by_id, wildcards) = index_mapping_rules(&rules);
+        Self {
+            rules,
+            exact_by_id,
+            wildcards,
+        }
     }
+}
+
+fn index_mapping_rules(rules: &[MappingRule]) -> (HashMap<String, Vec<usize>>, Vec<usize>) {
+    let mut exact_by_id: HashMap<String, Vec<usize>> = HashMap::default();
+    let mut wildcards = Vec::new();
+    for (idx, rule) in rules.iter().enumerate() {
+        match rule.dependency_filter.id.as_deref() {
+            Some(id) => exact_by_id.entry(id.to_owned()).or_default().push(idx),
+            None => wildcards.push(idx),
+        }
+    }
+    (exact_by_id, wildcards)
+}
+
+fn dependency_lookup_id(dep: &MarketDependency) -> Cow<'_, str> {
+    match dep {
+        MarketDependency::Curve { id, .. } | MarketDependency::CreditCurve { id } => {
+            Cow::Borrowed(id.as_ref())
+        }
+        MarketDependency::Spot { id }
+        | MarketDependency::VolSurface { id }
+        | MarketDependency::Series { id } => Cow::Borrowed(id.as_str()),
+        MarketDependency::FxPair { base, quote } => Cow::Owned(format!("{base}/{quote}")),
+    }
+}
+
+fn rule_matches(
+    rule: &MappingRule,
+    dependency: &MarketDependency,
+    attributes: &Attributes,
+) -> bool {
+    rule.dependency_filter.matches(dependency) && rule.attribute_filter.matches(attributes)
 }
 
 impl FactorMatcher for MappingTableMatcher {
@@ -147,14 +199,38 @@ impl FactorMatcher for MappingTableMatcher {
         dependency: &MarketDependency,
         attributes: &Attributes,
     ) -> Result<Option<Vec<FactorMatchEntry>>, FactorMatchError> {
-        Ok(self
-            .rules
-            .iter()
-            .find(|rule| {
-                rule.dependency_filter.matches(dependency)
-                    && rule.attribute_filter.matches(attributes)
-            })
-            .map(|rule| one_entry(rule.factor_id.clone())))
+        let lookup_id = dependency_lookup_id(dependency);
+        let mut best: Option<usize> = None;
+        if let Some(indices) = self.exact_by_id.get(lookup_id.as_ref()) {
+            for &idx in indices {
+                if self
+                    .rules
+                    .get(idx)
+                    .is_some_and(|rule| rule_matches(rule, dependency, attributes))
+                {
+                    best = Some(idx);
+                    break;
+                }
+            }
+        }
+        for &idx in &self.wildcards {
+            if best.is_some_and(|b| idx >= b) {
+                break;
+            }
+            if self
+                .rules
+                .get(idx)
+                .is_some_and(|rule| rule_matches(rule, dependency, attributes))
+            {
+                best = Some(idx);
+                break;
+            }
+        }
+        Ok(best.and_then(|idx| {
+            self.rules
+                .get(idx)
+                .map(|rule| one_entry(rule.factor_id.clone()))
+        }))
     }
 }
 
@@ -347,6 +423,69 @@ mod tests_mapping_table {
         assert_eq!(
             deepest_match(&matcher, &dep, &attrs2),
             Some(FactorId::new("Generic-Credit"))
+        );
+    }
+
+    #[test]
+    fn earlier_wildcard_beats_later_exact_id() {
+        let matcher = MappingTableMatcher::new(vec![
+            MappingRule {
+                dependency_filter: DependencyFilter {
+                    dependency_type: Some(DependencyType::Credit),
+                    curve_type: None,
+                    id: None,
+                },
+                attribute_filter: AttributeFilter::default(),
+                factor_id: FactorId::new("Wildcard-Credit"),
+            },
+            MappingRule {
+                dependency_filter: DependencyFilter {
+                    dependency_type: Some(DependencyType::Credit),
+                    curve_type: None,
+                    id: Some("ACME-HAZARD".into()),
+                },
+                attribute_filter: AttributeFilter::default(),
+                factor_id: FactorId::new("ACME-Specific"),
+            },
+        ]);
+        let dep = MarketDependency::CreditCurve {
+            id: CurveId::new("ACME-HAZARD"),
+        };
+        assert_eq!(
+            deepest_match(&matcher, &dep, &Attributes::default()),
+            Some(FactorId::new("Wildcard-Credit"))
+        );
+    }
+
+    #[test]
+    fn exact_id_hit_does_not_require_later_exact_rules() {
+        let matcher = MappingTableMatcher::new(vec![
+            MappingRule {
+                dependency_filter: DependencyFilter {
+                    dependency_type: Some(DependencyType::Discount),
+                    curve_type: None,
+                    id: Some("CURVE-0".into()),
+                },
+                attribute_filter: AttributeFilter::default(),
+                factor_id: FactorId::new("First"),
+            },
+            MappingRule {
+                dependency_filter: DependencyFilter {
+                    dependency_type: Some(DependencyType::Discount),
+                    curve_type: None,
+                    id: Some("CURVE-LAST".into()),
+                },
+                attribute_filter: AttributeFilter::default(),
+                factor_id: FactorId::new("Last"),
+            },
+        ]);
+        let dep = MarketDependency::Curve {
+            id: CurveId::new("CURVE-LAST"),
+            curve_type: CurveType::Discount,
+        };
+        assert_eq!(
+            deepest_match(&matcher, &dep, &Attributes::default()),
+            Some(FactorId::new("Last"))
         );
     }
 

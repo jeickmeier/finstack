@@ -11,6 +11,7 @@ mod state;
 
 pub(crate) use executor::{
     evaluate_raw_portfolio, PositionExecution, RawEvaluationInput, RawSelectiveSeed,
+    POSITION_PARALLEL_MIN_POSITIONS,
 };
 pub(crate) use plan::{
     BaseCurrencyPolicy, EvaluationMetricProfile, EvaluationProfile, EvaluationProvenance,

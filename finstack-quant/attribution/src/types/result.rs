@@ -16,18 +16,19 @@ use crate::taylor::TaylorAttributionConfig;
 
 /// Controls where attribution repricing work spends parallelism.
 ///
-/// `Parallel` preserves the standalone attribution behavior: independent
-/// factor repricings may use Rayon internally. `Serial` keeps those inner
-/// repricings sequential so an outer portfolio or batch loop can own Rayon.
+/// `Serial` is the default: typical standalone factor sets are small enough
+/// that inner Rayon costs more than it saves. `Parallel` opts into Rayon for
+/// independent factor repricings when the caller is not already parallelizing
+/// an outer portfolio or batch loop.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionPolicy {
     /// Use Rayon for independent attribution repricings.
-    #[default]
     Parallel,
     /// Run independent attribution repricings sequentially.
+    #[default]
     Serial,
 }
 

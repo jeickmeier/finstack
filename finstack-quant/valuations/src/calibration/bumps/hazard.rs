@@ -60,22 +60,68 @@ struct HazardRecalibrationKey {
     cds_valuation_convention: Option<CdsValuationConvention>,
     quote_id_prefix: &'static str,
     bump: HazardBumpKey,
+    /// Fingerprint of the source curve's par spreads and hazard knots.
+    source_fingerprint: u64,
+}
+
+fn hazard_source_fingerprint(hazard: &HazardCurve) -> u64 {
+    let mut hash = hazard.recovery_rate().to_bits();
+    for (tenor, value) in hazard.par_spread_points() {
+        hash = hash
+            .wrapping_mul(0x0000_013B)
+            .wrapping_add(tenor.to_bits())
+            .wrapping_mul(0x0000_013B)
+            .wrapping_add(value.to_bits());
+    }
+    hash = hash.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    for (tenor, value) in hazard.knot_points() {
+        hash = hash
+            .wrapping_mul(0x0000_013B)
+            .wrapping_add(tenor.to_bits())
+            .wrapping_mul(0x0000_013B)
+            .wrapping_add(value.to_bits());
+    }
+    hash
 }
 
 type CachedHazardCurve = Arc<Mutex<Option<Arc<HazardCurve>>>>;
 
-/// Batch-local cache for hazard-curve recalibrations used by spread risk.
+/// Batch-local cache for hazard-curve recalibrations used by spread risk and
+/// scenario ParCDS delivery.
 ///
-/// A cache instance is scoped to one immutable market snapshot. Each key uses
-/// its own mutex so concurrent portfolio positions requesting the same curve
-/// bump share the in-flight calibration while different bumps can proceed in
-/// parallel. Failed calibrations are not cached, preserving the original error.
+/// A cache instance may be shared across independent applies that start from
+/// the same unstressed market snapshot. Each key uses its own mutex so
+/// concurrent callers requesting the same curve bump share the in-flight
+/// calibration while different bumps can proceed in parallel. Failed
+/// calibrations are not cached, preserving the original error.
+///
+/// Keys include a fingerprint of the source curve's par spreads and hazard
+/// knots, so a second bump of an already-recalibrated curve does not reuse
+/// the first result.
 #[derive(Default)]
-pub(crate) struct HazardRecalibrationCache {
+pub struct HazardRecalibrationCache {
     entries: Mutex<HashMap<HazardRecalibrationKey, CachedHazardCurve>>,
 }
 
+impl std::fmt::Debug for HazardRecalibrationCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let entries = match self.entries.lock() {
+            Ok(entries) => entries.len(),
+            Err(poisoned) => poisoned.into_inner().len(),
+        };
+        f.debug_struct("HazardRecalibrationCache")
+            .field("entries", &entries)
+            .finish()
+    }
+}
+
 impl HazardRecalibrationCache {
+    /// Create an empty cache.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     fn get_or_recalibrate(
         &self,
         request: HazardParRecalibration<'_>,
@@ -88,6 +134,7 @@ impl HazardRecalibrationCache {
             cds_valuation_convention: request.cds_valuation_convention,
             quote_id_prefix: request.quote_id_prefix,
             bump: request.spread_bump.into(),
+            source_fingerprint: hazard_source_fingerprint(request.hazard),
         };
         let entry = {
             let mut entries = match self.entries.lock() {
@@ -231,7 +278,27 @@ fn recalibrate_from_par_spreads(
         .build()
 }
 
-pub(crate) fn bump_hazard_spreads_cached(
+/// Bump hazard par spreads and re-calibrate, optionally reusing a batch cache.
+///
+/// # Arguments
+///
+/// * `cache` - Optional batch-local cache. When `Some`, identical bumps of
+///   the same source curve (same identifier, discounting, recovery, and
+///   source par/hazard fingerprint) reuse the bootstrapped result. `None`
+///   always re-bootstraps.
+/// * `hazard` - Existing hazard curve from which par CDS spreads are implied
+///   before applying the shock and re-bootstrap.
+/// * `context` - Market context supplying the discount curve and calibration
+///   dependencies required for CDS repricing.
+/// * `bump` - Parallel or tenor-specific CDS spread shock in [`BumpRequest`]
+///   basis point units.
+/// * `discount_id` - Optional discount curve ID; `None` is rejected because
+///   spread re-calibration must choose a discounting curve.
+/// * `doc_clause` - Optional ISDA CDS documentation clause; `None` uses the
+///   canonical North American clause.
+/// * `cds_valuation_convention` - Optional premium-leg/accrual convention;
+///   `None` uses the calibration runtime default.
+pub fn bump_hazard_spreads_cached(
     cache: Option<&HazardRecalibrationCache>,
     hazard: &HazardCurve,
     context: &MarketContext,

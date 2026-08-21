@@ -458,4 +458,27 @@ mod tests {
         assert_eq!(deser.id, s.id);
         assert_eq!(deser.variant, s.variant);
     }
+
+    #[test]
+    fn value_requires_explicit_pricer() {
+        use crate::instruments::common_impl::traits::Instrument;
+        use finstack_quant_core::market_data::context::MarketContext;
+        use time::macros::date;
+
+        let snowball = Snowball::example_snowball();
+        let market = MarketContext::default();
+        let as_of = date!(2025 - 01 - 01);
+        let err = snowball
+            .value(&market, as_of)
+            .expect_err("value must require Monte Carlo pricer");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Monte Carlo"),
+            "expected Monte Carlo pricer in error message, got: {msg}"
+        );
+        assert!(
+            msg.contains("inverse floater"),
+            "expected inverse floater explicit path in error message, got: {msg}"
+        );
+    }
 }

@@ -29,6 +29,7 @@ fn test_time_roll_1_day() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -74,6 +75,7 @@ fn test_time_roll_negative_period_is_rejected() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -115,6 +117,7 @@ fn test_time_roll_1_month() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -154,6 +157,7 @@ fn test_time_roll_1_year() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -239,6 +243,7 @@ fn test_time_roll_with_bond_carry() {
             }],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
         let engine = ScenarioEngine::new();
         let mut ctx = ExecutionContext {

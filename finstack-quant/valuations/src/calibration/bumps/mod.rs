@@ -44,7 +44,9 @@ pub(crate) mod inflation;
 pub(crate) mod rates;
 pub(crate) mod vol;
 
-pub use hazard::{bump_hazard_shift, bump_hazard_spreads};
+pub use hazard::{
+    bump_hazard_shift, bump_hazard_spreads, bump_hazard_spreads_cached, HazardRecalibrationCache,
+};
 pub use inflation::{
     bump_inflation_rates, infer_currency_from_curve_id, observation_lag_from_curve,
 };

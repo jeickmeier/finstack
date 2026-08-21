@@ -27,6 +27,7 @@ fn test_empty_operations_list() {
         operations: vec![], // Empty
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -68,6 +69,7 @@ fn test_multiple_operations_same_target_last_wins() {
         ],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -106,6 +108,7 @@ fn test_scenario_composition_same_priority() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let s2 = ScenarioSpec {
@@ -118,6 +121,7 @@ fn test_scenario_composition_same_priority() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -141,6 +145,7 @@ fn test_scenario_composition_different_priorities() {
         }],
         priority: -10, // Lower value = higher priority
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let low_priority = ScenarioSpec {
@@ -153,6 +158,7 @@ fn test_scenario_composition_different_priorities() {
         }],
         priority: 10,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -187,6 +193,7 @@ fn test_warnings_missing_equity() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -227,6 +234,7 @@ fn test_warnings_attribute_based_operations() {
         ],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -265,6 +273,7 @@ fn test_stmt_forecast_percent_missing_node_warns() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -322,6 +331,7 @@ fn test_rate_binding_missing_curve() {
         operations: vec![],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -369,6 +379,7 @@ fn test_rate_binding_missing_node() {
         operations: vec![],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -409,6 +420,7 @@ fn test_time_roll_with_apply_shocks_false() {
         ],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -454,6 +466,7 @@ fn test_time_roll_with_apply_shocks_true() {
         ],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();

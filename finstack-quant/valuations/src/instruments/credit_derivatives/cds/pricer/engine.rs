@@ -42,7 +42,7 @@ pub(super) struct AodInputs<'a> {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct CouponPeriod {
+pub(crate) struct CouponPeriod {
     pub(super) accrual_start: Date,
     pub(super) accrual_end: Date,
     pub(super) payment_date: Date,
@@ -449,5 +449,294 @@ impl CDSPricer {
             accrual_pv += contribution;
         }
         Ok(accrual_pv)
+    }
+}
+
+/// Discount-side state reused across hazard bumps for bucketed CDS CS01.
+///
+/// Coupon dates, accruals, and payment discount factors do not change when
+/// only the hazard curve is shocked. Protection and accrual-on-default still
+/// re-integrate against the bumped survival curve.
+pub(crate) struct CdsHazardRepriceCache {
+    pricer: CDSPricer,
+    cds: CreditDefaultSwap,
+    disc: std::sync::Arc<DiscountCurve>,
+    as_of: Date,
+    periods: Vec<(CouponPeriod, f64, f64)>,
+    spread: f64,
+    upfront_pv: f64,
+    upfront_adjustment: f64,
+    clean_accrued: f64,
+}
+
+impl CdsHazardRepriceCache {
+    /// Build the cache from the live discount curve and CDS schedule.
+    ///
+    /// # Arguments
+    ///
+    /// * `cds` - Live CDS whose premium schedule and valuation convention are cached.
+    /// * `market` - Market supplying the premium-leg discount curve.
+    /// * `as_of` - Valuation date used to drop expired coupons and compute DFs.
+    pub(crate) fn try_new(
+        cds: &CreditDefaultSwap,
+        market: &finstack_quant_core::market_data::context::MarketContext,
+        as_of: Date,
+    ) -> Result<Self> {
+        use super::helpers::df_asof_to;
+        use rust_decimal::prelude::ToPrimitive;
+
+        let pricer = CDSPricer::with_config(CDSPricerConfig::from_cds(cds));
+        let disc = market.get_discount(&cds.premium.discount_curve_id)?;
+        let periods_raw = pricer.coupon_periods(cds, as_of)?;
+        let mut periods = Vec::with_capacity(periods_raw.len());
+        for period in periods_raw {
+            if period.accrual_end <= as_of {
+                continue;
+            }
+            let accrual = pricer.coupon_accrual(cds, &period)?;
+            let df = df_asof_to(disc.as_ref(), as_of, period.payment_date)?;
+            periods.push((period, accrual, df));
+        }
+        let spread = cds.premium.spread_bp.to_f64().ok_or_else(|| {
+            Error::Validation("premium spread_bp cannot be represented as f64".into())
+        })? / BASIS_POINTS_PER_UNIT;
+        let upfront_pv = match cds.upfront {
+            Some((dt, amount)) if dt >= as_of => {
+                amount.amount() * df_asof_to(disc.as_ref(), as_of, dt)?
+            }
+            _ => 0.0,
+        };
+        let upfront_adjustment = cds
+            .instrument_pricing_overrides
+            .market_quotes
+            .upfront_payment
+            .map(|m| m.amount())
+            .unwrap_or(0.0);
+        let clean_accrued = if cds.uses_clean_price() {
+            let accrual_fraction = pricer.coupon_accrued_fraction(
+                cds,
+                as_of,
+                super::metrics::AccrualDayCountPolicy::CdswInclusive,
+            )?;
+            cds.notional.amount() * spread * accrual_fraction
+        } else {
+            0.0
+        };
+        Ok(Self {
+            pricer,
+            cds: cds.clone(),
+            disc,
+            as_of,
+            periods,
+            spread,
+            upfront_pv,
+            upfront_adjustment,
+            clean_accrued,
+        })
+    }
+
+    /// Reprice after a hazard bump, reusing cached discount/premium structure.
+    ///
+    /// # Arguments
+    ///
+    /// * `surv` - Bumped or original survival/hazard curve used for protection
+    ///   and accrual-on-default. Discount factors stay at the cached values.
+    pub(crate) fn npv(&self, surv: &HazardCurve) -> Result<f64> {
+        use super::helpers::sp_cond_to;
+        use crate::instruments::credit_derivatives::cds::PayReceive;
+
+        let protection_pv =
+            self.pricer
+                .pv_protection_leg_raw(&self.cds, self.disc.as_ref(), surv, self.as_of)?;
+        let calendar = self
+            .cds
+            .premium
+            .calendar_id
+            .as_deref()
+            .and_then(finstack_quant_core::dates::calendar::calendar_by_id);
+        let mut premium_pv = 0.0;
+        for &(period, accrual, df) in &self.periods {
+            let sp = sp_cond_to(surv, self.as_of, period.accrual_end)?;
+            premium_pv += self.cds.notional.amount() * self.spread * accrual * sp * df;
+            if self.pricer.config.include_accrual {
+                let spread_sign = self.spread.signum();
+                premium_pv += spread_sign
+                    * self.cds.notional.amount()
+                    * self
+                        .pricer
+                        .accrual_on_default_isda_standard_model_cond(AodInputs {
+                            cds: &self.cds,
+                            spread: self.spread.abs(),
+                            accrual_start_date: if matches!(
+                                self.cds.valuation_convention,
+                                crate::instruments::credit_derivatives::cds::CdsValuationConvention::BloombergCdswClean
+                            ) {
+                                period.accrual_start.max(self.as_of)
+                            } else {
+                                period.accrual_start
+                            },
+                            start_date: period.accrual_start.max(self.as_of),
+                            end_date: period.accrual_end,
+                            settlement_delay: self.cds.protection.settlement_delay,
+                            calendar,
+                            as_of: self.as_of,
+                            disc: self.disc.as_ref(),
+                            surv,
+                        })?;
+            }
+        }
+
+        let mut npv_amount = match self.cds.side {
+            PayReceive::Pay => {
+                protection_pv - premium_pv - self.upfront_pv - self.upfront_adjustment
+            }
+            PayReceive::Receive => {
+                premium_pv - protection_pv + self.upfront_pv + self.upfront_adjustment
+            }
+        };
+        if self.cds.uses_clean_price() {
+            npv_amount = match self.cds.side {
+                PayReceive::Pay => npv_amount + self.clean_accrued,
+                PayReceive::Receive => npv_amount - self.clean_accrued,
+            };
+        }
+        Ok(npv_amount)
+    }
+}
+
+#[cfg(test)]
+mod cds_hazard_reprice_cache_tests {
+    use super::{CDSPricer, CDSPricerConfig, CdsHazardRepriceCache};
+    use crate::constants::ONE_BASIS_POINT;
+    use crate::instruments::common_impl::traits::Instrument;
+    use crate::instruments::credit_derivatives::cds::{
+        CDSConvention, CdsValuationConvention, CreditDefaultSwap, PayReceive,
+    };
+    use finstack_quant_core::currency::Currency;
+    use finstack_quant_core::dates::Date;
+    use finstack_quant_core::market_data::context::MarketContext;
+    use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
+    use finstack_quant_core::money::Money;
+    use finstack_quant_core::types::{CurveId, InstrumentId};
+    use rust_decimal::Decimal;
+    use time::macros::date;
+
+    fn create_test_cds(
+        valuation_convention: CdsValuationConvention,
+    ) -> finstack_quant_core::Result<CreditDefaultSwap> {
+        let mut cds = CreditDefaultSwap::new_isda(
+            InstrumentId::new("CACHE-TEST-CDS"),
+            Money::new(10_000_000.0, Currency::USD),
+            PayReceive::Pay,
+            CDSConvention::IsdaNa,
+            Decimal::new(10_000, 2),
+            date!(2024 - 12 - 20),
+            date!(2030 - 03 - 20),
+            0.40,
+            CurveId::new("USD-OIS"),
+            CurveId::new("TEST-CREDIT"),
+        )?;
+        cds.valuation_convention = valuation_convention;
+        Ok(cds)
+    }
+
+    fn create_test_market() -> finstack_quant_core::Result<(MarketContext, HazardCurve)> {
+        let discount = DiscountCurve::builder("USD-OIS")
+            .base_date(date!(2025 - 01 - 01))
+            .knots([(0.0, 1.0), (1.0, 0.95), (5.0, 0.80), (10.0, 0.65)])
+            .build()?;
+        let hazard = HazardCurve::builder("TEST-CREDIT")
+            .base_date(date!(2025 - 01 - 01))
+            .recovery_rate(0.40)
+            .knots([(1.0, 0.02), (3.0, 0.03), (5.0, 0.04), (10.0, 0.05)])
+            .par_spreads([(1.0, 100.0), (3.0, 150.0), (5.0, 200.0), (10.0, 250.0)])
+            .build()?;
+        let market = MarketContext::new().insert(discount).insert(hazard.clone());
+        Ok((market, hazard))
+    }
+
+    fn assert_npv_matches(cached: f64, full: f64, case: &str) {
+        let tolerance = 1.0e-8_f64.max(full.abs() * 1.0e-12);
+        assert!(
+            (cached - full).abs() <= tolerance,
+            "{case}: cached NPV {cached} differs from full value {full} by more than {tolerance}"
+        );
+    }
+
+    fn assert_base_and_bumped_values_match(
+        cds: &CreditDefaultSwap,
+        market: &MarketContext,
+        hazard: &HazardCurve,
+        as_of: Date,
+    ) -> finstack_quant_core::Result<CdsHazardRepriceCache> {
+        let cache = CdsHazardRepriceCache::try_new(cds, market, as_of)?;
+
+        let base_cached = cache.npv(hazard)?;
+        let base_full = cds.value(market, as_of)?.amount();
+        assert_npv_matches(base_cached, base_full, "base hazard");
+
+        let bumped_hazard = hazard
+            .with_parallel_bump(ONE_BASIS_POINT)?
+            .to_builder_with_id(hazard.id().clone())
+            .build()?;
+        let mut bumped_market = market.clone();
+        bumped_market.insert_mut(bumped_hazard.clone());
+        let bumped_cached = cache.npv(&bumped_hazard)?;
+        let bumped_full = cds.value(&bumped_market, as_of)?.amount();
+        assert_npv_matches(bumped_cached, bumped_full, "bumped hazard");
+        assert!(
+            (bumped_full - base_full).abs() > 1.0e-8,
+            "parallel hazard bump should change the full CDS value"
+        );
+
+        Ok(cache)
+    }
+
+    #[test]
+    fn cds_hazard_reprice_cache_matches_value_for_current_coupon_with_accrual_on_default(
+    ) -> finstack_quant_core::Result<()> {
+        let as_of = date!(2025 - 02 - 15);
+        let cds = create_test_cds(CdsValuationConvention::IsdaDirty)?;
+        let (market, hazard) = create_test_market()?;
+        let cache = assert_base_and_bumped_values_match(&cds, &market, &hazard, as_of)?;
+
+        assert!(
+            cache.periods.iter().any(|(period, _, _)| {
+                period.accrual_start < as_of && as_of < period.accrual_end
+            }),
+            "valuation date should fall inside a live coupon accrual period"
+        );
+        assert!(
+            cache.pricer.config.include_accrual,
+            "CDSPricerConfig::from_cds should enable accrual-on-default"
+        );
+
+        let discount = market.get_discount(&cds.premium.discount_curve_id)?;
+        let without_aod = CDSPricer::with_config(CDSPricerConfig {
+            include_accrual: false,
+            ..CDSPricerConfig::from_cds(&cds)
+        })
+        .npv_full(&cds, discount.as_ref(), &hazard, as_of)?;
+        let with_aod = cds.value(&market, as_of)?.amount();
+        assert!(
+            (with_aod - without_aod).abs() > 1.0e-8,
+            "fixture should produce a non-zero accrual-on-default contribution"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn cds_hazard_reprice_cache_matches_value_for_bloomberg_clean_accrued(
+    ) -> finstack_quant_core::Result<()> {
+        let as_of = date!(2025 - 02 - 15);
+        let cds = create_test_cds(CdsValuationConvention::BloombergCdswClean)?;
+        let (market, hazard) = create_test_market()?;
+        let cache = assert_base_and_bumped_values_match(&cds, &market, &hazard, as_of)?;
+
+        assert!(
+            cache.clean_accrued.abs() > 1.0e-8,
+            "current-coupon Bloomberg clean fixture should have non-zero accrued premium"
+        );
+        Ok(())
     }
 }

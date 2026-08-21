@@ -8,6 +8,7 @@
 use super::business_days::{CalendarMetadata, HolidayCalendar};
 use super::generated::{BASE_YEAR, END_YEAR};
 use super::rule::Rule;
+use super::year_cache;
 use time::{Date, Weekday};
 
 /// Weekend convention for a calendar jurisdiction.
@@ -114,6 +115,11 @@ impl Calendar {
     pub const fn name(&self) -> &'static str {
         self.name
     }
+
+    /// Evaluates the raw holiday rules without warnings or weekend overrides.
+    pub(super) fn holiday_from_rules(&self, date: Date) -> bool {
+        self.rules.iter().any(|rule| rule.applies(date))
+    }
 }
 
 impl HolidayCalendar for Calendar {
@@ -134,7 +140,11 @@ impl HolidayCalendar for Calendar {
                 );
             }
         }
-        let mut is_holiday = self.rules.iter().any(|rule| rule.applies(date));
+        let mut is_holiday = if (BASE_YEAR..=END_YEAR).contains(&date.year()) {
+            year_cache::is_holiday_cached(self, date)
+        } else {
+            self.holiday_from_rules(date)
+        };
 
         // Apply weekend ignore logic using the calendar's own weekend rule
         // (not a hardcoded Sat/Sun) so Fri/Sat-weekend calendars agree with
@@ -147,7 +157,16 @@ impl HolidayCalendar for Calendar {
     }
 
     fn is_business_day(&self, date: Date) -> bool {
-        !self.weekend_rule.is_weekend(date.weekday()) && !self.is_holiday(date)
+        let is_weekend = self.weekend_rule.is_weekend(date.weekday());
+        if (BASE_YEAR..=END_YEAR).contains(&date.year()) {
+            !is_weekend && !year_cache::is_holiday_cached(self, date)
+        } else {
+            !is_weekend && !self.is_holiday(date)
+        }
+    }
+
+    fn count_business_days(&self, start: Date, end: Date) -> i32 {
+        year_cache::count_business_days_cached(self, start, end)
     }
 
     fn metadata(&self) -> Option<CalendarMetadata> {
@@ -164,6 +183,10 @@ impl HolidayCalendar for Calendar {
 impl HolidayCalendar for &Calendar {
     fn is_holiday(&self, date: Date) -> bool {
         (*self).is_holiday(date)
+    }
+
+    fn count_business_days(&self, start: Date, end: Date) -> i32 {
+        <Calendar as HolidayCalendar>::count_business_days(*self, start, end)
     }
 
     fn metadata(&self) -> Option<CalendarMetadata> {

@@ -26,10 +26,12 @@ use finstack_quant_factor_model::{
     PricingMode, RiskMeasure, SensitivityMatrix, UnmatchedPolicy,
 };
 use finstack_quant_portfolio::factor_model::{
-    FactorModelBuilder, RiskDecomposer, SimulationDecomposer,
+    FactorModelBuilder, ParametricDecomposer, RiskDecomposer, SimulationDecomposer,
 };
 use finstack_quant_portfolio::position::{Position, PositionUnit};
-use finstack_quant_portfolio::sensitivity::FullRepricingEngine;
+use finstack_quant_portfolio::sensitivity::{
+    DeltaBasedEngine, FactorSensitivityEngine, FullRepricingEngine,
+};
 use finstack_quant_portfolio::types::DUMMY_ENTITY_ID;
 use finstack_quant_portfolio::Portfolio;
 use finstack_quant_valuations::instruments::{Attributes, Instrument, MarketDependencies};
@@ -249,6 +251,71 @@ fn bench_full_repricing(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_delta_based_sensitivities(c: &mut Criterion) {
+    let as_of = date!(2025 - 01 - 01);
+    let market = repricing_market(as_of);
+    let engine = DeltaBasedEngine::new(BumpSizeConfig::default());
+
+    let mut group = c.benchmark_group("delta_based_sensitivities");
+    group.sample_size(10);
+
+    let n_factors = 24;
+    for &n_positions in &[256_usize, 1024] {
+        let instruments = repricing_instruments(n_positions);
+        let positions: Vec<(String, &dyn Instrument, f64)> = instruments
+            .iter()
+            .map(|inst| (inst.id.clone(), inst as &dyn Instrument, 1.0))
+            .collect();
+        let factors = repricing_factors(n_factors);
+
+        group.bench_with_input(
+            BenchmarkId::new(
+                "compute_sensitivities",
+                format!("{n_positions}p_x_{n_factors}f"),
+            ),
+            &n_positions,
+            |b, _| {
+                b.iter(|| {
+                    let matrix = engine
+                        .compute_sensitivities(&positions, &factors, &market, as_of, Currency::USD)
+                        .expect("bench: delta sensitivities should compute");
+                    std::hint::black_box(matrix);
+                });
+            },
+        );
+
+        let sparse_market = sparse_repricing_market(as_of, n_factors);
+        let sparse_instruments = sparse_repricing_instruments(n_positions, n_factors);
+        let sparse_positions: Vec<(String, &dyn Instrument, f64)> = sparse_instruments
+            .iter()
+            .map(|instrument| (instrument.id.clone(), instrument as &dyn Instrument, 1.0))
+            .collect();
+        let sparse_factors = sparse_repricing_factors(n_factors);
+        group.bench_with_input(
+            BenchmarkId::new(
+                "dependency_routed_sensitivities",
+                format!("{n_positions}p_x_{n_factors}f"),
+            ),
+            &n_positions,
+            |b, _| {
+                b.iter(|| {
+                    let matrix = engine
+                        .compute_sensitivities(
+                            &sparse_positions,
+                            &sparse_factors,
+                            &sparse_market,
+                            as_of,
+                            Currency::USD,
+                        )
+                        .expect("bench: dependency-routed delta sensitivities should compute");
+                    std::hint::black_box(matrix);
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
 // Direct factor stress (only the work consumed by the public workflow is timed).
 
 fn factor_stress_model() -> finstack_quant_portfolio::factor_model::FactorModel {
@@ -327,6 +394,23 @@ fn bench_factor_stress(c: &mut Criterion) {
         let portfolio = factor_stress_portfolio(n_positions, as_of);
 
         group.bench_with_input(
+            BenchmarkId::new("factor_stress_pnl", format!("{n_positions}p_x_1f")),
+            &n_positions,
+            |b, _| {
+                b.iter(|| {
+                    let result = model
+                        .factor_stress_pnl(
+                            &portfolio,
+                            &market,
+                            as_of,
+                            std::hint::black_box(&stresses),
+                        )
+                        .expect("bench: factor stress P&L should succeed");
+                    std::hint::black_box(result);
+                });
+            },
+        );
+        group.bench_with_input(
             BenchmarkId::new("factor_stress", format!("{n_positions}p_x_1f")),
             &n_positions,
             |b, _| {
@@ -334,6 +418,32 @@ fn bench_factor_stress(c: &mut Criterion) {
                     let result = model
                         .factor_stress(&portfolio, &market, as_of, std::hint::black_box(&stresses))
                         .expect("bench: factor stress should succeed");
+                    std::hint::black_box(result);
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+fn bench_factor_model_analyze(c: &mut Criterion) {
+    let as_of = date!(2025 - 01 - 01);
+    let market = repricing_market(as_of);
+    let model = factor_stress_model();
+    let mut group = c.benchmark_group("factor_model_analyze");
+    group.sample_size(10);
+
+    for &n_positions in &[256_usize, 1024] {
+        let portfolio = factor_stress_portfolio(n_positions, as_of);
+
+        group.bench_with_input(
+            BenchmarkId::new("analyze", format!("{n_positions}p_x_1f")),
+            &n_positions,
+            |b, _| {
+                b.iter(|| {
+                    let result = model
+                        .analyze(&portfolio, &market, as_of)
+                        .expect("bench: factor-model analyze should succeed");
                     std::hint::black_box(result);
                 });
             },
@@ -373,6 +483,44 @@ fn decomposition_sensitivities(n_factors: usize) -> SensitivityMatrix {
     matrix
 }
 
+fn bench_parametric_decomposition(c: &mut Criterion) {
+    let measure = RiskMeasure::Variance;
+    let mut group = c.benchmark_group("parametric_factor_decomposition");
+    group.sample_size(10);
+
+    for &(n_positions, n_factors) in &[(256_usize, 24_usize), (1024, 24), (1024, 64)] {
+        let position_ids: Vec<String> = (0..n_positions).map(|i| format!("P{i}")).collect();
+        let factor_ids: Vec<finstack_quant_factor_model::FactorId> = (0..n_factors)
+            .map(|i| FactorId::new(format!("F{i}")))
+            .collect();
+        let mut matrix = SensitivityMatrix::zeros(position_ids, factor_ids);
+        for p in 0..n_positions {
+            for f in 0..n_factors {
+                matrix.set_delta(p, f, 100.0 + (p as f64) * 0.01 - (f as f64) * 0.5);
+            }
+        }
+        let covariance = diagonal_covariance(n_factors);
+        let decomposer = ParametricDecomposer;
+
+        group.bench_with_input(
+            BenchmarkId::new(
+                "decompose_variance",
+                format!("{n_positions}p_x_{n_factors}f"),
+            ),
+            &n_positions,
+            |b, _| {
+                b.iter(|| {
+                    let decomposition = decomposer
+                        .decompose(&matrix, &covariance, &measure)
+                        .expect("bench: parametric decomposition should succeed");
+                    std::hint::black_box(decomposition);
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
 fn bench_mc_decomposition(c: &mut Criterion) {
     let n_scenarios = 16_384;
     let measure = RiskMeasure::Volatility;
@@ -407,7 +555,10 @@ fn bench_mc_decomposition(c: &mut Criterion) {
 criterion_group!(
     benches,
     bench_full_repricing,
+    bench_delta_based_sensitivities,
     bench_factor_stress,
+    bench_factor_model_analyze,
+    bench_parametric_decomposition,
     bench_mc_decomposition
 );
 criterion_main!(benches);

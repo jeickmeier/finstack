@@ -56,6 +56,7 @@ fn test_statement_forecast_percent() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     // Apply scenario
@@ -121,6 +122,7 @@ fn test_statement_forecast_assign() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     // Apply scenario

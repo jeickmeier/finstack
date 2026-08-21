@@ -65,7 +65,7 @@ pub(crate) fn eval_lag(
     let target_period = offset_period(
         context.period_id,
         -lag_periods,
-        context.historical_results.len() + 1,
+        context.history.len() + 1,
         node_id,
     )?;
 
@@ -75,7 +75,7 @@ pub(crate) fn eval_lag(
         } else {
             Ok(f64::NAN)
         }
-    } else if !context.historical_results.contains_key(&target_period) {
+    } else if !context.history.contains_key(&target_period) {
         // Target period precedes the model history: return NaN like the
         // column path instead of erroring against an empty context.
         Ok(f64::NAN)
@@ -122,7 +122,7 @@ pub(crate) fn eval_diff(
     let target_period = offset_period(
         context.period_id,
         -lag_periods,
-        context.historical_results.len() + 1,
+        context.history.len() + 1,
         node_id,
     )?;
 
@@ -142,7 +142,7 @@ pub(crate) fn eval_diff(
         if current_value.is_nan() {
             return Ok(f64::NAN);
         }
-        if !context.historical_results.contains_key(&target_period) {
+        if !context.history.contains_key(&target_period) {
             // Mirror the column path: missing history yields NaN, not an error.
             return Ok(f64::NAN);
         }
@@ -181,7 +181,7 @@ pub(crate) fn eval_pct_change(
     let target_period = offset_period(
         context.period_id,
         -lag_periods,
-        context.historical_results.len() + 1,
+        context.history.len() + 1,
         node_id,
     )?;
 
@@ -192,7 +192,7 @@ pub(crate) fn eval_pct_change(
         (current, lagged)
     } else {
         let current = evaluate_expr(&args[0], context, node_id)?;
-        if !context.historical_results.contains_key(&target_period) {
+        if !context.history.contains_key(&target_period) {
             // Mirror the column path: missing history yields NaN, not an error.
             return Ok(f64::NAN);
         }
@@ -272,7 +272,7 @@ pub(crate) fn eval_growth_rate(
         let target_period = offset_period(
             context.period_id,
             -periods,
-            context.historical_results.len() + 1,
+            context.history.len() + 1,
             node_id,
         )?;
         if let Some(start_value) = get_historical_column_value(context, node_name, &target_period) {
@@ -339,7 +339,7 @@ pub(crate) fn eval_shift(
     let target_period = offset_period(
         context.period_id,
         -shift_periods,
-        context.historical_results.len() + 1,
+        context.history.len() + 1,
         node_id,
     )?;
 

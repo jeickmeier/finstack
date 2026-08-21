@@ -386,8 +386,8 @@ fn attribution_method_rejects_pascal_case_wire() {
 }
 
 #[test]
-fn execution_policy_default_is_parallel() {
-    assert_eq!(ExecutionPolicy::default(), ExecutionPolicy::Parallel);
+fn execution_policy_default_is_serial() {
+    assert_eq!(ExecutionPolicy::default(), ExecutionPolicy::Serial);
 }
 
 #[test]

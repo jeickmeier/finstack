@@ -128,6 +128,27 @@ pub trait HolidayCalendar: Send + Sync {
         !date.is_weekend() && !self.is_holiday(date)
     }
 
+    /// Counts business days in the half-open interval `[start, end)`.
+    ///
+    /// Returns zero when `start >= end`. Implementors may override this method
+    /// with an equivalent optimized count.
+    ///
+    /// # Arguments
+    ///
+    /// * `start` - First date included in the count.
+    /// * `end` - Boundary date excluded from the count.
+    fn count_business_days(&self, start: Date, end: Date) -> i32 {
+        let mut count = 0_i32;
+        let mut current = start;
+        while current < end {
+            if self.is_business_day(current) {
+                count += 1;
+            }
+            current += Duration::days(1);
+        }
+        count
+    }
+
     /// Optional human-friendly metadata for the calendar.
     #[inline]
     fn metadata(&self) -> Option<CalendarMetadata> {

@@ -15,6 +15,7 @@ fn scenario_validate_rejects_empty_id() {
         operations: vec![],
         priority: 0,
         resolution_mode: ResolutionMode::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let error = scenario
@@ -45,6 +46,7 @@ fn scenario_validate_rejects_multiple_time_rolls() {
         ],
         priority: 0,
         resolution_mode: ResolutionMode::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let error = scenario
@@ -76,6 +78,7 @@ fn scenario_validate_prefixes_invalid_operation_index() {
         ],
         priority: 0,
         resolution_mode: ResolutionMode::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let error = scenario
@@ -327,6 +330,7 @@ fn scenario_validate_accepts_mixed_valid_operations() {
         ],
         priority: 1,
         resolution_mode: ResolutionMode::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     scenario
@@ -350,6 +354,7 @@ fn engine_apply_rejects_invalid_spec() {
         operations: vec![],
         priority: 0,
         resolution_mode: ResolutionMode::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let mut market = MarketContext::new();

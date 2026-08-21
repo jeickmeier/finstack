@@ -540,7 +540,7 @@ impl SnowballHw1fMcPricer {
         mc.price(|| payoff.clone())
     }
 
-    fn price_internal(
+    pub(crate) fn price_internal(
         &self,
         inst: &Snowball,
         market: &MarketContext,

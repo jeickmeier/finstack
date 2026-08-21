@@ -1,6 +1,6 @@
 //! Capital-structure-specific evaluator runtime helpers.
 
-use super::{EvaluationContext, Evaluator};
+use super::{EvaluationContext, Evaluator, PeriodHistory};
 use crate::error::Result;
 use crate::evaluator::{DependencyGraph, EvalWarning};
 use crate::types::{FinancialModelSpec, NodeId};
@@ -12,6 +12,12 @@ use std::sync::Arc;
 
 type Instruments =
     IndexMap<String, Arc<dyn finstack_quant_cashflows::CashflowProvider + Send + Sync>>;
+type DynamicPeriodEvaluation = (
+    IndexMap<String, f64>,
+    Vec<Option<f64>>,
+    Vec<EvalWarning>,
+    crate::capital_structure::CapitalStructureCashflows,
+);
 
 impl Evaluator {
     /// Build instruments from model specifications.
@@ -53,8 +59,7 @@ impl Evaluator {
         is_actual: bool,
         explicit_values_visible: bool,
         eval_order: &[crate::types::NodeId],
-        node_to_column: &std::sync::Arc<IndexMap<crate::types::NodeId, usize>>,
-        historical: &Arc<IndexMap<PeriodId, IndexMap<String, f64>>>,
+        historical: &Arc<PeriodHistory>,
         historical_cs: &Arc<
             IndexMap<PeriodId, crate::capital_structure::CapitalStructureCashflows>,
         >,
@@ -63,11 +68,7 @@ impl Evaluator {
         instruments: &Instruments,
         cs_state: &mut crate::capital_structure::CapitalStructureState,
         cs_affected_nodes: &HashSet<NodeId>,
-    ) -> Result<(
-        IndexMap<String, f64>,
-        Vec<EvalWarning>,
-        crate::capital_structure::CapitalStructureCashflows,
-    )> {
+    ) -> Result<DynamicPeriodEvaluation> {
         let period_id = period.id;
 
         let (contractual_flows, mut contractual_warnings) =
@@ -79,7 +80,6 @@ impl Evaluator {
 
         let mut context = EvaluationContext::new_with_history(
             period_id,
-            std::sync::Arc::clone(node_to_column),
             Arc::clone(historical),
             Arc::clone(historical_cs),
         );
@@ -144,6 +144,7 @@ impl Evaluator {
             .capital_structure_cashflows
             .take()
             .unwrap_or_default();
+        let row = context.current_values.clone();
         let (values, mut warnings) = context.into_results();
         // The second `evaluate_nodes_in_order` pass re-evaluates cs-affected
         // nodes into the same context, so node-level warnings (e.g.
@@ -152,7 +153,7 @@ impl Evaluator {
         let mut seen: HashSet<String> = HashSet::with_capacity(warnings.len());
         warnings.retain(|w| seen.insert(format!("{w:?}")));
         warnings.append(&mut contractual_warnings);
-        Ok((values, warnings, period_cs_cashflows))
+        Ok((values, row, warnings, period_cs_cashflows))
     }
 }
 

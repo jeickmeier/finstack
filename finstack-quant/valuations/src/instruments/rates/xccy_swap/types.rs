@@ -699,6 +699,7 @@ impl XccySwap {
                     compounding: &leg.compounding,
                     fixing_calendar: calendar,
                     compounded_spread: 0.0,
+                    need_observation_exposures: false,
                 })?;
                 ProjectedXccyPeriod {
                     rate: projection.rate,
@@ -1608,6 +1609,7 @@ mod tests {
             compounding: &compounding,
             fixing_calendar: calendar,
             compounded_spread: 0.0,
+            need_observation_exposures: false,
         })
         .expect("shared engine");
         assert!(

@@ -4,6 +4,7 @@
 //! neutralization / residualization, and signal-to-weight helpers that operate
 //! on more than one aligned column.
 
+use crate::cross_sectional::apply_cross_sectional_op;
 use crate::types::{bool_param, finite, usize_param, validate_lengths, ZERO_TOLERANCE};
 use crate::{transform_cross_sectional, CrossSectionalOp};
 use finstack_quant_core::math::linalg::{cholesky_decomposition, cholesky_solve};
@@ -12,7 +13,6 @@ use finstack_quant_core::{Error, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeMap;
 use std::str::FromStr;
 
 /// Supported pairwise rolling time-series transform operation.
@@ -110,16 +110,13 @@ pub fn transform_cross_sectional_grouped_with_op(
         values.len(),
         &[("time_key", time_key.len()), ("groups", groups.len())],
     )?;
-    let grouped_key = time_key
-        .iter()
-        .zip(groups.iter())
-        .map(|(time, group)| grouped_partition_key(time, group))
-        .collect::<Vec<_>>();
-    transform_cross_sectional(values, &grouped_key, op.as_str(), params)
-}
+    let partitions = crate::index::partition_by_pair(time_key, groups);
 
-fn grouped_partition_key(time: &str, group: &str) -> String {
-    format!("{}:{time}{group}", time.len())
+    let mut output = vec![None; values.len()];
+    for indices in partitions.values() {
+        apply_cross_sectional_op(values, indices, op, params, &mut output)?;
+    }
+    Ok(output)
 }
 
 /// Remove cross-sectional exposure effects by OLS residualization per time key.
@@ -151,10 +148,7 @@ pub fn neutralize(
     validate_exposures(values.len(), exposures)?;
     validate_lengths(values.len(), &[("time_key", time_key.len())])?;
     let fit_intercept = bool_param(params, "fit_intercept", true)?;
-    let mut partitions: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
-    for (idx, key) in time_key.iter().enumerate() {
-        partitions.entry(key.as_str()).or_default().push(idx);
-    }
+    let partitions = crate::index::partition_by_key(time_key);
 
     let mut output = vec![None; values.len()];
     for (key, indices) in &partitions {
@@ -468,10 +462,7 @@ fn demean_and_gross_normalize(
     time_key: &[String],
 ) -> Result<Vec<Option<f64>>> {
     validate_lengths(values.len(), &[("time_key", time_key.len())])?;
-    let mut partitions: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
-    for (idx, key) in time_key.iter().enumerate() {
-        partitions.entry(key.as_str()).or_default().push(idx);
-    }
+    let partitions = crate::index::partition_by_key(time_key);
 
     let mut output = vec![None; values.len()];
     for indices in partitions.values() {

@@ -15,6 +15,7 @@ use finstack_quant_scenarios::engine::{
     ScenarioMarketTarget,
 };
 use finstack_quant_scenarios::spec::{CurveKind, ScenarioSpec};
+use finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache;
 use finstack_quant_valuations::instruments::{Instrument, RatesCurveKind};
 use indexmap::IndexMap;
 use std::borrow::Cow;
@@ -162,6 +163,15 @@ fn apply_scenario<'a>(
     scenario: &ScenarioSpec,
     market: &MarketContext,
 ) -> Result<AppliedScenarioState<'a>> {
+    apply_scenario_with_cache(portfolio, scenario, market, None)
+}
+
+fn apply_scenario_with_cache<'a>(
+    portfolio: &'a Portfolio,
+    scenario: &ScenarioSpec,
+    market: &MarketContext,
+    hazard_cache: Option<Arc<HazardRecalibrationCache>>,
+) -> Result<AppliedScenarioState<'a>> {
     let mut market_copy = market.clone();
     let mut instruments = scenario.requires_instruments().then(|| {
         portfolio
@@ -180,7 +190,10 @@ fn apply_scenario<'a>(
         as_of: portfolio.as_of,
     };
 
-    let engine = ScenarioEngine::default();
+    let engine = match hazard_cache {
+        Some(cache) => ScenarioEngine::new().with_hazard_cache(cache),
+        None => ScenarioEngine::default(),
+    };
     let report = engine
         .apply(scenario, &mut ctx)
         .map_err(|e| Error::ScenarioError(e.to_string()))?;
@@ -552,12 +565,18 @@ pub fn scenario_pnl_batch(
     let base = crate::valuation::value_portfolio(portfolio, market, config, &options)?;
     let profile = crate::evaluation::EvaluationProfile::from_options(&options);
     let mut results = Vec::with_capacity(scenarios.len());
+    let hazard_cache = Arc::new(HazardRecalibrationCache::new());
 
     for wave in scenarios.chunks(SCENARIO_BATCH_MAX_ACTIVE_STATES) {
         let mut applied = Vec::with_capacity(wave.len());
         let mut application_error = None;
         for scenario in wave {
-            match apply_scenario(portfolio, scenario, market) {
+            match apply_scenario_with_cache(
+                portfolio,
+                scenario,
+                market,
+                Some(Arc::clone(&hazard_cache)),
+            ) {
                 Ok(state) => applied.push((scenario.id.clone(), state)),
                 Err(error) => {
                     application_error = Some(error);
@@ -774,6 +793,7 @@ mod tests {
             }],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         let result = apply_scenario(&portfolio, &scenario, &market);
@@ -829,6 +849,7 @@ mod tests {
             operations: vec![],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         let result = apply_and_revalue(&portfolio, &scenario, &market, &config);
@@ -924,6 +945,7 @@ mod tests {
             operations,
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         }
     }
 
@@ -976,6 +998,7 @@ mod tests {
                 operations: Vec::new(),
                 priority: 0,
                 resolution_mode: Default::default(),
+                hazard_bump_mode: Default::default(),
             })
             .collect();
 

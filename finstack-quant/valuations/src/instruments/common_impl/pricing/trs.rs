@@ -174,6 +174,7 @@ fn financing_period_projection(
                 compounding: &compounding,
                 fixing_calendar: calendar,
                 compounded_spread: 0.0,
+                need_observation_exposures: false,
             })?;
             FinancingPeriodProjection::new(
                 projection.rate,
@@ -1314,6 +1315,7 @@ mod tests {
             compounding: &compounding,
             fixing_calendar: calendar,
             compounded_spread: 0.0,
+            need_observation_exposures: false,
         })
         .expect("shared engine");
         assert!(

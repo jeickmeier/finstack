@@ -3,9 +3,7 @@
 use time::{Date, Month};
 
 use super::DayCountContext;
-use crate::dates::date_extensions::BusinessDayIter;
 use crate::dates::tenor::TenorUnit;
-use crate::dates::HolidayCalendar;
 use crate::error::InputError;
 
 // ACT/365L helper
@@ -99,12 +97,6 @@ pub(super) fn year_fraction_bus252(
     if basis == 0 {
         return Err(InputError::InvalidBusBasis { basis }.into());
     }
-    let biz_days = count_business_days(start, end, cal) as f64;
+    let biz_days = cal.count_business_days(start, end) as f64;
     Ok(biz_days / f64::from(basis))
-}
-
-// Bus/252 helper
-/// Count business days between start (inclusive) and end (exclusive) using the given calendar.
-fn count_business_days<C: HolidayCalendar + ?Sized>(start: Date, end: Date, calendar: &C) -> i32 {
-    BusinessDayIter::new(start, end, calendar).count() as i32
 }

@@ -175,7 +175,7 @@ pub(crate) fn evaluate_forecast(
 ///    that value is used. Actuals hidden by the cutoff are never consulted so
 ///    the forecast base cannot leak future data.
 /// 2. **Most recent historical value** — falls back to the chronologically
-///    latest value found anywhere in `EvaluationContext::historical_results`.
+///    latest value found anywhere in `EvaluationContext::history`.
 ///    Covers cases where the last actual period has no value for this
 ///    particular node (e.g., the node was added after earlier periods).
 /// 3. **Error** — if no historical data exists at all, evaluation fails with a
@@ -217,18 +217,20 @@ fn determine_base_value(
     }
 
     // Try to find the most recent historical value by chronological ordering
-    if let Some((&latest_period, val)) = context
-        .historical_results
-        .keys()
-        .filter_map(|p| {
-            context
-                .get_historical_value(node_spec.node_id.as_str(), p)
-                .map(|v| (p, v))
-        })
-        .max_by_key(|(p, _)| *p)
-    {
-        let _ = latest_period;
-        return Ok(val);
+    if let Some(&column) = context.node_to_column.get(node_spec.node_id.as_str()) {
+        if let Some((_, value)) = context
+            .history
+            .iter()
+            .filter_map(|(period, row)| {
+                row.get(column)
+                    .copied()
+                    .flatten()
+                    .map(|value| (period, value))
+            })
+            .max_by_key(|(period, _)| *period)
+        {
+            return Ok(value);
+        }
     }
 
     // No base value found

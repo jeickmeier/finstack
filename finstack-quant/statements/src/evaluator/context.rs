@@ -7,6 +7,7 @@
 
 use crate::error::{Error, Result};
 use crate::evaluator::results::EvalWarning;
+use crate::evaluator::PeriodHistory;
 use crate::types::{NodeId, NodeValueType};
 use finstack_quant_core::dates::{PeriodId, PeriodKind};
 use indexmap::IndexMap;
@@ -18,7 +19,7 @@ use std::sync::Arc;
 /// Evaluation context for a single period.
 ///
 /// Tracks node values for the current period and provides access to historical values.
-/// Read-only shared data (`node_to_column`, `historical_results`,
+/// Read-only shared data (`node_to_column`, `history`,
 /// `historical_capital_structure_cashflows`) is wrapped in `Arc` so that per-period
 /// and per-aggregate-function context construction is O(1) instead of O(P×N).
 #[derive(Debug, Clone)]
@@ -32,8 +33,8 @@ pub struct EvaluationContext {
     /// Map of node_id → column index for the current period
     pub node_to_column: Arc<IndexMap<NodeId, usize>>,
 
-    /// Historical results: period_id → (node_id → value)
-    pub historical_results: Arc<IndexMap<PeriodId, IndexMap<String, f64>>>,
+    /// Columnar historical node values sharing the context's column layout.
+    pub history: Arc<PeriodHistory>,
 
     /// Historical capital-structure snapshots: period_id → cashflows
     pub historical_capital_structure_cashflows:
@@ -58,7 +59,7 @@ pub struct EvaluationContext {
     /// Within a single period's evaluation many formulas (rolling, expanding,
     /// statistical, time-series) reach back into the same node's history.
     /// Each lookup previously rebuilt a fresh `BTreeMap<PeriodId, f64>` by
-    /// iterating `historical_results`. We now cache the constructed map keyed
+    /// iterating `history`. We now cache the constructed map keyed
     /// by node identifier (or capital-structure reference) so repeated calls
     /// in the same period are O(1) refcount bumps instead of O(P) walks.
     ///
@@ -74,7 +75,9 @@ impl EvaluationContext {
     /// # Arguments
     /// * `period_id` - Period currently being evaluated
     /// * `node_to_column` - Mapping from node identifiers to their column index
-    /// * `historical_results` - Prior period results available for lag/lead lookups
+    /// * `named_maps` - Prior period results keyed by node name, available for
+    ///   lag, rolling-window, and forecast lookups. Historical-only node names
+    ///   are appended to the shared column layout.
     ///
     /// # Example
     ///
@@ -96,37 +99,35 @@ impl EvaluationContext {
     pub fn new(
         period_id: PeriodId,
         node_to_column: Arc<IndexMap<NodeId, usize>>,
-        historical_results: Arc<IndexMap<PeriodId, IndexMap<String, f64>>>,
+        named_maps: Arc<IndexMap<PeriodId, IndexMap<String, f64>>>,
     ) -> Self {
-        Self::new_with_history(
-            period_id,
+        let history = Arc::new(PeriodHistory::from_named_maps(
             node_to_column,
-            historical_results,
-            Arc::new(IndexMap::new()),
-        )
+            named_maps.as_ref(),
+        ));
+        Self::new_with_history(period_id, history, Arc::new(IndexMap::new()))
     }
 
-    /// Create a new evaluation context with shared historical results and
+    /// Create a new evaluation context with shared columnar history and
     /// capital-structure cashflow snapshots.
     ///
     /// This constructor is used by the evaluator hot path so each per-period
-    /// context can reuse the same `Arc`-backed history maps without cloning
-    /// their contents.
-    pub fn new_with_history(
+    /// context can reuse the same `Arc`-backed history without cloning it.
+    pub(crate) fn new_with_history(
         period_id: PeriodId,
-        node_to_column: Arc<IndexMap<NodeId, usize>>,
-        historical_results: Arc<IndexMap<PeriodId, IndexMap<String, f64>>>,
+        history: Arc<PeriodHistory>,
         historical_capital_structure_cashflows: Arc<
             IndexMap<PeriodId, crate::capital_structure::CapitalStructureCashflows>,
         >,
     ) -> Self {
+        let node_to_column = history.shared_node_to_column();
         let num_nodes = node_to_column.len();
         let period_kind = period_id.kind();
         Self {
             period_id,
             period_kind,
             node_to_column,
-            historical_results,
+            history,
             historical_capital_structure_cashflows,
             current_values: vec![None; num_nodes],
             node_value_types: Arc::new(IndexMap::new()),
@@ -302,9 +303,7 @@ impl EvaluationContext {
     /// * `node_id` - Identifier to query
     /// * `period_id` - Historical period to look up
     pub fn get_historical_value(&self, node_id: &str, period_id: &PeriodId) -> Option<f64> {
-        self.historical_results
-            .get(period_id)
-            .and_then(|period_results| period_results.get(node_id).copied())
+        self.history.get_value(node_id, period_id)
     }
 
     /// Shared diagnostic listing the `cs.*` component vocabulary.
@@ -466,6 +465,7 @@ impl EvaluationContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::evaluator::PeriodHistory;
     use crate::types::NodeId;
 
     #[test]
@@ -520,6 +520,48 @@ mod tests {
 
         let value = ctx.get_historical_value("revenue", &PeriodId::quarter(2025, 1));
         assert_eq!(value, Some(100_000.0));
+    }
+
+    #[test]
+    fn named_constructor_adopts_layout_expanded_for_historical_only_nodes() {
+        let q1 = PeriodId::quarter(2025, 1);
+        let mut node_to_column = IndexMap::new();
+        node_to_column.insert(NodeId::new("revenue"), 0);
+        let historical = IndexMap::from_iter([(
+            q1,
+            IndexMap::from_iter([
+                ("revenue".to_string(), 100.0),
+                ("legacy_margin".to_string(), 25.0),
+            ]),
+        )]);
+
+        let ctx = EvaluationContext::new(
+            PeriodId::quarter(2025, 2),
+            Arc::new(node_to_column),
+            Arc::new(historical),
+        );
+
+        assert_eq!(ctx.current_values.len(), 2);
+        assert_eq!(ctx.get_historical_value("revenue", &q1), Some(100.0));
+        assert_eq!(ctx.get_historical_value("legacy_margin", &q1), Some(25.0));
+        assert!(Arc::ptr_eq(
+            &ctx.node_to_column,
+            &ctx.history.shared_node_to_column()
+        ));
+    }
+
+    #[test]
+    fn internal_constructor_shares_history_and_its_layout() {
+        let columns = Arc::new(IndexMap::from_iter([(NodeId::new("revenue"), 0)]));
+        let history = Arc::new(PeriodHistory::new(Arc::clone(&columns)));
+        let ctx = EvaluationContext::new_with_history(
+            PeriodId::quarter(2025, 1),
+            Arc::clone(&history),
+            Arc::new(IndexMap::new()),
+        );
+
+        assert!(Arc::ptr_eq(&ctx.history, &history));
+        assert!(Arc::ptr_eq(&ctx.node_to_column, &columns));
     }
 
     /// `get_value_decimal` provides a Decimal-at-boundary conversion

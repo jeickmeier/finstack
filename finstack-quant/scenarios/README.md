@@ -202,6 +202,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let mut ctx = ExecutionContext {

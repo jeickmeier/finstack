@@ -132,7 +132,7 @@ pub(crate) struct CreditCascade {
 pub(crate) fn hierarchy_level_name(dim: &HierarchyDimension) -> String {
     match dim {
         HierarchyDimension::Custom(s) => s.clone(),
-        _ => dimension_key(dim),
+        _ => dimension_key(dim).to_owned(),
     }
 }
 

@@ -172,9 +172,9 @@ pub struct AttributionConfig {
     pub target_currency: Option<Currency>,
     /// Controls whether attribution's per-factor repricings run in parallel.
     ///
-    /// Defaults to [`ExecutionPolicy::Parallel`] when omitted. Portfolio-level
-    /// callers should use [`ExecutionPolicy::Serial`] for inner attribution
-    /// work so the outer position loop owns Rayon.
+    /// Defaults to [`ExecutionPolicy::Serial`] when omitted. Opt into
+    /// [`ExecutionPolicy::Parallel`] only when the caller is not already
+    /// parallelizing an outer portfolio or batch loop.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution_policy: Option<ExecutionPolicy>,
 }

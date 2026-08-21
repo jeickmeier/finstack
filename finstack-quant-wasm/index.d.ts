@@ -4663,7 +4663,7 @@ export interface MonteCarloNamespace {
    * @param expiry - Time to option expiry in years on the model's annual time basis.
    * @param numPaths - Number of simulated stochastic paths; larger values improve sampling precision.
    * @param seed - Deterministic random-number seed used to reproduce simulation output.
-   * @param numSteps - Number of time steps per simulated path.
+   * @param numSteps - Time steps per path. Omit to use the registry default of 1; ExactGbm is unbiased for any Δt so a European payoff only needs the terminal step.
    * @param currency - ISO-4217 currency code for the monetary amount or market convention.
    * @throws Error - Throws a JavaScript exception if `currency` is unknown; embedded defaults cannot be loaded when `num_steps` is omitted; the GBM parameters, expiry, step count, path count, or computed discount factor fail validation; a simulated discounted payoff is non-finite; or the result cannot be serialized.
    */
@@ -4695,7 +4695,7 @@ export interface MonteCarloNamespace {
    * @param expiry - Time to option expiry in years on the model's annual time basis.
    * @param numPaths - Number of simulated stochastic paths; larger values improve sampling precision.
    * @param seed - Deterministic random-number seed used to reproduce simulation output.
-   * @param numSteps - Number of time steps per simulated path.
+   * @param numSteps - Time steps per path. Omit to use the registry default of 1; ExactGbm is unbiased for any Δt so a European payoff only needs the terminal step.
    * @param currency - ISO-4217 currency code for the monetary amount or market convention.
    * @throws Error - Throws a JavaScript exception if `currency` is unknown; embedded defaults cannot be loaded when `num_steps` is omitted; the GBM parameters, expiry, step count, path count, or computed discount factor fail validation; a simulated discounted payoff is non-finite; or the result cannot be serialized.
    */
@@ -8226,8 +8226,9 @@ export interface AttributionNamespace {
   /**
    * Parameters constructor emitted by wasm-bindgen for attribution calls.
    *
-   * `configJson` may include `{ "execution_policy": "serial" }` when the host
-   * already parallelizes attribution at the portfolio or batch level.
+   * `configJson` may include `{ "execution_policy": "parallel" }` to opt into
+   * inner Rayon when the host is not already parallelizing attribution at the
+   * portfolio or batch level. Serial is the default.
    */
   AttributionParams: new (
     instrumentJson: string,
@@ -8246,8 +8247,9 @@ export interface AttributionNamespace {
    * snapshots, dates, and a method descriptor. Returns the `PnlAttribution`
    * result as a structured object with the canonical Rust serde field names;
    * use `attributePnlJson` for the JSON wire string. `config_json` may include
-   * `"execution_policy": "serial"` for hosts that already parallelize
-   * attribution at a higher level.
+   * `"execution_policy": "parallel"` to opt into inner Rayon when the host
+   * is not already parallelizing attribution at a higher level. Serial is
+   * the default.
    * @returns Structured `PnlAttribution` result object for the instrument.
    * @param params - Fully specified AttributionParams object containing instrument, markets, dates, and method.
    * @throws Error - Rejects malformed instrument, market, method, or configuration JSON; invalid ISO attribution dates; instrument or market reconstruction, pricing, FX, rounding, metric, or method-specific attribution failures; a caught attribution panic; or failure to convert the result to a JavaScript value.
@@ -10571,6 +10573,11 @@ export interface ScenarioSpec {
    * Hierarchy conflict policy.
    */
   resolution_mode: 'most_specific_wins' | 'cumulative';
+  /**
+   * Optional ParCDS delivery. Omitted when left at the default
+   * `"solve_to_par"`. `"first_order_shift"` shifts hazard knots in place.
+   */
+  hazard_bump_mode?: 'solve_to_par' | 'first_order_shift';
 }
 
 /**
@@ -10700,7 +10707,8 @@ export interface ScenariosNamespace {
    * @param description - Optional human-readable description of the scenario purpose.
    * @param priority - Optional execution priority; lower values run earlier during composition. Omit for the Rust serde default (`0`), matching the Python `priority=0` keyword default.
    * @param resolutionMode - Optional hierarchy conflict policy: `"most_specific_wins"` (default) or `"cumulative"`.
-   * @throws Error - Rejects malformed or schema-incompatible `operations`, an unsupported `resolution_mode`, a blank scenario ID, multiple time-roll operations, invalid operation identifiers or numeric fields, variant-specific operation violations, or failure to serialize the scenario.
+   * @param hazardBumpMode - Optional ParCDS delivery: `"solve_to_par"` (default) or `"first_order_shift"`.
+   * @throws Error - Rejects malformed or schema-incompatible `operations`, an unsupported `resolution_mode` or `hazard_bump_mode`, a blank scenario ID, multiple time-roll operations, invalid operation identifiers or numeric fields, variant-specific operation violations, or failure to serialize the scenario.
    */
   buildScenarioSpec(
     id: string,
@@ -10708,7 +10716,8 @@ export interface ScenariosNamespace {
     name?: string,
     description?: string,
     priority?: number,
-    resolutionMode?: 'most_specific_wins' | 'cumulative'
+    resolutionMode?: 'most_specific_wins' | 'cumulative',
+    hazardBumpMode?: 'solve_to_par' | 'first_order_shift'
   ): ScenarioSpec;
   /**
    * Apply a scenario to a market context and financial model.

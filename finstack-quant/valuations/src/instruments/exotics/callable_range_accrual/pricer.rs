@@ -388,7 +388,7 @@ impl CallableRangeAccrualPricer {
         lsmc.price(|| payoff.clone())
     }
 
-    fn price_internal(
+    pub(crate) fn price_internal(
         &self,
         inst: &CallableRangeAccrual,
         market: &MarketContext,

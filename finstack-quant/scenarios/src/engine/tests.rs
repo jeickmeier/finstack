@@ -21,6 +21,7 @@ fn try_compose_rejects_two_time_rolls() {
         }],
         priority: 1,
         resolution_mode: ResolutionMode::Cumulative,
+        hazard_bump_mode: Default::default(),
     };
     let s2 = ScenarioSpec {
         id: "roll_1y".into(),
@@ -33,6 +34,7 @@ fn try_compose_rejects_two_time_rolls() {
         }],
         priority: 2,
         resolution_mode: ResolutionMode::Cumulative,
+        hazard_bump_mode: Default::default(),
     };
 
     let err = engine
@@ -56,6 +58,7 @@ fn try_compose_preserves_source_ids_and_names() {
             }],
             priority: 2,
             resolution_mode: ResolutionMode::MostSpecificWins,
+            hazard_bump_mode: Default::default(),
         },
         ScenarioSpec {
             id: "credit_down".into(),
@@ -67,6 +70,7 @@ fn try_compose_preserves_source_ids_and_names() {
             }],
             priority: 1,
             resolution_mode: ResolutionMode::Cumulative,
+            hazard_bump_mode: Default::default(),
         },
     ];
 
@@ -76,6 +80,72 @@ fn try_compose_preserves_source_ids_and_names() {
     assert_eq!(strict.name.as_deref(), Some("credit_down + Rates Up"));
     assert_eq!(strict.operations.len(), 2);
     assert_eq!(strict.resolution_mode, ResolutionMode::Cumulative);
+    assert_eq!(strict.hazard_bump_mode, crate::HazardBumpMode::SolveToPar);
+}
+
+#[test]
+fn try_compose_keeps_agreed_first_order_hazard_mode() {
+    let engine = ScenarioEngine::new();
+    let s1 = ScenarioSpec {
+        id: "a".into(),
+        name: None,
+        description: None,
+        operations: Vec::new(),
+        priority: 0,
+        resolution_mode: Default::default(),
+        hazard_bump_mode: crate::HazardBumpMode::FirstOrderShift,
+    };
+    let s2 = ScenarioSpec {
+        id: "b".into(),
+        name: None,
+        description: None,
+        operations: Vec::new(),
+        priority: 1,
+        resolution_mode: Default::default(),
+        hazard_bump_mode: crate::HazardBumpMode::FirstOrderShift,
+    };
+    let composed = engine.try_compose(vec![s1, s2]).expect("compose");
+    assert_eq!(
+        composed.hazard_bump_mode,
+        crate::HazardBumpMode::FirstOrderShift
+    );
+}
+
+#[test]
+fn try_compose_falls_back_to_solve_to_par_when_modes_disagree() {
+    let engine = ScenarioEngine::new();
+    let s1 = ScenarioSpec {
+        id: "a".into(),
+        name: None,
+        description: None,
+        operations: Vec::new(),
+        priority: 0,
+        resolution_mode: Default::default(),
+        hazard_bump_mode: crate::HazardBumpMode::FirstOrderShift,
+    };
+    let s2 = ScenarioSpec {
+        id: "b".into(),
+        name: None,
+        description: None,
+        operations: Vec::new(),
+        priority: 1,
+        resolution_mode: Default::default(),
+        hazard_bump_mode: crate::HazardBumpMode::SolveToPar,
+    };
+    let error = engine
+        .try_compose(vec![s1, s2])
+        .expect_err("mixed hazard bump modes must be rejected");
+    let message = error.to_string();
+    assert!(message.contains("a"), "unexpected error: {message}");
+    assert!(message.contains("b"), "unexpected error: {message}");
+    assert!(
+        message.contains("first_order_shift"),
+        "unexpected error: {message}"
+    );
+    assert!(
+        message.contains("solve_to_par"),
+        "unexpected error: {message}"
+    );
 }
 
 #[test]
@@ -95,6 +165,7 @@ fn apply_rejects_hierarchy_op_without_hierarchy() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -132,6 +203,7 @@ fn apply_emits_warning_when_hierarchy_target_matches_no_curves() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -173,6 +245,7 @@ fn market_only_context_applies_without_statement_model() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -235,6 +308,7 @@ fn statement_operation_without_model_errors_clearly() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();

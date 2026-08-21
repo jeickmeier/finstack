@@ -4,7 +4,9 @@
 //! with currency conversion to portfolio base currency.
 
 use crate::error::{Error, Result};
-use crate::evaluation::{EvaluationProfile, PortfolioEvaluationPlan, PositionExecution};
+use crate::evaluation::{
+    EvaluationProfile, PortfolioEvaluationPlan, PositionExecution, POSITION_PARALLEL_MIN_POSITIONS,
+};
 use crate::portfolio::Portfolio;
 use crate::types::PositionId;
 use crate::valuation::{
@@ -761,66 +763,79 @@ pub(crate) fn reduce_metrics_based_prepared(
         )));
     }
 
-    let mut position_data = Vec::with_capacity(portfolio.positions.len());
-    for position in &portfolio.positions {
-        let position_t0 = prepared_t0
-            .get_position_value(position.position_id.as_str())
-            .ok_or_else(|| {
-                Error::valuation(
-                    position.position_id.clone(),
-                    "Attribution T0 prepared position valuation is missing",
-                )
-            })?;
-        let position_t1 = prepared_t1
-            .get_position_value(position.position_id.as_str())
-            .ok_or_else(|| {
-                Error::valuation(
-                    position.position_id.clone(),
-                    "Attribution T1 prepared position valuation is missing",
-                )
-            })?;
+    let reduce_position =
+        |position: &crate::position::Position| -> Result<PositionAttributionData> {
+            let position_t0 = prepared_t0
+                .get_position_value(position.position_id.as_str())
+                .ok_or_else(|| {
+                    Error::valuation(
+                        position.position_id.clone(),
+                        "Attribution T0 prepared position valuation is missing",
+                    )
+                })?;
+            let position_t1 = prepared_t1
+                .get_position_value(position.position_id.as_str())
+                .ok_or_else(|| {
+                    Error::valuation(
+                        position.position_id.clone(),
+                        "Attribution T1 prepared position valuation is missing",
+                    )
+                })?;
 
-        let val_t0 = prepared_valuation_result(position, position_t0, as_of_t0, "T0", true)?;
-        let val_t1 = prepared_valuation_result(position, position_t1, as_of_t1, "T1", true)?;
-        let mut pos_attr = if let Some(composite) = position
-            .instrument
-            .as_any()
-            .downcast_ref::<CompositeInstrument>()
-        {
-            attribute_composite_primitives(
-                composite,
-                market_t0,
-                market_t1,
-                as_of_t0,
-                as_of_t1,
-                config,
-                &AttributionMethod::MetricsBased,
-            )?
-        } else {
-            attribute_pnl_metrics_based(
-                &position.instrument,
-                market_t0,
-                market_t1,
-                val_t0,
-                val_t1,
-                as_of_t0,
-                as_of_t1,
-            )
-            .map_err(|error| Error::ValuationError {
+            let val_t0 = prepared_valuation_result(position, position_t0, as_of_t0, "T0", true)?;
+            let val_t1 = prepared_valuation_result(position, position_t1, as_of_t1, "T1", true)?;
+            let mut pos_attr = if let Some(composite) = position
+                .instrument
+                .as_any()
+                .downcast_ref::<CompositeInstrument>()
+            {
+                attribute_composite_primitives(
+                    composite,
+                    market_t0,
+                    market_t1,
+                    as_of_t0,
+                    as_of_t1,
+                    config,
+                    &AttributionMethod::MetricsBased,
+                )?
+            } else {
+                attribute_pnl_metrics_based(
+                    &position.instrument,
+                    market_t0,
+                    market_t1,
+                    val_t0,
+                    val_t1,
+                    as_of_t0,
+                    as_of_t1,
+                )
+                .map_err(|error| Error::ValuationError {
+                    position_id: position.position_id.clone(),
+                    message: format!("Attribution failed: {error}"),
+                })?
+            };
+
+            pos_attr.scale(position.scale_factor());
+            let inst_currency = pos_attr.total_pnl.currency();
+            Ok(PositionAttributionData {
                 position_id: position.position_id.clone(),
-                message: format!("Attribution failed: {error}"),
-            })?
+                pos_attr,
+                val_t0_native: position_t0.value_native,
+                inst_currency,
+            })
         };
 
-        pos_attr.scale(position.scale_factor());
-        let inst_currency = pos_attr.total_pnl.currency();
-        position_data.push(PositionAttributionData {
-            position_id: position.position_id.clone(),
-            pos_attr,
-            val_t0_native: position_t0.value_native,
-            inst_currency,
-        });
-    }
+    let position_results: Vec<Result<PositionAttributionData>> =
+        if portfolio.positions.len() >= POSITION_PARALLEL_MIN_POSITIONS {
+            use rayon::prelude::*;
+            portfolio
+                .positions
+                .par_iter()
+                .map(reduce_position)
+                .collect()
+        } else {
+            portfolio.positions.iter().map(reduce_position).collect()
+        };
+    let position_data = position_results.into_iter().collect::<Result<Vec<_>>>()?;
 
     aggregate_position_attributions(
         portfolio,
@@ -873,11 +888,8 @@ pub(crate) fn reduce_method_owned_prepared(
         method,
     };
 
-    use rayon::prelude::*;
-    let position_results: Vec<Result<PositionAttributionData>> = portfolio
-        .positions
-        .par_iter()
-        .map(|position| {
+    let reduce_position =
+        |position: &crate::position::Position| -> Result<PositionAttributionData> {
             let position_t0 = prepared_t0
                 .get_position_value(position.position_id.as_str())
                 .ok_or_else(|| {
@@ -903,8 +915,18 @@ pub(crate) fn reduce_method_owned_prepared(
                 val_t0.value,
                 val_t1.value,
             )
-        })
-        .collect();
+        };
+    let position_results: Vec<Result<PositionAttributionData>> =
+        if portfolio.positions.len() >= POSITION_PARALLEL_MIN_POSITIONS {
+            use rayon::prelude::*;
+            portfolio
+                .positions
+                .par_iter()
+                .map(reduce_position)
+                .collect()
+        } else {
+            portfolio.positions.iter().map(reduce_position).collect()
+        };
     let position_data = position_results.into_iter().collect::<Result<Vec<_>>>()?;
 
     aggregate_position_attributions(

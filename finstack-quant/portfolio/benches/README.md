@@ -2,7 +2,8 @@
 
 Criterion benchmarks for the maintained portfolio hot paths: valuation,
 selective repricing, cashflows, metrics, attribution, scenario/replay
-workflows, sensitivity engines, Rayon thresholds, and materialization.
+workflows, sensitivity engines, Rayon thresholds, materialization, book
+rollup, reporting analytics, margin aggregation, and LP optimization.
 
 The suite is manifest-driven (`autobenches = false` in
 [`../Cargo.toml`](../Cargo.toml)), so a new file under `benches/` does not
@@ -13,12 +14,15 @@ expand benchmark runtime unless a matching `[[bench]]` entry is added.
 | File | Registered bench? | Contents |
 |------|-------------------|----------|
 | `portfolio_valuation.rs` | yes | Full valuation, entity/multicurrency aggregation, filtering, PV scaling, selective-repricing shapes, `revalue_affected` |
-| `portfolio_cashflows.rs` | yes | `aggregate_full_cashflows` ladder |
-| `portfolio_metrics.rs` | yes | `aggregate_metrics` alone and combined with valuation |
+| `portfolio_cashflows.rs` | yes | `aggregate_full_cashflows` ladder (63 / 64 / 250; 3,000 with `FINSTACK_PORTFOLIO_BENCH_XL`) plus `collapse_to_base_by_date_kind` |
+| `portfolio_metrics.rs` | yes | `aggregate_metrics` scaling (63 / 64 / 250 / 3,000), combined valuation, and table export |
 | `portfolio_attribution.rs` | yes | Parallel, metrics-based, and method-owned attribution controls |
 | `portfolio_workflows.rs` | yes | `scenario_pnl` / `scenario_pnl_batch` reuse and `replay_portfolio` |
-| `sensitivity_simulation.rs` | yes | Full-repricing grids, factor stress, Monte Carlo risk decomposition |
-| `parallel_thresholds.rs` | yes | Historical tail-risk decomposer around `PARALLEL_TAIL_THRESHOLD = 100_000` |
+| `portfolio_analytics.rs` | yes | Book rollup, primitive exposure, Brinson / Campisi / grid / factor-Brinson / excess-return, liquidity estimators |
+| `portfolio_margin.rs` | yes | `PortfolioMarginAggregator::calculate` over 256 / 1,024 mocked-marginable positions |
+| `portfolio_optimization.rs` | yes | `DefaultLpOptimizer::optimize` on 32 / 64-bond books |
+| `sensitivity_simulation.rs` | yes | Full-repricing grids, delta-based sensitivities, `FactorModel::analyze` / `factor_stress`, parametric and Monte Carlo decomposition |
+| `parallel_thresholds.rs` | yes | Historical tail-risk decomposer serial fold at 400 / 500 / 600 positions |
 | `materialization.rs` | yes | `Portfolio::from_materialization` / `validate_materialization` plus absolute latency gates |
 | `bench_common.rs` | no | Shared fixture builders, pulled in with `#[path = "bench_common.rs"] mod bench_common;` |
 | `materialization_fixtures.rs`, `materialization_gate.rs` | no | Fixture builders and percentile/gate logic used only by `materialization.rs` |

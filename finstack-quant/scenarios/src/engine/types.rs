@@ -1,11 +1,12 @@
 //! Execution context and scenario application report types.
 
-use crate::spec::{CurveKind, RateBindingSpec};
+use crate::spec::{CurveKind, HazardBumpMode, RateBindingSpec};
 use crate::warning::Warning;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_statements::types::NodeId;
 use finstack_quant_statements::FinancialModelSpec;
+use finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache;
 use finstack_quant_valuations::instruments::Instrument;
 use indexmap::IndexMap;
 
@@ -69,6 +70,14 @@ pub struct ExecutionContext<'a> {
 
     /// Valuation date for context.
     pub as_of: time::Date,
+}
+
+/// Read-only ParCDS delivery settings threaded through effect generation.
+pub(crate) struct HazardApplyEnv<'a> {
+    /// Solve-to-par versus first-order hazard-knot delivery.
+    pub mode: HazardBumpMode,
+    /// Shared recalibration cache for this apply (or a caller-owned batch).
+    pub cache: &'a HazardRecalibrationCache,
 }
 
 /// A concrete market-data target changed while applying a scenario.

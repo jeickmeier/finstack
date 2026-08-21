@@ -289,6 +289,7 @@ pub(super) fn project_revolver_floating_rate(input: RevolverFloatingProjection<'
         compounding: &compounding,
         fixing_calendar: calendar,
         compounded_spread: 0.0,
+        need_observation_exposures: false,
     })?;
     Ok(crate::cashflow::builder::rate_helpers::calculate_floating_rate(projection.rate, &params))
 }
@@ -609,6 +610,7 @@ mod tests {
             compounding: &compounding,
             fixing_calendar: calendar,
             compounded_spread: 0.0,
+            need_observation_exposures: false,
         })
         .expect("shared overnight coupon");
         assert!(

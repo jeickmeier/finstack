@@ -39,6 +39,7 @@ mod formula_ewm;
 pub(crate) mod formula_helpers;
 mod formula_timeseries;
 pub(crate) mod monte_carlo;
+mod period_history;
 mod precedence;
 mod results;
 
@@ -47,6 +48,7 @@ pub use context::EvaluationContext;
 pub use dag::{evaluate_order, DependencyGraph};
 pub use engine::{Evaluator, PreparedEvaluation};
 pub use monte_carlo::{MonteCarloConfig, MonteCarloResults, PercentileSeries};
+pub use period_history::PeriodHistory;
 pub use results::{
     CapitalStructureClaimCategory, CapitalStructureWarning, EvalStats, EvalWarning, NumericMode,
     StatementResult,

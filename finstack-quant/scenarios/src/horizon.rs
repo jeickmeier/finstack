@@ -45,6 +45,7 @@
 //!     ],
 //!     priority: 0,
 //!     resolution_mode: Default::default(),
+//!     hazard_bump_mode: Default::default(),
 //! };
 //!
 //! let analyzer = HorizonAnalysis::default();
@@ -530,6 +531,7 @@ mod tests {
             operations: vec![],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         let analyzer = HorizonAnalysis::default();
@@ -563,6 +565,7 @@ mod tests {
             }],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         let analyzer = HorizonAnalysis::default();
@@ -624,6 +627,7 @@ mod tests {
             ],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         let analyzer = HorizonAnalysis::default();
@@ -681,6 +685,7 @@ mod tests {
             }],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         let analyzer = HorizonAnalysis::default();
@@ -718,6 +723,7 @@ mod tests {
             }],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         let analyzer = HorizonAnalysis::default();
@@ -751,6 +757,7 @@ mod tests {
             }],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         let analyzer = HorizonAnalysis::default();
@@ -853,6 +860,7 @@ mod tests {
             }],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         let analyzer = HorizonAnalysis::default().with_calendar_id("not_a_real_calendar");
@@ -887,6 +895,7 @@ mod tests {
             }],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         // Weekends-only fallback: 2025-06-19 is a Thursday, so no adjustment.

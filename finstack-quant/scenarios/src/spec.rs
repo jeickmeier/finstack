@@ -53,11 +53,13 @@ pub use finstack_quant_statements::types::NodeId;
 ///   to determine merge ordering (lower numbers run first).
 /// - `resolution_mode`: Controls how hierarchy-targeted shocks at multiple tree
 ///   levels combine for a single curve. Defaults to [`ResolutionMode::MostSpecificWins`].
+/// - `hazard_bump_mode`: ParCDS delivery. Defaults to
+///   [`HazardBumpMode::SolveToPar`].
 ///
 /// # Examples
 ///
 /// ```rust
-/// use finstack_quant_scenarios::{ScenarioSpec, OperationSpec, CurveKind};
+/// use finstack_quant_scenarios::{HazardBumpMode, ScenarioSpec, OperationSpec, CurveKind};
 /// use finstack_quant_core::market_data::hierarchy::ResolutionMode;
 ///
 /// let scenario = ScenarioSpec {
@@ -74,9 +76,10 @@ pub use finstack_quant_statements::types::NodeId;
 ///     ],
 ///     priority: 0,
 ///     resolution_mode: ResolutionMode::default(),
+///     hazard_bump_mode: HazardBumpMode::default(),
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ScenarioSpec {
     /// Unique identifier for this scenario.
@@ -103,6 +106,38 @@ pub struct ScenarioSpec {
     /// Default: [`ResolutionMode::MostSpecificWins`].
     #[serde(default)]
     pub resolution_mode: ResolutionMode,
+
+    /// How ParCDS curve operations rewrite hazard curves.
+    ///
+    /// Default: [`HazardBumpMode::SolveToPar`]. Omitted from JSON when left
+    /// at that default so existing envelopes keep their wire shape.
+    #[serde(default, skip_serializing_if = "HazardBumpMode::is_solve_to_par")]
+    pub hazard_bump_mode: HazardBumpMode,
+}
+
+/// How ParCDS operations deliver a spread shock onto a hazard curve.
+///
+/// [`Self::SolveToPar`] is the production default: implied par CDS spreads are
+/// shocked and the hazard is re-bootstrapped so the curve still prices those
+/// quotes. [`Self::FirstOrderShift`] applies
+/// [`bump_hazard_shift`](finstack_quant_valuations::calibration::bumps::bump_hazard_shift)
+/// directly to hazard knots for screening and large hierarchy fan-out.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum HazardBumpMode {
+    /// Shock implied par CDS spreads and re-bootstrap the hazard curve.
+    #[default]
+    SolveToPar,
+    /// Shift hazard knots in place without recovering par (first-order).
+    FirstOrderShift,
+}
+
+impl HazardBumpMode {
+    /// Whether this is the serde-default solve-to-par delivery.
+    #[must_use]
+    pub const fn is_solve_to_par(&self) -> bool {
+        matches!(self, Self::SolveToPar)
+    }
 }
 
 impl ScenarioSpec {
@@ -144,6 +179,18 @@ impl ScenarioSpec {
         self.operations
             .iter()
             .any(OperationSpec::mutates_instruments)
+    }
+
+    /// Override ParCDS hazard delivery for this spec.
+    ///
+    /// # Arguments
+    ///
+    /// * `mode` - Solve-to-par bootstrap or first-order hazard-knot shift
+    ///   applied to every ParCDS operation in this spec.
+    #[must_use]
+    pub fn with_hazard_bump_mode(mut self, mode: HazardBumpMode) -> Self {
+        self.hazard_bump_mode = mode;
+        self
     }
 }
 

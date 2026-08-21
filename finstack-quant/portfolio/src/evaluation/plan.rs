@@ -15,7 +15,10 @@ use indexmap::IndexMap;
 use std::sync::Arc;
 
 const STATE_PARALLEL_MIN_JOBS: usize = 8;
-const STATE_PARALLEL_MAX_POSITIONS: usize = 255;
+/// Date-parallel execution only when every book is below the position-parallel
+/// cutover. Larger books keep `PositionExecution::Auto` so the position axis
+/// stays parallel instead of being forced serial inside each date job.
+const STATE_PARALLEL_MAX_POSITIONS: usize = super::POSITION_PARALLEL_MIN_POSITIONS - 1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct MarketStateId(u32);

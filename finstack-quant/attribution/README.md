@@ -187,10 +187,10 @@ rustdoc.
 - Per-factor bump-and-reprice paths in `parallel`, `waterfall`, and `taylor`
   reuse a single `MarketSnapshot` and apply targeted restore flags
   (`MarketRestoreFlags`) to avoid full-context cloning.
-- `ExecutionPolicy::Parallel` is the standalone default for parallel and Taylor
-  attribution. Portfolio-level callers use `ExecutionPolicy::Serial` for those
-  inner per-factor repricings so the outer position loop owns Rayon and avoids
-  nested thread-pool contention.
+- `ExecutionPolicy::Serial` is the default for parallel and Taylor attribution.
+  Opt into `ExecutionPolicy::Parallel` only when the caller is not already
+  parallelizing an outer portfolio or batch loop, so the outer position loop
+  owns Rayon and avoids nested thread-pool contention.
 - Taylor attribution uses central differences by default; bump sizes are
   configurable via `TaylorAttributionConfig`.
 - Strict mode is the spec/execution default (`AttributionConfig::strict_validation`

@@ -41,13 +41,14 @@ impl MetricCalculator for ConstituentDeltaCalculator {
         let mut total_delta = 0.0;
 
         // For each constituent, bump its price and measure impact
-        for constituent in &basket.constituents {
+        for (index, constituent) in basket.constituents.iter().enumerate() {
             let label = constituent
                 .ticker
                 .clone()
                 .unwrap_or_else(|| constituent.id.clone());
 
-            let delta = bump_and_measure_delta(basket, constituent, context, as_of, base_pv)?;
+            let delta =
+                bump_and_measure_delta(basket, index, constituent, context, as_of, base_pv)?;
 
             series.push((label, delta));
             total_delta += delta;
@@ -62,13 +63,16 @@ impl MetricCalculator for ConstituentDeltaCalculator {
 /// Helper to get the price (as Money) of a constituent.
 fn get_constituent_price_money(
     basket: &Basket,
+    constituent_index: usize,
     constituent: &BasketConstituent,
     context: &MetricContext,
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<Money> {
     match &constituent.reference {
-        ConstituentReference::Instrument(instr_json) => {
-            let price = instrument_price_and_type(instr_json, context, as_of)?.0;
+        ConstituentReference::Instrument(_) => {
+            let price =
+                instrument_price_and_type(basket, constituent_index, constituent, context, as_of)?
+                    .0;
             Ok(price)
         }
         ConstituentReference::MarketData { price_id, .. } => {
@@ -86,6 +90,7 @@ fn get_constituent_price_money(
 /// Bump a constituent's price and measure the impact on basket NAV.
 fn bump_and_measure_delta(
     basket: &Basket,
+    constituent_index: usize,
     constituent: &BasketConstituent,
     context: &MetricContext,
     as_of: finstack_quant_core::dates::Date,
@@ -94,8 +99,9 @@ fn bump_and_measure_delta(
     let mut bumped_ctx = context.curves.as_ref().clone();
 
     let (current_price, pv_bumped) = match &constituent.reference {
-        ConstituentReference::Instrument(instr_json) => {
-            let (price, asset_type) = instrument_price_and_type(instr_json, context, as_of)?;
+        ConstituentReference::Instrument(_) => {
+            let (price, asset_type) =
+                instrument_price_and_type(basket, constituent_index, constituent, context, as_of)?;
             let bumped_price = price.amount() * (1.0 + PRICE_BUMP_PCT);
             let synthetic_id = synthetic_price_id(basket, constituent);
 
@@ -108,12 +114,18 @@ fn bump_and_measure_delta(
             );
 
             let bumped_basket =
-                basket_with_price_reference(basket, constituent, synthetic_id, asset_type);
+                basket_with_price_reference(basket, constituent_index, synthetic_id, asset_type);
             let pv_bumped = bumped_basket.value(&bumped_ctx, as_of)?.amount();
             (price.amount(), pv_bumped)
         }
         ConstituentReference::MarketData { price_id, .. } => {
-            let current_price = get_constituent_price_money(basket, constituent, context, as_of)?;
+            let current_price = get_constituent_price_money(
+                basket,
+                constituent_index,
+                constituent,
+                context,
+                as_of,
+            )?;
             let bumped_price = current_price.amount() * (1.0 + PRICE_BUMP_PCT);
             let current_scalar = bumped_ctx.get_price(price_id.as_ref())?;
             let new_scalar = match current_scalar {
@@ -151,11 +163,17 @@ fn bump_and_measure_delta(
 }
 
 fn instrument_price_and_type(
-    instr_json: &crate::instruments::json_loader::InstrumentJson,
+    basket: &Basket,
+    constituent_index: usize,
+    constituent: &BasketConstituent,
     context: &MetricContext,
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<(Money, AssetType)> {
-    let boxed = instr_json.clone().into_boxed()?;
+    let boxed = basket.boxed_constituent_at(constituent_index)?.ok_or(
+        finstack_quant_core::Error::Input(finstack_quant_core::InputError::NotFound {
+            id: constituent.id.clone(),
+        }),
+    )?;
     let price = boxed.value(context.curves.as_ref(), as_of)?;
     let asset_type = asset_type_for_instrument_key(boxed.key());
     Ok((price, asset_type))
@@ -195,21 +213,16 @@ fn synthetic_price_id(basket: &Basket, constituent: &BasketConstituent) -> Price
 
 fn basket_with_price_reference(
     basket: &Basket,
-    target: &BasketConstituent,
+    constituent_index: usize,
     price_id: PriceId,
     asset_type: AssetType,
 ) -> Basket {
     let mut bumped_basket = basket.clone();
-    if let Some(constituent) = bumped_basket
-        .constituents
-        .iter_mut()
-        .find(|c| c.id == target.id)
-    {
-        constituent.reference = ConstituentReference::MarketData {
-            price_id,
-            asset_type,
-        };
-    }
+    let constituent = &mut bumped_basket.constituents[constituent_index];
+    constituent.reference = ConstituentReference::MarketData {
+        price_id,
+        asset_type,
+    };
     bumped_basket
 }
 

@@ -1,52 +1,49 @@
-//! Benchmarks for factor model primitives.
+//! Hot-path benchmarks for `finstack-quant-factor-model`.
 //!
-//! Tests performance of:
-//! - FactorCovarianceMatrix construction and validation (symmetry + PSD check)
-//! - Variance, covariance, and correlation lookups
-//! - MappingTableMatcher rule evaluation
-//! - HierarchicalMatcher tree traversal
-//! - CascadeMatcher chain evaluation
-//! - Scaling behavior with increasing factor/rule counts
+//! Fixed-size cost of every public inner loop at one representative size.
+//! Size sweeps live in `factor_model_scale.rs`.
+//!
+//! Legacy groups (`covariance_*`, `mapping_table_matcher`,
+//! `hierarchical_matcher`, `cascade_matcher`) keep their Criterion ids so
+//! `--baseline` compares stay valid.
+
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::expect_used)]
 
 #[path = "support/bench_utils.rs"]
 mod bench_utils;
+#[path = "support/fixtures.rs"]
+mod fixtures;
 
-use bench_utils::bench_iter;
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use finstack_quant_core::types::{Attributes, CurveId};
-use finstack_quant_factor_model::matching::{
-    AttributeFilter, CascadeMatcher, DependencyFilter, FactorMatcher, FactorNode,
-    HierarchicalMatcher, MappingRule, MappingTableMatcher,
-};
-use finstack_quant_factor_model::{
-    CurveType, DependencyType, FactorCovarianceMatrix, FactorId, MarketDependency,
-};
 use std::hint::black_box;
 
-fn make_factor_ids(n: usize) -> Vec<FactorId> {
-    (0..n).map(|i| FactorId::new(format!("F{i}"))).collect()
-}
-
-fn make_psd_matrix(n: usize) -> Vec<f64> {
-    let mut data = vec![0.0; n * n];
-    for i in 0..n {
-        data[i * n + i] = 1.0;
-        for j in (i + 1)..n {
-            let cov = 0.3 / ((j - i) as f64 + 1.0);
-            data[i * n + j] = cov;
-            data[j * n + i] = cov;
-        }
-    }
-    data
-}
+use bench_utils::bench_iter;
+use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
+use finstack_quant_core::types::Attributes;
+use finstack_quant_factor_model::credit::calibration::CovarianceStrategy;
+use finstack_quant_factor_model::credit::decomposition::{decompose_levels, decompose_period};
+use finstack_quant_factor_model::credit::histories::{
+    covariance_from_histories, historical_factor_pnl,
+};
+use finstack_quant_factor_model::matching::{
+    CascadeMatcher, CreditHierarchicalMatcher, FactorMatcher, FactorNode, HierarchicalMatcher,
+    MappingTableMatcher,
+};
+use finstack_quant_factor_model::{
+    CurveType, FactorCovarianceMatrix, FactorId, MarketDependency, SensitivityMatrix,
+};
+use fixtures::{
+    credit_dependency, credit_hierarchical_config, factor_ids, known_issuer_attrs, mapping_rules,
+    psd_matrix, unit_sensitivities, unknown_issuer_attrs, zero_sensitivity_matrix, CreditBook,
+};
 
 fn bench_covariance_construction(c: &mut Criterion) {
     let mut group = c.benchmark_group("covariance_construction");
 
     {
         let n = 50;
-        let ids = make_factor_ids(n);
-        let data = make_psd_matrix(n);
+        let ids = factor_ids(n);
+        let data = psd_matrix(n);
         group.bench_with_input(BenchmarkId::new("validated", n), &n, |b, _| {
             b.iter(|| {
                 let m =
@@ -65,8 +62,8 @@ fn bench_covariance_lookups(c: &mut Criterion) {
 
     {
         let n = 50;
-        let ids = make_factor_ids(n);
-        let data = make_psd_matrix(n);
+        let ids = factor_ids(n);
+        let data = psd_matrix(n);
         let matrix = FactorCovarianceMatrix::new(ids.clone(), data).unwrap();
         let id_a = &ids[0];
         let id_b = &ids[n / 2];
@@ -92,13 +89,12 @@ fn bench_covariance_batch_lookups(c: &mut Criterion) {
 
     {
         let n = 50;
-        let ids = make_factor_ids(n);
-        let data = make_psd_matrix(n);
-        let matrix = FactorCovarianceMatrix::new(ids.clone(), data).unwrap();
+        let data = psd_matrix(n);
+        let matrix = FactorCovarianceMatrix::new(factor_ids(n), data).unwrap();
 
         group.bench_with_input(BenchmarkId::new("all_variances", n), &n, |b, _| {
             b.iter(|| {
-                let vars: Vec<f64> = ids.iter().map(|id| matrix.variance(id)).collect();
+                let vars: Vec<f64> = (0..n).map(|i| matrix.variance_at(i)).collect();
                 black_box(vars);
             })
         });
@@ -106,9 +102,9 @@ fn bench_covariance_batch_lookups(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("all_correlations", n), &n, |b, _| {
             b.iter(|| {
                 let mut corrs = Vec::with_capacity(n * (n - 1) / 2);
-                for i in 0..ids.len() {
-                    for j in (i + 1)..ids.len() {
-                        corrs.push(matrix.correlation(&ids[i], &ids[j]));
+                for i in 0..n {
+                    for j in (i + 1)..n {
+                        corrs.push(matrix.correlation_at(i, j));
                     }
                 }
                 black_box(corrs);
@@ -119,31 +115,17 @@ fn bench_covariance_batch_lookups(c: &mut Criterion) {
     group.finish();
 }
 
-fn make_mapping_rules(n: usize) -> Vec<MappingRule> {
-    (0..n)
-        .map(|i| MappingRule {
-            dependency_filter: DependencyFilter {
-                dependency_type: Some(DependencyType::Discount),
-                curve_type: Some(CurveType::Discount),
-                id: Some(format!("CURVE-{i}")),
-            },
-            attribute_filter: AttributeFilter::default(),
-            factor_id: FactorId::new(format!("Factor-{i}")),
-        })
-        .collect()
-}
-
 fn bench_mapping_table_matcher(c: &mut Criterion) {
     let mut group = c.benchmark_group("mapping_table_matcher");
 
     {
         let n = 50;
-        let rules = make_mapping_rules(n);
+        let rules = mapping_rules(n);
         let matcher = MappingTableMatcher::new(rules);
         let attrs = Attributes::default();
 
         let first_dep = MarketDependency::Curve {
-            id: CurveId::new("CURVE-0"),
+            id: finstack_quant_core::types::CurveId::new("CURVE-0"),
             curve_type: CurveType::Discount,
         };
         group.bench_with_input(BenchmarkId::new("hit_first", n), &n, |b, _| {
@@ -151,7 +133,7 @@ fn bench_mapping_table_matcher(c: &mut Criterion) {
         });
 
         let last_dep = MarketDependency::Curve {
-            id: CurveId::new(format!("CURVE-{}", n - 1)),
+            id: finstack_quant_core::types::CurveId::new(format!("CURVE-{}", n - 1)),
             curve_type: CurveType::Discount,
         };
         group.bench_with_input(BenchmarkId::new("hit_last", n), &n, |b, _| {
@@ -159,7 +141,7 @@ fn bench_mapping_table_matcher(c: &mut Criterion) {
         });
 
         let miss_dep = MarketDependency::Curve {
-            id: CurveId::new("CURVE-MISSING"),
+            id: finstack_quant_core::types::CurveId::new("CURVE-MISSING"),
             curve_type: CurveType::Discount,
         };
         group.bench_with_input(BenchmarkId::new("miss", n), &n, |b, _| {
@@ -178,14 +160,14 @@ fn bench_hierarchical_matcher(c: &mut Criterion) {
             if depth == 0 {
                 return FactorNode {
                     factor_id: Some(FactorId::new(format!("{prefix}-leaf"))),
-                    filter: AttributeFilter::default(),
+                    filter: finstack_quant_factor_model::AttributeFilter::default(),
                     children: vec![],
                 };
             }
             let children = (0..branching)
                 .map(|i| {
                     let child_prefix = format!("{prefix}-{i}");
-                    let filter = AttributeFilter {
+                    let filter = finstack_quant_factor_model::AttributeFilter {
                         tags: vec![format!("sector-{i}")],
                         meta: vec![],
                     };
@@ -196,7 +178,7 @@ fn bench_hierarchical_matcher(c: &mut Criterion) {
                 .collect();
             FactorNode {
                 factor_id: Some(FactorId::new(format!("{prefix}-node"))),
-                filter: AttributeFilter::default(),
+                filter: finstack_quant_factor_model::AttributeFilter::default(),
                 children,
             }
         }
@@ -210,7 +192,7 @@ fn bench_hierarchical_matcher(c: &mut Criterion) {
     ];
 
     let dep = MarketDependency::Curve {
-        id: CurveId::new("USD-OIS"),
+        id: finstack_quant_core::types::CurveId::new("USD-OIS"),
         curve_type: CurveType::Discount,
     };
 
@@ -237,23 +219,23 @@ fn bench_hierarchical_matcher(c: &mut Criterion) {
 fn bench_cascade_matcher(c: &mut Criterion) {
     let mut group = c.benchmark_group("cascade_matcher");
 
-    let exact_rules = vec![MappingRule {
-        dependency_filter: DependencyFilter {
-            dependency_type: Some(DependencyType::Credit),
+    let exact_rules = vec![finstack_quant_factor_model::matching::MappingRule {
+        dependency_filter: finstack_quant_factor_model::DependencyFilter {
+            dependency_type: Some(finstack_quant_factor_model::DependencyType::Credit),
             curve_type: None,
             id: Some("ACME-HAZARD".into()),
         },
-        attribute_filter: AttributeFilter::default(),
+        attribute_filter: finstack_quant_factor_model::AttributeFilter::default(),
         factor_id: FactorId::new("ACME-Specific"),
     }];
 
-    let fallback_rules = vec![MappingRule {
-        dependency_filter: DependencyFilter {
-            dependency_type: Some(DependencyType::Credit),
+    let fallback_rules = vec![finstack_quant_factor_model::matching::MappingRule {
+        dependency_filter: finstack_quant_factor_model::DependencyFilter {
+            dependency_type: Some(finstack_quant_factor_model::DependencyType::Credit),
             curve_type: None,
             id: None,
         },
-        attribute_filter: AttributeFilter::default(),
+        attribute_filter: finstack_quant_factor_model::AttributeFilter::default(),
         factor_id: FactorId::new("Generic-Credit"),
     }];
 
@@ -264,14 +246,14 @@ fn bench_cascade_matcher(c: &mut Criterion) {
     let attrs = Attributes::default();
 
     let exact_dep = MarketDependency::CreditCurve {
-        id: CurveId::new("ACME-HAZARD"),
+        id: finstack_quant_core::types::CurveId::new("ACME-HAZARD"),
     };
     bench_iter(&mut group, "hit_first_stage", || {
         let _ = black_box(cascade.match_factor_with_betas(black_box(&exact_dep), &attrs));
     });
 
     let fallback_dep = MarketDependency::CreditCurve {
-        id: CurveId::new("OTHER-HAZARD"),
+        id: finstack_quant_core::types::CurveId::new("OTHER-HAZARD"),
     };
     bench_iter(&mut group, "hit_second_stage", || {
         let _ = black_box(cascade.match_factor_with_betas(black_box(&fallback_dep), &attrs));
@@ -287,6 +269,270 @@ fn bench_cascade_matcher(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_credit_calibration(c: &mut Criterion) {
+    let mut group = c.benchmark_group("credit_calibration");
+    group.sample_size(10);
+
+    let book = CreditBook::representative();
+    group.bench_function("globally_off_full_sample/50x36x3", |b| {
+        b.iter_batched(
+            || book.inputs.clone(),
+            |inputs| {
+                black_box(
+                    finstack_quant_factor_model::credit::calibration::CreditCalibrator::new(
+                        book.config.clone(),
+                    )
+                    .calibrate(inputs)
+                    .unwrap(),
+                )
+            },
+            BatchSize::SmallInput,
+        )
+    });
+
+    let diagonal = book.clone().with_strategy(CovarianceStrategy::Diagonal);
+    group.bench_function("globally_off_diagonal/50x36x3", |b| {
+        b.iter_batched(
+            || diagonal.inputs.clone(),
+            |inputs| {
+                black_box(
+                    finstack_quant_factor_model::credit::calibration::CreditCalibrator::new(
+                        diagonal.config.clone(),
+                    )
+                    .calibrate(inputs)
+                    .unwrap(),
+                )
+            },
+            BatchSize::SmallInput,
+        )
+    });
+
+    let ledoit = book.clone().with_strategy(CovarianceStrategy::LedoitWolf);
+    group.bench_function("globally_off_ledoit_wolf/50x36x3", |b| {
+        b.iter_batched(
+            || ledoit.inputs.clone(),
+            |inputs| {
+                black_box(
+                    finstack_quant_factor_model::credit::calibration::CreditCalibrator::new(
+                        ledoit.config.clone(),
+                    )
+                    .calibrate(inputs)
+                    .unwrap(),
+                )
+            },
+            BatchSize::SmallInput,
+        )
+    });
+
+    let dts = book.clone().with_dts();
+    group.bench_function("globally_off_dts/50x36x3", |b| {
+        b.iter_batched(
+            || dts.inputs.clone(),
+            |inputs| {
+                black_box(
+                    finstack_quant_factor_model::credit::calibration::CreditCalibrator::new(
+                        dts.config.clone(),
+                    )
+                    .calibrate(inputs)
+                    .unwrap(),
+                )
+            },
+            BatchSize::SmallInput,
+        )
+    });
+
+    let issuer_beta = book.clone().with_issuer_beta();
+    group.bench_function("issuer_beta_full_sample/50x36x3", |b| {
+        b.iter_batched(
+            || issuer_beta.inputs.clone(),
+            |inputs| {
+                black_box(
+                    finstack_quant_factor_model::credit::calibration::CreditCalibrator::new(
+                        issuer_beta.config.clone(),
+                    )
+                    .calibrate(inputs)
+                    .unwrap(),
+                )
+            },
+            BatchSize::SmallInput,
+        )
+    });
+
+    group.finish();
+}
+
+fn bench_credit_decomposition(c: &mut Criterion) {
+    let mut group = c.benchmark_group("credit_decomposition");
+    group.sample_size(20);
+
+    let book = CreditBook::representative();
+    let model = book.calibrate();
+    let as_of = book.inputs.as_of;
+    let generic = *book.inputs.generic_factor.values.last().unwrap();
+    let spreads = &book.inputs.as_of_spreads;
+
+    group.bench_function("decompose_levels/50", |b| {
+        b.iter(|| {
+            black_box(decompose_levels(&model, black_box(spreads), generic, as_of, None).unwrap())
+        })
+    });
+
+    let t0 = decompose_levels(&model, spreads, generic, as_of, None).unwrap();
+    let mut spreads_t1 = spreads.clone();
+    for value in spreads_t1.values_mut() {
+        *value += 0.0005;
+    }
+    let t1_date = as_of.next_day().expect("next day");
+    let t1 = decompose_levels(&model, &spreads_t1, generic + 0.0002, t1_date, None).unwrap();
+
+    group.bench_function("decompose_period/50", |b| {
+        b.iter(|| black_box(decompose_period(black_box(&t0), black_box(&t1)).unwrap()))
+    });
+
+    group.finish();
+}
+
+fn bench_credit_hierarchical_matcher(c: &mut Criterion) {
+    let mut group = c.benchmark_group("credit_hierarchical_matcher");
+
+    let matcher = CreditHierarchicalMatcher::new(credit_hierarchical_config(200));
+    let known_dep = credit_dependency("ISSUER-0000-HAZARD");
+    let known_attrs = known_issuer_attrs(0);
+    group.bench_function("known_issuer/200", |b| {
+        b.iter(|| {
+            black_box(
+                matcher
+                    .match_factor_with_betas(black_box(&known_dep), black_box(&known_attrs))
+                    .unwrap(),
+            )
+        })
+    });
+
+    let last_dep = credit_dependency("ISSUER-0199-HAZARD");
+    let last_attrs = known_issuer_attrs(199);
+    group.bench_function("known_issuer_last/200", |b| {
+        b.iter(|| {
+            black_box(
+                matcher
+                    .match_factor_with_betas(black_box(&last_dep), black_box(&last_attrs))
+                    .unwrap(),
+            )
+        })
+    });
+
+    let unknown_dep = credit_dependency("NEWCO-HAZARD");
+    let unknown_attrs = unknown_issuer_attrs();
+    group.bench_function("unknown_bucket_only/200", |b| {
+        b.iter(|| {
+            black_box(
+                matcher
+                    .match_factor_with_betas(black_box(&unknown_dep), black_box(&unknown_attrs))
+                    .unwrap(),
+            )
+        })
+    });
+
+    let miss_dep = MarketDependency::Spot {
+        id: "EQUITY".into(),
+    };
+    group.bench_function("non_credit_miss/200", |b| {
+        b.iter(|| {
+            black_box(
+                matcher
+                    .match_factor_with_betas(black_box(&miss_dep), black_box(&known_attrs))
+                    .unwrap(),
+            )
+        })
+    });
+
+    let config = credit_hierarchical_config(200);
+    group.bench_function("enumerate_factor_ids/200", |b| {
+        b.iter(|| black_box(config.enumerate_factor_ids()))
+    });
+
+    group.finish();
+}
+
+fn bench_credit_histories(c: &mut Criterion) {
+    let mut group = c.benchmark_group("credit_histories");
+    group.sample_size(20);
+
+    let book = CreditBook::representative();
+    let model = book.calibrate();
+    let histories = model.factor_histories.as_ref().unwrap();
+    let (factor_ids, sensitivities) = unit_sensitivities(&model);
+
+    group.bench_function("covariance_from_histories/50x36", |b| {
+        b.iter(|| {
+            black_box(
+                covariance_from_histories(&model, CovarianceStrategy::FullSampleRepaired).unwrap(),
+            )
+        })
+    });
+
+    group.bench_function("historical_factor_pnl/50x36", |b| {
+        b.iter(|| black_box(historical_factor_pnl(histories, &factor_ids, &sensitivities).unwrap()))
+    });
+
+    group.finish();
+}
+
+fn bench_sensitivity_matrix(c: &mut Criterion) {
+    let mut group = c.benchmark_group("sensitivity_matrix");
+
+    let n_pos = 1_000;
+    let n_fac = 50;
+    let position_ids: Vec<String> = (0..n_pos).map(|i| format!("P{i}")).collect();
+    let ids = factor_ids(n_fac);
+
+    group.bench_function("zeros/1000x50", |b| {
+        b.iter(|| black_box(SensitivityMatrix::zeros(position_ids.clone(), ids.clone())))
+    });
+
+    let mut matrix = zero_sensitivity_matrix(n_pos, n_fac);
+    group.bench_function("fill_set_delta/1000x50", |b| {
+        b.iter(|| {
+            for p in 0..n_pos {
+                for f in 0..n_fac {
+                    matrix.set_delta(p, f, (p + f) as f64 * 0.01);
+                }
+            }
+            black_box(matrix.as_slice()[0]);
+        })
+    });
+
+    group.bench_function("all_position_deltas/1000x50", |b| {
+        b.iter(|| {
+            let mut acc = 0.0;
+            for p in 0..n_pos {
+                acc += black_box(matrix.position_deltas(p)).iter().sum::<f64>();
+            }
+            black_box(acc);
+        })
+    });
+
+    group.bench_function("all_factor_deltas/1000x50", |b| {
+        b.iter(|| {
+            let cols: Vec<Vec<f64>> = (0..n_fac).map(|f| matrix.factor_deltas(f)).collect();
+            black_box(cols);
+        })
+    });
+
+    group.finish();
+}
+
+fn bench_credit_validate(c: &mut Criterion) {
+    let mut group = c.benchmark_group("credit_validate");
+    let model = CreditBook::representative().calibrate();
+    group.bench_function("model_validate/50", |b| {
+        b.iter(|| {
+            model.validate().unwrap();
+            black_box(());
+        })
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_covariance_construction,
@@ -295,5 +541,11 @@ criterion_group!(
     bench_mapping_table_matcher,
     bench_hierarchical_matcher,
     bench_cascade_matcher,
+    bench_credit_calibration,
+    bench_credit_decomposition,
+    bench_credit_hierarchical_matcher,
+    bench_credit_histories,
+    bench_sensitivity_matrix,
+    bench_credit_validate,
 );
 criterion_main!(benches);

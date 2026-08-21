@@ -100,6 +100,11 @@ impl CreditHierarchicalConfig {
         use std::collections::BTreeSet;
         let mut ids: BTreeSet<FactorId> = BTreeSet::new();
         ids.insert(FactorId::new(CREDIT_GENERIC_FACTOR_ID));
+        let dim_paths: Vec<String> = (0..self.hierarchy.levels.len())
+            .map(|k| dimension_path(&self.hierarchy, k))
+            .collect();
+        let mut path_buf = String::new();
+        let mut seen: BTreeSet<(usize, String)> = BTreeSet::new();
         for row in &self.issuer_betas {
             for level_idx in 0..self.hierarchy.levels.len() {
                 // β = 0.0 is the calibration sentinel for "level folded /
@@ -109,13 +114,30 @@ impl CreditHierarchicalConfig {
                 if row.betas.levels.get(level_idx).copied().unwrap_or(0.0) == 0.0 {
                     continue;
                 }
-                if let Some(id) = bucket_factor_id(&self.hierarchy, &row.tags, level_idx) {
-                    ids.insert(id);
+                if !self
+                    .hierarchy
+                    .write_bucket_path(&row.tags, level_idx, &mut path_buf)
+                {
+                    continue;
+                }
+                if !seen.insert((level_idx, path_buf.clone())) {
+                    continue;
+                }
+                if let Some(dim_path) = dim_paths.get(level_idx) {
+                    ids.insert(format_bucket_factor_id(level_idx, dim_path, &path_buf));
                 }
             }
         }
         ids.into_iter().collect()
     }
+}
+
+/// Per-issuer factor IDs precomputed from calibrated tags and betas.
+#[derive(Debug, Clone)]
+struct PreparedIssuer {
+    /// One slot per hierarchy level. `None` means the level is folded (β = 0)
+    /// or the calibrated tags were incomplete.
+    level_ids: Vec<Option<FactorId>>,
 }
 
 /// Calibrated credit-hierarchy matcher.
@@ -124,6 +146,9 @@ impl CreditHierarchicalConfig {
 #[derive(Debug, Clone)]
 pub struct CreditHierarchicalMatcher {
     config: CreditHierarchicalConfig,
+    generic_id: FactorId,
+    prepared: Vec<PreparedIssuer>,
+    dim_paths: Vec<String>,
 }
 
 impl CreditHierarchicalMatcher {
@@ -133,21 +158,53 @@ impl CreditHierarchicalMatcher {
     /// binary search, and an unsorted vector (e.g. from a hand-assembled
     /// config) would otherwise silently miss calibrated rows and substitute
     /// β = 1.0 for every factor.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Calibrated hierarchy, issuer beta rows, and dependency
+    ///   filter. Rows are sorted in place by issuer id before the matcher
+    ///   caches per-row factor identifiers.
     #[must_use]
     pub fn new(mut config: CreditHierarchicalConfig) -> Self {
         config
             .issuer_betas
             .sort_by(|a, b| a.issuer_id.as_str().cmp(b.issuer_id.as_str()));
-        Self { config }
+        let dim_paths: Vec<String> = (0..config.hierarchy.levels.len())
+            .map(|k| dimension_path(&config.hierarchy, k))
+            .collect();
+        let prepared = config
+            .issuer_betas
+            .iter()
+            .map(|row| prepare_issuer(&config.hierarchy, row))
+            .collect();
+        Self {
+            config,
+            generic_id: FactorId::new(CREDIT_GENERIC_FACTOR_ID),
+            prepared,
+            dim_paths,
+        }
     }
 
-    fn lookup_row(&self, issuer_id: &IssuerId) -> Option<&IssuerBetaRow> {
+    fn lookup_row(&self, issuer_id: &IssuerId) -> Option<(usize, &IssuerBetaRow)> {
         self.config
             .issuer_betas
             .binary_search_by(|row| row.issuer_id.as_str().cmp(issuer_id.as_str()))
             .ok()
-            .map(|idx| &self.config.issuer_betas[idx])
+            .and_then(|idx| self.config.issuer_betas.get(idx).map(|row| (idx, row)))
     }
+}
+
+fn prepare_issuer(spec: &CreditHierarchySpec, row: &IssuerBetaRow) -> PreparedIssuer {
+    let mut level_ids = Vec::with_capacity(spec.levels.len());
+    for level_idx in 0..spec.levels.len() {
+        let beta = row.betas.levels.get(level_idx).copied().unwrap_or(0.0);
+        if beta == 0.0 {
+            level_ids.push(None);
+            continue;
+        }
+        level_ids.push(bucket_factor_id(spec, &row.tags, level_idx));
+    }
+    PreparedIssuer { level_ids }
 }
 
 impl FactorMatcher for CreditHierarchicalMatcher {
@@ -180,22 +237,10 @@ impl FactorMatcher for CreditHierarchicalMatcher {
             .as_ref()
             .and_then(|id| self.lookup_row(id));
 
-        // Source of issuer tags: the calibrated row's tags take precedence,
-        // because they reflect the canonical taxonomy. If no row is found,
-        // we read tags from the namespaced `credit::<dimension>` meta keys.
-        let tags_owned: IssuerTags;
-        let tags = match row {
-            Some(r) => &r.tags,
-            None => {
-                tags_owned = tags_from_attributes(&self.config.hierarchy, attributes)?;
-                &tags_owned
-            }
-        };
-
         // A calibrated row whose beta vector disagrees with the hierarchy
         // depth is an inconsistent config; substituting β = 1.0 silently
         // would misstate risk.
-        if let Some(r) = row {
+        if let Some((_, r)) = row {
             if r.betas.levels.len() != self.config.hierarchy.levels.len() {
                 return Err(FactorMatchError::BetaShapeMismatch {
                     issuer_id: r.issuer_id.as_str().to_owned(),
@@ -207,11 +252,47 @@ impl FactorMatcher for CreditHierarchicalMatcher {
 
         // Emit PC factor first.
         let mut entries = Vec::with_capacity(1 + self.config.hierarchy.levels.len());
-        let pc_beta = row.map_or(1.0, |r| r.betas.pc);
+        let pc_beta = row.map_or(1.0, |(_, r)| r.betas.pc);
         entries.push(FactorMatchEntry {
-            factor_id: FactorId::new(CREDIT_GENERIC_FACTOR_ID),
+            factor_id: self.generic_id.clone(),
             beta: pc_beta,
         });
+
+        if let Some((idx, r)) = row {
+            for dim in &self.config.hierarchy.levels {
+                if !r.tags.0.contains_key(dimension_key(dim)) {
+                    return Err(FactorMatchError::MissingRequiredTag {
+                        dimension: dimension_key(dim).to_owned(),
+                    });
+                }
+            }
+            let Some(prepared) = self.prepared.get(idx) else {
+                return Err(FactorMatchError::BetaShapeMismatch {
+                    issuer_id: r.issuer_id.as_str().to_owned(),
+                    actual: r.betas.levels.len(),
+                    expected: self.config.hierarchy.levels.len(),
+                });
+            };
+            for (level_idx, cached) in prepared.level_ids.iter().enumerate() {
+                let beta = r.betas.levels.get(level_idx).copied().unwrap_or(0.0);
+                if beta == 0.0 {
+                    continue;
+                }
+                let Some(factor_id) = cached.clone() else {
+                    let dimension = self
+                        .config
+                        .hierarchy
+                        .levels
+                        .get(level_idx)
+                        .map(dimension_key)
+                        .unwrap_or("")
+                        .to_owned();
+                    return Err(FactorMatchError::MissingRequiredTag { dimension });
+                };
+                entries.push(FactorMatchEntry { factor_id, beta });
+            }
+            return Ok(Some(entries));
+        }
 
         // Unknown issuers: tags come from instrument attributes. A complete
         // absence of hierarchy tags is the documented PC-only proxy fallback;
@@ -219,44 +300,39 @@ impl FactorMatcher for CreditHierarchicalMatcher {
         // known issuer's missing tag — silently truncating the hierarchy
         // would under-map specific credit risk without any signal a strict
         // unmatched policy could observe.
+        let tags = tags_from_attributes(&self.config.hierarchy, attributes)?;
         let any_hierarchy_tag_present = self
             .config
             .hierarchy
             .levels
             .iter()
-            .any(|dim| tags.0.contains_key(&dimension_key(dim)));
+            .any(|dim| tags.0.contains_key(dimension_key(dim)));
 
-        // Emit one entry per hierarchy level the issuer is tagged for.
+        let mut val_path = String::new();
         for (level_idx, dim) in self.config.hierarchy.levels.iter().enumerate() {
-            let tag_present = tags.0.contains_key(&dimension_key(dim));
-            if !tag_present {
-                if row.is_some() || any_hierarchy_tag_present {
+            if !tags.0.contains_key(dimension_key(dim)) {
+                if any_hierarchy_tag_present {
                     return Err(FactorMatchError::MissingRequiredTag {
-                        dimension: dimension_key(dim),
+                        dimension: dimension_key(dim).to_owned(),
                     });
                 }
                 break;
             }
 
-            // Build the bucket factor ID for this level.
-            let Some(factor_id) = bucket_factor_id(&self.config.hierarchy, tags, level_idx) else {
-                // bucket_factor_id only fails if a deeper-level tag is missing,
-                // but we already checked the current level; treat as missing.
+            if !self
+                .config
+                .hierarchy
+                .write_bucket_path(&tags, level_idx, &mut val_path)
+            {
                 return Err(FactorMatchError::MissingRequiredTag {
-                    dimension: dimension_key(dim),
+                    dimension: dimension_key(dim).to_owned(),
                 });
-            };
-
-            let beta = row
-                .and_then(|r| r.betas.levels.get(level_idx).copied())
-                .unwrap_or(1.0);
-            // β = 0.0 is the calibration sentinel for "level folded"; the
-            // bucket factor does not exist in the model, so emit no entry
-            // (the exposure would be identically zero anyway).
-            if beta == 0.0 {
-                continue;
             }
-            entries.push(FactorMatchEntry { factor_id, beta });
+            let dim_path = self.dim_paths.get(level_idx).map_or("", String::as_str);
+            entries.push(FactorMatchEntry {
+                factor_id: format_bucket_factor_id(level_idx, dim_path, &val_path),
+                beta: 1.0,
+            });
         }
 
         Ok(Some(entries))
@@ -266,17 +342,28 @@ impl FactorMatcher for CreditHierarchicalMatcher {
 /// Dotted dimension-name path through the first `level_idx + 1` levels of
 /// the hierarchy spec, e.g. `"Rating.Region"` for level index 1.
 fn dimension_path(spec: &CreditHierarchySpec, level_idx: usize) -> String {
-    spec.levels
-        .iter()
-        .take(level_idx + 1)
-        .map(|dim| match dim {
-            HierarchyDimension::Rating => "Rating".to_owned(),
-            HierarchyDimension::Region => "Region".to_owned(),
-            HierarchyDimension::Sector => "Sector".to_owned(),
-            HierarchyDimension::Custom(name) => name.clone(),
-        })
-        .collect::<Vec<_>>()
-        .join(".")
+    let mut out = String::new();
+    write_dimension_path(spec, level_idx, &mut out);
+    out
+}
+
+fn write_dimension_path(spec: &CreditHierarchySpec, level_idx: usize, out: &mut String) {
+    out.clear();
+    for (i, dim) in spec.levels.iter().take(level_idx + 1).enumerate() {
+        if i > 0 {
+            out.push('.');
+        }
+        out.push_str(match dim {
+            HierarchyDimension::Rating => "Rating",
+            HierarchyDimension::Region => "Region",
+            HierarchyDimension::Sector => "Sector",
+            HierarchyDimension::Custom(name) => name.as_str(),
+        });
+    }
+}
+
+fn format_bucket_factor_id(level_idx: usize, dim_path: &str, val_path: &str) -> FactorId {
+    FactorId::new(format!("credit::level{level_idx}::{dim_path}::{val_path}"))
 }
 
 /// Builds the canonical factor ID `credit::level{idx}::{dim_path}::{val_path}`
@@ -299,11 +386,13 @@ pub fn bucket_factor_id(
     if level_idx >= spec.levels.len() {
         return None;
     }
-    let dim_path = dimension_path(spec, level_idx);
-    let val_path = spec.bucket_path(tags, level_idx)?;
-    Some(FactorId::new(format!(
-        "credit::level{level_idx}::{dim_path}::{val_path}"
-    )))
+    let mut dim_path = String::new();
+    write_dimension_path(spec, level_idx, &mut dim_path);
+    let mut val_path = String::new();
+    if !spec.write_bucket_path(tags, level_idx, &mut val_path) {
+        return None;
+    }
+    Some(format_bucket_factor_id(level_idx, &dim_path, &val_path))
 }
 
 /// Whether a [`MarketDependency`] is a credit/hazard one. The matcher only
@@ -347,11 +436,11 @@ fn tags_from_attributes(
         if let Some(v) = attrs.get_meta(&credit_tag_meta_key(dim)) {
             if v.contains('.') {
                 return Err(FactorMatchError::InvalidTagValue {
-                    dimension: key,
+                    dimension: key.to_owned(),
                     value: v.to_owned(),
                 });
             }
-            map.insert(key, v.to_owned());
+            map.insert(key.to_owned(), v.to_owned());
         }
     }
     Ok(IssuerTags(map))

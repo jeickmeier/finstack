@@ -97,6 +97,7 @@ fn cross_template_component_composition_still_works() {
         .build()
         .unwrap_or_else(|error| panic!("failed to build svb credit component: {error}"));
     let composed = ScenarioSpecBuilder::compose(vec![rate_builder, svb_credit_builder])
+        .unwrap_or_else(|error| panic!("failed to compose scenarios: {error}"))
         .id("cross_template")
         .build()
         .unwrap_or_else(|error| panic!("failed to build composed scenario: {error}"));

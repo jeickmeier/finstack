@@ -79,7 +79,7 @@ impl CDSPricer {
         Ok(schedule)
     }
 
-    pub(super) fn coupon_periods(
+    pub(crate) fn coupon_periods(
         &self,
         cds: &CreditDefaultSwap,
         as_of: Date,
@@ -149,7 +149,7 @@ impl CDSPricer {
         Ok(periods)
     }
 
-    pub(super) fn coupon_accrual(
+    pub(crate) fn coupon_accrual(
         &self,
         cds: &CreditDefaultSwap,
         period: &CouponPeriod,

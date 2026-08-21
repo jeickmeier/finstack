@@ -28,15 +28,15 @@ use finstack_quant_cashflows::aggregation::{
     aggregate_by_period, aggregate_cashflows_checked, calendar_year_ladder, DateContext,
 };
 use finstack_quant_cashflows::builder::schedule::merge_cashflow_schedules;
-use finstack_quant_cashflows::{
-    accrued_interest_amount, build_cashflow_schedule_json, dated_flows_json,
-    validate_cashflow_schedule_json, AccrualConfig, AccrualMethod, ExCouponRule,
-};
 use finstack_quant_cashflows::builder::{
     CashFlowMeta, CashFlowSchedule, CouponType, FixedCouponSpec, Notional, PeriodDataFrameOptions,
 };
 use finstack_quant_cashflows::primitives::{CFKind, CashFlow};
 use finstack_quant_cashflows::DatedFlows;
+use finstack_quant_cashflows::{
+    accrued_interest_amount, build_cashflow_schedule_json, dated_flows_json,
+    validate_cashflow_schedule_json, AccrualConfig, AccrualMethod, ExCouponRule,
+};
 use finstack_quant_core::cashflow::Discountable;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{

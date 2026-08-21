@@ -105,6 +105,7 @@ pub(crate) fn resolve_optioned_coupon(
             compounding: &overnight.compounding,
             fixing_calendar: calendar,
             compounded_spread,
+            need_observation_exposures: true,
         })?;
         let coupon_rate = match overnight.spread_compounding {
             OvernightSpreadCompounding::Exclude => projection.rate + spread,

@@ -15,12 +15,29 @@ use finstack_quant_core::{Error, Result};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::sync::OnceLock;
 
 /// Maximum nesting depth of composite-in-composite trees, counting the root.
 pub const MAX_COMPOSITE_DEPTH: usize = 8;
 /// Maximum number of leg nodes permitted across one composite tree.
 pub const MAX_COMPOSITE_LEGS: usize = 64;
 const MIN_ABS_INPUT: f64 = 1.0e-12;
+
+/// Runtime cache of boxed composite legs. Not serialized.
+#[derive(Default)]
+struct BoxedLegCache(OnceLock<Vec<Box<dyn Instrument>>>);
+
+impl Clone for BoxedLegCache {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl std::fmt::Debug for BoxedLegCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("BoxedLegCache")
+    }
+}
 
 struct VolatilityWeightingConfig<'a> {
     anchor_leg_id: &'a InstrumentId,
@@ -845,6 +862,7 @@ impl CompositeSpec {
                 resolved_legs,
                 weighting_inputs,
             },
+            boxed_legs: BoxedLegCache::default(),
         };
         instrument.validate_state()?;
         let trades = instrument.execution_trades(previous)?;
@@ -1199,6 +1217,10 @@ pub struct CompositeInstrument {
     pub spec: CompositeSpec,
     /// Frozen quantities used for every valuation until explicit rebalance.
     pub state: CompositeState,
+    /// Boxed legs materialized once per instance.
+    #[serde(skip)]
+    #[schemars(skip)]
+    boxed_legs: BoxedLegCache,
 }
 
 impl CompositeInstrument {
@@ -1215,9 +1237,29 @@ impl CompositeInstrument {
     ///
     /// Returns an error when the specification or state is inconsistent.
     pub fn new(spec: CompositeSpec, state: CompositeState) -> Result<Self> {
-        let instrument = Self { spec, state };
+        let instrument = Self {
+            spec,
+            state,
+            boxed_legs: BoxedLegCache::default(),
+        };
         instrument.validate_invariants()?;
         Ok(instrument)
+    }
+
+    fn boxed_legs(&self) -> Result<&[Box<dyn Instrument>]> {
+        if let Some(legs) = self.boxed_legs.0.get() {
+            return Ok(legs.as_slice());
+        }
+        let legs = self
+            .spec
+            .legs
+            .iter()
+            .map(|leg| leg.instrument.as_ref().clone().into_boxed())
+            .collect::<Result<Vec<_>>>()?;
+        let _ = self.boxed_legs.0.set(legs);
+        self.boxed_legs.0.get().map(Vec::as_slice).ok_or_else(|| {
+            Error::Internal("boxed composite legs cache missing after initialization".into())
+        })
     }
 
     /// Return a canonical fixed-quantity long/short equity example.
@@ -1528,12 +1570,11 @@ impl CompositeInstrument {
         metrics: &[MetricId],
         options: PricingOptions,
     ) -> Result<Vec<CompositeLegValuation>> {
-        self.spec
-            .legs
+        self.boxed_legs()?
             .iter()
+            .zip(&self.spec.legs)
             .zip(&self.state.resolved_legs)
-            .map(|(leg, resolved)| {
-                let instrument = leg.instrument.as_ref().clone().into_boxed()?;
+            .map(|((instrument, leg), resolved)| {
                 let valuation =
                     instrument.price_with_metrics(market, as_of, metrics, options.clone())?;
                 let native_value = Money::new(
@@ -1563,12 +1604,10 @@ impl CompositeInstrument {
 
     fn base_value_raw_impl(&self, market: &MarketContext, as_of: Date) -> Result<f64> {
         let values = self
-            .spec
-            .legs
+            .boxed_legs()?
             .iter()
             .zip(&self.state.resolved_legs)
-            .map(|(leg, resolved)| {
-                let instrument = leg.instrument.as_ref().clone().into_boxed()?;
+            .map(|(instrument, resolved)| {
                 let (amount, currency) = instrument.value_raw_with_currency(market, as_of)?;
                 let converted = convert_amount(
                     market,
@@ -1642,11 +1681,11 @@ impl Instrument for CompositeInstrument {
 
     fn market_dependencies(&self) -> Result<MarketDependencies> {
         let mut dependencies = MarketDependencies::new();
-        for leg in &self.spec.legs {
+        for (leg, instrument) in self.spec.legs.iter().zip(self.boxed_legs()?) {
             dependencies.merge(MarketDependencies::from_instrument_json(
                 leg.instrument.as_ref(),
             )?);
-            if let Some(notional) = leg.instrument.as_ref().clone().into_boxed()?.notional() {
+            if let Some(notional) = instrument.notional() {
                 if notional.currency() != self.spec.reporting_currency {
                     dependencies.add_fx_pair(notional.currency(), self.spec.reporting_currency);
                 }

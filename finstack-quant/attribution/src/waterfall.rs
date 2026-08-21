@@ -412,6 +412,7 @@ fn attribute_pnl_waterfall_impl(
         as_of_t1,
         strict_validation,
         num_repricings: 2, // T₀ and T₁ repricings already performed
+        factor_use: InstrumentFactorUse::of(instrument.as_ref()),
     };
 
     for factor in factor_order {
@@ -506,6 +507,7 @@ fn attribute_pnl_waterfall_impl(
 struct WaterfallContext<'a> {
     target_instrument: &'a Arc<dyn Instrument>,
     current_instrument: Arc<dyn Instrument>,
+    factor_use: InstrumentFactorUse,
     current_market: MarketContext,
     current_val: Money,
     market_t1: &'a MarketContext,
@@ -600,6 +602,10 @@ impl<'a> WaterfallContext<'a> {
         let _span = tracing::info_span!("waterfall_factor", factor = %factor).entered();
         let prev_val = self.current_val;
         let base_currency = prev_val.currency();
+
+        if !self.factor_use.uses_attribution_factor(factor) {
+            return Ok(Money::new(0.0, base_currency));
+        }
 
         if matches!(factor, AttributionFactor::ModelParameters) {
             return self.apply_model_params(prev_val, base_currency, factor);
@@ -831,6 +837,7 @@ mod tests {
         let mut ctx = WaterfallContext {
             target_instrument: &instrument,
             current_instrument: Arc::clone(&instrument),
+            factor_use: InstrumentFactorUse::of(instrument.as_ref()),
             current_market: market.clone(),
             current_val: Money::new(1.0e9, Currency::USD),
             market_t1: &market,
@@ -869,6 +876,7 @@ mod tests {
         let mut ctx = WaterfallContext {
             target_instrument: &instrument,
             current_instrument: Arc::clone(&instrument),
+            factor_use: InstrumentFactorUse::of(instrument.as_ref()),
             current_market: market.clone(),
             current_val: Money::new(100.0, Currency::USD),
             market_t1: &market,

@@ -1,9 +1,10 @@
 # Scenarios benchmarks
 
-One Criterion target, `scenarios.rs`, covering composition, market and
+Two Criterion targets. `scenarios.rs` covers composition, market and
 instrument shocks, statement operations, rate bindings, serde round-trips, and
-credit stress paths. The crate sets `autobenches = false`, so `scenarios` is
-the only registered `[[bench]]`.
+credit stress paths at one size. `scenarios_scaling.rs` measures how those
+costs grow with operation count, curve count, and book size. The crate sets
+`autobenches = false`; both targets are registered as `[[bench]]`.
 
 ## Run
 
@@ -40,6 +41,17 @@ save and diff a `main` baseline, failing above a 10% median regression.
 | `comprehensive_credit_scenario` | `credit_stress` multi-leg |
 | `serde_roundtrip` | `serialize`, `deserialize`, `roundtrip` |
 | `rate_bindings` | `with_rate_bindings` curve-to-statement sync after shocks |
+
+### `scenarios_scaling`
+
+| Group | Sizes | What it stresses |
+|-------|-------|------------------|
+| `scaling_same_curve_ops` | 1 / 8 / 24 / 48 sequential discount bumps on one curve | Sequential flush-before-next-op |
+| `scaling_hierarchy_curves` | 16 / 64 / 128 curves under one `HierarchyCurveParallelBp` | Expansion + N synthetic discount rebuilds |
+| `scaling_hierarchy_par_cds` | 2 / 4 / 8 hazard curves under one ParCDS hierarchy shock | Expansion + N solve-to-par CDS bootstraps |
+| `scaling_instrument_spread` | 50 / 200 / 500 bonds | Instrument-spread dispatch |
+| `scaling_time_roll_instruments` | 10 / 40 / 80 bonds | Time-roll carry (Rayon above 64) |
+| `scaling_compose` | 10 / 50 / 200 specs | `try_compose` |
 
 Most groups rebuild the market context inside `b.iter` so the measurement
 includes the engine's own clone/bump path; `scenario_composition` deliberately

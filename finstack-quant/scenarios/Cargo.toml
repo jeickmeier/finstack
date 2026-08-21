@@ -15,6 +15,7 @@ finstack-quant-core = { path = "../core", version = "0.7.0" }
 finstack-quant-statements = { path = "../statements", version = "0.7.0" }
 finstack-quant-valuations = { path = "../valuations", version = "0.7.0" }
 indexmap = { workspace = true, features = ["serde"] }
+rayon = "1.11"
 schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -32,6 +33,10 @@ path = "src/bin/gen_schemas.rs"
 
 [[bench]]
 name = "scenarios"
+harness = false
+
+[[bench]]
+name = "scenarios_scaling"
 harness = false
 
 [lints]

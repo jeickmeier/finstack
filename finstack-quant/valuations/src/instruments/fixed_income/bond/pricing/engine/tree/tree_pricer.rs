@@ -666,6 +666,8 @@ impl TreePricer {
             1.0e12
         };
 
+        // Reprice on the tree calibrated above. Do not rebuild or recalibrate
+        // the short-rate / rates+credit lattice inside the OAS solver loop.
         let objective_fn = |oas: f64| -> f64 {
             if use_rates_credit {
                 let mut vars = HashMap::<&'static str, f64>::default();

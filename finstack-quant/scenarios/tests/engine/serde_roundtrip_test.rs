@@ -33,6 +33,7 @@ fn test_scenario_json_roundtrip() {
         ],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     // Serialize to JSON
@@ -58,6 +59,7 @@ fn scenario_envelope_strict_loader_enforces_schema_and_semantics() {
         operations: Vec::new(),
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
     let envelope = ScenarioEnvelope::new(scenario);
     let bytes = serde_json::to_vec(&envelope).expect("serialize envelope");
@@ -175,6 +177,7 @@ fn test_all_operation_types_serialize() {
         operations,
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     // Roundtrip
@@ -212,6 +215,7 @@ fn test_attribute_selector_serde() {
         operations: vec![op],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let json = serde_json::to_string_pretty(&scenario).unwrap();
@@ -299,6 +303,7 @@ fn test_instrument_type_operations_serde() {
         operations: ops,
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let json = serde_json::to_string_pretty(&scenario).unwrap();
@@ -349,6 +354,7 @@ fn test_optional_fields_serialize() {
         ],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let json = serde_json::to_string_pretty(&scenario).unwrap();
@@ -431,6 +437,7 @@ fn test_scenario_with_metadata() {
         }],
         priority: 5,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let json = serde_json::to_string_pretty(&scenario).unwrap();

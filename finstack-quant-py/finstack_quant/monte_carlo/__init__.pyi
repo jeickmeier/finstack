@@ -1430,7 +1430,9 @@ class EuropeanPricer:
         expiry : float
             Time to maturity in years.
         num_steps : int, optional
-            Time steps. Defaults to the registry default (``252``).
+            Time steps. Defaults to the registry default (``1``).
+            Exact GBM is unbiased for any step size, so a European payoff
+            only needs one step.
         currency : str, optional
             ISO currency code. Defaults to USD.
 
@@ -1487,7 +1489,9 @@ class EuropeanPricer:
         expiry : float
             Time to maturity in years.
         num_steps : int, optional
-            Time steps. Defaults to the registry default (``252``).
+            Time steps. Defaults to the registry default (``1``).
+            Exact GBM is unbiased for any step size, so a European payoff
+            only needs one step.
         currency : str, optional
             ISO currency code. Defaults to USD.
 

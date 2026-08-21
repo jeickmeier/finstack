@@ -1,8 +1,10 @@
 //! Primitive exposure reporting across direct and composite positions.
 
 use crate::error::{Error, Result};
+use crate::evaluation::POSITION_PARALLEL_MIN_POSITIONS;
 use crate::fx::convert_to_base;
 use crate::portfolio::Portfolio;
+use crate::position::Position;
 use crate::types::PositionId;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -98,103 +100,135 @@ pub fn primitive_exposure_report(
         )));
     }
 
+    let report_position = |position: &Position| -> Result<PositionPrimitiveReport> {
+        position_primitive_report(portfolio, position, market, metrics)
+    };
+    let per_position: Vec<Result<PositionPrimitiveReport>> =
+        if portfolio.positions().len() >= POSITION_PARALLEL_MIN_POSITIONS {
+            use rayon::prelude::*;
+            portfolio
+                .positions()
+                .par_iter()
+                .map(report_position)
+                .collect()
+        } else {
+            portfolio.positions().iter().map(report_position).collect()
+        };
+
     let mut paths = Vec::new();
     let mut definitions = BTreeMap::<String, String>::new();
-    for position in portfolio.positions() {
-        let position_scale = position.scale_factor();
-        if let Some(composite) = position
-            .instrument
-            .as_any()
-            .downcast_ref::<CompositeInstrument>()
-        {
-            let report = composite
-                .primitive_exposure_report(market, portfolio.as_of, metrics)
-                .map_err(|err| Error::valuation(position.position_id.clone(), err.to_string()))?;
-            let definition_by_id = composite
-                .flatten_primitives()
-                .map_err(|err| Error::valuation(position.position_id.clone(), err.to_string()))?
-                .into_iter()
-                .filter_map(|exposure| {
-                    let definition = exposure.instrument_definition()?.clone();
-                    Some((exposure.instrument_id, definition))
-                })
-                .collect::<BTreeMap<_, _>>();
-            for exposure in report.paths {
-                if let Some(definition) = definition_by_id.get(&exposure.instrument_id) {
-                    register_definition(&mut definitions, &exposure.instrument_id, definition)?;
-                }
-                let value = convert_to_base(
-                    exposure.value,
-                    portfolio.as_of,
-                    market,
-                    portfolio.base_currency,
-                )?;
-                let fx_rate = reporting_fx_rate(
-                    exposure.value.currency(),
-                    portfolio.base_currency,
-                    portfolio.as_of,
-                    market,
-                )?;
-                paths.push(PortfolioPrimitivePath {
-                    position_id: position.position_id.clone(),
-                    path: exposure.path,
-                    instrument_id: exposure.instrument_id,
-                    instrument_type: exposure.instrument_type,
-                    quantity: exposure.quantity * position_scale,
-                    value: Money::new(value.amount() * position_scale, portfolio.base_currency),
-                    measures: exposure
-                        .measures
-                        .into_iter()
-                        .map(|(metric, amount)| (metric, amount * fx_rate * position_scale))
-                        .collect(),
-                });
-            }
-        } else {
-            let definition = position.instrument.to_instrument_json().ok_or_else(|| {
-                Error::valuation(
-                    position.position_id.clone(),
-                    "instrument is not registered for canonical serialization",
-                )
-            })?;
-            let instrument_id = InstrumentId::new(position.instrument.id());
+    for report in per_position {
+        let report = report?;
+        for (instrument_id, definition) in report.definitions {
             register_definition(&mut definitions, &instrument_id, &definition)?;
-            let result = position
-                .instrument
-                .price_with_metrics(market, portfolio.as_of, metrics, PricingOptions::default())
-                .map_err(|err| Error::valuation(position.position_id.clone(), err.to_string()))?;
-            let value = convert_to_base(
-                result.value,
-                portfolio.as_of,
-                market,
-                portfolio.base_currency,
-            )?;
-            let fx_rate = reporting_fx_rate(
-                result.value.currency(),
-                portfolio.base_currency,
-                portfolio.as_of,
-                market,
-            )?;
-            paths.push(PortfolioPrimitivePath {
-                position_id: position.position_id.clone(),
-                path: vec![position.instrument.id().to_string()],
-                instrument_id,
-                instrument_type: definition.type_tag().to_string(),
-                quantity: position_scale,
-                value: Money::new(value.amount() * position_scale, portfolio.base_currency),
-                measures: result
-                    .measures
-                    .into_iter()
-                    .filter(|(metric, _)| is_additive_metric(metric))
-                    .map(|(metric, amount)| (metric, amount * fx_rate * position_scale))
-                    .collect(),
-            });
         }
+        paths.extend(report.paths);
     }
 
     Ok(PortfolioPrimitiveExposureReport {
         base_currency: portfolio.base_currency,
         aggregates: aggregate_paths(portfolio.base_currency, &paths),
         paths,
+    })
+}
+
+struct PositionPrimitiveReport {
+    paths: Vec<PortfolioPrimitivePath>,
+    definitions: Vec<(
+        InstrumentId,
+        finstack_quant_valuations::instruments::InstrumentJson,
+    )>,
+}
+
+fn position_primitive_report(
+    portfolio: &Portfolio,
+    position: &Position,
+    market: &MarketContext,
+    metrics: &[MetricId],
+) -> Result<PositionPrimitiveReport> {
+    let position_scale = position.scale_factor();
+    if let Some(composite) = position
+        .instrument
+        .as_any()
+        .downcast_ref::<CompositeInstrument>()
+    {
+        let report = composite
+            .primitive_exposure_report(market, portfolio.as_of, metrics)
+            .map_err(|err| Error::valuation(position.position_id.clone(), err.to_string()))?;
+        let mut paths = Vec::with_capacity(report.paths.len());
+        let mut definitions = Vec::with_capacity(report.paths.len());
+        for exposure in report.paths {
+            if let Some(definition) = exposure.instrument_definition() {
+                definitions.push((exposure.instrument_id.clone(), definition.clone()));
+            }
+            let value = convert_to_base(
+                exposure.value,
+                portfolio.as_of,
+                market,
+                portfolio.base_currency,
+            )?;
+            let fx_rate = reporting_fx_rate(
+                exposure.value.currency(),
+                portfolio.base_currency,
+                portfolio.as_of,
+                market,
+            )?;
+            paths.push(PortfolioPrimitivePath {
+                position_id: position.position_id.clone(),
+                path: exposure.path,
+                instrument_id: exposure.instrument_id,
+                instrument_type: exposure.instrument_type,
+                quantity: exposure.quantity * position_scale,
+                value: Money::new(value.amount() * position_scale, portfolio.base_currency),
+                measures: exposure
+                    .measures
+                    .into_iter()
+                    .map(|(metric, amount)| (metric, amount * fx_rate * position_scale))
+                    .collect(),
+            });
+        }
+        return Ok(PositionPrimitiveReport { paths, definitions });
+    }
+
+    let definition = position.instrument.to_instrument_json().ok_or_else(|| {
+        Error::valuation(
+            position.position_id.clone(),
+            "instrument is not registered for canonical serialization",
+        )
+    })?;
+    let instrument_id = InstrumentId::new(position.instrument.id());
+    let result = position
+        .instrument
+        .price_with_metrics(market, portfolio.as_of, metrics, PricingOptions::default())
+        .map_err(|err| Error::valuation(position.position_id.clone(), err.to_string()))?;
+    let value = convert_to_base(
+        result.value,
+        portfolio.as_of,
+        market,
+        portfolio.base_currency,
+    )?;
+    let fx_rate = reporting_fx_rate(
+        result.value.currency(),
+        portfolio.base_currency,
+        portfolio.as_of,
+        market,
+    )?;
+    Ok(PositionPrimitiveReport {
+        definitions: vec![(instrument_id.clone(), definition.clone())],
+        paths: vec![PortfolioPrimitivePath {
+            position_id: position.position_id.clone(),
+            path: vec![position.instrument.id().to_string()],
+            instrument_id,
+            instrument_type: definition.type_tag().to_string(),
+            quantity: position_scale,
+            value: Money::new(value.amount() * position_scale, portfolio.base_currency),
+            measures: result
+                .measures
+                .into_iter()
+                .filter(|(metric, _)| is_additive_metric(metric))
+                .map(|(metric, amount)| (metric, amount * fx_rate * position_scale))
+                .collect(),
+        }],
     })
 }
 

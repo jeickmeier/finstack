@@ -75,6 +75,7 @@
 //!     ],
 //!     priority: 0,
 //!     resolution_mode: Default::default(),
+//!     hazard_bump_mode: Default::default(),
 //! };
 //!
 //! let engine = ScenarioEngine::default();
@@ -128,7 +129,7 @@ pub use envelope::{ScenarioEnvelope, ScenarioSchema, SCENARIO_CONTRACT};
 pub use error::{Error, Result};
 pub use horizon::{HorizonAnalysis, HorizonResult};
 pub use spec::{
-    Compounding, CurveKind, HierarchyTarget, InstrumentType, NodeId, OperationSpec,
+    Compounding, CurveKind, HazardBumpMode, HierarchyTarget, InstrumentType, NodeId, OperationSpec,
     RateBindingSpec, ScenarioSpec, TenorMatchMode, TimeRollMode,
 };
 pub use templates::{

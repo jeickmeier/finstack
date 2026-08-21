@@ -214,17 +214,14 @@ pub(crate) fn build_context_for_period(
     target_period: PeriodId,
     context: &EvaluationContext,
 ) -> Result<EvaluationContext> {
-    // Share the full historical Arc -- the period_id on the new context
-    // determines what is "current". Aggregate functions that walk historical
-    // already filter by period ordering, so passing the full map is safe.
-    let mut period_context = EvaluationContext::new(
+    // Share the full columnar history. The period_id on the new context
+    // determines what is "current"; aggregate functions filter by ordering.
+    let mut period_context = EvaluationContext::new_with_history(
         target_period,
-        std::sync::Arc::clone(&context.node_to_column),
-        std::sync::Arc::clone(&context.historical_results),
+        std::sync::Arc::clone(&context.history),
+        std::sync::Arc::clone(&context.historical_capital_structure_cashflows),
     );
     period_context.period_kind = context.period_kind;
-    period_context.historical_capital_structure_cashflows =
-        std::sync::Arc::clone(&context.historical_capital_structure_cashflows);
     period_context.node_value_types = std::sync::Arc::clone(&context.node_value_types);
     period_context.capital_structure_cashflows = if target_period == context.period_id {
         context.capital_structure_cashflows.clone()
@@ -244,12 +241,8 @@ pub(crate) fn build_context_for_period(
         // used to re-evaluate an expression and read back a single value, so
         // skipping `set_value`'s warning bookkeeping is intentional.
         period_context.current_values = context.current_values.clone();
-    } else if let Some(period_values) = context.historical_results.get(&target_period) {
-        // Historical period: fill columns from the borrowed history map without
-        // cloning the whole map first.
-        for (node_id, value) in period_values {
-            period_context.set_value(node_id, *value)?;
-        }
+    } else if let Some(row) = context.history.row(&target_period) {
+        period_context.current_values = row.to_vec();
     }
 
     Ok(period_context)
@@ -271,7 +264,7 @@ pub(crate) fn collect_expression_values_sorted(
         ExprNode::Column(name) => return collect_historical_values_sorted(name, context),
         ExprNode::Literal(value) => {
             let mut values = BTreeMap::new();
-            for period in context.historical_results.keys() {
+            for period in context.history.keys() {
                 if *period >= context.period_id {
                     continue;
                 }
@@ -284,7 +277,7 @@ pub(crate) fn collect_expression_values_sorted(
     }
 
     let periods: Vec<PeriodId> = context
-        .historical_results
+        .history
         .keys()
         .filter(|period| **period < context.period_id)
         .copied()
@@ -373,7 +366,7 @@ pub(crate) fn collect_expression_window_values(
         }
         ExprNode::Literal(value) => {
             let visible_historical = context
-                .historical_results
+                .history
                 .keys()
                 .filter(|period| **period < context.period_id)
                 .count();
@@ -385,7 +378,7 @@ pub(crate) fn collect_expression_window_values(
 
     if !has_aggregate(expr) {
         let mut periods: Vec<PeriodId> = context
-            .historical_results
+            .history
             .keys()
             .filter(|period| **period < context.period_id)
             .copied()
@@ -545,6 +538,8 @@ use crate::evaluator::formula_dispatch::evaluate_function;
 mod tests {
     use super::*;
     use crate::capital_structure::{CapitalStructureCashflows, CashflowBreakdown};
+    use crate::evaluator::PeriodHistory;
+    use crate::types::NodeId;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::expr::{Expr, Function};
     use finstack_quant_core::math::kahan_sum;
@@ -576,6 +571,30 @@ mod tests {
             .set_value(node_id, current_value)
             .expect("set node value");
         context
+    }
+
+    #[test]
+    fn historical_context_rebuild_copies_the_matching_columnar_row() {
+        let q1 = PeriodId::quarter(2025, 1);
+        let q2 = PeriodId::quarter(2025, 2);
+        let columns = std::sync::Arc::new(IndexMap::from_iter([
+            (NodeId::new("cogs"), 0),
+            (NodeId::new("revenue"), 1),
+        ]));
+        let mut history = PeriodHistory::new(std::sync::Arc::clone(&columns));
+        history.push_row(q1, vec![Some(40.0), Some(100.0)]);
+        let context = EvaluationContext::new_with_history(
+            q2,
+            std::sync::Arc::new(history),
+            std::sync::Arc::new(IndexMap::new()),
+        );
+
+        let historical =
+            build_context_for_period(q1, &context).expect("historical context should build");
+
+        assert_eq!(historical.current_values, vec![Some(40.0), Some(100.0)]);
+        assert_eq!(historical.get_value("cogs").expect("cogs"), 40.0);
+        assert_eq!(historical.get_value("revenue").expect("revenue"), 100.0);
     }
 
     fn build_cs_snapshot(

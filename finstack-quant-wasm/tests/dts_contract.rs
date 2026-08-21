@@ -438,7 +438,7 @@ fn scenarios_dts_matches_structured_surface() {
     // default, so it must stay optional.
     assert!(contains_ignoring_ws(
         &dts,
-        "buildScenarioSpec(id: string, operations: ScenarioOperation[], name?: string, description?: string, priority?: number, resolutionMode?: 'most_specific_wins' | 'cumulative'): ScenarioSpec;",
+        "buildScenarioSpec(id: string, operations: ScenarioOperation[], name?: string, description?: string, priority?: number, resolutionMode?: 'most_specific_wins' | 'cumulative', hazardBumpMode?: 'solve_to_par' | 'first_order_shift'): ScenarioSpec;",
     ));
     assert!(dts.contains("export declare const scenarios: ScenariosNamespace;"));
 }

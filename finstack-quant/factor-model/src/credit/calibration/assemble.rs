@@ -48,32 +48,33 @@ pub(super) fn anchor_levels(
     let num_levels = hierarchy.levels.len();
     // Resolve issuer → tags + bucket_paths.
     let mut bucket_paths: BTreeMap<IssuerId, Vec<String>> = BTreeMap::new();
+    let mut path_buf = String::new();
     for issuer in as_of_spreads.keys() {
         let issuer_tags = tags.get(issuer).cloned().unwrap_or_default();
         let mut paths = Vec::with_capacity(num_levels);
         for k in 0..num_levels {
-            let p = hierarchy.bucket_path(&issuer_tags, k).ok_or_else(|| {
+            if !hierarchy.write_bucket_path(&issuer_tags, k, &mut path_buf) {
                 let missing = hierarchy.levels[..=k]
                     .iter()
-                    .find(|d| !issuer_tags.0.contains_key(&dimension_key(d)))
-                    .map(dimension_key)
-                    .unwrap_or_else(|| format!("level_{k}"));
-                validation_err(format!(
+                    .find(|d| !issuer_tags.0.contains_key(dimension_key(d)))
+                    .map_or_else(|| format!("level_{k}"), |d| dimension_key(d).to_owned());
+                return Err(validation_err(format!(
                     "CreditCalibrator anchor: issuer {:?} missing tag {:?}",
                     issuer.as_str(),
                     missing
-                ))
-            })?;
-            paths.push(p);
+                )));
+            }
+            paths.push(path_buf.clone());
         }
         bucket_paths.insert(issuer.clone(), paths);
     }
 
+    let betas_ref: BTreeMap<&IssuerId, &IssuerBetas> = betas.iter().collect();
     let peel =
         crate::credit::peel::peel_single_observation(crate::credit::peel::PeelSingleObservation {
             observed_spreads: as_of_spreads,
             observed_generic: generic_at_asof,
-            betas,
+            betas: &betas_ref,
             bucket_paths: &bucket_paths,
             folded,
             num_levels,

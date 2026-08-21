@@ -77,7 +77,7 @@ pub use weight_allocation::{
     WeightAllocationSpec,
 };
 pub use whatif::{
-    FactorContributionDelta, PositionChange, StressResult, WhatIfEngine, WhatIfResult,
+    FactorContributionDelta, PositionChange, StressPnl, StressResult, WhatIfEngine, WhatIfResult,
 };
 
 /// Snap tolerance used by [`tail_scenario_count`] when deciding whether a

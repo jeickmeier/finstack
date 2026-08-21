@@ -210,6 +210,7 @@ fn create_scenarios_for_composition(count: usize) -> Vec<ScenarioSpec> {
             ],
             priority: (i % 3) as i32,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
         scenarios.push(scenario);
     }
@@ -260,6 +261,7 @@ fn bench_curve_parallel_shock(c: &mut Criterion) {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("single_curve", |b| {
@@ -312,6 +314,7 @@ fn bench_curve_node_shock(c: &mut Criterion) {
             }],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         group.bench_with_input(
@@ -358,6 +361,7 @@ fn bench_fx_shock(c: &mut Criterion) {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("single_pair", |b| {
@@ -400,6 +404,7 @@ fn bench_equity_shock(c: &mut Criterion) {
             operations: vec![OperationSpec::EquityPricePct { ids, pct: -10.0 }],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         group.bench_with_input(
@@ -447,6 +452,7 @@ fn bench_vol_surface_shock(c: &mut Criterion) {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("parallel", |b| {
@@ -483,6 +489,7 @@ fn bench_vol_surface_shock(c: &mut Criterion) {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("bucket", |b| {
@@ -525,6 +532,7 @@ fn bench_base_correlation_shock(c: &mut Criterion) {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("parallel", |b| {
@@ -560,6 +568,7 @@ fn bench_base_correlation_shock(c: &mut Criterion) {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("bucket", |b| {
@@ -602,6 +611,7 @@ fn bench_statement_operations(c: &mut Criterion) {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("forecast_percent", |b| {
@@ -636,6 +646,7 @@ fn bench_statement_operations(c: &mut Criterion) {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("forecast_assign", |b| {
@@ -711,6 +722,7 @@ fn bench_complex_multi_operation(c: &mut Criterion) {
             operations,
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         group.bench_with_input(
@@ -814,6 +826,7 @@ fn bench_serde_roundtrip(c: &mut Criterion) {
         ],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("serialize", |b| {
@@ -863,6 +876,7 @@ fn bench_rate_bindings(c: &mut Criterion) {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("with_rate_bindings", |b| {
@@ -907,6 +921,7 @@ fn bench_hazard_curve_shock(c: &mut Criterion) {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("parallel_ig", |b| {
@@ -944,6 +959,7 @@ fn bench_hazard_curve_shock(c: &mut Criterion) {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("node_hy", |b| {
@@ -986,6 +1002,7 @@ fn bench_credit_vol_shock(c: &mut Criterion) {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("parallel", |b| {
@@ -1022,6 +1039,7 @@ fn bench_credit_vol_shock(c: &mut Criterion) {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("bucket", |b| {
@@ -1070,6 +1088,7 @@ fn bench_instrument_spread_shock(c: &mut Criterion) {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("by_type", |b| {
@@ -1139,6 +1158,7 @@ fn bench_comprehensive_credit_scenario(c: &mut Criterion) {
         ],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     group.bench_function("credit_stress", |b| {

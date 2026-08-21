@@ -284,50 +284,72 @@ impl MarketSnapshot {
     pub fn extract(market: &MarketContext, flags: MarketRestoreFlags) -> Self {
         let mut snapshot = Self::default();
 
-        for curve_id in market.curve_ids() {
-            if flags.contains(MarketRestoreFlags::DISCOUNT) {
-                if let Ok(curve) = market.get_discount(curve_id) {
-                    snapshot.discount_curves.insert(curve_id.clone(), curve);
-                }
-            }
-            if flags.contains(MarketRestoreFlags::FORWARD) {
-                if let Ok(curve) = market.get_forward(curve_id) {
-                    snapshot.forward_curves.insert(curve_id.clone(), curve);
-                }
-            }
-            if flags.contains(MarketRestoreFlags::HAZARD) {
-                if let Ok(curve) = market.get_hazard(curve_id) {
-                    snapshot.hazard_curves.insert(curve_id.clone(), curve);
-                }
-            }
-            if flags.contains(MarketRestoreFlags::INFLATION) {
-                if let Ok(curve) = market.get_inflation_curve(curve_id) {
-                    snapshot.inflation_curves.insert(curve_id.clone(), curve);
-                }
-            }
-            if flags.contains(MarketRestoreFlags::CORRELATION) {
-                if let Ok(curve) = market.get_base_correlation(curve_id) {
-                    snapshot
-                        .base_correlation_curves
-                        .insert(curve_id.clone(), curve);
-                }
-            }
-            if flags.contains(MarketRestoreFlags::FORWARD) {
-                if let Ok(curve) = market.get_basis_spread(curve_id) {
-                    snapshot.basis_spread_curves.insert(curve_id.clone(), curve);
-                }
-                if let Ok(curve) = market.get_parametric(curve_id) {
-                    snapshot.parametric_curves.insert(curve_id.clone(), curve);
-                }
-            }
-            if flags.contains(MarketRestoreFlags::VOL) {
-                if let Ok(curve) = market.get_vol_index_curve(curve_id) {
-                    snapshot.vol_index_curves.insert(curve_id.clone(), curve);
-                }
-            }
-            if flags.contains(MarketRestoreFlags::SCALARS) {
-                if let Ok(curve) = market.get_price_curve(curve_id) {
-                    snapshot.price_curves.insert(curve_id.clone(), curve);
+        let extract_curves = flags.contains(MarketRestoreFlags::DISCOUNT)
+            || flags.contains(MarketRestoreFlags::FORWARD)
+            || flags.contains(MarketRestoreFlags::HAZARD)
+            || flags.contains(MarketRestoreFlags::INFLATION)
+            || flags.contains(MarketRestoreFlags::CORRELATION)
+            || flags.contains(MarketRestoreFlags::VOL)
+            || flags.contains(MarketRestoreFlags::SCALARS);
+        if extract_curves {
+            for (curve_id, storage) in market.iter_curves() {
+                match storage {
+                    CurveStorage::Discount(curve)
+                        if flags.contains(MarketRestoreFlags::DISCOUNT) =>
+                    {
+                        snapshot
+                            .discount_curves
+                            .insert(curve_id.clone(), Arc::clone(curve));
+                    }
+                    CurveStorage::Forward(curve) if flags.contains(MarketRestoreFlags::FORWARD) => {
+                        snapshot
+                            .forward_curves
+                            .insert(curve_id.clone(), Arc::clone(curve));
+                    }
+                    CurveStorage::BasisSpread(curve)
+                        if flags.contains(MarketRestoreFlags::FORWARD) =>
+                    {
+                        snapshot
+                            .basis_spread_curves
+                            .insert(curve_id.clone(), Arc::clone(curve));
+                    }
+                    CurveStorage::Parametric(curve)
+                        if flags.contains(MarketRestoreFlags::FORWARD) =>
+                    {
+                        snapshot
+                            .parametric_curves
+                            .insert(curve_id.clone(), Arc::clone(curve));
+                    }
+                    CurveStorage::Hazard(curve) if flags.contains(MarketRestoreFlags::HAZARD) => {
+                        snapshot
+                            .hazard_curves
+                            .insert(curve_id.clone(), Arc::clone(curve));
+                    }
+                    CurveStorage::Inflation(curve)
+                        if flags.contains(MarketRestoreFlags::INFLATION) =>
+                    {
+                        snapshot
+                            .inflation_curves
+                            .insert(curve_id.clone(), Arc::clone(curve));
+                    }
+                    CurveStorage::BaseCorrelation(curve)
+                        if flags.contains(MarketRestoreFlags::CORRELATION) =>
+                    {
+                        snapshot
+                            .base_correlation_curves
+                            .insert(curve_id.clone(), Arc::clone(curve));
+                    }
+                    CurveStorage::VolIndex(curve) if flags.contains(MarketRestoreFlags::VOL) => {
+                        snapshot
+                            .vol_index_curves
+                            .insert(curve_id.clone(), Arc::clone(curve));
+                    }
+                    CurveStorage::Price(curve) if flags.contains(MarketRestoreFlags::SCALARS) => {
+                        snapshot
+                            .price_curves
+                            .insert(curve_id.clone(), Arc::clone(curve));
+                    }
+                    _ => {}
                 }
             }
         }

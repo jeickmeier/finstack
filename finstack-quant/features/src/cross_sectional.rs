@@ -10,7 +10,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
 use std::str::FromStr;
 
 /// Supported cross-sectional transform operation.
@@ -153,39 +152,41 @@ pub fn transform_cross_sectional_with_op(
     params: Option<&Value>,
 ) -> Result<Vec<Option<f64>>> {
     validate_lengths(values.len(), &[("time_key", time_key.len())])?;
-    let mut partitions: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
-    for (idx, key) in time_key.iter().enumerate() {
-        partitions.entry(key.as_str()).or_default().push(idx);
-    }
+    let partitions = crate::index::partition_by_key(time_key);
 
     let mut output = vec![None; values.len()];
     for indices in partitions.values() {
-        match op {
-            CrossSectionalOp::Zscore => zscore(values, indices, &mut output),
-            CrossSectionalOp::Rank => rank(values, indices, &mut output),
-            CrossSectionalOp::PercentileRank => percentile_rank(values, indices, &mut output),
-            CrossSectionalOp::QuantileBucket => {
-                quantile_bucket(values, indices, params, &mut output)?
-            }
-            CrossSectionalOp::Demean => demean(values, indices, &mut output),
-            CrossSectionalOp::RobustZscore => robust_zscore(values, indices, &mut output),
-            CrossSectionalOp::MinmaxScale => minmax_scale(values, indices, &mut output),
-            CrossSectionalOp::Clip => clip(values, indices, params, &mut output)?,
-            CrossSectionalOp::ClipBySigma => clip_by_sigma(values, indices, params, &mut output)?,
-            CrossSectionalOp::Winsorize => winsorize(values, indices, params, &mut output)?,
-            CrossSectionalOp::NormalScoreTransform => {
-                normal_score_transform(values, indices, &mut output)
-            }
-            CrossSectionalOp::LongShortWeights => {
-                long_short_weights(values, indices, None, &mut output)?
-            }
-            CrossSectionalOp::CapWeights => cap_weights(values, indices, params, &mut output)?,
-            CrossSectionalOp::FillMissing => fill_missing(values, indices, params, &mut output)?,
-            CrossSectionalOp::IsFinite => is_finite(values, indices, &mut output),
-            CrossSectionalOp::NanMask => nan_mask(values, indices, &mut output),
-        }
+        apply_cross_sectional_op(values, indices, op, params, &mut output)?;
     }
     Ok(output)
+}
+
+pub(crate) fn apply_cross_sectional_op(
+    values: &[Option<f64>],
+    indices: &[usize],
+    op: CrossSectionalOp,
+    params: Option<&Value>,
+    output: &mut [Option<f64>],
+) -> Result<()> {
+    match op {
+        CrossSectionalOp::Zscore => zscore(values, indices, output),
+        CrossSectionalOp::Rank => rank(values, indices, output),
+        CrossSectionalOp::PercentileRank => percentile_rank(values, indices, output),
+        CrossSectionalOp::QuantileBucket => quantile_bucket(values, indices, params, output)?,
+        CrossSectionalOp::Demean => demean(values, indices, output),
+        CrossSectionalOp::RobustZscore => robust_zscore(values, indices, output),
+        CrossSectionalOp::MinmaxScale => minmax_scale(values, indices, output),
+        CrossSectionalOp::Clip => clip(values, indices, params, output)?,
+        CrossSectionalOp::ClipBySigma => clip_by_sigma(values, indices, params, output)?,
+        CrossSectionalOp::Winsorize => winsorize(values, indices, params, output)?,
+        CrossSectionalOp::NormalScoreTransform => normal_score_transform(values, indices, output),
+        CrossSectionalOp::LongShortWeights => long_short_weights(values, indices, None, output)?,
+        CrossSectionalOp::CapWeights => cap_weights(values, indices, params, output)?,
+        CrossSectionalOp::FillMissing => fill_missing(values, indices, params, output)?,
+        CrossSectionalOp::IsFinite => is_finite(values, indices, output),
+        CrossSectionalOp::NanMask => nan_mask(values, indices, output),
+    }
+    Ok(())
 }
 
 fn finite_partition(values: &[Option<f64>], indices: &[usize]) -> Vec<(usize, f64)> {

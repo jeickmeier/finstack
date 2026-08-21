@@ -284,7 +284,7 @@ impl CmsSpreadOptionPricer {
         Ok(expected)
     }
 
-    fn price_internal(
+    pub(crate) fn price_internal(
         &self,
         inst: &CmsSpreadOption,
         market: &MarketContext,

@@ -242,7 +242,10 @@ impl RangeAccrualMcPricer {
             seed::derive_seed(&inst.id, "base")
         };
 
-        let mut config = self.config.clone();
+        let mut config = crate::instruments::common_impl::helpers::merged_path_config(
+            &self.config,
+            &inst.instrument_pricing_overrides,
+        )?;
         config.seed = seed;
         let pricer = PathDependentPricer::new(config);
         let result = pricer.price(
@@ -738,6 +741,14 @@ mod tests {
         assert_eq!(direct_without_seed, direct_analytic);
         assert_eq!(direct_with_seed, direct_analytic);
 
+        without_seed.instrument_pricing_overrides = without_seed
+            .instrument_pricing_overrides
+            .clone()
+            .with_mc_paths(256);
+        with_seed.instrument_pricing_overrides = with_seed
+            .instrument_pricing_overrides
+            .clone()
+            .with_mc_paths(256);
         let explicit_mc_without_seed = without_seed
             .price_with_metrics(
                 &curves,

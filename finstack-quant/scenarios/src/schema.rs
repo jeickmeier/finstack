@@ -57,6 +57,7 @@ fn scenario_examples() -> finstack_quant_core::Result<Vec<serde_json::Value>> {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
     let value = serde_json::to_value(crate::ScenarioEnvelope::new(scenario)).map_err(|error| {
         finstack_quant_core::Error::Internal(format!("serialize scenario example: {error}"))

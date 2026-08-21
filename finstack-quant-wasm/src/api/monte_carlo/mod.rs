@@ -123,7 +123,7 @@ fn binding_defaults(
 /// @param expiry - Time to option expiry in years on the model's annual time basis.
 /// @param num_paths - Number of simulated stochastic paths; larger values improve sampling precision.
 /// @param seed - Deterministic random-number seed used to reproduce simulation output.
-/// @param num_steps - Number of time steps per simulated path.
+/// @param num_steps - Time steps per path. Omit to use the registry default of 1; ExactGbm is unbiased for any Δt so a European payoff only needs the terminal step.
 /// @param currency - ISO-4217 currency code for the monetary amount or market convention.
 #[wasm_bindgen(js_name = priceEuropeanCall)]
 pub fn price_european_call(
@@ -165,7 +165,7 @@ pub fn price_european_call(
 /// @param expiry - Time to option expiry in years on the model's annual time basis.
 /// @param num_paths - Number of simulated stochastic paths; larger values improve sampling precision.
 /// @param seed - Deterministic random-number seed used to reproduce simulation output.
-/// @param num_steps - Number of time steps per simulated path.
+/// @param num_steps - Time steps per path. Omit to use the registry default of 1; ExactGbm is unbiased for any Δt so a European payoff only needs the terminal step.
 /// @param currency - ISO-4217 currency code for the monetary amount or market convention.
 #[wasm_bindgen(js_name = priceEuropeanPut)]
 pub fn price_european_put(

@@ -46,6 +46,12 @@ pub(crate) struct OvernightCouponProjectionInput<'a> {
     pub fixing_calendar: &'a dyn HolidayCalendar,
     /// Daily spread included inside each factor, in decimal rate units.
     pub compounded_spread: f64,
+    /// When true, emit per-observation product-rule exposures.
+    ///
+    /// Cap/floor and listed-rate futures need the daily loadings. IRS, XCCY,
+    /// TRS, basis, and revolver PV can leave this false so fully future
+    /// discount-curve coupons use the closed-form DF identity.
+    pub need_observation_exposures: bool,
 }
 
 /// First-order stochastic exposure of one overnight observation.
@@ -192,6 +198,149 @@ fn cutoff_days(compounding: &FloatingLegCompounding) -> Option<i32> {
         }
         _ => None,
     }
+}
+
+fn discount_identity_eligible(input: &OvernightCouponProjectionInput<'_>) -> bool {
+    !input.need_observation_exposures
+        && input.compounded_spread == 0.0
+        && matches!(input.curve, OvernightProjectionCurve::Discount(_))
+        && matches!(
+            input.compounding,
+            FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 }
+        )
+}
+
+fn last_overnight_observation(
+    start: Date,
+    end: Date,
+    calendar: &dyn HolidayCalendar,
+) -> Result<Date> {
+    if end <= start {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Overnight identity has a non-positive observation window {start} -> {end}"
+        )));
+    }
+    end.add_business_days(-1, calendar)
+}
+
+fn projection_from_compound_factor(
+    compound_factor: f64,
+    accrual_year_fraction: f64,
+    fixing_date: Date,
+) -> Result<OvernightCouponProjection> {
+    if !compound_factor.is_finite() || compound_factor <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Overnight compound product must remain finite and positive, got {compound_factor}"
+        )));
+    }
+    let rate = (compound_factor - 1.0) / accrual_year_fraction;
+    if !rate.is_finite() {
+        return Err(finstack_quant_core::Error::Validation(
+            "Overnight coupon rate and sensitivities must remain finite".into(),
+        ));
+    }
+    Ok(OvernightCouponProjection {
+        rate,
+        accrual_year_fraction,
+        compound_factor,
+        parallel_forward_sensitivity: 0.0,
+        parallel_forward_second_sensitivity: 0.0,
+        fixing_date,
+        observation_exposures: Vec::new(),
+    })
+}
+
+fn discount_compound_factor(discount: &DiscountCurve, start: Date, end: Date) -> Result<f64> {
+    let df = discount.df_between_dates(start, end)?;
+    if !df.is_finite() || df <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Overnight discount identity requires a positive DF ratio for {start} -> {end}, got {df}"
+        )));
+    }
+    Ok(1.0 / df)
+}
+
+fn project_overnight_coupon_discount_identity(
+    input: OvernightCouponProjectionInput<'_>,
+    day_count_context: DayCountContext<'_>,
+    accrual_year_fraction: f64,
+) -> Result<OvernightCouponProjection> {
+    let OvernightProjectionCurve::Discount(discount) = input.curve else {
+        return Err(finstack_quant_core::Error::Internal(
+            "discount identity selected without a discount curve".into(),
+        ));
+    };
+
+    if input.accrual_start >= input.as_of {
+        let compound_factor =
+            discount_compound_factor(discount, input.accrual_start, input.accrual_end)?;
+        let fixing_date = last_overnight_observation(
+            input.accrual_start,
+            input.accrual_end,
+            input.fixing_calendar,
+        )?;
+        return projection_from_compound_factor(
+            compound_factor,
+            accrual_year_fraction,
+            fixing_date,
+        );
+    }
+
+    let mut compound_factor = 1.0_f64;
+    let mut fixing_date = None;
+    let mut date = input.accrual_start;
+    while date < input.accrual_end {
+        let step_end = date
+            .add_business_days(1, input.fixing_calendar)?
+            .min(input.accrual_end);
+        if date < input.as_of {
+            let dcf = input
+                .day_count
+                .year_fraction(date, step_end, day_count_context)?;
+            if !dcf.is_finite() || dcf <= 0.0 {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "Overnight observation has non-positive day-count fraction for \
+                     {date} -> {step_end}"
+                )));
+            }
+            let rate = finstack_quant_core::market_data::fixings::require_fixing_value_exact(
+                input.fixings,
+                input.fixing_id,
+                date,
+                input.as_of,
+            )?;
+            if !rate.is_finite() {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "Overnight observation rate must be finite for {date} -> {step_end}, got {rate}"
+                )));
+            }
+            let factor = 1.0 + rate * dcf;
+            if !factor.is_finite() || factor <= 0.0 {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "Overnight compounding factor must be finite and positive for \
+                     {date} -> {step_end}, got {factor}"
+                )));
+            }
+            compound_factor *= factor;
+            fixing_date = Some(fixing_date.map_or(date, |current: Date| current.max(date)));
+            date = step_end;
+            continue;
+        }
+        compound_factor *= discount_compound_factor(discount, date, input.accrual_end)?;
+        let last = last_overnight_observation(date, input.accrual_end, input.fixing_calendar)?;
+        fixing_date = Some(fixing_date.map_or(last, |current| current.max(last)));
+        date = input.accrual_end;
+    }
+
+    projection_from_compound_factor(
+        compound_factor,
+        accrual_year_fraction,
+        fixing_date.ok_or_else(|| {
+            finstack_quant_core::Error::Validation(
+                "Overnight coupon projection produced no observation periods".into(),
+            )
+        })?,
+    )
 }
 
 fn projected_rate(
@@ -385,6 +534,14 @@ pub(crate) fn project_overnight_coupon(
         return Err(finstack_quant_core::Error::Validation(
             "Compounded overnight spread must be finite".into(),
         ));
+    }
+
+    if discount_identity_eligible(&input) {
+        return project_overnight_coupon_discount_identity(
+            input,
+            day_count_context,
+            accrual_year_fraction,
+        );
     }
 
     let (shift_days, shift_dcf) = shifted_observation_days(input.compounding)?;
@@ -657,6 +814,7 @@ mod tests {
             compounding: &compounding,
             fixing_calendar: calendar,
             compounded_spread: 0.0,
+            need_observation_exposures: false,
         })
         .expect("coupon projection");
         let expected = 1.0
@@ -676,6 +834,111 @@ mod tests {
             "projector must normalize from adjusted dates: {} vs {}",
             projection.rate,
             expected_rate
+        );
+        assert!(
+            projection.observation_exposures.is_empty(),
+            "discount identity path should not emit daily observation exposures"
+        );
+    }
+
+    fn walked_last_overnight_observation(
+        start: Date,
+        end: Date,
+        calendar: &dyn HolidayCalendar,
+    ) -> Date {
+        let mut date = start;
+        let mut last = start;
+        while date < end {
+            last = date;
+            date = date
+                .add_business_days(1, calendar)
+                .expect("business day")
+                .min(end);
+        }
+        last
+    }
+
+    fn assert_discount_identity_fixing_date(
+        base_date: Date,
+        discount: &DiscountCurve,
+        calendar: &dyn HolidayCalendar,
+        accrual_start: Date,
+        accrual_end: Date,
+    ) {
+        let compounding = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };
+        let project = |need_exposures: bool| {
+            project_overnight_coupon(OvernightCouponProjectionInput {
+                curve: OvernightProjectionCurve::Discount(discount),
+                fixings: None,
+                fixing_id: "USD-SOFR",
+                as_of: base_date,
+                accrual_start,
+                accrual_end,
+                day_count: DayCount::Act360,
+                coupon_frequency: None,
+                compounding: &compounding,
+                fixing_calendar: calendar,
+                compounded_spread: 0.0,
+                need_observation_exposures: need_exposures,
+            })
+            .expect("coupon projection")
+        };
+        let identity = project(false);
+        let walked = project(true);
+        let last_observation = last_overnight_observation(accrual_start, accrual_end, calendar)
+            .expect("last overnight observation");
+        let business_day_before_end = accrual_end
+            .add_business_days(-1, calendar)
+            .expect("business day before end");
+        let walked_last = walked_last_overnight_observation(accrual_start, accrual_end, calendar);
+
+        assert!(
+            (identity.compound_factor - walked.compound_factor).abs() < 1.0e-12,
+            "identity CF {} vs walked CF {}",
+            identity.compound_factor,
+            walked.compound_factor
+        );
+        assert!(
+            (identity.rate - walked.rate).abs() < 1.0e-12,
+            "identity rate {} vs walked rate {}",
+            identity.rate,
+            walked.rate
+        );
+        assert_eq!(identity.fixing_date, walked.fixing_date);
+        assert_eq!(identity.fixing_date, last_observation);
+        assert_eq!(identity.fixing_date, business_day_before_end);
+        assert_eq!(identity.fixing_date, walked_last);
+        assert!(identity.observation_exposures.is_empty());
+        assert!(!walked.observation_exposures.is_empty());
+    }
+
+    #[test]
+    fn discount_identity_matches_daily_walk_for_future_coupon() {
+        let base_date = date!(2024 - 12 - 02);
+        let discount = DiscountCurve::builder("USD-OIS")
+            .base_date(base_date)
+            .day_count(DayCount::Act365F)
+            .knots([(0.0, 1.0), (1.0, 0.95), (2.0, 0.90)])
+            .build()
+            .expect("discount curve");
+        let calendar =
+            resolve_overnight_fixing_calendar(Some("usny"), Currency::USD, "test coupon")
+                .expect("USNY calendar");
+
+        assert_discount_identity_fixing_date(
+            base_date,
+            &discount,
+            calendar,
+            date!(2025 - 01 - 02),
+            date!(2026 - 01 - 02),
+        );
+        // Accrual ends on Saturday so the last observation must be the prior Friday.
+        assert_discount_identity_fixing_date(
+            base_date,
+            &discount,
+            calendar,
+            date!(2025 - 01 - 03),
+            date!(2025 - 01 - 11),
         );
     }
 
@@ -707,6 +970,7 @@ mod tests {
                 compounding: &compounding,
                 fixing_calendar: calendar,
                 compounded_spread: 0.0,
+                need_observation_exposures: true,
             })
             .expect("coupon projection")
         };
@@ -772,6 +1036,7 @@ mod tests {
             compounding: &compounding,
             fixing_calendar: calendar,
             compounded_spread: 0.0,
+            need_observation_exposures: true,
         })
         .expect("projection");
 
@@ -811,6 +1076,7 @@ mod tests {
             compounding: &compounding,
             fixing_calendar: calendar,
             compounded_spread: 0.0,
+            need_observation_exposures: false,
         });
 
         assert!(
@@ -845,6 +1111,7 @@ mod tests {
             compounding: &compounding,
             fixing_calendar: calendar,
             compounded_spread: 0.0,
+            need_observation_exposures: false,
         });
 
         assert!(
@@ -903,6 +1170,7 @@ mod tests {
             compounding: &compounding,
             fixing_calendar: calendar,
             compounded_spread: 0.0,
+            need_observation_exposures: false,
         })
         .expect("business/252 projection");
         let expected = DayCount::Bus252
@@ -945,6 +1213,7 @@ mod tests {
             compounding: &compounding,
             fixing_calendar: calendar,
             compounded_spread: 0.0,
+            need_observation_exposures: false,
         })
         .expect("Act/Act ISMA projection");
 

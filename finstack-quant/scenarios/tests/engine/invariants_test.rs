@@ -52,6 +52,7 @@ fn test_discount_curve_df_monotonic_after_parallel_shock() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let mut model = FinancialModelSpec::new("test", vec![]);
@@ -120,6 +121,7 @@ fn test_discount_curve_df_monotonic_after_node_shock() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let mut model = FinancialModelSpec::new("test", vec![]);
@@ -185,6 +187,7 @@ fn test_forward_curve_rates_finite_after_parallel_shock() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let mut model = FinancialModelSpec::new("test", vec![]);
@@ -254,6 +257,7 @@ fn test_forward_curve_rates_finite_after_node_shock() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let mut model = FinancialModelSpec::new("test", vec![]);
@@ -318,6 +322,7 @@ fn test_base_correlation_bounds_after_parallel_shock() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let mut model = FinancialModelSpec::new("test", vec![]);
@@ -378,6 +383,7 @@ fn test_base_correlation_bounds_after_bucket_shock() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let mut model = FinancialModelSpec::new("test", vec![]);
@@ -436,6 +442,7 @@ fn test_vol_surface_non_negative_after_parallel_shock() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let mut model = FinancialModelSpec::new("test", vec![]);
@@ -503,6 +510,7 @@ fn test_vol_surface_non_negative_after_bucket_shock() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let mut model = FinancialModelSpec::new("test", vec![]);

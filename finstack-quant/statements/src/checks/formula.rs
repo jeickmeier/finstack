@@ -32,12 +32,12 @@ impl Check for FormulaCheckSpec {
         let mut findings = Vec::new();
 
         for period in &context.model.periods {
-            let mut evaluation = EvaluationContext::new_with_history(
+            let mut evaluation = EvaluationContext::new(
                 period.id,
                 Arc::clone(&node_to_column),
                 Arc::clone(&historical_results),
-                Arc::clone(&historical_cashflows),
             );
+            evaluation.historical_capital_structure_cashflows = Arc::clone(&historical_cashflows);
             evaluation.node_value_types = Arc::clone(&node_value_types);
             evaluation.capital_structure_cashflows = context
                 .results

@@ -995,60 +995,15 @@ impl HistoricalPositionDecomposer {
 
         // Per-position Component ES: average of position-level losses in tail.
         //
-        // For large (n_tail * n) problems we shard the tail by position
-        // groups: each Rayon worker accumulates a slice of positions across
-        // every tail scenario. This avoids the O(n_tail * n) intermediate
-        // allocation of the previous `Vec<Vec<f64>>` materialization and lets
-        // each worker stream over the contiguous `position_pnls` buffer
-        // directly. The serial path is unchanged for small problems where
-        // Rayon overhead dominates.
-        //
-        // The serial fold over scenarios produces an order-deterministic sum
-        // across runs by sticking to the sorted-tail order of `portfolio_pnls`.
-        const PARALLEL_TAIL_THRESHOLD: usize = 100_000;
+        // A previous Rayon shard at `n_tail * n >= 100_000` lost throughput
+        // versus this serial fold on measured books (400–600 positions ×
+        // 4,000 scenarios). Keep the order-deterministic serial accumulation
+        // over the sorted tail of `portfolio_pnls`.
         let mut component_es_vec = vec![0.0; n];
-        if n_tail.saturating_mul(n) >= PARALLEL_TAIL_THRESHOLD {
-            use rayon::prelude::*;
-            // Capture sorted tail scenario indices once so workers can index
-            // directly into the flat `position_pnls` buffer without each
-            // taking a `&portfolio_pnls` slice (which would force them to
-            // duplicate the destructure).
-            let tail_indices: Vec<usize> =
-                portfolio_pnls[..n_tail].iter().map(|&(s, _)| s).collect();
-
-            // Shard the position axis (cheap) instead of the scenario axis.
-            // Each chunk holds [start, end) and accumulates the signed P&L
-            // sum for those positions across every tail scenario. Output is a
-            // flat `Vec<f64>` (no nested Vec<Vec<f64>> allocation).
-            const POSITION_CHUNK: usize = 256;
-            let chunked: Vec<(usize, Vec<f64>)> = (0..n)
-                .step_by(POSITION_CHUNK)
-                .collect::<Vec<_>>()
-                .into_par_iter()
-                .map(|start| {
-                    let end = (start + POSITION_CHUNK).min(n);
-                    let mut local = vec![0.0; end - start];
-                    for &s in &tail_indices {
-                        let row_start = s * n;
-                        for (j, slot) in local.iter_mut().enumerate() {
-                            *slot += position_pnls[row_start + start + j];
-                        }
-                    }
-                    (start, local)
-                })
-                .collect();
-
-            for (start, local) in chunked {
-                for (j, v) in local.iter().enumerate() {
-                    component_es_vec[start + j] = *v;
-                }
-            }
-        } else {
-            for &(s, _) in &portfolio_pnls[..n_tail] {
-                let row_start = s * n;
-                for i in 0..n {
-                    component_es_vec[i] += position_pnls[row_start + i];
-                }
+        for &(s, _) in &portfolio_pnls[..n_tail] {
+            let row_start = s * n;
+            for i in 0..n {
+                component_es_vec[i] += position_pnls[row_start + i];
             }
         }
         for ces in component_es_vec.iter_mut() {
@@ -1995,22 +1950,13 @@ mod tests {
         Ok(())
     }
 
-    /// The historical decomposer chooses between an in-place serial
-    /// accumulation and a position-axis-sharded Rayon fan-out at the
-    /// `PARALLEL_TAIL_THRESHOLD = 100_000` cutoff. The two paths sum the
-    /// same f64 values in different orders, so floating-point round-off can
-    /// diverge between them. This regression test asserts the divergence is
-    /// bounded by a tight relative tolerance — bit-equality is not promised
-    /// and would over-constrain the implementation, but a hedge fund's risk
-    /// reports must not flip-flop materially as `n_tail * n` straddles the
-    /// threshold.
+    /// Component ES must match a hand-rolled serial accumulation over the
+    /// sorted tail. The production path is serial: a previous Rayon shard
+    /// lost throughput on measured books.
     #[test]
-    fn historical_serial_parallel_tail_parity() -> TestResult {
-        // Pick (n_scenarios, n) so that n_tail * n is well inside the
-        // parallel branch. n_scenarios = 4_000, n = 600, confidence = 0.95
-        // => n_tail = 200, n_tail * n = 120_000 > 100_000.
+    fn historical_tail_component_es_matches_sorted_serial_fold() -> TestResult {
         let n_scenarios = 4_000_usize;
-        let n = 600_usize;
+        let n = 64_usize;
         let confidence = 0.95_f64;
 
         // Build a deterministic synthetic P&L matrix so the test is
@@ -2026,12 +1972,8 @@ mod tests {
         let mut config = DecompositionConfig::historical(confidence);
         config.confidence = confidence;
 
-        // Both runs go through the parallel path because n_tail * n is
-        // above PARALLEL_TAIL_THRESHOLD. The point of the test is to
-        // assert the parallel result agrees with a hand-rolled serial
-        // accumulator over the same sorted-tail order.
         let decomposer = HistoricalPositionDecomposer;
-        let parallel_result = decomposer.decompose_from_pnls(&pnls, &ids, n_scenarios, &config)?;
+        let result = decomposer.decompose_from_pnls(&pnls, &ids, n_scenarios, &config)?;
 
         // Serial reference: replicate the inner accumulation directly so we
         // know exactly which order was used.
@@ -2055,18 +1997,15 @@ mod tests {
             *v /= n_tail as f64;
         }
 
-        // The parallel path's component_es is exposed as `component_es` on
-        // each contribution. Compare to the serial reference position by
-        // position with a tight relative tolerance.
-        for (i, contrib) in parallel_result.es_contributions.iter().enumerate() {
-            let par = contrib.component_es;
+        for (i, contrib) in result.es_contributions.iter().enumerate() {
+            let got = contrib.component_es;
             let ser = serial_ces[i];
-            let scale = par.abs().max(ser.abs()).max(1.0);
+            let scale = got.abs().max(ser.abs()).max(1.0);
             assert!(
-                (par - ser).abs() <= 1e-9 * scale,
-                "serial/parallel CES diverged at position {i}: \
-                 serial={ser}, parallel={par}, |diff|={}, scale={scale}",
-                (par - ser).abs()
+                (got - ser).abs() <= 1e-9 * scale,
+                "component ES diverged at position {i}: \
+                 serial={ser}, got={got}, |diff|={}, scale={scale}",
+                (got - ser).abs()
             );
         }
 

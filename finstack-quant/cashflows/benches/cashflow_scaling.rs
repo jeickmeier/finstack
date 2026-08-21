@@ -16,10 +16,10 @@ mod fixtures;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use finstack_quant_cashflows::aggregation::DateContext;
-use finstack_quant_cashflows::builder::{PeriodDataFrameOptions, PvDiscountSource};
 use finstack_quant_cashflows::builder::{
     CashFlowSchedule, CouponType, FixedCouponSpec, ScheduleParams,
 };
+use finstack_quant_cashflows::builder::{PeriodDataFrameOptions, PvDiscountSource};
 use finstack_quant_cashflows::{AccrualConfig, AccrualIndex};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{

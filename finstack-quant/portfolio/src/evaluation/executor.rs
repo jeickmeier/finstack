@@ -16,7 +16,7 @@ use finstack_quant_valuations::instruments::PricingOptions;
 use finstack_quant_valuations::results::ValuationResult;
 use indexmap::IndexMap;
 
-const POSITION_PARALLEL_MIN_POSITIONS: usize = 64;
+pub(crate) const POSITION_PARALLEL_MIN_POSITIONS: usize = 64;
 const SELECTIVE_PARALLEL_MIN_REPRICES: usize = 64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -112,14 +112,15 @@ impl CreditFactorModelSchema {
 /// # Arguments
 ///
 /// * `dim` - Hierarchy dimension whose canonical tag-map key is required;
-///   custom dimensions preserve their configured name exactly.
+///   custom dimensions preserve their configured name exactly. The returned
+///   borrow is valid for as long as `dim` is.
 #[must_use]
-pub fn dimension_key(dim: &HierarchyDimension) -> String {
+pub fn dimension_key(dim: &HierarchyDimension) -> &str {
     match dim {
-        HierarchyDimension::Rating => "rating".to_owned(),
-        HierarchyDimension::Region => "region".to_owned(),
-        HierarchyDimension::Sector => "sector".to_owned(),
-        HierarchyDimension::Custom(name) => name.clone(),
+        HierarchyDimension::Rating => "rating",
+        HierarchyDimension::Region => "region",
+        HierarchyDimension::Sector => "sector",
+        HierarchyDimension::Custom(name) => name.as_str(),
     }
 }
 
@@ -228,6 +229,43 @@ pub struct CreditHierarchySpec {
 }
 
 impl CreditHierarchySpec {
+    /// Write the dotted bucket path for an issuer at hierarchy level `k` into
+    /// `out`, reusing that buffer across calls.
+    ///
+    /// Reads the tag value for each dimension in `self.levels[0..=k]` from
+    /// `tags` and joins them with `"."`. `out` is cleared on entry and also
+    /// cleared when the write fails.
+    ///
+    /// Returns `false` if `k >= self.levels.len()` or if any tag for
+    /// dimensions `0..=k` is missing from `tags`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tags` - Issuer taxonomy whose values become the dotted path
+    ///   segments, looked up by each level's [`dimension_key`].
+    /// * `k` - Zero-based hierarchy level; the path includes dimensions
+    ///   `0..=k`.
+    /// * `out` - Destination buffer. Cleared before writing; leftover
+    ///   contents are discarded on both success and failure.
+    #[must_use]
+    pub fn write_bucket_path(&self, tags: &IssuerTags, k: usize, out: &mut String) -> bool {
+        out.clear();
+        if k >= self.levels.len() {
+            return false;
+        }
+        for (i, dim) in self.levels.iter().take(k + 1).enumerate() {
+            let Some(value) = tags.0.get(dimension_key(dim)) else {
+                out.clear();
+                return false;
+            };
+            if i > 0 {
+                out.push('.');
+            }
+            out.push_str(value);
+        }
+        true
+    }
+
     /// Build the dotted bucket path for an issuer at hierarchy level `k`.
     ///
     /// Reads the tag value for each dimension in `self.levels[0..=k]` from
@@ -239,18 +277,17 @@ impl CreditHierarchySpec {
     ///
     /// Returns `None` if `k >= self.levels.len()` or if any tag for
     /// dimensions `0..=k` is missing from `tags`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tags` - Issuer taxonomy whose values become the dotted path
+    ///   segments, looked up by each level's [`dimension_key`].
+    /// * `k` - Zero-based hierarchy level; the path includes dimensions
+    ///   `0..=k`.
     #[must_use]
     pub fn bucket_path(&self, tags: &IssuerTags, k: usize) -> Option<String> {
-        if k >= self.levels.len() {
-            return None;
-        }
-        let mut parts = Vec::with_capacity(k + 1);
-        for dim in self.levels.iter().take(k + 1) {
-            let key = dimension_key(dim);
-            let value = tags.0.get(&key)?;
-            parts.push(value.clone());
-        }
-        Some(parts.join("."))
+        let mut out = String::new();
+        self.write_bucket_path(tags, k, &mut out).then_some(out)
     }
 }
 
@@ -892,10 +929,10 @@ impl CreditFactorModel {
         // exact key used to read tags at runtime — so `Rating` and
         // `Custom("rating")` collide here just as they do at lookup time
         // (both read `tags["rating"]`, i.e. the same information twice).
-        let mut seen_dims: BTreeSet<String> = BTreeSet::new();
+        let mut seen_dims: BTreeSet<&str> = BTreeSet::new();
         for dim in &self.hierarchy.levels {
             let key = dimension_key(dim);
-            if !seen_dims.insert(key.clone()) {
+            if !seen_dims.insert(key) {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "CreditFactorModel: duplicate hierarchy dimension key {key:?}"
                 )));
@@ -908,7 +945,7 @@ impl CreditFactorModel {
         for row in &self.issuer_betas {
             for dim in &self.hierarchy.levels {
                 let key = dimension_key(dim);
-                if let Some(v) = row.tags.0.get(&key) {
+                if let Some(v) = row.tags.0.get(key) {
                     if v.contains('.') {
                         return Err(finstack_quant_core::Error::Validation(format!(
                             "CreditFactorModel: issuer {:?} tag {key:?} = {v:?} contains '.', \

@@ -104,6 +104,7 @@ fn hierarchy_curve_parallel_bp_resolves_to_individual_bumps() {
         }],
         priority: 0,
         resolution_mode: ResolutionMode::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -199,6 +200,7 @@ fn cumulative_mode_stacks_shocks_down_tree() {
         ],
         priority: 0,
         resolution_mode: ResolutionMode::Cumulative,
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -315,6 +317,7 @@ fn most_specific_wins_keeps_only_deepest_shock() {
         ],
         priority: 0,
         resolution_mode: ResolutionMode::MostSpecificWins,
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -388,6 +391,7 @@ fn engine_works_with_resolution_mode_field() {
         }],
         priority: 0,
         resolution_mode: ResolutionMode::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -507,6 +511,7 @@ fn scenario_with_resolution_mode_json_round_trip() {
         }],
         priority: 0,
         resolution_mode: ResolutionMode::Cumulative,
+        hazard_bump_mode: Default::default(),
     };
 
     let json = serde_json::to_string_pretty(&scenario).unwrap();
@@ -540,6 +545,7 @@ fn compose_preserves_resolution_mode_when_inputs_agree() {
         operations: vec![],
         priority: 0,
         resolution_mode: ResolutionMode::Cumulative,
+        hazard_bump_mode: Default::default(),
     };
     let s2 = ScenarioSpec {
         id: "two".into(),
@@ -548,6 +554,7 @@ fn compose_preserves_resolution_mode_when_inputs_agree() {
         operations: vec![],
         priority: 1,
         resolution_mode: ResolutionMode::Cumulative,
+        hazard_bump_mode: Default::default(),
     };
 
     let composed = ScenarioEngine::new()
@@ -568,6 +575,7 @@ fn compose_with_mixed_resolution_modes_defaults_to_cumulative() {
         operations: vec![],
         priority: 0,
         resolution_mode: ResolutionMode::MostSpecificWins,
+        hazard_bump_mode: Default::default(),
     };
     let cumulative = ScenarioSpec {
         id: "two".into(),
@@ -576,6 +584,7 @@ fn compose_with_mixed_resolution_modes_defaults_to_cumulative() {
         operations: vec![],
         priority: 1,
         resolution_mode: ResolutionMode::Cumulative,
+        hazard_bump_mode: Default::default(),
     };
 
     let composed = ScenarioEngine::new()
@@ -644,6 +653,7 @@ fn most_specific_wins_uses_matched_node_depth_not_target_path_depth() {
         ],
         priority: 0,
         resolution_mode: ResolutionMode::MostSpecificWins,
+        hazard_bump_mode: Default::default(),
     };
 
     let direct_scenario = ScenarioSpec {
@@ -658,6 +668,7 @@ fn most_specific_wins_uses_matched_node_depth_not_target_path_depth() {
         }],
         priority: 0,
         resolution_mode: ResolutionMode::MostSpecificWins,
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -752,6 +763,7 @@ fn most_specific_wins_deduplicates_per_operation_family_not_raw_identifier() {
         ],
         priority: 0,
         resolution_mode: ResolutionMode::MostSpecificWins,
+        hazard_bump_mode: Default::default(),
     };
 
     let direct_scenario = ScenarioSpec {
@@ -770,6 +782,7 @@ fn most_specific_wins_deduplicates_per_operation_family_not_raw_identifier() {
         ],
         priority: 0,
         resolution_mode: ResolutionMode::MostSpecificWins,
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();

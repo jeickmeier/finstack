@@ -653,6 +653,7 @@ impl BasisSwap {
                         compounding: &leg.compounding,
                         fixing_calendar: calendar,
                         compounded_spread: 0.0,
+                        need_observation_exposures: false,
                     })?
                     .accrual_year_fraction
                 } else {
@@ -792,6 +793,7 @@ impl BasisSwap {
                 compounding: &leg.compounding,
                 fixing_calendar: calendar,
                 compounded_spread: 0.0,
+                need_observation_exposures: false,
             })?;
             let coupon_amount =
                 crate::instruments::common_impl::pricing::overnight::overnight_coupon_amount(
@@ -1712,6 +1714,7 @@ mod tests {
             compounding: &FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
             fixing_calendar: calendar,
             compounded_spread: 0.0,
+            need_observation_exposures: false,
         })
         .expect("shared engine");
         let expected_amount = 10_000_000.0 * (expected.compound_factor - 1.0);
@@ -1831,6 +1834,7 @@ mod tests {
                     compounding: &FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 },
                     fixing_calendar: calendar,
                     compounded_spread: 0.0,
+                    need_observation_exposures: false,
                 },
             )
             .expect("projection");

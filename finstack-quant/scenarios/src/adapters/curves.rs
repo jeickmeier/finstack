@@ -6,25 +6,32 @@
 //! dates.
 
 use crate::adapters::traits::ScenarioEffect;
-use crate::engine::ExecutionContext;
+use crate::engine::{ExecutionContext, HazardApplyEnv};
 use crate::error::{Error, Result};
-use crate::spec::{CurveKind, TenorMatchMode};
+use crate::spec::{CurveKind, HazardBumpMode, OperationSpec, TenorMatchMode};
 use crate::utils::calculate_interpolation_weights;
 use crate::warning::Warning;
-use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
+use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, Tenor};
 use finstack_quant_core::market_data::bumps::{
     BumpMode, BumpSpec, BumpType, BumpUnits, MarketBump,
 };
-use finstack_quant_core::market_data::context::CurveStorage;
+use finstack_quant_core::market_data::context::{CurveStorage, MarketContext};
 use finstack_quant_core::market_data::term_structures::{
     DiscountCurve, ForwardCurve, InflationCurve, PriceCurve,
 };
 use finstack_quant_core::types::CurveId;
 use finstack_quant_valuations::calibration::bumps::{
-    bump_discount_curve_synthetic, bump_hazard_spreads, bump_inflation_rates,
-    infer_currency_from_curve_id, infer_currency_from_discount_curve_id,
+    bump_discount_curve_synthetic, bump_hazard_shift, bump_hazard_spreads_cached,
+    bump_inflation_rates, infer_currency_from_curve_id, infer_currency_from_discount_curve_id,
     observation_lag_from_curve, BumpRequest,
 };
+
+/// Shared market snapshot for curve-effect generation without a mutable context.
+struct CurveApplyCtx<'a> {
+    market: &'a MarketContext,
+    as_of: Date,
+    env: &'a HazardApplyEnv<'a>,
+}
 
 /// Construct the `MarketDataNotFound` error for a curve that failed to fetch.
 fn missing_market_err(curve_id: &str) -> Error {
@@ -592,6 +599,86 @@ fn resolve_discount_curve_id(
     )))
 }
 
+fn par_cds_effects(
+    curve_id: &CurveId,
+    discount_curve_id: Option<&CurveId>,
+    bump_req: &BumpRequest,
+    market: &MarketContext,
+    extra_warnings: Vec<Warning>,
+    env: &HazardApplyEnv<'_>,
+) -> Result<Vec<ScenarioEffect>> {
+    let base_curve = market
+        .get_hazard(curve_id.as_str())
+        .map_err(|_| missing_market_err(curve_id.as_str()))?;
+    match env.mode {
+        HazardBumpMode::FirstOrderShift => {
+            let new_curve = bump_hazard_shift(&base_curve, bump_req)?;
+            Ok(update_effects(new_curve, extra_warnings))
+        }
+        HazardBumpMode::SolveToPar => {
+            let (discount_id, warning) =
+                resolve_discount_curve_id(market, discount_curve_id, Some(curve_id))?;
+            let new_curve = bump_hazard_spreads_cached(
+                Some(env.cache),
+                &base_curve,
+                market,
+                bump_req,
+                Some(&discount_id),
+                None,
+                None,
+            )?;
+            let mut effects = vec![ScenarioEffect::UpdateCurve(CurveStorage::from(
+                new_curve.as_ref().clone(),
+            ))];
+            effects.extend(extra_warnings.into_iter().map(ScenarioEffect::Warning));
+            if let Some(w) = warning {
+                effects.push(ScenarioEffect::Warning(w));
+            }
+            Ok(effects)
+        }
+    }
+}
+
+/// Generate ParCDS / inflation replacement effects from a shared market snapshot.
+pub(crate) fn generate_replace_curve_effects(
+    op: &OperationSpec,
+    market: &MarketContext,
+    as_of: Date,
+    env: &HazardApplyEnv<'_>,
+) -> Result<Vec<ScenarioEffect>> {
+    match op {
+        OperationSpec::CurveParallelBp {
+            curve_kind,
+            curve_id,
+            discount_curve_id,
+            bp,
+        } => curve_parallel_effects_on(
+            *curve_kind,
+            curve_id,
+            discount_curve_id.as_ref(),
+            *bp,
+            &CurveApplyCtx { market, as_of, env },
+        ),
+        OperationSpec::CurveNodeBp {
+            curve_kind,
+            curve_id,
+            discount_curve_id,
+            nodes,
+            match_mode,
+        } => curve_node_effects_on(
+            *curve_kind,
+            curve_id,
+            discount_curve_id.as_ref(),
+            nodes,
+            *match_mode,
+            &CurveApplyCtx { market, as_of, env },
+        ),
+        _ => Err(Error::Internal(format!(
+            "parallel replace-curve dispatch received a non-replace op: {op:?}"
+        ))),
+    }
+}
+
 /// Generate effects for a parallel curve bump.
 pub(crate) fn curve_parallel_effects(
     curve_kind: CurveKind,
@@ -599,20 +686,42 @@ pub(crate) fn curve_parallel_effects(
     discount_curve_id: Option<&CurveId>,
     bp: f64,
     ctx: &ExecutionContext,
+    env: &HazardApplyEnv<'_>,
 ) -> Result<Vec<ScenarioEffect>> {
-    let bump_req = BumpRequest::Parallel(bp);
+    curve_parallel_effects_on(
+        curve_kind,
+        curve_id,
+        discount_curve_id,
+        bp,
+        &CurveApplyCtx {
+            market: ctx.market,
+            as_of: ctx.as_of,
+            env,
+        },
+    )
+}
+
+fn curve_parallel_effects_on(
+    curve_kind: CurveKind,
+    curve_id: &CurveId,
+    discount_curve_id: Option<&CurveId>,
+    bp: f64,
+    ctx: &CurveApplyCtx<'_>,
+) -> Result<Vec<ScenarioEffect>> {
+    let market = ctx.market;
     let as_of = ctx.as_of;
+    let env = ctx.env;
+    let bump_req = BumpRequest::Parallel(bp);
 
     match curve_kind {
         CurveKind::Discount => {
-            let base_curve = ctx
-                .market
+            let base_curve = market
                 .get_discount(curve_id.as_str())
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
 
             let currency = infer_currency_from_discount_curve_id(&base_curve);
             let new_curve =
-                bump_discount_curve_synthetic(&base_curve, ctx.market, &bump_req, as_of, currency)?;
+                bump_discount_curve_synthetic(&base_curve, market, &bump_req, as_of, currency)?;
 
             Ok(vec![ScenarioEffect::UpdateCurve(CurveStorage::from(
                 new_curve,
@@ -622,8 +731,7 @@ pub(crate) fn curve_parallel_effects(
             // Forward curve parallel bump uses direct additive rate shifts.
             // Discount parallel bumps are continuous-zero shifts
             // (`DF' = DF · exp(−δ t)`), not solve-to-par quote re-bootstraps.
-            let _base_curve = ctx
-                .market
+            let _base_curve = market
                 .get_forward(curve_id.as_str())
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
 
@@ -634,42 +742,27 @@ pub(crate) fn curve_parallel_effects(
             };
             Ok(vec![ScenarioEffect::MarketBump(bump)])
         }
-        CurveKind::ParCDS => {
-            let base_curve = ctx
-                .market
-                .get_hazard(curve_id.as_str())
-                .map_err(|_| missing_market_err(curve_id.as_str()))?;
-            let (discount_id, warning) =
-                resolve_discount_curve_id(ctx.market, discount_curve_id, Some(curve_id))?;
-            let new_curve = bump_hazard_spreads(
-                &base_curve,
-                ctx.market,
-                &bump_req,
-                Some(&discount_id),
-                None,
-                None,
-            )?;
-
-            let mut effects = vec![ScenarioEffect::UpdateCurve(CurveStorage::from(new_curve))];
-            if let Some(w) = warning {
-                effects.push(ScenarioEffect::Warning(w));
-            }
-            Ok(effects)
-        }
+        CurveKind::ParCDS => par_cds_effects(
+            curve_id,
+            discount_curve_id,
+            &bump_req,
+            market,
+            Vec::new(),
+            env,
+        ),
         CurveKind::Inflation => {
-            let base_curve = ctx
-                .market
+            let base_curve = market
                 .get_inflation_curve(curve_id.as_str())
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
 
             let (discount_id, warning) =
-                resolve_discount_curve_id(ctx.market, discount_curve_id, Some(curve_id))?;
+                resolve_discount_curve_id(market, discount_curve_id, Some(curve_id))?;
 
             let currency = infer_currency_from_curve_id(&base_curve);
             let lag = observation_lag_from_curve(&base_curve);
             let new_curve = bump_inflation_rates(
                 &base_curve,
-                ctx.market,
+                market,
                 &bump_req,
                 &discount_id,
                 as_of,
@@ -684,8 +777,7 @@ pub(crate) fn curve_parallel_effects(
             Ok(effects)
         }
         CurveKind::Commodity => {
-            let _base_curve = ctx
-                .market
+            let _base_curve = market
                 .get_price_curve(curve_id.as_str())
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
 
@@ -716,13 +808,36 @@ pub(crate) fn curve_node_effects(
     nodes: &[(String, f64)],
     match_mode: TenorMatchMode,
     ctx: &ExecutionContext,
+    env: &HazardApplyEnv<'_>,
 ) -> Result<Vec<ScenarioEffect>> {
-    let as_of = ctx.as_of;
+    curve_node_effects_on(
+        curve_kind,
+        curve_id,
+        discount_curve_id,
+        nodes,
+        match_mode,
+        &CurveApplyCtx {
+            market: ctx.market,
+            as_of: ctx.as_of,
+            env,
+        },
+    )
+}
 
+fn curve_node_effects_on(
+    curve_kind: CurveKind,
+    curve_id: &CurveId,
+    discount_curve_id: Option<&CurveId>,
+    nodes: &[(String, f64)],
+    match_mode: TenorMatchMode,
+    ctx: &CurveApplyCtx<'_>,
+) -> Result<Vec<ScenarioEffect>> {
+    let market = ctx.market;
+    let as_of = ctx.as_of;
+    let env = ctx.env;
     match curve_kind {
         CurveKind::Discount => {
-            let base_curve = ctx
-                .market
+            let base_curve = market
                 .get_discount(curve_id.as_str())
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
 
@@ -747,13 +862,12 @@ pub(crate) fn curve_node_effects(
 
             let currency = infer_currency_from_discount_curve_id(&base_curve);
             let new_curve =
-                bump_discount_curve_synthetic(&base_curve, ctx.market, &bump_req, as_of, currency)?;
+                bump_discount_curve_synthetic(&base_curve, market, &bump_req, as_of, currency)?;
 
             Ok(update_effects(new_curve, result.warnings))
         }
         CurveKind::Forward => {
-            let base_curve = ctx
-                .market
+            let base_curve = market
                 .get_forward(curve_id.as_str())
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
 
@@ -787,12 +901,15 @@ pub(crate) fn curve_node_effects(
             Ok(update_effects(new_curve, result.warnings))
         }
         CurveKind::ParCDS => {
-            let base_curve = ctx
-                .market
+            let base_curve = market
                 .get_hazard(curve_id.as_str())
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
 
             let knots: Vec<f64> = base_curve.knot_points().map(|(t, _)| t).collect();
+            let delivery = match env.mode {
+                HazardBumpMode::SolveToPar => BumpDelivery::SolveToPar,
+                HazardBumpMode::FirstOrderShift => BumpDelivery::Direct,
+            };
             let result = resolve_bump_targets(
                 curve_id.as_str(),
                 nodes,
@@ -800,41 +917,28 @@ pub(crate) fn curve_node_effects(
                 match_mode,
                 as_of,
                 base_curve.day_count(),
-                BumpDelivery::SolveToPar,
+                delivery,
             )?;
             let bump_req = BumpRequest::Tenors(result.targets);
-
-            let (discount_id, warning) =
-                resolve_discount_curve_id(ctx.market, discount_curve_id, Some(curve_id))?;
-
-            let new_curve = bump_hazard_spreads(
-                &base_curve,
-                ctx.market,
+            par_cds_effects(
+                curve_id,
+                discount_curve_id,
                 &bump_req,
-                Some(&discount_id),
-                None,
-                None,
-            )?;
-
-            let mut effects = vec![ScenarioEffect::UpdateCurve(CurveStorage::from(new_curve))];
-            effects.extend(result.warnings.into_iter().map(ScenarioEffect::Warning));
-            if let Some(w) = warning {
-                effects.push(ScenarioEffect::Warning(w));
-            }
-            Ok(effects)
+                market,
+                result.warnings,
+                env,
+            )
         }
         CurveKind::Inflation => {
-            let base_curve = ctx
-                .market
+            let base_curve = market
                 .get_inflation_curve(curve_id.as_str())
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
 
             let knots: Vec<f64> = base_curve.knots().to_vec();
 
             let (discount_id, warning) =
-                resolve_discount_curve_id(ctx.market, discount_curve_id, Some(curve_id))?;
-            let tenor_day_count = ctx
-                .market
+                resolve_discount_curve_id(market, discount_curve_id, Some(curve_id))?;
+            let tenor_day_count = market
                 .get_discount(discount_id.as_str())
                 .map(|day_count| day_count.day_count())
                 .unwrap_or(DayCount::Act365F);
@@ -861,7 +965,7 @@ pub(crate) fn curve_node_effects(
             let lag = observation_lag_from_curve(&base_curve);
             let new_curve = bump_inflation_rates(
                 &base_curve,
-                ctx.market,
+                market,
                 &bump_req,
                 &discount_id,
                 as_of,
@@ -877,8 +981,7 @@ pub(crate) fn curve_node_effects(
             Ok(effects)
         }
         CurveKind::Commodity => {
-            let base_curve = ctx
-                .market
+            let base_curve = market
                 .get_price_curve(curve_id.as_str())
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
 
@@ -1033,6 +1136,15 @@ mod tests {
     use finstack_quant_statements::FinancialModelSpec;
     use time::macros::date;
 
+    fn solve_env(
+        cache: &finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache,
+    ) -> HazardApplyEnv<'_> {
+        HazardApplyEnv {
+            mode: HazardBumpMode::SolveToPar,
+            cache,
+        }
+    }
+
     #[test]
     fn vol_index_parallel_uses_absolute_index_points() {
         let as_of = date!(2025 - 01 - 01);
@@ -1055,6 +1167,7 @@ mod tests {
             }],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
 
         let engine = ScenarioEngine::new();
@@ -1163,6 +1276,7 @@ mod tests {
             ],
             priority: 0,
             resolution_mode: Default::default(),
+            hazard_bump_mode: Default::default(),
         };
         let engine = ScenarioEngine::new();
         let mut ctx = ExecutionContext {
@@ -1242,6 +1356,8 @@ mod tests {
         };
 
         let curve_id = CurveId::from("USD-OIS");
+        let cache = finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache::new();
+        let env = solve_env(&cache);
         let effects = curve_node_effects(
             CurveKind::Discount,
             &curve_id,
@@ -1249,6 +1365,7 @@ mod tests {
             &[("3Y".into(), 25.0)],
             TenorMatchMode::Interpolate,
             &ctx,
+            &env,
         )
         .expect("interpolated discount node bump should apply");
 
@@ -1304,6 +1421,8 @@ mod tests {
             as_of,
         };
 
+        let cache = finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache::new();
+        let env = solve_env(&cache);
         let effects = curve_node_effects(
             CurveKind::ParCDS,
             &CurveId::from("USD-CDS"),
@@ -1311,6 +1430,7 @@ mod tests {
             &[("3Y".into(), 10.0)],
             TenorMatchMode::Interpolate,
             &ctx,
+            &env,
         )
         .expect("interpolated par-CDS node bump should apply");
 
@@ -1352,6 +1472,8 @@ mod tests {
             as_of,
         };
 
+        let cache = finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache::new();
+        let env = solve_env(&cache);
         // Exact pillar hit on a direct-shift discount curve: no approximation.
         let effects = curve_node_effects(
             CurveKind::Discount,
@@ -1360,6 +1482,7 @@ mod tests {
             &[("5Y".into(), 25.0)],
             TenorMatchMode::Exact,
             &ctx,
+            &env,
         )
         .expect("exact discount node bump should apply");
         assert!(
@@ -1379,6 +1502,7 @@ mod tests {
             &[("3Y".into(), 25.0)],
             TenorMatchMode::Interpolate,
             &ctx,
+            &env,
         )
         .expect("interpolated forward node bump should apply");
         assert!(
@@ -1427,6 +1551,7 @@ mod tests {
                     }],
                     priority: 0,
                     resolution_mode: Default::default(),
+                    hazard_bump_mode: Default::default(),
                 },
                 &mut ctx,
             )
@@ -1456,6 +1581,8 @@ mod tests {
             calendar: None,
             as_of,
         };
+        let cache = finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache::new();
+        let env = solve_env(&cache);
         let effects = curve_node_effects(
             CurveKind::Commodity,
             &CurveId::from("WTI"),
@@ -1463,6 +1590,7 @@ mod tests {
             &[("1Y".into(), 10.0)],
             TenorMatchMode::Exact,
             &ctx,
+            &env,
         )
         .expect("exact commodity node bump should apply");
         let bumped = effects
@@ -1492,6 +1620,8 @@ mod tests {
             calendar: None,
             as_of,
         };
+        let cache = finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache::new();
+        let env = solve_env(&cache);
         let effects = curve_node_effects(
             CurveKind::Commodity,
             &CurveId::from("WTI"),
@@ -1499,6 +1629,7 @@ mod tests {
             &[("3Y".into(), 10.0)],
             TenorMatchMode::Interpolate,
             &ctx,
+            &env,
         )
         .expect("interpolated commodity node bump should apply");
         let bumped = effects
@@ -1531,8 +1662,11 @@ mod tests {
         };
 
         let curve_id = CurveId::from("WTI");
-        let effects = curve_parallel_effects(CurveKind::Commodity, &curve_id, None, 250.0, &ctx)
-            .expect("commodity shock should be handled");
+        let cache = finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache::new();
+        let env = solve_env(&cache);
+        let effects =
+            curve_parallel_effects(CurveKind::Commodity, &curve_id, None, 250.0, &ctx, &env)
+                .expect("commodity shock should be handled");
 
         let has_warning = effects.iter().any(|e| {
             matches!(

@@ -31,6 +31,12 @@ impl MarketContext {
         self.curves.keys()
     }
 
+    /// Iterate every stored curve as `(id, storage)` without typed lookups.
+    #[inline]
+    pub fn iter_curves(&self) -> impl Iterator<Item = (&CurveId, &CurveStorage)> {
+        self.curves.iter()
+    }
+
     /// Iterate over curves matching a specific type name.
     ///
     /// # Parameters

@@ -39,6 +39,42 @@ def test_build_scenario_spec_runtime_doc_describes_resolution_contract() -> None
     assert "Returns" in doc
 
 
+def test_build_scenario_spec_exposes_hazard_bump_mode() -> None:
+    defaulted = build_scenario_spec("default-hazard", [])
+    first_order = build_scenario_spec(
+        "first-order-hazard",
+        [],
+        hazard_bump_mode="first_order_shift",
+    )
+    composed = compose_scenarios([
+        first_order,
+        build_scenario_spec(
+            "also-first-order",
+            [],
+            hazard_bump_mode="first_order_shift",
+        ),
+    ])
+
+    assert defaulted.hazard_bump_mode == "solve_to_par"
+    assert first_order.hazard_bump_mode == "first_order_shift"
+    assert composed.hazard_bump_mode == "first_order_shift"
+
+
+def test_compose_scenarios_rejects_mixed_hazard_bump_modes() -> None:
+    first_order = build_scenario_spec(
+        "first-order-hazard",
+        [],
+        hazard_bump_mode="first_order_shift",
+    )
+    solve_to_par = build_scenario_spec("solve-to-par-hazard", [])
+
+    with pytest.raises(
+        ValueError,
+        match=r"first-order-hazard.*first_order_shift.*solve-to-par-hazard.*solve_to_par",
+    ):
+        compose_scenarios([first_order, solve_to_par])
+
+
 def test_build_scenario_spec_exposes_resolution_mode() -> None:
     spec = build_scenario_spec(
         "cumulative-shock",

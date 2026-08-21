@@ -61,9 +61,10 @@ impl BasketCalculator {
         shares_outstanding: f64,
     ) -> Result<Money> {
         let mut per_share = 0.0;
-        for constituent in &basket.constituents {
+        for (index, constituent) in basket.constituents.iter().enumerate() {
             let c = self.value_constituent(
                 basket,
+                index,
                 constituent,
                 context,
                 as_of,
@@ -95,9 +96,10 @@ impl BasketCalculator {
         shares_outstanding: Option<f64>,
     ) -> Result<Money> {
         let mut total = 0.0;
-        for constituent in &basket.constituents {
+        for (index, constituent) in basket.constituents.iter().enumerate() {
             let c = self.value_constituent(
                 basket,
+                index,
                 constituent,
                 context,
                 as_of,
@@ -174,9 +176,10 @@ impl BasketCalculator {
             }
         } else {
             let mut sum = 0.0;
-            for constituent in &basket.constituents {
+            for (index, constituent) in basket.constituents.iter().enumerate() {
                 let c = self.value_constituent(
                     basket,
+                    index,
                     constituent,
                     context,
                     as_of,
@@ -197,6 +200,7 @@ impl BasketCalculator {
     fn value_constituent(
         &self,
         basket: &Basket,
+        constituent_index: usize,
         constituent: &BasketConstituent,
         context: &MarketContext,
         as_of: Date,
@@ -205,7 +209,13 @@ impl BasketCalculator {
         let out = match mode {
             ValueMode::PerShare { shares } => {
                 // Resolve price then allocate per share
-                let raw_value = self.get_constituent_price(basket, constituent, context, as_of)?;
+                let raw_value = self.get_constituent_price(
+                    basket,
+                    constituent_index,
+                    constituent,
+                    context,
+                    as_of,
+                )?;
                 let base_value =
                     self.to_basket_currency(basket, raw_value, basket.currency, context, as_of)?;
                 if let Some(units) = constituent.units {
@@ -225,8 +235,13 @@ impl BasketCalculator {
             ValueMode::Total { shares, aum } => {
                 if let Some(units) = constituent.units {
                     // Price × units (convert to basket currency first)
-                    let raw_value =
-                        self.get_constituent_price(basket, constituent, context, as_of)?;
+                    let raw_value = self.get_constituent_price(
+                        basket,
+                        constituent_index,
+                        constituent,
+                        context,
+                        as_of,
+                    )?;
                     let base_value = self.to_basket_currency(
                         basket,
                         raw_value,
@@ -239,8 +254,13 @@ impl BasketCalculator {
                     Money::new(a * constituent.weight, basket.currency)
                 } else if let Some(s) = shares {
                     // Weight-only contribution scaled by shares × price
-                    let raw_value =
-                        self.get_constituent_price(basket, constituent, context, as_of)?;
+                    let raw_value = self.get_constituent_price(
+                        basket,
+                        constituent_index,
+                        constituent,
+                        context,
+                        as_of,
+                    )?;
                     let base_value = self.to_basket_currency(
                         basket,
                         raw_value,
@@ -263,14 +283,18 @@ impl BasketCalculator {
     fn get_constituent_price(
         &self,
         basket: &Basket,
+        constituent_index: usize,
         constituent: &BasketConstituent,
         context: &MarketContext,
         as_of: Date,
     ) -> Result<Money> {
         match &constituent.reference {
-            ConstituentReference::Instrument(instr_json) => {
-                // Clone the InstrumentJson, convert to boxed instrument, and price it
-                let boxed_instrument = instr_json.as_ref().clone().into_boxed()?;
+            ConstituentReference::Instrument(_) => {
+                let boxed_instrument = basket.boxed_constituent_at(constituent_index)?.ok_or(
+                    finstack_quant_core::Error::Input(finstack_quant_core::InputError::NotFound {
+                        id: constituent.id.clone(),
+                    }),
+                )?;
                 boxed_instrument.value(context, as_of)
             }
             ConstituentReference::MarketData { price_id, .. } => {
@@ -393,6 +417,7 @@ mod tests {
             scenario_pricing_overrides: Default::default(),
             attributes: Attributes::new(),
             pricing_config: BasketPricingConfig::default(),
+            boxed_constituents: Default::default(),
         }
     }
 

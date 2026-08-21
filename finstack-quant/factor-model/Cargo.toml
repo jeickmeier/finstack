@@ -31,5 +31,9 @@ path = "src/bin/gen_schemas.rs"
 name = "factor_model"
 harness = false
 
+[[bench]]
+name = "factor_model_scale"
+harness = false
+
 [lints]
 workspace = true

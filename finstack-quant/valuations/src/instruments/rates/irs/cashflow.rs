@@ -218,6 +218,7 @@ pub(crate) fn projected_compounded_float_leg_schedule(
                     compounding: &float.compounding,
                     fixing_calendar: cal,
                     compounded_spread: 0.0,
+                    need_observation_exposures: false,
                 },
             )?;
         let compound_factor = projection.compound_factor;

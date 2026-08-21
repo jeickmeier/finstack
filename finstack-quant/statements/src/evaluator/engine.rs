@@ -12,7 +12,9 @@ use crate::evaluator::monte_carlo::{
 };
 use crate::evaluator::precedence::{resolve_node_value_with_policy, NodeValueSource};
 use crate::evaluator::results::{EvalStats, EvalWarning, StatementResult};
-use crate::evaluator::{capital_structure_runtime, capital_structure_runtime::dependent_closure};
+use crate::evaluator::{
+    capital_structure_runtime, capital_structure_runtime::dependent_closure, PeriodHistory,
+};
 use crate::types::{FinancialModelSpec, NodeId};
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_core::expr::Expr;
@@ -20,6 +22,8 @@ use indexmap::IndexMap;
 use std::collections::HashSet;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
+
+type PeriodEvaluation = (IndexMap<String, f64>, Vec<Option<f64>>, Vec<EvalWarning>);
 
 /// Cached structural analysis from [`Evaluator::prepare`], allowing repeated
 /// evaluations of the same model structure without recompilation.
@@ -265,8 +269,9 @@ impl Evaluator {
             }
         }
 
-        let mut historical: std::sync::Arc<IndexMap<PeriodId, IndexMap<String, f64>>> =
-            std::sync::Arc::new(IndexMap::new());
+        let mut historical = std::sync::Arc::new(PeriodHistory::new(std::sync::Arc::clone(
+            &prepared.node_to_column,
+        )));
         let mut historical_cs: std::sync::Arc<
             IndexMap<PeriodId, crate::capital_structure::CapitalStructureCashflows>,
         > = std::sync::Arc::new(IndexMap::new());
@@ -281,17 +286,16 @@ impl Evaluator {
             let explicit_values_visible =
                 !period.is_actual || as_of.is_none_or(|as_of_date| period.start <= as_of_date);
             let is_actual_for_eval = period.is_actual && explicit_values_visible;
-            let (period_results, period_warnings) =
+            let (period_results, period_row, period_warnings) =
                 if let (Some(market_ctx), Some(as_of), Some(ref mut state), Some(insts)) =
                     (market_ctx, as_of, cs_state.as_mut(), instruments.as_ref())
                 {
-                    let (vals, warns, period_cs) = self.evaluate_period_dynamic(
+                    let (vals, row, warns, period_cs) = self.evaluate_period_dynamic(
                         model,
                         period,
                         is_actual_for_eval,
                         explicit_values_visible,
                         &prepared.eval_order,
-                        &prepared.node_to_column,
                         &historical,
                         &historical_cs,
                         market_ctx,
@@ -304,7 +308,7 @@ impl Evaluator {
                     cs_cashflows_accum.set_period(period_cs);
                     has_cs = true;
 
-                    (vals, warns)
+                    (vals, row, warns)
                 } else {
                     self.evaluate_period(
                         model,
@@ -312,7 +316,6 @@ impl Evaluator {
                         is_actual_for_eval,
                         explicit_values_visible,
                         &prepared.eval_order,
-                        &prepared.node_to_column,
                         &historical,
                         &historical_cs,
                     )?
@@ -329,7 +332,7 @@ impl Evaluator {
             }
 
             // Add to historical context for next period (move, not clone)
-            std::sync::Arc::make_mut(&mut historical).insert(period.id, period_results);
+            std::sync::Arc::make_mut(&mut historical).push_row(period.id, period_row);
             if has_cs {
                 let period_snapshot = cs_cashflows_accum.period_snapshot(period.id);
                 std::sync::Arc::make_mut(&mut historical_cs).insert(period.id, period_snapshot);
@@ -518,8 +521,9 @@ impl Evaluator {
             ));
         }
 
-        let mut historical: std::sync::Arc<IndexMap<PeriodId, IndexMap<String, f64>>> =
-            std::sync::Arc::new(IndexMap::new());
+        let mut historical = std::sync::Arc::new(PeriodHistory::new(std::sync::Arc::clone(
+            &prepared.node_to_column,
+        )));
         let historical_cs: std::sync::Arc<
             IndexMap<PeriodId, crate::capital_structure::CapitalStructureCashflows>,
         > = std::sync::Arc::new(IndexMap::new());
@@ -527,13 +531,12 @@ impl Evaluator {
         let mut results = StatementResult::new();
 
         for period in &model.periods {
-            let (period_results, period_warnings) = self.evaluate_period(
+            let (period_results, period_row, period_warnings) = self.evaluate_period(
                 model,
                 &period.id,
                 period.is_actual,
                 true,
                 &prepared.eval_order,
-                &prepared.node_to_column,
                 &historical,
                 &historical_cs,
             )?;
@@ -545,7 +548,7 @@ impl Evaluator {
                     .or_default()
                     .insert(period.id, *value);
             }
-            std::sync::Arc::make_mut(&mut historical).insert(period.id, period_results);
+            std::sync::Arc::make_mut(&mut historical).push_row(period.id, period_row);
         }
 
         self.finalize_results(
@@ -643,32 +646,35 @@ impl Evaluator {
                 .wrapping_mul(6_364_136_223_846_793_005)
                 .wrapping_add(path_idx as u64);
             let mut mc_z_cache: IndexMap<NodeId, IndexMap<PeriodId, f64>> = IndexMap::new();
-            let mut historical: std::sync::Arc<IndexMap<PeriodId, IndexMap<String, f64>>> =
-                std::sync::Arc::new(IndexMap::new());
+            let mut historical = std::sync::Arc::new(PeriodHistory::new(std::sync::Arc::clone(
+                &prepared.node_to_column,
+            )));
             let mut all_warnings = Vec::new();
 
             for period in &model.periods {
-                let (period_results, warnings) = path_eval.evaluate_period_mc(
+                let (_period_results, period_row, warnings) = path_eval.evaluate_period_mc(
                     model,
                     &period.id,
                     period.is_actual,
                     &prepared.eval_order,
-                    &prepared.node_to_column,
                     &historical,
                     seed_offset,
                     &mut mc_z_cache,
                 )?;
                 all_warnings.extend(warnings);
-                std::sync::Arc::make_mut(&mut historical).insert(period.id, period_results);
+                std::sync::Arc::make_mut(&mut historical).push_row(period.id, period_row);
             }
 
             let mut node_map: IndexMap<String, IndexMap<PeriodId, f64>> = IndexMap::new();
-            for (period_id, values) in historical.iter() {
-                for (node_id, value) in values {
-                    node_map
-                        .entry(node_id.clone())
-                        .or_default()
-                        .insert(*period_id, *value);
+            for (node_id, &column) in historical.node_to_column() {
+                let mut values = IndexMap::new();
+                for (period_id, row) in historical.iter() {
+                    if let Some(value) = row.get(column).copied().flatten() {
+                        values.insert(period_id, value);
+                    }
+                }
+                if !values.is_empty() {
+                    node_map.insert(node_id.as_str().to_string(), values);
                 }
             }
             Ok((node_map, all_warnings))
@@ -857,15 +863,13 @@ impl Evaluator {
         is_actual: bool,
         explicit_values_visible: bool,
         eval_order: &[NodeId],
-        node_to_column: &std::sync::Arc<IndexMap<NodeId, usize>>,
-        historical: &std::sync::Arc<IndexMap<PeriodId, IndexMap<String, f64>>>,
+        historical: &std::sync::Arc<PeriodHistory>,
         historical_cs: &std::sync::Arc<
             IndexMap<PeriodId, crate::capital_structure::CapitalStructureCashflows>,
         >,
-    ) -> Result<(IndexMap<String, f64>, Vec<EvalWarning>)> {
+    ) -> Result<PeriodEvaluation> {
         let mut context = EvaluationContext::new_with_history(
             *period_id,
-            std::sync::Arc::clone(node_to_column),
             std::sync::Arc::clone(historical),
             std::sync::Arc::clone(historical_cs),
         );
@@ -882,7 +886,9 @@ impl Evaluator {
             None,
         )?;
 
-        Ok(context.into_results())
+        let row = context.current_values.clone();
+        let (results, warnings) = context.into_results();
+        Ok((results, row, warnings))
     }
 
     /// Evaluate a single period for Monte Carlo paths.
@@ -896,15 +902,14 @@ impl Evaluator {
         period_id: &PeriodId,
         is_actual: bool,
         eval_order: &[NodeId],
-        node_to_column: &std::sync::Arc<IndexMap<NodeId, usize>>,
-        historical: &std::sync::Arc<IndexMap<PeriodId, IndexMap<String, f64>>>,
+        historical: &std::sync::Arc<PeriodHistory>,
         seed_offset: u64,
         mc_z_cache: &mut IndexMap<NodeId, IndexMap<PeriodId, f64>>,
-    ) -> Result<(IndexMap<String, f64>, Vec<EvalWarning>)> {
-        let mut context = EvaluationContext::new(
+    ) -> Result<PeriodEvaluation> {
+        let mut context = EvaluationContext::new_with_history(
             *period_id,
-            std::sync::Arc::clone(node_to_column),
             std::sync::Arc::clone(historical),
+            std::sync::Arc::new(IndexMap::new()),
         );
 
         self.evaluate_nodes_in_order(
@@ -919,7 +924,9 @@ impl Evaluator {
             Some(mc_z_cache),
         )?;
 
-        Ok(context.into_results())
+        let row = context.current_values.clone();
+        let (results, warnings) = context.into_results();
+        Ok((results, row, warnings))
     }
 }
 

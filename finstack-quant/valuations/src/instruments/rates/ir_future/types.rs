@@ -511,6 +511,7 @@ impl InterestRateFuture {
                     compounding: &compounding,
                     fixing_calendar: calendar,
                     compounded_spread: 0.0,
+                    need_observation_exposures: true,
                 })?;
                 Ok(RateFutureProjection {
                     rate: projection.rate,

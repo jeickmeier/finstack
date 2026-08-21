@@ -17,6 +17,7 @@ use crate::instruments::json_loader::InstrumentJson;
 
 use crate::impl_instrument_base;
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 
 /// Type of asset in the basket
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
@@ -57,6 +58,22 @@ pub enum ConstituentReference {
         /// Type of asset for validation
         asset_type: AssetType,
     },
+}
+
+/// Runtime cache of boxed instrument constituents. Not serialized.
+#[derive(Default)]
+pub(crate) struct BoxedConstituentCache(OnceLock<Vec<Option<Box<dyn Instrument>>>>);
+
+impl Clone for BoxedConstituentCache {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl std::fmt::Debug for BoxedConstituentCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("BoxedConstituentCache")
+    }
 }
 
 /// Individual constituent in a basket
@@ -147,6 +164,11 @@ pub struct Basket {
     pub attributes: Attributes,
     /// Pricing configuration
     pub pricing_config: BasketPricingConfig,
+    /// Boxed instrument constituents materialized once per instance.
+    #[serde(skip)]
+    #[schemars(skip)]
+    #[builder(default)]
+    pub(crate) boxed_constituents: BoxedConstituentCache,
 }
 
 impl Basket {
@@ -186,6 +208,48 @@ impl Basket {
             .attributes(Attributes::new())
             .pricing_config(BasketPricingConfig::default())
             .build()
+    }
+
+    /// Boxed instrument for an instrument-backed constituent, materialized once.
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - Zero-based constituent position, aligned with [`Self::constituents`].
+    pub(crate) fn boxed_constituent_at(&self, index: usize) -> Result<Option<&dyn Instrument>> {
+        let constituent_count = self.constituents.len();
+        if index >= constituent_count {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "basket constituent index {index} is out of range for basket with {constituent_count} constituents"
+            )));
+        }
+        let cache = self.ensure_boxed_constituents()?;
+        Ok(cache[index].as_deref())
+    }
+
+    fn ensure_boxed_constituents(&self) -> Result<&[Option<Box<dyn Instrument>>]> {
+        if let Some(cache) = self.boxed_constituents.0.get() {
+            return Ok(cache.as_slice());
+        }
+        let cache = self
+            .constituents
+            .iter()
+            .map(|c| match &c.reference {
+                ConstituentReference::Instrument(json) => {
+                    Ok(Some(json.as_ref().clone().into_boxed()?))
+                }
+                ConstituentReference::MarketData { .. } => Ok(None),
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let _ = self.boxed_constituents.0.set(cache);
+        self.boxed_constituents
+            .0
+            .get()
+            .map(Vec::as_slice)
+            .ok_or_else(|| {
+                finstack_quant_core::Error::Internal(
+                    "boxed basket constituents cache missing after initialization".into(),
+                )
+            })
     }
 
     /// Create an example basket with instrument-backed constituents.
@@ -357,6 +421,7 @@ mod tests {
             scenario_pricing_overrides: Default::default(),
             attributes: Attributes::new(),
             pricing_config: BasketPricingConfig::default(),
+            boxed_constituents: BoxedConstituentCache::default(),
         };
 
         assert_eq!(basket.id.as_str(), "TEST_BASKET");
@@ -398,6 +463,7 @@ mod tests {
             scenario_pricing_overrides: Default::default(),
             attributes: Attributes::new(),
             pricing_config: BasketPricingConfig::default(),
+            boxed_constituents: BoxedConstituentCache::default(),
         };
 
         // Should pass with weights summing to 1.0
@@ -430,5 +496,17 @@ mod tests {
             deps.market_scalar_ids,
             vec!["AAPL-SPOT".to_string(), "UST10Y-PRICE".to_string()]
         );
+    }
+
+    #[test]
+    fn boxed_constituent_at_rejects_out_of_range_index() {
+        let basket = Basket::example().expect("example");
+        let Err(error) = basket.boxed_constituent_at(2) else {
+            panic!("index beyond the constituents must fail")
+        };
+
+        assert!(matches!(error, finstack_quant_core::Error::Validation(_)));
+        assert!(error.to_string().contains("index 2"));
+        assert!(error.to_string().contains("2 constituents"));
     }
 }

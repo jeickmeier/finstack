@@ -35,8 +35,11 @@ use super::swaption::{vanilla_underlier, Swaption, VanillaSwaptionUnderlier};
 /// # Pricing Methods
 ///
 /// Bermudan swaptions require numerical methods for pricing:
-/// - **Hull-White Tree**: Industry standard, calibrated to swaption volatility
-/// - **LSMC**: Longstaff-Schwartz Monte Carlo for validation
+/// - **Hull-White Tree** (default): Industry standard, calibrated to swaption
+///   volatility. Official PV and risk use this path unless a caller selects
+///   [`crate::pricer::ModelKey::MonteCarloHullWhite1F`].
+/// - **LSMC**: Longstaff-Schwartz Monte Carlo, opt-in for path-dependent
+///   validation and model comparison.
 ///
 /// # Example
 ///
@@ -628,7 +631,7 @@ impl crate::instruments::common_impl::traits::Instrument for BermudanSwaption {
     }
 
     fn default_model(&self) -> crate::pricer::ModelKey {
-        crate::pricer::ModelKey::MonteCarloHullWhite1F
+        crate::pricer::ModelKey::HullWhite1F
     }
 
     fn market_dependencies(
@@ -654,7 +657,6 @@ impl crate::instruments::common_impl::traits::Instrument for BermudanSwaption {
         _curves: &finstack_quant_core::market_data::context::MarketContext,
         _as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
-        // Bermudan swaptions require tree or MC pricing - delegate to pricer
         Err(Error::Validation(
             "BermudanSwaption requires tree or LSMC pricing via BermudanSwaptionPricer".into(),
         ))
@@ -788,3 +790,34 @@ crate::impl_empty_cashflow_provider!(
     BermudanSwaption,
     crate::cashflow::builder::CashflowRepresentation::Placeholder
 );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::instruments::Instrument;
+    use crate::pricer::ModelKey;
+
+    #[test]
+    fn default_model_is_hull_white_tree() {
+        let swaption = BermudanSwaption::example();
+        assert_eq!(swaption.default_model(), ModelKey::HullWhite1F);
+    }
+
+    #[test]
+    fn value_requires_explicit_pricer() {
+        use finstack_quant_core::market_data::context::MarketContext;
+        use time::macros::date;
+
+        let swaption = BermudanSwaption::example();
+        let market = MarketContext::default();
+        let as_of = date!(2025 - 01 - 01);
+        let err = swaption
+            .value(&market, as_of)
+            .expect_err("value must require BermudanSwaptionPricer");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("BermudanSwaptionPricer"),
+            "expected explicit pricer in error message, got: {msg}"
+        );
+    }
+}

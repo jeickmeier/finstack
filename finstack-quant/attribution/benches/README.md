@@ -7,43 +7,61 @@ nothing until it is added as a `[[bench]]` target. Two targets are registered, b
 
 | Target | Scope |
 |--------|-------|
-| `attribution` | Fixed-size cost of `attribute_pnl_parallel` and `attribute_pnl_waterfall` on one bond and on five bonds |
-| `attribution_scale` | Five methodologies — `simple_pnl_bridge`, `attribute_pnl_metrics_based`, `attribute_pnl_parallel`, `attribute_pnl_waterfall`, `attribute_pnl_taylor` — swept over portfolio sizes N ∈ {10, 100, 1000}, plus a 200-instrument credit-factor-model case. `attribute_return_contribution` is public and not covered here. |
+| `attribution` | Fixed-size cost of every public hot path at one representative size |
+| `attribution_scale` | How cost grows with book size, curve count, and methodology |
 
-Both targets attribute across the same shape of market move: a flat `USD-OIS`
-`DiscountCurve` at 4%, shifted between `market_t0` and `market_t1`. `attribution.rs`
-uses a 5 bp shift; `attribution_scale.rs` uses 1 bp. Instruments are vanilla
-fixed-coupon `Bond`s (1M USD notional, 5% coupon), which keeps the pricing path warm
-without pulling volatility machinery into the measurement.
+The split matters. `attribution` answers "how expensive is this call"; only
+`attribution_scale` can catch a super-linear term, and it does so by reporting
+`Throughput::Elements` so ns-per-instrument (or ns-per-curve) is comparable
+across sizes. Shared fixtures live in [`support/fixtures.rs`](support/fixtures.rs)
+and are built outside `b.iter`.
+
+Both targets attribute across the same shape of market move unless a case
+says otherwise: a flat `USD-OIS` `DiscountCurve` at 4%, shifted between
+`market_t0` and `market_t1`. `attribution.rs` uses a 5 bp shift;
+`attribution_scale.rs` uses 1 bp. Lean-market instruments are vanilla
+fixed-coupon `Bond`s (1M notional, 5% coupon). Fat-market cases add unused
+hazard, inflation, FX, and spot families so extract/restore cost is visible.
 
 ## `attribution` benchmarks
 
-Top-level `c.bench_function` ids (no `benchmark_group`), one Criterion group per bench:
+Legacy top-level ids (no `benchmark_group`, preserved for `--baseline`
+compare) plus the `attribution_hot_paths` group:
 
 | Id | Measures |
 |----|----------|
 | `parallel_1_bond` | `attribute_pnl_parallel` with `ExecutionPolicy::Parallel`, single 5y bond |
 | `waterfall_1_bond` | `attribute_pnl_waterfall` over `default_waterfall_order()`, single 5y bond |
 | `parallel_5_bonds` | The parallel path looped over 5 bonds with maturities spread 3y–11y |
+| `simple_bridge_1_bond` | Two-reprice baseline |
+| `metrics_based_precomputed_1_bond` | Linear decomposition with `price_with_metrics` outside the timer |
+| `taylor_1_bond` / `taylor_gamma_1_bond` | First-order vs `include_gamma` Taylor |
+| `parallel_serial_1_bond` | Same bond under `ExecutionPolicy::Serial` |
+| `parallel_fat_market_1_bond` / `waterfall_fat_market_1_bond` | Lean bond against a multi-family book market |
+| `equity_parallel_1` | Spot equity (scalars + carry, no YTM flat-curve work) |
+| `fx_translate_1_bond` | `translate_to_target_currency` on a precomputed EUR attribution |
+| `long_rows_1_bond` | `pnl_attribution_long_rows` |
+| `snapshot_extract_restore_rates` / `snapshot_extract_restore_all_fat` | `MarketSnapshot::extract` + `restore_market` |
+| `return_contribution_1k` / `_brinson_1k` / `_json_1k` | Weight × return contribution |
+| `spec_execute_1_bond` | `AttributionEnvelope::execute` reconstruction + parallel |
 
 ## `attribution_scale` benchmarks
 
 | Group | Ids | Measures |
 |-------|-----|----------|
-| `attribution` | `<method>/{10,100,1000}` for `simple_bridge`, `metrics_based`, `parallel`, `waterfall`, `taylor` | Per-instrument cost of each methodology at three portfolio sizes, `Throughput::Elements(n)` so ns-per-instrument is comparable across sizes |
-| `attribution_credit` | `parallel_with_credit_model/200` | `AttributionEnvelope::execute` over 200 `AttributionSpec`s carrying a `CreditFactorModel`, i.e. the JSON-spec path rather than the direct function call |
+| `attribution` | `<method>/{10,100,1000}` for `simple_bridge`, `metrics_based`, `metrics_based_precomputed`, `parallel`, `parallel_serial`, `waterfall`, `taylor` | Per-instrument cost at three book sizes |
+| `attribution_credit` | `parallel_with_credit_model/200` | `AttributionEnvelope::execute` over 200 specs carrying a `CreditFactorModel` |
+| `return_contribution` | `gross/{100,1000,10000}`, `brinson/{100,1000,10000}` | Weight × return and Brinson-Fachler roll-up |
+| `snapshot_extract_restore` | `rates/{1,10,50}` | Extract + restore vs curve count |
 
-`simple_pnl_bridge` is the intended baseline: two reprices, no factor loop. The other
-four methodologies add factor iteration on top, so read them as a multiple of the
-bridge rather than in isolation. `metrics_based` additionally pays for two
-`price_with_metrics` calls per instrument (`Dv01`, `Theta`, `Convexity`) inside the
-measured region.
+`simple_pnl_bridge` is the intended baseline: two reprices, no factor loop.
+`metrics_based` still includes two `price_with_metrics` calls inside the
+timer; `metrics_based_precomputed` isolates the linear decomposition.
 
-Both groups set `sample_size(10)`. Per the rationale in `attribution_scale.rs`, at
-N = 1000 the waterfall and parallel paths would take minutes per size at Criterion's
-default of 100 samples; 10 samples is enough to see a scaling trend, not enough for a
-tight confidence interval. Treat single-run deltas here with suspicion and use
-`--save-baseline` / `--baseline` instead of eyeballing.
+Both original groups set `sample_size(10)` because N = 1000 waterfall /
+parallel would take minutes at Criterion's default of 100 samples. The
+return-contribution and snapshot groups use 20 samples. Treat single-run
+deltas with suspicion and use `--save-baseline` / `--baseline`.
 
 ## Run
 
@@ -66,20 +84,20 @@ sampling, tunable via `FQ_BENCH_SAMPLE_SIZE`, `FQ_BENCH_WARM_UP_TIME`,
 median regression).
 
 Criterion writes to `target/criterion/<group>/<id>/report/index.html` for
-`attribution_scale`. `attribution` has no `benchmark_group`, so its ids sit at the top
-level: `target/criterion/<id>/report/index.html`. The `mise run rust-bench*` tasks pass
+grouped benches. Legacy `attribution` ids sit at the top level:
+`target/criterion/<id>/report/index.html`. The `mise run rust-bench*` tasks pass
 `--noplot`.
 
 ## Conventions when adding a case
 
-- Build fixtures outside `b.iter`. `attribution_scale.rs` does this through the
-  `Fixture` / `CreditFixture` structs so curve construction is not folded into the
-  attribution measurement.
-- Set `group.throughput(Throughput::Elements(n))` on any size sweep; a scaling bench
-  without throughput cannot be read as ns-per-instrument.
-- Register the function in the target's `criterion_group!`. `attribution.rs` uses one
-  `criterion_group!` per function and lists all three in `criterion_main!`; a new
-  function added to neither runs silently as a no-op.
+- Put a fixed-size case in `attribution` and a size sweep in `attribution_scale`.
+  Do not add a sweep to the hot-paths target — it is read as absolute cost.
+- Build fixtures outside `b.iter` via [`support/fixtures.rs`](support/fixtures.rs).
+- Set `group.throughput(Throughput::Elements(n))` on any size sweep.
+- Register the function in the target's `criterion_group!`. A new function
+  added to neither runs silently as a no-op.
+- Keep the three legacy ids (`parallel_1_bond`, `waterfall_1_bond`,
+  `parallel_5_bonds`) stable so `--baseline` compares stay valid.
 
 ## See also
 

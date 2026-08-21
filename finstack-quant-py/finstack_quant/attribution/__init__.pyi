@@ -1268,8 +1268,10 @@ def attribute_pnl(
         ``"metrics_based"``, or ``{"taylor": {"include_gamma": True, ...}}``.
     config : dict[str, Any] or None
         Optional config overrides (tolerance, metrics, bump sizes,
-        target currency, or ``{"execution_policy": "serial"}`` for
-        callers that already parallelize at the portfolio/batch level).
+        target currency, or ``{"execution_policy": "parallel"}`` to
+        opt into inner Rayon when the caller is not already
+        parallelizing at the portfolio/batch level). Serial is the
+        default.
     full_cross_attribution : bool or None
         Option to compute all 36 cross-factor pairs when enabled.
 

@@ -39,6 +39,7 @@ fn test_vol_bucket_filtering_by_tenor() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -108,6 +109,7 @@ fn test_vol_bucket_filtering_by_strike() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -169,6 +171,7 @@ fn test_vol_bucket_unfiltered_is_multiplicative() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -225,6 +228,7 @@ fn test_basecorr_bucket_filtering() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -288,6 +292,7 @@ fn test_basecorr_bucket_filtering_uses_tight_detachment_match() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let engine = ScenarioEngine::new();
@@ -335,6 +340,7 @@ fn test_basecorr_bucket_filtering_reports_clamp_and_no_match() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let mut ctx = ExecutionContext {
@@ -366,6 +372,7 @@ fn test_basecorr_bucket_filtering_reports_clamp_and_no_match() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
     };
 
     let no_match_report = engine.apply(&no_match_scenario, &mut ctx).unwrap();

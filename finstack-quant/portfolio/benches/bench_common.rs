@@ -197,10 +197,23 @@ fn build_market_context(base: Date, rate_shift: f64) -> MarketContext {
         .build()
         .unwrap();
 
+    let jpy_disc = DiscountCurve::builder("JPY-OIS")
+        .base_date(base)
+        .knots([
+            (0.0, 1.0),
+            (1.0, 0.99 - rate_shift),
+            (5.0, 0.95 - rate_shift),
+            (10.0, 0.90 - rate_shift),
+        ])
+        .interp(InterpStyle::Linear)
+        .build()
+        .unwrap();
+
     let hazard_knots = [(0.0, 0.01), (1.0, 0.01), (5.0, 0.02), (10.0, 0.025)];
     let hazard = HazardCurve::builder("CORP-HAZARD")
         .base_date(base)
         .knots(hazard_knots)
+        .par_spreads([(1.0, 100.0), (5.0, 200.0), (10.0, 250.0)])
         .build()
         .unwrap();
 
@@ -217,6 +230,7 @@ fn build_market_context(base: Date, rate_shift: f64) -> MarketContext {
     let hazard_for_index = HazardCurve::builder("CORP-HAZARD")
         .base_date(base)
         .knots(hazard_knots)
+        .par_spreads([(1.0, 100.0), (5.0, 200.0), (10.0, 250.0)])
         .build()
         .unwrap();
     let base_corr_for_index = BaseCorrelationCurve::builder("CDX-CORR")
@@ -333,6 +347,18 @@ fn build_market_context(base: Date, rate_shift: f64) -> MarketContext {
         .build()
         .unwrap();
 
+    let jpy_alias = DiscountCurve::builder("JPY")
+        .base_date(base)
+        .knots([
+            (0.0, 1.0),
+            (1.0, 0.99 - rate_shift),
+            (5.0, 0.95 - rate_shift),
+            (10.0, 0.90 - rate_shift),
+        ])
+        .interp(InterpStyle::Linear)
+        .build()
+        .unwrap();
+
     MarketContext::new()
         .insert(usd_disc)
         .insert(usd_alias)
@@ -341,6 +367,8 @@ fn build_market_context(base: Date, rate_shift: f64) -> MarketContext {
         .insert(eur_alias)
         .insert(gbp_disc)
         .insert(gbp_alias)
+        .insert(jpy_disc)
+        .insert(jpy_alias)
         .insert(hazard)
         .insert(inflation)
         .insert(base_corr)

@@ -1256,7 +1256,7 @@
       "type": "string"
     },
     "ExecutionPolicy": {
-      "description": "Controls where attribution repricing work spends parallelism.\n\n`Parallel` preserves the standalone attribution behavior: independent\nfactor repricings may use Rayon internally. `Serial` keeps those inner\nrepricings sequential so an outer portfolio or batch loop can own Rayon.",
+      "description": "Controls where attribution repricing work spends parallelism.\n\n`Serial` is the default: typical standalone factor sets are small enough\nthat inner Rayon costs more than it saves. `Parallel` opts into Rayon for\nindependent factor repricings when the caller is not already parallelizing\nan outer portfolio or batch loop.",
       "oneOf": [
         {
           "const": "parallel",

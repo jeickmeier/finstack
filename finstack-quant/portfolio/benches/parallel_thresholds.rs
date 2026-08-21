@@ -1,11 +1,8 @@
-//! Benchmarks that span the parallel-vs-serial cutoff in the historical
-//! position-risk decomposer.
+//! Benchmarks that scale the historical position-risk tail accumulation.
 //!
-//! Threshold covered:
-//!
-//! * `factor_model::position_risk::PARALLEL_TAIL_THRESHOLD` (100_000) — the
-//!   `n_tail * n` cutoff that switches the tail-component-ES accumulation
-//!   from a serial loop to a position-axis-sharded Rayon fan-out.
+//! The production decomposer uses a serial sorted-tail fold. This group
+//! still sweeps 400 / 500 / 600 positions so throughput stays visible as
+//! `n_tail * n` grows.
 //!
 //! Related thresholds covered by other benchmark paths:
 //!
@@ -26,18 +23,16 @@ use finstack_quant_portfolio::factor_model::{
 };
 use finstack_quant_portfolio::types::PositionId;
 
-// Historical position-risk decomposer: PARALLEL_TAIL_THRESHOLD = 100_000
-
 fn bench_historical_tail_threshold(c: &mut Criterion) {
     let mut group = c.benchmark_group("historical_decomp_tail");
     group.sample_size(10);
 
-    // Fix scenarios; sweep n (positions) so n_tail * n straddles 100_000.
+    // Fix scenarios; sweep n (positions) so n_tail * n scales through 80k–120k.
     // confidence = 0.95 => n_tail = 0.05 * n_scenarios.
     let n_scenarios: usize = 4_000; // n_tail = 200
     let confidence = 0.95;
 
-    for n_positions in [500_usize].iter() {
+    for n_positions in [400_usize, 500, 600].iter() {
         let n = *n_positions;
         let n_tail_times_n = (n_scenarios as f64 * (1.0 - confidence)) as usize * n;
         group.throughput(Throughput::Elements(n_tail_times_n as u64));

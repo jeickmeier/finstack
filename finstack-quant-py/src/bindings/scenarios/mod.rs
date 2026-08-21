@@ -76,6 +76,9 @@ fn parse_scenario_spec(json_str: &str) -> PyResult<PyScenarioSpec> {
 /// resolution_mode : str, default "most_specific_wins"
 ///     Hierarchy conflict policy. Accepted values are
 ///     ``"most_specific_wins"`` and ``"cumulative"``.
+/// hazard_bump_mode : str, default "solve_to_par"
+///     ParCDS delivery: ``"solve_to_par"`` re-bootstraps hazard from shocked
+///     par spreads; ``"first_order_shift"`` shifts hazard knots in place.
 ///
 /// Returns
 /// -------
@@ -85,8 +88,8 @@ fn parse_scenario_spec(json_str: &str) -> PyResult<PyScenarioSpec> {
 /// Raises
 /// ------
 /// ValueError
-///     If ``resolution_mode`` is not accepted or the resulting scenario fails
-///     validation.
+///     If ``resolution_mode`` or ``hazard_bump_mode`` is not accepted, or the
+///     resulting scenario fails validation.
 ///
 /// Examples
 /// --------
@@ -101,7 +104,8 @@ fn parse_scenario_spec(json_str: &str) -> PyResult<PyScenarioSpec> {
     name=None,
     description=None,
     priority=0,
-    resolution_mode="most_specific_wins"
+    resolution_mode="most_specific_wins",
+    hazard_bump_mode="solve_to_par"
 ))]
 fn build_scenario_spec(
     id: &str,
@@ -110,16 +114,26 @@ fn build_scenario_spec(
     description: Option<&str>,
     priority: i32,
     resolution_mode: &str,
+    hazard_bump_mode: &str,
 ) -> PyResult<PyScenarioSpec> {
-    PyScenarioSpec::build(id, operations, name, description, priority, resolution_mode)
+    PyScenarioSpec::build(
+        id,
+        operations,
+        name,
+        description,
+        priority,
+        resolution_mode,
+        hazard_bump_mode,
+    )
 }
 
 /// Compose several scenario specifications into one.
 ///
 /// Later specs layer on top of earlier ones. Where two specs touch the same
 /// target, the composed spec resolves the conflict using each operation's
-/// ``resolution_mode`` (see :func:`build_scenario_spec`). Composition fails
-/// rather than silently dropping an operation when the modes disagree.
+/// ``resolution_mode`` (see :func:`build_scenario_spec`). Every input must use
+/// the same ``hazard_bump_mode``; mixed hazard delivery conventions are
+/// rejected rather than silently selecting one.
 ///
 /// Parameters
 /// ----------
@@ -134,7 +148,8 @@ fn build_scenario_spec(
 /// Raises
 /// ------
 /// ValueError
-///     If the specifications cannot be composed.
+///     If `specs` contain mixed ``hazard_bump_mode`` values or more than one
+///     time-roll operation.
 ///
 /// Examples
 /// --------

@@ -1,9 +1,13 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const ALLOWED: &[&str] = &[
-    "src/instruments/composite/types.rs",
-    "src/instruments/fixed_income/structured_credit/pricing/stochastic/default/spec.rs",
+const ALLOWED: &[(&str, usize)] = &[
+    ("src/instruments/composite/types.rs", 2),
+    ("src/instruments/exotics/basket/types.rs", 1),
+    (
+        "src/instruments/fixed_income/structured_credit/pricing/stochastic/default/spec.rs",
+        1,
+    ),
 ];
 
 fn rust_sources(root: &Path, files: &mut Vec<PathBuf>) {
@@ -34,7 +38,7 @@ fn serde_skip_is_limited_to_documented_derived_artifacts() {
                 .expect("source is under manifest")
                 .to_string_lossy()
                 .replace('\\', "/");
-            if ALLOWED.contains(&relative.as_str()) {
+            if ALLOWED.iter().any(|(path, _)| *path == relative) {
                 allowed_hits.push((relative, skip_count));
             } else {
                 unexpected.push((relative, skip_count));
@@ -51,7 +55,7 @@ fn serde_skip_is_limited_to_documented_derived_artifacts() {
         allowed_hits,
         ALLOWED
             .iter()
-            .map(|path| ((*path).to_owned(), 1))
+            .map(|(path, count)| ((*path).to_owned(), *count))
             .collect::<Vec<_>>(),
         "the allowlist must identify only documented derived-artifact skips"
     );

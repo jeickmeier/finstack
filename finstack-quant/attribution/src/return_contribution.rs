@@ -573,37 +573,52 @@ fn instrument_contributions(
 fn group_contributions(
     weighted: &[WeightedPosition<'_>],
 ) -> BTreeMap<String, Vec<GroupContribution>> {
-    let mut group_names = BTreeSet::new();
+    let n = weighted.len();
+    let mut buckets: BTreeMap<String, BTreeMap<String, NeumaierAccumulator>> = BTreeMap::new();
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
+    let mut total = NeumaierAccumulator::new();
     for position in weighted {
-        for group_name in position.input.groups.keys() {
-            group_names.insert(group_name.clone());
-        }
-    }
-
-    let mut result = BTreeMap::new();
-    for group_name in group_names {
-        let mut buckets: BTreeMap<String, NeumaierAccumulator> = BTreeMap::new();
-        for position in weighted {
-            let key = position
-                .input
-                .groups
-                .get(&group_name)
-                .cloned()
-                .unwrap_or_else(|| "unknown".to_string());
-            buckets.entry(key).or_default().add(position.contribution);
-        }
-        result.insert(
-            group_name,
+        total.add(position.contribution);
+        for (group_name, key) in &position.input.groups {
             buckets
-                .into_iter()
-                .map(|(key, contribution)| GroupContribution {
-                    key,
-                    contribution: contribution.total(),
-                })
-                .collect(),
-        );
+                .entry(group_name.clone())
+                .or_default()
+                .entry(key.clone())
+                .or_default()
+                .add(position.contribution);
+            *seen.entry(group_name.clone()).or_insert(0) += 1;
+        }
     }
-    result
+    let total_contrib = total.total();
+    for (group_name, count) in &seen {
+        if *count < n {
+            let present: f64 = buckets
+                .get(group_name)
+                .map(|group| group.values().map(NeumaierAccumulator::current).sum())
+                .unwrap_or(0.0);
+            buckets
+                .entry(group_name.clone())
+                .or_default()
+                .entry("unknown".to_string())
+                .or_default()
+                .add(total_contrib - present);
+        }
+    }
+    buckets
+        .into_iter()
+        .map(|(group_name, group)| {
+            (
+                group_name,
+                group
+                    .into_iter()
+                    .map(|(key, contribution)| GroupContribution {
+                        key,
+                        contribution: contribution.total(),
+                    })
+                    .collect(),
+            )
+        })
+        .collect()
 }
 
 fn factor_contributions(factors: &[ReturnContributionFactor]) -> Result<Vec<FactorContribution>> {

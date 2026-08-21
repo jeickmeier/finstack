@@ -5,7 +5,7 @@ use finstack_quant_factor_model::{CurveType, FactorId, MarketDependency, RiskMea
 use finstack_quant_portfolio::factor_model::RiskDecomposition;
 use finstack_quant_portfolio::factor_model::{
     FactorAssignmentReport, FactorContribution, FactorContributionDelta, PositionAssignment,
-    PositionFactorContribution, StressResult, UnmatchedEntry, WhatIfResult,
+    PositionFactorContribution, StressPnl, StressResult, UnmatchedEntry, WhatIfResult,
 };
 use finstack_quant_portfolio::types::PositionId;
 
@@ -80,6 +80,11 @@ fn test_factor_model_report_types_roundtrip() {
             absolute_change: 5.0,
             relative_change: 0.1,
         }],
+    });
+
+    assert_roundtrip_value(&StressPnl {
+        total_pnl: -1_250.0,
+        position_pnl: vec![(PositionId::new("POS_1"), -750.0)],
     });
 
     assert_roundtrip_value(&StressResult {

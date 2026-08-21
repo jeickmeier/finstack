@@ -22,11 +22,13 @@ use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_valuations::instruments::rates::cms_option::replication_pricer::CmsReplicationPricer;
 use finstack_quant_valuations::instruments::rates::cms_option::CmsOption;
 use finstack_quant_valuations::instruments::rates::cms_swap::{CmsSwap, FundingLegSpec};
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::{IRSConvention, PayReceive};
 use finstack_quant_valuations::instruments::{InstrumentPricingOverrides, OptionType};
+use finstack_quant_valuations::pricer::Pricer;
 use rust_decimal::Decimal;
 use std::hint::black_box;
 use time::Month;
@@ -177,8 +179,11 @@ fn bench_cms_swap_period_count(c: &mut Criterion) {
 
     let n = 20;
     let end_days = n as i64 * 91;
-    let start = as_of;
-    let end = as_of + time::Duration::days(end_days);
+    // Spot-start plus a fixing lag would treat the first coupon as seasoned
+    // and require a historical CMS series. Start a week after as-of so every
+    // coupon is still a live forward.
+    let start = as_of + time::Duration::days(7);
+    let end = start + time::Duration::days(end_days);
 
     let swap = CmsSwap::from_schedule(
         "CMSSWAP-BENCH",
@@ -214,10 +219,34 @@ fn bench_cms_swap_period_count(c: &mut Criterion) {
     group.finish();
 }
 
+/// Static-replication CMS cap (vol-slice cache lives on this path).
+fn bench_cms_option_replication(c: &mut Criterion) {
+    let mut group = c.benchmark_group("cms_option_replication");
+    let as_of = base_date();
+    let market = create_market(as_of);
+    let n = 20;
+    let cap = make_cms_option(as_of, n, 10.0);
+    let pricer = CmsReplicationPricer::new();
+
+    group.throughput(Throughput::Elements(n as u64));
+    group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
+        b.iter(|| {
+            pricer
+                .price_dyn(black_box(&cap), black_box(&market), black_box(as_of))
+                .unwrap()
+                .value
+                .amount()
+        });
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_cms_option_period_count,
     bench_cms_option_cms_tenor,
+    bench_cms_option_replication,
     bench_cms_swap_period_count,
 );
 criterion_main!(benches);

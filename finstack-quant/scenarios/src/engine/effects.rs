@@ -1,14 +1,15 @@
 //! Operation dispatch, effect processing, and market-bump batching.
 
 use super::instrument_shocks::{apply_correlation_effect, apply_instrument_shock, CorrelationKind};
-use super::{ExecutionContext, ScenarioChangeManifest, ScenarioMarketTarget};
+use super::{ExecutionContext, HazardApplyEnv, ScenarioChangeManifest, ScenarioMarketTarget};
 use crate::adapters;
 use crate::adapters::traits::ScenarioEffect;
 use crate::error::Result;
-use crate::spec::OperationSpec;
+use crate::spec::{CurveKind, OperationSpec};
 use crate::warning::Warning;
 use finstack_quant_core::market_data::bumps::MarketBump;
 use finstack_quant_core::types::CurveId;
+use finstack_quant_core::HashSet;
 
 /// Dispatch a single operation to the appropriate adapter and produce its effects.
 ///
@@ -17,7 +18,11 @@ use finstack_quant_core::types::CurveId;
 /// targeted variants and `TimeRollForward` are handled separately and are
 /// unreachable here (hierarchy variants are expanded upstream and time-roll is
 /// processed in Phase 0 before this function is invoked).
-fn generate_effects(op: &OperationSpec, ctx: &ExecutionContext) -> Result<Vec<ScenarioEffect>> {
+fn generate_effects(
+    op: &OperationSpec,
+    ctx: &ExecutionContext,
+    env: &HazardApplyEnv<'_>,
+) -> Result<Vec<ScenarioEffect>> {
     match op {
         OperationSpec::MarketFxPct { base, quote, pct } => {
             adapters::fx::fx_pct_effects(*base, *quote, *pct, ctx)
@@ -36,6 +41,7 @@ fn generate_effects(op: &OperationSpec, ctx: &ExecutionContext) -> Result<Vec<Sc
             discount_curve_id.as_ref(),
             *bp,
             ctx,
+            env,
         ),
         OperationSpec::CurveNodeBp {
             curve_kind,
@@ -50,6 +56,7 @@ fn generate_effects(op: &OperationSpec, ctx: &ExecutionContext) -> Result<Vec<Sc
             nodes,
             *match_mode,
             ctx,
+            env,
         ),
         OperationSpec::VolIndexParallelPts { curve_id, points } => {
             adapters::curves::vol_index_parallel_effects(curve_id, *points, ctx)
@@ -215,6 +222,100 @@ fn market_target_for_curve_update(
     market_target_for_id(op, storage.id())
 }
 
+fn replace_curve_id(op: &OperationSpec) -> Option<&CurveId> {
+    match op {
+        OperationSpec::CurveParallelBp {
+            curve_kind: CurveKind::ParCDS | CurveKind::Inflation,
+            curve_id,
+            ..
+        }
+        | OperationSpec::CurveNodeBp {
+            curve_kind: CurveKind::ParCDS | CurveKind::Inflation,
+            curve_id,
+            ..
+        } => Some(curve_id),
+        _ => None,
+    }
+}
+
+/// Length of the leading run of independent ParCDS / inflation replacements.
+pub(super) fn independent_replace_curve_run_len(ops: &[OperationSpec]) -> usize {
+    let mut seen: HashSet<&str> = HashSet::default();
+    let mut n = 0;
+    for op in ops {
+        let Some(id) = replace_curve_id(op) else {
+            break;
+        };
+        if !seen.insert(id.as_str()) {
+            break;
+        }
+        n += 1;
+    }
+    n
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn is_par_cds_replace(op: &OperationSpec) -> bool {
+    matches!(
+        op,
+        OperationSpec::CurveParallelBp {
+            curve_kind: CurveKind::ParCDS,
+            ..
+        } | OperationSpec::CurveNodeBp {
+            curve_kind: CurveKind::ParCDS,
+            ..
+        }
+    )
+}
+
+/// Whether a replace-curve run should generate in parallel.
+///
+/// Parallel generation is enabled only when the run contains at least two
+/// ParCDS bootstrap replacements. Inflation-only runs stay serial.
+pub(super) fn should_parallel_replace_curves(ops: &[OperationSpec]) -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = ops;
+        false
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        ops.iter().filter(|op| is_par_cds_replace(op)).count() >= 2
+    }
+}
+
+/// Generate ParCDS / inflation replacement effects, in parallel when enabled.
+pub(super) fn generate_replace_curve_effects_parallel(
+    ops: &[OperationSpec],
+    ctx: &ExecutionContext,
+    env: &HazardApplyEnv<'_>,
+) -> Result<Vec<Vec<ScenarioEffect>>> {
+    let market = &*ctx.market;
+    let as_of = ctx.as_of;
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use rayon::prelude::*;
+        ops.par_iter()
+            .map(|op| adapters::curves::generate_replace_curve_effects(op, market, as_of, env))
+            .collect()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        ops.iter()
+            .map(|op| adapters::curves::generate_replace_curve_effects(op, market, as_of, env))
+            .collect()
+    }
+}
+
+/// Mutable sinks shared while applying one operation's effects.
+pub(super) struct EffectSink<'a> {
+    pub pending_bumps: &'a mut Vec<MarketBump>,
+    pub deferred_stmts: &'a mut Vec<ScenarioEffect>,
+    pub warnings: &'a mut Vec<Warning>,
+    pub applied: &'a mut usize,
+    pub changes: &'a mut ScenarioChangeManifest,
+}
+
 /// Process a single op's effects, threading them through `pending_bumps`,
 /// `deferred_stmts`, and the running counters. Extracted from `apply` to keep
 /// the main pipeline readable; the dispatch is otherwise identical to the
@@ -222,44 +323,51 @@ fn market_target_for_curve_update(
 pub(super) fn process_effects(
     op: &OperationSpec,
     ctx: &mut ExecutionContext,
-    pending_bumps: &mut Vec<MarketBump>,
-    deferred_stmts: &mut Vec<ScenarioEffect>,
-    warnings: &mut Vec<Warning>,
-    applied: &mut usize,
-    changes: &mut ScenarioChangeManifest,
+    env: &HazardApplyEnv<'_>,
+    sink: &mut EffectSink<'_>,
 ) -> Result<()> {
-    let effects = generate_effects(op, ctx)?;
+    let effects = generate_effects(op, ctx, env)?;
+    apply_generated_effects(op, effects, ctx, sink)
+}
+
+/// Apply precomputed effects for one operation, preserving flush-before-write order.
+pub(super) fn apply_generated_effects(
+    op: &OperationSpec,
+    effects: Vec<ScenarioEffect>,
+    ctx: &mut ExecutionContext,
+    sink: &mut EffectSink<'_>,
+) -> Result<()> {
     for effect in effects {
         match effect {
             ScenarioEffect::MarketBump(b) => {
                 // Within a single op's effects, two bumps targeting the same
                 // curve/surface/FX pair must compose sequentially rather than
                 // collapse into one batch entry; flush before queueing if so.
-                if would_conflict_with_pending(pending_bumps, &b) {
-                    flush_pending_bumps(pending_bumps, ctx.market)?;
+                if would_conflict_with_pending(sink.pending_bumps, &b) {
+                    flush_pending_bumps(sink.pending_bumps, ctx.market)?;
                 }
                 match market_target_for_bump(op, &b) {
-                    Some(target) => changes.record_market_target(target),
-                    None => changes.all_dirty = true,
+                    Some(target) => sink.changes.record_market_target(target),
+                    None => sink.changes.all_dirty = true,
                 }
-                pending_bumps.push(b);
-                *applied += 1;
+                sink.pending_bumps.push(b);
+                *sink.applied += 1;
             }
-            ScenarioEffect::Warning(w) => warnings.push(w),
+            ScenarioEffect::Warning(w) => sink.warnings.push(w),
             ScenarioEffect::UpdateCurve(storage) => {
                 // Flush any pending bumps so the curve replacement observes
                 // the bumped market state in the same order as the original
                 // per-effect application.
-                flush_pending_bumps(pending_bumps, ctx.market)?;
+                flush_pending_bumps(sink.pending_bumps, ctx.market)?;
                 match market_target_for_curve_update(op, &storage) {
-                    Some(target) => changes.record_market_target(target),
-                    None => changes.all_dirty = true,
+                    Some(target) => sink.changes.record_market_target(target),
+                    None => sink.changes.all_dirty = true,
                 }
                 *ctx.market = std::mem::take(ctx.market).insert(storage);
-                *applied += 1;
+                *sink.applied += 1;
             }
             ScenarioEffect::InstrumentPriceShock { types, attrs, pct } => {
-                flush_pending_bumps(pending_bumps, ctx.market)?;
+                flush_pending_bumps(sink.pending_bumps, ctx.market)?;
                 let outcome = apply_instrument_shock(
                     types.as_deref(),
                     attrs.as_ref(),
@@ -269,12 +377,13 @@ pub(super) fn process_effects(
                     adapters::instruments::apply_instrument_type_price_shock,
                     adapters::instruments::apply_instrument_attr_price_shock,
                 );
-                *applied += outcome.count;
-                changes.record_instrument_indices(outcome.changed_indices);
-                warnings.extend(outcome.warnings);
+                *sink.applied += outcome.count;
+                sink.changes
+                    .record_instrument_indices(outcome.changed_indices);
+                sink.warnings.extend(outcome.warnings);
             }
             ScenarioEffect::InstrumentSpreadShock { types, attrs, bp } => {
-                flush_pending_bumps(pending_bumps, ctx.market)?;
+                flush_pending_bumps(sink.pending_bumps, ctx.market)?;
                 let outcome = apply_instrument_shock(
                     types.as_deref(),
                     attrs.as_ref(),
@@ -284,30 +393,31 @@ pub(super) fn process_effects(
                     adapters::instruments::apply_instrument_type_spread_shock,
                     adapters::instruments::apply_instrument_attr_spread_shock,
                 );
-                *applied += outcome.count;
-                changes.record_instrument_indices(outcome.changed_indices);
-                warnings.extend(outcome.warnings);
+                *sink.applied += outcome.count;
+                sink.changes
+                    .record_instrument_indices(outcome.changed_indices);
+                sink.warnings.extend(outcome.warnings);
             }
             ScenarioEffect::AssetCorrelationShock { delta_pts } => {
-                flush_pending_bumps(pending_bumps, ctx.market)?;
+                flush_pending_bumps(sink.pending_bumps, ctx.market)?;
                 let (count, indices, ws) =
                     apply_correlation_effect(CorrelationKind::Asset, delta_pts, ctx);
-                *applied += count;
-                changes.record_instrument_indices(indices);
-                warnings.extend(ws);
+                *sink.applied += count;
+                sink.changes.record_instrument_indices(indices);
+                sink.warnings.extend(ws);
             }
             ScenarioEffect::PrepayDefaultCorrelationShock { delta_pts } => {
-                flush_pending_bumps(pending_bumps, ctx.market)?;
+                flush_pending_bumps(sink.pending_bumps, ctx.market)?;
                 let (count, indices, ws) =
                     apply_correlation_effect(CorrelationKind::PrepayDefault, delta_pts, ctx);
-                *applied += count;
-                changes.record_instrument_indices(indices);
-                warnings.extend(ws);
+                *sink.applied += count;
+                sink.changes.record_instrument_indices(indices);
+                sink.warnings.extend(ws);
             }
             stmt @ (ScenarioEffect::StmtForecastPercent { .. }
             | ScenarioEffect::StmtForecastAssign { .. }
             | ScenarioEffect::RateBinding { .. }) => {
-                deferred_stmts.push(stmt);
+                sink.deferred_stmts.push(stmt);
             }
         }
     }
@@ -387,4 +497,79 @@ fn would_conflict_with_pending(pending: &[MarketBump], incoming: &MarketBump) ->
         }
         _ => false,
     })
+}
+
+#[cfg(test)]
+mod replace_curve_tests {
+    use super::*;
+    use crate::spec::TenorMatchMode;
+
+    fn par_cds_node(id: &str) -> OperationSpec {
+        OperationSpec::CurveNodeBp {
+            curve_kind: CurveKind::ParCDS,
+            curve_id: id.into(),
+            discount_curve_id: None,
+            nodes: vec![("5Y".into(), 10.0)],
+            match_mode: TenorMatchMode::Exact,
+        }
+    }
+
+    fn inflation_node(id: &str) -> OperationSpec {
+        OperationSpec::CurveNodeBp {
+            curve_kind: CurveKind::Inflation,
+            curve_id: id.into(),
+            discount_curve_id: None,
+            nodes: vec![("5Y".into(), 10.0)],
+            match_mode: TenorMatchMode::Exact,
+        }
+    }
+
+    #[test]
+    fn independent_replace_curve_run_len_counts_distinct_ids() {
+        let ops = vec![
+            par_cds_node("A"),
+            par_cds_node("B"),
+            par_cds_node("A"),
+            par_cds_node("C"),
+        ];
+        assert_eq!(independent_replace_curve_run_len(&ops), 2);
+    }
+
+    #[test]
+    fn independent_replace_curve_run_len_stops_at_non_replace_op() {
+        let ops = vec![
+            par_cds_node("A"),
+            OperationSpec::CurveParallelBp {
+                curve_kind: CurveKind::Discount,
+                curve_id: "USD-OIS".into(),
+                discount_curve_id: None,
+                bp: 1.0,
+            },
+        ];
+        assert_eq!(independent_replace_curve_run_len(&ops), 1);
+    }
+
+    #[test]
+    fn should_parallel_replace_curves_requires_two_par_cds() {
+        let one = vec![par_cds_node("A")];
+        assert!(!should_parallel_replace_curves(&one));
+
+        let two = vec![par_cds_node("A"), par_cds_node("B")];
+        #[cfg(not(target_arch = "wasm32"))]
+        assert!(should_parallel_replace_curves(&two));
+        #[cfg(target_arch = "wasm32")]
+        assert!(!should_parallel_replace_curves(&two));
+    }
+
+    #[test]
+    fn should_parallel_replace_curves_inflation_only_stays_serial() {
+        let ops = vec![inflation_node("CPI-US"), inflation_node("CPI-EU")];
+        assert!(!should_parallel_replace_curves(&ops));
+    }
+
+    #[test]
+    fn should_parallel_replace_curves_one_par_cds_with_inflation_stays_serial() {
+        let ops = vec![par_cds_node("A"), inflation_node("CPI")];
+        assert!(!should_parallel_replace_curves(&ops));
+    }
 }

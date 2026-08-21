@@ -600,7 +600,7 @@ fn empty_scenario_json() -> String {
         serde_wasm_bindgen::to_value(&Vec::<finstack_quant_scenarios::OperationSpec>::new())
             .expect("operations");
     let value =
-        build_scenario_spec("stress", operations, None, None, None, None).expect("scenario");
+        build_scenario_spec("stress", operations, None, None, None, None, None).expect("scenario");
     let spec: finstack_quant_scenarios::ScenarioSpec =
         serde_wasm_bindgen::from_value(value).expect("typed scenario");
     serde_json::to_string(&spec).expect("scenario json")

@@ -17,6 +17,7 @@
 //! native PV and no matrix quote fail closed.
 
 use crate::error::{Error, Result};
+use crate::evaluation::POSITION_PARALLEL_MIN_POSITIONS;
 use crate::types::{EntityId, PositionId};
 use crate::valuation::PortfolioValuation;
 use finstack_quant_core::currency::Currency;
@@ -351,18 +352,16 @@ pub fn aggregate_metrics(
 
     let position_entries: Vec<_> = valuation.position_values.iter().collect();
 
-    let collected_results: Vec<Result<PositionMetricData>> = position_entries
-        .par_iter()
-        .filter_map(|(position_id, position_value)| {
+    let collect_position =
+        |(position_id, position_value): (&PositionId, &crate::valuation::PositionValue)| {
             position_value.valuation_result.as_ref().map(|val_result| {
-                let metrics: IndexMap<String, f64> = val_result
+                let metrics: IndexMap<MetricId, f64> = val_result
                     .measures
                     .iter()
                     .map(|(id, v)| {
-                        let metric_id = id.as_str().to_string();
                         let scaled =
-                            scale_position_metric(&metric_id, *v, position_value.metric_scale);
-                        (metric_id, scaled)
+                            scale_position_metric(id.as_str(), *v, position_value.metric_scale);
+                        (id.clone(), scaled)
                     })
                     .collect();
                 let fx_rate = fx_rate_for_position(position_value, base_currency, market, as_of)?;
@@ -374,8 +373,24 @@ pub fn aggregate_metrics(
                     fx_rate,
                 })
             })
-        })
-        .collect();
+        };
+
+    let collected_results: Vec<Result<PositionMetricData>> =
+        if position_entries.len() >= POSITION_PARALLEL_MIN_POSITIONS {
+            position_entries
+                .par_iter()
+                .filter_map(|(position_id, position_value)| {
+                    collect_position((position_id, position_value))
+                })
+                .collect()
+        } else {
+            position_entries
+                .iter()
+                .filter_map(|(position_id, position_value)| {
+                    collect_position((position_id, position_value))
+                })
+                .collect()
+        };
     let collected = collected_results
         .into_iter()
         .collect::<Result<Vec<PositionMetricData>>>()?;
@@ -449,7 +464,7 @@ struct PositionMetricData {
     position_id: PositionId,
     entity_id: EntityId,
     currency: Currency,
-    metrics: IndexMap<String, f64>,
+    metrics: IndexMap<MetricId, f64>,
     fx_rate: f64,
 }
 
@@ -484,21 +499,22 @@ fn aggregate_collected_metrics(collected: Vec<PositionMetricData>) -> PortfolioM
         let entity_id = data.entity_id;
 
         for (metric_id, value) in &data.metrics {
-            if !is_summable(metric_id) {
+            let metric_name = metric_id.as_str();
+            if !is_summable(metric_name) {
                 // Present per position but never rolled up: record the name so
                 // the omission is visible on the result.
-                unaggregated.insert(metric_id.clone());
+                unaggregated.insert(metric_name.to_string());
             } else {
                 if !value.is_finite() {
                     tracing::warn!(
-                        metric_id = %metric_id,
+                        metric_id = %metric_name,
                         position_id = %data.position_id,
                         value,
                         "Skipping non-finite metric value"
                     );
                     skipped_metrics.push(SkippedMetric {
                         position_id: data.position_id.clone(),
-                        metric_id: metric_id.clone(),
+                        metric_id: metric_name.to_string(),
                         value: *value,
                     });
                     continue;
@@ -506,8 +522,8 @@ fn aggregate_collected_metrics(collected: Vec<PositionMetricData>) -> PortfolioM
 
                 let key = Arc::clone(
                     intern
-                        .entry(metric_id.clone())
-                        .or_insert_with(|| Arc::from(metric_id.as_str())),
+                        .entry(metric_name.to_string())
+                        .or_insert_with(|| Arc::from(metric_name)),
                 );
                 let value_base = *value * fx_rate;
 
@@ -529,7 +545,11 @@ fn aggregate_collected_metrics(collected: Vec<PositionMetricData>) -> PortfolioM
             data.position_id,
             PositionMetrics {
                 currency: data.currency,
-                metrics: data.metrics,
+                metrics: data
+                    .metrics
+                    .into_iter()
+                    .map(|(id, value)| (id.as_str().to_string(), value))
+                    .collect(),
             },
         );
     }
@@ -856,9 +876,9 @@ mod tests {
     fn aggregate_metrics_output_order_is_deterministic_within_a_run() {
         fn make_data(name: &str, entity: &str) -> PositionMetricData {
             let mut metrics = indexmap::IndexMap::new();
-            metrics.insert("dv01".into(), 100.0);
-            metrics.insert("cs01".into(), 50.0);
-            metrics.insert("fx_delta".into(), 25.0);
+            metrics.insert(MetricId::Dv01, 100.0);
+            metrics.insert(MetricId::Cs01, 50.0);
+            metrics.insert(MetricId::FxDelta, 25.0);
             PositionMetricData {
                 position_id: PositionId::from(name.to_string()),
                 entity_id: EntityId::from(entity.to_string()),

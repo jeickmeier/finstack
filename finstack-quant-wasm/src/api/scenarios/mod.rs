@@ -68,8 +68,9 @@ fn parse_scenario_spec_inner(
 ///
 /// # Errors
 ///
-/// Rejects malformed structured specs, composition that contains more than one
-/// time-roll operation, or failure to convert the composed specification.
+/// Rejects malformed structured specs, input specs with mixed
+/// `hazard_bump_mode` values, composition that contains more than one time-roll
+/// operation, or failure to convert the composed specification.
 /// @param specs - Validated ScenarioSpec objects to compose in priority order.
 #[wasm_bindgen(js_name = composeScenarios)]
 pub fn compose_scenarios(specs: JsValue) -> Result<JsValue, JsValue> {
@@ -194,9 +195,9 @@ pub fn build_template_component(template_id: &str, component_id: &str) -> Result
 /// # Errors
 ///
 /// Rejects malformed or schema-incompatible `operations`, an unsupported
-/// `resolution_mode`, a blank scenario ID, multiple time-roll operations,
-/// invalid operation identifiers or numeric fields, variant-specific operation
-/// violations, or failure to serialize the scenario.
+/// `resolution_mode` or `hazard_bump_mode`, a blank scenario ID, multiple
+/// time-roll operations, invalid operation identifiers or numeric fields,
+/// variant-specific operation violations, or failure to serialize the scenario.
 /// @param id - Scenario identifier stored on the constructed spec.
 /// @param operations - Structured scenario operation specifications in execution order.
 /// @param name - Optional human-readable scenario name.
@@ -206,6 +207,8 @@ pub fn build_template_component(template_id: &str, component_id: &str) -> Result
 ///   Python `priority=0` keyword default.
 /// @param resolution_mode - Optional hierarchy conflict policy:
 ///   `"most_specific_wins"` (default) or `"cumulative"`.
+/// @param hazard_bump_mode - Optional ParCDS delivery:
+///   `"solve_to_par"` (default) or `"first_order_shift"`.
 #[wasm_bindgen(js_name = buildScenarioSpec)]
 pub fn build_scenario_spec(
     id: &str,
@@ -214,10 +217,16 @@ pub fn build_scenario_spec(
     description: Option<String>,
     priority: Option<i32>,
     resolution_mode: Option<String>,
+    hazard_bump_mode: Option<String>,
 ) -> Result<JsValue, JsValue> {
     let operations: Vec<finstack_quant_scenarios::OperationSpec> =
         serde_wasm_bindgen::from_value(operations).map_err(to_js_err)?;
     let resolution_mode = resolution_mode
+        .map(|value| serde_json::from_value(serde_json::Value::String(value)))
+        .transpose()
+        .map_err(to_js_err)?
+        .unwrap_or_default();
+    let hazard_bump_mode = hazard_bump_mode
         .map(|value| serde_json::from_value(serde_json::Value::String(value)))
         .transpose()
         .map_err(to_js_err)?
@@ -229,6 +238,7 @@ pub fn build_scenario_spec(
         operations,
         priority: priority.unwrap_or_default(),
         resolution_mode,
+        hazard_bump_mode,
     };
     spec.validate().map_err(to_js_err)?;
     crate::utils::to_js_value(&spec)
@@ -396,7 +406,7 @@ pub fn compute_horizon_return(
 mod tests {
     use super::*;
     use finstack_quant_core::market_data::hierarchy::ResolutionMode;
-    use finstack_quant_scenarios::{OperationSpec, ScenarioSpec, TimeRollMode};
+    use finstack_quant_scenarios::{HazardBumpMode, OperationSpec, ScenarioSpec, TimeRollMode};
 
     fn empty_spec(id: &str, priority: i32) -> ScenarioSpec {
         ScenarioSpec {
@@ -406,6 +416,7 @@ mod tests {
             operations: Vec::new(),
             priority,
             resolution_mode: ResolutionMode::default(),
+            hazard_bump_mode: Default::default(),
         }
     }
 
@@ -440,6 +451,23 @@ mod tests {
             .expect_err("duplicate time rolls should be rejected");
         assert!(
             error.contains("TimeRollForward"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn compose_helper_rejects_mixed_hazard_bump_modes() {
+        let mut first_order = empty_spec("first-order", 0);
+        first_order.hazard_bump_mode = HazardBumpMode::FirstOrderShift;
+        let solve_to_par = empty_spec("solve-to-par", 1);
+
+        let error = compose_scenarios_inner(vec![first_order, solve_to_par])
+            .expect_err("mixed hazard bump modes should be rejected");
+        assert!(
+            error.contains("first-order")
+                && error.contains("first_order_shift")
+                && error.contains("solve-to-par")
+                && error.contains("solve_to_par"),
             "unexpected error: {error}"
         );
     }

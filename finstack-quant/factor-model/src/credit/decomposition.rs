@@ -345,32 +345,30 @@ pub fn decompose_levels(
     //
     // bucket_paths[issuer][k] = "IG.EU.FIN" or analogous.
     let mut bucket_paths: BTreeMap<IssuerId, Vec<String>> = BTreeMap::new();
+    let mut path_buf = String::new();
     for (issuer, r) in &resolved {
         let mut paths = Vec::with_capacity(num_levels);
         for k in 0..num_levels {
-            match model.hierarchy.bucket_path(r.tags, k) {
-                Some(p) => paths.push(p),
-                None => {
-                    // Find the first missing dimension key for the diagnostic.
-                    use crate::credit::hierarchy::dimension_key;
-                    let missing_key = model.hierarchy.levels[..=k]
-                        .iter()
-                        .find(|dim| !r.tags.0.contains_key(&dimension_key(dim)))
-                        .map(dimension_key)
-                        .unwrap_or_else(|| format!("level_{k}"));
-                    return Err(DecompositionError::MissingTag {
-                        issuer_id: (*issuer).clone(),
-                        dimension: missing_key,
-                    });
-                }
+            if !model.hierarchy.write_bucket_path(r.tags, k, &mut path_buf) {
+                // Find the first missing dimension key for the diagnostic.
+                use crate::credit::hierarchy::dimension_key;
+                let missing_key = model.hierarchy.levels[..=k]
+                    .iter()
+                    .find(|dim| !r.tags.0.contains_key(dimension_key(dim)))
+                    .map_or_else(|| format!("level_{k}"), |dim| dimension_key(dim).to_owned());
+                return Err(DecompositionError::MissingTag {
+                    issuer_id: (*issuer).clone(),
+                    dimension: missing_key,
+                });
             }
+            paths.push(path_buf.clone());
         }
         bucket_paths.insert((*issuer).clone(), paths);
     }
 
-    let betas_owned: BTreeMap<IssuerId, IssuerBetas> = resolved
+    let betas_ref: BTreeMap<&IssuerId, &IssuerBetas> = resolved
         .iter()
-        .map(|(issuer, resolved)| ((*issuer).clone(), resolved.betas.clone()))
+        .map(|(issuer, resolved)| (*issuer, resolved.betas))
         .collect();
     let mut folded_owned: BTreeMap<IssuerId, Vec<bool>> = BTreeMap::new();
     for (issuer, level_index) in folded_pairs {
@@ -394,7 +392,7 @@ pub fn decompose_levels(
     let peel = super::peel::peel_single_observation(super::peel::PeelSingleObservation {
         observed_spreads,
         observed_generic,
-        betas: &betas_owned,
+        betas: &betas_ref,
         bucket_paths: &bucket_paths,
         folded: &folded_owned,
         num_levels,

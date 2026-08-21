@@ -858,6 +858,7 @@ dependencies = [
 name = "finstack-quant-features"
 version = "0.7.0"
 dependencies = [
+ "criterion",
  "finstack-quant-core",
  "schemars",
  "serde",
@@ -965,6 +966,7 @@ dependencies = [
  "finstack-quant-valuations",
  "indexmap",
  "jsonschema",
+ "rayon",
  "schemars",
  "serde",
  "serde_json",

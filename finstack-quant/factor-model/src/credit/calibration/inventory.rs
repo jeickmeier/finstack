@@ -44,7 +44,9 @@ pub(super) fn build_bucket_inventory(
     // dimensions present in the hierarchy but unseen still appear (with an
     // empty set) — useful for diagnostics consumers.
     for dim in &hierarchy.levels {
-        tag_taxonomy.entry(dimension_key(dim)).or_default();
+        tag_taxonomy
+            .entry(dimension_key(dim).to_owned())
+            .or_default();
     }
 
     // Every issuer in the panel is inventoried; `modes` supplies the universe
@@ -59,7 +61,7 @@ pub(super) fn build_bucket_inventory(
         // matcher's factor IDs, silently corrupting factor identity.
         for dim in &hierarchy.levels {
             let key = dimension_key(dim);
-            if let Some(v) = issuer_tags.0.get(&key) {
+            if let Some(v) = issuer_tags.0.get(key) {
                 if v.contains('.') {
                     return Err(validation_err(format!(
                         "CreditCalibrator: issuer {:?} tag {key:?} = {v:?} contains '.', \
@@ -67,29 +69,34 @@ pub(super) fn build_bucket_inventory(
                         issuer.as_str()
                     )));
                 }
-                tag_taxonomy.entry(key).or_default().insert(v.clone());
+                tag_taxonomy
+                    .entry(key.to_owned())
+                    .or_default()
+                    .insert(v.clone());
             }
         }
         let mut paths = Vec::with_capacity(num_levels);
+        let mut path_buf = String::new();
         for k in 0..num_levels {
-            let path = hierarchy.bucket_path(&issuer_tags, k).ok_or_else(|| {
+            if !hierarchy.write_bucket_path(&issuer_tags, k, &mut path_buf) {
                 let missing = hierarchy.levels[..=k]
                     .iter()
-                    .find(|d| !issuer_tags.0.contains_key(&dimension_key(d)))
-                    .map(dimension_key)
-                    .unwrap_or_else(|| format!("level_{k}"));
-                validation_err(format!(
+                    .find(|d| !issuer_tags.0.contains_key(dimension_key(d)))
+                    .map_or_else(|| format!("level_{k}"), |d| dimension_key(d).to_owned());
+                return Err(validation_err(format!(
                     "CreditCalibrator: issuer {:?} is missing tag for dimension {:?}",
                     issuer.as_str(),
                     missing
-                ))
-            })?;
-            *bucket_sizes_per_level[k].entry(path.clone()).or_insert(0) += 1;
+                )));
+            }
+            *bucket_sizes_per_level[k]
+                .entry(path_buf.clone())
+                .or_insert(0) += 1;
             bucket_members[k]
-                .entry(path.clone())
+                .entry(path_buf.clone())
                 .or_default()
                 .insert(issuer.clone());
-            paths.push(path);
+            paths.push(path_buf.clone());
         }
         bucket_paths.insert(issuer.clone(), paths);
     }

@@ -291,4 +291,23 @@ mod tests {
         assert!((deser.fixed_rate - tarn.fixed_rate).abs() < 1e-12);
         assert!((deser.target_coupon - tarn.target_coupon).abs() < 1e-12);
     }
+
+    #[test]
+    fn value_requires_explicit_pricer() {
+        use crate::instruments::common_impl::traits::Instrument;
+        use finstack_quant_core::market_data::context::MarketContext;
+        use time::macros::date;
+
+        let tarn = Tarn::example();
+        let market = MarketContext::default();
+        let as_of = date!(2025 - 01 - 01);
+        let err = tarn
+            .value(&market, as_of)
+            .expect_err("value must require MC pricer");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("MC pricer"),
+            "expected MC pricer in error message, got: {msg}"
+        );
+    }
 }

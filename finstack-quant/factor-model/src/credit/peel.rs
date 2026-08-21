@@ -21,8 +21,9 @@ pub(crate) struct PeelSingleObservation<'a> {
     pub observed_spreads: &'a BTreeMap<IssuerId, f64>,
     /// Observed generic factor in **bp**.
     pub observed_generic: f64,
-    /// Per-issuer betas (unit β for runtime-only names).
-    pub betas: &'a BTreeMap<IssuerId, IssuerBetas>,
+    /// Per-issuer betas (unit β for runtime-only names). Keys are borrowed
+    /// so callers can share a single unit-β row across runtime issuers.
+    pub betas: &'a BTreeMap<&'a IssuerId, &'a IssuerBetas>,
     /// Dotted bucket path per issuer at each hierarchy level.
     pub bucket_paths: &'a BTreeMap<IssuerId, Vec<String>>,
     /// Folded levels per issuer (`true` → skip that level, `β_k = 0`).
@@ -62,7 +63,7 @@ pub(crate) fn peel_single_observation(params: PeelSingleObservation<'_>) -> Sing
     let mut by_level = Vec::with_capacity(num_levels);
     #[allow(clippy::needless_range_loop)]
     for k in 0..num_levels {
-        let mut sums: BTreeMap<String, (f64, f64)> = BTreeMap::new();
+        let mut sums: BTreeMap<&str, (f64, f64)> = BTreeMap::new();
         for issuer in observed_spreads.keys() {
             if is_folded(folded, issuer, k) {
                 continue;
@@ -82,14 +83,16 @@ pub(crate) fn peel_single_observation(params: PeelSingleObservation<'_>) -> Sing
             if weight <= 0.0 {
                 continue;
             }
-            let entry = sums.entry(path.clone()).or_insert((0.0, 0.0));
+            let entry = sums.entry(path.as_str()).or_insert((0.0, 0.0));
             entry.0 += residual * weight;
             entry.1 += weight;
         }
 
         let values: BTreeMap<String, f64> = sums
             .into_iter()
-            .filter_map(|(bucket, (sum, wsum))| (wsum > 0.0).then_some((bucket, sum / wsum)))
+            .filter_map(|(bucket, (sum, wsum))| {
+                (wsum > 0.0).then_some((bucket.to_owned(), sum / wsum))
+            })
             .collect();
 
         for issuer in observed_spreads.keys() {
@@ -107,8 +110,8 @@ pub(crate) fn peel_single_observation(params: PeelSingleObservation<'_>) -> Sing
                 .get(issuer)
                 .and_then(|row| row.levels.get(k).copied())
                 .unwrap_or(1.0);
-            if let Some(prev) = residuals.get(issuer).copied() {
-                residuals.insert(issuer.clone(), prev - beta_k * level_value);
+            if let Some(prev) = residuals.get_mut(issuer) {
+                *prev -= beta_k * level_value;
             }
         }
 

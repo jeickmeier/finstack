@@ -4,7 +4,7 @@
 //! and common `PnlAttribution` assembly. Currency conversion itself lives on
 //! [`MarketContext::convert_money`] — call sites here use it directly.
 
-use super::types::{AttributionMethod, CarryDetail, PnlAttribution, SourceLine};
+use super::types::{AttributionFactor, AttributionMethod, CarryDetail, PnlAttribution, SourceLine};
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCountContext, Tenor};
@@ -20,10 +20,85 @@ use finstack_quant_valuations::instruments::fixed_income::bond::pricing::quote_c
 };
 use finstack_quant_valuations::instruments::Bond;
 use finstack_quant_valuations::instruments::Instrument;
+use finstack_quant_valuations::instruments::MarketDependencies;
 use finstack_quant_valuations::instruments::PricingOptions;
 use finstack_quant_valuations::metrics::collect_cashflows_in_period;
 use finstack_quant_valuations::metrics::MetricId;
 use std::sync::Arc;
+
+/// Families the instrument declares a pricing dependency on.
+///
+/// [`MarketDependencies`] has no correlation field, so correlation restores
+/// stay snapshot-gated. A failed dependency lookup fails open (treat every
+/// family as used) so a missing declaration cannot drop a live factor.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct InstrumentFactorUse {
+    pub rates: bool,
+    pub credit: bool,
+    pub inflation: bool,
+    pub fx: bool,
+    pub volatility: bool,
+    pub scalars: bool,
+}
+
+impl InstrumentFactorUse {
+    pub(crate) const fn all() -> Self {
+        Self {
+            rates: true,
+            credit: true,
+            inflation: true,
+            fx: true,
+            volatility: true,
+            scalars: true,
+        }
+    }
+
+    pub(crate) fn of(instrument: &dyn Instrument) -> Self {
+        match instrument.market_dependencies() {
+            Ok(deps) => Self::from_deps(&deps, instrument),
+            Err(_) => Self::all(),
+        }
+    }
+
+    pub(crate) fn from_deps(deps: &MarketDependencies, instrument: &dyn Instrument) -> Self {
+        let rates =
+            !deps.curves.discount_curves.is_empty() || !deps.curves.forward_curves.is_empty();
+        let credit = !deps.curves.credit_curves.is_empty();
+        let inflation = !deps.curves.inflation_curves.is_empty();
+        let fx = !deps.fx_pairs.is_empty() || instrument.fx_exposure().is_some();
+        let volatility = !deps.volatility_dependencies.is_empty();
+        let scalars =
+            !deps.market_scalar_ids.is_empty() || instrument.dividend_schedule_id().is_some();
+        // An empty dependency set is "undeclared", not "uses nothing". Test
+        // stubs and some custom instruments omit the declaration; fail open
+        // so a live FX/scalar/credit factor is not dropped into residual.
+        if !rates && !credit && !inflation && !fx && !volatility && !scalars {
+            return Self::all();
+        }
+        Self {
+            rates,
+            credit,
+            inflation,
+            fx,
+            volatility,
+            scalars,
+        }
+    }
+
+    pub(crate) fn uses_attribution_factor(self, factor: &AttributionFactor) -> bool {
+        match factor {
+            AttributionFactor::Carry
+            | AttributionFactor::ModelParameters
+            | AttributionFactor::Correlations => true,
+            AttributionFactor::RatesCurves => self.rates,
+            AttributionFactor::CreditCurves => self.credit,
+            AttributionFactor::InflationCurves => self.inflation,
+            AttributionFactor::Fx => self.fx,
+            AttributionFactor::Volatility => self.volatility,
+            AttributionFactor::MarketScalars => self.scalars,
+        }
+    }
+}
 
 /// Reprice an instrument at a given date with a market context.
 ///
@@ -191,7 +266,8 @@ pub(crate) struct TotalReturnCarryInputs {
 /// Gather the repricing-based pieces of the carry decomposition over `[as_of_t0, as_of_t1]`,
 /// pricing on `market` (the market on which `theta` was computed: `market_t0` for the parallel
 /// path, the accumulated market for the waterfall path). Accrued and YTM are read via the
-/// instrument's metrics; the flat-YTM window values isolate the constant-yield aging and
+/// instrument's metrics (Accrued and YTM share the T₀ `price_with_metrics` call);
+/// the flat-YTM window values isolate the constant-yield aging and
 /// curve-shape effects with the flat-vs-market level basis cancelled.
 pub(crate) fn total_return_carry_inputs(
     instrument: &dyn Instrument,
@@ -218,24 +294,41 @@ pub(crate) fn total_return_carry_inputs(
             }
         };
 
-    let accrued_at = |as_of: Date| -> Option<f64> {
-        instrument
-            .price_with_metrics(
-                market,
-                as_of,
-                &[MetricId::Accrued],
-                PricingOptions::default(),
-            )
-            .ok()
-            .and_then(|r| r.measures.get(MetricId::Accrued.as_str()).copied())
+    let t0_metrics = instrument
+        .price_with_metrics(
+            market,
+            as_of_t0,
+            &[MetricId::Accrued, MetricId::Ytm],
+            PricingOptions::default(),
+        )
+        .ok();
+    let metric = |result: Option<&finstack_quant_valuations::results::ValuationResult>,
+                  id: MetricId|
+     -> Option<f64> {
+        result
+            .and_then(|r| r.measures.get(id.as_str()).copied())
             .filter(|v| v.is_finite())
     };
-    let delta_accrued = match (accrued_at(as_of_t0), accrued_at(as_of_t1)) {
+    let accrued_t0 = metric(t0_metrics.as_ref(), MetricId::Accrued);
+    let ytm = metric(t0_metrics.as_ref(), MetricId::Ytm);
+    let accrued_t1 = instrument
+        .price_with_metrics(
+            market,
+            as_of_t1,
+            &[MetricId::Accrued],
+            PricingOptions::default(),
+        )
+        .ok()
+        .and_then(|r| r.measures.get(MetricId::Accrued.as_str()).copied())
+        .filter(|v| v.is_finite());
+    let delta_accrued = match (accrued_t0, accrued_t1) {
         (Some(a0), Some(a1)) => Some(Money::new(a1 - a0, currency)),
         _ => None,
     };
 
-    let flat_window_diff = flat_window_diff(instrument, market, as_of_t0, as_of_t1, currency);
+    let flat_window_diff = ytm.and_then(|ytm| {
+        flat_window_diff_from_ytm(instrument, market, as_of_t0, as_of_t1, currency, ytm)
+    });
     let funding_cost = reprice_funding_cost(
         instrument,
         market,
@@ -255,24 +348,15 @@ pub(crate) fn total_return_carry_inputs(
     }
 }
 
-/// `F_t1 - F_t0` on a flat-YTM(t0) curve, or `None` if YTM / flat pricing is unavailable.
-fn flat_window_diff(
+/// `F_t1 - F_t0` on a flat-YTM(t0) curve, or `None` if flat pricing is unavailable.
+fn flat_window_diff_from_ytm(
     instrument: &dyn Instrument,
     market: &MarketContext,
     as_of_t0: Date,
     as_of_t1: Date,
     currency: Currency,
+    ytm: f64,
 ) -> Option<Money> {
-    let ytm = instrument
-        .price_with_metrics(
-            market,
-            as_of_t0,
-            &[MetricId::Ytm],
-            PricingOptions::default(),
-        )
-        .ok()
-        .and_then(|r| r.measures.get(MetricId::Ytm.as_str()).copied())
-        .filter(|y| y.is_finite())?;
     let flat = build_flat_ytm_market(instrument, market, ytm).ok()?;
     let f_t0 = instrument.value(&flat, as_of_t0).ok()?.amount();
     let f_t1 = instrument.value(&flat, as_of_t1).ok()?.amount();
@@ -304,9 +388,9 @@ fn ytm_discount_convention(instrument: &dyn Instrument) -> (YieldCompounding, Te
 /// was solved under (Street at the bond coupon frequency; annual otherwise).
 /// A hardcoded Street-2 conversion (`y_cont = 2·ln(1 + y/2)`) misallocates
 /// pull-to-par vs roll-down for annual-compounded bonds (Tuckman & Serrat,
-/// *Fixed Income Securities*, Ch. 2–3). Knots span 0–100y in half-year
-/// steps so ultra-long bonds stay on the flat curve rather than
-/// extrapolating.
+/// *Fixed Income Securities*, Ch. 2–3). Knots are half-year steps out to
+/// maturity plus one year, with a 100y sentinel so ultra-long queries stay
+/// on the flat log-linear curve.
 fn build_flat_ytm_market(
     instrument: &dyn Instrument,
     market: &MarketContext,
@@ -323,12 +407,22 @@ fn build_flat_ytm_market(
         })?;
     let original = market.get_discount(curve_id.as_str())?;
     let (compounding, frequency) = ytm_discount_convention(instrument);
-    let knots: Vec<(f64, f64)> = (0..=200)
-        .map(|i| {
-            let t = i as f64 * 0.5;
-            df_from_yield(ytm, t, compounding, frequency).map(|df| (t, df))
+    let horizon_years = instrument
+        .expiry()
+        .map(|maturity| {
+            let days = (maturity - original.base_date()).whole_days().max(1) as f64;
+            (days / 365.25 + 1.0).clamp(1.0, 100.0)
         })
-        .collect::<Result<Vec<_>>>()?;
+        .unwrap_or(100.0);
+    let half_year_steps = (horizon_years * 2.0).ceil() as usize;
+    let mut knots = Vec::with_capacity(half_year_steps + 2);
+    for i in 0..=half_year_steps {
+        let t = i as f64 * 0.5;
+        knots.push((t, df_from_yield(ytm, t, compounding, frequency)?));
+    }
+    if knots.last().is_none_or(|(t, _)| *t < 100.0) {
+        knots.push((100.0, df_from_yield(ytm, 100.0, compounding, frequency)?));
+    }
     let flat_curve = DiscountCurve::builder(curve_id.as_str())
         .base_date(original.base_date())
         .day_count(original.day_count())
@@ -618,6 +712,37 @@ mod tests {
         );
     }
 
+    #[test]
+    fn discount_only_bond_does_not_use_unused_book_families() {
+        use finstack_quant_valuations::instruments::Bond;
+        let bond = Bond::fixed(
+            "USE-BOND",
+            Money::new(1_000_000.0, Currency::USD),
+            0.05,
+            date!(2025 - 01 - 01),
+            date!(2030 - 01 - 01),
+            "USD-OIS",
+        )
+        .expect("bond");
+        let factor_use = InstrumentFactorUse::of(&bond);
+        assert!(factor_use.rates);
+        assert!(!factor_use.credit);
+        assert!(!factor_use.inflation);
+        assert!(!factor_use.fx);
+        assert!(!factor_use.volatility);
+        assert!(!factor_use.scalars);
+        assert!(factor_use.uses_attribution_factor(&AttributionFactor::RatesCurves));
+        assert!(!factor_use.uses_attribution_factor(&AttributionFactor::CreditCurves));
+        assert!(factor_use.uses_attribution_factor(&AttributionFactor::Correlations));
+        assert!(factor_use.uses_attribution_factor(&AttributionFactor::Carry));
+
+        // Empty declarations are undeclared, not "uses nothing".
+        let undeclared = InstrumentFactorUse::from_deps(&MarketDependencies::new(), &bond);
+        assert!(undeclared.fx);
+        assert!(undeclared.credit);
+        assert!(undeclared.scalars);
+    }
+
     /// Flat-YTM window curve must invert Street compounding at the bond's
     /// coupon frequency. US corporate (`Bond::fixed`) is semi-annual:
     /// ytm = 5% at t = 1y → DF = (1 + 0.05/2)^(−2), NOT exp(−0.05).
@@ -656,13 +781,20 @@ mod tests {
             (-0.05_f64).exp()
         );
 
-        // Grid extends to 100y (0..=200 half-years) for ultra-longs.
+        // Grid must stay on the semi-annual flat curve out to 100y (log-linear
+        // extrapolation of a flat yield is exact) without building a 201-knot
+        // 0..=200 half-year grid for a 10y bond.
         let expected_100y = (1.0_f64 + 0.05 / 2.0).powi(-200);
         assert!(
             ((curve.df(100.0) - expected_100y) / expected_100y).abs() < 1e-9,
             "DF(100y) must be on the semi-annual flat curve, expected \
              {expected_100y}, got {}",
             curve.df(100.0)
+        );
+        assert!(
+            curve.knots().len() < 50,
+            "10y bond flat-YTM grid should be maturity-sized, got {} knots",
+            curve.knots().len()
         );
     }
 

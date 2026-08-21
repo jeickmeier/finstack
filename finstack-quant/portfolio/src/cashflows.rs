@@ -438,7 +438,7 @@ pub fn aggregate_full_cashflows(
                 let representation = schedule.get_meta().representation;
                 let mut position_events = Vec::with_capacity(event_count);
                 for (flow, scaled_amount) in result.scaled_flows {
-                    let event = PortfolioCashflowEvent {
+                    position_events.push(PortfolioCashflowEvent {
                         position_id: result.position_id.clone(),
                         instrument_id: result.instrument_id.clone(),
                         instrument_type: result.instrument_type,
@@ -448,10 +448,9 @@ pub fn aggregate_full_cashflows(
                         reset_date: flow.reset_date,
                         accrual_factor: flow.accrual_factor,
                         rate: flow.rate,
-                    };
-                    events.push(event.clone());
-                    position_events.push(event);
+                    });
                 }
+                events.extend(position_events.iter().cloned());
                 by_position.insert(result.position_id.clone(), position_events);
                 position_summaries.insert(
                     result.position_id.clone(),
