@@ -1496,15 +1496,10 @@ export interface FxConversionPolicyConstructor {
    */
   periodAverage(): FxConversionPolicy;
   /**
-   * Use a custom provider-defined strategy.
-   * @returns An `FxConversionPolicy` handle.
-   */
-  custom(): FxConversionPolicy;
-  /**
    * Parse from a string label such as ``\"cashflow_date\"``.
    * @returns An `FxConversionPolicy` handle.
-   * @param name - Policy label: `cashflow_date`, `period_end`, `period_average`, or `custom`.
-   * @throws Error - Throws a JavaScript exception unless `name` is `cashflow_date`, `period_end`, `period_average`, or `custom`.
+   * @param name - Policy label: `cashflow_date`, `period_end`, or `period_average`.
+   * @throws Error - Throws a JavaScript exception unless `name` is `cashflow_date`, `period_end`, or `period_average`.
    */
   fromName(name: string): FxConversionPolicy;
 }
@@ -10643,7 +10638,7 @@ export interface ScenariosNamespace {
    * Specs are merged in priority order (lower number runs first).
    * @returns Structured composed scenario specification.
    * @param specs - Validated ScenarioSpec objects to compose in priority order.
-   * @throws Error - Rejects malformed structured specs, composition that contains more than one time-roll operation, or failure to convert the composed specification.
+   * @throws Error - Rejects malformed structured specs, input specs with mixed `hazard_bump_mode` values, composition that contains more than one time-roll operation, or failure to convert the composed specification.
    */
   composeScenarios(specs: ScenarioSpec[]): ScenarioSpec;
   /**

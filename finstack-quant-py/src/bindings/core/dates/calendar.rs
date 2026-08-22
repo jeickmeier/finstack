@@ -3,7 +3,7 @@
 use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 use finstack_quant_core::dates::{
-    adjust, available_calendars, calendar_by_id, BusinessDayConvention, CalendarMetadata,
+    adjust, available_calendars, fx::resolve_calendar, BusinessDayConvention, CalendarMetadata,
     HolidayCalendar, WeekendRule,
 };
 use pyo3::prelude::*;
@@ -204,11 +204,7 @@ impl PyHolidayCalendar {
     #[new]
     #[pyo3(text_signature = "(code)")]
     fn new(code: &str) -> PyResult<Self> {
-        if calendar_by_id(code).is_none() {
-            return Err(pyo3::exceptions::PyKeyError::new_err(format!(
-                "unknown calendar code: {code:?}"
-            )));
-        }
+        resolve_calendar(Some(code)).map_err(core_to_py)?;
         Ok(Self {
             code: code.to_string(),
         })
@@ -255,9 +251,7 @@ impl PyHolidayCalendar {
 impl PyHolidayCalendar {
     /// Resolve the inner calendar from the global registry.
     fn resolve(&self) -> PyResult<&'static dyn HolidayCalendar> {
-        calendar_by_id(&self.code).ok_or_else(|| {
-            pyo3::exceptions::PyKeyError::new_err(format!("calendar not found: {:?}", self.code))
-        })
+        resolve_calendar(Some(&self.code)).map_err(core_to_py)
     }
 }
 
@@ -282,9 +276,7 @@ fn py_adjust<'py>(
         if let Ok(cal) = calendar.extract::<PyRef<'_, PyHolidayCalendar>>() {
             cal.resolve()?
         } else if let Ok(code) = calendar.extract::<String>() {
-            calendar_by_id(&code).ok_or_else(|| {
-                pyo3::exceptions::PyKeyError::new_err(format!("unknown calendar: {code:?}"))
-            })?
+            resolve_calendar(Some(&code)).map_err(core_to_py)?
         } else {
             return Err(pyo3::exceptions::PyTypeError::new_err(
                 "expected HolidayCalendar or str calendar code",

@@ -542,7 +542,7 @@ pub(crate) fn npv_amounts_with_ctx(
     let day_count = day_count.unwrap_or(DayCount::Act365F);
 
     // Convert annually compounded rate to continuously compounded rate:
-    // FlatCurve expects continuously compounded rates: r_cont = ln(1 + r_annual)
+    // flat discounting expects continuously compounded rates: r_cont = ln(1 + r_annual)
     if !discount_rate.is_finite() || (1.0 + discount_rate) <= 0.0 {
         return Err(crate::Error::from(crate::error::InputError::Invalid));
     }
@@ -559,12 +559,35 @@ pub(crate) fn npv_amounts_with_ctx(
 }
 
 #[cfg(test)]
+fn flat_curve(
+    id: &str,
+    base: Date,
+    continuous_rate: f64,
+    day_count: DayCount,
+) -> crate::market_data::term_structures::DiscountCurve {
+    use crate::market_data::term_structures::{DiscountCurve, ValidationMode};
+    use crate::math::interp::{ExtrapolationPolicy, InterpStyle};
+
+    DiscountCurve::builder(id)
+        .base_date(base)
+        .knots([(0.0, 1.0), (1.0, (-continuous_rate).exp())])
+        .interp(InterpStyle::LogLinear)
+        .extrapolation(ExtrapolationPolicy::FlatForward)
+        .validation(ValidationMode::Raw {
+            allow_non_monotonic: continuous_rate < 0.0,
+            forward_floor: None,
+        })
+        .day_count(day_count)
+        .build()
+        .expect("valid flat curve")
+}
+
+#[cfg(test)]
 mod hardening_tests {
     use super::*;
     use crate::currency::Currency;
     use crate::dates::calendar::TARGET2;
     use crate::dates::create_date;
-    use crate::market_data::term_structures::FlatCurve;
     use time::Month;
 
     #[test]
@@ -620,7 +643,7 @@ mod hardening_tests {
     fn npv_with_bus252_context_counts_business_days() {
         let base = create_date(2025, Month::January, 6).expect("Valid test date"); // Monday
         let pay = create_date(2025, Month::January, 13).expect("Valid test date"); // Next Monday
-        let curve = FlatCurve::new(0.10, base, DayCount::Bus252, "BRL-FLAT");
+        let curve = flat_curve("BRL-FLAT", base, 0.10, DayCount::Bus252);
         let flows = vec![(pay, Money::new(100.0, Currency::USD))];
         let ctx = DayCountContext {
             calendar: Some(&TARGET2),
@@ -705,7 +728,6 @@ mod tests {
     use super::*;
     use crate::currency::Currency;
     use crate::dates::create_date;
-    use crate::market_data::term_structures::FlatCurve;
     use crate::market_data::traits::TermStructure;
     use crate::types::CurveId;
     use time::Month;
@@ -912,7 +934,7 @@ mod tests {
     fn npv_with_ctx_propagates_bus252_missing_calendar_error() {
         let base = create_date(2025, Month::January, 6).expect("Valid test date");
         let pay = create_date(2025, Month::January, 13).expect("Valid test date");
-        let curve = FlatCurve::new(0.10, base, DayCount::Bus252, "BRL-FLAT");
+        let curve = flat_curve("BRL-FLAT", base, 0.10, DayCount::Bus252);
         let flows = vec![(pay, Money::new(100.0, Currency::USD))];
 
         assert!(npv_with_ctx(&curve, base, DayCountContext::default(), &flows).is_err());
@@ -931,9 +953,9 @@ mod tests {
         let rate: f64 = 0.05;
         let day_count = DayCount::Act365F;
 
-        // Create FlatCurve with continuous rate
+        // Create a flat curve with continuous rate
         let continuous_rate = (1.0 + rate).ln();
-        let curve = FlatCurve::new(continuous_rate, base, day_count, "NPV-TEST");
+        let curve = flat_curve("NPV-TEST", base, continuous_rate, day_count);
 
         // The default npv excludes flows on or before the valuation date, so
         // the time-0 outlay (-100000 at base) is NOT part of the pricing PV.
@@ -968,7 +990,7 @@ mod tests {
             .expect("npv_amounts should succeed");
 
         let continuous_rate = (1.0 + rate).ln();
-        let curve = FlatCurve::new(continuous_rate, base, day_count, "TEST");
+        let curve = flat_curve("TEST", base, continuous_rate, day_count);
         let pv_money = npv_with_ctx(&curve, base, DayCountContext::default(), &money_flows)
             .expect("npv should succeed")
             .amount();
@@ -993,8 +1015,8 @@ mod tests {
         ];
         let day_count = DayCount::Act365F;
 
-        // Create FlatCurve with 0% rate (continuous rate = ln(1) = 0)
-        let curve = FlatCurve::new(0.0, base, day_count, "ZERO-RATE");
+        // Create a flat curve with 0% rate (continuous rate = ln(1) = 0)
+        let curve = flat_curve("ZERO-RATE", base, 0.0, day_count);
 
         // Default pricing semantics exclude the base-date flow, so only the
         // +100 remains.
@@ -1019,7 +1041,7 @@ mod tests {
         let day_count = DayCount::Act365F;
 
         let continuous_rate = (1.0 + rate).ln();
-        let curve = FlatCurve::new(continuous_rate, base, day_count, "TEST");
+        let curve = flat_curve("TEST", base, continuous_rate, day_count);
 
         // Default: only the strictly-future +55 flow is priced.
         let pv = npv(&curve, base, &flows).expect("NPV calculation should succeed in test");
@@ -1045,7 +1067,7 @@ mod tests {
             (base, Money::new(50.0, Currency::USD)),
         ];
         let day_count = DayCount::Act365F;
-        let curve = FlatCurve::new((1.05_f64).ln(), base, day_count, "TEST");
+        let curve = flat_curve("TEST", base, (1.05_f64).ln(), day_count);
 
         let pv = npv(&curve, base, &flows).expect("NPV should succeed");
         assert_eq!(pv.amount(), 0.0);
@@ -1059,7 +1081,7 @@ mod tests {
         let day_count = DayCount::Act365F;
 
         let continuous_rate = (1.05_f64).ln();
-        let curve = FlatCurve::new(continuous_rate, base, day_count, "TEST");
+        let curve = flat_curve("TEST", base, continuous_rate, day_count);
 
         let err = npv(&curve, base, &flows).expect_err("Should fail with empty flows");
         let _ = format!("{}", err);

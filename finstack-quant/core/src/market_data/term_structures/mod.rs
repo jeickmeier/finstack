@@ -120,8 +120,6 @@ pub(crate) mod common;
 mod credit_index;
 /// Discount factor curves.
 mod discount_curve;
-/// Flat forward/discount curves.
-mod flat;
 /// Forward‐rate curves.
 mod forward_curve;
 /// Forward variance curves for rough volatility models.
@@ -148,7 +146,6 @@ pub use credit_index::{CreditIndexData, CreditIndexDataBuilder};
 pub use discount_curve::{
     DiscountCurve, DiscountCurveBuilder, ValidationMode, DEFAULT_MIN_FORWARD_TENOR,
 };
-pub use flat::FlatCurve;
 pub use forward_curve::{ForwardCurve, ForwardCurveBuilder};
 pub use forward_variance::ForwardVarianceCurve;
 pub use hazard_curve::{HazardCurve, HazardCurveBuilder, ParInterp, Seniority};

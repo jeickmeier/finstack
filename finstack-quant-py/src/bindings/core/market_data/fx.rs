@@ -72,11 +72,6 @@ impl PyFxConversionPolicy {
     const PERIOD_AVERAGE: PyFxConversionPolicy = PyFxConversionPolicy {
         inner: FxConversionPolicy::PeriodAverage,
     };
-    /// Custom strategy defined by the caller.
-    #[classattr]
-    const CUSTOM: PyFxConversionPolicy = PyFxConversionPolicy {
-        inner: FxConversionPolicy::Custom,
-    };
 
     /// Parse from a string label (e.g. ``"cashflow_date"``).
     #[classmethod]

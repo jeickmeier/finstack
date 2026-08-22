@@ -45,10 +45,7 @@ fn diebold_li_fit_factors<'py>(
     let model = py
         .detach(|| {
             let panel = YieldPanel::from_rows(tenors, yields_matrix, None)?;
-            DieboldLi::builder()
-                .lambda(lambda_)
-                .build()?
-                .extract_factors(&panel)
+            DieboldLi::new(lambda_)?.extract_factors(&panel)
         })
         .map_err(core_to_py)?;
 
@@ -108,9 +105,7 @@ fn diebold_li_forecast<'py>(
     let fc = py
         .detach(|| {
             let panel = YieldPanel::from_rows(tenors, yields_matrix, None)?;
-            DieboldLi::builder()
-                .lambda(lambda_)
-                .build()?
+            DieboldLi::new(lambda_)?
                 .extract_factors(&panel)?
                 .fit_var()?
                 .forecast(horizon)

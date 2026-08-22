@@ -38,6 +38,14 @@ pub struct BrownianBridge {
     construction_order: Vec<usize>,
     /// Multipliers for conditional variance
     std_multipliers: Vec<f64>,
+    /// Precomputed `(left, right)` bracketing neighbours, parallel to
+    /// [`Self::construction_order`].
+    ///
+    /// The populated set when construction step `i` runs is always
+    /// `{0, num_steps} ∪ construction_order[..i]`, so each step's brackets are
+    /// a pure function of `num_steps`. They are recorded once here instead of
+    /// being recomputed with an ordered-set walk on every path.
+    brackets: Vec<(usize, usize)>,
 }
 
 impl BrownianBridge {
@@ -59,10 +67,29 @@ impl BrownianBridge {
         // Binary subdivision
         Self::build_bridge_recursive(0, num_steps, &mut construction_order, &mut std_multipliers);
 
+        // One simulation pass records each step's bracketing neighbours. The
+        // populated set evolves identically inside every construct_path*
+        // call, so this table serves all paths ever built by this bridge.
+        let mut populated = BTreeSet::new();
+        populated.insert(0);
+        populated.insert(num_steps);
+        let mut brackets = Vec::with_capacity(construction_order.len());
+        for &idx in &construction_order {
+            let left = populated.range(..idx).next_back().copied().unwrap_or(0);
+            let right = populated
+                .range(idx + 1..)
+                .next()
+                .copied()
+                .unwrap_or(num_steps);
+            brackets.push((left, right));
+            populated.insert(idx);
+        }
+
         Self {
             num_steps,
             construction_order,
             std_multipliers,
+            brackets,
         }
     }
 
@@ -144,16 +171,13 @@ impl BrownianBridge {
         // Terminal point (standard Brownian motion)
         w_out[num_steps] = z[0] * (num_steps as f64 * dt).sqrt();
 
-        // O(log n) bracket lookups via BTreeSet of populated indices
-        let mut populated = BTreeSet::new();
-        populated.insert(0);
-        populated.insert(num_steps);
-
-        // z[0] is used for terminal, z[1..] for construction_order
-        for (i, &idx) in self.construction_order.iter().enumerate() {
-            // Find left and right bracketing points (O(log n) lookup)
-            let (left, right) = self.find_brackets(idx, &populated, num_steps);
-
+        // Brackets are precomputed in `new`; this loop is allocation-free.
+        for (i, (&idx, &(left, right))) in self
+            .construction_order
+            .iter()
+            .zip(&self.brackets)
+            .enumerate()
+        {
             // Conditional mean: linear interpolation
             let left_time = left as f64 * dt;
             let idx_time = idx as f64 * dt;
@@ -167,7 +191,6 @@ impl BrownianBridge {
 
             // Generate point using z[i+1] (since z[0] is for terminal)
             w_out[idx] = conditional_mean + conditional_std * z[i + 1];
-            populated.insert(idx);
         }
         Ok(())
     }
@@ -221,12 +244,13 @@ impl BrownianBridge {
         }
         w_out[num_steps] = z[0] * times[num_steps].sqrt();
 
-        let mut populated = BTreeSet::new();
-        populated.insert(0);
-        populated.insert(num_steps);
-
-        for (i, &idx) in self.construction_order.iter().enumerate() {
-            let (left, right) = self.find_brackets(idx, &populated, num_steps);
+        // Brackets are precomputed in `new`; this loop is allocation-free.
+        for (i, (&idx, &(left, right))) in self
+            .construction_order
+            .iter()
+            .zip(&self.brackets)
+            .enumerate()
+        {
             let left_time = times[left];
             let idx_time = times[idx];
             let right_time = times[right];
@@ -237,7 +261,6 @@ impl BrownianBridge {
                 ((idx_time - left_time) * (right_time - idx_time)) / (right_time - left_time);
 
             w_out[idx] = conditional_mean + conditional_variance.sqrt() * z[i + 1];
-            populated.insert(idx);
         }
         Ok(())
     }
@@ -263,24 +286,6 @@ impl BrownianBridge {
             )));
         }
         Ok(())
-    }
-
-    /// Find left and right bracketing points for bridge construction.
-    ///
-    /// Uses BTreeSet for O(log n) lookups instead of O(n) linear scan.
-    fn find_brackets(
-        &self,
-        idx: usize,
-        populated: &BTreeSet<usize>,
-        max_idx: usize,
-    ) -> (usize, usize) {
-        let left = populated.range(..idx).next_back().copied().unwrap_or(0);
-        let right = populated
-            .range(idx + 1..)
-            .next()
-            .copied()
-            .unwrap_or(max_idx);
-        (left, right)
     }
 }
 
@@ -438,5 +443,86 @@ mod tests {
         assert!(bridge
             .construct_path_irregular(&z, &mut w5, &[0.0, 0.2, 0.4, 0.5])
             .is_err());
+    }
+
+    /// Reference implementation: per-path ordered-set bracket lookup, the
+    /// algorithm the precomputed-bracket table replaced. Used to pin the
+    /// optimized path bit-for-bit.
+    fn reference_construct_path(
+        num_steps: usize,
+        construction_order: &[usize],
+        std_multipliers: &[f64],
+        z: &[f64],
+        w_out: &mut [f64],
+        dt: f64,
+    ) {
+        w_out.fill(f64::NAN);
+        w_out[0] = 0.0;
+        if num_steps == 0 {
+            return;
+        }
+        w_out[num_steps] = z[0] * (num_steps as f64 * dt).sqrt();
+
+        let mut populated = std::collections::BTreeSet::new();
+        populated.insert(0);
+        populated.insert(num_steps);
+        for (i, &idx) in construction_order.iter().enumerate() {
+            let left = populated.range(..idx).next_back().copied().unwrap_or(0);
+            let right = populated
+                .range(idx + 1..)
+                .next()
+                .copied()
+                .unwrap_or(num_steps);
+            let left_time = left as f64 * dt;
+            let idx_time = idx as f64 * dt;
+            let right_time = right as f64 * dt;
+            let alpha = (idx_time - left_time) / (right_time - left_time);
+            let conditional_mean = w_out[left] + alpha * (w_out[right] - w_out[left]);
+            let conditional_std = std_multipliers[i] * dt.sqrt();
+            w_out[idx] = conditional_mean + conditional_std * z[i + 1];
+            populated.insert(idx);
+        }
+    }
+
+    #[test]
+    fn precomputed_brackets_match_per_path_lookup_bit_for_bit() {
+        for &num_steps in &[2usize, 3, 4, 5, 8, 17, 64, 255, 256] {
+            let bridge = BrownianBridge::new(num_steps);
+            let z: Vec<f64> = (0..num_steps)
+                .map(|i| ((i % 23) as f64 * 0.113) - 1.2)
+                .collect();
+
+            let mut fast_uniform = vec![0.0; num_steps + 1];
+            bridge
+                .construct_path(&z, &mut fast_uniform, 1.0 / 252.0)
+                .expect("valid");
+            let mut reference = vec![0.0; num_steps + 1];
+            reference_construct_path(
+                num_steps,
+                bridge.order(),
+                bridge.multipliers(),
+                &z,
+                &mut reference,
+                1.0 / 252.0,
+            );
+            assert_eq!(fast_uniform, reference, "uniform grid, n={num_steps}");
+
+            // Irregular grids share the same bracket table; on an identical
+            // spacing the two paths agree up to floating-point op order
+            // (the variance is recomputed from `times` rather than taken from
+            // the multiplier table).
+            let dt = 1.0 / 252.0;
+            let times: Vec<f64> = (0..=num_steps).map(|i| i as f64 * dt).collect();
+            let mut fast_irregular = vec![0.0; num_steps + 1];
+            bridge
+                .construct_path_irregular(&z, &mut fast_irregular, &times)
+                .expect("valid");
+            for (irregular, uniform) in fast_irregular.iter().zip(&fast_uniform) {
+                assert!(
+                    (irregular - uniform).abs() < 1e-12,
+                    "irregular vs uniform diverged at n={num_steps}: {irregular} vs {uniform}"
+                );
+            }
+        }
     }
 }

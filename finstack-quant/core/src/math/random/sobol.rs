@@ -43,6 +43,9 @@ use crate::math::special_functions::standard_normal_inv_cdf as inverse_normal_cd
 /// See <https://web.maths.unsw.edu.au/~fkuo/sobol/> for tables up to 21201 dimensions.
 pub const MAX_SOBOL_DIMENSION: usize = 40;
 
+/// Distinct points in one Sobol period given 32-bit direction numbers.
+const SOBOL_PERIOD: u64 = 1 << 32;
+
 /// Combine two values into a deterministic hash.
 ///
 /// Uses a variant of the Boost hash_combine approach with improved mixing.
@@ -106,6 +109,13 @@ pub struct SobolRng {
     scramble_matrices: Vec<[u32; 32]>,
     /// Direction numbers for Sobol construction
     direction_numbers: Vec<Vec<u32>>,
+    /// Cached raw Sobol integer per dimension at the current [`Self::index`].
+    ///
+    /// Advancing one point only changes the bits below (and including) the
+    /// lowest carry position of the index, so the next value follows from the
+    /// previous one with a handful of XORs instead of rescanning every bit of
+    /// the index. Sequence output is identical to recomputing from scratch.
+    state: Vec<u32>,
 }
 
 impl SobolRng {
@@ -161,6 +171,8 @@ impl SobolRng {
             scramble_seeds,
             scramble_matrices,
             direction_numbers,
+            // At index 0 every dimension's value is 0.
+            state: vec![0; dimension],
         })
     }
 
@@ -187,16 +199,20 @@ impl SobolRng {
     /// * `buf` - Buf supplied by the caller for this operation
     pub fn fill_point(&mut self, buf: &mut [f64]) {
         for (d, slot) in buf.iter_mut().enumerate().take(self.dimension) {
-            let value = self.sobol_value(d);
+            let value = self.state[d];
             *slot = self.owen_scramble(value, d);
         }
-        self.index += 1;
+        self.advance();
     }
 
-    /// Compute Sobol value for dimension d at current index.
-    fn sobol_value(&self, d: usize) -> u32 {
+    /// Raw Sobol integer for dimension `d` at an arbitrary sequence index.
+    ///
+    /// The reference (from-scratch) definition: XOR of the direction numbers
+    /// selected by the set bits of `index`. Used by [`Self::skip`] and by the
+    /// equivalence tests that pin the incremental cache to this definition.
+    fn value_at(&self, index: u64, d: usize) -> u32 {
         let mut value = 0u32;
-        let mut index = self.index;
+        let mut index = index % SOBOL_PERIOD;
         let mut bit = 0;
 
         while index > 0 {
@@ -208,6 +224,34 @@ impl SobolRng {
         }
 
         value
+    }
+
+    /// Advance one point: increment the index and fold only the changed
+    /// low-order bits into the cached per-dimension state.
+    ///
+    /// Going from index `i` to `i + 1` flips bits `0..c` of the index (all
+    /// ones) down to zero and raises bit `c`, where `c = ctz(i + 1)`. The
+    /// state update is therefore `state ^= XOR(dir[0..c]) ^ dir[c]`,
+    /// amortized O(1). After the 2^32-point period the generator wraps to
+    /// index 0 and repeats the sequence.
+    fn advance(&mut self) {
+        if self.index + 1 == SOBOL_PERIOD {
+            self.index = 0;
+            for slot in &mut self.state {
+                *slot = 0;
+            }
+            return;
+        }
+        let c = (self.index + 1).trailing_zeros() as usize;
+        self.index += 1;
+        for (d, slot) in self.state.iter_mut().enumerate() {
+            let mut delta = 0u32;
+            for b in 0..c {
+                delta ^= self.direction_numbers[d][b];
+            }
+            delta ^= self.direction_numbers[d][c];
+            *slot ^= delta;
+        }
     }
 
     /// Apply an Owen-style scramble to a Sobol value.
@@ -299,11 +343,31 @@ impl SobolRng {
     /// Reset to beginning of sequence.
     pub fn reset(&mut self) {
         self.index = 0;
+        for slot in &mut self.state {
+            *slot = 0;
+        }
     }
 
     /// Skip ahead in the sequence.
+    ///
+    /// The cached state is recomputed directly from the target index
+    /// (O(bits · dimensions)), independent of how far ahead `n` reaches.
+    /// The destination is taken modulo the 2^32-point period so large skips
+    /// wrap instead of overflowing the 32-bit direction-number table.
+    ///
+    /// # Arguments
+    ///
+    /// * `n` - Number of sequence points to advance. Values larger than the
+    ///   period wrap; a multiple of the period is a no-op.
     pub fn skip(&mut self, n: u64) {
-        self.index += n;
+        if n > 0 && self.dimension > 0 {
+            let target = (self.index + (n % SOBOL_PERIOD)) % SOBOL_PERIOD;
+            for d in 0..self.dimension {
+                let value = self.value_at(target, d);
+                self.state[d] = value;
+            }
+            self.index = target;
+        }
     }
 
     /// Fill buffer with uniform random numbers in (0, 1).
@@ -351,13 +415,13 @@ impl SobolRng {
         const INV_2_32: f64 = 1.0 / 4_294_967_296.0_f64;
         for chunk in out.chunks_mut(self.dimension) {
             for (d, slot) in chunk.iter_mut().enumerate().take(self.dimension) {
-                let raw = self.sobol_value(d);
+                let raw = self.state[d];
                 let scrambled = self.owen_scramble_int(raw, d);
                 // Map integer k in [0, 2^32) to (k + 0.5) / 2^32 in (0, 1)
                 let u = (scrambled as f64 + 0.5) * INV_2_32;
                 *slot = inverse_normal_cdf(u);
             }
-            self.index += 1;
+            self.advance();
         }
     }
 }
@@ -670,5 +734,76 @@ mod tests {
                 "Unexpected extreme outlier {v} (grid-centred mapping should prevent >10σ in 1024 pts)"
             );
         }
+    }
+
+    #[test]
+    fn incremental_state_matches_from_scratch_definition() {
+        // The cached per-dimension state must equal the reference definition
+        // value_at(index, d) at every step — including across skip and reset.
+        let mut rng = SobolRng::try_new(8, 0).expect("valid dimension");
+
+        let check = |rng: &SobolRng| {
+            for d in 0..8 {
+                assert_eq!(rng.state[d], rng.value_at(rng.index, d), "dim {d}");
+            }
+        };
+
+        for _ in 0..300 {
+            check(&rng);
+            let mut buf = [0.0f64; 8];
+            rng.fill_point(&mut buf);
+        }
+        // Cross a power-of-two boundary where many bits flip at once.
+        rng.skip(4812); // -> index 5112
+        check(&rng);
+        rng.skip(100_000);
+        check(&rng);
+        rng.reset();
+        check(&rng);
+        for _ in 0..257 {
+            let mut buf = [0.0f64; 8];
+            rng.fill_u01(&mut buf);
+            check(&rng);
+        }
+    }
+
+    #[test]
+    fn generation_wraps_after_the_last_period_point() {
+        let mut rng = SobolRng::try_new(2, 0).expect("valid dimension");
+        rng.skip(SOBOL_PERIOD - 1);
+        assert_eq!(rng.index, SOBOL_PERIOD - 1);
+
+        let mut last = [0.0f64; 2];
+        rng.fill_point(&mut last);
+        assert_eq!(rng.index, 0);
+        assert!(rng.state.iter().all(|&slot| slot == 0));
+        assert!(last.iter().all(|v| v.is_finite()));
+
+        let mut fresh = SobolRng::try_new(2, 0).expect("valid dimension");
+        let mut first = [0.0f64; 2];
+        fresh.fill_point(&mut first);
+        let mut wrapped = [0.0f64; 2];
+        rng.fill_point(&mut wrapped);
+        assert_eq!(wrapped, first);
+    }
+
+    #[test]
+    fn skip_wraps_modulo_period_without_overflow() {
+        let mut rng = SobolRng::try_new(3, 0).expect("valid dimension");
+        rng.skip(SOBOL_PERIOD - 1);
+        rng.skip(1);
+        assert_eq!(rng.index, 0);
+        assert!(rng.state.iter().all(|&slot| slot == 0));
+
+        rng.skip(u64::MAX);
+        assert_eq!(rng.index, u64::MAX % SOBOL_PERIOD);
+        for d in 0..3 {
+            assert_eq!(rng.state[d], rng.value_at(rng.index, d), "dim {d}");
+        }
+
+        rng.reset();
+        rng.skip(SOBOL_PERIOD);
+        assert_eq!(rng.index, 0);
+        assert!(rng.state.iter().all(|&slot| slot == 0));
     }
 }

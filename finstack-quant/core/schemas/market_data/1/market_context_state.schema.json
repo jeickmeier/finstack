@@ -1779,11 +1779,6 @@
           "const": "period_average",
           "description": "Use an average over the period.",
           "type": "string"
-        },
-        {
-          "const": "custom",
-          "description": "Custom strategy defined by the caller/provider.",
-          "type": "string"
         }
       ]
     },

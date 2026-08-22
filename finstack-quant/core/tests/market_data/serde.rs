@@ -1020,14 +1020,14 @@ fn forward_variance_curve_rejects_invalid_values_on_deserialize() {
 #[test]
 fn diebold_li_rejects_unknown_fields() {
     use finstack_quant_core::market_data::dtsm::DieboldLi;
-    let model = DieboldLi::builder().build().unwrap();
+    let model = DieboldLi::with_default_lambda();
     assert_strict_inbound(&model);
 }
 
 #[test]
 fn diebold_li_rejects_invalid_lambda_on_deserialize() {
     use finstack_quant_core::market_data::dtsm::DieboldLi;
-    let model = DieboldLi::builder().build().unwrap();
+    let model = DieboldLi::with_default_lambda();
     let mut json = serde_json::to_value(&model).unwrap();
     json.as_object_mut()
         .unwrap()

@@ -15,10 +15,65 @@ use wasm_bindgen::JsValue;
 /// `Display` text and whose `name` is `"FinstackError"`. Structured
 /// errors let JS clients pattern-match on `err.name` and reliably read
 /// `err.message` rather than parsing ad-hoc strings.
+///
+/// The `kind` property for plain messages is derived heuristically from the
+/// message text. For typed core errors, prefer [`to_js_err_core`], which
+/// classifies by enum variant.
 pub fn to_js_err(e: impl std::fmt::Display) -> JsValue {
     let message = e.to_string();
     let kind = classify_error_message(&message);
     structured_js_error("FinstackError", &message, Some(kind), None)
+}
+
+/// Convert a typed `finstack_quant_core::Error` into a structured `JsValue`
+/// error, classifying the `kind` property by enum variant.
+///
+/// Kind mapping (mirrors the Python `core_to_py` classes):
+/// - Lookup misses (`NotFound`, `MissingCurve`, `CalendarNotFound`,
+///   `FxTriangulationFailed`) → `"not_found"`
+/// - Solver/calibration/internal/circular-dependency failures, plus
+///   `VolatilityConversionFailed` and `TooLarge` → `"computation"`
+/// - `MetricCalculationFailed` follows its cause: solver/calibration/
+///   internal causes → `"computation"`, otherwise `"validation"`
+/// - Everything else (validation, bad values, malformed input) →
+///   `"validation"`
+pub fn to_js_err_core(e: &finstack_quant_core::Error) -> JsValue {
+    let message = format_error_chain(e);
+    structured_js_error("FinstackError", &message, Some(core_error_kind(e)), None)
+}
+
+/// Classify a core error into its JS-facing `kind` by enum variant.
+///
+/// Variant-based on purpose: message-sniffing misclassifies whenever a
+/// user-supplied identifier (curve name, id) happens to contain a keyword.
+fn core_error_kind(e: &finstack_quant_core::Error) -> &'static str {
+    use finstack_quant_core::error::InputError;
+    use finstack_quant_core::Error;
+
+    match e {
+        Error::Input(
+            InputError::MissingCurve { .. }
+            | InputError::NotFound { .. }
+            | InputError::CalendarNotFound { .. }
+            | InputError::FxTriangulationFailed { .. },
+        ) => "not_found",
+        Error::Calibration { .. }
+        | Error::Internal(_)
+        | Error::CircularDependency { .. }
+        | Error::Input(
+            InputError::SolverConvergenceFailed { .. }
+            | InputError::VolatilityConversionFailed { .. }
+            | InputError::TooLarge { .. },
+        ) => "computation",
+        Error::MetricCalculationFailed { cause, .. } => match cause.as_ref() {
+            Error::Calibration { .. }
+            | Error::Internal(_)
+            | Error::CircularDependency { .. }
+            | Error::Input(InputError::SolverConvergenceFailed { .. }) => "computation",
+            _ => "validation",
+        },
+        _ => "validation",
+    }
 }
 
 /// Convert an error with a `source()` chain into a structured `JsValue` error.
@@ -302,6 +357,113 @@ mod tests {
             format_error_chain(&err),
             "calibration failed: solver diverged after 1000 iterations"
         );
+    }
+
+    #[test]
+    fn core_error_kind_is_selected_from_variant_not_message() {
+        use finstack_quant_core::error::InputError;
+        use finstack_quant_core::Error;
+
+        let cases = [
+            // A curve literally named "validation" must still classify as a
+            // lookup miss — variant, not message sniffing.
+            (
+                Error::Input(InputError::MissingCurve {
+                    requested: "validation".to_string(),
+                    suggestions: vec![],
+                }),
+                "not_found",
+            ),
+            (
+                Error::Input(InputError::CalendarNotFound {
+                    requested: "must be valid".to_string(),
+                    suggestions: vec![],
+                }),
+                "not_found",
+            ),
+            (
+                Error::Input(InputError::NotFound {
+                    id: "invalid id containing 'not found'".to_string(),
+                }),
+                "not_found",
+            ),
+            (
+                Error::Input(InputError::SolverConvergenceFailed {
+                    iterations: 1,
+                    residual: 1.0,
+                    last_x: 0.0,
+                    reason: "x".to_string(),
+                }),
+                "computation",
+            ),
+            (
+                Error::CircularDependency {
+                    path: vec!["a".to_string()],
+                },
+                "computation",
+            ),
+            // Calibration stays "computation" even though its message contains
+            // every keyword a message sniffer would match.
+            (
+                Error::Calibration {
+                    message: "not found: invalid value must be positive".to_string(),
+                    category: String::new(),
+                },
+                "computation",
+            ),
+            // Genuine validation keeps its kind even when an embedded
+            // identifier contains "not found".
+            (
+                Error::Validation("curve 'not found quotes' rejected".to_string()),
+                "validation",
+            ),
+            (Error::Input(InputError::Invalid), "validation"),
+            (
+                Error::Input(InputError::VolatilityConversionFailed {
+                    tolerance: 1e-8,
+                    residual: 1e-3,
+                }),
+                "computation",
+            ),
+            (
+                Error::Input(InputError::TooLarge {
+                    what: "arena".to_string(),
+                    requested_bytes: 8,
+                    limit_bytes: 4,
+                }),
+                "computation",
+            ),
+            (
+                Error::metric_calculation_failed(
+                    "dv01",
+                    Error::Calibration {
+                        message: "solver stalled".to_string(),
+                        category: String::new(),
+                    },
+                ),
+                "computation",
+            ),
+            (
+                Error::metric_calculation_failed(
+                    "dv01",
+                    Error::Input(InputError::SolverConvergenceFailed {
+                        iterations: 1,
+                        residual: 1.0,
+                        last_x: 0.0,
+                        reason: "x".to_string(),
+                    }),
+                ),
+                "computation",
+            ),
+            (
+                Error::metric_calculation_failed("ytm", Error::Validation("bad quote".to_string())),
+                "validation",
+            ),
+        ];
+
+        for (error, expected) in cases {
+            assert_eq!(core_error_kind(&error), expected);
+        }
     }
 
     #[test]

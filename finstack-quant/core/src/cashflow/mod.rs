@@ -57,10 +57,9 @@
 //!
 //! ```rust
 //! use finstack_quant_core::cashflow::npv;
-//! use finstack_quant_core::dates::DayCount;
 //! use finstack_quant_core::money::Money;
 //! use finstack_quant_core::currency::Currency;
-//! use finstack_quant_core::market_data::term_structures::FlatCurve;
+//! use finstack_quant_core::market_data::term_structures::DiscountCurve;
 //! use time::macros::date;
 //!
 //! let base = date!(2025 - 01 - 01);
@@ -70,7 +69,7 @@
 //! // Create a flat discount curve at 5% annual rate
 //! let rate: f64 = 0.05;
 //! let continuous_rate = (1.0 + rate).ln();
-//! let curve = FlatCurve::new(continuous_rate, base, DayCount::Act365F, "EXAMPLE");
+//! let curve = DiscountCurve::flat("EXAMPLE", base, continuous_rate)?;
 //!
 //! let present_value = npv(&curve, base, &[cf1, cf2])?;
 //! assert!(present_value.amount() > 0.0);

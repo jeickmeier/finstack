@@ -521,21 +521,13 @@ impl JsFxConversionPolicy {
         }
     }
 
-    /// Use a custom provider-defined strategy.
-    #[wasm_bindgen(js_name = custom)]
-    pub fn custom() -> Self {
-        Self {
-            inner: RustFxConversionPolicy::Custom,
-        }
-    }
-
     /// Parse from a string label such as ``\"cashflow_date\"``.
-    /// @param name - Policy label: `cashflow_date`, `period_end`, `period_average`, or `custom`.
+    /// @param name - Policy label: `cashflow_date`, `period_end`, or `period_average`.
     ///
     /// # Errors
     ///
     /// Throws a JavaScript exception unless `name` is `cashflow_date`,
-    /// `period_end`, `period_average`, or `custom`.
+    /// `period_end`, or `period_average`.
     #[wasm_bindgen(js_name = fromName)]
     pub fn from_name(name: &str) -> Result<Self, JsValue> {
         Ok(Self {
@@ -942,7 +934,7 @@ impl JsVolCube {
     ) -> Result<JsVolCube, JsValue> {
         let n_nodes = expiries.len() * tenors.len();
         if params_flat.len() != n_nodes * 5 {
-            return Err(JsValue::from_str(&format!(
+            return Err(to_js_err(format!(
                 "params_flat length {} != {} nodes * 5 params",
                 params_flat.len(),
                 n_nodes
@@ -967,7 +959,7 @@ impl JsVolCube {
             "vol" => VolInterpolationMode::Vol,
             "total_variance" => VolInterpolationMode::TotalVariance,
             other => {
-                return Err(JsValue::from_str(&format!(
+                return Err(to_js_err(format!(
                     "invalid volatility interpolation mode {other:?}; expected 'vol' or 'total_variance'"
                 )));
             }
@@ -1127,7 +1119,7 @@ impl JsFxDeltaVolSurface {
             )
             .map_err(to_js_err)?,
             _ => {
-                return Err(JsValue::from_str(
+                return Err(to_js_err(
                     "rr10d and bf10d must both be provided or both omitted",
                 ));
             }
@@ -1165,7 +1157,7 @@ impl JsFxDeltaVolSurface {
     #[wasm_bindgen(js_name = pillarVols)]
     pub fn pillar_vols(&self, expiry_idx: usize) -> Result<Box<[f64]>, JsValue> {
         if expiry_idx >= self.inner.num_expiries() {
-            return Err(JsValue::from_str(&format!(
+            return Err(to_js_err(format!(
                 "expiry_idx {} out of range (num_expiries={})",
                 expiry_idx,
                 self.inner.num_expiries()

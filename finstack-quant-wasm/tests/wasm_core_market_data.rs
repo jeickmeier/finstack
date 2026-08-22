@@ -162,8 +162,18 @@ fn fx_delta_vol_surface_rejects_mixed_10d_arguments() {
     ) {
         Ok(_) => panic!("mixed rr10d/bf10d must error"),
         Err(err) => {
-            let msg = err.as_string().unwrap_or_default();
+            // Structured errors are `js_sys::Error` objects: the message lives
+            // on `.message`, not on the value's string form.
+            let msg = js_sys::Reflect::get(&err, &"message".into())
+                .ok()
+                .and_then(|m| m.as_string())
+                .unwrap_or_default();
+            let kind = js_sys::Reflect::get(&err, &"kind".into())
+                .ok()
+                .and_then(|k| k.as_string())
+                .unwrap_or_default();
             assert!(msg.contains("rr10d"), "unexpected error message: {msg}");
+            assert_eq!(kind, "validation");
         }
     }
 }

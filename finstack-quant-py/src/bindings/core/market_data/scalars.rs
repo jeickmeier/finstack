@@ -1,6 +1,7 @@
 //! Python bindings for scalar market time series.
 
 use std::str::FromStr;
+use std::sync::Arc;
 
 use finstack_quant_core::market_data::scalars::{
     InflationIndex, InflationInterpolation, ScalarTimeSeries, SeriesInterpolation,
@@ -228,13 +229,14 @@ impl PyScalarTimeSeries {
 )]
 #[derive(Clone)]
 pub struct PyInflationIndex {
-    /// Underlying Rust inflation index.
-    pub(crate) inner: InflationIndex,
+    /// Underlying Rust inflation index (shared, so `MarketContext` getters
+    /// hand out `Arc` clones instead of deep copies).
+    pub(crate) inner: Arc<InflationIndex>,
 }
 
 impl PyInflationIndex {
     /// Build from an existing Rust inflation index.
-    pub(crate) fn from_inner(inner: InflationIndex) -> Self {
+    pub(crate) fn from_inner(inner: Arc<InflationIndex>) -> Self {
         Self { inner }
     }
 }
@@ -272,7 +274,9 @@ impl PyInflationIndex {
         let inner = InflationIndex::new(id, observations, currency)
             .map_err(core_to_py)?
             .with_interpolation(interpolation);
-        Ok(Self { inner })
+        Ok(Self {
+            inner: Arc::new(inner),
+        })
     }
 
     /// Inflation-index identifier.

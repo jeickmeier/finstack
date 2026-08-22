@@ -2348,8 +2348,6 @@ class FxConversionPolicy:
     """Use period end date."""
     PERIOD_AVERAGE: FxConversionPolicy
     """Use an average over the period."""
-    CUSTOM: FxConversionPolicy
-    """Custom strategy defined by the caller."""
 
     @classmethod
     def from_name(cls, name: str) -> FxConversionPolicy:

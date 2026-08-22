@@ -256,8 +256,8 @@ mod tests {
 
 ```rust
 // Ensure traits are object-safe when needed for polymorphism
-pub trait InterpFn: Send + Sync + Debug {
-    fn interp(&self, x: F) -> F;
+pub trait HolidayCalendar: Send + Sync {
+    fn is_business_day(&self, date: Date) -> bool;
 }
 
 // Use associated types for non-object-safe traits

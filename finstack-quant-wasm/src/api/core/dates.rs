@@ -1,10 +1,10 @@
 //! WASM bindings for date utilities from [`finstack_quant_core::dates`].
 
-use crate::utils::to_js_err;
+use crate::utils::{to_js_err, to_js_err_core};
 use finstack_quant_core::dates::{
-    adjust as core_adjust, available_calendars as core_available_calendars, calendar_by_id,
-    BusinessDayConvention, DayCount as RustDayCount, DayCountContext as RustDayCountContext,
-    Tenor as RustTenor,
+    adjust as core_adjust, available_calendars as core_available_calendars,
+    fx::resolve_calendar as rust_resolve_calendar, BusinessDayConvention, DayCount as RustDayCount,
+    DayCountContext as RustDayCountContext, Tenor as RustTenor,
 };
 use wasm_bindgen::prelude::*;
 
@@ -26,10 +26,9 @@ impl JsDayCountContext {
     /// lookup, instead of silently dropping the calendar.
     fn to_rust_ctx(&self) -> Result<RustDayCountContext<'static>, JsValue> {
         let calendar = match self.calendar_code.as_deref() {
-            Some(code) => Some(
-                calendar_by_id(code)
-                    .ok_or_else(|| JsValue::from_str(&format!("unknown calendar id: {code:?}")))?,
-            ),
+            // Routes through the core registry error so unknown codes surface
+            // "Did you mean …?" suggestions and a structured `not_found` kind.
+            Some(code) => Some(rust_resolve_calendar(Some(code)).map_err(|e| to_js_err_core(&e))?),
             None => None,
         };
         Ok(RustDayCountContext {
@@ -505,7 +504,7 @@ pub fn create_date(year: i32, month: u8, day: u8) -> Result<i32, JsValue> {
 #[wasm_bindgen(js_name = dateFromEpochDays)]
 pub fn date_from_epoch_days(days: i32) -> Result<Vec<i32>, JsValue> {
     let date = finstack_quant_core::dates::date_from_epoch_days(days)
-        .ok_or_else(|| JsValue::from_str("epoch days out of valid date range"))?;
+        .ok_or_else(|| to_js_err("epoch days out of valid date range"))?;
     Ok(vec![date.year(), date.month() as i32, date.day() as i32])
 }
 
@@ -524,11 +523,9 @@ pub fn date_from_epoch_days(days: i32) -> Result<Vec<i32>, JsValue> {
 #[wasm_bindgen(js_name = adjust)]
 pub fn adjust(epoch_days: i32, convention: &str, calendar_code: &str) -> Result<i32, JsValue> {
     let date = epoch_to_date(epoch_days)?;
-    let business_day_convention: BusinessDayConvention = convention
-        .parse()
-        .map_err(|e: String| JsValue::from_str(&e))?;
-    let cal = calendar_by_id(calendar_code)
-        .ok_or_else(|| JsValue::from_str(&format!("unknown calendar: {calendar_code}")))?;
+    let business_day_convention: BusinessDayConvention =
+        convention.parse().map_err(|e: String| to_js_err(e))?;
+    let cal = rust_resolve_calendar(Some(calendar_code)).map_err(|e| to_js_err_core(&e))?;
     let adjusted = core_adjust(date, business_day_convention, cal).map_err(to_js_err)?;
     Ok(finstack_quant_core::dates::days_since_epoch(adjusted))
 }
@@ -545,7 +542,7 @@ pub fn available_calendars() -> Vec<String> {
 /// Convert epoch days to a `time::Date`.
 fn epoch_to_date(days: i32) -> Result<time::Date, JsValue> {
     finstack_quant_core::dates::date_from_epoch_days(days)
-        .ok_or_else(|| JsValue::from_str("epoch days out of valid date range"))
+        .ok_or_else(|| to_js_err("epoch days out of valid date range"))
 }
 
 #[cfg(test)]

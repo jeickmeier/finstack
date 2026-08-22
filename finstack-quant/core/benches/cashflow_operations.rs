@@ -14,7 +14,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use finstack_quant_core::cashflow::{npv, npv_amounts, Discountable};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
-use finstack_quant_core::market_data::term_structures::{DiscountCurve, FlatCurve};
+use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
 use std::hint::black_box;
 use time::Month;
@@ -23,8 +23,8 @@ fn base_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).expect("valid bench date")
 }
 
-fn flat_curve(rate: f64) -> FlatCurve {
-    FlatCurve::new(rate, base_date(), DayCount::Act365F, "BENCH-FLAT")
+fn flat_curve(rate: f64) -> DiscountCurve {
+    DiscountCurve::flat("BENCH-FLAT", base_date(), rate).expect("valid bench curve")
 }
 
 fn shaped_curve() -> DiscountCurve {

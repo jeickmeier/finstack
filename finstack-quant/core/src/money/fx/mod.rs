@@ -72,7 +72,6 @@ mod tests {
             ("cashflow_date", FxConversionPolicy::CashflowDate),
             ("period_end", FxConversionPolicy::PeriodEnd),
             ("period_average", FxConversionPolicy::PeriodAverage),
-            ("custom", FxConversionPolicy::Custom),
         ] {
             assert!(matches!(input.parse::<FxConversionPolicy>(), Ok(value) if value == expected));
         }
@@ -81,7 +80,6 @@ mod tests {
             FxConversionPolicy::CashflowDate,
             FxConversionPolicy::PeriodEnd,
             FxConversionPolicy::PeriodAverage,
-            FxConversionPolicy::Custom,
         ] {
             let display = variant.to_string();
             assert!(matches!(display.parse::<FxConversionPolicy>(), Ok(value) if value == variant));
@@ -101,7 +99,6 @@ mod tests {
             (FxConversionPolicy::CashflowDate, r#""cashflow_date""#),
             (FxConversionPolicy::PeriodEnd, r#""period_end""#),
             (FxConversionPolicy::PeriodAverage, r#""period_average""#),
-            (FxConversionPolicy::Custom, r#""custom""#),
         ] {
             let json = serde_json::to_string(&variant).expect("serializes");
             assert_eq!(json, expected_json);

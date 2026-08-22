@@ -68,7 +68,7 @@ Full item documentation is in the rustdoc (`cargo doc -p finstack-quant-core
 | Path | What it is |
 |------|------------|
 | `market_data::context::MarketContext` | Immutable container keyed by curve id, with typed getters (`get_discount`, `get_forward`, …) returning `Arc<T>`. Bumping returns a new context. |
-| `market_data::term_structures` | `DiscountCurve`, `ForwardCurve`, `HazardCurve`, `InflationCurve`, `BaseCorrelationCurve`, `BasisSpreadCurve`, `PriceCurve`, `ParametricCurve` (Nelson-Siegel / Svensson), `ForwardVarianceCurve`, `VolatilityIndexCurve`, `CreditIndexData`, `FlatCurve`, plus builders and rate-calibration helpers. |
+| `market_data::term_structures` | `DiscountCurve`, `ForwardCurve`, `HazardCurve`, `InflationCurve`, `BaseCorrelationCurve`, `BasisSpreadCurve`, `PriceCurve`, `ParametricCurve` (Nelson-Siegel / Svensson), `ForwardVarianceCurve`, `VolatilityIndexCurve`, `CreditIndexData`, plus builders and rate-calibration helpers. |
 | `market_data::surfaces` | `VolSurface`, `VolCube`, `FxDeltaVolSurface` (ATM / risk-reversal / butterfly quoting converted to strikes). |
 | `market_data::scalars` | `MarketScalar`, `ScalarTimeSeries`, `SeriesInterpolation`, plus `InflationIndex` with its `InflationLag`/`InflationInterpolation` conventions. |
 | `market_data::dividends` | `DividendEvent`, `DividendKind`, `DividendSchedule`. |

@@ -277,6 +277,17 @@ class TestDayCountParity:
         for calendar_id in ("eurex", "six", "tsx", "nse", "bse"):
             assert calendar_id in ids
 
+    def test_unknown_calendar_raises_key_error_with_suggestions(self) -> None:
+        """Unknown codes raise KeyError carrying core's fuzzy suggestions."""
+        # Near-miss codes surface a "Did you mean …?" suggestion.
+        with pytest.raises(KeyError, match="Did you mean 'target2'"):
+            HolidayCalendar("targe")
+        with pytest.raises(KeyError, match="Did you mean 'eurex'"):
+            HolidayCalendar("eurx")
+        # Far-off codes still raise KeyError, just without suggestions.
+        with pytest.raises(KeyError, match="no_such_calendar"):
+            HolidayCalendar("no_such_calendar")
+
 
 class TestFxConventionParity:
     """FX pair-convention helpers match Rust market order, pips, and invert."""
@@ -907,6 +918,43 @@ class TestLinalgParity:
         assert lower[1][0] == pytest.approx(1.0)
         assert lower[1][1] == pytest.approx(math.sqrt(2.0))
         assert lower[0][1] == pytest.approx(0.0)
+
+    def test_cholesky_accepts_numpy_and_nested_list_identically(self) -> None:
+        """NumPy arrays take the bulk path; results match nested lists."""
+        np = pytest.importorskip("numpy")
+        from finstack_quant.core.math import linalg
+
+        nested = [[4.0, 2.0, 0.0], [2.0, 10.0, 4.0], [0.0, 4.0, 9.0]]
+        array = np.asarray(nested, dtype=np.float64)
+
+        from_list = linalg.cholesky_decomposition(nested)
+        from_array = linalg.cholesky_decomposition(array)
+        assert np.allclose(from_list, from_array, atol=0.0, rtol=0.0)
+
+        b = [1.0, 2.0, 3.0]
+        assert linalg.cholesky_solve(from_list, b) == pytest.approx(linalg.cholesky_solve(from_array, b))
+        z = [1.0, -1.0, 0.5]
+        assert linalg.apply_lower_triangular(from_list, z) == pytest.approx(
+            linalg.apply_lower_triangular(from_array, z)
+        )
+
+        corr = np.asarray(
+            [[1.0, 0.5, 0.25], [0.5, 1.0, 0.3], [0.25, 0.3, 1.0]],
+            dtype=np.float64,
+        )
+        linalg.validate_correlation_matrix(corr)  # must not raise
+        with pytest.raises(linalg.CholeskyError):
+            linalg.validate_correlation_matrix(np.asarray([[1.0, 2.0], [2.0, 1.0]]))
+
+        # Non-float64 arrays fall back to element conversion like lists do.
+        int_array = np.asarray([[4, 2], [2, 3]], dtype=np.int64)
+        expected_2x2 = linalg.cholesky_decomposition([[4.0, 2.0], [2.0, 3.0]])
+        actual = linalg.cholesky_decomposition(int_array)
+        for row_actual, row_expected in zip(actual, expected_2x2, strict=False):
+            assert row_actual == pytest.approx(row_expected)
+
+        with pytest.raises(ValueError, match="square"):
+            linalg.cholesky_decomposition(np.zeros((2, 3)))
 
     def test_cholesky_solve(self) -> None:
         """Cholesky solve recovers the exact solution."""

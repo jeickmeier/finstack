@@ -143,7 +143,8 @@ impl PyMarketContext {
     /// Insert credit index data into the context.
     #[pyo3(text_signature = "(self, id, data)")]
     fn insert_credit_index(&mut self, id: &str, data: &PyCreditIndexData) {
-        self.inner = std::mem::take(&mut self.inner).insert_credit_index(id, data.inner.clone());
+        // Cold path: one deep clone per insert; lookups now share the `Arc`.
+        self.inner = std::mem::take(&mut self.inner).insert_credit_index(id, (*data.inner).clone());
     }
 
     /// Insert a scalar time series into the context.
@@ -155,8 +156,9 @@ impl PyMarketContext {
     /// Insert an inflation index into the context.
     #[pyo3(text_signature = "(self, index)")]
     fn insert_inflation_index(&mut self, index: &PyInflationIndex) {
+        // Cold path: one deep clone per insert; lookups now share the `Arc`.
         self.inner = std::mem::take(&mut self.inner)
-            .insert_inflation_index(&index.inner.id, index.inner.clone());
+            .insert_inflation_index(&index.inner.id, (*index.inner).clone());
     }
 
     /// Retrieve a discount curve by identifier.
@@ -240,7 +242,7 @@ impl PyMarketContext {
     #[pyo3(text_signature = "(self, id)")]
     fn get_inflation_index(&self, id: &str) -> PyResult<PyInflationIndex> {
         let arc = self.inner.get_inflation_index(id).map_err(core_to_py)?;
-        Ok(PyInflationIndex::from_inner((*arc).clone()))
+        Ok(PyInflationIndex::from_inner(arc))
     }
 
     /// Retrieve a vol surface by identifier.
@@ -287,7 +289,7 @@ impl PyMarketContext {
     #[pyo3(text_signature = "(self, id)")]
     fn get_credit_index(&self, id: &str) -> PyResult<PyCreditIndexData> {
         let arc = self.inner.get_credit_index(id).map_err(core_to_py)?;
-        Ok(PyCreditIndexData::from_inner((*arc).clone()))
+        Ok(PyCreditIndexData::from_inner(arc))
     }
 
     /// Access the FX matrix (returns ``None`` if not set).

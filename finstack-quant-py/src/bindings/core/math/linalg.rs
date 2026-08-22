@@ -1,6 +1,7 @@
 //! Python bindings for `finstack_quant_core::math::linalg`.
 
 use finstack_quant_core::math::linalg;
+use numpy::{PyReadonlyArray2, PyUntypedArrayMethods};
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 
@@ -33,6 +34,31 @@ fn flatten_matrix(rows: Vec<Vec<f64>>) -> PyResult<(Vec<f64>, usize)> {
     Ok((flat, n))
 }
 
+/// Extract an n×n matrix from a C-contiguous NumPy array or a nested list.
+///
+/// NumPy input is copied from the backing buffer in bulk instead of
+/// per-element extraction; nested lists take the canonical
+/// `list[list[float]]` path.
+fn extract_square_matrix(matrix: &Bound<'_, PyAny>) -> PyResult<(Vec<f64>, usize)> {
+    if let Ok(array) = matrix.extract::<PyReadonlyArray2<'_, f64>>() {
+        let shape = array.shape();
+        let (rows, cols) = (shape[0], shape[1]);
+        if rows != cols {
+            return Err(crate::errors::value_error(format!(
+                "Matrix must be square, got {rows}x{cols}"
+            )));
+        }
+        let flat = match array.as_slice() {
+            Ok(slice) => slice.to_vec(),
+            // Strided views cannot borrow as a contiguous slice; fall back to
+            // logical-order iteration.
+            Err(_) => array.as_array().iter().copied().collect(),
+        };
+        return Ok((flat, rows));
+    }
+    flatten_matrix(matrix.extract()?)
+}
+
 /// Unflatten a row-major `Vec<f64>` of length `n*n` into `Vec<Vec<f64>>`.
 fn unflatten_matrix(flat: Vec<f64>, n: usize) -> Vec<Vec<f64>> {
     flat.chunks(n).map(|c| c.to_vec()).collect()
@@ -41,15 +67,16 @@ fn unflatten_matrix(flat: Vec<f64>, n: usize) -> Vec<Vec<f64>> {
 /// Compute the Cholesky decomposition L of a symmetric positive-definite matrix
 /// such that A = L L^T.
 ///
-/// Accepts a square matrix as `list[list[float]]` and returns the lower-triangular
-/// factor in the same shape.
+/// Accepts a square matrix as a ``numpy.ndarray`` (``float64``) or
+/// ``list[list[float]]`` and returns the lower-triangular factor in the same
+/// shape.
 ///
 /// Raises ``CholeskyError`` when the matrix is not positive-definite, is singular,
 /// or has mismatched dimensions.
 #[pyfunction]
 #[pyo3(text_signature = "(matrix)")]
-fn cholesky_decomposition(py: Python<'_>, matrix: Vec<Vec<f64>>) -> PyResult<Vec<Vec<f64>>> {
-    let (flat, n) = flatten_matrix(matrix)?;
+fn cholesky_decomposition(py: Python<'_>, matrix: &Bound<'_, PyAny>) -> PyResult<Vec<Vec<f64>>> {
+    let (flat, n) = extract_square_matrix(matrix)?;
     let result = py
         .detach(|| linalg::cholesky_decomposition(&flat, n))
         .map_err(cholesky_err)?;
@@ -59,13 +86,14 @@ fn cholesky_decomposition(py: Python<'_>, matrix: Vec<Vec<f64>>) -> PyResult<Vec
 /// Solve a symmetric positive-definite linear system A x = b given the Cholesky
 /// factor L of A (where A = L L^T).
 ///
-/// Accepts L as `list[list[float]]` and b as `list[float]`. Returns x as `list[float]`.
+/// Accepts L as a ``numpy.ndarray`` (``float64``) or ``list[list[float]]`` and b
+/// as ``list[float]``. Returns x as ``list[float]``.
 ///
 /// Raises ``CholeskyError`` on dimension mismatch or singular factor.
 #[pyfunction]
 #[pyo3(text_signature = "(chol, b)")]
-fn cholesky_solve(py: Python<'_>, chol: Vec<Vec<f64>>, b: Vec<f64>) -> PyResult<Vec<f64>> {
-    let (flat, n) = flatten_matrix(chol)?;
+fn cholesky_solve(py: Python<'_>, chol: &Bound<'_, PyAny>, b: Vec<f64>) -> PyResult<Vec<f64>> {
+    let (flat, n) = extract_square_matrix(chol)?;
     if b.len() != n {
         return Err(crate::errors::value_error(format!(
             "Right-hand side has length {} but Cholesky factor is {n}x{n}",
@@ -83,15 +111,16 @@ fn cholesky_solve(py: Python<'_>, chol: Vec<Vec<f64>>, b: Vec<f64>) -> PyResult<
 /// This is the Cholesky "apply" step that turns independent standard normals into
 /// correlated normals: if A = L L^T and z ~ N(0, I), then L z ~ N(0, A).
 ///
-/// Accepts L as `list[list[float]]` (only the lower triangle is read; the upper
-/// triangle is assumed zero) and z as `list[float]`. Returns L z as `list[float]`.
+/// Accepts L as a ``numpy.ndarray`` (``float64``) or ``list[list[float]]``
+/// (only the lower triangle is read; the upper triangle is assumed zero) and z
+/// as ``list[float]``. Returns L z as ``list[float]``.
 ///
 /// Raises ``ValueError`` when L is not square, and ``CholeskyError`` when z's length
 /// does not match L's dimension.
 #[pyfunction]
 #[pyo3(text_signature = "(l, z)")]
-fn apply_lower_triangular(py: Python<'_>, l: Vec<Vec<f64>>, z: Vec<f64>) -> PyResult<Vec<f64>> {
-    let (flat, n) = flatten_matrix(l)?;
+fn apply_lower_triangular(py: Python<'_>, l: &Bound<'_, PyAny>, z: Vec<f64>) -> PyResult<Vec<f64>> {
+    let (flat, n) = extract_square_matrix(l)?;
     py.detach(|| linalg::apply_lower_triangular(&flat, n, &z))
         .map_err(cholesky_err)
 }
@@ -99,15 +128,16 @@ fn apply_lower_triangular(py: Python<'_>, l: Vec<Vec<f64>>, z: Vec<f64>) -> PyRe
 /// Validate that a matrix is a valid correlation matrix.
 ///
 /// Checks diagonal elements are 1, off-diagonal entries are in [-1, 1],
-/// symmetry, and positive semi-definiteness.
+/// symmetry, and positive semi-definiteness. Accepts a ``numpy.ndarray``
+/// (``float64``) or ``list[list[float]]``.
 ///
 /// Raises ``CholeskyError`` if any check fails.
 #[pyfunction]
 #[pyo3(text_signature = "(matrix)")]
-fn validate_correlation_matrix(py: Python<'_>, matrix: Vec<Vec<f64>>) -> PyResult<()> {
-    let (flat, n) = flatten_matrix(matrix)?;
+fn validate_correlation_matrix(py: Python<'_>, matrix: &Bound<'_, PyAny>) -> PyResult<()> {
+    let (flat, n) = extract_square_matrix(matrix)?;
     py.detach(|| linalg::validate_correlation_matrix(&flat, n))
-        .map_err(|e| CholeskyError::new_err(e.to_string()))
+        .map_err(cholesky_err)
 }
 
 /// Build the `finstack_quant.core.math.linalg` submodule.

@@ -69,13 +69,14 @@ impl PyBaseCorrelationCurve {
 )]
 #[derive(Clone)]
 pub struct PyCreditIndexData {
-    /// Rust credit index bundle.
-    pub(crate) inner: CreditIndexData,
+    /// Rust credit index bundle (shared, so `MarketContext` getters hand out
+    /// `Arc` clones instead of deep copies).
+    pub(crate) inner: Arc<CreditIndexData>,
 }
 
 impl PyCreditIndexData {
     /// Build from an existing Rust credit-index bundle.
-    pub(crate) fn from_inner(inner: CreditIndexData) -> Self {
+    pub(crate) fn from_inner(inner: Arc<CreditIndexData>) -> Self {
         Self { inner }
     }
 }
@@ -98,7 +99,9 @@ impl PyCreditIndexData {
             .base_correlation_curve(Arc::clone(&base_correlation_curve.inner))
             .build()
             .map_err(core_to_py)?;
-        Ok(Self { inner: data })
+        Ok(Self {
+            inner: Arc::new(data),
+        })
     }
 
     /// Number of constituents in the credit index.

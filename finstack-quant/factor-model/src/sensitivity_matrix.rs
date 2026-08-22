@@ -100,6 +100,12 @@ impl SensitivityMatrix {
 
     /// Return the contiguous row slice for a position.
     ///
+    /// # Arguments
+    ///
+    /// * `position_idx` - Zero-based index of the position whose factor
+    ///   exposure row is returned. Must be strictly less than
+    ///   [`Self::n_positions`].
+    ///
     /// # Panics
     ///
     /// Panics when `position_idx` is out of bounds (hard assert, matching

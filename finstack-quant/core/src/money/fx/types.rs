@@ -19,8 +19,6 @@ pub enum FxConversionPolicy {
     PeriodEnd,
     /// Use an average over the period.
     PeriodAverage,
-    /// Custom strategy defined by the caller/provider.
-    Custom,
 }
 
 impl std::fmt::Display for FxConversionPolicy {
@@ -29,7 +27,6 @@ impl std::fmt::Display for FxConversionPolicy {
             Self::CashflowDate => write!(f, "cashflow_date"),
             Self::PeriodEnd => write!(f, "period_end"),
             Self::PeriodAverage => write!(f, "period_average"),
-            Self::Custom => write!(f, "custom"),
         }
     }
 }
@@ -42,7 +39,6 @@ impl std::str::FromStr for FxConversionPolicy {
             "cashflow_date" => Ok(Self::CashflowDate),
             "period_end" => Ok(Self::PeriodEnd),
             "period_average" => Ok(Self::PeriodAverage),
-            "custom" => Ok(Self::Custom),
             _ => Err(crate::error::InputError::Invalid.into()),
         }
     }

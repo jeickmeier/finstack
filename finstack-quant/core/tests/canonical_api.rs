@@ -13,7 +13,8 @@
 use finstack_quant_core::cashflow::{irr, npv, xirr_with_daycount};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
-use finstack_quant_core::market_data::term_structures::FlatCurve;
+use finstack_quant_core::market_data::term_structures::{DiscountCurve, ValidationMode};
+use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
 use finstack_quant_core::math::GaussHermiteQuadrature;
 use finstack_quant_core::money::Money;
 use time::Month;
@@ -29,12 +30,28 @@ fn d(year: i32, month: u8, day: u8) -> Date {
     Date::from_calendar_date(year, Month::try_from(month).unwrap(), day).unwrap()
 }
 
+/// Flat continuously-compounded discount curve with an explicit day count.
+fn flat_curve(id: &str, base: Date, continuous_rate: f64, day_count: DayCount) -> DiscountCurve {
+    DiscountCurve::builder(id)
+        .base_date(base)
+        .knots([(0.0, 1.0), (1.0, (-continuous_rate).exp())])
+        .interp(InterpStyle::LogLinear)
+        .extrapolation(ExtrapolationPolicy::FlatForward)
+        .validation(ValidationMode::Raw {
+            allow_non_monotonic: continuous_rate < 0.0,
+            forward_floor: None,
+        })
+        .day_count(day_count)
+        .build()
+        .unwrap()
+}
+
 // NPV Tests (Canonical API)
 
 mod npv_tests {
     use super::*;
 
-    /// Test NPV with FlatCurve (the canonical approach).
+    /// Test NPV with a flat discount curve (the canonical approach).
     #[test]
     fn npv_with_flat_curve() {
         let base = d(2024, 1, 1);
@@ -47,7 +64,7 @@ mod npv_tests {
 
         // Convert annual rate to continuous rate
         let continuous_rate = (1.0 + rate).ln();
-        let curve = FlatCurve::new(continuous_rate, base, day_count, "TEST");
+        let curve = flat_curve("TEST", base, continuous_rate, day_count);
         // Investment-NPV view: value one day before the day-0 outlay so every
         // flow is strictly future (npv excludes flows on/before the valuation
         // date).
@@ -74,7 +91,7 @@ mod npv_tests {
         for rate in [0.0_f64, 0.01, 0.05, 0.10, 0.25] {
             let day_count = DayCount::Act365F;
             let continuous_rate = (1.0 + rate).ln();
-            let curve = FlatCurve::new(continuous_rate, base, day_count, "TEST");
+            let curve = flat_curve("TEST", base, continuous_rate, day_count);
             // Investment-NPV view: value one day before the day-0 outlay so
             // every flow is strictly future.
             let pv = npv(&curve, base - time::Duration::days(1), &flows).unwrap();
@@ -103,7 +120,7 @@ mod npv_tests {
         let mut results = Vec::new();
         for day_count in [DayCount::Act365F, DayCount::Act360, DayCount::Thirty360] {
             let continuous_rate = (1.0 + rate).ln();
-            let curve = FlatCurve::new(continuous_rate, base, day_count, "TEST");
+            let curve = flat_curve("TEST", base, continuous_rate, day_count);
             let pv = npv(&curve, base, &flows).unwrap();
             results.push((day_count, pv.amount()));
         }

@@ -910,7 +910,7 @@ impl PyModelBuilder {
     /// Parameters
     /// ----------
     /// policy : str
-    ///     One of ``"cashflow_date"``, ``"period_end"``, ``"period_average"``, ``"custom"``.
+    ///     One of ``"cashflow_date"``, ``"period_end"``, ``"period_average"``.
     ///
     /// Returns
     /// -------
@@ -922,7 +922,7 @@ impl PyModelBuilder {
         let parsed: FxConversionPolicy =
             serde_json::from_value(policy_value).map_err(|e| {
                 crate::errors::value_error(format!(
-                    "invalid fx_policy {policy:?}: {e}; expected one of cashflow_date, period_end, period_average, custom"
+                    "invalid fx_policy {policy:?}: {e}; expected one of cashflow_date, period_end, period_average"
                 ))
             })?;
         let state = slf.take_any()?;

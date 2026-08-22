@@ -110,6 +110,22 @@ harness = false
 name = "context_bump"
 harness = false
 
+[[bench]]
+name = "brownian_bridge"
+harness = false
+
+[[bench]]
+name = "sobol"
+harness = false
+
+[[bench]]
+name = "correlation_apply"
+harness = false
+
+[[bench]]
+name = "fx_matrix"
+harness = false
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

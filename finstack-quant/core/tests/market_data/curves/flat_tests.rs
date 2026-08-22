@@ -1,25 +1,26 @@
-//! Tests for the surrounding crate component and its documented behavior.
+//! Tests for flat continuously-compounded discount curves (`DiscountCurve::flat`).
 //!
 use finstack_quant_core::dates::{Date, DayCount};
-use finstack_quant_core::market_data::term_structures::FlatCurve;
-use finstack_quant_core::market_data::traits::{Discounting, TermStructure};
+use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use time::Month;
+
+fn base_date() -> Date {
+    Date::from_calendar_date(2025, Month::January, 1).expect("valid date")
+}
 
 #[test]
 fn test_flat_curve_construction() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-    let curve = FlatCurve::new(0.05, base, DayCount::Act365F, "FLAT-5%");
+    let base = base_date();
+    let curve = DiscountCurve::flat("FLAT-5%", base, 0.05).expect("valid flat curve");
 
     assert_eq!(curve.id().as_str(), "FLAT-5%");
-    assert_eq!(curve.rate(), 0.05);
     assert_eq!(curve.base_date(), base);
     assert_eq!(curve.day_count(), DayCount::Act365F);
 }
 
 #[test]
 fn test_flat_curve_discounting_zero_time() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-    let curve = FlatCurve::new(0.10, base, DayCount::Act365F, "TEST");
+    let curve = DiscountCurve::flat("TEST", base_date(), 0.10).expect("valid flat curve");
 
     // At t=0, discount factor should be 1.0
     assert!((curve.df(0.0) - 1.0).abs() < 1e-12);
@@ -27,8 +28,7 @@ fn test_flat_curve_discounting_zero_time() {
 
 #[test]
 fn test_flat_curve_discounting_various_tenors() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-    let curve = FlatCurve::new(0.10, base, DayCount::Act365F, "TEST");
+    let curve = DiscountCurve::flat("TEST", base_date(), 0.10).expect("valid flat curve");
 
     // t=1 -> df=e^-0.1
     assert!((curve.df(1.0) - (-0.1_f64).exp()).abs() < 1e-12);
@@ -45,8 +45,7 @@ fn test_flat_curve_discounting_various_tenors() {
 
 #[test]
 fn test_flat_curve_negative_rates() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-    let curve = FlatCurve::new(-0.01, base, DayCount::Act365F, "NEGATIVE");
+    let curve = DiscountCurve::flat("NEGATIVE", base_date(), -0.01).expect("valid flat curve");
 
     // Negative rates should produce discount factors > 1.0 for t > 0
     assert!(curve.df(1.0) > 1.0);
@@ -55,8 +54,7 @@ fn test_flat_curve_negative_rates() {
 
 #[test]
 fn test_flat_curve_zero_rate() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-    let curve = FlatCurve::new(0.0, base, DayCount::Act365F, "ZERO");
+    let curve = DiscountCurve::flat("ZERO", base_date(), 0.0).expect("valid flat curve");
 
     // Zero rate means df(t) = 1.0 for all t
     assert!((curve.df(0.0) - 1.0).abs() < 1e-12);
@@ -66,8 +64,7 @@ fn test_flat_curve_zero_rate() {
 
 #[test]
 fn test_flat_curve_high_rates() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-    let curve = FlatCurve::new(0.50, base, DayCount::Act365F, "HIGH");
+    let curve = DiscountCurve::flat("HIGH", base_date(), 0.50).expect("valid flat curve");
 
     // High rate (50%) should produce very small discount factors
     let df = curve.df(1.0);
@@ -76,42 +73,16 @@ fn test_flat_curve_high_rates() {
 }
 
 #[test]
-fn test_flat_curve_set_rate() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-    let mut curve = FlatCurve::new(0.05, base, DayCount::Act365F, "MUTABLE");
+fn test_flat_curve_non_finite_rate_rejected() {
+    let base = base_date();
 
-    assert_eq!(curve.rate(), 0.05);
-    let df_before = curve.df(1.0);
-
-    curve.set_rate(0.10);
-    assert_eq!(curve.rate(), 0.10);
-
-    let df_after = curve.df(1.0);
-    assert!((df_after - (-0.10_f64).exp()).abs() < 1e-12);
-    assert!(df_after != df_before);
-}
-
-#[test]
-fn test_flat_curve_different_day_counts() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-
-    let curve_act365 = FlatCurve::new(0.05, base, DayCount::Act365F, "ACT365");
-    let curve_act360 = FlatCurve::new(0.05, base, DayCount::Act360, "ACT360");
-    let curve_30_360 = FlatCurve::new(0.05, base, DayCount::Thirty360, "30/360");
-
-    assert_eq!(curve_act365.day_count(), DayCount::Act365F);
-    assert_eq!(curve_act360.day_count(), DayCount::Act360);
-    assert_eq!(curve_30_360.day_count(), DayCount::Thirty360);
-
-    // All should produce same df for same year fraction
-    // (day count only affects date-to-year-fraction conversion)
-    assert!((curve_act365.df(1.0) - curve_act360.df(1.0)).abs() < 1e-12);
+    assert!(DiscountCurve::flat("NAN", base, f64::NAN).is_err());
+    assert!(DiscountCurve::flat("INF", base, f64::INFINITY).is_err());
 }
 
 #[test]
 fn test_flat_curve_very_small_times() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-    let curve = FlatCurve::new(0.05, base, DayCount::Act365F, "TEST");
+    let curve = DiscountCurve::flat("TEST", base_date(), 0.05).expect("valid flat curve");
 
     // Very small t should give df close to 1.0
     let df = curve.df(0.001);
@@ -121,8 +92,7 @@ fn test_flat_curve_very_small_times() {
 
 #[test]
 fn test_flat_curve_very_large_times() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-    let curve = FlatCurve::new(0.05, base, DayCount::Act365F, "TEST");
+    let curve = DiscountCurve::flat("TEST", base_date(), 0.05).expect("valid flat curve");
 
     // Very large t should give very small df
     let df = curve.df(100.0);
@@ -131,25 +101,8 @@ fn test_flat_curve_very_large_times() {
 }
 
 #[test]
-fn test_flat_curve_extrapolation_behavior() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-    let curve = FlatCurve::new(0.05, base, DayCount::Act365F, "TEST");
-
-    // Flat curve should extrapolate naturally (no special behavior)
-    // Just verify it doesn't panic or produce NaN
-    let df_neg = curve.df(-1.0); // Extrapolate backwards (unusual but should work)
-    assert!(df_neg.is_finite());
-    assert!((df_neg - (0.05_f64).exp()).abs() < 1e-12); // e^(+0.05) for negative time
-
-    let df_far = curve.df(1000.0); // Extrapolate far forward
-    assert!(df_far.is_finite());
-    assert!(df_far > 0.0);
-}
-
-#[test]
 fn test_flat_curve_id_trait() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-    let curve = FlatCurve::new(0.05, base, DayCount::Act365F, "MY-CURVE-ID");
+    let curve = DiscountCurve::flat("MY-CURVE-ID", base_date(), 0.05).expect("valid flat curve");
 
     // Test TermStructure trait
     assert_eq!(curve.id().as_str(), "MY-CURVE-ID");
@@ -157,8 +110,8 @@ fn test_flat_curve_id_trait() {
 
 #[test]
 fn test_flat_curve_discounting_trait() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-    let curve = FlatCurve::new(0.05, base, DayCount::Act365F, "TEST");
+    let base = base_date();
+    let curve = DiscountCurve::flat("TEST", base, 0.05).expect("valid flat curve");
 
     // Test Discounting trait methods
     assert_eq!(curve.base_date(), base);
@@ -170,10 +123,10 @@ fn test_flat_curve_discounting_trait() {
 
 #[test]
 fn test_flat_curve_multiple_instances() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+    let base = base_date();
 
-    let curve1 = FlatCurve::new(0.03, base, DayCount::Act365F, "CURVE1");
-    let curve2 = FlatCurve::new(0.07, base, DayCount::Act365F, "CURVE2");
+    let curve1 = DiscountCurve::flat("CURVE1", base, 0.03).expect("valid flat curve");
+    let curve2 = DiscountCurve::flat("CURVE2", base, 0.07).expect("valid flat curve");
 
     // Different curves should have different discount factors
     let df1 = curve1.df(1.0);
@@ -186,13 +139,12 @@ fn test_flat_curve_multiple_instances() {
 
 #[test]
 fn test_flat_curve_clone() {
-    let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-    let curve = FlatCurve::new(0.05, base, DayCount::Act365F, "ORIGINAL");
+    let base = base_date();
+    let curve = DiscountCurve::flat("ORIGINAL", base, 0.05).expect("valid flat curve");
 
     let cloned = curve.clone();
 
     assert_eq!(cloned.id().as_str(), curve.id().as_str());
-    assert_eq!(cloned.rate(), curve.rate());
     assert_eq!(cloned.base_date(), curve.base_date());
     assert_eq!(cloned.day_count(), curve.day_count());
     assert!((cloned.df(1.0) - curve.df(1.0)).abs() < 1e-12);

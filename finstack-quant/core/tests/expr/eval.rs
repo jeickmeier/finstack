@@ -290,7 +290,7 @@ fn evaluation_result_metadata() {
     let result = expr.eval(&ctx, &cols, EvalOpts::default()).unwrap();
 
     assert_eq!(result.values, vec![1.0, 2.0, 3.0, 4.0, 5.0]);
-    assert_eq!(format!("{:?}", result.metadata.numeric_mode), "F64");
+    assert_eq!(result.metadata.numeric_mode, "f64");
 }
 
 // DAG Planning Integration

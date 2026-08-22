@@ -887,7 +887,7 @@ mod tests {
         assert_eq!(stamped.instrument_id, "CFG-1");
         assert_eq!(
             stamped.meta.numeric_mode,
-            finstack_quant_core::config::NUMERIC_MODE
+            finstack_quant_core::config::NUMERIC_MODE_F64
         );
     }
 

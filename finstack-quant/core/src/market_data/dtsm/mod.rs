@@ -43,9 +43,7 @@
 //! let panel = YieldPanel::new(yields, tenors, None).unwrap();
 //!
 //! // Diebold-Li: extract factors, fit VAR, forecast
-//! let model = DieboldLi::builder()
-//!     .lambda(lambda)
-//!     .build()
+//! let model = DieboldLi::new(lambda)
 //!     .unwrap()
 //!     .extract_factors(&panel)
 //!     .unwrap()
@@ -73,6 +71,6 @@ pub mod pca;
 /// Shared types: YieldPanel, FactorTimeSeries, YieldForecast.
 pub mod types;
 
-pub use diebold_li::{nelson_siegel_yields, DieboldLi, DieboldLiBuilder};
+pub use diebold_li::{nelson_siegel_yields, DieboldLi};
 pub use pca::YieldPca;
 pub use types::{FactorTimeSeries, YieldForecast, YieldPanel};

@@ -221,112 +221,6 @@ mod monotone_convex_strategy {
     }
 }
 
-// InterpStyle::build Tests
-
-mod interp_style_build {
-    use super::*;
-
-    #[test]
-    fn build_linear() {
-        let interp = InterpStyle::Linear
-            .build(
-                standard_knots(),
-                standard_dfs(),
-                ExtrapolationPolicy::FlatZero,
-                ValidationPolicy::Strict,
-            )
-            .expect("Should build linear interpolator");
-
-        assert!(approx_eq(interp.interp(0.0), 1.0, 1e-12));
-        assert!(approx_eq(interp.interp(1.0), 0.95, 1e-12));
-        assert!(approx_eq(interp.interp(2.0), 0.9, 1e-12));
-        assert!(approx_eq(interp.interp(3.0), 0.85, 1e-12));
-    }
-
-    #[test]
-    fn build_log_linear() {
-        let interp = InterpStyle::LogLinear
-            .build(
-                standard_knots(),
-                standard_dfs(),
-                ExtrapolationPolicy::FlatZero,
-                ValidationPolicy::Strict,
-            )
-            .expect("Should build log-linear interpolator");
-
-        assert!(approx_eq(interp.interp(0.0), 1.0, 1e-12));
-        assert!(approx_eq(interp.interp(1.0), 0.95, 1e-12));
-    }
-
-    #[test]
-    fn build_monotone_convex() {
-        let interp = InterpStyle::MonotoneConvex
-            .build(
-                standard_knots(),
-                standard_dfs(),
-                ExtrapolationPolicy::FlatZero,
-                ValidationPolicy::Strict,
-            )
-            .expect("Should build monotone convex interpolator");
-
-        assert!(approx_eq(interp.interp(0.0), 1.0, 1e-12));
-        assert!(approx_eq(interp.interp(1.0), 0.95, 1e-12));
-    }
-
-    #[test]
-    fn build_cubic_hermite() {
-        let interp = InterpStyle::CubicHermite
-            .build(
-                standard_knots(),
-                standard_dfs(),
-                ExtrapolationPolicy::FlatZero,
-                ValidationPolicy::Strict,
-            )
-            .expect("Should build cubic hermite interpolator");
-
-        assert!(approx_eq(interp.interp(0.0), 1.0, 1e-12));
-        assert!(approx_eq(interp.interp(1.0), 0.95, 1e-12));
-    }
-
-    #[test]
-    fn build_piecewise_quadratic_forward() {
-        let interp = InterpStyle::PiecewiseQuadraticForward
-            .build(
-                standard_knots(),
-                standard_dfs(),
-                ExtrapolationPolicy::FlatForward,
-                ValidationPolicy::Strict,
-            )
-            .expect("Should build piecewise quadratic forward interpolator");
-
-        assert!(approx_eq(interp.interp(0.0), 1.0, 1e-12));
-        assert!(approx_eq(interp.interp(1.0), 0.95, 1e-12));
-    }
-
-    #[test]
-    fn build_all_with_flat_forward_extrapolation() {
-        for style in [
-            InterpStyle::Linear,
-            InterpStyle::LogLinear,
-            InterpStyle::MonotoneConvex,
-            InterpStyle::CubicHermite,
-            InterpStyle::LogLinear,
-        ] {
-            let interp = style
-                .build(
-                    standard_knots(),
-                    standard_dfs(),
-                    ExtrapolationPolicy::FlatForward,
-                    ValidationPolicy::Strict,
-                )
-                .unwrap_or_else(|e| panic!("Should build {:?}: {:?}", style, e));
-
-            assert!(approx_eq(interp.interp(0.0), 1.0, 1e-12));
-            assert!(approx_eq(interp.interp(3.0), 0.85, 1e-12));
-        }
-    }
-}
-
 // Extrapolation Policy Tests
 
 macro_rules! extrapolation_tests {
@@ -1485,12 +1379,6 @@ mod traits {
     }
 
     #[test]
-    fn interp_fn_send_sync_bounds() {
-        fn assert_send_sync<T: Send + Sync>() {}
-        assert_send_sync::<Box<dyn InterpFn>>();
-    }
-
-    #[test]
     fn interp_fn_derivative_at_boundaries() {
         let knots = vec![0.0, 1.0, 2.0].into_boxed_slice();
         let values = vec![1.0, 0.5, 0.25].into_boxed_slice();
@@ -1655,14 +1543,13 @@ mod extrapolation_policy_tests {
 
     #[test]
     fn flat_zero_behavior() {
-        let interp = InterpStyle::Linear
-            .build(
-                standard_knots(),
-                standard_dfs(),
-                ExtrapolationPolicy::FlatZero,
-                ValidationPolicy::Strict,
-            )
-            .unwrap();
+        let interp = new_strict!(
+            Interpolator<LinearStrategy>,
+            standard_knots(),
+            standard_dfs(),
+            ExtrapolationPolicy::FlatZero
+        )
+        .unwrap();
 
         // Below minimum knot (0.0), should return boundary value
         let val = interp.interp(-1.0);
@@ -1678,14 +1565,13 @@ mod extrapolation_policy_tests {
 
     #[test]
     fn flat_forward_behavior() {
-        let interp = InterpStyle::Linear
-            .build(
-                standard_knots(),
-                standard_dfs(),
-                ExtrapolationPolicy::FlatForward,
-                ValidationPolicy::Strict,
-            )
-            .unwrap();
+        let interp = new_strict!(
+            Interpolator<LinearStrategy>,
+            standard_knots(),
+            standard_dfs(),
+            ExtrapolationPolicy::FlatForward
+        )
+        .unwrap();
 
         // Test extrapolation (exact behavior depends on implementation)
         let _ = interp.interp(-1.0);

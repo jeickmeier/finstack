@@ -1301,11 +1301,6 @@
           "const": "period_average",
           "description": "Use an average over the period.",
           "type": "string"
-        },
-        {
-          "const": "custom",
-          "description": "Custom strategy defined by the caller/provider.",
-          "type": "string"
         }
       ]
     },
@@ -1492,11 +1487,6 @@
         "currency"
       ],
       "type": "object"
-    },
-    "NumericMode": {
-      "const": "f64",
-      "description": "Numeric engine mode compiled into the crate.\n\nCurrently single-variant (F64); exists as `#[non_exhaustive]` for forward-compatible extension.\n\n# What the stamp asserts (and what it does not)\n\n`F64` asserts that **curve, rate, and analytics arithmetic** (discounting,\ninterpolation, risk metrics, scenario math, FX rates as scalars) runs on\n64-bit IEEE 754 floating point. It does **not** describe the [`Money`]\nlayer: monetary amounts are stored and combined on a Decimal-backed\nrepresentation (`rust_decimal::Decimal`) regardless of this stamp, with\nf64 appearing only at ingest/accessor boundaries. Auditors reading\n`numeric_mode: F64` in [`ResultsMeta`] should therefore interpret it as\n\"non-monetary numerics are f64\", not \"monetary amounts were accumulated\nin floating point\". (Clarified .)\n\n[`Money`]: crate::money::Money",
-      "type": "string"
     },
     "PnlAttribution": {
       "description": "Complete P&L attribution result for a single instrument.\n\nDecomposes total P&L into constituent factors with optional detailed\nbreakdowns by curve, tenor, FX pair, etc.\n\n# Examples\n\n```no_run\nuse finstack_quant_attribution::{attribute_pnl_parallel, ExecutionPolicy};\nuse finstack_quant_valuations::instruments::Instrument;\nuse finstack_quant_valuations::instruments::rates::deposit::Deposit;\nuse finstack_quant_core::config::FinstackConfig;\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::market_data::context::MarketContext;\nuse finstack_quant_core::money::Money;\nuse std::sync::Arc;\nuse time::macros::date;\n\n# fn main() -> Result<(), Box<dyn std::error::Error>> {\nlet as_of_t0 = date!(2025-01-15);\nlet as_of_t1 = date!(2025-01-16);\nlet market_t0 = MarketContext::new();\nlet market_t1 = MarketContext::new();\nlet config = FinstackConfig::default();\n\nlet instrument = Arc::new(\n    Deposit::builder()\n        .id(\"DEP-1D\".into())\n        .notional(Money::new(1_000_000.0, Currency::USD))\n        .start_date(as_of_t0)\n        .maturity(as_of_t1)\n        .day_count(finstack_quant_core::dates::DayCount::Act360)\n        .discount_curve_id(\"USD-OIS\".into())\n        .build()\n        .expect(\"deposit builder should succeed\"),\n) as Arc<dyn Instrument>;\n\nlet attribution = attribute_pnl_parallel(\n    &instrument,\n    &market_t0,\n    &market_t1,\n    as_of_t0,\n    as_of_t1,\n    &config,\n    ExecutionPolicy::Parallel,\n)?;\n\nprintln!(\"Total P&L: {}\", attribution.total_pnl);\nprintln!(\"Carry: {} ({:.1}%)\",\n    attribution.carry,\n    attribution.carry.amount() / attribution.total_pnl.amount() * 100.0\n);\n# Ok(())\n# }\n```",
@@ -1765,7 +1755,7 @@
       "type": "object"
     },
     "ResultsMeta": {
-      "description": "Metadata bundle that accompanies valuation outputs.\n\nThe metadata is intentionally small so it can be attached to reports and\ndownstream data stores for reproducibility and audit trails.\n\n# Examples\n```rust\nuse finstack_quant_core::config::{results_meta, FinstackConfig, NumericMode};\n\nlet meta = results_meta(&FinstackConfig::default());\nassert_eq!(meta.numeric_mode, NumericMode::F64);\nassert!(meta.timestamp.is_none()); // deterministic by default\n```",
+      "description": "Metadata bundle that accompanies valuation outputs.\n\nThe metadata is intentionally small so it can be attached to reports and\ndownstream data stores for reproducibility and audit trails.\n\n# Examples\n```rust\nuse finstack_quant_core::config::{results_meta, FinstackConfig, NUMERIC_MODE_F64};\n\nlet meta = results_meta(&FinstackConfig::default());\nassert_eq!(meta.numeric_mode, NUMERIC_MODE_F64);\nassert!(meta.timestamp.is_none()); // deterministic by default\n```",
       "properties": {
         "fx_policy_applied": {
           "default": null,
@@ -1776,8 +1766,9 @@
           ]
         },
         "numeric_mode": {
-          "$ref": "#/$defs/NumericMode",
-          "description": "Numeric engine mode used to produce the results."
+          "const": "f64",
+          "description": "Numeric engine mode used to produce the results.\n\nAlways [`NUMERIC_MODE_F64`] today; a plain string so result\nenvelopes stay wire-compatible across host languages.\n\nDeserialization and the generated JSON Schema accept only `\"f64\"`.",
+          "type": "string"
         },
         "parallel": {
           "description": "Whether the producing computation ran in parallel.\n\nSerial results omit the field entirely so existing payloads and golden\nfiles stay byte-identical.",

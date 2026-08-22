@@ -7,7 +7,7 @@
 //! - Context types (SimpleContext)
 
 use finstack_quant_core::config::{
-    NumericMode, ResultsMeta, RoundingContext, RoundingMode, ToleranceConfig,
+    ResultsMeta, RoundingContext, RoundingMode, ToleranceConfig, NUMERIC_MODE_F64,
 };
 use finstack_quant_core::expr::{
     CompiledExpr, EvalOpts, EvaluationResult, Expr, ExprNode, Function, SimpleContext,
@@ -128,7 +128,7 @@ fn test_evaluation_result_serde() {
     let result = EvaluationResult {
         values: vec![1.0, 2.0, 3.0, 4.0, 5.0],
         metadata: ResultsMeta {
-            numeric_mode: NumericMode::F64,
+            numeric_mode: NUMERIC_MODE_F64.to_owned(),
             rounding: RoundingContext {
                 mode: RoundingMode::Bankers,
                 ingest_scale_by_currency: BTreeMap::new(),
@@ -230,7 +230,7 @@ fn test_simple_context_rejects_unknown_fields() {
 fn test_compiled_expr_serde() {
     // Create a compiled expression with a plan
     let meta = ResultsMeta {
-        numeric_mode: NumericMode::F64,
+        numeric_mode: NUMERIC_MODE_F64.to_owned(),
         rounding: RoundingContext {
             mode: RoundingMode::Bankers,
             ingest_scale_by_currency: BTreeMap::new(),

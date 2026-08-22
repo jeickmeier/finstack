@@ -159,7 +159,10 @@ fn format_chain(err: &dyn std::error::Error) -> String {
 /// - Missing id/lookup failures (`InputError::{MissingCurve, NotFound,
 ///   CalendarNotFound, FxTriangulationFailed}`) → `KeyError`
 /// - Calibration, solver, and operational failures (`Error::{Calibration,
-///   Internal}`, `InputError::SolverConvergenceFailed`) → `RuntimeError`
+///   Internal, CircularDependency}`, `InputError::{SolverConvergenceFailed,
+///   VolatilityConversionFailed, TooLarge}`) → `RuntimeError`
+/// - `MetricCalculationFailed` → classified by its cause: solver/calibration/
+///   internal causes raise `RuntimeError`, everything else raises `ValueError`
 /// - Everything else → `ValueError`
 pub fn core_to_py(e: finstack_quant_core::Error) -> PyErr {
     use finstack_quant_core::error::InputError;
@@ -173,11 +176,28 @@ pub fn core_to_py(e: finstack_quant_core::Error) -> PyErr {
             | InputError::CalendarNotFound { .. }
             | InputError::FxTriangulationFailed { .. },
         ) => PyKeyError::new_err(message),
+        // Numerical non-convergence and allocation-limit breaches are
+        // operational states, not bad user input.
         Error::Calibration { .. }
         | Error::Internal(_)
-        | Error::Input(InputError::SolverConvergenceFailed { .. }) => {
-            PyRuntimeError::new_err(message)
-        }
+        | Error::CircularDependency { .. }
+        | Error::Input(
+            InputError::SolverConvergenceFailed { .. }
+            | InputError::VolatilityConversionFailed { .. }
+            | InputError::TooLarge { .. },
+        ) => PyRuntimeError::new_err(message),
+        // Classification follows the cause: a metric that failed because an
+        // underlying calibration/solver failed is operational (RuntimeError);
+        // any other cause is treated as an input/applicability problem.
+        Error::MetricCalculationFailed { cause, .. } => match cause.as_ref() {
+            Error::Calibration { .. }
+            | Error::Internal(_)
+            | Error::CircularDependency { .. }
+            | Error::Input(InputError::SolverConvergenceFailed { .. }) => {
+                PyRuntimeError::new_err(message)
+            }
+            _ => PyValueError::new_err(message),
+        },
         _ => PyValueError::new_err(message),
     }
 }

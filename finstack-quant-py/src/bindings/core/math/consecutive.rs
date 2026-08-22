@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 /// Count longest consecutive run of positive values.
 #[pyfunction]
 pub fn count_consecutive(values: Vec<f64>) -> usize {
-    consecutive::count_consecutive(&values, |x| x > 0.0)
+    consecutive::longest_positive_run(&values)
 }
 
 /// Register consecutive helpers on the parent math module.

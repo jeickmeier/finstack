@@ -29,9 +29,9 @@
 //!
 //! ## Numeric mode
 //!
-//! The engine currently operates in a single numeric mode: `NumericMode::F64`.
+//! The engine currently operates in a single numeric mode: `"f64"`.
 //! To make this explicit and avoid unnecessary function calls, the active mode
-//! is exposed as a constant: `NUMERIC_MODE`. Future releases may introduce
+//! is exposed as a constant: `NUMERIC_MODE_F64`. Future releases may introduce
 //! additional modes (e.g., alternative numeric strategies) or feature-gated switching; in that case
 //! the constant will remain stable and reflect the compile-time choice.
 
@@ -490,31 +490,23 @@ impl RoundingContext {
     }
 }
 
-/// Numeric engine mode compiled into the crate.
-///
-/// Currently single-variant (F64); exists as `#[non_exhaustive]` for forward-compatible extension.
+/// Numeric engine mode compiled into the crate, as stamped into
+/// [`ResultsMeta::numeric_mode`].
 ///
 /// # What the stamp asserts (and what it does not)
 ///
-/// `F64` asserts that **curve, rate, and analytics arithmetic** (discounting,
+/// `"f64"` asserts that **curve, rate, and analytics arithmetic** (discounting,
 /// interpolation, risk metrics, scenario math, FX rates as scalars) runs on
 /// 64-bit IEEE 754 floating point. It does **not** describe the [`Money`]
 /// layer: monetary amounts are stored and combined on a Decimal-backed
 /// representation (`rust_decimal::Decimal`) regardless of this stamp, with
 /// f64 appearing only at ingest/accessor boundaries. Auditors reading
-/// `numeric_mode: F64` in [`ResultsMeta`] should therefore interpret it as
+/// `numeric_mode: "f64"` in [`ResultsMeta`] should therefore interpret it as
 /// "non-monetary numerics are f64", not "monetary amounts were accumulated
-/// in floating point". (Clarified .)
+/// in floating point".
 ///
 /// [`Money`]: crate::money::Money
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
-#[non_exhaustive]
-#[serde(rename_all = "snake_case")]
-pub enum NumericMode {
-    /// Floating-point f64 engine for curve/rate/analytics arithmetic.
-    /// Monetary amounts remain Decimal-backed independent of this variant.
-    F64,
-}
+pub const NUMERIC_MODE_F64: &str = "f64";
 
 /// Metadata bundle that accompanies valuation outputs.
 ///
@@ -523,16 +515,23 @@ pub enum NumericMode {
 ///
 /// # Examples
 /// ```rust
-/// use finstack_quant_core::config::{results_meta, FinstackConfig, NumericMode};
+/// use finstack_quant_core::config::{results_meta, FinstackConfig, NUMERIC_MODE_F64};
 ///
 /// let meta = results_meta(&FinstackConfig::default());
-/// assert_eq!(meta.numeric_mode, NumericMode::F64);
+/// assert_eq!(meta.numeric_mode, NUMERIC_MODE_F64);
 /// assert!(meta.timestamp.is_none()); // deterministic by default
 /// ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ResultsMeta {
     /// Numeric engine mode used to produce the results.
-    pub numeric_mode: NumericMode,
+    ///
+    /// Always [`NUMERIC_MODE_F64`] today; a plain string so result
+    /// envelopes stay wire-compatible across host languages.
+    ///
+    /// Deserialization and the generated JSON Schema accept only `"f64"`.
+    #[serde(deserialize_with = "deserialize_numeric_mode")]
+    #[schemars(extend("const" = NUMERIC_MODE_F64))]
+    pub numeric_mode: String,
     /// Rounding context snapshot applied to IO boundaries.
     pub rounding: RoundingContext,
     /// Optional FX policy applied by the computing layer (human-readable key).
@@ -561,6 +560,20 @@ pub struct ResultsMeta {
 impl Default for ResultsMeta {
     fn default() -> Self {
         results_meta(&FinstackConfig::default())
+    }
+}
+
+fn deserialize_numeric_mode<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = String::deserialize(deserializer)?;
+    if value == NUMERIC_MODE_F64 {
+        Ok(value)
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "numeric_mode must be {NUMERIC_MODE_F64:?}, got {value:?}"
+        )))
     }
 }
 
@@ -610,58 +623,18 @@ pub fn rounding_context_from(cfg: &FinstackConfig) -> RoundingContext {
     }
 }
 
-/// Active numeric mode used by the engine.
-///
-/// This compile-time constant indicates the numeric representation used for
-/// **curve, rate, and analytics arithmetic** in Finstack. Currently fixed to
-/// [`NumericMode::F64`] (64-bit IEEE 754 floating point).
-///
-/// # Scope of the stamp
-///
-/// The constant — and the `numeric_mode` field it stamps into
-/// [`ResultsMeta`] — covers non-monetary numerics only. The
-/// [`Money`](crate::money::Money) layer is Decimal-backed
-/// (`rust_decimal::Decimal`) independent of this stamp: monetary amounts are
-/// ingested, rounded, and combined in Decimal, with f64 used only at the
-/// `Money::amount()` accessor and f64-input constructors. See
-/// [`NumericMode`] for the full audit-stamp semantics (clarified per the
-/// ).
-///
-/// # Rationale
-///
-/// F64 provides:
-/// - ~15-17 significant decimal digits of precision
-/// - Sufficient for curve/rate/analytics calculations
-/// - Hardware-accelerated operations on modern CPUs
-/// - Wide ecosystem compatibility (Python, JavaScript, databases)
-///
-/// # Future Considerations
-///
-/// This constant exists to support potential future modes (e.g., decimal arithmetic
-/// for regulatory compliance). Code that needs to be mode-aware should reference
-/// this constant rather than assuming F64.
-///
-/// # Example
-///
-/// ```rust
-/// use finstack_quant_core::config::{NUMERIC_MODE, NumericMode};
-///
-/// assert_eq!(NUMERIC_MODE, NumericMode::F64);
-/// ```
-pub const NUMERIC_MODE: NumericMode = NumericMode::F64;
-
 /// Construct a [`ResultsMeta`] snapshot for stamping into result envelopes.
 ///
-/// Convenience wrapper that combines [`NUMERIC_MODE`] and
+/// Convenience wrapper that combines [`NUMERIC_MODE_F64`] and
 /// [`rounding_context_from`], without a timestamp (deterministic).
 ///
 /// # Examples
 /// ```rust
-/// use finstack_quant_core::config::{results_meta, FinstackConfig, NumericMode};
+/// use finstack_quant_core::config::{results_meta, FinstackConfig, NUMERIC_MODE_F64};
 ///
 /// let cfg = FinstackConfig::default();
 /// let meta = results_meta(&cfg);
-/// assert_eq!(meta.numeric_mode, NumericMode::F64);
+/// assert_eq!(meta.numeric_mode, NUMERIC_MODE_F64);
 /// assert!(meta.timestamp.is_none());
 /// ```
 ///
@@ -703,7 +676,7 @@ pub fn results_meta_with_timestamp(
     timestamp: Option<time::OffsetDateTime>,
 ) -> ResultsMeta {
     ResultsMeta {
-        numeric_mode: NUMERIC_MODE,
+        numeric_mode: NUMERIC_MODE_F64.to_owned(),
         rounding: rounding_context_from(cfg),
         fx_policy_applied: None,
         parallel: false,

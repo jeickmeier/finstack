@@ -191,6 +191,15 @@ pub struct CorrelationFactor {
     /// For well-conditioned correlation matrices this equals `n`. For
     /// near-singular matrices it may be smaller.
     effective_rank: usize,
+    /// Whether [`Self::factor`] is exactly lower triangular (all entries
+    /// above the diagonal are `+0.0`).
+    ///
+    /// Certified by inspection of the stored matrix, independent of whether
+    /// pivoting occurred. Enables a half-matrix hot path in [`Self::apply`].
+    /// The dense and triangular loops agree bit-for-bit on finite shocks
+    /// because the skipped terms are `0.0 * z` additions that cannot change
+    /// the running sum.
+    triangular: bool,
 }
 
 impl CorrelationFactor {
@@ -257,30 +266,66 @@ impl CorrelationFactor {
             });
         }
         let n = self.n;
-        for (i, out) in correlated.iter_mut().enumerate() {
-            let mut sum = 0.0;
-            for (j, &z_j) in independent.iter().enumerate() {
-                sum += self.factor[i * n + j] * z_j;
+        if self.triangular {
+            // Half-matrix path: entries above the diagonal are exactly zero,
+            // so skipping them cannot change the running sum on finite input.
+            for (i, out) in correlated.iter_mut().enumerate() {
+                let row = i * n;
+                let mut sum = 0.0;
+                for (&f_j, &z_j) in self.factor[row..row + i + 1]
+                    .iter()
+                    .zip(independent[..=i].iter())
+                {
+                    sum += f_j * z_j;
+                }
+                *out = sum;
             }
-            *out = sum;
+        } else {
+            for (i, out) in correlated.iter_mut().enumerate() {
+                let mut sum = 0.0;
+                for (j, &z_j) in independent.iter().enumerate() {
+                    sum += self.factor[i * n + j] * z_j;
+                }
+                *out = sum;
+            }
         }
         Ok(())
     }
 
-    /// Construct directly from a pre-validated lower-triangular factor slice.
+    /// Construct a factor from an `n × n` row-major matrix.
     ///
-    /// `factor` must be `n * n` elements; upper triangle is ignored (expected zero).
-    /// `effective_rank` must satisfy `effective_rank <= n`.
+    /// Exact lower-triangular matrices (every entry above the diagonal is
+    /// `+0.0`) use the half-matrix [`Self::apply`] path. Any non-zero above
+    /// the diagonal uses the dense path. Callers may pass a Cholesky factor
+    /// or an arbitrary dense matrix.
+    ///
+    /// # Arguments
+    ///
+    /// * `factor` - Row-major `n × n` factor; length must be `n * n`.
+    /// * `n` - Matrix dimension implied by `factor`.
+    /// * `effective_rank` - Number of retained pivots; must satisfy
+    ///   `effective_rank <= n`.
     #[must_use]
     pub fn from_parts(factor: Vec<f64>, n: usize, effective_rank: usize) -> Self {
         debug_assert_eq!(factor.len(), n * n);
         debug_assert!(effective_rank <= n);
+        let triangular = is_exactly_lower_triangular(&factor, n);
         Self {
             factor,
             n,
             effective_rank,
+            triangular,
         }
     }
+}
+
+/// True when every strictly-upper-triangular entry is exactly `+0.0`.
+fn is_exactly_lower_triangular(factor: &[f64], n: usize) -> bool {
+    (0..n).all(|row| {
+        factor[row * n + row + 1..row * n + n]
+            .iter()
+            .all(|&v| v == 0.0)
+    })
 }
 
 /// Compute the Cholesky factorisation of a correlation or covariance matrix using
@@ -450,6 +495,9 @@ pub fn cholesky_correlation(
         }
     }
 
+    // `from_parts` inspects the unpermuted factor. Unit-diagonal correlation
+    // inputs typically swap, but a covariance already in pivot order can still
+    // come out exactly lower triangular.
     Ok(CorrelationFactor::from_parts(l_orig, n, effective_rank))
 }
 
@@ -1208,6 +1256,115 @@ mod tests {
         assert!((chol[1] - 0.0).abs() < 1e-10);
         assert!((chol[2] - 0.5).abs() < 1e-10);
         assert!((chol[3] - 0.8660254037844387).abs() < 1e-10);
+    }
+
+    /// Reference dense multiply — the pre-optimization `apply` loop.
+    fn dense_apply(factor: &CorrelationFactor, independent: &[f64], correlated: &mut [f64]) {
+        let n = factor.n();
+        for (i, out) in correlated.iter_mut().enumerate() {
+            let mut sum = 0.0;
+            for (j, &z_j) in independent.iter().enumerate() {
+                sum += factor.factor_matrix()[i * n + j] * z_j;
+            }
+            *out = sum;
+        }
+    }
+
+    /// Strictly lower-triangular factor with decreasing diagonals.
+    fn lower_triangular_factor(n: usize) -> Vec<f64> {
+        let mut factor = vec![0.0; n * n];
+        for i in 0..n {
+            for j in 0..=i {
+                factor[i * n + j] = if i == j {
+                    (n - i) as f64
+                } else {
+                    0.1 * ((i - j) as f64)
+                };
+            }
+        }
+        factor
+    }
+
+    #[test]
+    fn triangular_flag_reflects_pivot_reality() {
+        // Unit-diagonal correlation inputs tie on every initial pivot, so
+        // complete pivoting swaps and the unpermuted factor is generally NOT
+        // triangular — the flag must stay off there.
+        let n = 8;
+        let rho = 0.5_f64;
+        let corr: Vec<f64> = (0..n * n)
+            .map(|k| {
+                let (i, j) = (k / n, k % n);
+                if i == j {
+                    1.0
+                } else {
+                    rho
+                }
+            })
+            .collect();
+        let factor = cholesky_correlation(&corr, n).expect("valid");
+        assert!(!factor.triangular);
+
+        // A covariance-style input whose diagonals are already in pivot order
+        // never swaps; its factor comes out exactly lower triangular and the
+        // fast path engages.
+        let cov = vec![100.0, 1.0, 1.0, 1.0];
+        let factor = cholesky_correlation(&cov, 2).expect("valid");
+        assert!(factor.triangular);
+        let z = [0.3, -0.7];
+        let mut fast = vec![0.0; 2];
+        factor.apply(&z, &mut fast).expect("matching dimensions");
+        let mut reference = vec![0.0; 2];
+        dense_apply(&factor, &z, &mut reference);
+        assert_eq!(fast, reference);
+    }
+
+    #[test]
+    fn triangular_fast_path_matches_dense_multiply_bit_for_bit() {
+        let n = 8usize;
+        let l = lower_triangular_factor(n);
+        let factor = CorrelationFactor::from_parts(l, n, n);
+        assert!(
+            factor.triangular,
+            "n=8 lower-triangular factor must enter the half-matrix path"
+        );
+
+        let z: Vec<f64> = (0..n).map(|i| ((i % 13) as f64 * 0.07) - 0.4).collect();
+        let mut fast = vec![0.0; n];
+        factor.apply(&z, &mut fast).expect("matching dimensions");
+        let mut reference = vec![0.0; n];
+        dense_apply(&factor, &z, &mut reference);
+        assert_eq!(fast, reference, "apply must be bit-identical at n={n}");
+
+        // The same factor reconstructed by pivoted Cholesky of L L^T stays
+        // triangular because the diagonals are already in pivot order.
+        let cov = mat_mul_lt(factor.factor_matrix(), n);
+        let reconstructed = cholesky_correlation(&cov, n).expect("SPD covariance");
+        assert!(reconstructed.triangular);
+        let mut via_chol = vec![0.0; n];
+        reconstructed
+            .apply(&z, &mut via_chol)
+            .expect("matching dimensions");
+        dense_apply(&reconstructed, &z, &mut reference);
+        assert_eq!(via_chol, reference);
+    }
+
+    #[test]
+    fn from_parts_factor_uses_the_dense_path() {
+        // Callers may hand a full (non-triangular) matrix to `from_parts`;
+        // it must take the dense path.
+        let corr = vec![1.0, 0.5, 0.5, 1.0];
+        let factor = CorrelationFactor::from_parts(corr.clone(), 2, 2);
+        let z = [0.3, -0.7];
+
+        let mut via_apply = vec![0.0; 2];
+        factor
+            .apply(&z, &mut via_apply)
+            .expect("matching dimensions");
+        assert!(!factor.triangular);
+        // Dense multiply of the raw matrix, computed inline.
+        assert_eq!(via_apply[0], corr[0] * z[0] + corr[1] * z[1]);
+        assert_eq!(via_apply[1], corr[2] * z[0] + corr[3] * z[1]);
     }
 
     #[test]

@@ -14,6 +14,9 @@ Examples
 
 from __future__ import annotations
 
+import numpy as np
+import numpy.typing as npt
+
 from finstack_quant.core import FinstackError
 
 __all__ = ["count_consecutive", "linalg", "stats", "special_functions", "summation"]
@@ -50,8 +53,9 @@ class linalg:
     """
     Linear algebra utilities: Cholesky decomposition, correlation matrices.
 
-    All functions in this submodule operate on nested ``list[list[float]]``
-    matrices (row-major square matrices) and ``list[float]`` vectors.
+    Matrix inputs accept either nested ``list[list[float]]`` (row-major
+    square matrices) or C-contiguous ``numpy.ndarray`` (``float64``) arrays;
+    vectors are ``list[float]``.
 
     Examples
     --------
@@ -88,7 +92,7 @@ class linalg:
         ...
 
     @staticmethod
-    def apply_lower_triangular(l: list[list[float]], z: list[float]) -> list[float]:
+    def apply_lower_triangular(l: list[list[float]] | npt.NDArray[np.float64], z: list[float]) -> list[float]:
         """
         Apply a lower-triangular factor L to a vector z, returning ``L z``.
 
@@ -98,7 +102,7 @@ class linalg:
 
         Parameters
         ----------
-        l : list[list[float]]
+        l : list[list[float]] or numpy.ndarray
             Square lower-triangular factor L, typically the output of
             ``cholesky_decomposition``. Only the lower triangle is read; the
             upper triangle is assumed zero and ignored.
@@ -128,14 +132,16 @@ class linalg:
         ...
 
     @staticmethod
-    def cholesky_decomposition(matrix: list[list[float]]) -> list[list[float]]:
+    def cholesky_decomposition(
+        matrix: list[list[float]] | npt.NDArray[np.float64],
+    ) -> list[list[float]]:
         """
         Compute the Cholesky decomposition L of a symmetric positive-definite
         matrix such that A = L L^T.
 
         Parameters
         ----------
-        matrix : list[list[float]]
+        matrix : list[list[float]] or numpy.ndarray
             Square symmetric positive-definite matrix.
 
         Returns
@@ -161,14 +167,14 @@ class linalg:
         ...
 
     @staticmethod
-    def cholesky_solve(chol: list[list[float]], b: list[float]) -> list[float]:
+    def cholesky_solve(chol: list[list[float]] | npt.NDArray[np.float64], b: list[float]) -> list[float]:
         """
         Solve a symmetric positive-definite linear system A x = b given
         the Cholesky factor L of A (where A = L L^T).
 
         Parameters
         ----------
-        chol : list[list[float]]
+        chol : list[list[float]] or numpy.ndarray
             Lower-triangular Cholesky factor L.
         b : list[float]
             Right-hand side vector.
@@ -195,7 +201,9 @@ class linalg:
         ...
 
     @staticmethod
-    def validate_correlation_matrix(matrix: list[list[float]]) -> None:
+    def validate_correlation_matrix(
+        matrix: list[list[float]] | npt.NDArray[np.float64],
+    ) -> None:
         """
         Validate that a matrix is a valid correlation matrix.
 
@@ -204,7 +212,7 @@ class linalg:
 
         Parameters
         ----------
-        matrix : list[list[float]]
+        matrix : list[list[float]] or numpy.ndarray
             Square matrix to validate.
 
         Raises

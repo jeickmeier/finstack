@@ -2277,7 +2277,7 @@ class ModelBuilder:
 
     def fx_policy(self, policy: str) -> ModelBuilder:
         """
-        Set the FX policy (``cashflow_date``/``period_end``/``period_average``/``custom``).
+        Set the FX policy (``cashflow_date``/``period_end``/``period_average``).
 
         Parameters
         ----------

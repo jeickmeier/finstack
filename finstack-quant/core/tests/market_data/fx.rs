@@ -181,7 +181,6 @@ fn simple_fx_provider_respects_policies() {
         FxConversionPolicy::CashflowDate,
         FxConversionPolicy::PeriodEnd,
         FxConversionPolicy::PeriodAverage,
-        FxConversionPolicy::Custom,
     ] {
         let rate = provider
             .rate(Currency::EUR, Currency::USD, test_date(), policy)

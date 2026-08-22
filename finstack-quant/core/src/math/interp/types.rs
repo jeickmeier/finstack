@@ -207,7 +207,7 @@ impl std::str::FromStr for InterpStyle {
 
 /// Crate-private enum enabling static dispatch for interpolation in hot loops.
 ///
-/// Storing this enum (instead of `Box<dyn InterpFn>`) allows the compiler to
+/// Storing this enum (instead of a boxed trait object) allows the compiler to
 /// inline calls to `interp` and `interp_prime` for each concrete variant.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -264,96 +264,6 @@ impl InterpStyle {
         match self {
             InterpStyle::LogLinear | InterpStyle::MonotoneConvex => ValidationPolicy::Strict,
             _ => validation,
-        }
-    }
-
-    /// Build a boxed interpolator implementing [`InterpFn`].
-    ///
-    /// # Performance Note
-    ///
-    /// This method returns `Box<dyn InterpFn>` which incurs heap allocation and
-    /// dynamic dispatch overhead. For hot paths (e.g., curve evaluation in pricing
-    /// loops), prefer using the concrete interpolator types directly:
-    ///
-    /// ```rust
-    /// use finstack_quant_core::math::interp::{
-    ///     ExtrapolationPolicy, Interpolator, MonotoneConvexStrategy, ValidationPolicy,
-    /// };
-    ///
-    /// # fn main() -> finstack_quant_core::Result<()> {
-    /// // Preferred: direct construction (no heap allocation, static dispatch)
-    /// let interp = Interpolator::<MonotoneConvexStrategy>::new(
-    ///     vec![0.0, 1.0, 2.0].into_boxed_slice(),
-    ///     vec![1.0, 0.95, 0.90].into_boxed_slice(),
-    ///     ExtrapolationPolicy::FlatZero,
-    ///     ValidationPolicy::Strict,
-    /// )?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # Arguments
-    /// * `knots` – strictly ascending knot times.
-    /// * `values` – corresponding values.
-    /// * `extrapolation` – extrapolation policy.
-    /// * `validation` – validation policy controlling whether negative values are allowed.
-    ///
-    /// Ownership of both boxed slices transfers to the returned interpolator.
-    /// `LogLinear` and `MonotoneConvex` always upgrade validation to strict
-    /// positive finite values because their formulas use logarithms; linear,
-    /// cubic-Hermite, and piecewise-quadratic-forward styles respect the
-    /// requested policy.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when knots have fewer than two entries, are non-finite,
-    /// or are not strictly increasing; when value length differs from knot
-    /// length; when values violate the effective validation policy; or when
-    /// the selected strategy rejects its data (for example, insufficient knot
-    /// spacing for a slope-based method).
-    pub fn build(
-        self,
-        knots: Box<[f64]>,
-        values: Box<[f64]>,
-        extrapolation: ExtrapolationPolicy,
-        validation: ValidationPolicy,
-    ) -> crate::Result<Box<dyn InterpFn>> {
-        let effective_validation = self.effective_validation(validation);
-        match self {
-            InterpStyle::Linear => Ok(Box::new(Interpolator::<LinearStrategy>::new(
-                knots,
-                values,
-                extrapolation,
-                effective_validation,
-            )?)),
-            InterpStyle::LogLinear => Ok(Box::new(Interpolator::<LogLinearStrategy>::new(
-                knots,
-                values,
-                extrapolation,
-                effective_validation,
-            )?)),
-            InterpStyle::MonotoneConvex => {
-                Ok(Box::new(Interpolator::<MonotoneConvexStrategy>::new(
-                    knots,
-                    values,
-                    extrapolation,
-                    effective_validation,
-                )?))
-            }
-            InterpStyle::CubicHermite => Ok(Box::new(Interpolator::<CubicHermiteStrategy>::new(
-                knots,
-                values,
-                extrapolation,
-                effective_validation,
-            )?)),
-            InterpStyle::PiecewiseQuadraticForward => Ok(Box::new(Interpolator::<
-                PiecewiseQuadraticForwardStrategy,
-            >::new(
-                knots,
-                values,
-                extrapolation,
-                effective_validation,
-            )?)),
         }
     }
 

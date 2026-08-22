@@ -362,7 +362,7 @@ pub fn neumaier_sum(values: JsValue) -> Result<f64, JsValue> {
 #[wasm_bindgen(js_name = countConsecutive)]
 pub fn count_consecutive(values: JsValue) -> Result<usize, JsValue> {
     let v: Vec<f64> = serde_wasm_bindgen::from_value(values).map_err(to_js_err)?;
-    Ok(math::count_consecutive(&v, |x| x > 0.0))
+    Ok(math::longest_positive_run(&v))
 }
 
 /// Kahan compensated summation over a typed numeric array.
@@ -386,7 +386,7 @@ pub fn neumaier_sum_array(values: &[f64]) -> f64 {
 /// @returns Length of the longest run of strictly positive observations.
 #[wasm_bindgen(js_name = countConsecutiveArray)]
 pub fn count_consecutive_array(values: &[f64]) -> usize {
-    math::count_consecutive(values, |x| x > 0.0)
+    math::longest_positive_run(values)
 }
 
 fn validate_flat_matrix_len(matrix: &[f64], n: usize) -> Result<(), JsValue> {

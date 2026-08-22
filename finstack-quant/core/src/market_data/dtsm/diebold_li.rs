@@ -108,37 +108,27 @@ impl TryFrom<RawDieboldLi> for DieboldLi {
     }
 }
 
-/// Builder for [`DieboldLi`].
-pub struct DieboldLiBuilder {
-    lambda: f64,
-}
-
-impl DieboldLiBuilder {
-    /// Set the decay parameter lambda.
+impl DieboldLi {
+    /// Create a model with the given decay parameter.
     ///
-    /// Default: `0.7308` for tenors in **years** (the years-equivalent of
-    /// Diebold-Li's canonical `0.0609` months value; curvature loading peaks at
-    /// ≈2.45 years ≈ 30 months). Pass a months-scaled lambda only if you also
-    /// supply tenors in months.
-    #[must_use]
-    pub fn lambda(mut self, lambda: f64) -> Self {
-        self.lambda = lambda;
-        self
-    }
-
-    /// Build the model.
+    /// # Arguments
+    ///
+    /// * `lambda` - Decay parameter for tenors **in years**. Must be finite
+    ///   and strictly positive. Pass a months-scaled lambda only if you also
+    ///   supply tenors in months.
     ///
     /// # Errors
-    /// - lambda <= 0 or non-finite
-    pub fn build(self) -> crate::Result<DieboldLi> {
-        if !self.lambda.is_finite() || self.lambda <= 0.0 {
+    ///
+    /// Returns [`crate::Error::Validation`] when `lambda` is non-finite or
+    /// not strictly positive.
+    pub fn new(lambda: f64) -> crate::Result<Self> {
+        if !lambda.is_finite() || lambda <= 0.0 {
             return Err(crate::Error::Validation(format!(
-                "Lambda must be positive and finite, got {}",
-                self.lambda
+                "Lambda must be positive and finite, got {lambda}"
             )));
         }
-        Ok(DieboldLi {
-            lambda: self.lambda,
+        Ok(Self {
+            lambda,
             factors: None,
             mu: None,
             phi: None,
@@ -146,14 +136,20 @@ impl DieboldLiBuilder {
             tenors: Vec::new(),
         })
     }
-}
 
-impl DieboldLi {
-    /// Create a builder with default lambda = 0.7308 (years convention).
+    /// Create a model with the default lambda = 0.7308 (years convention).
+    ///
+    /// `0.7308` is the years-equivalent of Diebold-Li's canonical `0.0609`
+    /// months value (curvature loading peaks at ≈2.45 years ≈ 30 months).
     #[must_use]
-    pub fn builder() -> DieboldLiBuilder {
-        DieboldLiBuilder {
+    pub fn with_default_lambda() -> Self {
+        Self {
             lambda: DEFAULT_LAMBDA,
+            factors: None,
+            mu: None,
+            phi: None,
+            q_cov: None,
+            tenors: Vec::new(),
         }
     }
 
@@ -649,23 +645,23 @@ mod tests {
     }
 
     #[test]
-    fn builder_default_lambda() {
-        let model = DieboldLi::builder().build().unwrap();
+    fn new_default_lambda() {
+        let model = DieboldLi::with_default_lambda();
         // Years-convention default (12 × Diebold-Li's 0.0609 months value).
         assert!((model.lambda() - 0.7308).abs() < 1e-10);
     }
 
     #[test]
-    fn builder_custom_lambda() {
-        let model = DieboldLi::builder().lambda(0.05).build().unwrap();
+    fn new_custom_lambda() {
+        let model = DieboldLi::new(0.05).unwrap();
         assert!((model.lambda() - 0.05).abs() < 1e-10);
     }
 
     #[test]
-    fn builder_invalid_lambda_rejected() {
-        assert!(DieboldLi::builder().lambda(0.0).build().is_err());
-        assert!(DieboldLi::builder().lambda(-0.1).build().is_err());
-        assert!(DieboldLi::builder().lambda(f64::NAN).build().is_err());
+    fn new_rejects_invalid_lambda() {
+        assert!(DieboldLi::new(0.0).is_err());
+        assert!(DieboldLi::new(-0.1).is_err());
+        assert!(DieboldLi::new(f64::NAN).is_err());
     }
 
     #[test]
@@ -688,9 +684,7 @@ mod tests {
         }
 
         let panel = YieldPanel::new(data, tenors, None).unwrap();
-        let model = DieboldLi::builder()
-            .lambda(lambda)
-            .build()
+        let model = DieboldLi::new(lambda)
             .unwrap()
             .extract_factors(&panel)
             .unwrap();
@@ -732,13 +726,13 @@ mod tests {
     fn extract_factors_too_few_tenors() {
         let data = DMatrix::from_row_slice(3, 2, &[0.01, 0.02, 0.01, 0.02, 0.01, 0.02]);
         let panel = YieldPanel::new(data, vec![1.0, 2.0], None).unwrap();
-        let model = DieboldLi::builder().build().unwrap();
+        let model = DieboldLi::with_default_lambda();
         assert!(model.extract_factors(&panel).is_err());
     }
 
     #[test]
     fn loading_matrix_shape_and_level() {
-        let model = DieboldLi::builder().build().unwrap();
+        let model = DieboldLi::with_default_lambda();
         let tenors = standard_tenors();
         let panel = {
             let n = tenors.len();
@@ -779,9 +773,7 @@ mod tests {
         }
 
         let panel = YieldPanel::new(data, tenors.clone(), None).unwrap();
-        let model = DieboldLi::builder()
-            .lambda(lambda)
-            .build()
+        let model = DieboldLi::new(lambda)
             .unwrap()
             .extract_factors(&panel)
             .unwrap()
@@ -836,9 +828,7 @@ mod tests {
             }
         }
         let panel = YieldPanel::new(data, tenors, None).unwrap();
-        let model = DieboldLi::builder()
-            .lambda(lambda)
-            .build()
+        let model = DieboldLi::new(lambda)
             .unwrap()
             .extract_factors(&panel)
             .unwrap()
@@ -853,9 +843,7 @@ mod tests {
         let n = tenors.len();
         let data = DMatrix::from_fn(20, n, |_, j| 0.03 + 0.001 * j as f64);
         let panel = YieldPanel::new(data, tenors, None).unwrap();
-        let model = DieboldLi::builder()
-            .build()
-            .unwrap()
+        let model = DieboldLi::with_default_lambda()
             .extract_factors(&panel)
             .unwrap();
         // No fit_var called
@@ -879,9 +867,7 @@ mod tests {
             }
         }
         let panel = YieldPanel::new(data, tenors, None).unwrap();
-        let model = DieboldLi::builder()
-            .lambda(lambda)
-            .build()
+        let model = DieboldLi::new(lambda)
             .unwrap()
             .extract_factors(&panel)
             .unwrap()
