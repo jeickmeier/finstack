@@ -257,11 +257,24 @@ impl McEngine {
             }
         }
 
+        if rng.is_quasi_random() {
+            return Err(finstack_quant_core::Error::Validation(
+                "the generic Monte Carlo engine does not support quasi-random streams \
+                 (e.g. SobolRng): it consumes draws step-by-step, destroying the \
+                 per-path low-discrepancy point structure, and reports an i.i.d. \
+                 standard error that is statistically invalid over dependent QMC \
+                 points. Use PathDependentPricer with use_sobol=true, which draws one \
+                 Sobol point per path and estimates the error across independently \
+                 scrambled replicates, or switch to PhiloxRng."
+                    .to_string(),
+            ));
+        }
+
         if self.config.use_parallel && !rng.supports_splitting() {
             return Err(finstack_quant_core::Error::Validation(
-                "Parallel Monte Carlo requires a splittable RNG (e.g., PhiloxRng). \
-                 SobolRng does not support stream splitting — use serial mode (use_parallel: false) \
-                 or switch to PhiloxRng for parallel execution."
+                "Parallel Monte Carlo requires a splittable RNG (e.g., PhiloxRng); \
+                 the supplied generator reports supports_splitting() = false — use \
+                 serial mode (use_parallel: false) or switch to PhiloxRng."
                     .to_string(),
             ));
         }
@@ -341,6 +354,8 @@ impl McEngine {
     /// * `initial_state.len() != process.dim()`
     /// * `discount_factor` is not finite or is negative
     /// * `target_ci_half_width` is non-positive or combined with parallel mode
+    /// * the RNG is quasi-random (e.g. `SobolRng`); quasi-Monte Carlo pricing
+    ///   goes through `PathDependentPricer` instead
     /// * parallel mode is requested with an RNG that does not support splitting
     ///
     /// # Determinism

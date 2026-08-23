@@ -8,11 +8,16 @@
 //!
 //! # Owen Scrambling Implementation
 //!
-//! This implementation uses proper recursive bitwise Owen scrambling as described
-//! in Owen (1995, 1997). The scrambling applies a random permutation to each digit
-//! where the permutation depends on all higher-order digits. This preserves the
-//! (t,m,s)-net structure while providing independent randomization for variance
-//! estimation.
+//! This implementation uses an **approximate** Owen scramble in the style of
+//! Owen (1995, 1997): each bit's flip decision is a hash of all higher-order
+//! bits XOR a per-bit seed, not the canonical nested-uniform permutation
+//! tree. It decorrelates independent replications, which is what
+//! randomized-QMC error estimation needs, but it does not strictly guarantee
+//! the (t,m,s)-net-preserving randomization that scrambled-net variance
+//! theory assumes. Convergence-rate claims (e.g. the `O(n^{-3/2} log n)`
+//! scrambled-net RMSE) should therefore be read as heuristic for this
+//! scramble; see [`SobolRng`]'s `owen_scramble` docs for details and
+//! upgrade paths.
 //!
 //! # Dimension Support
 //!

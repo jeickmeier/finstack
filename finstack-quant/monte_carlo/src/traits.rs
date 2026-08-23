@@ -127,6 +127,25 @@ pub trait RandomStream: Clone + Send + Sync {
     fn supports_splitting(&self) -> bool {
         true // Default: most PRNGs support splitting
     }
+
+    /// Returns whether this stream is a quasi-random (low-discrepancy) sequence.
+    ///
+    /// Returns `true` for deterministic low-discrepancy generators such as
+    /// Sobol, whose successive points are dependent by construction, and
+    /// `false` (the default) for pseudo-random generators producing i.i.d.
+    /// draws.
+    ///
+    /// The generic [`crate::engine::McEngine`] rejects quasi-random streams:
+    /// it consumes draws step-by-step (destroying the per-path point
+    /// structure a low-discrepancy sequence requires) and reports an i.i.d.
+    /// Welford standard error, which is statistically invalid over dependent
+    /// QMC points (Owen 1997; Glasserman 2003, §5.4). Quasi-random pricing
+    /// belongs in [`crate::pricer::path_dependent::PathDependentPricer`],
+    /// which draws one Sobol point per path and estimates the error across
+    /// independently scrambled replicates.
+    fn is_quasi_random(&self) -> bool {
+        false
+    }
 }
 
 /// Antithetic mirror of a [`RandomStream`].
@@ -162,6 +181,10 @@ impl<R: RandomStream> RandomStream for MirroredStream<R> {
 
     fn supports_splitting(&self) -> bool {
         self.0.supports_splitting()
+    }
+
+    fn is_quasi_random(&self) -> bool {
+        self.0.is_quasi_random()
     }
 }
 

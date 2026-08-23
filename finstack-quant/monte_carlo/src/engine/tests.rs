@@ -640,6 +640,43 @@ fn test_parallel_with_non_splittable_rng_returns_error() {
     }
 }
 
+#[test]
+fn test_engine_rejects_quasi_random_rng_even_in_serial_mode() {
+    // Guard: the generic engine consumes draws step-by-step and reports an
+    // i.i.d. stderr, both invalid for a low-discrepancy sequence. Sobol must
+    // therefore be rejected in serial mode too, not just in parallel mode —
+    // QMC pricing goes through PathDependentPricer's replicate estimator.
+    let engine = McEngine::builder()
+        .num_paths(100)
+        .uniform_grid(1.0, 10)
+        .parallel(false)
+        .build()
+        .expect("McEngine builder should succeed with valid test data");
+
+    let rng = crate::rng::sobol::SobolRng::try_new(1, 0).expect("valid Sobol dimension");
+    let process = DummyProcess;
+    let disc = DummyDisc;
+    let initial_state = vec![100.0];
+    let payoff = DummyPayoff;
+
+    let err = engine
+        .price(
+            &rng,
+            &process,
+            &disc,
+            &initial_state,
+            &payoff,
+            Currency::USD,
+            1.0,
+        )
+        .expect_err("serial engine must reject quasi-random streams");
+    let err_str = err.to_string();
+    assert!(
+        err_str.contains("quasi-random") && err_str.contains("PathDependentPricer"),
+        "error should explain the QMC rejection and point to PathDependentPricer, got: {err_str}"
+    );
+}
+
 #[derive(Clone)]
 struct OverflowAfterDiscountPayoff;
 

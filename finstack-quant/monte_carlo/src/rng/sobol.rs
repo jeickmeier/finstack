@@ -5,6 +5,14 @@
 //! normal as one Sobol dimension, usually `num_steps * num_factors` before any
 //! Brownian-bridge reordering. Use [`SobolRng::try_new`] so excessive
 //! dimensions fail explicitly.
+//!
+//! The generic [`crate::engine::McEngine`] rejects this stream (it reports
+//! [`RandomStream::is_quasi_random`] `= true`): the engine consumes draws
+//! step-by-step and reports an i.i.d. standard error, both of which are
+//! invalid for a low-discrepancy sequence. Quasi-Monte Carlo pricing goes
+//! through [`crate::pricer::path_dependent::PathDependentPricer`], which
+//! draws one Sobol point per path and estimates the error across
+//! independently Owen-scrambled replicates.
 
 use crate::traits::RandomStream;
 
@@ -31,6 +39,15 @@ impl RandomStream for SobolRng {
     /// Always returns false.
     fn supports_splitting(&self) -> bool {
         false
+    }
+
+    /// Sobol is a low-discrepancy sequence: successive points are dependent
+    /// by construction. Always returns true, which makes the generic
+    /// [`crate::engine::McEngine`] reject this stream in favor of the
+    /// replicate-based quasi-Monte Carlo path in
+    /// [`crate::pricer::path_dependent::PathDependentPricer`].
+    fn is_quasi_random(&self) -> bool {
+        true
     }
 }
 

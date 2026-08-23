@@ -5,6 +5,17 @@
 //!
 //! The key insight is: E[∂f/∂θ] = E[f * ∂ln(p)/∂θ]
 //!
+//! # Variance blow-up for short maturities and low volatility
+//!
+//! The GBM score functions scale like `1/(σ√T)` (delta) and `1/σ` (vega), so
+//! the estimator variance grows without bound as `T → 0` or `σ → 0` — a
+//! known structural limitation of the likelihood ratio method (Glasserman
+//! 2003, §7.3). For short-dated or low-vol inputs prefer
+//! [`pathwise`](crate::greeks::pathwise) estimators (smooth payoffs) or
+//! CRN finite differences in [`finite_diff`](crate::greeks::finite_diff)
+//! (discontinuous payoffs), and always check the returned standard error
+//! before trusting the point estimate.
+//!
 //! Reference: Glasserman (2003) - "Monte Carlo Methods in Financial Engineering", Chapter 7.
 //!
 
@@ -18,7 +29,9 @@ use crate::online_stats::OnlineStats;
 /// ∂ln(p)/∂S₀ = Z / (S₀ σ √T)
 /// ```
 ///
-/// where `Z = W_T / √T`.
+/// where `Z = W_T / √T`. The `1/(σ√T)` factor makes the estimator variance
+/// blow up as `T → 0` or `σ → 0`; see the [module docs](self) for
+/// alternatives in that regime.
 ///
 /// # Payoff contract
 ///
@@ -78,7 +91,9 @@ pub fn lrm_delta(
 /// ```
 ///
 /// The first term comes from the variance dependence and the second from the
-/// drift dependence `-(σ²/2)T` on σ.
+/// drift dependence `-(σ²/2)T` on σ. The `1/σ` factor makes the estimator
+/// variance blow up as `σ → 0`; see the [module docs](self) for alternatives
+/// in that regime.
 ///
 /// Returns Vega scaled by 0.01 (sensitivity per 1% volatility change).
 ///

@@ -72,7 +72,10 @@ pub struct BarrierOptionPayoff {
     pub notional: f64,
     /// Maturity step
     pub maturity_step: usize,
-    /// Volatility (for bridge correction)
+    /// Fallback volatility for the Brownian-bridge correction. Must match
+    /// the simulating process's diffusion volatility for deterministic-vol
+    /// processes; ignored when the path state carries a variance key (see
+    /// [`Self::new`]).
     pub sigma: f64,
     /// Time steps for each monitoring interval (for bridge correction)
     pub step_dts: Vec<f64>,
@@ -124,8 +127,14 @@ impl BarrierOptionPayoff {
     ///   [`Self::with_rebate_at_hit`] is chained.
     /// * `notional` - Linear payoff scaling applied to the intrinsic or rebate.
     /// * `maturity_step` - Path step index at which the payoff observes `S_T`.
-    /// * `sigma` - Fallback Black volatility used by the Brownian-bridge
-    ///   hit test when the path state has no variance key.
+    /// * `sigma` - Fallback Black volatility (annualized, decimal) used by
+    ///   the Brownian-bridge hit test when the path state has no variance
+    ///   key. For deterministic-vol processes (e.g. GBM) it **must equal the
+    ///   simulating process's diffusion volatility**: the payoff has no
+    ///   handle on the process, so a mismatch is not detectable here and
+    ///   silently biases the bridge crossing probability. Under
+    ///   stochastic-vol models (e.g. Heston) the path's `sqrt(variance)` is
+    ///   used instead and this value is ignored.
     /// * `time_grid` - Simulation grid whose step year-fractions size the
     ///   bridge intervals and the at-hit forward-compounding horizon.
     /// * `use_gobet_miri` - Caller-intent flag retained for valuations
