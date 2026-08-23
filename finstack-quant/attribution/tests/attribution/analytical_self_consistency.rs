@@ -166,6 +166,7 @@ fn run_analytical_parity_test(tc: &AnalyticalParityTestCase) {
         tc.coupon_rate,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -304,6 +305,7 @@ fn test_attribution_method_metadata() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -353,6 +355,7 @@ fn test_convexity_benefit_symmetric_moves() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

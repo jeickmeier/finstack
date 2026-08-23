@@ -82,6 +82,7 @@ fn build_bond_portfolio(as_of: Date) -> Vec<Bond> {
             coupon,
             as_of,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .unwrap();
@@ -103,6 +104,7 @@ fn build_bond_portfolio(as_of: Date) -> Vec<Bond> {
             coupon,
             as_of,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "EUR-OIS",
         )
         .unwrap();
@@ -124,6 +126,7 @@ fn build_bond_portfolio(as_of: Date) -> Vec<Bond> {
             coupon,
             as_of,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "GBP-OIS",
         )
         .unwrap();
@@ -284,6 +287,7 @@ fn test_dataframe_export_metric_keys() {
         0.05,
         as_of,
         as_of + time::Duration::days(5 * 365),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

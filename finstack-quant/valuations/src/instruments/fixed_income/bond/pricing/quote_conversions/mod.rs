@@ -27,7 +27,7 @@ pub use yield_price::{
 };
 
 pub(crate) use annuity::asset_swap_projection_rate;
-pub(crate) use compute::{clear_price_driving_overrides, price_from_quote_overrides};
+pub(crate) use compute::{clear_price_driving_overrides, settlement_dirty_from_quote_overrides};
 pub(crate) use yield_price::{
     enumerate_exit_paths, icma_reference_period, outstanding_principal_at_date,
     price_from_japanese_simple_yield, solve_ytw_from_flows,

@@ -311,6 +311,7 @@ mod tests {
             0.05,
             as_of,
             date!(2029 - 01 - 01),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )?;
 
@@ -373,6 +374,7 @@ mod tests {
             0.05,
             as_of,
             date!(2029 - 01 - 01),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )?;
 

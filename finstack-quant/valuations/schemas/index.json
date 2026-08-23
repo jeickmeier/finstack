@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "$id": "https://finstack_quant.dev/schemas/calibration/1/calibration.schema.json",
-      "bytes": 220134,
+      "bytes": 220229,
       "kind": "input",
       "path": "schemas/calibration/1/calibration.schema.json",
       "summary": "Build a market from quotes: a calibration plan, flat market data, and any pre-built curves or surfaces.",
@@ -186,7 +186,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/composite/composite.schema.json",
-      "bytes": 894387,
+      "bytes": 894244,
       "kind": "input",
       "path": "schemas/instruments/1/composite/composite.schema.json",
       "summary": "Resolved cross-asset synthetic instrument with immutable leg quantities.",
@@ -290,7 +290,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/levered_real_estate_equity.schema.json",
-      "bytes": 893273,
+      "bytes": 893130,
       "kind": "input",
       "path": "schemas/instruments/1/equity/levered_real_estate_equity.schema.json",
       "summary": "Property equity net of its financing stack.",
@@ -362,7 +362,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/basket.schema.json",
-      "bytes": 893354,
+      "bytes": 893211,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/basket.schema.json",
       "summary": "Weighted basket of constituents priced as one position.",
@@ -434,7 +434,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/bond.schema.json",
-      "bytes": 83983,
+      "bytes": 84032,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/bond.schema.json",
       "summary": "Fixed- or floating-rate cash bond with a coupon schedule.",
@@ -442,7 +442,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/bond_future.schema.json",
-      "bytes": 96136,
+      "bytes": 96185,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/bond_future.schema.json",
       "summary": "Exchange-traded bond future with a deliverable basket and CTD.",
@@ -482,7 +482,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/structured_credit.schema.json",
-      "bytes": 192863,
+      "bytes": 193040,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/structured_credit.schema.json",
       "summary": "ABS/CLO/RMBS/CMBS deal: collateral pool, tranches and waterfall.",
@@ -602,7 +602,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json",
-      "bytes": 979896,
+      "bytes": 979766,
       "kind": "input",
       "path": "schemas/instruments/1/instrument.schema.json",
       "summary": "The seventy-branch union of every instrument type. Prefer the per-type schema beside it: this document is too large to hand to a model.",
@@ -610,7 +610,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/basis_swap.schema.json",
-      "bytes": 21130,
+      "bytes": 21225,
       "kind": "input",
       "path": "schemas/instruments/1/rates/basis_swap.schema.json",
       "summary": "Floating-versus-floating swap between two indices or tenors.",
@@ -618,7 +618,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/bermudan_swaption.schema.json",
-      "bytes": 27762,
+      "bytes": 27857,
       "kind": "input",
       "path": "schemas/instruments/1/rates/bermudan_swaption.schema.json",
       "summary": "Bermudan-exercise swaption valued on a short-rate lattice.",
@@ -626,7 +626,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/cap_floor.schema.json",
-      "bytes": 24961,
+      "bytes": 25733,
       "kind": "input",
       "path": "schemas/instruments/1/rates/cap_floor.schema.json",
       "summary": "Strip of caplets or floorlets on a floating index.",
@@ -706,7 +706,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/interest_rate_swap.schema.json",
-      "bytes": 52505,
+      "bytes": 52682,
       "kind": "input",
       "path": "schemas/instruments/1/rates/interest_rate_swap.schema.json",
       "summary": "Vanilla fixed-versus-floating interest-rate swap.",
@@ -722,7 +722,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/swaption.schema.json",
-      "bytes": 31317,
+      "bytes": 30379,
       "kind": "input",
       "path": "schemas/instruments/1/rates/swaption.schema.json",
       "summary": "European option to enter an interest-rate swap.",
@@ -730,7 +730,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/xccy_swap.schema.json",
-      "bytes": 20522,
+      "bytes": 20617,
       "kind": "input",
       "path": "schemas/instruments/1/rates/xccy_swap.schema.json",
       "summary": "Cross-currency swap with notional exchange and a basis spread.",

@@ -469,7 +469,7 @@ pub(crate) fn mtm_cashflow_schedule(
     let spread_c =
         decimal_to_f64(constant_leg.spread_bp, "XccySwap constant leg spread_bp")? / 10_000.0;
     for period in &constant_periods {
-        if period.payment_date < as_of {
+        if period.payment_date <= as_of {
             continue;
         }
         let projected = super::XccySwap::projected_leg_period(
@@ -524,7 +524,7 @@ pub(crate) fn mtm_cashflow_schedule(
         };
 
         // Coupon at payment date on the period-start notional N_j^R.
-        if period.payment_date >= as_of {
+        if period.payment_date > as_of {
             let projected_r = super::XccySwap::projected_leg_period(
                 resetting_leg,
                 fwd_r.as_ref(),
@@ -545,7 +545,7 @@ pub(crate) fn mtm_cashflow_schedule(
         }
 
         // Rebalancing at the START of this period (j ≥ 1 only).
-        if j > 0 && period.accrual_start >= as_of {
+        if j > 0 && period.accrual_start > as_of {
             let delta_n_r = n_r_j - n_r_prev;
             let rebal_amount = resetting_leg.side.initial_principal_sign() * delta_n_r;
             if rebal_amount != 0.0 {

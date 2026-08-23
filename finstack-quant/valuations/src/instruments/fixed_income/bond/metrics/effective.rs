@@ -106,13 +106,14 @@ pub(crate) fn option_risk_bond_and_base_price(
         bond_tree_config, TreePricer,
     };
     use crate::instruments::fixed_income::bond::pricing::quote_conversions::{
-        clear_price_driving_overrides, price_from_quote_overrides,
+        clear_price_driving_overrides, settlement_dirty_from_quote_overrides,
     };
     use crate::instruments::fixed_income::bond::pricing::settlement::QuoteDateContext;
 
     let mut risk_bond = bond.clone();
-    let Some(base_price) = price_from_quote_overrides(bond, market, as_of)? else {
-        return Ok((risk_bond.clone(), risk_bond.value(market, as_of)?.amount()));
+    let Some(dirty_at_quote) = settlement_dirty_from_quote_overrides(bond, market, as_of)? else {
+        let base = risk_bond.value(market, as_of)?.amount();
+        return Ok((risk_bond, base));
     };
 
     if let Some(oas) = bond.instrument_pricing_overrides.market_quotes.quoted_oas {
@@ -121,12 +122,13 @@ pub(crate) fn option_risk_bond_and_base_price(
             .instrument_pricing_overrides
             .market_quotes
             .quoted_oas = Some(oas);
-        return Ok((risk_bond, base_price));
+        let base = risk_bond.value(market, as_of)?.amount();
+        return Ok((risk_bond, base));
     }
 
     let quote_ctx = QuoteDateContext::new(bond, market, as_of)?;
     let clean_price_pct =
-        (base_price - quote_ctx.accrued_at_quote_date) / bond.notional.amount() * 100.0;
+        (dirty_at_quote - quote_ctx.accrued_at_quote_date) / bond.notional.amount() * 100.0;
     let oas_bp = TreePricer::with_config(bond_tree_config(bond)?).calculate_oas(
         bond,
         market,
@@ -139,7 +141,8 @@ pub(crate) fn option_risk_bond_and_base_price(
         .instrument_pricing_overrides
         .market_quotes
         .quoted_oas = Some(oas_bp / 10_000.0);
-    Ok((risk_bond, base_price))
+    let base = risk_bond.value(market, as_of)?.amount();
+    Ok((risk_bond, base))
 }
 
 pub(crate) fn option_risk_curve_id(bond: &Bond) -> CurveId {

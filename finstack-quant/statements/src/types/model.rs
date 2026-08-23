@@ -653,6 +653,7 @@ mod period_timeline_tests {
             0.05,
             Date::from_calendar_date(2025, Month::January, 1).expect("valid date"),
             Date::from_calendar_date(2030, Month::January, 1).expect("valid date"),
+            finstack_quant_core::dates::StubKind::ShortFront,
             finstack_quant_core::types::CurveId::new("USD-OIS"),
         )
         .expect("bond");

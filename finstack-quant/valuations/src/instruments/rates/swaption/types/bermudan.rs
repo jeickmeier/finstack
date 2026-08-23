@@ -185,7 +185,8 @@ impl BermudanSwaption {
                 swap_end,
                 fixed_frequency: Tenor::semi_annual(),
                 float_frequency: Tenor::quarterly(),
-                day_count: DayCount::Thirty360,
+                fixed_day_count: DayCount::Thirty360,
+                float_day_count: DayCount::Act360,
                 discount_curve_id: CurveId::new("USD-OIS"),
                 forward_curve_id: CurveId::new("USD-OIS"),
                 calendar_id: None,
@@ -236,7 +237,8 @@ impl BermudanSwaption {
                 swap_end,
                 fixed_frequency: Tenor::semi_annual(),
                 float_frequency: Tenor::quarterly(),
-                day_count: DayCount::Thirty360,
+                fixed_day_count: DayCount::Thirty360,
+                float_day_count: DayCount::Act360,
                 discount_curve_id: discount_curve_id.into(),
                 forward_curve_id: forward_curve_id.into(),
                 calendar_id: None,
@@ -283,7 +285,8 @@ impl BermudanSwaption {
                 swap_end,
                 fixed_frequency: Tenor::semi_annual(),
                 float_frequency: Tenor::quarterly(),
-                day_count: DayCount::Thirty360,
+                fixed_day_count: DayCount::Thirty360,
+                float_day_count: DayCount::Act360,
                 discount_curve_id: discount_curve_id.into(),
                 forward_curve_id: forward_curve_id.into(),
                 calendar_id: None,
@@ -364,9 +367,14 @@ impl BermudanSwaption {
         self
     }
 
-    /// Set day count convention.
-    pub fn with_day_count(mut self, day_count: DayCount) -> Self {
+    /// Set the fixed-leg day count convention.
+    pub fn with_fixed_day_count(mut self, day_count: DayCount) -> Self {
         self.underlying_fixed_leg.day_count = day_count;
+        self
+    }
+
+    /// Set the floating-leg day count convention.
+    pub fn with_float_day_count(mut self, day_count: DayCount) -> Self {
         self.underlying_float_leg.day_count = day_count;
         self
     }

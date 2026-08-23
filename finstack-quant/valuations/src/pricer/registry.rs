@@ -630,6 +630,7 @@ mod tests {
             0.04,
             time::macros::date!(2020 - 01 - 15),
             time::macros::date!(2030 - 01 - 15),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-TREASURY",
         )
         .expect("fixed test bond should build")

@@ -92,19 +92,19 @@ impl IrsLegConventions {
 ///
 /// ## ISDA Definitions
 ///
-/// This implementation follows the **ISDA 2006 Definitions** for interest rate derivatives:
-/// - **Section 4.1:** Fixed Rate Payer calculation conventions
-/// - **Section 4.2:** Floating Rate Option conventions
-/// - **Section 4.5:** Compounding methods
-/// - **Section 4.16:** Business Day Conventions
+/// Current RFR and term-rate contracts are represented under the **ISDA 2021
+/// Interest Rate Derivatives Definitions**. Legacy transactions may retain
+/// terms from the 2006 Definitions, including historical IBOR reset conventions.
+/// Fixed/floating day counts, calendars, lags, compounding, and payment rules
+/// are explicit leg terms or are resolved from the rate-index convention registry.
 ///
-/// ## USD Market Standard (Default)
+/// ## USD Market Convention
 ///
-/// Per **ISDA 2006 Definitions** and US market practice:
+/// The canonical legacy USD term-index example uses:
 /// - **Fixed Leg:** Semi-annual, 30/360, Modified Following
 /// - **Floating Leg:** Quarterly, ACT/360, Modified Following
 /// - **Reset Lag:** T-2 (2 business days before period start)
-/// - **Discounting:** OIS curve (post-2008 multi-curve framework)
+/// - **Discounting:** OIS curve under the collateral agreement
 ///
 /// ## Day-Count Convention Notes
 ///
@@ -124,8 +124,8 @@ impl IrsLegConventions {
 ///
 /// ## References
 ///
-/// - ISDA 2006 Definitions (incorporating 2008 Supplement for OIS) `docs/REFERENCES.md#isda-2006-definitions`
-/// - ISDA 2021 Definitions (for RFR compounding conventions) `docs/REFERENCES.md#isda-2021-definitions`
+/// - ISDA 2021 Interest Rate Derivatives Definitions (current contract framework) `docs/REFERENCES.md#isda-2021-definitions`
+/// - ISDA 2006 Definitions (legacy transactions) `docs/REFERENCES.md#isda-2006-definitions`
 /// - Sadr, A. *Interest Rate Swaps and Their Derivatives*.
 ///   `docs/REFERENCES.md#sadr-2009-irs`
 /// - Bloomberg SWPM screen conventions.
@@ -526,12 +526,13 @@ impl InterestRateSwap {
         Ok(())
     }
 
-    /// Create an ISDA-standard USD 5Y IRS for testing and documentation.
+    /// Create a legacy term-index USD 5Y IRS for testing and documentation.
     ///
-    /// Returns a 5-year pay-fixed USD swap with market-standard conventions:
+    /// Returns a 5-year pay-fixed USD swap with conventional historical
+    /// term-index terms:
     /// - **Fixed leg:** Semi-annual, 30/360, Modified Following
     /// - **Float leg:** Quarterly, ACT/360, Modified Following
-    /// - **Reset lag:** T-2 (per ISDA 2006 Section 4.2)
+    /// - **Reset lag:** T-2
     /// - **Calendar:** USNY
     #[allow(clippy::expect_used)]
     pub fn example_standard() -> finstack_quant_core::Result<Self> {
@@ -646,7 +647,9 @@ impl crate::instruments::common_impl::traits::Instrument for InterestRateSwap {
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.fixed.discount_curve_id.clone());
         deps.add_discount_curve(self.float.discount_curve_id.clone());
-        deps.add_forward_curve(self.float.forward_curve_id.clone());
+        if !self.is_single_curve_ois() {
+            deps.add_forward_curve(self.float.forward_curve_id.clone());
+        }
         deps.add_series_id(finstack_quant_core::market_data::fixings::fixing_series_id(
             self.float.forward_curve_id.as_str(),
         ));
@@ -779,6 +782,28 @@ mod tests {
         assert!(
             !matches!(swap.float.compounding, FloatingLegCompounding::Simple),
             "overnight RFR swaps must not silently default to simple compounding"
+        );
+    }
+    #[test]
+    fn single_curve_ois_does_not_require_a_forward_curve_dependency() {
+        let swap = InterestRateSwap::from_conventions(ConventionSwapParams {
+            id: InstrumentId::new("USD-SOFR-OIS-SINGLE-CURVE"),
+            notional: Money::new(1_000_000.0, Currency::USD),
+            side: PayReceive::Pay,
+            fixed_rate: 0.04,
+            start: Date::from_calendar_date(2025, time::Month::January, 13).expect("start"),
+            end: Date::from_calendar_date(2030, time::Month::January, 13).expect("end"),
+            index_id: "USD-SOFR-OIS",
+            discount_curve_id: "USD-SOFR-OIS",
+            forward_curve_id: "USD-SOFR-OIS",
+        })
+        .expect("single-curve OIS");
+        let deps =
+            crate::instruments::Instrument::market_dependencies(&swap).expect("dependencies");
+        assert!(deps.curves.forward_curves.is_empty());
+        assert_eq!(
+            deps.curves.discount_curves.as_slice(),
+            &[CurveId::new("USD-SOFR-OIS")]
         );
     }
 

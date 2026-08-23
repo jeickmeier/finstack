@@ -933,6 +933,7 @@ mod tests {
             0.05,
             Date::from_calendar_date(2024, Month::January, 1).expect("Valid test date"),
             Date::from_calendar_date(2034, Month::January, 1).expect("Valid test date"),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("Bond::fixed should succeed with valid parameters");
@@ -960,6 +961,7 @@ mod tests {
             0.05,
             Date::from_calendar_date(2024, Month::January, 1).expect("Valid test date"),
             Date::from_calendar_date(2034, Month::January, 1).expect("Valid test date"),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("Bond::fixed should succeed with valid parameters");
@@ -1032,6 +1034,7 @@ mod tests {
             0.05,
             Date::from_calendar_date(2024, Month::January, 1).expect("Valid test date"),
             Date::from_calendar_date(2034, Month::January, 1).expect("Valid test date"),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("Bond::fixed should succeed with valid parameters");
@@ -1052,6 +1055,7 @@ mod tests {
             0.05,
             Date::from_calendar_date(2024, Month::January, 1).expect("valid date"),
             Date::from_calendar_date(2034, Month::January, 1).expect("valid date"),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("valid bond");

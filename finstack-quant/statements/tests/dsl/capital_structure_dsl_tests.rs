@@ -410,6 +410,7 @@ fn test_aggregate_instrument_cashflows() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         CurveId::new("USD-OIS"),
     )
     .expect("Bond::fixed should succeed with valid parameters");
@@ -454,6 +455,7 @@ fn test_build_instrument_from_spec_bond_variant() {
         0.06,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         CurveId::new("USD-OIS"),
     )
     .expect("Bond::fixed should succeed with valid parameters");

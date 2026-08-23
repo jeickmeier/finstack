@@ -214,6 +214,7 @@ fn build_bond_portfolio() -> finstack_quant_portfolio::Portfolio {
         0.03,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD",
     )
     .expect("Bond::fixed should succeed with valid parameters");
@@ -224,6 +225,7 @@ fn build_bond_portfolio() -> finstack_quant_portfolio::Portfolio {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD",
     )
     .expect("Bond::fixed should succeed with valid parameters");
@@ -234,6 +236,7 @@ fn build_bond_portfolio() -> finstack_quant_portfolio::Portfolio {
         0.08,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD",
     )
     .expect("Bond::fixed should succeed with valid parameters");

@@ -111,6 +111,7 @@ fn test_callable_bond_tree_pricing_reasonable() {
         coupon_rate,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -122,6 +123,7 @@ fn test_callable_bond_tree_pricing_reasonable() {
         coupon_rate,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -192,6 +194,7 @@ fn test_tree_convergence_with_steps() {
         coupon_rate,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -243,6 +246,7 @@ fn test_putable_bond_tree_pricing_reasonable() {
         coupon_rate,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -253,6 +257,7 @@ fn test_putable_bond_tree_pricing_reasonable() {
         coupon_rate,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

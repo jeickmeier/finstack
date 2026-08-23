@@ -13,6 +13,7 @@ import pytest
 
 from finstack_quant import statements
 from finstack_quant.core.currency import Currency
+from finstack_quant.core.dates import StubKind
 from finstack_quant.core.money import Money
 from finstack_quant.core.types import Rate
 from finstack_quant.valuations.instruments import Bond, TermLoan
@@ -25,6 +26,7 @@ def _debt_envelope_json(instrument_id: str) -> str:
         Rate(0.05),
         date(2025, 1, 15),
         date(2030, 1, 15),
+        StubKind.SHORT_FRONT,
         "USD-OIS",
     ).to_json()
 

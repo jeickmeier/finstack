@@ -93,6 +93,7 @@ fn create_ust_bond(
         coupon_rate,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-TREASURY",
     )
     .expect("Test bond creation should succeed")

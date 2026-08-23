@@ -49,7 +49,17 @@ fn test_vol_model_and_cash_settlement_method_canonical_names() {
 
     assert_eq!(
         CashSettlementMethod::default(),
-        CashSettlementMethod::IsdaParPar
+        CashSettlementMethod::CollateralizedCashPrice
+    );
+    assert_eq!(
+        CashSettlementMethod::CollateralizedCashPrice.to_string(),
+        "collateralized_cash_price"
+    );
+    assert_eq!(
+        "collateralized_cash_price"
+            .parse::<CashSettlementMethod>()
+            .unwrap(),
+        CashSettlementMethod::CollateralizedCashPrice
     );
     assert_eq!(CashSettlementMethod::ParYield.to_string(), "par_yield");
     assert_eq!(
@@ -178,7 +188,7 @@ fn test_swaption_example_and_builder_helpers() {
     assert_eq!(example.settlement, SwaptionSettlement::Cash);
     assert_eq!(
         example.cash_settlement_method,
-        CashSettlementMethod::IsdaParPar
+        CashSettlementMethod::CollateralizedCashPrice
     );
 
     let updated = example
@@ -272,7 +282,8 @@ fn test_bermudan_builder_helpers_and_time_accessors() {
     .unwrap()
     .with_fixed_frequency(Tenor::annual())
     .with_float_frequency(Tenor::semi_annual())
-    .with_day_count(finstack_quant_core::dates::DayCount::Act365F)
+    .with_fixed_day_count(finstack_quant_core::dates::DayCount::Act365F)
+    .with_float_day_count(finstack_quant_core::dates::DayCount::Act365F)
     .with_settlement(SwaptionSettlement::Cash)
     .with_calendar("nyse");
 

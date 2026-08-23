@@ -718,77 +718,27 @@ fn incremental_par_spread_sign_convention() {
 }
 
 #[test]
-fn zero_notional_par_spread_returns_error() {
-    // Test that par spread calculation returns an explicit error for zero notional
-    // instead of NaN or Inf
-    let ctx = market();
-    let as_of = d(2025, 1, 2);
-
-    let swap = BasisSwap::new(
+fn zero_notional_par_spread_is_rejected_at_construction() {
+    let leg = |forward_curve_id: &str| BasisSwapLeg {
+        forward_curve_id: CurveId::new(forward_curve_id),
+        discount_curve_id: CurveId::new("USD-OIS"),
+        start: d(2025, 1, 2),
+        end: d(2026, 1, 2),
+        frequency: Tenor::quarterly(),
+        day_count: DayCount::Act360,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
+        calendar_id: Some(CALENDAR_ID.to_string()),
+        stub: StubKind::ShortFront,
+        spread_bp: Decimal::ZERO,
+        payment_lag_days: 0,
+        reset_lag_days: 0,
+        compounding: Default::default(),
+    };
+    assert!(BasisSwap::new(
         "ZERO-NOTIONAL-PAR",
         Money::new(0.0, USD),
-        BasisSwapLeg {
-            forward_curve_id: CurveId::new("USD-SOFR-3M"),
-            discount_curve_id: CurveId::new("USD-OIS"),
-            start: d(2025, 1, 2),
-            end: d(2026, 1, 2),
-            frequency: Tenor::quarterly(),
-            day_count: DayCount::Act360,
-            business_day_convention: BusinessDayConvention::ModifiedFollowing,
-            calendar_id: Some(CALENDAR_ID.to_string()),
-            stub: StubKind::ShortFront,
-            spread_bp: Decimal::ZERO,
-            payment_lag_days: 0,
-            reset_lag_days: 0,
-            compounding: Default::default(),
-        },
-        BasisSwapLeg {
-            forward_curve_id: CurveId::new("USD-SOFR-1M"),
-            discount_curve_id: CurveId::new("USD-OIS"),
-            start: d(2025, 1, 2),
-            end: d(2026, 1, 2),
-            frequency: Tenor::quarterly(),
-            day_count: DayCount::Act360,
-            business_day_convention: BusinessDayConvention::ModifiedFollowing,
-            calendar_id: Some(CALENDAR_ID.to_string()),
-            stub: StubKind::ShortFront,
-            spread_bp: Decimal::ZERO,
-            payment_lag_days: 0,
-            reset_lag_days: 0,
-            compounding: Default::default(),
-        },
+        leg("USD-SOFR-3M"),
+        leg("USD-SOFR-1M"),
     )
-    .unwrap();
-
-    // Par spread calculation should return an error, not NaN/Inf
-    let result = swap.price_with_metrics(
-        &ctx,
-        as_of,
-        &[MetricId::BasisParSpread],
-        finstack_quant_valuations::instruments::PricingOptions::default(),
-    );
-
-    // Either it returns an error (preferred) or returns a finite value
-    // It should NOT return Ok with NaN or Inf
-    match result {
-        Ok(res) => {
-            let par_spread = res.measures.get(MetricId::BasisParSpread.as_str());
-            if let Some(&val) = par_spread {
-                assert!(
-                    val.is_finite(),
-                    "Par spread should not be NaN or Inf for zero notional; got {}",
-                    val
-                );
-            }
-        }
-        Err(e) => {
-            // This is the expected behavior - explicit error for zero notional
-            let err_msg = format!("{}", e);
-            assert!(
-                err_msg.contains("notional") || err_msg.contains("annuity"),
-                "Error message should mention notional or annuity issue: {}",
-                err_msg
-            );
-        }
-    }
+    .is_err());
 }

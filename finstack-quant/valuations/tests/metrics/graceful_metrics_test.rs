@@ -23,6 +23,7 @@ fn test_missing_metric_errors_in_strict_mode() {
         0.05, // 5% coupon
         date!(2024 - 01 - 01),
         date!(2025 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD_OIS",
     )
     .unwrap();

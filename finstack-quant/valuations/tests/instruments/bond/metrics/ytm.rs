@@ -22,6 +22,7 @@ fn test_ytm_par_bond() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

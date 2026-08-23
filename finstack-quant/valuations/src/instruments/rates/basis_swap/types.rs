@@ -184,6 +184,8 @@ impl BasisSwap {
         reference_leg: BasisSwapLeg,
     ) -> Result<Self> {
         let id_str = id.into();
+        validation::validate_money_finite(notional, "BasisSwap notional")?;
+        validation::validate_money_gt(notional, 0.0, "BasisSwap notional")?;
 
         if primary_leg.start >= primary_leg.end {
             return Err(finstack_quant_core::Error::Validation(format!(
@@ -245,6 +247,8 @@ impl BasisSwap {
     /// This is required for Serde-backed Rust/Python/WASM construction, which
     /// does not pass through [`BasisSwap::new`].
     pub fn validate(&self) -> Result<()> {
+        validation::validate_money_finite(self.notional, "BasisSwap notional")?;
+        validation::validate_money_gt(self.notional, 0.0, "BasisSwap notional")?;
         if self.primary_leg.start >= self.primary_leg.end {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "BasisSwap '{}' primary leg has start ({}) >= end ({}); leg must have positive tenor",
@@ -292,6 +296,8 @@ impl BasisSwap {
         reference_leg: BasisSwapLeg,
     ) -> Result<Self> {
         let id_str = id.into();
+        validation::validate_money_finite(notional, "BasisSwap notional")?;
+        validation::validate_money_gt(notional, 0.0, "BasisSwap notional")?;
 
         if primary_leg.start >= primary_leg.end {
             return Err(finstack_quant_core::Error::Validation(format!(

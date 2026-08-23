@@ -18,6 +18,7 @@ fn test_cs01_negative_for_long_bond() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -93,6 +94,7 @@ fn test_cs01_zspread_fallback_uses_settlement_anchored_basis() {
         0.05,
         date!(2023 - 01 - 06),
         date!(2030 - 01 - 06),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

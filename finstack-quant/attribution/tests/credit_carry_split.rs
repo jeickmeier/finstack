@@ -39,6 +39,7 @@ fn spec_with_config(config: Option<AttributionConfig>) -> AttributionSpec {
         0.05,
         create_date(2024, Month::January, 1).expect("issue"),
         create_date(2034, Month::January, 1).expect("maturity"),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond construction");

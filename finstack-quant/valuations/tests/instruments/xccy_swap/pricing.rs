@@ -178,13 +178,13 @@ fn near_expiry_swap_prices_correctly() {
 }
 
 #[test]
-fn expired_swap_returns_zero_pv() {
-    // Valuation date is after the final business-day-adjusted settlement.
+fn same_day_settled_swap_returns_zero_pv() {
+    // Start-of-day valuation reports only cashflows strictly after `as_of`.
     // The 2025-01-01 maturity settles on 2025-01-02 under the USD calendar,
-    // and same-day cashflows remain live by contract.
-    let base = d(2025, 1, 3);
+    // so its same-day coupon is already excluded.
+    let base = d(2025, 1, 2);
     let start = d(2024, 1, 2);
-    let maturity = d(2025, 1, 1); // Already expired
+    let maturity = d(2025, 1, 1);
 
     let mut leg_usd = leg_usd_receive(start, maturity);
     leg_usd.allow_calendar_fallback = true;
@@ -200,7 +200,7 @@ fn expired_swap_returns_zero_pv() {
     // All cashflows are in the past, PV should be zero (or very close)
     assert!(
         pv.amount().abs() < 1e-10,
-        "Expired swap should have zero PV, got {}",
+        "Same-day settled swap should have zero PV, got {}",
         pv.amount()
     );
 }

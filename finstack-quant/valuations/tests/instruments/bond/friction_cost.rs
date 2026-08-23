@@ -33,6 +33,7 @@ fn callable_bond(as_of: Date) -> Bond {
         0.06,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

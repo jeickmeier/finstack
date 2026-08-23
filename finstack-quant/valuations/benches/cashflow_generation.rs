@@ -74,6 +74,7 @@ fn bench_bond_cashflow_generation(c: &mut Criterion) {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("Bond::fixed should succeed with valid parameters");

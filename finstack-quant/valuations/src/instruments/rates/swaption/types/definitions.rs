@@ -68,47 +68,9 @@ pub enum SwaptionSettlement {
 
 /// Cash settlement annuity method for cash-settled swaptions.
 ///
-/// Different methods exist for calculating the annuity factor used in cash settlement:
-///
-/// # Market Background
-///
-/// When a swaption is cash-settled, the payoff is:
-/// ```text
-/// Payoff = Annuity × max(S - K, 0)  [for payer]
-/// ```
-///
-/// The choice of annuity method affects the settlement amount and can result
-/// in differences of several basis points on notional for steep curves.
-///
-/// # ⚠️ Production Recommendation
-///
-/// For production systems requiring ISDA compliance, use [`IsdaParPar`](Self::IsdaParPar):
-///
-/// ```
-/// use finstack_quant_valuations::instruments::rates::swaption::{
-///     CashSettlementMethod, Swaption,
-/// };
-///
-/// let swaption =
-///     Swaption::example().with_cash_settlement_method(CashSettlementMethod::IsdaParPar);
-///
-/// assert_eq!(
-///     swaption.cash_settlement_method,
-///     CashSettlementMethod::IsdaParPar
-/// );
-/// ```
-///
-/// The default `ParYield` method is a fast approximation suitable for:
-/// - Quick calculations and screening
-/// - Flat yield curve environments
-/// - Short-dated swaptions where precision is less critical
-///
-/// # References
-///
-/// - ISDA 2006 Definitions, Section 18.2 `docs/REFERENCES.md#isda-2006-definitions`
-/// - "Interest Rate Models" by Brigo & Mercurio, Chapter 6 `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
-/// - Bloomberg VCUB/SWPM production quoting uses ISDA par-par.
-///   `docs/REFERENCES.md#bloomberg-swpm`
+/// The trade confirmation or ISDA settlement matrix determines the method.
+/// Modern EUR cash-settled swaptions use collateralized cash price; legacy
+/// trades may retain par-yield or ISDA par-par terms.
 #[derive(
     Debug,
     Clone,
@@ -123,54 +85,41 @@ pub enum SwaptionSettlement {
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum CashSettlementMethod {
-    /// Par yield approximation using flat forward rate.
+    /// Collateralized cash price using the actual collateral-discounted swap
+    /// annuity.
+    ///
+    /// This is the current EUR market standard under the ISDA settlement
+    /// matrix. The exercise payoff is the collateralized NPV of the underlying
+    /// swap, equivalently `A_collateral × max(±(S-K), 0)`.
+    #[default]
+    CollateralizedCashPrice,
+
+    /// Legacy par-yield-curve cash settlement.
+    ///
+    /// The cash annuity is reconstructed from the forward swap rate as a flat
+    /// discount yield:
     ///
     /// ```text
     /// A = (1 - (1 + S/m)^(-N)) / S
     /// ```
-    ///
-    /// This is a closed-form approximation that assumes the forward swap rate
-    /// is a constant discount rate. Fast but less accurate for steep curves.
-    ///
-    /// **Note**: This was the legacy default. As of the market standards audit,
-    /// [`IsdaParPar`](Self::IsdaParPar) is now the default for ISDA compliance.
     ParYield,
 
-    /// ISDA Par-Par method using actual swap annuity from discount curve.
+    /// Legacy ISDA par-par settlement using the actual fixed-leg annuity.
     ///
-    /// ```text
-    /// A = Σ τ_i × DF(t_i)
-    /// ```
-    ///
-    /// Uses the actual market discount factors to compute the annuity,
-    /// matching the PV01 of the underlying swap. This is the most accurate
-    /// method and matches professional library implementations.
-    ///
-    /// # ✅ Default (ISDA Compliant)
-    ///
-    /// This is the default method, matching professional library implementations
-    /// (Bloomberg VCUB/SWPM, QuantLib). Suitable for:
-    /// - Production pricing requiring ISDA compliance
-    /// - Steep yield curve environments
-    /// - Long-dated swaptions (> 5Y into > 10Y swap)
-    /// - Trade confirmation matching
-    /// - Any situation where cash settlement valuation precision matters
-    #[default]
+    /// Retained for confirmations that explicitly name this settlement method;
+    /// do not use it as a universal modern cash-settlement default.
     IsdaParPar,
 
-    /// Zero coupon method discounting the single payment to swap maturity.
-    ///
-    /// ```text
-    /// A = τ × DF(T_swap)
-    /// ```
-    ///
-    /// Rarely used in modern markets; included for completeness.
+    /// Zero-coupon settlement discounting one payment to swap maturity.
     ZeroCoupon,
 }
 
 impl std::fmt::Display for CashSettlementMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            CashSettlementMethod::CollateralizedCashPrice => {
+                write!(f, "collateralized_cash_price")
+            }
             CashSettlementMethod::ParYield => write!(f, "par_yield"),
             CashSettlementMethod::IsdaParPar => write!(f, "isda_par_par"),
             CashSettlementMethod::ZeroCoupon => write!(f, "zero_coupon"),
@@ -183,12 +132,13 @@ impl std::str::FromStr for CashSettlementMethod {
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
+            "collateralized_cash_price" => Ok(Self::CollateralizedCashPrice),
             "par_yield" => Ok(Self::ParYield),
             "isda_par_par" => Ok(Self::IsdaParPar),
             "zero_coupon" => Ok(Self::ZeroCoupon),
             _ => Err(format!(
-                "Unknown cash settlement method: '{}'. Valid: par_yield, isda_par_par, zero_coupon",
-                s
+                "Unknown cash settlement method: '{s}'. Valid: \
+                 collateralized_cash_price, par_yield, isda_par_par, zero_coupon"
             )),
         }
     }

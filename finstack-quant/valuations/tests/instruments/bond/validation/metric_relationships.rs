@@ -57,6 +57,7 @@ fn test_modified_macaulay_duration_relationship() {
         0.06,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

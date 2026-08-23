@@ -140,7 +140,9 @@ pub use types::ReturnFloorSpec;
 mod tests {
     use crate::instruments::common_impl::parameters::BondConvention;
     use crate::instruments::common_impl::traits::{Attributes, Instrument};
-    use crate::instruments::fixed_income::bond::{Bond, CashflowSpec};
+    use crate::instruments::fixed_income::bond::{
+        pricing::settlement, Bond, BondSettlementConvention, CashflowSpec,
+    };
     use crate::instruments::{
         InstrumentPricingOverrides, MetricPricingOverrides, ScenarioPricingOverrides,
     };
@@ -183,6 +185,7 @@ mod tests {
             0.04,
             date!(2025 - 01 - 01),
             date!(2030 - 01 - 01),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-TREASURY",
         )
         .expect("Bond::fixed should succeed with valid parameters");
@@ -191,6 +194,42 @@ mod tests {
         assert_eq!(bond.cashflow_spec.frequency(), Tenor::semi_annual());
         assert_eq!(bond.cashflow_spec.day_count(), DayCount::Thirty360);
         assert_eq!(bond.discount_curve_id.as_str(), "USD-TREASURY");
+        assert!(matches!(
+            &bond.cashflow_spec,
+            CashflowSpec::Fixed(spec)
+                if spec.schedule.stub == finstack_quant_core::dates::StubKind::ShortFront
+        ));
+    }
+
+    #[test]
+    fn fixed_constructor_preserves_every_stub_policy() {
+        for stub in [
+            StubKind::None,
+            StubKind::ShortFront,
+            StubKind::ShortBack,
+            StubKind::LongFront,
+            StubKind::LongBack,
+        ] {
+            let issue = if stub == StubKind::None {
+                date!(2025 - 01 - 15)
+            } else {
+                date!(2025 - 03 - 01)
+            };
+            let bond = Bond::fixed(
+                format!("BOND-{stub}"),
+                Money::new(100.0, Currency::USD),
+                0.04,
+                issue,
+                date!(2030 - 01 - 15),
+                stub,
+                "USD-OIS",
+            )
+            .expect("fixed bond");
+            assert!(matches!(
+                &bond.cashflow_spec,
+                CashflowSpec::Fixed(spec) if spec.schedule.stub == stub
+            ));
+        }
     }
 
     #[test]
@@ -223,6 +262,11 @@ mod tests {
             bond.ex_coupon_days(),
             BondConvention::UsTreasury.ex_coupon_days()
         );
+        assert!(matches!(
+            &bond.cashflow_spec,
+            CashflowSpec::Fixed(spec)
+                if spec.schedule.stub == finstack_quant_core::dates::StubKind::ShortFront
+        ));
     }
 
     #[test]
@@ -587,6 +631,7 @@ mod tests {
             0.05,
             date!(2025 - 01 - 01),
             date!(2030 - 01 - 01),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("Bond::fixed should succeed with valid parameters");
@@ -605,6 +650,7 @@ mod tests {
             0.05,
             date!(2025 - 01 - 01),
             date!(2030 - 01 - 01),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("Bond::fixed should succeed with valid parameters");
@@ -627,6 +673,7 @@ mod tests {
             0.03,
             issue,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("Bond::fixed should succeed with valid parameters");
@@ -647,6 +694,7 @@ mod tests {
             0.045,
             issue,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("Bond::fixed should succeed with valid parameters");
@@ -837,6 +885,32 @@ mod tests {
         let market = flat_discount_market(0.03);
         let pv = bond.value(&market, date!(2025 - 01 - 01)).expect("value");
         assert!((pv.amount() - 987_654.32).abs() < 1e-4);
+    }
+
+    #[test]
+    fn quoted_dirty_value_is_carried_back_to_as_of() {
+        let dirty_at_quote = 987_654.32;
+        let overrides =
+            InstrumentPricingOverrides::default().with_quoted_dirty_price(dirty_at_quote);
+        let mut bond = build_test_bond(overrides);
+        bond.settlement_convention = Some(BondSettlementConvention {
+            settlement_days: 2,
+            ..Default::default()
+        });
+        let as_of = date!(2025 - 01 - 01);
+        let market = flat_discount_market(0.03);
+        let quote_date = settlement::settlement_date(&bond, as_of).expect("settlement date");
+        let curve = market.get_discount("USD-OIS").expect("discount curve");
+        let settlement_df =
+            crate::instruments::common_impl::pricing::time::relative_df_discount_curve(
+                curve.as_ref(),
+                as_of,
+                quote_date,
+            )
+            .expect("settlement df");
+
+        let pv = bond.value(&market, as_of).expect("value");
+        assert!((pv.amount() - dirty_at_quote * settlement_df).abs() < 1e-8);
     }
 
     #[test]

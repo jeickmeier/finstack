@@ -1,21 +1,26 @@
 {
   "$defs": {
     "CashSettlementMethod": {
-      "description": "Cash settlement annuity method for cash-settled swaptions.\n\nDifferent methods exist for calculating the annuity factor used in cash settlement:\n\n# Market Background\n\nWhen a swaption is cash-settled, the payoff is:\n```text\nPayoff = Annuity × max(S - K, 0)  [for payer]\n```\n\nThe choice of annuity method affects the settlement amount and can result\nin differences of several basis points on notional for steep curves.\n\n# ⚠️ Production Recommendation\n\nFor production systems requiring ISDA compliance, use [`IsdaParPar`](Self::IsdaParPar):\n\n```\nuse finstack_quant_valuations::instruments::rates::swaption::{\n    CashSettlementMethod, Swaption,\n};\n\nlet swaption =\n    Swaption::example().with_cash_settlement_method(CashSettlementMethod::IsdaParPar);\n\nassert_eq!(\n    swaption.cash_settlement_method,\n    CashSettlementMethod::IsdaParPar\n);\n```\n\nThe default `ParYield` method is a fast approximation suitable for:\n- Quick calculations and screening\n- Flat yield curve environments\n- Short-dated swaptions where precision is less critical\n\n# References\n\n- ISDA 2006 Definitions, Section 18.2 `docs/REFERENCES.md#isda-2006-definitions`\n- \"Interest Rate Models\" by Brigo & Mercurio, Chapter 6 `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`\n- Bloomberg VCUB/SWPM production quoting uses ISDA par-par.\n  `docs/REFERENCES.md#bloomberg-swpm`",
+      "description": "Cash settlement annuity method for cash-settled swaptions.\n\nThe trade confirmation or ISDA settlement matrix determines the method.\nModern EUR cash-settled swaptions use collateralized cash price; legacy\ntrades may retain par-yield or ISDA par-par terms.",
       "oneOf": [
         {
+          "const": "collateralized_cash_price",
+          "description": "Collateralized cash price using the actual collateral-discounted swap\nannuity.\n\nThis is the current EUR market standard under the ISDA settlement\nmatrix. The exercise payoff is the collateralized NPV of the underlying\nswap, equivalently `A_collateral × max(±(S-K), 0)`.",
+          "type": "string"
+        },
+        {
           "const": "par_yield",
-          "description": "Par yield approximation using flat forward rate.\n\n```text\nA = (1 - (1 + S/m)^(-N)) / S\n```\n\nThis is a closed-form approximation that assumes the forward swap rate\nis a constant discount rate. Fast but less accurate for steep curves.\n\n**Note**: This was the legacy default. As of the market standards audit,\n[`IsdaParPar`](Self::IsdaParPar) is now the default for ISDA compliance.",
+          "description": "Legacy par-yield-curve cash settlement.\n\nThe cash annuity is reconstructed from the forward swap rate as a flat\ndiscount yield:\n\n```text\nA = (1 - (1 + S/m)^(-N)) / S\n```",
           "type": "string"
         },
         {
           "const": "isda_par_par",
-          "description": "ISDA Par-Par method using actual swap annuity from discount curve.\n\n```text\nA = Σ τ_i × DF(t_i)\n```\n\nUses the actual market discount factors to compute the annuity,\nmatching the PV01 of the underlying swap. This is the most accurate\nmethod and matches professional library implementations.\n\n# ✅ Default (ISDA Compliant)\n\nThis is the default method, matching professional library implementations\n(Bloomberg VCUB/SWPM, QuantLib). Suitable for:\n- Production pricing requiring ISDA compliance\n- Steep yield curve environments\n- Long-dated swaptions (> 5Y into > 10Y swap)\n- Trade confirmation matching\n- Any situation where cash settlement valuation precision matters",
+          "description": "Legacy ISDA par-par settlement using the actual fixed-leg annuity.\n\nRetained for confirmations that explicitly name this settlement method;\ndo not use it as a universal modern cash-settlement default.",
           "type": "string"
         },
         {
           "const": "zero_coupon",
-          "description": "Zero coupon method discounting the single payment to swap maturity.\n\n```text\nA = τ × DF(T_swap)\n```\n\nRarely used in modern markets; included for completeness.",
+          "description": "Zero-coupon settlement discounting one payment to swap maturity.",
           "type": "string"
         }
       ]
@@ -209,16 +214,16 @@
       "type": "object"
     },
     "FloatingLegCompounding": {
-      "description": "Method for calculating floating leg coupon payments.\n\nDifferent reference rates require different compounding conventions:\n- **Term rates (SOFR 3M, EURIBOR, historical LIBOR)**: Simple interest\n- **Overnight rates (SOFR, SONIA, €STR, TONA)**: Compounded in arrears\n\n# Market Standards\n\n## Simple (LIBOR-style)\n- **Formula**: `Coupon = Notional × (Forward_Rate + Spread) × DCF`\n- **Use for**: USD LIBOR, EUR EURIBOR, GBP LIBOR (historical)\n- **Standard**: ISDA 2006 Definitions\n\n## Compounded In Arrears (RFR-style)\n- **Formula**: `Coupon = Notional × [∏(1 + r_i × dcf_i) - 1]`\n- **Use for**: USD SOFR, GBP SONIA, EUR €STR, JPY TONA\n- **Standard**: ISDA 2021 Definitions\n- **Lookback**: Typically 2-5 business days before period end\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;\n\n// LIBOR-style swap (simple compounding)\nlet simple = FloatingLegCompounding::Simple;\nassert_eq!(simple, FloatingLegCompounding::default());\n\n// SOFR OIS swap: plain compounded in arrears (no lookback)\nlet sofr = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };\nassert_eq!(sofr, FloatingLegCompounding::sofr());\n\n// SONIA FRN-style leg with the BoE 5-day lookback (explicit, not the OIS preset)\nlet sonia_frn = FloatingLegCompounding::CompoundedInArrears { lookback_days: 5 };\nassert_ne!(sonia_frn, FloatingLegCompounding::sonia());\n```\n\n# References\n\n- **ISDA 2021 Definitions**: Compounded RFR conventions `docs/REFERENCES.md#isda-2021-definitions`\n- **ARRC** (Alternative Reference Rates Committee): SOFR conventions `docs/REFERENCES.md#arrc-sofr-users-guide`\n- **BoE** (Bank of England): SONIA conventions `docs/REFERENCES.md#boe-sonia-key-features`\n- **ECB**: €STR conventions `docs/REFERENCES.md#ecb-estr-methodology`\n\nIn the IRS instrument implementation, the RFR-style variant\n(`CompoundedInArrears`) is also used to classify swaps as OIS for\ndiscount-only float-leg pricing; see `InterestRateSwap::is_single_curve_ois` for details.",
+      "description": "Method for calculating floating leg coupon payments.\n\nDifferent reference rates require different compounding conventions:\n- **Term rates (SOFR 3M, EURIBOR, historical LIBOR)**: Simple interest\n- **Overnight rates (SOFR, SONIA, €STR, TONA)**: Compounded in arrears\n\n# Market Standards\n\n## Simple term-rate coupons\n- **Formula**: `Coupon = Notional × (Forward_Rate + Spread) × DCF`\n- **Use for**: current term-rate indices and legacy IBOR transactions\n- **Standard**: ISDA 2021 Definitions; ISDA 2006 for legacy transactions\n\n## Compounded In Arrears (RFR-style)\n- **Formula**: `Coupon = Notional × [∏(1 + r_i × dcf_i) - 1]`\n- **Use for**: USD SOFR, GBP SONIA, EUR €STR, JPY TONA\n- **Standard**: ISDA 2021 Definitions\n- **Observation convention**: plain in-arrears for standard OIS presets;\n  lookback, observation shift, and cutoff are explicit contract variants\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;\n\n// LIBOR-style swap (simple compounding)\nlet simple = FloatingLegCompounding::Simple;\nassert_eq!(simple, FloatingLegCompounding::default());\n\n// SOFR OIS swap: plain compounded in arrears (no lookback)\nlet sofr = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };\nassert_eq!(sofr, FloatingLegCompounding::sofr());\n\n// SONIA FRN-style leg with the BoE 5-day lookback (explicit, not the OIS preset)\nlet sonia_frn = FloatingLegCompounding::CompoundedInArrears { lookback_days: 5 };\nassert_ne!(sonia_frn, FloatingLegCompounding::sonia());\n```\n\n# References\n\n- **ISDA 2021 Definitions**: Compounded RFR conventions `docs/REFERENCES.md#isda-2021-definitions`\n- **ARRC** (Alternative Reference Rates Committee): SOFR conventions `docs/REFERENCES.md#arrc-sofr-users-guide`\n- **BoE** (Bank of England): SONIA conventions `docs/REFERENCES.md#boe-sonia-key-features`\n- **ECB**: €STR conventions `docs/REFERENCES.md#ecb-estr-methodology`\n\nIn the IRS instrument implementation, the RFR-style variant\n(`CompoundedInArrears`) is also used to classify swaps as OIS for\ndiscount-only float-leg pricing; see `InterestRateSwap::is_single_curve_ois` for details.",
       "oneOf": [
         {
           "const": "simple",
-          "description": "Simple interest compounding (term-rate style).\n\nCoupon = Notional × (Forward_Rate + Spread) × Day_Count_Fraction\n\nUse for:\n- Term SOFR / EURIBOR-style swaps with fixed-tenor indices\n- Legacy USD/EUR/GBP LIBOR swaps (for back-testing only)\n\nThis is the current default behavior for vanilla IRS and matches\nISDA 2006 term-rate conventions.",
+          "description": "Simple interest compounding (term-rate style).\n\nCoupon = Notional × (Forward_Rate + Spread) × Day_Count_Fraction\n\nUse for:\n- Current fixed-tenor term-rate indices\n- Legacy USD/EUR/GBP LIBOR swaps\n\nThis is the generic vanilla-IRS default; the rate-index convention\nregistry selects compounded RFR terms for overnight indices.",
           "type": "string"
         },
         {
           "additionalProperties": false,
-          "description": "Compounded in arrears (overnight RFR rates).\n\nCoupon = Notional × [∏(1 + r_i × dcf_i) - 1] where the product\nis taken over daily observations in the accrual period.\n\nUse for:\n- USD SOFR (Secured Overnight Financing Rate)\n- GBP SONIA (Sterling Overnight Index Average)\n- EUR €STR (Euro Short-Term Rate)\n- JPY TONA (Tokyo Overnight Average Rate)\n\n# Fields\n\n- `lookback_days`: Days to shift observation end date before period end (typically 2-5)\n\n# Market Conventions\n\n- **SOFR**: 2-day lookback (ARRC recommended)\n- **SONIA**: 5-day lookback (BoE recommended)\n- **€STR**: 2-day shift (ECB convention)\n- **TONA**: 2-day lag (JSCC convention)",
+          "description": "Compounded in arrears (overnight RFR rates).\n\nCoupon = Notional × [∏(1 + r_i × dcf_i) - 1] where the product\nis taken over daily observations in the accrual period.\n\nUse for:\n- USD SOFR (Secured Overnight Financing Rate)\n- GBP SONIA (Sterling Overnight Index Average)\n- EUR €STR (Euro Short-Term Rate)\n- JPY TONA (Tokyo Overnight Average Rate)\n\n# Fields\n\n- `lookback_days`: Business days by which observation dates move\n  backward while accrual day-count weights remain unshifted.\n\nStandard cleared OIS presets use zero lookback. Non-zero lookbacks are\nexplicit contractual variants, commonly used for RFR-linked notes.",
           "properties": {
             "compounded_in_arrears": {
               "properties": {
@@ -412,7 +417,7 @@
     },
     "Swaption": {
       "additionalProperties": false,
-      "description": "Swaption instrument",
+      "description": "Swaption instrument\n\n# Exercise lifecycle boundary\n\n`Instrument::value` prices the option claim through expiry. At expiry it\nreturns model-free intrinsic value; after expiry it returns zero. For\nphysical settlement, trade lifecycle infrastructure must materialize the\ndelivered [`InterestRateSwap`] from `underlying_fixed_leg`,\n`underlying_float_leg`, `notional`, and `option_type`. This instrument does\nnot retain an exercised swap position after expiry.",
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
@@ -420,7 +425,7 @@
         },
         "cash_settlement_method": {
           "$ref": "#/$defs/CashSettlementMethod",
-          "description": "Cash settlement annuity method (only used when settlement = Cash).\n\n- `ParYield` (default): Fast approximation using flat forward rate\n- `IsdaParPar`: Uses actual swap annuity from discount curve (ISDA compliant)\n- `ZeroCoupon`: Discounts to swap maturity (rarely used)"
+          "description": "Cash settlement annuity method (only used when settlement = Cash).\n\n- `CollateralizedCashPrice` (default): Actual collateral-discounted fixed-leg annuity\n- `ParYield`: Legacy flat-yield cash annuity\n- `IsdaParPar`: Legacy par-par annuity from the discount curve\n- `ZeroCoupon`: Single discount to swap maturity"
         },
         "exercise_style": {
           "$ref": "#/$defs/SwaptionExercise",
@@ -579,7 +584,7 @@
       "instrument": {
         "spec": {
           "attributes": {},
-          "cash_settlement_method": "isda_par_par",
+          "cash_settlement_method": "collateralized_cash_price",
           "exercise_style": "european",
           "expiry": "2027-01-15",
           "id": "SWPN-1Yx5Y-USD",

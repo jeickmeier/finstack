@@ -178,7 +178,8 @@ mod tests {
         .expect("valid swaption params")
         .with_fixed_frequency(Tenor::semi_annual())
         .with_float_frequency(Tenor::quarterly())
-        .with_day_count(DayCount::Thirty360);
+        .with_fixed_day_count(DayCount::Thirty360)
+        .with_float_day_count(DayCount::Act360);
         Swaption::new_payer(
             "SWAPTION_IV_TEST",
             &params,

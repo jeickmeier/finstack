@@ -399,6 +399,7 @@ mod bond_market_edge {
             0.06,
             issue,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .unwrap();
@@ -471,6 +472,7 @@ mod bond_market_edge {
             0.06,
             issue,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .unwrap();
@@ -593,6 +595,7 @@ mod bond_market_edge {
             0.06,
             issue,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .unwrap();

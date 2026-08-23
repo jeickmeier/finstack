@@ -108,29 +108,22 @@ pub enum YieldCompounding {
     /// Formula: `DF = (1 + y/f)^(-f*t)` where `f` is coupon frequency.
     Street,
 
-    /// ISDA/Treasury actual convention with simple interest for odd first period.
+    /// U.S. Treasury actual convention for regular and irregular first periods.
     ///
-    /// Uses simple interest `1/(1 + y*t)` for the first (potentially irregular) period,
-    /// then switches to periodic compounding for subsequent periods. This matches
-    /// the official SEC/Treasury methodology for new issue pricing with stub periods.
+    /// The schedule-aware pricing path decomposes the first horizon into an
+    /// initial simple-interest fractional quasi-coupon and zero or more full
+    /// periodically compounded coupon periods, following 31 CFR Part 356,
+    /// Appendix B, section II.
     ///
     /// # When to Use
     ///
-    /// - US Treasury new issues with short first coupons
-    /// - Regulatory yield calculations requiring ISDA compliance
-    /// - Benchmarking against official Bloomberg/Reuters Treasury yields
+    /// - U.S. Treasury auction/new-issue price conversion
+    /// - Regular, short-first, and long-first payment periods
+    /// - Source-backed Treasury price/yield reconciliation
     ///
-    /// # Typical Difference
-    ///
-    /// The difference vs `Street` convention is typically < 0.5 basis points for
-    /// seasoned bonds, but can be 1-2 basis points for new issues with significant stubs.
-    ///
-    /// # Limitation
-    ///
-    /// Stub period detection is **time-based**, using `t < 1/frequency` as the criterion.
-    /// This works correctly for standard bonds but may misclassify stubs on bonds with
-    /// irregular first coupons that don't align with the standard frequency (e.g., a
-    /// long-first stub spanning 8 months on a semi-annual bond).
+    /// The standalone [`super::df_from_yield`] helper has no schedule and can
+    /// only infer the initial fraction from `t`. Use
+    /// [`super::price_from_ytm_compounded_params`] for irregular schedules.
     TreasuryActual,
 
     /// Moosmüller: simple interest to the next coupon, then periodic compounding.

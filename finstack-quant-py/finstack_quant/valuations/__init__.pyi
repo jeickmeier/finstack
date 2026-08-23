@@ -64,6 +64,7 @@ from typing import Any
 
 import pandas as pd
 
+from finstack_quant.core.dates import StubKind
 from finstack_quant.core.market_data import MarketContext
 from finstack_quant.valuations import correlation as correlation
 from finstack_quant.valuations import composite as composite
@@ -130,12 +131,15 @@ class ValuationResult:
     --------
     >>> import datetime
     >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.dates import StubKind
     >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
     >>> from finstack_quant.core.money import Money
     >>> from finstack_quant.core.types import Rate
     >>> from finstack_quant.valuations.instruments import Bond, price_instrument
     >>> as_of = datetime.date(2024, 1, 15)
-    >>> bond = Bond.fixed("B", Money(1000.0, Currency("USD")), Rate(0.05), as_of, datetime.date(2026, 1, 15), "USD-OIS")
+    >>> bond = Bond.fixed(
+    ...     "B", Money(1000.0, Currency("USD")), Rate(0.05), as_of, datetime.date(2026, 1, 15), StubKind.NONE, "USD-OIS"
+    ... )
     >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
     >>> result = price_instrument(bond, market, "2024-01-15")
     >>> (result.instrument_id, round(result.price, 2), result.currency)
@@ -162,6 +166,7 @@ class ValuationResult:
         --------
         >>> import datetime
         >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.dates import StubKind
         >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
         >>> from finstack_quant.core.money import Money
         >>> from finstack_quant.core.types import Rate
@@ -169,7 +174,13 @@ class ValuationResult:
         >>> from finstack_quant.valuations.instruments import Bond, price_instrument
         >>> as_of = datetime.date(2024, 1, 15)
         >>> bond = Bond.fixed(
-        ...     "B", Money(1000.0, Currency("USD")), Rate(0.05), as_of, datetime.date(2026, 1, 15), "USD-OIS"
+        ...     "B",
+        ...     Money(1000.0, Currency("USD")),
+        ...     Rate(0.05),
+        ...     as_of,
+        ...     datetime.date(2026, 1, 15),
+        ...     StubKind.NONE,
+        ...     "USD-OIS",
         ... )
         >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
         >>> result = ValuationResult.from_json(price_instrument(bond, market, "2024-01-15").to_json())
@@ -525,13 +536,20 @@ def instrument_cashflows(
         --------
         >>> import datetime
         >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.dates import StubKind
         >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
         >>> from finstack_quant.core.money import Money
         >>> from finstack_quant.core.types import Rate
         >>> from finstack_quant.valuations.instruments import Bond
         >>> as_of = datetime.date(2024, 1, 1)
         >>> bond = Bond.fixed(
-        ...     "B", Money(1000.0, Currency("USD")), Rate(0.05), as_of, datetime.date(2026, 1, 1), "USD-OIS"
+        ...     "B",
+        ...     Money(1000.0, Currency("USD")),
+        ...     Rate(0.05),
+        ...     as_of,
+        ...     datetime.date(2026, 1, 1),
+        ...     StubKind.NONE,
+        ...     "USD-OIS",
         ... )
         >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
         >>> from finstack_quant.valuations import instrument_cashflows

@@ -44,6 +44,7 @@ fn create_bond(tenor_years: i32) -> Bond {
         0.05, // 5% coupon
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("Bond::fixed should succeed with valid parameters")

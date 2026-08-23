@@ -87,7 +87,8 @@
 //!
 //! # References
 //!
-//! - ISDA 2006 Definitions for swap conventions `docs/REFERENCES.md#isda-2006-definitions`
+//! - ISDA 2021 Definitions for current swap and RFR conventions, with ISDA
+//!   2006 retained for legacy transactions `docs/REFERENCES.md#isda-2021-definitions`
 //! - Black (1976) for cap/floor and swaption pricing `docs/REFERENCES.md#black-1976`
 //! - Hull-White (1990) for short rate models `docs/REFERENCES.md#hull-white-1990-pricing-ird`
 //!

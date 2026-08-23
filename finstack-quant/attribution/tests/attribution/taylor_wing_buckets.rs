@@ -50,6 +50,7 @@ fn attribute_bond_on_wing_curve(maturity_year: i32) -> finstack_quant_attributio
         0.04,
         create_date(2025, Month::January, 1).unwrap(),
         create_date(maturity_year, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -110,6 +111,7 @@ fn taylor_short_end_wing_explains_sub_3m_rates_move() {
         0.0,
         create_date(2025, Month::January, 1).unwrap(),
         create_date(2025, Month::March, 15).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

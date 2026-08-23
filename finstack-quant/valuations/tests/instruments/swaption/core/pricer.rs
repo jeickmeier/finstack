@@ -116,6 +116,7 @@ fn test_simple_swaption_black_pricer_type_mismatch() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD_OIS",
     )
     .unwrap();

@@ -26,6 +26,7 @@ fn build_credit_bond(as_of: time::Date) -> Bond {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("credit bond should build");

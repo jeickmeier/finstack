@@ -80,6 +80,7 @@ mod tests {
             0.05,
             as_of,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("bond");

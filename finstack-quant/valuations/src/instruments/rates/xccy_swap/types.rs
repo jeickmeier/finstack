@@ -846,17 +846,17 @@ impl XccySwap {
             ));
         }
 
-        let unsettled_coupon = periods.iter().any(|period| period.payment_date >= as_of);
+        let unsettled_coupon = periods.iter().any(|period| period.payment_date > as_of);
         let unsettled_initial = matches!(
             self.notional_exchange,
             NotionalExchange::InitialAndFinal | NotionalExchange::MtmResetting { .. }
-        ) && leg.start >= as_of;
+        ) && leg.start > as_of;
         let unsettled_final = matches!(
             self.notional_exchange,
             NotionalExchange::Final
                 | NotionalExchange::InitialAndFinal
                 | NotionalExchange::MtmResetting { .. }
-        ) && leg.end >= as_of;
+        ) && leg.end > as_of;
         if !unsettled_coupon && !unsettled_initial && !unsettled_final {
             return Ok(Money::new(0.0, self.reporting_currency));
         }
@@ -894,7 +894,7 @@ impl XccySwap {
         if matches!(
             self.notional_exchange,
             NotionalExchange::InitialAndFinal | NotionalExchange::MtmResetting { .. }
-        ) && leg.start >= as_of
+        ) && leg.start > as_of
         {
             let df = robust_relative_df(disc.as_ref(), as_of, leg.start)?;
             let cf_leg_currency = leg.side.initial_principal_sign() * leg.notional.amount() * df;
@@ -908,7 +908,7 @@ impl XccySwap {
             NotionalExchange::Final
                 | NotionalExchange::InitialAndFinal
                 | NotionalExchange::MtmResetting { .. }
-        ) && leg.end >= as_of
+        ) && leg.end > as_of
         {
             let df = robust_relative_df(disc.as_ref(), as_of, leg.end)?;
             let cf_leg_currency = leg.side.final_principal_sign() * leg.notional.amount() * df;
@@ -918,7 +918,7 @@ impl XccySwap {
 
         // Floating coupons
         for period in periods {
-            if period.payment_date < as_of {
+            if period.payment_date <= as_of {
                 continue;
             }
 

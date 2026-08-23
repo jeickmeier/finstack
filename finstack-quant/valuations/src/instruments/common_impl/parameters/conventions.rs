@@ -115,11 +115,13 @@ impl BondConvention {
         }
     }
 
-    /// Stub convention for this market.
+    /// Default stub convention for convenience construction.
     ///
-    /// Default is no stub (full first coupon period).
+    /// Schedules are generated backward from maturity, so an off-cycle issue
+    /// date produces a short first coupon. Callers with explicit long/front/
+    /// back terms override this through [`crate::instruments::Bond::with_stub`].
     pub fn stub_convention(&self) -> StubKind {
-        StubKind::None
+        StubKind::ShortFront
     }
 
     /// Settlement days (T+N) for this market.

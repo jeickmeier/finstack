@@ -86,18 +86,20 @@ line in `src/pricer/rates.rs`.
 use finstack_quant_valuations::instruments::fixed_income::bond::{Bond, CashflowSpec};
 use finstack_quant_valuations::instruments::{Attributes, InstrumentPricingOverrides};
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{DayCount, Tenor};
+use finstack_quant_core::dates::{DayCount, StubKind, Tenor};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::Rate;
 use time::macros::date;
 
-// Factory: semi-annual, 30/360, T+2 settlement.
+// Factory: US corporate, semi-annual, 30/360, T+1 settlement.
+// StubKind is explicit: use None for a regular schedule.
 let corp = Bond::fixed(
     "CORP-001",
     Money::new(1_000_000.0, Currency::USD),
     Rate::from_percent(5.0),
     date!(2025 - 01 - 01),
     date!(2030 - 01 - 01),
+    StubKind::None,
     "USD-OIS",
 )?;
 
@@ -125,6 +127,23 @@ Notes that bite:
   not.
 - `Bond::fixed` / `with_convention` / `zero_coupon` / `floating` all return
   `Result<Bond>` and run `validate()` before returning.
+
+### Corporate pricing basis
+
+`discount_curve_id = "USD-OIS"` without a spread or credit curve is a
+risk-free benchmark PV, not a corporate market value. Choose one credit basis:
+
+- **Straight bond:** calibrate `ZSpread` from a clean market quote with
+  `pricing::quote_conversions::compute_quotes`, or set `quoted_z_spread` as the
+  price driver. The Z-spread shifts the risk-free discount curve.
+- **Callable/putable bond:** calibrate or supply `quoted_oas`; the tree prices
+  the option-adjusted spread over the risk-free curve.
+- **Hazard basis:** set `credit_curve_id` to a calibrated survival/hazard curve
+  in the market context. `HazardBondEngine` combines that curve and recovery
+  with the risk-free discount curve.
+
+Do not set both a hazard curve and a Z-spread/OAS price driver: quote drivers
+take precedence over the hazard engine, making the selected credit basis ambiguous.
 
 ### Floating-rate notes
 
@@ -253,7 +272,8 @@ Public types: `MertonMcConfig`, `MertonMcResult`, `MertonMcCalibrationSpec`,
 ### Regional conventions
 
 `Bond::with_convention(id, notional, coupon, issue, maturity, convention, curve_id)`
-applies `BondConvention`:
+applies `BondConvention` and defaults to a backward-generated short-front
+stub. Override irregular terms explicitly with `.with_stub(StubKind::...)`:
 
 | Convention | Day count | Frequency | Settlement | Ex-coupon |
 |------------|-----------|-----------|------------|-----------|

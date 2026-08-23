@@ -5472,6 +5472,7 @@ export interface Bond extends WasmOwned {
  *   new core.Rate(0.05),
  *   "2024-01-01",
  *   "2034-01-01",
+ *   "none",
  *   "USD-OIS"
  * );
  * const result = valuations.instruments.priceInstrument(bond.toJson(), marketJson, "2024-06-30", "default");
@@ -5479,12 +5480,14 @@ export interface Bond extends WasmOwned {
  */
 export interface BondConstructor {
   /**
-   * Create a standard fixed-rate bond (semi-annual, 30/360, T+2). Mirrors Rust `Bond::fixed`.
+   * Create a US corporate fixed-rate bond (semi-annual, 30/360, T+1).
+   * Mirrors Rust `Bond::fixed` and requires an explicit stub policy.
    * @param id - Unique instrument identifier.
    * @param notional - Principal amount of the bond.
    * @param couponRate - Annual coupon rate.
    * @param issue - Issue date as an ISO-8601 string (`"YYYY-MM-DD"`).
    * @param maturity - Maturity date as an ISO-8601 string (`"YYYY-MM-DD"`).
+   * @param stub - Stub policy: `none`, `short_front`, `short_back`, `long_front`, or `long_back`.
    * @param discountCurveId - Discount curve identifier used for pricing.
    * @returns The validated fixed-rate bond.
    * @throws If validation fails (e.g. maturity not after issue).
@@ -5495,6 +5498,7 @@ export interface BondConstructor {
     couponRate: Rate,
     issue: string,
     maturity: string,
+    stub: "none" | "short_front" | "short_back" | "long_front" | "long_back",
     discountCurveId: string
   ): Bond;
   /**

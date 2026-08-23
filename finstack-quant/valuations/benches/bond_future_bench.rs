@@ -82,6 +82,7 @@ fn create_ctd_bond() -> Bond {
         0.035, // 3.5% coupon
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         CurveId::from("USD-TREASURY"),
     )
     .expect("Bond::fixed should succeed with valid parameters")

@@ -41,7 +41,8 @@ fn create_swaption(expiry_months: i64, swap_tenor_years: i32) -> Swaption {
         side: PayReceive::Pay,
         fixed_frequency: Some(Tenor::semi_annual()),
         float_frequency: Some(Tenor::quarterly()),
-        day_count: Some(DayCount::Thirty360),
+        fixed_day_count: Some(DayCount::Thirty360),
+        float_day_count: Some(DayCount::Act360),
         vol_model: None,
     };
 

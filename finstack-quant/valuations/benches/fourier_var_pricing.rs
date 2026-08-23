@@ -116,6 +116,7 @@ fn make_var_bond(base: Date) -> Bond {
         0.045,
         base,
         base + time::Duration::days(365 * 10),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap()

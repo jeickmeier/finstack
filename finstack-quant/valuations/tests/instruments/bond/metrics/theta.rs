@@ -16,6 +16,7 @@ fn test_theta_finite() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -52,6 +53,7 @@ fn test_theta_sign_diagnostic() {
         0.04,
         date!(2024 - 01 - 15),
         date!(2028 - 01 - 15),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

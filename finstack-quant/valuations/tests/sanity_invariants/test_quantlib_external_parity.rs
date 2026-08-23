@@ -133,6 +133,7 @@ fn external_quantlib_parity_vanilla_bond_npv_and_dv01() {
         fixture.spec.coupon_rate,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("Bond::fixed");

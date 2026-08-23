@@ -236,6 +236,7 @@ mod tests {
             0.0,
             date!(2025 - 01 - 15),
             date!(2026 - 01 - 15),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("zero coupon bond")

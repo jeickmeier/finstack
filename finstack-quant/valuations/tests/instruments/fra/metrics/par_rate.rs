@@ -195,30 +195,19 @@ fn test_par_rate_long_period() {
 fn test_par_rate_zero_tau_returns_error() {
     let market = standard_market();
     let same_date = date!(2024 - 04 - 01);
-
     let fra = TestFraBuilder::new()
         .dates(same_date, same_date, same_date)
         .build();
 
-    // Zero-length period should now return an error (not 0.0)
-    // because a zero-length FRA has undefined par rate
-    let result = fra.price_with_metrics(
-        &market,
-        BASE_DATE,
-        &[MetricId::ParRate],
-        finstack_quant_valuations::instruments::PricingOptions::default(),
-    );
-
     assert!(
-        result.is_err(),
-        "Zero-length FRA period should return error for par rate"
-    );
-
-    let err_msg = result.unwrap_err().to_string();
-    assert!(
-        err_msg.contains("period length is zero"),
-        "Error should mention zero period length: {}",
-        err_msg
+        fra.price_with_metrics(
+            &market,
+            BASE_DATE,
+            &[MetricId::ParRate],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .is_err(),
+        "zero-length FRA must fail before par-rate calculation"
     );
 }
 

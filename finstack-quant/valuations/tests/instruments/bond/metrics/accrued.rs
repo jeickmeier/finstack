@@ -25,7 +25,7 @@ fn create_curve(base_date: Date) -> MarketContext {
 }
 
 #[test]
-fn test_accrued_at_issue() {
+fn test_accrued_uses_settlement_at_issue() {
     let as_of = date!(2025 - 01 - 01);
     let bond = Bond::fixed(
         "ACCR1",
@@ -33,6 +33,7 @@ fn test_accrued_at_issue() {
         0.06,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -46,7 +47,7 @@ fn test_accrued_at_issue() {
         )
         .unwrap();
     let accrued = *result.measures.get("accrued").unwrap();
-    assert_eq!(accrued, 0.0);
+    assert!((accrued - 100.0 * 0.06 / 360.0).abs() < 1e-12);
 }
 
 #[test]
@@ -59,6 +60,7 @@ fn test_accrued_mid_period() {
         0.06,
         issue,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -85,6 +87,7 @@ fn test_quoted_price_accrued_uses_settlement_date() {
         0.06,
         issue,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -202,6 +205,7 @@ fn test_clean_dirty_ex_coupon_parity() {
         0.06,
         issue,
         date!(2026 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -219,25 +223,28 @@ fn test_clean_dirty_ex_coupon_parity() {
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
-    let acc_before = *res_before.measures.get("accrued").unwrap();
-    // Use base value as dirty price when no quoted clean is provided
-    let dirty_before = res_before.value.amount();
-    let clean_before = *res_before.measures.get("clean_price").unwrap();
-    assert!((clean_before - (dirty_before - acc_before)).abs() < 1e-6); // clean = dirty - accrued identity
+    let acc_before = res_before.measures["accrued"];
+    let dirty_before = res_before.measures["dirty_price"];
+    let clean_before = res_before.measures["clean_price"];
+    assert!((clean_before - (dirty_before - acc_before)).abs() < 1e-6);
 
     // After coupon date: check parity and ensure accrued decreased
     let res_after = bond
         .price_with_metrics(
             &market,
             as_of_after,
-            &[MetricId::Accrued, MetricId::CleanPrice],
+            &[
+                MetricId::Accrued,
+                MetricId::DirtyPrice,
+                MetricId::CleanPrice,
+            ],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
-    let acc_after = *res_after.measures.get("accrued").unwrap();
-    let clean_after = *res_after.measures.get("clean_price").unwrap();
-    let dirty_after = res_after.value.amount();
-    assert!((clean_after - (dirty_after - acc_after)).abs() < 1e-6); // clean = dirty - accrued identity
+    let acc_after = res_after.measures["accrued"];
+    let dirty_after = res_after.measures["dirty_price"];
+    let clean_after = res_after.measures["clean_price"];
+    assert!((clean_after - (dirty_after - acc_after)).abs() < 1e-6);
     assert!(
         acc_after < acc_before,
         "Accrued should decrease after coupon"

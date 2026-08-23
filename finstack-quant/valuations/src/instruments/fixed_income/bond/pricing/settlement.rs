@@ -11,7 +11,7 @@
 //!   is set, otherwise `as_of`).
 //! - Accrued interest for market quotes is computed at the quote date.
 
-use finstack_quant_core::dates::{adjust, BusinessDayConvention, Date, DateExt};
+use finstack_quant_core::dates::{adjust, Date, DateExt};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
 
@@ -20,53 +20,58 @@ use super::super::CashflowSpec;
 
 /// Compute the settlement date from a trade/valuation date.
 ///
-/// If the bond has `settlement_days` set, computes the date by adding that
-/// many business days (using the bond's calendar if available). Otherwise,
-/// returns `as_of` unchanged.
+/// Advances by the configured number of business days on the bond's payment
+/// calendar, then clamps the result to the issue date. A configured but
+/// unknown calendar is an error; settlement never silently falls back to a
+/// weekday-only calendar.
 pub(crate) fn settlement_date(bond: &Bond, as_of: Date) -> Result<Date> {
     let Some(sd_u32) = bond.settlement_days() else {
-        return Ok(as_of);
+        return Ok(as_of.max(bond.issue_date));
     };
 
-    let sd: i32 = sd_u32 as i32;
+    let sd = i32::try_from(sd_u32).map_err(|_| {
+        finstack_quant_core::Error::Validation(format!(
+            "bond settlement_days {sd_u32} exceeds the supported range"
+        ))
+    })?;
     let (calendar_id, business_day_convention) = match &bond.cashflow_spec {
         CashflowSpec::Fixed(spec) => (
-            Some(spec.schedule.calendar_id.as_str()),
+            spec.schedule.calendar_id.as_str(),
             spec.schedule.business_day_convention,
         ),
         CashflowSpec::Floating(spec) => (
-            Some(spec.schedule.calendar_id.as_str()),
+            spec.schedule.calendar_id.as_str(),
             spec.schedule.business_day_convention,
         ),
         CashflowSpec::StepUp(spec) => (
-            Some(spec.schedule.calendar_id.as_str()),
+            spec.schedule.calendar_id.as_str(),
             spec.schedule.business_day_convention,
         ),
         CashflowSpec::Amortizing { base, .. } => match &**base {
             CashflowSpec::Fixed(spec) => (
-                Some(spec.schedule.calendar_id.as_str()),
+                spec.schedule.calendar_id.as_str(),
                 spec.schedule.business_day_convention,
             ),
             CashflowSpec::Floating(spec) => (
-                Some(spec.schedule.calendar_id.as_str()),
+                spec.schedule.calendar_id.as_str(),
                 spec.schedule.business_day_convention,
             ),
             CashflowSpec::StepUp(spec) => (
-                Some(spec.schedule.calendar_id.as_str()),
+                spec.schedule.calendar_id.as_str(),
                 spec.schedule.business_day_convention,
             ),
-            CashflowSpec::Amortizing { .. } => (None, BusinessDayConvention::Following),
+            CashflowSpec::Amortizing { .. } => {
+                return Err(finstack_quant_core::Error::Validation(
+                    "nested amortizing bond cashflow specifications are unsupported".to_string(),
+                ));
+            }
         },
     };
 
-    if let Some(id) = calendar_id {
-        if let Some(cal) = finstack_quant_core::dates::calendar::calendar_by_id(id) {
-            let d = as_of.add_business_days(sd, cal)?;
-            return adjust(d, business_day_convention, cal);
-        }
-    }
-
-    Ok(as_of.add_weekdays(sd))
+    let cal = crate::cashflow::builder::calendar::resolve_calendar_strict(calendar_id)?;
+    let advanced = as_of.add_business_days(sd, cal)?;
+    let adjusted = adjust(advanced, business_day_convention, cal)?;
+    Ok(adjusted.max(bond.issue_date))
 }
 
 /// Quote-date context for yield/spread metric calculations.
@@ -156,25 +161,65 @@ impl QuoteDateContext {
     }
 }
 
-/// Forward-value a model PV from `as_of` to the quote/settlement date.
+/// Carry terms connecting an `as_of` holder value to a settlement quote.
+struct QuoteCarry {
+    settlement_df: f64,
+    detached_pv_as_of: f64,
+}
+
+/// Compute the financing discount factor and any cashflows detached between
+/// the valuation and quote-date entitlement sets.
+fn quote_carry(
+    bond: &Bond,
+    curves: &MarketContext,
+    as_of: Date,
+    quote_date: Date,
+) -> Result<QuoteCarry> {
+    if quote_date <= as_of {
+        return Ok(QuoteCarry {
+            settlement_df: 1.0,
+            detached_pv_as_of: 0.0,
+        });
+    }
+
+    let curve = curves.get_discount(bond.discount_curve_id.as_str())?;
+    let settlement_df = curve.df_between_dates(as_of, quote_date)?;
+
+    // Aggregate the valuation-date holder flows, then subtract every flow
+    // retained by a buyer settling on `quote_date`. The residual includes
+    // payments before settlement and coupons detached by an ex-coupon rule.
+    let schedule = bond.full_cashflow_schedule(curves)?;
+    let mut detached_by_date = std::collections::BTreeMap::<Date, f64>::new();
+    for (date, amount) in bond.pricing_dated_cashflows_from_schedule(&schedule, as_of, as_of)? {
+        *detached_by_date.entry(date).or_default() += amount.amount();
+    }
+    for (date, amount) in
+        bond.pricing_dated_cashflows_from_schedule(&schedule, as_of, quote_date)?
+    {
+        if date > quote_date {
+            *detached_by_date.entry(date).or_default() -= amount.amount();
+        }
+    }
+
+    let mut detached_pv_as_of = finstack_quant_core::math::summation::NeumaierAccumulator::new();
+    for (date, amount) in detached_by_date {
+        if amount != 0.0 {
+            detached_pv_as_of.add(amount * curve.df_between_dates(as_of, date)?);
+        }
+    }
+
+    Ok(QuoteCarry {
+        settlement_df,
+        detached_pv_as_of: detached_pv_as_of.total(),
+    })
+}
+
+/// Forward-value a model NPV from `as_of` to the quote/settlement date.
 ///
-/// Bond quotes are settlement-date prices, so a model PV computed at `as_of`
-/// must be carried to `quote_date` by dividing by `DF(as_of → quote_date)` on
-/// the bond's discount curve before it can serve as the target of a
-/// quote-derived solve (YTM, Z-spread, DM). Skipping this leaves the solved
-/// yield/spread biased by the settlement-period carry (typically T+1/T+2).
-///
-/// This assumes no cashflow falls strictly between `as_of` and `quote_date`;
-/// for standard settlement lags that window contains no coupon.
-///
-/// # Arguments
-///
-/// * `bond` - Bond supplying the discount curve identifier.
-/// * `curves` - Market context containing the bond's discount curve.
-/// * `as_of` - Valuation date at which `pv_as_of` was computed.
-/// * `quote_date` - Quote/settlement date to carry the PV to; when it does
-///   not lie after `as_of`, `pv_as_of` is returned unchanged.
-/// * `pv_as_of` - Model dirty PV in currency at `as_of`.
+/// The conversion removes cashflows owned by the `as_of` holder but not by
+/// the settlement-date buyer, then divides the residual by
+/// `DF(as_of → quote_date)`. This handles intervening payments and ex-coupon
+/// entitlement changes rather than assuming the settlement window is empty.
 pub(crate) fn model_dirty_at_quote_date(
     bond: &Bond,
     curves: &MarketContext,
@@ -182,18 +227,25 @@ pub(crate) fn model_dirty_at_quote_date(
     quote_date: Date,
     pv_as_of: f64,
 ) -> Result<f64> {
-    use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
+    let carry = quote_carry(bond, curves, as_of, quote_date)?;
+    Ok((pv_as_of - carry.detached_pv_as_of) / carry.settlement_df)
+}
 
-    if quote_date <= as_of {
-        return Ok(pv_as_of);
-    }
-    let curve = curves.get_discount(bond.discount_curve_id.as_str())?;
-    let df = relative_df_discount_curve(curve.as_ref(), as_of, quote_date)?;
-    if df > 0.0 {
-        Ok(pv_as_of / df)
-    } else {
-        Ok(pv_as_of)
-    }
+/// Carry a settlement-date dirty quote back to the valuation date.
+///
+/// The returned value is the `as_of` NPV required by
+/// [`crate::instruments::Instrument::value`]:
+/// the financed settlement amount plus any cashflows owned by the current
+/// holder but detached before the settlement buyer's entitlement begins.
+pub(crate) fn quote_dirty_at_as_of(
+    bond: &Bond,
+    curves: &MarketContext,
+    as_of: Date,
+    quote_date: Date,
+    dirty_at_quote: f64,
+) -> Result<f64> {
+    let carry = quote_carry(bond, curves, as_of, quote_date)?;
+    Ok(dirty_at_quote * carry.settlement_df + carry.detached_pv_as_of)
 }
 
 #[cfg(test)]
@@ -212,6 +264,7 @@ mod tests {
             0.05,
             date!(2025 - 01 - 01),
             date!(2030 - 01 - 01),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("bond");
@@ -248,6 +301,9 @@ mod tests {
         let disc = market.get_discount("USD-OIS").expect("curve");
         let df = relative_df_discount_curve(disc.as_ref(), as_of, quote_date).expect("df");
         assert!((carried - pv_as_of / df).abs() < 1e-9);
+        let restored = quote_dirty_at_as_of(&bond, &market, as_of, quote_date, carried)
+            .expect("reverse carry");
+        assert!((restored - pv_as_of).abs() < 1e-9);
         assert!(
             carried > pv_as_of,
             "positive rates must carry the PV upward"
@@ -256,6 +312,27 @@ mod tests {
         let unchanged =
             model_dirty_at_quote_date(&bond, &market, as_of, as_of, pv_as_of).expect("no-op carry");
         assert_eq!(unchanged, pv_as_of);
+    }
+
+    #[test]
+    fn settlement_never_precedes_issue_date() {
+        let bond = t2_bond();
+        let before_issue = date!(2024 - 12 - 20);
+        assert_eq!(
+            settlement_date(&bond, before_issue).expect("settlement"),
+            bond.issue_date
+        );
+    }
+
+    #[test]
+    fn settlement_rejects_unknown_calendar() {
+        let mut bond = t2_bond();
+        if let CashflowSpec::Fixed(spec) = &mut bond.cashflow_spec {
+            spec.schedule.calendar_id = "missing-calendar".to_string();
+        }
+        let err = settlement_date(&bond, date!(2025 - 01 - 02))
+            .expect_err("unknown settlement calendar must fail");
+        assert!(err.to_string().contains("missing-calendar"));
     }
 
     /// `entitled_flows` must test the ex-window at the quote/settlement date,
@@ -269,6 +346,7 @@ mod tests {
             0.05,
             date!(2025 - 01 - 01),
             date!(2030 - 01 - 01),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("bond");
@@ -300,5 +378,30 @@ mod tests {
         // specific to the quote/settlement view.
         let trade_anchored = bond.pricing_dated_cashflows(&market, as_of).expect("flows");
         assert!(trade_anchored.iter().any(|(d, _)| *d == coupon_date));
+
+        let curve = DiscountCurve::builder("USD-OIS")
+            .base_date(as_of)
+            .knots([(0.0, 1.0), (5.0, 0.80)])
+            .build()
+            .expect("curve");
+        let market = MarketContext::new().insert(curve);
+        let dirty_at_quote = 100.0;
+        let pv_as_of =
+            quote_dirty_at_as_of(&bond, &market, as_of, quote_ctx.quote_date, dirty_at_quote)
+                .expect("quote carry");
+        let round_trip =
+            model_dirty_at_quote_date(&bond, &market, as_of, quote_ctx.quote_date, pv_as_of)
+                .expect("model carry");
+        assert!((round_trip - dirty_at_quote).abs() < 1e-12);
+
+        let disc = market.get_discount("USD-OIS").expect("curve");
+        let financing_only = dirty_at_quote
+            * disc
+                .df_between_dates(as_of, quote_ctx.quote_date)
+                .expect("df");
+        assert!(
+            pv_as_of > financing_only,
+            "the cum-coupon holder value must include the coupon detached at settlement"
+        );
     }
 }

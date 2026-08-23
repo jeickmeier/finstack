@@ -25,6 +25,7 @@ fn bond_position_from_json_spec_matches_typed_pricing() {
         0.05,
         date!(2024 - 01 - 01),
         date!(2029 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD",
     )
     .expect("bond");
@@ -83,6 +84,7 @@ fn portfolio_valuation_stamps_caller_config() {
         0.05,
         date!(2024 - 01 - 01),
         date!(2029 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD",
     )
     .expect("bond");

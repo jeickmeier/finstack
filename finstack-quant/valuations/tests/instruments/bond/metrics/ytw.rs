@@ -19,6 +19,7 @@ fn test_ytw_equals_ytm_for_non_callable_bond_from_price() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -66,6 +67,7 @@ fn test_ytw_tracks_quoted_price_not_model_pv() {
         0.04,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -137,6 +139,7 @@ fn test_ytw_off_cycle_call_uses_dirty_street_redemption() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

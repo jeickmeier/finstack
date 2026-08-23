@@ -9,6 +9,7 @@
 
 use pyo3::prelude::*;
 
+use crate::bindings::core::dates::schedule::PyStubKind;
 use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
 use crate::bindings::core::types::{PyBps, PyRate};
@@ -86,9 +87,9 @@ impl PyBond {
 
 #[pymethods]
 impl PyBond {
-    /// Create a standard fixed-rate bond (semi-annual, 30/360, T+2).
+    /// Create a US corporate fixed-rate bond (semi-annual, 30/360, T+1).
     ///
-    /// Mirrors Rust ``Bond::fixed``.
+    /// Mirrors Rust ``Bond::fixed`` and requires an explicit stub policy.
     ///
     /// Parameters
     /// ----------
@@ -102,6 +103,8 @@ impl PyBond {
     ///     Issue date.
     /// maturity : datetime.date
     ///     Maturity date.
+    /// stub : StubKind
+    ///     Placement and length policy for an irregular coupon period.
     /// discount_curve_id : str
     ///     Discount curve identifier used for pricing.
     ///
@@ -121,6 +124,7 @@ impl PyBond {
     /// >>> from finstack_quant.core.currency import Currency
     /// >>> from finstack_quant.core.money import Money
     /// >>> from finstack_quant.core.types import Rate
+    /// >>> from finstack_quant.core.dates import StubKind
     /// >>> from finstack_quant.valuations.instruments import Bond
     /// >>> bond = Bond.fixed(
     /// ...     "BOND-1",
@@ -128,18 +132,22 @@ impl PyBond {
     /// ...     Rate(0.05),
     /// ...     datetime.date(2024, 1, 1),
     /// ...     datetime.date(2034, 1, 1),
+    /// ...     StubKind.NONE,
     /// ...     "USD-OIS",
     /// ... )
     /// >>> bond.id
     /// 'BOND-1'
     #[staticmethod]
-    #[pyo3(text_signature = "(id, notional, coupon_rate, issue, maturity, discount_curve_id)")]
+    #[pyo3(
+        text_signature = "(id, notional, coupon_rate, issue, maturity, stub, discount_curve_id)"
+    )]
     fn fixed(
         id: &str,
         notional: PyRef<'_, PyMoney>,
         coupon_rate: PyRef<'_, PyRate>,
         issue: &Bound<'_, PyAny>,
         maturity: &Bound<'_, PyAny>,
+        stub: PyRef<'_, PyStubKind>,
         discount_curve_id: &str,
     ) -> PyResult<Self> {
         let inner = finstack_quant_valuations::instruments::Bond::fixed(
@@ -148,6 +156,7 @@ impl PyBond {
             coupon_rate.inner,
             py_to_date(issue)?,
             py_to_date(maturity)?,
+            stub.inner,
             discount_curve_id,
         )
         .map_err(core_to_py)?;
@@ -262,6 +271,7 @@ impl PyBond {
     /// --------
     /// >>> import datetime
     /// >>> from finstack_quant.core.currency import Currency
+    /// >>> from finstack_quant.core.dates import StubKind
     /// >>> from finstack_quant.core.money import Money
     /// >>> from finstack_quant.core.types import Rate
     /// >>> from finstack_quant.valuations.instruments import Bond
@@ -271,6 +281,7 @@ impl PyBond {
     /// ...     Rate(0.05),
     /// ...     datetime.date(2024, 1, 1),
     /// ...     datetime.date(2029, 1, 1),
+    /// ...     StubKind.NONE,
     /// ...     "USD-OIS",
     /// ... )
     /// >>> Bond.from_json(bond.to_json()).id

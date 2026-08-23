@@ -83,6 +83,7 @@ fn make_caplet(
         vol_type,
         vol_shift: 0.0,
         overnight_coupon: None,
+        premium: None,
         spread: Decimal::ZERO,
         instrument_pricing_overrides: Default::default(),
         metric_pricing_overrides: Default::default(),

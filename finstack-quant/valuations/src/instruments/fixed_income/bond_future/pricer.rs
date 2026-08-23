@@ -505,6 +505,7 @@ mod tests {
             coupon_rate,
             issue,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-TREASURY",
         )
         .expect("Test bond creation should succeed")
@@ -1277,6 +1278,7 @@ mod tests {
             0.04,
             date!(2020 - 01 - 15),
             date!(2030 - 01 - 15),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-TREASURY",
         )
         .expect("Bond::fixed should succeed with valid parameters");
@@ -1286,6 +1288,7 @@ mod tests {
             0.06,
             date!(2020 - 01 - 15),
             date!(2030 - 01 - 15),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-TREASURY",
         )
         .expect("Bond::fixed should succeed with valid parameters");

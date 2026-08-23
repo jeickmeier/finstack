@@ -29,8 +29,8 @@
 //!
 //! # References
 //!
-//! - **ISDA 2006 Definitions**: Sections 4.1-4.2 (term rates) `docs/REFERENCES.md#isda-2006-definitions`
-//! - **ISDA 2021 Definitions**: Section 4.5 (compounded RFR) `docs/REFERENCES.md#isda-2021-definitions`
+//! - **ISDA 2021 Definitions**: Current term-rate and compounded-RFR framework `docs/REFERENCES.md#isda-2021-definitions`
+//! - **ISDA 2006 Definitions**: Legacy term-rate transactions `docs/REFERENCES.md#isda-2006-definitions`
 
 use crate::instruments::rates::irs::FloatingLegCompounding;
 use crate::instruments::InterestRateSwap;

@@ -32,6 +32,7 @@ fn test_dm_fixed_bond_is_rejected_in_strict_mode() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

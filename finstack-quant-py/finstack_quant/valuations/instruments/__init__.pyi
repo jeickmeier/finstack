@@ -22,7 +22,7 @@ from typing import Literal
 import pandas as pd
 
 from finstack_quant.core.currency import Currency
-from finstack_quant.core.dates import DayCount, Tenor
+from finstack_quant.core.dates import DayCount, StubKind, Tenor
 from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.money import Money
 from finstack_quant.core.types import Bps, Rate
@@ -108,6 +108,7 @@ class Bond:
     --------
     >>> import datetime
     >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.dates import StubKind
     >>> from finstack_quant.core.money import Money
     >>> from finstack_quant.core.types import Rate
     >>> from finstack_quant.valuations.instruments import Bond
@@ -117,6 +118,7 @@ class Bond:
     ...     Rate(0.05),
     ...     datetime.date(2024, 1, 1),
     ...     datetime.date(2034, 1, 1),
+    ...     StubKind.NONE,
     ...     "USD-OIS",
     ... )
     >>> bond.id
@@ -146,12 +148,13 @@ class Bond:
         coupon_rate: Rate,
         issue: datetime.date,
         maturity: datetime.date,
+        stub: StubKind,
         discount_curve_id: str,
     ) -> Bond:
         """
-        Create a standard fixed-rate bond (semi-annual, 30/360, T+2).
+        Create a US corporate fixed-rate bond (semi-annual, 30/360, T+1).
 
-        Mirrors Rust ``Bond::fixed``.
+        Mirrors Rust ``Bond::fixed`` and requires an explicit stub policy.
 
         Parameters
         ----------
@@ -165,6 +168,8 @@ class Bond:
             Issue date.
         maturity : datetime.date
             Maturity date.
+        stub : StubKind
+            Placement and length policy for an irregular coupon period.
         discount_curve_id : str
             Discount curve identifier used for pricing.
 
@@ -184,6 +189,7 @@ class Bond:
         >>> from finstack_quant.core.currency import Currency
         >>> from finstack_quant.core.money import Money
         >>> from finstack_quant.core.types import Rate
+        >>> from finstack_quant.core.dates import StubKind
         >>> from finstack_quant.valuations.instruments import Bond
         >>> bond = Bond.fixed(
         ...     "B",
@@ -191,6 +197,7 @@ class Bond:
         ...     Rate(0.05),
         ...     datetime.date(2024, 1, 1),
         ...     datetime.date(2029, 1, 1),
+        ...     StubKind.NONE,
         ...     "USD-OIS",
         ... )
         >>> bond.id
@@ -304,6 +311,7 @@ class Bond:
         --------
         >>> import datetime
         >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.dates import StubKind
         >>> from finstack_quant.core.money import Money
         >>> from finstack_quant.core.types import Rate
         >>> from finstack_quant.valuations.instruments import Bond
@@ -313,6 +321,7 @@ class Bond:
         ...     Rate(0.05),
         ...     datetime.date(2024, 1, 1),
         ...     datetime.date(2029, 1, 1),
+        ...     StubKind.NONE,
         ...     "USD-OIS",
         ... )
         >>> Bond.from_json(bond.to_json()).id
@@ -377,6 +386,7 @@ class Bond:
         --------
         >>> import datetime
         >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.dates import StubKind
         >>> from finstack_quant.core.money import Money
         >>> from finstack_quant.core.types import Rate
         >>> from finstack_quant.valuations.instruments import (
@@ -392,6 +402,7 @@ class Bond:
         ...     Rate(0.08),
         ...     datetime.date(2024, 1, 1),
         ...     datetime.date(2029, 1, 1),
+        ...     StubKind.NONE,
         ...     "USD-OIS",
         ... )
         >>> merton = MertonModel(100.0, 0.25, 80.0, 0.04)
@@ -792,6 +803,7 @@ class MertonMcResult:
     --------
     >>> import datetime
     >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.dates import StubKind
     >>> from finstack_quant.core.money import Money
     >>> from finstack_quant.core.types import Rate
     >>> from finstack_quant.valuations.instruments import (
@@ -815,6 +827,7 @@ class MertonMcResult:
     ...     Rate(0.08),
     ...     datetime.date(2024, 1, 15),
     ...     datetime.date(2029, 1, 15),
+    ...     StubKind.NONE,
     ...     "USD-OIS",
     ... )
     >>> bond.price_merton_mc(config, 0.04, datetime.date(2024, 1, 15)).clean_price_pct > 0.0
@@ -1013,6 +1026,7 @@ class PathStatistics:
     --------
     >>> import datetime
     >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.dates import StubKind
     >>> from finstack_quant.core.money import Money
     >>> from finstack_quant.core.types import Rate
     >>> from finstack_quant.valuations.instruments import (
@@ -1036,6 +1050,7 @@ class PathStatistics:
     ...     Rate(0.08),
     ...     datetime.date(2024, 1, 15),
     ...     datetime.date(2029, 1, 15),
+    ...     StubKind.NONE,
     ...     "USD-OIS",
     ... )
     >>> 0.0 <= bond.price_merton_mc(config, 0.04, datetime.date(2024, 1, 15)).path_statistics.default_rate <= 1.0
@@ -2141,7 +2156,7 @@ class Swaption:
     ...     .expiry(datetime.date(2025, 1, 13))
     ...     .exercise_style("european")
     ...     .settlement("cash")
-    ...     .cash_settlement_method("par_yield")
+    ...     .cash_settlement_method("collateralized_cash_price")
     ...     .vol_model("normal")
     ...     .vol_surface_id("USD-SWPT-VOL")
     ...     .underlying_fixed_leg(fixed)
@@ -2389,7 +2404,9 @@ class SwaptionBuilder:
         """
         ...
 
-    def cash_settlement_method(self, value: Literal["par_yield", "isda_par_par", "zero_coupon"]) -> SwaptionBuilder:
+    def cash_settlement_method(
+        self, value: Literal["collateralized_cash_price", "par_yield", "isda_par_par", "zero_coupon"]
+    ) -> SwaptionBuilder:
         """
         Set the cash settlement annuity method.
 
@@ -2397,8 +2414,9 @@ class SwaptionBuilder:
 
         Parameters
         ----------
-        value : {"par_yield", "isda_par_par", "zero_coupon"}
-            Cash settlement annuity method.
+        value : {"collateralized_cash_price", "par_yield", "isda_par_par", "zero_coupon"}
+            Cash settlement annuity method. ``"collateralized_cash_price"`` is
+            the default and discounts the physical fixed-leg annuity.
 
         Returns
         -------
@@ -2796,6 +2814,32 @@ class CapFloorBuilder:
         ------
         ValueError
             If ``value`` is not finite.
+
+        """
+        ...
+    def premium(self, payment_date: datetime.date, amount: Money) -> CapFloorBuilder:
+        """
+        Set the dated premium paid by the cap/floor holder.
+
+        Parameters
+        ----------
+        payment_date : datetime.date
+            Contractual premium payment date. Payments on or before the valuation
+            date are treated as settled and excluded from NPV.
+        amount : Money
+            Non-negative premium outflow in the notional currency.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``payment_date`` cannot be converted to a date or the builder
+            was already consumed. Premium amount and currency validation occurs
+            when :meth:`CapFloorBuilder.build` is called.
 
         """
         ...
@@ -8269,12 +8313,15 @@ def instrument_cashflows_json(
     --------
     >>> import datetime
     >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.dates import StubKind
     >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
     >>> from finstack_quant.core.money import Money
     >>> from finstack_quant.core.types import Rate
     >>> from finstack_quant.valuations.instruments import Bond
     >>> as_of = datetime.date(2024, 1, 1)
-    >>> bond = Bond.fixed("B", Money(1000.0, Currency("USD")), Rate(0.05), as_of, datetime.date(2026, 1, 1), "USD-OIS")
+    >>> bond = Bond.fixed(
+    ...     "B", Money(1000.0, Currency("USD")), Rate(0.05), as_of, datetime.date(2026, 1, 1), StubKind.NONE, "USD-OIS"
+    ... )
     >>> market = MarketContext().insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
     >>> import json
     >>> from finstack_quant.valuations.instruments import instrument_cashflows_json

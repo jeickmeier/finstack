@@ -73,6 +73,7 @@ use super::pricing_options::PricingOptions;
 ///     Rate::from_percent(5.0),
 ///     issue,
 ///     maturity,
+///     finstack_quant_core::dates::StubKind::None,
 ///     "USD-OIS"
 /// )?;
 ///
@@ -103,7 +104,8 @@ use super::pricing_options::PricingOptions;
 /// # let issue = create_date(2025, Month::January, 15)?;
 /// # let maturity = create_date(2030, Month::January, 15)?;
 /// # let bond = Bond::fixed("BOND-001", Money::new(1_000_000.0, Currency::USD),
-/// #     Rate::from_percent(5.0), issue, maturity, "USD-OIS");
+/// #     Rate::from_percent(5.0), issue, maturity,
+/// #     finstack_quant_core::dates::StubKind::None, "USD-OIS");
 /// # let market = MarketContext::new();
 /// # let as_of = create_date(2025, Month::January, 1)?;
 ///
@@ -138,6 +140,7 @@ use super::pricing_options::PricingOptions;
 ///     Rate::from_percent(5.0),
 ///     issue,
 ///     maturity,
+///     finstack_quant_core::dates::StubKind::None,
 ///     "USD-OIS"
 /// )?;
 ///
@@ -182,6 +185,7 @@ pub trait Instrument: CashflowProvider + Send + Sync {
     ///     Rate::from_percent(5.0),
     ///     issue,
     ///     maturity,
+    ///     finstack_quant_core::dates::StubKind::None,
     ///     "USD-OIS"
     /// )?;
     ///
@@ -217,7 +221,8 @@ pub trait Instrument: CashflowProvider + Send + Sync {
     /// # let issue = create_date(2025, Month::January, 15)?;
     /// # let maturity = create_date(2030, Month::January, 15)?;
     /// let bond = Bond::fixed("BOND-001", Money::new(1_000_000.0, Currency::USD),
-    ///     Rate::from_percent(5.0), issue, maturity, "USD-OIS")?;
+    ///     Rate::from_percent(5.0), issue, maturity,
+    ///     finstack_quant_core::dates::StubKind::None, "USD-OIS")?;
     ///
     /// assert_eq!(bond.key(), InstrumentType::Bond);
     /// # Ok(())
@@ -249,7 +254,8 @@ pub trait Instrument: CashflowProvider + Send + Sync {
     /// # let issue = create_date(2025, Month::January, 15)?;
     /// # let maturity = create_date(2030, Month::January, 15)?;
     /// let bond = Bond::fixed("BOND-001", Money::new(1_000_000.0, Currency::USD),
-    ///     Rate::from_percent(5.0), issue, maturity, "USD-OIS")?;
+    ///     Rate::from_percent(5.0), issue, maturity,
+    ///     finstack_quant_core::dates::StubKind::None, "USD-OIS")?;
     ///
     /// let instrument: &dyn Instrument = &bond;
     /// let concrete_bond: Option<&Bond> = instrument.as_any().downcast_ref::<Bond>();
@@ -438,7 +444,8 @@ pub trait Instrument: CashflowProvider + Send + Sync {
     /// # let issue = create_date(2025, Month::January, 15)?;
     /// # let maturity = create_date(2030, Month::January, 15)?;
     /// let bond = Bond::fixed("BOND-001", Money::new(1_000_000.0, Currency::USD),
-    ///     Rate::from_percent(5.0), issue, maturity, "USD-OIS")?;
+    ///     Rate::from_percent(5.0), issue, maturity,
+    ///     finstack_quant_core::dates::StubKind::None, "USD-OIS")?;
     ///
     /// let instrument: Box<dyn Instrument> = Box::new(bond);
     /// let cloned = instrument.clone_box();
@@ -548,7 +555,8 @@ pub trait Instrument: CashflowProvider + Send + Sync {
     /// # let issue = create_date(2025, Month::January, 15)?;
     /// # let maturity = create_date(2030, Month::January, 15)?;
     /// let bond = Bond::fixed("BOND-001", Money::new(1_000_000.0, Currency::USD),
-    ///     Rate::from_percent(5.0), issue, maturity, "USD-OIS")?;
+    ///     Rate::from_percent(5.0), issue, maturity,
+    ///     finstack_quant_core::dates::StubKind::None, "USD-OIS")?;
     ///
     /// let market = MarketContext::new();
     /// let as_of = create_date(2025, Month::January, 1)?;

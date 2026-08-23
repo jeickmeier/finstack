@@ -23,6 +23,7 @@ fn bond_instrument_json() -> String {
         0.05,
         time::Date::from_calendar_date(2024, time::Month::January, 1).unwrap(),
         time::Date::from_calendar_date(2034, time::Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

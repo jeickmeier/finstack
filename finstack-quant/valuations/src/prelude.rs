@@ -29,6 +29,7 @@
 //!     Rate::from_percent(5.0),
 //!     create_date(2025, time::Month::January, 15)?,
 //!     create_date(2030, time::Month::January, 15)?,
+//!     finstack_quant_core::dates::StubKind::None,
 //!     "USD-OIS"
 //! );
 //! # Ok::<(), finstack_quant_core::Error>(())

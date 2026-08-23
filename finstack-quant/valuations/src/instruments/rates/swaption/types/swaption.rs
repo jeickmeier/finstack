@@ -26,6 +26,15 @@ use super::definitions::{
 };
 
 /// Swaption instrument
+///
+/// # Exercise lifecycle boundary
+///
+/// `Instrument::value` prices the option claim through expiry. At expiry it
+/// returns model-free intrinsic value; after expiry it returns zero. For
+/// physical settlement, trade lifecycle infrastructure must materialize the
+/// delivered [`InterestRateSwap`] from `underlying_fixed_leg`,
+/// `underlying_float_leg`, `notional`, and `option_type`. This instrument does
+/// not retain an exercised swap position after expiry.
 #[derive(
     Clone,
     Debug,
@@ -53,9 +62,10 @@ pub struct Swaption {
     pub settlement: SwaptionSettlement,
     /// Cash settlement annuity method (only used when settlement = Cash).
     ///
-    /// - `ParYield` (default): Fast approximation using flat forward rate
-    /// - `IsdaParPar`: Uses actual swap annuity from discount curve (ISDA compliant)
-    /// - `ZeroCoupon`: Discounts to swap maturity (rarely used)
+    /// - `CollateralizedCashPrice` (default): Actual collateral-discounted fixed-leg annuity
+    /// - `ParYield`: Legacy flat-yield cash annuity
+    /// - `IsdaParPar`: Legacy par-par annuity from the discount curve
+    /// - `ZeroCoupon`: Single discount to swap maturity
     pub cash_settlement_method: CashSettlementMethod,
     /// Volatility model (Black or Normal)
     pub vol_model: VolatilityModel,
@@ -100,7 +110,8 @@ pub(super) struct VanillaSwaptionUnderlier {
     pub swap_end: Date,
     pub fixed_frequency: Tenor,
     pub float_frequency: Tenor,
-    pub day_count: DayCount,
+    pub fixed_day_count: DayCount,
+    pub float_day_count: DayCount,
     pub discount_curve_id: CurveId,
     pub forward_curve_id: CurveId,
     pub calendar_id: Option<CalendarId>,
@@ -114,7 +125,7 @@ pub(super) fn vanilla_underlier(
         discount_curve_id: underlier.discount_curve_id.clone(),
         rate: underlier.strike,
         frequency: underlier.fixed_frequency,
-        day_count: underlier.day_count,
+        day_count: underlier.fixed_day_count,
         business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: calendar.clone(),
         stub: StubKind::None,
@@ -137,9 +148,9 @@ pub(super) fn vanilla_underlier(
         forward_curve_id: underlier.forward_curve_id,
         spread_bp: Decimal::ZERO,
         frequency: underlier.float_frequency,
-        // The scalar convenience constructor accepts the fixed-leg day count;
-        // the floating leg uses the standard term-rate Act/360 convention.
-        day_count: DayCount::Act360,
+        // Floating accrual follows the referenced index and can differ from the
+        // fixed-leg convention (for example SONIA uses ACT/365F).
+        day_count: underlier.float_day_count,
         business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: calendar.clone(),
         stub: StubKind::None,
@@ -263,7 +274,8 @@ impl Swaption {
                 swap_end,
                 fixed_frequency: Tenor::semi_annual(),
                 float_frequency: Tenor::quarterly(),
-                day_count: DayCount::Thirty360,
+                fixed_day_count: DayCount::Thirty360,
+                float_day_count: DayCount::Act360,
                 discount_curve_id,
                 forward_curve_id: CurveId::new("USD-OIS"),
                 calendar_id: None,
@@ -311,7 +323,8 @@ impl Swaption {
                 swap_end,
                 fixed_frequency: Tenor::semi_annual(),
                 float_frequency: Tenor::quarterly(),
-                day_count: DayCount::Act360,
+                fixed_day_count: DayCount::Act360,
+                float_day_count: DayCount::Act360,
                 discount_curve_id: CurveId::new("USD-OIS"),
                 forward_curve_id: CurveId::new("USD-OIS"),
                 calendar_id: None,
@@ -352,7 +365,8 @@ impl Swaption {
     ) -> Self {
         let fixed_frequency = params.fixed_frequency.unwrap_or_else(Tenor::semi_annual);
         let float_frequency = params.float_frequency.unwrap_or_else(Tenor::quarterly);
-        let day_count = params.day_count.unwrap_or(DayCount::Thirty360);
+        let fixed_day_count = params.fixed_day_count.unwrap_or(DayCount::Thirty360);
+        let float_day_count = params.float_day_count.unwrap_or(DayCount::Act360);
         let (underlying_fixed_leg, underlying_float_leg) =
             vanilla_underlier(VanillaSwaptionUnderlier {
                 strike: params.strike,
@@ -360,7 +374,8 @@ impl Swaption {
                 swap_end: params.swap_end,
                 fixed_frequency,
                 float_frequency,
-                day_count,
+                fixed_day_count,
+                float_day_count,
                 discount_curve_id: discount_curve_id.into(),
                 forward_curve_id: forward_curve_id.into(),
                 calendar_id: None,
@@ -395,7 +410,8 @@ impl Swaption {
     ) -> Self {
         let fixed_frequency = params.fixed_frequency.unwrap_or_else(Tenor::semi_annual);
         let float_frequency = params.float_frequency.unwrap_or_else(Tenor::quarterly);
-        let day_count = params.day_count.unwrap_or(DayCount::Thirty360);
+        let fixed_day_count = params.fixed_day_count.unwrap_or(DayCount::Thirty360);
+        let float_day_count = params.float_day_count.unwrap_or(DayCount::Act360);
         let (underlying_fixed_leg, underlying_float_leg) =
             vanilla_underlier(VanillaSwaptionUnderlier {
                 strike: params.strike,
@@ -403,7 +419,8 @@ impl Swaption {
                 swap_end: params.swap_end,
                 fixed_frequency,
                 float_frequency,
-                day_count,
+                fixed_day_count,
+                float_day_count,
                 discount_curve_id: discount_curve_id.into(),
                 forward_curve_id: forward_curve_id.into(),
                 calendar_id: None,
@@ -557,16 +574,20 @@ impl Swaption {
             SwaptionExercise::European => Ok(()),
             SwaptionExercise::Bermudan | SwaptionExercise::American => {
                 Err(Error::Validation(format!(
-                    "Swaption '{}' has exercise_style={}; the generic Swaption pricer only supports \
-                     European exercise. Use the LMM Bermudan pricer \
-                     (crate::instruments::rates::swaption::lmm_pricer) for early-exercise swaptions.",
-                    self.id, self.exercise_style,
+                    "Swaption '{}' has exercise_style={}; the generic Swaption pricer only \
+                     supports European exercise. Use the LMM or Hull-White early-exercise \
+                     pricer for Bermudan/American swaptions.",
+                    self.id, self.exercise_style
                 )))
             }
         }
     }
 
     /// Return the model-independent terminal value at or after expiry.
+    ///
+    /// Exactly at expiry this is the exercise-date intrinsic value. After
+    /// expiry the option claim is zero. A physically delivered underlying swap
+    /// is a separate post-exercise position and is not embedded in this value.
     ///
     /// # Arguments
     ///
@@ -576,8 +597,7 @@ impl Swaption {
     ///
     /// # Returns
     ///
-    /// `Ok(None)` before expiry, zero after expiry, or the annuity-scaled
-    /// intrinsic value exactly at expiry.
+    /// `Ok(None)` before expiry, intrinsic value at expiry, or zero afterward.
     ///
     /// # Errors
     ///
@@ -800,9 +820,10 @@ impl Swaption {
     ///
     /// - **Physical**: Always uses `swap_annuity()` (actual PV01 from discount curve)
     /// - **Cash**: Uses the method specified by `cash_settlement_method`:
-    ///   - `ParYield`: Closed-form approximation (fast, less accurate for steep curves)
-    ///   - `IsdaParPar`: Actual swap annuity from discount curve (ISDA compliant)
-    ///   - `ZeroCoupon`: Single discount to swap maturity (rarely used)
+    ///   - `CollateralizedCashPrice`: Actual collateral-discounted fixed-leg annuity
+    ///   - `ParYield`: Legacy closed-form flat-yield annuity
+    ///   - `IsdaParPar`: Legacy par-par annuity from the discount curve
+    ///   - `ZeroCoupon`: Single discount to swap maturity
     ///
     /// # Arguments
     ///
@@ -813,14 +834,13 @@ impl Swaption {
         match self.settlement {
             SwaptionSettlement::Physical => self.swap_annuity(disc, as_of),
             SwaptionSettlement::Cash => match self.cash_settlement_method {
+                CashSettlementMethod::CollateralizedCashPrice
+                | CashSettlementMethod::IsdaParPar => self.swap_annuity(disc, as_of),
                 CashSettlementMethod::ParYield => {
-                    // `cash_annuity_par_yield` is the cash annuity *at expiry*;
-                    // the settlement amount must be discounted back to `as_of`.
                     use crate::instruments::common_impl::pricing::time::relative_df_discounting;
                     let df = relative_df_discounting(disc, as_of, self.expiry)?;
                     Ok(self.cash_annuity_par_yield(forward_rate)? * df)
                 }
-                CashSettlementMethod::IsdaParPar => self.swap_annuity(disc, as_of),
                 CashSettlementMethod::ZeroCoupon => self.cash_annuity_zero_coupon(disc, as_of),
             },
         }
@@ -875,9 +895,9 @@ impl Swaption {
     ///    across all periods. This is an approximation when the yield curve is not flat.
     /// 2. **Equal periods**: All accrual periods are assumed equal (no stubs).
     ///
-    /// For production systems requiring exact ISDA compliance, use
-    /// `cash_settlement_method: CashSettlementMethod::IsdaParPar` which delegates
-    /// to `swap_annuity`.
+    /// This is a legacy approximation. Current confirmations that specify
+    /// collateralized cash price should use
+    /// [`CashSettlementMethod::CollateralizedCashPrice`].
     ///
     /// # Edge Cases
     ///
@@ -953,26 +973,39 @@ impl Swaption {
         Ok(tenor * df)
     }
 
+    /// Whether the discount-factor telescoping shortcut exactly reproduces the
+    /// configured underlying swap.
+    fn can_use_single_curve_forward_shortcut(&self, as_of: Date) -> bool {
+        let fixed = &self.underlying_fixed_leg;
+        let float = &self.underlying_float_leg;
+        let supported_compounding = matches!(
+            float.compounding,
+            FloatingLegCompounding::Simple
+                | FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 }
+        );
+
+        as_of <= fixed.start
+            && float.forward_curve_id == fixed.discount_curve_id
+            && float.spread_bp.is_zero()
+            && fixed.payment_lag_days == 0
+            && float.payment_lag_days == 0
+            && fixed.frequency == float.frequency
+            && fixed.day_count == float.day_count
+            && fixed.business_day_convention == float.business_day_convention
+            && fixed.calendar_id == float.calendar_id
+            && fixed.stub == float.stub
+            && fixed.end_of_month == float.end_of_month
+            && supported_compounding
+    }
+
     /// Forward par swap rate implied by float-leg PV and fixed-leg annuity.
     ///
-    /// # Time Basis
-    ///
-    /// Uses curve-consistent time mapping:
-    /// - Discount factors use the discount curve's own base_date/day_count
-    /// - Forward rates use the forward curve's own base_date/day_count
-    ///
-    /// # Formula
-    ///
-    /// ```text
-    /// S = PV_float / Annuity
-    /// ```
-    ///
-    /// where:
-    /// - PV_float = Σ (accrual_i × forward_i × DF_i)
-    /// - Annuity = Σ (accrual_i × DF_i) for all fixed leg payments.
+    /// The single-curve telescoping shortcut is used only when both underlying
+    /// schedules and coupon conventions are identical. Otherwise this method
+    /// prices the actual floating leg through the IRS engine.
     pub fn forward_swap_rate(&self, curves: &MarketContext, as_of: Date) -> Result<f64> {
         let disc = curves.get_discount(self.get_discount_curve_id().as_ref())?;
-        if self.get_forward_curve_id() == self.get_discount_curve_id() {
+        if self.can_use_single_curve_forward_shortcut(as_of) {
             return self.single_curve_forward_from_fixed_schedule(disc.as_ref(), as_of);
         }
 
@@ -980,10 +1013,17 @@ impl Swaption {
         if annuity.abs() < 1e-10 {
             return Ok(0.0);
         }
+        let float = &self.underlying_float_leg;
+        if as_of <= float.start
+            && float.forward_curve_id == self.underlying_fixed_leg.discount_curve_id
+            && matches!(float.compounding, FloatingLegCompounding::Simple)
+            && curves.get_forward(float.forward_curve_id.as_ref()).is_err()
+        {
+            return self.single_curve_forward_from_float_schedule(disc.as_ref(), as_of, annuity);
+        }
 
         let underlier = self.underlying_irs_for_market(0.0, PayReceive::Receive, curves)?;
         let pv_float = underlier.pv_float_leg(curves, as_of)?;
-
         Ok(pv_float / (self.notional.amount() * annuity))
     }
 
@@ -1039,6 +1079,53 @@ impl Swaption {
             return Ok(0.0);
         }
         Ok(forward_leg.total() / annuity)
+    }
+
+    fn single_curve_forward_from_float_schedule(
+        &self,
+        disc: &dyn Discounting,
+        as_of: Date,
+        fixed_annuity: f64,
+    ) -> Result<f64> {
+        use crate::cashflow::builder::periods::{build_periods, BuildPeriodsParams};
+        use crate::instruments::common_impl::numeric::decimal_to_f64;
+        use crate::instruments::common_impl::pricing::time::relative_df_discounting;
+        use finstack_quant_core::math::NeumaierAccumulator;
+
+        let float = &self.underlying_float_leg;
+        let periods = build_periods(BuildPeriodsParams {
+            start: float.start,
+            end: float.end,
+            frequency: float.frequency,
+            stub: float.stub,
+            business_day_convention: float.business_day_convention,
+            calendar_id: float
+                .calendar_id
+                .as_deref()
+                .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID),
+            end_of_month: float.end_of_month,
+            day_count: float.day_count,
+            payment_lag_days: float.payment_lag_days,
+            reset_lag_days: Some(float.reset_lag_days),
+            adjust_accrual_dates: false,
+            roll_rule: crate::cashflow::builder::specs::RollRule::None,
+        })?;
+        let spread = decimal_to_f64(float.spread_bp, "swaption underlier spread_bp")? / 10_000.0;
+        let mut float_leg_pv = NeumaierAccumulator::new();
+        for period in periods {
+            if period.payment_date <= as_of {
+                continue;
+            }
+            let tau = period.accrual_year_fraction;
+            if tau.abs() <= f64::EPSILON {
+                continue;
+            }
+            let df_start = relative_df_discounting(disc, as_of, period.accrual_start)?;
+            let df_end = relative_df_discounting(disc, as_of, period.accrual_end)?;
+            let df_pay = relative_df_discounting(disc, as_of, period.payment_date)?;
+            float_leg_pv.add((df_start / df_end - 1.0 + spread * tau) * df_pay);
+        }
+        Ok(float_leg_pv.total() / fixed_annuity)
     }
 
     /// Resolve volatility from SABR parameters, pricing override, or volatility surface.

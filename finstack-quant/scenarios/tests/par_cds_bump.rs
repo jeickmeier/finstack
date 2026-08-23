@@ -119,6 +119,7 @@ fn test_par_cds_bump_reprices_credit_bond() {
         0.05,
         base_date,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond");

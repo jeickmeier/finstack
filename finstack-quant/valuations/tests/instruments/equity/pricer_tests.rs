@@ -221,6 +221,7 @@ fn test_simple_equity_pricer_type_mismatch() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-TREASURY",
     )
     .unwrap();

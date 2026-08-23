@@ -578,8 +578,9 @@ impl PySwaptionBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : {"par_yield", "isda_par_par", "zero_coupon"}
-    ///     Cash settlement annuity method.
+    /// value : {"collateralized_cash_price", "par_yield", "isda_par_par", "zero_coupon"}
+    ///     Cash settlement annuity method. ``"collateralized_cash_price"`` is
+    ///     the default and discounts the physical fixed-leg annuity.
     ///
     /// Returns
     /// -------
@@ -999,6 +1000,38 @@ impl PyCapFloorBuilder {
         let spread = decimal_from_f64(value, "spread")?;
         let b = take_cap_floor(&mut slf)?;
         slf.inner = Some(b.spread(spread));
+        Ok(slf)
+    }
+    /// Set the dated premium paid by the cap/floor holder.
+    ///
+    /// Parameters
+    /// ----------
+    /// payment_date : datetime.date
+    ///     Contractual premium payment date. Payments on or before the valuation
+    ///     date are treated as settled and excluded from NPV.
+    /// amount : Money
+    ///     Non-negative premium outflow in the notional currency.
+    ///
+    /// Returns
+    /// -------
+    /// CapFloorBuilder
+    ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``payment_date`` cannot be converted to a date or the builder
+    ///     was already consumed. Premium amount and currency validation occurs
+    ///     when :meth:`CapFloorBuilder.build` is called.
+    #[pyo3(text_signature = "($self, payment_date, amount)")]
+    fn premium<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        payment_date: &Bound<'_, PyAny>,
+        amount: PyRef<'_, PyMoney>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let payment_date = py_to_date(payment_date)?;
+        let b = take_cap_floor(&mut slf)?;
+        slf.inner = Some(b.premium((payment_date, amount.inner)));
         Ok(slf)
     }
 

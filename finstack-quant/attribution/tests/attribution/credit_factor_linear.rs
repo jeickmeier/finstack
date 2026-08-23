@@ -246,6 +246,7 @@ fn taylor_credit_detail_reconciles_to_credit_curves_pnl() {
         0.05_f64,
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2034, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond construction");
@@ -406,6 +407,7 @@ fn twisted_hazard_curve_does_not_omit_or_explode_credit_detail() {
         0.05_f64,
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2034, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond construction");

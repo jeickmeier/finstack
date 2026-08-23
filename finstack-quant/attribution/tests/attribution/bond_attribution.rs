@@ -50,6 +50,7 @@ fn test_bond_attribution_parallel() {
         0.05, // 5% coupon
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -140,6 +141,7 @@ fn test_bond_attribution_structure() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -189,6 +191,7 @@ fn test_parallel_bond_attribution_isolates_funding_when_repo_curve_present() {
         0.05,
         create_date(2025, Month::January, 15).unwrap(),
         create_date(2030, Month::January, 15).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -247,6 +250,7 @@ fn test_metrics_based_bond_attribution_populates_carry_decomposition() {
         0.05,
         create_date(2025, Month::January, 15).unwrap(),
         create_date(2030, Month::January, 15).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -341,6 +345,7 @@ fn test_metrics_based_bond_attribution_without_carry_metrics_keeps_legacy_shape(
         0.05,
         create_date(2025, Month::January, 15).unwrap(),
         create_date(2030, Month::January, 15).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

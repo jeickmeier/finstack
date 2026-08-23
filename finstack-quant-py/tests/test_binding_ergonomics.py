@@ -16,6 +16,7 @@ import pandas as pd
 import pytest
 
 import finstack_quant as fq
+from finstack_quant.core.dates import StubKind
 from finstack_quant.statements import Evaluator, ModelBuilder
 
 
@@ -212,6 +213,7 @@ class TestDateArguments:
             Rate(0.05),
             datetime.date(2024, 1, 1),
             datetime.date(2034, 1, 1),
+            StubKind.SHORT_FRONT,
             "USD-OIS",
         )
 

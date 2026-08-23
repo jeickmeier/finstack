@@ -529,6 +529,7 @@ mod tests {
             0.05,
             time::Date::from_calendar_date(2024, time::Month::January, 1).expect("date"),
             time::Date::from_calendar_date(2034, time::Month::January, 1).expect("date"),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("bond");

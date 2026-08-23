@@ -58,6 +58,7 @@ fn bond_book(n_positions: usize, as_of: Date) -> finstack_quant_portfolio::Portf
             coupon,
             issue,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD",
         )
         .expect("bench: bond");

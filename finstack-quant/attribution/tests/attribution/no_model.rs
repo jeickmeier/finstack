@@ -41,6 +41,7 @@ fn sample_bond() -> Bond {
         0.05,
         create_date(2025, Month::January, 1).unwrap(),
         create_date(2030, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         CURVE_ID,
     )
     .unwrap()

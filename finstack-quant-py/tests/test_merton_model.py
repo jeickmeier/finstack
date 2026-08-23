@@ -7,6 +7,7 @@ import datetime
 import pytest
 
 from finstack_quant.core.currency import Currency
+from finstack_quant.core.dates import StubKind
 from finstack_quant.core.money import Money
 from finstack_quant.core.types import Rate
 from finstack_quant.valuations.instruments import (
@@ -152,6 +153,7 @@ def test_merton_mc_bond_price_smoke() -> None:
         Rate(0.08),
         datetime.date(2024, 1, 15),
         datetime.date(2029, 1, 15),
+        StubKind.SHORT_FRONT,
         "USD-OIS",
     )
     result = bond.price_merton_mc(config, 0.04, datetime.date(2024, 1, 15))

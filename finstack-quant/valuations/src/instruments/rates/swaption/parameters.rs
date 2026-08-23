@@ -25,13 +25,15 @@ pub struct SwaptionParams {
     pub swap_end: Date,
     /// Payer/receiver side
     pub side: PayReceive,
-    /// Optional override: fixed leg payment frequency
+    /// Optional override: fixed-leg payment frequency.
     pub fixed_frequency: Option<Tenor>,
-    /// Optional override: float leg payment frequency
+    /// Optional override: floating-leg payment frequency.
     pub float_frequency: Option<Tenor>,
-    /// Optional override: day count convention for year fractions
-    pub day_count: Option<DayCount>,
-    /// Optional override: volatility model
+    /// Optional override: fixed-leg accrual day count.
+    pub fixed_day_count: Option<DayCount>,
+    /// Optional override: floating-leg accrual day count.
+    pub float_day_count: Option<DayCount>,
+    /// Optional override: volatility model.
     pub vol_model: Option<crate::instruments::rates::swaption::types::VolatilityModel>,
 }
 
@@ -58,7 +60,8 @@ impl SwaptionParams {
             side: PayReceive::Pay,
             fixed_frequency: None,
             float_frequency: None,
-            day_count: None,
+            fixed_day_count: None,
+            float_day_count: None,
             vol_model: None,
         })
     }
@@ -85,7 +88,8 @@ impl SwaptionParams {
             side: PayReceive::Pay,
             fixed_frequency: None,
             float_frequency: None,
-            day_count: None,
+            fixed_day_count: None,
+            float_day_count: None,
             vol_model: None,
         })
     }
@@ -112,7 +116,8 @@ impl SwaptionParams {
             side: PayReceive::Receive,
             fixed_frequency: None,
             float_frequency: None,
-            day_count: None,
+            fixed_day_count: None,
+            float_day_count: None,
             vol_model: None,
         })
     }
@@ -139,7 +144,8 @@ impl SwaptionParams {
             side: PayReceive::Receive,
             fixed_frequency: None,
             float_frequency: None,
-            day_count: None,
+            fixed_day_count: None,
+            float_day_count: None,
             vol_model: None,
         })
     }
@@ -156,9 +162,15 @@ impl SwaptionParams {
         self
     }
 
-    /// Override day count convention
-    pub fn with_day_count(mut self, day_count: DayCount) -> Self {
-        self.day_count = Some(day_count);
+    /// Override the fixed-leg accrual day count.
+    pub fn with_fixed_day_count(mut self, day_count: DayCount) -> Self {
+        self.fixed_day_count = Some(day_count);
+        self
+    }
+
+    /// Override the floating-leg accrual day count.
+    pub fn with_float_day_count(mut self, day_count: DayCount) -> Self {
+        self.float_day_count = Some(day_count);
         self
     }
 
@@ -190,6 +202,7 @@ fn strike_decimal(strike: f64) -> Result<Decimal> {
 mod tests {
     use super::*;
     use crate::instruments::rates::swaption::types::VolatilityModel;
+    use crate::instruments::rates::swaption::Swaption;
     use finstack_quant_core::currency::Currency;
     use time::macros::date;
 
@@ -219,7 +232,8 @@ mod tests {
         assert_eq!(payer.swap_end, swap_end);
         assert_eq!(payer.fixed_frequency, None);
         assert_eq!(payer.float_frequency, None);
-        assert_eq!(payer.day_count, None);
+        assert_eq!(payer.fixed_day_count, None);
+        assert_eq!(payer.float_day_count, None);
         assert_eq!(payer.vol_model, None);
 
         assert_eq!(receiver.strike, Decimal::new(31, 3));
@@ -258,13 +272,25 @@ mod tests {
         .expect("valid payer params")
         .with_fixed_frequency(Tenor::semi_annual())
         .with_float_frequency(Tenor::quarterly())
-        .with_day_count(DayCount::Act365F)
+        .with_fixed_day_count(DayCount::Act365F)
+        .with_float_day_count(DayCount::Act365F)
         .with_vol_model(VolatilityModel::Normal);
 
         assert_eq!(params.fixed_frequency, Some(Tenor::semi_annual()));
         assert_eq!(params.float_frequency, Some(Tenor::quarterly()));
-        assert_eq!(params.day_count, Some(DayCount::Act365F));
+        assert_eq!(params.fixed_day_count, Some(DayCount::Act365F));
+        assert_eq!(params.float_day_count, Some(DayCount::Act365F));
         assert_eq!(params.vol_model, Some(VolatilityModel::Normal));
+
+        let swaption = Swaption::new_payer(
+            "GBP-SONIA-SWAPTION",
+            &params,
+            "GBP-SONIA-OIS",
+            "GBP-SONIA-OIS",
+            "GBP-SWAPTION-VOL",
+        );
+        assert_eq!(swaption.underlying_fixed_leg.day_count, DayCount::Act365F);
+        assert_eq!(swaption.underlying_float_leg.day_count, DayCount::Act365F);
     }
 
     #[test]

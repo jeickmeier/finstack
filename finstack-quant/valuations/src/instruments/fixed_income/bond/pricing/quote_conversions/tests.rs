@@ -1,4 +1,3 @@
-use super::yield_price::df_treasury_actual_with_first_period;
 use super::*;
 use crate::instruments::fixed_income::bond::Bond;
 use finstack_quant_core::currency::Currency;
@@ -112,70 +111,81 @@ fn overnight_asset_swap_forward_paths_use_observation_average() {
     assert!((float_pv - expected_float_pv).abs() < 1e-14);
 }
 
-/// W-30: a Treasury with a LONG first coupon period (8 months on a
-/// semi-annual bond) must have its first-period stub flagged from the
-/// cashflow schedule. The price returned by `price_from_ytm_compounded_params`
-/// for `TreasuryActual` must apply simple interest over the actual 8-month
-/// first period — not the time-based `t <= 1/m` heuristic which would
-/// split it into a regular 6-month period plus a 2-month stub.
+/// 31 CFR Part 356, Appendix B, section II.C long-first-period example.
+///
+/// 8.5% note issued 1990-03-01, first payment 1990-11-15, maturity
+/// 1995-05-15, priced at an 8.53% Treasury yield: 99.805118 per 100.
 #[test]
-fn treasury_actual_long_first_coupon_uses_schedule_stub() {
-    let as_of = date!(2025 - 01 - 01);
-    let day_count = DayCount::Act365F;
-    let frequency = Tenor::semi_annual();
-    let ytm = 0.05;
-
-    // Long first coupon: ~8 months to first flow, then semi-annual.
-    let flows: Vec<(finstack_quant_core::dates::Date, Money)> = vec![
-        (date!(2025 - 09 - 01), Money::new(3.0, Currency::USD)),
-        (date!(2026 - 03 - 01), Money::new(3.0, Currency::USD)),
-        (date!(2026 - 09 - 01), Money::new(103.0, Currency::USD)),
+fn treasury_actual_matches_cfr_long_first_coupon_example() {
+    let as_of = date!(1990 - 03 - 01);
+    let coupon = 8.50 / 2.0;
+    let fractional_coupon = coupon * 75.0 / 181.0;
+    let flows = vec![
+        (
+            date!(1990 - 11 - 15),
+            Money::new(coupon + fractional_coupon, Currency::USD),
+        ),
+        (date!(1991 - 05 - 15), Money::new(coupon, Currency::USD)),
+        (date!(1991 - 11 - 15), Money::new(coupon, Currency::USD)),
+        (date!(1992 - 05 - 15), Money::new(coupon, Currency::USD)),
+        (date!(1992 - 11 - 15), Money::new(coupon, Currency::USD)),
+        (date!(1993 - 05 - 15), Money::new(coupon, Currency::USD)),
+        (date!(1993 - 11 - 15), Money::new(coupon, Currency::USD)),
+        (date!(1994 - 05 - 15), Money::new(coupon, Currency::USD)),
+        (date!(1994 - 11 - 15), Money::new(coupon, Currency::USD)),
+        (
+            date!(1995 - 05 - 15),
+            Money::new(100.0 + coupon, Currency::USD),
+        ),
     ];
 
-    let price_actual = price_from_ytm_compounded_params(
+    let price = price_from_ytm_compounded_params(
+        DayCount::ActActIsma,
+        Tenor::semi_annual(),
+        &flows,
+        as_of,
+        0.0853,
+        YieldCompounding::TreasuryActual,
+    )
+    .expect("Treasury Appendix B price");
+
+    assert!(
+        (price - 99.805118).abs() < 5e-7,
+        "CFR long-first price mismatch: {price}"
+    );
+}
+
+#[test]
+fn treasury_actual_zero_coupon_round_trips() {
+    let as_of = date!(2025 - 01 - 01);
+    let flows = vec![(date!(2025 - 09 - 01), Money::new(100.0, Currency::USD))];
+    let frequency = Tenor::semi_annual();
+    let day_count = DayCount::Act365F;
+    let expected_yield = 0.05;
+    let price = price_from_ytm_compounded_params(
         day_count,
         frequency,
         &flows,
         as_of,
-        ytm,
+        expected_yield,
         YieldCompounding::TreasuryActual,
     )
-    .expect("treasury-actual price");
+    .expect("price");
 
-    // First-period length flagged from the schedule (yf to first flow).
-    let first_period_len = day_count
-        .year_fraction(as_of, flows[0].0, DayCountContext::default())
-        .expect("first period yf");
-    assert!(
-        first_period_len > 0.5,
-        "test precondition: first coupon must be a LONG stub (>1 regular period), got {first_period_len}"
-    );
-    let m = periods_per_year(frequency).expect("m").max(1.0);
-
-    // Schedule-aware reference: simple interest over the actual first period.
-    let mut expected_schedule = 0.0;
-    // Buggy time-based reference: the old `df_from_yield` heuristic.
-    let mut buggy_time_based = 0.0;
-    for &(date, amount) in &flows {
-        let t = day_count
-            .year_fraction(as_of, date, DayCountContext::default())
-            .expect("yf");
-        expected_schedule += amount.amount()
-            * df_treasury_actual_with_first_period(ytm, t, m, first_period_len)
-                .expect("schedule df");
-        buggy_time_based += amount.amount()
-            * df_from_yield(ytm, t, YieldCompounding::TreasuryActual, frequency)
-                .expect("time-based df");
-    }
-
-    assert!(
-        (price_actual - expected_schedule).abs() < 1e-9,
-        "price {price_actual} must use the schedule-flagged stub {expected_schedule}"
-    );
-    assert!(
-        (price_actual - buggy_time_based).abs() > 1e-4,
-        "price {price_actual} must NOT match the time-based heuristic {buggy_time_based}"
-    );
+    let solved = crate::instruments::fixed_income::bond::pricing::ytm_solver::solve_ytm(
+        &flows,
+        as_of,
+        Money::new(price, Currency::USD),
+        crate::instruments::fixed_income::bond::pricing::ytm_solver::YtmPricingSpec {
+            day_count,
+            notional: Money::new(100.0, Currency::USD),
+            coupon_rate: 0.0,
+            compounding: YieldCompounding::TreasuryActual,
+            frequency,
+        },
+    )
+    .expect("yield");
+    assert!((solved - expected_yield).abs() < 1e-11);
 }
 
 #[test]
@@ -187,6 +197,7 @@ fn compute_quotes_returns_zeroes_for_effectively_zero_notional() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond");

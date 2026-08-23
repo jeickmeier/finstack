@@ -56,6 +56,7 @@ fn create_benchmark_bond(base_date: Date) -> Bond {
         coupon_rate,
         base_date,
         maturity_date,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("Bond::fixed should succeed with valid parameters")
@@ -183,6 +184,7 @@ fn bench_metrics_portfolio(c: &mut Criterion) {
                 0.05,
                 base_date,
                 maturity_date,
+                finstack_quant_core::dates::StubKind::ShortFront,
                 "USD-OIS",
             )
             .expect("Bond::fixed should succeed with valid parameters")

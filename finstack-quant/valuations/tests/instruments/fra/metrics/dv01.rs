@@ -270,26 +270,23 @@ fn test_dv01_long_period() {
 }
 
 #[test]
-fn test_dv01_zero_tau() {
+fn test_dv01_zero_tau_is_rejected() {
     let market = standard_market();
     let same_date = date!(2024 - 04 - 01);
-
     let fra = TestFraBuilder::new()
         .dates(same_date, same_date, same_date)
         .build();
 
-    let result = fra
-        .price_with_metrics(
+    assert!(
+        fra.price_with_metrics(
             &market,
             BASE_DATE,
             &[MetricId::Dv01],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
-        .unwrap();
-
-    let dv01 = *result.measures.get("dv01").unwrap();
-
-    assert_eq!(dv01, 0.0, "Zero tau should produce zero DV01");
+        .is_err(),
+        "zero-length FRA must fail before DV01"
+    );
 }
 
 #[test]

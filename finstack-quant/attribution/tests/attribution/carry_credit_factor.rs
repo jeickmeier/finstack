@@ -157,6 +157,7 @@ fn build_bond_with_issuer() -> Bond {
         0.05_f64,
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2034, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond");

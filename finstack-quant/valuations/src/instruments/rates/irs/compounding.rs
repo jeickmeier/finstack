@@ -21,8 +21,7 @@
 //! When all of the following conditions are met, the discount curve identity
 //! is used as an optimization:
 //!
-//! - Swap is unseasoned (`as_of <= accrual_start`)
-//! - No lookback or observation shift (`lookback_days = 0`, `observation_shift = None`)
+//! - The contract uses `CompoundedInArrears { lookback_days: 0 }`
 //! - Forward curve ID matches discount curve ID (single-curve)
 //!
 //! In this case:
@@ -34,17 +33,16 @@
 //!
 //! ## Lookback and Observation Shift
 //!
-//! The `lookback_days` and `observation_shift` parameters are fully supported:
+//! Lookback and observation shift are distinct, mutually exclusive enum
+//! variants:
 //!
-//! - **Lookback**: Shifts observation dates back from the accrual period. For example,
-//!   with `lookback_days = 2`, observations for the period Jan 1-Apr 1 would be
-//!   taken from Dec 28-Mar 28 (2 business days earlier).
+//! - **Lookback** (`CompoundedInArrears`): shifts observation dates backward
+//!   while day-count weights remain on the original accrual dates.
+//! - **Observation shift** (`CompoundedWithObservationShift`): shifts both
+//!   observations and their day-count weights backward.
 //!
-//! - **Observation Shift**: Additional adjustment to observation dates. The total
-//!   shift is computed as `-lookback_days + observation_shift`.
-//!
-//! When lookback/shift is non-zero, the fast path is disabled and full daily
-//! compounding is performed with shifted observation dates.
+//! Either non-zero convention disables the discount-identity fast path and
+//! performs full daily compounding.
 //!
 //! ## Seasoned Swaps
 //!
@@ -66,16 +64,17 @@
 ///
 /// # Market Standards
 ///
-/// ## Simple (LIBOR-style)
+/// ## Simple term-rate coupons
 /// - **Formula**: `Coupon = Notional × (Forward_Rate + Spread) × DCF`
-/// - **Use for**: USD LIBOR, EUR EURIBOR, GBP LIBOR (historical)
-/// - **Standard**: ISDA 2006 Definitions
+/// - **Use for**: current term-rate indices and legacy IBOR transactions
+/// - **Standard**: ISDA 2021 Definitions; ISDA 2006 for legacy transactions
 ///
 /// ## Compounded In Arrears (RFR-style)
 /// - **Formula**: `Coupon = Notional × [∏(1 + r_i × dcf_i) - 1]`
 /// - **Use for**: USD SOFR, GBP SONIA, EUR €STR, JPY TONA
 /// - **Standard**: ISDA 2021 Definitions
-/// - **Lookback**: Typically 2-5 business days before period end
+/// - **Observation convention**: plain in-arrears for standard OIS presets;
+///   lookback, observation shift, and cutoff are explicit contract variants
 ///
 /// # Examples
 ///
@@ -114,11 +113,11 @@ pub enum FloatingLegCompounding {
     /// Coupon = Notional × (Forward_Rate + Spread) × Day_Count_Fraction
     ///
     /// Use for:
-    /// - Term SOFR / EURIBOR-style swaps with fixed-tenor indices
-    /// - Legacy USD/EUR/GBP LIBOR swaps (for back-testing only)
+    /// - Current fixed-tenor term-rate indices
+    /// - Legacy USD/EUR/GBP LIBOR swaps
     ///
-    /// This is the current default behavior for vanilla IRS and matches
-    /// ISDA 2006 term-rate conventions.
+    /// This is the generic vanilla-IRS default; the rate-index convention
+    /// registry selects compounded RFR terms for overnight indices.
     Simple,
 
     /// Compounded in arrears (overnight RFR rates).
@@ -134,14 +133,11 @@ pub enum FloatingLegCompounding {
     ///
     /// # Fields
     ///
-    /// - `lookback_days`: Days to shift observation end date before period end (typically 2-5)
+    /// - `lookback_days`: Business days by which observation dates move
+    ///   backward while accrual day-count weights remain unshifted.
     ///
-    /// # Market Conventions
-    ///
-    /// - **SOFR**: 2-day lookback (ARRC recommended)
-    /// - **SONIA**: 5-day lookback (BoE recommended)
-    /// - **€STR**: 2-day shift (ECB convention)
-    /// - **TONA**: 2-day lag (JSCC convention)
+    /// Standard cleared OIS presets use zero lookback. Non-zero lookbacks are
+    /// explicit contractual variants, commonly used for RFR-linked notes.
     CompoundedInArrears {
         /// Number of business days to shift observation dates back from the accrual
         /// period (lookback).  Typically 2–5 days depending on market convention.

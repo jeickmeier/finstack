@@ -274,6 +274,7 @@ fn test_bucketed_dv01_sums_to_parallel() {
         0.05,                                    // 5% coupon
         as_of,
         date!(2035 - 01 - 01), // 10 year bond
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

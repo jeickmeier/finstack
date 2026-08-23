@@ -39,6 +39,7 @@ fn test_quote_engine_roundtrip_ytm_and_zspread_fixed_bond() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -186,6 +187,7 @@ fn test_quote_engine_roundtrip_oas_and_asw_market_fixed_bond() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -278,6 +280,7 @@ fn test_quote_engine_roundtrip_i_spread_fixed_bond() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -323,6 +326,7 @@ fn test_quote_engine_asw_market_rejects_matured_schedule() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -348,6 +352,7 @@ fn test_quote_engine_spread_and_yield_paths_reprice_to_same_clean_price() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -408,6 +413,7 @@ fn test_quote_engine_i_spread_rejects_matured_schedule() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

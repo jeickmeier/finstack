@@ -167,7 +167,7 @@ impl ForwardRateAgreement {
     /// This does not encode market conventions; it enforces finiteness and
     /// basic ordering constraints to prevent ambiguous pricing.
     pub fn validate(&self) -> finstack_quant_core::Result<()> {
-        validation::validate_date_range_non_strict(self.start_date, self.maturity, "FRA")?;
+        validation::validate_date_range_strict(self.start_date, self.maturity, "FRA")?;
 
         validation::validate_money_finite(self.notional, "FRA notional")?;
         validation::validate_money_gt_with(self.notional, 0.0, |amount| {
@@ -344,8 +344,6 @@ impl ForwardRateAgreement {
             }
         };
 
-        let fwd = context.get_forward(&self.forward_curve_id)?;
-
         // Accrual factor
         let tau = self
             .day_count
@@ -355,15 +353,17 @@ impl ForwardRateAgreement {
                 finstack_quant_core::dates::DayCountContext::default(),
             )?
             .max(0.0);
-
-        // Zero-length period produces zero settlement
         if tau < MIN_PERIOD_LENGTH {
-            return Ok(0.0);
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "FRA '{}' accrual period must have positive year fraction, got {tau}",
+                self.id
+            )));
         }
 
-        // Forward rate over the period
-        // If fixing date has passed, require observed fixing to avoid ambiguity
-        let forward_rate = if as_of >= fixing_date {
+        // Start-of-day valuation policy: a fixing dated exactly `as_of` is not
+        // yet published and remains projected. Only earlier fixing dates
+        // require the observed value.
+        let forward_rate = if fixing_date < as_of {
             self.observed_fixing.ok_or_else(|| {
                 finstack_quant_core::Error::Validation(format!(
                     "FRA '{}': fixing date {} has passed (as_of={}) but no observed_fixing provided",
@@ -371,6 +371,7 @@ impl ForwardRateAgreement {
                 ))
             })?
         } else {
+            let fwd = context.get_forward(&self.forward_curve_id)?;
             crate::instruments::common_impl::pricing::time::rate_between_on_dates(
                 fwd.as_ref(),
                 self.start_date,
@@ -476,7 +477,9 @@ impl crate::instruments::common_impl::traits::Instrument for ForwardRateAgreemen
     > {
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
-        deps.add_forward_curve(self.forward_curve_id.clone());
+        if self.observed_fixing.is_none() {
+            deps.add_forward_curve(self.forward_curve_id.clone());
+        }
         Ok(deps)
     }
 

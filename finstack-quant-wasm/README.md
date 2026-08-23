@@ -111,6 +111,7 @@ const bond = valuations.instruments.Bond.fixed(
   new core.Rate(0.05),
   '2024-01-01',
   '2034-01-01',
+  'none',
   'USD-OIS'
 );
 JSON.parse(bond.toJson()).schema; // 'finstack_quant.instrument/1'

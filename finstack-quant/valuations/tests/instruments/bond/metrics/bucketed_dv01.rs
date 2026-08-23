@@ -43,6 +43,7 @@ fn build_plain_bond(as_of: time::Date) -> Bond {
         0.0425,
         as_of,
         date!(2034 - 03 - 15),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("plain fixed bond should build")

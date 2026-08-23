@@ -265,6 +265,7 @@ pub enum ProtectionWindow {
 ///     0.10,
 ///     date!(2025 - 01 - 01),
 ///     date!(2030 - 01 - 01),
+///     finstack_quant_core::dates::StubKind::None,
 ///     "USD-OIS",
 /// )?
 /// .with_return_floor(

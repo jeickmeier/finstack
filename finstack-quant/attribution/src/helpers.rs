@@ -721,6 +721,7 @@ mod tests {
             0.05,
             date!(2025 - 01 - 01),
             date!(2030 - 01 - 01),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("bond");
@@ -758,6 +759,7 @@ mod tests {
             0.05,
             date!(2024 - 01 - 01),
             date!(2034 - 01 - 01),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("bond construction");
@@ -850,6 +852,7 @@ mod tests {
             0.05,
             date!(2025 - 01 - 15),
             date!(2030 - 01 - 15),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("bond");

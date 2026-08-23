@@ -382,6 +382,7 @@ fn sample_bond_with_issuer(idx: usize) -> Bond {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         USD_OIS,
     )
     .unwrap();

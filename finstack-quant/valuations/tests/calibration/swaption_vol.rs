@@ -296,7 +296,8 @@ fn calibrated_swaption_surface_is_not_silently_reused_as_strike_surface() {
     .unwrap()
     .with_fixed_frequency(Tenor::semi_annual())
     .with_float_frequency(Tenor::quarterly())
-    .with_day_count(DayCount::Thirty360)
+    .with_fixed_day_count(DayCount::Thirty360)
+    .with_float_day_count(DayCount::Act360)
     .with_vol_model(VolatilityModel::Normal);
     let swaption = Swaption::new_payer("SWPT-1Yx5Y", &params, "USD-OIS", "USD-SOFR-3M", "USD-SWPT");
 

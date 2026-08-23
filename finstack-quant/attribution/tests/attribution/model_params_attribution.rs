@@ -186,6 +186,7 @@ fn test_model_params_none_for_plain_instruments() {
         0.05,
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2029, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -218,6 +219,7 @@ fn test_with_model_params_none_reuses_original_arc() {
         0.05,
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2029, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

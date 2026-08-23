@@ -24,6 +24,7 @@ fn test_z_spread_discount_bond() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -69,6 +70,7 @@ fn test_z_spread_reports_bond_compounding_spread() {
         0.0,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond");
@@ -137,6 +139,7 @@ fn test_i_spread_uses_quote_date_for_settlement_based_curve() {
         0.05,
         as_of,
         date!(2030 - 01 - 08),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -173,6 +176,7 @@ fn test_asw_market_price_adjustment_has_correct_economic_sign() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -231,6 +235,7 @@ fn test_asw_market_uses_configured_forward_curve() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -296,6 +301,7 @@ fn test_asw_market_falls_back_to_bond_forward_curve_id() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -366,6 +372,7 @@ fn test_oas_metric_uses_bond_tree_pricing_overrides() {
         0.05,
         as_of,
         date!(2032 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -437,6 +444,7 @@ fn test_oas_metric_uses_tree_discount_curve_override() {
         0.05,
         as_of,
         date!(2032 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -512,6 +520,7 @@ fn test_embedded_option_value_uses_solved_oas_and_holder_sign() {
         0.05,
         as_of,
         date!(2032 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -582,6 +591,7 @@ fn test_embedded_option_value_uses_settlement_date_oas_pricing_basis() {
         0.05,
         as_of,
         date!(2032 - 01 - 02),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -660,6 +670,7 @@ fn test_callable_bond_vega_is_registered_and_bumps_implied_volatility() {
         0.05,
         as_of,
         date!(2032 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -717,6 +728,7 @@ fn test_callable_bond_oas_and_vega_use_explicit_bdt_tree_path() {
         0.05,
         as_of,
         date!(2032 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -800,6 +812,7 @@ fn test_callable_bond_vega_is_invariant_to_vol_bump_size() {
         0.05,
         as_of,
         date!(2032 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -859,6 +872,7 @@ fn test_callable_bdt_oas_recovers_settlement_date_clean_price() {
         0.05,
         as_of,
         date!(2032 - 01 - 02),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -940,6 +954,7 @@ fn test_callable_bond_value_uses_same_bdt_tree_dispatch_as_oas_pricer() {
         0.05,
         as_of,
         date!(2032 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -999,6 +1014,7 @@ fn test_z_spread_missing_discount_curve_returns_error() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -1077,6 +1093,7 @@ fn test_z_spread_roundtrip_coupon_exactly_on_settlement_date() {
         coupon_rate,
         issue_date,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond should build");
@@ -1174,6 +1191,7 @@ fn test_ytm_roundtrip_settlement_lag_two_days() {
         coupon_rate,
         issue_date,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond should build");
@@ -1256,6 +1274,7 @@ fn test_z_spread_solver_convergence_across_spread_regimes() {
         0.03,
         as_of,
         maturity_ig,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -1265,6 +1284,7 @@ fn test_z_spread_solver_convergence_across_spread_regimes() {
         0.06,
         as_of,
         maturity_hy,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -1274,6 +1294,7 @@ fn test_z_spread_solver_convergence_across_spread_regimes() {
         0.10,
         as_of,
         maturity_distressed,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -1384,6 +1405,7 @@ fn test_z_spread_roundtrip_with_settlement_lag() {
         0.05,
         issue_date,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond should build");
@@ -1461,8 +1483,16 @@ fn test_z_spread_negative_denom_returns_err_not_infinity() {
     let maturity = date!(2030 - 01 - 01);
     let notional = Money::new(1_000_000.0, Currency::USD);
 
-    let mut bond = Bond::fixed("ZSPR-NEG-DENOM", notional, 0.05, as_of, maturity, "USD-OIS")
-        .expect("bond should build");
+    let mut bond = Bond::fixed(
+        "ZSPR-NEG-DENOM",
+        notional,
+        0.05,
+        as_of,
+        maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
+        "USD-OIS",
+    )
+    .expect("bond should build");
     bond.settlement_convention = None;
 
     // Flat curve at 3% -> base_rate ≈ 0.03 for each cashflow.
@@ -1512,6 +1542,7 @@ fn test_z_spread_solver_non_positive_base_df_returns_err() {
         0.05,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond should build");
@@ -1565,6 +1596,7 @@ fn test_z_spread_on_curve_model_pv_is_zero_with_settlement_lag() {
         0.05,
         as_of,
         date!(2030 - 01 - 02),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond should build");

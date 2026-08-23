@@ -68,22 +68,45 @@ impl crate::instruments::common_impl::traits::Instrument for Bond {
                 .quoted_z_spread
                 .unwrap_or(0.0)
                 + shock_bp * 1e-4;
-            let dirty_currency =
+            let dirty_at_quote =
                 quote_conversions::price_from_z_spread(self, curves, as_of, z_eff)?;
+            let quote_date =
+                crate::instruments::fixed_income::bond::pricing::settlement::settlement_date(
+                    self, as_of,
+                )?;
+            let pv_as_of =
+                crate::instruments::fixed_income::bond::pricing::settlement::quote_dirty_at_as_of(
+                    self,
+                    curves,
+                    as_of,
+                    quote_date,
+                    dirty_at_quote,
+                )?;
             return Ok(finstack_quant_core::money::Money::new(
-                dirty_currency,
+                pv_as_of,
                 self.notional.currency(),
             ));
         }
 
-        // Honor any bond price-from-quote override (clean, dirty, YTM, YTW,
-        // Z-spread, OAS, DM, I-spread, ASW). Mutual exclusivity is enforced by
-        // `MarketQuoteOverrides::validate`.
-        if let Some(dirty_currency) =
-            quote_conversions::price_from_quote_overrides(self, curves, as_of)?
+        // Quote drivers normalize to a settlement dirty price first, then carry
+        // that value back to the invariant `as_of` NPV contract.
+        if let Some(dirty_at_quote) =
+            quote_conversions::settlement_dirty_from_quote_overrides(self, curves, as_of)?
         {
+            let quote_date =
+                crate::instruments::fixed_income::bond::pricing::settlement::settlement_date(
+                    self, as_of,
+                )?;
+            let pv_as_of =
+                crate::instruments::fixed_income::bond::pricing::settlement::quote_dirty_at_as_of(
+                    self,
+                    curves,
+                    as_of,
+                    quote_date,
+                    dirty_at_quote,
+                )?;
             return Ok(finstack_quant_core::money::Money::new(
-                dirty_currency,
+                pv_as_of,
                 self.notional.currency(),
             ));
         }
@@ -185,17 +208,13 @@ impl crate::instruments::common_impl::traits::Instrument for Bond {
                 .has_non_z_price_driver()
     }
 
-    /// Reject a bond that matures before it is issued.
+    /// Validate the complete bond boundary before every public pricing call.
     ///
-    /// Neither serde nor JSON Schema relates one date field to another, so an
-    /// inverted term deserializes cleanly and only shows up downstream as a
-    /// negative year fraction.
+    /// Builders and deserializers can construct a `Bond` without using the
+    /// convenience constructors, so the pricing lifecycle must enforce the
+    /// same economic invariants as [`Bond::validate`].
     fn validate_invariants(&self) -> finstack_quant_core::Result<()> {
-        crate::instruments::common_impl::validation::validate_date_range_strict(
-            self.issue_date,
-            self.maturity,
-            "bond issue-to-maturity",
-        )
+        self.validate()
     }
 
     fn expiry(&self) -> Option<finstack_quant_core::dates::Date> {

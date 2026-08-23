@@ -215,6 +215,7 @@ impl<State> ModelBuilder<State> {
             coupon_rate,
             issue_date,
             maturity_date,
+            finstack_quant_core::dates::StubKind::ShortFront,
             CurveId::new(discount_curve_id),
         )
         .map_err(|e| {

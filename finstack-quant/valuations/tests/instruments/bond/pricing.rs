@@ -56,6 +56,7 @@ fn test_bond_basic_pricing() {
         0.05,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -87,6 +88,7 @@ fn test_bond_price_vs_yield() {
         0.06,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -117,6 +119,7 @@ fn test_bond_price_coupon_relationship() {
         0.08,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -128,6 +131,7 @@ fn test_bond_price_coupon_relationship() {
         0.03,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -158,6 +162,7 @@ fn test_bond_price_maturity_relationship() {
         0.05,
         as_of,
         date!(2027 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -168,6 +173,7 @@ fn test_bond_price_maturity_relationship() {
         0.05,
         as_of,
         date!(2035 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -211,6 +217,7 @@ fn test_bond_price_zero_coupon() {
         0.0,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -249,6 +256,7 @@ fn test_bond_theta_time_decay() {
         0.06,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -344,6 +352,7 @@ fn test_bond_matured_or_near_zero_value() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -371,6 +380,7 @@ fn test_bond_near_maturity_pricing() {
         0.05,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -401,6 +411,7 @@ fn test_bond_curve_parallel_shift() {
         0.05,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -445,6 +456,7 @@ fn test_bond_price_consistency() {
         0.05,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -472,6 +484,7 @@ fn test_bond_notional_scaling() {
         0.05,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -482,6 +495,7 @@ fn test_bond_notional_scaling() {
         0.05,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

@@ -24,6 +24,7 @@ fn bond_json() -> String {
         0.05,
         date!(2024 - 01 - 15),
         date!(2029 - 01 - 15),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond construction");

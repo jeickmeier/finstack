@@ -76,7 +76,10 @@ class TestSwaptionTyped:
     def test_every_settlement_literal_value_accepted(self, value: str) -> None:
         assert _payer_swaption(settlement=value).id == "SWPT-1"
 
-    @pytest.mark.parametrize("value", ["par_yield", "isda_par_par", "zero_coupon"])
+    @pytest.mark.parametrize(
+        "value",
+        ["collateralized_cash_price", "par_yield", "isda_par_par", "zero_coupon"],
+    )
     def test_every_cash_settlement_method_literal_value_accepted(self, value: str) -> None:
         assert _payer_swaption(cash_settlement_method=value).id == "SWPT-1"
 
@@ -139,6 +142,10 @@ class TestCapFloorTyped:
             .notional(Money(2_000_000.0, Currency("USD")))
             .strike(0.03)
             .spread(0.001)
+            .premium(
+                datetime.date(2024, 2, 15),
+                Money(25_000.0, Currency("USD")),
+            )
             .start_date(datetime.date(2024, 1, 15))
             .maturity(datetime.date(2027, 1, 15))
             .frequency(Tenor.quarterly())
@@ -153,6 +160,10 @@ class TestCapFloorTyped:
         )
         payload = json.loads(cap.to_json())
         assert payload["instrument"]["spec"]["spread"] == "0.001"
+        assert payload["instrument"]["spec"]["premium"] == [
+            "2024-02-15",
+            {"amount": "25000", "currency": "USD"},
+        ]
         assert payload["instrument"]["spec"]["vol_shift"] == 0.02
         assert payload["instrument"]["spec"]["calendar_id"] == "nyse"
 

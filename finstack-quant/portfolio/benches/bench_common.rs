@@ -491,6 +491,7 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
             0.05,
             base,
             maturity_5y(),
+            finstack_quant_core::dates::StubKind::ShortFront,
             discount_curve_id,
         )
         .expect("Bond::fixed should succeed with valid parameters");

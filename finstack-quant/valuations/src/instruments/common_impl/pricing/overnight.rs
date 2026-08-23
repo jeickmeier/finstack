@@ -132,13 +132,9 @@ pub(crate) struct OvernightArithmeticProjection {
     pub observation_exposures: Vec<OvernightObservationExposure>,
 }
 
-/// Resolve the explicit or currency-standard fixing calendar for an RFR coupon.
-pub(crate) fn resolve_overnight_fixing_calendar(
-    calendar_id: Option<&str>,
-    currency: Currency,
-    instrument_label: &str,
-) -> Result<&'static dyn HolidayCalendar> {
-    let default_id = match currency {
+/// Standard rates calendar for a currency when a contract does not supply one.
+pub(crate) fn default_rate_calendar_id(currency: Currency) -> Option<&'static str> {
+    match currency {
         Currency::USD => Some("usny"),
         Currency::EUR => Some("target2"),
         Currency::GBP => Some("gblo"),
@@ -147,7 +143,16 @@ pub(crate) fn resolve_overnight_fixing_calendar(
         Currency::CAD => Some("cato"),
         Currency::CHF => Some("chzh"),
         _ => None,
-    };
+    }
+}
+
+/// Resolve the explicit or currency-standard fixing calendar for an RFR coupon.
+pub(crate) fn resolve_overnight_fixing_calendar(
+    calendar_id: Option<&str>,
+    currency: Currency,
+    instrument_label: &str,
+) -> Result<&'static dyn HolidayCalendar> {
+    let default_id = default_rate_calendar_id(currency);
     let id = calendar_id.or(default_id).ok_or_else(|| {
         finstack_quant_core::Error::Validation(format!(
             "{instrument_label} requires an explicit overnight fixing calendar for {currency}"
@@ -221,6 +226,19 @@ fn last_overnight_observation(
         )));
     }
     end.add_business_days(-1, calendar)
+}
+/// Last observation date that contractually determines an overnight coupon.
+pub(crate) fn final_overnight_fixing_date(
+    start: Date,
+    end: Date,
+    compounding: &FloatingLegCompounding,
+    calendar: &dyn HolidayCalendar,
+) -> Result<Date> {
+    let (shift_days, _) = shifted_observation_days(compounding)?;
+    if let Some(days) = cutoff_days(compounding) {
+        return end.add_business_days(-(days + 1), calendar);
+    }
+    last_overnight_observation(start, end, calendar)?.add_business_days(-shift_days, calendar)
 }
 
 fn projection_from_compound_factor(

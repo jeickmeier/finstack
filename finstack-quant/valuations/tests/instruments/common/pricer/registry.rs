@@ -242,6 +242,7 @@ fn test_registry_price_with_unknown_pricer() {
         0.05,
         date!(2024 - 01 - 01),
         date!(2029 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-TREASURY",
     )
     .unwrap();
@@ -554,6 +555,7 @@ fn test_expect_inst_type_mismatch() {
         0.05,
         date!(2024 - 01 - 01),
         date!(2029 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-TREASURY",
     )
     .unwrap();
@@ -581,6 +583,7 @@ fn test_expect_inst_success() {
         0.05,
         date!(2024 - 01 - 01),
         date!(2029 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-TREASURY",
     )
     .unwrap();

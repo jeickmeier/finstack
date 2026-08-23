@@ -300,8 +300,9 @@ impl MarketQuoteOverrides {
     pub fn validate(&self) -> finstack_quant_core::Result<()> {
         use finstack_quant_core::InputError;
 
-        // Prices, spreads and yields may be negative (e.g. deep-distress) but
-        // must be finite; implied vol and CDS spreads must be non-negative.
+        // Yields, spreads, and clean prices may be negative but all fields
+        // must be finite. Dirty bond prices are additionally positive below;
+        // implied volatility and CDS spreads are non-negative.
         check_finite_fields(&[
             (self.quoted_clean_price, false),
             (self.quoted_dirty_price_currency, false),
@@ -316,6 +317,15 @@ impl MarketQuoteOverrides {
             (self.implied_volatility, true),
             (self.cds_quote_bp, true),
         ])?;
+
+        if self
+            .quoted_dirty_price_currency
+            .is_some_and(|price| price <= 0.0)
+        {
+            return Err(finstack_quant_core::Error::Validation(
+                "quoted_dirty_price_currency must be positive".to_string(),
+            ));
+        }
 
         // Mutual exclusivity: at most one price-driving field set at a time.
         if self.price_driver_count() > 1 {

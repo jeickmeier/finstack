@@ -8,7 +8,7 @@ import json
 import pytest
 
 from finstack_quant.core.currency import Currency
-from finstack_quant.core.dates import DayCount, Tenor
+from finstack_quant.core.dates import DayCount, StubKind, Tenor
 from finstack_quant.core.money import Money
 from finstack_quant.core.types import Bps, Rate
 from finstack_quant.valuations import ValuationResult
@@ -58,6 +58,7 @@ def _fixed_bond() -> Bond:
         Rate(0.05),
         datetime.date(2024, 1, 1),
         datetime.date(2034, 1, 1),
+        StubKind.SHORT_FRONT,
         "USD-OIS",
     )
 
@@ -107,6 +108,19 @@ class TestBondTyped:
         assert payload["instrument"]["type"] == "bond"
         assert payload["instrument"]["spec"]["id"] == "BOND-1"
 
+    def test_fixed_constructor_preserves_explicit_stub(self) -> None:
+        bond = Bond.fixed(
+            "BOND-LONG-FRONT",
+            Money(1_000_000.0, Currency("USD")),
+            Rate(0.05),
+            datetime.date(2024, 3, 1),
+            datetime.date(2034, 1, 15),
+            StubKind.LONG_FRONT,
+            "USD-OIS",
+        )
+        spec = json.loads(bond.to_json())["instrument"]["spec"]
+        assert spec["cashflow_spec"]["fixed"]["stub"] == "long_front"
+
     def test_from_json_round_trip_preserves_fields(self) -> None:
         original = _fixed_bond().to_json()
         round_tripped = Bond.from_json(original).to_json()
@@ -144,6 +158,7 @@ class TestBondTyped:
                 Rate(0.05),
                 datetime.date(2034, 1, 1),
                 datetime.date(2024, 1, 1),
+                StubKind.SHORT_FRONT,
                 "USD-OIS",
             )
 

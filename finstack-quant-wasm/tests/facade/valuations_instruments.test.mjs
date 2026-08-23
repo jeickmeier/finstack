@@ -39,6 +39,7 @@ test('Bond.fixed constructs, round-trips through the canonical envelope', () => 
     new core.Rate(0.05),
     '2024-01-01',
     '2034-01-01',
+    'none',
     'USD-OIS'
   );
   assert.equal(bond.id, 'BOND-1');
@@ -47,9 +48,21 @@ test('Bond.fixed constructs, round-trips through the canonical envelope', () => 
   assert.equal(payload.schema, 'finstack_quant.instrument/1');
   assert.equal(payload.instrument.type, 'bond');
   assert.equal(payload.instrument.spec.id, 'BOND-1');
+  assert.equal(payload.instrument.spec.cashflow_spec.fixed.stub, 'none');
   const roundTripped = valuations.instruments.Bond.fromJson(json);
   assert.equal(roundTripped.toJson(), json);
   assert.throws(() => valuations.instruments.Bond.fromJson(JSON.stringify(payload.instrument)));
+  assert.throws(() =>
+    valuations.instruments.Bond.fixed(
+      'BAD-STUB',
+      new core.Money(1_000_000, usd),
+      new core.Rate(0.05),
+      '2024-01-01',
+      '2034-01-01',
+      'not_a_stub',
+      'USD-OIS'
+    )
+  );
 });
 
 test('Bond.fromJson rejects malformed JSON and wrong instrument types', () => {

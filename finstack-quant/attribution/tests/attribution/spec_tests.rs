@@ -45,6 +45,7 @@ fn spec_rejects_unknown_metrics() {
         0.05,
         create_date(2024, Month::January, 1).expect("Valid issue date"),
         create_date(2034, Month::January, 1).expect("Valid maturity"),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("Bond construction should succeed");

@@ -94,41 +94,14 @@ fn make_leg(forward_curve: &str, start: Date, end: Date, spread_bp: Decimal) -> 
 }
 
 #[test]
-fn zero_notional() {
-    let ctx = market();
-    let as_of = d(2025, 1, 2);
-
-    let swap = BasisSwap::new(
+fn zero_notional_is_rejected() {
+    assert!(BasisSwap::new(
         "ZERO-NOTIONAL",
         Money::new(0.0, USD),
         make_leg("USD-SOFR-3M", d(2025, 1, 2), d(2026, 1, 2), Decimal::ZERO),
         make_leg("USD-SOFR-1M", d(2025, 1, 2), d(2026, 1, 2), Decimal::ZERO),
     )
-    .expect("swap construction");
-
-    let res = swap
-        .price_with_metrics(
-            &ctx,
-            as_of,
-            &[MetricId::Dv01, MetricId::PvPrimary, MetricId::PvReference],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
-        )
-        .unwrap();
-
-    assert_eq!(res.measures[MetricId::Dv01.as_str()], 0.0);
-    assert_eq!(res.measures[MetricId::PvPrimary.as_str()], 0.0);
-    assert_eq!(res.measures[MetricId::PvReference.as_str()], 0.0);
-
-    let par_spread_result = swap.price_with_metrics(
-        &ctx,
-        as_of,
-        &[MetricId::BasisParSpread],
-        finstack_quant_valuations::instruments::PricingOptions::default(),
-    );
-    assert!(
-        par_spread_result.is_err(),
-        "BasisParSpread should error for zero notional"
-    );
+    .is_err());
 }
 
 #[test]

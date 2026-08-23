@@ -177,7 +177,7 @@ impl InterestRateSwap {
     ///
     /// Present value of the floating leg in the swap's notional currency.
     ///
-    /// # Market Standards (ISDA 2006)
+    /// # Market Standards (ISDA 2021; ISDA 2006 legacy transactions)
     ///
     /// - Reset dates are computed as `accrual_start - reset_lag_days`, adjusted
     ///   using the fixing calendar if specified (otherwise the payment calendar).

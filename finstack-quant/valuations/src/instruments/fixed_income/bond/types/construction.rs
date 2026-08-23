@@ -4,7 +4,7 @@ use crate::cashflow::builder::CashFlowSchedule;
 use crate::instruments::common_impl::traits::Attributes;
 use crate::instruments::InstrumentPricingOverrides;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{Date, DateExt, DayCount};
+use finstack_quant_core::dates::{Date, DateExt, DayCount, StubKind};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{Bps, CurveId, InstrumentId, Rate};
 use finstack_quant_core::Result;
@@ -44,6 +44,7 @@ impl Bond {
     /// * `coupon_rate` - Annual coupon rate as a typed `Rate`
     /// * `issue` - Issue date of the bond
     /// * `maturity` - Maturity date of the bond
+    /// * `stub` - Stub placement for irregular coupon schedules
     /// * `discount_curve_id` - Discount curve identifier for pricing
     ///
     /// # Returns
@@ -109,6 +110,7 @@ impl Bond {
     /// use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
     /// use finstack_quant_core::money::Money;
     /// use finstack_quant_core::currency::Currency;
+    /// use finstack_quant_core::dates::StubKind;
     /// use time::macros::date;
     ///
     /// // US Corporate bond (default)
@@ -121,6 +123,7 @@ impl Bond {
     ///     finstack_quant_core::types::Rate::from_percent(5.0),
     ///     issue,
     ///     maturity,
+    ///     StubKind::None,
     ///     "USD-OIS",
     /// )
     /// .unwrap();
@@ -140,9 +143,10 @@ impl Bond {
         coupon_rate: impl Into<Rate>,
         issue: Date,
         maturity: Date,
+        stub: StubKind,
         discount_curve_id: impl Into<CurveId>,
     ) -> finstack_quant_core::Result<Self> {
-        Self::with_convention(
+        let bond = Self::with_convention(
             id,
             notional,
             coupon_rate,
@@ -150,7 +154,8 @@ impl Bond {
             maturity,
             crate::instruments::common_impl::parameters::BondConvention::UsCorporate,
             discount_curve_id,
-        )
+        )?;
+        Ok(bond.with_stub(stub))
     }
 
     /// Create a bond with standard market conventions.
@@ -216,6 +221,7 @@ impl Bond {
         let mut cashflow_spec =
             CashflowSpec::fixed_rate(coupon_rate, convention.frequency(), convention.day_count())?;
         if let CashflowSpec::Fixed(spec) = &mut cashflow_spec {
+            spec.schedule.stub = convention.stub_convention();
             spec.schedule.business_day_convention = convention.business_day_convention();
             spec.schedule.calendar_id = convention
                 .calendar_id()
@@ -243,6 +249,35 @@ impl Bond {
 
         bond.validate()?;
         Ok(bond)
+    }
+
+    /// Set the coupon-schedule stub convention.
+    ///
+    /// This is required for irregular schedules created through
+    /// [`Self::with_convention`]. Regular schedules may retain
+    /// [`StubKind::None`].
+    ///
+    /// # Arguments
+    ///
+    /// * `stub` - Placement and length policy for any irregular coupon period.
+    ///
+    /// # Returns
+    ///
+    /// The bond with the fixed coupon schedule configured to use `stub`.
+    #[must_use]
+    pub fn with_stub(mut self, stub: StubKind) -> Self {
+        match &mut self.cashflow_spec {
+            CashflowSpec::Fixed(spec) => spec.schedule.stub = stub,
+            CashflowSpec::StepUp(spec) => spec.schedule.stub = stub,
+            CashflowSpec::Amortizing { base, .. } => match base.as_mut() {
+                CashflowSpec::Fixed(spec) => spec.schedule.stub = stub,
+                CashflowSpec::StepUp(spec) => spec.schedule.stub = stub,
+                CashflowSpec::Floating(spec) => spec.schedule.stub = stub,
+                CashflowSpec::Amortizing { .. } => {}
+            },
+            CashflowSpec::Floating(spec) => spec.schedule.stub = stub,
+        }
+        self
     }
 
     /// Create a floating-rate bond (FRN).

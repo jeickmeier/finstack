@@ -35,7 +35,8 @@
 //!
 //! # References
 //!
-//! - **ISDA 2006 Definitions**: Section 7.1 - Par Swap Rates `docs/REFERENCES.md#isda-2006-definitions`
+//! - **ISDA 2021 Definitions**: Current par-rate framework; ISDA 2006 applies
+//!   to legacy transactions `docs/REFERENCES.md#isda-2021-definitions`
 //! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives*. Chapter 7. `docs/REFERENCES.md#hull-options-futures`
 //! - Kahan, W. (1965). "Further Remarks on Reducing Truncation Errors." `docs/REFERENCES.md#kahan-1965`
 

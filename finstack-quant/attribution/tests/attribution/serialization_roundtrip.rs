@@ -28,6 +28,7 @@ fn test_attribution_envelope_json_roundtrip() {
         0.05,
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2034, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -104,6 +105,7 @@ fn test_attribution_envelope_deserialization_rejects_unknown_schema() {
         0.05,
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2034, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -172,6 +174,7 @@ fn test_attribution_envelope_waterfall_roundtrip() {
         0.05,
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2034, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -291,6 +294,7 @@ fn test_attribution_envelope_to_from_json_helpers() {
         0.05,
         create_date(2024, Month::January, 1).unwrap(),
         create_date(2034, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

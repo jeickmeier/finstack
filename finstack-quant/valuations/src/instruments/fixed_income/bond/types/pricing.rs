@@ -71,10 +71,28 @@ impl Bond {
             finstack_quant_core::money::Money,
         )>,
     > {
+        let schedule = self.full_cashflow_schedule(curves)?;
+        self.pricing_dated_cashflows_from_schedule(&schedule, as_of, entitlement_date)
+    }
+
+    /// Filter a prebuilt schedule into holder-view pricing cashflows.
+    ///
+    /// Reuses one materialized schedule when multiple entitlement dates must
+    /// be compared, avoiding repeated projection and schedule construction.
+    pub(crate) fn pricing_dated_cashflows_from_schedule(
+        &self,
+        schedule: &crate::cashflow::builder::CashFlowSchedule,
+        as_of: finstack_quant_core::dates::Date,
+        entitlement_date: finstack_quant_core::dates::Date,
+    ) -> Result<
+        Vec<(
+            finstack_quant_core::dates::Date,
+            finstack_quant_core::money::Money,
+        )>,
+    > {
         use finstack_quant_core::cashflow::CFKind;
 
         let ex_coupon = self.accrual_config().ex_coupon;
-        let schedule = self.full_cashflow_schedule(curves)?;
         let mut flows = Vec::with_capacity(schedule.get_flows().len());
         for cf in schedule.get_flows() {
             let keep = cf.date > as_of
@@ -83,8 +101,6 @@ impl Bond {
             if !keep {
                 continue;
             }
-            // Drop interest flows whose ex-date has passed: the buyer entitled
-            // as of `entitlement_date` does not receive them.
             if cf.kind.is_interest_like() {
                 if let Some(rule) = &ex_coupon {
                     let ex_date = rule.ex_date(cf.date)?;
@@ -291,6 +307,7 @@ impl Bond {
 mod tests {
     use super::*;
     use crate::instruments::fixed_income::bond::{CallPut, CallPutSchedule, MakeWholeSpec};
+    use crate::instruments::Instrument;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::types::CurveId;
@@ -303,6 +320,7 @@ mod tests {
             0.05,
             date!(2025 - 01 - 01),
             date!(2030 - 01 - 01),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("valid bond");
@@ -400,5 +418,27 @@ mod tests {
             .expect_err("infinite make-whole spread must fail")
             .to_string()
             .contains("make-whole"));
+    }
+
+    #[test]
+    fn public_value_enforces_complete_bond_validation() {
+        let mut bond = ex_coupon_bond();
+        bond.notional = Money::new(0.0, Currency::USD);
+        let err = bond
+            .value(&MarketContext::new(), date!(2025 - 01 - 02))
+            .expect_err("zero bond notional must fail before market lookup");
+        assert!(err.to_string().contains("positive"));
+    }
+
+    #[test]
+    fn public_value_rejects_non_positive_dirty_quote() {
+        let mut bond = ex_coupon_bond();
+        bond.instrument_pricing_overrides
+            .market_quotes
+            .quoted_dirty_price_currency = Some(-1.0);
+        let err = bond
+            .value(&MarketContext::new(), date!(2025 - 01 - 02))
+            .expect_err("negative dirty price must fail before market lookup");
+        assert!(err.to_string().contains("must be positive"));
     }
 }

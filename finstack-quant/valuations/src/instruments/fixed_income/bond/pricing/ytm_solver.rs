@@ -195,10 +195,10 @@ impl YtmSolver {
             ));
         }
 
-        // Special case: zero coupon bond (single cashflow at maturity).
-        // Use compounding-aware closed form so ZCB yields are consistent with
-        // the selected YTM convention used for coupon-bearing bonds.
-        if cashflows.len() == 1 {
+        // Most one-cashflow conventions have a closed-form inverse.
+        // TreasuryActual can combine a simple fractional period with periodic
+        // compounding, so it must use the shared root solve below.
+        if cashflows.len() == 1 && !matches!(spec.compounding, YieldCompounding::TreasuryActual) {
             let (maturity_date, face_value) = &cashflows[0];
             let years = spec.day_count.year_fraction(
                 as_of,
@@ -223,10 +223,16 @@ impl YtmSolver {
                     }
                     YieldCompounding::Annual => ratio.powf(1.0 / years) - 1.0,
                     YieldCompounding::Continuous => ratio.ln() / years,
-                    YieldCompounding::Street | YieldCompounding::TreasuryActual => {
+                    YieldCompounding::Street => {
                         let m =
                             super::quote_conversions::periods_per_year(spec.frequency)?.max(1.0);
                         m * (ratio.powf(1.0 / (m * years)) - 1.0)
+                    }
+                    YieldCompounding::TreasuryActual => {
+                        return Err(finstack_quant_core::Error::Validation(
+                            "TreasuryActual one-cashflow yield requires numerical inversion"
+                                .to_string(),
+                        ));
                     }
                     YieldCompounding::Periodic(periods) => {
                         let m = (periods as f64).max(1.0);

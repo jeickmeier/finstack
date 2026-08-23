@@ -28,6 +28,7 @@ fn bullet_5y(credit: bool) -> (Bond, MarketContext) {
         0.05,
         as_of,
         date!(2030 - 01 - 06),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond builds");
@@ -183,6 +184,7 @@ fn callable_bond_spread_duration_uses_quote_reproducing_workout_path() {
         0.05,
         date!(2023 - 01 - 06),
         date!(2032 - 01 - 06),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond builds");

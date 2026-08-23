@@ -327,6 +327,16 @@ pub struct CapFloor {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub overnight_coupon: Option<OvernightCouponConvention>,
+    /// Optional dated premium paid by the cap/floor holder.
+    ///
+    /// A positive amount is an outflow from the holder and reduces NPV while
+    /// the payment date is strictly after `as_of`. The premium currency must
+    /// match the notional currency.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[builder(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_dated_money")]
+    #[schemars(with = "Option<(finstack_quant_core::wire::DateWire, Money)>")]
+    pub premium: Option<(Date, Money)>,
     /// Additional attributes
     #[builder(default)]
     /// Instrument-owned pricing inputs.
@@ -425,6 +435,7 @@ impl CapFloor {
             vol_type: CapFloorVolType::default(),
             vol_shift: 0.0,
             overnight_coupon: None,
+            premium: None,
             instrument_pricing_overrides: Default::default(),
             metric_pricing_overrides: Default::default(),
             scenario_pricing_overrides: Default::default(),
@@ -560,6 +571,31 @@ impl CapFloor {
         ))
     }
 
+    pub(crate) fn resolved_schedule_calendar_id(&self) -> finstack_quant_core::Result<&str> {
+        if let Some(id) = self.calendar_id.as_deref() {
+            crate::cashflow::builder::calendar::resolve_calendar_strict(id)?;
+            return Ok(id);
+        }
+        if let Ok(registry) = ConventionRegistry::try_global() {
+            let index_id = IndexId::new(self.forward_curve_id.as_str());
+            if let Ok(convention) = registry.require_rate_index(&index_id) {
+                let id = convention.market_calendar_id.as_str();
+                crate::cashflow::builder::calendar::resolve_calendar_strict(id)?;
+                return Ok(id);
+            }
+        }
+        crate::instruments::common_impl::pricing::overnight::default_rate_calendar_id(
+            self.notional.currency(),
+        )
+        .ok_or_else(|| {
+            finstack_quant_core::Error::Validation(format!(
+                "CapFloor '{}' requires an explicit schedule calendar for {}",
+                self.id,
+                self.notional.currency()
+            ))
+        })
+    }
+
     pub(crate) fn pricing_periods(
         &self,
     ) -> finstack_quant_core::Result<Vec<crate::cashflow::builder::periods::SchedulePeriod>> {
@@ -573,10 +609,7 @@ impl CapFloor {
             frequency: self.frequency,
             stub: self.stub,
             business_day_convention: self.business_day_convention,
-            calendar_id: self
-                .calendar_id
-                .as_deref()
-                .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID),
+            calendar_id: self.resolved_schedule_calendar_id()?,
             end_of_month: false,
             day_count: self.day_count,
             payment_lag_days: if overnight_payment_delay.is_some() {
@@ -642,6 +675,33 @@ impl CapFloor {
             }
         }
         Ok(periods)
+    }
+    pub(crate) fn final_fixing_date(&self) -> finstack_quant_core::Result<Date> {
+        let period = self.pricing_periods()?.into_iter().last().ok_or_else(|| {
+            finstack_quant_core::Error::Validation(format!(
+                "CapFloor '{}' produced no option periods",
+                self.id
+            ))
+        })?;
+        let Some(terms) = &self.overnight_coupon else {
+            return Ok(period.reset_date.unwrap_or(period.accrual_start));
+        };
+        let fixing_calendar_id = terms
+            .fixing_calendar_id
+            .as_deref()
+            .or(self.calendar_id.as_deref());
+        let fixing_calendar =
+            crate::instruments::common_impl::pricing::overnight::resolve_overnight_fixing_calendar(
+                fixing_calendar_id,
+                self.notional.currency(),
+                &format!("CapFloor '{}'", self.id),
+            )?;
+        crate::instruments::common_impl::pricing::overnight::final_overnight_fixing_date(
+            period.accrual_start,
+            period.accrual_end,
+            &terms.compounding,
+            fixing_calendar,
+        )
     }
 
     /// Set the volatility type convention.
@@ -765,6 +825,24 @@ impl crate::instruments::common_impl::traits::Instrument for CapFloor {
                 self.id, self.vol_shift
             )));
         }
+        self.resolved_schedule_calendar_id()?;
+        if let Some((_, premium)) = self.premium {
+            if premium.currency() != self.notional.currency() {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "CapFloor '{}' premium currency {} must match notional currency {}",
+                    self.id,
+                    premium.currency(),
+                    self.notional.currency()
+                )));
+            }
+            if !premium.amount().is_finite() || premium.amount() < 0.0 {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "CapFloor '{}' premium must be finite and non-negative, got {}",
+                    self.id,
+                    premium.amount()
+                )));
+            }
+        }
         if let Some(overnight) = &self.overnight_coupon {
             let idx = IndexId::new(self.forward_curve_id.as_str());
             let convention = ConventionRegistry::try_global()
@@ -849,7 +927,21 @@ impl crate::instruments::common_impl::traits::Instrument for CapFloor {
         curves: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
-        crate::instruments::rates::cap_floor::pricing::pricer::price_cap_floor(self, curves, as_of)
+        let option_value = crate::instruments::rates::cap_floor::pricing::pricer::price_cap_floor(
+            self, curves, as_of,
+        )?;
+        let Some((payment_date, premium)) = self
+            .premium
+            .filter(|(payment_date, _)| *payment_date > as_of)
+        else {
+            return Ok(option_value);
+        };
+        let discount = curves.get_discount(self.discount_curve_id.clone())?;
+        let discount_factor = discount.df_between_dates(as_of, payment_date)?;
+        Ok(Money::new(
+            option_value.amount() - premium.amount() * discount_factor,
+            option_value.currency(),
+        ))
     }
 
     fn market_dependencies(
@@ -859,7 +951,9 @@ impl crate::instruments::common_impl::traits::Instrument for CapFloor {
     > {
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
-        deps.add_forward_curve(self.forward_curve_id.clone());
+        if self.overnight_coupon.is_none() || self.forward_curve_id != self.discount_curve_id {
+            deps.add_forward_curve(self.forward_curve_id.clone());
+        }
         deps.add_volatility_dependency(
             crate::instruments::common_impl::dependencies::VolatilityDependency::new(
                 self.vol_surface_id.clone(),
@@ -874,7 +968,7 @@ impl crate::instruments::common_impl::traits::Instrument for CapFloor {
     }
 
     fn expiry(&self) -> Option<finstack_quant_core::dates::Date> {
-        Some(self.maturity)
+        self.final_fixing_date().ok()
     }
 
     fn effective_start_date(&self) -> Option<finstack_quant_core::dates::Date> {
@@ -894,6 +988,7 @@ mod tests {
     use super::*;
     use crate::instruments::common_impl::traits::Instrument;
     use finstack_quant_core::currency::Currency;
+    use finstack_quant_core::dates::DateExt;
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::surfaces::VolSurface;
     use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
@@ -998,19 +1093,18 @@ mod tests {
         let disc = ctx.get_discount(CurveId::new("TEST-DISC")).expect("disc");
         let fwd = ctx.get_forward(CurveId::new("USD-SOFR-3M")).expect("fwd");
 
-        // IMPORTANT: Use the same canonical schedule builder as the instrument pricer.
-        //
-        // `cashflow::builder::periods::build_periods` applies BDC even when `calendar_id`
-        // is weekends-only. Cap/floor parity is very sensitive to small date shifts,
-        // so we must match the instrument's schedule.
+        // Use the instrument's resolved market calendar and stub so the parity
+        // reference shares exactly the priced schedule.
         let periods = crate::cashflow::builder::periods::build_periods(
             crate::cashflow::builder::periods::BuildPeriodsParams {
                 start: start_date,
                 end: end_date,
                 frequency: Tenor::quarterly(),
-                stub: StubKind::None,
+                stub: cap.stub,
                 business_day_convention: BusinessDayConvention::ModifiedFollowing,
-                calendar_id: crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID,
+                calendar_id: cap
+                    .resolved_schedule_calendar_id()
+                    .expect("resolved calendar"),
                 end_of_month: false,
                 day_count: DayCount::Act360,
                 payment_lag_days: 0,
@@ -1254,5 +1348,131 @@ mod tests {
             instrument_with_convention.resolved_payment_lag_days() >= 0,
             "Convention-based lag should resolve to a non-negative business-day delay"
         );
+    }
+    #[test]
+    fn expiry_is_last_term_fixing_not_maturity() {
+        let cap = CapFloor::new_cap(
+            "CAP-EXPIRY",
+            Money::new(1_000_000.0, Currency::USD),
+            0.04,
+            date(2024, 3, 1),
+            date(2025, 3, 1),
+            Tenor::quarterly(),
+            DayCount::Act360,
+            "TEST-DISC",
+            "USD-SOFR-3M",
+            "TEST-VOL",
+        )
+        .expect("valid cap");
+        let expected = cap
+            .pricing_periods()
+            .expect("periods")
+            .last()
+            .and_then(|period| period.reset_date)
+            .expect("last reset date");
+        assert_eq!(cap.expiry(), Some(expected));
+        assert!(expected < cap.maturity);
+    }
+
+    #[test]
+    fn overnight_expiry_respects_rate_cutoff() {
+        let mut cap = CapFloor::new_cap(
+            "RFR-CAP-EXPIRY",
+            Money::new(1_000_000.0, Currency::USD),
+            0.04,
+            date(2024, 3, 1),
+            date(2025, 3, 1),
+            Tenor::quarterly(),
+            DayCount::Act360,
+            "USD-SOFR-OIS",
+            "USD-SOFR-OIS",
+            "TEST-VOL",
+        )
+        .expect("valid cap");
+        cap.overnight_coupon = Some(OvernightCouponConvention {
+            compounding: FloatingLegCompounding::CompoundedWithRateCutoff { cutoff_days: 2 },
+            payment_delay_days: 2,
+            fixing_calendar_id: Some("usny".into()),
+            payment_calendar_id: Some("usny".into()),
+            spread_compounding: OvernightSpreadCompounding::Exclude,
+        });
+        let last_period = cap
+            .pricing_periods()
+            .expect("periods")
+            .into_iter()
+            .last()
+            .expect("last period");
+        let calendar = crate::cashflow::builder::calendar::resolve_calendar_strict("usny")
+            .expect("USNY calendar");
+        let expected = last_period
+            .accrual_end
+            .add_business_days(-3, calendar)
+            .expect("cutoff reference date");
+        assert_eq!(cap.expiry(), Some(expected));
+        let deps = crate::instruments::Instrument::market_dependencies(&cap).expect("dependencies");
+        assert!(
+            deps.curves.forward_curves.is_empty(),
+            "single-curve overnight caps must not require a redundant forward curve"
+        );
+    }
+
+    #[test]
+    fn future_dated_premium_reduces_holder_npv() {
+        let as_of = date(2024, 1, 1);
+        let payment_date = date(2024, 2, 1);
+        let market = test_market_context(as_of);
+        let mut cap = CapFloor::new_cap(
+            "CAP-WITH-PREMIUM",
+            Money::new(1_000_000.0, Currency::USD),
+            0.04,
+            date(2024, 3, 1),
+            date(2025, 3, 1),
+            Tenor::quarterly(),
+            DayCount::Act360,
+            "TEST-DISC",
+            "USD-SOFR-3M",
+            "TEST-VOL",
+        )
+        .expect("valid cap");
+        let gross = cap.value(&market, as_of).expect("gross value");
+        cap.premium = Some((payment_date, Money::new(25_000.0, Currency::USD)));
+        let net = cap.value(&market, as_of).expect("net value");
+        let discount = market
+            .get_discount(CurveId::new("TEST-DISC"))
+            .expect("discount curve");
+        let premium_pv = 25_000.0
+            * discount
+                .df_between_dates(as_of, payment_date)
+                .expect("premium discount factor");
+        assert!((net.amount() - (gross.amount() - premium_pv)).abs() < 1.0e-8);
+    }
+
+    #[test]
+    fn settled_premium_is_excluded_and_currency_is_validated() {
+        let as_of = date(2024, 1, 1);
+        let market = test_market_context(as_of);
+        let mut cap = CapFloor::new_cap(
+            "CAP-PREMIUM-CONTRACT",
+            Money::new(1_000_000.0, Currency::USD),
+            0.04,
+            date(2024, 3, 1),
+            date(2025, 3, 1),
+            Tenor::quarterly(),
+            DayCount::Act360,
+            "TEST-DISC",
+            "USD-SOFR-3M",
+            "TEST-VOL",
+        )
+        .expect("valid cap");
+        let gross = cap.value(&market, as_of).expect("gross value");
+        cap.premium = Some((as_of, Money::new(25_000.0, Currency::USD)));
+        let settled = cap.value(&market, as_of).expect("settled premium value");
+        assert_eq!(settled, gross);
+
+        cap.premium = Some((date(2024, 2, 1), Money::new(25_000.0, Currency::EUR)));
+        let error = cap
+            .value(&market, as_of)
+            .expect_err("premium currency mismatch must fail");
+        assert!(error.to_string().contains("premium currency"));
     }
 }

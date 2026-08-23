@@ -14,6 +14,7 @@ use crate::api::core::dates::{JsDayCount, JsTenor};
 use crate::api::core::money::JsMoney;
 use crate::api::core::types::{JsBps, JsRate};
 use crate::utils::{parse_iso_date, to_js_err};
+use finstack_quant_core::dates::StubKind;
 use finstack_quant_valuations::instruments::{Instrument, InstrumentEnvelope, InstrumentJson};
 use wasm_bindgen::prelude::*;
 
@@ -31,14 +32,16 @@ pub struct JsBond {
 
 #[wasm_bindgen(js_class = Bond)]
 impl JsBond {
-    /// Create a standard fixed-rate bond (semi-annual, 30/360, T+2).
+    /// Create a US corporate fixed-rate bond (semi-annual, 30/360, T+1).
     ///
-    /// Mirrors Rust `Bond::fixed`.
+    /// Mirrors Rust `Bond::fixed` and requires an explicit stub policy.
     /// @param id - Unique instrument identifier.
     /// @param notional - Principal amount of the bond.
     /// @param couponRate - Annual coupon rate.
     /// @param issue - Issue date as an ISO-8601 string (`"YYYY-MM-DD"`).
     /// @param maturity - Maturity date as an ISO-8601 string (`"YYYY-MM-DD"`).
+    /// @param stub - Stub policy: `none`, `short_front`, `short_back`,
+    /// `long_front`, or `long_back`.
     /// @param discountCurveId - Discount curve identifier used for pricing.
     /// @returns The validated fixed-rate bond.
     /// @throws If validation fails (e.g. maturity not after issue).
@@ -48,6 +51,7 @@ impl JsBond {
         coupon_rate: &JsRate,
         issue: &str,
         maturity: &str,
+        stub: &str,
         discount_curve_id: &str,
     ) -> Result<JsBond, JsValue> {
         let inner = finstack_quant_valuations::instruments::Bond::fixed(
@@ -56,6 +60,7 @@ impl JsBond {
             coupon_rate.inner,
             parse_iso_date(issue)?,
             parse_iso_date(maturity)?,
+            stub.parse::<StubKind>().map_err(to_js_err)?,
             discount_curve_id,
         )
         .map_err(to_js_err)?;

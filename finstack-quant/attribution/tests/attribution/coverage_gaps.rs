@@ -58,6 +58,7 @@ fn coupon_payment_inside_window_keeps_total_return_identity() {
         0.05,
         date!(2024 - 07 - 20),
         date!(2029 - 07 - 20),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -139,6 +140,7 @@ fn negative_rates_regime_attribution_succeeds() {
         0.01,
         date!(2025 - 01 - 01),
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "EUR-OIS",
     )
     .unwrap();

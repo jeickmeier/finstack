@@ -54,6 +54,7 @@ fn test_deep_discount_bond_ytm() {
         0.05, // 5% coupon
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -325,6 +326,7 @@ fn test_premium_bond_ytm_solver_convergence() {
         0.08, // 8% coupon (high)
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -374,6 +376,7 @@ fn test_very_long_maturity_bond() {
         0.04,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -424,6 +427,7 @@ fn test_near_maturity_bond_ytm() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -471,6 +475,7 @@ fn test_negative_ytm_extreme_premium() {
         0.005, // 0.5% coupon
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

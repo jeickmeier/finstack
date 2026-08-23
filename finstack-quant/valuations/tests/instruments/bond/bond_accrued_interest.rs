@@ -28,6 +28,7 @@ fn test_accrued_interest_linear_default() {
         0.06, // 6% annual, semi-annual payments = 3% per period
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -66,6 +67,7 @@ fn test_accrued_interest_compounded_vs_linear() {
         0.06, // 6% annual coupon, semi-annual = 3% per period
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -77,6 +79,7 @@ fn test_accrued_interest_compounded_vs_linear() {
         0.06,
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -138,6 +141,7 @@ fn test_accrued_interest_compounded_zero_coupon() {
         0.0, // Zero coupon
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -166,6 +170,7 @@ fn test_accrued_interest_ex_coupon_period() {
         0.05,
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -209,6 +214,7 @@ fn test_accrued_interest_just_before_ex_coupon_window_positive() {
         0.05,
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -241,6 +247,7 @@ fn test_accrued_interest_at_coupon_boundaries() {
         0.04, // 4% annual, semi-annual = 2% per period
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -437,6 +444,7 @@ fn test_accrual_method_serialization() {
         0.025,
         make_date(2025, 1, 1),
         make_date(2035, 1, 1),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "EUR-OIS",
     )
     .unwrap();
@@ -463,6 +471,7 @@ fn test_bond_deserialization_defaults_accrual_method_and_call_put_period() {
         0.05,
         make_date(2025, 1, 1),
         make_date(2030, 1, 1),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

@@ -1760,6 +1760,7 @@ mod tests {
             0.05,
             Date::from_calendar_date(2020, Month::January, 15).expect("valid date"),
             Date::from_calendar_date(2030, Month::January, 15).expect("valid date"),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("valid bond");

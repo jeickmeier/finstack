@@ -18,6 +18,7 @@ fn test_duration_zero_coupon() {
         0.0,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -61,6 +62,7 @@ fn test_yield_duration_convexity_act_act_isma() {
         0.04,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "GBP-OIS",
     )
     .unwrap();
@@ -112,6 +114,7 @@ fn test_modified_duration_matches_macaulay_over_yield() {
         0.06,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -155,6 +158,7 @@ fn test_convexity_matches_numerical_second_derivative() {
         0.05,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -212,6 +216,7 @@ fn callable_risk_bond(as_of: finstack_quant_core::dates::Date) -> Bond {
         0.05,
         as_of,
         date!(2032 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -361,6 +366,7 @@ fn test_callable_no_quote_default_basis_dv01_is_yield_basis() {
         0.05,
         as_of,
         date!(2032 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

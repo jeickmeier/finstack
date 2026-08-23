@@ -64,6 +64,7 @@ pub fn sample_bond(id: &str, maturity_year_offset: i32) -> Bond {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         USD_OIS,
     )
     .unwrap()
@@ -83,6 +84,7 @@ pub fn sample_eur_bond(id: &str, maturity_year_offset: i32) -> Bond {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         EUR_OIS,
     )
     .unwrap()

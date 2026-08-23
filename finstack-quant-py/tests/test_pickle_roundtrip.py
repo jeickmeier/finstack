@@ -19,6 +19,7 @@ from typing import Any
 import pytest
 
 import finstack_quant as fq
+from finstack_quant.core.dates import StubKind
 
 DOMAINS = [
     "analytics",
@@ -148,6 +149,7 @@ class TestRoundTrips:
             Rate(0.05),
             datetime.date(2024, 1, 1),
             datetime.date(2034, 1, 1),
+            StubKind.SHORT_FRONT,
             "USD-OIS",
         )
         self._assert_round_trip(bond)
@@ -208,6 +210,7 @@ class TestRoundTrips:
             Rate(0.05),
             datetime.date(2024, 1, 1),
             datetime.date(2034, 1, 1),
+            StubKind.SHORT_FRONT,
             "USD-OIS",
         )
         result = price_instrument(bond.to_json(), market, datetime.date(2024, 1, 1))

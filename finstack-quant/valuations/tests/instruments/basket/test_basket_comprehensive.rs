@@ -775,6 +775,7 @@ fn test_constituent_reference_with_bond_instrument() {
         0.05,
         base_date,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -1356,6 +1357,7 @@ fn test_basket_with_mixed_constituents_serialization() {
         0.05,
         date(2025, 1, 1),
         date(2030, 1, 1),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -1456,6 +1458,7 @@ fn test_constituent_reference_instrument_roundtrip() {
         0.05,
         date(2025, 1, 1),
         date(2030, 1, 1),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -1488,6 +1491,7 @@ fn test_basket_envelope_roundtrip_with_instruments() {
         0.05,
         date(2025, 1, 1),
         date(2030, 1, 1),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

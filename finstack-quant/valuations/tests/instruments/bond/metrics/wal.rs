@@ -49,6 +49,7 @@ fn test_wal_bullet_equals_time_to_maturity() {
         0.05,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -74,6 +75,7 @@ fn test_wal_decreases_as_valuation_date_advances() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

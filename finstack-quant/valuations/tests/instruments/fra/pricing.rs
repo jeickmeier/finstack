@@ -14,6 +14,23 @@ use finstack_quant_valuations::instruments::Instrument;
 use time::macros::date;
 
 #[test]
+fn fixed_fra_prices_without_forward_curve() {
+    let mut fra = create_standard_fra();
+    let fixing_date = fra.start_date - time::Duration::days(2);
+    fra.fixing_date = Some(fixing_date);
+    fra.observed_fixing = Some(0.055);
+    let as_of = fixing_date + time::Duration::days(1);
+    assert!(as_of < fra.start_date);
+
+    let discount = build_flat_discount_curve(0.05, BASE_DATE, "USD_OIS");
+    let market = MarketContext::new().insert(discount);
+    let pv = fra
+        .value(&market, as_of)
+        .expect("fixed FRA requires only observed fixing and discount curve");
+    assert!(pv.amount().is_finite());
+}
+
+#[test]
 fn test_at_market_fra_near_zero_pv() {
     // FRA struck at market forward rate should have ~zero PV
     let market = standard_market();
@@ -162,19 +179,18 @@ fn test_settlement_adjustment_present() {
 }
 
 #[test]
-fn test_zero_tau_returns_zero_pv() {
-    // FRA with same start and end date should have zero PV
+fn test_zero_tau_is_rejected() {
     let market = standard_market();
     let same_date = date!(2024 - 04 - 01);
-
     let fra = TestFraBuilder::new()
         .dates(same_date, same_date, same_date)
         .fixed_rate(0.06)
         .build();
 
-    let pv = fra.value(&market, BASE_DATE).unwrap();
-
-    assert_eq!(pv.amount(), 0.0, "Zero tau should produce zero PV");
+    assert!(
+        fra.value(&market, BASE_DATE).is_err(),
+        "zero-length FRA must fail validation"
+    );
 }
 
 #[test]

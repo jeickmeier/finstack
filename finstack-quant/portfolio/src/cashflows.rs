@@ -716,6 +716,7 @@ mod tests {
             0.05,
             as_of,
             date!(2027 - 01 - 01),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("Bond::fixed should succeed with valid parameters");
@@ -933,6 +934,7 @@ mod tests {
             0.05,
             issue,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("Bond::fixed should succeed with valid parameters");

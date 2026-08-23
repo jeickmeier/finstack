@@ -98,7 +98,7 @@ def build_swaption(
     option_type: str = "call",
     exercise_style: str = "european",
     settlement: str = "cash",
-    cash_settlement_method: str = "par_yield",
+    cash_settlement_method: str = "collateralized_cash_price",
     vol_model: str = "normal",
 ) -> Swaption:
     fixed, float_leg = swaption_legs()

@@ -23,6 +23,7 @@ fn fixed_bond() -> JsBond {
         &JsRate::new(0.05).expect("rate"),
         "2024-01-01",
         "2034-01-01",
+        "short_front",
         "USD-OIS",
     )
     .expect("fixed bond")
@@ -94,6 +95,7 @@ fn bond_fixed_to_json_is_tagged_and_matches_rust() {
         finstack_quant_core::types::Rate::from_decimal(0.05),
         time::Date::from_calendar_date(2024, time::Month::January, 1).unwrap(),
         time::Date::from_calendar_date(2034, time::Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

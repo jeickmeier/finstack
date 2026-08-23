@@ -36,6 +36,7 @@ fn simple_fixed_bond(as_of: time::Date) -> Bond {
         0.05,
         as_of,
         date!(2030 - 01 - 15),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("Test bond creation should succeed")
@@ -393,6 +394,7 @@ fn test_asw_par_metric_rejects_matured_schedule() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond");
@@ -430,6 +432,7 @@ fn test_asw_market_metric_rejects_matured_schedule() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond");
@@ -610,6 +613,7 @@ fn test_asw_par_forward_rejects_matured_schedule() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond");
@@ -646,6 +650,7 @@ fn test_asw_market_forward_rejects_matured_schedule() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond");

@@ -140,6 +140,7 @@ fn quantlib_parity_metrics_based_bond_attribution() {
         fixture.spec.coupon_rate,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("Bond::fixed");

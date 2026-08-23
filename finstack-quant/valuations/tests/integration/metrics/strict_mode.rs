@@ -51,6 +51,7 @@ fn create_test_bond(as_of: Date) -> Bond {
         0.05, // 5% coupon
         issue_date,
         maturity_date,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("Test bond creation should succeed")

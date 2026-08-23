@@ -207,6 +207,7 @@ fn test_zero_market_change_identity() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -273,6 +274,7 @@ fn test_rates_pnl_sign_convention() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -321,6 +323,7 @@ fn test_rates_pnl_positive_when_rates_decrease() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -370,6 +373,7 @@ fn test_long_short_net_zero_invariant() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -442,6 +446,7 @@ fn test_portfolio_additivity_invariant() {
         0.04,
         issue,
         create_date(2029, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -452,6 +457,7 @@ fn test_portfolio_additivity_invariant() {
         0.06,
         issue,
         create_date(2032, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -554,6 +560,7 @@ proptest! {
             coupon_rate,
             issue,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .unwrap();
@@ -632,6 +639,7 @@ proptest! {
                 0.05,
                 issue,
                 maturity,
+                finstack_quant_core::dates::StubKind::ShortFront,
                 "USD-OIS",
             )
             .unwrap();
@@ -678,6 +686,7 @@ proptest! {
             0.05,
             issue,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .unwrap();
@@ -751,6 +760,7 @@ fn test_small_notional_edge_case() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -802,6 +812,7 @@ fn test_large_notional_edge_case() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -863,6 +874,7 @@ fn test_extreme_rate_levels() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -938,6 +950,7 @@ fn test_near_maturity_edge_case() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

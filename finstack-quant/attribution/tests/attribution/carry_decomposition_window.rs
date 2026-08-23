@@ -39,6 +39,7 @@ fn inter_coupon_window_coupon_income_is_accrued_and_roll_down_small() {
         0.0425,
         date!(2024 - 03 - 15),
         date!(2034 - 03 - 15),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

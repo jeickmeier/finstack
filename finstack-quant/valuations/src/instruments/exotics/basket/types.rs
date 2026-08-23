@@ -265,6 +265,7 @@ impl Basket {
             0.05,
             date!(2024 - 01 - 01),
             date!(2034 - 01 - 01),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )?;
 

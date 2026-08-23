@@ -48,6 +48,7 @@ fn create_test_bond() -> Result<Bond> {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
 }
@@ -162,6 +163,7 @@ fn create_eur_bond() -> Result<Bond> {
         0.04,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "EUR-OIS",
     )
 }

@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+### Changed — rates lifecycle, conventions, and settlement (BREAKING)
+
+- Cash-settled swaptions now default to
+  `CashSettlementMethod::CollateralizedCashPrice`; fixed and floating
+  underlier legs carry independent day-count conventions, and the
+  single-curve forward shortcut is restricted to economically equivalent,
+  unseasoned swaps.
+- Cap/floor schedules resolve currency-standard market calendars, `expiry()`
+  reports the final contractual fixing date, and an optional dated premium
+  is discounted as a holder outflow until settlement.
+- FRA construction rejects zero accrual periods and fixed FRAs no longer
+  require a forward curve. Basis swaps reject non-positive notionals.
+- Remaining rates cashflows use start-of-day valuation semantics: events on
+  or before `as_of` are settled. Single-curve OIS instruments no longer
+  advertise redundant forward-curve dependencies.
+- Rates documentation treats the ISDA 2021 Definitions as the current
+  framework and labels ISDA 2006 conventions as legacy transaction terms.
+
+### Changed — fixed-rate bond pricing and quote conventions (BREAKING)
+
+- `Bond::fixed` now requires an explicit `StubKind`; Python and WASM expose
+  the same stub choice. Existing callers must choose `None`, short/long front,
+  or short/long back instead of inheriting a silent short-front assumption.
+- Bond `Instrument::value` now remains an `as_of` NPV when a clean/dirty,
+  yield, Z-spread, or OAS quote drives valuation. Clean, dirty, and accrued
+  metrics are consistently settlement-anchored.
+- Settlement is clamped to issue date and configured calendars fail closed.
+- TreasuryActual long-first-coupon pricing follows 31 CFR Part 356,
+  Appendix B, and its one-cashflow yield conversion now round-trips.
+
 ## [0.7.0] - 2026-08-17
 
 ### Removed — legacy pathways, waves 1-6 (BREAKING)

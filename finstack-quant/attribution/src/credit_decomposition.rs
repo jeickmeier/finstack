@@ -634,6 +634,7 @@ mod tests {
             0.05,
             create_date(2024, Month::January, 1).unwrap(),
             create_date(2030, Month::January, 1).unwrap(),
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("bond construction");

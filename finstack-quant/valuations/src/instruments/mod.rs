@@ -68,6 +68,7 @@
 //!     finstack_quant_core::types::Rate::from_percent(4.5),
 //!     issue,
 //!     maturity,
+//!     finstack_quant_core::dates::StubKind::None,
 //!     "USD-OIS",
 //! )?;
 //!

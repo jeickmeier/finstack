@@ -18,57 +18,51 @@ fn expected_forward_rate(
 ) -> f64 {
     equivalent_vanilla_irs_par_rate(swaption, market, as_of)
 }
-
-struct SingleCurveForwardSpec {
-    start: finstack_quant_core::dates::Date,
-    end: finstack_quant_core::dates::Date,
-    frequency: Tenor,
-    day_count: DayCount,
-    stub: StubKind,
-    payment_lag_days: i32,
-}
-
-fn expected_single_curve_payment_date_forward(
-    spec: SingleCurveForwardSpec,
+fn expected_discount_projected_par_rate(
+    swaption: &Swaption,
     market: &finstack_quant_core::market_data::context::MarketContext,
     as_of: finstack_quant_core::dates::Date,
 ) -> f64 {
+    use finstack_quant_core::math::NeumaierAccumulator;
+    use finstack_quant_cashflows::builder::periods::{build_periods, BuildPeriodsParams};
+    use finstack_quant_cashflows::builder::RollRule;
+
     let disc = market.get_discount("USD_OIS").expect("discount curve");
-    let schedule = finstack_quant_cashflows::builder::periods::build_periods(
-        finstack_quant_cashflows::builder::periods::BuildPeriodsParams {
-            start: spec.start,
-            end: spec.end,
-            frequency: spec.frequency,
-            stub: spec.stub,
-            business_day_convention: BusinessDayConvention::ModifiedFollowing,
-            calendar_id: finstack_quant_cashflows::builder::calendar::WEEKENDS_ONLY_ID,
-            end_of_month: false,
-            day_count: spec.day_count,
-            payment_lag_days: spec.payment_lag_days,
-            reset_lag_days: None,
-            adjust_accrual_dates: false,
-            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
-        },
-    )
-    .expect("fixed schedule");
-    let mut forward_leg = 0.0;
-    let mut annuity = 0.0;
-    for period in schedule {
+    let fixed_annuity = swaption
+        .swap_annuity(disc.as_ref(), as_of)
+        .expect("fixed annuity");
+    let float = &swaption.underlying_float_leg;
+    let periods = build_periods(BuildPeriodsParams {
+        start: float.start,
+        end: float.end,
+        frequency: float.frequency,
+        stub: float.stub,
+        business_day_convention: float.business_day_convention,
+        calendar_id: float.calendar_id.as_deref().unwrap_or("weekends_only"),
+        end_of_month: float.end_of_month,
+        day_count: float.day_count,
+        payment_lag_days: float.payment_lag_days,
+        reset_lag_days: Some(float.reset_lag_days),
+        adjust_accrual_dates: false,
+        roll_rule: RollRule::None,
+    })
+    .expect("floating periods");
+    let mut float_pv = NeumaierAccumulator::new();
+    for period in periods {
         let df_start = disc
             .df_between_dates(as_of, period.accrual_start)
-            .expect("df start");
+            .expect("start discount factor");
         let df_end = disc
             .df_between_dates(as_of, period.accrual_end)
-            .expect("df end");
+            .expect("end discount factor");
         let df_pay = disc
             .df_between_dates(as_of, period.payment_date)
-            .expect("df pay");
-        let forward = (df_start / df_end - 1.0) / period.accrual_year_fraction;
-        forward_leg += period.accrual_year_fraction * forward * df_pay;
-        annuity += period.accrual_year_fraction * df_pay;
+            .expect("payment discount factor");
+        float_pv.add((df_start / df_end - 1.0) * df_pay);
     }
-    forward_leg / annuity
+    float_pv.total() / fixed_annuity
 }
+
 
 #[test]
 fn test_forward_swap_rate_calculation() {
@@ -176,6 +170,20 @@ fn test_annuity_dispatch_matches_selected_settlement_method() {
         "physical settlement annuity",
     );
 
+    let collateralized = base
+        .clone()
+        .with_settlement(SwaptionSettlement::Cash)
+        .with_cash_settlement_method(CashSettlementMethod::CollateralizedCashPrice);
+    let collateralized_annuity = collateralized
+        .annuity(disc.as_ref(), as_of, forward)
+        .unwrap();
+    assert_approx_eq(
+        collateralized_annuity,
+        expected_physical,
+        1e-12,
+        "collateralized cash-price annuity",
+    );
+
     let par_yield = base
         .clone()
         .with_settlement(SwaptionSettlement::Cash)
@@ -271,18 +279,7 @@ fn test_forward_swap_rate_single_curve_matches_payment_date_cashflows() {
     swaption.underlying_float_leg.forward_curve_id = swaption.get_discount_curve_id().clone();
 
     let forward = swaption.forward_swap_rate(&market, as_of).unwrap();
-    let expected = expected_single_curve_payment_date_forward(
-        SingleCurveForwardSpec {
-            start: swap_start,
-            end: swap_end,
-            frequency: swaption.get_fixed_frequency(),
-            day_count: swaption.get_day_count(),
-            stub: StubKind::None,
-            payment_lag_days: 0,
-        },
-        &market,
-        as_of,
-    );
+    let expected = expected_discount_projected_par_rate(&swaption, &market, as_of);
     assert_approx_eq(forward, expected, 1e-12, "single-curve forward swap rate");
 }
 
@@ -308,18 +305,7 @@ fn test_single_curve_forward_honors_explicit_fixed_leg_payment_cashflows() {
         end_of_month: false,
     };
 
-    let expected = expected_single_curve_payment_date_forward(
-        SingleCurveForwardSpec {
-            start: swap_start,
-            end: swap_end,
-            frequency: Tenor::annual(),
-            day_count: DayCount::Act360,
-            stub: StubKind::ShortFront,
-            payment_lag_days: 2,
-        },
-        &market,
-        as_of,
-    );
+    let expected = expected_discount_projected_par_rate(&swaption, &market, as_of);
 
     let forward = swaption
         .forward_swap_rate(&market, as_of)

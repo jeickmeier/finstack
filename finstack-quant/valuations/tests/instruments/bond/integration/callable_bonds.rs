@@ -27,6 +27,7 @@ fn test_callable_bond_basic() {
         0.06,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -59,6 +60,7 @@ fn test_putable_bond_basic() {
         0.04,
         as_of,
         date!(2030 - 01 - 01),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

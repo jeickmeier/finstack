@@ -28,6 +28,7 @@ fn test_build_instrument_from_bond_spec() {
         0.05,
         Date::from_calendar_date(2025, Month::January, 15).expect("valid date"),
         Date::from_calendar_date(2030, Month::January, 15).expect("valid date"),
+        finstack_quant_core::dates::StubKind::ShortFront,
         CurveId::new("USD-OIS"),
     )
     .expect("Bond::fixed should succeed with valid parameters");
@@ -83,6 +84,7 @@ fn test_reporting_totals_sum_without_fx_when_same_currency() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         CurveId::new("USD-OIS"),
     )
     .expect("bond_1");
@@ -93,6 +95,7 @@ fn test_reporting_totals_sum_without_fx_when_same_currency() {
         0.06,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         CurveId::new("USD-OIS"),
     )
     .expect("bond_2");

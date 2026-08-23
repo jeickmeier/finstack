@@ -221,6 +221,7 @@ mod bond_contract {
             0.05,
             issue,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .unwrap();

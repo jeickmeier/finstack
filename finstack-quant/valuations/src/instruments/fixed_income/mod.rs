@@ -36,6 +36,7 @@
 //!     0.045, // 4.5% coupon
 //!     date!(2025-01-15),
 //!     date!(2030-01-15),
+//!     finstack_quant_core::dates::StubKind::None,
 //!     "USD-TREASURY",
 //! ).expect("valid bond");
 //!

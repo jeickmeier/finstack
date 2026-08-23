@@ -76,6 +76,23 @@
           ],
           "description": "Optional compounded-overnight coupon terms.\n\n`None` preserves the legacy term-index/simple-forward caplet contract.\nSet this explicitly for caps on compounded SOFR, SONIA, €STR, or another\novernight RFR coupon."
         },
+        "premium": {
+          "description": "Optional dated premium paid by the cap/floor holder.\n\nA positive amount is an outflow from the holder and reduces NPV while\nthe payment date is strictly after `as_of`. The premium currency must\nmatch the notional currency.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+            }
+          ],
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "rate_option_type": {
           "$ref": "#/$defs/RateOptionType",
           "description": "Option type"
@@ -184,16 +201,16 @@
       ]
     },
     "FloatingLegCompounding": {
-      "description": "Method for calculating floating leg coupon payments.\n\nDifferent reference rates require different compounding conventions:\n- **Term rates (SOFR 3M, EURIBOR, historical LIBOR)**: Simple interest\n- **Overnight rates (SOFR, SONIA, €STR, TONA)**: Compounded in arrears\n\n# Market Standards\n\n## Simple (LIBOR-style)\n- **Formula**: `Coupon = Notional × (Forward_Rate + Spread) × DCF`\n- **Use for**: USD LIBOR, EUR EURIBOR, GBP LIBOR (historical)\n- **Standard**: ISDA 2006 Definitions\n\n## Compounded In Arrears (RFR-style)\n- **Formula**: `Coupon = Notional × [∏(1 + r_i × dcf_i) - 1]`\n- **Use for**: USD SOFR, GBP SONIA, EUR €STR, JPY TONA\n- **Standard**: ISDA 2021 Definitions\n- **Lookback**: Typically 2-5 business days before period end\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;\n\n// LIBOR-style swap (simple compounding)\nlet simple = FloatingLegCompounding::Simple;\nassert_eq!(simple, FloatingLegCompounding::default());\n\n// SOFR OIS swap: plain compounded in arrears (no lookback)\nlet sofr = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };\nassert_eq!(sofr, FloatingLegCompounding::sofr());\n\n// SONIA FRN-style leg with the BoE 5-day lookback (explicit, not the OIS preset)\nlet sonia_frn = FloatingLegCompounding::CompoundedInArrears { lookback_days: 5 };\nassert_ne!(sonia_frn, FloatingLegCompounding::sonia());\n```\n\n# References\n\n- **ISDA 2021 Definitions**: Compounded RFR conventions `docs/REFERENCES.md#isda-2021-definitions`\n- **ARRC** (Alternative Reference Rates Committee): SOFR conventions `docs/REFERENCES.md#arrc-sofr-users-guide`\n- **BoE** (Bank of England): SONIA conventions `docs/REFERENCES.md#boe-sonia-key-features`\n- **ECB**: €STR conventions `docs/REFERENCES.md#ecb-estr-methodology`\n\nIn the IRS instrument implementation, the RFR-style variant\n(`CompoundedInArrears`) is also used to classify swaps as OIS for\ndiscount-only float-leg pricing; see `InterestRateSwap::is_single_curve_ois` for details.",
+      "description": "Method for calculating floating leg coupon payments.\n\nDifferent reference rates require different compounding conventions:\n- **Term rates (SOFR 3M, EURIBOR, historical LIBOR)**: Simple interest\n- **Overnight rates (SOFR, SONIA, €STR, TONA)**: Compounded in arrears\n\n# Market Standards\n\n## Simple term-rate coupons\n- **Formula**: `Coupon = Notional × (Forward_Rate + Spread) × DCF`\n- **Use for**: current term-rate indices and legacy IBOR transactions\n- **Standard**: ISDA 2021 Definitions; ISDA 2006 for legacy transactions\n\n## Compounded In Arrears (RFR-style)\n- **Formula**: `Coupon = Notional × [∏(1 + r_i × dcf_i) - 1]`\n- **Use for**: USD SOFR, GBP SONIA, EUR €STR, JPY TONA\n- **Standard**: ISDA 2021 Definitions\n- **Observation convention**: plain in-arrears for standard OIS presets;\n  lookback, observation shift, and cutoff are explicit contract variants\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;\n\n// LIBOR-style swap (simple compounding)\nlet simple = FloatingLegCompounding::Simple;\nassert_eq!(simple, FloatingLegCompounding::default());\n\n// SOFR OIS swap: plain compounded in arrears (no lookback)\nlet sofr = FloatingLegCompounding::CompoundedInArrears { lookback_days: 0 };\nassert_eq!(sofr, FloatingLegCompounding::sofr());\n\n// SONIA FRN-style leg with the BoE 5-day lookback (explicit, not the OIS preset)\nlet sonia_frn = FloatingLegCompounding::CompoundedInArrears { lookback_days: 5 };\nassert_ne!(sonia_frn, FloatingLegCompounding::sonia());\n```\n\n# References\n\n- **ISDA 2021 Definitions**: Compounded RFR conventions `docs/REFERENCES.md#isda-2021-definitions`\n- **ARRC** (Alternative Reference Rates Committee): SOFR conventions `docs/REFERENCES.md#arrc-sofr-users-guide`\n- **BoE** (Bank of England): SONIA conventions `docs/REFERENCES.md#boe-sonia-key-features`\n- **ECB**: €STR conventions `docs/REFERENCES.md#ecb-estr-methodology`\n\nIn the IRS instrument implementation, the RFR-style variant\n(`CompoundedInArrears`) is also used to classify swaps as OIS for\ndiscount-only float-leg pricing; see `InterestRateSwap::is_single_curve_ois` for details.",
       "oneOf": [
         {
           "const": "simple",
-          "description": "Simple interest compounding (term-rate style).\n\nCoupon = Notional × (Forward_Rate + Spread) × Day_Count_Fraction\n\nUse for:\n- Term SOFR / EURIBOR-style swaps with fixed-tenor indices\n- Legacy USD/EUR/GBP LIBOR swaps (for back-testing only)\n\nThis is the current default behavior for vanilla IRS and matches\nISDA 2006 term-rate conventions.",
+          "description": "Simple interest compounding (term-rate style).\n\nCoupon = Notional × (Forward_Rate + Spread) × Day_Count_Fraction\n\nUse for:\n- Current fixed-tenor term-rate indices\n- Legacy USD/EUR/GBP LIBOR swaps\n\nThis is the generic vanilla-IRS default; the rate-index convention\nregistry selects compounded RFR terms for overnight indices.",
           "type": "string"
         },
         {
           "additionalProperties": false,
-          "description": "Compounded in arrears (overnight RFR rates).\n\nCoupon = Notional × [∏(1 + r_i × dcf_i) - 1] where the product\nis taken over daily observations in the accrual period.\n\nUse for:\n- USD SOFR (Secured Overnight Financing Rate)\n- GBP SONIA (Sterling Overnight Index Average)\n- EUR €STR (Euro Short-Term Rate)\n- JPY TONA (Tokyo Overnight Average Rate)\n\n# Fields\n\n- `lookback_days`: Days to shift observation end date before period end (typically 2-5)\n\n# Market Conventions\n\n- **SOFR**: 2-day lookback (ARRC recommended)\n- **SONIA**: 5-day lookback (BoE recommended)\n- **€STR**: 2-day shift (ECB convention)\n- **TONA**: 2-day lag (JSCC convention)",
+          "description": "Compounded in arrears (overnight RFR rates).\n\nCoupon = Notional × [∏(1 + r_i × dcf_i) - 1] where the product\nis taken over daily observations in the accrual period.\n\nUse for:\n- USD SOFR (Secured Overnight Financing Rate)\n- GBP SONIA (Sterling Overnight Index Average)\n- EUR €STR (Euro Short-Term Rate)\n- JPY TONA (Tokyo Overnight Average Rate)\n\n# Fields\n\n- `lookback_days`: Business days by which observation dates move\n  backward while accrual day-count weights remain unshifted.\n\nStandard cleared OIS presets use zero lookback. Non-zero lookbacks are\nexplicit contractual variants, commonly used for RFR-linked notes.",
           "properties": {
             "compounded_in_arrears": {
               "properties": {

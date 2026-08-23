@@ -292,6 +292,7 @@ pub fn sample_bond(id: &str, maturity_year_offset: i32) -> Bond {
         0.05,
         AS_OF,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         USD_SOFR,
     )
     .unwrap();

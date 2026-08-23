@@ -260,10 +260,10 @@ plus `metrics/`, `integration/` and `validation/` subdirectories.
 
 ## References
 
-- ISDA 2006 Definitions —
-  [`docs/REFERENCES.md#isda-2006-definitions`](../../../../../../docs/REFERENCES.md#isda-2006-definitions)
-- ISDA 2021 Definitions (compounded RFRs) —
+- ISDA 2021 Definitions (current term-rate and compounded-RFR framework) —
   [`docs/REFERENCES.md#isda-2021-definitions`](../../../../../../docs/REFERENCES.md#isda-2021-definitions)
+- ISDA 2006 Definitions (legacy transactions) —
+  [`docs/REFERENCES.md#isda-2006-definitions`](../../../../../../docs/REFERENCES.md#isda-2006-definitions)
 - ARRC SOFR conventions —
   [`docs/REFERENCES.md#arrc-sofr-users-guide`](../../../../../../docs/REFERENCES.md#arrc-sofr-users-guide)
 - Bank of England SONIA key features —

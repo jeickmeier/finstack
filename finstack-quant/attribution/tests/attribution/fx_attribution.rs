@@ -156,6 +156,7 @@ fn test_fx_attribution_parallel_internal_exposure() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -227,6 +228,7 @@ fn test_waterfall_attribution_sum_equality() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -315,6 +317,7 @@ fn test_fx_attribution_cross_currency_exposure() {
         0.03, // 3% EUR coupon
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "EUR-OIS",
     )
     .unwrap();
@@ -484,6 +487,7 @@ fn test_fx_attribution_eur_weakening() {
         0.03,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "EUR-OIS",
     )
     .unwrap();
@@ -543,6 +547,7 @@ fn test_waterfall_factor_ordering_sensitivity() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -630,6 +635,7 @@ fn test_waterfall_rejects_non_carry_first_order() {
         0.05,
         create_date(2025, Month::January, 1).unwrap(),
         create_date(2030, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -673,6 +679,7 @@ fn test_waterfall_rejects_duplicate_factors() {
         0.05,
         create_date(2025, Month::January, 1).unwrap(),
         create_date(2030, Month::January, 1).unwrap(),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

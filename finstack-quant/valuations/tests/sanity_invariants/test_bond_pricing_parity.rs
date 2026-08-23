@@ -48,6 +48,7 @@ fn create_2y_bond(issue: Date, maturity: Date) -> Bond {
         COUPON_RATE,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("bond construction should succeed")

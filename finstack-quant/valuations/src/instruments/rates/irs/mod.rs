@@ -67,11 +67,11 @@
 //!
 //! ## Academic & Industry Standards
 //!
-//! - **ISDA 2006 Definitions**: Standard definitions for interest rate derivatives,
-//!   including day count conventions, business day adjustments, and calculation
-//!   methodologies `docs/REFERENCES.md#isda-2006-definitions`
-//! - **ISDA 2021 Definitions**: Updated definitions for risk-free rate (RFR)
-//!   derivatives using compounded rates in arrears `docs/REFERENCES.md#isda-2021-definitions`
+//! - **ISDA 2021 Definitions**: Current interest-rate derivative framework,
+//!   including RFR compounding and modern floating-rate options
+//!   `docs/REFERENCES.md#isda-2021-definitions`
+//! - **ISDA 2006 Definitions**: Legacy transaction conventions retained for
+//!   historical contracts `docs/REFERENCES.md#isda-2006-definitions`
 //! - Hull, J. C. (2018). *Options, Futures, and Other Derivatives* (10th ed.).
 //!   Pearson. Chapter 7: Swaps. `docs/REFERENCES.md#hull-options-futures`
 //! - Tuckman, B., & Serrat, A. (2011). *Fixed Income Securities: Tools for

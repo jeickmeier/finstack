@@ -87,6 +87,7 @@ fn test_accrued_interest_semi_annual_bond() -> Result<(), Box<dyn std::error::Er
         0.05,
         issue_date,
         maturity_date,
+        finstack_quant_core::dates::StubKind::ShortFront,
         CurveId::new("USD-OIS"),
     )?;
 

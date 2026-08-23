@@ -909,6 +909,7 @@ mod tests {
             0.06,
             as_of,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("bond");
@@ -1006,6 +1007,7 @@ mod tests {
             0.06,
             as_of,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("bond");
@@ -1104,6 +1106,7 @@ mod tests {
             0.06,
             as_of,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .expect("bond");

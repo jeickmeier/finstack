@@ -50,6 +50,7 @@ fn test_fixed_rate_cashflows() {
         0.06,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -81,6 +82,7 @@ fn test_cashflow_dates_alignment() {
         0.05,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -302,6 +304,7 @@ fn test_cashflows_for_matured_bond() {
         0.05,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -383,6 +386,7 @@ fn test_zero_coupon_cashflows() {
         0.0,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();
@@ -415,6 +419,7 @@ fn test_cashflows_notional_scaling() {
             0.05,
             as_of,
             maturity,
+            finstack_quant_core::dates::StubKind::ShortFront,
             "USD-OIS",
         )
         .unwrap();
@@ -441,6 +446,7 @@ fn test_cashflow_schedule_fixed() {
         0.06,
         as_of,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap();

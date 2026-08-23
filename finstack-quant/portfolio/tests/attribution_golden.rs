@@ -30,6 +30,7 @@ fn test_attribution_parallel_rates_shift() {
         0.05, // 5% coupon
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD",
     )
     .expect("Bond::fixed should succeed with valid parameters");
@@ -100,6 +101,7 @@ fn test_attribution_metrics_based_rates_shift() {
         0.05,
         as_of_t0,
         as_of_t0 + Duration::days(1825),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD",
     )
     .expect("bond");
@@ -147,6 +149,7 @@ fn test_attribution_metrics_based_fx_translation() {
         0.03,
         as_of_t0,
         as_of_t0 + Duration::days(365),
+        finstack_quant_core::dates::StubKind::ShortFront,
         "EUR",
     )
     .expect("bond");
@@ -198,6 +201,7 @@ fn test_attribution_fx_translation() {
         0.03,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "EUR",
     )
     .expect("Bond::fixed should succeed with valid parameters");
@@ -284,6 +288,7 @@ fn test_attribution_carry_theta() {
         0.05, // 5% coupon
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD",
     )
     .expect("Bond::fixed should succeed with valid parameters");
@@ -362,6 +367,7 @@ fn test_parallel_portfolio_attribution_closes_with_serial_inner_policy() {
                 0.04,
                 issue,
                 maturity,
+                finstack_quant_core::dates::StubKind::ShortFront,
                 "USD",
             )
             .expect("Bond::fixed should succeed with valid parameters");

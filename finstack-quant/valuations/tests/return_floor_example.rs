@@ -64,6 +64,7 @@ fn build_floored_loan() -> Bond {
         0.10, // 10% coupon
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .expect("loan construction should succeed")
@@ -198,6 +199,7 @@ fn min_moic_shortcut_equivalent_to_explicit_full_window_spec() {
         0.10,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap()
@@ -210,6 +212,7 @@ fn min_moic_shortcut_equivalent_to_explicit_full_window_spec() {
         0.10,
         issue,
         maturity,
+        finstack_quant_core::dates::StubKind::ShortFront,
         "USD-OIS",
     )
     .unwrap()
