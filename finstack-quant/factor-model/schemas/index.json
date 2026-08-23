@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "$id": "https://finstack_quant.dev/schemas/factor_model/1/credit_calibration_config.schema.json",
-      "bytes": 16007,
+      "bytes": 16926,
       "kind": "component",
       "path": "schemas/factor_model/1/credit_calibration_config.schema.json",
       "summary": "Estimator choice and bounds for credit factor calibration.",
@@ -10,7 +10,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/factor_model/1/credit_calibration_inputs.schema.json",
-      "bytes": 7422,
+      "bytes": 7855,
       "kind": "component",
       "path": "schemas/factor_model/1/credit_calibration_inputs.schema.json",
       "summary": "Observed spread panel feeding credit factor calibration.",
@@ -18,7 +18,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/factor_model/1/credit_factor_model.schema.json",
-      "bytes": 90174,
+      "bytes": 91926,
       "kind": "input",
       "path": "schemas/factor_model/1/credit_factor_model.schema.json",
       "summary": "Calibrated credit factor hierarchy, loadable as pricing input.",

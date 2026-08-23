@@ -242,7 +242,41 @@ fn validate_regular_grid(
     dates: &[finstack_quant_core::dates::Date],
     frequency: super::config::PanelFrequency,
 ) -> Result<()> {
+    use finstack_quant_core::dates::DateExt;
+
     if dates.is_empty() {
+        return Ok(());
+    }
+    // Daily panels are business-day series: exact-grid matching would reject
+    // every real market panel at the first holiday, so the check is weekday
+    // membership plus a bounded gap. The 7-calendar-day bound tolerates
+    // weekends and holiday closures up to a full week while rejecting grids
+    // that are obviously not daily (fortnightly, monthly). Annualization for
+    // Daily is the market-standard 252 (see `PanelFrequency::Daily`).
+    if frequency == super::config::PanelFrequency::Daily {
+        const MAX_DAILY_GAP_DAYS: i64 = 7;
+        for (idx, date) in dates.iter().copied().enumerate() {
+            if date.is_weekend() {
+                return Err(validation_err(format!(
+                    "CreditCalibrator: history_panel.dates is not a business-day \
+                     (Daily) grid; date {date:?} at index {idx} falls on a weekend"
+                )));
+            }
+        }
+        for (idx, pair) in dates.windows(2).enumerate() {
+            let gap = (pair[1] - pair[0]).whole_days();
+            if gap > MAX_DAILY_GAP_DAYS {
+                return Err(validation_err(format!(
+                    "CreditCalibrator: history_panel.dates is not a Daily grid; \
+                     gap of {gap} calendar days between {:?} and {:?} (indices \
+                     {idx} and {}) exceeds the {MAX_DAILY_GAP_DAYS}-day holiday \
+                     tolerance",
+                    pair[0],
+                    pair[1],
+                    idx + 1
+                )));
+            }
+        }
         return Ok(());
     }
     let origin = dates[0];

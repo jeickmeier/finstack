@@ -1180,4 +1180,198 @@ mod calibration_pipeline {
             "error must name the missing duration, got: {msg}"
         );
     }
+
+    /// The historical peel must weight each date by contemporaneous DTS, not
+    /// the as-of cross-section. WIDE starts at 200 bp and jumps to 300 bp:
+    /// the first factor history entry must use the 100/200 DTS split
+    /// (`(1·100 + 2·200)/3 ≈ 166.67`), not the as-of 100/300 split
+    /// (`0.25·100 + 0.75·200 = 175` — the pre-fix look-ahead value).
+    #[test]
+    fn dts_historical_peel_uses_contemporaneous_weights() {
+        let n = 12;
+        let dates = monthly_dates(n);
+        let tight = vec![0.01; n];
+        let wide: Vec<f64> = (0..n).map(|i| if i == 0 { 0.02 } else { 0.03 }).collect();
+        let mut tags = BTreeMap::new();
+        let mut spreads = BTreeMap::new();
+        let mut as_of_spreads = BTreeMap::new();
+        let mut spread_durations = BTreeMap::new();
+        for (id, series) in [("TIGHT", tight), ("WIDE", wide)] {
+            let issuer = IssuerId::new(id);
+            tags.insert(
+                issuer.clone(),
+                IssuerTags(BTreeMap::from([("rating".to_string(), "IG".to_string())])),
+            );
+            spreads.insert(issuer.clone(), series.iter().map(|v| Some(*v)).collect());
+            as_of_spreads.insert(issuer.clone(), series[n - 1]);
+            spread_durations.insert(issuer, 5.0);
+        }
+        let config = CreditCalibrationConfig {
+            policy: IssuerBetaPolicy::GloballyOff,
+            hierarchy: CreditHierarchySpec {
+                levels: vec![HierarchyDimension::Rating],
+            },
+            min_bucket_size_per_level: BucketSizeThresholds { per_level: vec![1] },
+            vol_model: VolModelChoice::Sample,
+            covariance_strategy: CovarianceStrategy::Diagonal,
+            beta_shrinkage: BetaShrinkage::None,
+            use_returns_or_levels: PanelSpace::Levels,
+            panel_frequency: PanelFrequency::Monthly,
+            bucket_weighting: BucketWeighting::Dts,
+        };
+        let model = CreditCalibrator::new(config)
+            .calibrate(CreditCalibrationInputs {
+                history_panel: HistoryPanel {
+                    dates: dates.clone(),
+                    spreads,
+                },
+                issuer_tags: IssuerTagPanel { tags },
+                generic_factor: GenericFactorSeries {
+                    spec: GenericFactorSpec {
+                        name: "CDX IG".into(),
+                        series_id: "cdx.ig".into(),
+                    },
+                    values: vec![0.0; n],
+                },
+                as_of: dates[n - 1],
+                as_of_spreads,
+                idiosyncratic_overrides: BTreeMap::new(),
+                spread_durations,
+            })
+            .expect("DTS calibration succeeds");
+
+        let histories = model.factor_histories.as_ref().expect("histories present");
+        let ig = histories
+            .values
+            .get(&crate::FactorId::new("credit::level0::Rating::IG"))
+            .expect("IG bucket factor history");
+        // Date 0: spreads (100, 200) bp, equal SD → weights 1/3, 2/3.
+        let expected_t0 = (100.0 + 2.0 * 200.0) / 3.0;
+        assert!(
+            (ig[0] - expected_t0).abs() < 1e-9,
+            "date-0 factor must use date-0 DTS weights ({expected_t0}), got {}",
+            ig[0]
+        );
+        // Later dates: spreads (100, 300) bp → weights 0.25 / 0.75 → 250.
+        assert!(
+            (ig[n - 1] - 250.0).abs() < 1e-9,
+            "as-of factor must be 250 bp, got {}",
+            ig[n - 1]
+        );
+        // The anchor uses the as-of cross-section, matching the last date.
+        let anchor = *model.anchor_state.by_level[0]
+            .values
+            .get("IG")
+            .expect("IG anchor");
+        assert!(
+            (anchor - 250.0).abs() < 1e-9,
+            "anchor must use as-of DTS (250 bp), got {anchor}"
+        );
+    }
+
+    fn weekday_dates(n: usize) -> Vec<Date> {
+        use finstack_quant_core::dates::DateExt;
+        // 2024-01-01 is a Monday.
+        let mut dates = Vec::with_capacity(n);
+        let mut date = create_date(2024, Month::January, 1).unwrap();
+        while dates.len() < n {
+            if !date.is_weekend() {
+                dates.push(date);
+            }
+            date = date.next_day().unwrap();
+        }
+        dates
+    }
+
+    fn calibrate_daily(dates: Vec<Date>) -> finstack_quant_core::Result<CreditFactorModel> {
+        let n = dates.len();
+        let issuer = IssuerId::new("A");
+        let mut tags = BTreeMap::new();
+        tags.insert(issuer.clone(), rating_sector_tags("TECH"));
+        let mut spreads = BTreeMap::new();
+        let series: Vec<f64> = (0..n).map(|i| 0.01 + 0.0001 * (i as f64).sin()).collect();
+        spreads.insert(issuer.clone(), series.iter().map(|v| Some(*v)).collect());
+        let mut as_of_spreads = BTreeMap::new();
+        as_of_spreads.insert(issuer, series[n - 1]);
+        let config = CreditCalibrationConfig {
+            policy: IssuerBetaPolicy::GloballyOff,
+            hierarchy: CreditHierarchySpec {
+                levels: vec![HierarchyDimension::Rating, HierarchyDimension::Sector],
+            },
+            min_bucket_size_per_level: BucketSizeThresholds {
+                per_level: vec![1, 1],
+            },
+            vol_model: VolModelChoice::Sample,
+            covariance_strategy: CovarianceStrategy::Diagonal,
+            beta_shrinkage: BetaShrinkage::None,
+            use_returns_or_levels: PanelSpace::Returns,
+            panel_frequency: PanelFrequency::Daily,
+            bucket_weighting: BucketWeighting::Equal,
+        };
+        CreditCalibrator::new(config).calibrate(CreditCalibrationInputs {
+            history_panel: HistoryPanel {
+                dates: dates.clone(),
+                spreads,
+            },
+            issuer_tags: IssuerTagPanel { tags },
+            generic_factor: GenericFactorSeries {
+                spec: GenericFactorSpec {
+                    name: "CDX IG".into(),
+                    series_id: "cdx.ig".into(),
+                },
+                values: series,
+            },
+            as_of: dates[n - 1],
+            as_of_spreads,
+            idiosyncratic_overrides: BTreeMap::new(),
+            spread_durations: BTreeMap::new(),
+        })
+    }
+
+    /// A Daily panel is a business-day series: weekends are skipped and a
+    /// mid-week holiday gap within the 7-calendar-day tolerance is accepted.
+    #[test]
+    fn daily_grid_accepts_business_days_with_holiday_gap() {
+        let mut dates = weekday_dates(11);
+        // Simulate a market holiday: drop one mid-week observation
+        // (Wed 2024-01-10), leaving a Tue → Thu gap of 2 calendar days.
+        dates.remove(7);
+        calibrate_daily(dates).expect("business-day panel with a holiday gap calibrates");
+    }
+
+    #[test]
+    fn daily_grid_rejects_weekend_dates() {
+        use finstack_quant_core::dates::DateExt;
+        let mut dates = weekday_dates(10);
+        // Replace the last weekday with the following Saturday.
+        let last = *dates.last().unwrap();
+        let saturday = (0..7)
+            .scan(last, |d, _| {
+                *d = d.next_day().unwrap();
+                Some(*d)
+            })
+            .find(|d| d.is_weekend())
+            .unwrap();
+        *dates.last_mut().unwrap() = saturday;
+        let err = calibrate_daily(dates).expect_err("weekend date must be rejected");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("weekend"),
+            "error must name the weekend date, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn daily_grid_rejects_gaps_beyond_holiday_tolerance() {
+        let mut dates = weekday_dates(24);
+        // Remove two full weeks of observations mid-panel: the surviving
+        // neighbors are 15+ calendar days apart, far beyond the tolerance.
+        dates.drain(6..16);
+        let err = calibrate_daily(dates).expect_err("a two-week gap must be rejected");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Daily") && msg.contains("gap"),
+            "error must name the oversized daily gap, got: {msg}"
+        );
+    }
 }

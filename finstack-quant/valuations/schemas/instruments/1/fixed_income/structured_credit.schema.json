@@ -2076,7 +2076,7 @@
               "type": "null"
             }
           ],
-          "description": "Diagnostic tenor for term-index projection error context.\n\nThe named forward curve is already the term index (for example a 3M\nEURIBOR curve). Projection is `fwd.rate(reset_date)`, not a FRA-style\naverage over `[reset, reset + tenor]`. This field (or\n[`Self::reset_frequency`] when `None`) is used only to compute\n`index_maturity` for error messages. Ignored for overnight-compounded\nlegs."
+          "description": "Diagnostic tenor for term-index projection error context.\n\nThe named forward curve is already the term index (for example a 3M\nEURIBOR curve). Projection is `fwd.rate(reset_date)`, not a FRA-style\naverage over `[reset, reset + tenor]`. This field (or\n[`Self::reset_frequency`] when `None`) is used only to compute\n`index_maturity` for error messages. Ignored for overnight-compounded\nlegs. When set, the builder warns at build time if it disagrees with\nthe resolved curve's tenor by more than 10% — the curve remains\nauthoritative."
         },
         "overnight_basis": {
           "anyOf": [

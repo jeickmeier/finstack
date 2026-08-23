@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::types::IssuerId;
 
-use super::config::PanelSpace;
+use super::config::{BucketWeighting, PanelSpace};
 use super::inputs::CreditCalibrationInputs;
 use crate::credit::hierarchy::{IssuerBetaMode, IssuerBetaOverride, IssuerBetaPolicy};
 use crate::credit::units::decimal_to_bp;
@@ -90,6 +90,87 @@ pub(super) fn convert_inputs_to_bp(inputs: &mut CreditCalibrationInputs) {
     for spread in inputs.as_of_spreads.values_mut() {
         *spread = decimal_to_bp(*spread);
     }
+}
+
+/// Per-issuer, per-date bucket weights for the historical peel, aligned to
+/// the working panel produced by [`build_working_panel`].
+///
+/// [`BucketWeighting::Equal`] yields `1.0` at every working-panel index.
+/// [`BucketWeighting::Dts`] yields `SD_i (years) × S_i(t) (bp)` where `S_i(t)`
+/// is the **contemporaneous** panel spread: under [`PanelSpace::Levels`] the
+/// spread at date `t`, under [`PanelSpace::Returns`] the begin-of-period
+/// spread of the move `t → t+1`. Using the as-of cross-section for every
+/// historical date would leak end-of-window information into factor history
+/// construction (names that widened into as-of would be overweighted
+/// throughout the window), biasing betas and Σ for any backtest.
+///
+/// # Arguments
+///
+/// * `weighting` - Equal (`1.0` each) or DTS (`SD_years × spread_bp`).
+/// * `space` - Working-panel space; controls the output length
+///   (`dates.len()` for Levels, `dates.len() − 1` for Returns) and which
+///   date's spread weights each observation.
+/// * `spreads_bp` - Complete history panel in **bp** (post
+///   [`convert_inputs_to_bp`]); completeness is enforced by input validation.
+/// * `spread_durations` - Duration in years, required and `> 0` when `Dts`.
+///
+/// # Errors
+///
+/// Returns a diagnostic string when DTS is selected and a duration is
+/// missing, non-finite, or `<= 0`, a panel observation is missing, or
+/// `SD × spread_bp` is not `> 0` at any date.
+pub(super) fn issuer_bucket_weight_series(
+    weighting: BucketWeighting,
+    space: &PanelSpace,
+    spreads_bp: &BTreeMap<IssuerId, Vec<Option<f64>>>,
+    spread_durations: &BTreeMap<IssuerId, f64>,
+) -> Result<BTreeMap<IssuerId, Vec<f64>>, String> {
+    let mut out = BTreeMap::new();
+    for (issuer, series) in spreads_bp {
+        let len = match space {
+            PanelSpace::Levels => series.len(),
+            PanelSpace::Returns => series.len().saturating_sub(1),
+        };
+        let weights = match weighting {
+            BucketWeighting::Equal => vec![1.0; len],
+            BucketWeighting::Dts => {
+                let sd = spread_durations.get(issuer).copied().ok_or_else(|| {
+                    format!(
+                        "dts weighting requires spread_duration (years, > 0) for issuer {:?}",
+                        issuer.as_str()
+                    )
+                })?;
+                if !sd.is_finite() || sd <= 0.0 {
+                    return Err(format!(
+                        "spread_duration for issuer {:?} must be finite and > 0 years, got {sd}",
+                        issuer.as_str()
+                    ));
+                }
+                let mut weights = Vec::with_capacity(len);
+                for t in 0..len {
+                    let spread = series.get(t).copied().flatten().ok_or_else(|| {
+                        format!(
+                            "dts weighting requires a spread (bp) for issuer {:?} at panel \
+                             index {t}",
+                            issuer.as_str()
+                        )
+                    })?;
+                    let dts = sd * spread;
+                    if !dts.is_finite() || dts <= 0.0 {
+                        return Err(format!(
+                            "dts for issuer {:?} at panel index {t} must be > 0 \
+                             (spread_duration {sd} × spread_bp {spread} = {dts})",
+                            issuer.as_str()
+                        ));
+                    }
+                    weights.push(dts);
+                }
+                weights
+            }
+        };
+        out.insert(issuer.clone(), weights);
+    }
+    Ok(out)
 }
 
 pub(super) fn build_working_panel(

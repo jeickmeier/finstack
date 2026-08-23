@@ -10,7 +10,9 @@ use super::assemble::{
 use super::config::CreditCalibrationConfig;
 use super::inputs::CreditCalibrationInputs;
 use super::inventory::{apply_fold_up, build_bucket_inventory};
-use super::panel::{build_working_panel, classify_mode, convert_inputs_to_bp};
+use super::panel::{
+    build_working_panel, classify_mode, convert_inputs_to_bp, issuer_bucket_weight_series,
+};
 use super::peel_fit::{run_peel, unit_betas};
 use super::statistics::{
     adder_vols_from_history, assign_adder_vol, build_peer_proxy_index, factor_variances,
@@ -63,7 +65,11 @@ impl CreditCalibrator {
         let mut inputs = inputs;
         convert_inputs_to_bp(&mut inputs);
 
-        let bucket_weights = crate::credit::peel::issuer_bucket_weights(
+        // As-of cross-section weights, used only for the anchor peel (step 7).
+        // The historical peel uses per-date weights built below so DTS
+        // weighting stays contemporaneous instead of leaking the as-of
+        // cross-section into every historical bucket mean.
+        let anchor_weights = crate::credit::peel::issuer_bucket_weights(
             self.config.bucket_weighting,
             inputs.history_panel.spreads.keys(),
             &inputs.spread_durations,
@@ -126,6 +132,17 @@ impl CreditCalibrator {
             &inputs.generic_factor.values,
         );
 
+        // Per-date peel weights aligned to the working panel: equal `1.0`
+        // everywhere, or contemporaneous DTS (`SD × begin-of-period spread`
+        // under Returns, `SD × same-date spread` under Levels).
+        let peel_weights = issuer_bucket_weight_series(
+            self.config.bucket_weighting,
+            &self.config.use_returns_or_levels,
+            &inputs.history_panel.spreads,
+            &inputs.spread_durations,
+        )
+        .map_err(validation_err)?;
+
         // -- 3. Bucket inventory + fold-up. ---------------------------------
         let inventory =
             build_bucket_inventory(&self.config.hierarchy, &inputs.issuer_tags.tags, &modes)?;
@@ -140,7 +157,7 @@ impl CreditCalibrator {
             &modes,
             &inventory.bucket_paths,
             &folded,
-            &bucket_weights,
+            &peel_weights,
         );
 
         // All variance/correlation estimation operates on factor and adder
@@ -198,7 +215,7 @@ impl CreditCalibrator {
             generic_at_asof,
             &peel_outcome.betas,
             &folded,
-            &bucket_weights,
+            &anchor_weights,
         )?;
 
         // -- 8. Per-factor variance forecast (sample or EWMA), over moves. --

@@ -113,6 +113,11 @@ pub(super) fn build_bucket_inventory(
 ///
 /// Returns `(folded, fold_up_records)` where `folded[issuer][k] == true` iff
 /// the issuer's bucket at level `k` was below threshold.
+///
+/// Folding sets `β_k = 0`: the sparse bucket gets no factor and its common
+/// variation flows into each member's idiosyncratic adder (see
+/// [`FoldUpRecord`] for the correlation-understatement caveat). `folded_to`
+/// names the deepest surviving ancestor for diagnostics only.
 pub(super) fn apply_fold_up(
     inventory: &BucketInventory,
     thresholds: &BucketSizeThresholds,

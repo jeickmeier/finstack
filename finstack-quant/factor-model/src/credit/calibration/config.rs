@@ -13,7 +13,15 @@ use crate::credit::hierarchy::{CreditHierarchySpec, IssuerBetaPolicy};
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum PanelFrequency {
-    /// One observation per calendar day. Annualizes with 252.
+    /// One observation per business day (Monday–Friday; market holidays may
+    /// be absent). Annualizes with the market-standard 252.
+    ///
+    /// The grid check accepts any strictly increasing weekday series whose
+    /// consecutive gaps are at most 7 calendar days, tolerating weekends and
+    /// holiday closures up to a full week. It does not attempt to distinguish
+    /// a weekly weekday series from a daily one — the frequency label is a
+    /// caller contract, and mislabeling it mis-scales every annualized
+    /// variance by the ratio of true to declared periods per year.
     Daily,
     /// One observation per month. Annualizes with 12.
     ///
@@ -50,7 +58,8 @@ impl PanelFrequency {
     /// # Arguments
     ///
     /// * `origin` - First observation on the panel. Daily steps `steps`
-    ///   calendar days; monthly/quarterly use [`DateExt::add_months`] from
+    ///   business days (Monday–Friday, no holiday calendar) and requires a
+    ///   weekday origin; monthly/quarterly use [`DateExt::add_months`] from
     ///   this origin (`steps * 1` or `steps * 3` months). When `origin` is
     ///   end-of-month, every later date is also end-of-month.
     /// * `steps` - Number of periods after `origin`. Must be non-negative.
@@ -58,7 +67,8 @@ impl PanelFrequency {
     /// # Errors
     ///
     /// Returns [`finstack_quant_core::Error::Validation`] when a daily step
-    /// overflows the representable date range.
+    /// overflows the representable date range or a daily `origin` falls on a
+    /// weekend.
     pub fn date_after(self, origin: Date, steps: i32) -> finstack_quant_core::Result<Date> {
         if steps < 0 {
             return Err(finstack_quant_core::Error::Validation(format!(
@@ -67,13 +77,24 @@ impl PanelFrequency {
         }
         match self {
             Self::Daily => {
+                if origin.is_weekend() {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "CreditCalibrator: daily panel origin {origin:?} falls on a weekend; \
+                         business-day grids start on a weekday"
+                    )));
+                }
                 let mut date = origin;
                 for _ in 0..steps {
-                    date = date.next_day().ok_or_else(|| {
-                        finstack_quant_core::Error::Validation(format!(
-                            "CreditCalibrator: daily panel overflows the date range after {origin:?}"
-                        ))
-                    })?;
+                    loop {
+                        date = date.next_day().ok_or_else(|| {
+                            finstack_quant_core::Error::Validation(format!(
+                                "CreditCalibrator: daily panel overflows the date range after {origin:?}"
+                            ))
+                        })?;
+                        if !date.is_weekend() {
+                            break;
+                        }
+                    }
                 }
                 Ok(date)
             }
@@ -195,6 +216,14 @@ pub enum CovarianceStrategy {
 /// names. Position risk exposure remains `β × CS01`; DTS does not replace
 /// CS01. [`BucketWeighting::Equal`] is the opt-out for tests and simple
 /// equally-weighted books.
+///
+/// The historical peel weights each date by **contemporaneous** DTS
+/// (`SD × begin-of-period spread` in Returns space, `SD × same-date spread`
+/// in Levels space), so no as-of information enters historical factor
+/// construction. The anchor peel and decomposition use the as-of / current
+/// cross-section DTS. Spread durations are a single per-issuer value across
+/// the window; duration drift within the window is a documented
+/// simplification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]

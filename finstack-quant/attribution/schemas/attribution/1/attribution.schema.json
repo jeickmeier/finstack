@@ -3338,7 +3338,7 @@
       ]
     },
     "BucketWeighting": {
-      "description": "How bucket factor means are weighted across issuers in the bucket.\n\nDTS (duration-times-spread) is the desk-standard credit-factor weight\n(Ben Dor / Barclays): it avoids overweighting tight or short-duration\nnames. Position risk exposure remains `β × CS01`; DTS does not replace\nCS01. [`BucketWeighting::Equal`] is the opt-out for tests and simple\nequally-weighted books.",
+      "description": "How bucket factor means are weighted across issuers in the bucket.\n\nDTS (duration-times-spread) is the desk-standard credit-factor weight\n(Ben Dor / Barclays): it avoids overweighting tight or short-duration\nnames. Position risk exposure remains `β × CS01`; DTS does not replace\nCS01. [`BucketWeighting::Equal`] is the opt-out for tests and simple\nequally-weighted books.\n\nThe historical peel weights each date by **contemporaneous** DTS\n(`SD × begin-of-period spread` in Returns space, `SD × same-date spread`\nin Levels space), so no as-of information enters historical factor\nconstruction. The anchor peel and decomposition use the as-of / current\ncross-section DTS. Spread durations are a single per-issuer value across\nthe window; duration drift within the window is a documented\nsimplification.",
       "oneOf": [
         {
           "const": "equal",
@@ -13385,7 +13385,7 @@
               "type": "null"
             }
           ],
-          "description": "Diagnostic tenor for term-index projection error context.\n\nThe named forward curve is already the term index (for example a 3M\nEURIBOR curve). Projection is `fwd.rate(reset_date)`, not a FRA-style\naverage over `[reset, reset + tenor]`. This field (or\n[`Self::reset_frequency`] when `None`) is used only to compute\n`index_maturity` for error messages. Ignored for overnight-compounded\nlegs."
+          "description": "Diagnostic tenor for term-index projection error context.\n\nThe named forward curve is already the term index (for example a 3M\nEURIBOR curve). Projection is `fwd.rate(reset_date)`, not a FRA-style\naverage over `[reset, reset + tenor]`. This field (or\n[`Self::reset_frequency`] when `None`) is used only to compute\n`index_maturity` for error messages. Ignored for overnight-compounded\nlegs. When set, the builder warns at build time if it disagrees with\nthe resolved curve's tenor by more than 10% — the curve remains\nauthoritative."
         },
         "overnight_basis": {
           "anyOf": [
@@ -13437,10 +13437,10 @@
     },
     "FoldUpRecord": {
       "additionalProperties": false,
-      "description": "Record of a single fold-up event during calibration.\n\nFold-up means **omit the sparse child factor** and set `β_k = 0` at that\nlevel. The issuer already sits in the parent bucket, so its residual\ncontinues to contribute to the parent mean. This is not a re-tagging of\nthe issuer into a different leaf.",
+      "description": "Record of a single fold-up event during calibration.\n\nFold-up means **omit the sparse child factor** and set `β_k = 0` at that\nlevel. The issuer already sits in the parent bucket, so its residual\ncontinues to contribute to the parent mean. This is not a re-tagging of\nthe issuer into a different leaf.\n\n# Where the folded risk lands\n\nNo factor is re-assigned: the variation the sparse bucket's factor would\nhave carried stays in each member's residual and flows into the\nper-issuer **adder** (idiosyncratic) vol. Members of the same folded\nbucket therefore share a common component that Σ represents as\n*uncorrelated* idiosyncratic risk — holding several names from one folded\nbucket overstates diversification for that component. Lower the level's\n[`BucketSizeThresholds`][crate::credit::calibration::BucketSizeThresholds]\nentry if that correlation materially matters for a thin bucket.",
       "properties": {
         "folded_to": {
-          "description": "Bucket path after the fold-up (e.g. `\"IG.EU\"`).",
+          "description": "Deepest surviving ancestor bucket path (e.g. `\"IG.EU\"`), recorded for\ndiagnostics only. The member's risk is **not** re-assigned to this\nbucket's factor — the parent level was already peeled at `k − 1`; the\nsparse bucket's own variation moves into the issuer adder instead.",
           "type": "string"
         },
         "issuer_id": {
@@ -21133,7 +21133,7 @@
       "oneOf": [
         {
           "const": "daily",
-          "description": "One observation per calendar day. Annualizes with 252.",
+          "description": "One observation per business day (Monday–Friday; market holidays may\nbe absent). Annualizes with the market-standard 252.\n\nThe grid check accepts any strictly increasing weekday series whose\nconsecutive gaps are at most 7 calendar days, tolerating weekends and\nholiday closures up to a full week. It does not attempt to distinguish\na weekly weekday series from a daily one — the frequency label is a\ncaller contract, and mislabeling it mis-scales every annualized\nvariance by the ratio of true to declared periods per year.",
           "type": "string"
         },
         {

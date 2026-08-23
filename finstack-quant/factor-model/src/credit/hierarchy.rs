@@ -699,6 +699,17 @@ pub struct FactorHistories {
 /// level. The issuer already sits in the parent bucket, so its residual
 /// continues to contribute to the parent mean. This is not a re-tagging of
 /// the issuer into a different leaf.
+///
+/// # Where the folded risk lands
+///
+/// No factor is re-assigned: the variation the sparse bucket's factor would
+/// have carried stays in each member's residual and flows into the
+/// per-issuer **adder** (idiosyncratic) vol. Members of the same folded
+/// bucket therefore share a common component that Σ represents as
+/// *uncorrelated* idiosyncratic risk — holding several names from one folded
+/// bucket overstates diversification for that component. Lower the level's
+/// [`BucketSizeThresholds`][crate::credit::calibration::BucketSizeThresholds]
+/// entry if that correlation materially matters for a thin bucket.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FoldUpRecord {
@@ -708,7 +719,10 @@ pub struct FoldUpRecord {
     pub level_index: usize,
     /// Bucket path before the fold-up (e.g. `"IG.EU.FIN"`).
     pub original_bucket: String,
-    /// Bucket path after the fold-up (e.g. `"IG.EU"`).
+    /// Deepest surviving ancestor bucket path (e.g. `"IG.EU"`), recorded for
+    /// diagnostics only. The member's risk is **not** re-assigned to this
+    /// bucket's factor — the parent level was already peeled at `k − 1`; the
+    /// sparse bucket's own variation moves into the issuer adder instead.
     pub folded_to: String,
     /// Human-readable reason for the fold-up (e.g. `"fewer than 5 issuers"`).
     pub reason: String,

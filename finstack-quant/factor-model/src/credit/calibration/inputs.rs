@@ -13,6 +13,11 @@ use crate::credit::hierarchy::{GenericFactorSpec, IssuerTags};
 /// `dates.len()`. Every entry must be `Some(decimal_spread)` — gaps and
 /// `None` are rejected at calibration. Callers pass **decimal** spreads
 /// (`0.01` = 100 bp).
+///
+/// Every spread must lie in the open decimal band `(-0.5, 2.0)` — i.e.
+/// below 20,000 bp. Deeply distressed quotes at or above 200% running-spread
+/// equivalents are rejected as looking like basis points; such names must be
+/// excluded from the calibration universe.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HistoryPanel {
@@ -73,9 +78,13 @@ pub struct CreditCalibrationInputs {
     /// Required when
     /// [`CreditCalibrationConfig::bucket_weighting`][super::config::CreditCalibrationConfig::bucket_weighting]
     /// is [`BucketWeighting::Dts`][super::config::BucketWeighting::Dts].
-    /// Calibration weights use as-of DTS (`SD × spread_bp`). Persisted on
-    /// each [`IssuerBetaRow`][crate::credit::hierarchy::IssuerBetaRow] so
-    /// decompose can rebuild DTS from the current spread.
+    /// The historical peel weights each date by contemporaneous DTS
+    /// (`SD × panel spread_bp` at that date); the anchor uses as-of DTS.
+    /// Persisted on each
+    /// [`IssuerBetaRow`][crate::credit::hierarchy::IssuerBetaRow] so
+    /// decompose can rebuild DTS from the current spread. The duration is a
+    /// single value across the calibration window (no per-date duration
+    /// series).
     #[serde(default)]
     pub spread_durations: BTreeMap<IssuerId, f64>,
 }

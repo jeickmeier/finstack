@@ -41,13 +41,19 @@ pub(super) struct PeelOutcome {
     pub(super) factor_returns: BTreeMap<FactorId, Vec<Option<f64>>>,
 }
 
+/// Runs the PC + per-level peel over the working panel.
+///
+/// `weights` are **per-date** bucket weights aligned to the working panel
+/// (see [`super::panel::issuer_bucket_weight_series`]): under DTS weighting
+/// each date's bucket mean uses that date's contemporaneous DTS, so no
+/// as-of information leaks into historical factor construction.
 pub(super) fn run_peel(
     config: &CreditCalibrationConfig,
     panel: &WorkingPanel,
     modes: &BTreeMap<IssuerId, IssuerBetaMode>,
     bucket_paths: &BTreeMap<IssuerId, Vec<String>>,
     folded: &BTreeMap<IssuerId, Vec<bool>>,
-    weights: &BTreeMap<IssuerId, f64>,
+    weights: &BTreeMap<IssuerId, Vec<f64>>,
 ) -> PeelOutcome {
     let n = panel.generic.len();
     let num_levels = config.hierarchy.levels.len();
@@ -156,12 +162,16 @@ pub(super) fn run_peel(
                 && parent_bucket_path(bucket)
                     .and_then(|parent| prev_bucket_members.get(parent))
                     .is_some_and(|parent_members| same_member_set(parent_members, members));
+            static EMPTY_WEIGHTS: &[f64] = &[];
             for issuer in members {
                 let mode = modes
                     .get(*issuer)
                     .copied()
                     .unwrap_or(IssuerBetaMode::BucketOnly);
-                let exclude_w = weights.get(*issuer).copied().unwrap_or(0.0);
+                let exclude_w = weights
+                    .get(*issuer)
+                    .map(Vec::as_slice)
+                    .unwrap_or(EMPTY_WEIGHTS);
                 let beta_k = {
                     let r_series = residuals.get(*issuer).map(Vec::as_slice).unwrap_or(&[]);
                     match mode {
@@ -250,9 +260,12 @@ struct BucketStats {
 }
 
 /// Weighted mean (and running totals) of observed member residuals.
+///
+/// `weights` are per-date series aligned to the working panel; the weight
+/// applied to a member's residual at date `t` is that member's weight at `t`.
 fn bucket_weighted_stats(
     members: &[&IssuerId],
-    weights: &BTreeMap<IssuerId, f64>,
+    weights: &BTreeMap<IssuerId, Vec<f64>>,
     residuals: &BTreeMap<IssuerId, Vec<Option<f64>>>,
     n: usize,
 ) -> BucketStats {
@@ -269,7 +282,11 @@ fn bucket_weighted_stats(
             else {
                 continue;
             };
-            let Some(w) = weights.get(*issuer).copied() else {
+            let Some(w) = weights
+                .get(*issuer)
+                .and_then(|series| series.get(t))
+                .copied()
+            else {
                 continue;
             };
             if w <= 0.0 {
@@ -295,10 +312,11 @@ fn bucket_weighted_stats(
 /// members are all missing / zero-weight) emit `None` so OLS falls back
 /// to unit β. If `exclude` did not contribute to the full-bucket mean at
 /// date `t` (missing residual or non-positive weight), LOO equals the
-/// full mean.
+/// full mean. `exclude_weights` is the excluded member's per-date weight
+/// series; a date beyond its length is treated as non-contributing.
 fn fill_loo_series(
     exclude_residual: &[Option<f64>],
-    exclude_weight: f64,
+    exclude_weights: &[f64],
     stats: &BucketStats,
     out: &mut Vec<Option<f64>>,
 ) {
@@ -309,7 +327,8 @@ fn fill_loo_series(
         let sum = stats.sums.get(t).copied().unwrap_or(0.0);
         let wsum = stats.wsums.get(t).copied().unwrap_or(0.0);
         let exclude_val = exclude_residual.get(t).copied().flatten();
-        out.push(loo_at(exclude_val, exclude_weight, sum, wsum, mean));
+        let exclude_w = exclude_weights.get(t).copied().unwrap_or(0.0);
+        out.push(loo_at(exclude_val, exclude_w, sum, wsum, mean));
     }
 }
 

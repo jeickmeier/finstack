@@ -55,7 +55,7 @@
       "type": "object"
     },
     "BucketWeighting": {
-      "description": "How bucket factor means are weighted across issuers in the bucket.\n\nDTS (duration-times-spread) is the desk-standard credit-factor weight\n(Ben Dor / Barclays): it avoids overweighting tight or short-duration\nnames. Position risk exposure remains `β × CS01`; DTS does not replace\nCS01. [`BucketWeighting::Equal`] is the opt-out for tests and simple\nequally-weighted books.",
+      "description": "How bucket factor means are weighted across issuers in the bucket.\n\nDTS (duration-times-spread) is the desk-standard credit-factor weight\n(Ben Dor / Barclays): it avoids overweighting tight or short-duration\nnames. Position risk exposure remains `β × CS01`; DTS does not replace\nCS01. [`BucketWeighting::Equal`] is the opt-out for tests and simple\nequally-weighted books.\n\nThe historical peel weights each date by **contemporaneous** DTS\n(`SD × begin-of-period spread` in Returns space, `SD × same-date spread`\nin Levels space), so no as-of information enters historical factor\nconstruction. The anchor peel and decomposition use the as-of / current\ncross-section DTS. Spread durations are a single per-issuer value across\nthe window; duration drift within the window is a documented\nsimplification.",
       "oneOf": [
         {
           "const": "equal",
@@ -230,7 +230,7 @@
       "oneOf": [
         {
           "const": "daily",
-          "description": "One observation per calendar day. Annualizes with 252.",
+          "description": "One observation per business day (Monday–Friday; market holidays may\nbe absent). Annualizes with the market-standard 252.\n\nThe grid check accepts any strictly increasing weekday series whose\nconsecutive gaps are at most 7 calendar days, tolerating weekends and\nholiday closures up to a full week. It does not attempt to distinguish\na weekly weekday series from a daily one — the frequency label is a\ncaller contract, and mislabeling it mis-scales every annualized\nvariance by the ratio of true to declared periods per year.",
           "type": "string"
         },
         {

@@ -49,7 +49,7 @@
     },
     "HistoryPanel": {
       "additionalProperties": false,
-      "description": "Issuer-spread history aligned to a complete regular date grid.\n\n`dates` is the sorted observation grid. `spreads[issuer]` has length\n`dates.len()`. Every entry must be `Some(decimal_spread)` — gaps and\n`None` are rejected at calibration. Callers pass **decimal** spreads\n(`0.01` = 100 bp).",
+      "description": "Issuer-spread history aligned to a complete regular date grid.\n\n`dates` is the sorted observation grid. `spreads[issuer]` has length\n`dates.len()`. Every entry must be `Some(decimal_spread)` — gaps and\n`None` are rejected at calibration. Callers pass **decimal** spreads\n(`0.01` = 100 bp).\n\nEvery spread must lie in the open decimal band `(-0.5, 2.0)` — i.e.\nbelow 20,000 bp. Deeply distressed quotes at or above 200% running-spread\nequivalents are rejected as looking like basis points; such names must be\nexcluded from the calibration universe.",
       "properties": {
         "dates": {
           "description": "Observation dates (sorted ascending).",
@@ -226,7 +226,7 @@
         "type": "number"
       },
       "default": {},
-      "description": "Option-adjusted spread duration in **years** (`> 0`) per issuer.\n\nRequired when\n[`CreditCalibrationConfig::bucket_weighting`][super::config::CreditCalibrationConfig::bucket_weighting]\nis [`BucketWeighting::Dts`][super::config::BucketWeighting::Dts].\nCalibration weights use as-of DTS (`SD × spread_bp`). Persisted on\neach [`IssuerBetaRow`][crate::credit::hierarchy::IssuerBetaRow] so\ndecompose can rebuild DTS from the current spread.",
+      "description": "Option-adjusted spread duration in **years** (`> 0`) per issuer.\n\nRequired when\n[`CreditCalibrationConfig::bucket_weighting`][super::config::CreditCalibrationConfig::bucket_weighting]\nis [`BucketWeighting::Dts`][super::config::BucketWeighting::Dts].\nThe historical peel weights each date by contemporaneous DTS\n(`SD × panel spread_bp` at that date); the anchor uses as-of DTS.\nPersisted on each\n[`IssuerBetaRow`][crate::credit::hierarchy::IssuerBetaRow] so\ndecompose can rebuild DTS from the current spread. The duration is a\nsingle value across the calibration window (no per-date duration\nseries).",
       "type": "object"
     }
   },
