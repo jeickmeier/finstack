@@ -21,7 +21,7 @@ impl Bond {
     /// window (see [`crate::cashflow::accrued_interest_amount`]).
     ///
     /// Internal pricing engines (discount, hazard, spread solvers) should use
-    /// this instead of the public [`CashflowProvider::dated_cashflows`] which
+    /// this instead of the public `CashflowProvider::dated_cashflows` which
     /// now returns the full signed canonical schedule.
     ///
     /// Cashflows dated exactly on `as_of` are **excluded** (strict

@@ -7,11 +7,11 @@
 //!
 //! # Metrics
 //!
-//! - [`moic::MoicCalculator`] — money multiple if held to maturity.
-//! - [`moic::MoicToWorstCalculator`] — minimum money multiple across **all**
+//! - `moic::MoicCalculator` — money multiple if held to maturity.
+//! - `moic::MoicToWorstCalculator` — minimum money multiple across **all**
 //!   exits: every call/put candidate AND the held-to-maturity path.
-//! - [`xirr::XirrCalculator`] — annualized IRR (Act/365F) to maturity.
-//! - [`xirr::XirrToWorstCalculator`] — minimum XIRR across **all** exits:
+//! - `xirr::XirrCalculator` — annualized IRR (Act/365F) to maturity.
+//! - `xirr::XirrToWorstCalculator` — minimum XIRR across **all** exits:
 //!   every call/put candidate AND the held-to-maturity path.
 //!
 //! # Floor scope

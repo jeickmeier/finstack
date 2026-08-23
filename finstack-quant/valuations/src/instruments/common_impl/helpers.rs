@@ -339,7 +339,7 @@ pub mod mc_defaults {
     pub const DEFAULT_ROUGH_VOL_STEPS: usize = 100;
 
     /// Hard ceiling on the number of MC paths a single pricer call is
-    /// allowed to allocate. Enforced by [`resolve_mc_paths`] to prevent a
+    /// allowed to allocate. Enforced by [`resolve_mc_paths`](super::resolve_mc_paths) to prevent a
     /// malformed `pricing_overrides.model_config.mc_paths` (or a typo) from
     /// taking down a pricing service via OOM.
     /// The cap is set conservatively for multi-tenant pricing hosts.

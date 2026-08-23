@@ -136,7 +136,7 @@ fn worst_quote(residuals: &BTreeMap<String, f64>) -> Option<(String, f64)> {
 
 /// Filter out penalty sentinel values and compute common diagnostics.
 ///
-/// Penalties (INFINITY or values >= [`PENALTY`](crate::calibration::PENALTY) * 0.5) are
+/// Penalties (INFINITY or values >= `PENALTY` * 0.5) are
 /// excluded from max/RMSE unless ALL values are penalties.
 ///
 /// # Arguments

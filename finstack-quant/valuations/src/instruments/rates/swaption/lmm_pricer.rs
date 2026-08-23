@@ -1,6 +1,6 @@
 //! Bermudan swaption pricer using LMM/BGM Monte Carlo dynamics.
 //!
-//! Wraps the standalone [`price_bermudan_lmm`] engine in the [`Pricer`] trait
+//! Wraps the standalone `price_bermudan_lmm` engine in the `Pricer` trait
 //! so it can be dispatched via the pricing registry under
 //! `(BermudanSwaption, LmmMonteCarlo)`.
 

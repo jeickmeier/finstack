@@ -82,7 +82,7 @@ pub(crate) fn hazard_with_deal_quote(
     ))
 }
 
-/// Per-deal CS01 conventions for [`CreditDefaultSwap`].
+/// Per-deal CS01 conventions for `CreditDefaultSwap`.
 ///
 /// Drives the generic credit CS01 calculators
 /// ([`crate::metrics::sensitivities::cs01::CreditParallelCs01`] /

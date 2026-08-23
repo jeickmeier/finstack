@@ -4,8 +4,8 @@
 //! and the domain-specific optimization logic for various financial instruments.
 //!
 //! # Features
-//! - **Standardized Interface**: All targets implement common traits like [`BootstrapTarget`]
-//!   or [`GlobalSolveTarget`].
+//! - **Standardized Interface**: All targets implement common traits like `BootstrapTarget`
+//!   or `GlobalSolveTarget`.
 //! - **Broad Asset Coverage**: Support for Interest Rates (IR), Credit, Inflation, and Volatility.
 //! - **Automatic Convention Resolution**: Adapters handle the mapping from high-level
 //!   market quotes to concrete pricing inputs.

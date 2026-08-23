@@ -489,7 +489,7 @@ impl XccySwap {
     /// Pre-flight check that every leg whose currency differs from
     /// [`Self::reporting_currency`] is reachable through the market's FX matrix.
     ///
-    /// Runs at the top of [`Instrument::base_value`] so a missing or
+    /// Runs at the top of `Instrument::base_value` so a missing or
     /// underspecified FX matrix surfaces as a single, informative error
     /// (naming both currencies and the offending leg) rather than a generic
     /// `NotFound { id: "fx_matrix" }` raised mid-loop deep inside cashflow

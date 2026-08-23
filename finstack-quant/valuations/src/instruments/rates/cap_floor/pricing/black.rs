@@ -20,7 +20,7 @@
 //! - Floorlet: `-N(-d₁) = N(d₁) - 1`
 //!
 //! This is the "per-unit forward delta" convention. When aggregated across periods in
-//! [`aggregate_over_caplets`](super::super::metrics::common::aggregate_over_caplets),
+//! `aggregate_over_caplets`,
 //! the result is scaled by `notional × accrual × discount_factor`.
 //!
 //! # References

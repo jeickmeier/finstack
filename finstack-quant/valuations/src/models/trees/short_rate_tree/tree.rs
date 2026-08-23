@@ -43,9 +43,9 @@ impl TreeCalibrationResult {
 #[derive(Debug, Clone)]
 pub struct ShortRateTree {
     pub(super) config: ShortRateTreeConfig,
-    /// Calibrated short rates at each node: rates[step][node]
+    /// Calibrated short rates at each node: `rates[step][node]`
     pub(super) rates: Arc<Vec<Vec<f64>>>,
-    /// Transition probabilities: probs[step] gives (p_up, p_down) for that step
+    /// Transition probabilities: `probs[step]` gives (p_up, p_down) for that step
     pub(super) probs: Vec<(f64, f64)>,
     /// Time steps in years
     pub(super) time_steps: Vec<f64>,

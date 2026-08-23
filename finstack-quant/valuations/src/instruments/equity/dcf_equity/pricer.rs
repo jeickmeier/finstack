@@ -20,7 +20,7 @@ pub(crate) struct DcfPricer;
 /// previous behavior silently switched to risk-free curve discounting when
 /// the named curve happened to be loaded, changing the PV of risky cash
 /// flows with no spread adjustment). The PV is identical whether or not
-/// [`DiscountedCashFlow::discount_curve_id`] is loaded in `market`.
+/// `DiscountedCashFlow::discount_curve_id` is loaded in `market`.
 ///
 /// Rate sensitivity comes from the risk-free component embedded in the WACC
 /// (`wacc = rf + risk_premium`): the `Dv01`/`BucketedDv01` metrics bump that

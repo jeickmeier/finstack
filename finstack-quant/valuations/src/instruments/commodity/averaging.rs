@@ -1,7 +1,7 @@
 //! Shared business-day averaging for commodity floating legs.
 //!
-//! Both the [`commodity_swap`](super::commodity_swap) floating leg and the
-//! [`commodity_swaption`](super::commodity_swaption) forward swap rate
+//! Both the `commodity_swap` floating leg and the
+//! `commodity_swaption` forward swap rate
 //! average daily business-day prices over each settlement period. The
 //! averaging windows are **half-open** `[start, end)` so a payment date is
 //! never observed by two adjacent periods; the final period sets

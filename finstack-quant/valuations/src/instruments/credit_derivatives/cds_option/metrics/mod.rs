@@ -23,7 +23,7 @@ pub(crate) mod vega;
 
 use crate::metrics::MetricRegistry;
 
-/// Per-deal CS01 conventions for [`CDSOption`].
+/// Per-deal CS01 conventions for `CDSOption`.
 ///
 /// Drives the generic credit CS01 calculator
 /// ([`crate::metrics::sensitivities::cs01::CreditParallelCs01`]). The CDS

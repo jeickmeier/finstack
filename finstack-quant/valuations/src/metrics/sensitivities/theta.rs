@@ -131,7 +131,7 @@ fn parse_theta_period(period: &str) -> Result<ThetaPeriod> {
 /// # Calendar vs. Day Rolling
 ///
 /// `Months(n)` and `Years(n)` use **EOM-aware calendar arithmetic** via
-/// [`add_months`]; `Days(n)` uses a fixed 24-hour duration. These differ at
+/// `add_months`; `Days(n)` uses a fixed 24-hour duration. These differ at
 /// month boundaries:
 ///
 /// - From `2025-01-31`, `Months(1)` rolls to `2025-02-28` (EOM clamped).

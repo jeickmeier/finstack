@@ -126,8 +126,8 @@ pub enum OasPriceBasis {
 ///
 /// Each entry is `(value, must_be_nonneg)`: an unset `value` is skipped. A
 /// `must_be_nonneg = false` field need only be finite (failing with
-/// [`InputError::Invalid`]); a `must_be_nonneg = true` field must be both finite
-/// and `>= 0` (failing with [`InputError::NegativeValue`]). Shared by the numeric
+/// `InputError::Invalid`); a `must_be_nonneg = true` field must be both finite
+/// and `>= 0` (failing with `InputError::NegativeValue`). Shared by the numeric
 /// `validate()` impls below so the per-field `if let Some` bodies are not repeated.
 fn check_finite_fields(fields: &[(Option<f64>, bool)]) -> finstack_quant_core::Result<()> {
     use finstack_quant_core::InputError;

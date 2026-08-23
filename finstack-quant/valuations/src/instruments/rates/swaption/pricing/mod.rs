@@ -5,7 +5,7 @@
 //!
 //! # Available Engines
 //!
-//! - [`tree_valuator`] - Hull-White tree-based pricing (industry standard)
+//! - `tree_valuator` - Hull-White tree-based pricing (industry standard)
 //!
 //! # Example
 //!

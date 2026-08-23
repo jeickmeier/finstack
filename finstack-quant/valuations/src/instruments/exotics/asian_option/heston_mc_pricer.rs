@@ -2,7 +2,7 @@
 //!
 //! Prices Asian options under the Heston stochastic volatility model
 //! using Monte Carlo simulation with QE discretization. Averaging is
-//! performed on the spot component (state[0]) of the Heston path.
+//! performed on the spot component (`state[0]`) of the Heston path.
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::exotics::asian_option::types::AsianOption;

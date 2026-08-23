@@ -268,9 +268,9 @@ pub(crate) struct FxOptionGreeks {
     /// Garman–Kohlhagen **spot delta** `e^{-r_f·T}·N(d1)` (premium-unadjusted).
     ///
     /// This is only one of three FX delta conventions. Interbank G10 pairs are
-    /// typically quoted/hedged on **forward delta** ([`delta_forward`]), while
+    /// typically quoted/hedged on **forward delta** (`delta_forward`), while
     /// many EM and premium-in-foreign-currency pairs use **premium-adjusted
-    /// delta** ([`delta_premium_adjusted`]). Pick the field matching the pair's
+    /// delta** (`delta_premium_adjusted`). Pick the field matching the pair's
     /// market convention rather than assuming `delta` is the hedge ratio — using
     /// spot delta where forward/premium-adjusted is conventional gives the wrong
     /// hedge.

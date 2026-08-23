@@ -35,7 +35,8 @@ pub(crate) struct ScenarioTreeConfig {
     /// Initial pool seasoning in months.
     pub initial_seasoning: u32,
 
-    /// Asset correlation from an explicit deal [`CorrelationStructure`].
+    /// Asset correlation from an explicit deal
+    /// [`CorrelationStructure`](super::super::correlation::CorrelationStructure).
     ///
     /// When `Some`, takes precedence over the copula spec's scalar. `None`
     /// keeps the correlation on `StochasticDefaultSpec::Copula`.

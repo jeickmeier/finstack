@@ -340,7 +340,7 @@ impl MetricRegistry {
     /// Vector of metric IDs in dependency order (dependencies first)
     ///
     /// # Errors
-    /// Returns [`Error::CircularDependency`] if circular dependencies are detected
+    /// Returns `Error::CircularDependency` if circular dependencies are detected
     fn resolve_dependencies(
         &self,
         metric_ids: &[MetricId],

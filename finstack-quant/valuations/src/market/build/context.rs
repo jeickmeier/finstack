@@ -93,7 +93,7 @@ pub struct BuildCtx {
     /// building swap instruments from `RateQuote::Swap` quotes whose index is
     /// classified as `OvernightRfr`.
     ///
-    /// When `None`, [`crate::market::build::rates::build_swap`] uses the
+    /// When `None`, `build_swap` uses the
     /// per-index registry default (e.g. `CompoundedInArrears { lookback_days: 0 }`
     /// for SOFR, the cleared OIS plain in-arrears convention). Set this from a
     /// calibration step to
@@ -155,7 +155,7 @@ impl BuildCtx {
 
     /// Return a copy with an OIS compounding override for swap quote builds.
     ///
-    /// When set, [`crate::market::build::rates::build_swap`] uses this
+    /// When set, `build_swap` uses this
     /// compounding mode for `OvernightRfr`-classified indices instead of
     /// the per-index registry default. Pass-through (`None`) preserves
     /// existing behavior.

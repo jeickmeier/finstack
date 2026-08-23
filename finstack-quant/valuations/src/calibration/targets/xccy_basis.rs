@@ -2,7 +2,7 @@
 //!
 //! Derives a foreign currency discount curve from a domestic OIS curve,
 //! FX spot rate, and FX forward or XCCY basis swap quotes. Optionally
-//! produces a [`BasisSpreadCurve`] as a byproduct.
+//! produces a `BasisSpreadCurve` as a byproduct.
 //!
 //! ## Spot-Date Convention
 //!

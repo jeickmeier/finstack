@@ -1,7 +1,7 @@
 //! Monte Carlo pricer for the rough Bergomi (rBergomi) stochastic volatility model.
 //!
-//! Uses [`RoughBergomiProcess`] with the [`RoughBergomiEuler`] discretization and
-//! pre-generated Riemann-Liouville Volterra increments via [`simulate_path_fractional`].
+//! Uses `RoughBergomiProcess` with the `RoughBergomiEuler` discretization and
+//! pre-generated Riemann-Liouville Volterra increments via `simulate_path_fractional`.
 //! Per Bayer-Friz-Gatheral (2016), the rBergomi variance is driven by the
 //! Riemann-Liouville Volterra process `Ỹ_t = √(2H)∫₀ᵗ(t−s)^{H−½}dW_s` — a
 //! truncated, non-stationary-increment process, distinct from true fractional

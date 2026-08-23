@@ -1086,10 +1086,10 @@ fn deterministic_geometric_forward(
     spot * (drift * time * mean_t_over_t).exp()
 }
 
-/// Compute E[A] for arithmetic average with discrete fixings.
+/// Compute `E[A]` for arithmetic average with discrete fixings.
 ///
 /// For n equally-spaced fixings over [0, T]:
-/// E[A] = (S / n) * Σ exp((r - q) * t_i)
+/// `E[A] = (S / n) * Σ exp((r - q) * t_i)`
 ///      = (S / n) * Σ exp((r - q) * i * Δt)
 fn compute_arithmetic_mean_first_moment(
     spot: f64,
@@ -1111,7 +1111,7 @@ fn compute_arithmetic_mean_first_moment(
     spot * acc.total() / n
 }
 
-/// Compute E[A²] for arithmetic average with discrete fixings using O(n) algorithm.
+/// Compute `E[A²]` for arithmetic average with discrete fixings using O(n) algorithm.
 ///
 /// The naive double-sum is O(n²). We reduce to O(n) by decomposing:
 ///

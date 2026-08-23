@@ -1,6 +1,6 @@
 //! Monte Carlo pricer for the rough Heston stochastic volatility model.
 //!
-//! Uses [`RoughHestonProcess`] with the [`RoughHestonHybrid`] Volterra discretization
+//! Uses `RoughHestonProcess` with the `RoughHestonHybrid` Volterra discretization
 //! to simulate spot and variance paths. The rough Heston discretization handles the
 //! fractional kernel internally using standard normal increments — no fBM generator
 //! is required.

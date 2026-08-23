@@ -15,7 +15,7 @@
 //!
 //! The Gaussian approximation places a small probability mass on `L < 0` and
 //! mis-shapes the conditional loss law where the cap sits near its peak. A
-//! 2026-07 measured bias study (junior [3,7] tranche PV vs the
+//! 2026-07 measured bias study (junior `[3,7]` tranche PV vs the
 //! exact-convolution PMF on dispersed-hazard pools) found 1.55% at 24 names,
 //! 1.22% at 40, 0.20% at 64 and 0.03% at 125; pools at or below
 //! `credit::SMALL_POOL_THRESHOLD` (64) are therefore always routed to exact

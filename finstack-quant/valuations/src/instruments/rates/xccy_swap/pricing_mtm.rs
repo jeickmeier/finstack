@@ -354,7 +354,7 @@ pub(crate) fn pv_mtm_reset(
 /// Enumerate the complete MtM-resetting cashflow stream for `cashflow_schedule`.
 ///
 /// Mirrors the per-period notional logic in [`pv_mtm_reset`] but emits each cashflow as a
-/// [`CashFlow`] records in each leg's native currency (no FX conversion, no
+/// `CashFlow` records in each leg's native currency (no FX conversion, no
 /// discounting — `cashflow_schedule` is the pre-PV reporting view). Both legs
 /// use their own schedule conventions and exact historical fixings.
 ///

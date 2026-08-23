@@ -26,7 +26,7 @@ use finstack_quant_monte_carlo::time_grid::TimeGrid;
 /// Barrier option Heston Monte Carlo pricer.
 ///
 /// Prices barrier options under the Heston stochastic volatility model using
-/// QE discretization. The barrier is monitored on the spot component (state[0])
+/// QE discretization. The barrier is monitored on the spot component (`state[0]`)
 /// of the Heston path. Heston parameters are sourced from market scalars with
 /// sensible defaults.
 pub(crate) struct BarrierOptionHestonMcPricer {

@@ -27,7 +27,7 @@ use crate::models::pde::{CraigSneydStepper, Grid1D, Grid2D, HestonPde, Solver2D}
 ///
 /// Solves the Heston PDE on a tensor-product (log-spot x variance) grid.
 /// Heston parameters are read from market scalars using the same convention
-/// as [`EquityOptionHestonFourierPricer`].
+/// as `EquityOptionHestonFourierPricer`.
 pub(crate) struct EquityOptionHestonPdePricer {
     /// Number of spatial grid points along the x (log-spot) axis.
     space_points_x: usize,

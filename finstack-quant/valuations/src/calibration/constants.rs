@@ -4,9 +4,9 @@
 //! across solvers, adapters, and validation.
 //!
 //! # Constants
-//! - [`TOLERANCE_DUP_KNOTS`]: Tolerance for detecting duplicate knot times.
-//! - [`PENALTY`]: Finite penalty value for objective functions.
-//! - [`DF_MIN_HARD`]: Lower bound for discount factors.
+//! - `TOLERANCE_DUP_KNOTS`: Tolerance for detecting duplicate knot times.
+//! - `PENALTY`: Finite penalty value for objective functions.
+//! - `DF_MIN_HARD`: Lower bound for discount factors.
 
 /// Tolerance for detecting duplicate knot times or unsorted knots.
 ///
@@ -71,7 +71,7 @@ pub(crate) const OBJECTIVE_VALID_ABS_MAX: f64 = PENALTY / 10.0;
 /// "small penalty" residuals.
 ///
 /// Callers that KNOW bound violations occurred (e.g., because they track clamp
-/// counts) MUST call [`CalibrationReport::with_has_penalty_residuals`] to explicitly
+/// counts) MUST call `CalibrationReport::with_has_penalty_residuals` to explicitly
 /// propagate the penalty flag, bypassing the magnitude threshold.
 pub(crate) const RESIDUAL_PENALTY_ABS_MIN: f64 = PENALTY * 0.5;
 

@@ -31,7 +31,7 @@ use std::cell::RefCell;
 /// - Knot times must be strictly increasing.
 ///
 /// # See Also
-/// - [`crate::instruments::cds`] for details on the underlying instruments.
+/// - [`crate::instruments::credit_derivatives::cds`] for details on the underlying instruments.
 pub(crate) struct HazardCurveTarget {
     /// Parameters defining the hazard curve structure and IDs.
     pub(crate) params: HazardCurveParams,

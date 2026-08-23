@@ -3,7 +3,7 @@
 //! When a bond has an associated credit (hazard) curve, CS01 follows the
 //! [canonical CS01 convention][canonical] — a parallel 1 bp shock to par CDS
 //! spreads with a symmetric (central) finite difference — by delegating to
-//! [`GenericParallelCs01`] / [`GenericBucketedCs01`].
+//! `GenericParallelCs01` / `GenericBucketedCs01`.
 //!
 //! When **no credit curve is configured**, no par CDS curve is available to
 //! bump, so CS01 falls back to the market-standard z-spread bump for vanilla
@@ -86,7 +86,7 @@ pub(super) fn z_spread_bumped_pvs(
 
 /// Bond parallel CS01 with z-spread fallback.
 ///
-/// Delegates to [`GenericParallelCs01`] when the bond references a credit
+/// Delegates to `GenericParallelCs01` when the bond references a credit
 /// curve; otherwise computes CS01 by bumping the z-spread by 1 bp.
 /// The result is keyed by credit curve ID or instrument ID.
 pub(crate) struct BondCs01Calculator;
@@ -127,7 +127,7 @@ impl MetricCalculator for BondCs01Calculator {
 
 /// Bond bucketed CS01 with z-spread fallback.
 ///
-/// Delegates to [`GenericBucketedCs01`] when the bond references a credit
+/// Delegates to `GenericBucketedCs01` when the bond references a credit
 /// curve; otherwise returns the parallel z-spread CS01 keyed by instrument ID.
 pub(crate) struct BondBucketedCs01Calculator;
 

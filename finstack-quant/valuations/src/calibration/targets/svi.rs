@@ -15,9 +15,9 @@
 //! themselves are calendar-monotone.
 //!
 //! After the grid is built, we hand it to
-//! [`validate_calendar_spread_with_forwards`] (calendar monotonicity at fixed
+//! `validate_calendar_spread_with_forwards` (calendar monotonicity at fixed
 //! forward log-moneyness) and enforce Durrleman's `g(k) ≥ 0` per calibrated
-//! slice (with [`validate_butterfly_call_convexity`] as a grid-level
+//! slice (with `validate_butterfly_call_convexity` as a grid-level
 //! diagnostic) so any residual arbitrage surfaces as a structured
 //! `Error::Validation` rather than propagating silently into pricing.
 

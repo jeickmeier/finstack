@@ -19,7 +19,7 @@
 //! # Parameterization
 //!
 //! The `correlation` argument is treated as the **realized pairwise
-//! correlation**: E[β²] = ρ. Since E[β²] = β̄² + σ²_β (pre-clamping), we pick
+//! correlation**: `E[β²] = ρ`. Since `E[β²] = β̄² + σ²_β` (pre-clamping), we pick
 //! β̄ = √max(ρ − σ²_β, 0). When σ²_β > ρ, β̄ is floored at 0 and the realized
 //! correlation becomes σ²_β, which exceeds the requested ρ. This regime is:
 //! - reported via a one-shot `tracing::warn!` per copula instance, and

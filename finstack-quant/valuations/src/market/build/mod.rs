@@ -43,8 +43,8 @@
 //!
 //! # See Also
 //!
-//! - [`context::BuildCtx`](context::BuildCtx) for build context configuration
-//! - [`prepared::PreparedQuote`](prepared::PreparedQuote) for prepared quote envelopes
+//! - `context::BuildCtx` for build context configuration
+//! - `prepared::PreparedQuote` for prepared quote envelopes
 
 /// Builders for credit instruments (CDS).
 pub(crate) mod cds;

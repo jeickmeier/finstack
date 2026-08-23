@@ -1,6 +1,6 @@
 //! Per-name copula default simulation for finite structured-credit pools.
 //!
-//! The scalar-`Z` engine ([`super::CopulaBasedDefault::conditional_mdr`])
+//! The scalar-`Z` engine (`CopulaBasedDefault::conditional_mdr`)
 //! returns the *conditional* default probability `P(default | Z)` and applies
 //! that single marginal default rate (MDR) uniformly to every asset. That is
 //! the large-homogeneous-pool (LHP) limit: the realized default-count

@@ -17,9 +17,9 @@
 //! ```
 //!
 //! # See Also
-//! - [`bootstrap`] for the sequential bootstrapping algorithm.
-//! - [`global`] for the global optimization framework.
-//! - [`traits`] for the target interfaces.
+//! - `bootstrap` for the sequential bootstrapping algorithm.
+//! - `global` for the global optimization framework.
+//! - `traits` for the target interfaces.
 
 pub(crate) mod bootstrap;
 mod config;

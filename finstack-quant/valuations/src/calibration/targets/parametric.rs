@@ -1,6 +1,6 @@
 //! Nelson-Siegel / Nelson-Siegel-Svensson parametric curve calibration target.
 //!
-//! Implements [`GlobalSolveTarget`] to fit parametric yield curves from
+//! Implements `GlobalSolveTarget` to fit parametric yield curves from
 //! market instruments using the Levenberg-Marquardt optimizer.
 
 use crate::calibration::api::schema::ParametricCurveParams;

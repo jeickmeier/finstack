@@ -51,7 +51,7 @@ const PREPAY_FACTOR_SEED_SALT: u64 = 0x5052_4550_4159_5A32; // "PREPAYZ2"
 /// Tree-mode paths enumerate base-`branch_count` digits of the path index for
 /// the leading months; months beyond `log_branch(path_count)` carry no digit
 /// information and are drawn from a Philox substream seeded with
-/// `config.seed ^ TREE_TAIL_SEED_SALT` instead (see [`tree_path_factors`]).
+/// `config.seed ^ TREE_TAIL_SEED_SALT` instead (see `StochasticPricer::tree_path_factors`).
 /// The salt keeps these tail streams disjoint from the systematic-factor and
 /// per-name stream spaces.
 const TREE_TAIL_SEED_SALT: u64 = 0x5452_4545_5441_494C; // "TREETAIL"

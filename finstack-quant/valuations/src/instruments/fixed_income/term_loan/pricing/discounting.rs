@@ -46,7 +46,7 @@
 //! # See Also
 //!
 //! - [`generate_cashflows`] for cashflow generation details
-//! - [`super::types::TermLoan`] for the instrument type
+//! - `TermLoan` for the instrument type
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::fixed_income::term_loan::types::RateSpec;

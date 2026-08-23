@@ -291,8 +291,8 @@ fn swaption_atm_vega(annuity: f64, fwd_rate: f64, expiry: f64, vol: f64, is_norm
 ///
 /// The schedule is synthetic (constant `dt = tenor/n_periods`). For real
 /// market day-counts (Act/360 USD SOFR, 30/360 EUR EURIBOR, etc.), use
-/// [`compute_swap_annuity_and_rate_with_accruals`] and pass the actual
-/// per-period year fractions.
+/// `compute_swap_annuity_and_rate_inner` with explicit per-period year
+/// fractions.
 pub(crate) fn compute_swap_annuity_and_rate(
     df: &dyn Fn(f64) -> f64,
     t0: f64,

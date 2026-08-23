@@ -20,10 +20,10 @@
 //!
 //! ## Mathematical Approach
 //!
-//! The model decomposes tranche [A,D] expected loss as:
+//! The model decomposes tranche `[A,D]` expected loss as:
 //! `EL_[A,D](t) = [EL_eq(0,D,t) - EL_eq(0,A,t)] / [(D-A)/100]`
 //!
-//! Where `EL_eq(0,K,t)` is the expected loss of equity tranche [0,K] at time t,
+//! Where `EL_eq(0,K,t)` is the expected loss of equity tranche `[0,K]` at time t,
 //! calculated using base correlation ρ(K) for detachment point K.
 //!
 //! ### Premium Leg PV
