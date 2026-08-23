@@ -16,7 +16,6 @@ finstack-quant-cashflows = { path = "../cashflows", version = "0.7.0" }
 finstack-quant-covenants = { path = "../covenants", version = "0.7.0" }
 finstack-quant-margin = { path = "../margin", version = "0.7.0" }
 finstack-quant-monte-carlo = { path = "../monte_carlo", version = "0.7.0", default-features = false }
-finstack-quant-factor-model = { path = "../factor-model", version = "0.7.0" }
 finstack-quant-valuations-macros = { path = "macros", version = "0.7.0" }
 indexmap = { workspace = true, features = ["serde"] }
 smallvec = { version = "1.15", default-features = false, features = ["serde"] }
@@ -38,6 +37,7 @@ time = { workspace = true, features = ["macros"] }
 proptest = "1.11.0"
 criterion = { workspace = true }
 rust_decimal_macros = { workspace = true }
+finstack-quant-factor-model = { path = "../factor-model", version = "0.7.0" }
 toml = "1.1.4"
 
 

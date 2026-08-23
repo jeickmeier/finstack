@@ -1,7 +1,7 @@
 //! Factor models for correlated behavior in credit portfolios.
 //!
 //! **Naming note:** This module's [`LatentFactorKind`] enum is distinct from the
-//! portfolio-risk factor framework in [`finstack_quant_factor_model`].
+//! portfolio-risk factor framework in `finstack_quant_factor_model`.
 //! Here, "factor model" refers to *latent-variable models* used to generate
 //! correlated default/prepayment events in Monte Carlo simulations (the
 //! Gaussian copula family). The core/portfolio factor model instead provides

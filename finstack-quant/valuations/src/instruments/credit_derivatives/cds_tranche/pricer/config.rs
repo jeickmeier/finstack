@@ -8,6 +8,7 @@ use finstack_quant_core::dates::{Date, StubKind};
 use finstack_quant_core::market_data::term_structures::CreditIndexData;
 use finstack_quant_core::math::GaussHermiteQuadrature;
 use finstack_quant_core::types::Percentage;
+use finstack_quant_core::{Error as CoreError, Result as CoreResult};
 use std::sync::OnceLock;
 
 // Default Configuration Constants
@@ -138,8 +139,8 @@ pub struct CDSTranchePricerConfig {
     /// Recovery model specification (default: use index recovery rate)
     pub recovery_spec: Option<RecoverySpec>,
 
-    // Numerical Integration
-    /// Number of quadrature points for numerical integration (5, 7, or 10)
+    /// Number of Gauss-Hermite points. Supported orders are 5, 7, 10, 15,
+    /// and 20; the default is 20.
     pub quadrature_order: u8,
     /// Whether to use issuer-specific curves if available
     pub use_issuer_curves: bool,
@@ -216,6 +217,69 @@ impl Default for CDSTranchePricerConfig {
 }
 
 impl CDSTranchePricerConfig {
+    /// Validate numerical and model parameters before constructing a pricer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] when a parameter is
+    /// non-finite, outside its documented range, or requests an unsupported
+    /// quadrature rule.
+    pub fn validate(&self) -> CoreResult<()> {
+        match &self.copula_spec {
+            CopulaSpec::Gaussian => {}
+            CopulaSpec::StudentT { .. } => {
+                self.copula_spec
+                    .build()
+                    .map_err(|error| CoreError::Validation(error.to_string()))?;
+            }
+            CopulaSpec::RandomFactorLoading { loading_volatility } => {
+                validate_range(
+                    "copula_spec.loading_volatility",
+                    *loading_volatility,
+                    0.0,
+                    0.5,
+                )?;
+            }
+            CopulaSpec::MultiFactor { num_factors } => {
+                if !(1..=5).contains(num_factors) {
+                    return Err(CoreError::Validation(format!(
+                        "copula_spec.num_factors must be in [1, 5], got {num_factors}"
+                    )));
+                }
+            }
+        }
+        if let Some(recovery) = &self.recovery_spec {
+            recovery
+                .validate()
+                .map_err(|error| CoreError::Validation(error.to_string()))?;
+        }
+        GaussHermiteQuadrature::new(usize::from(self.quadrature_order)).map_err(|error| {
+            CoreError::Validation(format!(
+                "unsupported quadrature_order {}: {error}",
+                self.quadrature_order
+            ))
+        })?;
+        validate_range("min_correlation", self.min_correlation, 0.0, 1.0)?;
+        validate_range("max_correlation", self.max_correlation, 0.0, 1.0)?;
+        if self.min_correlation >= self.max_correlation {
+            return Err(CoreError::Validation(format!(
+                "min_correlation {} must be less than max_correlation {}",
+                self.min_correlation, self.max_correlation
+            )));
+        }
+        validate_positive("cs01_bump_size", self.cs01_bump_size)?;
+        validate_positive("corr_bump_abs", self.corr_bump_abs)?;
+        validate_range("corr_boundary_width", self.corr_boundary_width, 0.0, 1.0)?;
+        validate_positive("grid_step", self.grid_step)?;
+        if self.index_settlement_lag < 0 || self.bespoke_settlement_lag < 0 {
+            return Err(CoreError::Validation(format!(
+                "settlement lags must be non-negative, got index={} bespoke={}",
+                self.index_settlement_lag, self.bespoke_settlement_lag
+            )));
+        }
+        Ok(())
+    }
+
     /// Create configuration with Student-t copula.
     ///
     /// # Arguments
@@ -243,7 +307,10 @@ impl CDSTranchePricerConfig {
     /// Create configuration with multi-factor copula.
     ///
     /// # Arguments
-    /// * `num_factors` - Number of systematic factors
+    ///
+    /// * `num_factors` - Number of systematic factors. Pricer validation
+    ///   accepts values from 1 through 5.
+    #[must_use]
     pub fn with_multi_factor_copula(mut self, num_factors: usize) -> Self {
         self.copula_spec = CopulaSpec::multi_factor(num_factors);
         self
@@ -306,10 +373,36 @@ impl CDSTranchePricerConfig {
         self
     }
 
-    /// Set quadrature order for numerical integration.
+    /// Set the Gauss-Hermite quadrature order.
+    ///
+    /// # Arguments
+    ///
+    /// * `order` - Requested number of points. [`CDSTranchePricer::with_params`]
+    ///   accepts only 5, 7, 10, 15, or 20.
+    #[must_use]
     pub fn with_quadrature_order(mut self, order: u8) -> Self {
         self.quadrature_order = order;
         self
+    }
+}
+
+fn validate_positive(name: &str, value: f64) -> CoreResult<()> {
+    if value.is_finite() && value > 0.0 {
+        Ok(())
+    } else {
+        Err(CoreError::Validation(format!(
+            "{name} must be finite and positive, got {value}"
+        )))
+    }
+}
+
+fn validate_range(name: &str, value: f64, min: f64, max: f64) -> CoreResult<()> {
+    if value.is_finite() && (min..=max).contains(&value) {
+        Ok(())
+    } else {
+        Err(CoreError::Validation(format!(
+            "{name} must be finite and in [{min}, {max}], got {value}"
+        )))
     }
 }
 
@@ -340,11 +433,9 @@ pub enum HeteroMethod {
 /// and cached for the pricer's lifetime. Heterogeneous EL evaluation calls into
 /// copula dispatch and quadrature selection from hot integration loops.
 ///
-/// **Cache invariant:** `params.copula_spec` and `params.quadrature_order` must
-/// not be mutated after the first call to `Self::copula` or quadrature
-/// selection. To change either, construct a new pricer via `Self::with_params`.
-/// Other config fields (`grid_step`, `hetero_method`, `use_issuer_curves`, etc.)
-/// are *not* cached and may be mutated freely.
+/// Configuration is validated by [`CDSTranchePricer::with_params`] and remains
+/// immutable for the pricer's lifetime. The cached copula and quadrature
+/// therefore cannot drift from the settings used by uncached calculations.
 pub struct CDSTranchePricer {
     pub(super) params: CDSTranchePricerConfig,
     pub(super) copula_cache: OnceLock<Box<dyn Copula + Send + Sync>>,

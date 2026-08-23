@@ -401,7 +401,7 @@ pub fn bucket_factor_id(
 fn is_credit_dependency(dep: &MarketDependency) -> bool {
     use crate::primitives::dependency::CurveType;
     match dep {
-        MarketDependency::CreditCurve { .. } => true,
+        MarketDependency::CreditCurve { .. } | MarketDependency::CreditIndex { .. } => true,
         MarketDependency::Curve { curve_type, .. } => *curve_type == CurveType::Hazard,
         _ => false,
     }

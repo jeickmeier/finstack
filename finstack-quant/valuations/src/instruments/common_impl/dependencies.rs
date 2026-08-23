@@ -194,6 +194,12 @@ impl Eq for VolatilityDependency {}
 pub struct MarketDependencies {
     /// Curve dependencies grouped by type.
     pub curves: InstrumentCurves,
+    /// Credit-index aggregates resolved through `MarketContext::get_credit_index`.
+    ///
+    /// These identifiers are distinct from direct hazard-curve IDs because a
+    /// credit index also carries base correlation and optional issuer curves.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub credit_index_ids: Vec<CurveId>,
     /// Scalar market-value identifiers resolved through `MarketContext::get_price`.
     ///
     /// This includes tradable spots and non-price unitless scalars such as
@@ -245,6 +251,16 @@ impl MarketDependencies {
         push_unique_curve(&mut self.curves.credit_curves, id.into());
     }
 
+    /// Add a composite credit-index dependency.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Identifier resolved through `MarketContext::get_credit_index`.
+    ///   Duplicate identifiers are ignored while preserving insertion order.
+    pub fn add_credit_index(&mut self, id: impl Into<CurveId>) {
+        push_unique_curve_vec(&mut self.credit_index_ids, id.into());
+    }
+
     /// Add an inflation-curve or published-index dependency.
     pub fn add_inflation_curve(&mut self, id: impl Into<CurveId>) {
         push_unique_curve(&mut self.curves.inflation_curves, id.into());
@@ -286,6 +302,9 @@ impl MarketDependencies {
     /// Merge another dependency set into this one.
     pub fn merge(&mut self, other: MarketDependencies) {
         self.add_curves(other.curves);
+        for id in other.credit_index_ids {
+            self.add_credit_index(id);
+        }
         for id in other.market_scalar_ids {
             self.add_market_scalar_id(id);
         }
@@ -312,6 +331,13 @@ impl MarketDependencies {
 // Deduplicate while preserving insertion order for deterministic risk reports.
 
 fn push_unique_curve(target: &mut SmallVec<[CurveId; 2]>, id: CurveId) {
+    if target.contains(&id) {
+        return;
+    }
+    target.push(id);
+}
+
+fn push_unique_curve_vec(target: &mut Vec<CurveId>, id: CurveId) {
     if target.contains(&id) {
         return;
     }

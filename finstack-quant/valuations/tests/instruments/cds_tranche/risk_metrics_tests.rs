@@ -79,7 +79,8 @@ fn test_cs01_buy_sell_opposite_sign() {
 #[test]
 fn test_cs01_hazard_rate_bump() {
     // Arrange
-    let pricer = CDSTranchePricer::with_params(CDSTranchePricerConfig::default());
+    let pricer = CDSTranchePricer::with_params(CDSTranchePricerConfig::default())
+        .expect("valid tranche pricer config");
 
     let tranche = mezzanine_tranche();
     let market = standard_market_context();
@@ -102,11 +103,13 @@ fn test_cs01_different_bump_sizes() {
 
     let mut config_1bp = CDSTranchePricerConfig::default();
     config_1bp.cs01_bump_size = 1.0;
-    let pricer_1bp = CDSTranchePricer::with_params(config_1bp);
+    let pricer_1bp =
+        CDSTranchePricer::with_params(config_1bp).expect("valid tranche pricer config");
 
     let mut config_2bp = CDSTranchePricerConfig::default();
     config_2bp.cs01_bump_size = 2.0;
-    let pricer_2bp = CDSTranchePricer::with_params(config_2bp);
+    let pricer_2bp =
+        CDSTranchePricer::with_params(config_2bp).expect("valid tranche pricer config");
 
     // Act
     let cs01_1bp = pricer_1bp.calculate_cs01(&tranche, &market, as_of).unwrap();
@@ -266,7 +269,7 @@ fn test_correlation_delta_with_custom_bump() {
     // Arrange
     let mut config = CDSTranchePricerConfig::default();
     config.corr_bump_abs = 0.02; // 2% bump instead of default 1%
-    let pricer = CDSTranchePricer::with_params(config);
+    let pricer = CDSTranchePricer::with_params(config).expect("valid tranche pricer config");
 
     let tranche = mezzanine_tranche();
     let market = standard_market_context();

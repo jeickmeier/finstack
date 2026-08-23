@@ -38,7 +38,7 @@ use crate::metrics::{MetricCalculator, MetricContext, MetricId};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::HazardCurve;
 use finstack_quant_core::types::CurveId;
-use finstack_quant_core::Result;
+use finstack_quant_core::{Error, Result};
 use std::borrow::Cow;
 use std::sync::Arc;
 
@@ -116,12 +116,11 @@ impl MetricCalculator for Cs01HazardCalculator {
 
 /// Bump one index credit curve by `bp` at a single tenor `t`.
 ///
-/// Mirrors the per-name decision in the index's parallel CS01
-/// (`CDSIndexPricer::compute_cds_cs01`): a par-spread re-bootstrap when the
-/// curve carries par-spread points (the canonical methodology), falling back
-/// to a direct hazard-rate shift when re-bootstrap is unavailable. A
-/// `BumpRequest::Tenors` shock at a tenor with no matching par point is a
-/// no-op, so summing all standard buckets reproduces the parallel bump.
+/// Re-bootstrap a hazard curve after a tenor-local par-spread shock.
+///
+/// Curves without par-spread points and failed re-bootstrap attempts are
+/// errors. A direct hazard-rate shift has different units and is available
+/// separately through `BucketedCs01Hazard`.
 fn bump_index_credit_curve_at_tenor(
     context: &MetricContext,
     hazard: &HazardCurve,
@@ -130,22 +129,27 @@ fn bump_index_credit_curve_at_tenor(
     t: f64,
     bp: f64,
 ) -> Result<Arc<HazardCurve>> {
-    let req = BumpRequest::Tenors(vec![(t, bp)]);
-    if hazard.par_spread_points().next().is_some() {
-        match context.bump_hazard_spreads_cached(
-            hazard,
-            base_ctx,
-            &req,
-            Some(discount_id),
-            None,
-            None,
-        ) {
-            Ok(curve) => Ok(curve),
-            Err(_) => bump_hazard_shift(hazard, &req).map(Arc::new),
-        }
-    } else {
-        bump_hazard_shift(hazard, &req).map(Arc::new)
+    if hazard.par_spread_points().next().is_none() {
+        return Err(Error::Calibration {
+            message: format!(
+                "CDS index bucketed CS01 requires par-spread points on hazard curve '{}'; \
+                 bootstrap the curve from par spreads or use bucketed_cs01_hazard",
+                hazard.id()
+            ),
+            category: "cs01_rebootstrap".to_string(),
+        });
     }
+    let req = BumpRequest::Tenors(vec![(t, bp)]);
+    context
+        .bump_hazard_spreads_cached(hazard, base_ctx, &req, Some(discount_id), None, None)
+        .map_err(|error| Error::Calibration {
+            message: format!(
+                "CDS index bucketed CS01 failed to re-bootstrap hazard curve '{}' \
+                 at tenor {t}: {error}",
+                hazard.id()
+            ),
+            category: "cs01_rebootstrap".to_string(),
+        })
 }
 
 /// Key-rate (bucketed) par-spread CS01 calculator for CDS Index.
@@ -232,5 +236,47 @@ impl MetricCalculator for CdsIndexBucketedCs01Calculator {
             series,
         );
         Ok(total)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use finstack_quant_core::market_data::term_structures::HazardCurve;
+    use finstack_quant_core::money::Money;
+
+    #[test]
+    fn bucketed_par_cs01_rejects_curve_without_par_quotes() {
+        let index = CDSIndex::example();
+        let as_of = index.premium.start;
+        let discount_id = index.premium.discount_curve_id.clone();
+        let currency = index.notional.currency();
+        let context = MetricContext::new(
+            Arc::new(index),
+            Arc::new(MarketContext::new()),
+            as_of,
+            Money::new(0.0, currency),
+            MetricContext::default_config(),
+        );
+        let hazard = HazardCurve::builder("DIRECT-HAZARD")
+            .base_date(as_of)
+            .recovery_rate(0.40)
+            .knots([(1.0, 0.02), (5.0, 0.03)])
+            .build()
+            .expect("hazard curve");
+
+        let error = bump_index_credit_curve_at_tenor(
+            &context,
+            &hazard,
+            &MarketContext::new(),
+            &discount_id,
+            5.0,
+            1.0,
+        )
+        .expect_err("par CS01 must not fall back to a hazard shift");
+        assert!(matches!(
+            error,
+            Error::Calibration { ref category, .. } if category == "cs01_rebootstrap"
+        ));
     }
 }

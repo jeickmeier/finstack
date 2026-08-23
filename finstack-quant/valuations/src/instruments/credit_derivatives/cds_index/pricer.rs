@@ -63,13 +63,25 @@ pub(crate) struct CDSIndexPricer {
     cds_config: CDSPricerConfig,
 }
 
-#[derive(Debug, Clone)]
-struct ResolvedConstituent {
-    cds: CreditDefaultSwap,
-    credit_curve_id: CurveId,
+#[derive(Debug, Clone, Copy)]
+struct ResolvedConstituent<'a> {
+    ordinal: usize,
+    credit_curve_id: &'a CurveId,
     recovery_rate: f64,
     weight_raw: f64,
     weight_effective: f64,
+}
+
+impl ResolvedConstituent<'_> {
+    fn apply_to_cds(&self, index: &CDSIndex, cds: &mut CreditDefaultSwap) {
+        cds.id = format!("{}-{:03}", index.id, self.ordinal).into();
+        cds.notional = Money::new(
+            index.notional.amount() * index.index_factor * self.weight_effective,
+            index.notional.currency(),
+        );
+        cds.protection.credit_curve_id = self.credit_curve_id.clone();
+        cds.protection.recovery_rate = self.recovery_rate;
+    }
 }
 
 /// Projected per-constituent cashflows used only by `build_projected_schedule`
@@ -280,24 +292,21 @@ impl CDSIndexPricer {
                 })
             }
             IndexPricing::Constituents => {
-                let positions = self.constituent_positions(index)?;
+                let mut cds = self.synthetic_cds(index);
+                let disc = curves.get_discount(&cds.premium.discount_curve_id)?;
                 let mut numerator_protection_pv = Money::new(0.0, index.notional.currency());
                 let mut denominator = 0.0;
-                let mut constituents_spread_bp = Vec::with_capacity(positions.len());
-                for position in positions {
-                    let cds = &position.cds;
-                    let disc = curves.get_discount(&cds.premium.discount_curve_id)?;
-                    let surv = curves.get_hazard(&cds.protection.credit_curve_id)?;
+                let mut constituents_spread_bp = Vec::with_capacity(index.constituents.len());
+                self.for_each_constituent(index, |position| {
+                    position.apply_to_cds(index, &mut cds);
+                    let surv = curves.get_hazard(position.credit_curve_id)?;
                     let prot_pv =
-                        pricer.pv_protection_leg(cds, disc.as_ref(), surv.as_ref(), as_of)?;
+                        pricer.pv_protection_leg(&cds, disc.as_ref(), surv.as_ref(), as_of)?;
                     numerator_protection_pv = numerator_protection_pv.checked_add(prot_pv)?;
                     let denom_per_unit =
-                        pricer.par_spread_denominator(cds, disc.as_ref(), surv.as_ref(), as_of)?;
+                        pricer.par_spread_denominator(&cds, disc.as_ref(), surv.as_ref(), as_of)?;
                     let local_denom = denom_per_unit * cds.notional.amount();
                     denominator += local_denom;
-                    // Guard per-constituent division: if the local denominator is near zero
-                    // (e.g., for a near-defaulted name with negligible survival probability),
-                    // report NaN rather than propagating Inf which corrupts aggregation.
                     let constituent_spread_bp = if local_denom <= credit::PAR_SPREAD_DENOM_TOLERANCE
                     {
                         f64::NAN
@@ -305,13 +314,14 @@ impl CDSIndexPricer {
                         prot_pv.amount() / local_denom * BASIS_POINTS_PER_UNIT
                     };
                     constituents_spread_bp.push(ConstituentResult {
-                        credit_curve_id: position.credit_curve_id,
+                        credit_curve_id: position.credit_curve_id.clone(),
                         recovery_rate: position.recovery_rate,
                         weight_raw: position.weight_raw,
                         weight_effective: position.weight_effective,
                         value: constituent_spread_bp,
                     });
-                }
+                    Ok(())
+                })?;
                 if denominator <= credit::PAR_SPREAD_DENOM_TOLERANCE {
                     return Err(Error::Validation(
                         "CDS Index par spread denominator near zero (risky annuity sum ≈ 0). \
@@ -517,32 +527,24 @@ impl CDSIndexPricer {
                 Ok(IndexResult::single_curve(total))
             }
             IndexPricing::Constituents => {
-                let positions = self.constituent_positions(index)?;
+                let mut cds = self.synthetic_cds(index);
+                let disc = curves.get_discount(&cds.premium.discount_curve_id)?;
                 let mut total = 0.0;
-                let mut constituents = Vec::with_capacity(positions.len());
-                let mut cached_discount: Option<(CurveId, std::sync::Arc<DiscountCurve>)> = None;
-                for position in positions {
-                    let disc_id = &position.cds.premium.discount_curve_id;
-                    let disc = match &cached_discount {
-                        Some((id, handle)) if id == disc_id => std::sync::Arc::clone(handle),
-                        _ => {
-                            let handle = curves.get_discount(disc_id)?;
-                            cached_discount =
-                                Some((disc_id.clone(), std::sync::Arc::clone(&handle)));
-                            handle
-                        }
-                    };
-                    let surv = curves.get_hazard(&position.cds.protection.credit_curve_id)?;
-                    let value = f(&pricer, &position.cds, disc.as_ref(), surv.as_ref(), as_of)?;
+                let mut constituents = Vec::with_capacity(index.constituents.len());
+                self.for_each_constituent(index, |position| {
+                    position.apply_to_cds(index, &mut cds);
+                    let surv = curves.get_hazard(position.credit_curve_id)?;
+                    let value = f(&pricer, &cds, disc.as_ref(), surv.as_ref(), as_of)?;
                     total += value;
                     constituents.push(ConstituentResult {
-                        credit_curve_id: position.credit_curve_id,
+                        credit_curve_id: position.credit_curve_id.clone(),
                         recovery_rate: position.recovery_rate,
                         weight_raw: position.weight_raw,
                         weight_effective: position.weight_effective,
                         value,
                     });
-                }
+                    Ok(())
+                })?;
                 Ok(IndexResult {
                     total,
                     constituents,
@@ -583,32 +585,24 @@ impl CDSIndexPricer {
                 Ok(IndexResult::single_curve(total))
             }
             IndexPricing::Constituents => {
-                let positions = self.constituent_positions(index)?;
+                let mut cds = self.synthetic_cds(index);
+                let disc = curves.get_discount(&cds.premium.discount_curve_id)?;
                 let mut total = Money::new(0.0, currency);
-                let mut constituents = Vec::with_capacity(positions.len());
-                let mut cached_discount: Option<(CurveId, std::sync::Arc<DiscountCurve>)> = None;
-                for position in positions {
-                    let disc_id = &position.cds.premium.discount_curve_id;
-                    let disc = match &cached_discount {
-                        Some((id, handle)) if id == disc_id => std::sync::Arc::clone(handle),
-                        _ => {
-                            let handle = curves.get_discount(disc_id)?;
-                            cached_discount =
-                                Some((disc_id.clone(), std::sync::Arc::clone(&handle)));
-                            handle
-                        }
-                    };
-                    let surv = curves.get_hazard(&position.cds.protection.credit_curve_id)?;
-                    let value = f(&pricer, &position.cds, disc.as_ref(), surv.as_ref(), as_of)?;
+                let mut constituents = Vec::with_capacity(index.constituents.len());
+                self.for_each_constituent(index, |position| {
+                    position.apply_to_cds(index, &mut cds);
+                    let surv = curves.get_hazard(position.credit_curve_id)?;
+                    let value = f(&pricer, &cds, disc.as_ref(), surv.as_ref(), as_of)?;
                     total = total.checked_add(value)?;
                     constituents.push(ConstituentResult {
-                        credit_curve_id: position.credit_curve_id,
+                        credit_curve_id: position.credit_curve_id.clone(),
                         recovery_rate: position.recovery_rate,
                         weight_raw: position.weight_raw,
                         weight_effective: position.weight_effective,
                         value,
                     });
-                }
+                    Ok(())
+                })?;
                 Ok(IndexResult {
                     total,
                     constituents,
@@ -617,7 +611,11 @@ impl CDSIndexPricer {
         }
     }
 
-    fn constituent_positions(&self, index: &CDSIndex) -> Result<Vec<ResolvedConstituent>> {
+    fn for_each_constituent<'a>(
+        &self,
+        index: &'a CDSIndex,
+        mut visit: impl FnMut(ResolvedConstituent<'a>) -> Result<()>,
+    ) -> Result<usize> {
         if index.constituents.is_empty() {
             return Err(Error::Validation(format!(
                 "CDS Index '{}' has pricing=Constituents but no constituents supplied",
@@ -630,29 +628,33 @@ impl CDSIndexPricer {
                 index.id, index.index_factor
             )));
         }
-        for (i, c) in index.constituents.iter().enumerate() {
-            if !c.weight.is_finite() || c.weight < 0.0 {
+        for (i, constituent) in index.constituents.iter().enumerate() {
+            if !constituent.weight.is_finite() || constituent.weight < 0.0 {
                 return Err(Error::Validation(format!(
                     "CDS Index '{}' constituent #{} ('{}') has invalid weight {} \
                      (must be finite and >= 0)",
                     index.id,
                     i + 1,
-                    c.credit.credit_curve_id,
-                    c.weight
+                    constituent.credit.credit_curve_id,
+                    constituent.weight
                 )));
             }
-            if !(0.0..=1.0).contains(&c.credit.recovery_rate) {
+            if !(0.0..=1.0).contains(&constituent.credit.recovery_rate) {
                 return Err(Error::Validation(format!(
                     "CDS Index '{}' constituent #{} ('{}') has recovery_rate {} \
                      outside [0, 1]",
                     index.id,
                     i + 1,
-                    c.credit.credit_curve_id,
-                    c.credit.recovery_rate
+                    constituent.credit.credit_curve_id,
+                    constituent.credit.recovery_rate
                 )));
             }
         }
-        let sum_w: f64 = index.constituents.iter().map(|c| c.weight).sum();
+        let sum_w: f64 = index
+            .constituents
+            .iter()
+            .map(|constituent| constituent.weight)
+            .sum();
         if (sum_w - 1.0).abs() > WEIGHT_SUM_TOL {
             return Err(Error::Validation(format!(
                 "CDS Index '{}' constituent weights sum to {} (expected 1.0 \
@@ -660,29 +662,11 @@ impl CDSIndexPricer {
                 index.id, sum_w, WEIGHT_SUM_TOL
             )));
         }
-        // Validate index_factor consistency with defaulted weights.
-        //
-        // The check is two-sided when defaults are explicitly declared on
-        // the constituent list, but degenerate to one-sided when the user
-        // is modelling defaults purely via `index_factor` (e.g. SingleCurve
-        // mode, or an aggregate post-default snapshot without constituent
-        // attribution):
-        //
-        //   * Over-statement (`factor > 1 − sum_defaulted_weights`): always
-        //     rejected — the surviving notional cannot exceed
-        //     `original − defaulted`. This catches double-counting bugs
-        //     irrespective of whether defaults are listed.
-        //   * Under-statement (`factor < 1 − sum_defaulted_weights`):
-        //     rejected only when `sum_defaulted_weights > 0`. With no
-        //     declared defaults the user is allowed to encode externally-
-        //     tracked defaults via `index_factor` alone (this is how
-        //     SingleCurve mode and many constituents-mode tests express a
-        //     post-default snapshot).
         let defaulted_sum_w: f64 = index
             .constituents
             .iter()
-            .filter(|c| c.defaulted)
-            .map(|c| c.weight)
+            .filter(|constituent| constituent.defaulted)
+            .map(|constituent| constituent.weight)
             .sum();
         let expected_factor_max = 1.0 - defaulted_sum_w;
         if index.index_factor > expected_factor_max + INDEX_FACTOR_CONSISTENCY_TOL {
@@ -708,50 +692,41 @@ impl CDSIndexPricer {
                 INDEX_FACTOR_CONSISTENCY_TOL
             )));
         }
-        let active_constituents: Vec<_> =
-            index.constituents.iter().filter(|c| !c.defaulted).collect();
-        if active_constituents.is_empty() {
-            return Ok(Vec::new());
+
+        let active_count = index
+            .constituents
+            .iter()
+            .filter(|constituent| !constituent.defaulted)
+            .count();
+        if active_count == 0 {
+            return Ok(0);
         }
-        // When some constituents have defaulted, renormalize the surviving
-        // weights so they sum to 1 over the live names; otherwise leave the
-        // declared weights as-is. Combined with index_factor scaling on the
-        // notional, this yields per-name notional = total × index_factor × eff_w.
-        let active_sum_w: f64 = active_constituents.iter().map(|c| c.weight).sum();
-        let norm = if active_constituents.len() != index.constituents.len() && active_sum_w > 0.0 {
+        let active_sum_w: f64 = index
+            .constituents
+            .iter()
+            .filter(|constituent| !constituent.defaulted)
+            .map(|constituent| constituent.weight)
+            .sum();
+        let norm = if active_count != index.constituents.len() && active_sum_w > 0.0 {
             active_sum_w
         } else {
             1.0
         };
-        let mut out = Vec::with_capacity(active_constituents.len());
-        for (i, con) in active_constituents.into_iter().enumerate() {
-            let eff_w = con.weight / norm;
-            let notional = Money::new(
-                index.notional.amount() * index.index_factor * eff_w,
-                index.notional.currency(),
-            );
-            let id = format!("{}-{:03}", index.id, i + 1);
-            // Preserve the index's effective contractual schedule and
-            // protection terms. Aggregation mode must change only the hazard
-            // decomposition, not frequency/day-count/calendar/settlement.
-            let mut cds = index.to_synthetic_cds();
-            cds.id = id.into();
-            cds.notional = notional;
-            cds.protection.credit_curve_id = con.credit.credit_curve_id.to_owned();
-            cds.protection.recovery_rate = con.credit.recovery_rate;
-            // Index-level upfront is applied once after aggregation.
-            cds.instrument_pricing_overrides
-                .market_quotes
-                .upfront_payment = None;
-            out.push(ResolvedConstituent {
-                cds,
-                credit_curve_id: con.credit.credit_curve_id.to_owned(),
-                recovery_rate: con.credit.recovery_rate,
-                weight_raw: con.weight,
-                weight_effective: eff_w,
-            });
+        for (ordinal, constituent) in index
+            .constituents
+            .iter()
+            .filter(|constituent| !constituent.defaulted)
+            .enumerate()
+        {
+            visit(ResolvedConstituent {
+                ordinal: ordinal + 1,
+                credit_curve_id: &constituent.credit.credit_curve_id,
+                recovery_rate: constituent.credit.recovery_rate,
+                weight_raw: constituent.weight,
+                weight_effective: constituent.weight / norm,
+            })?;
         }
-        Ok(out)
+        Ok(active_count)
     }
 
     fn project_resolved_flows(
@@ -770,16 +745,16 @@ impl CDSIndexPricer {
                 })
             }
             IndexPricing::Constituents => {
-                let constituents = self
-                    .constituent_positions(index)?
-                    .into_iter()
-                    .map(|position| {
-                        let surv = curves.get_hazard(&position.cds.protection.credit_curve_id)?;
-                        Ok(ProjectedConstituentFlows {
-                            flows: self.project_cds_flows(&position.cds, surv.as_ref(), as_of)?,
-                        })
-                    })
-                    .collect::<Result<Vec<_>>>()?;
+                let mut cds = self.synthetic_cds(index);
+                let mut constituents = Vec::with_capacity(index.constituents.len());
+                self.for_each_constituent(index, |position| {
+                    position.apply_to_cds(index, &mut cds);
+                    let surv = curves.get_hazard(position.credit_curve_id)?;
+                    constituents.push(ProjectedConstituentFlows {
+                        flows: self.project_cds_flows(&cds, surv.as_ref(), as_of)?,
+                    });
+                    Ok(())
+                })?;
                 Ok(ProjectedIndexFlows {
                     single_curve: None,
                     constituents,
@@ -1051,18 +1026,22 @@ mod tests {
             },
         ];
 
-        let positions = CDSIndexPricer::new()
-            .constituent_positions(&index)
-            .expect("constituent positions should resolve");
+        let mut resolved = Vec::new();
+        let count = CDSIndexPricer::new()
+            .for_each_constituent(&index, |position| {
+                resolved.push((
+                    position.credit_curve_id.clone(),
+                    position.weight_effective,
+                    index.notional.amount() * index.index_factor * position.weight_effective,
+                ));
+                Ok(())
+            })
+            .expect("constituents should resolve");
 
-        assert_eq!(positions.len(), 1);
-        assert_eq!(positions[0].credit_curve_id.as_str(), "LIVE-HAZARD");
-        assert!((positions[0].weight_effective - 1.0).abs() < 1e-12);
-        assert!(
-            (positions[0].cds.notional.amount() - index.notional.amount() * index.index_factor)
-                .abs()
-                < 1e-8
-        );
+        assert_eq!(count, 1);
+        assert_eq!(resolved[0].0.as_str(), "LIVE-HAZARD");
+        assert!((resolved[0].1 - 1.0).abs() < 1e-12);
+        assert!((resolved[0].2 - index.notional.amount() * index.index_factor).abs() < 1e-8);
     }
 
     #[test]
@@ -1261,7 +1240,7 @@ mod tests {
             defaulted: false,
         }];
         let err = CDSIndexPricer::new()
-            .constituent_positions(&index)
+            .for_each_constituent(&index, |_| Ok(()))
             .expect_err("inconsistent index_factor should fail");
         let msg = format!("{err}");
         assert!(msg.contains("index_factor"), "got: {msg}");
@@ -1291,7 +1270,7 @@ mod tests {
             },
         ];
         let err = CDSIndexPricer::new()
-            .constituent_positions(&index)
+            .for_each_constituent(&index, |_| Ok(()))
             .expect_err("understated index_factor should fail when defaults are declared");
         let msg = format!("{err}");
         assert!(msg.contains("index_factor"), "got: {msg}");
@@ -1312,7 +1291,7 @@ mod tests {
             defaulted: false,
         }];
         CDSIndexPricer::new()
-            .constituent_positions(&index)
+            .for_each_constituent(&index, |_| Ok(()))
             .expect("factor < 1 with no declared defaults must be accepted");
     }
 
@@ -1469,7 +1448,7 @@ mod tests {
             },
         ];
         let err = CDSIndexPricer::new()
-            .constituent_positions(&index)
+            .for_each_constituent(&index, |_| Ok(()))
             .expect_err("negative weight should fail");
         let msg = format!("{err}");
         assert!(

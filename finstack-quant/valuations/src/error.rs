@@ -57,7 +57,6 @@
 
 pub use crate::instruments::fixed_income::structured_credit::utils::validation::ValidationError;
 pub use crate::pricer::{PricingError, PricingErrorContext};
-pub use finstack_quant_factor_model::credit::decomposition::DecompositionError;
 
 /// Unified error type for the valuations crate.
 ///
@@ -89,10 +88,6 @@ pub enum Error {
     /// Structured credit waterfall validation error.
     #[error(transparent)]
     WaterfallValidation(#[from] ValidationError),
-
-    /// Credit hierarchy decomposition error.
-    #[error(transparent)]
-    Decomposition(#[from] DecompositionError),
 }
 
 /// Convenience result type used throughout the valuations crate.
@@ -113,7 +108,6 @@ impl From<Error> for finstack_quant_core::Error {
             Error::Pricing(e) => e.into(),
             Error::Correlation(e) => finstack_quant_core::Error::Validation(e.to_string()),
             Error::WaterfallValidation(e) => finstack_quant_core::Error::Validation(e.to_string()),
-            Error::Decomposition(e) => finstack_quant_core::Error::Validation(e.to_string()),
         }
     }
 }

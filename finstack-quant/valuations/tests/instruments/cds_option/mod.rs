@@ -3,10 +3,11 @@
 //!
 //! - [`common`]: shared fixtures and a builder for setup-heavy tests.
 //! - [`test_parameters`] / [`test_types`]: construction and validation.
-//! - [`test_pricing`]: end-to-end pricing scenarios.
+//! - End-to-end and kernel-level pricing tests that require crate-private
+//!   implementation details live beside the pricer as unit tests.
 //! - [`test_greeks`]: Δ, Γ, Vega, Θ via bump-and-reprice on `npv`.
 //! - [`test_implied_vol`]: σ recovery from the live pricer.
-//! - [`test_option_bounds`]: no-arbitrage value bounds.
+//! - No-arbitrage bounds are covered beside the pricer as unit tests.
 //! - [`test_moneyness`]: ITM/ATM/OTM behaviour.
 //! - [`test_metrics_registry`]: metric-framework wiring.
 //!
@@ -23,20 +24,12 @@ mod test_types;
 mod test_greeks;
 mod test_implied_vol;
 mod test_knockout_convention;
-mod test_pricing;
 mod test_public_properties;
 mod test_recovery01_par_invariance;
 
 mod test_moneyness;
-mod test_option_bounds;
 
 mod test_metrics_registry;
 
-// Bloomberg reconciliation: spot 5Y CDX.NA.IG.46 against Bloomberg's
-// CDSW screen values, plus CDSO quadrature and supplied-curve regressions.
+// Bloomberg reconciliation against the public pricing surface.
 mod test_bloomberg_cdsw_parity;
-mod test_cdx_ig_46_cdso_regressions;
-
-// CDX HY clean-price-strike convention: curve-reprice risk metrics and
-// price-strike pricing behaviour.
-mod test_cdx_hy_price_strike;

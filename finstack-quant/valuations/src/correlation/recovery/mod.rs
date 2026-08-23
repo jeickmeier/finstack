@@ -228,6 +228,27 @@ impl RecoverySpec {
         }
     }
 
+    /// Validate the recovery specification without constructing a model.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::correlation::Error`] when any recovery parameter is
+    /// non-finite or outside its documented range.
+    pub fn validate(&self) -> Result<()> {
+        match self {
+            RecoverySpec::Constant { rate } => validate_recovery_input("rate", *rate, 0.0, 1.0),
+            RecoverySpec::MarketCorrelated {
+                mean_recovery,
+                recovery_volatility,
+                factor_correlation,
+            } => {
+                validate_recovery_input("mean_recovery", *mean_recovery, 0.0, 1.0)?;
+                validate_recovery_input("recovery_volatility", *recovery_volatility, 0.0, 0.5)?;
+                validate_recovery_input("factor_correlation", *factor_correlation, -1.0, 1.0)
+            }
+        }
+    }
+
     /// Build the recovery model instance from this specification.
     ///
     /// # Returns

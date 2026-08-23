@@ -37,6 +37,7 @@
 
 mod assignment;
 mod credit_vol_forecast;
+mod dependencies;
 mod math;
 mod model;
 mod parametric;

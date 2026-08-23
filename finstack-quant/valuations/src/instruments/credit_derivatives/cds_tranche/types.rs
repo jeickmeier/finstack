@@ -516,7 +516,7 @@ impl Instrument for CDSTranche {
     > {
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
-        deps.add_credit_curve(self.credit_index_id.clone());
+        deps.add_credit_index(self.credit_index_id.clone());
         Ok(deps)
     }
 
@@ -565,4 +565,16 @@ impl finstack_quant_cashflows::CashflowScheduleSource for CDSTranche {
     }
 }
 
-// Declare canonical market dependencies for the DV01 calculator.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn market_dependencies_preserve_credit_index_identity() {
+        let tranche = CDSTranche::example();
+        let dependencies = tranche.market_dependencies().expect("tranche dependencies");
+
+        assert_eq!(dependencies.credit_index_ids, vec![tranche.credit_index_id]);
+        assert!(dependencies.curves.credit_curves.is_empty());
+    }
+}

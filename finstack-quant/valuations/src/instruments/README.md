@@ -42,7 +42,6 @@ Files at this level:
 | `json_loader.rs` | `InstrumentEnvelope`, `InstrumentJson`, and the registry macro |
 | `pricing_overrides.rs` | `InstrumentPricingOverrides`, `MetricPricingOverrides`, `ScenarioPricingOverrides`, `ModelConfig`, `BumpConfig` |
 | `marginable.rs` | private `finstack_quant_margin::Marginable` impls, reached only through `Instrument::as_marginable` |
-| `dependencies_flatten.rs` | Flattens `MarketDependencies` for portfolio factor-model orchestration |
 | `model_params.rs` | `ModelParamsSnapshot` used by attribution |
 | `position.rs` | `Position` (long/short direction) |
 | `breakeven.rs` | `BreakevenConfig`, `BreakevenMode`, `BreakevenTarget` |

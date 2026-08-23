@@ -426,6 +426,7 @@ impl CDSTranchePricer {
         market_ctx: &MarketContext,
         as_of: Date,
     ) -> Result<f64> {
+        tranche.validate()?;
         let discount_curve = market_ctx.get_discount(&tranche.discount_curve_id)?;
 
         // Initial guess: unsigned magnitude of protection PV divided by premium per bp.
@@ -533,6 +534,7 @@ impl CDSTranchePricer {
         tranche: &CDSTranche,
         market_ctx: &MarketContext,
     ) -> Result<f64> {
+        tranche.validate()?;
         let index_data_arc = market_ctx.get_credit_index(&tranche.credit_index_id)?;
         self.calculate_expected_tranche_loss(tranche, index_data_arc.as_ref(), tranche.maturity)
     }
@@ -558,6 +560,7 @@ impl CDSTranchePricer {
         market_ctx: &MarketContext,
         as_of: Date,
     ) -> Result<f64> {
+        tranche.validate()?;
         if self.params.cs01_bump_size <= 0.0 {
             return Err(finstack_quant_core::Error::Validation(
                 "CS01 bump size must be positive".to_string(),
@@ -629,6 +632,7 @@ impl CDSTranchePricer {
         market_ctx: &MarketContext,
         as_of: Date,
     ) -> Result<f64> {
+        tranche.validate()?;
         let bump_abs = self.params.corr_bump_abs;
         let original_index_arc = market_ctx.get_credit_index(&tranche.credit_index_id)?;
 
@@ -702,6 +706,7 @@ impl CDSTranchePricer {
         tranche: &CDSTranche,
         market_ctx: &MarketContext,
     ) -> Result<JumpToDefaultResult> {
+        tranche.validate()?;
         let index_data = market_ctx.get_credit_index(&tranche.credit_index_id)?;
 
         let attach_frac = tranche.attach_pct / 100.0;
@@ -820,6 +825,7 @@ impl CDSTranchePricer {
         market_ctx: &MarketContext,
         as_of: Date,
     ) -> Result<f64> {
+        tranche.validate()?;
         let start_date = tranche.contractual_effective_date(as_of).ok_or_else(|| {
             Error::Validation(
                 "CDS tranche accrued premium requires an explicit effective_date for non-standard schedules"
@@ -899,6 +905,7 @@ impl CDSTranchePricer {
         market_ctx: &MarketContext,
         as_of: Date,
     ) -> Result<Vec<(Date, f64)>> {
+        tranche.validate()?;
         let index_data = market_ctx.get_credit_index(&tranche.credit_index_id)?;
         let payment_dates = self.generate_payment_schedule(tranche, as_of)?;
         self.build_el_curve(tranche, index_data.as_ref(), &payment_dates)

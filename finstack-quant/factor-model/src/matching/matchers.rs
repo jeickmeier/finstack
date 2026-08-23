@@ -175,9 +175,9 @@ fn index_mapping_rules(rules: &[MappingRule]) -> (HashMap<String, Vec<usize>>, V
 
 fn dependency_lookup_id(dep: &MarketDependency) -> Cow<'_, str> {
     match dep {
-        MarketDependency::Curve { id, .. } | MarketDependency::CreditCurve { id } => {
-            Cow::Borrowed(id.as_ref())
-        }
+        MarketDependency::Curve { id, .. }
+        | MarketDependency::CreditCurve { id }
+        | MarketDependency::CreditIndex { id } => Cow::Borrowed(id.as_ref()),
         MarketDependency::Spot { id }
         | MarketDependency::VolSurface { id }
         | MarketDependency::Series { id } => Cow::Borrowed(id.as_str()),

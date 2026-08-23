@@ -168,10 +168,6 @@ pub use common_impl::fx_dates::{
 };
 pub use finstack_quant_core::dates::fx::resolve_calendar;
 
-/// Flatten an instrument's structured `MarketDependencies` into a flat list of
-/// `MarketDependency` entries. Used by portfolio factor-model orchestration.
-pub mod dependencies_flatten;
-
 /// Model parameter snapshots used by attribution.
 pub mod model_params;
 

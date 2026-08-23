@@ -117,6 +117,15 @@ pub enum MarketDependency {
         /// Curve identifier.
         id: CurveId,
     },
+    /// Composite credit-index market data.
+    ///
+    /// The identifier resolves through `MarketContext::get_credit_index` and
+    /// represents the aggregate hazard curve, base correlation, and optional
+    /// issuer-level curves as one pricing dependency.
+    CreditIndex {
+        /// Credit-index aggregate identifier.
+        id: CurveId,
+    },
     /// Equity or commodity spot.
     Spot {
         /// Spot identifier or ticker.
@@ -155,7 +164,7 @@ impl MarketDependency {
             (Self::Curve { curve_type, .. }, DependencyType::Credit) => {
                 *curve_type == CurveType::Hazard
             }
-            (Self::CreditCurve { .. }, DependencyType::Credit)
+            (Self::CreditCurve { .. } | Self::CreditIndex { .. }, DependencyType::Credit)
             | (Self::Spot { .. }, DependencyType::Spot)
             | (Self::VolSurface { .. }, DependencyType::Vol)
             | (Self::FxPair { .. }, DependencyType::Fx)
@@ -189,7 +198,9 @@ impl MarketDependency {
     #[must_use]
     pub fn matches_id(&self, expected_id: &str) -> bool {
         match self {
-            Self::Curve { id, .. } | Self::CreditCurve { id } => id.as_ref() == expected_id,
+            Self::Curve { id, .. } | Self::CreditCurve { id } | Self::CreditIndex { id } => {
+                id.as_ref() == expected_id
+            }
             Self::Spot { id } | Self::VolSurface { id } | Self::Series { id } => id == expected_id,
             Self::FxPair { base, quote } => format!("{base}/{quote}") == expected_id,
         }

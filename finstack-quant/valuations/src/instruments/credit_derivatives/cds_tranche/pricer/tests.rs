@@ -1833,7 +1833,8 @@ fn test_stochastic_recovery_impacts_equity_tranche() {
 
     // Stochastic recovery (market-correlated)
     let pricer_stoch =
-        CDSTranchePricer::with_params(CDSTranchePricerConfig::default().with_stochastic_recovery());
+        CDSTranchePricer::with_params(CDSTranchePricerConfig::default().with_stochastic_recovery())
+            .expect("valid tranche pricer config");
     let pv_stoch = pricer_stoch
         .price_tranche(&tranche, &market_ctx, as_of)
         .expect("Stochastic recovery pricing should succeed")
@@ -2668,7 +2669,8 @@ fn student_t_recovery_driver_uses_scaled_market_factor() {
         CDSTranchePricerConfig::default()
             .with_student_t_copula(5.0)
             .expect("valid Student-t copula"),
-    );
+    )
+    .expect("valid tranche pricer config");
     let gaussian = CDSTranchePricer::new();
 
     assert_eq!(
@@ -2700,7 +2702,8 @@ fn test_stochastic_recovery_full_pool_el_matches_index() {
     let maturity = Date::from_calendar_date(2030, Month::January, 1).expect("date");
 
     let pricer_stoch =
-        CDSTranchePricer::with_params(CDSTranchePricerConfig::default().with_stochastic_recovery());
+        CDSTranchePricer::with_params(CDSTranchePricerConfig::default().with_stochastic_recovery())
+            .expect("valid tranche pricer config");
 
     // Index-implied expected loss with the flat bootstrapped recovery.
     let t = pricer_stoch

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Changed — credit derivative architecture (BREAKING)
+
+- `CDSTranchePricer::with_params` now returns `Result` and rejects invalid
+  copula, recovery, quadrature, bump, correlation, settlement, and convolution
+  settings before constructing numerical caches. Direct tranche pricer methods
+  validate instrument invariants before valuation.
+- Credit-index market dependencies are distinct from direct hazard-curve
+  dependencies. Portfolio factor-model orchestration resolves the aggregate
+  index to its bound hazard curve when applying credit shocks.
+- CDS-index bucketed CS01 and tranche Recovery01 now propagate failed
+  par-spread recalibration instead of silently switching to direct-hazard or
+  frozen-curve risk.
+- CDS-option quadrature and synthetic-underlying modules are crate-private;
+  callers use the validated instrument and metric surfaces.
+
 ### Changed — rates lifecycle, conventions, and settlement (BREAKING)
 
 - Cash-settled swaptions now default to

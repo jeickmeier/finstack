@@ -119,13 +119,28 @@ impl CDSTranchePricer {
         }
     }
 
-    /// Create a new model with custom parameters.
-    pub fn with_params(params: CDSTranchePricerConfig) -> Self {
-        Self {
+    /// Create a new model with validated custom parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - Copula, recovery, numerical integration, sensitivity, and
+    ///   settlement settings for every valuation performed by the pricer.
+    ///
+    /// # Returns
+    ///
+    /// A pricer with immutable validated configuration and empty numerical caches.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the copula, recovery, quadrature, bump, correlation,
+    /// settlement, or convolution settings violate their documented ranges.
+    pub fn with_params(params: CDSTranchePricerConfig) -> Result<Self> {
+        params.validate()?;
+        Ok(Self {
             params,
             copula_cache: std::sync::OnceLock::new(),
             quadrature_cache: std::sync::OnceLock::new(),
-        }
+        })
     }
 
     /// Price a CDS tranche using the Gaussian Copula model.
@@ -150,6 +165,7 @@ impl CDSTranchePricer {
         market_ctx: &MarketContext,
         as_of: Date,
     ) -> Result<Money> {
+        tranche.validate()?;
         let discount_curve = market_ctx.get_discount(tranche.discount_curve_id.as_ref())?;
         let wiped_out = tranche.accumulated_loss >= tranche.detach_pct / 100.0;
         let mut net_pv = if wiped_out {
@@ -190,6 +206,7 @@ impl CDSTranchePricer {
         market_ctx: &MarketContext,
         as_of: Date,
     ) -> Result<CashFlowSchedule> {
+        tranche.validate()?;
         if as_of >= tranche.maturity {
             return Ok(crate::cashflow::traits::schedule_from_classified_flows(
                 Vec::new(),

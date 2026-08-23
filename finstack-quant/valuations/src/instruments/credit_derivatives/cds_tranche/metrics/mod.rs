@@ -9,7 +9,7 @@
 //! - Spread DV01 (per 1bp change in running coupon)
 //! - Expected loss (currency units)
 //! - Jump-to-default (currency units)
-//! - CS01 (approximate parallel spread shift)
+//! - CS01 (parallel par-spread rebootstrap)
 //! - Correlation01 (per 1% correlation change)
 //! - Recovery01 (per 1% recovery change)
 //! - TailDependence (copula tail dependence coefficient)

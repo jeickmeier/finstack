@@ -36,7 +36,10 @@
 use crate::instruments::credit_derivatives::cds_tranche::pricer::CDSTranchePricer;
 use crate::instruments::credit_derivatives::cds_tranche::CDSTranche;
 use crate::metrics::{MetricCalculator, MetricContext};
+use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_core::market_data::term_structures::CreditIndexData;
 use finstack_quant_core::Result;
+use std::sync::Arc;
 
 /// Calculator for tail dependence coefficient.
 ///
@@ -44,6 +47,22 @@ use finstack_quant_core::Result;
 /// being used for tranche pricing. This is a diagnostic metric that
 /// indicates whether the model captures joint extreme defaults.
 pub(crate) struct TailDependenceCalculator;
+
+fn credit_index_for_tail_dependence(
+    tranche: &CDSTranche,
+    market: &MarketContext,
+) -> Result<Arc<CreditIndexData>> {
+    market
+        .get_credit_index(&tranche.credit_index_id)
+        .map_err(|error| {
+            finstack_quant_core::Error::Input(finstack_quant_core::InputError::NotFound {
+                id: format!(
+                    "Credit index '{}' required for tranche '{}' tail dependence: {error}",
+                    tranche.credit_index_id, tranche.id
+                ),
+            })
+        })
+}
 
 impl MetricCalculator for TailDependenceCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
@@ -55,10 +74,7 @@ impl MetricCalculator for TailDependenceCalculator {
                 finstack_quant_core::InputError::Invalid,
             ))?;
 
-        // Get the credit index data to determine correlation
-        let Ok(index_data) = context.curves.get_credit_index(&tranche.credit_index_id) else {
-            return Ok(f64::NAN);
-        };
+        let index_data = credit_index_for_tail_dependence(tranche, &context.curves)?;
         let correlation = index_data
             .base_correlation_curve
             .correlation(tranche.detach_pct);
@@ -75,5 +91,18 @@ impl MetricCalculator for TailDependenceCalculator {
             .map_err(|e| finstack_quant_core::Error::Validation(e.to_string()))?;
 
         Ok(copula.tail_dependence(correlation))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_credit_index_is_an_error_not_nan() {
+        let tranche = CDSTranche::example();
+        let error = credit_index_for_tail_dependence(&tranche, &MarketContext::new())
+            .expect_err("missing credit index must fail");
+        assert!(error.to_string().contains(tranche.credit_index_id.as_str()));
     }
 }

@@ -540,12 +540,12 @@ fn resolve_doc_clause(clause: CdsDocClause) -> CdsDocClause {
 /// - Accrual-on-default included in premium leg
 /// - Settlement: T+3 (North America), T+1 (Europe post-2009)
 ///
-/// ## Integration Methods
+/// ## Integration Method
 ///
-/// Multiple numerical integration methods available:
-/// - **ISDA Exact:** Analytical integration at exact cashflow dates (default)
-/// - **Gaussian Quadrature:** 8-point Gauss-Legendre for smooth integration
-/// - **Adaptive Simpson:** Adaptive refinement for complex survival curves
+/// Protection and accrual-on-default legs use one piecewise-analytical
+/// integration engine. Hazard- and discount-curve knots are mandatory
+/// boundaries; configurable intra-knot substeps control the additional
+/// resolution between those boundaries.
 ///
 /// ## References
 ///

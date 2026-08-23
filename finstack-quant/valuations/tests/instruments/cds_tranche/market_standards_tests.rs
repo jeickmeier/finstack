@@ -449,7 +449,8 @@ fn test_homogeneous_pool_assumption() {
     let pricer =
         finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::CDSTranchePricer::with_params(
             config,
-        );
+        )
+        .expect("valid tranche pricer config");
     let tranche = mezzanine_tranche();
     let market = standard_market_context();
 
@@ -469,7 +470,8 @@ fn test_heterogeneous_pool_extension() {
     let pricer =
         finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::CDSTranchePricer::with_params(
             config,
-        );
+        )
+        .expect("valid tranche pricer config");
     let tranche = mezzanine_tranche();
     let market = market_context_with_issuers(50);
 

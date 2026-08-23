@@ -239,7 +239,7 @@ pub(crate) fn resolve_sigma(
 /// valuation convention, adjusted-to-adjusted accruals, +1-day inclusive on
 /// the final ACT/360 period).
 #[doc(hidden)]
-pub fn synthetic_underlying_cds(
+pub(crate) fn synthetic_underlying_cds(
     option: &CDSOption,
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<CreditDefaultSwap> {

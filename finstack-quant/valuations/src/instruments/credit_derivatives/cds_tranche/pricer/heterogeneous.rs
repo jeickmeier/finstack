@@ -13,6 +13,7 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::term_structures::CreditIndexData;
 use finstack_quant_core::math::norm_cdf;
 use finstack_quant_core::{Error, Result};
+use std::cell::RefCell;
 use tracing::warn;
 
 impl CDSTranchePricer {
@@ -405,16 +406,17 @@ impl CDSTranchePricer {
         let sqrt_1mr = (1.0 - correlation).sqrt();
         let quad = self.select_quadrature()?;
 
-        // The convolution loop allocates two PMF buffers of `max_points` once per
-        // integrand evaluation and ping-pongs between them, replacing the
-        // previous per-issuer `vec![0.0f64; ...]` (was N×K allocations per
-        // quadrature point; now 2). Each `accumulate_issuer_pmf` call zeros only
-        // the active prefix of the destination buffer.
+        // Allocate the two PMF buffers once for the full quadrature. The
+        // integrators accept `Fn`, so interior mutability lets each sequential
+        // factor evaluation reuse the same scratch storage without changing
+        // accumulation order.
+        let buf_a = RefCell::new(vec![0.0f64; max_points]);
+        let buf_b = RefCell::new(vec![0.0f64; max_points]);
         if use_gaussian {
             let integrand = |factors: &[f64]| {
                 let z = factors.first().copied().unwrap_or(0.0);
-                let mut buf_a = vec![0.0f64; max_points];
-                let mut buf_b = vec![0.0f64; max_points];
+                let mut buf_a = buf_a.borrow_mut();
+                let mut buf_b = buf_b.borrow_mut();
                 buf_a[0] = 1.0;
                 let mut pmf_len = 1usize;
                 let mut pmf_in_a = true;
@@ -440,7 +442,7 @@ impl CDSTranchePricer {
                     pmf_in_a = !pmf_in_a;
                 }
 
-                let active = if pmf_in_a { &buf_a } else { &buf_b };
+                let active = if pmf_in_a { &buf_a[..] } else { &buf_b[..] };
                 expected_loss_capped(&active[..pmf_len], grid_step, k)
             };
 
@@ -458,8 +460,8 @@ impl CDSTranchePricer {
             Error::Validation("Copula must be set for non-Gaussian convolution.".to_string())
         })?;
         let integrand = |factors: &[f64]| {
-            let mut buf_a = vec![0.0f64; max_points];
-            let mut buf_b = vec![0.0f64; max_points];
+            let mut buf_a = buf_a.borrow_mut();
+            let mut buf_b = buf_b.borrow_mut();
             buf_a[0] = 1.0;
             let mut pmf_len = 1usize;
             let mut pmf_in_a = true;
@@ -484,7 +486,7 @@ impl CDSTranchePricer {
                 pmf_in_a = !pmf_in_a;
             }
 
-            let active = if pmf_in_a { &buf_a } else { &buf_b };
+            let active = if pmf_in_a { &buf_a[..] } else { &buf_b[..] };
             expected_loss_capped(&active[..pmf_len], grid_step, k)
         };
 

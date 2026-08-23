@@ -23,8 +23,6 @@ Import path:
 | `CDSOptionStrike` | `Spread(Decimal)` or `CleanPricePct(Decimal)`. |
 | `CDSOptionStrikeKind` | Discriminant for branching pricing and metric paths. |
 | `ProtectionStartConvention` | `Spot` (default) or `Forward`. |
-| `bloomberg_quadrature` | The quadrature integration (`#[doc(hidden)]`, exposed for tests and goldens): `npv`, `theta`, `forward_par_at_expiry_bp`, `calibrate_lognormal_mean`, `price_with_calibrated_mean`, `ForwardCdsContext`, `QuadratureStrike`. |
-| `pricer` | `#[doc(hidden)]`; the only public item is `synthetic_underlying_cds`. Its `npv` / `theta` / `implied_vol` are `pub(crate)` — reach implied vol through the `CDSOption::implied_vol` method or the `ImpliedVol` metric. |
 
 Useful methods on `CDSOption`: `with_implied_vol(vol)` (instrument-level vol
 override, highest precedence), `effective_cash_settlement_date(as_of)`, and the
@@ -36,15 +34,19 @@ computation the corresponding metric calculator registers.
 
 ```
 cds_option/
-├── mod.rs                    # re-exports + model overview and Greek definitions
+├── mod.rs                    # public re-exports and model overview
 ├── types.rs                  # CDSOption, ProtectionStartConvention, validation, example
 ├── parameters.rs             # CDSOptionParams (call/put constructors)
 ├── strike.rs                 # CDSOptionStrike, CDSOptionStrikeKind
-├── bloomberg_quadrature.rs   # DOCS 2055833 quadrature, calibration, native ATM coordinate
-├── pricer.rs                 # BloombergCdsoPricer + npv / theta / implied_vol primitives
+├── bloomberg_quadrature.rs   # crate-private DOCS 2055833 quadrature kernel
+├── pricer.rs                 # crate-private registry adapter and pricing primitives
 └── metrics/                  # delta, gamma, vega, theta, dv01, spread_dv01, par_spread,
                               # implied_vol, recovery01
 ```
+
+The quadrature kernel and synthetic-underlying builder are crate-private.
+Callers enter through `Instrument::value`, `CDSOption` analytics, or registered
+metrics so validation, volatility resolution, and lifecycle policy are applied.
 
 Registered as `(InstrumentType::CdsOption, ModelKey::BloombergCdso)` →
 `BloombergCdsoPricer` in [`src/pricer/credit.rs`](../../../pricer/credit.rs).

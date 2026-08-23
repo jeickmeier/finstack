@@ -3,7 +3,7 @@
 //! Provides reusable market setups, option builders, and assertion helpers
 //! to maintain DRY principles across the test suite.
 
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(dead_code, clippy::unwrap_used, clippy::expect_used)]
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::DateExt;

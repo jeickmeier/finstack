@@ -161,9 +161,33 @@ fn test_pricer_config_builder_methods_wire_copula_and_numerical_settings() {
     ));
 
     let config = CDSTranchePricerConfig::default().with_quadrature_order(7);
-    let pricer = CDSTranchePricer::with_params(config.clone());
+    let pricer =
+        CDSTranchePricer::with_params(config.clone()).expect("valid tranche pricer config");
     assert_eq!(config.quadrature_order, 7);
     assert_eq!(pricer.config().quadrature_order, 7);
+}
+
+#[test]
+fn pricer_rejects_unsupported_quadrature_order() {
+    let config = CDSTranchePricerConfig::default().with_quadrature_order(3);
+    let error = CDSTranchePricer::with_params(config)
+        .err()
+        .expect("unsupported quadrature order must fail");
+    assert!(error.to_string().contains("quadrature_order"));
+}
+
+#[test]
+fn pricer_rejects_invalid_direct_student_t_spec() {
+    let config = CDSTranchePricerConfig {
+        copula_spec: CopulaSpec::StudentT {
+            degrees_of_freedom: 2.0,
+        },
+        ..Default::default()
+    };
+    let error = CDSTranchePricer::with_params(config)
+        .err()
+        .expect("invalid Student-t df must fail");
+    assert!(error.to_string().contains("degrees of freedom"));
 }
 
 #[test]

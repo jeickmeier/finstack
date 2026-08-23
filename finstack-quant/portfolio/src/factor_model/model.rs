@@ -20,6 +20,7 @@
 //!
 
 use super::assignment::{assign_position_factors, FactorAssignmentReport};
+use super::dependencies::flatten as flatten_dependencies;
 use super::whatif::{StressPnl, StressResult, WhatIfEngine};
 use super::{
     ParametricDecomposer, PositionResidualContribution, ResidualContributionSource, RiskDecomposer,
@@ -39,7 +40,6 @@ use finstack_quant_factor_model::{
     FactorType, MarketDependency, MatchingConfig, PricingMode, RiskMeasure, UnmatchedPolicy,
 };
 use finstack_quant_valuations::calibration::bumps::{bump_hazard_shift, BumpRequest};
-use finstack_quant_valuations::instruments::dependencies_flatten::decompose as flatten_dependencies;
 use finstack_quant_valuations::instruments::Instrument;
 use std::collections::{BTreeMap, HashMap};
 
@@ -380,7 +380,9 @@ impl FactorModel {
             .enumerate()
         {
             for (dependency, factor_id, beta) in &assignment.mappings {
-                let Some(curve_id) = credit_curve_id(dependency) else {
+                let Some(curve_id) =
+                    credit_curve_id(dependency, credit_exposures.bump_contexts.base)?
+                else {
                     continue;
                 };
                 let Some(factor_idx) = self
@@ -429,7 +431,7 @@ impl FactorModel {
                     position.instrument.as_ref(),
                     position.scale_factor(),
                     as_of,
-                    curve_id,
+                    &curve_id,
                     bump_size,
                 )?;
                 // Under the credit hierarchy model Δs_i = β_pc·ΔG +
@@ -590,13 +592,15 @@ impl FactorModel {
             let dependencies = flatten_dependencies(&position.instrument.market_dependencies()?);
             let mut exposure = 0.0;
             for dependency in &dependencies {
-                if let Some(curve_id) = credit_curve_id(dependency) {
+                if let Some(curve_id) =
+                    credit_curve_id(dependency, credit_exposures.bump_contexts.base)?
+                {
                     exposure += credit_exposures.exposure(
                         position_idx,
                         position.instrument.as_ref(),
                         position.scale_factor(),
                         as_of,
-                        curve_id,
+                        &curve_id,
                         self.bump_config.credit_bp,
                     )?;
                 }
@@ -781,7 +785,8 @@ impl FactorModel {
                 continue;
             };
             let resolved_curve_ids = if uses_assignment_driven_credit_shock(factor) {
-                let curve_betas = self.credit_curves_matched_to_factor(portfolio, &factor.id)?;
+                let curve_betas =
+                    self.credit_curves_matched_to_factor(portfolio, &stressed, &factor.id)?;
                 stressed = shift_credit_curves(&stressed, &curve_betas, shift)?;
                 Some(
                     curve_betas
@@ -826,13 +831,14 @@ impl FactorModel {
     fn credit_curves_matched_to_factor(
         &self,
         portfolio: &Portfolio,
+        market: &MarketContext,
         factor_id: &finstack_quant_factor_model::FactorId,
     ) -> Result<Vec<(finstack_quant_core::types::CurveId, f64)>> {
         let mut curve_betas: BTreeMap<finstack_quant_core::types::CurveId, f64> = BTreeMap::new();
         for position in &portfolio.positions {
             let dependencies = flatten_dependencies(&position.instrument.market_dependencies()?);
             for dependency in &dependencies {
-                let Some(curve_id) = credit_curve_id(dependency) else {
+                let Some(curve_id) = credit_curve_id(dependency, market)? else {
                     continue;
                 };
                 let Some(entries) = self
@@ -843,7 +849,7 @@ impl FactorModel {
                     continue;
                 };
                 if let Some(entry) = entries.iter().find(|entry| entry.factor_id == *factor_id) {
-                    curve_betas.entry(curve_id.clone()).or_insert(entry.beta);
+                    curve_betas.entry(curve_id).or_insert(entry.beta);
                 }
             }
         }
@@ -1030,14 +1036,20 @@ fn uses_assignment_driven_credit_shock(factor: &FactorDefinition) -> bool {
         )
 }
 
-fn credit_curve_id(dependency: &MarketDependency) -> Option<&finstack_quant_core::types::CurveId> {
+fn credit_curve_id(
+    dependency: &MarketDependency,
+    market: &MarketContext,
+) -> Result<Option<finstack_quant_core::types::CurveId>> {
     match dependency {
         MarketDependency::CreditCurve { id }
         | MarketDependency::Curve {
             id,
             curve_type: CurveType::Hazard,
-        } => Some(id),
-        _ => None,
+        } => Ok(Some(id.clone())),
+        MarketDependency::CreditIndex { id } => Ok(Some(
+            market.get_credit_index(id)?.index_credit_curve.id().clone(),
+        )),
+        _ => Ok(None),
     }
 }
 

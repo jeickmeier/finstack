@@ -82,40 +82,36 @@ fn frozen_market_at_bumped_recovery(
         .insert_credit_index(&tranche.credit_index_id, bumped_index))
 }
 
-/// Build a market with both the index recovery bumped AND the index hazard
+/// Build a market with both the index recovery bumped and the index hazard
 /// curve re-bootstrapped from par spreads at the new recovery.
-///
-/// Returns `None` when the curve recalibration fails (e.g. degenerate
-/// spreads); the caller decides how to fall back — both legs must use the
-/// same treatment, so the fallback cannot live inside this per-leg helper.
 fn recalibrated_market_at_bumped_recovery(
     base_market: &MarketContext,
     tranche: &CDSTranche,
     original_index: &CreditIndexData,
     new_recovery: f64,
-) -> Result<Option<MarketContext>> {
+) -> Result<MarketContext> {
     let mut bumped_index = rebuild_with_recovery(original_index, new_recovery)?;
-
-    // Recalibrate the index hazard curve so the observed CDS index par
-    // spreads stay consistent under the new recovery assumption. This
-    // captures the dominant h ≈ S/(1-R) effect.
-    match recalibrate_hazard_with_recovery(
+    let recalibrated = recalibrate_hazard_with_recovery(
         original_index.index_credit_curve.as_ref(),
         new_recovery,
         base_market,
         Some(&tranche.discount_curve_id),
         None,
         None,
-    ) {
-        Ok(recalibrated) => {
-            bumped_index.index_credit_curve = Arc::new(recalibrated);
-            Ok(Some(base_market.clone().insert_credit_index(
-                &tranche.credit_index_id,
-                bumped_index,
-            )))
-        }
-        Err(_) => Ok(None),
-    }
+    )
+    .map_err(|error| finstack_quant_core::Error::Calibration {
+        message: format!(
+            "CDS tranche '{}' Recovery01 failed to re-bootstrap index hazard curve '{}' \
+             at recovery {new_recovery}: {error}",
+            tranche.id,
+            original_index.index_credit_curve.id()
+        ),
+        category: "recovery01_rebootstrap".to_string(),
+    })?;
+    bumped_index.index_credit_curve = Arc::new(recalibrated);
+    Ok(base_market
+        .clone()
+        .insert_credit_index(&tranche.credit_index_id, bumped_index))
 }
 
 impl MetricCalculator for Recovery01Calculator {
@@ -138,44 +134,23 @@ impl MetricCalculator for Recovery01Calculator {
             .next()
             .is_some();
 
-        // Both legs must use the SAME curve treatment. Mixing a recalibrated
-        // leg with a frozen leg (e.g. when only one recalibration fails)
-        // turns the central difference into a one-sided artifact dominated by
-        // the recalibration shift rather than the recovery sensitivity.
-        let legs = if has_par_quotes {
-            let up = recalibrated_market_at_bumped_recovery(
-                market,
-                tranche,
-                original_index.as_ref(),
-                bumped_recovery_up,
-            )?;
-            let down = recalibrated_market_at_bumped_recovery(
-                market,
-                tranche,
-                original_index.as_ref(),
-                bumped_recovery_down,
-            )?;
-            match (up, down) {
-                (Some(up), Some(down)) => Some((up, down)),
-                _ => {
-                    tracing::warn!(
-                        tranche_id = %tranche.id,
-                        credit_index = %tranche.credit_index_id,
-                        "Recovery01: hazard-curve recalibration failed for at least one bump \
-                         leg; falling back to a symmetric frozen-curve bump on BOTH legs. The \
-                         result omits the h ≈ S/(1-R) re-bootstrap effect and may understate \
-                         the true recovery sensitivity."
-                    );
-                    None
-                }
-            }
+        let (curves_up, curves_down) = if has_par_quotes {
+            (
+                recalibrated_market_at_bumped_recovery(
+                    market,
+                    tranche,
+                    original_index.as_ref(),
+                    bumped_recovery_up,
+                )?,
+                recalibrated_market_at_bumped_recovery(
+                    market,
+                    tranche,
+                    original_index.as_ref(),
+                    bumped_recovery_down,
+                )?,
+            )
         } else {
-            None
-        };
-
-        let (curves_up, curves_down) = match legs {
-            Some(pair) => pair,
-            None => (
+            (
                 frozen_market_at_bumped_recovery(
                     market,
                     tranche,
@@ -188,7 +163,7 @@ impl MetricCalculator for Recovery01Calculator {
                     original_index.as_ref(),
                     bumped_recovery_down,
                 )?,
-            ),
+            )
         };
 
         let pv_up = tranche.value(&curves_up, as_of)?.amount();
@@ -218,6 +193,7 @@ mod tests {
                 .base_date(base)
                 .recovery_rate(0.40)
                 .knots([(1.0, 0.02), (5.0, 0.025)])
+                .par_spreads([(1.0, 120.0), (5.0, 150.0)])
                 .build()
                 .expect("hazard curve"),
         );
@@ -325,5 +301,20 @@ mod tests {
         assert!(bumped.issuer_credit_curves.is_some());
         assert!(bumped.issuer_recovery_rates.is_none());
         assert!(bumped.issuer_weights.is_none());
+    }
+
+    #[test]
+    fn recalibration_failure_is_propagated() {
+        let tranche = CDSTranche::example();
+        let index = sample_index(false, false);
+        let error =
+            recalibrated_market_at_bumped_recovery(&MarketContext::new(), &tranche, &index, 0.41)
+                .expect_err("missing discount curve must fail rebootstrap");
+
+        assert!(matches!(
+            error,
+            finstack_quant_core::Error::Calibration { ref category, .. }
+                if category == "recovery01_rebootstrap"
+        ));
     }
 }

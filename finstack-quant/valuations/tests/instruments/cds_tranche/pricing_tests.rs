@@ -43,6 +43,18 @@ fn test_tranche_pricing_returns_valid_pv() {
 }
 
 #[test]
+fn direct_pricer_rejects_mutated_invalid_tranche() {
+    let pricer = CDSTranchePricer::new();
+    let mut tranche = mezzanine_tranche();
+    tranche.detach_pct = tranche.attach_pct;
+
+    let error = pricer
+        .price_tranche(&tranche, &standard_market_context(), base_date())
+        .expect_err("zero-width tranche must fail before pricing");
+    assert!(error.to_string().contains("must be less than"));
+}
+
+#[test]
 fn test_equity_tranche_pricing() {
     // Arrange
     let pricer = CDSTranchePricer::new();
