@@ -49,7 +49,9 @@ use pool_flows::{
     RatedPoolFlowRequest,
 };
 use simulate_period::simulate_period;
-use state::{cleanup_call_premium, step_down_metrics, SimulationState, WRITEDOWN_DE_MINIMIS};
+use state::{
+    cleanup_call_premium, step_down_metrics, SimulationState, StateTemplate, WRITEDOWN_DE_MINIMIS,
+};
 
 #[cfg(test)]
 use conservation::par_acquired_at_price;
@@ -57,7 +59,8 @@ use conservation::par_acquired_at_price;
 use period_helpers::{current_collateral_wac, term_rate_for_period};
 
 pub(crate) use orchestration::{
-    aggregate_tranche_cashflows, run_simulation_with_source, take_tranche_cashflows,
+    aggregate_tranche_cashflows, prepare_deal_simulation, run_prepared_simulation_with_source,
+    run_simulation_with_source, take_tranche_cashflows, PreparedDealSimulation,
 };
 pub(crate) use pool_flow_source::{
     DeterministicPoolFlowSource, OasPathFlowSource, PerNameDefaultEngine, PerNamePeriodInput,

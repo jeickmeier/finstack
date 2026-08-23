@@ -20,7 +20,7 @@ use finstack_quant_core::money::Money;
 
 use crate::instruments::common_impl::parameters::OptionType;
 use crate::models::closed_form::heston::HestonParams as ClosedFormHestonParams;
-use crate::models::pde::{Grid1D, Grid2D, HestonPde, Solver2D};
+use crate::models::pde::{CraigSneydStepper, Grid1D, Grid2D, HestonPde, Solver2D};
 
 /// Equity option pricer using 2D ADI PDE (Modified Craig-Sneyd) with Heston
 /// stochastic volatility dynamics.
@@ -145,16 +145,7 @@ impl EquityOptionHestonPdePricer {
         // payoff-kink error before the second-order MCS scheme takes over
         // (In 't Hout & Foulon 2010) — the configuration the tight-tolerance
         // bridge2d reference tests use.
-        let solver = Solver2D::builder()
-            .grid(grid)
-            .craig_sneyd_rannacher(2, self.time_steps)
-            .build()
-            .map_err(|e| {
-                PricingError::model_failure_with_context(
-                    e.to_string(),
-                    PricingErrorContext::from_instrument(inst).model(ModelKey::PdeAdi2D),
-                )
-            })?;
+        let solver = Solver2D::new(grid, CraigSneydStepper::with_rannacher(2, self.time_steps));
 
         let solution = solver.solve(&pde, t).map_err(|e| {
             PricingError::model_failure_with_context(

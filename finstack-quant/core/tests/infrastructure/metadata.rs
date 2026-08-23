@@ -54,8 +54,12 @@ fn test_results_meta_deserializes_without_optional_fields() {
     assert!(meta.fx_policy_applied.is_none());
 }
 
+/// `numeric_mode` is a deliberately unvalidated wire string (result envelopes
+/// stay deserializable across host-language versions); producers always stamp
+/// [`NUMERIC_MODE_F64`]. Pin both halves of that contract.
 #[test]
-fn test_results_meta_rejects_unknown_numeric_mode() {
+fn test_results_meta_numeric_mode_is_plain_wire_string() {
+    // Deserialization accepts any string value without validation...
     let json = r#"{
         "numeric_mode": "decimal",
         "rounding": {
@@ -65,19 +69,18 @@ fn test_results_meta_rejects_unknown_numeric_mode() {
             "version": 1
         }
     }"#;
+    let meta: ResultsMeta =
+        serde_json::from_str(json).expect("numeric_mode is an unvalidated wire string");
+    assert_eq!(meta.numeric_mode, "decimal");
 
-    let err = serde_json::from_str::<ResultsMeta>(json).expect_err("unknown mode must fail");
-    assert!(
-        err.to_string().contains("f64"),
-        "error should name the required mode: {err}"
-    );
-}
+    // ...while the producer side keeps stamping the canonical constant.
+    let stamped = results_meta(&FinstackConfig::default());
+    assert_eq!(stamped.numeric_mode, NUMERIC_MODE_F64);
 
-#[test]
-fn test_results_meta_schema_const_numeric_mode() {
+    // And the derived schema carries no const constraint on the property.
     let schema = serde_json::to_value(schemars::schema_for!(ResultsMeta)).expect("schema");
-    assert_eq!(schema["properties"]["numeric_mode"]["const"], "f64");
     assert_eq!(schema["properties"]["numeric_mode"]["type"], "string");
+    assert!(schema["properties"]["numeric_mode"].get("const").is_none());
 }
 
 #[test]

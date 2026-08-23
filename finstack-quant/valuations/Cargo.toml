@@ -194,6 +194,14 @@ harness = false
 name = "xccy_pricing"
 harness = false
 
+[[bench]]
+name = "fd_greeks"
+harness = false
+
+[[bench]]
+name = "structured_credit_stochastic"
+harness = false
+
 [[bin]]
 name = "gen_schemas"
 path = "src/bin/gen_schemas.rs"

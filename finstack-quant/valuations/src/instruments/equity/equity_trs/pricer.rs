@@ -247,6 +247,9 @@ impl TrsReturnModel for EquityReturnModel<'_> {
 /// Returns an error if:
 /// - The spot price cannot be fetched from market data
 /// - The dividend yield ID is set but lookup fails (prevents silent configuration errors)
+/// - The trade is seasoned (`as_of` after the schedule start) with discrete
+///   dividends and `initial_level` is absent (the live spot would silently
+///   reset accrued performance)
 /// - The initial level is non-positive or non-finite
 /// - The discount curve is not found
 pub(crate) fn pv_total_return_leg(
@@ -255,7 +258,28 @@ pub(crate) fn pv_total_return_leg(
     as_of: Date,
 ) -> Result<Money> {
     let (spot, div_yield) = extract_underlying_data(trs, context)?;
-    let initial = trs.initial_level.unwrap_or(spot);
+    // For an unseasoned trade (as_of on or before the schedule start) today's
+    // spot IS the inception level. With continuous dividend yield the level
+    // cancels out of every future-period forward ratio, so a seasoned trade
+    // whose period-start fixing comes from `past_fixings` prices correctly
+    // without `initial_level`. With DISCRETE dividends the level enters the
+    // forward additively and no longer cancels: substituting spot would
+    // silently reset accrued performance to zero, so require it.
+    let initial = match trs.initial_level {
+        Some(level) => level,
+        None if as_of > trs.schedule.start && !trs.discrete_dividends.is_empty() => {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "EquityTRS '{}': as_of {} is after the schedule start {} and the \
+                 trade carries discrete dividends, so initial_level is required; \
+                 substituting the live spot would silently reset accrued \
+                 performance to zero",
+                trs.id.as_str(),
+                as_of,
+                trs.schedule.start
+            )));
+        }
+        None => spot,
+    };
 
     if !initial.is_finite() || initial <= 0.0 {
         return Err(finstack_quant_core::InputError::Invalid.into());
@@ -498,6 +522,29 @@ mod tests {
                 || err.to_string().contains("no observed level"),
             "expected period-start level error, got: {err}"
         );
+    }
+
+    /// A seasoned trade with discrete dividends must not silently substitute
+    /// the live spot for the inception level: the dividend term breaks the
+    /// forward-ratio cancellation and would zero the accrued performance.
+    #[test]
+    fn seasoned_discrete_dividend_trade_requires_initial_level() {
+        let as_of = date(2024, 2, 15);
+        let mut trs = mid_period_trs();
+        trs.past_fixings = vec![(date(2024, 1, 1), 100.0)];
+        trs.discrete_dividends = vec![(date(2024, 3, 15), 2.0)];
+
+        let err = super::pv_total_return_leg(&trs, &flat_market(as_of, 105.0), as_of)
+            .expect_err("seasoned discrete-dividend trade without initial_level");
+        assert!(
+            err.to_string().contains("initial_level"),
+            "expected initial_level requirement error, got: {err}"
+        );
+
+        // Supplying the level prices fine.
+        trs.initial_level = Some(100.0);
+        super::pv_total_return_leg(&trs, &flat_market(as_of, 105.0), as_of)
+            .expect("initial_level supplied");
     }
 
     /// A new trade priced on its start date has no in-progress period: the

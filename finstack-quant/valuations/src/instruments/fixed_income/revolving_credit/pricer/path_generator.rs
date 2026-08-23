@@ -205,6 +205,12 @@ pub fn generate_three_factor_paths(
     let credit_spread_params =
         build_credit_spread_params(mc_config, facility, market, simulation_anchor)?;
 
+    // Reject malformed rate specifications before any path is simulated: the
+    // discretization indexes rate knots by position, so a mismatched or
+    // non-monotone curve must fail here rather than panic (or silently price
+    // a zero rate) mid-simulation.
+    interest_rate_spec.validate()?;
+
     // Create 3-factor process with correlation
     let mut process_params =
         RevolvingCreditProcessParams::new(util_params, interest_rate_spec, credit_spread_params);
@@ -213,8 +219,8 @@ pub fn generate_three_factor_paths(
         process_params = process_params.with_correlation(*corr_matrix);
     } else if let Some(rho) = mc_config.util_credit_corr {
         // Documented 2-factor shorthand: utilization–credit correlation ρ
-        // with the rate factor uncorrelated. Previously this field was
-        // accepted, validated, and then silently ignored.
+        // with the rate factor uncorrelated. The field must be applied here,
+        // never accepted-then-ignored.
         process_params =
             process_params.with_correlation([[1.0, 0.0, rho], [0.0, 1.0, 0.0], [rho, 0.0, 1.0]]);
     }

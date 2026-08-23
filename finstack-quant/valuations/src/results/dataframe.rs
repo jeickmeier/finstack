@@ -50,16 +50,6 @@ impl ValuationResult {
     }
 }
 
-/// Convert multiple valuation results to rows for DataFrame construction.
-///
-/// # Arguments
-///
-/// * `results` - Valuation results to flatten in input order; every result's
-///   PV, identity fields, and named measures become one [`ValuationRow`].
-pub fn results_to_rows(results: &[ValuationResult]) -> Vec<ValuationRow> {
-    results.iter().map(ValuationResult::to_row).collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,20 +100,6 @@ mod tests {
         let row = result.to_row();
         let keys: Vec<&str> = row.measures.keys().map(String::as_str).collect();
         assert_eq!(keys, vec!["ytm", "dv01", "convexity"]);
-    }
-
-    #[test]
-    fn results_to_rows_batch() {
-        let result1 =
-            ValuationResult::stamped("BOND-001", jan15(), Money::new(1_000_000.0, Currency::USD));
-        let result2 =
-            ValuationResult::stamped("BOND-002", jan15(), Money::new(500_000.0, Currency::EUR));
-
-        let rows = results_to_rows(&[result1, result2]);
-
-        assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0].instrument_id, "BOND-001");
-        assert_eq!(rows[1].currency, "EUR");
     }
 
     #[test]

@@ -49,7 +49,7 @@ The module doc comment in [`mod.rs`](mod.rs) says the module "lives under
 | [`adi.rs`](adi.rs) | `CraigSneydStepper` (Modified Craig-Sneyd), `AdiWorkBuffers`, `fill_boundaries` |
 | [`exercise.rs`](exercise.rs) | `PenaltyExercise`, `ExerciseType::{American, Bermudan}` |
 | [`solver.rs`](solver.rs) | `Solver1D`, `Solver1DBuilder`, `PdeSolution`, `PdeSolverError` |
-| [`solver2d.rs`](solver2d.rs) | `Solver2D`, `Solver2DBuilder`, `PdeSolution2D`, `PdeSolver2DError` |
+| [`solver2d.rs`](solver2d.rs) | `Solver2D`, `PdeSolution2D`, `PdeSolver2DError` |
 | [`bridge.rs`](bridge.rs) | `BlackScholesPde` in log-spot coordinates |
 | [`bridge2d.rs`](bridge2d.rs) | `HestonPde` in (log-spot, variance) coordinates; the Fourier convergence anchors |
 
@@ -69,7 +69,7 @@ re-exported at the `pde` root is the intended surface:
 `ExerciseType`, `PenaltyExercise`, `Grid1D`, `PdeGridError`, `Grid2D`,
 `TridiagOperator`, `apply_cross_derivative`, `Operators2D`, `PdeProblem1D`,
 `PdeProblem2D`, `PdeSolution`, `PdeSolverError`, `Solver1D`, `Solver1DBuilder`,
-`PdeSolution2D`, `PdeSolver2DError`, `Solver2D`, `Solver2DBuilder`,
+`PdeSolution2D`, `PdeSolver2DError`, `Solver2D`,
 `RannacherStepper`, `StepperError`, `ThetaStepper`, `TimeStepper`.
 
 Public in a submodule but **not** re-exported at the root — reach them by full
@@ -339,10 +339,9 @@ across all `j` (which also sets the four corners) and the two y-edges across
 interior `i` only. It runs after each MCS step — the mixed corrector needs a
 boundary-inclusive `Y₂` for its four-point stencil — and again at `t = 0`.
 
-**`Solver2D` has no early exercise.** `Solver2DBuilder` accepts only a grid and
-one of `craig_sneyd` / `craig_sneyd_rannacher`, and the `Solver2D` struct has no
-exercise field; the `solver2d.rs` module doc claiming "an optional exercise
-constraint" is stale. `PdeSolution2D` likewise exposes only `interpolate`,
+**`Solver2D` has no early exercise.** `Solver2D::new` takes only a grid and a
+`CraigSneydStepper` (plain or `with_rannacher`), and the `Solver2D` struct has
+no exercise field. `PdeSolution2D` likewise exposes only `interpolate`,
 `delta_x`, and `gamma_x` — there is no variance-direction sensitivity.
 
 `PdeSolver2DError` mirrors the 1D error set minus the grid variant:

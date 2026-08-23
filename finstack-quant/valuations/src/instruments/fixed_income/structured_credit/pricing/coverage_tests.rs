@@ -637,9 +637,8 @@ fn collateral_balance_with_haircuts(
 }
 
 #[cfg(test)]
-/// The engine always supplies a claim map. Tests that previously relied on the
-/// removed `None` arm ("every tranche owes its full uncapped coupon") state
-/// that explicitly.
+/// The engine always supplies a claim map. Tests that want "every tranche
+/// owes its full uncapped coupon" state that explicitly with this helper.
 fn uncapped_claims(ids: &[&'static str]) -> HashMap<&'static str, Option<f64>> {
     ids.iter().map(|id| (*id, None)).collect()
 }

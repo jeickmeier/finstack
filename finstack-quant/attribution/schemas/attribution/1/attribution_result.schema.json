@@ -1766,8 +1766,7 @@
           ]
         },
         "numeric_mode": {
-          "const": "f64",
-          "description": "Numeric engine mode used to produce the results.\n\nAlways [`NUMERIC_MODE_F64`] today; a plain string so result\nenvelopes stay wire-compatible across host languages.\n\nDeserialization and the generated JSON Schema accept only `\"f64\"`.",
+          "description": "Numeric engine mode used to produce the results.\n\nAlways [`NUMERIC_MODE_F64`] today; a plain string so result\nenvelopes stay wire-compatible across host languages.",
           "type": "string"
         },
         "parallel": {

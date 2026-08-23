@@ -73,11 +73,11 @@ impl BarrierOptionHestonMcPricer {
 
         let disc_curve = market.get_discount(inst.discount_curve_id.as_str())?;
         let discount_factor = disc_curve.df_between_dates(as_of, inst.expiry)?;
-        let r = if t > 0.0 && discount_factor > 0.0 {
-            -discount_factor.ln() / t
-        } else {
-            0.0
-        };
+        let r = crate::instruments::common_impl::helpers::zero_rate_from_df(
+            discount_factor,
+            t,
+            "BarrierOption Heston MC discount curve",
+        )?;
         if inst.observed_barrier_breached == Some(true)
             && inst.barrier_type.is_knock_out()
             && inst.rebate_timing == crate::models::closed_form::barrier::RebateTiming::AtHit

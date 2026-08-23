@@ -67,11 +67,11 @@ fn release_spread_account(
 
     // Release to the residual holder as a residual principal flow.
     //
-    // N7: this previously required a tranche with `TrancheSeniority::Equity`
-    // and SILENTLY ZEROED the account when none existed — destroying the cash,
-    // the same sink class as the original reserve-account defect (SC-C07). A
-    // deal whose most junior class is Subordinated rather than Equity, which is
-    // a perfectly ordinary structure, lost the entire released balance.
+    // N7: the release must not require a tranche with
+    // `TrancheSeniority::Equity` — silently zeroing the account when none
+    // exists destroys cash (the same sink class as the reserve-account defect
+    // SC-C07), and a deal whose most junior class is Subordinated rather than
+    // Equity is a perfectly ordinary structure.
     //
     // Falls back to the most-junior tranche by payment priority, matching
     // `release_reserve_account` and `release_principal_funding_account` so all
@@ -244,26 +244,49 @@ fn release_principal_funding_account(
     Ok(())
 }
 
-/// Live collateral weighted-average coupon from the *current* pool state:
-/// balance-weighted `rate` over performing (non-defaulted, positive-balance)
-/// assets. Mirrors [`crate::instruments::fixed_income::structured_credit::AssetPool::weighted_avg_coupon`]
-/// but on the current balances, so a net-WAC cap tracks collateral that has
-/// amortized, prepaid or defaulted heterogeneously instead of being frozen at
-/// closing. Returns `0.0` for an empty/exhausted performing pool.
-/// Run full cashflow simulation for a structured credit instrument.
+/// Loop-invariant deal simulation context built once per pricing run.
 ///
-/// Returns detailed cashflow results for each tranche.
-pub(crate) fn run_simulation_with_source<S: PoolFlowSource + ?Sized>(
+/// Validation, waterfall construction, calendar resolution, and the full
+/// contractual schedule are pure functions of `(instrument, as_of)` — none of
+/// them depends on path shocks. Preparing once and sharing read-only across
+/// scenario paths is bit-identical and keeps that work out of the per-path
+/// hot loop of the MC par-iter.
+pub(crate) struct PreparedDealSimulation {
+    /// Valuation date the simulation was prepared for (`as_of`).
+    pub(crate) valuation_date: Date,
+    /// Future-dated contractual payment dates (>= `valuation_date`).
+    pub(crate) schedule_dates: Vec<Date>,
+    /// Last contractual boundary before `valuation_date`; anchors first accrual.
+    pub(crate) state_anchor: Date,
+    /// Concrete base waterfall (available-funds cap layered per period).
+    pub(crate) waterfall: Waterfall,
+    /// Resolved strict payment calendar.
+    pub(crate) calendar: &'static dyn HolidayCalendar,
+    /// Payment business-day convention.
+    pub(crate) convention: BusinessDayConvention,
+    /// Months per payment period.
+    pub(crate) months_per_period: f64,
+    /// Frozen initial-state pieces shared by every path's [`SimulationState`].
+    pub(crate) state_template: StateTemplate,
+}
+
+/// Prepare everything about a deal simulation that does not depend on path
+/// shocks. Returns `None` when the pool is exhausted (zero balance), which
+/// [`run_simulation_with_source`] maps to an empty result.
+///
+/// # Errors
+///
+/// Propagates invalid waterfall rules, invalid custom waterfalls, missing
+/// payment calendars, and schedule-construction failures, in that order.
+pub(crate) fn prepare_deal_simulation(
     instrument: &StructuredCredit,
-    context: &MarketContext,
     as_of: Date,
-    source: &mut S,
-) -> Result<HashMap<String, TrancheCashflows>> {
+) -> Result<Option<PreparedDealSimulation>> {
     let pool = &instrument.pool;
     let tranches = &instrument.tranches;
 
     if pool.total_balance()?.amount() <= 0.0 {
-        return Ok(HashMap::default());
+        return Ok(None);
     }
 
     // Reject malformed declarative rules up front: an unresolved tranche-id
@@ -359,19 +382,52 @@ pub(crate) fn run_simulation_with_source<S: PoolFlowSource + ?Sized>(
         .filter(|date| *date >= as_of)
         .collect();
 
+    // Freeze the initial-state computation once; each path clones it.
+    let state_template = StateTemplate::new(pool, tranches, instrument.closing_date)?;
+
+    Ok(Some(PreparedDealSimulation {
+        valuation_date: as_of,
+        schedule_dates,
+        state_anchor,
+        waterfall,
+        calendar,
+        convention,
+        months_per_period,
+        state_template,
+    }))
+}
+
+/// Run the period-by-period waterfall against one path's flow source, using a
+/// prebuilt [`PreparedDealSimulation`]. Called once per scenario path by the
+/// stochastic engines; the deterministic paths go through
+/// [`run_simulation_with_source`], which prepares then delegates here.
+///
+/// Returns detailed cashflow results for each tranche.
+pub(crate) fn run_prepared_simulation_with_source<S: PoolFlowSource + ?Sized>(
+    instrument: &StructuredCredit,
+    context: &MarketContext,
+    prepared: &PreparedDealSimulation,
+    source: &mut S,
+) -> Result<HashMap<String, TrancheCashflows>> {
+    let pool = &instrument.pool;
+    let tranches = &instrument.tranches;
+    let as_of = prepared.valuation_date;
+
     // Balances supplied on the instrument are current-state balances. Anchor
     // the first projected accrual at the last contractual boundary, rather
     // than replaying pool dynamics from closing on those current balances.
-    let mut state = SimulationState::new(
+    let mut state = SimulationState::from_template(
+        &prepared.state_template,
         pool,
         tranches,
         instrument.closing_date,
-        state_anchor,
+        prepared.state_anchor,
         instrument.credit_model.recovery_spec.recovery_lag,
-    )?;
+    );
 
     // Simulate period-by-period
-    for pay_date in schedule_dates {
+    for pay_date in &prepared.schedule_dates {
+        let pay_date = *pay_date;
         if state.is_pool_exhausted() {
             break;
         }
@@ -526,13 +582,13 @@ pub(crate) fn run_simulation_with_source<S: PoolFlowSource + ?Sized>(
         simulate_period(
             &mut state,
             instrument,
-            &waterfall,
+            &prepared.waterfall,
             SimulationPeriod {
                 payment: pay_date,
                 valuation: as_of,
             },
             context,
-            months_per_period,
+            prepared.months_per_period,
             source,
         )?;
     }
@@ -546,7 +602,7 @@ pub(crate) fn run_simulation_with_source<S: PoolFlowSource + ?Sized>(
     // realizes the pending queue when it terminates the deal. Each entry is
     // released at the later of the final simulated date and its own
     // default-date + recovery lag, business-day adjusted.
-    drain_pending_recoveries_at_end(&mut state, calendar, convention)?;
+    drain_pending_recoveries_at_end(&mut state, prepared.calendar, prepared.convention)?;
 
     // Release any unused spread-account balance to equity at deal end (unless a
     // cumulative-loss trap trigger retains it as consumed enhancement).
@@ -565,6 +621,29 @@ pub(crate) fn run_simulation_with_source<S: PoolFlowSource + ?Sized>(
     release_reserve_account(&mut state)?;
 
     Ok(state.finalize())
+}
+
+/// Run full cashflow simulation for a structured credit instrument.
+///
+/// Prepares the loop-invariant [`PreparedDealSimulation`] then executes the
+/// period loop. Single-shot callers (deterministic pricing, OAS scenarios)
+/// use this entry point; the stochastic engines prepare once per pricing run
+/// and call [`run_prepared_simulation_with_source`] per path.
+///
+/// Returns detailed cashflow results for each tranche.
+pub(crate) fn run_simulation_with_source<S: PoolFlowSource + ?Sized>(
+    instrument: &StructuredCredit,
+    context: &MarketContext,
+    as_of: Date,
+    source: &mut S,
+) -> Result<HashMap<String, TrancheCashflows>> {
+    match prepare_deal_simulation(instrument, as_of)? {
+        Some(prepared) => {
+            run_prepared_simulation_with_source(instrument, context, &prepared, source)
+        }
+        // Exhausted pool: nothing to simulate, empty result.
+        None => Ok(HashMap::default()),
+    }
 }
 
 /// Drain and distribute recoveries still pending in the lag queue when the

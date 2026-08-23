@@ -323,28 +323,6 @@ impl MetricRegistry {
         Ok(results)
     }
 
-    /// Computes all registered metrics applicable to the instrument.
-    ///
-    /// This is a convenience method that finds all applicable metrics
-    /// for the instrument type and computes them all at once. Useful
-    /// for comprehensive analysis or when you want all available metrics.
-    ///
-    /// # Arguments
-    /// * `context` - Metric context containing instrument and market data
-    ///
-    /// # Returns
-    /// HashMap mapping all applicable metric IDs to computed values
-    ///
-    /// See unit tests and `examples/` for usage.
-    pub fn compute_all(
-        &self,
-        context: &mut MetricContext,
-    ) -> finstack_quant_core::Result<HashMap<MetricId, f64>> {
-        let instrument_type = context.instrument.key();
-        let applicable = self.metrics_for_instrument(instrument_type);
-        self.compute(&applicable, context)
-    }
-
     /// Resolves dependencies and returns computation order.
     ///
     /// Uses topological sorting to ensure dependencies are computed first.

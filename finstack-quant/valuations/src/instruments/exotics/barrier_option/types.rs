@@ -208,6 +208,21 @@ impl crate::instruments::common_impl::traits::Instrument for BarrierOption {
     impl_instrument_base!(crate::pricer::InstrumentType::BarrierOption);
 
     fn validate_invariants(&self) -> finstack_quant_core::Result<()> {
+        use crate::instruments::common_impl::validation;
+        // Strike and barrier must satisfy the closed-form model domain
+        // (`validate_barrier_inputs` rejects non-positive values with a NaN
+        // sentinel); rejecting them here surfaces a `Validation` error at the
+        // instrument boundary instead of panicking inside `Money::new`.
+        validation::validate_f64_positive(self.strike, "BarrierOption strike")?;
+        validation::validate_money_gt(self.barrier, 0.0, "BarrierOption barrier")?;
+        if let Some(rebate) = self.rebate {
+            // A zero rebate is economically identical to `None` and stays
+            // accepted; only negative or non-finite amounts are rejected.
+            validation::validate_f64_non_negative(rebate.amount(), "BarrierOption rebate")?;
+        }
+        if let Some(frequency) = self.monitoring_frequency {
+            validation::validate_f64_positive(frequency, "BarrierOption monitoring_frequency")?;
+        }
         if let Some(fixing) = self.expiry_fixing {
             if fixing.currency() != self.notional.currency() {
                 return Err(finstack_quant_core::Error::CurrencyMismatch {

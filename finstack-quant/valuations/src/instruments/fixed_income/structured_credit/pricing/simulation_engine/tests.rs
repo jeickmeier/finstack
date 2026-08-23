@@ -13,12 +13,11 @@ mod cases {
 
     /// SC-M13 — an OAS rate shift must move FLOATING coupon projections.
     ///
-    /// The simulated rate path previously scaled prepayment only; pool-asset
-    /// and tranche floating coupons still projected off the deterministic
-    /// forward curve. A floater therefore got a stochastic discount factor
-    /// applied to deterministic coupons — the wrong instrument, since
-    /// coupon/discount correlation is exactly what makes a floater
-    /// rate-insensitive.
+    /// If the simulated rate path scaled prepayment only, pool-asset and
+    /// tranche floating coupons would still project off the deterministic
+    /// forward curve: a stochastic discount factor applied to deterministic
+    /// coupons — the wrong instrument, since coupon/discount correlation is
+    /// exactly what makes a floater rate-insensitive.
     #[test]
     fn rate_shift_moves_floating_collateral_coupons() {
         let base = Date::from_calendar_date(2024, Month::January, 1).expect("base");

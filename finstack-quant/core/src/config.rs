@@ -527,10 +527,6 @@ pub struct ResultsMeta {
     ///
     /// Always [`NUMERIC_MODE_F64`] today; a plain string so result
     /// envelopes stay wire-compatible across host languages.
-    ///
-    /// Deserialization and the generated JSON Schema accept only `"f64"`.
-    #[serde(deserialize_with = "deserialize_numeric_mode")]
-    #[schemars(extend("const" = NUMERIC_MODE_F64))]
     pub numeric_mode: String,
     /// Rounding context snapshot applied to IO boundaries.
     pub rounding: RoundingContext,
@@ -560,20 +556,6 @@ pub struct ResultsMeta {
 impl Default for ResultsMeta {
     fn default() -> Self {
         results_meta(&FinstackConfig::default())
-    }
-}
-
-fn deserialize_numeric_mode<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let value = String::deserialize(deserializer)?;
-    if value == NUMERIC_MODE_F64 {
-        Ok(value)
-    } else {
-        Err(serde::de::Error::custom(format!(
-            "numeric_mode must be {NUMERIC_MODE_F64:?}, got {value:?}"
-        )))
     }
 }
 

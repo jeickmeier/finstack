@@ -101,7 +101,6 @@ assert!(result.failed_covenants().is_empty());
 ## Export
 
 - `ValuationResult::to_row()` — one `ValuationRow`
-- `results_to_rows(&[ValuationResult])` — batch, preserving input order
 
 Rows serialize to a flat JSON object suitable for pandas/Polars construction
 downstream; measure keys are the `MetricId` strings, so they stay stable across

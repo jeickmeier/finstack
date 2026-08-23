@@ -48,10 +48,10 @@
 //!   to the (Z, W)-conditional `Φ((c·√W − √ρ·Z)/√(1−ρ))`
 //!
 //! Conditional independence across names holds only given **both** Z and W.
-//! Conditioning on the t-variate `M = Z/√W` alone (the historical 1-factor
-//! quadrature) understates joint-default clustering: it integrates W out
-//! before imposing conditional independence, which prices a different model
-//! than the per-name MC path samples.
+//! Conditioning on the t-variate `M = Z/√W` alone (a 1-factor quadrature)
+//! understates joint-default clustering: it integrates W out before imposing
+//! conditional independence, which prices a different model than the
+//! per-name MC path samples.
 //!
 //! # References
 //!
@@ -68,6 +68,22 @@ use finstack_quant_core::math::{
     ln_gamma, norm_cdf, student_t_cdf, GaussHermiteQuadrature, GaussLaguerreQuadrature,
 };
 use std::sync::Arc;
+
+/// Evaluate the Student-t CDF, returning a loudly-logged NaN when the
+/// distribution itself is invalid.
+///
+/// `student_t_cdf` only fails for non-finite / non-positive degrees of
+/// freedom — unreachable for a constructed [`StudentTCopula`]. If it ever
+/// fires, NaN is the safer failure mode: it poisons downstream tranche-loss
+/// quadrature unmistakably, whereas a normal-CDF substitute would produce a
+/// plausible-but-wrong probability that understates the t distribution's
+/// tails.
+fn t_cdf_or_nan(x: f64, nu: f64) -> f64 {
+    student_t_cdf(x, nu).unwrap_or_else(|err| {
+        tracing::error!(%err, nu, "Student-t CDF evaluation failed; propagating NaN");
+        f64::NAN
+    })
+}
 
 /// Minimum correlation for numerical stability.
 const MIN_CORRELATION: f64 = 0.01;
@@ -336,18 +352,17 @@ impl Copula for StudentTCopula {
                     actual = factor_realization.len(),
                     "StudentTCopula: factor length mismatch; returning unconditional PD"
                 );
-                return student_t_cdf(default_threshold, self.degrees_of_freedom)
-                    .unwrap_or(f64::NAN);
+                return t_cdf_or_nan(default_threshold, self.degrees_of_freedom);
             }
         }
         let [m] = factor_realization else {
-            return student_t_cdf(default_threshold, self.degrees_of_freedom).unwrap_or(f64::NAN);
+            return t_cdf_or_nan(default_threshold, self.degrees_of_freedom);
         };
         let m = *m;
         let nu = self.degrees_of_freedom;
 
         if correlation <= MIN_CORRELATION {
-            return student_t_cdf(default_threshold, nu).unwrap_or(f64::NAN);
+            return t_cdf_or_nan(default_threshold, nu);
         }
 
         // General formula with smoothing and argument clipping. We deliberately
@@ -367,7 +382,7 @@ impl Copula for StudentTCopula {
         let scaling = ((nu + 1.0) / (nu + m * m)).sqrt();
         let conditional_threshold = (base_arg * scaling).clamp(-CDF_CLIP, CDF_CLIP);
 
-        student_t_cdf(conditional_threshold, nu + 1.0).unwrap_or(f64::NAN)
+        t_cdf_or_nan(conditional_threshold, nu + 1.0)
     }
 
     fn conditional_default_prob_given_systematic_and_mixing(
@@ -484,7 +499,7 @@ impl Copula for StudentTCopula {
 
         // λ_L = 2 · t_{ν+1}(-√((ν+1)(1-ρ)/(1+ρ)))
         let arg = -((nu + 1.0) * (1.0 - rho) / (1.0 + rho)).sqrt();
-        2.0 * student_t_cdf(arg, nu + 1.0).unwrap_or(f64::NAN)
+        2.0 * t_cdf_or_nan(arg, nu + 1.0)
     }
 }
 
@@ -776,7 +791,7 @@ mod tests {
 
     /// Requesting `with_quadrature_order(n)` with `n > 10` must
     /// actually produce a larger rule (the Golub-Welsch runtime
-    /// generator replaces a historical hardcoded 10-node cap).
+    /// generator has no fixed node cap).
     #[test]
     fn test_with_quadrature_order_uses_requested_order() {
         let df = 5.0;
@@ -843,7 +858,7 @@ mod tests {
     ///
     /// Quadrature computes the right-hand side via `integrate_fn` (now over
     /// `[z, w]`); MC simulates pairs via `latent_variable` with a shared
-    /// (Z, W) and independent ε₁, ε₂. The historical 1-factor quadrature
+    /// (Z, W) and independent ε₁, ε₂. A 1-factor quadrature
     /// (conditioning on M = Z/√W alone) understates this joint probability
     /// and fails the tolerance.
     #[test]

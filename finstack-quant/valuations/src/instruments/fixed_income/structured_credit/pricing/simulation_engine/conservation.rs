@@ -28,12 +28,12 @@ pub(super) fn assert_cash_conserved(
 ) -> Result<()> {
     // SC-m13: this runs in RELEASE builds, not only under `debug_assertions`.
     //
-    // It was previously compiled out of every production run, so the one
-    // invariant that catches a cash-accounting regression — the waterfall
-    // neither creating nor destroying cash — was checked only in tests. This
-    // session alone found three ways cash could vanish (the reserve sink
-    // SC-C07, the cleanup-call excess SC-M22, and the spread-account sink N7);
-    // a silently-violated conservation identity corrupts every tranche
+    // Compiling it out of production runs would leave the one invariant that
+    // catches a cash-accounting regression — the waterfall neither creating
+    // nor destroying cash — checked only in tests, and cash has vanished
+    // through at least three sinks before (the reserve sink SC-C07, the
+    // cleanup-call excess SC-M22, and the spread-account sink N7); a
+    // silently-violated conservation identity corrupts every tranche
     // cashflow and PV downstream with no diagnostic.
     //
     // The cost is a handful of float operations per payment period against a

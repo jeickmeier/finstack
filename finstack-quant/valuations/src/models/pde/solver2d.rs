@@ -1,7 +1,7 @@
-//! Top-level 2D PDE solver with builder pattern.
+//! Top-level 2D PDE solver.
 //!
-//! Combines a [`Grid2D`], a [`CraigSneydStepper`], and an optional exercise
-//! constraint to solve a backward 2D PDE from terminal condition to `t = 0`.
+//! Combines a [`Grid2D`] and a [`CraigSneydStepper`] to solve a backward 2D
+//! PDE from terminal condition to `t = 0`.
 //! Returns a [`PdeSolution2D`] with bilinear interpolation and finite-difference
 //! Greeks.
 
@@ -10,55 +10,6 @@ use super::grid::find_nearest;
 use super::grid2d::Grid2D;
 use super::problem2d::PdeProblem2D;
 use super::stepper::StepperError;
-
-/// Builder for constructing a [`Solver2D`].
-pub struct Solver2DBuilder {
-    /// Tensor-product grid.
-    grid: Option<Grid2D>,
-    /// ADI stepper.
-    stepper: Option<CraigSneydStepper>,
-}
-
-impl Default for Solver2DBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Solver2DBuilder {
-    /// Create a new builder.
-    pub fn new() -> Self {
-        Self {
-            grid: None,
-            stepper: None,
-        }
-    }
-
-    /// Set the 2D grid.
-    pub fn grid(mut self, grid: Grid2D) -> Self {
-        self.grid = Some(grid);
-        self
-    }
-
-    /// Use Modified Craig-Sneyd (MCS) ADI with `n_steps` time steps.
-    pub fn craig_sneyd(mut self, n_steps: usize) -> Self {
-        self.stepper = Some(CraigSneydStepper::new(n_steps));
-        self
-    }
-
-    /// Use Modified Craig-Sneyd (MCS) ADI with Rannacher-style smoothing.
-    pub fn craig_sneyd_rannacher(mut self, implicit_start: usize, n_steps: usize) -> Self {
-        self.stepper = Some(CraigSneydStepper::with_rannacher(implicit_start, n_steps));
-        self
-    }
-
-    /// Build the solver.
-    pub fn build(self) -> Result<Solver2D, PdeSolver2DError> {
-        let grid = self.grid.ok_or(PdeSolver2DError::MissingGrid)?;
-        let stepper = self.stepper.ok_or(PdeSolver2DError::MissingStepper)?;
-        Ok(Solver2D { grid, stepper })
-    }
-}
 
 /// Two-dimensional PDE solver using Modified Craig-Sneyd (MCS) ADI splitting.
 pub struct Solver2D {
@@ -69,13 +20,28 @@ pub struct Solver2D {
 }
 
 impl Solver2D {
-    /// Create a solver builder.
+    /// Create a solver over `grid` using the given ADI `stepper`.
+    ///
+    /// # Arguments
+    ///
+    /// * `grid` - Tensor-product spatial grid for the solve
+    /// * `stepper` - Modified Craig-Sneyd ADI time-stepper (see
+    ///   [`CraigSneydStepper::new`] and
+    ///   [`CraigSneydStepper::with_rannacher`])
     #[must_use]
-    pub fn builder() -> Solver2DBuilder {
-        Solver2DBuilder::new()
+    pub fn new(grid: Grid2D, stepper: CraigSneydStepper) -> Self {
+        Self { grid, stepper }
     }
 
     /// Solve the 2D PDE problem and return the solution at `t = 0`.
+    ///
+    /// # Arguments
+    ///
+    /// * `problem` - Backward 2D PDE definition (diffusion, convection,
+    ///   reaction, mixed term, terminal condition, and the four edge
+    ///   boundaries) evaluated on this solver's grid.
+    /// * `maturity` - Time horizon `T > 0` (in years) from which the
+    ///   terminal condition is marched back to `t = 0`.
     ///
     /// # Errors
     ///
@@ -262,12 +228,6 @@ impl PdeSolution2D {
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum PdeSolver2DError {
-    /// No grid was specified.
-    #[error("2D PDE solver requires a grid")]
-    MissingGrid,
-    /// No stepper was specified.
-    #[error("2D PDE solver requires a time stepper")]
-    MissingStepper,
     /// The maturity passed to `solve` was not strictly positive.
     #[error("2D PDE solve requires a strictly positive maturity, got {maturity:e}")]
     NonPositiveMaturity {
@@ -343,11 +303,7 @@ mod tests {
         let gy = Grid1D::uniform(0.0, pi, 41).expect("valid");
         let grid = Grid2D::new(gx, gy);
 
-        let solver = Solver2D::builder()
-            .grid(grid)
-            .craig_sneyd(200)
-            .build()
-            .expect("valid solver");
+        let solver = Solver2D::new(grid, CraigSneydStepper::new(200));
 
         let solution = solver
             .solve(&Heat2D, t_mat)
@@ -359,17 +315,6 @@ mod tests {
             error < 0.01,
             "Solver2D heat error = {error:.6e}, exact={exact:.6}, computed={computed:.6}"
         );
-    }
-
-    #[test]
-    fn solver2d_builder_rejects_incomplete() {
-        assert!(Solver2D::builder().build().is_err());
-        let gx = Grid1D::uniform(0.0, 1.0, 5).expect("valid");
-        let gy = Grid1D::uniform(0.0, 1.0, 5).expect("valid");
-        assert!(Solver2D::builder()
-            .grid(Grid2D::new(gx, gy))
-            .build()
-            .is_err());
     }
 
     /// Build a [`PdeSolution2D`] from a grid and an explicit value vector,
@@ -437,11 +382,7 @@ mod tests {
         let pi = std::f64::consts::PI;
         let gx = Grid1D::uniform(0.0, pi, 41).expect("valid grid");
         let gy = Grid1D::uniform(0.0, pi, 41).expect("valid grid");
-        let solver = Solver2D::builder()
-            .grid(Grid2D::new(gx, gy))
-            .craig_sneyd(100)
-            .build()
-            .expect("valid solver");
+        let solver = Solver2D::new(Grid2D::new(gx, gy), CraigSneydStepper::new(100));
 
         let solution = solver
             .solve(&ConvectionDominated2D, 0.25)
@@ -467,11 +408,10 @@ mod tests {
         let gy = Grid1D::uniform(0.0, pi, 21).expect("valid grid");
 
         // Non-positive maturity.
-        let solver = Solver2D::builder()
-            .grid(Grid2D::new(gx.clone(), gy.clone()))
-            .craig_sneyd(50)
-            .build()
-            .expect("valid solver");
+        let solver = Solver2D::new(
+            Grid2D::new(gx.clone(), gy.clone()),
+            CraigSneydStepper::new(50),
+        );
         assert!(
             matches!(
                 solver.solve(&Heat2D, 0.0),
@@ -488,11 +428,7 @@ mod tests {
         );
 
         // Zero time steps.
-        let zero_step_solver = Solver2D::builder()
-            .grid(Grid2D::new(gx, gy))
-            .craig_sneyd(0)
-            .build()
-            .expect("valid solver");
+        let zero_step_solver = Solver2D::new(Grid2D::new(gx, gy), CraigSneydStepper::new(0));
         assert!(
             matches!(
                 zero_step_solver.solve(&Heat2D, 1.0),

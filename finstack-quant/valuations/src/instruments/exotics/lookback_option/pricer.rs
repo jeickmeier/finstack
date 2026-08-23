@@ -74,11 +74,13 @@ impl LookbackOptionMcPricer {
         let disc_curve = curves.get_discount(inst.discount_curve_id.as_str())?;
         let discount_factor = disc_curve.df_between_dates(as_of, inst.expiry)?;
         // Keep drift consistent with date-based discounting for MC simulation.
-        let r = if t > 0.0 && discount_factor > 0.0 {
-            -discount_factor.ln() / t
-        } else {
-            0.0
-        };
+        // A non-positive/non-finite df means a corrupted curve; error rather
+        // than silently pricing at a zero rate.
+        let r = crate::instruments::common_impl::helpers::zero_rate_from_df(
+            discount_factor,
+            t,
+            "LookbackOption discount curve",
+        )?;
 
         let spot_scalar = curves.get_price(&inst.spot_id)?;
         let spot = match spot_scalar {
@@ -585,6 +587,15 @@ impl Pricer for LookbackOptionAnalyticalPricer {
         };
 
         let currency = lookback.notional.currency();
+        // Closed-form leaves signal out-of-domain input with a NaN sentinel;
+        // convert to an error before `Money::new` panics on non-finite.
+        let price = crate::models::closed_form::checked_closed_form_value(
+            price,
+            "lookback closed-form price",
+        )
+        .map_err(|e| {
+            PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
+        })?;
         let pv = Money::new(price * lookback.notional.amount(), currency);
         Ok(ValuationResult::stamped(lookback.id(), as_of, pv))
     }

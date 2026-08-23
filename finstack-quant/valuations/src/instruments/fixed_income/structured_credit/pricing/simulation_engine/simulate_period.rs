@@ -537,15 +537,14 @@ pub(super) fn simulate_period(
             && state.principal_funding_account.amount() > 0.0
         {
             // N3: early amortization RELEASES the account, it does not strand
-            // it. The release previously required `!early_amortization`, so a
-            // deal that breached into early am with a funded account only saw
+            // it. Gating the release on `!early_amortization` would make a
+            // deal that breached into early am with a funded account only see
             // that cash at the terminal sweep — dated at the final simulated
             // period. Early amortization exists precisely to accelerate
             // principal to investors, so withholding already-collected
             // principal until deal end inverts the trigger's purpose and
             // mis-states senior WAL, duration and price in exactly the stress
-            // scenario the feature models. Total cash was conserved; its
-            // timing was not.
+            // scenario the feature models (cash conserved, timing wrong).
             funding_net_release = state.principal_funding_account.amount();
             state.principal_funding_account = Money::new(0.0, state.base_currency);
             let release = Money::new(funding_net_release, state.base_currency);

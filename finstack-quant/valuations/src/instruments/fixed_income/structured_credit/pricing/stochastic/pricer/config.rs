@@ -22,15 +22,10 @@ use std::sync::Arc;
 /// remaining** — which is essentially every real deal, since
 /// `build_scenario_tree_config` sets `num_periods` to months-to-maturity.
 ///
-/// This type previously documented Tree as "Default mode" and all three modes
-/// as "first-class supported pricers". That was not true of Tree at any
-/// realistic horizon, and it only escaped notice because the public
-/// `price_stochastic` entry point overrides the default to Monte Carlo before
-/// the mode is ever used.
-///
-/// The default is therefore [`PricingMode::MonteCarlo`] — the mode that can
-/// actually price the deals this module is built for. Tree remains available
-/// and correct for genuinely short horizons; select it explicitly.
+/// The default is [`PricingMode::MonteCarlo`] — the mode that can price the
+/// deals this module is built for at realistic horizons (the public
+/// `price_stochastic` entry point also selects Monte Carlo). Tree remains
+/// available and correct for genuinely short horizons; select it explicitly.
 ///
 /// Test coverage:
 /// - **Tree**: `tests/instruments/structured_credit/unit/{stochastic_pricing_tests,stochastic_tranche_pv_tests}`, at horizons within the node bound.

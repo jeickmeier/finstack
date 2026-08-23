@@ -1056,7 +1056,7 @@ pub(crate) struct SeniorFeeInputs<'a> {
 /// notes is not a senior claim and must not be counted here.
 ///
 /// This is the single source of truth for "what the fee tier will take",
-/// shared by three call sites that previously would have drifted:
+/// shared by three call sites that must agree:
 ///   * the IC numerator (SC-M29), which nets it from interest collections;
 ///   * the excess-spread capture/draw and the reserve draw (N1), which must
 ///     treat it as a senior claim ranking ahead of note interest;
@@ -1687,11 +1687,11 @@ mod ic_diversion_tests {
         // 100M CLASS_A — i.e. the breach is so severe that no available cash
         // can cure it.
         //
-        // This test previously asserted the diversion equalled the 1,416,667
-        // cash shortfall, a 66x under-cure. With the correct cure exceeding
-        // every dollar in the waterfall, the diversion is now bounded by
-        // AVAILABLE CASH rather than by the cure — which is the right
-        // behaviour: divert everything you have and still fail the test.
+        // Asserting the diversion equals the 1,416,667 cash shortfall would
+        // be a 66x under-cure. With the correct cure exceeding every dollar
+        // in the waterfall, the diversion is bounded by AVAILABLE CASH rather
+        // than by the cure — which is the right behaviour: divert everything
+        // you have and still fail the test.
         let rate_tau = class_a.coupon.current_rate(payment_date) * yf;
         let delevering_cure = (interest_due - 100_000.0 / 1.20) / rate_tau;
         assert!(

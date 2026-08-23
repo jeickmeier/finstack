@@ -16,12 +16,17 @@
 //! underlying volatility index. For VIX futures with a $1000 multiplier,
 //! a 1-point move in VIX results in a $1000 P&L per contract.
 
-use crate::define_metric_calculator;
 use crate::instruments::equity::vol_index_future::VolatilityIndexFuture;
 
-define_metric_calculator!(
-    /// Delta to volatility index calculator for volatility index futures.
-    DeltaVolCalculator,
-    instrument = VolatilityIndexFuture,
-    calc = |future, _ctx| Ok(future.delta_vol())
-);
+/// Delta to volatility index calculator for volatility index futures.
+pub(crate) struct DeltaVolCalculator;
+
+impl crate::metrics::MetricCalculator for DeltaVolCalculator {
+    fn calculate(
+        &self,
+        context: &mut crate::metrics::MetricContext,
+    ) -> finstack_quant_core::Result<f64> {
+        let future: &VolatilityIndexFuture = context.instrument_as()?;
+        Ok(future.delta_vol())
+    }
+}

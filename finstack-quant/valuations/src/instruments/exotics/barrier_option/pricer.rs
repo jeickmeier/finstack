@@ -129,6 +129,16 @@ impl BarrierOptionMcPricer {
                         .map_or(0.0, |rebate| rebate.amount() * discount_factor),
                 },
             };
+            let unit = crate::models::closed_form::checked_closed_form_value(
+                unit,
+                "barrier knocked-in vanilla price",
+            )
+            .map_err(|e| {
+                PricingError::model_failure_with_context(
+                    e.to_string(),
+                    PricingErrorContext::default(),
+                )
+            })?;
             return Ok(Money::new(
                 unit * inst.notional.amount(),
                 inst.notional.currency(),
@@ -398,7 +408,17 @@ impl Pricer for BarrierOptionAnalyticalPricer {
 
         if barrier_opt.observed_barrier_breached == Some(true) {
             use finstack_quant_core::types::BarrierType;
-            let r = -df.ln() / t;
+            let r = crate::instruments::common_impl::helpers::zero_rate_from_df(
+                df,
+                t,
+                "BarrierOption discount curve",
+            )
+            .map_err(|e| {
+                PricingError::model_failure_with_context(
+                    e.to_string(),
+                    PricingErrorContext::default(),
+                )
+            })?;
             let unit = match barrier_opt.barrier_type {
                 BarrierType::UpAndIn | BarrierType::DownAndIn => {
                     crate::models::closed_form::vanilla::bs_price(
@@ -420,6 +440,16 @@ impl Pricer for BarrierOptionAnalyticalPricer {
                     }
                 }
             };
+            let unit = crate::models::closed_form::checked_closed_form_value(
+                unit,
+                "barrier observed-breach vanilla price",
+            )
+            .map_err(|e| {
+                PricingError::model_failure_with_context(
+                    e.to_string(),
+                    PricingErrorContext::default(),
+                )
+            })?;
             let pv = Money::new(
                 unit * barrier_opt.notional.amount(),
                 barrier_opt.notional.currency(),
@@ -491,9 +521,18 @@ impl Pricer for BarrierOptionAnalyticalPricer {
         } else {
             0.0
         };
+        // The closed-form leaves return NaN sentinels for out-of-domain input;
+        // convert that to an error before `Money::new` panics on non-finite.
+        let price = crate::models::closed_form::checked_closed_form_value(
+            price + rebate_val,
+            "barrier closed-form price",
+        )
+        .map_err(|e| {
+            PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
+        })?;
 
         let pv = Money::new(
-            (price + rebate_val) * barrier_opt.notional.amount(),
+            price * barrier_opt.notional.amount(),
             barrier_opt.notional.currency(),
         );
         Ok(ValuationResult::stamped(barrier_opt.id(), as_of, pv))

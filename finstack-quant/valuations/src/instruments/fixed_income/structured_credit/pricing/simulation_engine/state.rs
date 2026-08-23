@@ -135,13 +135,35 @@ pub(super) fn step_down_metrics(
     }
 }
 
-impl<'a> SimulationState<'a> {
-    pub(super) fn new(
-        pool: &'a AssetPool,
-        tranches: &'a TrancheStructure,
+/// Loop-invariant pieces of the initial [`SimulationState`], computed once
+/// per pricing run.
+///
+/// The stochastic engine constructs an identical initial state for every
+/// scenario path; only the mutable simulation fields differ (they start from
+/// the same values and diverge through the waterfall). Freezing the registry
+/// lookup, balance scans, WALA loop, and loss-order sort into a template and
+/// cloning the per-path copies is bit-identical — map insertion order is
+/// preserved exactly, so FxHashMap bucket layout and every `.values()`
+/// iteration order downstream stay unchanged.
+pub(crate) struct StateTemplate {
+    results: HashMap<String, TrancheCashflows>,
+    tranche_balances: HashMap<String, Money>,
+    deferred_interest: HashMap<String, Money>,
+    tranche_recipient_keys: Vec<RecipientType>,
+    pool_state: PoolState,
+    loss_alloc_order: Vec<usize>,
+    pool_wala_months: u32,
+    base_currency: Currency,
+    total_pool_balance: Money,
+    performing_pool_balance: Money,
+    pool_balance_cleanup_threshold: f64,
+}
+
+impl StateTemplate {
+    pub(crate) fn new(
+        pool: &AssetPool,
+        tranches: &TrancheStructure,
         closing_date: Date,
-        state_date: Date,
-        recovery_lag_months: u32,
     ) -> Result<Self> {
         let base_currency = pool.base_currency();
         let pool_balance_cleanup_threshold = embedded_registry()?.pool_balance_cleanup_threshold();
@@ -201,11 +223,6 @@ impl<'a> SimulationState<'a> {
             .map(|t| (t.id.to_string(), t.deferred_interest))
             .collect();
 
-        let initial_reinvestment_active = pool
-            .reinvestment_period
-            .as_ref()
-            .is_some_and(|period| closing_date <= period.end_date);
-
         let total_pool_balance = pool
             .total_balance()
             .unwrap_or(Money::new(0.0, base_currency));
@@ -249,32 +266,92 @@ impl<'a> SimulationState<'a> {
         };
 
         Ok(Self {
-            pool_state,
-            pool_outstanding: total_pool_balance,
-            recovery_queue: RecoveryQueue::new(),
+            results,
             tranche_balances,
             deferred_interest,
-            results,
-            prev_date: Some(state_date),
+            tranche_recipient_keys,
+            pool_state,
+            loss_alloc_order,
+            pool_wala_months,
             base_currency,
+            total_pool_balance,
+            performing_pool_balance,
+            pool_balance_cleanup_threshold,
+        })
+    }
+}
+
+impl<'a> SimulationState<'a> {
+    /// Build a fresh per-path state from the shared [`StateTemplate`].
+    ///
+    /// Clones the template's maps and vectors in declaration order so every
+    /// path's FxHashMaps have identical key sets and insertion sequences,
+    /// keeping downstream `.values()` iteration order path-independent.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn from_template(
+        template: &StateTemplate,
+        pool: &'a AssetPool,
+        tranches: &'a TrancheStructure,
+        closing_date: Date,
+        state_date: Date,
+        recovery_lag_months: u32,
+    ) -> Self {
+        let initial_reinvestment_active = pool
+            .reinvestment_period
+            .as_ref()
+            .is_some_and(|period| closing_date <= period.end_date);
+
+        Self {
+            pool_state: template.pool_state.clone(),
+            pool_outstanding: template.total_pool_balance,
+            recovery_queue: RecoveryQueue::new(),
+            tranche_balances: template.tranche_balances.clone(),
+            deferred_interest: template.deferred_interest.clone(),
+            results: template.results.clone(),
+            prev_date: Some(state_date),
+            base_currency: template.base_currency,
             recovery_lag_months,
             pool,
             tranches,
             closing_date,
-            pool_balance_cleanup_threshold,
-            tranche_recipient_keys,
+            pool_balance_cleanup_threshold: template.pool_balance_cleanup_threshold,
+            tranche_recipient_keys: template.tranche_recipient_keys.clone(),
             was_reinvestment_active: initial_reinvestment_active,
             cumulative_realized_loss: 0.0,
             cumulative_loss_unallocated: 0.0,
-            total_pool_balance,
-            performing_pool_balance,
-            loss_alloc_order,
-            pool_wala_months,
+            total_pool_balance: template.total_pool_balance,
+            performing_pool_balance: template.performing_pool_balance,
+            loss_alloc_order: template.loss_alloc_order.clone(),
+            pool_wala_months: template.pool_wala_months,
             reserve_balance: pool.reserve_account,
-            spread_account: Money::new(0.0, base_currency),
-            principal_funding_account: Money::new(0.0, base_currency),
+            spread_account: Money::new(0.0, template.base_currency),
+            principal_funding_account: Money::new(0.0, template.base_currency),
             floating_rate_shift: 0.0,
-        })
+        }
+    }
+
+    /// Test-only convenience: builds a [`StateTemplate`] and instantiates a
+    /// state from it in one call.
+    ///
+    /// Production paths go through [`SimulationState::from_template`] so the
+    /// initial-state computation exists in exactly one place.
+    #[cfg(test)]
+    pub(super) fn new(
+        pool: &'a AssetPool,
+        tranches: &'a TrancheStructure,
+        closing_date: Date,
+        state_date: Date,
+        recovery_lag_months: u32,
+    ) -> Result<Self> {
+        let template = StateTemplate::new(pool, tranches, closing_date)?;
+        Ok(Self::from_template(
+            &template,
+            pool,
+            tranches,
+            closing_date,
+            state_date,
+            recovery_lag_months,
+        ))
     }
 
     pub(super) fn is_pool_exhausted(&self) -> bool {

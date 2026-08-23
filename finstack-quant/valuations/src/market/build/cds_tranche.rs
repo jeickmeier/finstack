@@ -174,9 +174,9 @@ impl CDSTrancheBuildOverrides {
 ///
 /// # See Also
 ///
-/// - [`CDSTrancheQuote`](crate::market::quotes::cds_tranche::CDSTrancheQuote) for quote structure
-/// - [`BuildCtx`](crate::market::BuildCtx) for build context configuration
-/// - [`CDSTrancheBuildOverrides`](CDSTrancheBuildOverrides) for override options
+/// - [`CDSTrancheQuote`] for quote structure
+/// - [`BuildCtx`] for build context configuration
+/// - [`CDSTrancheBuildOverrides`] for override options
 pub fn build_cds_tranche_instrument(
     quote: &CDSTrancheQuote,
     ctx: &BuildCtx,

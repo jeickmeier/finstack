@@ -354,11 +354,13 @@ impl AsianOptionMcPricer {
         let disc_curve = curves.get_discount(inst.discount_curve_id.as_str())?;
         let discount_factor = disc_curve.df_between_dates(as_of, inst.expiry)?;
         // Keep drift consistent with date-based discounting: exp(-r * t) == DF(as_of, maturity).
-        let r = if t > 0.0 && discount_factor > 0.0 {
-            -discount_factor.ln() / t
-        } else {
-            0.0
-        };
+        // A non-positive/non-finite df means a corrupted curve; error rather
+        // than silently pricing at a zero rate.
+        let r = crate::instruments::common_impl::helpers::zero_rate_from_df(
+            discount_factor,
+            t,
+            "AsianOption discount curve",
+        )?;
 
         let spot_scalar = curves.get_price(&inst.spot_id)?;
         let spot = match spot_scalar {

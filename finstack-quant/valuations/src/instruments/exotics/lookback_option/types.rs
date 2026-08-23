@@ -227,6 +227,19 @@ impl crate::instruments::common_impl::traits::Instrument for LookbackOption {
     impl_instrument_base!(crate::pricer::InstrumentType::LookbackOption);
 
     fn validate_invariants(&self) -> finstack_quant_core::Result<()> {
+        use crate::instruments::common_impl::validation;
+        // Fixed-strike lookbacks feed `strike` into ln-based closed forms that
+        // require a strictly positive strike; rejecting here surfaces a
+        // `Validation` error instead of a NaN sentinel reaching pricing.
+        if let Some(strike) = self.strike {
+            validation::validate_f64_positive(strike, "LookbackOption strike")?;
+        }
+        if let Some(observed_min) = self.observed_min {
+            validation::validate_money_gt(observed_min, 0.0, "LookbackOption observed_min")?;
+        }
+        if let Some(observed_max) = self.observed_max {
+            validation::validate_money_gt(observed_max, 0.0, "LookbackOption observed_max")?;
+        }
         if let Some(fixing) = self.expiry_fixing {
             if fixing.currency() != self.notional.currency() {
                 return Err(finstack_quant_core::Error::CurrencyMismatch {

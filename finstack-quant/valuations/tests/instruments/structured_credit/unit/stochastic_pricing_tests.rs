@@ -919,3 +919,202 @@ fn all_pricing_modes_succeed_on_canonical_deal() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Golden bit-hash regression
+//
+// Pins the complete `StochasticPricingResult` floating-point surface (every
+// f64 field via `to_bits`, deal-level and per-tranche) across pricing modes
+// and stochastic specs. The stochastic engine must be refactored under a
+// bit-identical constraint: any change in summation order, RNG consumption,
+// or model-construction inputs shifts at least one hash here. When an
+// arithmetic change is INTENTIONAL, review the diff and update the expected
+// hashes in this test.
+// ---------------------------------------------------------------------------
+
+use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
+    StochasticPricingResult, TranchePricingResult,
+};
+
+fn hash_money(state: &mut u64, money: &finstack_quant_core::money::Money) {
+    *state = state.rotate_left(5);
+    *state ^= money.amount().to_bits();
+}
+
+fn hash_tranche(state: &mut u64, tranche: &TranchePricingResult) {
+    for value in [
+        tranche.npv.amount(),
+        tranche.expected_loss.amount(),
+        tranche.unexpected_loss.amount(),
+        tranche.expected_shortfall.amount(),
+        tranche.attachment,
+        tranche.detachment,
+        tranche.average_life,
+        tranche.spread,
+        tranche.credit_duration,
+    ] {
+        *state = state.rotate_left(7);
+        *state ^= value.to_bits();
+    }
+}
+
+/// Order-sensitive FNV-style fold over every numeric field of the result.
+fn result_bit_hash(result: &StochasticPricingResult) -> u64 {
+    let mut state: u64 = 0xcbf2_9ce4_8422_2325;
+    hash_money(&mut state, &result.npv);
+    for value in [
+        result.clean_price,
+        result.dirty_price,
+        result.pv_std_error,
+        result.pv_confidence_interval.0,
+        result.pv_confidence_interval.1,
+        result.es_confidence,
+    ] {
+        state = state.rotate_left(7);
+        state ^= value.to_bits();
+    }
+    hash_money(&mut state, &result.expected_loss);
+    hash_money(&mut state, &result.unexpected_loss);
+    hash_money(&mut state, &result.expected_shortfall);
+    state = state.rotate_left(result.num_paths as u32 | 1);
+    for tranche in &result.tranche_results {
+        hash_tranche(&mut state, tranche);
+    }
+    state
+}
+
+#[test]
+fn stochastic_pricing_result_bit_hash_is_stable() {
+    // (label, deal id, spec builder applied to a fresh ABS deal, pricing mode)
+    struct Case {
+        label: &'static str,
+        stochastic: bool,
+        mode: PricingMode,
+    }
+
+    let cases = [
+        Case {
+            label: "abs_mc",
+            stochastic: false,
+            mode: PricingMode::MonteCarlo {
+                num_paths: 100,
+                antithetic: false,
+            },
+        },
+        // Antithetic pairing must run against a STOCHASTIC spec: with
+        // deterministic specs the factor draws never touch the result, so an
+        // antithetic ABS case would hash identically to `abs_mc` and pin
+        // nothing.
+        Case {
+            label: "clo_standard_mc_antithetic",
+            stochastic: true,
+            mode: PricingMode::MonteCarlo {
+                num_paths: 100,
+                antithetic: true,
+            },
+        },
+        Case {
+            label: "clo_standard_mc",
+            stochastic: true,
+            mode: PricingMode::MonteCarlo {
+                num_paths: 100,
+                antithetic: false,
+            },
+        },
+        // A pure-Tree case is omitted: exact-tree mode rejects fixtures
+        // beyond a few periods (documented path-count guard). The Hybrid
+        // case still exercises the tree shock path on its leading periods.
+        Case {
+            label: "abs_hybrid",
+            stochastic: false,
+            mode: PricingMode::Hybrid {
+                tree_periods: 6,
+                mc_paths: 100,
+            },
+        },
+        Case {
+            label: "factor_correlated_mc",
+            stochastic: false,
+            mode: PricingMode::MonteCarlo {
+                num_paths: 100,
+                antithetic: true,
+            },
+        },
+    ];
+
+    let mut hashes = Vec::with_capacity(cases.len());
+    for case in &cases {
+        // Exact-tree expansion over the standard 6-year schedule exceeds the
+        // path cap; tree/hybrid cases price the one-year-horizon deal.
+        let mut sc = build_sc(case.label, 1_000_000.0);
+        if case.stochastic {
+            sc.with_stochastic_prepay(StochasticPrepaySpec::clo_standard());
+            sc.with_stochastic_default(StochasticDefaultSpec::clo_standard());
+            sc.with_correlation(CorrelationStructure::clo_standard());
+        } else if case.label == "factor_correlated_mc" {
+            use finstack_quant_cashflows::builder::DefaultModelSpec;
+            sc.credit_model.default_spec = DefaultModelSpec::constant_cdr(0.05);
+            sc.credit_model.stochastic_default_spec =
+                Some(StochasticDefaultSpec::factor_correlated(
+                    sc.credit_model.default_spec.clone(),
+                    1.0,
+                    0.5,
+                ));
+            sc.credit_model.stochastic_prepay_spec = Some(StochasticPrepaySpec::deterministic(
+                sc.credit_model.prepayment_spec.clone(),
+            ));
+            sc.credit_model.correlation_structure = Some(CorrelationStructure::flat(0.3, 0.0));
+        }
+
+        let market = MarketContext::new().insert(discount_curve(closing_date()));
+        let result = sc
+            .price_stochastic_with_mode(&market, closing_date(), case.mode.clone())
+            .unwrap_or_else(|err| panic!("{} should price: {err}", case.label));
+
+        let hash = result_bit_hash(&result);
+        hashes.push((case.label, hash));
+    }
+
+    // Regenerate golden values by pasting the actual values from a failing
+    // run's message, or set SC_GOLDEN_PRINT=<file> to append ready-to-paste
+    // constants to <file>.
+    let expected: &[(&str, u64)] = &[
+        ("abs_mc", GOLDEN_ABS_MC),
+        (
+            "clo_standard_mc_antithetic",
+            GOLDEN_CLO_STANDARD_MC_ANTITHETIC,
+        ),
+        ("clo_standard_mc", GOLDEN_CLO_STANDARD_MC),
+        ("abs_hybrid", GOLDEN_ABS_HYBRID),
+        ("factor_correlated_mc", GOLDEN_FACTOR_CORRELATED_MC),
+    ];
+    for ((label, actual), (expected_label, expected_hash)) in hashes.iter().zip(expected) {
+        if let Ok(path) = std::env::var("SC_GOLDEN_PRINT") {
+            use std::fmt::Write as _;
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&path)
+                .expect("golden print target must be writable");
+            let mut line = String::new();
+            let _ = writeln!(&mut line, "const GOLDEN_{label}: u64 = {actual:#x};");
+            use std::io::Write as _;
+            file.write_all(line.as_bytes())
+                .expect("golden print write must succeed");
+            continue;
+        }
+        assert_eq!(label, expected_label, "case order drifted");
+        assert_eq!(
+            actual, expected_hash,
+            "bit-hash drift on '{label}': got {actual:#018x}, expected {expected_hash:#018x}. \
+             If this arithmetic change is intentional, update the golden constant."
+        );
+    }
+}
+
+// Golden bit-hash constants pinning the engine's current arithmetic.
+const GOLDEN_ABS_MC: u64 = 0x6ab0_0fbc_b56a_34ee;
+const GOLDEN_CLO_STANDARD_MC_ANTITHETIC: u64 = 0xda1e_5327_0705_a509;
+const GOLDEN_CLO_STANDARD_MC: u64 = 0xfe91_e0f4_96d5_6e70;
+const GOLDEN_ABS_HYBRID: u64 = 0x2e96_f10c_fcd0_02fd;
+const GOLDEN_FACTOR_CORRELATED_MC: u64 = 0xc77e_3707_bfc1_19af;

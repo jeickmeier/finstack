@@ -6,9 +6,9 @@ The dispatch core of the valuations crate. It owns the three key types
 implementation, and the JSON entry points the Python and WASM bindings call.
 
 Every registry-dispatched result runs `price_with_metrics_impl`, reached through
-`PricerRegistry::price_with_metrics` (direct callers), `price_with_metrics_shared`
+`PricerRegistry::price_with_metrics` (direct callers) or `price_with_metrics_shared`
 (the instrument-side wrapper behind `Instrument::price_with_metrics`, which only
-resolves the model and the registry before calling in here), or `price_batch`.
+resolves the model and the registry before calling in here).
 The ordering rules documented below — validate, resolve `as_of`, price unshocked,
 stamp metadata, apply the scenario shock exactly once, enrich with metrics — are
 therefore the whole pricing contract for anything reached by a `ModelKey`.
@@ -173,8 +173,8 @@ turns a collision into a failing build.
 `standard_registry()` returns a `&'static PricerRegistry` from a process-wide
 `OnceLock<Arc<PricerRegistry>>`. When metrics are requested, the pricing path
 needs an `Arc<PricerRegistry>` so calculators can reprice through the same
-dispatch table; `price_with_metrics` and `price_batch` compare `self` against
-the singleton with `std::ptr::eq` and reuse its `Arc` on a hit, deep-cloning the
+dispatch table; `price_with_metrics` compares `self` against
+the singleton with `std::ptr::eq` and reuses its `Arc` on a hit, deep-cloning the
 registry map only for a bespoke registry.
 
 ## Pricing pipeline
@@ -219,10 +219,6 @@ Enrichment has two shapes:
 `attach_metric_measures` inserts calculator results first and the model's own
 measures last, so a model-produced measure wins when both emit the same
 `MetricId`.
-
-`price_batch` maps `price_with_metrics_impl` over a rayon `par_iter` and
-preserves input order; `test_price_batch_matches_serial_results` pins serial ≡
-parallel.
 
 ## Adding an instrument
 
@@ -269,8 +265,8 @@ under `../../tests/instruments/<name>/`, and
 `PricingError` has five `#[non_exhaustive]` variants: `UnknownPricer`,
 `TypeMismatch`, `ModelFailure`, `InvalidInput`, `MissingMarketData`. Every
 variant except the first two carries a `PricingErrorContext`
-(instrument id, instrument type, model, curve ids), which is what makes a batch
-failure diagnosable.
+(instrument id, instrument type, model, curve ids), which is what makes a
+failure diagnosable when pricing many instruments.
 
 Both conversions are **lossy in one direction each** and are documented with a
 mapping table in [`errors.rs`](errors.rs):
@@ -357,7 +353,7 @@ registry; it is a standalone numeric surface bound directly in Python
 # Colocated unit tests (never `cargo test` — it would also run doc tests).
 cargo nextest run -p finstack-quant-valuations --lib -E 'test(/pricer::/)'
 
-# Registry construction, key round trips, batch parity, error display.
+# Registry construction, key round trips, error display.
 cargo nextest run -p finstack-quant-valuations --test instruments -E 'test(/common::pricer/)'
 
 mise run rust-test

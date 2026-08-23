@@ -5,12 +5,13 @@ use super::result::{StochasticPricingResult, TranchePricingResult};
 use crate::cashflow::builder::schedule::weighted_average_life_from_principal;
 use crate::correlation::{CopulaSpec, LatentFactorSpec, RecoverySpec};
 use crate::instruments::fixed_income::structured_credit::pricing::simulation_engine::{
-    run_simulation_with_source, PerNameDefaultEngine, PerNamePeriodInput, PeriodPoolShock,
-    StochasticPathFlowSource,
+    prepare_deal_simulation, run_prepared_simulation_with_source, PerNameDefaultEngine,
+    PerNamePeriodInput, PeriodPoolShock, PreparedDealSimulation, StochasticPathFlowSource,
 };
 use crate::instruments::fixed_income::structured_credit::pricing::stochastic::default::{
-    MacroCreditFactors, PerNameCopulaDefault,
+    MacroCreditFactors, PerNameCopulaDefault, StochasticDefault,
 };
+use crate::instruments::fixed_income::structured_credit::pricing::stochastic::prepayment::StochasticPrepayment;
 use crate::instruments::fixed_income::structured_credit::pricing::{
     StochasticDefaultSpec, StochasticPrepaySpec,
 };
@@ -64,10 +65,100 @@ pub(crate) struct StochasticPricer {
     config: StochasticPricerConfig,
 }
 
+/// Loop-invariant state built once per pricing run and shared read-only
+/// across all paths.
+///
+/// The default/prepay model builds are pure functions of immutable config
+/// fields, so building them once here — instead of inside every path's month
+/// loop, where 10k paths × 360 months would mean millions of identical
+/// `Box<dyn>` allocations plus deep hazard-curve clones — is bit-identical:
+/// every trait method takes `&self` and no model carries cross-call state
+/// (path burnout lives in the caller's `&mut f64`).
+pub(crate) struct PreparedRun {
+    /// Default model from
+    /// [`build_with_seasoning_offset`](StochasticDefaultSpec::build_with_seasoning_offset)
+    /// on the run's constant `initial_seasoning`. Gates the pool-wide MDR
+    /// channel and sources the copula marginal-PD plan.
+    pub(crate) default_model: Option<Box<dyn StochasticDefault>>,
+    /// Prepayment model from [`StochasticPrepaySpec::build`]. Gates the
+    /// stochastic SMM channel.
+    pub(crate) prepay_model: Option<Box<dyn StochasticPrepayment>>,
+    /// `Some(rho)` iff the default spec is a copula variant, with the deal
+    /// correlation override applied. Gates the per-name overlay channel —
+    /// NOT `default_model.is_some()`, which is also true for non-copula
+    /// stochastic specs.
+    pub(crate) copula_rho: Option<f64>,
+    /// Configured systematic-factor mean-reversion speed κ (per year).
+    pub(crate) factor_kappa: f64,
+    /// Monthly autocorrelation φ = e^{−κ/12}.
+    pub(crate) factor_phi: f64,
+    /// Validated prepay/default factor correlation (SC-M23).
+    pub(crate) factor_correlation: Option<f64>,
+    /// Loop-invariant deal simulation (validation, calendar, schedule,
+    /// waterfall) prepared once for this run's valuation date.
+    pub(crate) sim: PreparedDealSimulation,
+}
+
 impl StochasticPricer {
     /// Create a new stochastic pricer.
     pub(crate) fn new(config: StochasticPricerConfig) -> Self {
         Self { config }
+    }
+
+    /// Build the loop-invariant [`PreparedRun`] for one pricing invocation.
+    ///
+    /// # Errors
+    ///
+    /// Propagates invalid default-spec construction (e.g. Student-t dof ≤ 2)
+    /// and unsupported latent-factor specs, once and before any path runs.
+    fn prepare_run(&self, instrument: &StructuredCredit) -> Result<PreparedRun> {
+        // Fail fast on invalid default specs and keep the built model so the
+        // per-path hot loops can assume a validated, already-built spec.
+        let default_model = self
+            .config
+            .tree_config
+            .default_spec
+            .build_with_seasoning_offset(self.config.tree_config.initial_seasoning)?;
+        // Prepare the loop-invariant deal simulation once. A `None` here
+        // (exhausted pool) yields no tranche results, which the collector
+        // reports as a missing-tranche validation error; raise it here with
+        // the same message.
+        let sim =
+            prepare_deal_simulation(instrument, self.config.valuation_date)?.ok_or_else(|| {
+                finstack_quant_core::Error::Validation(format!(
+                    "stochastic waterfall omitted tranche result '{}'",
+                    instrument
+                        .tranches
+                        .tranches
+                        .first()
+                        .map(|t| t.id.as_str())
+                        .unwrap_or_default()
+                ))
+            })?;
+        let prepay_model = self.config.tree_config.prepay_spec.build();
+        let copula_rho = match &self.config.tree_config.default_spec {
+            StochasticDefaultSpec::Copula { correlation, .. } => {
+                // Explicit deal `CorrelationStructure` overrides the copula scalar.
+                Some(
+                    self.config
+                        .tree_config
+                        .asset_correlation_override
+                        .unwrap_or(*correlation),
+                )
+            }
+            _ => None,
+        };
+        let factor_kappa = self.factor_mean_reversion();
+        let factor_correlation = self.factor_correlation()?;
+        Ok(PreparedRun {
+            default_model,
+            prepay_model,
+            copula_rho,
+            factor_kappa,
+            factor_phi: (-factor_kappa / 12.0).exp(),
+            factor_correlation,
+            sim,
+        })
     }
 
     /// Price the full deal and all tranches through scenario-level waterfalls.
@@ -76,22 +167,17 @@ impl StochasticPricer {
         instrument: &StructuredCredit,
         context: &MarketContext,
     ) -> Result<StochasticPricingResult> {
-        // Fail fast on invalid default specs (e.g. Student-t dof ≤ 2) so the
-        // per-path hot loops can assume a validated, buildable spec.
-        self.config
-            .tree_config
-            .default_spec
-            .build_with_seasoning_offset(self.config.tree_config.initial_seasoning)?;
+        let prepared = self.prepare_run(instrument)?;
         match &self.config.pricing_mode {
-            PricingMode::Tree => self.price_tree(instrument, context),
+            PricingMode::Tree => self.price_tree(instrument, context, &prepared),
             PricingMode::MonteCarlo {
                 num_paths,
                 antithetic,
-            } => self.price_monte_carlo(instrument, context, *num_paths, *antithetic),
+            } => self.price_monte_carlo(instrument, context, *num_paths, *antithetic, &prepared),
             PricingMode::Hybrid {
                 tree_periods,
                 mc_paths,
-            } => self.price_hybrid(instrument, context, *tree_periods, *mc_paths),
+            } => self.price_hybrid(instrument, context, *tree_periods, *mc_paths, &prepared),
         }
     }
 
@@ -99,6 +185,7 @@ impl StochasticPricer {
         &self,
         instrument: &StructuredCredit,
         context: &MarketContext,
+        prepared: &PreparedRun,
     ) -> Result<StochasticPricingResult> {
         let terminal_paths = self
             .config
@@ -119,14 +206,15 @@ impl StochasticPricer {
         // stratified node, so the std-error is the plain i.i.d. estimator.
         let mut collector = ScenarioCollector::new(instrument, path_count, false)?;
         for path_index in 0..path_count {
-            let shocks = self.tree_path_shocks(instrument, path_index, path_count, branch_count)?;
+            let shocks =
+                self.tree_path_shocks(instrument, path_index, path_count, branch_count, prepared)?;
             // Tree mode draws no antithetic pairs — each path is an
             // independent stratified node, so the per-name substream is
             // per-path and never negated.
             let per_name_engine = per_name_simulator
                 .as_ref()
                 .map(|sim| self.per_name_engine(sim, path_index, false));
-            let output = self.price_path(instrument, context, shocks, per_name_engine)?;
+            let output = self.price_path(instrument, context, prepared, shocks, per_name_engine)?;
             collector.record_output(output);
         }
         Ok(collector.finalize(self, PricingMode::Tree))
@@ -138,6 +226,7 @@ impl StochasticPricer {
         context: &MarketContext,
         num_paths: usize,
         antithetic: bool,
+        prepared: &PreparedRun,
     ) -> Result<StochasticPricingResult> {
         if num_paths == 0 {
             return Err(finstack_quant_core::Error::Validation(
@@ -151,17 +240,16 @@ impl StochasticPricer {
         // and cannot be paired. Pair-aware std-error therefore requires an even
         // path count; with an odd count the antithetic flag is dropped so the
         // collector falls back to the plain i.i.d. estimator.
-        let antithetic_paired = antithetic && num_paths.is_multiple_of(2);
         self.price_factor_sets(
             instrument,
             context,
             factor_sets,
             num_paths,
-            antithetic_paired,
             PricingMode::MonteCarlo {
                 num_paths,
                 antithetic,
             },
+            prepared,
         )
     }
 
@@ -171,6 +259,7 @@ impl StochasticPricer {
         context: &MarketContext,
         tree_periods: usize,
         mc_paths: usize,
+        prepared: &PreparedRun,
     ) -> Result<StochasticPricingResult> {
         if tree_periods == 0 {
             return Err(finstack_quant_core::Error::Validation(
@@ -239,12 +328,11 @@ impl StochasticPricer {
             context,
             factor_sets,
             total_paths,
-            // Hybrid mode draws no antithetic pairs.
-            false,
             PricingMode::Hybrid {
                 tree_periods,
                 mc_paths,
             },
+            prepared,
         )
     }
 
@@ -253,10 +341,23 @@ impl StochasticPricer {
         instrument: &StructuredCredit,
         context: &MarketContext,
         factor_sets: Vec<Vec<f64>>,
-        num_paths: usize,
-        antithetic: bool,
+        total_paths: usize,
         pricing_mode: PricingMode,
+        prepared: &PreparedRun,
     ) -> Result<StochasticPricingResult> {
+        // Antithetic pairing is only effective when the path count is even —
+        // an odd trailing path is drawn independently (see
+        // `monte_carlo_factor_sets`) and cannot be paired. Pair-aware
+        // std-error therefore requires an even path count; with an odd count
+        // the antithetic flag is dropped so the collector falls back to the
+        // plain i.i.d. estimator. Tree and Hybrid modes draw no pairs.
+        let (num_paths, antithetic) = match &pricing_mode {
+            PricingMode::MonteCarlo {
+                num_paths,
+                antithetic,
+            } => (*num_paths, *antithetic && num_paths.is_multiple_of(2)),
+            _ => (total_paths, false),
+        };
         let per_name_simulator = self.per_name_simulator()?;
         // `into_par_iter().enumerate()` on a `Vec` is an order-preserving
         // `IndexedParallelIterator`: `collect()` returns outputs in path
@@ -268,12 +369,16 @@ impl StochasticPricer {
             .into_par_iter()
             .enumerate()
             .map(|(path_index, factors)| {
-                let shocks =
-                    self.path_shocks_from_factors(instrument, &factors, path_index as u64)?;
+                let shocks = self.path_shocks_from_factors(
+                    instrument,
+                    &factors,
+                    path_index as u64,
+                    prepared,
+                )?;
                 let per_name_engine = per_name_simulator
                     .as_ref()
                     .map(|sim| self.per_name_engine(sim, path_index, antithetic));
-                self.price_path(instrument, context, shocks, per_name_engine)
+                self.price_path(instrument, context, prepared, shocks, per_name_engine)
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -425,6 +530,7 @@ impl StochasticPricer {
         &self,
         instrument: &StructuredCredit,
         context: &MarketContext,
+        prepared: &PreparedRun,
         shocks: Vec<PeriodPoolShock>,
         per_name_engine: Option<PerNameDefaultEngine>,
     ) -> Result<PathScenarioOutput> {
@@ -432,12 +538,8 @@ impl StochasticPricer {
             Some(engine) => StochasticPathFlowSource::with_per_name(shocks, engine),
             None => StochasticPathFlowSource::new(shocks),
         };
-        let path_results = run_simulation_with_source(
-            instrument,
-            context,
-            self.config.valuation_date,
-            &mut source,
-        )?;
+        let path_results =
+            run_prepared_simulation_with_source(instrument, context, &prepared.sim, &mut source)?;
 
         let mut deal_pv = 0.0;
         let mut deal_loss = 0.0;
@@ -479,10 +581,11 @@ impl StochasticPricer {
         path_index: usize,
         path_count: usize,
         branch_count: usize,
+        prepared: &PreparedRun,
     ) -> Result<Vec<PeriodPoolShock>> {
         let month_count = self.month_count(instrument);
         let factors = self.tree_path_factors(path_index, path_count, branch_count, month_count);
-        self.path_shocks_from_factors(instrument, &factors, path_index as u64)
+        self.path_shocks_from_factors(instrument, &factors, path_index as u64, prepared)
     }
 
     fn tree_path_factors(
@@ -583,6 +686,7 @@ impl StochasticPricer {
     }
 
     /// Monthly factor autocorrelation `φ = e^{−κ/12}`.
+    #[cfg(test)]
     fn factor_phi(&self) -> f64 {
         (-self.factor_mean_reversion() / 12.0).exp()
     }
@@ -656,23 +760,23 @@ impl StochasticPricer {
         instrument: &StructuredCredit,
         factors: &[f64],
         path_index: u64,
+        prepared: &PreparedRun,
     ) -> Result<Vec<PeriodPoolShock>> {
         // AR(1)/OU persistence for MC, tree, and hybrid paths: monthly draws
         // are innovations. Applied unconditionally — persistence is a property
         // of the factor, not of which channels are simulated.
-        let evolved_storage = Self::evolved_factors(factors, self.factor_mean_reversion());
+        let evolved_storage = Self::evolved_factors(factors, prepared.factor_kappa);
         let credit_factors: &[f64] = &evolved_storage;
 
         // SC-M23: a SECOND factor for prepayment, correlated with the credit
         // factor at the configured level.
         //
-        // `monthly_shock` previously built `let factors = [factor]` — ONE
-        // scalar handed to both `conditional_smm` and `conditional_mdr` — so
-        // prepayment and default were driven by the same realization and their
-        // implied correlation was +1 (or -1 through a negative loading),
+        // Handing ONE scalar to both `conditional_smm` and `conditional_mdr`
+        // would drive prepayment and default off the same realization, forcing
+        // their implied correlation to +1 (or -1 through a negative loading)
         // regardless of the -0.30 configured in the shipped RMBS/CLO
-        // calibrations, so a user calibrating a two-factor model got a
-        // single-factor one.
+        // calibrations — a two-factor calibration silently collapsing to a
+        // single-factor model.
         //
         // Construction is the standard two-factor decomposition
         //     Z_prepay = rho * Z_credit + sqrt(1 - rho^2) * Z_indep
@@ -686,7 +790,7 @@ impl StochasticPricer {
         // commutes: negating the raw draws negates `Z_prepay` too, preserving
         // the pairing.
         let prepay_storage;
-        let prepay_factors: &[f64] = match self.factor_correlation()? {
+        let prepay_factors: &[f64] = match prepared.factor_correlation {
             Some(rho) => {
                 let mut rng = PhiloxRng::new(self.config.seed ^ PREPAY_FACTOR_SEED_SALT)
                     .substream(path_index);
@@ -694,7 +798,7 @@ impl StochasticPricer {
                     .map(|_| rng.next_std_normal())
                     .collect();
                 let evolved_independent =
-                    Self::evolved_factors(&independent, self.factor_mean_reversion());
+                    Self::evolved_factors(&independent, prepared.factor_kappa);
                 let scale = (1.0 - rho * rho).max(0.0).sqrt();
                 prepay_storage = credit_factors
                     .iter()
@@ -721,18 +825,6 @@ impl StochasticPricer {
         let mut burnout = 1.0_f64;
         let mut shocks = Vec::with_capacity(payment_periods);
 
-        // When the default model is a copula, build it once to source the
-        // per-period *unconditional* marginal default probability used to set
-        // each name's copula barrier `Φ⁻¹(PDₜ)`.
-        let copula_model = if self.copula_default().is_some() {
-            self.config
-                .tree_config
-                .default_spec
-                .build_with_seasoning_offset(self.config.tree_config.initial_seasoning)?
-        } else {
-            None
-        };
-
         for period in 0..payment_periods {
             let start = period * months_per_period;
             let end = (start + months_per_period).min(factors.len());
@@ -749,13 +841,13 @@ impl StochasticPricer {
                 &[][..]
             };
             let mut shock = self.aggregate_monthly_shocks(
+                prepared,
                 start as u32,
                 month_slice,
                 prepay_slice,
                 &mut burnout,
             );
-            shock.per_name =
-                self.copula_period_input(copula_model.as_deref(), start as u32, month_slice);
+            shock.per_name = self.copula_period_input(prepared, start as u32, month_slice);
             shocks.push(shock);
         }
 
@@ -775,11 +867,15 @@ impl StochasticPricer {
     /// months.
     fn copula_period_input(
         &self,
-        copula_model: Option<&dyn crate::instruments::fixed_income::structured_credit::pricing::stochastic::default::StochasticDefault>,
+        prepared: &PreparedRun,
         start_month: u32,
         factors: &[f64],
     ) -> Option<PerNamePeriodInput> {
-        let model = copula_model?;
+        // Per-name simulation applies only to copula default models; other
+        // stochastic specs keep the pool-wide MDR path even though they also
+        // carry a built default model.
+        prepared.copula_rho?;
+        let model = prepared.default_model.as_deref()?;
         let months = factors.len().max(1) as u32;
 
         // Unconditional period marginal PD: 1 − ∏(1 − monthly_unconditional_MDR).
@@ -803,7 +899,7 @@ impl StochasticPricer {
         // autocorrelation `φ`; `√M` is correct only for independent months.
         let systematic_z = if self.has_stochastic_rates() && !factors.is_empty() {
             let sum: f64 = factors.iter().sum();
-            sum / Self::period_factor_scale(factors.len(), self.factor_phi())
+            sum / Self::period_factor_scale(factors.len(), prepared.factor_phi)
         } else {
             0.0
         };
@@ -816,13 +912,14 @@ impl StochasticPricer {
 
     fn aggregate_monthly_shocks(
         &self,
+        prepared: &PreparedRun,
         start_month: u32,
         factors: &[f64],
         prepay_factors: &[f64],
         burnout: &mut f64,
     ) -> PeriodPoolShock {
         if factors.is_empty() {
-            return self.monthly_shock(start_month.saturating_add(1), 0.0, 0.0, burnout);
+            return self.monthly_shock(prepared, start_month.saturating_add(1), 0.0, 0.0, burnout);
         }
 
         let mut prepay_survival = 1.0;
@@ -831,6 +928,7 @@ impl StochasticPricer {
         for (offset, factor) in factors.iter().enumerate() {
             let prepay_factor = prepay_factors.get(offset).copied().unwrap_or(*factor);
             let shock = self.monthly_shock(
+                prepared,
                 start_month.saturating_add(offset as u32 + 1),
                 *factor,
                 prepay_factor,
@@ -851,6 +949,7 @@ impl StochasticPricer {
 
     fn monthly_shock(
         &self,
+        prepared: &PreparedRun,
         month_offset: u32,
         z: f64,
         z_prepay: f64,
@@ -871,8 +970,8 @@ impl StochasticPricer {
         let prepay_factors = [prepay_factor];
 
         PeriodPoolShock::pool_wide(
-            self.conditional_smm(seasoning, &prepay_factors, burnout),
-            self.conditional_mdr(seasoning, &credit_factors),
+            self.conditional_smm(prepared, seasoning, &prepay_factors, burnout),
+            self.conditional_mdr(prepared, seasoning, &credit_factors),
             // Recovery is a CREDIT quantity and stays on the credit factor, so
             // defaults and recoveries continue to co-move as the sign
             // convention requires.
@@ -882,19 +981,24 @@ impl StochasticPricer {
 
     /// Conditional SMM for one month, advancing the path's burnout state.
     ///
-    /// SC-M24: `burnout` was previously hard-coded to 1.0 at this call site and
-    /// `update_burnout` had ZERO production callers, so the burnout channel of
-    /// Richard-Roll was inert. Seasoned pools that had already refinanced
-    /// heavily were modelled with full prepayment propensity, while
-    /// `has_burnout()` cheerfully returned true.
+    /// SC-M24: hard-coding `burnout = 1.0` here (or never calling
+    /// `update_burnout`) leaves the Richard-Roll burnout channel inert:
+    /// seasoned pools that have already refinanced heavily get modelled with
+    /// full prepayment propensity while `has_burnout()` still returns true.
     ///
     /// Burnout is path-state: it accumulates as realized prepayment runs above
     /// or below expectation, so it must be threaded through the month loop
     /// rather than recomputed. `expected_smm` is the unconditional speed at
     /// this seasoning, and the realized/expected ratio is what drives the
     /// update (fast prepayers leave the pool; slow ones rejuvenate it).
-    fn conditional_smm(&self, seasoning: u32, factors: &[f64], burnout: &mut f64) -> f64 {
-        if let Some(model) = self.config.tree_config.prepay_spec.build() {
+    fn conditional_smm(
+        &self,
+        prepared: &PreparedRun,
+        seasoning: u32,
+        factors: &[f64],
+        burnout: &mut f64,
+    ) -> f64 {
+        if let Some(model) = prepared.prepay_model.as_deref() {
             let realized = model
                 .conditional_smm(
                     seasoning,
@@ -922,18 +1026,8 @@ impl StochasticPricer {
         }
     }
 
-    fn conditional_mdr(&self, seasoning: u32, factors: &[f64]) -> f64 {
-        // The spec is validated up-front in `price()`, so an `Err` here is
-        // unreachable; `.ok().flatten()` only strips the already-checked
-        // Result layer.
-        if let Some(model) = self
-            .config
-            .tree_config
-            .default_spec
-            .build_with_seasoning_offset(self.config.tree_config.initial_seasoning)
-            .ok()
-            .flatten()
-        {
+    fn conditional_mdr(&self, prepared: &PreparedRun, seasoning: u32, factors: &[f64]) -> f64 {
+        if let Some(model) = prepared.default_model.as_deref() {
             return model
                 .conditional_mdr(seasoning, factors, &MacroCreditFactors::default())
                 .clamp(0.0, 0.50);
@@ -1341,6 +1435,39 @@ mod tests {
         Date::from_calendar_date(2024, Month::January, 1).expect("valid date")
     }
 
+    /// Minimal single-asset/single-tranche deal for tests that need a
+    /// structurally valid instrument to prepare a simulation against.
+    fn simple_deal(id: &str) -> StructuredCredit {
+        let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
+        pool.assets.push(PoolAsset::fixed_rate_bond(
+            "A1",
+            Money::new(1_000_000.0, Currency::USD),
+            0.06,
+            Date::from_calendar_date(2029, Month::January, 1).expect("valid date"),
+            finstack_quant_core::dates::DayCount::Thirty360,
+        ));
+        let senior = Tranche::new(
+            "SENIOR",
+            0.0,
+            100.0,
+            TrancheSeniority::Senior,
+            Money::new(1_000_000.0, Currency::USD),
+            TrancheCoupon::Fixed { rate: 0.05 },
+            Date::from_calendar_date(2030, Month::January, 1).expect("valid date"),
+        )
+        .expect("senior tranche");
+        let mut deal = StructuredCredit::new_abs(
+            id,
+            pool,
+            TrancheStructure::new(vec![senior]).expect("structure"),
+            test_date(),
+            Date::from_calendar_date(2030, Month::January, 1).expect("valid date"),
+            "USD-OIS",
+        );
+        deal.payment_calendar_id = Some("nyse".to_string());
+        deal
+    }
+
     fn test_discount_curve() -> std::sync::Arc<DiscountCurve> {
         std::sync::Arc::new(
             DiscountCurve::builder("USD-OIS")
@@ -1721,9 +1848,11 @@ mod tests {
             let pricer = StochasticPricer::new(config);
 
             let zs = [-2.0, -1.0, 0.0, 1.0, 2.0];
+            let deal = simple_deal("CO-MOVE-DEAL");
+            let prepared = pricer.prepare_run(&deal).expect("prepared run");
             let shocks: Vec<_> = zs
                 .iter()
-                .map(|&z| pricer.monthly_shock(36, z, z, &mut 1.0))
+                .map(|&z| pricer.monthly_shock(&prepared, 36, z, z, &mut 1.0))
                 .collect();
             let mdrs: Vec<f64> = shocks.iter().map(|s| s.mdr).collect();
             let recoveries: Vec<f64> = shocks.iter().map(|s| s.recovery_rate).collect();
@@ -2136,8 +2265,9 @@ mod per_name_copula_tests {
         // quarter is benign in month 1 but stressed in months 2 and 3 — a
         // month-1-only systematic factor would miss that stress entirely.
         let factors = vec![0.10_f64, -2.0, -1.5, 0.3, 0.4, 0.5];
+        let prepared = pricer.prepare_run(&deal).expect("prepared run");
         let shocks = pricer
-            .path_shocks_from_factors(&deal, &factors, 0)
+            .path_shocks_from_factors(&deal, &factors, 0, &prepared)
             .expect("path shocks");
 
         assert!(!shocks.is_empty(), "must produce at least one period shock");
@@ -2307,8 +2437,8 @@ mod per_name_copula_tests {
     }
 
     /// Regression: `TwoFactor { correlation: 0.0 }` means the prepayment factor
-    /// is INDEPENDENT of credit. It previously collapsed into the single-factor
-    /// arm (`|rho| <= f64::EPSILON` returned `None`), which shares one factor —
+    /// is INDEPENDENT of credit. Collapsing it into the single-factor arm
+    /// (`|rho| <= f64::EPSILON` returning `None`) would share one factor —
     /// implied correlation +1, the exact opposite of what was asked for.
     #[test]
     fn zero_correlation_is_independent_not_shared() {
@@ -2423,9 +2553,10 @@ mod per_name_copula_tests {
             // the comparison is vacuous.
             cfg.tree_config.prepay_spec = StochasticPrepaySpec::rmbs_agency(0.06);
             let pricer = StochasticPricer::new(cfg);
+            let prepared = pricer.prepare_run(&deal).expect("prepared run");
             let factors: Vec<f64> = (0..24).map(|m| ((m as f64) * 0.37).sin()).collect();
             pricer
-                .path_shocks_from_factors(&deal, &factors, 0)
+                .path_shocks_from_factors(&deal, &factors, 0, &prepared)
                 .expect("path shocks")
                 .iter()
                 .map(|s| s.smm)
@@ -2465,15 +2596,16 @@ mod per_name_copula_tests {
         let pricer = StochasticPricer::new(cfg);
 
         // Drive a strongly-prepaying path so realized runs above expected.
+        let prepared = pricer.prepare_run(&deal).expect("prepared run");
         let factors: Vec<f64> = (0..24).map(|_| 1.5_f64).collect();
         let mut burnout = 1.0_f64;
         let _ = pricer
-            .path_shocks_from_factors(&deal, &factors, 0)
+            .path_shocks_from_factors(&deal, &factors, 0, &prepared)
             .expect("path shocks");
 
         // Exercise the month loop directly so the state is observable.
         for month in 1..=24u32 {
-            let _ = pricer.monthly_shock(month, 1.5, 1.5, &mut burnout);
+            let _ = pricer.monthly_shock(&prepared, month, 1.5, 1.5, &mut burnout);
         }
 
         assert!(

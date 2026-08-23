@@ -4,15 +4,18 @@
 //! already computed in the `MetricContext`. Uses the configured pricer
 //! (Hybrid solver under the hood) with log-σ parameterization.
 
-use crate::define_metric_calculator;
 use crate::instruments::fx::fx_option::FxOption;
 
-define_metric_calculator!(
-    /// Implied volatility metric for FX options.
-    ImpliedVolCalculator,
-    instrument = FxOption,
-    calc = |option, ctx| {
-        let target = ctx.base_value.amount();
-        option.implied_vol(&ctx.curves, ctx.as_of, target)
+/// Implied volatility metric for FX options.
+pub(crate) struct ImpliedVolCalculator;
+
+impl crate::metrics::MetricCalculator for ImpliedVolCalculator {
+    fn calculate(
+        &self,
+        context: &mut crate::metrics::MetricContext,
+    ) -> finstack_quant_core::Result<f64> {
+        let option: &FxOption = context.instrument_as()?;
+        let target = context.base_value.amount();
+        option.implied_vol(&context.curves, context.as_of, target)
     }
-);
+}

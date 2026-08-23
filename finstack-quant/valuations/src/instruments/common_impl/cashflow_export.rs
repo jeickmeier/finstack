@@ -394,6 +394,27 @@ fn build_envelope(
 
         let mbs_row = mbs_state.as_ref().and_then(|m| m.get(&flow.date));
 
+        // A missing inflation index ratio is indistinguishable from a data
+        // outage when it lands in the export as a blank cell, so log loudly
+        // when the lookup fails on an instrument that carries an inflation
+        // link. (Instruments with no inflation bond keep the column empty by
+        // design.)
+        let inflation_index_ratio =
+            match inflation_bond.map(|b| b.index_ratio_from_market(flow.date, market)) {
+                Some(Ok(ratio)) => Some(ratio),
+                Some(Err(err)) => {
+                    tracing::warn!(
+                        instrument_id = %instrument_id,
+                        date = %flow.date,
+                        %err,
+                        "cashflow export: inflation index ratio lookup failed; \
+                         exporting an empty index_ratio cell"
+                    );
+                    None
+                }
+                None => None,
+            };
+
         rows.push(CashflowRow {
             date: flow.date,
             amount: flow.amount.amount(),
@@ -407,8 +428,7 @@ fn build_envelope(
             discount_curve_id: row_discount_curve_id.clone(),
             survival_probability,
             conditional_default_prob,
-            inflation_index_ratio: inflation_bond
-                .and_then(|b| b.index_ratio_from_market(flow.date, market).ok()),
+            inflation_index_ratio,
             prepayment_smm: mbs_row.map(|s| s.smm),
             beginning_balance: mbs_row.map(|s| s.beginning_balance),
             ending_balance: mbs_row.map(|s| s.ending_balance),

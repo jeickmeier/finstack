@@ -193,8 +193,8 @@ fn resolve_cds_dates(
 ///
 /// # See Also
 ///
-/// - [`CdsQuote`](crate::market::quotes::cds::CdsQuote) for supported quote types
-/// - [`BuildCtx`](crate::market::BuildCtx) for build context configuration
+/// - [`CdsQuote`] for supported quote types
+/// - [`BuildCtx`] for build context configuration
 pub fn build_cds_instrument(quote: &CdsQuote, ctx: &BuildCtx) -> Result<Box<dyn Instrument>> {
     tracing::debug!(quote_id = %quote.id(), "building CDS instrument");
     quote.validate_market_conventions()?;

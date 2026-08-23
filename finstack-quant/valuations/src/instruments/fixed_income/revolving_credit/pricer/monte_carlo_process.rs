@@ -45,8 +45,8 @@ impl UtilizationParams {
     /// strictly positive, `sigma` is negative, or `theta` is outside `[0, 1]`.
     /// `sigma == 0` is accepted: the exact OU transition degenerates cleanly
     /// to the deterministic mean-reversion drift (zero-volatility parity
-    /// mode). (Previously these were `assert!`s that panicked in library code
-    /// on invalid MC parameters.)
+    /// mode). Invalid MC parameters return errors rather than panicking in
+    /// library code.
     pub fn new(kappa: f64, theta: f64, sigma: f64) -> finstack_quant_core::Result<Self> {
         // Reject non-finite values explicitly (a `<= 0.0` test would let NaN
         // slip through, since all NaN comparisons are false).
@@ -90,8 +90,8 @@ impl CreditSpreadParams {
     ///
     /// Returns [`finstack_quant_core::Error::Validation`] when `initial` is
     /// negative, or any error from [`CirParams::new`] for invalid CIR
-    /// parameters. (The initial-spread check was previously an `assert!` that
-    /// panicked in library code.)
+    /// parameters. Invalid inputs return errors rather than panicking in
+    /// library code.
     pub fn new(
         kappa: f64,
         theta: f64,
@@ -135,6 +135,73 @@ pub enum InterestRateSpec {
         /// Forward rates at each knot
         rates: Vec<f64>,
     },
+}
+
+impl InterestRateSpec {
+    /// Validate structural invariants of the rate specification.
+    ///
+    /// The Monte Carlo discretization indexes `rates` by positions derived
+    /// from `times` and interpolates on knot intervals, so a mismatched
+    /// length would panic mid-simulation and duplicate or non-monotone knot
+    /// times would divide by a zero interval and silently price a zero rate.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] naming the first
+    /// violated invariant.
+    pub fn validate(&self) -> finstack_quant_core::Result<()> {
+        match self {
+            Self::Fixed { rate } => {
+                if !rate.is_finite() {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "fixed interest rate must be finite, got {rate}"
+                    )));
+                }
+                Ok(())
+            }
+            Self::Floating { initial, .. } => {
+                if !initial.is_finite() {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "floating interest-rate initial value must be finite, got {initial}"
+                    )));
+                }
+                Ok(())
+            }
+            Self::DeterministicForward { times, rates } => {
+                if times.len() != rates.len() {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "deterministic forward curve requires equal-length knot \
+                         arrays (times: {}, rates: {})",
+                        times.len(),
+                        rates.len()
+                    )));
+                }
+                if times.is_empty() {
+                    return Err(finstack_quant_core::Error::Validation(
+                        "deterministic forward curve requires at least one knot".to_string(),
+                    ));
+                }
+                for pair in times.windows(2) {
+                    if !pair[0].is_finite() || pair[1] <= pair[0] {
+                        return Err(finstack_quant_core::Error::Validation(
+                            "deterministic forward curve knot times must be finite \
+                             and strictly increasing"
+                                .to_string(),
+                        ));
+                    }
+                }
+                for (i, rate) in rates.iter().enumerate() {
+                    if !rate.is_finite() {
+                        return Err(finstack_quant_core::Error::Validation(format!(
+                            "deterministic forward curve rate at knot {i} must be \
+                             finite, got {rate}"
+                        )));
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
 }
 
 /// Revolving credit multi-factor process parameters.
@@ -544,6 +611,80 @@ mod tests {
 
         let state = params.initial_state_at(0.5, 0.50);
         assert!((state[1] - 0.025).abs() < 1e-12);
+    }
+
+    #[test]
+    fn interest_rate_spec_validate_accepts_well_formed_specs() {
+        InterestRateSpec::Fixed { rate: 0.05 }
+            .validate()
+            .expect("fixed spec");
+        InterestRateSpec::Floating {
+            params: HullWhite1FParams::new(0.1, 0.01, 0.03),
+            initial: 0.04,
+        }
+        .validate()
+        .expect("floating spec");
+        InterestRateSpec::DeterministicForward {
+            times: vec![0.0, 1.0, 2.0],
+            rates: vec![0.01, 0.03, 0.05],
+        }
+        .validate()
+        .expect("forward spec");
+    }
+
+    /// The discretization indexes `rates` by positions derived from `times`
+    /// and interpolates on knot intervals; malformed curves must be rejected
+    /// at the boundary instead of panicking mid-simulation or silently
+    /// pricing a zero rate.
+    #[test]
+    fn interest_rate_spec_validate_rejects_malformed_forward_curves() {
+        let mismatched = InterestRateSpec::DeterministicForward {
+            times: vec![0.0, 1.0, 2.0],
+            rates: vec![0.01, 0.03],
+        };
+        assert!(
+            matches!(
+                mismatched.validate(),
+                Err(finstack_quant_core::Error::Validation(_))
+            ),
+            "length mismatch must yield a Validation error"
+        );
+
+        let empty = InterestRateSpec::DeterministicForward {
+            times: Vec::new(),
+            rates: Vec::new(),
+        };
+        assert!(
+            matches!(
+                empty.validate(),
+                Err(finstack_quant_core::Error::Validation(_))
+            ),
+            "empty knots must yield a Validation error"
+        );
+
+        let duplicate_knots = InterestRateSpec::DeterministicForward {
+            times: vec![0.0, 1.0, 1.0],
+            rates: vec![0.01, 0.03, 0.05],
+        };
+        assert!(
+            matches!(
+                duplicate_knots.validate(),
+                Err(finstack_quant_core::Error::Validation(_))
+            ),
+            "duplicate knot times must yield a Validation error"
+        );
+
+        let non_finite_rate = InterestRateSpec::DeterministicForward {
+            times: vec![0.0, 1.0],
+            rates: vec![0.01, f64::NAN],
+        };
+        assert!(
+            matches!(
+                non_finite_rate.validate(),
+                Err(finstack_quant_core::Error::Validation(_))
+            ),
+            "non-finite rate must yield a Validation error"
+        );
     }
 
     #[test]

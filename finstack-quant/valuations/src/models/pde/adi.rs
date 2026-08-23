@@ -215,6 +215,12 @@ pub struct CraigSneydStepper {
 
 impl CraigSneydStepper {
     /// Modified Craig-Sneyd ADI stepper with the standard `theta = 1/3`.
+    ///
+    /// # Arguments
+    ///
+    /// * `n_steps` - Number of uniform time steps used to march from the
+    ///   terminal condition back to `t = 0`; must be at least 1 for
+    ///   [`Solver2D::solve`](super::Solver2D::solve) to succeed.
     pub fn new(n_steps: usize) -> Self {
         Self {
             theta: MCS_THETA,
@@ -227,6 +233,15 @@ impl CraigSneydStepper {
     /// Modified Craig-Sneyd with Rannacher-style smoothing: use `theta = 1.0`
     /// (fully implicit) for the first `implicit_start` steps, then switch to
     /// `theta = 1/3`.
+    ///
+    /// # Arguments
+    ///
+    /// * `implicit_start` - Number of initial fully-implicit (`theta = 1`)
+    ///   steps that damp the payoff-kink error before the second-order MCS
+    ///   scheme takes over; `0` disables smoothing.
+    /// * `n_steps` - Total number of uniform time steps (including the
+    ///   `implicit_start` smoothing steps) used to march from the terminal
+    ///   condition back to `t = 0`; must be at least 1.
     pub fn with_rannacher(implicit_start: usize, n_steps: usize) -> Self {
         Self {
             theta: MCS_THETA,

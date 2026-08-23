@@ -10,14 +10,13 @@
 
 use super::monte_carlo_process::{InterestRateSpec, RevolvingCreditProcess};
 use finstack_quant_core::math::linalg::{cholesky_correlation, CholeskyError};
-use finstack_quant_monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
 use finstack_quant_monte_carlo::traits::Discretization;
 
 /// Discretization scheme for revolving credit process.
 ///
 /// Uses specialized schemes for each component:
 /// - Utilization: exact OU transition, clamped to [0, 1]
-/// - Short rate: ExactHullWhite1F for floating rates
+/// - Short rate: exact Hull-White transition inlined for floating rates
 /// - Credit spread: QeCir for CIR process
 ///
 /// Correlation is handled via pivoted Cholesky decomposition when present.
@@ -26,8 +25,6 @@ pub struct RevolvingCreditDiscretization {
     /// Pivoted Cholesky factor of correlation matrix (if correlation is used), in
     /// original variable order [utilization, rate, credit].
     cholesky_factor: Option<finstack_quant_core::math::linalg::CorrelationFactor>,
-    /// Hull-White exact discretization (for floating rates)
-    hw_disc: Option<ExactHullWhite1F>,
 }
 
 impl RevolvingCreditDiscretization {
@@ -53,10 +50,7 @@ impl RevolvingCreditDiscretization {
             None
         };
 
-        Ok(Self {
-            cholesky_factor,
-            hw_disc: Some(ExactHullWhite1F::new()),
-        })
+        Ok(Self { cholesky_factor })
     }
 
     /// Create from process (test convenience method).
@@ -135,30 +129,16 @@ impl Discretization<RevolvingCreditProcess> for RevolvingCreditDiscretization {
                 // x[1] stays constant
             }
             InterestRateSpec::Floating { params, .. } => {
-                // Floating rate: use exact Hull-White discretization
-                // Extract HW1F state and step it
-                let mut rate_state = [x[1]];
-                let rate_shock = [z_corr[1]];
-                let _rate_work = [0.0];
-
-                // Create temporary HW1F process for stepping
-                // We need to call the exact discretization
-                // INVARIANT: hw_disc is always Some when rate_spec is Floating, enforced by
-                // RevolvingCreditDiscretization::new() constructor validation.
-                #[allow(clippy::expect_used)]
-                let _hw_disc = self
-                    .hw_disc
-                    .as_ref()
-                    .expect("HW discretization must be present for floating rate specification");
-
-                // For HW1F, we need to compute:
+                // Floating rate: exact Hull-White transition, inlined.
+                //
+                // For HW1F:
                 // r_{t+dt} = r_t e^{-κdt} + θ(1 - e^{-κdt}) + σ√[(1-e^{-2κdt})/(2κ)] Z
                 let kappa = params.kappa;
                 let sigma = params.sigma;
                 let theta = params.theta_at_time(process.params().time_offset + t);
 
                 let exp_kappa_dt = (-kappa * dt).exp();
-                let mean = rate_state[0] * exp_kappa_dt + theta * (1.0 - exp_kappa_dt);
+                let mean = x[1] * exp_kappa_dt + theta * (1.0 - exp_kappa_dt);
 
                 let std_dev = if (kappa * dt).abs() < 1e-8 {
                     sigma * dt.sqrt() * (1.0 - kappa * dt / 3.0)
@@ -166,15 +146,16 @@ impl Discretization<RevolvingCreditProcess> for RevolvingCreditDiscretization {
                     sigma * ((1.0 - (-2.0 * kappa * dt).exp()) / (2.0 * kappa)).sqrt()
                 };
 
-                rate_state[0] = mean + std_dev * rate_shock[0];
-                x[1] = rate_state[0];
+                x[1] = mean + std_dev * z_corr[1];
             }
             InterestRateSpec::DeterministicForward { times, rates } => {
-                // Deterministic forward curve: set short rate to fwd(time_offset + t+dt)
+                // Deterministic forward curve: set short rate to fwd(time_offset + t+dt).
+                // The spec is validated at the path-generator boundary (equal
+                // lengths, strictly increasing finite knots, finite rates), so
+                // interpolation is total and cannot produce non-finite values.
                 let t_total = process.params().time_offset + t + dt;
-                // Linear interpolation with clamp at ends
                 let n = times.len();
-                let mut r = if n == 0 {
+                let r = if n == 0 {
                     0.0
                 } else if t_total <= times[0] {
                     rates[0]
@@ -191,10 +172,6 @@ impl Discretization<RevolvingCreditProcess> for RevolvingCreditDiscretization {
                     let w = (t_total - t1) / (t2 - t1);
                     r1 + w * (r2 - r1)
                 };
-                // Guard against NaN
-                if !r.is_finite() {
-                    r = 0.0;
-                }
                 x[1] = r;
             }
         }

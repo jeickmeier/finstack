@@ -80,5 +80,5 @@ pub use operator2d::{apply_cross_derivative, Operators2D};
 pub use problem::PdeProblem1D;
 pub use problem2d::PdeProblem2D;
 pub use solver::{PdeSolution, PdeSolverError, Solver1D, Solver1DBuilder};
-pub use solver2d::{PdeSolution2D, PdeSolver2DError, Solver2D, Solver2DBuilder};
+pub use solver2d::{PdeSolution2D, PdeSolver2DError, Solver2D};
 pub use stepper::{RannacherStepper, StepperError, ThetaStepper, TimeStepper};

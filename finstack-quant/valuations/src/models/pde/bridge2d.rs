@@ -189,11 +189,7 @@ mod tests {
         let gy = Grid1D::sinh_concentrated(v_min, v_max, 81, theta_v, 0.15).expect("valid v-grid");
         let grid = Grid2D::new(gx, gy);
 
-        let solver = Solver2D::builder()
-            .grid(grid)
-            .craig_sneyd_rannacher(4, 400)
-            .build()
-            .expect("valid solver");
+        let solver = Solver2D::new(grid, CraigSneydStepper::with_rannacher(4, 400));
 
         let solution = solver
             .solve(&pde, maturity)
@@ -256,11 +252,7 @@ mod tests {
                 Grid1D::sinh_concentrated(v_min, v_max, 61, theta_v, 0.15).expect("valid v-grid");
             let grid = Grid2D::new(gx, gy);
 
-            let solver = Solver2D::builder()
-                .grid(grid)
-                .craig_sneyd_rannacher(4, 150)
-                .build()
-                .expect("valid solver");
+            let solver = Solver2D::new(grid, CraigSneydStepper::with_rannacher(4, 150));
 
             let solution = solver
                 .solve(&pde, maturity)
@@ -317,11 +309,7 @@ mod tests {
         let gy = Grid1D::sinh_concentrated(0.001, 1.5, 61, theta_v, 0.15).expect("valid v-grid");
         let grid = Grid2D::new(gx, gy);
 
-        let solver = Solver2D::builder()
-            .grid(grid)
-            .craig_sneyd_rannacher(4, 150)
-            .build()
-            .expect("valid solver");
+        let solver = Solver2D::new(grid, CraigSneydStepper::with_rannacher(4, 150));
 
         let solution = solver
             .solve(&pde, maturity)
@@ -370,11 +358,7 @@ mod tests {
             is_call: true,
         };
         let grid_call = Grid2D::new(gx.clone(), gy.clone());
-        let solver_call = Solver2D::builder()
-            .grid(grid_call)
-            .craig_sneyd(200)
-            .build()
-            .expect("valid");
+        let solver_call = Solver2D::new(grid_call, CraigSneydStepper::new(200));
         let sol_call = solver_call
             .solve(&pde_call, maturity)
             .expect("Heston call grid is within the MCS stability regime");
@@ -392,11 +376,7 @@ mod tests {
             is_call: false,
         };
         let grid_put = Grid2D::new(gx, gy);
-        let solver_put = Solver2D::builder()
-            .grid(grid_put)
-            .craig_sneyd(200)
-            .build()
-            .expect("valid");
+        let solver_put = Solver2D::new(grid_put, CraigSneydStepper::new(200));
         let sol_put = solver_put
             .solve(&pde_put, maturity)
             .expect("Heston put grid is within the MCS stability regime");

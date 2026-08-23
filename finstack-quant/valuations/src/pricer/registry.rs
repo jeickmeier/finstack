@@ -108,15 +108,6 @@ struct PricingRequest<'a> {
     options: crate::instruments::PricingOptions,
 }
 
-struct BatchPricingRequest<'a> {
-    instruments: &'a [&'a dyn Priceable],
-    model: ModelKey,
-    market: &'a Market,
-    as_of: finstack_quant_core::dates::Date,
-    metrics: &'a [crate::metrics::MetricId],
-    options: crate::instruments::PricingOptions,
-}
-
 impl PricerRegistry {
     /// Create a new empty pricer registry.
     ///
@@ -474,82 +465,6 @@ impl PricerRegistry {
         let base_value = pricer.price_raw_dyn(instrument, market, effective_as_of)?;
         Ok(lifecycle.apply_raw_value(base_value))
     }
-
-    /// Price a batch of instruments in parallel, preserving input order.
-    ///
-    /// Each element is priced via [`Self::price_with_metrics`] with the same
-    /// arguments, so scenario overrides and model-specific measures are applied
-    /// identically. Pass an empty `metrics` slice for a PV-only batch.
-    pub fn price_batch(
-        &self,
-        instruments: &[&dyn Priceable],
-        model: ModelKey,
-        market: &Market,
-        as_of: finstack_quant_core::dates::Date,
-        metrics: &[crate::metrics::MetricId],
-        options: crate::instruments::PricingOptions,
-    ) -> Vec<std::result::Result<crate::results::ValuationResult, PricingError>> {
-        let shared = if metrics.is_empty() {
-            SharedPricingInputs::default()
-        } else {
-            // Reuse the shared standard-registry `Arc` when `self` is that
-            // singleton (avoids deep-cloning the pricer dispatch table); a
-            // bespoke registry falls back to a one-time clone for the batch.
-            let singleton = crate::pricer::shared_standard_registry();
-            let registry = if std::ptr::eq(singleton.as_ref(), self) {
-                singleton
-            } else {
-                Arc::new(self.clone())
-            };
-            SharedPricingInputs {
-                registry: Some(registry),
-                market: Some(Arc::new(market.clone())),
-            }
-        };
-        self.price_batch_impl(
-            BatchPricingRequest {
-                instruments,
-                model,
-                market,
-                as_of,
-                metrics,
-                options,
-            },
-            shared,
-        )
-    }
-
-    fn price_batch_impl(
-        &self,
-        request: BatchPricingRequest<'_>,
-        shared: SharedPricingInputs,
-    ) -> Vec<std::result::Result<crate::results::ValuationResult, PricingError>> {
-        use rayon::prelude::*;
-        let BatchPricingRequest {
-            instruments,
-            model,
-            market,
-            as_of,
-            metrics,
-            options,
-        } = request;
-        instruments
-            .par_iter()
-            .map(|&instrument| {
-                self.price_with_metrics_impl(
-                    PricingRequest {
-                        instrument,
-                        model,
-                        market,
-                        as_of,
-                        metrics,
-                        options: options.clone(),
-                    },
-                    shared.clone(),
-                )
-            })
-            .collect()
-    }
 }
 
 /// Apply request-owned metadata while preserving model-owned audit fields.
@@ -585,8 +500,8 @@ fn stamp_results_meta(
 
 /// Attach computed metrics without replacing the model-produced result envelope.
 ///
-/// Model measures are inserted last and therefore retain their historical
-/// precedence when a model and a generic calculator emit the same metric ID.
+/// Model measures are inserted last and therefore take precedence when a
+/// model and a generic calculator emit the same metric ID.
 pub(super) fn attach_metric_measures(
     result: &mut crate::results::ValuationResult,
     mut metric_measures: indexmap::IndexMap<crate::metrics::MetricId, f64>,
@@ -1048,19 +963,6 @@ mod tests {
             .price_raw(&instrument, ModelKey::Discounting, &market, as_of)
             .expect_err("invalid raw request must fail validation");
         assert!(matches!(raw_err, PricingError::InvalidInput { .. }));
-
-        let batch = registry.price_batch(
-            &[&instrument],
-            ModelKey::Discounting,
-            &market,
-            as_of,
-            &[],
-            crate::instruments::PricingOptions::default(),
-        );
-        assert!(matches!(
-            batch.as_slice(),
-            [Err(PricingError::InvalidInput { .. })]
-        ));
 
         let unknown_model_err = registry
             .price_with_metrics(

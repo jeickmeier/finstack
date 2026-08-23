@@ -120,6 +120,10 @@ pub(crate) fn compute_pv(
         }
     };
 
+    let unit_price = crate::models::closed_form::checked_closed_form_value(
+        unit_price,
+        "equity option unit price",
+    )?;
     Ok(Money::new(unit_price * inst.notional.amount(), ccy))
 }
 
@@ -248,7 +252,13 @@ pub(crate) fn collect_inputs_extended(
     // This is consistent with how equity volatility is quoted in the market
     let t_vol = year_fraction(DayCount::Act365F, as_of, inst.expiry)?;
     // Effective BSM rate on the vol clock — see the two-clock note above.
-    let r = if t_vol > 0.0 { -df.ln() / t_vol } else { 0.0 };
+    // A non-positive/non-finite df means a corrupted curve; error rather than
+    // derive an infinite rate that would poison the Black–Scholes price.
+    let r = crate::instruments::common_impl::helpers::zero_rate_from_df(
+        df,
+        t_vol,
+        "EquityOption discount curve",
+    )?;
 
     // Spot from scalar id (unitless or price)
     let spot_scalar = curves.get_price(&inst.spot_id)?;
@@ -847,7 +857,7 @@ impl crate::pricer::Pricer for EquityOptionHestonFourierPricer {
         let err_ctx = crate::pricer::PricingErrorContext::from_instrument(equity_option)
             .model(crate::pricer::ModelKey::HestonFourier);
         let params = HestonParams::from_market_strict(market, r, q)
-            .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx))?;
+            .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
 
         let price = match equity_option.option_type {
             OptionType::Call => {
@@ -857,6 +867,15 @@ impl crate::pricer::Pricer for EquityOptionHestonFourierPricer {
                 heston_put_price_fourier(spot, equity_option.strike, t, &params, None)
             }
         };
+
+        // Fourier integration can fail to converge on extreme parameter sets
+        // and return non-finite values; convert that to an error before
+        // `Money::new` panics.
+        let price = crate::models::closed_form::checked_closed_form_value(
+            price,
+            "Heston Fourier option price",
+        )
+        .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx))?;
 
         let pv = Money::new(
             price * equity_option.notional.amount(),
