@@ -205,6 +205,12 @@ impl YtmSolver {
                 *maturity_date,
                 finstack_quant_core::dates::DayCountContext {
                     frequency: Some(spec.frequency),
+                    coupon_period: super::quote_conversions::icma_reference_period(
+                        spec.day_count,
+                        spec.frequency,
+                        cashflows,
+                        as_of,
+                    ),
                     ..Default::default()
                 },
             )?;
@@ -314,6 +320,12 @@ impl YtmSolver {
             maturity,
             finstack_quant_core::dates::DayCountContext {
                 frequency: Some(spec.frequency),
+                coupon_period: super::quote_conversions::icma_reference_period(
+                    spec.day_count,
+                    spec.frequency,
+                    cashflows,
+                    as_of,
+                ),
                 ..Default::default()
             },
         )?;
@@ -370,16 +382,13 @@ mod tests {
     /// maturity, which is irregular unless settlement lands exactly on a coupon
     /// date — so the seed calculation used to hard-error and take the whole YTM
     /// solve down with it, even though the seed only picks Brent's starting point.
+    ///
+    /// Fixed by inferring the reference coupon period from the cashflow
+    /// schedule (`icma_reference_period`) and threading it through the
+    /// day-count context in both `price_from_ytm_compounded_params` and the
+    /// solver's seed/zero-coupon paths, so ISMA spans resolve on the
+    /// quasi-coupon grid.
     #[test]
-    #[ignore = "KNOWN DEFECT: YTM is unusable for ACT/ACT ICMA bonds. \
-price_from_ytm_compounded_params (quote_conversions/yield_price.rs:324,343) computes \
-every discount factor as day_count.year_fraction(as_of, flow, ctx) with frequency-only \
-context and no coupon_period. Under ActActIsma any span that is not a whole number of \
-coupons then errors, and settlement-to-coupon is irregular unless settlement falls \
-exactly on a coupon date. Fixing it means supplying reference coupon periods (see \
-cashflows::builder::date_generation::icma_coupon_period) which needs schedule context \
-the solver does not currently receive - a quant change needing its own review. \
-Run with --ignored to reproduce."]
     fn ytm_solves_for_an_act_act_icma_bond_settling_off_a_coupon_date() {
         // Semi-annual Jan/Jul coupons; settlement deliberately mid-period.
         let as_of = Date::from_calendar_date(2025, Month::March, 17).expect("valid date");

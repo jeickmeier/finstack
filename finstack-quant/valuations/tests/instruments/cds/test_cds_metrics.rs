@@ -1216,4 +1216,17 @@ fn test_bucketed_dv01_metric() {
         bucket_total.is_finite(),
         "Bucketed DV01 total should be finite"
     );
+
+    // Reconciliation: the triangular key-rate weights partition the parallel
+    // shock, so the bucket sum must match the parallel DV01 within a
+    // convexity tolerance (second-order curvature is the only legitimate
+    // source of divergence between summed key-rate bumps and one parallel
+    // bump).
+    let parallel_tol = 1e-4_f64.max(2e-2 * dv01.abs());
+    assert!(
+        (bucket_sum - dv01).abs() <= parallel_tol,
+        "Sum of CDS bucketed DV01 ({bucket_sum}) should reconcile with parallel DV01 \
+         ({dv01}) within convexity tolerance {parallel_tol}, diff={}",
+        (bucket_sum - dv01).abs()
+    );
 }

@@ -1,6 +1,6 @@
 use super::pricing::{cap_floor_bachelier_vega, cap_floor_periods, forward_rate_from_df};
 use super::targets::{
-    floor_vega_and_record, reject_at_bound_params, HullWhiteCapFloorTarget, PreparedCapFloor,
+    reject_at_bound_params, require_quote_vega, HullWhiteCapFloorTarget, PreparedCapFloor,
     HW_NUM_RESTARTS, HW_PERTURB_SCALE, HW_VALIDATION_TOLERANCE, KAPPA_MAX, KAPPA_MIN, SIGMA_MAX,
     SWAPTION_VEGA_FLOOR,
 };
@@ -84,7 +84,6 @@ pub fn calibrate_hull_white_to_cap_floors(
             )
         })
         .collect();
-    let mut vega_floor_hits: Vec<String> = Vec::new();
     let vegas: Vec<f64> = quotes
         .iter()
         .map(|quote| {
@@ -102,9 +101,9 @@ pub fn calibrate_hull_white_to_cap_floors(
                 if quote.is_cap { "cap" } else { "floor" },
                 quote.strike
             );
-            floor_vega_and_record(raw, SWAPTION_VEGA_FLOOR, &label, &mut vega_floor_hits)
+            require_quote_vega(raw, SWAPTION_VEGA_FLOOR, &label)
         })
-        .collect();
+        .collect::<finstack_quant_core::Result<Vec<f64>>>()?;
 
     if let Some(fixed_kappa) = config.fixed_kappa {
         // Single-parameter (σ only) — keep the 1D path. The generic LM
@@ -168,7 +167,6 @@ pub fn calibrate_hull_white_to_cap_floors(
             quotes.len(),
             true,
             frequency,
-            &vega_floor_hits,
             moneyness,
         );
         return Ok((HullWhiteParams::new(fixed, sigma)?, report));
@@ -225,7 +223,6 @@ pub fn calibrate_hull_white_to_cap_floors(
         quotes.len(),
         false,
         frequency,
-        &vega_floor_hits,
         moneyness,
     );
 
@@ -233,7 +230,6 @@ pub fn calibrate_hull_white_to_cap_floors(
 }
 
 /// Apply cap/floor metadata shared by the fixed-kappa and two-parameter paths.
-#[allow(clippy::too_many_arguments)]
 fn enrich_cap_floor_report(
     report: CalibrationReport,
     kappa: f64,
@@ -241,10 +237,9 @@ fn enrich_cap_floor_report(
     quote_count: usize,
     fixed_kappa: bool,
     frequency: SwapFrequency,
-    vega_floor_hits: &[String],
     moneyness: MoneynessSummary,
 ) -> CalibrationReport {
-    let mut r = report
+    report
         .with_model_version(finstack_quant_core::versions::HULL_WHITE_1F)
         .with_metadata("kappa", format!("{kappa:.6}"))
         .with_metadata("sigma", format!("{sigma:.6}"))
@@ -256,7 +251,6 @@ fn enrich_cap_floor_report(
         )
         .with_metadata("calibration_family", "cap_floor_hw1f".to_string())
         .with_metadata("frequency", frequency.to_string())
-        .with_metadata("vega_floor_hits", vega_floor_hits.len().to_string())
         // Audit P3a: off-ATM diagnostic. Vega-weighted residuals linearise
         // around the *ATM* vega, so quotes whose strikes are far from the
         // per-caplet forward rate sit outside the regime where the
@@ -266,11 +260,7 @@ fn enrich_cap_floor_report(
         // objective is still descent-compatible but its scaling is
         // distorted; see the HW1F module-level docstring).
         .with_metadata("max_moneyness_distance", format!("{:.6}", moneyness.max))
-        .with_metadata("mean_moneyness_distance", format!("{:.6}", moneyness.mean));
-    if !vega_floor_hits.is_empty() {
-        r = r.with_metadata("vega_floor_hits_detail", vega_floor_hits.join("; "));
-    }
-    r
+        .with_metadata("mean_moneyness_distance", format!("{:.6}", moneyness.mean))
 }
 
 /// Aggregate off-ATM diagnostic: `|strike − caplet_forward| / caplet_forward`

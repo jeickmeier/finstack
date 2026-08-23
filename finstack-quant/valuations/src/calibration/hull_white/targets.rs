@@ -58,41 +58,34 @@ pub(super) fn reject_at_bound_params(
 /// approximation-regime discussion (W-38).
 pub(super) const SWAPTION_VEGA_FLOOR: f64 = 1e-8;
 
-/// Apply [`SWAPTION_VEGA_FLOOR`] (or the supplied floor) to a quote-level vega
-/// and surface the substitution to the caller.
+/// Validate a quote-level vega against [`SWAPTION_VEGA_FLOOR`] and reject
+/// degenerate quotes.
 ///
 /// Why this exists: when `actual_vega` is below the floor (deep OTM short
-/// expiry, stale quote, zero quoted vol), the LM residual scaling
-/// `(price_error) / vega` is replaced by `(price_error) / floor`. With
-/// `floor = 1e-8`, that scaling factor is `1e8`, so the quote can dominate
-/// the Gauss-Newton step while LM reports a clean termination. The audit
-/// recommendation (item 1) is to surface every floor hit so the analyst can
-/// drop or down-weight the offending quote.
+/// expiry, stale quote, near-zero quoted vol), the LM residual scaling
+/// `(price_error) / vega` explodes — with `floor = 1e-8` the scaling factor
+/// is `1e8` — so the quote dominates the Gauss-Newton step while LM reports
+/// a clean termination. Silently substituting the floor produced a
+/// distorted fit with no error surfaced, so a below-floor vega is now a
+/// hard validation error: the caller must drop or repair the offending
+/// quote before calibrating.
 ///
-/// Returns the floored vega; pushes a per-quote diagnostic into `hits` when
-/// the floor was applied. The caller is responsible for forwarding `hits`
-/// into the `CalibrationReport` metadata.
-pub(super) fn floor_vega_and_record(
+/// Returns the validated vega unchanged, or an error naming the quote when
+/// the vega is non-finite or below `floor`.
+pub(super) fn require_quote_vega(
     actual_vega: f64,
     floor: f64,
     quote_label: &str,
-    hits: &mut Vec<String>,
-) -> f64 {
+) -> finstack_quant_core::Result<f64> {
     if !actual_vega.is_finite() || actual_vega < floor {
-        tracing::warn!(
-            quote = quote_label,
-            actual_vega = actual_vega,
-            vega_floor = floor,
-            "HW1F vega floor applied: residual scaling (1/vega) is capped; \
-             this quote may dominate the LM objective. Review or drop the quote."
-        );
-        hits.push(format!(
-            "{quote_label}: actual_vega={actual_vega:.3e} below floor {floor:.3e}"
-        ));
-        floor
-    } else {
-        actual_vega
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "HW1F calibration: quote {quote_label} has vega {actual_vega:.3e} below the \
+             {floor:.3e} floor; its 1/vega residual scaling would dominate the LM \
+             objective. Drop the quote (deep OTM short expiry, stale, or near-zero \
+             vol) or repair its inputs before calibrating."
+        )));
     }
+    Ok(actual_vega)
 }
 
 /// Number of deterministic multi-start restarts used for HW1F calibration.

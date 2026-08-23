@@ -148,9 +148,19 @@ fn ytm_accretion_factor(context: &MetricContext, ytm: f64, rolled_date: Date) ->
         };
 
     // ACT/ACT (ICMA) requires the coupon frequency in the day-count context
-    // (mirrors `price_from_ytm_compounded_params`).
+    // (mirrors `price_from_ytm_compounded_params`). The schedule-derived
+    // reference coupon period lets ISMA resolve the mid-coupon carry horizon,
+    // which is never a whole number of coupons.
     let dc_ctx = DayCountContext {
         frequency: Some(frequency),
+        coupon_period: context.cashflows.as_deref().and_then(|flows| {
+            crate::instruments::fixed_income::bond::pricing::quote_conversions::icma_reference_period(
+                day_count,
+                frequency,
+                flows,
+                context.as_of,
+            )
+        }),
         ..DayCountContext::default()
     };
     let tau = day_count.year_fraction(context.as_of, rolled_date, dc_ctx)?;

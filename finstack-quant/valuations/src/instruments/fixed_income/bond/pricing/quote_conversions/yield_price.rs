@@ -273,6 +273,58 @@ pub(super) fn df_moosmuller_with_first_period(
     Ok(df_simple * periodic_base.powf(-k_minus_1))
 }
 
+/// Infer an ACT/ACT (ICMA) reference coupon period from the cashflow schedule.
+///
+/// Returns the quasi-coupon period `(first_flow − frequency, first_flow)`
+/// surrounding the settlement date, where `first_flow` is the first cashflow
+/// date strictly after `as_of`. Supplying this period through
+/// [`DayCountContext::coupon_period`] lets ISMA year fractions resolve for
+/// spans that are not whole multiples of the coupon frequency (mid-coupon
+/// settlement, stubs), which the frequency-only path rejects; the core
+/// reference-period traversal then walks the quasi-coupon grid anchored on
+/// this period for every flow date.
+///
+/// # Arguments
+///
+/// * `day_count` - Bond coupon day-count convention; only
+///   [`finstack_quant_core::dates::DayCount::ActActIsma`] yields a period.
+/// * `frequency` - Contractual coupon frequency defining the quasi-coupon
+///   grid; week/day frequencies are unsupported by ICMA and yield `None`.
+/// * `flows` - Dated bond cashflows in payment-date order; the first date
+///   strictly after `as_of` anchors the grid.
+/// * `as_of` - Settlement/valuation date the reference period must surround.
+///
+/// Returns `None` for non-ICMA day counts, week/day frequencies, or when no
+/// flow falls strictly after `as_of` (callers then keep the frequency-only
+/// context and its existing error behavior).
+pub(crate) fn icma_reference_period(
+    day_count: finstack_quant_core::dates::DayCount,
+    frequency: finstack_quant_core::dates::Tenor,
+    flows: &[(Date, Money)],
+    as_of: Date,
+) -> Option<(Date, Date)> {
+    use finstack_quant_core::dates::{DateExt, DayCount, TenorUnit};
+    if day_count != DayCount::ActActIsma {
+        return None;
+    }
+    let months = match frequency.unit() {
+        TenorUnit::Months => frequency.count() as i32,
+        TenorUnit::Years => (frequency.count() as i32).checked_mul(12)?,
+        TenorUnit::Weeks | TenorUnit::Days => return None,
+    };
+    if months <= 0 {
+        return None;
+    }
+    let next = flows.iter().map(|&(d, _)| d).find(|d| *d > as_of)?;
+    let mut prev = next.add_months(-months);
+    // Preserve the end-of-month roll so the quasi-coupon grid matches an
+    // EOM schedule (mirrors the traversal's own EOM handling).
+    if next == next.end_of_month() {
+        prev = prev.end_of_month();
+    }
+    (prev < next).then_some((prev, next))
+}
+
 /// Price from yield using explicit day count and frequency (no `Bond` borrow required).
 ///
 /// For the [`YieldCompounding::TreasuryActual`] convention the first (potentially
@@ -281,6 +333,11 @@ pub(super) fn df_moosmuller_with_first_period(
 /// This keeps the YTM↔price conversion correct for new issues with long first
 /// coupons, where the time-based `t <= 1/m` heuristic in [`df_from_yield`] would
 /// misapply simple interest to the wrong horizon.
+///
+/// For ACT/ACT (ICMA) day counts, a reference coupon period inferred from the
+/// cashflow schedule (see [`icma_reference_period`]) is supplied to the
+/// day-count context so mid-coupon settlement dates and stub spans resolve on
+/// the quasi-coupon grid instead of erroring.
 ///
 /// # Arguments
 ///
@@ -304,9 +361,12 @@ pub fn price_from_ytm_compounded_params(
     comp: YieldCompounding,
 ) -> finstack_quant_core::Result<f64> {
     // ACT/ACT (ICMA) requires the coupon frequency in the day-count context;
-    // the default context hard-errors for that convention.
+    // the default context hard-errors for that convention. The schedule-derived
+    // reference coupon period additionally lets ISMA resolve mid-coupon
+    // settlement and stub spans that are not whole coupon multiples.
     let dc_ctx = DayCountContext {
         frequency: Some(frequency),
+        coupon_period: icma_reference_period(day_count, frequency, flows, as_of),
         ..DayCountContext::default()
     };
 

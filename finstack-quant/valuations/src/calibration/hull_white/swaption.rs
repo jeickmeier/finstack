@@ -1,6 +1,6 @@
 use super::bond_vol::{hw_b, hw_bond_vol, hw_ln_a};
 use super::targets::{
-    floor_vega_and_record, reject_at_bound_params, HullWhiteSwaptionTarget, PreparedSwaption,
+    reject_at_bound_params, require_quote_vega, HullWhiteSwaptionTarget, PreparedSwaption,
     HW_NUM_RESTARTS, HW_PERTURB_SCALE, HW_VALIDATION_TOLERANCE, SWAPTION_VEGA_FLOOR,
 };
 use super::*;
@@ -44,9 +44,21 @@ use super::*;
 /// *distorted* (but still descent-compatible) surface. If you need to
 /// calibrate to a smile, weight or down-weight off-ATM quotes externally,
 /// or invest in true implied-vol-error iteration as in Andersen-Piterbarg
-/// (*Interest Rate Modeling* Vol III §3.3). A `vega_floor_hits` count is
-/// reported in the result metadata; investigate any non-zero count before
-/// trusting the calibrated `(κ, σ)`.
+/// (*Interest Rate Modeling* Vol III §3.3). Quotes whose ATM vega falls
+/// below the `SWAPTION_VEGA_FLOOR` are rejected up front (their `1/vega`
+/// residual scaling would dominate the objective); drop or repair such
+/// quotes before calibrating.
+///
+/// # Post-calibration sanity
+///
+/// HW1F is arbitrage-free by construction, so a calibrated `(κ, σ)` cannot
+/// introduce butterfly or calendar arbitrage into the model-implied swaption
+/// surface; no arbitrage checks on the model output are required. What can
+/// still fail numerically is the Jamshidian decomposition itself (degenerate
+/// `r*` solve, pathological discount inputs), so every calibration quote is
+/// repriced at the final parameters and any non-finite or negative model
+/// price fails the calibration loudly. Fit quality is covered by the
+/// per-quote residuals in the [`CalibrationReport`].
 ///
 /// # Errors
 ///
@@ -101,7 +113,6 @@ fn calibrate_hull_white_to_swaptions_core(
     // Pre-compute market data once; the LM hot loop only does numeric ops.
     let mut prepared = Vec::with_capacity(n_quotes);
     let mut fwd_swap_rates = Vec::with_capacity(n_quotes);
-    let mut vega_floor_hits: Vec<String> = Vec::new();
     for (idx, q) in quotes.iter().enumerate() {
         // Validate the per-quote schedule up-front with the same predicate
         // the pricer uses (`valid_swap_accruals`). A caller that supplies
@@ -135,8 +146,7 @@ fn calibrate_hull_white_to_swaptions_core(
         let raw_vega =
             swaption_atm_vega(annuity, fwd_rate, q.expiry, q.volatility, q.is_normal_vol);
         let label = format!("{}Yx{}Y", q.expiry, q.tenor);
-        let vega =
-            floor_vega_and_record(raw_vega, SWAPTION_VEGA_FLOOR, &label, &mut vega_floor_hits);
+        let vega = require_quote_vega(raw_vega, SWAPTION_VEGA_FLOOR, &label)?;
         prepared.push(PreparedSwaption {
             market_price,
             fwd_swap_rate: fwd_rate,
@@ -192,15 +202,11 @@ fn calibrate_hull_white_to_swaptions_core(
             "residual_weighting",
             "1/vega (vega-weighted price residual)".to_string(),
         )
-        .with_metadata("swap_frequency", frequency.to_string())
-        .with_metadata("vega_floor_hits", vega_floor_hits.len().to_string());
+        .with_metadata("swap_frequency", frequency.to_string());
     if let Some(schedule_source) = schedule_source {
         // Malformed schedules are rejected, so the stamped source is exactly
         // what the caller supplied — no per-quote fallback can dilute it.
         report = report.with_metadata("schedule_source", schedule_source.to_string());
-    }
-    if !vega_floor_hits.is_empty() {
-        report = report.with_metadata("vega_floor_hits_detail", vega_floor_hits.join("; "));
     }
 
     reject_at_bound_params(
@@ -209,10 +215,51 @@ fn calibrate_hull_white_to_swaptions_core(
         "Hull-White swaption calibration",
     )?;
 
+    validate_model_price_sanity(df, quotes, &target.prepared, ppy, &params)?;
+
     // Final validation of (κ, σ) > 0 — `HullWhiteParams::new` is the
     // canonical gate.
     let params = HullWhiteParams::new(params.kappa, params.sigma)?;
     Ok((params, report))
+}
+
+/// Post-calibration sanity gate: reprice every calibration quote at the
+/// final `(κ, σ)` and reject non-finite or negative model prices.
+///
+/// HW1F is arbitrage-free by construction, so butterfly/calendar arbitrage
+/// checks on the model-implied surface are unnecessary; the failure modes
+/// this guards against are numerical — a degenerate Jamshidian `r*` solve or
+/// pathological discount inputs producing a price a swaption cannot have.
+/// Fit quality is judged separately from the report residuals.
+fn validate_model_price_sanity(
+    df: &dyn Fn(f64) -> f64,
+    quotes: &[SwaptionQuote],
+    prepared: &[PreparedSwaption],
+    ppy: usize,
+    params: &HullWhiteParams,
+) -> finstack_quant_core::Result<()> {
+    for (q, pre) in quotes.iter().zip(prepared) {
+        let model_price = hw1f_swaption_price_inner(Hw1fSwaptionPriceInput {
+            kappa: params.kappa,
+            sigma: params.sigma,
+            df,
+            t0: q.expiry,
+            tenor: q.tenor,
+            swap_rate: pre.fwd_swap_rate,
+            periods_per_year: ppy,
+            accruals: pre.accruals.as_deref(),
+        });
+        if !model_price.is_finite() || model_price < 0.0 {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Hull-White swaption calibration: calibrated (κ={:.6e}, σ={:.6e}) reprices \
+                 quote {}Yx{}Y to an invalid model price ({model_price:?}); a swaption \
+                 price must be finite and non-negative. The optimizer terminated on a \
+                 numerically degenerate solution — review the discount inputs and quote set.",
+                params.kappa, params.sigma, q.expiry, q.tenor
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Calibrate HW1F to swaptions using *real* per-period accrual year fractions.

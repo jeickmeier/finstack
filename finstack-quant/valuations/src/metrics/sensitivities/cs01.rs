@@ -24,6 +24,18 @@
 //! one tenor at a time and reports a per-bucket series whose sum reconciles
 //! to the parallel value.
 //!
+//! # Zero-Anchor Bucket (`0y`)
+//!
+//! When the hazard curve carries a **zero-anchor knot** (`t = 0`) and the
+//! configured bucket grid does not include `0.0`, the bucketed series gains a
+//! synthetic leading `0y` bucket. Under the piecewise-constant hazard
+//! convention that knot governs the forward segment
+//! `[0, first_positive_knot)`; without the extra bucket, that segment's
+//! sensitivity would be silently dropped and the bucket sum would no longer
+//! reconcile to the parallel CS01. Consumers should therefore expect a `0y`
+//! label (e.g. `bucketed_cs01::<curve>::0y`) for such curves; it is part of
+//! the decomposition, not an artefact.
+//!
 //! When par-spread points are unavailable (e.g. directly-specified hazard
 //! curves), the helpers fall back to a parallel 1 bp **hazard-rate** shift
 //! using the same symmetric central difference; this is exposed separately as
