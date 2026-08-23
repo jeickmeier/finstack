@@ -52,6 +52,16 @@ pub(super) struct BuildState {
 /// positive principal-repayment cashflow; notional-like events emit as negative
 /// borrower draw cashflows. In all cases, `delta` remains the source of truth
 /// for outstanding balance movement.
+///
+/// # Interest-base convention
+///
+/// Coupons accrue on the outstanding balance as of each period's **accrual
+/// start** (after all events dated on that day). An event dated strictly
+/// inside a coupon period therefore changes interest only from the next
+/// period onward — there is no intra-period pro-rata accrual on the changed
+/// balance. Instruments that need daily accrual on the actual outstanding
+/// (e.g. revolvers) should date events on accrual boundaries or use the
+/// dedicated revolving-credit pricer in the valuation crates.
 #[derive(Debug, Clone)]
 pub struct PrincipalEvent {
     /// Event date
@@ -441,6 +451,20 @@ impl CashFlowBuilder {
     /// floating-rate projection; fixed coupons and deterministic fees do not
     /// require a market context.
     ///
+    /// # Conventions
+    ///
+    /// - **Interest base:** each coupon accrues on the outstanding balance as
+    ///   of its accrual start. Principal events strictly inside a period
+    ///   change interest only from the next period (see
+    ///   [`PrincipalEvent`]'s interest-base convention).
+    /// - **First leg wins:** on multi-leg instruments the redemption-date
+    ///   conventions (business-day adjustment, payment lag) and the cadence
+    ///   for `LinearTo` / `PercentOfOriginalPerPeriod` amortization follow the
+    ///   first fixed coupon leg, else the first floating leg.
+    /// - **Reporting day count:** the schedule's representative day count is
+    ///   taken from the same first coupon leg; schedules with no coupon leg
+    ///   default to Act/365F.
+    ///
     /// # Errors
     ///
     /// Returns any deferred builder-configuration error, invalid core input or
@@ -610,6 +634,35 @@ impl CompiledCashFlowPlan {
                 vec![None; self.float_schedules.len()],
             )
         };
+
+        // The named curve is authoritative for the term-index tenor; an
+        // explicit `index_tenor` is diagnostic. Warn once per leg when the
+        // two disagree materially so a miswired curve id surfaces early.
+        for (schedule, resolved_curve) in self.float_schedules.iter().zip(&resolved_curves) {
+            let (Some(spec_tenor), Some(curve)) = (
+                schedule.spec.rate_spec.index_tenor,
+                resolved_curve.as_deref(),
+            ) else {
+                continue;
+            };
+            if schedule.spec.rate_spec.overnight_compounding.is_some() {
+                continue;
+            }
+            let spec_years = spec_tenor.to_years_simple();
+            let curve_years = curve.tenor();
+            if curve_years > 0.0
+                && spec_years > 0.0
+                && (spec_years - curve_years).abs() / curve_years > 0.1
+            {
+                tracing::warn!(
+                    index_id = %schedule.spec.rate_spec.index_id,
+                    spec_index_tenor_years = spec_years,
+                    curve_tenor_years = curve_years,
+                    "floating leg index_tenor disagrees with the resolved forward curve's \
+                     tenor; projection uses the curve's embedded tenor — check the curve id"
+                );
+            }
+        }
 
         // Initialization above consumes everything dated at or before issue
         // (initial funding, pre-/at-issue principal events, pre-/at-issue fixed

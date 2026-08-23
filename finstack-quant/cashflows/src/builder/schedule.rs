@@ -352,6 +352,10 @@ impl CashFlowSchedule {
     }
 
     /// Return the representative day-count convention.
+    ///
+    /// Builder-produced schedules take this from the first fixed coupon leg,
+    /// else the first floating leg; schedules built with no coupon leg
+    /// (principal-only) default to [`DayCount::Act365F`].
     #[must_use]
     pub fn get_day_count(&self) -> DayCount {
         self.day_count

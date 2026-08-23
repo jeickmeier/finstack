@@ -478,7 +478,9 @@ pub struct FloatingRateSpec {
     /// average over `[reset, reset + tenor]`. This field (or
     /// [`Self::reset_frequency`] when `None`) is used only to compute
     /// `index_maturity` for error messages. Ignored for overnight-compounded
-    /// legs.
+    /// legs. When set, the builder warns at build time if it disagrees with
+    /// the resolved curve's tenor by more than 10% — the curve remains
+    /// authoritative.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub index_tenor: Option<Tenor>,
 
