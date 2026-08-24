@@ -1,0 +1,29 @@
+{
+  "mode": "paper",
+  "live_enabled": false,
+  "as_of": "2026-08-24T22:30:00Z",
+  "notes": "DEMO — not the desk",
+  "risk": {
+    "max_inventory_shares_per_token": 50,
+    "max_quote_size": 10,
+    "max_open_markets": 3,
+    "max_notional_usd": 200,
+    "stale_after_seconds": 900,
+    "kill_on": ["surprise_warning", "stale_price", "inventory_limit", "lost_data"]
+  },
+  "kill_switch": { "armed": true, "tripped": false, "reason": null, "tripped_at": null },
+  "quotes": [
+    { "market": "2026-07 Rain NYC", "token": "YES", "bid": 0.48, "ask": 0.52, "bid_size": 6, "ask_size": 6, "fv": 0.50, "updated_at": "2026-08-24T22:29:00Z" },
+    { "market": "2026-07 Rain NYC", "token": "NO",  "bid": 0.48, "ask": 0.52, "bid_size": 6, "ask_size": 6, "fv": 0.50, "updated_at": "2026-08-24T22:29:00Z" }
+  ],
+  "inventory": [
+    { "market": "2026-07 Rain NYC", "city": "New York", "token": "YES", "net_shares": 3, "avg_price": 0.49, "mark": 0.50, "unrealized_usd": 0.03, "notional_usd": 1.47 },
+    { "market": "2026-07 Rain NYC", "city": "New York", "token": "NO",  "net_shares": -2, "avg_price": 0.50, "mark": 0.50, "unrealized_usd": 0.00, "notional_usd": 1.00 }
+  ],
+  "fills": [
+    { "id": "d1", "ts": "2026-08-24T21:59:30Z", "market": "2026-07 Rain NYC", "city": "New York", "token": "YES", "side": "buy", "price": 0.49, "size": 3, "notional_usd": 1.47, "fee_usd": 0.01, "liquidity": "maker", "mid_at_fill": 0.50 },
+    { "id": "d2", "ts": "2026-08-24T21:55:00Z", "market": "2026-07 Rain NYC", "city": "New York", "token": "NO", "side": "sell", "price": 0.50, "size": 2, "notional_usd": 1.00, "fee_usd": 0.01, "liquidity": "taker", "mid_at_fill": 0.50 }
+  ],
+  "pnl": { "realized_usd": 0.00, "unrealized_usd": 0.03 },
+  "last_pricer_sheet": "2026-08-24T22:25:00Z"
+}

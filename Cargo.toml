@@ -27,7 +27,8 @@ members = [
     "finstack-quant/arrow-interchange",
     "finstack-quant-py",
     "finstack-quant-wasm",
-    "finstack-quant"
+    "finstack-quant",
+    "apps/blotter"
 ]
 resolver = "2"
 
@@ -48,7 +49,8 @@ default-members = [
     "finstack-quant/portfolio",
     "finstack-quant/scenarios",
     "finstack-quant/arrow-interchange",
-    "finstack-quant"
+    "finstack-quant",
+    "apps/blotter"
 ]
 
 [workspace.metadata.coverage]

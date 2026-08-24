@@ -802,6 +802,17 @@ cargo bench --bench '*' -- --baseline main --sample-size ${FQ_BENCH_SAMPLE_SIZE:
 uv run python scripts/check_criterion_regressions.py --threshold 0.10
 """
 
+# ─────────────────────────────────────────────────────────────────
+# Apps
+# ─────────────────────────────────────────────────────────────────
+[tasks.blotter-run]
+description = "Run the Polymarket weather blotter (serves / and /api)"
+run = "cargo run -p finstack-blotter"
+
+[tasks.blotter-test]
+description = "Test the blotter app (ingest auth, stale math, PnL, defaults)"
+run = "mise run rust-test-crate -- finstack-blotter"
+
 [tasks.materialization-benchmark-doc-check]
 description = "Verify tracked benchmark digests, baselines, and toolchains"
 # --no-sync: pure static checks; plain `uv run` rebuilds the PyO3 extension.
