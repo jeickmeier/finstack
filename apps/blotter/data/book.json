@@ -1,0 +1,20 @@
+{
+  "mode": "paper",
+  "live_enabled": false,
+  "as_of": "2026-08-24T22:15:43Z",
+  "notes": "Paper book only. Live CLOB posts require Jon's explicit go-ahead.",
+  "risk": {
+    "max_inventory_shares_per_token": 50,
+    "max_quote_size": 10,
+    "max_open_markets": 3,
+    "max_notional_usd": 200,
+    "stale_after_seconds": 900,
+    "kill_on": ["surprise_warning", "stale_price", "inventory_limit", "lost_data"]
+  },
+  "kill_switch": { "armed": true, "tripped": false, "reason": null, "tripped_at": null },
+  "quotes": [],
+  "inventory": [],
+  "fills": [],
+  "pnl": { "realized_usd": 0.0, "unrealized_usd": 0.0 },
+  "last_pricer_sheet": null
+}

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Polymarket Weather — Blotter</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="demo-banner" class="banner hidden">DEMO DATA — not the desk</div>
+    <header class="header">
+      <div class="title">Polymarket Weather — Blotter</div>
+      <div class="badges">
+        <span id="mode-badge" class="badge">PAPER</span>
+        <span id="live-enabled" class="pill pill-off">live_enabled: false</span>
+        <span id="kill-armed" class="pill pill-on">kill armed</span>
+        <span id="kill-tripped" class="pill pill-off">kill tripped: false</span>
+        <span id="stale-flag" class="pill pill-off">fresh</span>
+      </div>
+      <div class="timestamps">
+        <span id="asof-toronto">As of (Toronto): —</span>
+        <span id="asof-utc" class="muted">UTC: —</span>
+      </div>
+    </header>
+
+    <section class="kpis" id="kpis">
+      <div class="kpi"><div class="k">Fills today</div><div id="fills-today" class="v">0</div></div>
+      <div class="kpi"><div class="k">Inventory (net)</div><div id="inv-net" class="v">0</div></div>
+      <div class="kpi"><div class="k">Inventory notional</div><div id="inv-notional" class="v">$0</div></div>
+      <div class="kpi"><div class="k">PnL realized</div><div id="pnl-realized" class="v">$0</div></div>
+      <div class="kpi"><div class="k">PnL unrealized</div><div id="pnl-unrealized" class="v">$0</div></div>
+      <div class="kpi"><div class="k">PnL total</div><div id="pnl-total" class="v">$0</div></div>
+      <div class="kpi"><div class="k">Hit rate (maker)</div><div id="hit-rate" class="v">n/a</div></div>
+      <div class="kpi"><div class="k">Open quotes</div><div id="open-quotes" class="v">0</div></div>
+      <div class="kpi"><div class="k">Markets</div><div id="markets-vs-cap" class="v">0 / 0</div></div>
+      <div class="kpi"><div class="k">Notional cap</div><div id="notional-vs-cap" class="v">$0 / $0</div></div>
+      <div class="kpi"><div class="k">Spread capture</div><div id="spread-capture" class="v">n/a</div></div>
+      <div class="kpi"><div class="k">Directional P&L</div><div id="directional-pnl" class="v">n/a</div></div>
+    </section>
+
+    <div class="grid">
+      <section>
+        <h2>Fills (newest first)</h2>
+        <table id="fills-table"></table>
+      </section>
+      <section>
+        <h2>Inventory</h2>
+        <table id="inventory-table"></table>
+      </section>
+      <section>
+        <h2>Open Quotes</h2>
+        <table id="quotes-table"></table>
+      </section>
+      <section>
+        <h2>Limits & Caps</h2>
+        <div id="limits"></div>
+        <h2>Kill-switch</h2>
+        <div id="killswitch"></div>
+        <h2>Flags</h2>
+        <ul id="flags"></ul>
+      </section>
+    </div>
+
+    <footer class="footer">
+      <span class="muted">No order entry. Reporting only.</span>
+      <span class="muted">Refresh recovers if SSE drops.</span>
+    </footer>
+
+    <script src="/app.js"></script>
+  </body>
+  </html>
