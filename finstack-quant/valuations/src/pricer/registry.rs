@@ -187,6 +187,12 @@ impl PricerRegistry {
     }
 
     /// Deliberately replace a pricer for test setup or controlled monkey-patching.
+    ///
+    /// # Arguments
+    ///
+    /// * `inst` - Instrument type whose pricing registration is replaced.
+    /// * `model` - Pricing model paired with `inst` in the registry key.
+    /// * `pricer` - Replacement implementation stored for the instrument/model pair.
     pub fn replace(
         &mut self,
         inst: InstrumentType,

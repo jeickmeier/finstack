@@ -21,7 +21,7 @@
 //! [`crate::pricer::PricingError::from_core`].
 //!
 //! # Naming Convention
-//! Sub-errors use domain prefixes such as [`PricingError`] so they can be
+//! Sub-errors use domain prefixes such as [`crate::pricer::PricingError`] so they can be
 //! imported alongside [`finstack_quant_core::Error`] without ambiguity. The
 //! unified wrapper is re-exported at crate root as `Error`.
 //!

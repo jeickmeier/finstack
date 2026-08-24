@@ -80,6 +80,7 @@ use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::decimal::f64_to_decimal;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
+use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_portfolio::position::{Position, PositionUnit};
 use finstack_quant_portfolio::types::Entity;
@@ -93,7 +94,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let as_of = date!(2024 - 01 - 01);
     // The context must carry every curve the instruments declare — here the
     // "USD" discount curve named by the deposit below.
-    let market = MarketContext::new().insert(DiscountCurve::flat("USD", as_of, 0.045)?);
+    let discount_curve = DiscountCurve::builder("USD")
+        .base_date(as_of)
+        .knots(vec![
+            (0.0, 1.0),
+            (1.0, (-0.045_f64).exp()),
+            (2.0, (-0.09_f64).exp()),
+        ])
+        .interp(InterpStyle::Linear)
+        .build()?;
+    let market = MarketContext::new().insert(discount_curve);
     let config = FinstackConfig::default();
 
     let deposit = Deposit::builder()

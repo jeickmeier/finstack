@@ -72,8 +72,7 @@ def build_single_name_cds() -> dict[str, Any]:
     premium_leg_pv = abs(cds.couponLegNPV())
     dv01 = (_quantlib_cds(rate=FLAT_RATE + BUMP_BP).NPV() - _quantlib_cds(rate=FLAT_RATE - BUMP_BP).NPV()) / 2.0
     cs01_hazard = (
-        _quantlib_cds(hazard=FLAT_HAZARD + BUMP_BP).NPV()
-        - _quantlib_cds(hazard=FLAT_HAZARD - BUMP_BP).NPV()
+        _quantlib_cds(hazard=FLAT_HAZARD + BUMP_BP).NPV() - _quantlib_cds(hazard=FLAT_HAZARD - BUMP_BP).NPV()
     ) / 2.0
     quantlib_reason = "Strict executable QuantLib IsdaCdsEngine decomposition benchmark."
     canonical_reason = (

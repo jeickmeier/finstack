@@ -5,14 +5,15 @@
 //!
 //! # Features
 //!
-//! - **`bs_price`**: Computes the fair value of a European call or put
-//! - **`bs_greeks`**: Computes all first-order Greeks (delta, gamma, vega, theta, rho_r, rho_q)
+//! - **[`bs_price_checked`]**: Computes the fair value of a European call or put
+//! - **[`bs_greeks_checked`]**: Computes all first-order Greeks
+//!   (delta, gamma, vega, theta, rho_r, rho_q)
 //! - **`BsGreeks`**: Struct holding per-unit Greeks with both domestic and foreign rho
 //!
-//! [`bs_greeks`] computes every Greek in one pass and takes an explicit
-//! `theta_days_per_year` for day-count control. [`bs_vega`] is available on its
-//! own for callers that need only vega (for example implied-vol solvers).
-//! Both use the same scaling conventions: vega per 1% vol, rho per 1% rate.
+//! [`bs_greeks_checked`] computes every Greek in one pass and takes an explicit
+//! `theta_days_per_year` for day-count control. Crate-internal callers that need
+//! only vega (for example implied-vol solvers) use `bs_vega_unchecked`. Both use
+//! the same scaling conventions: vega per 1% vol, rho per 1% rate.
 //!
 //! # Model
 //!
@@ -289,7 +290,7 @@ pub(crate) fn bs_price_unchecked(
 
 /// Checked Black–Scholes / Garman–Kohlhagen price for host-language bindings.
 ///
-/// The raw [`bs_price`] primitive remains an infallible formula for Rust call
+/// The raw `bs_price_unchecked` primitive remains an infallible formula for Rust call
 /// sites that intentionally handle `NaN` / infinity. Bindings should use this
 /// checked wrapper so invalid inputs cross the host boundary as errors.
 ///

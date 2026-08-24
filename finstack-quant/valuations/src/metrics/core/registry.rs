@@ -120,6 +120,13 @@ impl MetricRegistry {
     }
 
     /// Deliberately replace metric registrations for tests or controlled overrides.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Canonical metric identifier whose registration is replaced.
+    /// * `calculator` - Calculator installed for the selected metric and instrument scope.
+    /// * `applicable_to` - Instrument types receiving the calculator. An empty slice
+    ///   replaces the metric's default calculator.
     pub fn replace_metric(
         &mut self,
         id: MetricId,
