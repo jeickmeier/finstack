@@ -13,7 +13,9 @@ mod speed;
 use crate::metrics::MetricRegistry;
 
 /// Register equity option metrics with the registry.
-pub(crate) fn register_equity_option_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_equity_option_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::{
         make_spot_bumper, make_vol_bumper, CrossFactorCalculator, CrossFactorPair, MetricId,
     };
@@ -21,12 +23,12 @@ pub(crate) fn register_equity_option_metrics(registry: &mut MetricRegistry) {
     use std::sync::Arc;
 
     // Custom metric: Dividend risk (dividend yield sensitivity per 1bp)
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Dividend01,
         Arc::new(dividend_risk::DividendRiskCalculator),
         &[InstrumentType::EquityOption],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::CrossGammaSpotVol,
         Arc::new(CrossFactorCalculator::new(
             CrossFactorPair::SpotVol,
@@ -34,7 +36,7 @@ pub(crate) fn register_equity_option_metrics(registry: &mut MetricRegistry) {
             make_vol_bumper,
         )),
         &[InstrumentType::EquityOption],
-    );
+    )?;
 
     crate::register_metrics! {
         registry: registry,
@@ -62,4 +64,5 @@ pub(crate) fn register_equity_option_metrics(registry: &mut MetricRegistry) {
             (Speed, speed::SpeedCalculator),
         ]
     }
+    Ok(())
 }

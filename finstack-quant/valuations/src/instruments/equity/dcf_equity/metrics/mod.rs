@@ -127,16 +127,18 @@ impl MetricCalculator for EquitySharesCalculator {
 /// - Terminal value PV (`MetricId::TerminalValuePV`)
 /// - Equity price per share (`MetricId::EquityPricePerShare`)
 /// - Diluted shares (`MetricId::EquityShares`)
-pub(crate) fn register_dcf_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_dcf_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
-    registry.register_metric(
+    registry.replace_metric(
         crate::metrics::MetricId::custom("dcf::wacc01"),
         Arc::new(crate::metrics::RfComponentDv01Calculator::<
             crate::instruments::equity::dcf_equity::DiscountedCashFlow,
         >::new()),
         &[InstrumentType::Dcf],
-    );
+    )?;
     crate::register_metrics! {
         registry: registry,
         instrument: InstrumentType::Dcf,
@@ -150,4 +152,5 @@ pub(crate) fn register_dcf_metrics(registry: &mut MetricRegistry) {
             (EquityShares, EquitySharesCalculator),
         ]
     }
+    Ok(())
 }

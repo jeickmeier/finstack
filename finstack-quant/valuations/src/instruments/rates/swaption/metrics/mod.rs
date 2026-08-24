@@ -22,7 +22,9 @@ pub(crate) use vega::VegaCalculator;
 use crate::metrics::MetricRegistry;
 
 /// Register swaption metrics with the registry
-pub(crate) fn register_swaption_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_swaption_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     crate::register_metrics! {
         registry: registry,
@@ -49,6 +51,7 @@ pub(crate) fn register_swaption_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     }
+    Ok(())
 }
 
 /// Register Bermudan swaption metrics with the registry.
@@ -70,7 +73,7 @@ pub(crate) fn register_swaption_metrics(registry: &mut MetricRegistry) {
 pub(crate) fn register_bermudan_swaption_metrics(
     registry: &mut MetricRegistry,
     hw_params: crate::calibration::hull_white::HullWhiteParams,
-) {
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     crate::register_metrics! {
         registry: registry,
@@ -95,14 +98,15 @@ pub(crate) fn register_bermudan_swaption_metrics(
         ]
     }
     // Register custom ExerciseProbability metric separately
-    registry.register_metric(
+    registry.replace_metric(
         crate::metrics::MetricId::custom("exercise_probability"),
         std::sync::Arc::new(ExerciseProbabilityCalculator::new_with_hw(
             hw_params.kappa,
             hw_params.sigma,
         )),
         &[InstrumentType::BermudanSwaption],
-    );
+    )?;
+    Ok(())
 }
 
 /// Convert a (possibly lognormal) volatility to a normal (Bachelier) vol for a

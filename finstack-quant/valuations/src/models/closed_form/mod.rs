@@ -93,7 +93,7 @@
 //!
 //! ```rust
 //! use finstack_quant_valuations::instruments::OptionType;
-//! use finstack_quant_valuations::models::closed_form::{bs_greeks, bs_vega};
+//! use finstack_quant_valuations::models::closed_form::bs_greeks;
 //!
 //! let spot = 100.0;
 //! let strike = 100.0;
@@ -104,11 +104,12 @@
 //!
 //! let greeks = bs_greeks(
 //!     spot, strike, rate, div_yield, vol, time, OptionType::Call, 365.0,
-//! );
+//! )?;
 //!
 //! assert!((greeks.delta - 0.5).abs() < 0.1);
 //! assert!(greeks.gamma > 0.0);
-//! assert!((greeks.vega - bs_vega(spot, strike, time, rate, div_yield, vol)).abs() < 1e-12);
+//! assert!(greeks.vega > 0.0);
+//! # Ok::<(), finstack_quant_core::Error>(())
 //! ```
 //!
 //! ## Barrier Option
@@ -166,6 +167,7 @@ pub use lookback::{
 };
 pub use quanto::{quanto_call, quanto_drift_adjustment, quanto_put};
 pub use vanilla::{
-    black76_call, black76_put, bs_greeks, bs_greeks_checked, bs_price, bs_price_checked, bs_vega,
-    checked_closed_form_value, option_type_from_bool, vanilla_expiry_payoff, BsGreeks, ONE_PERCENT,
+    black76_call, black76_put, bs_greeks_checked, bs_greeks_checked as bs_greeks, bs_price_checked,
+    bs_price_checked as bs_price, checked_closed_form_value, option_type_from_bool,
+    vanilla_expiry_payoff, BsGreeks, ONE_PERCENT,
 };

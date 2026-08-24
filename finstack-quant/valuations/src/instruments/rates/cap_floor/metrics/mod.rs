@@ -25,7 +25,9 @@ mod vega;
 use crate::metrics::MetricRegistry;
 
 /// Register all CapFloor metrics with the registry
-pub(crate) fn register_cap_floor_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_cap_floor_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::instruments::rates::cap_floor::CapFloor;
     use crate::metrics::{Dv01CalculatorConfig, UnifiedDv01Calculator};
     use crate::pricer::InstrumentType;
@@ -52,4 +54,5 @@ pub(crate) fn register_cap_floor_metrics(registry: &mut MetricRegistry) {
             )),
         ]
     }
+    Ok(())
 }

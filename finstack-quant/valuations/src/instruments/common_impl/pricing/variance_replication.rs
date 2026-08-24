@@ -377,7 +377,7 @@ fn finite_diff(a: f64, b: f64) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::closed_form::vanilla::bs_price;
+    use crate::models::closed_form::vanilla::bs_price_unchecked;
 
     /// A wide, dense strike grid spanning deep into both wings. With this grid
     /// the discrete replication should reproduce flat-vol variance tightly.
@@ -394,8 +394,9 @@ mod tests {
         let spot = fwd;
         let strikes = wide_grid();
         let vol_fn = |_t: f64, _k: f64| vol;
-        let bs_fn =
-            |k: f64, v: f64, opt: OptionType| -> f64 { bs_price(spot, k, r, 0.0, v, t, opt) };
+        let bs_fn = |k: f64, v: f64, opt: OptionType| -> f64 {
+            bs_price_unchecked(spot, k, r, 0.0, v, t, opt)
+        };
         let variance = carr_madan_forward_variance(&strikes, fwd, r, t, vol_fn, bs_fn)
             .expect("Expected Some variance");
         assert!(
@@ -409,7 +410,8 @@ mod tests {
     #[test]
     fn one_sided_strike_grids_are_rejected() {
         let vol_fn = |_t: f64, _k: f64| 0.2;
-        let bs_fn = |k: f64, v: f64, opt: OptionType| bs_price(100.0, k, 0.0, 0.0, v, 1.0, opt);
+        let bs_fn =
+            |k: f64, v: f64, opt: OptionType| bs_price_unchecked(100.0, k, 0.0, 0.0, v, 1.0, opt);
         assert!(carr_madan_forward_variance(
             &[110.0, 120.0, 130.0],
             100.0,
@@ -486,8 +488,9 @@ mod tests {
         // Fine grid: 0.1 spacing — trapezoidal error well below 1e-4 in variance.
         let strikes: Vec<f64> = (1..=4000).map(|i| 0.1 * (i as f64)).collect();
         let vol_fn = |_t: f64, _k: f64| vol;
-        let bs_fn =
-            |k: f64, v: f64, opt: OptionType| -> f64 { bs_price(spot, k, r, 0.0, v, t, opt) };
+        let bs_fn = |k: f64, v: f64, opt: OptionType| -> f64 {
+            bs_price_unchecked(spot, k, r, 0.0, v, t, opt)
+        };
 
         let variance = carr_madan_forward_variance(&strikes, fwd, r, t, vol_fn, bs_fn)
             .expect("Expected Some variance");
@@ -514,8 +517,9 @@ mod tests {
         let r = 0.0;
         let spot = fwd;
         let vol_fn = |_t: f64, _k: f64| vol;
-        let bs_fn =
-            |k: f64, v: f64, opt: OptionType| -> f64 { bs_price(spot, k, r, 0.0, v, t, opt) };
+        let bs_fn = |k: f64, v: f64, opt: OptionType| -> f64 {
+            bs_price_unchecked(spot, k, r, 0.0, v, t, opt)
+        };
 
         // Narrow grid: only ±~18% around the forward — well inside the wings.
         let narrow: Vec<f64> = (82..=118).map(|k| k as f64).collect();
@@ -551,8 +555,9 @@ mod tests {
         let r = 0.0;
         let spot = fwd;
         let vol_fn = |_t: f64, _k: f64| vol;
-        let bs_fn =
-            |k: f64, v: f64, opt: OptionType| -> f64 { bs_price(spot, k, r, 0.0, v, t, opt) };
+        let bs_fn = |k: f64, v: f64, opt: OptionType| -> f64 {
+            bs_price_unchecked(spot, k, r, 0.0, v, t, opt)
+        };
 
         // ~8000 strikes from deep ITM to deep OTM: a wide dynamic range.
         let fine: Vec<f64> = (1..=8000).map(|i| 1.0 + 0.25 * (i as f64)).collect();
@@ -575,8 +580,9 @@ mod tests {
         let fwd = 100.0;
         let r = 0.0;
         let spot = fwd;
-        let bs_fn =
-            |k: f64, v: f64, opt: OptionType| -> f64 { bs_price(spot, k, r, 0.0, v, t, opt) };
+        let bs_fn = |k: f64, v: f64, opt: OptionType| -> f64 {
+            bs_price_unchecked(spot, k, r, 0.0, v, t, opt)
+        };
         let strikes = wide_grid();
 
         // Surface returns zero vol everywhere: broken.

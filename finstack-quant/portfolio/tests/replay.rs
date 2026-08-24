@@ -551,7 +551,7 @@ mod replay_tests {
             as_of: Date,
             metrics: &[MetricId],
             options: PricingOptions,
-        ) -> finstack_quant_core::Result<ValuationResult> {
+        ) -> finstack_quant_valuations::Result<ValuationResult> {
             if metrics.is_empty() {
                 self.pv_only_calls.fetch_add(1, Ordering::SeqCst);
             } else {
@@ -561,7 +561,8 @@ mod replay_tests {
             if self.fail_metrics && !metrics.is_empty() {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "configured replay metric failure on {as_of}"
-                )));
+                ))
+                .into());
             }
             let config = options.config.as_deref().ok_or_else(|| {
                 finstack_quant_core::Error::Validation(

@@ -239,19 +239,10 @@ pub fn checked_closed_form_value(value: f64, what: &str) -> Result<f64> {
 ///
 /// Option price per unit of the underlying. At expiration (t ≤ 0), returns intrinsic value.
 ///
-/// # Examples
-///
-/// ```
-/// use finstack_quant_valuations::models::closed_form::vanilla::bs_price;
-/// use finstack_quant_valuations::instruments::OptionType;
-///
-/// let price = bs_price(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call);
-/// assert!(price > 0.0);
-/// ```
 #[must_use]
 #[inline]
 #[allow(clippy::too_many_arguments)]
-pub fn bs_price(
+pub(crate) fn bs_price_unchecked(
     spot: f64,
     strike: f64,
     r: f64,
@@ -262,6 +253,14 @@ pub fn bs_price(
 ) -> f64 {
     if t <= 0.0 {
         return vanilla_expiry_payoff_unchecked(spot, strike, option_type);
+    }
+    if sigma == 0.0 {
+        let discounted_spot = spot * (-q * t).exp();
+        let discounted_strike = strike * (-r * t).exp();
+        return match option_type {
+            OptionType::Call => (discounted_spot - discounted_strike).max(0.0),
+            OptionType::Put => (discounted_strike - discounted_spot).max(0.0),
+        };
     }
 
     // Use combined d1_d2 to avoid redundant computation
@@ -314,8 +313,13 @@ pub fn bs_price_checked(
     t: f64,
     option_type: OptionType,
 ) -> Result<f64> {
+    if !sigma.is_finite() || sigma < 0.0 {
+        return Err(Error::Validation(format!(
+            "Black-Scholes volatility must be finite and non-negative, got {sigma}"
+        )));
+    }
     checked_closed_form_value(
-        bs_price(spot, strike, r, q, sigma, t, option_type),
+        bs_price_unchecked(spot, strike, r, q, sigma, t, option_type),
         "Black-Scholes price",
     )
 }
@@ -371,21 +375,10 @@ pub fn bs_price_checked(
 /// - Negative theta: option loses value as time passes
 /// - Positive theta: option gains value (rare, e.g., deep ITM puts with high rates)
 ///
-/// # Examples
-///
-/// ```
-/// use finstack_quant_valuations::models::closed_form::vanilla::{bs_greeks, BsGreeks};
-/// use finstack_quant_valuations::instruments::OptionType;
-///
-/// let greeks = bs_greeks(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call, 365.0);
-/// assert!(greeks.delta > 0.0 && greeks.delta < 1.0);
-/// assert!(greeks.gamma > 0.0);
-/// assert!(greeks.vega > 0.0);
-/// ```
 #[must_use]
 #[inline]
 #[allow(clippy::too_many_arguments)]
-pub fn bs_greeks(
+pub(crate) fn bs_greeks_unchecked(
     spot: f64,
     strike: f64,
     r: f64,
@@ -548,7 +541,7 @@ pub fn bs_greeks_checked(
         )));
     }
 
-    let greeks = bs_greeks(
+    let greeks = bs_greeks_unchecked(
         spot,
         strike,
         r,
@@ -655,27 +648,15 @@ pub fn black76_put(forward: f64, strike: f64, sigma: f64, t: f64) -> f64 {
 ///
 /// Vega value (per 1% change in volatility). Returns 0.0 at expiration.
 ///
-/// # Examples
-///
-/// ```
-/// use finstack_quant_valuations::models::closed_form::bs_vega;
-///
-/// let spot = 100.0;
-/// let strike = 100.0;
-/// let time = 1.0;
-/// let rate = 0.05;
-/// let div_yield = 0.0;
-/// let vol = 0.20;
-///
-/// let vega = bs_vega(spot, strike, time, rate, div_yield, vol);
-/// assert!(vega > 0.0); // Always positive for long options
-///
-/// // Vega decreases as expiration approaches
-/// let vega_short = bs_vega(spot, strike, 0.25, rate, div_yield, vol);
-/// assert!(vega > vega_short);
-/// ```
 #[must_use]
-pub fn bs_vega(spot: f64, strike: f64, time: f64, rate: f64, div_yield: f64, vol: f64) -> f64 {
+pub(crate) fn bs_vega_unchecked(
+    spot: f64,
+    strike: f64,
+    time: f64,
+    rate: f64,
+    div_yield: f64,
+    vol: f64,
+) -> f64 {
     // At expiry, or at zero/negative volatility, the option value is the
     // deterministic intrinsic — it carries no volatility sensitivity, so vega
     // is exactly 0. The `vol <= 0` guard is required because `d1_d2` returns a
@@ -697,7 +678,7 @@ mod tests {
 
     #[test]
     fn test_bs_price_call_atm() {
-        let price = bs_price(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call);
+        let price = bs_price_unchecked(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call);
         // ATM call with these params should be around 9-10
         assert!(price > 8.0 && price < 12.0, "price = {}", price);
     }
@@ -736,9 +717,9 @@ mod tests {
 
     #[test]
     fn test_bs_price_put_atm() {
-        let price = bs_price(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Put);
+        let price = bs_price_unchecked(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Put);
         // Put-call parity check
-        let call = bs_price(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call);
+        let call = bs_price_unchecked(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call);
         let parity = call - price - 100.0 * (-0.02_f64).exp() + 100.0 * (-0.05_f64).exp();
         assert!(parity.abs() < 1e-10, "Put-call parity violated: {}", parity);
     }
@@ -747,17 +728,36 @@ mod tests {
     fn test_bs_price_expired() {
         // ITM call at expiration
         assert!(
-            (bs_price(110.0, 100.0, 0.05, 0.0, 0.2, 0.0, OptionType::Call) - 10.0).abs() < 1e-10
+            (bs_price_unchecked(110.0, 100.0, 0.05, 0.0, 0.2, 0.0, OptionType::Call) - 10.0).abs()
+                < 1e-10
         );
         // OTM call at expiration
-        assert!(bs_price(90.0, 100.0, 0.05, 0.0, 0.2, 0.0, OptionType::Call).abs() < 1e-10);
+        assert!(
+            bs_price_unchecked(90.0, 100.0, 0.05, 0.0, 0.2, 0.0, OptionType::Call).abs() < 1e-10
+        );
         // ITM put at expiration
-        assert!((bs_price(90.0, 100.0, 0.05, 0.0, 0.2, 0.0, OptionType::Put) - 10.0).abs() < 1e-10);
+        assert!(
+            (bs_price_unchecked(90.0, 100.0, 0.05, 0.0, 0.2, 0.0, OptionType::Put) - 10.0).abs()
+                < 1e-10
+        );
+    }
+
+    #[test]
+    fn zero_volatility_uses_deterministic_forward_moneyness() {
+        let call = bs_price_unchecked(100.0, 102.0, 0.05, 0.0, 0.0, 1.0, OptionType::Call);
+        assert!((call - 2.974_598_700_927_174_4).abs() < 1e-12);
+    }
+
+    #[test]
+    fn checked_price_rejects_negative_volatility() {
+        let error = bs_price_checked(100.0, 102.0, 0.05, 0.0, -0.2, 1.0, OptionType::Call)
+            .expect_err("negative volatility must be rejected");
+        assert!(error.to_string().contains("non-negative"));
     }
 
     #[test]
     fn test_bs_price_put_is_non_negative_for_deep_otm_case() {
-        let price = bs_price(
+        let price = bs_price_unchecked(
             141.855_852_889_058_4,
             58.709_489_081_432_6,
             0.0,
@@ -771,7 +771,8 @@ mod tests {
 
     #[test]
     fn test_bs_greeks_call() {
-        let greeks = bs_greeks(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call, 365.0);
+        let greeks =
+            bs_greeks_unchecked(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call, 365.0);
         // ATM call delta should be around 0.5-0.6
         assert!(
             greeks.delta > 0.4 && greeks.delta < 0.7,
@@ -786,7 +787,8 @@ mod tests {
 
     #[test]
     fn test_bs_greeks_put() {
-        let greeks = bs_greeks(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Put, 365.0);
+        let greeks =
+            bs_greeks_unchecked(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Put, 365.0);
         // ATM put delta should be negative, around -0.4 to -0.5
         assert!(
             greeks.delta < 0.0 && greeks.delta > -0.7,
@@ -794,13 +796,15 @@ mod tests {
             greeks.delta
         );
         // Gamma same for calls and puts
-        let call_greeks = bs_greeks(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call, 365.0);
+        let call_greeks =
+            bs_greeks_unchecked(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call, 365.0);
         assert!((greeks.gamma - call_greeks.gamma).abs() < 1e-10);
     }
 
     #[test]
     fn test_bs_greeks_display() {
-        let greeks = bs_greeks(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call, 365.0);
+        let greeks =
+            bs_greeks_unchecked(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call, 365.0);
         let s = format!("{}", greeks);
         assert!(s.contains("Δ="));
         assert!(s.contains("Γ="));
@@ -810,15 +814,17 @@ mod tests {
     #[test]
     fn test_bs_greeks_is_valid() {
         // Normal ATM call should be valid
-        let greeks = bs_greeks(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call, 365.0);
+        let greeks =
+            bs_greeks_unchecked(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call, 365.0);
         assert!(greeks.is_valid(), "ATM call Greeks should be valid");
 
         // Normal ATM put should be valid
-        let put_greeks = bs_greeks(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Put, 365.0);
+        let put_greeks =
+            bs_greeks_unchecked(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Put, 365.0);
         assert!(put_greeks.is_valid(), "ATM put Greeks should be valid");
 
         // Deep ITM call should still be valid
-        let deep_itm = bs_greeks(
+        let deep_itm = bs_greeks_unchecked(
             200.0,
             100.0,
             0.05,
@@ -831,7 +837,8 @@ mod tests {
         assert!(deep_itm.is_valid(), "Deep ITM call Greeks should be valid");
 
         // Deep OTM put should still be valid
-        let deep_otm = bs_greeks(200.0, 100.0, 0.05, 0.02, 0.20, 0.01, OptionType::Put, 365.0);
+        let deep_otm =
+            bs_greeks_unchecked(200.0, 100.0, 0.05, 0.02, 0.20, 0.01, OptionType::Put, 365.0);
         assert!(deep_otm.is_valid(), "Deep OTM put Greeks should be valid");
     }
 
@@ -868,9 +875,9 @@ mod tests {
         let (s, k, r, q, sigma, t) = (100.0, 105.0, 0.03, 0.02, 0.25, 0.75);
         for option_type in [OptionType::Call, OptionType::Put] {
             let p = |s: f64, r: f64, q: f64, sigma: f64, t: f64| {
-                bs_price(s, k, r, q, sigma, t, option_type)
+                bs_price_unchecked(s, k, r, q, sigma, t, option_type)
             };
-            let g = bs_greeks(s, k, r, q, sigma, t, option_type, 365.0);
+            let g = bs_greeks_unchecked(s, k, r, q, sigma, t, option_type, 365.0);
 
             // Delta: ∂V/∂S
             let hs = 1e-4 * s;
@@ -940,7 +947,7 @@ mod tests {
     /// outside them.
     #[test]
     fn hull_chapter19_worked_example_anchor() {
-        let g = bs_greeks(49.0, 50.0, 0.05, 0.0, 0.20, 0.3846, OptionType::Call, 365.0);
+        let g = bs_greeks_unchecked(49.0, 50.0, 0.05, 0.0, 0.20, 0.3846, OptionType::Call, 365.0);
 
         assert!((g.delta - 0.522).abs() < 0.001, "delta {}", g.delta);
         assert!((g.gamma - 0.066).abs() < 0.001, "gamma {}", g.gamma);
@@ -971,7 +978,7 @@ mod tests {
             (110.0, OptionType::Put, 0.0),
             (100.0, OptionType::Put, 0.0),
         ] {
-            let g = bs_greeks(spot, 100.0, 0.05, 0.02, 0.2, 0.0, option_type, 365.0);
+            let g = bs_greeks_unchecked(spot, 100.0, 0.05, 0.02, 0.2, 0.0, option_type, 365.0);
             assert!(
                 (g.delta - want_delta).abs() < 1e-12,
                 "{option_type:?} S={spot}: delta {} != {want_delta}",
@@ -999,7 +1006,7 @@ mod tests {
     #[test]
     fn negative_carry_delta_above_one_is_neither_clamped_nor_invalid() {
         // Deep ITM call, q = −5%, T = 2y: delta = e^{0.1}·N(d1) ≈ 1.105·~1.
-        let greeks = bs_greeks(
+        let greeks = bs_greeks_unchecked(
             200.0,
             100.0,
             0.03,
@@ -1038,7 +1045,7 @@ mod tests {
         ];
 
         for (spot, strike, opt_type, expected_sign) in cases {
-            let greeks = bs_greeks(spot, strike, 0.05, 0.02, 0.20, 1.0, opt_type, 365.0);
+            let greeks = bs_greeks_unchecked(spot, strike, 0.05, 0.02, 0.20, 1.0, opt_type, 365.0);
             assert!(
                 greeks.is_valid(),
                 "Greeks should be valid for spot={}, strike={}, type={:?}",
@@ -1057,22 +1064,22 @@ mod tests {
     #[test]
     fn bs_vega_is_zero_for_zero_sigma() {
         // Exactly-ATM, zero vol: the failure case from the audit.
-        let v_atm = bs_vega(100.0, 100.0, 1.0, 0.05, 0.02, 0.0);
+        let v_atm = bs_vega_unchecked(100.0, 100.0, 1.0, 0.05, 0.02, 0.0);
         assert_eq!(v_atm, 0.0, "σ=0 ATM vega must be 0, got {v_atm}");
 
         // The guard must be consistent across moneyness, not just ATM.
-        assert_eq!(bs_vega(100.0, 90.0, 1.0, 0.05, 0.02, 0.0), 0.0);
-        assert_eq!(bs_vega(100.0, 110.0, 1.0, 0.05, 0.02, 0.0), 0.0);
+        assert_eq!(bs_vega_unchecked(100.0, 90.0, 1.0, 0.05, 0.02, 0.0), 0.0);
+        assert_eq!(bs_vega_unchecked(100.0, 110.0, 1.0, 0.05, 0.02, 0.0), 0.0);
         // Negative vol is also non-physical and must be guarded.
-        assert_eq!(bs_vega(100.0, 100.0, 1.0, 0.05, 0.02, -0.1), 0.0);
+        assert_eq!(bs_vega_unchecked(100.0, 100.0, 1.0, 0.05, 0.02, -0.1), 0.0);
 
         // The aggregator must apply the same guard.
-        let call = bs_greeks(100.0, 100.0, 0.05, 0.02, 0.0, 1.0, OptionType::Call, 365.0);
-        let put = bs_greeks(100.0, 100.0, 0.05, 0.02, 0.0, 1.0, OptionType::Put, 365.0);
+        let call = bs_greeks_unchecked(100.0, 100.0, 0.05, 0.02, 0.0, 1.0, OptionType::Call, 365.0);
+        let put = bs_greeks_unchecked(100.0, 100.0, 0.05, 0.02, 0.0, 1.0, OptionType::Put, 365.0);
         assert_eq!(call.vega, 0.0, "σ=0 call aggregator vega must be 0");
         assert_eq!(put.vega, 0.0, "σ=0 put aggregator vega must be 0");
 
         // Positive vol still yields a strictly positive vega (no over-zealous guard).
-        assert!(bs_vega(100.0, 100.0, 1.0, 0.05, 0.02, 0.2) > 0.0);
+        assert!(bs_vega_unchecked(100.0, 100.0, 1.0, 0.05, 0.02, 0.2) > 0.0);
     }
 }

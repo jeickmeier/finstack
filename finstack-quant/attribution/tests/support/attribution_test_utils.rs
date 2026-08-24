@@ -106,7 +106,7 @@ impl Instrument for TestInstrument {
         as_of: Date,
         _metrics: &[MetricId],
         _options: finstack_quant_valuations::instruments::PricingOptions,
-    ) -> Result<ValuationResult> {
+    ) -> finstack_quant_valuations::Result<ValuationResult> {
         let value = self.value(market, as_of)?;
         Ok(ValuationResult::stamped(self.id(), as_of, value))
     }

@@ -117,30 +117,32 @@ impl crate::metrics::sensitivities::cs01::CdsCs01Conventions
 }
 
 /// Register all CDS metrics with the registry
-pub(crate) fn register_cds_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_cds_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::MetricId;
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::RiskyPv01,
         Arc::new(risky_pv01::RiskyPv01Calculator),
         &[InstrumentType::Cds],
-    );
+    )?;
 
     // Recovery01 (custom metric - recovery rate sensitivity)
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Recovery01,
         Arc::new(recovery01::Recovery01Calculator),
         &[InstrumentType::Cds],
-    );
+    )?;
 
     // JumpToDefaultLgdOnly (custom metric - LGD only, excludes accrued)
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::custom("jump_to_default_lgd_only"),
         Arc::new(jump_to_default::JumpToDefaultLgdOnlyCalculator),
         &[InstrumentType::Cds],
-    );
+    )?;
 
     // Standard metrics using macro
     crate::register_metrics! {
@@ -167,4 +169,5 @@ pub(crate) fn register_cds_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     }
+    Ok(())
 }

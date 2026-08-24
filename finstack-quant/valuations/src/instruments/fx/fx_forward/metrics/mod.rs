@@ -15,15 +15,17 @@
 use crate::metrics::MetricRegistry;
 
 /// Register all FxForward metrics with the registry.
-pub(crate) fn register_fx_forward_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_fx_forward_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::MetricId;
     use crate::pricer::InstrumentType;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Fx01,
         crate::metrics::sensitivities::fx01::arc_generic_fx01(),
         &[InstrumentType::FxForward],
-    );
+    )?;
     crate::register_metrics! {
         registry: registry,
         instrument: InstrumentType::FxForward,
@@ -36,4 +38,5 @@ pub(crate) fn register_fx_forward_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     }
+    Ok(())
 }

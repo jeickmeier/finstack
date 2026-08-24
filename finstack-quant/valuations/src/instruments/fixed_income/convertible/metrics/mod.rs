@@ -27,7 +27,9 @@ mod parity;
 use crate::metrics::MetricRegistry;
 
 /// Register convertible bond metrics into the registry.
-pub(crate) fn register_convertible_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_convertible_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::{
         make_credit_bumper, make_rates_bumper, make_spot_bumper, make_vol_bumper,
         CrossFactorCalculator, CrossFactorPair, MetricId,
@@ -36,48 +38,48 @@ pub(crate) fn register_convertible_metrics(registry: &mut MetricRegistry) {
     use std::sync::Arc;
 
     // Custom metrics (not in standard MetricId enum)
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::custom("parity"),
         Arc::new(parity::ParityCalculator),
         &[InstrumentType::Convertible],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::custom("conversion_premium"),
         Arc::new(conversion_premium::ConversionPremiumCalculator),
         &[InstrumentType::Convertible],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::custom("conversion_value"),
         Arc::new(conversion_value::ConversionValueCalculator),
         &[InstrumentType::Convertible],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::Accrued,
         Arc::new(accrued_interest::AccruedInterestCalculator),
         &[InstrumentType::Convertible],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::CleanPrice,
         Arc::new(accrued_interest::CleanPriceCalculator),
         &[InstrumentType::Convertible],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::Dividend01,
         Arc::new(dividend_risk::DividendRiskCalculator),
         &[InstrumentType::Convertible],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::Conversion01,
         Arc::new(conversion01::Conversion01Calculator),
         &[InstrumentType::Convertible],
-    );
+    )?;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Oas,
         Arc::new(oas::OasCalculator),
         &[InstrumentType::Convertible],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::CrossGammaSpotVol,
         Arc::new(CrossFactorCalculator::new(
             CrossFactorPair::SpotVol,
@@ -85,8 +87,8 @@ pub(crate) fn register_convertible_metrics(registry: &mut MetricRegistry) {
             make_vol_bumper,
         )),
         &[InstrumentType::Convertible],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::CrossGammaSpotCredit,
         Arc::new(CrossFactorCalculator::new(
             CrossFactorPair::SpotCredit,
@@ -94,8 +96,8 @@ pub(crate) fn register_convertible_metrics(registry: &mut MetricRegistry) {
             make_credit_bumper,
         )),
         &[InstrumentType::Convertible],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::CrossGammaRatesCredit,
         Arc::new(CrossFactorCalculator::new(
             CrossFactorPair::RatesCredit,
@@ -103,8 +105,8 @@ pub(crate) fn register_convertible_metrics(registry: &mut MetricRegistry) {
             make_credit_bumper,
         )),
         &[InstrumentType::Convertible],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::CrossGammaCreditVol,
         Arc::new(CrossFactorCalculator::new(
             CrossFactorPair::CreditVol,
@@ -112,17 +114,17 @@ pub(crate) fn register_convertible_metrics(registry: &mut MetricRegistry) {
             make_vol_bumper,
         )),
         &[InstrumentType::Convertible],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::custom("bond_floor"),
         Arc::new(bond_floor::BondFloorCalculator),
         &[InstrumentType::Convertible],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::ImpliedVol,
         Arc::new(implied_vol::ImpliedVolCalculator),
         &[InstrumentType::Convertible],
-    );
+    )?;
 
     // Standard metrics using macro
     crate::register_metrics! {
@@ -144,4 +146,5 @@ pub(crate) fn register_convertible_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     }
+    Ok(())
 }

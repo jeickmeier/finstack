@@ -44,7 +44,7 @@ impl MetricCalculator for VegaCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let option: &CapFloor = context.instrument_as()?;
         if matches!(
-            context.clone_pricer_dispatch().0,
+            context.clone_pricer_dispatch().model(),
             Some(ModelKey::HullWhite1F)
         ) {
             return hull_white_surface_vega_per_pct(option, context);
@@ -62,7 +62,7 @@ impl MetricCalculator for HwSigmaVegaCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let option: &CapFloor = context.instrument_as()?;
         if !matches!(
-            context.clone_pricer_dispatch().0,
+            context.clone_pricer_dispatch().model(),
             Some(ModelKey::HullWhite1F)
         ) {
             return Err(finstack_quant_core::Error::Validation(

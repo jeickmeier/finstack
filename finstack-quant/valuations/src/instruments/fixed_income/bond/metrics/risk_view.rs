@@ -146,11 +146,11 @@ pub(crate) fn with_bond_risk_view<R>(
         Some((instrument, curves)) => {
             let orig_instrument = Arc::clone(&context.instrument);
             let orig_curves = Arc::clone(&context.curves);
-            context.instrument = instrument;
-            context.curves = curves;
+            context.set_instrument(instrument);
+            context.set_market(curves);
             let result = f(context);
-            context.instrument = orig_instrument;
-            context.curves = orig_curves;
+            context.set_instrument(orig_instrument);
+            context.set_market(orig_curves);
             result
         }
     }

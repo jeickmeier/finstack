@@ -33,7 +33,6 @@ mod keys;
 mod registry;
 pub mod structured_credit_json;
 
-pub(crate) use errors::actionable_unknown_pricer_message;
 pub use errors::{PricingError, PricingErrorContext};
 pub use json::{
     instrument_envelope_from_spec, list_models, list_models_grouped, list_standard_metrics,
@@ -44,7 +43,7 @@ pub use json::{
     STANDARD_OPTION_GREEKS,
 };
 pub use keys::{InstrumentType, ModelKey, PricerKey};
-pub use registry::{expect_inst, Pricer, PricerRegistry};
+pub use registry::{expect_inst, Pricer, PricerRegistry, PricingDispatch};
 pub use structured_credit_json::{
     structured_credit_tranche_breakeven_cdr_json, structured_credit_tranche_discount_margin_json,
     structured_credit_tranche_metrics_json, structured_credit_tranche_oas_json,
@@ -93,14 +92,14 @@ macro_rules! register_generic {
             $inst,
             $crate::pricer::ModelKey::Discounting,
             $crate::instruments::common_impl::GenericInstrumentPricer::<$ty>::discounting($inst),
-        )
+        )?
     };
     ($registry:expr, $inst:expr, $ty:ty, $model:expr $(,)?) => {
         $registry.register(
             $inst,
             $model,
             $crate::instruments::common_impl::GenericInstrumentPricer::<$ty>::new($inst, $model),
-        )
+        )?
     };
 }
 
@@ -112,15 +111,16 @@ pub(crate) use register_generic;
 /// delegating concrete registration tables to the asset-class submodules below.
 /// This explicit approach provides better IDE support, easier debugging, and
 /// clearer dependency tracking compared to auto-registration.
-fn register_all_pricers(registry: &mut PricerRegistry) {
-    rates::register_rates_pricers(registry);
-    credit::register_credit_pricers(registry);
-    equity::register_equity_pricers(registry);
-    fx::register_fx_pricers(registry);
-    fixed_income::register_fixed_income_pricers(registry);
-    inflation::register_inflation_pricers(registry);
-    exotics::register_exotic_pricers(registry);
-    commodity::register_commodity_pricers(registry);
+fn register_all_pricers(registry: &mut PricerRegistry) -> std::result::Result<(), PricingError> {
+    rates::register_rates_pricers(registry)?;
+    credit::register_credit_pricers(registry)?;
+    equity::register_equity_pricers(registry)?;
+    fx::register_fx_pricers(registry)?;
+    fixed_income::register_fixed_income_pricers(registry)?;
+    inflation::register_inflation_pricers(registry)?;
+    exotics::register_exotic_pricers(registry)?;
+    commodity::register_commodity_pricers(registry)?;
+    Ok(())
 }
 
 /// Build a standard pricer registry with all registered pricers.
@@ -132,23 +132,12 @@ fn register_all_pricers(registry: &mut PricerRegistry) {
 /// All 40+ instrument pricers are registered in the `register_all_pricers` function.
 /// Note: All pricers now use standardized parameter ordering: (instrument, market, as_of).
 ///
-/// A duplicate `(instrument, model)` registration in the standard registry is a
-/// bug: the second `register` call is rejected. Because this
-/// runs inside a `OnceLock` initializer it cannot return a `Result`, so any
-/// collision is surfaced as a hard `tracing::error!`. The
-/// `register_all_pricers_has_no_duplicate_keys` test fails CI on the same
-/// condition.
-fn build_standard_registry() -> PricerRegistry {
+/// Duplicate built-in registrations fail immediately at their registration
+/// site. External callers receive [`PricingError::DuplicateRegistration`].
+fn build_standard_registry() -> std::result::Result<PricerRegistry, PricingError> {
     let mut registry = PricerRegistry::new();
-    register_all_pricers(&mut registry);
-    for key in registry.duplicate_keys() {
-        tracing::error!(
-            ?key,
-            "standard pricer registry built with a duplicate (instrument, model) \
-             registration; a shard attempted to replace a previously registered pricer"
-        );
-    }
-    registry
+    register_all_pricers(&mut registry)?;
+    Ok(registry)
 }
 
 static STANDARD_PRICER_REGISTRY: OnceLock<Arc<PricerRegistry>> = OnceLock::new();
@@ -157,9 +146,14 @@ static STANDARD_PRICER_REGISTRY: OnceLock<Arc<PricerRegistry>> = OnceLock::new()
 ///
 /// This is the primary public entry point for accessing the built-in pricer set.
 /// Callers that need to mutate a registry should start from `standard_registry().clone()`.
+#[allow(clippy::expect_used)]
 pub fn standard_registry() -> &'static PricerRegistry {
     STANDARD_PRICER_REGISTRY
-        .get_or_init(|| Arc::new(build_standard_registry()))
+        .get_or_init(|| {
+            Arc::new(
+                build_standard_registry().expect("built-in pricer registrations must be valid"),
+            )
+        })
         .as_ref()
 }
 
@@ -167,8 +161,11 @@ pub fn standard_registry() -> &'static PricerRegistry {
 ///
 /// The registry is initialized once and then cloned via `Arc` for cheap reuse
 /// across instrument-side pricing calls.
+#[allow(clippy::expect_used)]
 pub(crate) fn shared_standard_registry() -> Arc<PricerRegistry> {
-    Arc::clone(STANDARD_PRICER_REGISTRY.get_or_init(|| Arc::new(build_standard_registry())))
+    Arc::clone(STANDARD_PRICER_REGISTRY.get_or_init(|| {
+        Arc::new(build_standard_registry().expect("built-in pricer registrations must be valid"))
+    }))
 }
 
 #[cfg(test)]
@@ -200,47 +197,31 @@ mod tests {
         }
     }
 
-    /// CI guard: the standard registry must not contain any duplicate
-    /// `(instrument, model)` registration.
-    ///
-    /// A duplicate means one shard attempted to replace another pricer.
-    /// `build_standard_registry` records every such collision
-    /// in `duplicate_keys`; this test asserts that set is empty so the bug is
-    /// caught before it ships.
-    #[test]
-    fn register_all_pricers_has_no_duplicate_keys() {
-        let registry = build_standard_registry();
-        let duplicates = registry.duplicate_keys();
-        assert!(
-            duplicates.is_empty(),
-            "standard pricer registry has duplicate (instrument, model) registrations: \
-             {duplicates:?} — a shard's `register` call overwrote an existing pricer",
-        );
-    }
-
-    /// `register` rejects a colliding key and records it without overwriting.
+    /// `register` returns a typed collision error without overwriting.
     #[test]
     fn register_rejects_duplicate_key() {
         let mut registry = PricerRegistry::new();
         let key = PricerKey::new(InstrumentType::Deposit, ModelKey::Tree);
 
-        registry.register(InstrumentType::Deposit, ModelKey::Tree, DummyPricer);
-        registry.register(InstrumentType::Deposit, ModelKey::Tree, DummyPricer);
-        assert_eq!(registry.duplicate_keys(), &[key]);
-        assert!(
-            registry.get_pricer(key).is_some(),
-            "rejected registration must leave the first pricer registered",
-        );
+        registry
+            .register(InstrumentType::Deposit, ModelKey::Tree, DummyPricer)
+            .expect("first registration");
+        let error = registry
+            .register(InstrumentType::Deposit, ModelKey::Tree, DummyPricer)
+            .expect_err("duplicate registration must fail");
+        assert_eq!(error, PricingError::DuplicateRegistration { key });
+        assert!(registry.get_pricer(key).is_some());
     }
 
     #[test]
     fn replace_is_the_explicit_overwrite_operation() {
         let mut registry = PricerRegistry::new();
         let key = PricerKey::new(InstrumentType::Deposit, ModelKey::Tree);
-        registry.register(InstrumentType::Deposit, ModelKey::Tree, DummyPricer);
+        registry
+            .register(InstrumentType::Deposit, ModelKey::Tree, DummyPricer)
+            .expect("first registration");
         registry.replace(InstrumentType::Deposit, ModelKey::Tree, DummyPricer);
         assert!(registry.get_pricer(key).is_some());
-        assert!(registry.duplicate_keys().is_empty());
     }
 
     #[test]
@@ -258,7 +239,9 @@ mod tests {
         assert!(standard_registry().get_pricer(key).is_none());
 
         let mut cloned = standard_registry().clone();
-        cloned.register(InstrumentType::Deposit, ModelKey::Tree, DummyPricer);
+        cloned
+            .register(InstrumentType::Deposit, ModelKey::Tree, DummyPricer)
+            .expect("new clone registration");
 
         assert!(cloned.get_pricer(key).is_some());
         assert!(standard_registry().get_pricer(key).is_none());

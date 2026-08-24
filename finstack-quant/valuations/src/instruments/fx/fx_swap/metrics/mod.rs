@@ -18,48 +18,39 @@ mod ir01_foreign;
 use crate::metrics::MetricRegistry;
 
 /// Register all FX Swap metrics with the registry
-pub(crate) fn register_fx_swap_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_fx_swap_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::MetricId;
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
 
     // Custom metrics
-    registry
-        .register_metric(
+    for (id, calculator) in [
+        (
             MetricId::custom("carry_pv"),
-            Arc::new(carry_pv::CarryPv),
-            &[InstrumentType::FxSwap],
-        )
-        .register_metric(
+            Arc::new(carry_pv::CarryPv) as Arc<dyn crate::metrics::MetricCalculator>,
+        ),
+        (
             MetricId::custom("forward_points"),
             Arc::new(forward_points::ForwardPoints),
-            &[InstrumentType::FxSwap],
-        )
-        // Fx01 = "PV change per 1% relative spot move" via the shared
-        // generic calculator (was a custom `fx01::FX01` doing 1bp absolute
-        // central difference). `FxDelta` is the same quantity and shares the
-        // same calculator; the two ids are both kept because consumers ask
-        // for either name.
-        .register_metric(
+        ),
+        (
             MetricId::Fx01,
             crate::metrics::sensitivities::fx01::arc_generic_fx01(),
-            &[InstrumentType::FxSwap],
-        )
-        .register_metric(
+        ),
+        (
             MetricId::FxDelta,
             crate::metrics::sensitivities::fx01::arc_generic_fx01(),
-            &[InstrumentType::FxSwap],
-        )
-        .register_metric(
+        ),
+        (
             MetricId::Dv01Domestic,
             Arc::new(ir01_domestic::DomesticIR01),
-            &[InstrumentType::FxSwap],
-        )
-        .register_metric(
-            MetricId::Dv01Foreign,
-            Arc::new(ir01_foreign::ForeignIR01),
-            &[InstrumentType::FxSwap],
-        );
+        ),
+        (MetricId::Dv01Foreign, Arc::new(ir01_foreign::ForeignIR01)),
+    ] {
+        registry.replace_metric(id, calculator, &[InstrumentType::FxSwap])?;
+    }
 
     // Standard metrics using macro
     crate::register_metrics! {
@@ -74,4 +65,5 @@ pub(crate) fn register_fx_swap_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     }
+    Ok(())
 }

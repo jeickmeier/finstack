@@ -222,27 +222,29 @@ mod hurdle01;
 mod nav01;
 
 /// Register all private markets fund metrics.
-pub(crate) fn register_private_markets_fund_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_private_markets_fund_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::MetricId;
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
 
     // Private markets fund-specific risk metrics (custom metrics)
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Nav01,
         Arc::new(nav01::Nav01Calculator),
         &[InstrumentType::PrivateMarketsFund],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::Carry01,
         Arc::new(carry01::Carry01Calculator),
         &[InstrumentType::PrivateMarketsFund],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::Hurdle01,
         Arc::new(hurdle01::Hurdle01Calculator),
         &[InstrumentType::PrivateMarketsFund],
-    );
+    )?;
 
     crate::register_metrics! {
         registry: registry,
@@ -256,6 +258,7 @@ pub(crate) fn register_private_markets_fund_metrics(registry: &mut MetricRegistr
             (CarryAccrued, CarryAccruedCalculator),
         ]
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -392,7 +395,7 @@ mod tests {
 
         // With residual value, MOIC includes it (net LP MOIC == TVPI):
         // (2.0M realized + 0.5M residual) / 1.0M paid-in = 2.5x.
-        context.base_value = Money::new(500_000.0, test_currency());
+        context.set_base_value(Money::new(500_000.0, test_currency()));
         let moic_with_residual = MoicLpCalculator
             .calculate(&mut context)
             .expect("should succeed");

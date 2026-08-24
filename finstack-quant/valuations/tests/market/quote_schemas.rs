@@ -248,7 +248,7 @@ fn vol_quote_bump_and_swaption_maturity_contract() {
         option_type: OptionType::Call,
         convention: OptionConventionId::new("USD-EQUITY"),
     };
-    let bumped = opt.bump_vol_absolute(0.01);
+    let bumped = opt.bump_vol_absolute(0.01).expect("valid volatility bump");
     match bumped {
         VolQuote::OptionVol { vol, .. } => {
             assert!(

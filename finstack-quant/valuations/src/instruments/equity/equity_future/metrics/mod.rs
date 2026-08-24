@@ -38,7 +38,9 @@ impl MetricCalculator for Delta {
 }
 
 /// Register fair price, basis, spot delta, and curve DV01 for equity futures.
-pub(crate) fn register_equity_future_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_equity_future_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     crate::register_metrics! {
         registry: registry,
         instrument: crate::pricer::InstrumentType::EquityFuture,
@@ -50,4 +52,5 @@ pub(crate) fn register_equity_future_metrics(registry: &mut MetricRegistry) {
             (BucketedDv01, crate::metrics::UnifiedDv01Calculator::<crate::instruments::EquityFuture>::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     }
+    Ok(())
 }

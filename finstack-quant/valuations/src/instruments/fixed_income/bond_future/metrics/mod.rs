@@ -25,7 +25,9 @@ mod pricing;
 /// # Arguments
 ///
 /// - `registry`: Metric registry to update for the `BondFuture` instrument type.
-pub(crate) fn register_bond_future_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_bond_future_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     crate::register_metrics! {
         registry: registry,
         instrument: InstrumentType::BondFuture,
@@ -40,6 +42,7 @@ pub(crate) fn register_bond_future_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     };
+    Ok(())
 }
 
 #[cfg(test)]
@@ -50,7 +53,7 @@ mod tests {
     #[test]
     fn test_metrics_registration() {
         let mut registry = MetricRegistry::new();
-        register_bond_future_metrics(&mut registry);
+        register_bond_future_metrics(&mut registry).expect("bond future metric registration");
 
         // Verify metrics are registered for BondFuture
         let metrics = registry.metrics_for_instrument(InstrumentType::BondFuture);

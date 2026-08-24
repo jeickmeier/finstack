@@ -238,20 +238,12 @@ impl ShortRateTree {
             );
         }
 
-        // Hard repricing tolerance. A well-posed BDT tree calibrates to far
-        // below 1 bp (floating-point accumulation only); the codebase's own
-        // `TreeCalibrationResult::is_acceptable` bar is 1 bp. This *hard error*
-        // gate is set well above that — at 25 bp — so it never rejects a
-        // merely-imperfect tree, only one that has genuinely *stopped*
-        // repricing the curve. Empirically the BDT clamp failure is bimodal:
-        // a wide tree either reprices fine (clamp engages only on vanishing-
-        // weight tail nodes) or breaks catastrophically (thousands of bp), so
-        // 25 bp cleanly separates the two. Unlike the diagnostic
-        // `max_error_bp` field — which only *reports* — this gate *enforces*
-        // the contract so a silently-mispriced tree can never be returned as
-        // `converged`. The milder 1-25 bp band is still surfaced via the
-        // `tracing::warn!` above and the `is_acceptable` / `is_good` flags.
-        const MAX_CALIBRATION_ERROR_BPS: f64 = 25.0;
+        let fit_tolerance_bp = self.config.curve_fit_tolerance_bp;
+        if !fit_tolerance_bp.is_finite() || fit_tolerance_bp <= 0.0 {
+            return Err(Error::Validation(format!(
+                "BDT calibration curve-fit tolerance must be finite and positive, got {fit_tolerance_bp}"
+            )));
+        }
 
         // Enforce that the calibrated tree actually reprices the curve.
         //
@@ -268,7 +260,7 @@ impl ShortRateTree {
         // mispricing. When the tolerance is breached, the diagnostic message
         // reports whether the clamp engaged (the usual root cause for a wide
         // tree) so the caller knows which knob to turn.
-        if !max_error_bp.is_finite() || max_error_bp > MAX_CALIBRATION_ERROR_BPS {
+        if !max_error_bp.is_finite() || max_error_bp > fit_tolerance_bp || fallback_count > 0 {
             self.calibration_quality = Some(TreeCalibrationResult {
                 max_error_bp,
                 max_error_step,
@@ -286,9 +278,9 @@ impl ShortRateTree {
                 String::new()
             };
             return Err(Error::Validation(format!(
-                "BDT calibration failed to reprice the discount curve: max \
-                 error {max_error_bp:.2} bp at step {max_error_step} exceeds \
-                 the {MAX_CALIBRATION_ERROR_BPS:.1} bp tolerance.{clamp_note}"
+                "BDT calibration did not converge: max curve error {max_error_bp:.4} bp \
+                 at step {max_error_step}, tolerance {fit_tolerance_bp:.4} bp, \
+                 solver fallbacks {fallback_count}.{clamp_note}"
             )));
         }
 

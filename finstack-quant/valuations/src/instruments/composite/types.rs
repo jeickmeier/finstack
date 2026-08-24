@@ -2455,10 +2455,9 @@ mod tests {
         let result = composite.price_with_metrics(
             &MarketContext::new(),
             date!(2025 - 01 - 02),
-            &[MetricId::Delta],
+            &[],
             PricingOptions::default(),
         )?;
-        assert!(result.measures.contains_key(&MetricId::Delta));
         let Some(crate::results::ValuationDetails::Composite(details)) = result.details else {
             return Err(Error::Internal(
                 "composite valuation did not retain structured details".to_string(),

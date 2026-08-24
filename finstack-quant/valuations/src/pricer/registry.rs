@@ -75,22 +75,48 @@ pub trait Pricer: Send + Sync {
 /// registration errors. Pricers are registered at compile time and looked up
 /// via strongly-typed keys.
 ///
-/// The backing map is a [`BTreeMap`] keyed by [`PricerKey`]: dispatch is purely
-/// by key, so a hash map would be functionally sufficient, but the ordered map
-/// guarantees a deterministic iteration order. That keeps any present or future
-/// enumeration of the registry (diagnostics, serialized coverage reports)
-/// reproducible across runs without relying on every call site remembering to
-/// sort.
+/// The ordered pricer map is shared behind [`Arc`]. Cloning a registry is
+/// therefore O(1); registration and replacement use copy-on-write so cloned
+/// registries remain independently mutable.
 #[derive(Clone, Default)]
 pub struct PricerRegistry {
-    pricers: BTreeMap<PricerKey, Arc<dyn Pricer>>,
+    pricers: Arc<BTreeMap<PricerKey, Arc<dyn Pricer>>>,
     metric_registry: Option<Arc<crate::metrics::MetricRegistry>>,
-    /// Keys that were registered more than once via [`PricerRegistry::register`].
+}
+/// Pricing path used consistently by base, bumped, theta, and scenario valuations.
+#[derive(Clone, Default)]
+pub enum PricingDispatch {
+    /// Use each instrument's canonical default pricing path.
+    #[default]
+    InstrumentDefault,
+    /// Reprice through one explicit model and registry pair.
+    Registered {
+        /// Model selected for every valuation through this dispatch.
+        model: ModelKey,
+        /// Registry that owns the selected model implementation.
+        registry: Arc<PricerRegistry>,
+    },
+}
+
+impl PricingDispatch {
+    /// Construct an explicit registered pricing dispatch.
     ///
-    /// `register` rejects duplicates without mutation. Recording the offending
-    /// keys lets [`build_standard_registry`](super::build_standard_registry)
-    /// surface configuration bugs without threading a `Result` through every shard.
-    duplicate_keys: Vec<PricerKey>,
+    /// # Arguments
+    ///
+    /// * `model` - Registered model used for base and risk repricing.
+    /// * `registry` - Shared registry containing the selected model.
+    pub fn registered(model: ModelKey, registry: Arc<PricerRegistry>) -> Self {
+        Self::Registered { model, registry }
+    }
+
+    /// Return the explicitly selected model, if any.
+    #[must_use]
+    pub fn model(&self) -> Option<ModelKey> {
+        match self {
+            Self::InstrumentDefault => None,
+            Self::Registered { model, .. } => Some(*model),
+        }
+    }
 }
 
 #[derive(Clone, Default)]
@@ -141,23 +167,23 @@ impl PricerRegistry {
         self.metric_registry.clone()
     }
 
-    /// Register a pricer for a specific (instrument type, model) combination.
+    /// Register a pricer for a specific instrument/model pair.
     ///
-    /// Duplicate keys are rejected without changing the existing registration.
-    /// The colliding key is recorded so registry construction can fail loudly.
+    /// Returns [`PricingError::DuplicateRegistration`] without mutating the
+    /// registry when the key already exists. Use [`Self::replace`] for an
+    /// intentional overwrite.
     pub fn register(
         &mut self,
         inst: InstrumentType,
         model: ModelKey,
         pricer: impl Pricer + 'static,
-    ) {
+    ) -> std::result::Result<(), PricingError> {
         let key = PricerKey::new(inst, model);
         if self.pricers.contains_key(&key) {
-            tracing::warn!(?key, "duplicate pricer registration rejected");
-            self.duplicate_keys.push(key);
-            return;
+            return Err(PricingError::DuplicateRegistration { key });
         }
-        self.pricers.insert(key, Arc::new(pricer));
+        Arc::make_mut(&mut self.pricers).insert(key, Arc::new(pricer));
+        Ok(())
     }
 
     /// Deliberately replace a pricer for test setup or controlled monkey-patching.
@@ -168,15 +194,7 @@ impl PricerRegistry {
         pricer: impl Pricer + 'static,
     ) {
         let key = PricerKey::new(inst, model);
-        self.pricers.insert(key, Arc::new(pricer));
-    }
-
-    /// Keys registered more than once via [`Self::register`].
-    ///
-    /// Empty for any correctly-built registry. The standard-registry build
-    /// checks this to detect shard registration bugs.
-    pub(super) fn duplicate_keys(&self) -> &[PricerKey] {
-        &self.duplicate_keys
+        Arc::make_mut(&mut self.pricers).insert(key, Arc::new(pricer));
     }
 
     /// Look up a pricer for a specific (instrument type, model) combination.
@@ -326,20 +344,10 @@ impl PricerRegistry {
         let shared = if metrics.is_empty() {
             SharedPricingInputs::default()
         } else {
-            // The metrics pipeline needs an `Arc<PricerRegistry>` so calculators
-            // can reprice through the same dispatch table. When `self` is the
-            // process-wide standard-registry singleton (the common case — e.g.
-            // `standard_registry().price_with_metrics(...)`), reuse its shared
-            // `Arc` instead of deep-cloning the 100+ pricer `BTreeMap`. Only a
-            // bespoke, non-singleton registry falls back to a clone.
-            let singleton = crate::pricer::shared_standard_registry();
-            let registry = if std::ptr::eq(singleton.as_ref(), self) {
-                singleton
-            } else {
-                Arc::new(self.clone())
-            };
+            // Both registries and markets are Arc-backed copy-on-write
+            // snapshots, so these clones are O(1) refcount increments.
             SharedPricingInputs {
-                registry: Some(registry),
+                registry: Some(Arc::new(self.clone())),
                 market: Some(Arc::new(market.clone())),
             }
         };
@@ -418,7 +426,10 @@ impl PricerRegistry {
         );
         let (lifecycle, pricer) = self.validated_pricer(instrument, model)?;
         let effective_as_of = lifecycle.effective_as_of(market, as_of);
-        let mut base_result = pricer.price_dyn(instrument, market, effective_as_of)?;
+        let err_ctx = PricingErrorContext::from_instrument(instrument).model(model);
+        let mut base_result = pricer
+            .price_dyn(instrument, market, effective_as_of)
+            .map_err(|error| error.with_fallback_context(err_ctx))?;
         // The lifecycle owns date resolution. A model may populate a richer
         // result envelope, but it must not replace the canonical valuation
         // date used by downstream metrics and host-language callers.
@@ -462,7 +473,10 @@ impl PricerRegistry {
     ) -> std::result::Result<f64, PricingError> {
         let (lifecycle, pricer) = self.validated_pricer(instrument, model)?;
         let effective_as_of = lifecycle.effective_as_of(market, as_of);
-        let base_value = pricer.price_raw_dyn(instrument, market, effective_as_of)?;
+        let err_ctx = PricingErrorContext::from_instrument(instrument).model(model);
+        let base_value = pricer
+            .price_raw_dyn(instrument, market, effective_as_of)
+            .map_err(|error| error.with_fallback_context(err_ctx))?;
         Ok(lifecycle.apply_raw_value(base_value))
     }
 }
@@ -488,14 +502,11 @@ fn stamp_results_meta(
     market: &finstack_quant_core::market_data::context::MarketContext,
     result: &mut crate::results::ValuationResult,
 ) {
-    let previous = result.meta.clone();
-    let mut meta = results_meta_now(cfg);
-    meta.fx_policy_applied = previous
+    let mut previous = result.meta.clone();
+    previous.fx_policy_applied = previous
         .fx_policy_applied
         .or_else(|| collect_fx_policy_from_curves(instrument, market));
-    meta.timestamp = previous.timestamp.or(meta.timestamp);
-    meta.version = previous.version.or(meta.version);
-    result.meta = meta;
+    result.meta = previous.overlay_request(results_meta_now(cfg));
 }
 
 /// Attach computed metrics without replacing the model-produced result envelope.
@@ -928,13 +939,15 @@ mod tests {
         let market = Market::new();
         let as_of = date!(2025 - 01 - 15);
         let mut registry = PricerRegistry::new();
-        registry.register(
-            InstrumentType::Bond,
-            ModelKey::Discounting,
-            CountingBondPricer {
-                calls: Arc::clone(&pricer_calls),
-            },
-        );
+        registry
+            .register(
+                InstrumentType::Bond,
+                ModelKey::Discounting,
+                CountingBondPricer {
+                    calls: Arc::clone(&pricer_calls),
+                },
+            )
+            .expect("unique test pricer registration");
 
         let registry_err = registry
             .price_with_metrics(
@@ -991,7 +1004,7 @@ mod tests {
             .expect_err("trait pricing request must fail validation");
         assert!(matches!(
             trait_err,
-            finstack_quant_core::Error::Validation(_)
+            crate::Error::Pricing(PricingError::InvalidInput { .. })
         ));
 
         let value_err = instrument
@@ -1043,13 +1056,11 @@ mod tests {
         };
         let market = Market::new();
         let mut registry = PricerRegistry::new();
-        registry.register(
+        registry.register(InstrumentType::Bond,
+        ModelKey::Discounting,
+        crate::instruments::common_impl::GenericInstrumentPricer::<RawLifecycleInstrument>::discounting(
             InstrumentType::Bond,
-            ModelKey::Discounting,
-            crate::instruments::common_impl::GenericInstrumentPricer::<RawLifecycleInstrument>::discounting(
-                InstrumentType::Bond,
-            ),
-        );
+        ),).expect("unique test pricer registration");
 
         let base_raw = instrument
             .base_value_raw(&market, effective_as_of)
@@ -1081,7 +1092,10 @@ mod tests {
             expected_money,
             crate::metrics::MetricContext::default_config(),
         );
-        metric_context.set_pricer_dispatch(Some(ModelKey::Discounting), Some(Arc::new(registry)));
+        metric_context.set_pricer_dispatch(PricingDispatch::registered(
+            ModelKey::Discounting,
+            Arc::new(registry),
+        ));
         let metric_reprice = metric_context
             .instrument_value_with_scenario(&market, requested_as_of)
             .expect("metric scenario lifecycle");
@@ -1110,7 +1124,9 @@ mod tests {
         let market =
             Market::new().insert(flat_discount_curve("USD-TREASURY", date!(2025 - 01 - 15)));
         let mut registry = PricerRegistry::new();
-        registry.register(InstrumentType::Bond, ModelKey::HazardRate, RichBondPricer);
+        registry
+            .register(InstrumentType::Bond, ModelKey::HazardRate, RichBondPricer)
+            .expect("unique test pricer registration");
         let mut cfg = FinstackConfig::default();
         cfg.rounding.output_scale.overrides.insert(Currency::USD, 4);
 
@@ -1265,6 +1281,7 @@ mod tests {
             .price_dyn(&bond, &market, as_of)
             .expect("synthetic pricer should price");
         result.meta.fx_policy_applied = Some("pricer::explicit_policy".to_string());
+        result.meta.parallel = true;
 
         stamp_results_meta(&FinstackConfig::default(), &bond, &market, &mut result);
 
@@ -1272,6 +1289,10 @@ mod tests {
             result.meta.fx_policy_applied.as_deref(),
             Some("pricer::explicit_policy"),
             "explicit pricer stamp must outrank curve-walking fallback"
+        );
+        assert!(
+            result.meta.parallel,
+            "pricer execution metadata must survive stamping"
         );
     }
 
@@ -1433,11 +1454,13 @@ mod tests {
             .expect("default pricing path should succeed");
 
         let mut registry = PricerRegistry::new();
-        registry.register(
-            InstrumentType::Bond,
-            ModelKey::Discounting,
-            FixedBondPricer { amount: 990.0 },
-        );
+        registry
+            .register(
+                InstrumentType::Bond,
+                ModelKey::Discounting,
+                FixedBondPricer { amount: 990.0 },
+            )
+            .expect("unique test pricer registration");
 
         let result = bond
             .price_with_metrics(
@@ -1486,17 +1509,21 @@ mod tests {
         let market = finstack_quant_core::market_data::context::MarketContext::new()
             .insert(flat_discount_curve("USD-TREASURY", as_of));
         let mut pricers = PricerRegistry::new();
-        pricers.register(
-            InstrumentType::Bond,
-            ModelKey::Discounting,
-            FixedBondPricer { amount: 990.0 },
-        );
+        pricers
+            .register(
+                InstrumentType::Bond,
+                ModelKey::Discounting,
+                FixedBondPricer { amount: 990.0 },
+            )
+            .expect("unique test pricer registration");
         let mut metrics = MetricRegistry::new();
-        metrics.register_metric(
-            MetricId::Dv01,
-            Arc::new(ConstantDv01),
-            &[InstrumentType::Bond],
-        );
+        metrics
+            .register_metric(
+                MetricId::Dv01,
+                Arc::new(ConstantDv01),
+                &[InstrumentType::Bond],
+            )
+            .expect("custom metric registration");
 
         let result = bond
             .price_with_metrics(
@@ -1534,11 +1561,13 @@ mod tests {
             .expect("default pricing path should succeed");
 
         let mut registry = PricerRegistry::new();
-        registry.register(
-            InstrumentType::Bond,
-            ModelKey::HazardRate,
-            FixedBondPricer { amount: 995.0 },
-        );
+        registry
+            .register(
+                InstrumentType::Bond,
+                ModelKey::HazardRate,
+                FixedBondPricer { amount: 995.0 },
+            )
+            .expect("unique test pricer registration");
 
         let result = bond
             .price_with_metrics(

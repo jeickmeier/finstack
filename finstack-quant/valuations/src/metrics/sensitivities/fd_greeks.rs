@@ -992,19 +992,21 @@ mod tests {
             as_of: Date,
             metrics: &[MetricId],
             options: crate::instruments::common_impl::traits::PricingOptions,
-        ) -> finstack_quant_core::Result<crate::results::ValuationResult> {
+        ) -> crate::Result<crate::results::ValuationResult> {
             let base_value = self.value(market, as_of)?;
-            crate::instruments::common_impl::helpers::build_with_metrics_dyn(
-                Arc::from(self.clone_box()),
-                Arc::new(market.clone()),
-                as_of,
-                base_value,
-                metrics,
-                crate::instruments::common_impl::helpers::MetricBuildOptions {
-                    cfg: options.config,
-                    market_history: options.market_history,
-                    ..crate::instruments::common_impl::helpers::MetricBuildOptions::default()
-                },
+            Ok(
+                crate::instruments::common_impl::helpers::build_with_metrics_dyn(
+                    Arc::from(self.clone_box()),
+                    Arc::new(market.clone()),
+                    as_of,
+                    base_value,
+                    metrics,
+                    crate::instruments::common_impl::helpers::MetricBuildOptions {
+                        cfg: options.config,
+                        market_history: options.market_history,
+                        ..crate::instruments::common_impl::helpers::MetricBuildOptions::default()
+                    },
+                )?,
             )
         }
     }
@@ -1080,19 +1082,21 @@ mod tests {
             as_of: Date,
             metrics: &[MetricId],
             options: crate::instruments::common_impl::traits::PricingOptions,
-        ) -> finstack_quant_core::Result<crate::results::ValuationResult> {
+        ) -> crate::Result<crate::results::ValuationResult> {
             let base_value = self.value(market, as_of)?;
-            crate::instruments::common_impl::helpers::build_with_metrics_dyn(
-                Arc::from(self.clone_box()),
-                Arc::new(market.clone()),
-                as_of,
-                base_value,
-                metrics,
-                crate::instruments::common_impl::helpers::MetricBuildOptions {
-                    cfg: options.config,
-                    market_history: options.market_history,
-                    ..crate::instruments::common_impl::helpers::MetricBuildOptions::default()
-                },
+            Ok(
+                crate::instruments::common_impl::helpers::build_with_metrics_dyn(
+                    Arc::from(self.clone_box()),
+                    Arc::new(market.clone()),
+                    as_of,
+                    base_value,
+                    metrics,
+                    crate::instruments::common_impl::helpers::MetricBuildOptions {
+                        cfg: options.config,
+                        market_history: options.market_history,
+                        ..crate::instruments::common_impl::helpers::MetricBuildOptions::default()
+                    },
+                )?,
             )
         }
     }
@@ -1106,16 +1110,20 @@ mod tests {
             + 'static,
     {
         let mut registry = MetricRegistry::new();
-        registry.register_metric(
-            MetricId::Delta,
-            Arc::new(GenericFdDelta::<I>::default()),
-            &[InstrumentType::Equity],
-        );
-        registry.register_metric(
-            MetricId::Gamma,
-            Arc::new(GenericFdGamma::<I>::default()),
-            &[InstrumentType::Equity],
-        );
+        registry
+            .register_metric(
+                MetricId::Delta,
+                Arc::new(GenericFdDelta::<I>::default()),
+                &[InstrumentType::Equity],
+            )
+            .expect("unique test metric registration");
+        registry
+            .register_metric(
+                MetricId::Gamma,
+                Arc::new(GenericFdGamma::<I>::default()),
+                &[InstrumentType::Equity],
+            )
+            .expect("unique test metric registration");
         registry
     }
 
@@ -1512,19 +1520,21 @@ mod tests {
             as_of: Date,
             metrics: &[MetricId],
             options: crate::instruments::common_impl::traits::PricingOptions,
-        ) -> finstack_quant_core::Result<crate::results::ValuationResult> {
+        ) -> crate::Result<crate::results::ValuationResult> {
             let base_value = self.value(market, as_of)?;
-            crate::instruments::common_impl::helpers::build_with_metrics_dyn(
-                Arc::from(self.clone_box()),
-                Arc::new(market.clone()),
-                as_of,
-                base_value,
-                metrics,
-                crate::instruments::common_impl::helpers::MetricBuildOptions {
-                    cfg: options.config,
-                    market_history: options.market_history,
-                    ..crate::instruments::common_impl::helpers::MetricBuildOptions::default()
-                },
+            Ok(
+                crate::instruments::common_impl::helpers::build_with_metrics_dyn(
+                    Arc::from(self.clone_box()),
+                    Arc::new(market.clone()),
+                    as_of,
+                    base_value,
+                    metrics,
+                    crate::instruments::common_impl::helpers::MetricBuildOptions {
+                        cfg: options.config,
+                        market_history: options.market_history,
+                        ..crate::instruments::common_impl::helpers::MetricBuildOptions::default()
+                    },
+                )?,
             )
         }
     }
@@ -1559,11 +1569,13 @@ mod tests {
 
         let base_value = inst.value(&market, as_of).expect("base pv");
         let mut registry = MetricRegistry::new();
-        registry.register_metric(
-            MetricId::Vega,
-            Arc::new(GenericFdVega::<VolLinearInstrument>::default()),
-            &[InstrumentType::Equity],
-        );
+        registry
+            .register_metric(
+                MetricId::Vega,
+                Arc::new(GenericFdVega::<VolLinearInstrument>::default()),
+                &[InstrumentType::Equity],
+            )
+            .expect("unique test metric registration");
         let mut ctx = MetricContext::new(
             Arc::new(inst),
             Arc::new(market),
@@ -1676,11 +1688,13 @@ mod tests {
 
         let base_value = inst.value(&market, as_of).expect("base pv");
         let mut registry = MetricRegistry::new();
-        registry.register_metric(
-            MetricId::Vega,
-            Arc::new(GenericFdVega::<VolLinearInstrument>::default()),
-            &[InstrumentType::Equity],
-        );
+        registry
+            .register_metric(
+                MetricId::Vega,
+                Arc::new(GenericFdVega::<VolLinearInstrument>::default()),
+                &[InstrumentType::Equity],
+            )
+            .expect("unique test metric registration");
         let mut ctx = MetricContext::new(
             Arc::new(inst),
             Arc::new(market),
@@ -1715,16 +1729,20 @@ mod tests {
             .insert_surface(flat_vol_surface("VOL-B", 0.30));
         let base_value = inst.value(&market, as_of).expect("base pv");
         let mut registry = MetricRegistry::new();
-        registry.register_metric(
-            MetricId::Vega,
-            Arc::new(GenericFdVega::<VolLinearInstrument>::default()),
-            &[InstrumentType::Equity],
-        );
-        registry.register_metric(
-            MetricId::Volga,
-            Arc::new(GenericFdVolga::<VolLinearInstrument>::default()),
-            &[InstrumentType::Equity],
-        );
+        registry
+            .register_metric(
+                MetricId::Vega,
+                Arc::new(GenericFdVega::<VolLinearInstrument>::default()),
+                &[InstrumentType::Equity],
+            )
+            .expect("unique test metric registration");
+        registry
+            .register_metric(
+                MetricId::Volga,
+                Arc::new(GenericFdVolga::<VolLinearInstrument>::default()),
+                &[InstrumentType::Equity],
+            )
+            .expect("unique test metric registration");
         let mut ctx = MetricContext::new(
             Arc::new(inst),
             Arc::new(market),
@@ -1760,11 +1778,13 @@ mod tests {
             .insert_surface(flat_vol_surface("VOL-B", 0.30));
         let base_value = inst.value(&market, as_of).expect("base pv");
         let mut registry = MetricRegistry::new();
-        registry.register_metric(
-            MetricId::Vanna,
-            Arc::new(GenericFdVanna::<VolLinearInstrument>::default()),
-            &[InstrumentType::Equity],
-        );
+        registry
+            .register_metric(
+                MetricId::Vanna,
+                Arc::new(GenericFdVanna::<VolLinearInstrument>::default()),
+                &[InstrumentType::Equity],
+            )
+            .expect("unique test metric registration");
         let mut ctx = MetricContext::new(
             Arc::new(inst),
             Arc::new(market),

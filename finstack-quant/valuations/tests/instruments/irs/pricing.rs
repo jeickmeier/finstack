@@ -415,7 +415,14 @@ fn test_irs_theta_calculation() {
     let as_of = dates::TODAY;
     let end = dates::five_years_hence();
 
-    let market = usd_swap_market(as_of, 0.05);
+    let market = usd_swap_market(as_of, 0.05).insert_series(
+        finstack_quant_core::market_data::scalars::ScalarTimeSeries::new(
+            "FIXING:USD-SOFR-3M",
+            vec![(as_of, 0.05)],
+            None,
+        )
+        .expect("fixing series"),
+    );
 
     let swap = test_utils::usd_irs_swap(
         "SWAP_THETA",

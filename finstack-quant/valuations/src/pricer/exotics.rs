@@ -7,7 +7,9 @@ use super::{register_generic, InstrumentType, ModelKey, PricerRegistry};
 
 /// Register pricers for exotic instruments (barriers, lookbacks, Asians,
 /// autocallables, quantos, cliquets, range accruals, Bermudan swaptions).
-pub(crate) fn register_exotic_pricers(registry: &mut PricerRegistry) {
+pub(crate) fn register_exotic_pricers(
+    registry: &mut PricerRegistry,
+) -> std::result::Result<(), crate::pricer::PricingError> {
     register_generic!(
         registry,
         InstrumentType::Composite,
@@ -26,17 +28,17 @@ pub(crate) fn register_exotic_pricers(registry: &mut PricerRegistry) {
         InstrumentType::AsianOption,
         ModelKey::MonteCarloGBM,
         crate::instruments::exotics::asian_option::pricer::AsianOptionMcPricer::default(),
-    );
+    )?;
     registry.register(
         InstrumentType::AsianOption,
         ModelKey::AsianGeometricBS,
         crate::instruments::exotics::asian_option::pricer::AsianOptionAnalyticalGeometricPricer,
-    );
+    )?;
     registry.register(
         InstrumentType::AsianOption,
         ModelKey::AsianTurnbullWakeman,
         crate::instruments::exotics::asian_option::pricer::AsianOptionSemiAnalyticalTwPricer,
-    );
+    )?;
 
     // Barrier Option
 
@@ -44,12 +46,12 @@ pub(crate) fn register_exotic_pricers(registry: &mut PricerRegistry) {
         InstrumentType::BarrierOption,
         ModelKey::MonteCarloGBM,
         crate::instruments::exotics::barrier_option::pricer::BarrierOptionMcPricer::default(),
-    );
+    )?;
     registry.register(
         InstrumentType::BarrierOption,
         ModelKey::BarrierBSContinuous,
         crate::instruments::exotics::barrier_option::pricer::BarrierOptionAnalyticalPricer,
-    );
+    )?;
 
     // Lookback Option
 
@@ -57,46 +59,46 @@ pub(crate) fn register_exotic_pricers(registry: &mut PricerRegistry) {
         InstrumentType::LookbackOption,
         ModelKey::MonteCarloGBM,
         crate::instruments::exotics::lookback_option::pricer::LookbackOptionMcPricer::default(),
-    );
+    )?;
     registry.register(
         InstrumentType::LookbackOption,
         ModelKey::LookbackBSContinuous,
         crate::instruments::exotics::lookback_option::pricer::LookbackOptionAnalyticalPricer,
-    );
+    )?;
 
     // Quanto Option
     registry.register(
         InstrumentType::QuantoOption,
         ModelKey::QuantoBS,
         crate::instruments::fx::quanto_option::pricer::QuantoOptionAnalyticalPricer,
-    );
+    )?;
 
     registry.register(
         InstrumentType::Autocallable,
         ModelKey::MonteCarloGBM,
         crate::instruments::equity::autocallable::pricer::AutocallableMcPricer::default(),
-    );
+    )?;
 
     // CMS Option
     registry.register(
         InstrumentType::CmsOption,
         ModelKey::Black76,
         crate::instruments::rates::cms_option::pricer::CmsOptionPricer::new(),
-    );
+    )?;
 
     // CMS Option - Static Replication (Andersen-Piterbarg)
     registry.register(
         InstrumentType::CmsOption,
         ModelKey::StaticReplication,
         crate::instruments::rates::cms_option::replication_pricer::CmsReplicationPricer::new(),
-    );
+    )?;
 
     // CMS Swap (first-order Hagan convexity — default)
     registry.register(
         InstrumentType::CmsSwap,
         ModelKey::Black76,
         crate::instruments::rates::cms_swap::pricer::CmsSwapPricer::new(),
-    );
+    )?;
 
     // CMS Swap - Static Replication (Andersen-Piterbarg; exact smile-aware
     // convexity, preferred for CMS tenors > 10Y or high-vol regimes)
@@ -104,14 +106,14 @@ pub(crate) fn register_exotic_pricers(registry: &mut PricerRegistry) {
         InstrumentType::CmsSwap,
         ModelKey::StaticReplication,
         crate::instruments::rates::cms_swap::pricer::CmsSwapReplicationPricer::new(),
-    );
+    )?;
 
     // CMS Spread Option - Gaussian copula with SABR marginals
     registry.register(
         InstrumentType::CmsSpreadOption,
         ModelKey::StaticReplication,
         crate::instruments::rates::cms_spread_option::CmsSpreadOptionPricer::new(),
-    );
+    )?;
 
     // Cliquet Option
 
@@ -119,7 +121,7 @@ pub(crate) fn register_exotic_pricers(registry: &mut PricerRegistry) {
         InstrumentType::CliquetOption,
         ModelKey::MonteCarloGBM,
         crate::instruments::equity::cliquet_option::pricer::CliquetOptionMcPricer::default(),
-    );
+    )?;
 
     // Range Accrual
 
@@ -127,37 +129,37 @@ pub(crate) fn register_exotic_pricers(registry: &mut PricerRegistry) {
         InstrumentType::RangeAccrual,
         ModelKey::StaticReplication,
         crate::instruments::exotics::range_accrual::pricer::RangeAccrualStaticReplicationPricer,
-    );
+    )?;
     registry.register(
         InstrumentType::RangeAccrual,
         ModelKey::MonteCarloGBM,
         crate::instruments::exotics::range_accrual::pricer::RangeAccrualMcPricer::default(),
-    );
+    )?;
 
     // TARN - Hull-White 1F Monte Carlo
     registry.register(
         InstrumentType::Tarn,
         ModelKey::MonteCarloHullWhite1F,
         crate::instruments::exotics::tarn::TarnPricer::default(),
-    );
+    )?;
 
     registry.register(
         InstrumentType::Snowball,
         ModelKey::MonteCarloHullWhite1F,
         crate::instruments::exotics::snowball::SnowballHw1fMcPricer::default(),
-    );
+    )?;
     registry.register(
         InstrumentType::Snowball,
         ModelKey::Discounting,
         crate::instruments::exotics::snowball::SnowballDiscountingPricer,
-    );
+    )?;
 
     // Callable Range Accrual - Hull-White 1F LSMC
     registry.register(
         InstrumentType::CallableRangeAccrual,
         ModelKey::MonteCarloHullWhite1F,
         crate::instruments::exotics::callable_range_accrual::CallableRangeAccrualPricer::default(),
-    );
+    )?;
 
     // Bermudan Swaption LSMC (Hull-White 1F Monte Carlo).
     //
@@ -178,7 +180,7 @@ pub(crate) fn register_exotic_pricers(registry: &mut PricerRegistry) {
                 ..Default::default()
             },
         ),
-    );
+    )?;
 
     // Bermudan Swaption - Hull-White 1F Tree. See note on the LSMC
     // registration above for the calibration-requirement rationale.
@@ -191,30 +193,26 @@ pub(crate) fn register_exotic_pricers(registry: &mut PricerRegistry) {
                 ..Default::default()
             },
         ),
-    );
+    )?;
 
     // Barrier Option - PDE Crank-Nicolson 1D
     registry.register(
         InstrumentType::BarrierOption,
         ModelKey::PdeCrankNicolson1D,
         crate::instruments::exotics::barrier_option::pde_pricer::BarrierOptionPdePricer::default(),
-    );
+    )?;
 
     // Barrier Option - Monte Carlo Heston
 
-    registry.register(
-        InstrumentType::BarrierOption,
-        ModelKey::MonteCarloHeston,
-        crate::instruments::exotics::barrier_option::heston_mc_pricer::BarrierOptionHestonMcPricer::default(),
-    );
+    registry.register(InstrumentType::BarrierOption,
+ModelKey::MonteCarloHeston,
+crate::instruments::exotics::barrier_option::heston_mc_pricer::BarrierOptionHestonMcPricer::default(),)?;
 
     // Asian Option - Monte Carlo Heston
 
-    registry.register(
-        InstrumentType::AsianOption,
-        ModelKey::MonteCarloHeston,
-        crate::instruments::exotics::asian_option::heston_mc_pricer::AsianOptionHestonMcPricer::default(),
-    );
+    registry.register(InstrumentType::AsianOption,
+ModelKey::MonteCarloHeston,
+crate::instruments::exotics::asian_option::heston_mc_pricer::AsianOptionHestonMcPricer::default(),)?;
 
     // Bermudan Swaption - LMM Monte Carlo.
     //
@@ -233,7 +231,7 @@ pub(crate) fn register_exotic_pricers(registry: &mut PricerRegistry) {
                 ..Default::default()
             },
         ),
-    );
+    )?;
 
     // Bermudan Swaption - Cheyette Rough Vol Monte Carlo.
     //
@@ -242,16 +240,15 @@ pub(crate) fn register_exotic_pricers(registry: &mut PricerRegistry) {
     // smile. Without calibration the resulting price is arbitrary. The guard
     // refuses pricing via the registry so callers are directed to a
     // calibrated model.
-    registry.register(
-        InstrumentType::BermudanSwaption,
-        ModelKey::MonteCarloCheyetteRoughVol,
-        crate::instruments::rates::swaption::cheyette_rough_pricer::BermudanSwaptionCheyetteRoughPricer::with_config(
-            crate::instruments::rates::swaption::cheyette_rough_pricer::CheyetteRoughConfig {
-                enforce_calibration: true,
-                ..Default::default()
-            },
-        ),
-    );
+    registry.register(InstrumentType::BermudanSwaption,
+ModelKey::MonteCarloCheyetteRoughVol,
+crate::instruments::rates::swaption::cheyette_rough_pricer::BermudanSwaptionCheyetteRoughPricer::with_config(
+    crate::instruments::rates::swaption::cheyette_rough_pricer::CheyetteRoughConfig {
+        enforce_calibration: true,
+        ..Default::default()
+    },
+),)?;
 
     // Exotic rate products require explicit stochastic or replication models.
+    Ok(())
 }

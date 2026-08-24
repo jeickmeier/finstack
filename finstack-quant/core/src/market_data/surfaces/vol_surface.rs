@@ -644,6 +644,45 @@ impl VolSurface {
         Ok(original)
     }
 
+    /// Add an absolute bump to one grid point in place.
+    ///
+    /// Coordinates map to the nearest clamped grid node. The updated
+    /// volatility is floored at zero, and the original value is returned for
+    /// reversal with [`Self::unbump_point_in_place`].
+    ///
+    /// # Arguments
+    ///
+    /// * `expiry` - Expiry in years used to select the nearest grid row.
+    /// * `strike` - Strike coordinate used to select the nearest grid column.
+    /// * `bump_abs` - Absolute volatility change in decimal units; `0.01` is
+    ///   one volatility point.
+    pub fn bump_point_absolute_in_place(
+        &mut self,
+        expiry: f64,
+        strike: f64,
+        bump_abs: f64,
+    ) -> crate::Result<f64> {
+        if !bump_abs.is_finite() {
+            return Err(crate::Error::Validation(format!(
+                "absolute volatility point bump must be finite, got {bump_abs}"
+            )));
+        }
+        let (Some(&exp_min), Some(&exp_max)) = (self.expiries.first(), self.expiries.last()) else {
+            return Err(crate::error::InputError::TooFewPoints.into());
+        };
+        let (Some(&str_min), Some(&str_max)) = (self.strikes.first(), self.strikes.last()) else {
+            return Err(crate::error::InputError::TooFewPoints.into());
+        };
+        let expiry_idx =
+            find_closest_grid_index(self.expiries.as_ref(), expiry.clamp(exp_min, exp_max));
+        let strike_idx =
+            find_closest_grid_index(self.strikes.as_ref(), strike.clamp(str_min, str_max));
+        let idx = expiry_idx * self.strikes.len() + strike_idx;
+        let original = self.vols[idx];
+        self.vols[idx] = (original + bump_abs).max(0.0);
+        Ok(original)
+    }
+
     /// Restore a grid point to a previously saved vol value.
     ///
     /// # Arguments

@@ -106,7 +106,9 @@ use crate::metrics::MetricRegistry;
 /// let mut registry = MetricRegistry::new();
 /// register_term_loan_metrics(&mut registry);
 /// ```
-pub(crate) fn register_term_loan_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_term_loan_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     crate::register_metrics! {
         registry: registry,
@@ -146,60 +148,61 @@ pub(crate) fn register_term_loan_metrics(registry: &mut MetricRegistry) {
     use crate::metrics::MetricId;
     use std::sync::Arc;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::custom("all_in_rate"),
         Arc::new(AllInRateCalculator),
         &[InstrumentType::TermLoan],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::custom("oid_eir_amortization"),
         Arc::new(OidEirAmortizationCalculator),
         &[InstrumentType::TermLoan],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::Ytm,
         Arc::new(YtmCalculator),
         &[InstrumentType::TermLoan],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::DiscountMargin,
         Arc::new(DiscountMarginCalculator),
         &[InstrumentType::TermLoan],
-    );
+    )?;
 
     // Callable-tree metrics
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Oas,
         Arc::new(OasCalculator),
         &[InstrumentType::TermLoan],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::EmbeddedOptionValue,
         Arc::new(EmbeddedOptionValueCalculator),
         &[InstrumentType::TermLoan],
-    );
+    )?;
 
     // Yield to first call (custom id: ytc)
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::custom("ytc"),
         Arc::new(YtcCalculator),
         &[InstrumentType::TermLoan],
-    );
+    )?;
 
     // Yields to fixed horizons
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::custom("yt2y"),
         Arc::new(Yt2yCalculator),
         &[InstrumentType::TermLoan],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::custom("yt3y"),
         Arc::new(Yt3yCalculator),
         &[InstrumentType::TermLoan],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::custom("yt4y"),
         Arc::new(Yt4yCalculator),
         &[InstrumentType::TermLoan],
-    );
+    )?;
+    Ok(())
 }

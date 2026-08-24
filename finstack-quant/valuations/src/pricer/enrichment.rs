@@ -82,8 +82,10 @@ pub(super) fn enrich(
                 hazard_recalibration_cache,
                 rate_recalibration_cache,
                 metric_registry,
-                pricing_model: Some(model),
-                pricer_registry: Some(pricer_registry),
+                pricing_dispatch: crate::pricer::PricingDispatch::registered(
+                    model,
+                    pricer_registry,
+                ),
             },
         )
         .map_err(|error| {
@@ -134,8 +136,10 @@ pub(super) fn enrich(
                 hazard_recalibration_cache,
                 rate_recalibration_cache,
                 metric_registry,
-                pricing_model: Some(model),
-                pricer_registry: Some(pricer_registry),
+                pricing_dispatch: crate::pricer::PricingDispatch::registered(
+                    model,
+                    pricer_registry,
+                ),
             },
         )
         .map_err(|error| {

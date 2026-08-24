@@ -11,7 +11,9 @@ use crate::metrics::{MetricId, MetricRegistry};
 use std::sync::Arc;
 
 /// Register quanto option metrics with the registry.
-pub(crate) fn register_quanto_option_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_quanto_option_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
 
     // Theta is registered universally in `metrics::standard_registry`.
@@ -36,20 +38,18 @@ pub(crate) fn register_quanto_option_metrics(registry: &mut MetricRegistry) {
     }
 
     // FX-specific and correlation metrics (custom MetricIds).
-    registry
-        .register_metric(
+    for (id, calculator) in [
+        (
             MetricId::FxDelta,
-            Arc::new(fx_delta::FxDeltaCalculator),
-            &[InstrumentType::QuantoOption],
-        )
-        .register_metric(
-            MetricId::FxVega,
-            Arc::new(fx_vega::FxVegaCalculator),
-            &[InstrumentType::QuantoOption],
-        )
-        .register_metric(
+            Arc::new(fx_delta::FxDeltaCalculator) as Arc<dyn crate::metrics::MetricCalculator>,
+        ),
+        (MetricId::FxVega, Arc::new(fx_vega::FxVegaCalculator)),
+        (
             MetricId::Correlation01,
             Arc::new(correlation01::Correlation01Calculator),
-            &[InstrumentType::QuantoOption],
-        );
+        ),
+    ] {
+        registry.replace_metric(id, calculator, &[InstrumentType::QuantoOption])?;
+    }
+    Ok(())
 }

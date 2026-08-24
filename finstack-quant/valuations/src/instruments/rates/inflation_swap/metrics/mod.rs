@@ -22,46 +22,46 @@ mod yoy_inflation01;
 use crate::metrics::MetricRegistry;
 
 /// Register all inflation swap metrics with the registry
-pub(crate) fn register_inflation_swap_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_inflation_swap_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::MetricId;
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
 
     // Custom metrics
-    registry
-        .register_metric(
+    for (id, calculator) in [
+        (
             MetricId::custom("breakeven"),
-            Arc::new(breakeven::BreakevenCalculator),
-            &[InstrumentType::InflationSwap],
-        )
-        .register_metric(
+            Arc::new(breakeven::BreakevenCalculator) as Arc<dyn crate::metrics::MetricCalculator>,
+        ),
+        (
             MetricId::custom("fixed_leg_pv"),
             Arc::new(fixed_leg_pv::FixedLegPvCalculator),
-            &[InstrumentType::InflationSwap],
-        )
-        .register_metric(
+        ),
+        (
             MetricId::custom("inflation_leg_pv"),
             Arc::new(inflation_leg_pv::InflationLegPvCalculator),
-            &[InstrumentType::InflationSwap],
-        )
-        .register_metric(
+        ),
+        (
             MetricId::Inflation01,
             Arc::new(inflation01::Inflation01Calculator),
-            &[InstrumentType::InflationSwap],
-        )
-        .register_metric(
+        ),
+        (
             MetricId::InflationConvexity,
             Arc::new(inflation_convexity::InflationConvexityCalculator),
-            &[InstrumentType::InflationSwap],
-        );
+        ),
+    ] {
+        registry.replace_metric(id, calculator, &[InstrumentType::InflationSwap])?;
+    }
     // Note: `Npv01` is intentionally NOT registered — it was an exact
     // duplicate of `Dv01` (same `parallel_combined` config). Use `Dv01`.
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Inflation01,
         Arc::new(yoy_inflation01::YoYInflation01Calculator),
         &[InstrumentType::YoYInflationSwap],
-    );
+    )?;
 
     // Standard metrics using macro
     crate::register_metrics! {
@@ -90,4 +90,5 @@ pub(crate) fn register_inflation_swap_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     }
+    Ok(())
 }

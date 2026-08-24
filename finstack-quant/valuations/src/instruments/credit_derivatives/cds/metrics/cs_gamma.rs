@@ -93,7 +93,9 @@ impl MetricCalculator for CsGammaCalculator {
         {
             let hazard = original_curves.get_hazard(hazard_id.as_str())?;
             if let Some(quote_hazard) = super::hazard_with_deal_quote(cds, hazard.as_ref())? {
-                context.curves = Arc::new(original_curves.as_ref().clone().insert(quote_hazard));
+                context.set_market(Arc::new(
+                    original_curves.as_ref().clone().insert(quote_hazard),
+                ));
             }
         }
 
@@ -183,7 +185,7 @@ impl MetricCalculator for CsGammaCalculator {
             Ok(cs_gamma)
         })();
 
-        context.curves = original_curves;
+        context.set_market(original_curves);
         result
     }
 }

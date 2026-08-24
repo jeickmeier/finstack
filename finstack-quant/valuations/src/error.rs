@@ -8,10 +8,9 @@
 //!
 //! ```text
 //! valuations::Error
-//! ├── Core(finstack_quant_core::Error)         ← propagated core errors
-//! ├── Pricing(PricingError)              ← pricer registry, model failures
-//! ├── Correlation(correlation::Error)    ← factor model validation
-//! └── WaterfallValidation(ValidationError) ← structured credit waterfall
+//! ├── Core(finstack_quant_core::Error)      ← propagated core errors
+//! ├── Pricing(PricingError)                 ← pricer registry, model failures
+//! └── Correlation(correlation::Error)       ← factor model validation
 //! ```
 //!
 //! All variants convert one-way into [`finstack_quant_core::Error`] via [`From`] for
@@ -22,11 +21,9 @@
 //! [`crate::pricer::PricingError::from_core`].
 //!
 //! # Naming Convention
-//!
-//! Sub-errors use `{Domain}Error` prefixes (`PricingError`,
-//! `ValidationError`) so they can be imported
-//! alongside `finstack_quant_core::Error` without ambiguity. The unified wrapper
-//! is re-exported at crate root as `Error` (matching the standard convention).
+//! Sub-errors use domain prefixes such as [`PricingError`] so they can be
+//! imported alongside [`finstack_quant_core::Error`] without ambiguity. The
+//! unified wrapper is re-exported at crate root as `Error`.
 //!
 //! # Module Layout Convention
 //!
@@ -36,13 +33,12 @@
 //!   its own rich error hierarchy with multiple enums and helper logic
 //!   (e.g., `finstack_quant_core::error` has `Error`, `InputError`, suggestions).
 //! - **`error.rs`** (flat file): Use for re-export facades that aggregate errors
-//!   defined elsewhere in the crate (this module re-exports `PricingError`,
-//!   `ValidationError` from their source modules).
+//!   defined at stable crate boundaries.
 //!
 //! # Examples
 //!
 //! ```
-//! use finstack_quant_valuations::error::{Error, PricingError, ValidationError};
+//! use finstack_quant_valuations::error::{Error, PricingError};
 //! use finstack_quant_valuations::pricer::InstrumentType;
 //!
 //! // Domain errors automatically wrap into the unified type
@@ -55,7 +51,6 @@
 //! let core_err: finstack_quant_core::Error = pricing_err.into();
 //! ```
 
-pub use crate::instruments::fixed_income::structured_credit::utils::validation::ValidationError;
 pub use crate::pricer::{PricingError, PricingErrorContext};
 
 /// Unified error type for the valuations crate.
@@ -84,10 +79,6 @@ pub enum Error {
     /// Correlation matrix validation error (factor model).
     #[error(transparent)]
     Correlation(#[from] crate::correlation::Error),
-
-    /// Structured credit waterfall validation error.
-    #[error(transparent)]
-    WaterfallValidation(#[from] ValidationError),
 }
 
 /// Convenience result type used throughout the valuations crate.
@@ -100,14 +91,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// | `Core(e)`                 | Pass-through                    |
 /// | `Pricing(e)`              | Delegates to `From<PricingError>`|
 /// | `Correlation(e)`          | `Validation(e.to_string())`     |
-/// | `WaterfallValidation(e)`  | `Validation(e.to_string())`     |
 impl From<Error> for finstack_quant_core::Error {
     fn from(err: Error) -> Self {
         match err {
             Error::Core(e) => e,
             Error::Pricing(e) => e.into(),
             Error::Correlation(e) => finstack_quant_core::Error::Validation(e.to_string()),
-            Error::WaterfallValidation(e) => finstack_quant_core::Error::Validation(e.to_string()),
         }
     }
 }
@@ -177,18 +166,6 @@ mod tests {
     }
 
     #[test]
-    fn validation_error_wraps_into_unified() {
-        let val = ValidationError::DuplicateTierId {
-            tier_id: "A".into(),
-        };
-        let unified: Error = val.into();
-        assert!(matches!(
-            unified,
-            Error::WaterfallValidation(ValidationError::DuplicateTierId { .. })
-        ));
-    }
-
-    #[test]
     fn unified_converts_to_core_error() {
         // Pricing -> core
         let pricing = PricingError::model_failure_with_context(
@@ -208,16 +185,6 @@ mod tests {
             diff: 0.01,
         };
         let core_err: finstack_quant_core::Error = Error::Correlation(corr).into();
-        assert!(matches!(
-            core_err,
-            finstack_quant_core::Error::Validation(_)
-        ));
-
-        // Validation -> core
-        let val = ValidationError::EmptyTier {
-            tier_id: "B".into(),
-        };
-        let core_err: finstack_quant_core::Error = Error::WaterfallValidation(val).into();
         assert!(matches!(
             core_err,
             finstack_quant_core::Error::Validation(_)

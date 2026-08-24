@@ -28,7 +28,7 @@ macro_rules! register_metrics {
                 MetricId::$metric_id,
                 Arc::new($calculator),
                 &[$instrument],
-            );
+            )?;
         )*
     }};
 }
@@ -47,7 +47,8 @@ mod tests {
     }
 
     #[test]
-    fn test_register_metrics_macro() {
+    fn test_register_metrics_macro() -> std::result::Result<(), crate::metrics::MetricRegistryError>
+    {
         let mut registry = MetricRegistry::new();
 
         register_metrics! {
@@ -59,8 +60,8 @@ mod tests {
             ]
         }
 
-        // Verify metrics were registered (basic smoke test)
         assert!(registry.is_applicable(&MetricId::Accrued, InstrumentType::Bond));
         assert!(registry.is_applicable(&MetricId::Ytm, InstrumentType::Bond));
+        Ok(())
     }
 }

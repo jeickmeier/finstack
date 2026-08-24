@@ -20,7 +20,9 @@ use crate::pricer::InstrumentType;
 use std::sync::Arc;
 
 /// Register commodity option metrics with the registry.
-pub(crate) fn register_commodity_option_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_commodity_option_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     crate::register_metrics! {
         registry: registry,
         instrument: InstrumentType::CommodityOption,
@@ -34,7 +36,7 @@ pub(crate) fn register_commodity_option_metrics(registry: &mut MetricRegistry) {
         ]
     }
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Dv01,
         Arc::new(crate::metrics::UnifiedDv01Calculator::<
             crate::instruments::CommodityOption,
@@ -42,8 +44,8 @@ pub(crate) fn register_commodity_option_metrics(registry: &mut MetricRegistry) {
             crate::metrics::Dv01CalculatorConfig::parallel_combined()
         )),
         &[InstrumentType::CommodityOption],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::BucketedDv01,
         Arc::new(crate::metrics::UnifiedDv01Calculator::<
             crate::instruments::CommodityOption,
@@ -51,5 +53,6 @@ pub(crate) fn register_commodity_option_metrics(registry: &mut MetricRegistry) {
             crate::metrics::Dv01CalculatorConfig::triangular_key_rate(),
         )),
         &[InstrumentType::CommodityOption],
-    );
+    )?;
+    Ok(())
 }

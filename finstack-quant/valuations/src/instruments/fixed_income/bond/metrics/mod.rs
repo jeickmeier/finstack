@@ -164,16 +164,18 @@ pub(crate) fn quoted_workout_path(
 /// use finstack_quant_valuations::metrics::MetricRegistry;
 ///
 /// let mut registry = MetricRegistry::new();
-/// register_bond_metrics(&mut registry);
+/// register_bond_metrics(&mut registry)?;
 /// ```
-pub(crate) fn register_bond_metrics(registry: &mut crate::metrics::MetricRegistry) {
+pub(crate) fn register_bond_metrics(
+    registry: &mut crate::metrics::MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::{
         make_credit_bumper, make_rates_bumper, CrossFactorCalculator, CrossFactorPair, MetricId,
     };
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::CrossGammaRatesCredit,
         Arc::new(CrossFactorCalculator::new(
             CrossFactorPair::RatesCredit,
@@ -181,7 +183,7 @@ pub(crate) fn register_bond_metrics(registry: &mut crate::metrics::MetricRegistr
             make_credit_bumper,
         )),
         &[InstrumentType::Bond],
-    );
+    )?;
 
     crate::register_metrics! {
         registry: registry,
@@ -229,4 +231,5 @@ pub(crate) fn register_bond_metrics(registry: &mut crate::metrics::MetricRegistr
 
         ]
     };
+    Ok(())
 }

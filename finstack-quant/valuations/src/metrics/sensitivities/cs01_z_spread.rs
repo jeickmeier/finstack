@@ -446,7 +446,7 @@ fn active_model_consumes_credit<I: Instrument + ?Sized>(
 ) -> bool {
     let model = context
         .clone_pricer_dispatch()
-        .0
+        .model()
         .unwrap_or_else(|| instrument.default_model());
     matches!(model, ModelKey::Tree | ModelKey::HazardRate)
 }

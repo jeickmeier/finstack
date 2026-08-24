@@ -8,7 +8,9 @@ use super::{register_generic, InstrumentType, ModelKey, PricerRegistry};
 
 /// Register pricers for additional fixed-income instruments (convertibles, MBS,
 /// revolving credit, term loans) not included in the minimal rates set.
-pub(crate) fn register_fixed_income_pricers(registry: &mut PricerRegistry) {
+pub(crate) fn register_fixed_income_pricers(
+    registry: &mut PricerRegistry,
+) -> std::result::Result<(), crate::pricer::PricingError> {
     // FI Index TRS
     register_generic!(
         registry,
@@ -21,7 +23,7 @@ pub(crate) fn register_fixed_income_pricers(registry: &mut PricerRegistry) {
         InstrumentType::Convertible,
         ModelKey::Discounting,
         crate::instruments::fixed_income::convertible::pricer::ConvertibleTreePricer,
-    );
+    )?;
 
     // Inflation Linked Bond
     register_generic!(
@@ -37,7 +39,7 @@ pub(crate) fn register_fixed_income_pricers(registry: &mut PricerRegistry) {
         crate::instruments::fixed_income::revolving_credit::pricer::RevolvingCreditPricer::new(
             ModelKey::Discounting,
         ),
-    );
+    )?;
 
     registry.register(
         InstrumentType::RevolvingCredit,
@@ -45,19 +47,19 @@ pub(crate) fn register_fixed_income_pricers(registry: &mut PricerRegistry) {
         crate::instruments::fixed_income::revolving_credit::pricer::RevolvingCreditPricer::new(
             ModelKey::MonteCarloGBM,
         ),
-    );
+    )?;
 
     // Term Loan (including DDTL)
     registry.register(
         InstrumentType::TermLoan,
         ModelKey::Discounting,
         crate::instruments::fixed_income::term_loan::pricing::TermLoanDiscountingPricer,
-    );
+    )?;
     registry.register(
         InstrumentType::TermLoan,
         ModelKey::Tree,
         crate::instruments::fixed_income::term_loan::pricing::TermLoanTreePricer::default(),
-    );
+    )?;
 
     // Agency MBS Passthrough — uses Instrument::base_value via GenericInstrumentPricer.
     // Per-instrument *DiscountingPricer wrappers were trivial pass-throughs with no
@@ -90,4 +92,5 @@ pub(crate) fn register_fixed_income_pricers(registry: &mut PricerRegistry) {
         InstrumentType::AgencyCmo,
         crate::instruments::fixed_income::cmo::AgencyCmo
     );
+    Ok(())
 }

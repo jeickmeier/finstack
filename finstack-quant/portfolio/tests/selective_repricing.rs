@@ -680,7 +680,7 @@ impl Instrument for DependencyProbeInstrument {
         as_of: Date,
         metrics: &[MetricId],
         options: PricingOptions,
-    ) -> finstack_quant_core::Result<ValuationResult> {
+    ) -> finstack_quant_valuations::Result<ValuationResult> {
         if metrics.is_empty() {
             self.pv_only_calls.fetch_add(1, Ordering::SeqCst);
         } else {

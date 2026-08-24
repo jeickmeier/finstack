@@ -594,13 +594,14 @@ mod tests {
             as_of: Date,
             _metrics: &[MetricId],
             options: PricingOptions,
-        ) -> finstack_quant_core::Result<ValuationResult> {
+        ) -> finstack_quant_valuations::Result<ValuationResult> {
             self.metric_calls.fetch_add(1, Ordering::SeqCst);
             if self.metrics_fail {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "metric failure for {}",
                     self.id
-                )));
+                ))
+                .into());
             }
             let config = options.config.ok_or_else(|| {
                 finstack_quant_core::Error::Validation("missing config".to_string())

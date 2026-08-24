@@ -113,7 +113,7 @@ impl Instrument for ProbedInstrument {
         as_of: Date,
         metrics: &[MetricId],
         options: PricingOptions,
-    ) -> finstack_quant_core::Result<ValuationResult> {
+    ) -> finstack_quant_valuations::Result<ValuationResult> {
         if metrics.is_empty() {
             self.probe.pv_only_calls.fetch_add(1, Ordering::SeqCst);
         } else {
@@ -134,7 +134,8 @@ impl Instrument for ProbedInstrument {
                 "configured {} failure for {}",
                 if metrics.is_empty() { "PV" } else { "metric" },
                 self.id
-            )));
+            ))
+            .into());
         }
         let config = options.config.as_deref().ok_or_else(|| {
             finstack_quant_core::Error::Validation(

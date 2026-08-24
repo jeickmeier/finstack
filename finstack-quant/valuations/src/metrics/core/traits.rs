@@ -9,7 +9,7 @@ use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::fixed_income::structured_credit::TrancheCashflows;
 use crate::metrics::risk::MarketHistory;
 use crate::metrics::MetricId;
-use crate::pricer::{ModelKey, PricerRegistry};
+use crate::pricer::PricingDispatch;
 use finstack_quant_core::cashflow::CashFlow;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -129,6 +129,35 @@ impl Structured2D {
     }
 }
 
+/// Immutable inputs shared by every calculator in one metric request.
+pub struct MetricPricingInputs {
+    /// Instrument being valued.
+    pub instrument: Arc<dyn Instrument>,
+    /// Immutable market snapshot.
+    pub curves: Arc<MarketContext>,
+    /// Optional historical scenarios used by historical risk metrics.
+    market_history: Option<Arc<MarketHistory>>,
+    /// Pricing path reused for every revaluation.
+    pricing_dispatch: PricingDispatch,
+    /// Valuation date.
+    pub as_of: Date,
+    /// Base present value.
+    pub base_value: Money,
+    /// Instrument-owned pricing overrides.
+    instrument_overrides: Option<crate::instruments::InstrumentPricingOverrides>,
+    /// Metric-only risk overrides.
+    metric_overrides: Option<crate::instruments::MetricPricingOverrides>,
+    /// Shared numerical and reporting configuration.
+    finstack_config: Arc<FinstackConfig>,
+}
+
+#[derive(Default)]
+struct RiskRebuildWorkspace {
+    hazard_recalibration_cache:
+        Option<Arc<crate::calibration::bumps::hazard::HazardRecalibrationCache>>,
+    rate_recalibration_cache: Option<Arc<crate::calibration::bumps::rates::RateRecalibrationCache>>,
+}
+
 /// Context containing all data needed for metric calculations.
 ///
 /// Provides access to the instrument, market data, base valuation,
@@ -143,42 +172,15 @@ impl Structured2D {
 /// - **Cashflow caching**: Optional caching of instrument cashflows
 /// - **Metadata**: Discount curve ID and day count convention
 pub struct MetricContext {
-    /// The instrument being valued.
-    pub instrument: Arc<dyn Instrument>,
+    /// Immutable pricing inputs. Field access remains available through
+    /// [`Deref`](std::ops::Deref), while mutation is restricted to setup methods.
+    inputs: MetricPricingInputs,
 
-    /// Market curves for discounting and forwarding.
-    pub curves: Arc<MarketContext>,
-
-    /// Reusable scratch copy of [`Self::curves`] for finite-difference bump/reprice metrics.
-    ///
-    /// A metric set shares one [`MetricContext`], so this cache avoids cloning
-    /// the full market container separately for each Greek/DV01 calculator.
+    /// Reusable mutable market snapshot for finite-difference calculations.
     market_scratch: Option<MarketContext>,
 
-    /// Batch-local hazard recalibrations shared across position metric contexts.
-    hazard_recalibration_cache:
-        Option<Arc<crate::calibration::bumps::hazard::HazardRecalibrationCache>>,
-
-    /// Batch-local rate recalibrations shared across position metric contexts.
-    rate_recalibration_cache: Option<Arc<crate::calibration::bumps::rates::RateRecalibrationCache>>,
-
-    /// Optional market history for historical scenario revaluation (e.g., Historical VaR).
-    ///
-    /// This is intentionally **not** stored inside `finstack_quant_core::MarketContext` to keep
-    /// the core market container strongly typed and fully serializable.
-    market_history: Option<Arc<MarketHistory>>,
-
-    /// Pricing model to reuse for bump-and-reprice metrics.
-    pricing_model: Option<ModelKey>,
-
-    /// Pricer registry to reuse for bump-and-reprice metrics.
-    pricer_registry: Option<Arc<PricerRegistry>>,
-
-    /// Valuation date.
-    pub as_of: Date,
-
-    /// Base present value of the instrument.
-    pub base_value: Money,
+    /// Quote-rebuild and recalibration caches behind the risk boundary.
+    risk_rebuild: RiskRebuildWorkspace,
 
     /// Previously computed metrics (by ID).
     pub computed: finstack_quant_core::HashMap<MetricId, f64>,
@@ -229,18 +231,14 @@ pub struct MetricContext {
     /// For bonds: face amount. For other instruments: principal amount.
     /// Used by price calculators to avoid instrument downcasts.
     pub notional: Option<Money>,
+}
 
-    /// Optional instrument-owned pricing inputs needed by specific metrics.
-    instrument_overrides: Option<crate::instruments::InstrumentPricingOverrides>,
+impl std::ops::Deref for MetricContext {
+    type Target = MetricPricingInputs;
 
-    /// Optional metric-only overrides to control risk calculations (e.g., bumps, theta horizon).
-    metric_overrides: Option<crate::instruments::MetricPricingOverrides>,
-
-    /// Finstack configuration (tolerances + versioned extensions).
-    ///
-    /// This is used by metric calculators to resolve user-facing defaults
-    /// (e.g., risk bump sizes) and to keep results reproducible.
-    finstack_config: Arc<FinstackConfig>,
+    fn deref(&self) -> &Self::Target {
+        &self.inputs
+    }
 }
 
 impl MetricContext {
@@ -268,16 +266,19 @@ impl MetricContext {
         finstack_config: Arc<FinstackConfig>,
     ) -> Self {
         Self {
-            instrument,
-            curves,
+            inputs: MetricPricingInputs {
+                instrument,
+                curves,
+                market_history: None,
+                pricing_dispatch: PricingDispatch::InstrumentDefault,
+                as_of,
+                base_value,
+                instrument_overrides: None,
+                metric_overrides: None,
+                finstack_config,
+            },
             market_scratch: None,
-            hazard_recalibration_cache: None,
-            rate_recalibration_cache: None,
-            market_history: None,
-            pricing_model: None,
-            pricer_registry: None,
-            as_of,
-            base_value,
+            risk_rebuild: RiskRebuildWorkspace::default(),
             computed: finstack_quant_core::HashMap::default(),
             computed_series: finstack_quant_core::HashMap::default(),
             computed_matrix: finstack_quant_core::HashMap::default(),
@@ -288,9 +289,6 @@ impl MetricContext {
             discount_curve_id: None,
             day_count: None,
             notional: None,
-            instrument_overrides: None,
-            metric_overrides: None,
-            finstack_config,
         }
     }
 
@@ -367,7 +365,7 @@ impl MetricContext {
         &mut self,
         cache: Option<Arc<crate::calibration::bumps::hazard::HazardRecalibrationCache>>,
     ) {
-        self.hazard_recalibration_cache = cache;
+        self.risk_rebuild.hazard_recalibration_cache = cache;
     }
 
     /// Attach the batch-local rate recalibration cache.
@@ -375,7 +373,7 @@ impl MetricContext {
         &mut self,
         cache: Option<Arc<crate::calibration::bumps::rates::RateRecalibrationCache>>,
     ) {
-        self.rate_recalibration_cache = cache;
+        self.risk_rebuild.rate_recalibration_cache = cache;
     }
 
     /// Recalibrate linked discount and forward curves, reusing a batch result.
@@ -386,7 +384,7 @@ impl MetricContext {
         bump_bp: f64,
     ) -> finstack_quant_core::Result<Arc<MarketContext>> {
         crate::calibration::bumps::rates::bump_market_via_rate_quote_shock_cached(
-            self.rate_recalibration_cache.as_deref(),
+            self.risk_rebuild.rate_recalibration_cache.as_deref(),
             self.curves.as_ref(),
             discount_curve_id,
             forward_curve_id,
@@ -401,7 +399,7 @@ impl MetricContext {
         bump_bp: f64,
     ) -> finstack_quant_core::Result<Arc<MarketContext>> {
         crate::calibration::bumps::rates::bump_single_ois_market_via_rate_quote_shock_cached(
-            self.rate_recalibration_cache.as_deref(),
+            self.risk_rebuild.rate_recalibration_cache.as_deref(),
             self.curves.as_ref(),
             curve_id,
             bump_bp,
@@ -418,7 +416,7 @@ impl MetricContext {
         Arc<finstack_quant_core::market_data::term_structures::DiscountCurve>,
     > {
         crate::calibration::bumps::rates::bump_discount_curve_from_rate_calibration_cached(
-            self.rate_recalibration_cache.as_deref(),
+            self.risk_rebuild.rate_recalibration_cache.as_deref(),
             curve,
             calibration,
             self.curves.as_ref(),
@@ -441,7 +439,7 @@ impl MetricContext {
         Arc<finstack_quant_core::market_data::term_structures::HazardCurve>,
     > {
         crate::calibration::bumps::hazard::bump_hazard_spreads_cached(
-            self.hazard_recalibration_cache.as_deref(),
+            self.risk_rebuild.hazard_recalibration_cache.as_deref(),
             hazard,
             market,
             bump,
@@ -451,26 +449,21 @@ impl MetricContext {
         )
     }
 
-    /// Clones the pricing dispatch pair (model + registry) for use in sub-contexts.
+    /// Clone the pricing dispatch for use in sub-contexts.
     #[inline]
-    pub(crate) fn clone_pricer_dispatch(&self) -> (Option<ModelKey>, Option<Arc<PricerRegistry>>) {
-        (self.pricing_model, self.pricer_registry.clone())
+    pub(crate) fn clone_pricer_dispatch(&self) -> PricingDispatch {
+        self.pricing_dispatch.clone()
     }
 
     /// Attach market history to this context (used by Historical VaR metrics).
     pub fn with_market_history(mut self, history: Arc<MarketHistory>) -> Self {
-        self.market_history = Some(history);
+        self.inputs.market_history = Some(history);
         self
     }
 
-    /// Reuse a specific pricer registry/model pair for metric repricing.
-    pub fn set_pricer_dispatch(
-        &mut self,
-        pricing_model: Option<ModelKey>,
-        pricer_registry: Option<Arc<PricerRegistry>>,
-    ) {
-        self.pricing_model = pricing_model;
-        self.pricer_registry = pricer_registry;
+    /// Set the pricing path reused by every downstream repricing operation.
+    pub fn set_pricer_dispatch(&mut self, dispatch: PricingDispatch) {
+        self.inputs.pricing_dispatch = dispatch;
     }
 
     /// Set instrument-owned pricing inputs used by downstream calculators.
@@ -478,7 +471,7 @@ impl MetricContext {
         &mut self,
         overrides: Option<crate::instruments::InstrumentPricingOverrides>,
     ) {
-        self.instrument_overrides = overrides;
+        self.inputs.instrument_overrides = overrides;
     }
 
     /// Set metric-only overrides used by downstream calculators.
@@ -486,7 +479,24 @@ impl MetricContext {
         &mut self,
         overrides: Option<crate::instruments::MetricPricingOverrides>,
     ) {
-        self.metric_overrides = overrides;
+        self.inputs.metric_overrides = overrides;
+    }
+
+    /// Temporarily replace the immutable market snapshot during a scoped risk calculation.
+    pub(crate) fn set_market(&mut self, market: Arc<MarketContext>) {
+        self.inputs.curves = market;
+        self.market_scratch = None;
+    }
+
+    /// Temporarily replace the instrument view during a scoped metric calculation.
+    pub(crate) fn set_instrument(&mut self, instrument: Arc<dyn Instrument>) {
+        self.inputs.instrument = instrument;
+    }
+
+    /// Replace the request's base value during test or nested metric setup.
+    #[cfg(test)]
+    pub(crate) fn set_base_value(&mut self, base_value: Money) {
+        self.inputs.base_value = base_value;
     }
 
     /// Value the instrument through the active canonical dispatch path.
@@ -523,20 +533,23 @@ impl MetricContext {
         market: &finstack_quant_core::market_data::context::MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<Money> {
-        if let (Some(model), Some(registry)) = (self.pricing_model, self.pricer_registry.as_ref()) {
-            let options = crate::instruments::PricingOptions::default().with_config(self.config());
-            return Ok(crate::pricer::PricerRegistry::price_with_metrics_shared(
-                registry,
-                instrument,
-                model,
-                market,
-                as_of,
-                &[],
-                options,
-            )?
-            .value);
+        match &self.pricing_dispatch {
+            PricingDispatch::Registered { model, registry } => {
+                let options =
+                    crate::instruments::PricingOptions::default().with_config(self.config());
+                Ok(crate::pricer::PricerRegistry::price_with_metrics_shared(
+                    registry,
+                    instrument,
+                    *model,
+                    market,
+                    as_of,
+                    &[],
+                    options,
+                )?
+                .value)
+            }
+            PricingDispatch::InstrumentDefault => instrument.value(market, as_of),
         }
-        instrument.value(market, as_of)
     }
 
     /// Reprice an arbitrary instrument as a raw amount using the active dispatch path.
@@ -546,12 +559,12 @@ impl MetricContext {
         market: &finstack_quant_core::market_data::context::MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<f64> {
-        if let (Some(model), Some(registry)) = (self.pricing_model, self.pricer_registry.as_ref()) {
-            return registry
-                .price_raw(instrument, model, market, as_of)
-                .map_err(Into::into);
+        match &self.pricing_dispatch {
+            PricingDispatch::Registered { model, registry } => registry
+                .price_raw(instrument, *model, market, as_of)
+                .map_err(Into::into),
+            PricingDispatch::InstrumentDefault => instrument.value_raw(market, as_of),
         }
-        instrument.value_raw(market, as_of)
     }
 
     /// Return the instrument's signed canonical cashflows, computing and

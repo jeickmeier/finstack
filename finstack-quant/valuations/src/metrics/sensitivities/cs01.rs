@@ -812,15 +812,13 @@ fn cs01_reval(
     context: &MetricContext,
 ) -> impl FnMut(&MarketContext) -> finstack_quant_core::Result<f64> {
     let inst_arc = Arc::clone(&context.instrument);
-    let (model, registry) = context.clone_pricer_dispatch();
+    let dispatch = context.clone_pricer_dispatch();
     let as_of = context.as_of;
-    move |temp_ctx: &MarketContext| {
-        if let (Some(model), Some(registry)) = (model, registry.as_ref()) {
-            return registry
-                .price_raw(inst_arc.as_ref(), model, temp_ctx, as_of)
-                .map_err(Into::into);
-        }
-        inst_arc.value_raw(temp_ctx, as_of)
+    move |temp_ctx: &MarketContext| match &dispatch {
+        crate::pricer::PricingDispatch::Registered { model, registry } => registry
+            .price_raw(inst_arc.as_ref(), *model, temp_ctx, as_of)
+            .map_err(Into::into),
+        crate::pricer::PricingDispatch::InstrumentDefault => inst_arc.value_raw(temp_ctx, as_of),
     }
 }
 
@@ -872,7 +870,7 @@ where
             &hazard_id,
             context.as_of,
         )? {
-            context.curves = Arc::new(override_ctx);
+            context.set_market(Arc::new(override_ctx));
         }
 
         // Resolve the discount curve from whatever context is now active.
@@ -899,7 +897,7 @@ where
             Some(valuation_convention),
             reval,
         );
-        context.curves = original_curves;
+        context.set_market(original_curves);
         let cs01 = cs01_result?;
 
         context.computed.insert(
@@ -956,7 +954,7 @@ where
             &hazard_id,
             context.as_of,
         )? {
-            context.curves = Arc::new(override_ctx);
+            context.set_market(Arc::new(override_ctx));
         }
 
         let discount_id = context
@@ -1019,7 +1017,7 @@ where
                 reval,
             )
         };
-        context.curves = original_curves;
+        context.set_market(original_curves);
         bucketed_result
     }
 }

@@ -104,7 +104,7 @@ pub fn create_market_context_with_params(spot: f64, vol: f64, div_yield: f64) ->
     // Create flat discount curve at ~3% (df = e^(-0.03*t))
     let discount_curve = DiscountCurve::builder("USD-OIS")
         .base_date(base_date)
-        .knots([(0.0, 1.0), (10.0, 0.741)]) // e^(-0.03*10) = 0.741
+        .knots([(0.0, 1.0), (1.0, 0.9741), (10.0, 0.741)])
         .interp(InterpStyle::Linear)
         .build()
         .unwrap();
@@ -123,7 +123,7 @@ pub fn create_market_context_with_rate(rate: f64) -> MarketContext {
     let df_10y = (-rate * 10.0).exp();
     let discount_curve = DiscountCurve::builder("USD-OIS")
         .base_date(base_date)
-        .knots([(0.0, 1.0), (10.0, df_10y)])
+        .knots([(0.0, 1.0), (1.0, (-rate).exp()), (10.0, df_10y)])
         .interp(InterpStyle::Linear)
         .build()
         .unwrap();

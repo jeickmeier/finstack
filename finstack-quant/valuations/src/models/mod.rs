@@ -20,15 +20,11 @@ pub mod pde;
 pub mod trees;
 pub mod volatility;
 
+pub(crate) use closed_form::{black76_call, black76_put};
 pub use closed_form::{
-    arithmetic_asian_call_tw, arithmetic_asian_put_tw, barrier_call_continuous,
-    barrier_put_continuous, black76_call, black76_implied_vol, black76_put, bs_greeks,
-    bs_greeks_checked, bs_implied_vol, bs_price, bs_vega, down_in_call, down_out_call,
-    fixed_strike_lookback_call, fixed_strike_lookback_put, floating_strike_lookback_call,
-    floating_strike_lookback_put, geometric_asian_call, geometric_asian_put,
-    heston_call_price_fourier, heston_put_price_fourier, quanto_call, quanto_drift_adjustment,
-    quanto_put, up_in_call, up_out_call, vanilla_expiry_payoff, AsianGreeks, AsianPriceResult,
-    BsGreeks, HestonParams, ONE_PERCENT,
+    black76_implied_vol, bs_greeks, bs_greeks_checked, bs_implied_vol, bs_price, bs_price_checked,
+    heston_call_price_fourier, heston_put_price_fourier, vanilla_expiry_payoff, BsGreeks,
+    HestonParams, ONE_PERCENT,
 };
 pub use pde::{
     BlackScholesPde, BoundaryCondition, CraigSneydStepper, Grid1D, Grid2D, HestonPde, PdeProblem1D,
@@ -40,8 +36,5 @@ pub use trees::{
     NodeState, ShortRateModel, ShortRateTree, ShortRateTreeConfig, TreeBranching, TreeCompounding,
     TreeGreeks, TreeModel, TreeParameters, TreeType, TreeValuator,
 };
-pub(crate) use volatility::vega_weight;
-pub use volatility::{
-    d1, d1_black76, d1_d2, d1_d2_black76, d2, d2_black76, norm_cdf, norm_pdf, SABRCalibrator,
-    SABRModel, SABRParameters, SABRSmile,
-};
+pub(crate) use volatility::{d1, d1_black76, d1_d2_black76, d2_black76, vega_weight};
+pub use volatility::{SABRCalibrator, SABRModel, SABRParameters, SABRSmile};

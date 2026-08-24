@@ -1059,6 +1059,7 @@ fn test_ho_lee_rejects_nonzero_mean_reversion() {
         mean_reversion: Some(0.05),
         branching: TreeBranching::Binomial,
         compounding: TreeCompounding::default(),
+        curve_fit_tolerance_bp: DEFAULT_CURVE_FIT_TOLERANCE_BP,
     };
     let mut tree = ShortRateTree::new(config);
     let curve = create_test_curve();
@@ -1080,6 +1081,7 @@ fn test_ho_lee_allows_zero_mean_reversion() {
         mean_reversion: Some(0.0),
         branching: TreeBranching::Binomial,
         compounding: TreeCompounding::default(),
+        curve_fit_tolerance_bp: DEFAULT_CURVE_FIT_TOLERANCE_BP,
     };
     let mut tree = ShortRateTree::new(config);
     let curve = create_test_curve();

@@ -9,33 +9,35 @@ use crate::metrics::{MetricId, MetricRegistry};
 use std::sync::Arc;
 
 /// Register lookback option metrics with the registry.
-pub(crate) fn register_lookback_option_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_lookback_option_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::{GenericFdDelta, GenericFdGamma, GenericFdVanna, GenericFdVolga};
     use crate::pricer::InstrumentType;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Delta,
         Arc::new(GenericFdDelta::<crate::instruments::LookbackOption>::default()),
         &[InstrumentType::LookbackOption],
-    );
+    )?;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Gamma,
         Arc::new(GenericFdGamma::<crate::instruments::LookbackOption>::default()),
         &[InstrumentType::LookbackOption],
-    );
+    )?;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Vanna,
         Arc::new(GenericFdVanna::<crate::instruments::LookbackOption>::default()),
         &[InstrumentType::LookbackOption],
-    );
+    )?;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Volga,
         Arc::new(GenericFdVolga::<crate::instruments::LookbackOption>::default()),
         &[InstrumentType::LookbackOption],
-    );
+    )?;
 
     {
         crate::register_metrics! {
@@ -54,4 +56,5 @@ pub(crate) fn register_lookback_option_metrics(registry: &mut MetricRegistry) {
             ]
         }
     }
+    Ok(())
 }

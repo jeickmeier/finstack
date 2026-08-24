@@ -59,3 +59,5 @@ pub mod rates;
 pub mod vol;
 /// Cross-currency swap quotes.
 pub mod xccy;
+
+pub use market_quote::{MarketQuote, QuoteProvenance, QuoteSnapshot};

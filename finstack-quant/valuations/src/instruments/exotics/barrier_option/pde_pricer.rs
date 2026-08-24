@@ -206,7 +206,7 @@ impl BarrierOptionPdePricer {
         if inst.observed_barrier_breached == Some(true) {
             let unit = match inst.barrier_type {
                 BarrierType::UpAndIn | BarrierType::DownAndIn => {
-                    crate::models::closed_form::vanilla::bs_price(
+                    crate::models::closed_form::vanilla::bs_price_unchecked(
                         spot,
                         inst.strike,
                         r,

@@ -11,6 +11,22 @@ use crate::pricer::InstrumentType;
 use finstack_quant_core::HashMap;
 use std::sync::Arc;
 
+/// Metric-registration configuration errors.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum MetricRegistryError {
+    /// A default or instrument-specific calculator already owns the key.
+    #[error(
+        "Duplicate metric registration for metric={metric}{}",
+        instrument.map_or(String::new(), |value| format!(" instrument={value}"))
+    )]
+    DuplicateRegistration {
+        /// Metric identifier that already has a calculator.
+        metric: MetricId,
+        /// Instrument-specific collision, or `None` for a default calculator.
+        instrument: Option<InstrumentType>,
+    },
+}
+
 /// Registry for metric calculators.
 ///
 /// Manages metric calculators with dependency resolution, caching, and batch
@@ -65,40 +81,40 @@ impl Default for MetricRegistry {
 }
 
 impl MetricRegistry {
-    /// Registers a metric calculator with explicit ID and applicability.
+    /// Register a metric calculator with explicit ID and applicability.
     ///
-    /// A duplicate default or instrument-specific registration is rejected
-    /// without changing the existing calculator.
-    /// The `applicable_to` parameter specifies which instrument types this metric
-    /// applies to. An empty slice means it applies to all instruments.
+    /// Duplicate default or instrument-specific registrations return
+    /// [`MetricRegistryError::DuplicateRegistration`] without mutation. Use
+    /// [`Self::replace_metric`] for intentional overwrites.
     ///
     /// # Arguments
-    /// * `id` - Unique identifier for the metric
-    /// * `calculator` - Implementation of the metric calculation
-    /// * `applicable_to` - Instrument types this metric applies to (empty = all)
     ///
-    /// # Returns
-    /// Mutable reference to self for method chaining
-    ///
-    /// See unit tests and `examples/` for usage.
+    /// * `id` - Unique metric identifier.
+    /// * `calculator` - Metric calculation implementation.
+    /// * `applicable_to` - Instrument types for this calculator; empty means
+    ///   the default calculator for every instrument.
     pub fn register_metric(
         &mut self,
         id: MetricId,
         calculator: Arc<dyn MetricCalculator>,
         applicable_to: &[InstrumentType],
-    ) -> &mut Self {
-        let duplicate = self.entries.get(&id).is_some_and(|entry| {
+    ) -> std::result::Result<(), MetricRegistryError> {
+        let duplicate_instrument = self.entries.get(&id).and_then(|entry| {
             if applicable_to.is_empty() {
-                entry.default.is_some()
+                entry.default.as_ref().map(|_| None)
             } else {
                 applicable_to
                     .iter()
-                    .any(|instrument_type| entry.per_instrument.contains_key(instrument_type))
+                    .find(|instrument_type| entry.per_instrument.contains_key(instrument_type))
+                    .copied()
+                    .map(Some)
             }
         });
-        if duplicate {
-            tracing::warn!(metric = %id, "duplicate metric registration rejected");
-            return self;
+        if let Some(instrument) = duplicate_instrument {
+            return Err(MetricRegistryError::DuplicateRegistration {
+                metric: id,
+                instrument,
+            });
         }
         self.replace_metric(id, calculator, applicable_to)
     }
@@ -109,7 +125,7 @@ impl MetricRegistry {
         id: MetricId,
         calculator: Arc<dyn MetricCalculator>,
         applicable_to: &[InstrumentType],
-    ) -> &mut Self {
+    ) -> std::result::Result<(), MetricRegistryError> {
         let entry = self.entries.entry(id).or_default();
         if applicable_to.is_empty() {
             entry.default = Some(calculator);
@@ -120,7 +136,7 @@ impl MetricRegistry {
                     .insert(*instrument_type, Arc::clone(&calculator));
             }
         }
-        self
+        Ok(())
     }
 
     /// Checks if a metric is registered.
@@ -524,7 +540,7 @@ mod tests {
             _as_of: Date,
             _metrics: &[MetricId],
             _options: crate::instruments::common_impl::traits::PricingOptions,
-        ) -> finstack_quant_core::Result<ValuationResult> {
+        ) -> crate::Result<ValuationResult> {
             unimplemented!()
         }
     }
@@ -594,8 +610,19 @@ mod tests {
             }) as Arc<dyn MetricCalculator>
         };
         let mut registry = MetricRegistry::new();
-        registry.register_metric(MetricId::Dv01, calculator(1.0), &[]);
-        registry.register_metric(MetricId::Dv01, calculator(2.0), &[]);
+        registry
+            .register_metric(MetricId::Dv01, calculator(1.0), &[])
+            .expect("first metric registration");
+        let error = registry
+            .register_metric(MetricId::Dv01, calculator(2.0), &[])
+            .expect_err("duplicate metric registration must fail");
+        assert_eq!(
+            error,
+            MetricRegistryError::DuplicateRegistration {
+                metric: MetricId::Dv01,
+                instrument: None,
+            }
+        );
 
         let mut context = create_test_context();
         assert_eq!(
@@ -603,7 +630,9 @@ mod tests {
             1.0
         );
 
-        registry.replace_metric(MetricId::Dv01, calculator(2.0), &[]);
+        registry
+            .replace_metric(MetricId::Dv01, calculator(2.0), &[])
+            .expect("explicit metric replacement");
         let mut context = create_test_context();
         assert_eq!(
             registry.compute(&[MetricId::Dv01], &mut context).unwrap()["dv01"],
@@ -635,11 +664,13 @@ mod tests {
     #[test]
     fn test_strict_mode_calculation_failure() {
         let mut registry = MetricRegistry::new();
-        registry.register_metric(
-            MetricId::Dv01,
-            Arc::new(FailCalculator),
-            &[], // Applies to all instruments
-        );
+        registry
+            .register_metric(
+                MetricId::Dv01,
+                Arc::new(FailCalculator),
+                &[], // Applies to all instruments
+            )
+            .expect("unique test metric registration");
 
         let mut context = create_test_context();
 
@@ -662,14 +693,16 @@ mod tests {
     #[test]
     fn test_strict_mode_not_applicable() {
         let mut registry = MetricRegistry::new();
-        registry.register_metric(
-            MetricId::Dv01,
-            Arc::new(SuccessCalculator {
-                value: 100.0,
-                deps: Vec::new(),
-            }),
-            &[InstrumentType::Irs], // Only applies to IRS, not Bond
-        );
+        registry
+            .register_metric(
+                MetricId::Dv01,
+                Arc::new(SuccessCalculator {
+                    value: 100.0,
+                    deps: Vec::new(),
+                }),
+                &[InstrumentType::Irs], // Only applies to IRS, not Bond
+            )
+            .expect("unique test metric registration");
 
         let mut context = create_test_context(); // MockInstrument has type Bond
 
@@ -703,20 +736,24 @@ mod tests {
         let metric_a = MetricId::custom("metric_a");
         let metric_b = MetricId::custom("metric_b");
 
-        registry.register_metric(
-            metric_a.clone(),
-            Arc::new(CircularCalculator {
-                deps: vec![metric_b.clone()],
-            }),
-            &[],
-        );
-        registry.register_metric(
-            metric_b,
-            Arc::new(CircularCalculator {
-                deps: vec![metric_a.clone()],
-            }),
-            &[],
-        );
+        registry
+            .register_metric(
+                metric_a.clone(),
+                Arc::new(CircularCalculator {
+                    deps: vec![metric_b.clone()],
+                }),
+                &[],
+            )
+            .expect("unique test metric registration");
+        registry
+            .register_metric(
+                metric_b,
+                Arc::new(CircularCalculator {
+                    deps: vec![metric_a.clone()],
+                }),
+                &[],
+            )
+            .expect("unique test metric registration");
 
         let mut context = create_test_context();
 
@@ -747,27 +784,33 @@ mod tests {
         let metric_b = MetricId::custom("metric_b");
         let metric_c = MetricId::custom("metric_c");
 
-        registry.register_metric(
-            metric_a.clone(),
-            Arc::new(CircularCalculator {
-                deps: vec![metric_b.clone()],
-            }),
-            &[],
-        );
-        registry.register_metric(
-            metric_b,
-            Arc::new(CircularCalculator {
-                deps: vec![metric_c.clone()],
-            }),
-            &[],
-        );
-        registry.register_metric(
-            metric_c,
-            Arc::new(CircularCalculator {
-                deps: vec![metric_a.clone()],
-            }),
-            &[],
-        );
+        registry
+            .register_metric(
+                metric_a.clone(),
+                Arc::new(CircularCalculator {
+                    deps: vec![metric_b.clone()],
+                }),
+                &[],
+            )
+            .expect("unique test metric registration");
+        registry
+            .register_metric(
+                metric_b,
+                Arc::new(CircularCalculator {
+                    deps: vec![metric_c.clone()],
+                }),
+                &[],
+            )
+            .expect("unique test metric registration");
+        registry
+            .register_metric(
+                metric_c,
+                Arc::new(CircularCalculator {
+                    deps: vec![metric_a.clone()],
+                }),
+                &[],
+            )
+            .expect("unique test metric registration");
 
         let mut context = create_test_context();
 
@@ -784,7 +827,9 @@ mod tests {
     #[test]
     fn test_strict_mode_is_default() {
         let mut registry = MetricRegistry::new();
-        registry.register_metric(MetricId::Dv01, Arc::new(FailCalculator), &[]);
+        registry
+            .register_metric(MetricId::Dv01, Arc::new(FailCalculator), &[])
+            .expect("unique test metric registration");
 
         let mut context = create_test_context();
 
@@ -802,28 +847,34 @@ mod tests {
         let metric_b = MetricId::custom("metric_b");
         let metric_c = MetricId::custom("metric_c");
 
-        registry.register_metric(
-            metric_a.clone(),
-            Arc::new(CircularCalculator {
-                deps: vec![metric_b.clone()],
-            }),
-            &[],
-        );
-        registry.register_metric(
-            metric_b,
-            Arc::new(CircularCalculator {
-                deps: vec![metric_c.clone()],
-            }),
-            &[],
-        );
-        registry.register_metric(
-            metric_c,
-            Arc::new(SuccessCalculator {
-                value: 1.0,
-                deps: Vec::new(),
-            }),
-            &[],
-        );
+        registry
+            .register_metric(
+                metric_a.clone(),
+                Arc::new(CircularCalculator {
+                    deps: vec![metric_b.clone()],
+                }),
+                &[],
+            )
+            .expect("unique test metric registration");
+        registry
+            .register_metric(
+                metric_b,
+                Arc::new(CircularCalculator {
+                    deps: vec![metric_c.clone()],
+                }),
+                &[],
+            )
+            .expect("unique test metric registration");
+        registry
+            .register_metric(
+                metric_c,
+                Arc::new(SuccessCalculator {
+                    value: 1.0,
+                    deps: Vec::new(),
+                }),
+                &[],
+            )
+            .expect("unique test metric registration");
 
         let mut context = create_test_context();
 
@@ -845,14 +896,16 @@ mod tests {
             MetricId::Theta,
             MetricId::custom("user_defined_metric"),
         ] {
-            registry.register_metric(
-                id,
-                Arc::new(SuccessCalculator {
-                    value: 1.0,
-                    deps: Vec::new(),
-                }),
-                &[],
-            );
+            registry
+                .register_metric(
+                    id,
+                    Arc::new(SuccessCalculator {
+                        value: 1.0,
+                        deps: Vec::new(),
+                    }),
+                    &[],
+                )
+                .expect("unique test metric registration");
         }
 
         let first = registry.available_metrics_grouped();

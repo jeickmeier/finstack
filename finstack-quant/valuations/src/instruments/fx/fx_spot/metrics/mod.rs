@@ -19,26 +19,28 @@ pub(crate) mod spot_rate;
 use crate::metrics::MetricRegistry;
 
 /// Register all FX Spot metrics with the registry
-pub(crate) fn register_fx_spot_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_fx_spot_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::MetricId;
     use crate::pricer::InstrumentType;
 
     // FxDelta and Fx01 are the same quantity (PV change per 1% relative spot
     // move) and share the generic calculator; both ids are kept because
     // consumers ask for either name.
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::FxDelta,
         crate::metrics::sensitivities::fx01::arc_generic_fx01(),
         &[InstrumentType::FxSpot],
-    );
+    )?;
     // FX01 now uses the shared `GenericFx01Calculator` (1% relative spot
     // move) instead of the per-instrument trivial `notional * 0.0001` shim.
     // This aligns the unit convention with every attribution consumer.
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Fx01,
         crate::metrics::sensitivities::fx01::arc_generic_fx01(),
         &[InstrumentType::FxSpot],
-    );
+    )?;
 
     crate::register_metrics! {
         registry: registry,
@@ -49,6 +51,7 @@ pub(crate) fn register_fx_spot_metrics(registry: &mut MetricRegistry) {
             (InverseRate, inverse_rate::InverseRateCalculator),
         ]
     };
+    Ok(())
 }
 
 #[cfg(test)]

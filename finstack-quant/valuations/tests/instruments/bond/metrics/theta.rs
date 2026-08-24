@@ -24,7 +24,7 @@ fn test_theta_finite() {
     let curve =
         finstack_quant_core::market_data::term_structures::DiscountCurve::builder("USD-OIS")
             .base_date(as_of)
-            .knots([(0.0, 1.0), (5.0, 0.80)])
+            .knots([(0.0, 1.0), (1.0, 0.96), (5.0, 0.80)])
             .build()
             .unwrap();
     let market = finstack_quant_core::market_data::context::MarketContext::new().insert(curve);

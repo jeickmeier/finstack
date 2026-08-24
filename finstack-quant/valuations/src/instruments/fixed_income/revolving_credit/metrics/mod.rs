@@ -36,7 +36,9 @@ fn drawn_balance_as_of(
 ///
 /// Registers both standard metrics (PV, DV01, Theta, BucketedDV01, CS01) and
 /// facility-specific metrics (utilization rate, available capacity, weighted average cost).
-pub(crate) fn register_revolving_credit_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_revolving_credit_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     crate::register_metrics! {
         registry: registry,
@@ -73,21 +75,22 @@ pub(crate) fn register_revolving_credit_metrics(registry: &mut MetricRegistry) {
     use crate::metrics::MetricId;
     use std::sync::Arc;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::custom("utilization_rate"),
         Arc::new(UtilizationRateCalculator),
         &[InstrumentType::RevolvingCredit],
-    );
+    )?;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::custom("available_capacity"),
         Arc::new(AvailableCapacityCalculator),
         &[InstrumentType::RevolvingCredit],
-    );
+    )?;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::custom("weighted_average_cost"),
         Arc::new(ApproxWeightedAverageCostCalculator),
         &[InstrumentType::RevolvingCredit],
-    );
+    )?;
+    Ok(())
 }

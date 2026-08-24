@@ -13,7 +13,9 @@ impl MetricCalculator for InterestRateFutureOptionDv01 {
 }
 
 /// Register price Greeks and mapped rate DV01 for interest-rate futures options.
-pub(crate) fn register_interest_rate_future_option_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_interest_rate_future_option_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     crate::register_metrics! {
         registry: registry,
         instrument: crate::pricer::InstrumentType::InterestRateFutureOption,
@@ -25,4 +27,5 @@ pub(crate) fn register_interest_rate_future_option_metrics(registry: &mut Metric
             (Dv01, InterestRateFutureOptionDv01),
         ]
     }
+    Ok(())
 }

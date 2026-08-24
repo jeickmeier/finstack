@@ -91,6 +91,22 @@ impl PricingErrorContext {
             .extend(curve_ids.into_iter().map(|s| s.into()));
         self
     }
+
+    fn fill_missing_from(mut self, fallback: Self) -> Self {
+        if self.instrument_id.is_none() {
+            self.instrument_id = fallback.instrument_id;
+        }
+        if self.instrument_type.is_none() {
+            self.instrument_type = fallback.instrument_type;
+        }
+        if self.model.is_none() {
+            self.model = fallback.model;
+        }
+        if self.curve_ids.is_empty() {
+            self.curve_ids = fallback.curve_ids;
+        }
+        self
+    }
 }
 
 impl std::fmt::Display for PricingErrorContext {
@@ -146,6 +162,13 @@ pub enum PricingError {
         /// Models registered for `key.instrument` in the registry that produced
         /// this error. Empty if no pricers exist for the instrument type.
         available_models: Vec<ModelKey>,
+    },
+
+    /// A registration attempted to reuse an existing instrument/model key.
+    #[error("Duplicate pricer registration for instrument={} model={}", .key.instrument, .key.model)]
+    DuplicateRegistration {
+        /// Existing registry key that the caller attempted to register again.
+        key: PricerKey,
     },
 
     /// Instrument type mismatch during downcasting.
@@ -219,39 +242,6 @@ fn format_context(ctx: &PricingErrorContext) -> String {
     }
 }
 
-/// Provide a more actionable error for missing Monte Carlo model registrations.
-///
-/// `available_models` is appended to the message so analysts see which models
-/// they could use as fallbacks. Pass an empty slice when no registry context
-/// is available.
-pub(crate) fn actionable_unknown_pricer_message(
-    key: PricerKey,
-    available_models: &[ModelKey],
-) -> Option<String> {
-    if key.model.is_monte_carlo_model() {
-        let extra_hint = match (key.instrument, key.model) {
-            (InstrumentType::BarrierOption, ModelKey::MonteCarloGBM)
-            | (InstrumentType::LookbackOption, ModelKey::MonteCarloGBM)
-            | (InstrumentType::FxBarrierOption, ModelKey::MonteCarloGBM) => {
-                " Switch the instrument back to its continuous-monitoring configuration, or register a compatible Monte Carlo pricer."
-            }
-            (InstrumentType::BermudanSwaption, ModelKey::MonteCarloHullWhite1F) => {
-                " Select a non-LSMC pricing model, or register a compatible Monte Carlo pricer."
-            }
-            _ => " Register a compatible Monte Carlo pricer or select one of the available models.",
-        };
-        return Some(format!(
-            "No pricer found for instrument={} model={}.{}{}",
-            key.instrument,
-            key.model,
-            extra_hint,
-            format_available_models(available_models),
-        ));
-    }
-
-    None
-}
-
 /// Lossy conversion from [`PricingError`] into [`finstack_quant_core::Error`].
 ///
 /// This mapping is intentionally lossy — pricing-specific context (instrument ID,
@@ -262,6 +252,7 @@ pub(crate) fn actionable_unknown_pricer_message(
 /// | `PricingError`        | `finstack_quant_core::Error`          | What is lost                          |
 /// |-----------------------|---------------------------------|---------------------------------------|
 /// | `UnknownPricer`       | `Input(NotFound)`               | Typed `PricerKey` → string id         |
+/// | `DuplicateRegistration`| `Validation`                    | Typed `PricerKey`                     |
 /// | `TypeMismatch`        | `Input(Invalid)`                | Expected/got instrument types         |
 /// | `InvalidInput`        | `Validation`                    | Structured `PricingErrorContext`       |
 /// | `MissingMarketData`   | `Input(NotFound)`               | `PricingErrorContext`                  |
@@ -272,6 +263,12 @@ impl From<PricingError> for finstack_quant_core::Error {
             PricingError::UnknownPricer { key, .. } => {
                 let pricer_id = format!("pricer:{}:{:?}", key.instrument, key.model);
                 finstack_quant_core::InputError::NotFound { id: pricer_id }.into()
+            }
+            PricingError::DuplicateRegistration { key } => {
+                finstack_quant_core::Error::Validation(format!(
+                    "duplicate pricer registration for instrument={} model={}",
+                    key.instrument, key.model
+                ))
             }
             PricingError::TypeMismatch { .. } => finstack_quant_core::InputError::Invalid.into(),
             PricingError::InvalidInput { message, context } => {
@@ -377,6 +374,28 @@ impl PricingError {
                 message: other.to_string(),
                 context,
             },
+        }
+    }
+
+    /// Fill absent context fields from the canonical dispatch boundary.
+    pub(crate) fn with_fallback_context(self, fallback: PricingErrorContext) -> Self {
+        match self {
+            Self::ModelFailure { message, context } => Self::ModelFailure {
+                message,
+                context: context.fill_missing_from(fallback),
+            },
+            Self::InvalidInput { message, context } => Self::InvalidInput {
+                message,
+                context: context.fill_missing_from(fallback),
+            },
+            Self::MissingMarketData {
+                missing_id,
+                context,
+            } => Self::MissingMarketData {
+                missing_id,
+                context: context.fill_missing_from(fallback),
+            },
+            other => other,
         }
     }
     /// Create a type mismatch error.

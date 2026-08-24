@@ -3,7 +3,9 @@
 use crate::metrics::MetricRegistry;
 
 /// Register delta, gamma, vega, and theta for volatility-index futures options.
-pub(crate) fn register_vol_index_future_option_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_vol_index_future_option_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     crate::register_metrics! {
         registry: registry,
         instrument: crate::pricer::InstrumentType::VolatilityIndexFutureOption,
@@ -14,4 +16,5 @@ pub(crate) fn register_vol_index_future_option_metrics(registry: &mut MetricRegi
             (Theta, crate::metrics::OptionGreekCalculator::<crate::instruments::VolatilityIndexFutureOption>::theta()),
         ]
     }
+    Ok(())
 }

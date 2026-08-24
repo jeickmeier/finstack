@@ -772,7 +772,7 @@ mod tests {
     use crate::instruments::{
         Attributes, ExerciseStyle, InstrumentPricingOverrides, OptionType, SettlementType,
     };
-    use crate::models::bs_price;
+    use crate::models::closed_form::vanilla::bs_price_unchecked;
     use finstack_quant_core::{
         currency::Currency,
         dates::{Date, DayCount},
@@ -929,7 +929,8 @@ mod tests {
             .expect("NPV calculation should succeed in test");
         let (spot, r, q, sigma, t) = pricer::collect_inputs(&option, &curves, as_of)
             .expect("Input collection should succeed in test");
-        let expected_unit = bs_price(spot, option.strike, r, q, sigma, t, option.option_type);
+        let expected_unit =
+            bs_price_unchecked(spot, option.strike, r, q, sigma, t, option.option_type);
         // Slightly wider tolerance due to MonotoneConvex interpolation (vs Linear)
         approx_eq(
             price.amount(),
@@ -1006,7 +1007,7 @@ mod tests {
             .expect("should succeed");
         let (spot, r, q, _, t) =
             pricer::collect_inputs(&override_option, &curves, as_of).expect("should succeed");
-        let expected = bs_price(
+        let expected = bs_price_unchecked(
             spot,
             override_option.strike,
             r,
@@ -1130,7 +1131,7 @@ mod tests {
 
         // Verify price is within Black-Scholes tolerance
         // Using the inputs directly in the BS formula
-        let expected_bs = bs_price(
+        let expected_bs = bs_price_unchecked(
             inputs.spot,
             option.strike,
             inputs.r,

@@ -30,7 +30,9 @@ impl MetricCalculator for Spread01 {
 }
 
 /// Register clearing price, spot delta, and financing-spread risk for equity total-return futures.
-pub(crate) fn register_equity_total_return_future_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_equity_total_return_future_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     crate::register_metrics! {
         registry: registry,
         instrument: crate::pricer::InstrumentType::EquityTotalReturnFuture,
@@ -40,6 +42,7 @@ pub(crate) fn register_equity_total_return_future_metrics(registry: &mut MetricR
             (Spread01, Spread01),
         ]
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -51,7 +54,8 @@ mod tests {
     #[test]
     fn registers_financing_spread_risk() {
         let mut registry = MetricRegistry::new();
-        register_equity_total_return_future_metrics(&mut registry);
+        register_equity_total_return_future_metrics(&mut registry)
+            .expect("equity TRF metric registration");
         assert!(registry
             .metrics_for_instrument(InstrumentType::EquityTotalReturnFuture)
             .contains(&MetricId::Spread01));

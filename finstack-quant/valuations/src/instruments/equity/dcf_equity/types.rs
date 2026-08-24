@@ -1639,7 +1639,8 @@ mod tests {
         let mut mctx = build_metric_context(dcf, market, as_of);
 
         let mut registry = crate::metrics::standard_registry().clone();
-        crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(&mut registry);
+        crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(&mut registry)
+            .expect("DCF metric registration");
 
         let results = registry
             .compute(&[MetricId::Theta], &mut mctx)
@@ -1661,7 +1662,8 @@ mod tests {
         let mut mctx = build_metric_context(dcf, market, as_of);
 
         let mut registry = crate::metrics::standard_registry().clone();
-        crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(&mut registry);
+        crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(&mut registry)
+            .expect("DCF metric registration");
 
         let wacc01_id = MetricId::custom("dcf::wacc01");
         let results = registry
@@ -2142,7 +2144,8 @@ mod tests {
         // Get EV from metric
         let mut mctx = build_metric_context(dcf, market, as_of);
         let mut registry = crate::metrics::standard_registry().clone();
-        crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(&mut registry);
+        crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(&mut registry)
+            .expect("DCF metric registration");
 
         let results = registry
             .compute(&[MetricId::EnterpriseValue], &mut mctx)
@@ -2180,7 +2183,8 @@ mod tests {
 
         let mut mctx = build_metric_context(dcf, market, as_of);
         let mut registry = crate::metrics::standard_registry().clone();
-        crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(&mut registry);
+        crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(&mut registry)
+            .expect("DCF metric registration");
 
         let results = registry
             .compute(&[MetricId::TerminalValuePV], &mut mctx)
@@ -2205,7 +2209,8 @@ mod tests {
     fn per_share_metrics_error_without_shares_outstanding() {
         let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
         let mut registry = crate::metrics::standard_registry().clone();
-        crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(&mut registry);
+        crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(&mut registry)
+            .expect("DCF metric registration");
 
         // Without shares_outstanding: both metrics error with a clear message.
         let mut dcf = build_simple_dcf_gordon();

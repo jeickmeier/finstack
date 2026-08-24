@@ -148,6 +148,9 @@ pub(crate) fn execute_params(
     context: &MarketContext,
     global_config: &CalibrationConfig,
 ) -> Result<StepOutcome> {
+    for quote in quotes {
+        quote.validate()?;
+    }
     match params {
         StepParams::Discount(p) => {
             let (ctx, report) = DiscountCurveTarget::solve(p, quotes, context, global_config)?;

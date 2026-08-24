@@ -98,7 +98,7 @@ impl Instrument for FixedValueInstrument {
         as_of: Date,
         _metrics: &[MetricId],
         _options: finstack_quant_valuations::instruments::PricingOptions,
-    ) -> finstack_quant_core::Result<ValuationResult> {
+    ) -> finstack_quant_valuations::Result<ValuationResult> {
         Ok(ValuationResult::stamped(self.id(), as_of, self.value))
     }
 }

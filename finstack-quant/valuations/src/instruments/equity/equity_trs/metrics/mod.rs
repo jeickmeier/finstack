@@ -23,36 +23,38 @@ use crate::pricer::InstrumentType;
 ///
 /// # Arguments
 /// * `registry` — Metric registry to add equity TRS metrics to
-pub(crate) fn register_equity_trs_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_equity_trs_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::MetricId;
     use std::sync::Arc;
 
     let instruments = [InstrumentType::EquityTotalReturnSwap];
 
     // Equity TRS specific metrics
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Dividend01,
         Arc::new(Dividend01Calculator),
         &instruments,
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::IndexDelta,
         Arc::new(EquityDeltaCalculator),
         &instruments,
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::ParSpread,
         Arc::new(ParSpreadCalculator),
         &instruments,
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::FinancingAnnuity,
         Arc::new(FinancingAnnuityCalculator),
         &instruments,
-    );
+    )?;
 
     // DV01 for financing leg sensitivity
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Dv01,
         Arc::new(crate::metrics::UnifiedDv01Calculator::<
             crate::instruments::equity::equity_trs::EquityTotalReturnSwap,
@@ -60,8 +62,8 @@ pub(crate) fn register_equity_trs_metrics(registry: &mut MetricRegistry) {
             crate::metrics::Dv01CalculatorConfig::parallel_combined()
         )),
         &instruments,
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::BucketedDv01,
         Arc::new(crate::metrics::UnifiedDv01Calculator::<
             crate::instruments::equity::equity_trs::EquityTotalReturnSwap,
@@ -69,5 +71,6 @@ pub(crate) fn register_equity_trs_metrics(registry: &mut MetricRegistry) {
             crate::metrics::Dv01CalculatorConfig::triangular_key_rate(),
         )),
         &instruments,
-    );
+    )?;
+    Ok(())
 }

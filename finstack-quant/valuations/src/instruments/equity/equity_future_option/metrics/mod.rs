@@ -3,7 +3,9 @@
 use crate::metrics::MetricRegistry;
 
 /// Register delta, gamma, vega, and theta for equity futures options.
-pub(crate) fn register_equity_future_option_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_equity_future_option_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     crate::register_metrics! {
         registry: registry,
         instrument: crate::pricer::InstrumentType::EquityFutureOption,
@@ -14,4 +16,5 @@ pub(crate) fn register_equity_future_option_metrics(registry: &mut MetricRegistr
             (Theta, crate::metrics::OptionGreekCalculator::<crate::instruments::EquityFutureOption>::theta()),
         ]
     }
+    Ok(())
 }

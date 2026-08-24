@@ -553,6 +553,32 @@ pub struct ResultsMeta {
     pub version: Option<String>,
 }
 
+impl ResultsMeta {
+    /// Overlay request-owned defaults without discarding execution metadata.
+    ///
+    /// Field ownership is explicit:
+    /// - `numeric_mode` and `rounding` come from the request configuration.
+    /// - model/execution stamps (`fx_policy_applied`, `parallel`, `timestamp`,
+    ///   and `version`) are preserved when already present.
+    /// - `parallel` is combined with logical OR because either the model or the
+    ///   enclosing request may execute concurrently.
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - Metadata generated from the effective pricing request.
+    #[must_use]
+    pub fn overlay_request(self, request: Self) -> Self {
+        Self {
+            numeric_mode: request.numeric_mode,
+            rounding: request.rounding,
+            fx_policy_applied: self.fx_policy_applied.or(request.fx_policy_applied),
+            parallel: self.parallel || request.parallel,
+            timestamp: self.timestamp.or(request.timestamp),
+            version: self.version.or(request.version),
+        }
+    }
+}
+
 impl Default for ResultsMeta {
     fn default() -> Self {
         results_meta(&FinstackConfig::default())

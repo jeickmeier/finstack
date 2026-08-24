@@ -38,7 +38,9 @@ impl MetricCalculator for RollSpecialnessCalculator {
 }
 
 /// Register dollar roll metrics with the registry.
-pub(crate) fn register_dollar_roll_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_dollar_roll_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     crate::register_metrics! {
         registry: registry,
@@ -54,4 +56,5 @@ pub(crate) fn register_dollar_roll_metrics(registry: &mut MetricRegistry) {
             (RollSpecialness, RollSpecialnessCalculator)
         ]
     }
+    Ok(())
 }

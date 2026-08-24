@@ -583,8 +583,8 @@ fn test_bucketed_cs01_sums_to_total_limited_curve_support() {
 }
 
 #[test]
-fn test_bucketed_vega_sums_to_total() {
-    // Bucketed Vega should approximately sum to total Vega
+fn test_bucketed_vega_reports_raw_total_and_residual() {
+    // Point buckets remain their own finite-difference derivatives.
     let as_of = date!(2024 - 01 - 01);
     let expiry = date!(2025 - 01 - 01);
 
@@ -627,6 +627,7 @@ fn test_bucketed_vega_sums_to_total() {
         .unwrap();
 
     let total_vega = *results.get(&MetricId::Vega).unwrap();
+    let reported_bucket_total = *results.get(&MetricId::BucketedVega).unwrap();
 
     // BucketedVega must be wired end-to-end: the KeyRateVega calculator is
     // registered for EquityOption and must populate the 2D matrix store.
@@ -648,13 +649,10 @@ fn test_bucketed_vega_sums_to_total() {
 
     let sum_bucketed: f64 = matrix.values.iter().flatten().sum();
 
-    // Sum should approximately equal total (within 2% for vol surface interpolation)
-    let diff_pct = (sum_bucketed - total_vega).abs() / total_vega.abs().max(1e-10);
+    assert!((sum_bucketed - reported_bucket_total).abs() < 1e-10);
+    let residual = context.computed[&MetricId::custom("bucketed_vega_residual")];
     assert!(
-        diff_pct < 0.02,
-        "Bucketed Vega sum ({}) should be close to total Vega ({}), diff: {:.2}%",
-        sum_bucketed,
-        total_vega,
-        diff_pct * 100.0
+        (sum_bucketed + residual - total_vega).abs() < 1e-10,
+        "raw buckets plus uncovered residual must reconcile to parallel vega"
     );
 }

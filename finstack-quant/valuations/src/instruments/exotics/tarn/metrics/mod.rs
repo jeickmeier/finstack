@@ -6,18 +6,20 @@
 use crate::metrics::MetricRegistry;
 
 /// Register TARN metrics with the registry.
-pub(crate) fn register_tarn_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_tarn_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::{Dv01CalculatorConfig, MetricId, UnifiedDv01Calculator};
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Dv01,
         Arc::new(UnifiedDv01Calculator::<super::Tarn>::new(
             Dv01CalculatorConfig::parallel_combined(),
         )),
         &[InstrumentType::Tarn],
-    );
+    )?;
 
     crate::register_metrics! {
         registry: registry,
@@ -28,4 +30,5 @@ pub(crate) fn register_tarn_metrics(registry: &mut MetricRegistry) {
             )),
         ]
     }
+    Ok(())
 }

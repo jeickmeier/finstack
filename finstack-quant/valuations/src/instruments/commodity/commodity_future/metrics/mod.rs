@@ -21,7 +21,9 @@ impl MetricCalculator for Delta {
 }
 
 /// Register price and projected-curve delta for listed commodity futures.
-pub(crate) fn register_commodity_future_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_commodity_future_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     crate::register_metrics! {
         registry: registry,
         instrument: crate::pricer::InstrumentType::CommodityFuture,
@@ -30,4 +32,5 @@ pub(crate) fn register_commodity_future_metrics(registry: &mut MetricRegistry) {
             (Delta, Delta),
         ]
     }
+    Ok(())
 }

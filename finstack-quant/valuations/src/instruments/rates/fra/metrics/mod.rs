@@ -21,7 +21,9 @@ pub(crate) use par_rate::FraParRateCalculator;
 ///
 /// Each metric is registered with the "FRA" instrument type to ensure
 /// proper applicability filtering.
-pub(crate) fn register_fra_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_fra_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     // Standard metrics using macro
     crate::register_metrics! {
@@ -41,4 +43,5 @@ pub(crate) fn register_fra_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     }
+    Ok(())
 }

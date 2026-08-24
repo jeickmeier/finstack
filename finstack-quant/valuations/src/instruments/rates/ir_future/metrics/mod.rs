@@ -15,7 +15,9 @@ use crate::metrics::MetricRegistry;
 mod pricing;
 
 /// Register IR Future metrics with the registry
-pub(crate) fn register_ir_future_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_ir_future_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     // Standard metrics using macro
     crate::register_metrics! {
@@ -34,6 +36,7 @@ pub(crate) fn register_ir_future_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -45,7 +48,7 @@ mod tests {
     #[test]
     fn registers_contract_quote_and_forward_metrics() {
         let mut registry = MetricRegistry::new();
-        register_ir_future_metrics(&mut registry);
+        register_ir_future_metrics(&mut registry).expect("IR future metric registration");
         let metrics = registry.metrics_for_instrument(InstrumentType::InterestRateFuture);
 
         assert!(metrics.contains(&MetricId::FuturesPrice));

@@ -6,7 +6,9 @@
 use super::{register_generic, InstrumentType, ModelKey, PricerRegistry};
 
 /// Register pricers for FX instruments.
-pub(crate) fn register_fx_pricers(registry: &mut PricerRegistry) {
+pub(crate) fn register_fx_pricers(
+    registry: &mut PricerRegistry,
+) -> std::result::Result<(), crate::pricer::PricingError> {
     register_generic!(
         registry,
         InstrumentType::FxFuture,
@@ -64,12 +66,12 @@ pub(crate) fn register_fx_pricers(registry: &mut PricerRegistry) {
         InstrumentType::FxBarrierOption,
         ModelKey::MonteCarloGBM,
         crate::instruments::fx::fx_barrier_option::pricer::FxBarrierOptionMcPricer::default(),
-    );
+    )?;
     registry.register(
         InstrumentType::FxBarrierOption,
         ModelKey::FxBarrierBSContinuous,
         crate::instruments::fx::fx_barrier_option::pricer::FxBarrierOptionAnalyticalPricer,
-    );
+    )?;
     // FX Digital Option
     register_generic!(
         registry,
@@ -85,4 +87,5 @@ pub(crate) fn register_fx_pricers(registry: &mut PricerRegistry) {
         crate::instruments::FxTouchOption,
         ModelKey::Black76
     );
+    Ok(())
 }

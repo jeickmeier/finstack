@@ -101,12 +101,12 @@ pub fn d2(spot: f64, strike: f64, r: f64, sigma: f64, t: f64, q: f64) -> f64 {
 /// Tuple of (d1, d2)
 ///
 /// # Edge Cases
-/// When `t <= 0` or `sigma <= 0`, returns mathematical limits based on moneyness:
-/// - ITM (spot > strike): `(+∞, +∞)` → delta = 1
-/// - OTM (spot < strike): `(-∞, -∞)` → delta = 0
-/// - ATM (spot = strike): `(0, 0)` → delta = 0.5 (mathematical limit, not physical)
+/// When `t <= 0`, returns the expiry limit from spot moneyness. When
+/// `sigma == 0`, returns the deterministic-forward limit from
+/// `spot * exp((r - q) * t)` relative to `strike`.
 ///
-/// See module-level documentation for detailed explanation of ATM-at-expiry behavior.
+/// Negative volatility is outside the model domain; checked callers must reject
+/// it before using this low-level primitive.
 ///
 /// # Example
 /// ```
@@ -118,19 +118,13 @@ pub fn d2(spot: f64, strike: f64, r: f64, sigma: f64, t: f64, q: f64) -> f64 {
 #[inline]
 #[must_use]
 pub fn d1_d2(spot: f64, strike: f64, r: f64, sigma: f64, t: f64, q: f64) -> (f64, f64) {
-    // Handle edge cases with proper limiting behavior.
-    // See module-level docs for rationale on ATM-at-expiry returning (0, 0).
-    if t <= 0.0 || sigma <= 0.0 {
-        // At expiration or zero vol: d1/d2 → ±∞ based on moneyness
-        // This ensures correct delta behavior (0 or 1 for OTM/ITM)
-        let intrinsic_sign = (spot - strike).signum();
-        let limit = if intrinsic_sign > 0.0 {
-            f64::INFINITY // ITM call → delta = 1
-        } else if intrinsic_sign < 0.0 {
-            f64::NEG_INFINITY // OTM call → delta = 0
-        } else {
-            0.0 // ATM → delta = 0.5 (mathematical limit)
-        };
+    if t <= 0.0 {
+        let limit = moneyness_limit(spot - strike);
+        return (limit, limit);
+    }
+    if sigma == 0.0 {
+        let deterministic_forward = spot * ((r - q) * t).exp();
+        let limit = moneyness_limit(deterministic_forward - strike);
         return (limit, limit);
     }
 
@@ -140,6 +134,17 @@ pub fn d1_d2(spot: f64, strike: f64, r: f64, sigma: f64, t: f64, q: f64) -> (f64
     let d1 = ((spot / strike).ln() + (r - q + 0.5 * sigma * sigma) * t) / sigma_sqrt_t;
     let d2 = d1 - sigma_sqrt_t;
     (d1, d2)
+}
+
+#[inline]
+fn moneyness_limit(difference: f64) -> f64 {
+    if difference > 0.0 {
+        f64::INFINITY
+    } else if difference < 0.0 {
+        f64::NEG_INFINITY
+    } else {
+        0.0
+    }
 }
 
 /// Calculate d1 for Black76 model (forward-based, no drift)

@@ -30,26 +30,28 @@ mod time_to_maturity;
 use crate::metrics::MetricRegistry;
 
 /// Register all Repo metrics with the registry.
-pub(crate) fn register_repo_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_repo_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::{MetricCalculator, MetricId};
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
 
     let accrued_calc: Arc<dyn MetricCalculator> =
         Arc::new(accrued_interest::AccruedInterestCalculator);
-    registry.register_metric(MetricId::Accrued, accrued_calc, &[InstrumentType::Repo]);
+    registry.replace_metric(MetricId::Accrued, accrued_calc, &[InstrumentType::Repo])?;
 
     // Repo-specific risk metrics (custom metrics)
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::CollateralHaircut01,
         Arc::new(haircut01::Haircut01Calculator),
         &[InstrumentType::Repo],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::CollateralPrice01,
         Arc::new(collateral_price01::CollateralPrice01Calculator),
         &[InstrumentType::Repo],
-    );
+    )?;
 
     // Standard metrics using macro
     crate::register_metrics! {
@@ -72,6 +74,7 @@ pub(crate) fn register_repo_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     };
+    Ok(())
 }
 
 #[cfg(test)]

@@ -23,7 +23,9 @@ use finstack_quant_core::Result;
 use std::sync::Arc;
 
 /// Register CMS option metrics with the registry.
-pub(crate) fn register_cms_option_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_cms_option_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     crate::register_metrics! {
         registry: registry,
@@ -44,11 +46,12 @@ pub(crate) fn register_cms_option_metrics(registry: &mut MetricRegistry) {
     }
 
     // Convexity adjustment risk (custom metric)
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::ConvexityAdjustmentRisk,
         Arc::new(ConvexityAdjustmentRiskCalculator),
         &[InstrumentType::CmsOption],
-    );
+    )?;
+    Ok(())
 }
 
 // Delta Calculator

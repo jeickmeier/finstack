@@ -1964,7 +1964,8 @@ mod tests {
             as_of: Date,
             _metrics: &[finstack_quant_valuations::metrics::MetricId],
             _options: finstack_quant_valuations::instruments::PricingOptions,
-        ) -> Result<finstack_quant_valuations::results::ValuationResult> {
+        ) -> finstack_quant_valuations::Result<finstack_quant_valuations::results::ValuationResult>
+        {
             Ok(
                 finstack_quant_valuations::results::ValuationResult::stamped(
                     self.id(),
@@ -2430,7 +2431,8 @@ mod tests {
             as_of: Date,
             _metrics: &[finstack_quant_valuations::metrics::MetricId],
             _options: finstack_quant_valuations::instruments::PricingOptions,
-        ) -> Result<finstack_quant_valuations::results::ValuationResult> {
+        ) -> finstack_quant_valuations::Result<finstack_quant_valuations::results::ValuationResult>
+        {
             let mut result = finstack_quant_valuations::results::ValuationResult::stamped(
                 self.id(),
                 as_of,

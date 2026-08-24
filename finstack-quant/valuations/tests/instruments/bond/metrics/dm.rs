@@ -7,6 +7,8 @@ use finstack_quant_core::{Error, InputError};
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 use finstack_quant_valuations::instruments::fixed_income::bond::CashflowSpec;
 use finstack_quant_valuations::instruments::fixed_income::bond::DiscountMarginCalculator;
+use finstack_quant_valuations::pricer::PricingError;
+use finstack_quant_valuations::Error as ValuationError;
 
 /// Quote-date DM round-trips assume zero accrual. Clear T+1 settlement and
 /// holiday rolls so `as_of` is an unadjusted coupon date.
@@ -55,20 +57,14 @@ fn test_dm_fixed_bond_is_rejected_in_strict_mode() {
         .expect_err("discount margin should not be available for fixed-rate bonds");
 
     match err {
-        Error::MetricCalculationFailed { metric_id, .. } => {
-            assert_eq!(metric_id, "discount_margin");
-        }
-        Error::Calibration { message, .. } => {
+        ValuationError::Pricing(PricingError::ModelFailure { message, context }) => {
             assert!(
                 message.contains("discount_margin"),
-                "wrapped calibration error should mention discount_margin, got: {message}"
+                "pricing error should mention discount_margin, got: {message}"
             );
-            assert!(
-                message.contains("DM1"),
-                "wrapped calibration error should preserve instrument context, got: {message}"
-            );
+            assert_eq!(context.instrument_id.as_deref(), Some("DM1"));
         }
-        other => panic!("unexpected error type: {}", other),
+        other => panic!("unexpected error type: {other}"),
     }
 }
 

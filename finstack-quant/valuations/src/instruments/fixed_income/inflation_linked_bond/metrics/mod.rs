@@ -22,21 +22,23 @@ use crate::metrics::MetricRegistry;
 use std::sync::Arc;
 
 /// Register all ILB metrics with the registry
-pub(crate) fn register_ilb_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_ilb_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     // Custom metric: projected inflation-rate sensitivity per 1bp.
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Inflation01,
         Arc::new(Inflation01Calculator),
         &[InstrumentType::InflationLinkedBond],
-    );
+    )?;
 
     // Custom metric: InflationConvexity (second-order inflation sensitivity)
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::InflationConvexity,
         Arc::new(InflationConvexityCalculator),
         &[InstrumentType::InflationLinkedBond],
-    );
+    )?;
 
     crate::register_metrics! {
         registry: registry,
@@ -55,4 +57,5 @@ pub(crate) fn register_ilb_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     };
+    Ok(())
 }

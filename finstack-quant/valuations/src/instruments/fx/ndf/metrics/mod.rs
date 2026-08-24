@@ -14,7 +14,9 @@ mod tests;
 use crate::metrics::MetricRegistry;
 
 /// Register all NDF metrics with the registry.
-pub(crate) fn register_ndf_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_ndf_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::MetricId;
     use crate::pricer::InstrumentType;
 
@@ -25,11 +27,11 @@ pub(crate) fn register_ndf_metrics(registry: &mut MetricRegistry) {
     // automatically — the bump goes through the FX matrix, and `Ndf::value`
     // already reads spot in its own convention. The previous calculator's
     // regression tests are subsumed by the generic + canonical pricer path.
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Fx01,
         crate::metrics::sensitivities::fx01::arc_generic_fx01(),
         &[InstrumentType::Ndf],
-    );
+    )?;
     crate::register_metrics! {
         registry: registry,
         instrument: InstrumentType::Ndf,
@@ -42,4 +44,5 @@ pub(crate) fn register_ndf_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     }
+    Ok(())
 }

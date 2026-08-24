@@ -10,8 +10,8 @@ use crate::instruments::common_impl::helpers::year_fraction;
 use crate::instruments::common_impl::parameters::{OptionMarketParams, OptionType};
 use crate::instruments::equity::equity_option::types::EquityOption;
 use crate::instruments::ExerciseStyle;
+use crate::models::closed_form::vanilla::{bs_greeks_unchecked, bs_price_unchecked};
 use crate::models::trees::binomial_tree::BinomialTree;
-use crate::models::{bs_greeks, bs_price};
 use crate::pricer::{ModelKey, PricingError, PricingErrorContext};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
@@ -56,7 +56,9 @@ pub(crate) fn compute_pv(
 
     // Dispatch based on exercise style
     let unit_price = match inst.exercise_style {
-        ExerciseStyle::European => bs_price(spot, inst.strike, r, q, sigma, t, inst.option_type),
+        ExerciseStyle::European => {
+            bs_price_unchecked(spot, inst.strike, r, q, sigma, t, inst.option_type)
+        }
         ExerciseStyle::American => {
             // Use Leisen-Reimer tree for American options
             let steps = inst
@@ -467,7 +469,7 @@ pub(crate) fn compute_greeks(
 
     match inst.exercise_style {
         ExerciseStyle::European => {
-            let greeks_unit = bs_greeks(
+            let greeks_unit = bs_greeks_unchecked(
                 spot,
                 inst.strike,
                 r,
@@ -866,16 +868,8 @@ impl crate::pricer::Pricer for EquityOptionHestonFourierPricer {
             OptionType::Put => {
                 heston_put_price_fourier(spot, equity_option.strike, t, &params, None)
             }
-        };
-
-        // Fourier integration can fail to converge on extreme parameter sets
-        // and return non-finite values; convert that to an error before
-        // `Money::new` panics.
-        let price = crate::models::closed_form::checked_closed_form_value(
-            price,
-            "Heston Fourier option price",
-        )
-        .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx))?;
+        }
+        .map_err(|error| crate::pricer::PricingError::from_core(error, err_ctx))?;
 
         let pv = Money::new(
             price * equity_option.notional.amount(),
@@ -1039,7 +1033,7 @@ mod tests {
         let inputs =
             collect_inputs_extended(&opt, &market(as_of, 100.0, 0.20, base_rate, 0.0), as_of)
                 .expect("inputs");
-        let naive = bs_greeks(
+        let naive = bs_greeks_unchecked(
             inputs.spot,
             opt.strike,
             inputs.r,
@@ -1116,7 +1110,7 @@ mod tests {
 
         // Analytic European gamma with the same inputs.
         let inputs = collect_inputs_extended(&american, &curves, as_of).expect("inputs");
-        let analytic = bs_greeks(
+        let analytic = bs_greeks_unchecked(
             inputs.spot,
             american.strike,
             inputs.r,

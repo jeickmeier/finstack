@@ -5,7 +5,7 @@ use crate::instruments::common_impl::parameters::OptionType;
 use crate::instruments::common_impl::pricing::variance_replication::carr_madan_forward_variance;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::fx::fx_variance_swap::FxVarianceSwap;
-use crate::models::bs_price;
+use crate::models::closed_form::vanilla::bs_price_unchecked;
 
 type OhlcVecs = (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>);
 use finstack_quant_core::{
@@ -430,7 +430,9 @@ pub(crate) fn remaining_forward_variance(
     let fwd = spot * ((r_d - r_f) * t).exp();
     let strikes = surface.strikes();
     let vol_fn = |t_exp: f64, k: f64| surface.value_clamped(t_exp, k);
-    let bs_fn = |k: f64, v: f64, opt: OptionType| -> f64 { bs_price(spot, k, r_d, r_f, v, t, opt) };
+    let bs_fn = |k: f64, v: f64, opt: OptionType| -> f64 {
+        bs_price_unchecked(spot, k, r_d, r_f, v, t, opt)
+    };
     carr_madan_forward_variance(strikes, fwd, r_d, t, vol_fn, bs_fn).ok_or_else(|| {
         finstack_quant_core::Error::Calibration {
             message: format!(
@@ -806,12 +808,12 @@ mod tests {
         let vol_fn = |t_exp: f64, k: f64| surface_ref.value_clamped(t_exp, k);
         let expected_variance =
             carr_madan_forward_variance(strikes, fwd_expected, r_d_date, t, vol_fn, |k, v, opt| {
-                bs_price(spot, k, r_d_date, r_f_date, v, t, opt)
+                bs_price_unchecked(spot, k, r_d_date, r_f_date, v, t, opt)
             })
             .expect("date-based replication");
         let bug_variance =
             carr_madan_forward_variance(strikes, fwd_bug, r_d_bug, t, vol_fn, |k, v, opt| {
-                bs_price(spot, k, r_d_bug, r_f_bug, v, t, opt)
+                bs_price_unchecked(spot, k, r_d_bug, r_f_bug, v, t, opt)
             })
             .expect("axis-bug replication");
 

@@ -115,6 +115,43 @@ impl MarketContext {
         })
     }
 
+    /// Apply an absolute volatility bump to one surface point in place.
+    ///
+    /// # Arguments
+    ///
+    /// * `vol_surface_id` - Identifier of the volatility surface to mutate.
+    /// * `expiry` - Expiry in years used to select the nearest grid row.
+    /// * `strike` - Strike coordinate used to select the nearest grid column.
+    /// * `bump_abs` - Absolute volatility change in decimal units.
+    pub fn apply_surface_point_absolute_bump_in_place(
+        &mut self,
+        vol_surface_id: &str,
+        expiry: f64,
+        strike: f64,
+        bump_abs: f64,
+    ) -> Result<ContextScratchBump> {
+        if !(expiry.is_finite() && strike.is_finite() && bump_abs.is_finite()) {
+            return Err(crate::Error::Validation(format!(
+                "absolute surface point bump inputs must be finite, got expiry={expiry}, \
+                 strike={strike}, bump_abs={bump_abs}"
+            )));
+        }
+        let key = CurveId::from(vol_surface_id);
+        let surface = Arc::make_mut(&mut self.surfaces)
+            .get_mut(vol_surface_id)
+            .ok_or_else(|| crate::error::InputError::NotFound {
+                id: vol_surface_id.to_string(),
+            })?;
+        let original_vol =
+            Arc::make_mut(surface).bump_point_absolute_in_place(expiry, strike, bump_abs)?;
+        Ok(ContextScratchBump::SurfacePoint {
+            id: key,
+            expiry,
+            strike,
+            original_vol,
+        })
+    }
+
     /// Apply a curve bump in place and return a token that restores the
     /// original curve and any credit indices that were rebound.
     pub fn apply_curve_bump_in_place(

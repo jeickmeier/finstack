@@ -96,7 +96,7 @@ impl Instrument for FixedMetricInstrument {
         as_of: Date,
         _metrics: &[MetricId],
         _options: finstack_quant_valuations::instruments::PricingOptions,
-    ) -> finstack_quant_core::Result<ValuationResult> {
+    ) -> finstack_quant_valuations::Result<ValuationResult> {
         Ok(ValuationResult::stamped(self.id(), as_of, self.value)
             .with_measures(self.measures.clone()))
     }
@@ -167,10 +167,8 @@ impl Instrument for MetricFailingInstrument {
         _as_of: Date,
         _metrics: &[MetricId],
         _options: finstack_quant_valuations::instruments::PricingOptions,
-    ) -> finstack_quant_core::Result<ValuationResult> {
-        Err(finstack_quant_core::Error::Input(
-            finstack_quant_core::InputError::Invalid,
-        ))
+    ) -> finstack_quant_valuations::Result<ValuationResult> {
+        Err(finstack_quant_core::Error::Input(finstack_quant_core::InputError::Invalid).into())
     }
 }
 

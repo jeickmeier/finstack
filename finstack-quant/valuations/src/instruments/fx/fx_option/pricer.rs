@@ -7,7 +7,7 @@ use crate::instruments::fx::shared::{
     collect_fx_option_inputs_no_vol as collect_shared_fx_option_inputs_no_vol,
     FxOptionInputRequest, FxSpotSource,
 };
-use crate::models::{bs_greeks, bs_price};
+use crate::models::closed_form::vanilla::{bs_greeks_unchecked, bs_price_unchecked};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
@@ -59,7 +59,7 @@ pub(crate) fn compute_pv(inst: &FxOption, curves: &MarketContext, as_of: Date) -
         ));
     }
 
-    let price = bs_price(spot, inst.strike, r_d, r_f, sigma, t, inst.option_type);
+    let price = bs_price_unchecked(spot, inst.strike, r_d, r_f, sigma, t, inst.option_type);
     Ok(Money::new(
         price * inst.notional.amount(),
         inst.quote_currency,
@@ -211,7 +211,7 @@ pub(crate) fn compute_greeks(
         });
     }
 
-    let greeks_unit = bs_greeks(
+    let greeks_unit = bs_greeks_unchecked(
         spot,
         inst.strike,
         r_d,

@@ -21,22 +21,20 @@ use finstack_quant_core::market_data::context::MarketContext;
 use indexmap::IndexMap;
 
 /// Register pricers for credit instruments.
-pub(crate) fn register_credit_pricers(registry: &mut PricerRegistry) {
-    registry.register(InstrumentType::Cds, ModelKey::HazardRate, CDSHazardPricer);
+pub(crate) fn register_credit_pricers(
+    registry: &mut PricerRegistry,
+) -> std::result::Result<(), crate::pricer::PricingError> {
+    registry.register(InstrumentType::Cds, ModelKey::HazardRate, CDSHazardPricer)?;
 
     // CDS Index
-    registry.register(
-        InstrumentType::CdsIndex,
-        ModelKey::HazardRate,
-        crate::instruments::credit_derivatives::cds_index::pricer::SimpleCdsIndexHazardPricer::default(),
-    );
+    registry.register(InstrumentType::CdsIndex,
+ModelKey::HazardRate,
+crate::instruments::credit_derivatives::cds_index::pricer::SimpleCdsIndexHazardPricer::default(),)?;
 
     // CDS Tranche
-    registry.register(
-        InstrumentType::CdsTranche,
-        ModelKey::HazardRate,
-        crate::instruments::credit_derivatives::cds_tranche::pricer::SimpleCDSTrancheHazardPricer::default(),
-    );
+    registry.register(InstrumentType::CdsTranche,
+ModelKey::HazardRate,
+crate::instruments::credit_derivatives::cds_tranche::pricer::SimpleCDSTrancheHazardPricer::default(),)?;
 
     // CDS Option — Bloomberg CDSO numerical-quadrature model.
     // The legacy closed-form Black-on-spreads pricer was decommissioned in
@@ -46,7 +44,7 @@ pub(crate) fn register_credit_pricers(registry: &mut PricerRegistry) {
         InstrumentType::CdsOption,
         ModelKey::BloombergCdso,
         crate::instruments::credit_derivatives::cds_option::pricer::BloombergCdsoPricer,
-    );
+    )?;
 
     // Structured Credit - unified pricer for ABS, CLO, CMBS, RMBS
     register_generic!(
@@ -59,7 +57,8 @@ pub(crate) fn register_credit_pricers(registry: &mut PricerRegistry) {
         InstrumentType::StructuredCredit,
         ModelKey::StructuredCreditStochastic,
         StructuredCreditStochasticPricer,
-    );
+    )?;
+    Ok(())
 }
 
 struct CDSHazardPricer;

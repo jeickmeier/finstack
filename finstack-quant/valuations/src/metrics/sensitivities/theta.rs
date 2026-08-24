@@ -362,16 +362,10 @@ fn compute_theta_breakdown(context: &mut crate::metrics::MetricContext) -> Resul
     let base_currency = context.base_value.currency();
 
     let horizon_days = (rolled_date - context.as_of).whole_days();
-    let rolled_reprice = context
-        .curves
-        .roll_forward(horizon_days)
-        .and_then(|market| context.instrument_value_with_scenario(&market, rolled_date));
-    let rolled_pv = match rolled_reprice {
-        Ok(value) => value.amount(),
-        Err(_) => context
-            .instrument_value_with_scenario(&context.curves, rolled_date)?
-            .amount(),
-    };
+    let rolled_market = context.curves.roll_forward(horizon_days)?;
+    let rolled_pv = context
+        .instrument_value_with_scenario(&rolled_market, rolled_date)?
+        .amount();
 
     let start_date = context.as_of;
     let carry =

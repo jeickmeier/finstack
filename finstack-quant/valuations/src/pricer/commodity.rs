@@ -7,7 +7,9 @@
 use super::{register_generic, InstrumentType, ModelKey, PricerRegistry};
 
 /// Register pricers for commodity instruments.
-pub(crate) fn register_commodity_pricers(registry: &mut PricerRegistry) {
+pub(crate) fn register_commodity_pricers(
+    registry: &mut PricerRegistry,
+) -> std::result::Result<(), crate::pricer::PricingError> {
     register_generic!(
         registry,
         InstrumentType::CommodityFuture,
@@ -48,11 +50,9 @@ pub(crate) fn register_commodity_pricers(registry: &mut PricerRegistry) {
     );
 
     // Commodity Asian Option
-    registry.register(
-        InstrumentType::CommodityAsianOption,
-        ModelKey::AsianTurnbullWakeman,
-        crate::instruments::commodity::commodity_asian_option::pricer::CommodityAsianOptionAnalyticalPricer,
-    );
+    registry.register(InstrumentType::CommodityAsianOption,
+ModelKey::AsianTurnbullWakeman,
+crate::instruments::commodity::commodity_asian_option::pricer::CommodityAsianOptionAnalyticalPricer,)?;
 
     // Commodity Swaption
     register_generic!(
@@ -72,23 +72,22 @@ pub(crate) fn register_commodity_pricers(registry: &mut PricerRegistry) {
 
     // Commodity Option - Monte Carlo Schwartz-Smith
 
-    registry.register(
-        InstrumentType::CommodityOption,
-        ModelKey::MonteCarloSchwartzSmith,
-        crate::instruments::commodity::commodity_option::pricer::CommodityOptionMcPricer::new(
-            crate::instruments::commodity::commodity_option::CommodityMcParams {
-                model: crate::instruments::commodity::commodity_option::CommodityPricingModel::SchwartzSmith {
-                    kappa: 1.0,
-                    sigma_x: 0.3,
-                    sigma_y: 0.15,
-                    rho_xy: 0.3,
-                    mu_y: 0.0,
-                    lambda_x: 0.0,
-                },
-                n_paths: 100_000,
-                n_steps: 252,
-                seed: None,
-            },
-        ),
-    );
+    registry.register(InstrumentType::CommodityOption,
+ModelKey::MonteCarloSchwartzSmith,
+crate::instruments::commodity::commodity_option::pricer::CommodityOptionMcPricer::new(
+    crate::instruments::commodity::commodity_option::CommodityMcParams {
+        model: crate::instruments::commodity::commodity_option::CommodityPricingModel::SchwartzSmith {
+            kappa: 1.0,
+            sigma_x: 0.3,
+            sigma_y: 0.15,
+            rho_xy: 0.3,
+            mu_y: 0.0,
+            lambda_x: 0.0,
+        },
+        n_paths: 100_000,
+        n_steps: 252,
+        seed: None,
+    },
+),)?;
+    Ok(())
 }

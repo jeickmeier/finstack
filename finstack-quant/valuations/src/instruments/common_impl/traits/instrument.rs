@@ -4,10 +4,7 @@ use crate::cashflow::traits::CashflowProvider;
 use crate::instruments::common_impl::dependencies::MarketDependencies;
 use crate::instruments::model_params::ModelParamsSnapshot;
 use crate::metrics::MetricId;
-use crate::pricer::{
-    actionable_unknown_pricer_message, shared_standard_registry, InstrumentType, ModelKey,
-    PricerRegistry, PricingError,
-};
+use crate::pricer::{shared_standard_registry, InstrumentType, ModelKey, PricerRegistry};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::types::Attributes;
 use finstack_quant_core::{currency::Currency, dates::Date, money::Money, types::CurveId, Error};
@@ -813,7 +810,7 @@ pub trait Instrument: CashflowProvider + Send + Sync {
         as_of: Date,
         metrics: &[MetricId],
         options: PricingOptions,
-    ) -> finstack_quant_core::Result<crate::results::ValuationResult> {
+    ) -> crate::Result<crate::results::ValuationResult> {
         let PricingOptions {
             config,
             market_history,
@@ -834,7 +831,7 @@ pub trait Instrument: CashflowProvider + Send + Sync {
             rate_recalibration_cache,
         };
 
-        PricerRegistry::price_with_metrics_shared(
+        Ok(PricerRegistry::price_with_metrics_shared(
             &registry,
             instrument.as_ref(),
             model,
@@ -842,22 +839,7 @@ pub trait Instrument: CashflowProvider + Send + Sync {
             as_of,
             metrics,
             registry_options,
-        )
-        .map_err(|e| match e {
-            PricingError::UnknownPricer {
-                key,
-                available_models,
-            } => actionable_unknown_pricer_message(key, &available_models)
-                .map(finstack_quant_core::Error::Validation)
-                .unwrap_or_else(|| {
-                    PricingError::UnknownPricer {
-                        key,
-                        available_models,
-                    }
-                    .into()
-                }),
-            other => other.into(),
-        })
+        )?)
     }
 
     /// Unified market data dependencies for this instrument.

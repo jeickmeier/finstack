@@ -10,8 +10,8 @@
 use finstack_quant_core::Result;
 
 use crate::instruments::common_impl::parameters::OptionType;
-use crate::models::closed_form::vanilla::bs_price;
-use crate::models::closed_form::vanilla::bs_vega;
+use crate::models::closed_form::vanilla::bs_price_unchecked;
+use crate::models::closed_form::vanilla::bs_vega_unchecked;
 
 /// Error returned when implied volatility cannot be bracketed (target price may exceed arbitrage bounds).
 ///
@@ -112,7 +112,8 @@ pub fn bs_implied_vol(
         )));
     }
 
-    let price_at = |sigma: f64| -> f64 { bs_price(spot, strike, r, q, sigma, t, option_type) };
+    let price_at =
+        |sigma: f64| -> f64 { bs_price_unchecked(spot, strike, r, q, sigma, t, option_type) };
 
     // Bracket the solution (monotone increasing in sigma for vanilla options).
     let mut lo = MIN_VOL;
@@ -161,7 +162,8 @@ pub fn bs_implied_vol(
 
     // Newton-Raphson with bisection fallback.
     // bs_vega returns dPrice/dSigma scaled by 0.01, so multiply by 100 for raw vega.
-    let raw_vega_at = |sigma: f64| -> f64 { bs_vega(spot, strike, t, r, q, sigma) * 100.0 };
+    let raw_vega_at =
+        |sigma: f64| -> f64 { bs_vega_unchecked(spot, strike, t, r, q, sigma) * 100.0 };
 
     let mut mid = 0.5 * (lo + hi);
 
@@ -273,8 +275,9 @@ pub fn black76_implied_vol(
         ));
     }
 
-    let price_at =
-        |sigma: f64| -> f64 { df * bs_price(forward, strike, 0.0, 0.0, sigma, t, option_type) };
+    let price_at = |sigma: f64| -> f64 {
+        df * bs_price_unchecked(forward, strike, 0.0, 0.0, sigma, t, option_type)
+    };
 
     let mut lo = MIN_VOL;
     let mut hi = 0.3_f64.max(MIN_VOL);
@@ -301,7 +304,7 @@ pub fn black76_implied_vol(
     // Newton-Raphson with bisection fallback.
     // For Black-76: vega = df * d(bs_price(F,K,0,0,sigma,t))/d(sigma)
     let raw_vega_at =
-        |sigma: f64| -> f64 { df * bs_vega(forward, strike, t, 0.0, 0.0, sigma) * 100.0 };
+        |sigma: f64| -> f64 { df * bs_vega_unchecked(forward, strike, t, 0.0, 0.0, sigma) * 100.0 };
 
     let mut mid = 0.5 * (lo + hi);
 
@@ -382,10 +385,10 @@ mod tests {
         ];
         for &(spot, strike, r, q, t, vol) in &cases {
             for option_type in [OptionType::Call, OptionType::Put] {
-                let target = bs_price(spot, strike, r, q, vol, t, option_type);
+                let target = bs_price_unchecked(spot, strike, r, q, vol, t, option_type);
                 let solved = bs_implied_vol(spot, strike, r, q, t, option_type, target)
                     .expect("a price generated from a real vol must invert");
-                let repriced = bs_price(spot, strike, r, q, solved, t, option_type);
+                let repriced = bs_price_unchecked(spot, strike, r, q, solved, t, option_type);
                 // Round-trip price error must be tiny; a non-converged `Ok`
                 // (the audited defect) would fail this with a large residual.
                 assert!(

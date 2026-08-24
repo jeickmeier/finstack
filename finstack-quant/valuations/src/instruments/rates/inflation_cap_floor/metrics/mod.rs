@@ -19,22 +19,24 @@ mod vega;
 use crate::metrics::MetricRegistry;
 
 /// Register all inflation cap/floor metrics with the registry.
-pub(crate) fn register_inflation_cap_floor_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_inflation_cap_floor_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::MetricId;
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Inflation01,
         Arc::new(inflation01::Inflation01Calculator),
         &[InstrumentType::InflationCapFloor],
-    );
+    )?;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Gamma,
         Arc::new(gamma::GammaCalculator),
         &[InstrumentType::InflationCapFloor],
-    );
+    )?;
 
     crate::register_metrics! {
         registry: registry,
@@ -49,4 +51,5 @@ pub(crate) fn register_inflation_cap_floor_metrics(registry: &mut MetricRegistry
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     };
+    Ok(())
 }

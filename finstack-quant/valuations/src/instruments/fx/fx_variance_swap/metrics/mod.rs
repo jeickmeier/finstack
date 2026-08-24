@@ -22,7 +22,9 @@ pub(crate) use vega::VegaCalculator;
 use crate::metrics::MetricRegistry;
 
 /// Register FX variance swap metrics with the registry.
-pub(crate) fn register_fx_variance_swap_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_fx_variance_swap_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     crate::register_metrics! {
         registry: registry,
@@ -43,4 +45,5 @@ pub(crate) fn register_fx_variance_swap_metrics(registry: &mut MetricRegistry) {
             (VarianceTimeToMaturity, TimeToMaturityCalculator),
         ]
     };
+    Ok(())
 }

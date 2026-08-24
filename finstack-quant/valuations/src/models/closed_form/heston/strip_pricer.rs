@@ -1,8 +1,8 @@
 use super::characteristic_fn::{heston_pj_characteristic_function, HestonCfStatus};
-use super::fourier_prices::black_scholes_call;
 use super::params::HESTON_TAIL_DIAGNOSTIC_THRESHOLD;
 use super::quadrature::{composite_gauss_legendre_grid, HESTON_TAIL_WINDOW_FRACTION};
 use super::{HestonFourierSettings, HestonParams};
+use finstack_quant_core::{Error, Result};
 use num_complex::Complex;
 use std::f64::consts::PI;
 use tracing::warn;
@@ -26,14 +26,13 @@ pub struct HestonStripPricer {
     psi1_over_iphi: Vec<Complex<f64>>,
     /// Cached `psi_2(phi) / (i * phi)` values on the grid.
     psi2_over_iphi: Vec<Complex<f64>>,
-    /// `true` when too many grid nodes had a non-finite / overflow-zeroed
-    /// characteristic function, so the cached integral is unreliable and
-    /// pricing must fall back to Black-Scholes (mirrors the scalar path).
+    /// `true` when too many grid nodes had a non-finite or overflow-zeroed
+    /// characteristic function, making the cached integral unreliable.
     pub(super) integrand_corrupted: bool,
 }
 
-/// Maximum fraction of integration nodes that may be non-finite / zeroed before
-/// the cached strip integral is deemed unreliable and pricing falls back to BS.
+/// Maximum fraction of integration nodes that may be non-finite or zeroed
+/// before the cached strip integral is rejected.
 ///
 /// A Heston characteristic function that overflows at a node makes
 /// [`heston_pj_characteristic_function`] return a zeroed value with
@@ -159,23 +158,17 @@ impl HestonStripPricer {
 
     /// Price a single European call using the cached strip pricer.
     ///
-    /// If too many integration nodes had a non-finite / overflow-zeroed
-    /// characteristic function (see HESTON_STRIP_MAX_CORRUPT_FRACTION), the
-    /// cached Gil-Pelaez integral is unreliable and this degrades to a
-    /// Black-Scholes price at the integrated vol `sqrt(v0)` — mirroring the
-    /// scalar [`super::heston_call_price_fourier`] fallback rather than
-    /// returning a plausible-but-wrong finite number.
-    #[must_use]
-    pub fn price_call(&self, strike: f64) -> f64 {
+    /// Returns a structured convergence error when characteristic-function
+    /// corruption or a non-finite integral makes the Heston result unreliable.
+    pub fn price_call(&self, strike: f64) -> Result<f64> {
         if self.integrand_corrupted {
-            return black_scholes_call(
-                self.spot,
-                strike,
-                self.time,
-                self.params.r,
-                self.params.q,
-                self.params.deterministic_avg_variance(self.time).sqrt(),
-            );
+            return Err(Error::Calibration {
+                category: "heston_fourier".to_string(),
+                message: format!(
+                    "Heston strip integration is corrupted for spot={}, strike={}, time={}",
+                    self.spot, strike, self.time
+                ),
+            });
         }
 
         let log_strike = strike.ln();
@@ -208,22 +201,21 @@ impl HestonStripPricer {
             - strike * (-self.params.r * self.time).exp() * p2;
 
         if !call_price.is_finite() {
-            return black_scholes_call(
-                self.spot,
-                strike,
-                self.time,
-                self.params.r,
-                self.params.q,
-                self.params.deterministic_avg_variance(self.time).sqrt(),
-            );
+            return Err(Error::Calibration {
+                category: "heston_fourier".to_string(),
+                message: format!(
+                    "Heston strip integration produced a non-finite price for \
+                     spot={}, strike={}, time={}",
+                    self.spot, strike, self.time
+                ),
+            });
         }
 
-        call_price.max(0.0)
+        Ok(call_price.max(0.0))
     }
 
     /// Price a strip of European calls using the cached strip pricer.
-    #[must_use]
-    pub fn price_calls(&self, strikes: &[f64]) -> Vec<f64> {
+    pub fn price_calls(&self, strikes: &[f64]) -> Result<Vec<f64>> {
         strikes
             .iter()
             .map(|&strike| self.price_call(strike))

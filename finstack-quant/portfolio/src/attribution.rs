@@ -390,10 +390,10 @@ fn attribute_composite_primitives(
             let options = PricingOptions::default().with_config(config);
             let result_t0 = instrument
                 .price_with_metrics(market_t0, as_of_t0, &metrics, options.clone())
-                .map_err(Error::Core)?;
+                .map_err(|error| Error::Core(error.into()))?;
             let result_t1 = instrument
                 .price_with_metrics(market_t1, as_of_t1, &metrics, options)
-                .map_err(Error::Core)?;
+                .map_err(|error| Error::Core(error.into()))?;
             attribute_pnl_metrics_based(
                 &instrument,
                 market_t0,
@@ -1444,7 +1444,7 @@ mod tests {
             as_of: Date,
             _metrics: &[MetricId],
             options: PricingOptions,
-        ) -> finstack_quant_core::Result<ValuationResult> {
+        ) -> finstack_quant_valuations::Result<ValuationResult> {
             if _metrics.is_empty() {
                 self.pv_only_calls.fetch_add(1, Ordering::SeqCst);
             } else {
@@ -1458,7 +1458,8 @@ mod tests {
             if config.rounding.output_scale.overrides.get(&Currency::USD) != Some(&4) {
                 return Err(finstack_quant_core::Error::Validation(
                     "attribution pricing received the wrong FinstackConfig".to_string(),
-                ));
+                )
+                .into());
             }
             Ok(ValuationResult::stamped_with_config(
                 self.id(),
@@ -1526,7 +1527,7 @@ mod tests {
             as_of: Date,
             _metrics: &[MetricId],
             _options: PricingOptions,
-        ) -> finstack_quant_core::Result<ValuationResult> {
+        ) -> finstack_quant_valuations::Result<ValuationResult> {
             Ok(ValuationResult::stamped(
                 self.id(),
                 as_of,

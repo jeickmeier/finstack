@@ -1175,16 +1175,16 @@ fn compute_arithmetic_mean_second_moment(
 #[inline]
 fn vanilla_call_bs(spot: f64, strike: f64, time: f64, rate: f64, div_yield: f64, vol: f64) -> f64 {
     use crate::instruments::common_impl::parameters::OptionType;
-    use crate::models::closed_form::vanilla::bs_price;
-    bs_price(spot, strike, rate, div_yield, vol, time, OptionType::Call)
+    use crate::models::closed_form::vanilla::bs_price_unchecked;
+    bs_price_unchecked(spot, strike, rate, div_yield, vol, time, OptionType::Call)
 }
 
 /// Helper: vanilla put under Black-Scholes.
 #[inline]
 fn vanilla_put_bs(spot: f64, strike: f64, time: f64, rate: f64, div_yield: f64, vol: f64) -> f64 {
     use crate::instruments::common_impl::parameters::OptionType;
-    use crate::models::closed_form::vanilla::bs_price;
-    bs_price(spot, strike, rate, div_yield, vol, time, OptionType::Put)
+    use crate::models::closed_form::vanilla::bs_price_unchecked;
+    bs_price_unchecked(spot, strike, rate, div_yield, vol, time, OptionType::Put)
 }
 
 #[cfg(test)]

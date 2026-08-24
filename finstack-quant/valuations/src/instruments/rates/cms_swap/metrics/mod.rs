@@ -11,7 +11,9 @@ use crate::metrics::MetricRegistry;
 use std::sync::Arc;
 
 /// Register CMS swap metrics with the registry.
-pub(crate) fn register_cms_swap_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_cms_swap_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::MetricId;
     use crate::pricer::InstrumentType;
 
@@ -28,9 +30,10 @@ pub(crate) fn register_cms_swap_metrics(registry: &mut MetricRegistry) {
         ]
     }
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::ConvexityAdjustmentRisk,
         Arc::new(convexity_adjustment_risk::ConvexityAdjustmentRiskCalculator),
         &[InstrumentType::CmsSwap],
-    );
+    )?;
+    Ok(())
 }

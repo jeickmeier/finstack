@@ -13,6 +13,9 @@ pub const DEFAULT_NORMAL_VOL: f64 = 0.01; // 100 bp/yr
 /// This corresponds to ~100 bp normal vol at a 5% rate level.
 pub const DEFAULT_LOGNORMAL_VOL: f64 = 0.20; // 20%
 
+/// Default maximum initial-curve repricing error for calibrated trees, in basis points.
+pub const DEFAULT_CURVE_FIT_TOLERANCE_BP: f64 = 0.1;
+
 // Short-Rate Model Types
 
 /// Compounding convention for per-node discount factors in the short-rate tree.
@@ -264,6 +267,12 @@ pub struct ShortRateTreeConfig {
     /// simple `1/(1+r*dt)` compounding. Bloomberg's lognormal OAS model uses
     /// simple compounding; the default is continuous compounding.
     pub compounding: TreeCompounding,
+
+    /// Maximum permitted initial-curve repricing error, in basis points.
+    ///
+    /// BDT calibration fails rather than returning a tree when this tolerance
+    /// is exceeded. The default is 0.1 bp.
+    pub curve_fit_tolerance_bp: f64,
 }
 
 impl Default for ShortRateTreeConfig {
@@ -302,6 +311,7 @@ impl ShortRateTreeConfig {
             mean_reversion: None,
             branching: TreeBranching::Binomial,
             compounding: TreeCompounding::default(),
+            curve_fit_tolerance_bp: DEFAULT_CURVE_FIT_TOLERANCE_BP,
         }
     }
 
@@ -333,6 +343,7 @@ impl ShortRateTreeConfig {
             mean_reversion: Some(mean_reversion),
             branching: TreeBranching::Binomial,
             compounding: TreeCompounding::default(),
+            curve_fit_tolerance_bp: DEFAULT_CURVE_FIT_TOLERANCE_BP,
         }
     }
 
@@ -341,6 +352,21 @@ impl ShortRateTreeConfig {
     pub fn with_compounding(mut self, compounding: TreeCompounding) -> Self {
         self.compounding = compounding;
         self
+    }
+
+    /// Set the maximum permitted initial-curve repricing error.
+    ///
+    /// # Arguments
+    ///
+    /// * `tolerance_bp` - Positive finite error tolerance in basis points.
+    pub fn with_curve_fit_tolerance_bp(mut self, tolerance_bp: f64) -> Result<Self> {
+        if !tolerance_bp.is_finite() || tolerance_bp <= 0.0 {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "short-rate tree curve-fit tolerance must be finite and positive, got {tolerance_bp}"
+            )));
+        }
+        self.curve_fit_tolerance_bp = tolerance_bp;
+        Ok(self)
     }
 
     /// Create Ho-Lee configuration with default normal volatility (100 bp).

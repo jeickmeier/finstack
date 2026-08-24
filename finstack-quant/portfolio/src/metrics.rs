@@ -44,11 +44,10 @@ use serde::{Deserialize, Serialize};
 /// hedge with (Tuckman & Serrat, *Fixed Income Securities*). `fx_delta` and
 /// `index_delta` are likewise currency-denominated and linear in size.
 ///
-/// Linear scalar Greeks such as `delta`, `gamma`, and `vega` use the same
-/// additive policy as composite valuation after position scaling and FX
-/// conversion. Risk reports that need hedgeable factor totals should prefer
-/// qualified bucket keys (for example `bucketed_vega::<surface>::<bucket>`),
-/// which remain distinct through [`PortfolioMetrics::metric_series`].
+/// Unqualified scalar Greeks (`delta`, `gamma`, `vega`, `vanna`, `volga`)
+/// are not additive because their risk factors may differ across positions.
+/// Portfolio totals require qualified keys such as `delta::<underlying>` or
+/// `bucketed_vega::<surface>::<expiry>::<strike>`.
 /// Instrument-specific measures such as yield and duration remain in
 /// [`PortfolioMetrics::by_position`] and are listed on
 /// [`PortfolioMetrics::unaggregated_metrics`].
@@ -617,9 +616,12 @@ mod tests {
         assert!(is_summable("cs01"));
         assert!(is_summable("fx_delta"));
         assert!(is_summable("index_delta"));
-        assert!(is_summable("delta"));
-        assert!(is_summable("gamma"));
-        assert!(is_summable("vega"));
+        assert!(!is_summable("delta"));
+        assert!(!is_summable("gamma"));
+        assert!(!is_summable("vega"));
+        assert!(is_summable("delta::AAPL"));
+        assert!(is_summable("gamma::SPX"));
+        assert!(is_summable("vega::SPX_VOL"));
         assert!(!is_summable("ytm"));
         assert!(!is_summable("duration"));
 

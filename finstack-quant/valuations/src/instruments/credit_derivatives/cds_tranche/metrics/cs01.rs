@@ -89,7 +89,7 @@ impl MetricCalculator for CdsTrancheCs01Calculator {
         let credit_index_id = tranche.credit_index_id;
         let hazard_id_for_reval = hazard_id.clone();
         let inst_arc = Arc::clone(&context.instrument);
-        let (model, registry) = context.clone_pricer_dispatch();
+        let dispatch = context.clone_pricer_dispatch();
         let as_of = context.as_of;
 
         let reval = move |temp_ctx: &finstack_quant_core::market_data::context::MarketContext| {
@@ -98,12 +98,14 @@ impl MetricCalculator for CdsTrancheCs01Calculator {
                 credit_index_id.as_str(),
                 rebuild_index(index_data.as_ref(), bumped_hazard)?,
             );
-            if let (Some(model), Some(registry)) = (model, registry.as_ref()) {
-                return registry
-                    .price_raw(inst_arc.as_ref(), model, &indexed_ctx, as_of)
-                    .map_err(Into::into);
+            match &dispatch {
+                crate::pricer::PricingDispatch::Registered { model, registry } => registry
+                    .price_raw(inst_arc.as_ref(), *model, &indexed_ctx, as_of)
+                    .map_err(Into::into),
+                crate::pricer::PricingDispatch::InstrumentDefault => {
+                    inst_arc.value_raw(&indexed_ctx, as_of)
+                }
             }
-            inst_arc.value_raw(&indexed_ctx, as_of)
         };
 
         let cs01 = compute_parallel_cs01_with_context_raw(
@@ -176,7 +178,7 @@ impl MetricCalculator for CdsTrancheBucketedCs01Calculator {
         let credit_index_id = tranche.credit_index_id;
         let hazard_id_for_reval = hazard_id.clone();
         let inst_arc = Arc::clone(&context.instrument);
-        let (model, registry) = context.clone_pricer_dispatch();
+        let dispatch = context.clone_pricer_dispatch();
         let as_of = context.as_of;
 
         let reval = move |temp_ctx: &finstack_quant_core::market_data::context::MarketContext| {
@@ -185,12 +187,14 @@ impl MetricCalculator for CdsTrancheBucketedCs01Calculator {
                 credit_index_id.as_str(),
                 rebuild_index(index_data.as_ref(), bumped_hazard)?,
             );
-            if let (Some(model), Some(registry)) = (model, registry.as_ref()) {
-                return registry
-                    .price_raw(inst_arc.as_ref(), model, &indexed_ctx, as_of)
-                    .map_err(Into::into);
+            match &dispatch {
+                crate::pricer::PricingDispatch::Registered { model, registry } => registry
+                    .price_raw(inst_arc.as_ref(), *model, &indexed_ctx, as_of)
+                    .map_err(Into::into),
+                crate::pricer::PricingDispatch::InstrumentDefault => {
+                    inst_arc.value_raw(&indexed_ctx, as_of)
+                }
             }
-            inst_arc.value_raw(&indexed_ctx, as_of)
         };
 
         let series_id = MetricId::custom(format!("bucketed_cs01::{}", hazard_id.as_str()));

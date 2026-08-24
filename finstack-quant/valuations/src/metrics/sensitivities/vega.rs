@@ -10,7 +10,7 @@ use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::MetricCalculator;
 use crate::metrics::{MetricContext, MetricId};
 use finstack_quant_core::market_data::scalars::MarketScalar;
-use finstack_quant_core::math::{neumaier_sum, NeumaierAccumulator};
+use finstack_quant_core::math::NeumaierAccumulator;
 use std::marker::PhantomData;
 
 const VOL_POINTS_PER_ABSOLUTE_VOL: f64 = 100.0;
@@ -56,31 +56,6 @@ fn expiry_label(t: f64) -> String {
     } else {
         format!("{:.0}y", t)
     }
-}
-
-fn scaled_bucketed_vega_matrix(
-    raw_matrix: Vec<Vec<f64>>,
-    raw_total: f64,
-    target_total: f64,
-) -> (Vec<Vec<f64>>, f64) {
-    if target_total.abs() <= f64::EPSILON {
-        let zero_matrix = raw_matrix
-            .into_iter()
-            .map(|row| row.into_iter().map(|_| 0.0).collect())
-            .collect();
-        return (zero_matrix, 0.0);
-    }
-
-    let scale = if raw_total.abs() > f64::EPSILON {
-        target_total / raw_total
-    } else {
-        1.0
-    };
-    let matrix = raw_matrix
-        .into_iter()
-        .map(|row| row.into_iter().map(|v| v * scale).collect())
-        .collect();
-    (matrix, scale)
 }
 
 /// Key-rate vega calculator: bumps individual (expiry, strike) points.
@@ -244,14 +219,15 @@ where
             let mut raw_total = NeumaierAccumulator::new();
             let mut row_labels = Vec::new();
 
-            for ((vol_surface_id, _vol_surface), strike_grid) in
+            for ((vol_surface_id, vol_surface), strike_grid) in
                 vol_surfaces.iter().zip(&surface_strike_grids)
             {
+                let use_one_sided =
+                    min_grid_vol(vol_surface).is_some_and(|minimum| minimum < bump_pct);
                 for &expiry in &self.expiries {
                     let mut row = Vec::new();
                     for &strike in strike_grid {
-                        // Central differences: O(h²) accuracy, consistent with other Greeks.
-                        let token_up = scratch.apply_surface_point_bump_in_place(
+                        let token_up = scratch.apply_surface_point_absolute_bump_in_place(
                             vol_surface_id.as_str(),
                             expiry,
                             strike,
@@ -261,18 +237,23 @@ where
                         scratch.revert_scratch_bump(token_up)?;
                         let pv_up = pv_up?;
 
-                        let token_down = scratch.apply_surface_point_bump_in_place(
-                            vol_surface_id.as_str(),
-                            expiry,
-                            strike,
-                            -bump_pct,
-                        )?;
-                        let pv_down = ctx.reprice_money(scratch, as_of);
-                        scratch.revert_scratch_bump(token_down)?;
-                        let pv_down = pv_down?;
-
-                        let vega = (pv_up.amount() - pv_down.amount())
-                            / (2.0 * bump_pct * VOL_POINTS_PER_ABSOLUTE_VOL);
+                        let vega = if use_one_sided {
+                            let pv_base = ctx.reprice_money(base_ctx, as_of)?;
+                            (pv_up.amount() - pv_base.amount())
+                                / (bump_pct * VOL_POINTS_PER_ABSOLUTE_VOL)
+                        } else {
+                            let token_down = scratch.apply_surface_point_absolute_bump_in_place(
+                                vol_surface_id.as_str(),
+                                expiry,
+                                strike,
+                                -bump_pct,
+                            )?;
+                            let pv_down = ctx.reprice_money(scratch, as_of);
+                            scratch.revert_scratch_bump(token_down)?;
+                            let pv_down = pv_down?;
+                            (pv_up.amount() - pv_down.amount())
+                                / (2.0 * bump_pct * VOL_POINTS_PER_ABSOLUTE_VOL)
+                        };
                         row.push(vega);
                         raw_total.add(vega);
                     }
@@ -289,40 +270,23 @@ where
             Ok((raw_matrix, raw_total.total(), row_labels))
         })?;
 
-        // Normalize bucketed vegas so they partition the parallel vega.
-        let (matrix, scale) = scaled_bucketed_vega_matrix(raw_matrix, raw_total, target_total);
-
-        // Warn if scale factor deviates significantly from 1.0, which may indicate
-        // that the bucketed vega grid doesn't capture the true sensitivity distribution
-        // (e.g., option expiry/strike far from grid points, or exotic payoff structure)
-        const SCALE_DEVIATION_THRESHOLD: f64 = 0.10; // 10% deviation
-        if (scale - 1.0).abs() > SCALE_DEVIATION_THRESHOLD {
+        let residual = target_total - raw_total;
+        context
+            .computed
+            .insert(MetricId::custom("bucketed_vega_residual"), residual);
+        if residual.abs() > 0.10 * target_total.abs().max(f64::EPSILON) {
             tracing::warn!(
-                raw_total = raw_total,
-                target_total = target_total,
-                scale = scale,
-                scale_deviation_pct = (scale - 1.0).abs() * 100.0,
-                "Bucketed vega scale factor deviates significantly from 1.0. \
-                 This may indicate the vega grid doesn't fully capture the instrument's \
-                 volatility sensitivity. Consider using a finer grid or reviewing the \
-                 instrument's strike/expiry relative to grid points."
+                raw_bucket_total = raw_total,
+                parallel_vega = target_total,
+                uncovered_residual = residual,
+                "point-bump bucketed vega does not span the parallel surface bump"
             );
         }
 
-        let sum_scaled: f64 = neumaier_sum(matrix.iter().flatten().copied());
-        tracing::debug!(
-            raw_total = raw_total,
-            target_total = target_total,
-            scale = scale,
-            sum_scaled = sum_scaled,
-            "bucketed vega debug"
-        );
+        let col_labels: Vec<String> = self.strikes.iter().map(|&k| format!("{k:.2}")).collect();
+        let _ = context.store_matrix2d(MetricId::BucketedVega, row_labels, col_labels, raw_matrix);
 
-        let col_labels: Vec<String> = self.strikes.iter().map(|&k| format!("{:.2}", k)).collect();
-
-        let _ = context.store_matrix2d(MetricId::BucketedVega, row_labels, col_labels, matrix);
-
-        Ok(target_total)
+        Ok(raw_total)
     }
 
     fn dependencies(&self) -> &[MetricId] {
@@ -332,10 +296,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{scaled_bucketed_vega_matrix, KeyRateVega};
+    use super::KeyRateVega;
     use crate::instruments::common_impl::dependencies::{MarketDependencies, VolatilityDependency};
     use crate::instruments::common_impl::traits::{Attributes, Instrument};
-    use crate::metrics::{MetricCalculator, MetricContext};
+    use crate::metrics::{MetricCalculator, MetricContext, MetricId};
     use crate::pricer::InstrumentType;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::Date;
@@ -438,14 +402,6 @@ mod tests {
     }
 
     #[test]
-    fn zero_target_vega_forces_bucket_matrix_to_zero() {
-        let (matrix, scale) = scaled_bucketed_vega_matrix(vec![vec![10.0, -10.0]], 0.0, 0.0);
-
-        assert_eq!(scale, 0.0);
-        assert_eq!(matrix, vec![vec![0.0, 0.0]]);
-    }
-
-    #[test]
     fn key_rate_vega_includes_every_present_unique_surface() {
         let first_coefficient = 1_000.0;
         let second_coefficient = 2_500.0;
@@ -473,6 +429,17 @@ mod tests {
             .calculate(&mut context)
             .expect("key-rate vega");
 
-        assert!((vega - (first_coefficient + second_coefficient) * 0.01).abs() < 1e-9);
+        assert!(
+            (vega - (first_coefficient + second_coefficient) * 0.01).abs() < 1e-9,
+            "raw total={vega}, expected={}",
+            (first_coefficient + second_coefficient) * 0.01
+        );
+        let matrix = context
+            .computed_matrix
+            .get(&MetricId::BucketedVega)
+            .expect("bucket matrix");
+        assert!((matrix.values[0][0] - first_coefficient * 0.01).abs() < 1e-9);
+        assert!((matrix.values[1][0] - second_coefficient * 0.01).abs() < 1e-9);
+        assert!(context.computed[&MetricId::custom("bucketed_vega_residual")].abs() < 1e-9);
     }
 }

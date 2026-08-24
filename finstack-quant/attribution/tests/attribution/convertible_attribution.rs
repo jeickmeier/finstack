@@ -103,13 +103,21 @@ fn market(credit_spread_bp: f64) -> MarketContext {
     // extrapolation would go negative → NaN zero rate).
     let ois = DiscountCurve::builder("USD-OIS")
         .base_date(base)
-        .knots([(0.0, 1.0), (10.0, (-rf * 10.0).exp())])
+        .knots([
+            (0.0, 1.0),
+            (1.0, (-rf).exp()),
+            (10.0, (-rf * 10.0).exp()),
+        ])
         .interp(InterpStyle::LogLinear)
         .build()
         .unwrap();
     let credit_curve = DiscountCurve::builder("USD-CREDIT")
         .base_date(base)
-        .knots([(0.0, 1.0), (10.0, (-credit * 10.0).exp())])
+        .knots([
+            (0.0, 1.0),
+            (1.0, (-credit).exp()),
+            (10.0, (-credit * 10.0).exp()),
+        ])
         .interp(InterpStyle::LogLinear)
         .build()
         .unwrap();

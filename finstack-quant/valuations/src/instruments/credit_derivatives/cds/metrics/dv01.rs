@@ -78,7 +78,9 @@ impl MetricCalculator for CdsDv01Calculator {
         let result = (|| {
             let hazard = original_curves.get_hazard(cds.protection.credit_curve_id.as_str())?;
             if let Some(quote_hazard) = hazard_with_deal_quote(&cds, hazard.as_ref())? {
-                context.curves = Arc::new(original_curves.as_ref().clone().insert(quote_hazard));
+                context.set_market(Arc::new(
+                    original_curves.as_ref().clone().insert(quote_hazard),
+                ));
             }
 
             let hazard = context
@@ -91,7 +93,7 @@ impl MetricCalculator for CdsDv01Calculator {
 
             Ok(sensitivity_central_diff(pv_up, pv_down, bump_bp))
         })();
-        context.curves = original_curves;
+        context.set_market(original_curves);
         result
     }
 }

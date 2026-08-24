@@ -344,7 +344,7 @@ assert!(ko < price);
 
 // Heston with adaptive quadrature settings.
 let params = HestonParams::new(r, q, 2.0, 0.04, 0.3, -0.7, 0.04)?;
-let heston = heston_call_price_fourier(spot, strike, t, &params, None);
+let heston = heston_call_price_fourier(spot, strike, t, &params, None)?;
 assert!(heston > 0.0 && heston < spot);
 # Ok::<(), finstack_quant_core::Error>(())
 ```

@@ -21,15 +21,14 @@ fn calculate_var_result(
         .get_metric_overrides()
         .and_then(|overrides| overrides.var_config.clone())
         .unwrap_or_else(|| default_config.clone());
-    let (pricing_model, pricer_registry) = context.clone_pricer_dispatch();
+    let dispatch = context.clone_pricer_dispatch();
     calculate_var_with_pricing(
         &[context.instrument.as_ref()],
         &context.curves,
         history,
         context.as_of,
         &config,
-        pricing_model,
-        pricer_registry,
+        dispatch,
     )
 }
 

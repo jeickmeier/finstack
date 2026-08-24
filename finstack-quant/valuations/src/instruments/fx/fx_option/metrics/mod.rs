@@ -10,7 +10,9 @@ mod implied_vol;
 use crate::metrics::MetricRegistry;
 
 /// Register FX option metrics with the registry.
-pub(crate) fn register_fx_option_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_fx_option_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::{
         make_fx_bumper, make_rates_bumper, make_vol_bumper, CrossFactorCalculator, CrossFactorPair,
         MetricId,
@@ -19,32 +21,32 @@ pub(crate) fn register_fx_option_metrics(registry: &mut MetricRegistry) {
     use std::sync::Arc;
 
     // Standard metrics for rho split by domestic/foreign.
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Rho,
         Arc::new(crate::metrics::OptionGreekCalculator::<
             crate::instruments::FxOption,
         >::rho()),
         &[InstrumentType::FxOption],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::ForeignRho,
         Arc::new(crate::metrics::OptionGreekCalculator::<
             crate::instruments::FxOption,
         >::foreign_rho()),
         &[InstrumentType::FxOption],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::DeltaForward,
         Arc::new(delta_conventions::DeltaForwardCalculator),
         &[InstrumentType::FxOption],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::DeltaPremiumAdjusted,
         Arc::new(delta_conventions::DeltaPremiumAdjustedCalculator),
         &[InstrumentType::FxOption],
-    );
+    )?;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::CrossGammaFxVol,
         Arc::new(CrossFactorCalculator::new(
             CrossFactorPair::FxVol,
@@ -52,8 +54,8 @@ pub(crate) fn register_fx_option_metrics(registry: &mut MetricRegistry) {
             make_vol_bumper,
         )),
         &[InstrumentType::FxOption],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::CrossGammaFxRates,
         Arc::new(CrossFactorCalculator::new(
             CrossFactorPair::FxRates,
@@ -61,7 +63,7 @@ pub(crate) fn register_fx_option_metrics(registry: &mut MetricRegistry) {
             make_rates_bumper,
         )),
         &[InstrumentType::FxOption],
-    );
+    )?;
 
     // Standard metrics using macro
     crate::register_metrics! {
@@ -84,6 +86,7 @@ pub(crate) fn register_fx_option_metrics(registry: &mut MetricRegistry) {
             (Volga, crate::metrics::OptionGreekCalculator::<crate::instruments::FxOption>::volga()),
         ]
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -95,7 +98,7 @@ mod tests {
     #[test]
     fn registers_fx_delta_convention_metrics() {
         let mut registry = MetricRegistry::new();
-        register_fx_option_metrics(&mut registry);
+        register_fx_option_metrics(&mut registry).expect("FX option metric registration");
         let metrics = registry.metrics_for_instrument(InstrumentType::FxOption);
 
         assert!(metrics.contains(&MetricId::DeltaForward));

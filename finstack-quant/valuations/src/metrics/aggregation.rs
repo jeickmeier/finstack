@@ -24,19 +24,34 @@ pub enum MetricAggregation {
 /// * `metric_id` - Metric identifier whose cross-instrument semantics are required.
 #[must_use]
 pub fn metric_aggregation(metric_id: &MetricId) -> MetricAggregation {
-    let base = metric_id
-        .as_str()
-        .split_once("::")
-        .map_or(metric_id.as_str(), |(base, _)| base);
+    let id = metric_id.as_str();
+    if matches!(
+        id,
+        "delta" | "gamma" | "vega" | "vanna" | "volga" | "bucketed_vega"
+    ) {
+        return MetricAggregation::NonAdditive;
+    }
+    if [
+        "delta::",
+        "gamma::",
+        "vega::",
+        "vanna::",
+        "volga::",
+        "bucketed_vega::",
+    ]
+    .iter()
+    .any(|prefix| {
+        id.strip_prefix(prefix)
+            .is_some_and(|factor| !factor.is_empty())
+    }) {
+        return MetricAggregation::Additive;
+    }
+
+    let base = id.split_once("::").map_or(id, |(base, _)| base);
     match base {
         "theta"
         | "dv01"
         | "cs01"
-        | "delta"
-        | "gamma"
-        | "vega"
-        | "volga"
-        | "vanna"
         | "rho"
         | "pv01"
         | "ir01"
@@ -59,7 +74,6 @@ pub fn metric_aggregation(metric_id: &MetricId) -> MetricAggregation {
         | "foreign_rho"
         | "bucketed_dv01"
         | "bucketed_cs01"
-        | "bucketed_vega"
         | "accrued_interest"
         | "pv_fixed"
         | "pv_float"
@@ -89,5 +103,22 @@ mod tests {
             "bucketed_dv01::USD-OIS::10y"
         )));
         assert!(!is_additive_metric(&MetricId::Ytm));
+    }
+
+    #[test]
+    fn scalar_greeks_require_qualified_risk_factors() {
+        for metric in ["delta", "gamma", "vega", "vanna", "volga", "bucketed_vega"] {
+            assert!(!is_additive_metric(&MetricId::custom(metric)));
+        }
+        for metric in [
+            "delta::AAPL",
+            "gamma::SPX",
+            "vega::SPX_VOL",
+            "vanna::EURUSD_VOL",
+            "volga::SPX_VOL",
+            "bucketed_vega::SPX_VOL::1y::100",
+        ] {
+            assert!(is_additive_metric(&MetricId::custom(metric)));
+        }
     }
 }

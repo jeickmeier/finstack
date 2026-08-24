@@ -13,18 +13,20 @@ use crate::pricer::InstrumentType;
 use std::sync::Arc;
 
 /// Register commodity Asian option metrics with the registry.
-pub(crate) fn register_commodity_asian_option_metrics(registry: &mut MetricRegistry) {
-    registry.register_metric(
+pub(crate) fn register_commodity_asian_option_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
+    registry.replace_metric(
         MetricId::Delta,
         Arc::new(greeks::AsianDeltaCalculator),
         &[InstrumentType::CommodityAsianOption],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::Vega,
         Arc::new(greeks::AsianVegaCalculator),
         &[InstrumentType::CommodityAsianOption],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::Dv01,
         Arc::new(crate::metrics::UnifiedDv01Calculator::<
             crate::instruments::commodity::commodity_asian_option::CommodityAsianOption,
@@ -32,8 +34,8 @@ pub(crate) fn register_commodity_asian_option_metrics(registry: &mut MetricRegis
             crate::metrics::Dv01CalculatorConfig::parallel_combined()
         )),
         &[InstrumentType::CommodityAsianOption],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::BucketedDv01,
         Arc::new(crate::metrics::UnifiedDv01Calculator::<
             crate::instruments::commodity::commodity_asian_option::CommodityAsianOption,
@@ -41,5 +43,6 @@ pub(crate) fn register_commodity_asian_option_metrics(registry: &mut MetricRegis
             crate::metrics::Dv01CalculatorConfig::triangular_key_rate(),
         )),
         &[InstrumentType::CommodityAsianOption],
-    );
+    )?;
+    Ok(())
 }

@@ -25,29 +25,24 @@ use std::sync::Arc;
 ///
 /// # Arguments
 /// * `registry` — The metric registry to register the calculators with
-pub(crate) fn register_basis_swap_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_basis_swap_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     // Leg-specific metrics with primary/reference constructors
-    registry
-        .register_metric(
+    for (id, calculator) in [
+        (
             MetricId::AnnuityPrimary,
-            Arc::new(AnnuityCalculator::primary()),
-            &[InstrumentType::BasisSwap],
-        )
-        .register_metric(
+            Arc::new(AnnuityCalculator::primary()) as Arc<dyn crate::metrics::MetricCalculator>,
+        ),
+        (
             MetricId::AnnuityReference,
             Arc::new(AnnuityCalculator::reference()),
-            &[InstrumentType::BasisSwap],
-        )
-        .register_metric(
-            MetricId::PvPrimary,
-            Arc::new(PvCalculator::primary()),
-            &[InstrumentType::BasisSwap],
-        )
-        .register_metric(
-            MetricId::PvReference,
-            Arc::new(PvCalculator::reference()),
-            &[InstrumentType::BasisSwap],
-        );
+        ),
+        (MetricId::PvPrimary, Arc::new(PvCalculator::primary())),
+        (MetricId::PvReference, Arc::new(PvCalculator::reference())),
+    ] {
+        registry.replace_metric(id, calculator, &[InstrumentType::BasisSwap])?;
+    }
 
     // DV01 using GenericParallelDv01 in PerCurve mode
     // This bumps each curve individually (discount, primary forward, reference forward)
@@ -65,4 +60,5 @@ pub(crate) fn register_basis_swap_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     }
+    Ok(())
 }

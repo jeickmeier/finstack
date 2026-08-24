@@ -3,7 +3,7 @@
 use crate::instruments::common_impl::parameters::market::OptionType;
 use crate::instruments::common_impl::pricing::variance_replication::carr_madan_forward_variance;
 use crate::instruments::equity::variance_swap::VarianceSwap;
-use crate::models::closed_form::vanilla::bs_price;
+use crate::models::closed_form::vanilla::bs_price_unchecked;
 
 type OhlcVecs = (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>);
 use finstack_quant_core::{
@@ -539,8 +539,9 @@ fn spot_variance_to_date(
             let strikes = surface.strikes();
             if t > 0.0 {
                 let vol_fn = |t_exp: f64, k: f64| surface.value_clamped(t_exp, k);
-                let bs_fn =
-                    |k: f64, v: f64, opt: OptionType| -> f64 { bs_price(spot, k, r, q, v, t, opt) };
+                let bs_fn = |k: f64, v: f64, opt: OptionType| -> f64 {
+                    bs_price_unchecked(spot, k, r, q, v, t, opt)
+                };
                 if let Some(variance) =
                     carr_madan_forward_variance(strikes, fwd, r, t, vol_fn, bs_fn)
                 {

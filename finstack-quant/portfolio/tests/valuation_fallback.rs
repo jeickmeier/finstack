@@ -80,7 +80,7 @@ impl Instrument for CanonicalPvInstrument {
         as_of: Date,
         metrics: &[finstack_quant_valuations::metrics::MetricId],
         _options: finstack_quant_valuations::instruments::PricingOptions,
-    ) -> finstack_quant_core::Result<ValuationResult> {
+    ) -> finstack_quant_valuations::Result<ValuationResult> {
         assert!(metrics.is_empty());
         Ok(
             ValuationResult::stamped(self.id(), as_of, Money::new(777.0, Currency::USD))
@@ -152,8 +152,8 @@ impl Instrument for ValueOnlyInstrument {
         _as_of: Date,
         _metrics: &[finstack_quant_valuations::metrics::MetricId],
         _options: finstack_quant_valuations::instruments::PricingOptions,
-    ) -> finstack_quant_core::Result<ValuationResult> {
-        Err(Error::Input(InputError::Invalid))
+    ) -> finstack_quant_valuations::Result<ValuationResult> {
+        Err(Error::Input(InputError::Invalid).into())
     }
 }
 

@@ -290,7 +290,7 @@ fn seasoned_breached_value_per_unit(
     discount_factor: f64,
 ) -> f64 {
     if inst.barrier_type.is_knock_in() {
-        crate::models::closed_form::vanilla::bs_price(
+        crate::models::closed_form::vanilla::bs_price_unchecked(
             spot,
             inst.strike,
             r_dom,

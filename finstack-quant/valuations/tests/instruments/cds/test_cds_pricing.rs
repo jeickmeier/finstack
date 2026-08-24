@@ -12,6 +12,8 @@ use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCur
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::MetricId;
+use finstack_quant_valuations::pricer::PricingError;
+use finstack_quant_valuations::Error as ValuationError;
 use rust_decimal::Decimal;
 use time::macros::date;
 
@@ -204,15 +206,14 @@ fn test_par_spread_errors_when_expired() {
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .expect_err("expired CDS should error");
-    assert_eq!(
-        err,
-        finstack_quant_core::Error::Calibration {
-            message: format!(
-                "Validation error: CDS 'EXPIRED_PAR' is expired: protection end {end} is on or before valuation date {as_of}"
-            ),
-            category: "pricing_model".to_string(),
+    match err {
+        ValuationError::Pricing(PricingError::ModelFailure { message, context }) => {
+            assert!(message.contains("expired"));
+            assert!(message.contains(&end.to_string()));
+            assert_eq!(context.instrument_id.as_deref(), Some("EXPIRED_PAR"));
         }
-    );
+        other => panic!("unexpected error type: {other}"),
+    }
 }
 
 #[test]

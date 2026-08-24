@@ -147,6 +147,7 @@ mod tests {
         let params =
             HestonParams::new(r, q, kappa, theta, sigma_v, rho, v0).expect("valid heston params");
         heston_call_price_fourier(spot, strike, maturity, &params, None)
+            .expect("Heston Fourier call price")
     }
 
     #[test]

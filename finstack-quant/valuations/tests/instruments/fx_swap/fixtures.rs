@@ -95,14 +95,14 @@ impl TestDates {
 pub fn setup_standard_market(as_of: Date) -> MarketContext {
     let usd_curve = DiscountCurve::builder("USD-OIS")
         .base_date(as_of)
-        .knots([(0.0, 1.0), (10.0, 0.9)])
+        .knots([(0.0, 1.0), (1.0, 0.99), (10.0, 0.9)])
         .interp(InterpStyle::Linear)
         .build()
         .unwrap();
 
     let eur_curve = DiscountCurve::builder("EUR-OIS")
         .base_date(as_of)
-        .knots([(0.0, 1.0), (10.0, 0.95)])
+        .knots([(0.0, 1.0), (1.0, 0.995), (10.0, 0.95)])
         .interp(InterpStyle::Linear)
         .build()
         .unwrap();

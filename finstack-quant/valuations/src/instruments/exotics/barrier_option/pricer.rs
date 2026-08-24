@@ -112,7 +112,7 @@ impl BarrierOptionMcPricer {
             use finstack_quant_core::types::BarrierType;
             let unit = match inst.barrier_type {
                 BarrierType::UpAndIn | BarrierType::DownAndIn => {
-                    crate::models::closed_form::vanilla::bs_price(
+                    crate::models::closed_form::vanilla::bs_price_unchecked(
                         spot,
                         inst.strike,
                         r,
@@ -421,7 +421,7 @@ impl Pricer for BarrierOptionAnalyticalPricer {
             })?;
             let unit = match barrier_opt.barrier_type {
                 BarrierType::UpAndIn | BarrierType::DownAndIn => {
-                    crate::models::closed_form::vanilla::bs_price(
+                    crate::models::closed_form::vanilla::bs_price_unchecked(
                         spot,
                         barrier_opt.strike,
                         r,

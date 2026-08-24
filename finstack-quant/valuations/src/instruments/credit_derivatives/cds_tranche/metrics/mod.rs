@@ -27,37 +27,37 @@ mod upfront;
 use crate::metrics::MetricRegistry;
 
 /// Register all CDS Tranche metrics with the registry
-pub(crate) fn register_cds_tranche_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_cds_tranche_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::MetricId;
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
 
-    registry
-        .register_metric(
+    for (id, calculator) in [
+        (
             MetricId::custom("upfront"),
-            Arc::new(upfront::UpfrontCalculator),
-            &[InstrumentType::CdsTranche],
-        )
-        .register_metric(
+            Arc::new(upfront::UpfrontCalculator) as Arc<dyn crate::metrics::MetricCalculator>,
+        ),
+        (
             MetricId::SpreadDv01,
             Arc::new(spread_dv01::SpreadDv01Calculator),
-            &[InstrumentType::CdsTranche],
-        )
-        .register_metric(
+        ),
+        (
             MetricId::Correlation01,
             Arc::new(correlation01::Correlation01Calculator),
-            &[InstrumentType::CdsTranche],
-        )
-        .register_metric(
+        ),
+        (
             MetricId::Recovery01,
             Arc::new(recovery01::Recovery01Calculator),
-            &[InstrumentType::CdsTranche],
-        )
-        .register_metric(
+        ),
+        (
             MetricId::custom("tail_dependence"),
             Arc::new(tail_dependence::TailDependenceCalculator),
-            &[InstrumentType::CdsTranche],
-        );
+        ),
+    ] {
+        registry.replace_metric(id, calculator, &[InstrumentType::CdsTranche])?;
+    }
 
     // Standard metrics using macro
     crate::register_metrics! {
@@ -80,4 +80,5 @@ pub(crate) fn register_cds_tranche_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     }
+    Ok(())
 }

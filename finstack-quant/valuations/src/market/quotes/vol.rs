@@ -12,6 +12,7 @@ use crate::market::conventions::ids::{
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::surfaces::VolQuoteType;
 use finstack_quant_core::types::UnderlyingId;
+use finstack_quant_core::{Error, Result};
 #[cfg(feature = "ts_export")]
 use ts_rs::TS;
 
@@ -154,6 +155,57 @@ impl VolQuote {
         }
     }
 
+    /// Return the quoted volatility in decimal units.
+    #[must_use]
+    pub fn volatility(&self) -> f64 {
+        match self {
+            Self::OptionVol { vol, .. }
+            | Self::SwaptionVol { vol, .. }
+            | Self::CapFloorVol { vol, .. } => *vol,
+        }
+    }
+
+    /// Validate the quote before calibration or bumping.
+    pub fn validate(&self) -> Result<()> {
+        match self {
+            Self::OptionVol { strike, vol, .. } => {
+                if !strike.is_finite() || *strike <= 0.0 {
+                    return Err(Error::Validation(format!(
+                        "option volatility strike must be finite and positive, got {strike}"
+                    )));
+                }
+                validate_volatility(*vol)
+            }
+            Self::SwaptionVol {
+                expiry,
+                maturity,
+                strike,
+                vol,
+                ..
+            } => {
+                if maturity <= expiry {
+                    return Err(Error::Validation(
+                        "swaption volatility maturity must be after expiry".to_string(),
+                    ));
+                }
+                if !strike.is_finite() {
+                    return Err(Error::Validation(
+                        "swaption volatility strike must be finite".to_string(),
+                    ));
+                }
+                validate_volatility(*vol)
+            }
+            Self::CapFloorVol { strike, vol, .. } => {
+                if !strike.is_finite() {
+                    return Err(Error::Validation(
+                        "cap/floor volatility strike must be finite".to_string(),
+                    ));
+                }
+                validate_volatility(*vol)
+            }
+        }
+    }
+
     /// Create a new quote with the volatility bumped by an absolute amount.
     ///
     /// # Arguments
@@ -185,11 +237,17 @@ impl VolQuote {
     /// };
     ///
     /// // Bump by 1 vol point
-    /// let bumped = quote.bump_vol_absolute(0.01);
+    /// let bumped = quote.bump_vol_absolute(0.01)?;
+    /// # Ok::<(), finstack_quant_core::Error>(())
     /// ```
-    pub fn bump_vol_absolute(&self, vol_bump: f64) -> Self {
-        match self {
-            VolQuote::OptionVol {
+    pub fn bump_vol_absolute(&self, vol_bump: f64) -> Result<Self> {
+        if !vol_bump.is_finite() {
+            return Err(Error::Validation(format!(
+                "volatility bump must be finite, got {vol_bump}"
+            )));
+        }
+        let bumped = match self {
+            Self::OptionVol {
                 id,
                 underlying,
                 expiry,
@@ -197,7 +255,7 @@ impl VolQuote {
                 vol,
                 option_type,
                 convention,
-            } => VolQuote::OptionVol {
+            } => Self::OptionVol {
                 id: id.clone(),
                 underlying: underlying.clone(),
                 expiry: *expiry,
@@ -206,7 +264,7 @@ impl VolQuote {
                 option_type: *option_type,
                 convention: convention.clone(),
             },
-            VolQuote::SwaptionVol {
+            Self::SwaptionVol {
                 id,
                 expiry,
                 maturity,
@@ -214,7 +272,7 @@ impl VolQuote {
                 vol,
                 quote_type,
                 convention,
-            } => VolQuote::SwaptionVol {
+            } => Self::SwaptionVol {
                 id: id.clone(),
                 expiry: *expiry,
                 maturity: *maturity,
@@ -223,7 +281,7 @@ impl VolQuote {
                 quote_type: *quote_type,
                 convention: convention.clone(),
             },
-            VolQuote::CapFloorVol {
+            Self::CapFloorVol {
                 id,
                 expiry,
                 strike,
@@ -231,7 +289,7 @@ impl VolQuote {
                 quote_type,
                 is_cap,
                 convention,
-            } => VolQuote::CapFloorVol {
+            } => Self::CapFloorVol {
                 id: id.clone(),
                 expiry: *expiry,
                 strike: *strike,
@@ -240,8 +298,19 @@ impl VolQuote {
                 is_cap: *is_cap,
                 convention: convention.clone(),
             },
-        }
+        };
+        bumped.validate()?;
+        Ok(bumped)
     }
+}
+
+fn validate_volatility(volatility: f64) -> Result<()> {
+    if !volatility.is_finite() || volatility < 0.0 {
+        return Err(Error::Validation(format!(
+            "implied volatility must be finite and non-negative, got {volatility}"
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -262,7 +331,9 @@ mod tests {
             convention: CapFloorConventionId::new("USD-SOFR-CAP"),
         };
 
-        let bumped = quote.bump_vol_absolute(0.0001);
+        let bumped = quote
+            .bump_vol_absolute(0.0001)
+            .expect("valid volatility bump");
 
         match bumped {
             VolQuote::CapFloorVol { vol, .. } => {
@@ -270,5 +341,19 @@ mod tests {
             }
             other => panic!("unexpected bumped quote: {other:?}"),
         }
+    }
+
+    #[test]
+    fn volatility_quote_rejects_negative_bumped_value() {
+        let quote = VolQuote::CapFloorVol {
+            id: QuoteId::new("USD-CAP-VOL"),
+            expiry: date!(2031 - 05 - 06),
+            strike: 0.03,
+            vol: 0.01,
+            quote_type: VolQuoteType::Normal,
+            is_cap: true,
+            convention: CapFloorConventionId::new("USD-SOFR-CAP"),
+        };
+        assert!(quote.bump_vol_absolute(-0.02).is_err());
     }
 }

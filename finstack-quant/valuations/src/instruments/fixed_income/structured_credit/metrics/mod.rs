@@ -63,57 +63,59 @@ pub use summary::{calculate_tranche_metrics, TrancheMetrics};
 // Standalone tranche metric functions are included in the explicit lists above.
 
 /// Register all structured credit metrics
-pub(crate) fn register_structured_credit_metrics(registry: &mut crate::metrics::MetricRegistry) {
+pub(crate) fn register_structured_credit_metrics(
+    registry: &mut crate::metrics::MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::MetricId;
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
 
     // Model-specific risk metrics (custom metrics)
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Recovery01,
         Arc::new(risk::recovery01::Recovery01Calculator),
         &[InstrumentType::StructuredCredit],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::Prepayment01,
         Arc::new(risk::prepayment01::Prepayment01Calculator),
         &[InstrumentType::StructuredCredit],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::Default01,
         Arc::new(risk::default01::Default01Calculator),
         &[InstrumentType::StructuredCredit],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::Severity01,
         Arc::new(risk::severity01::Severity01Calculator),
         &[InstrumentType::StructuredCredit],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::CloWarf,
         Arc::new(pool::CloWarfCalculator),
         &[InstrumentType::StructuredCredit],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::CmbsDscr,
         Arc::new(deal_specific::CmbsDscrCalculator::new()),
         &[InstrumentType::StructuredCredit],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::CloWas,
         Arc::new(pool::CloWasCalculator),
         &[InstrumentType::StructuredCredit],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::AbsChargeOff,
         Arc::new(deal_specific::AbsChargeOffCalculator),
         &[InstrumentType::StructuredCredit],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::AbsCreditEnhancement,
         Arc::new(deal_specific::AbsCreditEnhancementCalculator),
         &[InstrumentType::StructuredCredit],
-    );
+    )?;
 
     crate::register_metrics! {
         registry: registry,
@@ -149,6 +151,7 @@ pub(crate) fn register_structured_credit_metrics(registry: &mut crate::metrics::
             // Theta is now registered universally in metrics::standard_registry()
         ]
     }
+    Ok(())
 }
 
 #[cfg(test)]

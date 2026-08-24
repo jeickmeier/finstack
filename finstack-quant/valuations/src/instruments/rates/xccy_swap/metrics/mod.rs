@@ -5,14 +5,16 @@
 use crate::metrics::MetricRegistry;
 
 /// Register XCCY swap metrics with the registry.
-pub(crate) fn register_xccy_swap_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_xccy_swap_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::{
         make_fx_bumper, make_rates_bumper, CrossFactorCalculator, CrossFactorPair, MetricId,
     };
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
 
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::CrossGammaFxRates,
         Arc::new(CrossFactorCalculator::new(
             CrossFactorPair::FxRates,
@@ -20,7 +22,7 @@ pub(crate) fn register_xccy_swap_metrics(registry: &mut MetricRegistry) {
             make_rates_bumper,
         )),
         &[InstrumentType::XccySwap],
-    );
+    )?;
 
     crate::register_metrics! {
         registry: registry,
@@ -34,4 +36,5 @@ pub(crate) fn register_xccy_swap_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     };
+    Ok(())
 }

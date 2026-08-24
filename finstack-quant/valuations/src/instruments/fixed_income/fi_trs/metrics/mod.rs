@@ -21,7 +21,9 @@ use crate::pricer::InstrumentType;
 ///
 /// # Arguments
 /// * `registry` — Metric registry to add FI TRS metrics to
-pub(crate) fn register_fi_trs_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_fi_trs_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::MetricId;
     use std::sync::Arc;
 
@@ -32,24 +34,24 @@ pub(crate) fn register_fi_trs_metrics(registry: &mut MetricRegistry) {
     // Duration-based yield sensitivity. Registered under DurationDv01 (not IndexDelta)
     // because this measures yield sensitivity (N × D × 1bp), which is conceptually
     // distinct from equity IndexDelta (dV/dS per unit of index level change).
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::DurationDv01,
         Arc::new(DurationDv01Calculator),
         &instruments,
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::ParSpread,
         Arc::new(ParSpreadCalculator),
         &instruments,
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::FinancingAnnuity,
         Arc::new(FinancingAnnuityCalculator),
         &instruments,
-    );
+    )?;
 
     // DV01 for financing leg sensitivity
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Dv01,
         Arc::new(crate::metrics::UnifiedDv01Calculator::<
             crate::instruments::fixed_income::fi_trs::FIIndexTotalReturnSwap,
@@ -57,8 +59,8 @@ pub(crate) fn register_fi_trs_metrics(registry: &mut MetricRegistry) {
             crate::metrics::Dv01CalculatorConfig::parallel_combined()
         )),
         &instruments,
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::BucketedDv01,
         Arc::new(crate::metrics::UnifiedDv01Calculator::<
             crate::instruments::fixed_income::fi_trs::FIIndexTotalReturnSwap,
@@ -66,5 +68,6 @@ pub(crate) fn register_fi_trs_metrics(registry: &mut MetricRegistry) {
             crate::metrics::Dv01CalculatorConfig::triangular_key_rate(),
         )),
         &instruments,
-    );
+    )?;
+    Ok(())
 }

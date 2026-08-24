@@ -28,19 +28,21 @@ pub use expense_ratio::ExpenseRatioCalculator;
 pub(crate) use weight_risk::WeightRiskCalculator;
 
 /// Register all Basket metrics with the registry
-pub(crate) fn register_basket_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_basket_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     // Custom metrics for basket-specific risks
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::ConstituentDelta,
         Arc::new(ConstituentDeltaCalculator),
         &[InstrumentType::Basket],
-    );
-    registry.register_metric(
+    )?;
+    registry.replace_metric(
         MetricId::custom("weight_risk"),
         Arc::new(WeightRiskCalculator),
         &[InstrumentType::Basket],
-    );
+    )?;
 
     crate::register_metrics! {
         registry: registry,
@@ -50,4 +52,5 @@ pub(crate) fn register_basket_metrics(registry: &mut MetricRegistry) {
             (ExpenseRatio, ExpenseRatioCalculator),
         ]
     };
+    Ok(())
 }

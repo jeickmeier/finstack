@@ -6,7 +6,9 @@
 use crate::metrics::MetricRegistry;
 
 /// Register TBA metrics with the registry.
-pub(crate) fn register_tba_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_tba_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     crate::register_metrics! {
         registry: registry,
@@ -20,4 +22,5 @@ pub(crate) fn register_tba_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     }
+    Ok(())
 }

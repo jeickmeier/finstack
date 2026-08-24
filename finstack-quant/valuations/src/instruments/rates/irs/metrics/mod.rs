@@ -58,7 +58,9 @@ pub(crate) mod pv_float;
 pub(crate) mod schedule_diagnostics;
 
 /// Registers all IRS metrics into a provided registry.
-pub(crate) fn register_irs_metrics(registry: &mut crate::metrics::MetricRegistry) {
+pub(crate) fn register_irs_metrics(
+    registry: &mut crate::metrics::MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     crate::register_metrics! {
         registry: registry,
@@ -95,4 +97,5 @@ pub(crate) fn register_irs_metrics(registry: &mut crate::metrics::MetricRegistry
             (FloatingFirstAccrualFactor, schedule_diagnostics::FloatingFirstAccrualFactorCalculator),
         ]
     }
+    Ok(())
 }

@@ -88,17 +88,19 @@ impl crate::metrics::sensitivities::cs01::CdsCs01Conventions
 }
 
 /// Register all CDS Option metrics with the registry
-pub(crate) fn register_cds_option_metrics(registry: &mut MetricRegistry) {
+pub(crate) fn register_cds_option_metrics(
+    registry: &mut MetricRegistry,
+) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::metrics::MetricId;
     use crate::pricer::InstrumentType;
     use std::sync::Arc;
 
     // Recovery01 (custom metric - recovery rate sensitivity)
-    registry.register_metric(
+    registry.replace_metric(
         MetricId::Recovery01,
         Arc::new(recovery01::Recovery01Calculator),
         &[InstrumentType::CdsOption],
-    );
+    )?;
 
     crate::register_metrics! {
         registry: registry,
@@ -123,4 +125,5 @@ pub(crate) fn register_cds_option_metrics(registry: &mut MetricRegistry) {
             >::new(crate::metrics::Dv01CalculatorConfig::triangular_key_rate())),
         ]
     }
+    Ok(())
 }

@@ -49,10 +49,10 @@ use super::{get_cached_quadrature, Copula, DEFAULT_QUADRATURE_ORDER};
 use finstack_quant_core::math::{norm_cdf, GaussHermiteQuadrature};
 use std::sync::Arc;
 
-/// Minimum correlation for numerical stability.
-const MIN_CORRELATION: f64 = 0.01;
-/// Maximum correlation for numerical stability.
-const MAX_CORRELATION: f64 = 0.99;
+/// Lower valid asset-correlation boundary.
+const MIN_CORRELATION: f64 = 0.0;
+/// Upper valid asset-correlation boundary.
+const MAX_CORRELATION: f64 = 1.0;
 /// CDF argument clipping to prevent overflow.
 const CDF_CLIP: f64 = 10.0;
 
@@ -63,9 +63,9 @@ const CDF_CLIP: f64 = 10.0;
 ///
 /// # Numerical Stability
 ///
-/// - Correlation is clamped to [0.01, 0.99] to avoid numerical issues
-/// - CDF arguments are clipped to [-10, 10] to prevent overflow
-/// - Quadrature is cached for performance
+/// - Every valid correlation in `[0, 1]` is preserved exactly.
+/// - The exact independence and comonotonic boundary limits are implemented.
+/// - CDF arguments are clipped to `[-10, 10]` for interior correlations.
 ///
 /// # References
 ///
@@ -147,13 +147,6 @@ impl GaussianCopula {
             quadrature: get_cached_quadrature(order),
         }
     }
-
-    /// Smooth correlation boundary to avoid numerical discontinuities.
-    ///
-    /// Clamps correlation to [0.01, 0.99].
-    fn smooth_correlation(&self, correlation: f64) -> f64 {
-        correlation.clamp(MIN_CORRELATION, MAX_CORRELATION)
-    }
 }
 
 impl Copula for GaussianCopula {
@@ -188,24 +181,19 @@ impl Copula for GaussianCopula {
         };
         let z = *z;
 
-        // General formula with smoothing and CDF-argument clipping. The
-        // correlation clamp handles BOTH boundaries: below MIN_CORRELATION the
-        // formula is evaluated at the floor (flat in ρ but continuous in both
-        // ρ and z). Do NOT early-return the unconditional Φ(c) for ρ ≤ floor —
-        // that branch dropped the √ρ·z term entirely and created a jump of up
-        // to ~Φ(c) − Φ((c − √0.01·z)/√0.99) (≈ 2% absolute PD for |z| = 2) as
-        // ρ crossed the floor, which correlation finite differences picked up
-        // as a spurious sensitivity. The
-        // smoothing clamp (0.99) plus CDF_CLIP gives a stable near-indicator
-        // limit as ρ → 1 — do NOT short-circuit to Φ(c − z), which is off by
-        // roughly 20 orders of magnitude in the tail.
-        let rho = self.smooth_correlation(correlation);
-        let sqrt_rho = rho.sqrt();
-        let sqrt_1mr = (1.0 - rho).sqrt();
+        if !correlation.is_finite() || !(MIN_CORRELATION..=MAX_CORRELATION).contains(&correlation) {
+            return f64::NAN;
+        }
+        if correlation == MIN_CORRELATION {
+            return norm_cdf(default_threshold);
+        }
+        if correlation == MAX_CORRELATION {
+            return f64::from(z <= default_threshold);
+        }
 
-        // P(default | Z) = Φ((Φ⁻¹(PD) - √ρ·Z) / √(1-ρ))
+        let sqrt_rho = correlation.sqrt();
+        let sqrt_1mr = (1.0 - correlation).sqrt();
         let conditional_threshold = (default_threshold - sqrt_rho * z) / sqrt_1mr;
-
         norm_cdf(conditional_threshold.clamp(-CDF_CLIP, CDF_CLIP))
     }
 
@@ -338,23 +326,18 @@ mod tests {
     }
 
     #[test]
-    fn test_high_correlation_matches_general_formula() {
-        // Regression test: at ρ = MAX_CORRELATION exactly, the result must
-        // agree with the general clamped formula evaluated just below the
-        // boundary. Previously a special branch returned Φ(c − z), breaking
-        // continuity by ~20 orders of magnitude.
+    fn perfect_correlation_uses_exact_indicator_limit() {
         let copula = GaussianCopula::new();
         let threshold = standard_normal_inv_cdf(0.05);
-
-        for &z in &[-2.5_f64, -1.0, 0.0, 1.0, 2.5] {
-            let at_boundary = copula.conditional_default_prob(threshold, &[z], MAX_CORRELATION);
-            let just_below =
-                copula.conditional_default_prob(threshold, &[z], MAX_CORRELATION - 1e-6);
-            assert!(
-                (at_boundary - just_below).abs() < 1e-6,
-                "discontinuity at ρ = MAX_CORRELATION for z={z}: boundary={at_boundary}, just_below={just_below}"
-            );
-        }
+        assert_eq!(
+            copula.conditional_default_prob(threshold, &[-2.0], 1.0),
+            1.0
+        );
+        assert_eq!(copula.conditional_default_prob(threshold, &[2.0], 1.0), 0.0);
+        assert_eq!(
+            copula.conditional_default_prob(threshold, &[threshold], 1.0),
+            1.0
+        );
     }
 
     #[test]
@@ -420,38 +403,27 @@ mod tests {
     }
 
     #[test]
-    fn test_low_correlation_branch_matches_smoothing_floor() {
-        // Continuity at the MIN_CORRELATION floor: values below, at, and just
-        // above the floor must agree (the clamp is flat below the floor and
-        // the general formula is continuous in ρ above it). The previous
-        // early-return of the unconditional Φ(c) for ρ ≤ floor dropped the
-        // √ρ·z term and jumped by ~2% absolute PD at |z| = 2.
+    fn zero_correlation_preserves_independence_exactly() {
         let copula = GaussianCopula::new();
         let pd = 0.05;
         let threshold = standard_normal_inv_cdf(pd);
+        let unconditional = norm_cdf(threshold);
 
-        for &z in &[-2.0_f64, 0.0, 1.0, 2.0] {
-            let prob_below_floor = copula.conditional_default_prob(threshold, &[z], 0.005);
-            let prob_at_floor = copula.conditional_default_prob(threshold, &[z], MIN_CORRELATION);
-            let prob_just_above =
-                copula.conditional_default_prob(threshold, &[z], MIN_CORRELATION + 1e-9);
-
-            assert!(
-                (prob_below_floor - prob_at_floor).abs() < 1e-12,
-                "z={z}: below-floor must clamp to the floor value"
-            );
-            assert!(
-                (prob_at_floor - prob_just_above).abs() < 1e-6,
-                "z={z}: no jump crossing the floor (got {prob_at_floor} vs {prob_just_above})"
-            );
+        for z in [-2.0, 0.0, 2.0] {
+            let conditional = copula.conditional_default_prob(threshold, &[z], 0.0);
+            assert_eq!(conditional, unconditional);
         }
+    }
 
-        // And the floor value must retain z-dependence (the old branch lost it).
-        let at_floor_neg = copula.conditional_default_prob(threshold, &[-2.0], 0.005);
-        let at_floor_pos = copula.conditional_default_prob(threshold, &[2.0], 0.005);
-        assert!(
-            at_floor_neg > at_floor_pos,
-            "conditional PD at the floor must still depend on the factor"
-        );
+    #[test]
+    fn checked_probability_rejects_invalid_correlation() {
+        let copula = GaussianCopula::new();
+        let threshold = standard_normal_inv_cdf(0.05);
+        assert!(copula
+            .conditional_default_prob_checked(threshold, &[0.0], -0.01)
+            .is_err());
+        assert!(copula
+            .conditional_default_prob_checked(threshold, &[0.0], 1.01)
+            .is_err());
     }
 }

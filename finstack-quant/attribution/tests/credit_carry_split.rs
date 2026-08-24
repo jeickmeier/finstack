@@ -24,7 +24,11 @@ use time::Month;
 fn flat_discount(base: Date, r: f64) -> DiscountCurve {
     DiscountCurve::builder("USD-OIS")
         .base_date(base)
-        .knots([(0.0, 1.0), (30.0, (-r * 30.0).exp())])
+        .knots([
+            (0.0, 1.0),
+            (1.0, (-r).exp()),
+            (30.0, (-r * 30.0).exp()),
+        ])
         .interp(InterpStyle::LogLinear)
         .build()
         .expect("discount curve")

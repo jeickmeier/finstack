@@ -522,8 +522,7 @@ pub(crate) struct MetricBuildOptions {
     pub(crate) rate_recalibration_cache:
         Option<Arc<crate::calibration::bumps::rates::RateRecalibrationCache>>,
     pub(crate) metric_registry: Option<Arc<crate::metrics::MetricRegistry>>,
-    pub(crate) pricing_model: Option<crate::pricer::ModelKey>,
-    pub(crate) pricer_registry: Option<Arc<crate::pricer::PricerRegistry>>,
+    pub(crate) pricing_dispatch: crate::pricer::PricingDispatch,
 }
 
 pub(crate) fn compute_metrics_dyn(
@@ -540,8 +539,7 @@ pub(crate) fn compute_metrics_dyn(
         hazard_recalibration_cache,
         rate_recalibration_cache,
         metric_registry,
-        pricing_model,
-        pricer_registry,
+        pricing_dispatch,
     } = options;
     let finstack_config = cfg.unwrap_or_else(MetricContext::default_config);
     let mut context = MetricContext::new(
@@ -558,7 +556,7 @@ pub(crate) fn compute_metrics_dyn(
     }
     context.set_hazard_recalibration_cache(hazard_recalibration_cache);
     context.set_rate_recalibration_cache(rate_recalibration_cache);
-    context.set_pricer_dispatch(pricing_model, pricer_registry);
+    context.set_pricer_dispatch(pricing_dispatch);
 
     // Preserve only the subsets consumed by the metric layer.
     context.set_instrument_overrides(instrument.get_instrument_pricing_overrides().cloned());
@@ -820,9 +818,9 @@ mod tests {
             as_of: Date,
             metrics: &[MetricId],
             options: crate::instruments::common_impl::traits::PricingOptions,
-        ) -> finstack_quant_core::Result<crate::results::ValuationResult> {
+        ) -> crate::Result<crate::results::ValuationResult> {
             let base = self.value(market, as_of)?;
-            build_with_metrics_dyn(
+            Ok(build_with_metrics_dyn(
                 Arc::from(self.clone_box()),
                 Arc::new(market.clone()),
                 as_of,
@@ -833,7 +831,7 @@ mod tests {
                     market_history: options.market_history,
                     ..MetricBuildOptions::default()
                 },
-            )
+            )?)
         }
     }
 

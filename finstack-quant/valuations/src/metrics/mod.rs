@@ -285,9 +285,9 @@ mod shared;
 pub use aggregation::{is_additive_metric, metric_aggregation, MetricAggregation};
 pub use core::finite_difference::bump_surface_vol_absolute;
 pub use core::ids::{MetricGroup, MetricId};
-pub use core::registry::MetricRegistry;
+pub use core::registry::{MetricRegistry, MetricRegistryError};
 pub use core::standard_registry::standard_registry;
-pub use core::traits::{MetricCalculator, MetricContext, Structured2D};
+pub use core::traits::{MetricCalculator, MetricContext, MetricPricingInputs, Structured2D};
 /// Format a standard risk bucket (years) as a human-readable label.
 pub use sensitivities::config::{
     format_bucket_label, STANDARD_BUCKETS_YEARS, STANDARD_BUCKET_LABELS,
