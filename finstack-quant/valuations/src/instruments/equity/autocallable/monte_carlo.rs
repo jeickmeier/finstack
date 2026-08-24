@@ -24,13 +24,12 @@ pub struct AutocallablePayoff {
     pub observation_dates: Vec<f64>,
     /// Autocall barrier levels at each observation date
     pub autocall_barriers: Vec<f64>,
-    /// Coupon payments if autocalled at each date
+    /// Coupon barrier levels at each observation date
+    pub coupon_barriers: Vec<f64>,
+    /// Coupon return amounts at each observation date
     pub coupons: Vec<f64>,
-    /// Memory ("Phoenix") coupon feature.
-    ///
-    /// When `true`, coupons from earlier observation dates whose barrier was
-    /// not met are accrued and paid in full on the autocall date. When
-    /// `false`, only the coupon at the autocall date is paid.
+    /// When `true`, coupons missing their independent coupon barrier accrue
+    /// until a later coupon barrier is met. When `false`, missed coupons lapse.
     pub memory_coupons: bool,
     /// Final barrier level (for knock-in/knock-out)
     pub final_barrier: f64,
@@ -42,22 +41,20 @@ pub struct AutocallablePayoff {
     pub cap_level: f64,
     /// Notional amount
     pub notional: f64,
-    /// Currency
-    pub currency: Currency,
     /// Initial spot price
     pub initial_spot: f64,
-    /// Discount factor ratios (DF(t_obs) / DF(t_mat)) for correcting early cashflow PV
-    pub df_ratios: Vec<f64>,
+    /// Ratios `DF(payment_date) / DF(expiry)` for each observation.
+    pub payment_df_ratios: Vec<f64>,
     /// Seed for `min_spot_observed` from past (already observed) fixings of a
     /// seasoned trade. `f64::INFINITY` for a new trade.
     seed_min_spot: f64,
     /// Seed for `max_spot_observed` from past fixings. `f64::NEG_INFINITY`
     /// for a new trade.
     seed_max_spot: f64,
-    /// Accrued memory ("Phoenix") coupons missed at past observation dates of
-    /// a seasoned trade, paid on a future autocall when `memory_coupons` is
-    /// enabled. Zero for a new trade.
-    prior_memory_coupons: f64,
+    /// Seed memory-coupon balance from past missed observations.
+    seed_memory_coupon_balance: f64,
+    /// Seed discounted coupon payoff ratio already fixed but unpaid at `as_of`.
+    seed_discounted_coupon_ratio: f64,
 
     // State variables (tracked during path simulation)
     /// Index of observation date when autocalled (None if not autocalled)
@@ -70,6 +67,10 @@ pub struct AutocallablePayoff {
     max_spot_observed: f64,
     /// Final spot price
     final_spot: f64,
+    /// Current accrued memory-coupon balance.
+    memory_coupon_balance: f64,
+    /// Coupon payoff ratio converted to expiry-value units.
+    discounted_coupon_ratio: f64,
 }
 
 impl AutocallablePayoff {
@@ -84,22 +85,22 @@ impl AutocallablePayoff {
     /// # Arguments
     ///
     /// * `observation_dates` - Dates when autocall barriers are checked (must be sorted)
-    /// * `autocall_barriers` - Barrier levels at each observation date
-    /// * `coupons` - Coupon payments if autocalled at each date
-    /// * `memory_coupons` - When `true`, earlier missed coupons accrue and are
-    ///   paid on the autocall date (Phoenix feature)
+    /// * `autocall_barriers` - Autocall barriers at each observation date
+    /// * `coupon_barriers` - Independent coupon barriers at each observation date
+    /// * `coupons` - Coupon return amounts at each observation date
+    /// * `memory_coupons` - Whether missed coupons accrue until a coupon barrier is met
     /// * `final_barrier` - Barrier for final payoff (knock-in/knock-out)
     /// * `final_payoff_type` - Type of final payoff
     /// * `participation_rate` - Participation rate for final payoff
     /// * `cap_level` - Maximum return cap
     /// * `notional` - Notional amount
-    /// * `currency` - Currency
     /// * `initial_spot` - Initial spot price S_0
-    /// * `df_ratios` - Discount factor ratios DF(T_obs)/DF(T_mat) for each observation date
+    /// * `payment_df_ratios` - Ratios `DF(payment_date)/DF(expiry)`
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         observation_dates: Vec<f64>,
         autocall_barriers: Vec<f64>,
+        coupon_barriers: Vec<f64>,
         coupons: Vec<f64>,
         memory_coupons: bool,
         final_barrier: f64,
@@ -107,15 +108,21 @@ impl AutocallablePayoff {
         participation_rate: f64,
         cap_level: f64,
         notional: f64,
-        currency: Currency,
         initial_spot: f64,
-        df_ratios: Vec<f64>,
+        payment_df_ratios: Vec<f64>,
     ) -> finstack_quant_core::Result<Self> {
         if observation_dates.len() != autocall_barriers.len() {
             return Err(CoreError::Validation(format!(
                 "AutocallablePayoff: observation_dates ({}) and autocall_barriers ({}) must have the same length",
                 observation_dates.len(),
                 autocall_barriers.len()
+            )));
+        }
+        if observation_dates.len() != coupon_barriers.len() {
+            return Err(CoreError::Validation(format!(
+                "AutocallablePayoff: observation_dates ({}) and coupon_barriers ({}) must have the same length",
+                observation_dates.len(),
+                coupon_barriers.len()
             )));
         }
         if observation_dates.len() != coupons.len() {
@@ -125,11 +132,11 @@ impl AutocallablePayoff {
                 coupons.len()
             )));
         }
-        if observation_dates.len() != df_ratios.len() {
+        if observation_dates.len() != payment_df_ratios.len() {
             return Err(CoreError::Validation(format!(
-                "AutocallablePayoff: observation_dates ({}) and df_ratios ({}) must have the same length",
+                "AutocallablePayoff: observation_dates ({}) and payment_df_ratios ({}) must have the same length",
                 observation_dates.len(),
-                df_ratios.len()
+                payment_df_ratios.len()
             )));
         }
         for i in 1..observation_dates.len() {
@@ -147,6 +154,7 @@ impl AutocallablePayoff {
         Ok(Self {
             observation_dates,
             autocall_barriers,
+            coupon_barriers,
             coupons,
             memory_coupons,
             final_barrier,
@@ -154,17 +162,19 @@ impl AutocallablePayoff {
             participation_rate,
             cap_level,
             notional,
-            currency,
             initial_spot,
-            df_ratios,
+            payment_df_ratios,
             seed_min_spot: f64::INFINITY,
             seed_max_spot: f64::NEG_INFINITY,
-            prior_memory_coupons: 0.0,
+            seed_memory_coupon_balance: 0.0,
+            seed_discounted_coupon_ratio: 0.0,
             autocalled_at: None,
             next_obs_idx: 0,
             min_spot_observed: f64::INFINITY,
             max_spot_observed: f64::NEG_INFINITY,
             final_spot: 0.0, // Will be set when at maturity
+            memory_coupon_balance: 0.0,
+            discounted_coupon_ratio: 0.0,
         })
     }
 
@@ -172,20 +182,24 @@ impl AutocallablePayoff {
     ///
     /// * `prior_min_spot` / `prior_max_spot` — min/max of the observed past
     ///   fixings (discrete knock-in monitoring carries across `as_of`).
-    /// * `prior_memory_coupons` — sum of coupons missed at past observation
-    ///   dates, released on a future autocall when memory is enabled.
+    /// * `prior_memory_coupons` — missed coupon balance carried into simulation.
+    /// * `discounted_coupon_ratio` — fixed unpaid coupons in expiry-value units.
     #[must_use]
     pub fn with_seasoned_state(
         mut self,
         prior_min_spot: f64,
         prior_max_spot: f64,
         prior_memory_coupons: f64,
+        discounted_coupon_ratio: f64,
     ) -> Self {
         self.seed_min_spot = prior_min_spot;
         self.seed_max_spot = prior_max_spot;
-        self.prior_memory_coupons = prior_memory_coupons;
+        self.seed_memory_coupon_balance = prior_memory_coupons;
+        self.seed_discounted_coupon_ratio = discounted_coupon_ratio;
         self.min_spot_observed = prior_min_spot;
         self.max_spot_observed = prior_max_spot;
+        self.memory_coupon_balance = prior_memory_coupons;
+        self.discounted_coupon_ratio = discounted_coupon_ratio;
         self
     }
 
@@ -226,10 +240,19 @@ impl AutocallablePayoff {
 }
 
 impl Payoff for AutocallablePayoff {
-    fn on_event(&mut self, state: &mut PathState) {
-        let Some(spot) = state.spot().filter(|spot| spot.is_finite() && *spot > 0.0) else {
-            return;
-        };
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
+        let spot = state.spot().ok_or_else(|| {
+            CoreError::Validation(format!(
+                "AutocallablePayoff requires SPOT at step {}",
+                state.step
+            ))
+        })?;
+        if !spot.is_finite() || spot <= 0.0 {
+            return Err(CoreError::Validation(format!(
+                "AutocallablePayoff SPOT must be finite and positive at step {}, got {spot}",
+                state.step
+            )));
+        }
 
         // Check autocall — and monitor the knock-in barrier — at the discrete
         // observation dates only.
@@ -260,6 +283,19 @@ impl Payoff for AutocallablePayoff {
                 // observation date for the final-barrier check.
                 self.min_spot_observed = self.min_spot_observed.min(spot);
                 self.max_spot_observed = self.max_spot_observed.max(spot);
+                let coupon_level = self.initial_spot * self.coupon_barriers[idx];
+                if spot >= coupon_level {
+                    let coupon = self.coupons[idx]
+                        + if self.memory_coupons {
+                            self.memory_coupon_balance
+                        } else {
+                            0.0
+                        };
+                    self.discounted_coupon_ratio += coupon * self.payment_df_ratios[idx];
+                    self.memory_coupon_balance = 0.0;
+                } else if self.memory_coupons {
+                    self.memory_coupon_balance += self.coupons[idx];
+                }
                 let barrier_level = self.initial_spot * self.autocall_barriers[idx];
                 if spot >= barrier_level {
                     // Autocall at the first date whose barrier is breached.
@@ -287,52 +323,31 @@ impl Payoff for AutocallablePayoff {
             // If no observation dates, use current spot as final
             self.final_spot = spot;
         }
+        Ok(())
     }
 
     fn value(&self, currency: Currency) -> Money {
-        // If autocalled early
-        if let Some(idx) = self.autocalled_at {
-            // Coupon paid on autocall.
-            //
-            // - Without memory: only the coupon at the autocall date `idx`.
-            // - With memory ("Phoenix"): every coupon from observation dates
-            //   0..=idx accrues and is paid in full on the autocall date.
-            //   Earlier observation barriers were necessarily *not* met (the
-            //   product would have autocalled there otherwise), so those
-            //   coupons were "remembered" and are now released.
-            let coupon: f64 = if self.memory_coupons {
-                // Seasoned trades also release coupons missed at past
-                // observation dates (deterministically known at pricing time).
-                self.prior_memory_coupons + self.coupons[..=idx].iter().sum::<f64>()
-            } else {
-                self.coupons[idx]
-            };
-            // Return coupon + principal.
-            // Adjust for discounting: The engine applies DF(T_mat), but the
-            // autocall cashflow (principal *and* all accrued memory coupons)
-            // settles on the autocall date T_obs.
-            // value * DF(T_mat) = Payoff * DF(T_obs)
-            // value = Payoff * (DF(T_obs) / DF(T_mat))
-            let payoff = (coupon + 1.0) * self.notional;
-            let adjusted_payoff = payoff * self.df_ratios[idx];
-            return Money::new(adjusted_payoff, currency);
-        }
-
-        // Final payoff (not autocalled)
-        let final_payoff = self.final_payoff_ratio(self.final_spot, self.min_spot_observed);
-
-        Money::new(final_payoff * self.notional, currency)
+        let redemption_ratio = if let Some(idx) = self.autocalled_at {
+            self.payment_df_ratios[idx]
+        } else {
+            let payment_df_ratio = self.payment_df_ratios.last().copied().unwrap_or(1.0);
+            self.final_payoff_ratio(self.final_spot, self.min_spot_observed) * payment_df_ratio
+        };
+        Money::new(
+            (redemption_ratio + self.discounted_coupon_ratio) * self.notional,
+            currency,
+        )
     }
 
     fn reset(&mut self) {
         self.autocalled_at = None;
         self.next_obs_idx = 0;
-        // Restore the seeded seasoned state (INFINITY/NEG_INFINITY/0 for a
-        // new trade), not the bare defaults, so every path starts from the
-        // same deterministic past.
+        // Restore deterministic seasoned state for every path.
         self.min_spot_observed = self.seed_min_spot;
         self.max_spot_observed = self.seed_max_spot;
-        self.final_spot = 0.0; // Reset to default
+        self.memory_coupon_balance = self.seed_memory_coupon_balance;
+        self.discounted_coupon_ratio = self.seed_discounted_coupon_ratio;
+        self.final_spot = 0.0;
     }
 }
 
@@ -349,6 +364,7 @@ mod tests {
 
         let payoff = AutocallablePayoff::new(
             observation_dates,
+            barriers.clone(),
             barriers,
             coupons,
             false, // memory_coupons
@@ -357,9 +373,8 @@ mod tests {
             1.0, // Participation rate
             1.2, // Cap level
             100_000.0,
-            Currency::USD,
             100.0,                    // Initial spot
-            vec![1.0, 1.0, 1.0, 1.0], // df_ratios
+            vec![1.0, 1.0, 1.0, 1.0], // df_ratios))
         )
         .expect("test fixture is well-formed");
 
@@ -376,6 +391,7 @@ mod tests {
 
         let mut payoff = AutocallablePayoff::new(
             observation_dates,
+            barriers.clone(),
             barriers,
             coupons,
             false, // memory_coupons
@@ -384,7 +400,6 @@ mod tests {
             1.0,
             1.2,
             100_000.0,
-            Currency::USD,
             100.0,
             vec![1.0, 1.0],
         )
@@ -394,7 +409,7 @@ mod tests {
         let mut state = PathState::new(10, 0.25);
         state.set(state_keys::SPOT, 106.0); // Above 105 barrier
 
-        payoff.on_event(&mut state);
+        payoff.on_event(&mut state).expect("valid payoff event");
 
         assert_eq!(payoff.autocalled_at, Some(0));
 
@@ -411,6 +426,7 @@ mod tests {
 
         let mut payoff = AutocallablePayoff::new(
             observation_dates,
+            barriers.clone(),
             barriers,
             coupons,
             false, // memory_coupons
@@ -419,7 +435,6 @@ mod tests {
             1.0,
             1.2,
             100_000.0,
-            Currency::USD,
             100.0,
             vec![1.0],
         )
@@ -432,7 +447,7 @@ mod tests {
         // Verify spot is set correctly
         assert_eq!(state.spot(), Some(80.0), "Spot should be set to 80.0");
 
-        payoff.on_event(&mut state);
+        payoff.on_event(&mut state).expect("valid payoff event");
 
         let value = payoff.value(Currency::USD);
 
@@ -447,9 +462,10 @@ mod tests {
     }
 
     #[test]
-    fn missing_spot_event_leaves_payoff_state_unchanged() {
+    fn missing_spot_event_returns_error() {
         let mut payoff = AutocallablePayoff::new(
             vec![1.0],
+            vec![2.0],
             vec![2.0],
             vec![0.0],
             false, // memory_coupons
@@ -458,20 +474,16 @@ mod tests {
             1.0,
             1.5,
             100_000.0,
-            Currency::USD,
             100.0,
             vec![1.0],
         )
         .expect("test fixture is well-formed");
 
         let mut state = PathState::new(100, 1.0);
-        payoff.on_event(&mut state);
-
-        assert_eq!(payoff.autocalled_at, None);
-        assert_eq!(payoff.next_obs_idx, 0);
-        assert_eq!(payoff.final_spot(), 0.0);
-        assert_eq!(payoff.min_spot_observed, f64::INFINITY);
-        assert_eq!(payoff.max_spot_observed, f64::NEG_INFINITY);
+        let error = payoff
+            .on_event(&mut state)
+            .expect_err("missing spot must fail the path");
+        assert!(error.to_string().contains("requires SPOT"));
     }
 
     #[test]
@@ -482,6 +494,7 @@ mod tests {
 
         let mut payoff = AutocallablePayoff::new(
             observation_dates,
+            barriers.clone(),
             barriers,
             coupons,
             false, // memory_coupons
@@ -490,7 +503,6 @@ mod tests {
             1.0,
             1.2,
             100_000.0,
-            Currency::USD,
             100.0,
             vec![1.0],
         )
@@ -498,7 +510,7 @@ mod tests {
 
         let mut state = PathState::new(10, 0.25);
         state.set(state_keys::SPOT, 106.0);
-        payoff.on_event(&mut state);
+        payoff.on_event(&mut state).expect("valid payoff event");
         assert!(payoff.autocalled_at.is_some());
 
         payoff.reset();
@@ -512,6 +524,7 @@ mod tests {
         let mut payoff = AutocallablePayoff::new(
             vec![1.0],
             vec![2.0],
+            vec![2.0],
             vec![0.0],
             false, // memory_coupons
             0.6,
@@ -519,7 +532,6 @@ mod tests {
             1.0,
             1.2,
             notional,
-            Currency::USD,
             100.0,
             vec![1.0],
         )
@@ -527,7 +539,7 @@ mod tests {
 
         let mut state = PathState::new(100, 1.0);
         state.set(state_keys::SPOT, 55.0);
-        payoff.on_event(&mut state);
+        payoff.on_event(&mut state).expect("valid payoff event");
 
         let value = payoff.value(Currency::USD);
         // Knocked in at spot=55, strike=100, S0=100: put loss = max(1.0 - 0.55, 0)
@@ -553,6 +565,7 @@ mod tests {
 
         let mut payoff = AutocallablePayoff::new(
             observation_dates,
+            barriers.clone(),
             barriers,
             coupons,
             false, // memory_coupons
@@ -561,7 +574,6 @@ mod tests {
             1.0,
             1.2,
             100_000.0,
-            Currency::USD,
             100.0,
             vec![1.0, 1.0, 1.0, 1.0],
         )
@@ -570,7 +582,7 @@ mod tests {
         // One coarse step lands at t = 0.75, past observation dates 0, 1 and 2.
         let mut state = PathState::new(1, 0.75);
         state.set(state_keys::SPOT, 106.0); // Above 105 barrier (index 2 only)
-        payoff.on_event(&mut state);
+        payoff.on_event(&mut state).expect("valid payoff event");
 
         assert_eq!(
             payoff.autocalled_at,
@@ -593,6 +605,7 @@ mod tests {
 
         let mut payoff = AutocallablePayoff::new(
             observation_dates,
+            barriers.clone(),
             barriers,
             coupons,
             false, // memory_coupons
@@ -601,7 +614,6 @@ mod tests {
             1.0,
             1.2,
             100_000.0,
-            Currency::USD,
             100.0,
             vec![1.0, 1.0, 1.0, 1.0],
         )
@@ -609,7 +621,7 @@ mod tests {
 
         let mut state = PathState::new(1, 1.0);
         state.set(state_keys::SPOT, 110.0); // Below every 200 barrier
-        payoff.on_event(&mut state);
+        payoff.on_event(&mut state).expect("valid payoff event");
 
         assert_eq!(payoff.autocalled_at, None);
         assert_eq!(
@@ -623,6 +635,7 @@ mod tests {
         let mut payoff = AutocallablePayoff::new(
             vec![1.0],
             vec![2.0],
+            vec![2.0],
             vec![0.0],
             false, // memory_coupons
             0.6,
@@ -630,7 +643,6 @@ mod tests {
             1.0,
             1.2,
             100_000.0,
-            Currency::USD,
             100.0,
             vec![1.0],
         )
@@ -638,7 +650,7 @@ mod tests {
 
         let mut state = PathState::new(100, 1.0);
         state.set(state_keys::SPOT, 150.0);
-        payoff.on_event(&mut state);
+        payoff.on_event(&mut state).expect("valid payoff event");
 
         let value = payoff.value(Currency::USD);
         let expected = 1.2 * 100_000.0;
@@ -663,6 +675,7 @@ mod tests {
 
         let mut payoff = AutocallablePayoff::new(
             observation_dates,
+            barriers.clone(),
             barriers,
             coupons,
             false,
@@ -671,7 +684,6 @@ mod tests {
             1.0,
             1.5,
             100_000.0,
-            Currency::USD,
             100.0,
             vec![1.0],
         )
@@ -682,7 +694,7 @@ mod tests {
         // observation date, this excursion must be ignored for knock-in.
         let mut mid = PathState::new(1, 0.5);
         mid.set(state_keys::SPOT, 40.0);
-        payoff.on_event(&mut mid);
+        payoff.on_event(&mut mid).expect("valid payoff event");
 
         // The dip must NOT have been recorded — discrete monitoring only.
         assert_eq!(
@@ -694,7 +706,7 @@ mod tests {
         // Observation date at t = 1.0 with spot = 95 (well above the barrier).
         let mut obs = PathState::new(1, 1.0);
         obs.set(state_keys::SPOT, 95.0);
-        payoff.on_event(&mut obs);
+        payoff.on_event(&mut obs).expect("valid payoff event");
 
         let value = payoff.value(Currency::USD);
         // Knock-in monitored only at t=1.0 where spot=95 > 60 barrier => NOT
@@ -722,6 +734,7 @@ mod tests {
 
         let mut payoff = AutocallablePayoff::new(
             observation_dates,
+            barriers.clone(),
             barriers,
             coupons,
             true, // memory_coupons ENABLED
@@ -730,16 +743,15 @@ mod tests {
             1.0,
             1.5,
             100_000.0,
-            Currency::USD,
             100.0,
-            vec![1.0, 1.0, 1.0], // df_ratios all 1.0 to isolate the coupon logic
+            vec![1.0, 1.0, 1.0], // df_ratios all 1.0 to isolate the coupon logic))
         )
         .expect("test fixture is well-formed");
 
         // One coarse step to t = 0.75 breaches only observation index 2.
         let mut state = PathState::new(1, 0.75);
         state.set(state_keys::SPOT, 110.0); // above the 105% barrier at index 2
-        payoff.on_event(&mut state);
+        payoff.on_event(&mut state).expect("valid payoff event");
         assert_eq!(payoff.autocalled_at, Some(2));
 
         let value = payoff.value(Currency::USD);
@@ -766,6 +778,7 @@ mod tests {
 
         let mut payoff = AutocallablePayoff::new(
             observation_dates,
+            barriers.clone(),
             barriers,
             coupons,
             false, // memory_coupons DISABLED
@@ -774,7 +787,6 @@ mod tests {
             1.0,
             1.5,
             100_000.0,
-            Currency::USD,
             100.0,
             vec![1.0, 1.0, 1.0],
         )
@@ -782,7 +794,7 @@ mod tests {
 
         let mut state = PathState::new(1, 0.75);
         state.set(state_keys::SPOT, 110.0);
-        payoff.on_event(&mut state);
+        payoff.on_event(&mut state).expect("valid payoff event");
         assert_eq!(payoff.autocalled_at, Some(2));
 
         let value = payoff.value(Currency::USD);
@@ -794,5 +806,58 @@ mod tests {
              (0.05 + principal); expected {expected}, got {}",
             value.amount()
         );
+    }
+    #[test]
+    fn coupon_barrier_releases_memory_without_autocall() {
+        let mut payoff = AutocallablePayoff::new(
+            vec![0.5, 1.0],
+            vec![2.0, 2.0],
+            vec![0.95, 0.95],
+            vec![0.03, 0.04],
+            true,
+            0.6,
+            FinalPayoffType::Participation { rate: 1.0 },
+            1.0,
+            1.5,
+            100_000.0,
+            100.0,
+            vec![1.0, 1.0],
+        )
+        .expect("payoff");
+
+        let mut first = PathState::new(1, 0.5);
+        first.set(state_keys::SPOT, 90.0);
+        payoff.on_event(&mut first).expect("first observation");
+        assert_eq!(payoff.autocalled_at, None);
+
+        let mut second = PathState::new(2, 1.0);
+        second.set(state_keys::SPOT, 100.0);
+        payoff.on_event(&mut second).expect("second observation");
+        assert_eq!(payoff.autocalled_at, None);
+        assert_eq!(payoff.value(Currency::USD).amount(), 107_000.0);
+    }
+
+    #[test]
+    fn autocall_redemption_uses_contractual_payment_discount_ratio() {
+        let mut payoff = AutocallablePayoff::new(
+            vec![0.5],
+            vec![1.0],
+            vec![2.0],
+            vec![0.0],
+            false,
+            0.6,
+            FinalPayoffType::Participation { rate: 1.0 },
+            1.0,
+            1.5,
+            100_000.0,
+            100.0,
+            vec![0.97],
+        )
+        .expect("payoff");
+        let mut state = PathState::new(1, 0.5);
+        state.set(state_keys::SPOT, 110.0);
+        payoff.on_event(&mut state).expect("autocall observation");
+
+        assert_eq!(payoff.value(Currency::USD).amount(), 97_000.0);
     }
 }

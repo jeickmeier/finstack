@@ -51,7 +51,7 @@
             }
           ],
           "default": null,
-          "description": "Optional dividend yield curve ID."
+          "description": "Optional dividend-yield scalar ID."
         },
         "domestic_discount_curve_id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",

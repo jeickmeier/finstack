@@ -143,18 +143,18 @@ impl Payoff for Lookback {
     /// * `state` - Path state at the current engine event date. Must contain a
     ///   finite `SPOT` when `state.step <= maturity_step`.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if `SPOT` is missing or non-finite at an in-window event — see
-    /// `require_finite_state`.
-    fn on_event(&mut self, state: &mut PathState) {
+    /// Returns an error if `SPOT` is missing or non-finite at an in-window event.
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         if state.step <= self.maturity_step {
-            let spot = super::require_finite_state(state.spot(), "SPOT", state.step);
+            let spot = super::require_finite_state(state.spot(), "SPOT", state.step)?;
             self.extreme_spot = match self.direction {
                 LookbackDirection::Call => self.extreme_spot.max(spot),
                 LookbackDirection::Put => self.extreme_spot.min(spot),
             };
         }
+        Ok(())
     }
 
     fn value(&self, currency: Currency) -> Money {
@@ -236,18 +236,18 @@ impl Payoff for FloatingStrikeLookbackCall {
     /// * `state` - Path state at the current engine event date. Must contain a
     ///   finite `SPOT` when `state.step <= maturity_step`.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if `SPOT` is missing or non-finite at an in-window event — see
-    /// `require_finite_state`.
-    fn on_event(&mut self, state: &mut PathState) {
+    /// Returns an error if `SPOT` is missing or non-finite at an in-window event.
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         if state.step <= self.maturity_step {
-            let spot = super::require_finite_state(state.spot(), "SPOT", state.step);
+            let spot = super::require_finite_state(state.spot(), "SPOT", state.step)?;
             self.min_spot = self.min_spot.min(spot);
             if state.step == self.maturity_step {
                 self.terminal_spot = spot;
             }
         }
+        Ok(())
     }
 
     fn value(&self, currency: Currency) -> Money {
@@ -330,18 +330,18 @@ impl Payoff for FloatingStrikeLookbackPut {
     /// * `state` - Path state at the current engine event date. Must contain a
     ///   finite `SPOT` when `state.step <= maturity_step`.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if `SPOT` is missing or non-finite at an in-window event — see
-    /// `require_finite_state`.
-    fn on_event(&mut self, state: &mut PathState) {
+    /// Returns an error if `SPOT` is missing or non-finite at an in-window event.
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         if state.step <= self.maturity_step {
-            let spot = super::require_finite_state(state.spot(), "SPOT", state.step);
+            let spot = super::require_finite_state(state.spot(), "SPOT", state.step)?;
             self.max_spot = self.max_spot.max(spot);
             if state.step == self.maturity_step {
                 self.terminal_spot = spot;
             }
         }
+        Ok(())
     }
 
     fn value(&self, currency: Currency) -> Money {
@@ -373,11 +373,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "payoff input 'SPOT' missing or non-finite")]
-    fn test_lookback_panics_without_spot() {
+    fn test_lookback_errors_without_spot() {
         let mut lookback = Lookback::new(LookbackDirection::Call, 100.0, 1.0, 10);
         let mut state = PathState::new(0, 0.0);
-        lookback.on_event(&mut state);
+        let error = lookback
+            .on_event(&mut state)
+            .expect_err("missing spot must fail");
+        assert!(error.to_string().contains("payoff input 'SPOT' missing"));
     }
 
     #[test]
@@ -385,9 +387,15 @@ mod tests {
         let mut lookback = Lookback::new(LookbackDirection::Call, 100.0, 1.0, 10);
 
         // Simulate path: max = 120
-        lookback.on_event(&mut create_state(0, 100.0));
-        lookback.on_event(&mut create_state(5, 120.0));
-        lookback.on_event(&mut create_state(10, 110.0));
+        lookback
+            .on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(5, 120.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(10, 110.0))
+            .expect("valid payoff event");
 
         let value = lookback.value(Currency::USD);
         // max(120 - 100, 0) = 20
@@ -400,9 +408,15 @@ mod tests {
         let mut lookback = Lookback::new(LookbackDirection::Put, 100.0, 1.0, 10);
 
         // Simulate path: min = 80
-        lookback.on_event(&mut create_state(0, 100.0));
-        lookback.on_event(&mut create_state(5, 80.0));
-        lookback.on_event(&mut create_state(10, 90.0));
+        lookback
+            .on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(5, 80.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(10, 90.0))
+            .expect("valid payoff event");
 
         let value = lookback.value(Currency::USD);
         // max(100 - 80, 0) = 20
@@ -415,9 +429,15 @@ mod tests {
         let mut lookback = Lookback::new(LookbackDirection::Call, 150.0, 1.0, 10);
 
         // Path never exceeds strike
-        lookback.on_event(&mut create_state(0, 100.0));
-        lookback.on_event(&mut create_state(5, 120.0));
-        lookback.on_event(&mut create_state(10, 110.0));
+        lookback
+            .on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(5, 120.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(10, 110.0))
+            .expect("valid payoff event");
 
         let value = lookback.value(Currency::USD);
         // max(120 - 150, 0) = 0
@@ -429,9 +449,15 @@ mod tests {
         let mut lookback = Lookback::new(LookbackDirection::Put, 50.0, 1.0, 10);
 
         // Path never goes below strike
-        lookback.on_event(&mut create_state(0, 100.0));
-        lookback.on_event(&mut create_state(5, 80.0));
-        lookback.on_event(&mut create_state(10, 90.0));
+        lookback
+            .on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(5, 80.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(10, 90.0))
+            .expect("valid payoff event");
 
         let value = lookback.value(Currency::USD);
         // max(50 - 80, 0) = 0
@@ -442,8 +468,12 @@ mod tests {
     fn test_lookback_call_reset() {
         let mut lookback = Lookback::new(LookbackDirection::Call, 100.0, 1.0, 10);
 
-        lookback.on_event(&mut create_state(0, 100.0));
-        lookback.on_event(&mut create_state(5, 120.0));
+        lookback
+            .on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(5, 120.0))
+            .expect("valid payoff event");
         assert_eq!(lookback.extreme_spot, 120.0);
 
         lookback.reset();
@@ -454,8 +484,12 @@ mod tests {
     fn test_lookback_put_reset() {
         let mut lookback = Lookback::new(LookbackDirection::Put, 100.0, 1.0, 10);
 
-        lookback.on_event(&mut create_state(0, 100.0));
-        lookback.on_event(&mut create_state(5, 80.0));
+        lookback
+            .on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(5, 80.0))
+            .expect("valid payoff event");
         assert_eq!(lookback.extreme_spot, 80.0);
 
         lookback.reset();
@@ -468,12 +502,16 @@ mod tests {
         let mut put = Lookback::new(LookbackDirection::Put, 100.0, 2.5, 10);
 
         // Call path: max = 120
-        call.on_event(&mut create_state(0, 100.0));
-        call.on_event(&mut create_state(5, 120.0));
+        call.on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        call.on_event(&mut create_state(5, 120.0))
+            .expect("valid payoff event");
 
         // Put path: min = 80
-        put.on_event(&mut create_state(0, 100.0));
-        put.on_event(&mut create_state(5, 80.0));
+        put.on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        put.on_event(&mut create_state(5, 80.0))
+            .expect("valid payoff event");
 
         // Call: (120 - 100) * 2.5 = 50
         assert_eq!(call.value(Currency::USD).amount(), 50.0);
@@ -487,9 +525,15 @@ mod tests {
         let mut lookback = FloatingStrikeLookbackCall::new(1.0, 10);
 
         // Path: starts 100, min 90, ends 110
-        lookback.on_event(&mut create_state(0, 100.0));
-        lookback.on_event(&mut create_state(5, 90.0));
-        lookback.on_event(&mut create_state(10, 110.0));
+        lookback
+            .on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(5, 90.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(10, 110.0))
+            .expect("valid payoff event");
 
         let value = lookback.value(Currency::USD);
         // 110 - 90 = 20
@@ -501,9 +545,15 @@ mod tests {
         let mut lookback = FloatingStrikeLookbackPut::new(1.0, 10);
 
         // Path: starts 100, max 120, ends 105
-        lookback.on_event(&mut create_state(0, 100.0));
-        lookback.on_event(&mut create_state(5, 120.0));
-        lookback.on_event(&mut create_state(10, 105.0));
+        lookback
+            .on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(5, 120.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(10, 105.0))
+            .expect("valid payoff event");
 
         let value = lookback.value(Currency::USD);
         // S_max - S_T = 120 - 105 = 15
@@ -515,9 +565,15 @@ mod tests {
         let mut lookback = FloatingStrikeLookbackPut::new(2.5, 10);
 
         // Path: starts 100, max 130, ends 110
-        lookback.on_event(&mut create_state(0, 100.0));
-        lookback.on_event(&mut create_state(5, 130.0));
-        lookback.on_event(&mut create_state(10, 110.0));
+        lookback
+            .on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(5, 130.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(10, 110.0))
+            .expect("valid payoff event");
 
         let value = lookback.value(Currency::USD);
         // (130 - 110) * 2.5 = 50
@@ -528,8 +584,12 @@ mod tests {
     fn test_floating_strike_lookback_put_reset() {
         let mut lookback = FloatingStrikeLookbackPut::new(1.0, 10);
 
-        lookback.on_event(&mut create_state(0, 100.0));
-        lookback.on_event(&mut create_state(5, 120.0));
+        lookback
+            .on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(5, 120.0))
+            .expect("valid payoff event");
         assert_eq!(lookback.max_spot, 120.0);
 
         lookback.reset();
@@ -543,9 +603,15 @@ mod tests {
         let mut lookback = FloatingStrikeLookbackCall::with_initial_min(1.0, 10, 80.0);
 
         // Path never goes below 90, but historical min was 80
-        lookback.on_event(&mut create_state(0, 100.0));
-        lookback.on_event(&mut create_state(5, 90.0));
-        lookback.on_event(&mut create_state(10, 110.0));
+        lookback
+            .on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(5, 90.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(10, 110.0))
+            .expect("valid payoff event");
 
         let value = lookback.value(Currency::USD);
         // S_T - S_min = 110 - 80 = 30 (uses historical min)
@@ -562,9 +628,15 @@ mod tests {
         let mut lookback = FloatingStrikeLookbackPut::with_initial_max(1.0, 10, 150.0);
 
         // Path max is 110, but historical max was 150
-        lookback.on_event(&mut create_state(0, 100.0));
-        lookback.on_event(&mut create_state(5, 110.0));
-        lookback.on_event(&mut create_state(10, 95.0));
+        lookback
+            .on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(5, 110.0))
+            .expect("valid payoff event");
+        lookback
+            .on_event(&mut create_state(10, 95.0))
+            .expect("valid payoff event");
 
         let value = lookback.value(Currency::USD);
         // S_max - S_T = 150 - 95 = 55 (uses historical max)
@@ -580,8 +652,10 @@ mod tests {
         // Seasoned call: historical max = 130
         let mut call =
             Lookback::with_initial_extremum(LookbackDirection::Call, 100.0, 1.0, 10, 130.0);
-        call.on_event(&mut create_state(0, 100.0));
-        call.on_event(&mut create_state(10, 110.0));
+        call.on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        call.on_event(&mut create_state(10, 110.0))
+            .expect("valid payoff event");
 
         // max(130, 110) - 100 = 30
         let value = call.value(Currency::USD);
@@ -593,8 +667,10 @@ mod tests {
 
         // Seasoned put: historical min = 70
         let mut put = Lookback::with_initial_extremum(LookbackDirection::Put, 100.0, 1.0, 10, 70.0);
-        put.on_event(&mut create_state(0, 100.0));
-        put.on_event(&mut create_state(10, 90.0));
+        put.on_event(&mut create_state(0, 100.0))
+            .expect("valid payoff event");
+        put.on_event(&mut create_state(10, 90.0))
+            .expect("valid payoff event");
 
         // 100 - min(70, 90) = 30
         let value = put.value(Currency::USD);

@@ -16,7 +16,7 @@ use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{BarrierType, CurveId, InstrumentId};
+use finstack_quant_core::types::{BarrierType, CurveId, InstrumentId, PriceId};
 use finstack_quant_valuations::instruments::exotics::asian_option::AsianOption;
 use finstack_quant_valuations::instruments::exotics::barrier_option::BarrierOption;
 use finstack_quant_valuations::instruments::{Instrument, OptionType, PricingOptions};
@@ -97,7 +97,7 @@ fn create_barrier_option() -> BarrierOption {
         discount_curve_id: CurveId::new("USD_DISC"),
         spot_id: "SPX".into(),
         vol_surface_id: CurveId::new("SPX_VOL"),
-        div_yield_id: Some(CurveId::new("SPX_DIV")),
+        div_yield_id: Some(finstack_quant_core::types::PriceId::new("SPX_DIV")),
         instrument_pricing_overrides: Default::default(),
         metric_pricing_overrides: Default::default(),
         scenario_pricing_overrides: Default::default(),
@@ -128,7 +128,7 @@ fn create_asian_option() -> AsianOption {
         .discount_curve_id(CurveId::new("USD_DISC"))
         .spot_id("SPX".into())
         .vol_surface_id(CurveId::new("SPX_VOL"))
-        .div_yield_id_opt(Some(CurveId::new("SPX_DIV")))
+        .div_yield_id_opt(Some(PriceId::new("SPX_DIV")))
         .instrument_pricing_overrides(overrides)
         .attributes(Default::default())
         .build()

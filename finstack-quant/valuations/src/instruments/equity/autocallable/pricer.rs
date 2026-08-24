@@ -36,16 +36,18 @@ impl AutocallableMcPricer {
         inst: &Autocallable,
         curves: &MarketContext,
         as_of: Date,
-    ) -> Result<finstack_quant_core::money::Money> {
+    ) -> Result<(
+        finstack_quant_core::money::Money,
+        Option<finstack_quant_monte_carlo::results::MoneyEstimate>,
+    )> {
         inst.validate()?;
         if as_of > inst.expiry {
-            return Ok(Money::new(0.0, inst.notional.currency()));
+            return Ok((Money::new(0.0, inst.notional.currency()), None));
         }
-        let spot_scalar = curves.get_price(&inst.spot_id)?;
-        let initial_spot = match spot_scalar {
-            finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
-            finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
-        };
+        let initial_spot = crate::instruments::common_impl::helpers::scalar_price_amount(
+            curves.get_price(&inst.spot_id)?,
+            inst.notional.currency(),
+        )?;
 
         let disc_curve = curves.get_discount(inst.discount_curve_id.as_str())?;
 
@@ -86,8 +88,10 @@ impl AutocallableMcPricer {
         let mut past_min_spot = f64::INFINITY;
         let mut past_max_spot = f64::NEG_INFINITY;
         let mut prior_memory_coupons = 0.0;
+        let mut fixed_coupon_expiry_ratio = 0.0;
         for idx in 0..n_past {
             let obs_date = inst.observation_dates[idx];
+            let payment_date = inst.payment_dates[idx];
             let fix = inst.fixing_on(obs_date).ok_or_else(|| {
                 finstack_quant_core::Error::Validation(format!(
                     "Autocallable '{}': observation date {} is on or before as_of {} but has \
@@ -98,22 +102,35 @@ impl AutocallableMcPricer {
             })?;
             past_min_spot = past_min_spot.min(fix);
             past_max_spot = past_max_spot.max(fix);
-            if fix >= s0 * inst.autocall_barriers[idx] {
-                // The note autocalled at a past observation date: principal and
-                // coupon settled before as_of, so nothing remains to value.
-                return Ok(Money::new(0.0, inst.notional.currency()));
-            }
-            if inst.memory_coupons {
+
+            if fix >= s0 * inst.coupon_barriers[idx] {
+                let coupon = inst.coupons[idx]
+                    + if inst.memory_coupons {
+                        prior_memory_coupons
+                    } else {
+                        0.0
+                    };
+                if payment_date > as_of {
+                    let payment_df = disc_curve.df_between_dates(as_of, payment_date)?;
+                    fixed_coupon_expiry_ratio += coupon * payment_df / discount_factor;
+                }
+                prior_memory_coupons = 0.0;
+            } else if inst.memory_coupons {
                 prior_memory_coupons += inst.coupons[idx];
+            }
+
+            if fix >= s0 * inst.autocall_barriers[idx] {
+                if payment_date <= as_of {
+                    return Ok((Money::new(0.0, inst.notional.currency()), None));
+                }
+                let payment_df = disc_curve.df_between_dates(as_of, payment_date)?;
+                let pv = inst.notional.amount()
+                    * (payment_df + fixed_coupon_expiry_ratio * discount_factor);
+                return Ok((Money::new(pv, inst.notional.currency()), None));
             }
         }
 
-        // All observation dates already past and never autocalled: the final
-        // payoff is fully determined by the observed fixings; discount the
-        // known cashflow from the settlement date.
         if n_past == inst.observation_dates.len() {
-            // n_past > 0 here (observation_dates is validated non-empty), so
-            // the last fixing exists.
             let last_obs = inst.observation_dates[n_past - 1];
             let final_fixing = inst.fixing_on(last_obs).ok_or_else(|| {
                 finstack_quant_core::Error::Validation(format!(
@@ -125,25 +142,27 @@ impl AutocallableMcPricer {
                 vec![],
                 vec![],
                 vec![],
+                vec![],
                 inst.memory_coupons,
                 inst.final_barrier,
                 inst.final_payoff_type,
                 inst.participation_rate,
                 inst.cap_level,
                 inst.notional.amount(),
-                inst.notional.currency(),
                 s0,
                 vec![],
             )?;
-            let ratio = payoff.final_payoff_ratio(final_fixing, past_min_spot);
-            return Ok(Money::new(
-                ratio * inst.notional.amount() * discount_factor,
-                inst.notional.currency(),
-            ));
+            let redemption_ratio = payoff.final_payoff_ratio(final_fixing, past_min_spot);
+            let pv = (redemption_ratio + fixed_coupon_expiry_ratio)
+                * inst.notional.amount()
+                * discount_factor;
+            return Ok((Money::new(pv, inst.notional.currency()), None));
         }
 
         let future_dates = &inst.observation_dates[n_past..];
+        let future_payment_dates = &inst.payment_dates[n_past..];
         let future_barriers = inst.autocall_barriers[n_past..].to_vec();
+        let future_coupon_barriers = inst.coupon_barriers[n_past..].to_vec();
         let future_coupons = inst.coupons[n_past..].to_vec();
 
         // Dividend yield from scalar id if provided
@@ -210,29 +229,20 @@ impl AutocallableMcPricer {
             &format!("Autocallable {}", inst.id),
         )?;
 
-        // Calculate discount factor ratios for each remaining observation date
-        // Ratio = DF(as_of, T_obs) / DF(as_of, T_mat)
-        // This corrects for the engine applying DF(T_mat) to early cashflows.
-        //
-        // Date-based lookups (df_between_dates) rather than axis-based df(t):
-        // the ratios stay correct when the curve base date differs from as_of,
-        // and only future dates reach here so no ratio can exceed the
-        // observation date's true discounting.
-        let df_ratios: Vec<f64> = future_dates
+        // Convert each observation's contractual payment to expiry-value units
+        // because the engine applies `DF(as_of, expiry)` once to the path payoff.
+        let payment_df_ratios: Vec<f64> = future_payment_dates
             .iter()
-            .map(|&obs_date| {
-                let df_obs = disc_curve.df_between_dates(as_of, obs_date)?;
-                Ok(if discount_factor > 0.0 {
-                    df_obs / discount_factor
-                } else {
-                    1.0
-                })
+            .map(|&payment_date| {
+                let payment_df = disc_curve.df_between_dates(as_of, payment_date)?;
+                Ok(payment_df / discount_factor)
             })
             .collect::<finstack_quant_core::Result<Vec<_>>>()?;
 
         let payoff = AutocallablePayoff::new(
             observation_times.clone(),
             future_barriers,
+            future_coupon_barriers,
             future_coupons,
             inst.memory_coupons,
             inst.final_barrier,
@@ -240,11 +250,15 @@ impl AutocallableMcPricer {
             inst.participation_rate,
             inst.cap_level,
             inst.notional.amount(),
-            inst.notional.currency(),
             s0,
-            df_ratios,
+            payment_df_ratios,
         )?
-        .with_seasoned_state(past_min_spot, past_max_spot, prior_memory_coupons);
+        .with_seasoned_state(
+            past_min_spot,
+            past_max_spot,
+            prior_memory_coupons,
+            fixed_coupon_expiry_ratio,
+        );
 
         // Derive deterministic seed from instrument ID and scenario.
         use finstack_quant_monte_carlo::seed;
@@ -295,7 +309,8 @@ impl AutocallableMcPricer {
             discount_factor,
         )?;
 
-        Ok(result.mean)
+        let mean = result.mean;
+        Ok((mean, Some(result)))
     }
 }
 
@@ -330,7 +345,7 @@ impl Pricer for AutocallableMcPricer {
                 PricingError::type_mismatch(InstrumentType::Autocallable, instrument.key())
             })?;
 
-        let pv = self
+        let (pv, estimate) = self
             .price_internal(autocallable, market, as_of)
             .map_err(|e| {
                 PricingError::model_failure_with_context(
@@ -340,7 +355,11 @@ impl Pricer for AutocallableMcPricer {
                 )
             })?;
 
-        Ok(ValuationResult::stamped(autocallable.id(), as_of, pv))
+        let mut result = ValuationResult::stamped(autocallable.id(), as_of, pv);
+        if let Some(estimate) = estimate {
+            crate::instruments::common_impl::helpers::attach_mc_diagnostics(&mut result, &estimate);
+        }
+        Ok(result)
     }
 }
 
@@ -351,5 +370,5 @@ pub(crate) fn compute_pv(
     as_of: Date,
 ) -> Result<Money> {
     let pricer = AutocallableMcPricer::new();
-    pricer.price_internal(inst, curves, as_of)
+    Ok(pricer.price_internal(inst, curves, as_of)?.0)
 }

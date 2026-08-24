@@ -28,25 +28,16 @@ impl RfComponentPriced for RealEstateAsset {
 /// Register real estate asset metrics with the registry.
 pub(crate) fn register_real_estate_metrics(registry: &mut MetricRegistry) {
     use crate::pricer::InstrumentType;
-    crate::register_metrics! {
-        registry: registry,
-        instrument: InstrumentType::RealEstateAsset,
-        metrics: [
-            // Rate risk via rf-component bump inside the property discount
-            // rate : the asset always discounts at its
-            // own rate, so DV01 bumps the additive risk-free component of
-            // that rate rather than a market curve.
-            (Dv01, crate::metrics::RfComponentDv01Calculator::<
-                crate::instruments::RealEstateAsset,
-            >::new(crate::metrics::RfDv01Mode::Parallel)),
-            (BucketedDv01, crate::metrics::RfComponentDv01Calculator::<
-                crate::instruments::RealEstateAsset,
-            >::new(crate::metrics::RfDv01Mode::Bucketed)),
-        ]
-    };
-
-    // Custom real estate deal-style metrics (non-core MetricId set).
     use std::sync::Arc;
+    registry.register_metric(
+        crate::metrics::MetricId::custom("real_estate::discount_rate01"),
+        Arc::new(crate::metrics::RfComponentDv01Calculator::<
+            crate::instruments::RealEstateAsset,
+        >::new()),
+        &[InstrumentType::RealEstateAsset],
+    );
+
+    // Custom real estate deal-style metrics.
     registry.register_metric(
         crate::metrics::MetricId::custom("real_estate::going_in_cap_rate"),
         Arc::new(cap_rates::GoingInCapRate),

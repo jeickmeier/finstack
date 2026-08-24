@@ -85,16 +85,19 @@ pub fn create_quarterly_autocallable(
 ) -> Autocallable {
     let n = observation_dates.len();
     let autocall_barriers = vec![1.0; n]; // 100% of initial spot
+    let coupon_barriers = vec![0.7; n];
     let coupons = vec![0.02; n]; // 2% per observation
 
     Autocallable {
         id: "AUTO_DC_TEST".into(),
         underlying_ticker: SPOT_ID.into(),
+        payment_dates: observation_dates.clone(),
         expiry: *observation_dates
             .last()
             .expect("observation_dates cannot be empty"),
         observation_dates,
         autocall_barriers,
+        coupon_barriers,
         coupons,
         memory_coupons: false, // non-memory autocallable
         final_barrier: 0.6,    // 60% knock-in barrier
@@ -106,7 +109,7 @@ pub fn create_quarterly_autocallable(
         discount_curve_id: CurveId::new(DISC_ID),
         spot_id: SPOT_ID.into(),
         vol_surface_id: CurveId::new(VOL_ID),
-        div_yield_id: Some(CurveId::new(DIV_ID)),
+        div_yield_id: Some(finstack_quant_core::types::PriceId::new(DIV_ID)),
         initial_level: None,
         past_fixings: vec![],
         instrument_pricing_overrides: Default::default(),

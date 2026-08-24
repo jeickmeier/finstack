@@ -196,7 +196,7 @@ impl RateExoticHw1fLsmcPricer {
                     while next_event < event_step_indices.len()
                         && event_step_indices[next_event] == step + 1
                     {
-                        payoff.on_event(&mut state);
+                        payoff.on_event(&mut state)?;
 
                         // Record exercise-date state if this event is an exercise date.
                         if next_exercise < exercise_event_pos.len()
@@ -461,8 +461,9 @@ mod tests {
         bank_at_last_event: f64,
     }
     impl Payoff for ParPayoff {
-        fn on_event(&mut self, s: &mut PathState) {
+        fn on_event(&mut self, s: &mut PathState) -> finstack_quant_core::Result<()> {
             self.bank_at_last_event = s.get_key(StateKey::BankAccount).unwrap_or(1.0);
+            Ok(())
         }
         fn value(&self, ccy: Currency) -> Money {
             Money::new(self.notional / self.bank_at_last_event, ccy)
@@ -525,7 +526,7 @@ mod tests {
         bank_at_maturity: f64,
     }
     impl Payoff for CouponThenBulletPayoff {
-        fn on_event(&mut self, s: &mut PathState) {
+        fn on_event(&mut self, s: &mut PathState) -> finstack_quant_core::Result<()> {
             let bank = s.get_key(StateKey::BankAccount).unwrap_or(1.0);
             match self.event_idx {
                 0 => self.bank_at_coupon = bank,
@@ -533,6 +534,7 @@ mod tests {
                 _ => {}
             }
             self.event_idx += 1;
+            Ok(())
         }
         fn value(&self, ccy: Currency) -> Money {
             Money::new(

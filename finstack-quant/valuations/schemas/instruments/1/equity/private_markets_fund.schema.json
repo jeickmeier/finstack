@@ -272,7 +272,7 @@
     },
     "PrivateMarketsFund": {
       "additionalProperties": false,
-      "description": "Private markets fund investment instrument.\n\nModels a private equity, private credit, or alternative fund with a\ncashflow waterfall that determines LP/GP allocation. Supports NAV\ndiscounting when a `discount_curve_id` is provided, or falls back to\nlast-event date for IRR-only workflows.",
+      "description": "Private markets fund investment instrument.\n\nModels a private equity, private credit, or alternative fund with a\ncashflow waterfall that determines LP/GP allocation. Future LP cashflows\nare selected relative to the caller's valuation date and optionally\ndiscounted with `discount_curve_id`.",
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
@@ -292,7 +292,7 @@
               "type": "null"
             }
           ],
-          "description": "Discount curve identifier for NAV present-value calculations.\n\nWhen `None`, the pricer falls back to the last event date as the\nvaluation date and returns an undiscounted waterfall NAV."
+          "description": "Optional discount curve for future LP cashflows.\n\nWhen `None`, future cashflows are included undiscounted relative to the\ncaller's valuation date."
         },
         "events": {
           "description": "Time-ordered list of fund events (contributions, proceeds, distributions).",

@@ -20,6 +20,18 @@ fn default_observation_business_day_convention() -> BusinessDayConvention {
     BusinessDayConvention::Following
 }
 
+/// Corporate-action treatment of historical equity price observations.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum EquityPriceSeriesPolicy {
+    /// Input series is adjusted for splits and contractually relevant distributions.
+    Adjusted,
+    /// Input series contains raw official levels; corporate actions are intentionally retained.
+    Raw,
+}
+
 /// Variance swap instrument.
 ///
 /// A variance swap is a forward contract on realized variance with payoff:
@@ -112,6 +124,13 @@ pub struct VarianceSwap {
     #[serde(default)]
     #[builder(default)]
     pub realized_var_method: RealizedVarMethod,
+    /// Corporate-action policy applied to all historical price series.
+    ///
+    /// The selected policy is declarative: input series must already conform to
+    /// it. `Adjusted` is appropriate for single-stock variance where splits
+    /// must not create artificial returns; `Raw` is explicit for official index
+    /// levels or contracts whose calculation agent retains raw observations.
+    pub price_series_policy: EquityPriceSeriesPolicy,
     /// Series ID for open prices (required for Parkinson, GarmanKlass, RogersSatchell, YangZhang).
     /// Defaults to `underlying_ticker` when absent.
     #[serde(default)]
@@ -283,16 +302,11 @@ impl VarianceSwap {
         variance_notional * 2.0 * strike_vol * 0.01
     }
 
-    pub(crate) fn volatility_candidate_ids(&self) -> [String; 3] {
+    pub(crate) fn volatility_candidate_ids(&self) -> [String; 2] {
         [
             self.underlying_ticker.clone(),
             format!("{}_VOL", self.underlying_ticker),
-            self.implied_vol_scalar_id(),
         ]
-    }
-
-    pub(crate) fn implied_vol_scalar_id(&self) -> String {
-        format!("{}_IMPL_VOL", self.underlying_ticker)
     }
 
     pub(crate) fn dividend_yield_scalar_id(&self) -> String {
@@ -317,6 +331,7 @@ impl VarianceSwap {
             .side(PayReceive::Receive)
             .discount_curve_id(CurveId::new("USD-OIS"))
             .day_count(DayCount::Act365F)
+            .price_series_policy(EquityPriceSeriesPolicy::Adjusted)
             .attributes(Attributes::new())
             .build()
     }
@@ -457,10 +472,10 @@ impl VarianceSwap {
     /// ```
     /// where V(K) are OTM put/call prices, F is the forward price, and K₀ is the highest
     /// strike at or below the forward. The anchor term is the EXACT Demeterfi et al.
-    /// log-contract correction (not its 2nd-order Taylor expansion). For a
-    /// forward-starting swap (`as_of < start_date`) the pre-start leg is removed via the
-    /// total-variance identity. Falls back to ATM vol² (logged at WARN) if replication
-    /// is unavailable; errors if no volatility input exists.
+    /// log-contract correction (not its second-order Taylor expansion). For a
+    /// forward-starting swap (`as_of < start_date`) the pre-start leg is removed
+    /// via the total-variance identity. Sparse or missing surfaces error unless
+    /// the instrument carries an explicit flat implied-volatility override.
     ///
     /// References: Carr, P. & Madan, D. (1998). "Towards a Theory of Volatility Trading";
     /// Demeterfi, Derman, Kamal & Zou (1999). "More Than You Ever Wanted to Know About
@@ -512,7 +527,6 @@ impl crate::instruments::common_impl::traits::Instrument for VarianceSwap {
         let underlying_id = PriceId::new(self.underlying_ticker.as_str());
         deps.add_market_scalar_id(self.underlying_ticker.as_str());
         deps.add_market_scalar_id(self.dividend_yield_scalar_id());
-        deps.add_market_scalar_id(self.implied_vol_scalar_id());
         for vol_surface_id in self.volatility_candidate_ids() {
             deps.add_volatility_dependency(
                 crate::instruments::common_impl::dependencies::VolatilityDependency::new(
@@ -573,7 +587,7 @@ mod dependency_tests {
     use super::*;
 
     #[test]
-    fn market_dependencies_cover_every_variance_swap_market_fallback() {
+    fn market_dependencies_cover_replication_inputs() {
         let swap = VarianceSwap::example().expect("example");
         let deps =
             crate::instruments::Instrument::market_dependencies(&swap).expect("dependencies");
@@ -583,7 +597,6 @@ mod dependency_tests {
             vec![
                 swap.underlying_ticker.clone(),
                 swap.dividend_yield_scalar_id(),
-                swap.implied_vol_scalar_id(),
             ]
         );
         assert_eq!(

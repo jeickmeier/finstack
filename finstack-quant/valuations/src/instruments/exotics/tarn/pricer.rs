@@ -160,7 +160,7 @@ impl TarnPayoff {
 }
 
 impl Payoff for TarnPayoff {
-    fn on_event(&mut self, state: &mut PathState) {
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         // The simulation fires one event per *forward-starting* coupon at that
         // coupon's period start (the in-advance fixing date), plus a final
         // settlement event at maturity. A leading already-seasoned coupon
@@ -174,10 +174,11 @@ impl Payoff for TarnPayoff {
         self.last_bank = bank;
         self.flush_pending(bank);
         if self.next_event >= self.events.len() || self.redeemed {
-            return;
+            return Ok(());
         }
         let short_rate = state.get_key(StateKey::ShortRate).unwrap_or(0.0);
         self.settle_next(short_rate);
+        Ok(())
     }
 
     fn value(&self, currency: finstack_quant_core::currency::Currency) -> Money {
@@ -836,8 +837,8 @@ mod tests {
         let mut state = PathState::new(0, 1.0);
         state.set_key(StateKey::ShortRate, 0.01);
         state.set_key(StateKey::BankAccount, 1.0);
-        payoff.on_event(&mut state);
-        payoff.on_event(&mut state);
+        payoff.on_event(&mut state).expect("valid payoff event");
+        payoff.on_event(&mut state).expect("valid payoff event");
 
         assert!((payoff.value(Currency::USD).amount() - 1_100_000.0).abs() < 1e-8);
     }

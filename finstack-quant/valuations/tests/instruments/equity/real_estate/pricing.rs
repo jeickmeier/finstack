@@ -15,7 +15,7 @@ use finstack_quant_valuations::instruments::equity::real_estate::{
 use finstack_quant_valuations::instruments::fixed_income::term_loan::{
     AmortizationSpec, RateSpec, TermLoan,
 };
-use finstack_quant_valuations::instruments::{Attributes, Bond, Instrument, InstrumentJson};
+use finstack_quant_valuations::instruments::{Attributes, Bond, Instrument, RealEstateFinancing};
 
 fn build_flat_discount_curve(
     id: &str,
@@ -432,6 +432,7 @@ fn test_real_estate_sensitivities_metrics_compute_and_have_expected_signs() {
     let metrics = [
         MetricId::custom("real_estate::cap_rate_sensitivity"),
         MetricId::custom("real_estate::discount_rate_sensitivity"),
+        MetricId::custom("real_estate::discount_rate01"),
     ];
     let result = asset
         .price_with_metrics(
@@ -450,6 +451,10 @@ fn test_real_estate_sensitivities_metrics_compute_and_have_expected_signs() {
         .measures
         .get(&MetricId::custom("real_estate::discount_rate_sensitivity"))
         .expect("discount rate sens present");
+    let discount_rate01 = *result
+        .measures
+        .get(&MetricId::custom("real_estate::discount_rate01"))
+        .expect("discount-rate 01 present");
 
     // Higher cap rates / discount rates should reduce value.
     assert!(d_v_d_cap < 0.0, "cap sensitivity should be negative");
@@ -457,6 +462,7 @@ fn test_real_estate_sensitivities_metrics_compute_and_have_expected_signs() {
         d_v_d_r < 0.0,
         "discount-rate sensitivity should be negative"
     );
+    assert!(discount_rate01 < 0.0, "discount-rate 01 should be negative");
 }
 
 #[test]
@@ -509,8 +515,8 @@ fn test_levered_real_estate_equity_value_is_asset_minus_debt() {
         .currency(Currency::USD)
         .asset(asset.clone())
         .financing(vec![
-            InstrumentJson::TermLoan(loan.clone()),
-            InstrumentJson::Bond(bond.clone()),
+            RealEstateFinancing::TermLoan(loan.clone()),
+            RealEstateFinancing::Bond(bond.clone()),
         ])
         .exit_date_opt(Some(noi2))
         .attributes(Attributes::new())
@@ -583,7 +589,7 @@ fn test_levered_real_estate_equity_custom_metrics_compute() {
         .id(InstrumentId::new("RE-EQ-L-2"))
         .currency(Currency::USD)
         .asset(asset)
-        .financing(vec![InstrumentJson::TermLoan(loan)])
+        .financing(vec![RealEstateFinancing::TermLoan(loan)])
         .exit_date_opt(Some(noi2))
         .attributes(Attributes::new())
         .build()
@@ -667,7 +673,7 @@ fn test_levered_real_estate_sensitivities_metrics_compute() {
         .id(InstrumentId::new("RE-EQ-SENS-L"))
         .currency(Currency::USD)
         .asset(asset)
-        .financing(vec![InstrumentJson::TermLoan(loan)])
+        .financing(vec![RealEstateFinancing::TermLoan(loan)])
         .exit_date_opt(Some(noi2))
         .attributes(Attributes::new())
         .build()
@@ -868,7 +874,7 @@ fn test_dscr_min_excludes_balloon_principal_at_maturity() {
         .id(InstrumentId::new("RE-EQ-DSCR"))
         .currency(Currency::USD)
         .asset(asset)
-        .financing(vec![InstrumentJson::TermLoan(loan)])
+        .financing(vec![RealEstateFinancing::TermLoan(loan)])
         .exit_date_opt(Some(noi2))
         .attributes(Attributes::new())
         .build()

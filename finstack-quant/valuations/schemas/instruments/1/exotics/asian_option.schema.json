@@ -29,7 +29,7 @@
               "type": "null"
             }
           ],
-          "description": "Optional dividend yield curve ID"
+          "description": "Optional dividend-yield scalar ID"
         },
         "expiry": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",

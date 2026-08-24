@@ -1,7 +1,7 @@
 //! Levered real estate equity instrument.
 //!
-//! This instrument composes an unlevered [`RealEstateAsset`] with a financing stack
-//! (e.g., term loans, bonds, convertibles) to provide:
+//! This instrument composes an unlevered [`RealEstateAsset`] with term-loan,
+//! bond, revolving-credit, or repo financing to provide:
 //! - Equity value as `Asset PV - Financing PV`
 //! - Levered deal-style metrics (IRR, MOIC, DSCR, LTV)
 
@@ -9,13 +9,51 @@ use super::levered_pricer;
 use super::types::RealEstateAsset;
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::traits::{Attributes, Instrument};
-use crate::instruments::InstrumentJson;
+use crate::instruments::{Bond, Repo, RevolvingCredit, TermLoan};
 use crate::pricer::InstrumentType;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::InstrumentId;
+
+/// Financing instruments supported by levered real-estate valuation and metrics.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(
+    rename_all = "snake_case",
+    tag = "type",
+    content = "spec",
+    deny_unknown_fields
+)]
+pub enum RealEstateFinancing {
+    /// Fixed- or floating-rate bond financing.
+    Bond(Bond),
+    /// Institutional term-loan financing.
+    TermLoan(TermLoan),
+    /// Revolving-credit financing.
+    RevolvingCredit(RevolvingCredit),
+    /// Repurchase-agreement financing.
+    Repo(Repo),
+}
+
+impl RealEstateFinancing {
+    pub(crate) fn as_instrument(&self) -> &dyn Instrument {
+        match self {
+            Self::Bond(instrument) => instrument,
+            Self::TermLoan(instrument) => instrument,
+            Self::RevolvingCredit(instrument) => instrument,
+            Self::Repo(instrument) => instrument,
+        }
+    }
+
+    pub(crate) fn cashflow_schedule(
+        &self,
+        market: &MarketContext,
+        as_of: Date,
+    ) -> finstack_quant_core::Result<crate::cashflow::builder::CashFlowSchedule> {
+        self.as_instrument().cashflow_schedule(market, as_of)
+    }
+}
 
 /// Levered real estate equity = unlevered asset + financing.
 ///
@@ -43,12 +81,11 @@ pub struct LeveredRealEstateEquity {
     pub currency: Currency,
     /// Underlying unlevered asset.
     pub asset: RealEstateAsset,
-    /// Financing instruments (borrower liabilities), valued from lender perspective.
-    ///
-    /// PV convention nets these from the asset PV.
+    /// Supported borrower liabilities, valued from the lender perspective and
+    /// netted from asset PV.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub financing: Vec<InstrumentJson>,
+    pub financing: Vec<RealEstateFinancing>,
     /// Optional explicit exit/sale date. Defaults to the asset's valuation
     /// horizon: `asset.sale_date` when set, else the last NOI date on/after `as_of`.
     #[builder(optional)]
@@ -103,7 +140,7 @@ impl LeveredRealEstateEquity {
             )));
         }
         for financing in &self.financing {
-            financing.clone().into_boxed()?;
+            financing.as_instrument().validate_for_pricing()?;
         }
         Ok(())
     }
@@ -171,12 +208,8 @@ impl Instrument for LeveredRealEstateEquity {
         crate::instruments::common_impl::dependencies::MarketDependencies,
     > {
         let mut deps = self.asset.market_dependencies()?;
-        for instrument in &self.financing {
-            deps.merge(
-                crate::instruments::common_impl::dependencies::MarketDependencies::from_instrument_json(
-                    instrument,
-                )?,
-            );
+        for financing in &self.financing {
+            deps.merge(financing.as_instrument().market_dependencies()?);
         }
         Ok(deps)
     }

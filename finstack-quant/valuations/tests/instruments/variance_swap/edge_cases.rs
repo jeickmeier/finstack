@@ -71,7 +71,7 @@ fn test_valuation_with_extreme_price_moves() {
 #[test]
 fn test_valuation_with_negative_rates() {
     // Arrange
-    let swap = sample_swap(PayReceive::Receive);
+    let swap = with_implied_vol(sample_swap(PayReceive::Receive), 0.20);
     // Use earlier base date to allow pre-start valuation
     let curve_base = date(2024, 12, 1);
     let disc_curve =
@@ -99,8 +99,8 @@ fn test_valuation_with_negative_rates() {
             finstack_quant_core::market_data::scalars::MarketScalar::Unitless(5_000.0),
         )
         .insert_price(
-            format!("{}_IMPL_VOL", UNDERLYING_ID),
-            finstack_quant_core::market_data::scalars::MarketScalar::Unitless(0.20),
+            format!("{}-DIVYIELD", UNDERLYING_ID),
+            finstack_quant_core::market_data::scalars::MarketScalar::Unitless(0.0),
         );
     let as_of = curve_base;
 
@@ -214,6 +214,9 @@ fn test_valuation_with_very_long_tenor() {
     swap.start_date = start;
     swap.maturity = end;
     swap.observation_frequency = Tenor::monthly();
+    swap.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(0.22);
     let ctx = add_unitless(base_context(), format!("{}_IMPL_VOL", UNDERLYING_ID), 0.22);
 
     // Act

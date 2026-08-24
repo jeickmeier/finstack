@@ -392,7 +392,7 @@ impl PyEquityOptionBuilder {
         value: &str,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let b = take_equity_option(&mut slf)?;
-        slf.inner = Some(b.div_yield_id(CurveId::new(value.to_string())));
+        slf.inner = Some(b.div_yield_id(PriceId::new(value.to_string())));
         Ok(slf)
     }
 

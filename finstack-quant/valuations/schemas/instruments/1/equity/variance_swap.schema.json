@@ -1,5 +1,20 @@
 {
   "$defs": {
+    "EquityPriceSeriesPolicy": {
+      "description": "Corporate-action treatment of historical equity price observations.",
+      "oneOf": [
+        {
+          "const": "adjusted",
+          "description": "Input series is adjusted for splits and contractually relevant distributions.",
+          "type": "string"
+        },
+        {
+          "const": "raw",
+          "description": "Input series contains raw official levels; corporate actions are intentionally retained.",
+          "type": "string"
+        }
+      ]
+    },
     "InstrumentSchema": {
       "const": "finstack_quant.instrument/1",
       "description": "Canonical schema marker for persisted instrument envelopes.",
@@ -136,6 +151,10 @@
             "null"
           ]
         },
+        "price_series_policy": {
+          "$ref": "#/$defs/EquityPriceSeriesPolicy",
+          "description": "Corporate-action policy applied to all historical price series.\n\nThe selected policy is declarative: input series must already conform to\nit. `Adjusted` is appropriate for single-stock variance where splits\nmust not create artificial returns; `Raw` is explicit for official index\nlevels or contracts whose calculation agent retains raw observations."
+        },
         "realized_var_method": {
           "$ref": "#/$defs/RealizedVarMethod",
           "default": "close_to_close",
@@ -184,6 +203,7 @@
         "maturity",
         "observation_frequency",
         "observation_calendar_id",
+        "price_series_policy",
         "side",
         "discount_curve_id",
         "day_count",
@@ -237,6 +257,7 @@
             "unit": "days"
           },
           "open_series_id": null,
+          "price_series_policy": "adjusted",
           "realized_var_method": "close_to_close",
           "settlement_date": null,
           "side": "receive",

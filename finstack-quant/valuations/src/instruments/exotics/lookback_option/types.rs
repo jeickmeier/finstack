@@ -145,8 +145,8 @@ pub struct LookbackOption {
     pub spot_id: PriceId,
     /// Volatility surface ID
     pub vol_surface_id: CurveId,
-    /// Optional dividend yield curve ID
-    pub div_yield_id: Option<CurveId>,
+    /// Optional dividend-yield scalar ID
+    pub div_yield_id: Option<PriceId>,
     /// Whether to use Monte Carlo with Gobet-Miri correction for discrete monitoring.
     ///
     /// When `true`, `value()` dispatches to `npv_mc()` for discrete-monitoring-corrected
@@ -206,7 +206,7 @@ impl LookbackOption {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .observed_min_opt(None)
             .observed_max_opt(None)
             .attributes(Attributes::new())

@@ -6,6 +6,7 @@
 use crate::metrics::risk::MarketHistory;
 use crate::metrics::{standard_registry, MetricContext, MetricId};
 use finstack_quant_core::config::FinstackConfig;
+use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::{
     context::MarketContext,
@@ -14,6 +15,40 @@ use finstack_quant_core::market_data::{
 use finstack_quant_core::money::Money;
 use indexmap::IndexMap;
 use std::sync::Arc;
+
+/// Read a scalar price amount without discarding an attached currency.
+pub(crate) fn scalar_price_amount(
+    scalar: &MarketScalar,
+    expected_currency: Currency,
+) -> finstack_quant_core::Result<f64> {
+    match scalar {
+        MarketScalar::Unitless(value) => Ok(*value),
+        MarketScalar::Price(price) if price.currency() == expected_currency => Ok(price.amount()),
+        MarketScalar::Price(price) => Err(finstack_quant_core::Error::CurrencyMismatch {
+            expected: expected_currency,
+            actual: price.currency(),
+        }),
+    }
+}
+
+pub(crate) fn attach_mc_diagnostics(
+    result: &mut crate::results::ValuationResult,
+    estimate: &finstack_quant_monte_carlo::results::MoneyEstimate,
+) {
+    for (id, value) in [
+        ("mc_stderr", estimate.stderr),
+        ("mc_ci_95_low", estimate.ci_95.0.amount()),
+        ("mc_ci_95_high", estimate.ci_95.1.amount()),
+        ("mc_num_paths", estimate.num_paths as f64),
+        (
+            "mc_num_simulated_paths",
+            estimate.num_simulated_paths as f64,
+        ),
+        ("mc_relative_stderr", estimate.relative_stderr()),
+    ] {
+        result.measures.insert(MetricId::custom(id), value);
+    }
+}
 
 /// Validated pricing boundary shared by direct and registry-backed routes.
 ///
@@ -225,7 +260,7 @@ where
 /// error rather than silently assuming zero carry.
 pub fn resolve_optional_dividend_yield(
     curves: &MarketContext,
-    div_yield_id: Option<&finstack_quant_core::types::CurveId>,
+    div_yield_id: Option<&finstack_quant_core::types::PriceId>,
 ) -> finstack_quant_core::Result<f64> {
     let Some(div_id) = div_yield_id else {
         return Ok(0.0);
@@ -964,7 +999,7 @@ mod tests {
         let market = MarketContext::new();
         let err = resolve_optional_dividend_yield(
             &market,
-            Some(&finstack_quant_core::types::CurveId::new("DIV")),
+            Some(&finstack_quant_core::types::PriceId::new("DIV")),
         )
         .err()
         .map(|err| err.to_string());
@@ -984,7 +1019,7 @@ mod tests {
         );
         let err = resolve_optional_dividend_yield(
             &market,
-            Some(&finstack_quant_core::types::CurveId::new("DIV")),
+            Some(&finstack_quant_core::types::PriceId::new("DIV")),
         )
         .err()
         .map(|err| err.to_string());
@@ -1122,7 +1157,7 @@ impl BlackScholesInputsDf {
 pub fn collect_black_scholes_inputs_df(
     spot_id: &str,
     discount_curve_id: &finstack_quant_core::types::CurveId,
-    div_yield_id: Option<&finstack_quant_core::types::CurveId>,
+    div_yield_id: Option<&finstack_quant_core::types::PriceId>,
     vol_surface_id: &str,
     strike: f64,
     expiry: Date,
@@ -1209,7 +1244,7 @@ pub fn collect_black_scholes_inputs_df(
 pub fn collect_black_scholes_inputs(
     spot_id: &str,
     discount_curve_id: &finstack_quant_core::types::CurveId,
-    div_yield_id: Option<&finstack_quant_core::types::CurveId>,
+    div_yield_id: Option<&finstack_quant_core::types::PriceId>,
     vol_surface_id: &str,
     strike: f64,
     expiry: Date,

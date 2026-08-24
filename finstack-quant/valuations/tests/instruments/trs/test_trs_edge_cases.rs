@@ -457,13 +457,10 @@ fn test_fi_index_trs_maturity_equals_valuation_date() {
         .build()
         .unwrap();
 
-    // Act - Pricing at maturity with past start date
-    let result = trs.value(&market, as_of);
-
-    assert!(
-        result.is_err(),
-        "Maturity at valuation should be rejected as invalid"
-    );
+    // With zero payment lag, the final cashflow is settled on the maturity
+    // date and no residual value remains.
+    let result = trs.value(&market, as_of).expect("matured TRS");
+    assert_eq!(result.amount(), 0.0);
 }
 
 // Metric Calculation Edge Cases

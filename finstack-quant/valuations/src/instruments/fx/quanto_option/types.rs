@@ -71,8 +71,8 @@ pub struct QuantoOption {
     pub spot_id: PriceId,
     /// Equity volatility surface ID
     pub vol_surface_id: CurveId,
-    /// Optional dividend yield curve ID
-    pub div_yield_id: Option<CurveId>,
+    /// Optional dividend-yield scalar ID
+    pub div_yield_id: Option<PriceId>,
     /// Optional FX rate identifier.
     ///
     /// The referenced scalar must be quoted as **quote currency per unit of
@@ -155,9 +155,9 @@ struct QuantoOptionUnchecked {
     spot_id: PriceId,
     /// Equity volatility surface ID.
     vol_surface_id: CurveId,
-    /// Optional dividend yield curve ID.
+    /// Optional dividend-yield scalar ID.
     #[serde(default)]
-    div_yield_id: Option<CurveId>,
+    div_yield_id: Option<PriceId>,
     /// Optional FX rate identifier.
     #[serde(default)]
     fx_rate_id: Option<String>,
@@ -235,7 +235,7 @@ impl QuantoOption {
             .foreign_discount_curve_id(CurveId::new("JPY-OIS"))
             .spot_id("NKY-SPOT".into())
             .vol_surface_id(CurveId::new("NKY-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("NKY-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("NKY-DIV")))
             .fx_rate_id_opt(Some("JPYUSD-SPOT".to_string()))
             .fx_vol_id_opt(Some(CurveId::new("JPYUSD-VOL")))
             .attributes(Attributes::new())

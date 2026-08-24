@@ -22,29 +22,18 @@ pub(crate) struct DcfPricer;
 /// flows with no spread adjustment). The PV is identical whether or not
 /// `DiscountedCashFlow::discount_curve_id` is loaded in `market`.
 ///
-/// Rate sensitivity comes from the risk-free component embedded in the WACC
-/// (`wacc = rf + risk_premium`): the `Dv01`/`BucketedDv01` metrics bump that
-/// rf component inside the rate (see
-/// [`pv_with_rf_bump`]), not the discounting regime.
+/// WACC sensitivity is reported as `custom("dcf::wacc01")`, which bumps the
+/// instrument-owned WACC rather than any market curve.
 pub(crate) fn compute_pv(
     dcf: &DiscountedCashFlow,
     _market: &MarketContext,
     as_of: Date,
 ) -> finstack_quant_core::Result<Money> {
-    // DCF is anchored to `dcf.valuation_date`; the trait-level `as_of` is
-    // intentionally ignored to keep discount timing deterministic for a
-    // configured valuation scenario. Warn loudly when they differ so a
-    // portfolio run cannot silently mix stale DCF marks with live marks.
     if as_of != dcf.valuation_date {
-        tracing::warn!(
-            inst_id = %dcf.id,
-            %as_of,
-            valuation_date = %dcf.valuation_date,
-            "DCF priced as_of {} but is anchored to its configured valuation_date {}; \
-             the PV reflects valuation_date and is not rolled forward",
-            as_of,
-            dcf.valuation_date
-        );
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "DCF '{}' must be priced at its configured valuation_date {}; got as_of {}",
+            dcf.id, dcf.valuation_date, as_of
+        )));
     }
     let equity_value = pv_with_rf_bump(dcf, &|_| 0.0)?;
     Ok(Money::new(equity_value, dcf.currency))
@@ -168,5 +157,21 @@ mod tests {
         let via_pricer = compute_pv(&dcf, &market, dcf.valuation_date).expect("pricer pv");
 
         assert_eq!(via_pricer, expected);
+    }
+
+    #[test]
+    fn canonical_pricing_uses_and_stamps_configured_valuation_date() {
+        let dcf = build_simple_dcf();
+        let requested = dcf.valuation_date + time::Duration::days(30);
+        let result = dcf
+            .price_with_metrics(
+                &MarketContext::new(),
+                requested,
+                &[],
+                crate::instruments::PricingOptions::default(),
+            )
+            .expect("canonical DCF pricing");
+
+        assert_eq!(result.as_of, dcf.valuation_date);
     }
 }

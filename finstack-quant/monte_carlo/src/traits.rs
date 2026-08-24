@@ -50,8 +50,9 @@
 //! }
 //!
 //! impl Payoff for IntrinsicValuePayoff {
-//!     fn on_event(&mut self, state: &mut PathState) {
+//!     fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
 //!         self.terminal_spot = state.spot().unwrap_or(0.0);
+//!         Ok(())
 //!     }
 //!
 //!     fn value(&self, currency: Currency) -> Money {
@@ -871,10 +872,11 @@ pub trait Discretization<P: StochasticProcess + ?Sized>: Send + Sync {
 /// }
 ///
 /// impl Payoff for TerminalCall {
-///     fn on_event(&mut self, state: &mut PathState) {
+///     fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
 ///         if let Some(spot) = state.get(state_keys::SPOT) {
 ///             self.terminal_spot = spot;
 ///         }
+///         Ok(())
 ///     }
 ///
 ///     fn value(&self, currency: Currency) -> Money {
@@ -891,7 +893,7 @@ pub trait Discretization<P: StochasticProcess + ?Sized>: Send + Sync {
 /// state.set(state_keys::SPOT, 112.0);
 ///
 /// payoff.reset();
-/// payoff.on_event(&mut state);
+/// payoff.on_event(&mut state).expect("valid payoff state");
 ///
 /// assert_eq!(payoff.value(Currency::USD).amount(), 12.0);
 /// ```
@@ -902,8 +904,8 @@ pub trait Payoff: Send + Sync + Clone {
     /// diagnostic cashflows with [`PathState::add_cashflow`] or
     /// [`PathState::add_typed_cashflow`]. Payoffs should read named state
     /// variables from the state rather than assuming a raw process vector
-    /// layout.
-    fn on_event(&mut self, state: &mut PathState);
+    /// layout. Missing or invalid required state must be returned as an error.
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()>;
 
     /// Compute final payoff value in the specified currency (undiscounted).
     ///

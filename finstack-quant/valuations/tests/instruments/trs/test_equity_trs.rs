@@ -4,16 +4,17 @@
 //! leg decomposition, and sensitivity to market parameters.
 
 use super::test_utils::*;
-use finstack_quant_cashflows::CashflowProvider;
+use finstack_quant_cashflows::{builder::ScheduleParams, CashflowProvider};
 use finstack_quant_core::currency::Currency::*;
 use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::CurveId;
-use finstack_quant_valuations::instruments::Instrument;
-use finstack_quant_valuations::instruments::TrsSide;
+use finstack_quant_core::types::{CurveId, PriceId};
+use finstack_quant_valuations::instruments::{
+    EquityUnderlyingParams, FinancingLegSpec, Instrument, TrsScheduleSpec, TrsSide,
+};
 use rust_decimal::Decimal;
 
 // Construction and Validation Tests
@@ -124,6 +125,44 @@ fn test_equity_trs_npv_pay_vs_receive_symmetry() {
         1.0, // $1 tolerance
         "Receive and pay TRS NPVs should sum to zero",
     );
+}
+
+#[test]
+fn completed_period_remains_valued_until_lagged_payment_date() {
+    let market = create_market_context();
+    let as_of = as_of_date();
+    let start = as_of - time::Duration::days(1);
+    let end = as_of;
+    let mut schedule_params = ScheduleParams::quarterly_act360();
+    schedule_params.payment_lag_days = 2;
+    let schedule = TrsScheduleSpec::from_params(start, end, schedule_params);
+    let trs =
+        finstack_quant_valuations::instruments::equity::equity_trs::EquityTotalReturnSwap::builder(
+        )
+        .id("EQ-TRS-UNPAID".into())
+        .notional(Money::new(1_000_000.0, USD))
+        .underlying(
+            EquityUnderlyingParams::new("SPX", "SPX-SPOT", USD)
+                .with_dividend_yield(PriceId::new("SPX-DIV-YIELD")),
+        )
+        .financing(FinancingLegSpec::new(
+            "USD-OIS",
+            "USD-SOFR-3M",
+            Decimal::ZERO,
+            DayCount::Act360,
+        ))
+        .schedule(schedule)
+        .side(TrsSide::ReceiveTotalReturn)
+        .initial_level(4_900.0)
+        .build()
+        .expect("completed TRS");
+
+    let unpaid = trs.value(&market, as_of).expect("unpaid settlement PV");
+    assert_ne!(unpaid.amount(), 0.0);
+
+    let payment_date = trs.schedule.payment_date_for(end).expect("payment date");
+    let settled = trs.value(&market, payment_date).expect("settled TRS");
+    assert_eq!(settled.amount(), 0.0);
 }
 
 #[test]

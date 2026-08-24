@@ -46,7 +46,9 @@ struct SwaptionProxy {
 }
 
 impl Payoff for SwaptionProxy {
-    fn on_event(&mut self, _s: &mut PathState) {}
+    fn on_event(&mut self, _s: &mut PathState) -> finstack_quant_core::Result<()> {
+        Ok(())
+    }
     fn value(&self, ccy: Currency) -> Money {
         Money::new(self.accrued, ccy)
     }

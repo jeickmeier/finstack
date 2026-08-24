@@ -143,7 +143,7 @@ pub struct EquityOption {
     /// If `discrete_dividends` is non-empty, an escrowed-dividend adjustment
     /// is applied to spot and `q` is set to 0 internally regardless of
     /// `div_yield_id`.
-    pub div_yield_id: Option<CurveId>,
+    pub div_yield_id: Option<PriceId>,
     /// Optional discrete dividend schedule for more accurate pricing.
     ///
     /// Each entry is (ex-date, dividend_amount). When provided, the escrowed
@@ -545,7 +545,15 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for EquityOpt
         market: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<Option<f64>> {
-        Ok(Some(self.greeks(market, as_of)?.theta))
+        use crate::instruments::common_impl::traits::Instrument;
+
+        if as_of >= self.expiry {
+            return Ok(Some(0.0));
+        }
+        let rolled = (as_of + time::Duration::days(1)).min(self.expiry);
+        let base = self.value(market, as_of)?.amount();
+        let rolled_value = self.value(market, rolled)?.amount();
+        Ok(Some(rolled_value - base))
     }
 
     fn option_rho_bp(
@@ -567,11 +575,10 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for EquityOpt
         // Match the public metric test/reference conventions:
         // - Spot bump: ±1% (relative, on the spot scalar)
         // - Vol bump: ±1 vol point (absolute, parallel surface bump)
-        let spot_scalar = market.get_price(&self.spot_id)?;
-        let spot = match spot_scalar {
-            finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
-            finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
-        };
+        let spot = crate::instruments::common_impl::helpers::scalar_price_amount(
+            market.get_price(&self.spot_id)?,
+            self.notional.currency(),
+        )?;
         let spot_bump_abs = spot * crate::metrics::bump_sizes::SPOT;
         if spot_bump_abs <= 0.0 {
             return Ok(Some(0.0));
@@ -834,7 +841,7 @@ mod tests {
             .discount_curve_id(CurveId::new(DISC_ID))
             .spot_id(SPOT_ID.into())
             .vol_surface_id(CurveId::new(VOL_ID))
-            .div_yield_id_opt(Some(CurveId::new(DIV_ID)))
+            .div_yield_id_opt(Some(PriceId::new(DIV_ID)))
             .attributes(Attributes::new())
             .build()
             .expect("should succeed")
@@ -877,7 +884,7 @@ mod tests {
         let expiry = date(2025, 12, 31);
         let market_data =
             EquityOptionMarketData::new(CurveId::new(DISC_ID), SPOT_ID, CurveId::new(VOL_ID))
-                .with_dividend_yield(CurveId::new(DIV_ID));
+                .with_dividend_yield(PriceId::new(DIV_ID));
 
         let option = EquityOption::european_call_with_market_data(
             "SPX-CALL-CUSTOM",
@@ -899,7 +906,7 @@ mod tests {
         assert_eq!(option.discount_curve_id, CurveId::new(DISC_ID));
         assert_eq!(option.spot_id.as_str(), SPOT_ID);
         assert_eq!(option.vol_surface_id, CurveId::new(VOL_ID));
-        assert_eq!(option.div_yield_id, Some(CurveId::new(DIV_ID)));
+        assert_eq!(option.div_yield_id, Some(PriceId::new(DIV_ID)));
         assert_eq!(option.settlement, SettlementType::Cash);
         assert_eq!(option.day_count, DayCount::Act365F);
     }
@@ -1150,7 +1157,7 @@ mod tests {
 
         // Create option with div_yield_id that won't exist in market context
         let mut option = base_option(expiry);
-        option.div_yield_id = Some(CurveId::new("MISSING-DIV-YIELD"));
+        option.div_yield_id = Some(PriceId::new("MISSING-DIV-YIELD"));
 
         // Build market context WITHOUT the dividend yield
         let expiries = [0.25, 0.5, 1.0, 2.0];

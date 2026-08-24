@@ -1,13 +1,13 @@
 //! Dividend-yield identifiers are market scalars, not time series.
 
-use finstack_quant_core::types::CurveId;
+use finstack_quant_core::types::PriceId;
 use finstack_quant_valuations::instruments::{
     AsianOption, Autocallable, BarrierOption, CliquetOption, Instrument, LookbackOption,
 };
 
 fn assert_dividend_yield_is_market_scalar<T: Instrument>(
     instrument: &T,
-    dividend_id: &CurveId,
+    dividend_id: &PriceId,
     label: &str,
 ) {
     let deps = instrument
@@ -26,7 +26,7 @@ fn assert_dividend_yield_is_market_scalar<T: Instrument>(
 
 #[test]
 fn dividend_yield_dependency_is_a_market_scalar() {
-    let dividend_id = CurveId::new("SPX-DIV");
+    let dividend_id = PriceId::new("SPX-DIV");
 
     let mut asian = AsianOption::example().expect("asian example");
     asian.div_yield_id = Some(dividend_id.clone());

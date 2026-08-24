@@ -1,21 +1,13 @@
 //! Levered real estate equity pricer implementation.
 
 use super::levered::LeveredRealEstateEquity;
-use crate::cashflow::traits::CashflowProvider;
-use crate::instruments::{Instrument, InstrumentJson};
-use crate::pricer::{
-    InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
-};
-use crate::results::ValuationResult;
+use crate::instruments::Instrument;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Error as CoreError;
 use std::collections::BTreeMap;
-
-/// Registry-facing pricer for levered real estate equity.
-pub struct LeveredRealEstateDiscountingPricer;
 
 pub(crate) fn compute_pv(
     inst: &LeveredRealEstateEquity,
@@ -28,9 +20,8 @@ pub(crate) fn compute_pv(
         return Err(CoreError::Validation("asset PV currency mismatch".into()));
     }
     let mut financing_pv = 0.0;
-    for instrument in &inst.financing {
-        let boxed = instrument.clone().into_boxed()?;
-        let pv = boxed.value(market, as_of)?;
+    for financing in &inst.financing {
+        let pv = financing.as_instrument().value(market, as_of)?;
         if pv.currency() != inst.currency {
             return Err(CoreError::Validation(
                 "financing PV currency mismatch".into(),
@@ -82,19 +73,8 @@ pub(crate) fn financing_schedules_supported(
     as_of: Date,
 ) -> finstack_quant_core::Result<Vec<crate::cashflow::builder::CashFlowSchedule>> {
     let mut schedules = Vec::with_capacity(inst.financing.len());
-    for instrument in &inst.financing {
-        let sched = match instrument {
-            InstrumentJson::TermLoan(i) => i.cashflow_schedule(market, as_of)?,
-            InstrumentJson::Bond(i) => i.cashflow_schedule(market, as_of)?,
-            InstrumentJson::RevolvingCredit(i) => i.cashflow_schedule(market, as_of)?,
-            InstrumentJson::Repo(i) => i.cashflow_schedule(market, as_of)?,
-            _ => {
-                return Err(CoreError::Validation(
-                    "Unsupported financing instrument for cashflow-based metrics (supported: term_loan, bond, revolving_credit, repo)".into(),
-                ));
-            }
-        };
-        schedules.push(sched);
+    for financing in &inst.financing {
+        schedules.push(financing.cashflow_schedule(market, as_of)?);
     }
     Ok(schedules)
 }
@@ -192,50 +172,4 @@ pub(crate) fn financing_payoff_at_exit(
         payoff_amt += payoff.amount().abs();
     }
     Ok(Money::new(payoff_amt, inst.currency))
-}
-
-impl Default for LeveredRealEstateDiscountingPricer {
-    fn default() -> Self {
-        Self
-    }
-}
-
-impl Pricer for LeveredRealEstateDiscountingPricer {
-    fn key(&self) -> PricerKey {
-        PricerKey::new(
-            InstrumentType::LeveredRealEstateEquity,
-            ModelKey::Discounting,
-        )
-    }
-
-    #[tracing::instrument(
-        name = "real_estate.levered.price_dyn",
-        level = "debug",
-        skip(self, instrument, market),
-        fields(inst_id = %instrument.id(), as_of = %as_of),
-        err,
-    )]
-    fn price_dyn(
-        &self,
-        instrument: &dyn Instrument,
-        market: &MarketContext,
-        as_of: Date,
-    ) -> std::result::Result<ValuationResult, PricingError> {
-        let inst = instrument
-            .as_any()
-            .downcast_ref::<LeveredRealEstateEquity>()
-            .ok_or_else(|| {
-                PricingError::type_mismatch(
-                    InstrumentType::LeveredRealEstateEquity,
-                    instrument.key(),
-                )
-            })?;
-        let pv = compute_pv(inst, market, as_of).map_err(|e| {
-            PricingError::model_failure_with_context(
-                e.to_string(),
-                PricingErrorContext::from_instrument(inst).model(ModelKey::Discounting),
-            )
-        })?;
-        Ok(ValuationResult::stamped(inst.id(), as_of, pv))
-    }
 }

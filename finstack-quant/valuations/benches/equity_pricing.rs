@@ -22,7 +22,7 @@ use finstack_quant_core::market_data::term_structures::{
 };
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 use finstack_quant_valuations::instruments::equity::equity_trs::EquityTotalReturnSwap;
 use finstack_quant_valuations::instruments::equity::variance_swap::{
     PayReceive, RealizedVarMethod, VarianceSwap,
@@ -143,7 +143,7 @@ fn equity_trs(tenor_years: i32) -> EquityTotalReturnSwap {
     let notional = Money::new(10_000_000.0, Currency::USD);
     let underlying = EquityUnderlyingParams::new("SPX-TRS", "SPX-SPOT", notional.currency())
         .with_contract_size(1.0)
-        .with_dividend_yield(CurveId::new("SPX-DIV-YIELD"));
+        .with_dividend_yield(PriceId::new("SPX-DIV-YIELD"));
 
     let financing = FinancingLegSpec::new(
         "USD-OIS",
@@ -204,6 +204,9 @@ fn variance_swap(months: i64) -> VarianceSwap {
         .observation_frequency(Tenor::daily())
         .observation_calendar_id("USNY".to_string())
         .realized_var_method(RealizedVarMethod::CloseToClose)
+        .price_series_policy(
+            finstack_quant_valuations::instruments::EquityPriceSeriesPolicy::Adjusted,
+        )
         .side(PayReceive::Pay)
         .discount_curve_id(CurveId::new("USD-OIS"))
         .day_count(DayCount::Act365F)

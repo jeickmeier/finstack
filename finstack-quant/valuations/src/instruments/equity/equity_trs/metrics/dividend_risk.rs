@@ -6,8 +6,7 @@
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::equity::equity_trs::EquityTotalReturnSwap;
 use crate::metrics::{
-    replace_scalar_value, scalar_numeric_value, scaled_central_diff_by_width, MetricCalculator,
-    MetricContext,
+    replace_scalar_value, scaled_central_diff_by_width, MetricCalculator, MetricContext,
 };
 use finstack_quant_core::Result;
 
@@ -32,11 +31,15 @@ impl MetricCalculator for Dividend01Calculator {
             None => return Ok(0.0),
         };
 
-        let Ok(current_scalar) = context.curves.get_price(&div_yield_id) else {
-            return Ok(0.0);
+        let current_scalar = context.curves.get_price(&div_yield_id)?;
+        let finstack_quant_core::market_data::scalars::MarketScalar::Unitless(q0) = current_scalar
+        else {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Dividend yield '{}' must be a unitless scalar",
+                div_yield_id
+            )));
         };
-        // Extract numeric baseline for robust bump-width handling (clamped at 0 on the downside).
-        let q0 = scalar_numeric_value(current_scalar);
+        let q0 = *q0;
         let q_up_val = q0 + DIVIDEND_BUMP_BP;
         let q_down_val = (q0 - DIVIDEND_BUMP_BP).max(0.0);
         let actual_width = q_up_val - q_down_val;

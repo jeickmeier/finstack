@@ -1009,7 +1009,7 @@ mod instrument_schema_drift {
         for (category, name, has_csa_fields) in [
             ("credit_derivatives", "cds_index", true),
             ("credit_derivatives", "credit_default_swap", true),
-            ("equity", "levered_real_estate_equity", true),
+            ("equity", "levered_real_estate_equity", false),
             ("equity", "trs_equity", true),
             ("fixed_income", "structured_credit", true),
             ("fixed_income", "trs_fixed_income_index", true),

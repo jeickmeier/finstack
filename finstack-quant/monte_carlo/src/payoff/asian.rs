@@ -171,13 +171,11 @@ impl AsianCall {
 impl Payoff for AsianCall {
     /// Accumulate the spot fixing when the current step is a fixing step.
     ///
-    /// # Panics
-    ///
-    /// Panics if `SPOT` is missing or non-finite at a fixing step — see
-    /// `require_finite_state`.
-    fn on_event(&mut self, state: &mut PathState) {
+    /// # Errors
+    /// Returns an error if `SPOT` is missing or non-finite at a fixing step.
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         if self.fixing_set.contains(&state.step) {
-            let spot = super::require_finite_state(state.spot(), "SPOT", state.step);
+            let spot = super::require_finite_state(state.spot(), "SPOT", state.step)?;
             match self.averaging {
                 AveragingMethod::Arithmetic => {
                     // Use Kahan summation for numerical stability
@@ -190,6 +188,7 @@ impl Payoff for AsianCall {
             }
             self.num_fixings_seen += 1;
         }
+        Ok(())
     }
 
     fn value(&self, currency: Currency) -> Money {
@@ -336,13 +335,11 @@ impl AsianPut {
 impl Payoff for AsianPut {
     /// Accumulate the spot fixing when the current step is a fixing step.
     ///
-    /// # Panics
-    ///
-    /// Panics if `SPOT` is missing or non-finite at a fixing step — see
-    /// `require_finite_state`.
-    fn on_event(&mut self, state: &mut PathState) {
+    /// # Errors
+    /// Returns an error if `SPOT` is missing or non-finite at a fixing step.
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         if self.fixing_set.contains(&state.step) {
-            let spot = super::require_finite_state(state.spot(), "SPOT", state.step);
+            let spot = super::require_finite_state(state.spot(), "SPOT", state.step)?;
             match self.averaging {
                 AveragingMethod::Arithmetic => {
                     // Use Kahan summation for numerical stability
@@ -354,6 +351,7 @@ impl Payoff for AsianPut {
             }
             self.num_fixings_seen += 1;
         }
+        Ok(())
     }
 
     fn value(&self, currency: Currency) -> Money {
@@ -437,9 +435,9 @@ mod tests {
         let mut s0 = create_state(0, 90.0);
         let mut s1 = create_state(5, 100.0);
         let mut s2 = create_state(10, 110.0);
-        asian.on_event(&mut s0);
-        asian.on_event(&mut s1);
-        asian.on_event(&mut s2);
+        asian.on_event(&mut s0).expect("valid payoff event");
+        asian.on_event(&mut s1).expect("valid payoff event");
+        asian.on_event(&mut s2).expect("valid payoff event");
 
         let value = asian.value(Currency::USD);
         // Average = 100, strike = 100, payoff = 0
@@ -453,11 +451,11 @@ mod tests {
 
         // Average = (100 + 110 + 120) / 3 = 110
         let mut s1 = create_state(0, 100.0);
-        asian.on_event(&mut s1);
+        asian.on_event(&mut s1).expect("valid payoff event");
         let mut s2 = create_state(5, 110.0);
-        asian.on_event(&mut s2);
+        asian.on_event(&mut s2).expect("valid payoff event");
         let mut s3 = create_state(10, 120.0);
-        asian.on_event(&mut s3);
+        asian.on_event(&mut s3).expect("valid payoff event");
 
         let value = asian.value(Currency::USD);
         // max(110 - 100, 0) = 10
@@ -471,11 +469,11 @@ mod tests {
 
         // Geometric average of (80, 100, 125) = (80*100*125)^(1/3) = 100
         let mut s4 = create_state(0, 80.0);
-        asian.on_event(&mut s4);
+        asian.on_event(&mut s4).expect("valid payoff event");
         let mut s5 = create_state(5, 100.0);
-        asian.on_event(&mut s5);
+        asian.on_event(&mut s5).expect("valid payoff event");
         let mut s6 = create_state(10, 125.0);
-        asian.on_event(&mut s6);
+        asian.on_event(&mut s6).expect("valid payoff event");
 
         let value = asian.value(Currency::USD);
         let expected_avg = (80.0 * 100.0 * 125.0_f64).powf(1.0 / 3.0);
@@ -490,11 +488,11 @@ mod tests {
 
         // Average = (90 + 95 + 100) / 3 = 95
         let mut s7 = create_state(0, 90.0);
-        asian.on_event(&mut s7);
+        asian.on_event(&mut s7).expect("valid payoff event");
         let mut s8 = create_state(5, 95.0);
-        asian.on_event(&mut s8);
+        asian.on_event(&mut s8).expect("valid payoff event");
         let mut s9 = create_state(10, 100.0);
-        asian.on_event(&mut s9);
+        asian.on_event(&mut s9).expect("valid payoff event");
 
         let value = asian.value(Currency::USD);
         // max(100 - 95, 0) = 5
@@ -507,9 +505,9 @@ mod tests {
         let mut asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps);
 
         let mut s10 = create_state(0, 100.0);
-        asian.on_event(&mut s10);
+        asian.on_event(&mut s10).expect("valid payoff event");
         let mut s11 = create_state(5, 110.0);
-        asian.on_event(&mut s11);
+        asian.on_event(&mut s11).expect("valid payoff event");
         assert_eq!(asian.num_fixings_seen, 2);
 
         asian.reset();

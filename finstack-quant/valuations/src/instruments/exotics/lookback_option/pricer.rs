@@ -615,7 +615,7 @@ mod tests {
     use finstack_quant_core::market_data::scalars::MarketScalar;
     use finstack_quant_core::market_data::surfaces::VolSurface;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
-    use finstack_quant_core::types::{CurveId, InstrumentId};
+    use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
     use time::Month;
 
     fn date(year: i32, month: u8, day: u8) -> Date {
@@ -663,7 +663,7 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .observed_max_opt(observed_max.map(|value| Money::new(value, Currency::USD)))
             .attributes(Attributes::new())
             .build()
@@ -683,7 +683,7 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .observed_min_opt(observed_min.map(|value| Money::new(value, Currency::USD)))
             .attributes(Attributes::new())
             .build()
@@ -703,7 +703,7 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .observed_min_opt(observed_min.map(|value| Money::new(value, Currency::USD)))
             .attributes(Attributes::new())
             .build()
@@ -723,7 +723,7 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .observed_max_opt(observed_max.map(|value| Money::new(value, Currency::USD)))
             .attributes(Attributes::new())
             .build()
@@ -875,7 +875,7 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .attributes(Attributes::new())
             .build()
             .expect("lookback option");

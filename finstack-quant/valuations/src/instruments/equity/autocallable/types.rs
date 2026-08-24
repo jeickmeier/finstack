@@ -87,6 +87,12 @@ pub struct Autocallable {
     #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub observation_dates: Vec<Date>,
+    /// Contractual payment dates for coupons and early redemption.
+    ///
+    /// Each entry corresponds to `observation_dates` at the same index.
+    #[serde(with = "finstack_quant_core::wire::dates")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    pub payment_dates: Vec<Date>,
     /// Explicit terminal expiry date for the structure.
     #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
@@ -96,18 +102,19 @@ pub struct Autocallable {
     /// Each barrier corresponds to the observation date at the same index.
     /// If spot ≥ barrier × initial_spot on the observation date, the product autocalls.
     pub autocall_barriers: Vec<f64>,
-    /// Coupon amounts paid if observation barrier is met
+    /// Coupon barriers as ratios of initial spot.
+    ///
+    /// Coupon eligibility is independent of the autocall barrier. Each entry
+    /// corresponds to the observation date at the same index.
+    pub coupon_barriers: Vec<f64>,
+    /// Coupon return amounts for each observation date.
     pub coupons: Vec<f64>,
     /// Memory ("Phoenix") coupon feature.
     ///
-    /// When `true`, any coupons from earlier observation dates whose barrier
-    /// was *not* met are accrued ("remembered") and paid in full on the
-    /// observation date that finally triggers the autocall (in addition to
-    /// that date's own coupon). When `false` (the default), only the coupon
-    /// at the autocall date is paid and earlier missed coupons are lost.
-    ///
-    /// This flag must match the term sheet: a Phoenix/memory autocallable
-    /// priced with `memory_coupons = false` is silently underpriced.
+    /// When enabled, a coupon whose coupon barrier is missed accrues until a
+    /// later observation meets its coupon barrier. The current and all accrued
+    /// coupons are then paid on that observation's payment date. Coupon
+    /// eligibility remains independent of autocall eligibility.
     #[serde(default)]
     #[builder(default)]
     pub memory_coupons: bool,
@@ -129,12 +136,12 @@ pub struct Autocallable {
     pub spot_id: PriceId,
     /// Volatility surface ID for option pricing
     pub vol_surface_id: CurveId,
-    /// Optional dividend yield curve ID.
+    /// Optional dividend-yield scalar ID.
     ///
     /// `Some(id)`: lookup MUST succeed (a missing or non-unitless scalar
     /// returns an error). `None`: no implicit default; treated as zero
     /// continuous dividend yield. Set explicitly for index underlyings.
-    pub div_yield_id: Option<CurveId>,
+    pub div_yield_id: Option<PriceId>,
     /// Initial (strike-set) underlying level S_0 used as the reference for
     /// barrier and payoff ratios.
     ///
@@ -198,6 +205,10 @@ struct AutocallableUnchecked {
     #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     observation_dates: Vec<Date>,
+    /// Contractual payment dates corresponding to observation dates.
+    #[serde(with = "finstack_quant_core::wire::dates")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    payment_dates: Vec<Date>,
     /// Explicit terminal expiry date for the structure.
     #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
@@ -207,18 +218,13 @@ struct AutocallableUnchecked {
     /// Each barrier corresponds to the observation date at the same index.
     /// If spot ≥ barrier × initial_spot on the observation date, the product autocalls.
     autocall_barriers: Vec<f64>,
-    /// Coupon amounts paid if observation barrier is met
+    /// Coupon barriers corresponding to observation dates.
+    coupon_barriers: Vec<f64>,
+    /// Coupon return amounts for each observation date.
     coupons: Vec<f64>,
     /// Memory ("Phoenix") coupon feature.
     ///
-    /// When `true`, any coupons from earlier observation dates whose barrier
-    /// was *not* met are accrued ("remembered") and paid in full on the
-    /// observation date that finally triggers the autocall (in addition to
-    /// that date's own coupon). When `false` (the default), only the coupon
-    /// at the autocall date is paid and earlier missed coupons are lost.
-    ///
-    /// This flag must match the term sheet: a Phoenix/memory autocallable
-    /// priced with `memory_coupons = false` is silently underpriced.
+    /// Missed coupons accrue until a later coupon barrier is met.
     #[serde(default)]
     memory_coupons: bool,
     /// Final barrier level for final payoff determination
@@ -239,13 +245,13 @@ struct AutocallableUnchecked {
     spot_id: PriceId,
     /// Volatility surface ID for option pricing
     vol_surface_id: CurveId,
-    /// Optional dividend yield curve ID.
+    /// Optional dividend-yield scalar ID.
     ///
     /// `Some(id)`: lookup MUST succeed (a missing or non-unitless scalar
     /// returns an error). `None`: no implicit default; treated as zero
     /// continuous dividend yield. Set explicitly for index underlyings.
     #[serde(default)]
-    div_yield_id: Option<CurveId>,
+    div_yield_id: Option<PriceId>,
     /// Initial (strike-set) underlying level S_0 used as the reference for
     /// barrier and payoff ratios.
     ///
@@ -287,8 +293,10 @@ impl TryFrom<AutocallableUnchecked> for Autocallable {
             id: value.id,
             underlying_ticker: value.underlying_ticker,
             observation_dates: value.observation_dates,
+            payment_dates: value.payment_dates,
             expiry: value.expiry,
             autocall_barriers: value.autocall_barriers,
+            coupon_barriers: value.coupon_barriers,
             coupons: value.coupons,
             memory_coupons: value.memory_coupons,
             final_barrier: value.final_barrier,
@@ -322,8 +330,8 @@ impl Autocallable {
     /// - `observation_dates` is empty
     /// - `observation_dates` are not strictly increasing
     /// - any observation date is strictly after `expiry`
-    /// - `autocall_barriers.len() != observation_dates.len()`
-    /// - `coupons.len() != observation_dates.len()`
+    /// - payment/coupon/autocall vector lengths differ from `observation_dates`
+    /// - a payment date precedes its observation date or follows `expiry`
     /// - any barrier is negative or non-finite
     /// - any coupon is non-finite
     /// - `final_barrier`, `participation_rate`, or `cap_level` are non-finite
@@ -353,11 +361,46 @@ impl Autocallable {
                 )));
             }
         }
+        if self.payment_dates.len() != n {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Autocallable payment_dates.len() ({}) must match observation_dates.len() ({n})",
+                self.payment_dates.len()
+            )));
+        }
+        for (index, (&observation, &payment)) in self
+            .observation_dates
+            .iter()
+            .zip(&self.payment_dates)
+            .enumerate()
+        {
+            if payment < observation || payment > self.expiry {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "Autocallable payment_dates[{index}]={payment} must be on/after \
+                     observation date {observation} and on/before expiry {}",
+                    self.expiry
+                )));
+            }
+        }
+        if self
+            .payment_dates
+            .windows(2)
+            .any(|window| window[0] > window[1])
+        {
+            return Err(finstack_quant_core::Error::Validation(
+                "Autocallable payment_dates must be nondecreasing".into(),
+            ));
+        }
         if self.autocall_barriers.len() != n {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "Autocallable autocall_barriers.len() ({}) must match observation_dates.len() ({})",
                 self.autocall_barriers.len(),
                 n
+            )));
+        }
+        if self.coupon_barriers.len() != n {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Autocallable coupon_barriers.len() ({}) must match observation_dates.len() ({n})",
+                self.coupon_barriers.len()
             )));
         }
         if self.coupons.len() != n {
@@ -372,6 +415,13 @@ impl Autocallable {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "Autocallable autocall_barriers[{}] = {} must be finite and non-negative",
                     i, b
+                )));
+            }
+        }
+        for (i, barrier) in self.coupon_barriers.iter().enumerate() {
+            if !barrier.is_finite() || *barrier < 0.0 {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "Autocallable coupon_barriers[{i}]={barrier} must be finite and non-negative"
                 )));
             }
         }
@@ -466,14 +516,18 @@ impl Autocallable {
             date!(2024 - 09 - 30),
             date!(2024 - 12 - 31),
         ];
-        let autocall_barriers = vec![1.0, 1.0, 1.0, 1.0]; // 100% of initial
-        let coupons = vec![0.02, 0.02, 0.02, 0.02]; // 2% per observation if called
+        let payment_dates = observation_dates.clone();
+        let autocall_barriers = vec![1.0, 1.0, 1.0, 1.0];
+        let coupon_barriers = vec![0.7, 0.7, 0.7, 0.7];
+        let coupons = vec![0.02, 0.02, 0.02, 0.02];
         Autocallable::builder()
             .id(InstrumentId::new("AUTO-SPX-QTR"))
             .underlying_ticker("SPX".to_string())
             .observation_dates(observation_dates)
+            .payment_dates(payment_dates)
             .expiry(date!(2024 - 12 - 31))
             .autocall_barriers(autocall_barriers)
+            .coupon_barriers(coupon_barriers)
             .coupons(coupons)
             .final_barrier(0.6) // 60% final KI barrier
             .final_payoff_type(FinalPayoffType::Participation { rate: 1.0 })
@@ -484,7 +538,7 @@ impl Autocallable {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .attributes(Attributes::new())
             .build()
     }
@@ -561,8 +615,10 @@ mod validation_tests {
             .id(InstrumentId::new("AUTO-TEST"))
             .underlying_ticker("SPX".to_string())
             .observation_dates(vec![date!(2024 - 06 - 28), date!(2024 - 12 - 31)])
+            .payment_dates(vec![date!(2024 - 06 - 28), date!(2024 - 12 - 31)])
             .expiry(date!(2024 - 12 - 31))
             .autocall_barriers(vec![1.0, 1.0])
+            .coupon_barriers(vec![0.7, 0.7])
             .coupons(vec![0.02, 0.02])
             .final_barrier(0.6)
             .final_payoff_type(FinalPayoffType::Participation { rate: 1.0 })
@@ -596,6 +652,17 @@ mod validation_tests {
     fn builder_rejects_mismatched_coupons_length() {
         let result = base_builder().coupons(vec![0.02]).build();
         assert!(result.is_err(), "coupons length mismatch must be rejected");
+    }
+
+    #[test]
+    fn builder_rejects_payment_before_observation() {
+        let result = base_builder()
+            .payment_dates(vec![date!(2024 - 06 - 27), date!(2024 - 12 - 31)])
+            .build();
+        assert!(
+            result.is_err(),
+            "payment before observation must be rejected"
+        );
     }
 
     #[test]

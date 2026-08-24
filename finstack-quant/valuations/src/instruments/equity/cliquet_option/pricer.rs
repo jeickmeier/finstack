@@ -36,16 +36,18 @@ impl CliquetOptionMcPricer {
         inst: &CliquetOption,
         curves: &MarketContext,
         as_of: Date,
-    ) -> Result<finstack_quant_core::money::Money> {
+    ) -> Result<(
+        finstack_quant_core::money::Money,
+        Option<finstack_quant_monte_carlo::results::MoneyEstimate>,
+    )> {
         inst.validate()?;
         if as_of > inst.expiry {
-            return Ok(Money::new(0.0, inst.notional.currency()));
+            return Ok((Money::new(0.0, inst.notional.currency()), None));
         }
-        let spot_scalar = curves.get_price(&inst.spot_id)?;
-        let initial_spot = match spot_scalar {
-            finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
-            finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
-        };
+        let initial_spot = crate::instruments::common_impl::helpers::scalar_price_amount(
+            curves.get_price(&inst.spot_id)?,
+            inst.notional.currency(),
+        )?;
 
         let disc_curve = curves.get_discount(inst.discount_curve_id.as_str())?;
 
@@ -105,7 +107,7 @@ impl CliquetOptionMcPricer {
         // known cashflow from the contract expiry.
         if future_resets.is_empty() {
             if as_of > inst.expiry {
-                return Ok(Money::new(0.0, inst.notional.currency()));
+                return Ok((Money::new(0.0, inst.notional.currency()), None));
             }
             let total_return = match inst.payoff_type {
                 CliquetPayoffType::Additive => locked_sum,
@@ -120,9 +122,12 @@ impl CliquetOptionMcPricer {
             } else {
                 disc_curve.df_between_dates(as_of, inst.expiry)?
             };
-            return Ok(Money::new(
-                clamped * inst.notional.amount() * df,
-                inst.notional.currency(),
+            return Ok((
+                Money::new(
+                    clamped * inst.notional.amount() * df,
+                    inst.notional.currency(),
+                ),
+                None,
             ));
         }
 
@@ -132,7 +137,7 @@ impl CliquetOptionMcPricer {
             .day_count
             .year_fraction(as_of, final_date, DayCountContext::default())?;
         if t <= 0.0 {
-            return Ok(Money::new(0.0, inst.notional.currency()));
+            return Ok((Money::new(0.0, inst.notional.currency()), None));
         }
 
         // Dividend yield from scalar id if provided
@@ -266,7 +271,6 @@ impl CliquetOptionMcPricer {
             inst.global_cap,
             inst.global_floor,
             inst.notional.amount(),
-            inst.notional.currency(),
             sim_anchor,
             inst.payoff_type,
         )?
@@ -308,7 +312,8 @@ impl CliquetOptionMcPricer {
             discount_factor,
         )?;
 
-        Ok(result.mean)
+        let mean = result.mean;
+        Ok((mean, Some(result)))
     }
 }
 
@@ -343,14 +348,18 @@ impl Pricer for CliquetOptionMcPricer {
                 PricingError::type_mismatch(InstrumentType::CliquetOption, instrument.key())
             })?;
 
-        let pv = self.price_internal(cliquet, market, as_of).map_err(|e| {
+        let (pv, estimate) = self.price_internal(cliquet, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(
                 e.to_string(),
                 PricingErrorContext::from_instrument(cliquet).model(ModelKey::MonteCarloGBM),
             )
         })?;
 
-        Ok(ValuationResult::stamped(cliquet.id(), as_of, pv))
+        let mut result = ValuationResult::stamped(cliquet.id(), as_of, pv);
+        if let Some(estimate) = estimate {
+            crate::instruments::common_impl::helpers::attach_mc_diagnostics(&mut result, &estimate);
+        }
+        Ok(result)
     }
 }
 
@@ -361,7 +370,7 @@ pub(crate) fn compute_pv(
     as_of: Date,
 ) -> Result<Money> {
     let pricer = CliquetOptionMcPricer::new();
-    pricer.price_internal(inst, curves, as_of)
+    Ok(pricer.price_internal(inst, curves, as_of)?.0)
 }
 
 #[cfg(test)]
@@ -374,7 +383,7 @@ mod tests {
     use finstack_quant_core::market_data::surfaces::VolSurface;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::money::Money;
-    use finstack_quant_core::types::{CurveId, InstrumentId};
+    use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
     use time::Month;
 
     fn date(year: i32, month: u8, day: u8) -> Date {
@@ -421,7 +430,7 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .attributes(Attributes::new())
             .build()
             .expect("cliquet option")
@@ -517,13 +526,10 @@ mod tests {
         assert_eq!(pv1.amount(), pv2.amount());
     }
 
-    /// W-37: a non-monotone total-variance surface (calendar-spread arbitrage)
-    /// must be handled explicitly by the forward-vol bootstrap. The forward
-    /// variance over a period whose total variance *decreases* is negative and
-    /// impossible; the bootstrap must floor it to zero (not silently substitute
-    /// the terminal vol) and still produce a finite, deterministic price.
+    /// Calendar-arbitrageable total variance must fail pricing rather than
+    /// being floored into an internally inconsistent path process.
     #[test]
-    fn cliquet_non_monotone_total_variance_surface_is_handled() {
+    fn cliquet_rejects_non_monotone_total_variance_surface() {
         let as_of = date(2024, 1, 1);
 
         // Steeply *inverted* vol term structure: short-dated vol far exceeds
@@ -574,24 +580,14 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .attributes(Attributes::new())
             .build()
             .expect("non-monotone cliquet");
 
-        // The bootstrap must not panic and must return a finite, non-negative
-        // price (the long cliquet call payoff is floored at zero).
-        let pv1 = compute_pv(&option, &market, as_of)
-            .expect("non-monotone surface must price, not panic");
-        assert!(
-            pv1.amount().is_finite() && pv1.amount() >= 0.0,
-            "non-monotone surface must yield a finite non-negative price; got {}",
-            pv1.amount()
-        );
-
-        // Determinism (seeded RNG) holds through the non-monotone branch.
-        let pv2 = compute_pv(&option, &market, as_of).expect("repeat price");
-        assert_eq!(pv1.amount(), pv2.amount());
+        let error =
+            compute_pv(&option, &market, as_of).expect_err("non-monotone total variance must fail");
+        assert!(error.to_string().contains("total variance is non-monotone"));
     }
 
     /// Seasoned cliquet: reset dates strictly before as_of without fixings
@@ -762,7 +758,7 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .attributes(Attributes::new())
             .build()
             .expect("with-t0 cliquet");
@@ -782,7 +778,7 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .attributes(Attributes::new())
             .build()
             .expect("without-t0 cliquet");
@@ -798,6 +794,32 @@ mod tests {
              with={} without={}",
             pv_with.amount(),
             pv_without.amount()
+        );
+    }
+    #[test]
+    fn registry_result_reports_monte_carlo_uncertainty() {
+        let as_of = date(2024, 1, 1);
+        let mut option = live_option();
+        option.instrument_pricing_overrides.model_config.mc_paths = Some(64);
+        let result = CliquetOptionMcPricer::default()
+            .price_dyn(&option, &market(as_of), as_of)
+            .expect("cliquet result");
+
+        for key in [
+            "mc_stderr",
+            "mc_ci_95_low",
+            "mc_ci_95_high",
+            "mc_num_paths",
+            "mc_num_simulated_paths",
+            "mc_relative_stderr",
+        ] {
+            assert!(result
+                .measures
+                .contains_key(&crate::metrics::MetricId::custom(key)));
+        }
+        assert_eq!(
+            result.measures[&crate::metrics::MetricId::custom("mc_num_paths")],
+            64.0
         );
     }
 }

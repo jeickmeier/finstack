@@ -10,7 +10,7 @@ use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::CurveId;
+use finstack_quant_core::types::{CurveId, PriceId};
 use finstack_quant_valuations::instruments::equity::equity_option::EquityOption;
 use finstack_quant_valuations::instruments::{ExerciseStyle, OptionType};
 use finstack_quant_valuations::instruments::{InstrumentPricingOverrides, SettlementType};
@@ -180,7 +180,7 @@ pub struct TestOptionBuilder {
     discount_curve_id: String,
     spot_id: String,
     vol_surface_id: String,
-    div_yield_id: Option<CurveId>,
+    div_yield_id: Option<PriceId>,
 }
 
 impl TestOptionBuilder {
@@ -248,7 +248,7 @@ impl TestOptionBuilder {
 
     /// Set the dividend yield scalar ID.
     pub fn div_yield_id(mut self, id: &str) -> Self {
-        self.div_yield_id = Some(CurveId::new(id));
+        self.div_yield_id = Some(PriceId::new(id));
         self
     }
 

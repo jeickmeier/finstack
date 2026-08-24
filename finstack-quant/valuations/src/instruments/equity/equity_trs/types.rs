@@ -14,7 +14,7 @@ use finstack_quant_core::{
     dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor},
     market_data::context::MarketContext,
     money::Money,
-    types::{CurveId, InstrumentId},
+    types::{InstrumentId, PriceId},
     Result,
 };
 use finstack_quant_margin::types::OtcMarginSpec;
@@ -96,14 +96,14 @@ pub struct EquityTotalReturnSwap {
     /// Pricing uses this only when the first period is in progress and no
     /// matching entry exists in `past_fixings`. Future periods use live spot.
     pub initial_level: Option<f64>,
-    /// Observed underlying levels at past reset (period-start) dates.
+    /// Observed underlying levels at contractual reset boundaries.
     ///
-    /// For a seasoned TRS valued inside a return period, the total-return leg
-    /// must anchor the current period to the level *observed* at the period
-    /// start so the realized spot move enters the PV (equity delta). Provide
-    /// `(reset_date, level)` pairs for every period-start date on or before
-    /// the valuation date; the first period may use `initial_level` instead.
-    /// Pricing errors when the current period's start level is unavailable.
+    /// Provide `(reset_date, level)` for each boundary on or before the
+    /// valuation date that is needed by an unpaid return period. This includes
+    /// the final period end when payment lag leaves its cashflow outstanding.
+    /// The first boundary may use `initial_level`; a boundary equal to `as_of`
+    /// may use live spot. Pricing errors when any other required fixing is
+    /// unavailable.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
@@ -280,7 +280,7 @@ impl EquityTotalReturnSwap {
             .underlying(EquityUnderlyingParams {
                 ticker: "SPX".to_string(),
                 spot_id: "SPX-SPOT".into(),
-                div_yield_id: Some(CurveId::new("SPX-DIV")),
+                div_yield_id: Some(PriceId::new("SPX-DIV")),
                 contract_size: 1.0,
                 currency: Currency::USD,
             })

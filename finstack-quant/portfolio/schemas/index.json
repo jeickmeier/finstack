@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "$id": "https://finstack_quant.dev/schemas/portfolio/1/portfolio_materialization.schema.json",
-      "bytes": 41758,
+      "bytes": 42141,
       "kind": "input",
       "path": "schemas/portfolio/1/portfolio_materialization.schema.json",
       "summary": "Positions, books and their instruments as one content-addressed bundle.",

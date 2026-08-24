@@ -11,44 +11,6 @@ use finstack_quant_core::{
     Result,
 };
 
-/// Degraded ATM-variance fallback when full Carr–Madan replication is
-/// unavailable (W-39). Returns plain `ATM vol²` — it performs NO smile or
-/// wing convexity adjustment, so with any skew it biases fair variance LOW
-/// (true `K_var > σ²_ATM`, the same reason VIX exceeds ATM vol); the caller
-/// logs a WARN whenever it is used.
-///
-/// # This is a DEGRADED fallback
-///
-/// The fair variance of a variance swap is the Carr–Madan strip
-/// `(2/T)·∫ V(K)/K² dK` over the *whole* OTM smile. When that replication
-/// cannot be evaluated (e.g. too few strikes) this function returns a proxy —
-/// it is **not** an exact fair variance and the caller logs a WARN diagnostic
-/// whenever it is used.
-///
-/// The fallback is deliberately the validated ATM variance. It does not try to
-/// approximate the Carr-Madan integral from an under-specified strike grid:
-/// doing so without strike spacing makes the result depend on how densely the
-/// same smile happens to be sampled.
-fn atm_variance_fallback(
-    surface: &finstack_quant_core::market_data::surfaces::VolSurface,
-    time_to_expiry: f64,
-    forward: f64,
-) -> Option<f64> {
-    if !time_to_expiry.is_finite()
-        || time_to_expiry <= 0.0
-        || !forward.is_finite()
-        || forward <= 0.0
-    {
-        return None;
-    }
-
-    let vol_atm = surface.value_clamped(time_to_expiry, forward);
-    if !vol_atm.is_finite() || vol_atm <= 0.0 {
-        return None;
-    }
-    Some(vol_atm * vol_atm)
-}
-
 pub(crate) fn compute_pv(
     inst: &VarianceSwap,
     curves: &MarketContext,
@@ -283,10 +245,10 @@ pub(crate) fn get_historical_prices(
         )));
     }
     if let Ok(scalar) = context.get_price(&inst.underlying_ticker) {
-        let spot = match scalar {
-            finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
-            finstack_quant_core::market_data::scalars::MarketScalar::Price(p) => p.amount(),
-        };
+        let spot = crate::instruments::common_impl::helpers::scalar_price_amount(
+            scalar,
+            inst.notional.currency(),
+        )?;
         return Ok(vec![spot]);
     }
 
@@ -471,10 +433,8 @@ const FORWARD_START_MIN_T: f64 = 1e-6;
 /// K²[start,T] = (t1·K²[as_of,T] − t0·K²[as_of,start]) / (t1 − t0)
 /// ```
 ///
-/// The two coincide only for a flat vol term structure. A non-monotone
-/// (calendar-arbitrageable) surface can produce a negative forward variance;
-/// it is floored at zero with a warning, matching the piecewise-GBM
-/// forward-vol bootstrap convention.
+/// A negative result means the supplied term structure violates calendar
+/// monotonicity and is rejected as an arbitrageable input.
 pub(crate) fn remaining_forward_variance(
     inst: &VarianceSwap,
     context: &MarketContext,
@@ -500,46 +460,41 @@ pub(crate) fn remaining_forward_variance(
     let var_to_start = spot_variance_to_date(inst, context, as_of, inst.start_date)?;
     let fwd = (var_to_end * t1 - var_to_start * t0) / (t1 - t0);
     if fwd < 0.0 {
-        tracing::warn!(
-            instrument_id = %inst.id,
-            var_to_start,
-            var_to_end,
-            t0,
-            t1,
-            forward_variance = fwd,
-            "VarianceSwap forward-start: total variance is non-monotone over \
-             [start, maturity] (calendar-spread arbitrage in inputs); flooring \
-             forward variance to zero"
-        );
-        return Ok(0.0);
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "VarianceSwap '{}': forward variance is negative over [{}, {}]: \
+             start_variance={var_to_start}, end_variance={var_to_end}, result={fwd}",
+            inst.id, inst.start_date, final_observation_date
+        )));
     }
     Ok(fwd)
 }
 
 /// Spot-started expected variance over `[as_of, target_date]`.
 ///
-/// # Fallback cascade
-///
-/// Sourced market data is checked in priority order. Each successful step
-/// **stops** the cascade and returns immediately. Lower-priority fallbacks
-/// emit a `tracing::warn!` so operators can see the dispersion in market
-/// data quality.
-///
-/// 1. **Carr–Madan replication** from a vol surface (preferred). Uses the
-///    full smile via OTM put/call strip.
-/// 2. **ATM variance** (`atm_variance_fallback`) — NO smile convexity;
-///    Used when Carr-Madan can't replicate (e.g. sparse strikes); logged at WARN.
-/// 3. **Scalar implied vol** under key `{ticker}_IMPL_VOL`. Crude — squared
-///    to a flat variance; logged at WARN.
-///
-/// If none of these market inputs exists, pricing fails. Substituting the
-/// contract strike variance would manufacture a plausible zero mark.
+/// An explicit `market_quotes.implied_volatility` override is accepted as a
+/// caller-selected flat-volatility assumption. Otherwise canonical pricing
+/// requires a volatility surface with a strike grid sufficient for Carr–Madan
+/// OTM option-strip replication; sparse surfaces and missing surfaces fail.
 fn spot_variance_to_date(
     inst: &VarianceSwap,
     context: &MarketContext,
     as_of: Date,
     target_date: Date,
 ) -> Result<f64> {
+    if let Some(vol) = inst
+        .instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility
+    {
+        if !vol.is_finite() || vol <= 0.0 {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "VarianceSwap '{}' implied-volatility override must be finite and positive, got {vol}",
+                inst.id
+            )));
+        }
+        return Ok(vol * vol);
+    }
+
     let t = inst
         .day_count
         .year_fraction(as_of, target_date, Default::default())?;
@@ -547,11 +502,10 @@ fn spot_variance_to_date(
     for sid in inst.volatility_candidate_ids() {
         if let Ok(surface) = context.get_surface(&sid) {
             let disc = context.get_discount(&inst.discount_curve_id)?;
-            let spot_scalar = context.get_price(&inst.underlying_ticker)?;
-            let spot = match spot_scalar {
-                finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
-                finstack_quant_core::market_data::scalars::MarketScalar::Price(p) => p.amount(),
-            };
+            let spot = crate::instruments::common_impl::helpers::scalar_price_amount(
+                context.get_price(&inst.underlying_ticker)?,
+                inst.notional.currency(),
+            )?;
             // Date-based zero rate over [as_of, target_date]: avoids the
             // axis bias of `disc.zero(t)` when curve base != as_of.
             let df_mat =
@@ -593,60 +547,20 @@ fn spot_variance_to_date(
                     return Ok(variance);
                 }
             }
-            if let Some(fallback_variance) = atm_variance_fallback(&surface, t.max(1e-8), fwd) {
-                let vol_atm = surface.value_clamped(t.max(1e-8), fwd);
-                tracing::warn!(
-                    instrument_id = %inst.id,
-                vol_surface_id = %sid,
-                    vol_atm = vol_atm,
-                    fallback_variance = fallback_variance,
-                    "VarianceSwap forward variance: Carr-Madan replication failed; \
-                     falling back to validated ATM variance"
-                );
-                return Ok(fallback_variance);
-            }
             return Err(finstack_quant_core::Error::Validation(format!(
-                "variance-swap surface '{sid}' could not produce a finite forward variance"
+                "variance-swap surface '{sid}' cannot support Carr-Madan replication; \
+                 provide a wider OTM strike grid or an explicit implied-volatility override"
             )));
         }
     }
-
-    if let Ok(scalar) = context.get_price(inst.implied_vol_scalar_id()) {
-        let vol = match scalar {
-            finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
-            finstack_quant_core::market_data::scalars::MarketScalar::Price(_) => {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "variance-swap implied volatility '{}_IMPL_VOL' must be unitless",
-                    inst.underlying_ticker
-                )));
-            }
-        };
-        if !vol.is_finite() || vol <= 0.0 {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "variance-swap implied volatility '{}_IMPL_VOL' must be finite and positive, got {vol}",
-                inst.underlying_ticker
-            )));
-        }
-        let fallback_variance = vol * vol;
-        tracing::warn!(
-            instrument_id = %inst.id,
-            ticker = %inst.underlying_ticker,
-            vol = vol,
-            fallback_variance = fallback_variance,
-            "VarianceSwap forward variance: no vol surface available; falling back to \
-             scalar {ticker}_IMPL_VOL (level 3/4)",
-            ticker = inst.underlying_ticker.as_str()
-        );
-        Ok(fallback_variance)
-    } else {
-        Err(finstack_quant_core::InputError::NotFound {
-            id: format!(
-                "variance-swap volatility for '{}': supply a vol surface or '{}_IMPL_VOL'",
-                inst.underlying_ticker, inst.underlying_ticker
-            ),
-        }
-        .into())
+    Err(finstack_quant_core::InputError::NotFound {
+        id: format!(
+            "variance-swap volatility surface for '{}'; provide a replication-quality \
+             surface or an explicit implied-volatility override",
+            inst.underlying_ticker
+        ),
     }
+    .into())
 }
 
 #[cfg(test)]
@@ -666,9 +580,18 @@ mod tests {
             .knots([(0.0, 1.0), (1.0, (-0.03_f64).exp())])
             .build()
             .expect("curve");
+        let strikes = [50.0, 75.0, 90.0, 100.0, 110.0, 125.0, 150.0];
+        let mut surface = VolSurface::builder("SPX")
+            .expiries(&[0.25, 0.5, 1.0, 2.0])
+            .strikes(&strikes);
+        for _ in 0..4 {
+            surface = surface.row(&[0.20; 7]);
+        }
         MarketContext::new()
             .insert(curve)
-            .insert_price("SPX_IMPL_VOL", MarketScalar::Unitless(0.20))
+            .insert_surface(surface.build().expect("surface"))
+            .insert_price("SPX", MarketScalar::Unitless(100.0))
+            .insert_price("SPX-DIVYIELD", MarketScalar::Unitless(0.0))
     }
 
     /// End-to-end wiring check of the EQUITY Carr-Madan path: a flat-in-strike,
@@ -703,6 +626,9 @@ mod tests {
             .observation_frequency(Tenor::daily())
             .observation_calendar_id("USNY".to_string())
             .realized_var_method(finstack_quant_core::math::stats::RealizedVarMethod::CloseToClose)
+            .price_series_policy(
+                finstack_quant_valuations::instruments::EquityPriceSeriesPolicy::Adjusted,
+            )
             .side(PayReceive::Receive)
             .discount_curve_id(CurveId::new("USD-OIS"))
             .day_count(DayCount::Act365F)
@@ -772,6 +698,9 @@ mod tests {
             .observation_frequency(Tenor::daily())
             .observation_calendar_id("USNY".to_string())
             .realized_var_method(finstack_quant_core::math::stats::RealizedVarMethod::CloseToClose)
+            .price_series_policy(
+                finstack_quant_valuations::instruments::EquityPriceSeriesPolicy::Adjusted,
+            )
             .side(PayReceive::Receive)
             .discount_curve_id(CurveId::new("USD-OIS"))
             .day_count(DayCount::Act365F)
@@ -913,6 +842,9 @@ mod tests {
             .observation_frequency(Tenor::daily())
             .observation_calendar_id("USNY".to_string())
             .realized_var_method(finstack_quant_core::math::stats::RealizedVarMethod::CloseToClose)
+            .price_series_policy(
+                finstack_quant_valuations::instruments::EquityPriceSeriesPolicy::Adjusted,
+            )
             .side(PayReceive::Receive)
             .discount_curve_id(CurveId::new("USD-OIS"))
             .day_count(DayCount::Act365F)
@@ -1018,6 +950,9 @@ mod tests {
             .observation_frequency(Tenor::daily())
             .observation_calendar_id("USNY".to_string())
             .realized_var_method(finstack_quant_core::math::stats::RealizedVarMethod::CloseToClose)
+            .price_series_policy(
+                finstack_quant_valuations::instruments::EquityPriceSeriesPolicy::Adjusted,
+            )
             .side(PayReceive::Receive)
             .discount_curve_id(CurveId::new("USD-OIS"))
             .day_count(DayCount::Act365F)
@@ -1117,42 +1052,5 @@ mod tests {
         assert!(dates
             .iter()
             .all(|d| !matches!(d.weekday(), time::Weekday::Saturday | time::Weekday::Sunday)));
-    }
-
-    #[test]
-    fn sparse_strip_fallback_uses_atm_variance() {
-        let surface = VolSurface::builder("SPX")
-            .expiries(&[1.0])
-            .strikes(&[90.0, 100.0, 110.0])
-            .row(&[0.25, 0.20, 0.25])
-            .build()
-            .expect("surface");
-
-        let fallback = atm_variance_fallback(&surface, 1.0, 100.0).expect("fallback variance");
-
-        assert!((fallback - 0.04).abs() < 1e-12);
-    }
-
-    /// A volatility grid is not an option-price strip. Deep-wing volatility
-    /// points must not be integrated as though they were variance-swap quotes,
-    /// so the fallback deliberately IGNORES the elevated wings and returns
-    /// plain ATM variance (biased low vs true fair variance — hence the WARN
-    /// on this path).
-    #[test]
-    fn atm_fallback_ignores_deep_wing_convexity_by_design() {
-        // Strikes bracketing the forward (90, 100, 110) are FLAT at 20% vol;
-        // only the DEEP wings (60, 150) are elevated. A 2-strike proxy around
-        // the 100 forward would see only the flat 20% and miss the wings.
-        let surface = VolSurface::builder("SPX")
-            .expiries(&[1.0])
-            .strikes(&[60.0, 90.0, 100.0, 110.0, 150.0])
-            .row(&[0.45, 0.20, 0.20, 0.20, 0.35])
-            .build()
-            .expect("surface");
-
-        let atm_variance = 0.20_f64 * 0.20; // 0.04
-        let fallback = atm_variance_fallback(&surface, 1.0, 100.0).expect("fallback variance");
-
-        assert!((fallback - atm_variance).abs() < 1e-12);
     }
 }

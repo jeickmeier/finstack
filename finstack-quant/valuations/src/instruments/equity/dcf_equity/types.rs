@@ -348,8 +348,7 @@ struct DiscountedCashFlowUnchecked {
     /// Discounting always uses [`wacc`](Self::wacc) via `(1 + wacc)^{-t}`
     /// regardless of whether this curve is loaded (the
     /// previous behavior silently switched risky flows to risk-free curve
-    /// discounting). Rate sensitivity (`Dv01`/`BucketedDv01`) bumps the
-    /// risk-free component inside the WACC instead.
+    /// discounting). WACC sensitivity is exposed separately as `dcf::wacc01`.
     /// Mid-year discounting convention (default: `false` = end-of-period).
     ///
     /// When `true`, each flow is discounted at `t` minus half the average
@@ -1034,6 +1033,10 @@ impl Instrument for DiscountedCashFlow {
         pricer::compute_pv(self, market, as_of)
     }
 
+    fn resolve_pricing_as_of(&self, _market: &MarketContext, _requested: Date) -> Date {
+        self.valuation_date
+    }
+
     fn effective_start_date(&self) -> Option<Date> {
         None
     }
@@ -1649,9 +1652,8 @@ mod tests {
     }
 
     #[test]
-    fn dcf_dv01_metric_computes_and_is_reasonable() {
-        let as_of =
-            Date::from_calendar_date(2025, Month::January, 1).expect("valid test date for dv01");
+    fn dcf_wacc01_metric_computes_and_is_reasonable() {
+        let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("valid WACC01 date");
         let mut dcf = build_simple_dcf_gordon();
         dcf.valuation_date = as_of;
 
@@ -1661,23 +1663,18 @@ mod tests {
         let mut registry = crate::metrics::standard_registry().clone();
         crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(&mut registry);
 
+        let wacc01_id = MetricId::custom("dcf::wacc01");
         let results = registry
-            .compute(&[MetricId::Dv01], &mut mctx)
-            .expect("Dv01 metric should compute");
+            .compute(std::slice::from_ref(&wacc01_id), &mut mctx)
+            .expect("WACC01 metric should compute");
 
-        let dv01 = *results
-            .get(&MetricId::Dv01)
-            .expect("Dv01 metric should be present");
+        let wacc01 = *results
+            .get(&wacc01_id)
+            .expect("WACC01 metric should be present");
 
-        // Higher rates should reduce PV, so DV01 should be strictly negative.
-        assert!(
-            dv01 < 0.0,
-            "DCF DV01 should be negative (PV decreases when rates increase), got {}",
-            dv01
-        );
+        assert!(wacc01 < 0.0, "DCF WACC01 should be negative, got {wacc01}");
 
-        // DV01 bumps the rf component inside the WACC,
-        // so it must equal the analytic dPV/d(rf) per 1bp. For the simple
+        // WACC01 equals the analytic dPV/dWACC per 1bp.
         // one-flow Gordon DCF: PV(w) = F/(1+w)^t + F(1+g)/((w-g)(1+w)^t).
         let f = 100.0;
         let g = 0.02;
@@ -1691,8 +1688,8 @@ mod tests {
         let h = 1e-7;
         let analytic_per_bp = (pv(w + h) - pv(w - h)) / (2.0 * h) / 10_000.0;
         assert!(
-            (dv01 - analytic_per_bp).abs() < 1e-4 * analytic_per_bp.abs(),
-            "DV01 ({dv01}) should equal analytic dPV/drf per bp ({analytic_per_bp})"
+            (wacc01 - analytic_per_bp).abs() < 1e-4 * analytic_per_bp.abs(),
+            "WACC01 ({wacc01}) should equal analytic dPV/dWACC per bp ({analytic_per_bp})"
         );
 
         // And it must not depend on whether the curve is loaded.
@@ -1700,61 +1697,12 @@ mod tests {
         dcf2.valuation_date = as_of;
         let mut mctx_no_curve = build_metric_context(dcf2, MarketContext::new(), as_of);
         let results_no_curve = registry
-            .compute(&[MetricId::Dv01], &mut mctx_no_curve)
-            .expect("Dv01 should compute without curve");
-        let dv01_no_curve = *results_no_curve.get(&MetricId::Dv01).expect("Dv01 present");
+            .compute(std::slice::from_ref(&wacc01_id), &mut mctx_no_curve)
+            .expect("WACC01 should compute without curve");
+        let wacc01_no_curve = *results_no_curve.get(&wacc01_id).expect("WACC01 present");
         assert!(
-            (dv01 - dv01_no_curve).abs() < 1e-9,
-            "DV01 must not depend on curve presence: with={dv01}, without={dv01_no_curve}"
-        );
-    }
-
-    /// Bucketed rf DV01 must sum to the parallel rf DV01 (the triangular
-    /// tenor weights partition unity).
-    #[test]
-    fn dcf_bucketed_dv01_sums_to_parallel() {
-        let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
-        let mut dcf = build_simple_dcf_gordon();
-        dcf.valuation_date = as_of;
-
-        let mut mctx = build_metric_context(dcf, MarketContext::new(), as_of);
-        let mut registry = crate::metrics::standard_registry().clone();
-        crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(&mut registry);
-
-        let results = registry
-            .compute(&[MetricId::Dv01, MetricId::BucketedDv01], &mut mctx)
-            .expect("metrics should compute");
-
-        let dv01 = *results.get(&MetricId::Dv01).expect("Dv01 present");
-        let bucketed = *results
-            .get(&MetricId::BucketedDv01)
-            .expect("BucketedDv01 present");
-        assert!(
-            (dv01 - bucketed).abs() < 1e-6 * dv01.abs().max(1.0),
-            "bucketed total ({bucketed}) should equal parallel DV01 ({dv01})"
-        );
-    }
-
-    #[test]
-    fn dcf_bucketed_dv01_metric_computes() {
-        let as_of = Date::from_calendar_date(2025, Month::January, 1)
-            .expect("valid test date for bucketed dv01");
-        let mut dcf = build_simple_dcf_gordon();
-        dcf.valuation_date = as_of;
-
-        let market = build_market_with_flat_curve(as_of, &CurveId::new("USD-OIS"), 0.05);
-        let mut mctx = build_metric_context(dcf, market, as_of);
-
-        let mut registry = crate::metrics::standard_registry().clone();
-        crate::instruments::equity::dcf_equity::metrics::register_dcf_metrics(&mut registry);
-
-        let results = registry
-            .compute(&[MetricId::BucketedDv01], &mut mctx)
-            .expect("BucketedDv01 metric should compute");
-
-        assert!(
-            results.contains_key(&MetricId::BucketedDv01),
-            "BucketedDv01 metric should be present for DCF"
+            (wacc01 - wacc01_no_curve).abs() < 1e-9,
+            "WACC01 must not depend on curve presence: with={wacc01}, without={wacc01_no_curve}"
         );
     }
 

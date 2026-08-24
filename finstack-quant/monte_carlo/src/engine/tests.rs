@@ -89,7 +89,9 @@ impl Discretization<DummyProcess> for DummyDisc {
 #[derive(Clone)]
 struct DummyPayoff;
 impl Payoff for DummyPayoff {
-    fn on_event(&mut self, _state: &mut PathState) {}
+    fn on_event(&mut self, _state: &mut PathState) -> finstack_quant_core::Result<()> {
+        Ok(())
+    }
     fn value(&self, currency: Currency) -> Money {
         Money::new(100.0, currency)
     }
@@ -106,7 +108,9 @@ impl Payoff for PathStartPayoff {
         self.start_uniform = Some(rng.next_u01());
     }
 
-    fn on_event(&mut self, _state: &mut PathState) {}
+    fn on_event(&mut self, _state: &mut PathState) -> finstack_quant_core::Result<()> {
+        Ok(())
+    }
 
     fn value(&self, currency: Currency) -> Money {
         Money::new(self.start_uniform.unwrap_or(-1.0), currency)
@@ -127,7 +131,9 @@ impl Payoff for CapturedValuePayoff {
         self.value = Some(rng.next_u01());
     }
 
-    fn on_event(&mut self, _state: &mut PathState) {}
+    fn on_event(&mut self, _state: &mut PathState) -> finstack_quant_core::Result<()> {
+        Ok(())
+    }
 
     fn value(&self, currency: Currency) -> Money {
         Money::new(self.value.unwrap_or_default(), currency)
@@ -144,10 +150,11 @@ struct InitialCashflowPayoff {
 }
 
 impl Payoff for InitialCashflowPayoff {
-    fn on_event(&mut self, state: &mut PathState) {
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         if state.step == 0 {
             state.add_cashflow(state.time, self.value);
         }
+        Ok(())
     }
 
     fn value(&self, currency: Currency) -> Money {
@@ -161,8 +168,9 @@ impl Payoff for InitialCashflowPayoff {
 struct RecurringCashflowPayoff;
 
 impl Payoff for RecurringCashflowPayoff {
-    fn on_event(&mut self, state: &mut PathState) {
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         state.add_typed_cashflow(state.time, state.step as f64 + 1.0, CashflowType::Interest);
+        Ok(())
     }
 
     fn value(&self, currency: Currency) -> Money {
@@ -681,7 +689,9 @@ fn test_engine_rejects_quasi_random_rng_even_in_serial_mode() {
 struct OverflowAfterDiscountPayoff;
 
 impl Payoff for OverflowAfterDiscountPayoff {
-    fn on_event(&mut self, _state: &mut PathState) {}
+    fn on_event(&mut self, _state: &mut PathState) -> finstack_quant_core::Result<()> {
+        Ok(())
+    }
 
     fn value(&self, currency: Currency) -> Money {
         Money::new(1.0e20, currency)
@@ -1419,11 +1429,12 @@ mod correlation_regression {
             s1: f64,
         }
         impl crate::traits::Payoff for SpreadCall {
-            fn on_event(&mut self, state: &mut PathState) {
+            fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
                 if state.step == self.maturity_idx {
                     self.s0 = state.get(state_keys::indexed_spot(0)).unwrap_or(0.0);
                     self.s1 = state.get(state_keys::indexed_spot(1)).unwrap_or(0.0);
                 }
+                Ok(())
             }
             fn value(&self, currency: Currency) -> Money {
                 let payoff = (self.s0 - self.s1 - self.strike).max(0.0);

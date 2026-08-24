@@ -27,10 +27,10 @@ fn extract_underlying_data(
     trs: &EquityTotalReturnSwap,
     context: &MarketContext,
 ) -> Result<(f64, f64)> {
-    let spot = match context.get_price(&trs.underlying.spot_id)? {
-        MarketScalar::Unitless(v) => *v,
-        MarketScalar::Price(p) => p.amount(),
-    };
+    let spot = crate::instruments::common_impl::helpers::scalar_price_amount(
+        context.get_price(&trs.underlying.spot_id)?,
+        trs.underlying.currency,
+    )?;
 
     // When a dividend yield ID is explicitly provided, we require the lookup to succeed
     // and return a unitless scalar. Silent fallback to 0.0 would mask market data
@@ -98,6 +98,22 @@ impl EquityReturnModel<'_> {
             period_start
         )))
     }
+
+    fn period_end_level(&self, period_end: Date, as_of: Date) -> Result<f64> {
+        if let Some(level) = self.trs.fixing_on(period_end) {
+            return Ok(level);
+        }
+        if period_end == as_of {
+            return Ok(self.spot);
+        }
+        Err(finstack_quant_core::Error::Validation(format!(
+            "EquityTRS '{}': return period ended {} before payment but no observed \
+             end-level fixing is available; provide the reset fixing to value the \
+             fixed-but-unpaid cashflow",
+            self.trs.id.as_str(),
+            period_end
+        )))
+    }
 }
 
 impl TrsReturnModel for EquityReturnModel<'_> {
@@ -111,9 +127,6 @@ impl TrsReturnModel for EquityReturnModel<'_> {
             initial_level,
         } = *inputs;
         let disc = context.get_discount(self.trs.financing.discount_curve_id.as_str())?;
-        // Date-based DF from as_of to the period end: correct even when the
-        // curve base date differs from as_of (axis-based `disc.df(t)` is not).
-        let df_end = relative_df_discount_curve(disc.as_ref(), as_of, period_end)?;
 
         let uses_discrete_dividends = !self.trs.discrete_dividends.is_empty();
         let carry_div_yield = if uses_discrete_dividends {
@@ -136,20 +149,24 @@ impl TrsReturnModel for EquityReturnModel<'_> {
             Ok(neumaier_sum(values))
         };
 
-        // Price return component (Forward Price change)
-        // F_t = S_0 * e^{(r-q)t}
-        let (fwd_start, fwd_end) = if t_start < 0.0 {
-            // In-progress period: anchor to the level observed at the period
-            // start and project the live spot forward to the period end. The
-            // realized move (spot vs. start fixing) stays in the return.
+        // Price return component. Completed-but-unpaid periods use both
+        // contractual reset fixings; in-progress periods combine their start
+        // fixing with the live spot projected to period end; future periods
+        // use deterministic carry.
+        let (fwd_start, fwd_end) = if t_end <= 0.0 {
+            (
+                self.period_start_level(period_start)?,
+                self.period_end_level(period_end, as_of)?,
+            )
+        } else if t_start < 0.0 {
+            let df_end = relative_df_discount_curve(disc.as_ref(), as_of, period_end)?;
             let start_level = self.period_start_level(period_start)?;
             let ex_div_spot = self.spot - pv_discrete_dividends_to(period_end)?;
             let fwd_spot_end = ex_div_spot * df_end.recip() * (-carry_div_yield * t_end).exp();
             (start_level, fwd_spot_end)
         } else {
-            // Future period: deterministic carry — the level cancels in the
-            // ratio, so anchoring to `initial_level` is exact.
             let df_start = relative_df_discount_curve(disc.as_ref(), as_of, period_start)?;
+            let df_end = relative_df_discount_curve(disc.as_ref(), as_of, period_end)?;
             let fwd_start = (initial_level - pv_discrete_dividends_to(period_start)?)
                 * df_start.recip()
                 * (-carry_div_yield * t_start).exp();
@@ -164,7 +181,11 @@ impl TrsReturnModel for EquityReturnModel<'_> {
         //
         // When dividend_tax_rate = 0.0, this is a Gross TRS (100% dividend pass-through)
         // When dividend_tax_rate > 0.0, this is a Net TRS (reduced by withholding)
-        let dt = t_end - t_start;
+        let dt = self.trs.schedule.params.day_count.year_fraction(
+            period_start,
+            period_end,
+            finstack_quant_core::dates::DayCountContext::default(),
+        )?;
         let tax_rate = self.trs.dividend_tax_rate.clamp(0.0, 1.0);
         let dividend_return = if uses_discrete_dividends {
             // Sum discrete dividends paid in the period, normalized by start forward level.

@@ -225,14 +225,14 @@ impl Payoff for BarrierOptionPayoff {
         true
     }
 
-    fn on_event(&mut self, state: &mut PathState) {
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         // Ignore events beyond the payoff's maturity: a longer engine grid
         // must not flip the knockout state after expiry.
         if state.step > self.maturity_step {
-            return;
+            return Ok(());
         }
 
-        let current_spot = super::require_finite_state(state.spot(), "SPOT", state.step);
+        let current_spot = super::require_finite_state(state.spot(), "SPOT", state.step)?;
 
         if state.step == 0 {
             self.previous_spot = current_spot;
@@ -245,7 +245,7 @@ impl Payoff for BarrierOptionPayoff {
                 self.barrier_hit = true;
                 self.hit_time = 0.0;
             }
-            return;
+            return Ok(());
         }
 
         // Check barrier hit using bridge correction.
@@ -259,7 +259,7 @@ impl Payoff for BarrierOptionPayoff {
                 self.step_dts.get(state.step - 1).copied(),
                 "step_dts",
                 state.step,
-            );
+            )?;
             // Prefer the process's local instantaneous variance when available
             // (e.g. Heston). For deterministic-vol processes the state carries
             // no variance entry and we fall back to the configured flat sigma.
@@ -299,6 +299,7 @@ impl Payoff for BarrierOptionPayoff {
         if state.step == self.maturity_step {
             self.terminal_spot = current_spot;
         }
+        Ok(())
     }
 
     fn value(&self, currency: Currency) -> Money {
@@ -363,7 +364,9 @@ mod tests {
             &grid,
             false,
         );
-        payoff.on_event(&mut create_path_state(0, 0.0, spot, 0.5));
+        payoff
+            .on_event(&mut create_path_state(0, 0.0, spot, 0.5))
+            .expect("valid payoff event");
         payoff.barrier_hit
     }
 
@@ -414,10 +417,14 @@ mod tests {
         .with_rebate_at_hit(rate);
 
         // Discrete breach at step 4 ⇒ τ = 0.4 on the uniform 0.1 grid.
-        payoff.on_event(&mut create_path_state(0, 0.0, 100.0, 0.5));
+        payoff
+            .on_event(&mut create_path_state(0, 0.0, 100.0, 0.5))
+            .expect("valid payoff event");
         for step in 1..=10usize {
             let spot = if step >= 4 { 125.0 } else { 100.0 };
-            payoff.on_event(&mut create_path_state(step, step as f64 * 0.1, spot, 0.5));
+            payoff
+                .on_event(&mut create_path_state(step, step as f64 * 0.1, spot, 0.5))
+                .expect("valid payoff event");
         }
 
         let expected = rebate * (rate * (1.0 - 0.4)).exp();
@@ -440,10 +447,14 @@ mod tests {
             &grid,
             false,
         );
-        payoff_expiry.on_event(&mut create_path_state(0, 0.0, 100.0, 0.5));
+        payoff_expiry
+            .on_event(&mut create_path_state(0, 0.0, 100.0, 0.5))
+            .expect("valid payoff event");
         for step in 1..=10usize {
             let spot = if step >= 4 { 125.0 } else { 100.0 };
-            payoff_expiry.on_event(&mut create_path_state(step, step as f64 * 0.1, spot, 0.5));
+            payoff_expiry
+                .on_event(&mut create_path_state(step, step as f64 * 0.1, spot, 0.5))
+                .expect("valid payoff event");
         }
         assert!((payoff_expiry.value(Currency::USD).amount() - rebate).abs() < 1e-10);
     }
@@ -468,9 +479,13 @@ mod tests {
         )
         .with_rebate_at_hit(0.05);
 
-        payoff.on_event(&mut create_path_state(0, 0.0, 100.0, 0.5));
+        payoff
+            .on_event(&mut create_path_state(0, 0.0, 100.0, 0.5))
+            .expect("valid payoff event");
         for step in 1..=10usize {
-            payoff.on_event(&mut create_path_state(step, step as f64 * 0.1, 100.0, 0.5));
+            payoff
+                .on_event(&mut create_path_state(step, step as f64 * 0.1, 100.0, 0.5))
+                .expect("valid payoff event");
         }
         assert!((payoff.value(Currency::USD).amount() - rebate).abs() < 1e-10);
     }
@@ -494,7 +509,9 @@ mod tests {
         for step in 0..=10 {
             let spot = 90.0; // Below barrier, below strike (ITM put)
             let mut state = create_path_state(step, step as f64 * 0.1, spot, 0.5);
-            barrier_put.on_event(&mut state);
+            barrier_put
+                .on_event(&mut state)
+                .expect("valid payoff event");
         }
 
         // Should get put payoff (100 - 90 = 10)
@@ -520,11 +537,11 @@ mod tests {
 
         // Hit barrier
         let mut s1 = create_path_state(0, 0.0, 105.0, 0.5);
-        barrier_call.on_event(&mut s1);
+        barrier_call.on_event(&mut s1).expect("valid payoff event");
         let mut s2 = create_path_state(1, 0.1, 125.0, 0.5); // Hit
-        barrier_call.on_event(&mut s2);
+        barrier_call.on_event(&mut s2).expect("valid payoff event");
         let mut s3 = create_path_state(10, 1.0, 130.0, 0.5); // Terminal
-        barrier_call.on_event(&mut s3);
+        barrier_call.on_event(&mut s3).expect("valid payoff event");
 
         // Should get rebate
         let value = barrier_call.value(Currency::USD);
@@ -570,7 +587,7 @@ mod tests {
                 state.set(state_keys::SPOT, spot);
                 state.set(state_keys::VARIANCE, stoch_var);
                 state.set_uniform_random(0.5);
-                payoff.on_event(&mut state);
+                payoff.on_event(&mut state).expect("valid payoff event");
             }
         };
 
@@ -622,7 +639,7 @@ mod tests {
                 let mut state = PathState::new(step, step as f64 * 0.25);
                 state.set(state_keys::SPOT, spot);
                 state.set_uniform_random(0.5);
-                payoff.on_event(&mut state);
+                payoff.on_event(&mut state).expect("valid payoff event");
             }
         };
 
@@ -672,7 +689,7 @@ mod tests {
         let mut s0 = PathState::new(0, 0.0);
         s0.set(state_keys::SPOT, 105.0);
         s0.set_uniform_random(0.999);
-        payoff.on_event(&mut s0);
+        payoff.on_event(&mut s0).expect("valid payoff event");
 
         // step 1: spot 95 — strictly below the true barrier of 100, so the
         // option must knock out unconditionally. A high uniform draw of
@@ -681,14 +698,14 @@ mod tests {
         let mut s1 = PathState::new(1, 0.25);
         s1.set(state_keys::SPOT, 95.0);
         s1.set_uniform_random(0.999);
-        payoff.on_event(&mut s1);
+        payoff.on_event(&mut s1).expect("valid payoff event");
 
         // Remaining steps stay below barrier; terminal spot 95.
         for (step, spot) in [(2usize, 96.0), (3, 97.0), (4, 95.0)] {
             let mut s = PathState::new(step, step as f64 * 0.25);
             s.set(state_keys::SPOT, spot);
             s.set_uniform_random(0.999);
-            payoff.on_event(&mut s);
+            payoff.on_event(&mut s).expect("valid payoff event");
         }
 
         // The option is knocked out: value must be 0 (no rebate).
@@ -718,11 +735,11 @@ mod tests {
         );
 
         let mut s0 = create_path_state(0, 0.0, 90.0, 0.65);
-        barrier_call.on_event(&mut s0);
+        barrier_call.on_event(&mut s0).expect("valid payoff event");
         let mut s1 = create_path_state(1, 0.2, 95.0, 0.65);
-        barrier_call.on_event(&mut s1);
+        barrier_call.on_event(&mut s1).expect("valid payoff event");
         let mut s2 = create_path_state(2, 1.0, 90.0, 0.65);
-        barrier_call.on_event(&mut s2);
+        barrier_call.on_event(&mut s2).expect("valid payoff event");
 
         assert_eq!(barrier_call.value(Currency::USD).amount(), 0.0);
     }

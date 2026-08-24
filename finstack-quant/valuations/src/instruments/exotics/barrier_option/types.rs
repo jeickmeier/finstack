@@ -136,8 +136,8 @@ pub struct BarrierOption {
     pub spot_id: PriceId,
     /// Volatility surface ID
     pub vol_surface_id: CurveId,
-    /// Optional dividend yield curve ID
-    pub div_yield_id: Option<CurveId>,
+    /// Optional dividend-yield scalar ID
+    pub div_yield_id: Option<PriceId>,
     /// Pricing overrides (manual price, yield, spread)
     #[builder(default)]
     #[serde(
@@ -188,7 +188,7 @@ impl BarrierOption {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .attributes(Attributes::new())
             .build()
     }

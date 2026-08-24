@@ -41,12 +41,22 @@ pub fn sample_swap(side: PayReceive) -> VarianceSwap {
         .observation_frequency(Tenor::daily())
         .observation_calendar_id("USNY".to_string())
         .realized_var_method(RealizedVarMethod::CloseToClose)
+        .price_series_policy(
+            finstack_quant_valuations::instruments::EquityPriceSeriesPolicy::Adjusted,
+        )
         .side(side)
         .discount_curve_id(CurveId::new(DISC_ID))
         .day_count(DayCount::Act365F)
         .attributes(Attributes::new())
         .build()
         .unwrap()
+}
+/// Apply the instrument's explicit flat implied-volatility pricing override.
+pub fn with_implied_vol(mut swap: VarianceSwap, volatility: f64) -> VarianceSwap {
+    swap.instrument_pricing_overrides
+        .market_quotes
+        .implied_volatility = Some(volatility);
+    swap
 }
 
 /// Build a market context with discount curve and spot, but no forward
@@ -71,13 +81,14 @@ pub fn base_context_without_vol() -> MarketContext {
         .insert_price(UNDERLYING_ID, MarketScalar::Unitless(5_000.0))
 }
 
-/// Build a complete base market context with a scalar 20% implied vol.
+/// Build a complete base market context with a replication-quality volatility surface.
 pub fn base_context() -> MarketContext {
-    add_unitless(
-        base_context_without_vol(),
-        format!("{}_IMPL_VOL", UNDERLYING_ID),
-        0.20,
-    )
+    base_context_without_vol()
+        .insert_surface(sample_surface())
+        .insert_price(
+            format!("{}-DIVYIELD", UNDERLYING_ID),
+            MarketScalar::Unitless(0.0),
+        )
 }
 
 /// Add a time series to the market context.
@@ -87,9 +98,27 @@ pub fn add_series(ctx: MarketContext, prices: &[(Date, f64)]) -> MarketContext {
         .with_interpolation(SeriesInterpolation::Step);
     ctx.insert_series(series)
 }
-
-/// Add a unitless scalar to the market context.
+/// Add a unitless scalar. Legacy test inputs named `*_IMPL_VOL` are converted
+/// into a full flat volatility surface so production pricing still exercises
+/// Carr–Madan replication rather than a scalar proxy.
 pub fn add_unitless(ctx: MarketContext, id: impl AsRef<str>, value: f64) -> MarketContext {
+    if id.as_ref().ends_with("_IMPL_VOL") {
+        let strikes = [
+            2_500.0, 3_500.0, 4_500.0, 5_000.0, 5_500.0, 6_500.0, 7_500.0,
+        ];
+        let mut surface = VolSurface::builder(UNDERLYING_ID)
+            .expiries(&[0.25, 0.5, 1.0, 2.0])
+            .strikes(&strikes);
+        for _ in 0..4 {
+            surface = surface.row(&[value; 7]);
+        }
+        return ctx
+            .insert_surface(surface.build().expect("flat test surface"))
+            .insert_price(
+                format!("{}-DIVYIELD", UNDERLYING_ID),
+                MarketScalar::Unitless(0.0),
+            );
+    }
     ctx.insert_price(id, MarketScalar::Unitless(value))
 }
 

@@ -142,13 +142,13 @@ impl Discretization<PiecewiseGbmProcess> for PiecewiseExactGbm {
 /// - **forward rate** `f = ln(DF(prev_date) / DF(curr_date)) / dt_model`;
 /// - **forward volatility** from the total-variance increment
 ///   `σ²(curr_t)·curr_t − σ²(prev_t)·prev_t` (the surface is sampled at the ATM
-///   forward `F(0, curr_t)`). A non-monotone (calendar-arbitrageable) surface can
-///   produce a negative forward variance; it is floored at zero with a warning.
+///   forward `F(0, curr_t)`).
 ///
 /// # Errors
 ///
-/// Returns an error if a discount factor is non-positive/non-finite (degenerate
-/// or over-extrapolated curve) or if two check points coincide.
+/// Returns an error for non-positive/non-finite discount factors, degenerate
+/// time steps, or a non-monotone total-variance surface. Calendar-arbitrageable
+/// volatility input is rejected rather than repaired inside the pricer.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn bootstrap_forward_gbm(
     disc_curve: &DiscountCurve,
@@ -207,22 +207,14 @@ pub(crate) fn bootstrap_forward_gbm(
         let var_curr = vol_curr * vol_curr * curr_t;
 
         let fwd_var = var_curr - prev_var;
-        let fwd_sigma = if fwd_var >= 0.0 {
-            (fwd_var / dt).sqrt()
-        } else {
-            tracing::warn!(
-                context = %context_label,
-                vol_surface_id = %vol_surface_id,
-                t_prev = prev_t,
-                t_curr = curr_t,
-                total_var_prev = prev_var,
-                total_var_curr = var_curr,
-                forward_variance = fwd_var,
-                "forward-vol bootstrap: total-variance surface is non-monotone over \
-                 [t_prev, t_curr] (calendar-spread arbitrage); flooring forward variance to zero"
-            );
-            0.0
-        };
+        if fwd_var < 0.0 {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "{context_label}: total variance is non-monotone over \
+                 [{prev_t}, {curr_t}] on surface '{vol_surface_id}': \
+                 previous={prev_var}, current={var_curr}, increment={fwd_var}"
+            )));
+        }
+        let fwd_sigma = (fwd_var / dt).sqrt();
 
         times.push(curr_t);
         rs.push(fwd_r);

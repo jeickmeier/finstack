@@ -12,7 +12,7 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 
 /// Simple equity (spot) instrument.
 ///
@@ -44,10 +44,10 @@ pub struct Equity {
     pub shares: Option<f64>,
     /// Optional price quote (if not provided, will look up from market data)
     pub price_quote: Option<f64>,
-    /// Explicit market data identifier to resolve the spot price
-    pub price_id: Option<String>,
-    /// Explicit market data identifier to resolve the dividend yield
-    pub div_yield_id: Option<CurveId>,
+    /// Explicit scalar identifier used to resolve the spot price.
+    pub price_id: Option<PriceId>,
+    /// Explicit scalar identifier used to resolve the dividend yield.
+    pub div_yield_id: Option<PriceId>,
     /// Optional discrete cash dividends `(ex_date, amount)` for single-name forwards.
     #[serde(default)]
     #[builder(default)]
@@ -98,8 +98,8 @@ impl Equity {
         }
         if self
             .price_id
-            .as_deref()
-            .is_some_and(|id| id.trim().is_empty())
+            .as_ref()
+            .is_some_and(|id| id.as_str().trim().is_empty())
         {
             return Err(finstack_quant_core::Error::Validation(
                 "Equity price_id must not be empty when supplied".to_string(),
@@ -160,14 +160,14 @@ impl Equity {
         self
     }
 
-    /// Override the market data identifier used to resolve the spot price
-    pub fn with_price_id(mut self, price_id: impl Into<String>) -> Self {
+    /// Override the scalar identifier used to resolve the spot price.
+    pub fn with_price_id(mut self, price_id: impl Into<PriceId>) -> Self {
         self.price_id = Some(price_id.into());
         self
     }
 
-    /// Override the market data identifier used to resolve the dividend yield
-    pub fn with_dividend_yield_id(mut self, div_id: impl Into<CurveId>) -> Self {
+    /// Override the scalar identifier used to resolve the dividend yield.
+    pub fn with_dividend_yield_id(mut self, div_id: impl Into<PriceId>) -> Self {
         self.div_yield_id = Some(div_id.into());
         self
     }
@@ -188,7 +188,7 @@ impl Equity {
             }
         };
 
-        push(self.price_id.as_deref());
+        push(self.price_id.as_ref().map(|id| id.as_str()));
         push(self.attributes.get_meta("price_id"));
         push(self.attributes.get_meta("spot_id"));
         push(self.attributes.get_meta("market_price_id"));
@@ -213,7 +213,7 @@ impl Equity {
             }
         };
 
-        push(self.div_yield_id.as_deref());
+        push(self.div_yield_id.as_ref().map(|id| id.as_str()));
         push(self.attributes.get_meta("div_yield_id"));
         push(self.attributes.get_meta("dividend_yield_key"));
         push(self.attributes.get_meta("div_yield_id"));

@@ -21,6 +21,7 @@
         "unit": "days"
       },
       "open_series_id": null,
+      "price_series_policy": "adjusted",
       "realized_var_method": "close_to_close",
       "settlement_date": null,
       "side": "receive",

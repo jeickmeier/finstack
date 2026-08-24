@@ -219,11 +219,9 @@ impl IndexedSpotCall {
 }
 
 impl Payoff for IndexedSpotCall {
-    fn on_event(&mut self, state: &mut PathState) {
-        if state.step == self.maturity_step {
-            self.last = state.get("spot_0").unwrap_or(0.0);
-        }
-    }
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> { if state.step == self.maturity_step {
+        self.last = state.get("spot_0").unwrap_or(0.0);
+    } Ok(()) }
 
     fn value(&self, currency: Currency) -> Money {
         Money::new((self.last - self.strike).max(0.0), currency)

@@ -149,7 +149,7 @@ impl SnowballPayoff {
 }
 
 impl Payoff for SnowballPayoff {
-    fn on_event(&mut self, state: &mut PathState) {
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         // The simulation fires one event per *forward-starting* coupon at that
         // coupon's period start (the in-advance fixing date), plus a final
         // settlement event at maturity. A leading already-seasoned coupon
@@ -163,10 +163,11 @@ impl Payoff for SnowballPayoff {
         self.last_bank = bank;
         self.flush_pending(bank);
         if self.next_event >= self.events.len() {
-            return;
+            return Ok(());
         }
         let short_rate = state.get_key(StateKey::ShortRate).unwrap_or(0.0);
         self.settle_next(short_rate);
+        Ok(())
     }
 
     fn value(&self, currency: finstack_quant_core::currency::Currency) -> Money {

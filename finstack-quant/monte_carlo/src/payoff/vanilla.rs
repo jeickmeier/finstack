@@ -67,10 +67,11 @@ impl Payoff for EuropeanCall {
     ///
     /// Panics if the process did not populate a finite `SPOT` state variable
     /// (process/payoff wiring bug) — see `require_finite_state`.
-    fn on_event(&mut self, state: &mut PathState) {
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         if state.step == self.maturity_step {
-            self.terminal_spot = super::require_finite_state(state.spot(), "SPOT", state.step);
+            self.terminal_spot = super::require_finite_state(state.spot(), "SPOT", state.step)?;
         }
+        Ok(())
     }
 
     fn max_event_step(&self) -> Option<usize> {
@@ -130,10 +131,11 @@ impl Payoff for EuropeanPut {
     /// Panics if the process did not populate a finite `SPOT` state variable
     /// (process/payoff wiring bug) — see `require_finite_state`. A
     /// silent 0.0 default would pay the full strike here.
-    fn on_event(&mut self, state: &mut PathState) {
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         if state.step == self.maturity_step {
-            self.terminal_spot = super::require_finite_state(state.spot(), "SPOT", state.step);
+            self.terminal_spot = super::require_finite_state(state.spot(), "SPOT", state.step)?;
         }
+        Ok(())
     }
 
     fn max_event_step(&self) -> Option<usize> {
@@ -207,10 +209,11 @@ impl Payoff for Digital {
     /// Panics if the process did not populate a finite `SPOT` state variable
     /// (process/payoff wiring bug) — see `require_finite_state`. A
     /// silent 0.0 default would make digital puts always pay.
-    fn on_event(&mut self, state: &mut PathState) {
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         if state.step == self.maturity_step {
-            self.terminal_spot = super::require_finite_state(state.spot(), "SPOT", state.step);
+            self.terminal_spot = super::require_finite_state(state.spot(), "SPOT", state.step)?;
         }
+        Ok(())
     }
 
     fn max_event_step(&self) -> Option<usize> {
@@ -287,10 +290,11 @@ impl Payoff for Forward {
     /// Panics if the process did not populate a finite `SPOT` state variable
     /// (process/payoff wiring bug) — see `require_finite_state`. A
     /// silent 0.0 default would pay ±F × N.
-    fn on_event(&mut self, state: &mut PathState) {
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         if state.step == self.maturity_step {
-            self.terminal_spot = super::require_finite_state(state.spot(), "SPOT", state.step);
+            self.terminal_spot = super::require_finite_state(state.spot(), "SPOT", state.step)?;
         }
+        Ok(())
     }
 
     fn max_event_step(&self) -> Option<usize> {
@@ -325,7 +329,7 @@ mod tests {
 
         // Simulate path with terminal spot = 110
         let mut state = create_terminal_state(10, 110.0);
-        call.on_event(&mut state);
+        call.on_event(&mut state).expect("valid payoff event");
 
         let value = call.value(Currency::USD);
         assert_eq!(value.amount(), 10.0); // max(110 - 100, 0)
@@ -338,7 +342,7 @@ mod tests {
 
         // Out of the money
         let mut state = create_terminal_state(10, 90.0);
-        call.on_event(&mut state);
+        call.on_event(&mut state).expect("valid payoff event");
 
         let value = call.value(Currency::USD);
         assert_eq!(value.amount(), 0.0); // max(90 - 100, 0) = 0
@@ -350,7 +354,7 @@ mod tests {
 
         // In the money
         let mut state = create_terminal_state(10, 90.0);
-        put.on_event(&mut state);
+        put.on_event(&mut state).expect("valid payoff event");
 
         let value = put.value(Currency::USD);
         assert_eq!(value.amount(), 10.0); // max(100 - 90, 0)
@@ -362,7 +366,7 @@ mod tests {
 
         // Above strike
         let mut state = create_terminal_state(10, 110.0);
-        digital.on_event(&mut state);
+        digital.on_event(&mut state).expect("valid payoff event");
 
         let value = digital.value(Currency::USD);
         assert_eq!(value.amount(), 50.0);
@@ -370,7 +374,7 @@ mod tests {
         // Reset and test below strike
         digital.reset();
         let mut state2 = create_terminal_state(10, 90.0);
-        digital.on_event(&mut state2);
+        digital.on_event(&mut state2).expect("valid payoff event");
 
         let value2 = digital.value(Currency::USD);
         assert_eq!(value2.amount(), 0.0);
@@ -382,7 +386,7 @@ mod tests {
 
         // Below strike
         let mut state = create_terminal_state(10, 90.0);
-        digital.on_event(&mut state);
+        digital.on_event(&mut state).expect("valid payoff event");
 
         let value = digital.value(Currency::USD);
         assert_eq!(value.amount(), 50.0);
@@ -394,7 +398,7 @@ mod tests {
 
         // Spot above forward price
         let mut state = create_terminal_state(10, 110.0);
-        forward.on_event(&mut state);
+        forward.on_event(&mut state).expect("valid payoff event");
 
         let value = forward.value(Currency::USD);
         assert_eq!(value.amount(), 10.0); // 110 - 100
@@ -406,7 +410,7 @@ mod tests {
 
         // Spot above forward price (loss for short)
         let mut state = create_terminal_state(10, 110.0);
-        forward.on_event(&mut state);
+        forward.on_event(&mut state).expect("valid payoff event");
 
         let value = forward.value(Currency::USD);
         assert_eq!(value.amount(), -10.0); // -(110 - 100)
@@ -417,7 +421,7 @@ mod tests {
         let mut call = EuropeanCall::new(100.0, 1.0, 10);
 
         let mut state = create_terminal_state(10, 110.0);
-        call.on_event(&mut state);
+        call.on_event(&mut state).expect("valid payoff event");
         assert_eq!(call.terminal_spot, 110.0);
 
         call.reset();
@@ -429,7 +433,7 @@ mod tests {
         let mut call = EuropeanCall::new(100.0, 10.0, 10);
 
         let mut state = create_terminal_state(10, 110.0);
-        call.on_event(&mut state);
+        call.on_event(&mut state).expect("valid payoff event");
 
         let value = call.value(Currency::USD);
         assert_eq!(value.amount(), 100.0); // (110 - 100) * 10

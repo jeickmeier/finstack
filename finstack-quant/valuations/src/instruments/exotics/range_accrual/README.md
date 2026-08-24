@@ -110,7 +110,7 @@ use finstack_quant_valuations::instruments::Attributes;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 use time::macros::date;
 
 let note = RangeAccrual::builder()
@@ -131,7 +131,7 @@ let note = RangeAccrual::builder()
     .discount_curve_id(CurveId::new("USD-OIS"))
     .spot_id("SPX-SPOT".into())
     .vol_surface_id(CurveId::new("SPX-VOL"))
-    .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+    .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
     .attributes(Attributes::new())
     // Mid-life: 3 of 6 past observations were in range.
     .past_fixings_in_range_opt(Some(3))

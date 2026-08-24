@@ -278,9 +278,8 @@ struct RealEstateAssetUnchecked {
     /// Discount curve identifier, used for risk attribution only.
     ///
     /// DCF valuation always discounts at [`discount_rate`](Self::discount_rate)
-    /// regardless of whether this curve is loaded ; rate
-    /// sensitivity (`Dv01`/`BucketedDv01`) bumps the risk-free component
-    /// inside the rate.
+    /// regardless of whether this curve is loaded. Property discount-rate
+    /// sensitivity is exposed as `real_estate::discount_rate01`.
     /// Attributes for tagging and scenarios.
     #[serde(default)]
     instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,

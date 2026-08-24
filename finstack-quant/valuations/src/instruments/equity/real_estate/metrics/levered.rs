@@ -78,10 +78,11 @@ impl MetricCalculator for LoanToValue {
                 "LoanToValue: asset PV must be positive".into(),
             ));
         }
-        let mut financing_pv = 0.0;
-        for inst_json in &inst.financing {
-            let boxed = inst_json.clone().into_boxed()?;
-            let pv = boxed.value(&context.curves, context.as_of)?;
+        let mut financing_pv = 0.0_f64;
+        for financing in &inst.financing {
+            let pv = financing
+                .as_instrument()
+                .value(&context.curves, context.as_of)?;
             financing_pv += pv.amount();
         }
         Ok(financing_pv.abs() / denom)

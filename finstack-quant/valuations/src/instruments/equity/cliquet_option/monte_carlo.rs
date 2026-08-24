@@ -46,8 +46,6 @@ pub struct CliquetCallPayoff {
     pub global_floor: f64,
     /// Notional amount
     pub notional: f64,
-    /// Currency
-    pub currency: Currency,
     /// Initial spot price S_0
     pub initial_spot: f64,
     /// Locked-in sum of capped/floored past period returns (seasoned trades;
@@ -80,7 +78,6 @@ impl CliquetCallPayoff {
     /// * `global_cap` - Maximum total return (e.g., 0.20)
     /// * `global_floor` - Minimum total return (e.g., 0.0)
     /// * `notional` - Notional amount
-    /// * `currency` - Currency
     /// * `initial_spot` - Initial spot price S_0
     /// * `payoff_type` - Additive or Multiplicative aggregation
     #[allow(clippy::too_many_arguments)]
@@ -91,7 +88,6 @@ impl CliquetCallPayoff {
         global_cap: f64,
         global_floor: f64,
         notional: f64,
-        currency: Currency,
         initial_spot: f64,
         payoff_type: CliquetPayoffType,
     ) -> finstack_quant_core::Result<Self> {
@@ -124,7 +120,6 @@ impl CliquetCallPayoff {
             global_cap,
             global_floor,
             notional,
-            currency,
             initial_spot,
             prior_locked_sum: 0.0,
             prior_locked_growth: 1.0,
@@ -194,11 +189,20 @@ impl CliquetCallPayoff {
 }
 
 impl Payoff for CliquetCallPayoff {
-    fn on_event(&mut self, state: &mut PathState) {
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         const EPS: f64 = 1e-6;
-        let Some(spot) = state.spot() else {
-            return;
-        };
+        let spot = state.spot().ok_or_else(|| {
+            CoreError::Validation(format!(
+                "CliquetCallPayoff requires SPOT at step {}",
+                state.step
+            ))
+        })?;
+        if !spot.is_finite() || spot <= 0.0 {
+            return Err(CoreError::Validation(format!(
+                "CliquetCallPayoff SPOT must be finite and positive at step {}, got {spot}",
+                state.step
+            )));
+        }
         // Capture every reset date now due. A single MC time step can span
         // multiple reset dates (coarse grid); each due reset must record a spot
         // so period returns are computed against the correct number of resets.
@@ -208,6 +212,7 @@ impl Payoff for CliquetCallPayoff {
             self.reset_spots.push(spot);
             self.next_reset_idx += 1;
         }
+        Ok(())
     }
 
     fn value(&self, currency: Currency) -> Money {
@@ -245,7 +250,6 @@ mod tests {
             0.30, // 30% global cap
             0.0,  // 0% global floor
             100_000.0,
-            Currency::USD,
             100.0,
             CliquetPayoffType::Additive,
         )
@@ -268,7 +272,6 @@ mod tests {
             0.30, // 30% global cap
             0.0,  // 0% global floor
             1.0,
-            Currency::USD,
             100.0,
             CliquetPayoffType::Additive,
         )
@@ -294,7 +297,6 @@ mod tests {
             0.30,  // 30% global cap
             -0.20, // -20% global floor
             1.0,
-            Currency::USD,
             100.0,
             CliquetPayoffType::Additive,
         )
@@ -320,7 +322,6 @@ mod tests {
             0.30, // 30% global cap
             0.0,  // 0% global floor
             1.0,
-            Currency::USD,
             100.0,
             CliquetPayoffType::Additive,
         )
@@ -349,7 +350,6 @@ mod tests {
             0.30,
             0.0,
             100_000.0,
-            Currency::USD,
             100.0,
             CliquetPayoffType::Additive,
         )
@@ -358,7 +358,7 @@ mod tests {
         // First coarse step at t = 0.5 spans reset dates 0 (0.25) and 1 (0.5).
         let mut state = PathState::new(1, 0.5);
         state.set(state_keys::SPOT, 105.0);
-        cliquet.on_event(&mut state);
+        cliquet.on_event(&mut state).expect("valid payoff event");
         assert_eq!(
             cliquet.next_reset_idx, 2,
             "a step spanning two reset dates must consume both"
@@ -367,7 +367,7 @@ mod tests {
         // Second coarse step at t = 1.0 spans reset dates 2 (0.75) and 3 (1.0).
         let mut state = PathState::new(2, 1.0);
         state.set(state_keys::SPOT, 110.0);
-        cliquet.on_event(&mut state);
+        cliquet.on_event(&mut state).expect("valid payoff event");
 
         assert_eq!(
             cliquet.next_reset_idx, 4,
@@ -397,7 +397,6 @@ mod tests {
             0.30,  // global cap
             -0.20, // NEGATIVE global floor
             100_000.0,
-            Currency::USD,
             100.0,
             CliquetPayoffType::Additive,
         )
@@ -437,7 +436,6 @@ mod tests {
             0.30,
             0.0,
             1.0,
-            Currency::USD,
             100.0,
             CliquetPayoffType::Additive,
         )

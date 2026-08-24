@@ -161,9 +161,9 @@ impl CallableRangeAccrualPayoff {
 }
 
 impl Payoff for CallableRangeAccrualPayoff {
-    fn on_event(&mut self, state: &mut PathState) {
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         if self.next_event >= self.events.len() {
-            return;
+            return Ok(());
         }
 
         if self.final_payment_event_idx == Some(self.next_event) {
@@ -183,6 +183,7 @@ impl Payoff for CallableRangeAccrualPayoff {
             self.observations_seen += 1;
         }
         self.next_event += 1;
+        Ok(())
     }
 
     fn value(&self, currency: finstack_quant_core::currency::Currency) -> Money {

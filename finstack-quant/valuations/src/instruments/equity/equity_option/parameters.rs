@@ -33,8 +33,8 @@ pub struct EquityOptionMarketData {
     pub spot_id: PriceId,
     /// Volatility surface used for option pricing.
     pub vol_surface_id: CurveId,
-    /// Optional continuous dividend-yield curve identifier.
-    pub div_yield_id: Option<CurveId>,
+    /// Optional continuous dividend-yield scalar identifier.
+    pub div_yield_id: Option<PriceId>,
 }
 
 impl EquityOptionParams {
@@ -88,8 +88,8 @@ impl EquityOptionMarketData {
         }
     }
 
-    /// Attach a continuous dividend-yield curve identifier.
-    pub fn with_dividend_yield(mut self, div_yield_id: impl Into<CurveId>) -> Self {
+    /// Attach a continuous dividend-yield scalar identifier.
+    pub fn with_dividend_yield(mut self, div_yield_id: impl Into<PriceId>) -> Self {
         self.div_yield_id = Some(div_yield_id.into());
         self
     }

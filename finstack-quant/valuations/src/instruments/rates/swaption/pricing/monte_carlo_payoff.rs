@@ -276,7 +276,7 @@ impl BermudanSwaptionPayoff {
 }
 
 impl Payoff for BermudanSwaptionPayoff {
-    fn on_event(&mut self, state: &mut PathState) {
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         if !self.exercised && self.next_exercise_idx < self.exercise_dates.len() {
             let target_date = self.exercise_dates[self.next_exercise_idx];
 
@@ -291,6 +291,7 @@ impl Payoff for BermudanSwaptionPayoff {
                 self.next_exercise_idx += 1;
             }
         }
+        Ok(())
     }
 
     fn value(&self, currency: Currency) -> Money {

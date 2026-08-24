@@ -38,8 +38,9 @@ struct ShortRateCallPayoff {
 }
 
 impl Payoff for ShortRateCallPayoff {
-    fn on_event(&mut self, s: &mut PathState) {
+    fn on_event(&mut self, s: &mut PathState) -> finstack_quant_core::Result<()> {
         self.rate_at_expiry = s.get_key(StateKey::ShortRate);
+        Ok(())
     }
     fn value(&self, ccy: Currency) -> Money {
         let r = self.rate_at_expiry.unwrap_or(0.0);

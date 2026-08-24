@@ -162,8 +162,8 @@ fn test_equity_option_greek(
 }
 
 #[test]
-fn test_equity_option_all_analytical_greeks() {
-    // For EquityOption, all greeks should match between direct calls and registry
+fn test_equity_option_instantaneous_analytical_greeks() {
+    // Instantaneous analytical Greeks match between direct calls and registry.
     let as_of = date!(2024 - 01 - 01);
     let expiry = date!(2025 - 01 - 01);
 
@@ -203,9 +203,6 @@ fn test_equity_option_all_analytical_greeks() {
     });
     test_equity_option_greek(&option, &market, as_of, MetricId::Rho, |opt, mkt, dt| {
         opt.rho(mkt, dt)
-    });
-    test_equity_option_greek(&option, &market, as_of, MetricId::Theta, |opt, mkt, dt| {
-        opt.theta(mkt, dt)
     });
 }
 

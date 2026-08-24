@@ -4,7 +4,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 use finstack_quant_valuations::instruments::exotics::lookback_option::{
     LookbackOption, LookbackOptionBuilder, LookbackType,
 };
@@ -27,7 +27,7 @@ fn get_base_builder(as_of: Date) -> LookbackOptionBuilder {
         .discount_curve_id(CurveId::new("USD-OIS"))
         .spot_id("SPX-SPOT".into())
         .vol_surface_id(CurveId::new("SPX-VOL"))
-        .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+        .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
         .instrument_pricing_overrides(
             finstack_quant_valuations::instruments::InstrumentPricingOverrides::default(),
         )
@@ -239,7 +239,7 @@ fn test_expired_fixed_strike_call_returns_realized_payoff() {
         .discount_curve_id(CurveId::new("USD-OIS"))
         .spot_id("SPX-SPOT".into())
         .vol_surface_id(CurveId::new("SPX-VOL"))
-        .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+        .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
         .instrument_pricing_overrides(
             finstack_quant_valuations::instruments::InstrumentPricingOverrides::default(),
         )

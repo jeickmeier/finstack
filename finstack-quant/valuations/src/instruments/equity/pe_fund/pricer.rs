@@ -60,10 +60,7 @@ pub(crate) fn compute_pv(
     let future_pv = if let Some(ref discount_curve_id) = fund.discount_curve_id {
         use finstack_quant_core::cashflow::Discountable;
         let disc = curves.get_discount(discount_curve_id.as_str())?;
-        // Anchor the NPV at `as_of` — the same date used to select the
-        // future flows — so cutoff and discount anchor cannot diverge when a
-        // caller passes an `as_of` different from the curve's base date.
-        // (`resolve_as_of` makes them coincide on the framework path.)
+        // Discount and cashflow cutoff share the caller's valuation date.
         future_flows.npv(disc.as_ref(), as_of)?
     } else {
         let total: f64 = future_flows.iter().map(|(_, m)| m.amount()).sum();
@@ -71,36 +68,6 @@ pub(crate) fn compute_pv(
     };
 
     future_pv.checked_add(nav)
-}
-
-/// Resolve the effective valuation date for a private markets fund.
-///
-/// Private markets funds intentionally ignore the caller's requested `as_of`
-/// and anchor valuation to their own state:
-///
-/// - When a discount curve is configured, the curve's `base_date()` is used.
-/// - Otherwise, the latest event date is used (IRR-only / undiscounted path).
-///
-/// If neither anchor is available (curve lookup fails, or no events exist),
-/// the requested date is returned unchanged; the subsequent
-/// [`compute_pv`] call then surfaces the underlying error.
-pub(crate) fn resolve_as_of(
-    fund: &PrivateMarketsFund,
-    market: &MarketContext,
-    requested: Date,
-) -> Date {
-    if let Some(ref discount_curve_id) = fund.discount_curve_id {
-        market
-            .get_discount(discount_curve_id.as_str())
-            .map(|disc| disc.base_date())
-            .unwrap_or(requested)
-    } else {
-        fund.events
-            .iter()
-            .map(|evt| evt.date)
-            .max()
-            .unwrap_or(requested)
-    }
 }
 
 #[cfg(test)]
@@ -133,12 +100,12 @@ mod tests {
 
     #[test]
     fn fully_realized_fund_prices_to_zero() {
-        // Holder view : all flows are on or before the
-        // resolved valuation date, so the residual position value is zero.
+        // Holder view: all flows are on or before the requested valuation
+        // date, so the residual position value is zero.
         let fund = fully_realized_fund();
         let market = MarketContext::new();
-        let as_of = fund.resolve_pricing_as_of(&market, date!(2025 - 06 - 01));
-        let pv = compute_pv(&fund, &market, as_of).expect("pv should compute");
+        let as_of = date!(2025 - 06 - 01);
+        let pv = fund.value(&market, as_of).expect("pv should compute");
         assert!(
             pv.amount().abs() < 1e-9,
             "fully realized fund should price to ~0, got {}",
@@ -150,8 +117,8 @@ mod tests {
     fn unrealized_nav_adds_to_pv() {
         let fund = fully_realized_fund().with_unrealized_nav(Money::new(750_000.0, Currency::USD));
         let market = MarketContext::new();
-        let as_of = fund.resolve_pricing_as_of(&market, date!(2025 - 06 - 01));
-        let pv = compute_pv(&fund, &market, as_of).expect("pv should compute");
+        let as_of = date!(2025 - 06 - 01);
+        let pv = fund.value(&market, as_of).expect("pv should compute");
         assert!(
             (pv.amount() - 750_000.0).abs() < 1e-9,
             "PV should equal the stated unrealized NAV, got {}",
@@ -160,11 +127,11 @@ mod tests {
     }
 
     #[test]
-    fn future_lp_flows_are_included_undiscounted_without_curve() {
+    fn canonical_pricing_includes_future_lp_flows_undiscounted_without_curve() {
         let fund = fully_realized_fund();
         let market = MarketContext::new();
-        // Value strictly before the distribution: the future LP flow counts.
-        let pv = compute_pv(&fund, &market, date!(2024 - 01 - 01)).expect("pv should compute");
+        let as_of = date!(2024 - 01 - 01);
+        let pv = fund.value(&market, as_of).expect("pv should compute");
         assert!(
             (pv.amount() - 2_000_000.0).abs() < 1e-6,
             "future LP distribution should be included, got {}",

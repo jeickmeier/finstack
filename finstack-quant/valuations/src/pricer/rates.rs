@@ -103,13 +103,6 @@ pub(crate) fn register_rates_pricers(registry: &mut PricerRegistry) {
         crate::instruments::rates::repo::Repo
     );
 
-    // DCF (Discounted Cash Flow)
-    registry.register(
-        InstrumentType::Dcf,
-        ModelKey::Discounting,
-        crate::instruments::equity::dcf_equity::pricer::DcfPricer,
-    );
-
     // Swaption - Hull-White 1F Tree
     registry.register(
         InstrumentType::Swaption,

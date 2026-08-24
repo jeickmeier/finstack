@@ -29,10 +29,9 @@
 //!
 //! # Market Data Integration
 //!
-//! Equity pricing requires:
-//! - **Spot price**: From market data feed or explicit quote
-//! - **Dividend yield**: Historical or implied from options
-//! - **Discount curve**: For present value calculations
+//! Spot PV requires a spot quote unless an explicit price is stored on the
+//! instrument. Dividend yield and discount curve inputs are required only for
+//! forward-price calculations.
 //!
 //! # Key Metrics
 //!

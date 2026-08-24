@@ -202,7 +202,10 @@ impl EquityFuture {
     }
 
     fn spot(&self, market: &MarketContext) -> finstack_quant_core::Result<f64> {
-        let spot = crate::metrics::scalar_numeric_value(market.get_price(&self.spot_id)?);
+        let spot = crate::instruments::common_impl::helpers::scalar_price_amount(
+            market.get_price(&self.spot_id)?,
+            self.underlying_currency,
+        )?;
         if !spot.is_finite() || spot <= 0.0 {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "EquityFuture '{}' spot must be finite and positive, got {spot}",

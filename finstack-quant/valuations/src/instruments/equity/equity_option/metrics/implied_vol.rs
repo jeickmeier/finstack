@@ -37,10 +37,10 @@ impl MetricCalculator for ImpliedVolCalculator {
                     option.id, price_id, e
                 ))
             })?;
-            match ms {
-                finstack_quant_core::market_data::scalars::MarketScalar::Unitless(val) => *val,
-                finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
-            }
+            crate::instruments::common_impl::helpers::scalar_price_amount(
+                ms,
+                option.notional.currency(),
+            )?
         } else {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "EquityOption '{}': implied volatility requires a market price — set \

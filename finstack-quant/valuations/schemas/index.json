@@ -186,7 +186,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/composite/composite.schema.json",
-      "bytes": 894244,
+      "bytes": 897372,
       "kind": "input",
       "path": "schemas/instruments/1/composite/composite.schema.json",
       "summary": "Resolved cross-asset synthetic instrument with immutable leg quantities.",
@@ -218,7 +218,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/credit_derivatives/credit_default_swap.schema.json",
-      "bytes": 47700,
+      "bytes": 47669,
       "kind": "input",
       "path": "schemas/instruments/1/credit_derivatives/credit_default_swap.schema.json",
       "summary": "Single-name CDS priced on the ISDA standard model.",
@@ -226,7 +226,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/autocallable.schema.json",
-      "bytes": 11907,
+      "bytes": 12309,
       "kind": "input",
       "path": "schemas/instruments/1/equity/autocallable.schema.json",
       "summary": "Structured note that redeems early when a barrier is met.",
@@ -234,7 +234,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/cliquet_option.schema.json",
-      "bytes": 8409,
+      "bytes": 8410,
       "kind": "input",
       "path": "schemas/instruments/1/equity/cliquet_option.schema.json",
       "summary": "Series of forward-starting options with local and global caps.",
@@ -242,7 +242,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/discounted_cash_flow.schema.json",
-      "bytes": 16200,
+      "bytes": 16160,
       "kind": "input",
       "path": "schemas/instruments/1/equity/discounted_cash_flow.schema.json",
       "summary": "Enterprise DCF valuation with an explicit forecast and terminal value.",
@@ -250,7 +250,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/equity.schema.json",
-      "bytes": 5107,
+      "bytes": 5238,
       "kind": "input",
       "path": "schemas/instruments/1/equity/equity.schema.json",
       "summary": "Cash equity position.",
@@ -290,7 +290,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/levered_real_estate_equity.schema.json",
-      "bytes": 893130,
+      "bytes": 173176,
       "kind": "input",
       "path": "schemas/instruments/1/equity/levered_real_estate_equity.schema.json",
       "summary": "Property equity net of its financing stack.",
@@ -298,7 +298,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/private_markets_fund.schema.json",
-      "bytes": 15873,
+      "bytes": 15837,
       "kind": "input",
       "path": "schemas/instruments/1/equity/private_markets_fund.schema.json",
       "summary": "Closed-end fund with a commitment schedule and distribution waterfall.",
@@ -306,7 +306,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/real_estate_asset.schema.json",
-      "bytes": 12304,
+      "bytes": 12295,
       "kind": "input",
       "path": "schemas/instruments/1/equity/real_estate_asset.schema.json",
       "summary": "Direct property asset with rent roll and exit assumptions.",
@@ -322,7 +322,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/variance_swap.schema.json",
-      "bytes": 10691,
+      "bytes": 11778,
       "kind": "input",
       "path": "schemas/instruments/1/equity/variance_swap.schema.json",
       "summary": "Swap on realised variance against a strike.",
@@ -346,7 +346,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/asian_option.schema.json",
-      "bytes": 8908,
+      "bytes": 8909,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/asian_option.schema.json",
       "summary": "Option on an average of observed fixings.",
@@ -354,7 +354,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/barrier_option.schema.json",
-      "bytes": 11838,
+      "bytes": 11839,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/barrier_option.schema.json",
       "summary": "Knock-in or knock-out option on a monitored barrier.",
@@ -362,7 +362,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/basket.schema.json",
-      "bytes": 893211,
+      "bytes": 896339,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/basket.schema.json",
       "summary": "Weighted basket of constituents priced as one position.",
@@ -370,7 +370,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/callable_range_accrual.schema.json",
-      "bytes": 16283,
+      "bytes": 16284,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/callable_range_accrual.schema.json",
       "summary": "Range accrual with issuer call rights.",
@@ -378,7 +378,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/lookback_option.schema.json",
-      "bytes": 8477,
+      "bytes": 8478,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/lookback_option.schema.json",
       "summary": "Option struck on the path maximum or minimum.",
@@ -386,7 +386,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/range_accrual.schema.json",
-      "bytes": 11852,
+      "bytes": 11853,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/range_accrual.schema.json",
       "summary": "Coupon accruing only on days the index sits inside a range.",
@@ -594,7 +594,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/quanto_option.schema.json",
-      "bytes": 7977,
+      "bytes": 7978,
       "kind": "input",
       "path": "schemas/instruments/1/fx/quanto_option.schema.json",
       "summary": "Option on a foreign asset settled in the domestic currency at a fixed rate.",
@@ -602,7 +602,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json",
-      "bytes": 979766,
+      "bytes": 983195,
       "kind": "input",
       "path": "schemas/instruments/1/instrument.schema.json",
       "summary": "The seventy-branch union of every instrument type. Prefer the per-type schema beside it: this document is too large to hand to a model.",

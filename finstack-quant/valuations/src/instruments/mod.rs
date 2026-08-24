@@ -210,10 +210,10 @@ pub use credit_derivatives::{CDSIndex, CDSOption, CDSTranche, CreditDefaultSwap}
 
 pub use equity::{
     Autocallable, CliquetOption, DiscountedCashFlow, Equity, EquityFuture, EquityFutureOption,
-    EquityFutureQuantoSpec, EquityOption, EquityTotalReturnFuture, EquityTotalReturnSwap,
-    FinalPayoffType, LeveredRealEstateEquity, PrivateMarketsFund, RealEstateAsset,
-    RealEstateValuationMethod, TerminalValueSpec, VarianceSwap, VolIndexContractSpecs,
-    VolatilityIndexFuture, VolatilityIndexFutureOption,
+    EquityFutureQuantoSpec, EquityOption, EquityPriceSeriesPolicy, EquityTotalReturnFuture,
+    EquityTotalReturnSwap, FinalPayoffType, LeveredRealEstateEquity, PrivateMarketsFund,
+    RealEstateAsset, RealEstateFinancing, RealEstateValuationMethod, TerminalValueSpec,
+    VarianceSwap, VolIndexContractSpecs, VolatilityIndexFuture, VolatilityIndexFutureOption,
 };
 
 pub use fx::FxVarianceSwap;

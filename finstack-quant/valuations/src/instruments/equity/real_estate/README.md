@@ -23,8 +23,8 @@ Import path: `finstack_quant_valuations::instruments::equity::real_estate`
 | `RealEstateAsset` | The unlevered asset. `builder()`, `example()`. |
 | `RealEstateValuationMethod` | `Dcf` or `DirectCap`. |
 | `RealEstatePropertyType` | `Office`, `Multifamily`, `Retail`, `Industrial`, `Hospitality`, `MixedUse`, `Other`. |
-| `LeveredRealEstateEquity` | Asset + financing stack (`Vec<InstrumentJson>`) with an optional `exit_date`. |
-| `LeveredRealEstateDiscountingPricer` | Exported but **not registered** in the pricer registry — see [Module layout](#module-layout). |
+| `RealEstateFinancing` | Supported financing union: bond, term loan, revolving credit, or repo. |
+| `LeveredRealEstateEquity` | Asset + `Vec<RealEstateFinancing>` with an optional `exit_date`. |
 
 ## Module layout
 
@@ -44,16 +44,14 @@ real_estate/
 
 Both instruments are registered with `register_generic!` under
 `InstrumentType::RealEstateAsset` and `InstrumentType::LeveredRealEstateEquity`
-in [`src/pricer/equity.rs`](../../../pricer/equity.rs), so pricing runs through
-`Instrument::base_value`. `levered_pricer.rs` holds the PV and cashflow helpers
-that `LeveredRealEstateEquity` calls from its own methods; the
-`LeveredRealEstateDiscountingPricer` struct in that file is public but is not
-registered under any `ModelKey` and is not on the pricing path.
+in [`src/pricer/equity.rs`](../../../pricer/equity.rs). Pricing runs through
+`Instrument::base_value`; `levered_pricer.rs` contains the shared PV and
+cashflow helpers used by `LeveredRealEstateEquity`.
 
 ## Levered equity composition
 
 `LeveredRealEstateEquity` holds `asset: RealEstateAsset`,
-`financing: Vec<InstrumentJson>` and an optional `exit_date`.
+`financing: Vec<RealEstateFinancing>` and an optional `exit_date`.
 
 - **Value convention**: `PV_equity = PV_asset − PV_financing`, with financing
   valued from the lender's perspective.
@@ -149,7 +147,7 @@ schedule.
 
 | `MetricId` | Meaning |
 |-----------|---------|
-| `Dv01`, `BucketedDv01` | Risk-free component bump inside the property discount rate |
+| `custom("real_estate::discount_rate01")` | PV change per +1bp property discount-rate move |
 | `custom("real_estate::going_in_cap_rate")` | First future NOI / `purchase_price`, falling back to the asset PV when `purchase_price` is unset |
 | `custom("real_estate::exit_cap_rate")` | The configured `terminal_cap_rate`; errors when unset |
 | `custom("real_estate::unlevered_irr")` | Requires `purchase_price` + `terminal_cap_rate` |
@@ -162,7 +160,7 @@ schedule.
 
 | `MetricId` | Meaning |
 |-----------|---------|
-| `Dv01`, `BucketedDv01` | Standard parallel / key-rate curve risk on the composed position |
+| `Dv01`, `BucketedDv01` | Parallel / key-rate market-curve risk of the financing stack |
 | `custom("real_estate::levered_irr")` | IRR on the equity cashflow schedule |
 | `custom("real_estate::equity_multiple")` | Equity multiple at exit |
 | `custom("real_estate::ltv")`, `custom("real_estate::ltv_at_origination")` | Loan-to-value |

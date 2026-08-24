@@ -143,10 +143,9 @@ impl FxBarrierPayoff {
 }
 
 impl Payoff for FxBarrierPayoff {
-    fn on_event(&mut self, state: &mut PathState) {
-        // Delegate to inner barrier call. The FX rate is carried in PathState
-        // as the simulated spot.
-        self.inner.on_event(state);
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
+        // The FX rate is carried as the simulated spot.
+        self.inner.on_event(state)
     }
 
     fn value(&self, currency: Currency) -> Money {

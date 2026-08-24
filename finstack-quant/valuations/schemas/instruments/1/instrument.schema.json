@@ -614,7 +614,7 @@
               "type": "null"
             }
           ],
-          "description": "Optional dividend yield curve ID"
+          "description": "Optional dividend-yield scalar ID"
         },
         "expiry": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
@@ -1432,8 +1432,16 @@
           "format": "double",
           "type": "number"
         },
+        "coupon_barriers": {
+          "description": "Coupon barriers corresponding to observation dates.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        },
         "coupons": {
-          "description": "Coupon amounts paid if observation barrier is met",
+          "description": "Coupon return amounts for each observation date.",
           "items": {
             "format": "double",
             "type": "number"
@@ -1458,7 +1466,7 @@
             }
           ],
           "default": null,
-          "description": "Optional dividend yield curve ID.\n\n`Some(id)`: lookup MUST succeed (a missing or non-unitless scalar\nreturns an error). `None`: no implicit default; treated as zero\ncontinuous dividend yield. Set explicitly for index underlyings."
+          "description": "Optional dividend-yield scalar ID.\n\n`Some(id)`: lookup MUST succeed (a missing or non-unitless scalar\nreturns an error). `None`: no implicit default; treated as zero\ncontinuous dividend yield. Set explicitly for index underlyings."
         },
         "expiry": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
@@ -1493,7 +1501,7 @@
         },
         "memory_coupons": {
           "default": false,
-          "description": "Memory (\"Phoenix\") coupon feature.\n\nWhen `true`, any coupons from earlier observation dates whose barrier\nwas *not* met are accrued (\"remembered\") and paid in full on the\nobservation date that finally triggers the autocall (in addition to\nthat date's own coupon). When `false` (the default), only the coupon\nat the autocall date is paid and earlier missed coupons are lost.\n\nThis flag must match the term sheet: a Phoenix/memory autocallable\npriced with `memory_coupons = false` is silently underpriced.",
+          "description": "Memory (\"Phoenix\") coupon feature.\n\nMissed coupons accrue until a later coupon barrier is met.",
           "type": "boolean"
         },
         "metric_pricing_overrides": {
@@ -1539,6 +1547,13 @@
           },
           "type": "array"
         },
+        "payment_dates": {
+          "description": "Contractual payment dates corresponding to observation dates.",
+          "items": {
+            "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+          },
+          "type": "array"
+        },
         "scenario_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
           "default": {},
@@ -1561,8 +1576,10 @@
         "id",
         "underlying_ticker",
         "observation_dates",
+        "payment_dates",
         "expiry",
         "autocall_barriers",
+        "coupon_barriers",
         "coupons",
         "final_barrier",
         "final_payoff_type",
@@ -1640,7 +1657,7 @@
               "type": "null"
             }
           ],
-          "description": "Optional dividend yield curve ID"
+          "description": "Optional dividend-yield scalar ID"
         },
         "expiry": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
@@ -4112,7 +4129,7 @@
             }
           ],
           "default": null,
-          "description": "Optional dividend yield curve ID.\n\n`Some(id)`: lookup MUST succeed (a missing or non-unitless scalar\nreturns an error). `None`: no implicit default; treated as zero\ncontinuous dividend yield. Set explicitly for index underlyings."
+          "description": "Optional dividend-yield scalar ID.\n\n`Some(id)`: lookup MUST succeed (a missing or non-unitless scalar\nreturns an error). `None`: no implicit default; treated as zero\ncontinuous dividend yield. Set explicitly for index underlyings."
         },
         "expiry": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
@@ -6882,7 +6899,7 @@
     },
     "CreditDefaultSwap": {
       "additionalProperties": false,
-      "description": "Credit Default Swap instrument.\n\n# Market Standards & Citations (Week 5)\n\n## ISDA Standards\n\nThis implementation follows the **ISDA 2014 Credit Derivatives Definitions**:\n- **Section 1.1:** General Terms and Credit Events\n- **Section 3.2:** Fixed Payments (Premium Leg)\n- **Section 3.3:** Floating Payments (Protection Leg)\n- **Section 7.1:** Settlement Terms\n\n## ISDA CDS Standard Model\n\nThe pricing engine implements the **ISDA CDS Standard Model (2009)**:\n- Quarterly premium payments (20th of Mar/Jun/Sep/Dec - IMM dates)\n- ACT/360 day count\n- Modified Following business day convention\n- Accrual-on-default included in premium leg\n- Settlement: T+3 (North America), T+1 (Europe post-2009)\n\n## Integration Methods\n\nMultiple numerical integration methods available:\n- **ISDA Exact:** Analytical integration at exact cashflow dates (default)\n- **Gaussian Quadrature:** 8-point Gauss-Legendre for smooth integration\n- **Adaptive Simpson:** Adaptive refinement for complex survival curves\n\n## References\n\n- ISDA 2014 Credit Derivatives Definitions `docs/REFERENCES.md#isda-2014-credit-definitions`\n- \"Modelling Single-name and Multi-name Credit Derivatives\" by O'Kane (2008) `docs/REFERENCES.md#o-kane-2008`\n- ISDA CDS Standard Model Implementation (Markit, 2009) `docs/REFERENCES.md#isda-cds-standard-model`\n- Bloomberg CDSW / *The Bloomberg CDS Model* (DOCS 2057273)\n  `docs/REFERENCES.md#bloomberg-cds-model`\n\nSee unit tests and `examples/` for usage.",
+      "description": "Credit Default Swap instrument.\n\n# Market Standards & Citations (Week 5)\n\n## ISDA Standards\n\nThis implementation follows the **ISDA 2014 Credit Derivatives Definitions**:\n- **Section 1.1:** General Terms and Credit Events\n- **Section 3.2:** Fixed Payments (Premium Leg)\n- **Section 3.3:** Floating Payments (Protection Leg)\n- **Section 7.1:** Settlement Terms\n\n## ISDA CDS Standard Model\n\nThe pricing engine implements the **ISDA CDS Standard Model (2009)**:\n- Quarterly premium payments (20th of Mar/Jun/Sep/Dec - IMM dates)\n- ACT/360 day count\n- Modified Following business day convention\n- Accrual-on-default included in premium leg\n- Settlement: T+3 (North America), T+1 (Europe post-2009)\n\n## Integration Method\n\nProtection and accrual-on-default legs use one piecewise-analytical\nintegration engine. Hazard- and discount-curve knots are mandatory\nboundaries; configurable intra-knot substeps control the additional\nresolution between those boundaries.\n\n## References\n\n- ISDA 2014 Credit Derivatives Definitions `docs/REFERENCES.md#isda-2014-credit-definitions`\n- \"Modelling Single-name and Multi-name Credit Derivatives\" by O'Kane (2008) `docs/REFERENCES.md#o-kane-2008`\n- ISDA CDS Standard Model Implementation (Markit, 2009) `docs/REFERENCES.md#isda-cds-standard-model`\n- Bloomberg CDSW / *The Bloomberg CDS Model* (DOCS 2057273)\n  `docs/REFERENCES.md#bloomberg-cds-model`\n\nSee unit tests and `examples/` for usage.",
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
@@ -7953,7 +7970,7 @@
         },
         "mid_year_convention": {
           "default": false,
-          "description": "Discount curve identifier, used for risk attribution only.\n\nDiscounting always uses [`wacc`](Self::wacc) via `(1 + wacc)^{-t}`\nregardless of whether this curve is loaded (the\nprevious behavior silently switched risky flows to risk-free curve\ndiscounting). Rate sensitivity (`Dv01`/`BucketedDv01`) bumps the\nrisk-free component inside the WACC instead.\nMid-year discounting convention (default: `false` = end-of-period).\n\nWhen `true`, each flow is discounted at `t` minus half the average\nflow spacing instead of `t` (the classic `t - 0.5` for annual\ngrids; half a period for sub-annual grids), reflecting the\nassumption that cash flows arrive mid-period. This is the standard\nconvention in IB/PE practice (Koller et al.). Exit-multiple\nterminal values are not shifted (point-in-time sale at the horizon).",
+          "description": "Discount curve identifier, used for risk attribution only.\n\nDiscounting always uses [`wacc`](Self::wacc) via `(1 + wacc)^{-t}`\nregardless of whether this curve is loaded (the\nprevious behavior silently switched risky flows to risk-free curve\ndiscounting). WACC sensitivity is exposed separately as `dcf::wacc01`.\nMid-year discounting convention (default: `false` = end-of-period).\n\nWhen `true`, each flow is discounted at `t` minus half the average\nflow spacing instead of `t` (the classic `t - 0.5` for annual\ngrids; half a period for sub-annual grids), reflecting the\nassumption that cash flows arrive mid-period. This is the standard\nconvention in IB/PE practice (Koller et al.). Exit-multiple\nterminal values are not shifted (point-in-time sale at the horizon).",
           "type": "boolean"
         },
         "net_debt": {
@@ -8362,7 +8379,7 @@
               "type": "null"
             }
           ],
-          "description": "Explicit market data identifier to resolve the dividend yield"
+          "description": "Explicit scalar identifier used to resolve the dividend yield."
         },
         "id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
@@ -8377,11 +8394,15 @@
           "description": "Metric-only pricing controls."
         },
         "price_id": {
-          "description": "Explicit market data identifier to resolve the spot price",
-          "type": [
-            "string",
-            "null"
-          ]
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Explicit scalar identifier used to resolve the spot price."
         },
         "price_quote": {
           "description": "Optional price quote (if not provided, will look up from market data)",
@@ -8765,6 +8786,21 @@
         "attributes"
       ],
       "type": "object"
+    },
+    "EquityPriceSeriesPolicy": {
+      "description": "Corporate-action treatment of historical equity price observations.",
+      "oneOf": [
+        {
+          "const": "adjusted",
+          "description": "Input series is adjusted for splits and contractually relevant distributions.",
+          "type": "string"
+        },
+        {
+          "const": "raw",
+          "description": "Input series contains raw official levels; corporate actions are intentionally retained.",
+          "type": "string"
+        }
+      ]
     },
     "EquityTotalReturnFuture": {
       "additionalProperties": false,
@@ -14158,9 +14194,9 @@
           "description": "Optional explicit exit/sale date. Defaults to the asset's valuation\nhorizon: `asset.sale_date` when set, else the last NOI date on/after `as_of`."
         },
         "financing": {
-          "description": "Financing instruments (borrower liabilities), valued from lender perspective.\n\nPV convention nets these from the asset PV.",
+          "description": "Supported borrower liabilities, valued from the lender perspective and\nnetted from asset PV.",
           "items": {
-            "$ref": "#/$defs/InstrumentJson"
+            "$ref": "#/$defs/RealEstateFinancing"
           },
           "type": "array"
         },
@@ -14409,7 +14445,7 @@
               "type": "null"
             }
           ],
-          "description": "Optional dividend yield curve ID"
+          "description": "Optional dividend-yield scalar ID"
         },
         "expiry": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
@@ -16282,7 +16318,7 @@
     },
     "PrivateMarketsFund": {
       "additionalProperties": false,
-      "description": "Private markets fund investment instrument.\n\nModels a private equity, private credit, or alternative fund with a\ncashflow waterfall that determines LP/GP allocation. Supports NAV\ndiscounting when a `discount_curve_id` is provided, or falls back to\nlast-event date for IRR-only workflows.",
+      "description": "Private markets fund investment instrument.\n\nModels a private equity, private credit, or alternative fund with a\ncashflow waterfall that determines LP/GP allocation. Future LP cashflows\nare selected relative to the caller's valuation date and optionally\ndiscounted with `discount_curve_id`.",
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
@@ -16302,7 +16338,7 @@
               "type": "null"
             }
           ],
-          "description": "Discount curve identifier for NAV present-value calculations.\n\nWhen `None`, the pricer falls back to the last event date as the\nvaluation date and returns an undiscounted waterfall NAV."
+          "description": "Optional discount curve for future LP cashflows.\n\nWhen `None`, future cashflows are included undiscounted relative to the\ncaller's valuation date."
         },
         "events": {
           "description": "Time-ordered list of fund events (contributions, proceeds, distributions).",
@@ -16475,7 +16511,7 @@
             }
           ],
           "default": null,
-          "description": "Optional dividend yield curve ID."
+          "description": "Optional dividend-yield scalar ID."
         },
         "domestic_discount_curve_id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
@@ -16662,7 +16698,7 @@
               "type": "null"
             }
           ],
-          "description": "Optional dividend yield curve ID"
+          "description": "Optional dividend-yield scalar ID"
         },
         "id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
@@ -17001,7 +17037,7 @@
         "instrument_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
           "default": {},
-          "description": "Discount curve identifier, used for risk attribution only.\n\nDCF valuation always discounts at [`discount_rate`](Self::discount_rate)\nregardless of whether this curve is loaded ; rate\nsensitivity (`Dv01`/`BucketedDv01`) bumps the risk-free component\ninside the rate.\nAttributes for tagging and scenarios."
+          "description": "Discount curve identifier, used for risk attribution only.\n\nDCF valuation always discounts at [`discount_rate`](Self::discount_rate)\nregardless of whether this curve is loaded. Property discount-rate\nsensitivity is exposed as `real_estate::discount_rate01`.\nAttributes for tagging and scenarios."
         },
         "metric_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
@@ -17127,6 +17163,83 @@
         "day_count"
       ],
       "type": "object"
+    },
+    "RealEstateFinancing": {
+      "description": "Financing instruments supported by levered real-estate valuation and metrics.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Fixed- or floating-rate bond financing.",
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/Bond"
+            },
+            "type": {
+              "const": "bond",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Institutional term-loan financing.",
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/TermLoan"
+            },
+            "type": {
+              "const": "term_loan",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Revolving-credit financing.",
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/RevolvingCredit"
+            },
+            "type": {
+              "const": "revolving_credit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Repurchase-agreement financing.",
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/Repo"
+            },
+            "type": {
+              "const": "repo",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "RealEstatePropertyType": {
       "description": "Broad property classification for reporting / tagging.",
@@ -20525,6 +20638,10 @@
             "null"
           ]
         },
+        "price_series_policy": {
+          "$ref": "#/$defs/EquityPriceSeriesPolicy",
+          "description": "Corporate-action policy applied to all historical price series.\n\nThe selected policy is declarative: input series must already conform to\nit. `Adjusted` is appropriate for single-stock variance where splits\nmust not create artificial returns; `Raw` is explicit for official index\nlevels or contracts whose calculation agent retains raw observations."
+        },
         "realized_var_method": {
           "$ref": "#/$defs/RealizedVarMethod",
           "default": "close_to_close",
@@ -20573,6 +20690,7 @@
         "maturity",
         "observation_frequency",
         "observation_calendar_id",
+        "price_series_policy",
         "side",
         "discount_curve_id",
         "day_count",
@@ -22770,6 +22888,7 @@
             "unit": "days"
           },
           "open_series_id": null,
+          "price_series_policy": "adjusted",
           "realized_var_method": "close_to_close",
           "settlement_date": null,
           "side": "receive",
@@ -23522,6 +23641,12 @@
             1.0
           ],
           "cap_level": 1.5,
+          "coupon_barriers": [
+            0.7,
+            0.7,
+            0.7,
+            0.7
+          ],
           "coupons": [
             0.02,
             0.02,
@@ -23553,6 +23678,12 @@
           ],
           "participation_rate": 1.0,
           "past_fixings": [],
+          "payment_dates": [
+            "2024-03-29",
+            "2024-06-28",
+            "2024-09-30",
+            "2024-12-31"
+          ],
           "spot_id": "SPX-SPOT",
           "underlying_ticker": "SPX",
           "vol_surface_id": "SPX-VOL"

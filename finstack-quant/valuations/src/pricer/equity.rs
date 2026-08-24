@@ -78,6 +78,13 @@ pub(crate) fn register_equity_pricers(registry: &mut PricerRegistry) {
         crate::instruments::equity::vol_index_future::VolatilityIndexFuture
     );
 
+    // Corporate discounted cash flow.
+    registry.register(
+        InstrumentType::Dcf,
+        ModelKey::Discounting,
+        crate::instruments::equity::dcf_equity::pricer::DcfPricer,
+    );
+
     // Real Estate Asset - uses GenericInstrumentPricer (curve dependencies)
     register_generic!(
         registry,
@@ -92,8 +99,7 @@ pub(crate) fn register_equity_pricers(registry: &mut PricerRegistry) {
         crate::instruments::LeveredRealEstateEquity
     );
 
-    // Private Markets Fund - uses GenericInstrumentPricer; the fund anchors its
-    // valuation date via `Instrument::resolve_pricing_as_of`.
+    // Private Markets Fund - uses GenericInstrumentPricer.
     register_generic!(
         registry,
         InstrumentType::PrivateMarketsFund,

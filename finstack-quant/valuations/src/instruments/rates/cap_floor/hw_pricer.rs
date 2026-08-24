@@ -809,9 +809,9 @@ mod tests {
     }
 
     impl Payoff for CompoundedSofrMcPayoff {
-        fn on_event(&mut self, state: &mut PathState) {
+        fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
             let Some(event) = self.events.get(self.next_event) else {
-                return;
+                return Ok(());
             };
             let short_rate = state
                 .get_key(StateKey::ShortRate)
@@ -834,6 +834,7 @@ mod tests {
                     self.notional * self.accrual_year_fraction * intrinsic_rate / bank;
             }
             self.next_event += 1;
+            Ok(())
         }
 
         fn value(&self, currency: Currency) -> Money {

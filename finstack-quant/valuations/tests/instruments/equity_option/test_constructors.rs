@@ -5,7 +5,7 @@ use crate::test_support::equity_fx_options as test_utils;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 use finstack_quant_valuations::instruments::equity::equity_option::EquityOption;
 use finstack_quant_valuations::instruments::Attributes;
 use finstack_quant_valuations::instruments::{ExerciseStyle, OptionType};
@@ -29,7 +29,7 @@ fn test_builder_creates_valid_option() {
         .discount_curve_id(CurveId::new(DISC_ID))
         .spot_id(SPOT_ID.into())
         .vol_surface_id(CurveId::new(VOL_ID))
-        .div_yield_id_opt(Some(CurveId::new(DIV_ID)))
+        .div_yield_id_opt(Some(PriceId::new(DIV_ID)))
         .instrument_pricing_overrides(InstrumentPricingOverrides::default())
         .attributes(Attributes::new())
         .build()

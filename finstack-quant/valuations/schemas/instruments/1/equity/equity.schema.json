@@ -44,7 +44,7 @@
               "type": "null"
             }
           ],
-          "description": "Explicit market data identifier to resolve the dividend yield"
+          "description": "Explicit scalar identifier used to resolve the dividend yield."
         },
         "id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
@@ -59,11 +59,15 @@
           "description": "Metric-only pricing controls."
         },
         "price_id": {
-          "description": "Explicit market data identifier to resolve the spot price",
-          "type": [
-            "string",
-            "null"
-          ]
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Explicit scalar identifier used to resolve the spot price."
         },
         "price_quote": {
           "description": "Optional price quote (if not provided, will look up from market data)",

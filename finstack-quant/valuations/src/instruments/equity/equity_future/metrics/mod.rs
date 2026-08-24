@@ -20,7 +20,10 @@ impl MetricCalculator for Basis {
             .terms
             .quoted_price
             .map_or_else(|| future.fair_price(&context.curves, context.as_of), Ok)?;
-        let spot = crate::metrics::scalar_numeric_value(context.curves.get_price(&future.spot_id)?);
+        let spot = crate::instruments::common_impl::helpers::scalar_price_amount(
+            context.curves.get_price(&future.spot_id)?,
+            future.underlying_currency,
+        )?;
         Ok(futures_price - spot)
     }
 }

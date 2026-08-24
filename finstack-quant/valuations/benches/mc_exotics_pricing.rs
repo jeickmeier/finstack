@@ -14,7 +14,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 use finstack_quant_valuations::instruments::equity::autocallable::{Autocallable, FinalPayoffType};
 use finstack_quant_valuations::instruments::equity::CliquetOption;
 use finstack_quant_valuations::instruments::exotics::lookback_option::{
@@ -103,7 +103,7 @@ fn lookback_option(mc_paths: usize) -> LookbackOption {
         .discount_curve_id(CurveId::new("USD-OIS"))
         .spot_id("SPOT".into())
         .vol_surface_id(CurveId::new("SPOT_VOL"))
-        .div_yield_id_opt(Some(CurveId::new("SPOT_DIV")))
+        .div_yield_id_opt(Some(PriceId::new("SPOT_DIV")))
         .use_gobet_miri(true)
         .instrument_pricing_overrides(InstrumentPricingOverrides::default().with_mc_paths(mc_paths))
         .attributes(Attributes::new())
@@ -123,10 +123,12 @@ fn autocallable_note(mc_paths: usize) -> Autocallable {
     Autocallable {
         id: "AUTO-BENCH".into(),
         underlying_ticker: "SPOT".into(),
+        payment_dates: observation_dates.clone(),
         expiry: *observation_dates.last().unwrap(),
         observation_dates,
         autocall_barriers: vec![1.0; n],
         coupons: vec![0.02; n],
+        coupon_barriers: vec![0.70; n],
         memory_coupons: false,
         final_barrier: 0.6,
         final_payoff_type: FinalPayoffType::Participation { rate: 1.0 },
@@ -137,7 +139,7 @@ fn autocallable_note(mc_paths: usize) -> Autocallable {
         discount_curve_id: CurveId::new("USD-OIS"),
         spot_id: "SPOT".into(),
         vol_surface_id: CurveId::new("SPOT_VOL"),
-        div_yield_id: Some(CurveId::new("SPOT_DIV")),
+        div_yield_id: Some(finstack_quant_core::types::PriceId::new("SPOT_DIV")),
         initial_level: None,
         past_fixings: vec![],
         instrument_pricing_overrides: InstrumentPricingOverrides::default().with_mc_paths(mc_paths),
@@ -213,7 +215,7 @@ fn make_cliquet(as_of: Date, n_resets: usize) -> CliquetOption {
         .discount_curve_id(CurveId::new("USD-OIS"))
         .spot_id("SPOT".into())
         .vol_surface_id(CurveId::new("SPOT_VOL"))
-        .div_yield_id_opt(Some(CurveId::new("SPOT_DIV")))
+        .div_yield_id_opt(Some(PriceId::new("SPOT_DIV")))
         .instrument_pricing_overrides(InstrumentPricingOverrides::default())
         .attributes(Attributes::new())
         .build()

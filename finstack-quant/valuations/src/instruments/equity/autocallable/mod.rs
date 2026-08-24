@@ -10,12 +10,11 @@
 //! - **Autocall barrier**: Early redemption if S > Barrier
 //! - **Protection barrier**: Capital protection level at maturity
 //!
-//! Typical payoff at observation i:
-//! - If S_i ≥ Autocall Barrier: Redeem at par + coupon (stop). With the
-//!   `memory_coupons` ("Phoenix") flag set, all coupons missed at earlier
-//!   observation dates are also accrued and paid here; otherwise only the
-//!   coupon at the autocall date is paid.
-//! - Else: No coupon, continue to next observation
+//! Typical observation treatment:
+//! - If the coupon barrier is met, pay the current coupon plus any remembered
+//!   coupons on its contractual payment date.
+//! - If the autocall barrier is met, redeem principal on that payment date and stop.
+//! - Otherwise continue to the next observation.
 //!
 //! At maturity (if not called):
 //! - If S_T ≥ Protection Barrier: Repay par
@@ -35,7 +34,6 @@
 //! Popular underlyings:
 //! - **Single stocks**: Large-cap, liquid names
 //! - **Indices**: S&P 500, Euro Stoxx 50
-//! - **Worst-of baskets**: Multiple underlyings
 //!
 //! # References
 //!
@@ -50,7 +48,7 @@
 //! - Monte Carlo pricer for path-dependent pricing
 
 pub(crate) mod metrics;
-pub mod monte_carlo;
+pub(crate) mod monte_carlo;
 pub(crate) mod pricer;
 pub(crate) mod traits;
 pub(crate) mod types;

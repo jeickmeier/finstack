@@ -50,12 +50,12 @@ pub struct CliquetOption {
     pub spot_id: PriceId,
     /// Volatility surface ID
     pub vol_surface_id: CurveId,
-    /// Optional dividend yield curve ID.
+    /// Optional dividend-yield scalar ID.
     ///
     /// `Some(id)`: lookup MUST succeed (a missing or non-unitless scalar
     /// returns an error). `None`: no implicit default; treated as zero
     /// continuous dividend yield. Set explicitly for index underlyings.
-    pub div_yield_id: Option<CurveId>,
+    pub div_yield_id: Option<PriceId>,
     /// Strike-set underlying level anchoring the first period's return.
     ///
     /// `None` (the default) uses the spot at the valuation date, which is only
@@ -163,13 +163,13 @@ struct CliquetOptionUnchecked {
     spot_id: PriceId,
     /// Volatility surface ID
     vol_surface_id: CurveId,
-    /// Optional dividend yield curve ID.
+    /// Optional dividend-yield scalar ID.
     ///
     /// `Some(id)`: lookup MUST succeed (a missing or non-unitless scalar
     /// returns an error). `None`: no implicit default; treated as zero
     /// continuous dividend yield. Set explicitly for index underlyings.
     #[serde(default)]
-    div_yield_id: Option<CurveId>,
+    div_yield_id: Option<PriceId>,
     /// Strike-set underlying level anchoring the first period's return.
     ///
     /// `None` (the default) uses the spot at the valuation date, which is only
@@ -355,7 +355,7 @@ impl CliquetOption {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .attributes(Attributes::new())
             .build()
     }

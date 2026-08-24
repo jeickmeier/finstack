@@ -21,7 +21,7 @@ use finstack_quant_core::math::stats::RealizedVarMethod;
 use finstack_quant_core::money::fx::{FxMatrix, SimpleFxProvider};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::BarrierType;
-use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 use finstack_quant_valuations::instruments::fx::fx_barrier_option::FxBarrierOption;
 use finstack_quant_valuations::instruments::fx::fx_digital_option::{
     DigitalPayoutType, FxDigitalOption,
@@ -296,7 +296,7 @@ fn make_quanto(as_of: Date, tenor_years: i32) -> QuantoOption {
         .foreign_discount_curve_id(CurveId::new("JPY-OIS"))
         .spot_id("NKY-SPOT".into())
         .vol_surface_id(CurveId::new("NKY-VOL"))
-        .div_yield_id_opt(Some(CurveId::new("NKY-DIV")))
+        .div_yield_id_opt(Some(PriceId::new("NKY-DIV")))
         .fx_rate_id_opt(Some("JPYUSD-SPOT".to_string()))
         .fx_vol_id_opt(Some(CurveId::new("JPYUSD-VOL")))
         .instrument_pricing_overrides(InstrumentPricingOverrides::default())

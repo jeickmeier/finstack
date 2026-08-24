@@ -1025,6 +1025,13 @@
       "additionalProperties": false,
       "description": "Unified dependency container for instrument market data requirements.",
       "properties": {
+        "credit_index_ids": {
+          "description": "Credit-index aggregates resolved through `MarketContext::get_credit_index`.\n\nThese identifiers are distinct from direct hazard-curve IDs because a\ncredit index also carries base correlation and optional issuer curves.",
+          "items": {
+            "$ref": "#/$defs/Id"
+          },
+          "type": "array"
+        },
         "curves": {
           "$ref": "#/$defs/InstrumentCurves",
           "description": "Curve dependencies grouped by type."

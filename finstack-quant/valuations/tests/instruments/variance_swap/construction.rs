@@ -26,6 +26,9 @@ fn test_builder_creates_valid_swap_with_all_required_fields() {
         .observation_frequency(Tenor::daily())
         .observation_calendar_id("USNY".to_string())
         .realized_var_method(RealizedVarMethod::CloseToClose)
+        .price_series_policy(
+            finstack_quant_valuations::instruments::EquityPriceSeriesPolicy::Adjusted,
+        )
         .side(PayReceive::Receive)
         .discount_curve_id(CurveId::new(DISC_ID))
         .day_count(DayCount::Act365F)

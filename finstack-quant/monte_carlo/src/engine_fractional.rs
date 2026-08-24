@@ -180,10 +180,11 @@ mod tests {
     }
 
     impl Payoff for TerminalSpotPayoff {
-        fn on_event(&mut self, state: &mut PathState) {
+        fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
             if let Some(s) = state.spot() {
                 self.terminal = s;
             }
+            Ok(())
         }
 
         fn value(&self, currency: Currency) -> Money {

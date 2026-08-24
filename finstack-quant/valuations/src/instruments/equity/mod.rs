@@ -30,7 +30,7 @@
 //! use finstack_quant_valuations::instruments::EquityOption;
 //! use finstack_quant_core::currency::Currency;
 //! use finstack_quant_core::money::Money;
-//! use finstack_quant_core::types::CurveId;
+//! use finstack_quant_core::types::{CurveId, PriceId};
 //! use time::macros::date;
 //!
 //! // Create a 6-month ATM call option
@@ -39,7 +39,7 @@
 //!     "EQUITY-SPOT",
 //!     CurveId::new("EQUITY-VOL"),
 //! )
-//! .with_dividend_yield(CurveId::new("EQUITY-DIVYIELD"));
+//! .with_dividend_yield(PriceId::new("EQUITY-DIVYIELD"));
 //! let option = EquityOption::european_call_with_market_data(
 //!     "SPX-CALL-4500",
 //!     "SPX",
@@ -113,8 +113,10 @@ pub use equity_option::{EquityOption, EquityOptionMarketData};
 pub use equity_total_return_future::EquityTotalReturnFuture;
 pub use equity_trs::EquityTotalReturnSwap;
 pub use pe_fund::PrivateMarketsFund;
-pub use real_estate::{LeveredRealEstateEquity, RealEstateAsset, RealEstateValuationMethod};
+pub use real_estate::{
+    LeveredRealEstateEquity, RealEstateAsset, RealEstateFinancing, RealEstateValuationMethod,
+};
 pub use spot::Equity;
-pub use variance_swap::VarianceSwap;
+pub use variance_swap::{EquityPriceSeriesPolicy, VarianceSwap};
 pub use vol_index_future::{VolIndexContractSpecs, VolatilityIndexFuture};
 pub use vol_index_future_option::VolatilityIndexFutureOption;

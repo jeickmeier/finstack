@@ -11,10 +11,10 @@
 
 use super::helpers::*;
 use finstack_quant_core::dates::{DayCount, DayCountContext};
+use finstack_quant_valuations::prelude::Instrument;
 use time::macros::date;
 
 fn pv(inst: &finstack_quant_valuations::instruments::equity::autocallable::Autocallable) -> f64 {
-    use finstack_quant_valuations::prelude::Instrument;
     let as_of = date!(2025 - 01 - 01);
     // Near-zero vol makes every path deterministic: S(t) = S0 / DF(as_of, t)
     // (q = 0), so the MC mean equals the analytic value to high precision.
@@ -39,9 +39,12 @@ fn terminal_payoff_is_fixed_on_last_observation_not_at_expiry() {
     // Barriers far above the deterministic ~3%/yr drift so the note never
     // autocalls and always reaches the terminal payoff.
     at_obs.autocall_barriers = vec![1.5; observation_dates.len()];
+    at_obs.coupons = vec![0.0; observation_dates.len()];
 
     let mut deferred = at_obs.clone();
     deferred.expiry = date!(2026 - 07 - 01); // six-month settlement gap
+    let last_payment = deferred.payment_dates.len() - 1;
+    deferred.payment_dates[last_payment] = deferred.expiry;
 
     let as_of = date!(2025 - 01 - 01);
     let market = build_market_with_day_count(as_of, 100.0, 1e-4, 0.03, 0.0, DayCount::Act365F);
@@ -86,4 +89,41 @@ fn terminal_payoff_is_fixed_on_last_observation_not_at_expiry() {
         .year_fraction(as_of, last_obs, DayCountContext::default())
         .unwrap();
     assert!(t_obs > 0.9 && t_obs < 1.1);
+}
+
+#[test]
+fn early_autocall_is_discounted_to_contractual_payment_date() {
+    let as_of = date!(2025 - 01 - 01);
+    let observation_dates = vec![
+        date!(2025 - 04 - 01),
+        date!(2025 - 07 - 01),
+        date!(2025 - 10 - 01),
+        date!(2026 - 01 - 01),
+    ];
+    let mut same_day =
+        create_quarterly_autocallable(observation_dates.clone(), DayCount::Act365F, Some("base"));
+    same_day.autocall_barriers = vec![1.0; observation_dates.len()];
+    same_day.coupon_barriers = vec![2.0; observation_dates.len()];
+    same_day.coupons = vec![0.0; observation_dates.len()];
+
+    let mut delayed = same_day.clone();
+    delayed.payment_dates[0] = date!(2025 - 05 - 01);
+
+    let market = build_market_with_day_count(as_of, 100.0, 1e-4, 0.03, 0.0, DayCount::Act365F);
+    let curve = market.get_discount(DISC_ID).expect("curve");
+    let df_same = curve
+        .df_between_dates(as_of, observation_dates[0])
+        .expect("observation df");
+    let df_delayed = curve
+        .df_between_dates(as_of, delayed.payment_dates[0])
+        .expect("payment df");
+
+    let same_pv = same_day
+        .value(&market, as_of)
+        .expect("same-day pv")
+        .amount();
+    let delayed_pv = delayed.value(&market, as_of).expect("delayed pv").amount();
+    let expected = same_pv * df_delayed / df_same;
+
+    assert!((delayed_pv - expected).abs() / expected < 1e-4);
 }

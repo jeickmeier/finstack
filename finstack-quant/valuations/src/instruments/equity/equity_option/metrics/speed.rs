@@ -30,11 +30,10 @@ impl MetricCalculator for SpeedCalculator {
             return Ok(0.0);
         }
 
-        let spot_scalar = context.curves.get_price(&option.spot_id)?;
-        let current_spot = match spot_scalar {
-            finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
-            finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
-        };
+        let current_spot = crate::instruments::common_impl::helpers::scalar_price_amount(
+            context.curves.get_price(&option.spot_id)?,
+            option.notional.currency(),
+        )?;
 
         // Use adaptive/custom bump from pricing overrides if configured
         let overrides = &option.metric_pricing_overrides.bump_config;

@@ -152,7 +152,7 @@ where
     let mut path_state = PathState::new(0, 0.0);
     process.populate_path_state(state, &mut path_state);
     draw_uniform_if_needed(rng, payoff, &mut path_state);
-    payoff.on_event(&mut path_state);
+    payoff.on_event(&mut path_state)?;
 
     for step in 0..time_grid.num_steps() {
         let t = time_grid.time(step);
@@ -164,7 +164,7 @@ where
         path_state.set_step_time(step + 1, t + dt);
         process.populate_path_state(state, &mut path_state);
         draw_uniform_if_needed(rng, payoff, &mut path_state);
-        payoff.on_event(&mut path_state);
+        payoff.on_event(&mut path_state)?;
     }
 
     Ok(payoff.value(currency).amount())
@@ -247,7 +247,7 @@ impl McEngine {
         let mut path_state = PathState::new(0, 0.0);
         process.populate_path_state(state, &mut path_state);
         draw_uniform_if_needed(rng, payoff, &mut path_state);
-        payoff.on_event(&mut path_state);
+        payoff.on_event(&mut path_state)?;
 
         // Initialize simulated path after the initial event so step-0 payoff and
         // cashflow state are captured consistently.
@@ -276,7 +276,7 @@ impl McEngine {
             process.populate_path_state(state, &mut path_state);
             draw_uniform_if_needed(rng, payoff, &mut path_state);
 
-            payoff.on_event(&mut path_state);
+            payoff.on_event(&mut path_state)?;
 
             let state_vec = SmallVec::from_slice(state);
             let mut point = PathPoint::with_state(step + 1, t + dt, state_vec);
@@ -361,7 +361,7 @@ impl McEngine {
         if let Some(u) = u_init {
             path_state_p.set_uniform_random(u);
         }
-        payoff_p.on_event(&mut path_state_p);
+        payoff_p.on_event(&mut path_state_p)?;
 
         // Antithetic path
         state_a.copy_from_slice(initial_state);
@@ -370,7 +370,7 @@ impl McEngine {
         if let Some(u) = u_init {
             path_state_a.set_uniform_random(1.0 - u);
         }
-        payoff_a.on_event(&mut path_state_a);
+        payoff_a.on_event(&mut path_state_a)?;
 
         let hook = NoiseHook::Correlation(correlation);
         for step in 0..self.config.time_grid.num_steps() {
@@ -396,14 +396,14 @@ impl McEngine {
             if let Some(u) = u_step {
                 path_state_p.set_uniform_random(u);
             }
-            payoff_p.on_event(&mut path_state_p);
+            payoff_p.on_event(&mut path_state_p)?;
 
             path_state_a.set_step_time(step + 1, t + dt);
             process.populate_path_state(state_a, &mut path_state_a);
             if let Some(u) = u_step {
                 path_state_a.set_uniform_random(1.0 - u);
             }
-            payoff_a.on_event(&mut path_state_a);
+            payoff_a.on_event(&mut path_state_a)?;
         }
 
         let v_p = payoff_p.value(currency).amount();

@@ -21,8 +21,16 @@
           "format": "double",
           "type": "number"
         },
+        "coupon_barriers": {
+          "description": "Coupon barriers corresponding to observation dates.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        },
         "coupons": {
-          "description": "Coupon amounts paid if observation barrier is met",
+          "description": "Coupon return amounts for each observation date.",
           "items": {
             "format": "double",
             "type": "number"
@@ -47,7 +55,7 @@
             }
           ],
           "default": null,
-          "description": "Optional dividend yield curve ID.\n\n`Some(id)`: lookup MUST succeed (a missing or non-unitless scalar\nreturns an error). `None`: no implicit default; treated as zero\ncontinuous dividend yield. Set explicitly for index underlyings."
+          "description": "Optional dividend-yield scalar ID.\n\n`Some(id)`: lookup MUST succeed (a missing or non-unitless scalar\nreturns an error). `None`: no implicit default; treated as zero\ncontinuous dividend yield. Set explicitly for index underlyings."
         },
         "expiry": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
@@ -82,7 +90,7 @@
         },
         "memory_coupons": {
           "default": false,
-          "description": "Memory (\"Phoenix\") coupon feature.\n\nWhen `true`, any coupons from earlier observation dates whose barrier\nwas *not* met are accrued (\"remembered\") and paid in full on the\nobservation date that finally triggers the autocall (in addition to\nthat date's own coupon). When `false` (the default), only the coupon\nat the autocall date is paid and earlier missed coupons are lost.\n\nThis flag must match the term sheet: a Phoenix/memory autocallable\npriced with `memory_coupons = false` is silently underpriced.",
+          "description": "Memory (\"Phoenix\") coupon feature.\n\nMissed coupons accrue until a later coupon barrier is met.",
           "type": "boolean"
         },
         "metric_pricing_overrides": {
@@ -128,6 +136,13 @@
           },
           "type": "array"
         },
+        "payment_dates": {
+          "description": "Contractual payment dates corresponding to observation dates.",
+          "items": {
+            "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+          },
+          "type": "array"
+        },
         "scenario_pricing_overrides": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
           "default": {},
@@ -150,8 +165,10 @@
         "id",
         "underlying_ticker",
         "observation_dates",
+        "payment_dates",
         "expiry",
         "autocall_barriers",
+        "coupon_barriers",
         "coupons",
         "final_barrier",
         "final_payoff_type",
@@ -279,6 +296,12 @@
             1.0
           ],
           "cap_level": 1.5,
+          "coupon_barriers": [
+            0.7,
+            0.7,
+            0.7,
+            0.7
+          ],
           "coupons": [
             0.02,
             0.02,
@@ -310,6 +333,12 @@
           ],
           "participation_rate": 1.0,
           "past_fixings": [],
+          "payment_dates": [
+            "2024-03-29",
+            "2024-06-28",
+            "2024-09-30",
+            "2024-12-31"
+          ],
           "spot_id": "SPX-SPOT",
           "underlying_ticker": "SPX",
           "vol_surface_id": "SPX-VOL"

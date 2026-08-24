@@ -36,7 +36,7 @@ use crate::instruments::common_impl::parameters::legs::{
     FinancingLegSpec, FinancingRateCompounding,
 };
 use crate::instruments::common_impl::parameters::trs_common::TrsScheduleSpec;
-use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCountContext};
+use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
 use finstack_quant_core::market_data::term_structures::ForwardCurve;
@@ -53,6 +53,19 @@ use crate::instruments::common_impl::pricing::time::{
 };
 use crate::instruments::rates::irs::FloatingLegCompounding;
 use finstack_quant_core::currency::Currency;
+
+fn signed_year_fraction(
+    day_count: DayCount,
+    as_of: Date,
+    date: Date,
+) -> finstack_quant_core::Result<f64> {
+    let context = DayCountContext::default();
+    if date >= as_of {
+        day_count.year_fraction(as_of, date, context)
+    } else {
+        Ok(-day_count.year_fraction(date, as_of, context)?)
+    }
+}
 
 /// Project one financing-leg accrual period's floating rate, excluding spread.
 ///
@@ -315,48 +328,24 @@ impl TrsEngine {
         as_of: Date,
         model: &impl TrsReturnModel,
     ) -> finstack_quant_core::Result<Money> {
-        if params.schedule.end <= as_of {
-            return Err(finstack_quant_core::Error::Validation(
-                "TRS maturity must be after valuation date".to_string(),
-            ));
-        }
-
         let disc = context.get_discount(params.discount_curve_id)?;
         let period_schedule = params.schedule.period_schedule()?;
 
         let mut total_pv = NeumaierAccumulator::new();
         let currency = params.notional.currency();
-        let ctx = DayCountContext::default();
 
         for i in 1..period_schedule.dates.len() {
             let period_start = period_schedule.dates[i - 1];
             let period_end = period_schedule.dates[i];
+            let payment_date = params.schedule.payment_date_for(period_end)?;
 
-            if period_end <= as_of {
+            if payment_date <= as_of {
                 continue;
             }
 
-            // Signed time to the period start: negative when the period is
-            // already in progress (seasoned trade). Day counts reject inverted
-            // date ranges, so compute the magnitude forward and negate.
-            let t_start = if period_start >= as_of {
-                params
-                    .schedule
-                    .params
-                    .day_count
-                    .year_fraction(as_of, period_start, ctx)?
-            } else {
-                -params
-                    .schedule
-                    .params
-                    .day_count
-                    .year_fraction(period_start, as_of, ctx)?
-            };
-            let t_end = params
-                .schedule
-                .params
-                .day_count
-                .year_fraction(as_of, period_end, ctx)?;
+            let day_count = params.schedule.params.day_count;
+            let t_start = signed_year_fraction(day_count, as_of, period_start)?;
+            let t_end = signed_year_fraction(day_count, as_of, period_end)?;
 
             let total_return = model.period_return(
                 &PeriodReturnInputs {
@@ -379,11 +368,7 @@ impl TrsEngine {
 
             let payment = params.notional.amount() * total_return * params.contract_size;
 
-            // Discount to payment date (accrual end + payment lag).
-            // The full-period payment already captures accrued value; discounting
-            // the entire cashflow to as_of gives the correct dirty PV without
-            // any separate accrual addition.
-            let payment_date = params.schedule.payment_date_for(period_end)?;
+            // A completed accrual remains in PV until its lagged payment date.
             let df = relative_df_discount_curve(disc.as_ref(), as_of, payment_date)?;
             total_pv.add(payment * df);
         }
@@ -412,12 +397,6 @@ impl TrsEngine {
         context: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<Money> {
-        if schedule.end <= as_of {
-            return Err(finstack_quant_core::Error::Validation(
-                "TRS maturity must be after valuation date".to_string(),
-            ));
-        }
-
         let disc = context.get_discount(financing.discount_curve_id.as_str())?;
         let fwd = context.get_forward(financing.forward_curve_id.as_str())?;
         // For OvernightCompounded legs, realized fixings for in-progress periods
@@ -446,8 +425,9 @@ impl TrsEngine {
         for i in 1..period_schedule.dates.len() {
             let period_start = period_schedule.dates[i - 1];
             let period_end = period_schedule.dates[i];
+            let payment_date = schedule.payment_date_for(period_end)?;
 
-            if period_end <= as_of {
+            if payment_date <= as_of {
                 continue;
             }
 
@@ -474,10 +454,7 @@ impl TrsEngine {
             )?;
             let payment = projected.unsigned_coupon(notional.amount(), spread_decimal);
 
-            // Discount to payment date (accrual end + payment lag).
-            // The full-period payment already captures accrued value; discounting
-            // the entire cashflow to as_of gives the correct dirty PV.
-            let payment_date = schedule.payment_date_for(period_end)?;
+            // A completed accrual remains in PV until its lagged payment date.
             let df = relative_df_discount_curve(disc.as_ref(), as_of, payment_date)?;
             total_pv.add(payment * df);
         }
@@ -521,12 +498,6 @@ impl TrsEngine {
         context: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<f64> {
-        if schedule.end <= as_of {
-            return Err(finstack_quant_core::Error::Validation(
-                "TRS maturity must be after valuation date".to_string(),
-            ));
-        }
-
         let disc = context.get_discount(financing.discount_curve_id.as_str())?;
         let fwd = context.get_forward(financing.forward_curve_id.as_str())?;
         let fixings = finstack_quant_core::market_data::fixings::get_fixing_series(
@@ -542,8 +513,9 @@ impl TrsEngine {
         for i in 1..period_schedule.dates.len() {
             let period_start = period_schedule.dates[i - 1];
             let period_end = period_schedule.dates[i];
+            let payment_date = schedule.payment_date_for(period_end)?;
 
-            if period_end <= as_of {
+            if payment_date <= as_of {
                 continue;
             }
 
@@ -566,8 +538,6 @@ impl TrsEngine {
             )?
             .year_fraction;
 
-            // Discount to payment date (accrual end + payment lag).
-            let payment_date = schedule.payment_date_for(period_end)?;
             let df = relative_df_discount_curve(disc.as_ref(), as_of, payment_date)?;
 
             annuity.add(df * yf);
@@ -602,12 +572,6 @@ impl TrsEngine {
         context: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<f64> {
-        if schedule.end <= as_of {
-            return Err(finstack_quant_core::Error::Validation(
-                "TRS maturity must be after valuation date".to_string(),
-            ));
-        }
-
         let disc = context.get_discount(financing.discount_curve_id.as_str())?;
         let fwd = context.get_forward(financing.forward_curve_id.as_str())?;
         let fixings = finstack_quant_core::market_data::fixings::get_fixing_series(
@@ -623,8 +587,9 @@ impl TrsEngine {
         for i in 1..period_schedule.dates.len() {
             let period_start = period_schedule.dates[i - 1];
             let period_end = period_schedule.dates[i];
+            let payment_date = schedule.payment_date_for(period_end)?;
 
-            if period_end <= as_of {
+            if payment_date <= as_of {
                 continue;
             }
 
@@ -648,7 +613,6 @@ impl TrsEngine {
             )?;
             let payment = projected.unsigned_coupon(notional.amount(), 0.0);
 
-            let payment_date = schedule.payment_date_for(period_end)?;
             let df = relative_df_discount_curve(disc.as_ref(), as_of, payment_date)?;
             total_pv.add(payment * df);
         }

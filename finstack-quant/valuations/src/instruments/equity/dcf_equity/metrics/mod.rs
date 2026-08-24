@@ -120,9 +120,8 @@ impl MetricCalculator for EquitySharesCalculator {
 
 /// Registers all DCF metrics to a registry.
 ///
-/// Includes:
-/// - Parallel DV01 (`MetricId::Dv01`)
-/// - Bucketed DV01 (`MetricId::BucketedDv01`)
+/// Includes WACC sensitivity (`custom("dcf::wacc01")`) plus enterprise value,
+/// equity value, terminal value, price-per-share, and diluted-share metrics.
 /// - Enterprise value (`MetricId::EnterpriseValue`)
 /// - Equity value (`MetricId::EquityValue`)
 /// - Terminal value PV (`MetricId::TerminalValuePV`)
@@ -130,25 +129,20 @@ impl MetricCalculator for EquitySharesCalculator {
 /// - Diluted shares (`MetricId::EquityShares`)
 pub(crate) fn register_dcf_metrics(registry: &mut MetricRegistry) {
     use crate::pricer::InstrumentType;
+    use std::sync::Arc;
+    registry.register_metric(
+        crate::metrics::MetricId::custom("dcf::wacc01"),
+        Arc::new(crate::metrics::RfComponentDv01Calculator::<
+            crate::instruments::equity::dcf_equity::DiscountedCashFlow,
+        >::new()),
+        &[InstrumentType::Dcf],
+    );
     crate::register_metrics! {
         registry: registry,
         instrument: InstrumentType::Dcf,
         metrics: [
-            // Rate risk via rf-component bump inside the WACC: DCF always
-            // discounts at WACC, so DV01 bumps the additive
-            // risk-free component of the rate rather than a market curve.
-            (
-                Dv01,
-                crate::metrics::RfComponentDv01Calculator::<
-                    crate::instruments::equity::dcf_equity::DiscountedCashFlow,
-                >::new(crate::metrics::RfDv01Mode::Parallel)
-            ),
-            (
-                BucketedDv01,
-                crate::metrics::RfComponentDv01Calculator::<
-                    crate::instruments::equity::dcf_equity::DiscountedCashFlow,
-                >::new(crate::metrics::RfDv01Mode::Bucketed)
-            ),
+            // WACC sensitivity is registered separately under `dcf::wacc01`;
+            // DCF has no direct market-curve DV01.
             (EnterpriseValue, EnterpriseValueCalculator),
             (EquityValue, EquityValueCalculator),
             (TerminalValuePV, TerminalValuePVCalculator),

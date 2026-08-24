@@ -410,7 +410,7 @@ mod tests {
             .discount_curve_id(finstack_quant_core::types::CurveId::new("USD-OIS"))
             .spot_id("EQUITY-SPOT".into())
             .vol_surface_id(finstack_quant_core::types::CurveId::new("EQUITY-VOL"))
-            .div_yield_id_opt(Some(finstack_quant_core::types::CurveId::new(
+            .div_yield_id_opt(Some(finstack_quant_core::types::PriceId::new(
                 "EQUITY-DIVYIELD",
             )))
             .instrument_pricing_overrides(crate::instruments::InstrumentPricingOverrides::default())

@@ -260,12 +260,10 @@ pub(crate) fn collect_inputs_extended(
         "EquityOption discount curve",
     )?;
 
-    // Spot from scalar id (unitless or price)
-    let spot_scalar = curves.get_price(&inst.spot_id)?;
-    let raw_spot = match spot_scalar {
-        finstack_quant_core::market_data::scalars::MarketScalar::Unitless(v) => *v,
-        finstack_quant_core::market_data::scalars::MarketScalar::Price(m) => m.amount(),
-    };
+    let raw_spot = crate::instruments::common_impl::helpers::scalar_price_amount(
+        curves.get_price(&inst.spot_id)?,
+        inst.notional.currency(),
+    )?;
 
     // Check for discrete dividends — if present, adjust spot and zero out q
     let future_divs = future_dividends(inst, disc_curve.as_ref(), as_of)?;
@@ -273,7 +271,7 @@ pub(crate) fn collect_inputs_extended(
     let (spot, q) = if !future_divs.is_empty() {
         // Escrowed dividend model: adjust spot, set q=0
         // Dividend amounts are already discounted with their own ex-date DFs.
-        let s_adj = adjust_spot_for_discrete_dividends(raw_spot, 0.0, &future_divs);
+        let s_adj = adjust_spot_for_discrete_dividends(raw_spot, 0.0, &future_divs)?;
         (s_adj, 0.0)
     } else {
         // Continuous dividend yield from scalar id if provided
@@ -344,10 +342,10 @@ pub(crate) fn collect_inputs_extended(
 /// * `dividends` - Slice of `(time_to_payment, dividend_amount)` pairs
 ///   where `time_to_payment` is in years from valuation date
 ///
-/// # Returns
+/// # Errors
 ///
-/// Adjusted spot price. Always returns at least `1e-8` to avoid degenerate
-/// pricing when PV of dividends exceeds spot (deep ITM dividend scenario).
+/// Returns a validation error when spot is non-finite/non-positive or when
+/// the present value of future dividends is greater than or equal to spot.
 ///
 /// # References
 ///
@@ -357,13 +355,25 @@ pub(crate) fn adjust_spot_for_discrete_dividends(
     spot: f64,
     rate: f64,
     dividends: &[(f64, f64)],
-) -> f64 {
+) -> Result<f64> {
+    if !spot.is_finite() || spot <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "discrete-dividend spot must be finite and positive, got {spot}"
+        )));
+    }
     let pv_dividends: f64 = dividends
         .iter()
         .filter(|(t, _)| *t > 0.0)
         .map(|(t, d)| d * (-rate * t).exp())
         .sum();
-    (spot - pv_dividends).max(1e-8)
+    let adjusted = spot - pv_dividends;
+    if !adjusted.is_finite() || adjusted <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "escrowed-dividend model invalid: spot={spot}, PV(dividends)={pv_dividends}, \
+             adjusted_spot={adjusted}; use an explicit dividend-jump model"
+        )));
+    }
+    Ok(adjusted)
 }
 
 /// Sensitivity of the escrowed (dividend-adjusted) spot to the risk-free rate.
@@ -381,11 +391,8 @@ pub(crate) fn adjust_spot_for_discrete_dividends(
 /// `rho_total = rho_BS(S*) + delta(S*) · ∂S*/∂r`.
 ///
 /// Returns `0.0` when no future dividends are present (the adjusted spot is
-/// then `r`-independent). The clamp floor applied by
-/// [`adjust_spot_for_discrete_dividends`] is intentionally *not* differentiated
-/// here: in the clamped (degenerate, PV-of-dividends ≥ spot) regime `S*` is a
-/// constant `1e-8` and its true rate derivative is zero, so callers must guard
-/// that case separately if they need it.
+/// then rate-independent). Invalid non-positive adjusted spots are rejected by
+/// [`adjust_spot_for_discrete_dividends`] before this derivative is used.
 #[must_use]
 pub(crate) fn escrowed_spot_drho(rate: f64, dividends: &[(f64, f64)]) -> f64 {
     dividends
@@ -487,15 +494,8 @@ pub(crate) fn compute_greeks(
                 if future_divs.is_empty() {
                     greeks_unit.rho_r
                 } else {
-                    // In the degenerate clamped regime S* is pinned at the
-                    // 1e-8 floor and is genuinely r-independent (∂S*/∂r = 0).
-                    let ds_star_dr = if spot <= 1e-8 {
-                        0.0
-                    } else {
-                        // Entries already contain PV(D_i); under a parallel
-                        // continuously-compounded rate bump, dS*/dr = Σt_i PV(D_i).
-                        escrowed_spot_drho(0.0, &future_divs)
-                    };
+                    // `future_divs` already contains each dividend's PV.
+                    let ds_star_dr = escrowed_spot_drho(0.0, &future_divs);
                     const ONE_PERCENT: f64 = 0.01;
                     greeks_unit.rho_r + greeks_unit.delta * ds_star_dr * ONE_PERCENT
                 }
@@ -899,7 +899,7 @@ mod tests {
     use finstack_quant_core::market_data::scalars::MarketScalar;
     use finstack_quant_core::market_data::surfaces::VolSurface;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
-    use finstack_quant_core::types::{CurveId, InstrumentId};
+    use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
     use time::Month;
 
     fn date(year: i32, month: u8, day: u8) -> Date {
@@ -949,7 +949,7 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
-            .div_yield_id_opt(Some(CurveId::new("SPX-DIV")))
+            .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .attributes(Attributes::new())
             .build()
             .expect("equity option")
@@ -958,35 +958,40 @@ mod tests {
     #[test]
     fn test_adjust_spot_for_discrete_dividends_single() {
         // Stock at $100, dividend of $2 in 0.25 years, r = 5%
-        let s_adj = adjust_spot_for_discrete_dividends(100.0, 0.05, &[(0.25, 2.0)]);
+        let s_adj = adjust_spot_for_discrete_dividends(100.0, 0.05, &[(0.25, 2.0)])
+            .expect("valid adjusted spot");
         // PV(div) = 2 × e^{-0.05×0.25} ≈ 1.9751
         assert!((s_adj - 98.0248).abs() < 0.01);
     }
 
     #[test]
     fn test_adjust_spot_for_discrete_dividends_multiple() {
-        let s_adj = adjust_spot_for_discrete_dividends(100.0, 0.05, &[(0.25, 1.5), (0.5, 1.5)]);
+        let s_adj = adjust_spot_for_discrete_dividends(100.0, 0.05, &[(0.25, 1.5), (0.5, 1.5)])
+            .expect("valid adjusted spot");
         let expected = 100.0 - 1.5 * (-0.05 * 0.25_f64).exp() - 1.5 * (-0.05 * 0.5_f64).exp();
         assert!((s_adj - expected).abs() < 1e-10);
     }
 
     #[test]
-    fn test_adjust_spot_for_discrete_dividends_floor() {
-        // Dividends exceed spot → clamped to 1e-8
-        let s_adj = adjust_spot_for_discrete_dividends(1.0, 0.01, &[(0.1, 50.0)]);
-        assert!((s_adj - 1e-8).abs() < 1e-12);
+    fn test_adjust_spot_for_discrete_dividends_rejects_nonpositive_result() {
+        let error = adjust_spot_for_discrete_dividends(1.0, 0.01, &[(0.1, 50.0)])
+            .expect_err("dividend PV above spot must fail");
+        assert!(error
+            .to_string()
+            .contains("escrowed-dividend model invalid"));
     }
 
     #[test]
     fn test_adjust_spot_for_discrete_dividends_empty() {
-        let s_adj = adjust_spot_for_discrete_dividends(100.0, 0.05, &[]);
+        let s_adj = adjust_spot_for_discrete_dividends(100.0, 0.05, &[]).expect("unchanged spot");
         assert!((s_adj - 100.0).abs() < 1e-12);
     }
 
     #[test]
     fn test_adjust_spot_for_discrete_dividends_skips_past() {
         // Dividend at t=0 or negative should be skipped
-        let s_adj = adjust_spot_for_discrete_dividends(100.0, 0.05, &[(0.0, 5.0), (-0.1, 3.0)]);
+        let s_adj = adjust_spot_for_discrete_dividends(100.0, 0.05, &[(0.0, 5.0), (-0.1, 3.0)])
+            .expect("past dividends ignored");
         assert!((s_adj - 100.0).abs() < 1e-12);
     }
 
@@ -1186,6 +1191,44 @@ mod tests {
         let noisy_pv = compute_pv(&noisy, &curves, as_of).expect("noisy bermudan pv");
 
         assert!((filtered_pv.amount() - noisy_pv.amount()).abs() < 1e-10);
+    }
+
+    #[test]
+    fn canonical_theta_matches_one_calendar_day_revaluation() {
+        let as_of = date(2025, 1, 1);
+        let expiry = date(2026, 1, 1);
+        let curves = market(as_of, 100.0, 0.20, 0.03, 0.0);
+        let option = option(expiry, OptionType::Call, ExerciseStyle::European);
+        let theta = crate::instruments::common_impl::traits::OptionGreeksProvider::option_theta(
+            &option, &curves, as_of,
+        )
+        .expect("theta")
+        .expect("supported");
+        let expected = compute_pv(&option, &curves, as_of + time::Duration::days(1))
+            .expect("rolled")
+            .amount()
+            - compute_pv(&option, &curves, as_of).expect("base").amount();
+
+        assert!((theta - expected).abs() < 1e-12);
+    }
+
+    #[test]
+    fn option_rejects_spot_price_in_wrong_currency() {
+        let as_of = date(2025, 1, 1);
+        let expiry = date(2026, 1, 1);
+        let curves = market(as_of, 100.0, 0.20, 0.03, 0.0).insert_price(
+            "SPX-SPOT",
+            MarketScalar::Price(Money::new(100.0, Currency::EUR)),
+        );
+        let option = option(expiry, OptionType::Call, ExerciseStyle::European);
+
+        assert!(matches!(
+            compute_pv(&option, &curves, as_of),
+            Err(finstack_quant_core::Error::CurrencyMismatch {
+                expected: Currency::USD,
+                actual: Currency::EUR,
+            })
+        ));
     }
 
     #[test]

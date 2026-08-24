@@ -14,7 +14,7 @@ use finstack_quant_core::{
     },
     math::interp::InterpStyle,
     money::Money,
-    types::CurveId,
+    types::PriceId,
 };
 use finstack_quant_valuations::instruments::equity::equity_trs::EquityTotalReturnSwap;
 use finstack_quant_valuations::instruments::fixed_income::fi_trs::FIIndexTotalReturnSwap;
@@ -134,7 +134,7 @@ pub struct TestEquityTrsBuilder {
     id: String,
     notional: Money,
     spot_id: String,
-    div_yield_id: Option<CurveId>,
+    div_yield_id: Option<PriceId>,
     contract_size: f64,
     discount_curve_id: String,
     forward_curve_id: String,
@@ -151,7 +151,7 @@ impl Default for TestEquityTrsBuilder {
             id: "TEST-EQ-TRS-001".into(),
             notional: Money::new(10_000_000.0, Currency::USD),
             spot_id: "SPX-SPOT".into(),
-            div_yield_id: Some(CurveId::new("SPX-DIV-YIELD")),
+            div_yield_id: Some(finstack_quant_core::types::PriceId::new("SPX-DIV-YIELD")),
             contract_size: 1.0,
             discount_curve_id: "USD-OIS".into(),
             forward_curve_id: "USD-SOFR-3M".into(),
@@ -181,7 +181,7 @@ impl TestEquityTrsBuilder {
         self
     }
 
-    pub fn div_yield_id(mut self, id: Option<CurveId>) -> Self {
+    pub fn div_yield_id(mut self, id: Option<PriceId>) -> Self {
         self.div_yield_id = id;
         self
     }

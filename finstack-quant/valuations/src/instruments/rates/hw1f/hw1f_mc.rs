@@ -144,7 +144,7 @@ impl RateExoticHw1fMcPricer {
                     while next_event < event_step_indices.len()
                         && event_step_indices[next_event] == step + 1
                     {
-                        payoff.on_event(&mut state);
+                        payoff.on_event(&mut state)?;
                         next_event += 1;
                     }
                 }
@@ -242,8 +242,9 @@ mod tests {
         paid: f64,
     }
     impl Payoff for ZcbPayoff {
-        fn on_event(&mut self, _s: &mut PathState) {
+        fn on_event(&mut self, _s: &mut PathState) -> finstack_quant_core::Result<()> {
             self.paid = 1.0;
+            Ok(())
         }
         fn value(&self, ccy: Currency) -> Money {
             Money::new(self.paid, ccy)
@@ -260,9 +261,10 @@ mod tests {
         pv: f64,
     }
     impl Payoff for PathwiseZcbPayoff {
-        fn on_event(&mut self, s: &mut PathState) {
+        fn on_event(&mut self, s: &mut PathState) -> finstack_quant_core::Result<()> {
             let bank = s.get_key(StateKey::BankAccount).unwrap_or(1.0);
             self.pv = 1.0 / bank;
+            Ok(())
         }
         fn value(&self, ccy: Currency) -> Money {
             Money::new(self.pv, ccy)

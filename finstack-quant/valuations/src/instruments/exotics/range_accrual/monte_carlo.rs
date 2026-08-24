@@ -176,7 +176,7 @@ impl RangeAccrualPayoff {
 }
 
 impl Payoff for RangeAccrualPayoff {
-    fn on_event(&mut self, state: &mut PathState) {
+    fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
         // Use a while loop to handle multiple observations per time step
         // This can happen when the simulation grid doesn't align exactly with observation dates
         while self.next_obs_idx < self.observation_dates.len() {
@@ -199,6 +199,7 @@ impl Payoff for RangeAccrualPayoff {
                 break;
             }
         }
+        Ok(())
     }
 
     fn value(&self, currency: Currency) -> Money {
@@ -266,11 +267,11 @@ mod tests {
         // Both observations in range
         let mut state1 = PathState::new(10, 0.25);
         state1.set(state_keys::SPOT, 100.0);
-        accrual.on_event(&mut state1);
+        accrual.on_event(&mut state1).expect("valid payoff event");
 
         let mut state2 = PathState::new(20, 0.5);
         state2.set(state_keys::SPOT, 98.0);
-        accrual.on_event(&mut state2);
+        accrual.on_event(&mut state2).expect("valid payoff event");
 
         let value = accrual.value(Currency::USD);
         // 2 days in range / 2 total = 1.0 fraction
@@ -294,15 +295,15 @@ mod tests {
         // Only 2 out of 3 in range
         let mut state1 = PathState::new(10, 0.25);
         state1.set(state_keys::SPOT, 100.0); // In range
-        accrual.on_event(&mut state1);
+        accrual.on_event(&mut state1).expect("valid payoff event");
 
         let mut state2 = PathState::new(20, 0.5);
         state2.set(state_keys::SPOT, 110.0); // Out of range
-        accrual.on_event(&mut state2);
+        accrual.on_event(&mut state2).expect("valid payoff event");
 
         let mut state3 = PathState::new(30, 0.75);
         state3.set(state_keys::SPOT, 98.0); // In range
-        accrual.on_event(&mut state3);
+        accrual.on_event(&mut state3).expect("valid payoff event");
 
         let value = accrual.value(Currency::USD);
         // 2 days in range / 3 total = 2/3 fraction
@@ -326,14 +327,14 @@ mod tests {
         // Exactly at lower boundary (should be in range)
         let mut state = PathState::new(10, 0.25);
         state.set(state_keys::SPOT, 95.0);
-        accrual.on_event(&mut state);
+        accrual.on_event(&mut state).expect("valid payoff event");
 
         assert_eq!(accrual.days_in_range, 1);
 
         // Exactly at upper boundary (should be in range)
         accrual.reset();
         state.set(state_keys::SPOT, 105.0);
-        accrual.on_event(&mut state);
+        accrual.on_event(&mut state).expect("valid payoff event");
 
         assert_eq!(accrual.days_in_range, 1);
     }
@@ -353,7 +354,7 @@ mod tests {
 
         let mut state = PathState::new(10, 0.25);
         state.set(state_keys::SPOT, 100.0);
-        accrual.on_event(&mut state);
+        accrual.on_event(&mut state).expect("valid payoff event");
 
         assert_eq!(accrual.days_in_range, 1);
         assert_eq!(accrual.total_observations, 1);
@@ -384,12 +385,12 @@ mod tests {
         // Simulate 1 future observation in range
         let mut state1 = PathState::new(10, 0.25);
         state1.set(state_keys::SPOT, 100.0); // In range
-        accrual.on_event(&mut state1);
+        accrual.on_event(&mut state1).expect("valid payoff event");
 
         // Simulate 1 future observation out of range
         let mut state2 = PathState::new(20, 0.5);
         state2.set(state_keys::SPOT, 110.0); // Out of range
-        accrual.on_event(&mut state2);
+        accrual.on_event(&mut state2).expect("valid payoff event");
 
         let value = accrual.value(Currency::USD);
         // Total: 2 in range (1 past + 1 future) / 4 total (2 past + 2 future) = 0.5 fraction
@@ -414,7 +415,7 @@ mod tests {
 
         let mut state = PathState::new(10, 0.25);
         state.set(state_keys::SPOT, 100.0);
-        accrual.on_event(&mut state);
+        accrual.on_event(&mut state).expect("valid payoff event");
 
         accrual.reset();
 
@@ -443,7 +444,7 @@ mod tests {
         // Single time step that passes all observations
         let mut state = PathState::new(10, 0.5); // Time = 0.5, past all observations
         state.set(state_keys::SPOT, 100.0); // In range
-        accrual.on_event(&mut state);
+        accrual.on_event(&mut state).expect("valid payoff event");
 
         // All 3 observations should be counted
         assert_eq!(accrual.total_observations, 3);

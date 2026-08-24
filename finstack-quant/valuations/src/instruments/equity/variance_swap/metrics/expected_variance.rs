@@ -43,7 +43,7 @@ mod tests {
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{DayCount, Tenor};
     use finstack_quant_core::market_data::context::MarketContext;
-    use finstack_quant_core::market_data::scalars::{MarketScalar, ScalarTimeSeries};
+    use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::money::Money;
     use finstack_quant_core::types::{CurveId, InstrumentId};
@@ -64,7 +64,7 @@ mod tests {
         let maturity = date!(2025 - 06 - 30); // Monday
         let as_of = date!(2025 - 04 - 18); // Friday, mid-life
 
-        let swap = VarianceSwap::builder()
+        let mut swap = VarianceSwap::builder()
             .id(InstrumentId::new("VARSPX-EV"))
             .underlying_ticker("SPX".to_string())
             .notional(Money::new(1_000_000.0, Currency::USD))
@@ -74,12 +74,18 @@ mod tests {
             .observation_frequency(Tenor::daily())
             .observation_calendar_id("USNY".to_string())
             .realized_var_method(finstack_quant_core::math::stats::RealizedVarMethod::CloseToClose)
+            .price_series_policy(
+                finstack_quant_valuations::instruments::EquityPriceSeriesPolicy::Adjusted,
+            )
             .side(PayReceive::Receive)
             .discount_curve_id(CurveId::new("USD-OIS"))
             .day_count(DayCount::Act365F)
             .attributes(Attributes::new())
             .build()
             .expect("expected-variance swap");
+        swap.instrument_pricing_overrides
+            .market_quotes
+            .implied_volatility = Some(0.20);
 
         // Non-trivial close path on every past (weekday) observation so realized
         // variance differs from the scalar-vol forward variance.
@@ -97,10 +103,7 @@ mod tests {
             .knots([(0.0, 1.0), (1.0, 0.96)])
             .build()
             .expect("discount curve");
-        let market = MarketContext::new()
-            .insert(disc)
-            .insert_series(series)
-            .insert_price("SPX_IMPL_VOL", MarketScalar::Unitless(0.20));
+        let market = MarketContext::new().insert(disc).insert_series(series);
 
         // Everything that borrows `market` must be evaluated before it is moved
         // into the `MetricContext`.

@@ -14,9 +14,9 @@ use time::macros::date;
 /// Private markets fund investment instrument.
 ///
 /// Models a private equity, private credit, or alternative fund with a
-/// cashflow waterfall that determines LP/GP allocation. Supports NAV
-/// discounting when a `discount_curve_id` is provided, or falls back to
-/// last-event date for IRR-only workflows.
+/// cashflow waterfall that determines LP/GP allocation. Future LP cashflows
+/// are selected relative to the caller's valuation date and optionally
+/// discounted with `discount_curve_id`.
 #[derive(
     PartialEq,
     Clone,
@@ -36,10 +36,10 @@ pub struct PrivateMarketsFund {
     pub waterfall_spec: WaterfallSpec,
     /// Time-ordered list of fund events (contributions, proceeds, distributions).
     pub events: Vec<FundEvent>,
-    /// Discount curve identifier for NAV present-value calculations.
+    /// Optional discount curve for future LP cashflows.
     ///
-    /// When `None`, the pricer falls back to the last event date as the
-    /// valuation date and returns an undiscounted waterfall NAV.
+    /// When `None`, future cashflows are included undiscounted relative to the
+    /// caller's valuation date.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub discount_curve_id: Option<CurveId>,
@@ -226,10 +226,6 @@ impl Instrument for PrivateMarketsFund {
         as_of: Date,
     ) -> finstack_quant_core::Result<Money> {
         pricer::compute_pv(self, curves, as_of)
-    }
-
-    fn resolve_pricing_as_of(&self, market: &MarketContext, requested: Date) -> Date {
-        pricer::resolve_as_of(self, market, requested)
     }
 
     fn effective_start_date(&self) -> Option<Date> {
