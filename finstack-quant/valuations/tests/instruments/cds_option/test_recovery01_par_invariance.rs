@@ -6,7 +6,7 @@ use finstack_quant_valuations::metrics::MetricId;
 use time::macros::date;
 
 #[test]
-fn test_recovery01_recalibrates_hazard_curve_with_par_spreads() {
+fn test_recovery01_ignores_unreplayable_par_spread_sidecar() {
     let as_of = date!(2025 - 01 - 01);
     let market = standard_market(as_of);
     let option = CDSOptionBuilder::new().build(as_of);
@@ -40,9 +40,10 @@ fn test_recovery01_recalibrates_hazard_curve_with_par_spreads() {
             .amount())
         / 2.0;
 
-    assert_finite(recovery01, "par-invariant Recovery01");
+    assert_finite(recovery01, "frozen-curve Recovery01");
+    let tolerance = 1e-9_f64.max(1e-10 * frozen.abs());
     assert!(
-        (recovery01 - frozen).abs() > 1.0,
-        "Recovery01 should rebootstrap hazard from par spreads, not match frozen-curve bump: recovery01={recovery01}, frozen={frozen}"
+        (recovery01 - frozen).abs() <= tolerance,
+        "Recovery01 must not rebootstrap from par points without a persisted recipe"
     );
 }

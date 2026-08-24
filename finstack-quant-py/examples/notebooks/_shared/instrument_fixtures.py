@@ -655,6 +655,7 @@ def variance_swap(idx: int) -> tuple[str, dict]:
             "observation_frequency": {"count": 1, "unit": "days"},
             "observation_calendar_id": "USNY",
             "realized_var_method": "close_to_close",
+            "price_series_policy": "adjusted",
             "side": side,
             "discount_curve_id": "USD-OIS",
             "day_count": "act_365f",

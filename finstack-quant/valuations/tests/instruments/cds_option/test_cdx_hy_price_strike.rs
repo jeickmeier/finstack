@@ -11,7 +11,7 @@
 use super::common::*;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_valuations::calibration::bumps::{bump_hazard_spreads, BumpRequest};
+use finstack_quant_valuations::calibration::bumps::{bump_hazard_shift, BumpRequest};
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::bloomberg_quadrature::ForwardCdsContext;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::pricer::synthetic_underlying_cds;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::CDSOption;
@@ -121,21 +121,14 @@ fn price_delta_matches_independent_cs01_ratio() {
     let atm = atm_price_pct(&market, as_of);
     let option = hy_option(OptionType::Call, atm, as_of);
 
-    // Independent reconstruction from public pieces: symmetric ±1 bp
-    // par-quote bump + rebootstrap, sticky σ (the instrument override),
-    // option CS01 over underlying spread DV01.
+    // Independent reconstruction from public pieces: symmetric model-hazard
+    // bump, sticky σ (the instrument override), and option CS01 over
+    // underlying spread DV01.
     let hazard = market.get_hazard("HZ-SN").expect("hazard");
     let cds = synthetic_underlying_cds(&option, as_of).expect("synthetic cds");
     let bumped = |bp: f64| -> MarketContext {
-        let curve = bump_hazard_spreads(
-            hazard.as_ref(),
-            &market,
-            &BumpRequest::Parallel(bp),
-            Some(&option.discount_curve_id),
-            None,
-            None,
-        )
-        .expect("bumped hazard");
+        let curve =
+            bump_hazard_shift(hazard.as_ref(), &BumpRequest::Parallel(bp)).expect("bumped hazard");
         market.clone().insert(curve)
     };
     let up = bumped(1.0);
@@ -163,19 +156,12 @@ fn price_gamma_positive_and_consistent_with_bumped_deltas() {
         assert_finite(gamma, "price-strike gamma");
         assert_positive(gamma, "long-option gamma");
 
-        // Nested finite-difference check: gamma must equal the change in
-        // delta across the ±5 bp par-quote bump with rebootstrap.
+        // Nested finite-difference check under the same model-hazard bump used
+        // by price delta when the curve has no calibration recipe.
         let hazard = market.get_hazard("HZ-SN").expect("hazard");
         let bumped = |bp: f64| -> MarketContext {
-            let curve = bump_hazard_spreads(
-                hazard.as_ref(),
-                &market,
-                &BumpRequest::Parallel(bp),
-                Some(&option.discount_curve_id),
-                None,
-                None,
-            )
-            .expect("bumped hazard");
+            let curve = bump_hazard_shift(hazard.as_ref(), &BumpRequest::Parallel(bp))
+                .expect("bumped hazard");
             market.clone().insert(curve)
         };
         let delta_up = option.delta(&bumped(5.0), as_of).expect("delta up");

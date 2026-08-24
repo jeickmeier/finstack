@@ -127,8 +127,8 @@ pub(crate) mod constants;
 /// Configuration types for calibration.
 pub use config::{
     CalibrationConfig, CalibrationMethod, DiscountCurveSolveConfig, HazardCurveSolveConfig,
-    InflationCurveSolveConfig, RatesStepConventions, ResidualWeightingScheme,
-    VolSurfaceSolveConfig,
+    InflationCurveSolveConfig, MarketFreshnessPolicy, MarketQuoteSide, RatesStepConventions,
+    ResidualWeightingScheme, VolSurfaceSolveConfig,
 };
 
 /// Solver configuration (Brent/Newton).

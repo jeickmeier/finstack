@@ -446,7 +446,7 @@ impl CDSIndexPricer {
         let pricer = CDSPricer::with_config(self.cds_config.clone());
         let hazard = curves.get_hazard(credit_id)?;
         let hazard_ref = hazard.as_ref();
-        let has_par_points = hazard_ref.par_spread_points().next().is_some();
+        let has_par_points = hazard_ref.hazard_calibration().is_some();
 
         // Par-spread re-bootstrap is the CS01 contract when par points exist.
         // A silent fallback to a direct hazard-λ shift on re-bootstrap failure

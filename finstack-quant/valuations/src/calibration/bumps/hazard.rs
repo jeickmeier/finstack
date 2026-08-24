@@ -2,30 +2,28 @@
 
 use super::BumpRequest;
 use crate::calibration::api::schema::{HazardCurveParams, StepParams};
-use crate::calibration::config::CalibrationMethod;
 use crate::calibration::step_runtime;
 use crate::calibration::CalibrationConfig;
 use crate::instruments::credit_derivatives::cds::CdsValuationConvention;
 use crate::market::conventions::ids::CdsDocClause;
 use crate::market::quotes::cds::CdsQuote;
+use crate::market::quotes::ids::Pillar;
 use crate::market::quotes::market_quote::MarketQuote;
-use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{Tenor, TenorUnit};
+use finstack_quant_core::dates::DayCountContext;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::HazardCurve;
-use finstack_quant_core::market_data::term_structures::Seniority;
 use finstack_quant_core::types::CurveId;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+#[derive(Clone, Copy)]
 struct HazardParRecalibration<'a> {
     hazard: &'a HazardCurve,
     context: &'a MarketContext,
     discount_id: &'a CurveId,
     recovery_rate: f64,
-    doc_clause: CdsDocClause,
+    doc_clause: Option<CdsDocClause>,
     cds_valuation_convention: Option<CdsValuationConvention>,
-    quote_id_prefix: &'static str,
     spread_bump: Option<&'a BumpRequest>,
 }
 
@@ -56,9 +54,8 @@ struct HazardRecalibrationKey {
     hazard_id: String,
     discount_id: String,
     recovery_rate: u64,
-    doc_clause: CdsDocClause,
+    doc_clause: Option<CdsDocClause>,
     cds_valuation_convention: Option<CdsValuationConvention>,
-    quote_id_prefix: &'static str,
     bump: HazardBumpKey,
     /// Fingerprint of the source curve's par spreads and hazard knots.
     source_fingerprint: u64,
@@ -132,7 +129,6 @@ impl HazardRecalibrationCache {
             recovery_rate: request.recovery_rate.to_bits(),
             doc_clause: request.doc_clause,
             cds_valuation_convention: request.cds_valuation_convention,
-            quote_id_prefix: request.quote_id_prefix,
             bump: request.spread_bump.into(),
             source_fingerprint: hazard_source_fingerprint(request.hazard),
         };
@@ -168,114 +164,241 @@ fn require_discount_id(discount_id: Option<&CurveId>) -> finstack_quant_core::Re
     })
 }
 
-fn snapped_cds_tenor_months(tenor_years: f64) -> u32 {
-    let raw_months = (tenor_years * 12.0).round().max(1.0) as i32;
-    const STD_MONTHS: [i32; 11] = [3, 6, 12, 24, 36, 60, 84, 120, 180, 240, 360];
-    let mut snapped_months = raw_months;
-    if let Some(best) = STD_MONTHS
+fn recipe_inputs(
+    hazard: &HazardCurve,
+) -> finstack_quant_core::Result<(HazardCurveParams, Vec<CdsQuote>, CalibrationConfig)> {
+    let recipe = hazard.hazard_calibration().ok_or_else(|| {
+        finstack_quant_core::Error::Validation(format!(
+            "hazard curve '{}' has no lossless calibration recipe; quote-space spread risk is unavailable",
+            hazard.id()
+        ))
+    })?;
+    let params = serde_json::from_value(recipe.hazard_params.clone()).map_err(|error| {
+        finstack_quant_core::Error::Validation(format!(
+            "hazard curve '{}' contains invalid replay parameters: {error}",
+            hazard.id()
+        ))
+    })?;
+    let quotes = recipe
+        .cds_quotes
         .iter()
-        .copied()
-        .min_by(|a, b| (raw_months - a).abs().cmp(&(raw_months - b).abs()))
-    {
-        if (raw_months - best).abs() <= 2 {
-            snapped_months = best;
-        } else {
-            // Fallback: nearest quarter-year multiple.
-            snapped_months = ((raw_months as f64 / 3.0).round() as i32).max(1) * 3;
-        }
-    }
-    snapped_months as u32
+        .cloned()
+        .map(|value| {
+            serde_json::from_value(value).map_err(|error| {
+                finstack_quant_core::Error::Validation(format!(
+                    "hazard curve '{}' contains an invalid replay quote: {error}",
+                    hazard.id()
+                ))
+            })
+        })
+        .collect::<finstack_quant_core::Result<Vec<_>>>()?;
+    let config = serde_json::from_value(recipe.calibration_config.clone()).map_err(|error| {
+        finstack_quant_core::Error::Validation(format!(
+            "hazard curve '{}' contains an invalid replay policy: {error}",
+            hazard.id()
+        ))
+    })?;
+    Ok((params, quotes, config))
 }
 
-fn bumped_spread(spread_bp: f64, tenor_years: f64, bump: Option<&BumpRequest>) -> f64 {
-    let mut bumped = spread_bp;
-    match bump {
-        Some(BumpRequest::Parallel(bp)) => {
-            bumped += bp;
+fn quote_pillar_years(
+    quote: &CdsQuote,
+    params: &HazardCurveParams,
+    hazard: &HazardCurve,
+) -> finstack_quant_core::Result<f64> {
+    let pillar = match quote {
+        CdsQuote::CdsParSpread { pillar, .. } | CdsQuote::CdsUpfront { pillar, .. } => pillar,
+    };
+    match pillar {
+        Pillar::Tenor(tenor) => Ok(tenor.to_years_simple()),
+        Pillar::Date(date) => {
+            hazard
+                .day_count()
+                .year_fraction(params.base_date, *date, DayCountContext::default())
         }
-        Some(BumpRequest::Tenors(targets)) => {
-            for (target_t, bp) in targets {
-                // Match against the original curve tenor, not the snapped CDS
-                // schedule tenor, so bucketed reports preserve irregular pillars.
-                if (tenor_years - target_t).abs() < 0.1 {
-                    bumped += bp;
-                }
-            }
-        }
-        None => {}
     }
-    bumped
+}
+
+fn bump_for_pillar(tenor_years: f64, bump: Option<&BumpRequest>) -> f64 {
+    match bump {
+        Some(BumpRequest::Parallel(bp)) => *bp,
+        Some(BumpRequest::Tenors(targets)) => targets
+            .iter()
+            .filter(|(target, _)| (tenor_years - target).abs() < 0.1)
+            .map(|(_, bp)| *bp)
+            .sum(),
+        None => 0.0,
+    }
+}
+
+fn with_quote_recovery(quote: &CdsQuote, recovery_rate: f64) -> CdsQuote {
+    match quote {
+        CdsQuote::CdsParSpread {
+            id,
+            entity,
+            convention,
+            pillar,
+            spread_bp,
+            ..
+        } => CdsQuote::CdsParSpread {
+            id: id.clone(),
+            entity: entity.clone(),
+            convention: convention.clone(),
+            pillar: pillar.clone(),
+            spread_bp: *spread_bp,
+            recovery_rate,
+        },
+        CdsQuote::CdsUpfront {
+            id,
+            entity,
+            convention,
+            pillar,
+            running_spread_bp,
+            upfront_pct,
+            ..
+        } => CdsQuote::CdsUpfront {
+            id: id.clone(),
+            entity: entity.clone(),
+            convention: convention.clone(),
+            pillar: pillar.clone(),
+            running_spread_bp: *running_spread_bp,
+            upfront_pct: *upfront_pct,
+            recovery_rate,
+        },
+    }
+}
+
+fn replay_once(
+    request: &HazardParRecalibration<'_>,
+    mut params: HazardCurveParams,
+    quotes: &[CdsQuote],
+    config: &CalibrationConfig,
+    spread_bump: Option<&BumpRequest>,
+) -> finstack_quant_core::Result<HazardCurve> {
+    params.recovery_rate = request.recovery_rate;
+    let stored_pillars: Vec<f64> = request
+        .hazard
+        .par_spread_points()
+        .map(|(time, _)| time)
+        .collect();
+    let use_stored_pillars = stored_pillars.len() == quotes.len();
+    let market_quotes = quotes
+        .iter()
+        .enumerate()
+        .map(|(index, quote)| {
+            let tenor = if use_stored_pillars {
+                stored_pillars[index]
+            } else {
+                quote_pillar_years(quote, &params, request.hazard)?
+            };
+            let bump_bp = bump_for_pillar(tenor, spread_bump);
+            if bump_bp != 0.0 && matches!(quote, CdsQuote::CdsUpfront { .. }) {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "hazard curve '{}' was calibrated from an upfront CDS quote at {tenor:.8} years; par-spread shocks require par-spread calibration quotes",
+                    request.hazard.id()
+                )));
+            }
+            Ok(MarketQuote::Cds(
+                with_quote_recovery(quote, request.recovery_rate).bump_spread_bp(bump_bp),
+            ))
+        })
+        .collect::<finstack_quant_core::Result<Vec<_>>>()?;
+    let step = StepParams::Hazard(params.clone());
+    let (context, _report) =
+        step_runtime::execute_params_and_apply(&step, &market_quotes, request.context, config)?;
+    let replayed = context
+        .get_hazard(params.curve_id.as_str())?
+        .as_ref()
+        .clone();
+    replayed
+        .to_builder_with_id(replayed.id().clone())
+        .fx_policy_opt(request.hazard.fx_policy().map(ToOwned::to_owned))
+        .build()
+}
+
+fn require_zero_shock_identity(
+    expected: &HazardCurve,
+    replayed: &HazardCurve,
+) -> finstack_quant_core::Result<()> {
+    let expected_knots: Vec<_> = expected.knot_points().collect();
+    let replayed_knots: Vec<_> = replayed.knot_points().collect();
+    let same_knots = expected_knots.len() == replayed_knots.len()
+        && expected_knots.iter().zip(&replayed_knots).all(
+            |((expected_t, expected_h), (replayed_t, replayed_h))| {
+                let t_scale = expected_t.abs().max(replayed_t.abs()).max(1.0);
+                let h_scale = expected_h.abs().max(replayed_h.abs()).max(1.0);
+                (expected_t - replayed_t).abs() <= 1e-12 * t_scale
+                    && (expected_h - replayed_h).abs() <= 1e-10 * h_scale
+            },
+        );
+    if !same_knots {
+        return Err(finstack_quant_core::Error::Calibration {
+            message: format!(
+                "zero-shock hazard replay for '{}' does not reproduce the stored curve",
+                expected.id()
+            ),
+            category: "hazard_replay_identity".to_string(),
+        });
+    }
+    Ok(())
+}
+
+fn bump_is_zero(bump: &BumpRequest) -> bool {
+    match bump {
+        BumpRequest::Parallel(bp) => *bp == 0.0,
+        BumpRequest::Tenors(targets) => targets.iter().all(|(_, bp)| *bp == 0.0),
+    }
 }
 
 fn recalibrate_from_par_spreads(
     request: HazardParRecalibration<'_>,
 ) -> finstack_quant_core::Result<HazardCurve> {
-    let par_points: Vec<(f64, f64)> = request.hazard.par_spread_points().collect();
-    if par_points.is_empty() {
-        return Err(finstack_quant_core::Error::Input(
-            finstack_quant_core::InputError::TooFewPoints,
-        ));
+    let (params, quotes, config) = recipe_inputs(request.hazard)?;
+    if &params.curve_id != request.hazard.id() {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "hazard replay recipe curve ID '{}' does not match stored curve '{}'",
+            params.curve_id,
+            request.hazard.id()
+        )));
+    }
+    if &params.discount_curve_id != request.discount_id {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "hazard replay requires discount curve '{}', not '{}'",
+            params.discount_curve_id, request.discount_id
+        )));
+    }
+    if let (Some(requested), Some(stored)) = (request.doc_clause, params.doc_clause.as_deref()) {
+        if stored != requested.as_str() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "hazard replay documentation clause {requested:?} conflicts with stored clause {stored:?}"
+            )));
+        }
+    }
+    if let (Some(requested), Some(stored)) = (
+        request.cds_valuation_convention,
+        params.cds_valuation_convention,
+    ) {
+        if stored != requested {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "hazard replay valuation convention {requested:?} conflicts with stored convention {stored:?}"
+            )));
+        }
     }
 
-    let base_date = request.hazard.base_date();
-    let currency = request.hazard.currency().unwrap_or(Currency::USD);
-    let seniority = request.hazard.seniority.unwrap_or(Seniority::Senior);
-    let issuer = request
-        .hazard
-        .issuer()
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| "UNKNOWN".to_string());
-
-    let mut quotes = Vec::with_capacity(par_points.len());
-    for (tenor_years, spread_bp) in par_points {
-        quotes.push(CdsQuote::CdsParSpread {
-            id: format!("{}-{}-{:.4}", request.quote_id_prefix, issuer, tenor_years).into(),
-            entity: issuer.clone(),
-            // Use tenor pillars so CDS schedule generation can snap to market-standard
-            // IMM maturities. Using ad-hoc `Date` pillars can create invalid ranges.
-            pillar: crate::market::quotes::ids::Pillar::Tenor(Tenor::new(
-                snapped_cds_tenor_months(tenor_years),
-                TenorUnit::Months,
-            )),
-            spread_bp: bumped_spread(spread_bp, tenor_years, request.spread_bump),
-            recovery_rate: request.recovery_rate,
-            convention: crate::market::conventions::ids::CdsConventionKey {
-                currency,
-                doc_clause: request.doc_clause,
-            },
-        });
-    }
-
-    let market_quotes: Vec<MarketQuote> = quotes.into_iter().map(MarketQuote::Cds).collect();
-    let params = HazardCurveParams {
-        curve_id: request.hazard.id().clone(),
-        entity: issuer,
-        seniority,
-        currency,
-        base_date,
-        discount_curve_id: request.discount_id.clone(),
-        recovery_rate: request.recovery_rate,
-        notional: 1.0,
-        method: CalibrationMethod::Bootstrap,
-        // Preserve the base curve's survival interpolation style so the
-        // bumped curve is built with the same convention.
-        interpolation: request.hazard.survival_interp_style(),
-        par_interp: request.hazard.par_interp(),
-        doc_clause: Some(request.doc_clause.as_str().to_string()),
-        cds_valuation_convention: request.cds_valuation_convention,
+    let base_request = HazardParRecalibration {
+        recovery_rate: params.recovery_rate,
+        spread_bump: None,
+        ..request
     };
+    let replayed_base = replay_once(&base_request, params.clone(), &quotes, &config, None)?;
+    require_zero_shock_identity(request.hazard, &replayed_base)?;
 
-    // Re-calibration uses the default CalibrationConfig — see the "Calibration
-    // config — known limitation" note in this module's docs (`bumps/mod.rs`).
-    let cfg = CalibrationConfig::default();
-    let step = StepParams::Hazard(params.clone());
-    let (ctx, _report) =
-        step_runtime::execute_params_and_apply(&step, &market_quotes, request.context, &cfg)?;
-    let new_curve = ctx.get_hazard(params.curve_id.as_str())?.as_ref().clone();
-    new_curve
-        .to_builder_with_id(new_curve.id().clone())
-        .fx_policy_opt(request.hazard.fx_policy().map(ToOwned::to_owned))
-        .build()
+    if request.recovery_rate.to_bits() == params.recovery_rate.to_bits()
+        && request.spread_bump.is_none_or(bump_is_zero)
+    {
+        return Ok(replayed_base);
+    }
+    replay_once(&request, params, &quotes, &config, request.spread_bump)
 }
 
 /// Bump hazard par spreads and re-calibrate, optionally reusing a batch cache.
@@ -286,18 +409,15 @@ fn recalibrate_from_par_spreads(
 ///   the same source curve (same identifier, discounting, recovery, and
 ///   source par/hazard fingerprint) reuse the bootstrapped result. `None`
 ///   always re-bootstraps.
-/// * `hazard` - Existing hazard curve from which par CDS spreads are implied
-///   before applying the shock and re-bootstrap.
-/// * `context` - Market context supplying the discount curve and calibration
-///   dependencies required for CDS repricing.
+/// * `hazard` - Existing hazard curve carrying its lossless calibration recipe.
+/// * `context` - Market context supplying the original calibration dependencies.
 /// * `bump` - Parallel or tenor-specific CDS spread shock in [`BumpRequest`]
 ///   basis point units.
-/// * `discount_id` - Optional discount curve ID; `None` is rejected because
-///   spread re-calibration must choose a discounting curve.
-/// * `doc_clause` - Optional ISDA CDS documentation clause; `None` uses the
-///   canonical North American clause.
-/// * `cds_valuation_convention` - Optional premium-leg/accrual convention;
-///   `None` uses the calibration runtime default.
+/// * `discount_id` - Discount curve ID, which must match the stored recipe.
+/// * `doc_clause` - Optional documentation-clause assertion. When supplied, it
+///   must match the stored recipe; `None` uses the stored value.
+/// * `cds_valuation_convention` - Optional valuation-convention assertion.
+///   When supplied, it must match the stored recipe; `None` uses the stored value.
 pub fn bump_hazard_spreads_cached(
     cache: Option<&HazardRecalibrationCache>,
     hazard: &HazardCurve,
@@ -313,9 +433,8 @@ pub fn bump_hazard_spreads_cached(
         context,
         discount_id,
         recovery_rate: hazard.recovery_rate(),
-        doc_clause: doc_clause.unwrap_or(CdsDocClause::IsdaNa),
+        doc_clause,
         cds_valuation_convention,
-        quote_id_prefix: "BUMP",
         spread_bump: Some(bump),
     };
     match cache {
@@ -326,27 +445,24 @@ pub fn bump_hazard_spreads_cached(
 
 /// Bump hazard curve by shocking par spreads and re-calibrating.
 ///
-/// This is the standard "Risk Re-calibration" approach. It extracts par
-/// points from the current curve, applies shocks, and builds a new
-/// credit-quote set to solve for a new hazard curve.
+/// The source curve's lossless calibration recipe supplies the original typed
+/// CDS quotes, pillars, conventions, and solver policy. A zero-shock replay must
+/// reproduce the source curve before any nonzero shock is accepted.
 ///
-/// This function is strictly recalibration-only; callers that want a
-/// model hazard shift should call [`bump_hazard_shift`] explicitly.
+/// This function is strictly recalibration-only; callers that want a model
+/// hazard shift should call [`bump_hazard_shift`] explicitly.
 ///
 /// # Arguments
 ///
-/// * `hazard` - Existing hazard curve from which par CDS spreads are implied
-///   before applying the shock and re-bootstrap.
-/// * `context` - Market context supplying the discount curve and calibration
-///   dependencies required for CDS repricing.
+/// * `hazard` - Existing hazard curve carrying its lossless calibration recipe.
+/// * `context` - Market context supplying the original calibration dependencies.
 /// * `bump` - Parallel or tenor-specific CDS spread shock in [`BumpRequest`]
 ///   basis point units.
-/// * `discount_id` - Optional discount curve ID; `None` is rejected because
-///   spread re-calibration must choose a discounting curve.
-/// * `doc_clause` - Optional ISDA CDS documentation clause; `None` uses the
-///   canonical North American clause.
-/// * `cds_valuation_convention` - Optional premium-leg/accrual convention;
-///   `None` uses the calibration runtime default.
+/// * `discount_id` - Discount curve ID, which must match the stored recipe.
+/// * `doc_clause` - Optional documentation-clause assertion. When supplied, it
+///   must match the stored recipe; `None` uses the stored value.
+/// * `cds_valuation_convention` - Optional valuation-convention assertion.
+///   When supplied, it must match the stored recipe; `None` uses the stored value.
 pub fn bump_hazard_spreads(
     hazard: &HazardCurve,
     context: &MarketContext,
@@ -416,19 +532,18 @@ pub fn bump_hazard_shift(
 ///
 /// # Errors
 ///
-/// Returns the original error from `bump_hazard_spreads` if the curve has no
-/// stored par-spread points (uncalibratable) or if the bootstrap fails.
+/// Returns an error if the curve has no lossless calibration recipe, if a
+/// caller-supplied convention conflicts with that recipe, if zero-shock replay
+/// is not identical, or if the original calibration cannot be replayed.
 ///
 /// # Arguments
 ///
-/// * `hazard` — source curve carrying the observed CDS par spreads
-/// * `new_recovery` — recovery rate to use during re-bootstrapping (clamped to `[0, 1)`)
-/// * `context` — market context providing the discount curve referenced by `discount_id`
-/// * `discount_id` — discount curve identifier used to value the protection leg during bootstrap
-/// * `doc_clause` — optional ISDA CDS documentation clause; `None` uses the
-///   canonical North American clause
-/// * `cds_valuation_convention` — optional premium-leg/accrual convention;
-///   `None` uses the calibration runtime default
+/// * `hazard` — source curve carrying its lossless calibration recipe
+/// * `new_recovery` — recovery rate used for the replay, clamped to `[0, 1)`
+/// * `context` — market context providing the stored calibration dependencies
+/// * `discount_id` — discount curve identifier, which must match the stored recipe
+/// * `doc_clause` — optional documentation-clause assertion
+/// * `cds_valuation_convention` — optional valuation-convention assertion
 pub fn recalibrate_hazard_with_recovery(
     hazard: &HazardCurve,
     new_recovery: f64,
@@ -447,9 +562,8 @@ pub fn recalibrate_hazard_with_recovery(
         context,
         discount_id,
         recovery_rate: new_recovery,
-        doc_clause: doc_clause.unwrap_or(CdsDocClause::IsdaNa),
+        doc_clause,
         cds_valuation_convention,
-        quote_id_prefix: "RECOVERY-RECALIB",
         spread_bump: None,
     })
 }
@@ -517,6 +631,7 @@ fn with_key_rate_hazard_bump(
         .par_interp(hazard.par_interp())
         .par_spreads(hazard.par_spread_points())
         .interp(hazard.survival_interp_style())
+        .hazard_calibration_opt(hazard.hazard_calibration().cloned())
         .fx_policy_opt(hazard.fx_policy().map(ToOwned::to_owned));
 
     if let Some(issuer) = hazard.issuer() {

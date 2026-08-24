@@ -1108,6 +1108,18 @@
                 "null"
               ]
             },
+            "hazard_calibration": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/HazardCalibrationRecipe"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Exact calibration replay inputs."
+            },
             "id": {
               "description": "Curve identifier",
               "type": "string"
@@ -1915,6 +1927,29 @@
         "config",
         "quotes",
         "pinned_quotes"
+      ],
+      "type": "object"
+    },
+    "HazardCalibrationRecipe": {
+      "additionalProperties": false,
+      "description": "Exact valuation-layer inputs required to replay a hazard-curve calibration.\n\nThe core market-data crate stores these payloads without interpreting them;\nthe valuations crate deserializes them back into its canonical\n`HazardCurveParams`, typed CDS quotes, and `CalibrationConfig`. Keeping the\ncomplete serde payloads avoids replacing date pillars with rounded tenors or\nsilently substituting current defaults for the original solver policy.",
+      "properties": {
+        "calibration_config": {
+          "description": "Exact serialized `CalibrationConfig`, including solver and validation policy."
+        },
+        "cds_quotes": {
+          "description": "Complete ordered set of typed CDS quote payloads used for the original solve.",
+          "items": true,
+          "type": "array"
+        },
+        "hazard_params": {
+          "description": "Exact serialized `HazardCurveParams` used for the original solve."
+        }
+      },
+      "required": [
+        "hazard_params",
+        "cds_quotes",
+        "calibration_config"
       ],
       "type": "object"
     },

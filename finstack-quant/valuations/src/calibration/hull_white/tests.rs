@@ -680,7 +680,7 @@ fn hw1f_residuals_signal_err_on_non_finite_price_no_magic_literal() {
             market_price: 0.01,
             fwd_swap_rate: 0.03,
             vega: 0.5,
-            accruals: None,
+            schedule: None,
         })
         .collect();
 
@@ -1023,9 +1023,8 @@ fn hw1f_zcb_option_caplet_prices_above_old_approximation() {
     );
 }
 
-/// A malformed per-quote schedule falls back to the synthetic recipe but
-/// is stamped in the report metadata instead of silently claiming
-/// real-day-count schedules.
+/// A malformed contractual schedule is rejected rather than silently replaced
+/// by a synthetic constant-period schedule.
 #[test]
 fn swaption_malformed_schedule_is_rejected() {
     let df_fn = flat_df(0.03);
@@ -1043,19 +1042,20 @@ fn swaption_malformed_schedule_is_rejected() {
             is_normal_vol: true,
         },
     ];
-    // First schedule valid (10 semi-annual accruals), second malformed
-    // (wrong length). Supplying schedules asserts they are the contractual
-    // accruals, so a malformed one is rejected rather than silently swapped
-    // for the synthetic constant-dt recipe.
-    let schedules = vec![vec![0.5; 10], vec![0.5; 3]];
-    let err = calibrate_hull_white_to_swaptions_with_schedules(
-        &df_fn,
-        &quotes,
-        SwapFrequency::SemiAnnual,
-        &schedules,
-        None,
-    )
-    .expect_err("a malformed per-quote schedule must be rejected");
+    let schedules = vec![
+        SwaptionSchedule {
+            payment_times: (1..=10).map(|index| 1.0 + index as f64 * 0.5).collect(),
+            accruals: vec![0.5; 10],
+            maturity_time: 6.0,
+        },
+        SwaptionSchedule {
+            payment_times: vec![5.5, 6.0],
+            accruals: vec![0.5],
+            maturity_time: 10.0,
+        },
+    ];
+    let err = calibrate_hull_white_to_swaptions_with_schedules(&df_fn, &quotes, &schedules, None)
+        .expect_err("a malformed per-quote schedule must be rejected");
     let msg = err.to_string();
     assert!(
         msg.contains("5Yx5Y") && msg.contains("malformed"),

@@ -26,10 +26,17 @@ use finstack_quant_core::market_data::term_structures::{
 };
 use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
 use finstack_quant_core::HashMap;
+use finstack_quant_valuations::calibration::api::engine;
+use finstack_quant_valuations::calibration::api::market_datum::MarketDatum;
+use finstack_quant_valuations::calibration::api::prior_market::PriorMarketObject;
+use finstack_quant_valuations::calibration::api::schema::{
+    CalibrationEnvelope, CalibrationPlan, CalibrationStep, HazardCurveParams, StepParams,
+};
 use finstack_quant_valuations::calibration::bumps::{
     bump_discount_curve_synthetic, bump_hazard_shift, bump_hazard_spreads, bump_inflation_rates,
     bump_vol_surface, BumpRequest, VolBumpRequest,
 };
+use finstack_quant_valuations::calibration::CalibrationMethod;
 use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
 use finstack_quant_valuations::market::quotes::cds::CdsQuote;
 use finstack_quant_valuations::market::quotes::ids::Pillar;
@@ -594,6 +601,64 @@ fn hazard_market(hazard: HazardCurve) -> MarketContext {
     MarketContext::new().insert(discount).insert(hazard)
 }
 
+fn replayable_hazard_curve() -> HazardCurve {
+    let discount_context = hazard_market(sample_hazard_curve());
+    let discount = discount_context
+        .get_discount("USD-OIS")
+        .expect("discount curve")
+        .as_ref()
+        .clone();
+    let quotes = [(1, 80.0), (3, 100.0), (5, 130.0), (10, 180.0)]
+        .into_iter()
+        .map(|(years, spread)| par_cds_quote(years, spread))
+        .collect::<Vec<_>>();
+    let quote_ids = quotes.iter().map(|quote| quote.id().clone()).collect();
+    let market_data = quotes.into_iter().map(MarketDatum::CdsQuote).collect();
+    let plan = CalibrationPlan {
+        id: "hazard-replay-fixture".to_string(),
+        description: None,
+        quote_sets: [("credit".to_string(), quote_ids)].into_iter().collect(),
+        steps: vec![CalibrationStep {
+            id: "hazard".to_string(),
+            quote_set: "credit".to_string(),
+            params: StepParams::Hazard(HazardCurveParams {
+                curve_id: "ACME-SEN-USD".into(),
+                entity: "ACME".to_string(),
+                seniority: Seniority::Subordinated,
+                currency: Currency::USD,
+                base_date: hazard_base_date(),
+                discount_curve_id: "USD-OIS".into(),
+                recovery_rate: 0.4,
+                notional: 1.0,
+                method: CalibrationMethod::Bootstrap,
+                interpolation: InterpStyle::Linear,
+                par_interp: ParInterp::LogLinear,
+                doc_clause: Some("isda_na".to_string()),
+                cds_valuation_convention: None,
+            }),
+        }],
+        settings: Default::default(),
+    };
+    let envelope = CalibrationEnvelope {
+        schema_url: None,
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
+        plan,
+        market_data,
+        prior_market: vec![PriorMarketObject::DiscountCurve(discount)],
+    };
+    let result = engine::execute(&envelope).expect("hazard fixture calibration");
+    let context =
+        MarketContext::try_from(result.result.final_market).expect("hazard fixture context");
+    let hazard = context
+        .get_hazard("ACME-SEN-USD")
+        .expect("calibrated hazard");
+    hazard
+        .to_builder_with_id(hazard.id().clone())
+        .fx_policy("single_curve_credit::USD")
+        .build()
+        .expect("replayable hazard metadata")
+}
+
 fn par_cds_quote(years: u32, spread_bp: f64) -> CdsQuote {
     CdsQuote::CdsParSpread {
         id: format!("ACME-CDS-{years}Y").into(),
@@ -620,21 +685,22 @@ fn par_cds_build_context() -> BuildCtx {
 /// assumed one-for-one displacement of model hazard rates.
 #[test]
 fn hazard_par_spread_tenor_bump_reprices_strict_fuzzy_targets() {
-    let source = sample_hazard_curve();
+    let source = replayable_hazard_curve();
     let market = hazard_market(source.clone());
     let discount_id = finstack_quant_core::types::CurveId::new("USD-OIS");
+    let pillar_times: Vec<f64> = source.par_spread_points().map(|(time, _)| time).collect();
     let bumped = bump_hazard_spreads(
         &source,
         &market,
         &BumpRequest::Tenors(vec![
-            (1.0, 2.0),
-            (1.05, 3.0),
-            (1.0, 4.0),
-            (3.1, 100.0), // Exactly 0.1y from 3y: excluded.
-            (4.0, 11.0),  // Between stored par tenors.
-            (5.05, 5.0),
-            (5.05, -2.0), // Repeated fuzzy target: additive.
-            (12.0, 13.0), // Beyond the final par tenor.
+            (pillar_times[0], 2.0),
+            (pillar_times[0] + 0.05, 3.0),
+            (pillar_times[0], 4.0),
+            (pillar_times[1] + 0.100_001, 100.0),
+            ((pillar_times[1] + pillar_times[2]) / 2.0, 11.0),
+            (pillar_times[2] + 0.05, 5.0),
+            (pillar_times[2] + 0.05, -2.0),
+            (pillar_times[3] + 2.0, 13.0),
         ]),
         Some(&discount_id),
         None,
@@ -671,7 +737,7 @@ fn hazard_par_spread_tenor_bump_reprices_strict_fuzzy_targets() {
 /// the same 1 bp shock, within the suite's existing 2% CS01 tolerance.
 #[test]
 fn hazard_par_spread_bucket_risk_reconciles_to_parallel() {
-    let source = sample_hazard_curve();
+    let source = replayable_hazard_curve();
     let source_market = hazard_market(source.clone());
     let discount_id = finstack_quant_core::types::CurveId::new("USD-OIS");
     let calibrated = bump_hazard_spreads(

@@ -32,17 +32,17 @@ use crate::calibration::api::schema::StudentTParams;
 use crate::calibration::config::CalibrationConfig;
 use crate::calibration::solver::helpers::bracket_solve_1d_with_diagnostics;
 use crate::calibration::CalibrationReport;
-use crate::instruments::common_impl::traits::Attributes;
 use crate::instruments::credit_derivatives::cds_tranche::{
-    CDSTranche, CDSTranchePricer, CDSTranchePricerConfig, TrancheSide,
+    CDSTranche, CDSTranchePricer, CDSTranchePricerConfig,
 };
+use crate::market::build::cds_tranche::{build_cds_tranche_instrument, CDSTrancheBuildOverrides};
 use crate::market::quotes::market_quote::MarketQuote;
-use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, Tenor};
+use crate::market::BuildCtx;
+use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::market_data::term_structures::CreditIndexData;
-use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_core::types::CurveId;
 use finstack_quant_core::Result;
 use std::collections::BTreeMap;
 
@@ -153,25 +153,15 @@ impl StudentTTarget {
                 })
             })?;
 
-        let (index_id, attachment, detachment, maturity, upfront_pct, running_spread_bp) =
-            match &tranche_quote {
-                crate::market::quotes::cds_tranche::CDSTrancheQuote::CDSTranche {
-                    index,
-                    attachment,
-                    detachment,
-                    maturity,
-                    upfront_pct,
-                    running_spread_bp,
-                    ..
-                } => (
-                    index.clone(),
-                    *attachment,
-                    *detachment,
-                    *maturity,
-                    *upfront_pct,
-                    *running_spread_bp,
-                ),
-            };
+        let (index_id, attachment, detachment, upfront_pct) = match &tranche_quote {
+            crate::market::quotes::cds_tranche::CDSTrancheQuote::CDSTranche {
+                index,
+                attachment,
+                detachment,
+                upfront_pct,
+                ..
+            } => (index.clone(), *attachment, *detachment, *upfront_pct),
+        };
 
         let base_correlation_curve =
             context.get_base_correlation(&params.base_correlation_curve_id)?;
@@ -197,30 +187,53 @@ impl StudentTTarget {
         let discount_curve = pricing_context.get_discount(&discount_curve_id)?;
         let as_of = discount_curve.base_date();
 
-        let tranche = CDSTranche::builder()
-            .id(InstrumentId::new(params.tranche_instrument_id.clone()))
-            .index_name(index_id.clone())
-            .series(1)
-            .attach_pct(attachment * 100.0)
-            .detach_pct(detachment * 100.0)
-            .notional(Money::new(
-                1.0,
-                finstack_quant_core::currency::Currency::USD,
-            ))
-            .maturity(maturity)
-            .running_coupon_bp(running_spread_bp)
-            .frequency(Tenor::quarterly())
-            .day_count(DayCount::Act360)
-            .business_day_convention(BusinessDayConvention::Following)
-            .calendar_id_opt(None)
-            .discount_curve_id(discount_curve_id)
-            .credit_index_id(CurveId::from(index_id.as_str()))
-            .side(TrancheSide::SellProtection)
-            .effective_date_opt(None)
-            .accumulated_loss(0.0)
-            .standard_imm_dates(true)
-            .attributes(Attributes::new())
-            .build()?;
+        let tranche_width = detachment - attachment;
+        if !tranche_width.is_finite() || tranche_width <= 0.0 {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Student-t calibration tranche width must be positive; attachment={attachment}, detachment={detachment}"
+            )));
+        }
+        let pricing_quote = match &tranche_quote {
+            crate::market::quotes::cds_tranche::CDSTrancheQuote::CDSTranche {
+                id,
+                index,
+                series,
+                attachment,
+                detachment,
+                maturity,
+                running_spread_bp,
+                convention,
+                ..
+            } => crate::market::quotes::cds_tranche::CDSTrancheQuote::CDSTranche {
+                id: id.clone(),
+                index: index.clone(),
+                series: *series,
+                attachment: *attachment,
+                detachment: *detachment,
+                maturity: *maturity,
+                upfront_pct: 0.0,
+                running_spread_bp: *running_spread_bp,
+                convention: convention.clone(),
+            },
+        };
+        let mut curve_ids = finstack_quant_core::HashMap::default();
+        curve_ids.insert("discount".to_string(), discount_curve_id.to_string());
+        curve_ids.insert("credit".to_string(), index_id);
+        let build_context = BuildCtx::new(as_of, 1.0 / tranche_width, curve_ids);
+        let instrument = build_cds_tranche_instrument(
+            &pricing_quote,
+            &build_context,
+            &CDSTrancheBuildOverrides::default(),
+        )?;
+        let tranche = instrument
+            .as_any()
+            .downcast_ref::<CDSTranche>()
+            .ok_or_else(|| {
+                finstack_quant_core::Error::Validation(
+                    "shared tranche quote builder did not return CDSTranche".to_string(),
+                )
+            })?
+            .clone();
 
         let calibrator = Self::new(params.clone(), pricing_context, global_config.clone());
         calibrator.calibrate_df(&tranche, upfront_pct, as_of)

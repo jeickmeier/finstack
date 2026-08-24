@@ -266,7 +266,7 @@
         "expiry": "2027-05-08",
         "maturity": "2029-05-08",
         "strike": 0.045,
-        "vol": 72.0,
+        "vol": 0.0072,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -278,7 +278,7 @@
         "expiry": "2027-05-08",
         "maturity": "2029-05-08",
         "strike": 0.05,
-        "vol": 65.0,
+        "vol": 0.0065,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -290,7 +290,7 @@
         "expiry": "2027-05-08",
         "maturity": "2029-05-08",
         "strike": 0.055,
-        "vol": 72.0,
+        "vol": 0.0072,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -302,7 +302,7 @@
         "expiry": "2027-05-08",
         "maturity": "2032-05-08",
         "strike": 0.045,
-        "vol": 67.0,
+        "vol": 0.0067,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -314,7 +314,7 @@
         "expiry": "2027-05-08",
         "maturity": "2032-05-08",
         "strike": 0.05,
-        "vol": 60.0,
+        "vol": 0.006,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -326,7 +326,7 @@
         "expiry": "2027-05-08",
         "maturity": "2032-05-08",
         "strike": 0.055,
-        "vol": 67.0,
+        "vol": 0.0067,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -338,7 +338,7 @@
         "expiry": "2027-05-08",
         "maturity": "2037-05-08",
         "strike": 0.045,
-        "vol": 62.0,
+        "vol": 0.0062,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -350,7 +350,7 @@
         "expiry": "2027-05-08",
         "maturity": "2037-05-08",
         "strike": 0.05,
-        "vol": 55.0,
+        "vol": 0.0055,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -362,7 +362,7 @@
         "expiry": "2027-05-08",
         "maturity": "2037-05-08",
         "strike": 0.055,
-        "vol": 62.0,
+        "vol": 0.0062,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -374,7 +374,7 @@
         "expiry": "2028-05-08",
         "maturity": "2030-05-08",
         "strike": 0.045,
-        "vol": 74.0,
+        "vol": 0.0074,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -386,7 +386,7 @@
         "expiry": "2028-05-08",
         "maturity": "2030-05-08",
         "strike": 0.05,
-        "vol": 68.0,
+        "vol": 0.0068,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -398,7 +398,7 @@
         "expiry": "2028-05-08",
         "maturity": "2030-05-08",
         "strike": 0.055,
-        "vol": 74.0,
+        "vol": 0.0074,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -410,7 +410,7 @@
         "expiry": "2028-05-08",
         "maturity": "2033-05-08",
         "strike": 0.045,
-        "vol": 69.0,
+        "vol": 0.0069,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -422,7 +422,7 @@
         "expiry": "2028-05-08",
         "maturity": "2033-05-08",
         "strike": 0.05,
-        "vol": 63.0,
+        "vol": 0.0063,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -434,7 +434,7 @@
         "expiry": "2028-05-08",
         "maturity": "2033-05-08",
         "strike": 0.055,
-        "vol": 69.0,
+        "vol": 0.0069,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -446,7 +446,7 @@
         "expiry": "2028-05-08",
         "maturity": "2038-05-08",
         "strike": 0.045,
-        "vol": 64.0,
+        "vol": 0.0064,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -458,7 +458,7 @@
         "expiry": "2028-05-08",
         "maturity": "2038-05-08",
         "strike": 0.05,
-        "vol": 57.0,
+        "vol": 0.0057,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -470,7 +470,7 @@
         "expiry": "2028-05-08",
         "maturity": "2038-05-08",
         "strike": 0.055,
-        "vol": 64.0,
+        "vol": 0.0064,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -482,7 +482,7 @@
         "expiry": "2031-05-08",
         "maturity": "2033-05-08",
         "strike": 0.045,
-        "vol": 80.0,
+        "vol": 0.008,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -494,7 +494,7 @@
         "expiry": "2031-05-08",
         "maturity": "2033-05-08",
         "strike": 0.05,
-        "vol": 74.0,
+        "vol": 0.0074,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -506,7 +506,7 @@
         "expiry": "2031-05-08",
         "maturity": "2033-05-08",
         "strike": 0.055,
-        "vol": 80.0,
+        "vol": 0.008,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -518,7 +518,7 @@
         "expiry": "2031-05-08",
         "maturity": "2036-05-08",
         "strike": 0.045,
-        "vol": 74.0,
+        "vol": 0.0074,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -530,7 +530,7 @@
         "expiry": "2031-05-08",
         "maturity": "2036-05-08",
         "strike": 0.05,
-        "vol": 68.0,
+        "vol": 0.0068,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -542,7 +542,7 @@
         "expiry": "2031-05-08",
         "maturity": "2036-05-08",
         "strike": 0.055,
-        "vol": 74.0,
+        "vol": 0.0074,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -554,7 +554,7 @@
         "expiry": "2031-05-08",
         "maturity": "2041-05-08",
         "strike": 0.045,
-        "vol": 67.0,
+        "vol": 0.0067,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -566,7 +566,7 @@
         "expiry": "2031-05-08",
         "maturity": "2041-05-08",
         "strike": 0.05,
-        "vol": 61.0,
+        "vol": 0.0061,
         "quote_type": "normal",
         "convention": "USD"
       }
@@ -578,7 +578,7 @@
         "expiry": "2031-05-08",
         "maturity": "2041-05-08",
         "strike": 0.055,
-        "vol": 67.0,
+        "vol": 0.0067,
         "quote_type": "normal",
         "convention": "USD"
       }

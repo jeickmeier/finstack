@@ -10,11 +10,10 @@ use crate::market::quotes::market_quote::MarketQuote;
 use crate::market::quotes::vol::VolQuote;
 use crate::models::{vega_weight, SABRCalibrator, SABRModel, SABRParameters};
 use finstack_quant_core::dates::{
-    BusinessDayConvention, DateExt, DayCount, DayCountContext, StubKind, Tenor,
+    adjust, BusinessDayConvention, DateExt, DayCount, DayCountContext, StubKind, Tenor,
 };
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::surfaces::VolCube;
-#[cfg(test)]
 use finstack_quant_core::market_data::surfaces::VolQuoteType;
 use finstack_quant_core::math::volatility::sabr::SabrParams;
 use finstack_quant_core::Result;
@@ -31,49 +30,34 @@ use crate::market::conventions::ids::SwaptionConventionId;
 pub(crate) struct SwaptionVolTarget;
 
 impl SwaptionVolTarget {
-    /// Convert a quoted swaption vol to internal model units (decimal).
+    /// Validate a decimal swaption volatility against the plan convention.
     ///
-    /// Internal contract:
-    /// - Normal vols are absolute (rate) vols as decimals (e.g., 50bp -> 0.0050)
-    /// - Lognormal/shifted-lognormal vols are Black vols as decimals (e.g., 20% -> 0.20)
-    fn normalize_quoted_vol(quoted: f64, convention: SwaptionVolConvention) -> Result<f64> {
+    /// Both normal absolute volatility and Black volatility use decimal units
+    /// throughout the quote, calibration, and model layers.
+    fn validate_quoted_vol(
+        quoted: f64,
+        quote_type: VolQuoteType,
+        convention: SwaptionVolConvention,
+    ) -> Result<f64> {
         if !quoted.is_finite() || quoted < 0.0 {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "Swaption vol must be finite and non-negative; got {}",
-                quoted
+                "swaption volatility must be finite, non-negative, and expressed in decimal units; got {quoted}"
             )));
         }
 
-        let normalized = match convention {
-            SwaptionVolConvention::Normal => quoted / 10_000.0, // bp -> decimal
+        let expected = match convention {
+            SwaptionVolConvention::Normal => VolQuoteType::Normal,
             SwaptionVolConvention::Lognormal | SwaptionVolConvention::ShiftedLognormal { .. } => {
-                quoted / 100.0
-            } // percent -> decimal
+                VolQuoteType::BlackLognormal
+            }
         };
-
-        if !normalized.is_finite() {
+        if quote_type != expected {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "Swaption vol normalization produced non-finite value; quoted={} convention={:?}",
-                quoted, convention
+                "swaption quote type {quote_type} conflicts with plan convention {convention:?}; expected {expected}"
             )));
         }
 
-        // Sanity-range check on the normalized vol. Catches off-by-100 unit
-        // errors (e.g., a 50bp Normal vol entered as `50` rather than `0.50`,
-        // which divides to 0.005 — well below market norms — or a 20% LN vol
-        // entered as `20.0` and treated as `0.20` correctly but `2000`
-        // treated as `20.0`, off the chart). Range [1e-4, 2.0] covers both
-        // Normal (100bp = 0.01, ~1% extreme) and Lognormal (1% to 200%)
-        // regimes including most stress scenarios.
-        if !(1e-4..=2.0).contains(&normalized) {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "normalized swaption vol {normalized:.6} (quoted={quoted}, convention={convention:?}) \
-                 is outside plausible market range [1e-4, 2.0] — check that the quoted vol's units \
-                 match the declared convention",
-            )));
-        }
-
-        Ok(normalized)
+        Ok(quoted)
     }
 
     /// Calibrates a swaption volatility surface from market quotes.
@@ -179,10 +163,14 @@ impl SwaptionVolTarget {
         let mut residuals = BTreeMap::new();
         let mut bucket_errors: BTreeMap<(u64, u64), String> = BTreeMap::new();
         let mut count = 0;
+        let mut total_iterations = 0;
+        let mut sabr_winning_starts = Vec::new();
+        let mut sabr_winning_iterations = Vec::new();
+        let mut sabr_residual_evaluations = Vec::new();
+        let mut sabr_bound_hits = Vec::new();
 
         for ((kb_exp, kb_ten), bucket_quotes) in &grouped_quotes {
             let t_exp = *kb_exp as f64 / 10000.0;
-            let t_ten = *kb_ten as f64 / 10000.0;
 
             // Use conventions from a representative quote for this (expiry, tenor) bucket.
             // Market-standard: forward/par rate depends on schedule, DC, BDC, and calendar.
@@ -195,18 +183,27 @@ impl SwaptionVolTarget {
                     ))?;
             let leg_conv = Self::resolve_leg_conventions(params, representative)?;
 
-            // Calculate forward swap rate (exact PV01 schedule; multi-curve supported).
-            let fwd_rate =
-                Self::calculate_forward_swap_rate_years(params, t_exp, t_ten, &leg_conv, context)?;
+            // Calculate the exact quote-defined underlying forward with the
+            // registered settlement, calendar, business-day, and leg conventions.
+            let (swap_start, swap_end) = Self::resolve_underlying_dates(representative, &leg_conv)?;
+            let fwd_rate = Self::calculate_forward_swap_rate_dates(
+                params, swap_start, swap_end, &leg_conv, context,
+            )?;
 
             let mut strikes = Vec::new();
             let mut vols = Vec::new();
             let mut quote_error: Option<String> = None;
 
             for q in bucket_quotes {
-                if let VolQuote::SwaptionVol { strike, vol, .. } = q {
+                if let VolQuote::SwaptionVol {
+                    strike,
+                    vol,
+                    quote_type,
+                    ..
+                } = q
+                {
                     strikes.push(*strike);
-                    match Self::normalize_quoted_vol(*vol, params.vol_convention) {
+                    match Self::validate_quoted_vol(*vol, *quote_type, params.vol_convention) {
                         Ok(v) => vols.push(v),
                         Err(e) => {
                             quote_error = Some(format!(
@@ -242,14 +239,15 @@ impl SwaptionVolTarget {
 
             let res = match params.vol_convention {
                 SwaptionVolConvention::Normal => sabr_calibrator
-                    .calibrate_with_atm_pinning(fwd_rate, &strikes, &vols, t_exp, 0.0),
-                SwaptionVolConvention::Lognormal => sabr_calibrator.calibrate_auto_shift(
-                    fwd_rate,
-                    &strikes,
-                    &vols,
-                    t_exp,
-                    params.sabr_beta,
-                ),
+                    .calibrate_with_atm_pinning_diagnostics(fwd_rate, &strikes, &vols, t_exp, 0.0),
+                SwaptionVolConvention::Lognormal => sabr_calibrator
+                    .calibrate_auto_shift_with_diagnostics(
+                        fwd_rate,
+                        &strikes,
+                        &vols,
+                        t_exp,
+                        params.sabr_beta,
+                    ),
                 SwaptionVolConvention::ShiftedLognormal { shift } => {
                     if !shift.is_finite() || shift <= 0.0 {
                         Err(finstack_quant_core::Error::Validation(format!(
@@ -257,7 +255,7 @@ impl SwaptionVolTarget {
                             shift
                         )))
                     } else {
-                        sabr_calibrator.calibrate_shifted(
+                        sabr_calibrator.calibrate_shifted_with_diagnostics(
                             fwd_rate,
                             &strikes,
                             &vols,
@@ -270,7 +268,26 @@ impl SwaptionVolTarget {
             };
 
             match res {
-                Ok(p) => {
+                Ok(outcome) => {
+                    total_iterations += outcome.total_iterations;
+                    let bucket = format!("T={t_exp:.6},tenor={:.6}", *kb_ten as f64 / 10_000.0);
+                    sabr_winning_starts.push(format!(
+                        "{bucket}:alpha={:.8},nu={:.8},rho={:.8}",
+                        outcome.winning_start[0],
+                        outcome.winning_start[1],
+                        outcome.winning_start[2]
+                    ));
+                    sabr_winning_iterations
+                        .push(format!("{bucket}:{}", outcome.winning_iterations));
+                    sabr_residual_evaluations
+                        .push(format!("{bucket}:{}", outcome.residual_evaluations));
+                    if !outcome.parameters_at_bounds.is_empty() {
+                        sabr_bound_hits.push(format!(
+                            "{bucket}:{}",
+                            outcome.parameters_at_bounds.join("|")
+                        ));
+                    }
+                    let p = outcome.parameters;
                     sabr_params.insert((*kb_exp, *kb_ten), p.clone());
                     calibration_forwards.insert((*kb_exp, *kb_ten), fwd_rate);
 
@@ -364,10 +381,16 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
             if let Some((min_ten, max_ten)) = tenor_bounds {
                 for &t in &target_tenors {
                     if t < min_ten || t > max_ten {
+                        let failed = bucket_errors
+                            .iter()
+                            .filter(|((_, tenor), _)| ((*tenor as f64 / 10_000.0) - t).abs() < 1e-4)
+                            .map(|(_, error)| error.as_str())
+                            .collect::<Vec<_>>()
+                            .join("; ");
                         return Err(finstack_quant_core::Error::Validation(format!(
-                            "Swaption target tenor {:.6} is out of bounds for calibrated tenors [{:.6}, {:.6}]. \
-Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
-                            t, min_ten, max_ten
+                            "Swaption target tenor {t:.6} is out of bounds for calibrated tenors \
+                             [{min_ten:.6}, {max_ten:.6}]. Failed target bucket: {failed}. \
+                             Set params.sabr_extrapolation='clamp' to allow flat extrapolation."
                         )));
                     }
                 }
@@ -478,7 +501,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
         let mut report = CalibrationReport::for_type_with_tolerance(
             "swaption_vol",
             residuals,
-            count,
+            total_iterations,
             vol_tolerance,
         );
         report.update_metadata(
@@ -497,6 +520,13 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
             interpolated_points.to_string(),
         );
         report.update_metadata("clamped_target_points", extrapolated_points.to_string());
+        report.update_metadata("sabr_winning_starts", sabr_winning_starts.join(";"));
+        report.update_metadata("sabr_winning_iterations", sabr_winning_iterations.join(";"));
+        report.update_metadata(
+            "sabr_residual_evaluations",
+            sabr_residual_evaluations.join(";"),
+        );
+        report.update_metadata("sabr_parameters_at_bounds", sabr_bound_hits.join(";"));
 
         // Item 3: a failed SABR expiry/tenor bucket must fail the surface calibration.
         //
@@ -544,10 +574,23 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
     // Market-standard forward/par swap rate + SABR parameter interpolation
 
     /// Resolve swaption leg conventions from quote and plan parameters.
-    fn resolve_leg_conventions<'a>(
+    pub(crate) fn resolve_leg_conventions<'a>(
         params: &'a SwaptionVolParams,
         quote: &'a VolQuote,
     ) -> Result<SwaptionLegConventions<'a>> {
+        let mut conventions = Self::resolve_quote_leg_conventions(quote)?;
+        if let Some(day_count) = params.fixed_day_count {
+            conventions.fixed_day_count = day_count;
+        }
+        if let Some(calendar_id) = params.calendar_id.as_deref() {
+            conventions.calendar_id = calendar_id;
+        }
+        Ok(conventions)
+    }
+
+    pub(crate) fn resolve_quote_leg_conventions(
+        quote: &VolQuote,
+    ) -> Result<SwaptionLegConventions<'_>> {
         let VolQuote::SwaptionVol {
             convention: swaption_conv_id,
             ..
@@ -557,39 +600,56 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
                 "Expected SwaptionVol quote".into(),
             ));
         };
-        let swaption_conv = ConventionRegistry::try_global()?.require_swaption(swaption_conv_id)?;
-
-        let idx_key = finstack_quant_core::types::IndexId::new(&swaption_conv.float_leg_index);
-        let idx_conv = ConventionRegistry::try_global()?.require_rate_index(&idx_key)?;
-
-        // Strict conventions: We use exactly what's in the registry.
-        let fixed_frequency = idx_conv.default_fixed_leg_frequency;
-        let float_frequency = idx_conv.default_payment_frequency;
-
-        let fixed_day_count = params
-            .fixed_day_count
-            .unwrap_or(idx_conv.default_fixed_leg_day_count);
-        let float_day_count = idx_conv.day_count;
-
-        let business_day_convention = swaption_conv.business_day_convention; // Or index market BDC? usually swaption follows index but overrides might happen.
-                                                                             // Actually, let's use the index convention for swap details, as swaption convention is for the OPTION part usually?
-                                                                             // But SwaptionConventions likely points to the underlying swap index.
-                                                                             // Let's stick to index conventions for swap leg details.
-
-        let calendar_id = params
-            .calendar_id
-            .as_deref()
-            .or(Some(swaption_conv.calendar_id.as_str()));
+        let registry = ConventionRegistry::try_global()?;
+        let swaption_conv = registry.require_swaption(swaption_conv_id)?;
+        let index_id = finstack_quant_core::types::IndexId::new(&swaption_conv.float_leg_index);
+        let index_conv = registry.require_rate_index(&index_id)?;
 
         Ok(SwaptionLegConventions {
-            fixed_frequency,
-            float_frequency,
-            fixed_day_count,
-            float_day_count,
-            fixed_business_day_convention: business_day_convention,
-            float_business_day_convention: business_day_convention,
-            calendar_id,
+            currency: index_conv.currency,
+            fixed_frequency: swaption_conv.fixed_leg_frequency,
+            float_frequency: index_conv.default_payment_frequency,
+            fixed_day_count: swaption_conv.fixed_leg_day_count,
+            float_day_count: index_conv.day_count,
+            fixed_business_day_convention: swaption_conv.business_day_convention,
+            float_business_day_convention: index_conv.market_business_day_convention,
+            calendar_id: swaption_conv.calendar_id.as_str(),
+            settlement_days: swaption_conv.settlement_days,
+            fixed_payment_lag_days: index_conv.default_payment_lag_days,
+            float_payment_lag_days: index_conv.default_payment_lag_days,
+            float_reset_lag_days: index_conv.default_reset_lag_days,
         })
+    }
+
+    pub(crate) fn resolve_underlying_dates(
+        quote: &VolQuote,
+        conventions: &SwaptionLegConventions<'_>,
+    ) -> Result<(
+        finstack_quant_core::dates::Date,
+        finstack_quant_core::dates::Date,
+    )> {
+        let VolQuote::SwaptionVol {
+            expiry, maturity, ..
+        } = quote
+        else {
+            return Err(finstack_quant_core::Error::Validation(
+                "Expected SwaptionVol quote".into(),
+            ));
+        };
+        let calendar =
+            crate::cashflow::builder::calendar::resolve_calendar_strict(conventions.calendar_id)?;
+        let unadjusted_start = expiry.add_business_days(conventions.settlement_days, calendar)?;
+        let start = adjust(
+            unadjusted_start,
+            conventions.fixed_business_day_convention,
+            calendar,
+        )?;
+        if *maturity <= start {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "swaption maturity {maturity} must be after convention-adjusted swap start {start}"
+            )));
+        }
+        Ok((start, *maturity))
     }
 
     fn default_leg_conventions<'a>(
@@ -606,6 +666,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
         let idx_conv = ConventionRegistry::try_global()?.require_rate_index(&index_id)?;
 
         Ok(SwaptionLegConventions {
+            currency: idx_conv.currency,
             fixed_frequency: idx_conv.default_fixed_leg_frequency,
             float_frequency: idx_conv.default_payment_frequency,
             fixed_day_count: params
@@ -617,7 +678,11 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
             calendar_id: params
                 .calendar_id
                 .as_deref()
-                .or(Some(idx_conv.market_calendar_id.as_str())),
+                .unwrap_or(idx_conv.market_calendar_id.as_str()),
+            settlement_days: idx_conv.market_settlement_days,
+            fixed_payment_lag_days: idx_conv.default_payment_lag_days,
+            float_payment_lag_days: idx_conv.default_payment_lag_days,
+            float_reset_lag_days: idx_conv.default_reset_lag_days,
         })
     }
 
@@ -668,15 +733,13 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
                     start: swap_start,
                     end: swap_end,
                     frequency: leg_conv.float_frequency,
-                    stub: StubKind::None,
+                    stub: StubKind::ShortBack,
                     business_day_convention: leg_conv.float_business_day_convention,
-                    calendar_id: leg_conv
-                        .calendar_id
-                        .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID),
+                    calendar_id: leg_conv.calendar_id,
                     end_of_month: false,
                     day_count: leg_conv.float_day_count,
-                    payment_lag_days: 0,
-                    reset_lag_days: None,
+                    payment_lag_days: leg_conv.float_payment_lag_days,
+                    reset_lag_days: Some(leg_conv.float_reset_lag_days),
                     adjust_accrual_dates: false,
                     roll_rule: crate::cashflow::builder::specs::RollRule::None,
                 },
@@ -736,30 +799,36 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
         }
     }
 
+    pub(crate) fn build_fixed_leg_periods(
+        start: finstack_quant_core::dates::Date,
+        end: finstack_quant_core::dates::Date,
+        leg_conv: &SwaptionLegConventions<'_>,
+    ) -> Result<Vec<crate::cashflow::builder::periods::SchedulePeriod>> {
+        crate::cashflow::builder::periods::build_periods(
+            crate::cashflow::builder::periods::BuildPeriodsParams {
+                start,
+                end,
+                frequency: leg_conv.fixed_frequency,
+                stub: StubKind::ShortBack,
+                business_day_convention: leg_conv.fixed_business_day_convention,
+                calendar_id: leg_conv.calendar_id,
+                end_of_month: false,
+                day_count: leg_conv.fixed_day_count,
+                payment_lag_days: leg_conv.fixed_payment_lag_days,
+                reset_lag_days: None,
+                adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
+            },
+        )
+    }
+
     fn calculate_pv01_proper(
         start: finstack_quant_core::dates::Date,
         end: finstack_quant_core::dates::Date,
         leg_conv: &SwaptionLegConventions<'_>,
         disc: &dyn finstack_quant_core::market_data::traits::Discounting,
     ) -> Result<f64> {
-        let periods = crate::cashflow::builder::periods::build_periods(
-            crate::cashflow::builder::periods::BuildPeriodsParams {
-                start,
-                end,
-                frequency: leg_conv.fixed_frequency,
-                stub: StubKind::None,
-                business_day_convention: leg_conv.fixed_business_day_convention,
-                calendar_id: leg_conv
-                    .calendar_id
-                    .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID),
-                end_of_month: false,
-                day_count: leg_conv.fixed_day_count,
-                payment_lag_days: 0,
-                reset_lag_days: None,
-                adjust_accrual_dates: false,
-                roll_rule: crate::cashflow::builder::specs::RollRule::None,
-            },
-        )?;
+        let periods = Self::build_fixed_leg_periods(start, end, leg_conv)?;
         if periods.is_empty() {
             return Err(finstack_quant_core::Error::Input(
                 finstack_quant_core::InputError::Invalid,
@@ -994,14 +1063,19 @@ type QuotesByExpiryTenor<'a> = BTreeMap<(u64, u64), Vec<&'a VolQuote>>;
 type SABRParamsByExpiryTenor = BTreeMap<(u64, u64), SABRParameters>;
 
 #[derive(Debug, Clone, Copy)]
-struct SwaptionLegConventions<'a> {
-    fixed_frequency: Tenor,
+pub(crate) struct SwaptionLegConventions<'a> {
+    pub(crate) currency: finstack_quant_core::currency::Currency,
+    pub(crate) fixed_frequency: Tenor,
     float_frequency: Tenor,
     fixed_day_count: DayCount,
     float_day_count: DayCount,
     fixed_business_day_convention: BusinessDayConvention,
     float_business_day_convention: BusinessDayConvention,
-    calendar_id: Option<&'a str>,
+    pub(crate) calendar_id: &'a str,
+    pub(crate) settlement_days: i32,
+    fixed_payment_lag_days: i32,
+    float_payment_lag_days: i32,
+    float_reset_lag_days: i32,
 }
 
 fn to_basis_points(value: f64) -> u64 {
@@ -1047,25 +1121,36 @@ mod tests {
     }
 
     #[test]
-    fn normalize_quoted_vol_converts_units_to_decimals() {
-        let normal = SwaptionVolTarget::normalize_quoted_vol(50.0, SwaptionVolConvention::Normal)
-            .expect("normal");
+    fn quoted_vols_are_decimal_and_must_match_the_plan_convention() {
+        let normal = SwaptionVolTarget::validate_quoted_vol(
+            0.005,
+            VolQuoteType::Normal,
+            SwaptionVolConvention::Normal,
+        )
+        .expect("normal");
         assert!((normal - 0.005).abs() < 1e-12);
 
-        let ln = SwaptionVolTarget::normalize_quoted_vol(20.0, SwaptionVolConvention::Lognormal)
-            .expect("lognormal");
-        assert!((ln - 0.20).abs() < 1e-12);
-
-        let shifted = SwaptionVolTarget::normalize_quoted_vol(
-            20.0,
-            SwaptionVolConvention::ShiftedLognormal { shift: 0.01 },
+        let lognormal = SwaptionVolTarget::validate_quoted_vol(
+            0.20,
+            VolQuoteType::BlackLognormal,
+            SwaptionVolConvention::Lognormal,
         )
-        .expect("shifted");
-        assert!((shifted - 0.20).abs() < 1e-12);
+        .expect("lognormal");
+        assert!((lognormal - 0.20).abs() < 1e-12);
+
+        let mismatch = SwaptionVolTarget::validate_quoted_vol(
+            0.20,
+            VolQuoteType::BlackLognormal,
+            SwaptionVolConvention::Normal,
+        )
+        .expect_err("mismatched convention");
+        assert!(mismatch
+            .to_string()
+            .contains("conflicts with plan convention"));
     }
 
     #[test]
-    fn calibrate_normal_quotes_in_bp_preserves_atm_vol_in_model_units() {
+    fn calibrate_normal_decimal_quotes_preserves_atm_vol_in_model_units() {
         let base_date = date(2024, Month::January, 2);
         let disc = DiscountCurve::builder("USD-OIS")
             .base_date(base_date)
@@ -1120,20 +1205,28 @@ mod tests {
         let mut quotes = Vec::new();
         for &k in &strikes {
             let vol_dec = model.implied_volatility(fwd, k, t_exp).expect("true vol");
-            let vol_bp = vol_dec * 10_000.0;
             quotes.push(MarketQuote::Vol(VolQuote::SwaptionVol {
                 id: QuoteId::new(format!("USD-SWPTN-VOL-1Yx5Y-{k}")),
                 expiry: expiry_date,
                 maturity: maturity_date,
                 strike: k,
-                vol: vol_bp,
+                vol: vol_dec,
                 quote_type: VolQuoteType::Normal,
                 convention: SwaptionConventionId::new("USD-Annual"),
             }));
         }
 
         let config = CalibrationConfig::default();
-        let (cube, _report) = SwaptionVolTarget::solve(&p, &quotes, &ctx, &config).expect("solve");
+        let (cube, report) = SwaptionVolTarget::solve(&p, &quotes, &ctx, &config).expect("solve");
+        assert!(
+            report.iterations > 1,
+            "report must retain actual LM work across deterministic starts"
+        );
+        assert!(report
+            .metadata
+            .get("sabr_winning_starts")
+            .is_some_and(|value| value.contains("rho=")));
+        assert!(report.metadata.contains_key("sabr_parameters_at_bounds"));
 
         // VolCube stores SABR params; verify calibrated alpha matches ground truth.
         // For beta=0 (normal SABR), alpha IS the ATM normal vol.
@@ -1147,7 +1240,7 @@ mod tests {
     }
 
     #[test]
-    fn calibrate_lognormal_quotes_in_percent_preserves_atm_vol_in_model_units() {
+    fn calibrate_lognormal_decimal_quotes_preserves_atm_vol_in_model_units() {
         let base_date = date(2024, Month::January, 2);
         let disc = DiscountCurve::builder("USD-OIS")
             .base_date(base_date)
@@ -1201,13 +1294,12 @@ mod tests {
         let mut quotes = Vec::new();
         for &k in &strikes {
             let vol_dec = model.implied_volatility(fwd, k, t_exp).expect("true vol");
-            let vol_pct = vol_dec * 100.0;
             quotes.push(MarketQuote::Vol(VolQuote::SwaptionVol {
                 id: QuoteId::new(format!("USD-SWPTN-VOL-LN-1Yx5Y-{k}")),
                 expiry: expiry_date,
                 maturity: maturity_date,
                 strike: k,
-                vol: vol_pct,
+                vol: vol_dec,
                 quote_type: VolQuoteType::BlackLognormal,
                 convention: SwaptionConventionId::new("USD-Annual"),
             }));
@@ -1315,7 +1407,7 @@ mod tests {
                 expiry: good_expiry_date,
                 maturity: good_maturity_date,
                 strike: k,
-                vol: vol_dec * 100.0,
+                vol: vol_dec,
                 quote_type: VolQuoteType::BlackLognormal,
                 convention: SwaptionConventionId::new("USD-Annual"),
             }));
@@ -1330,7 +1422,7 @@ mod tests {
                 expiry: bad_expiry_date,
                 maturity: bad_maturity_date,
                 strike: k,
-                vol: 20.0,
+                vol: 0.20,
                 quote_type: VolQuoteType::BlackLognormal,
                 convention: SwaptionConventionId::new("USD-Annual"),
             }));
@@ -1424,13 +1516,13 @@ mod tests {
         let strikes = vec![fwd - 0.002, fwd, fwd + 0.002, fwd + 0.005, fwd - 0.005];
         let mut quotes = Vec::new();
         for &k in &strikes {
-            // Percent-quoted; exact values don't matter for this check (shift is insufficient).
+            // Decimal Black volatility; exact values do not matter for this check.
             quotes.push(MarketQuote::Vol(VolQuote::SwaptionVol {
                 id: QuoteId::new(format!("USD-SWPTN-VOL-SLN-1Yx5Y-{k}")),
                 expiry: expiry_date,
                 maturity: maturity_date,
                 strike: k,
-                vol: 20.0,
+                vol: 0.20,
                 quote_type: VolQuoteType::BlackLognormal,
                 convention: SwaptionConventionId::new("USD-Annual"),
             }));
@@ -1549,15 +1641,13 @@ mod tests {
                 start: swap_start,
                 end: swap_end,
                 frequency: leg.float_frequency,
-                stub: StubKind::None,
+                stub: StubKind::ShortBack,
                 business_day_convention: leg.float_business_day_convention,
-                calendar_id: leg
-                    .calendar_id
-                    .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID),
+                calendar_id: leg.calendar_id,
                 end_of_month: false,
                 day_count: leg.float_day_count,
-                payment_lag_days: 0,
-                reset_lag_days: None,
+                payment_lag_days: leg.float_payment_lag_days,
+                reset_lag_days: Some(leg.float_reset_lag_days),
                 adjust_accrual_dates: false,
                 roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },

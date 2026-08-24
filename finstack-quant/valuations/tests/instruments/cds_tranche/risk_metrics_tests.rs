@@ -132,25 +132,17 @@ fn test_cs01_preserves_bespoke_index_structure_during_bumps() {
     let pricer = CDSTranchePricer::new();
 
     let index = market.get_credit_index(&tranche.credit_index_id).unwrap();
-    // Replicate the production CS01 definition: a ±1bp parallel *par-spread*
-    // bump with hazard-curve recalibration (not a direct λ bump).
+    // Replicate the production fallback for a manually built index curve:
+    // symmetric model-hazard shifts preserve the heterogeneous issuer bundle.
     let bump_bp = 1.0;
-    let bumped_curve_up = finstack_quant_valuations::calibration::bumps::bump_hazard_spreads(
+    let bumped_curve_up = finstack_quant_valuations::calibration::bumps::bump_hazard_shift(
         index.index_credit_curve.as_ref(),
-        &market,
         &finstack_quant_valuations::calibration::bumps::BumpRequest::Parallel(bump_bp),
-        Some(&tranche.discount_curve_id),
-        None,
-        None,
     )
     .unwrap();
-    let bumped_curve_down = finstack_quant_valuations::calibration::bumps::bump_hazard_spreads(
+    let bumped_curve_down = finstack_quant_valuations::calibration::bumps::bump_hazard_shift(
         index.index_credit_curve.as_ref(),
-        &market,
         &finstack_quant_valuations::calibration::bumps::BumpRequest::Parallel(-bump_bp),
-        Some(&tranche.discount_curve_id),
-        None,
-        None,
     )
     .unwrap();
 

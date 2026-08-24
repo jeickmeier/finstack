@@ -25,6 +25,7 @@ use std::sync::Arc;
 /// Extracted fields from a CDS tranche quote for validation.
 struct TrancheQuoteFields<'a> {
     index: &'a str,
+    series: u16,
     attachment: f64,
     detachment: f64,
     maturity: Date,
@@ -37,6 +38,7 @@ impl<'a> TrancheQuoteFields<'a> {
         match quote {
             CDSTrancheQuote::CDSTranche {
                 index,
+                series,
                 attachment,
                 detachment,
                 maturity,
@@ -45,6 +47,7 @@ impl<'a> TrancheQuoteFields<'a> {
                 ..
             } => Self {
                 index: index.as_str(),
+                series: *series,
                 attachment: *attachment,
                 detachment: *detachment,
                 maturity: *maturity,
@@ -132,6 +135,7 @@ fn create_pricing_quote(quote: &CDSTrancheQuote) -> CDSTrancheQuote {
         CDSTrancheQuote::CDSTranche {
             id,
             index,
+            series,
             attachment,
             detachment,
             maturity,
@@ -141,6 +145,7 @@ fn create_pricing_quote(quote: &CDSTrancheQuote) -> CDSTrancheQuote {
         } => CDSTrancheQuote::CDSTranche {
             id: id.clone(),
             index: index.clone(),
+            series: *series,
             attachment: *attachment,
             detachment: *detachment,
             maturity: *maturity,
@@ -234,7 +239,6 @@ impl BaseCorrelationTarget {
 
     fn build_overrides(&self) -> CDSTrancheBuildOverrides {
         CDSTrancheBuildOverrides {
-            series: self.params.series,
             frequency: self.params.frequency,
             day_count: self.params.day_count,
             business_day_convention: self.params.business_day_convention,
@@ -317,6 +321,12 @@ impl BaseCorrelationTarget {
             let fields = TrancheQuoteFields::extract(&q);
 
             validate_quote_index(fields.index, &self.params.index_id)?;
+            if fields.series != self.params.series {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "Tranche quote series {} does not match params.series {}",
+                    fields.series, self.params.series
+                )));
+            }
             ConventionRegistry::try_global()?.require_cds(fields.convention)?;
 
             let detachment_pct = normalize_pct(fields.detachment);

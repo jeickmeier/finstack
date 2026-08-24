@@ -317,7 +317,7 @@ fn apply_par_cds(market: &mut MarketContext, as_of: Date, spec: &ScenarioSpec) {
 }
 
 #[test]
-fn first_order_par_cds_shifts_hazard_knots_without_solve_to_par() {
+fn solve_to_par_without_recipe_falls_back_to_first_order_shift() {
     let (base_date, market) = par_cds_market();
     let original = market.get_hazard("USD-CDS").unwrap().hazard_rate(5.0);
 
@@ -367,8 +367,8 @@ fn first_order_par_cds_shifts_hazard_knots_without_solve_to_par() {
         "first-order should add 25bp to the 5Y hazard: original={original} shifted={shifted_h}"
     );
     assert!(
-        (solved_h - shifted_h).abs() > 1e-6,
-        "solve-to-par must differ from the first-order knot shift: solved={solved_h} shifted={shifted_h}"
+        (solved_h - shifted_h).abs() < 1e-12,
+        "solve-to-par without a replay recipe must use the warned first-order fallback"
     );
 }
 

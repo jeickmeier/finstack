@@ -86,7 +86,7 @@ impl MetricCalculator for CdsDv01Calculator {
             let hazard = context
                 .curves
                 .get_hazard(cds.protection.credit_curve_id.as_str())?;
-            let rebootstrap_hazard = hazard.par_spread_points().next().is_some();
+            let rebootstrap_hazard = hazard.hazard_calibration().is_some();
 
             let pv_up = Self::price_at_rate_bump(&cds, context, bump_bp, rebootstrap_hazard)?;
             let pv_down = Self::price_at_rate_bump(&cds, context, -bump_bp, rebootstrap_hazard)?;

@@ -135,6 +135,8 @@ pub struct HazardCurve {
     /// Interpolation style for survival probabilities between pillars
     /// (LogLinear ⇒ piecewise-constant hazard).
     survival_interp_style: InterpStyle,
+    /// Exact typed recipe used to replay calibration after quote shocks.
+    hazard_calibration: Option<super::HazardCalibrationRecipe>,
     /// Interpolator for survival probabilities
     interp: Interp,
     /// Opaque FX policy stamp; see [`super::DiscountCurve::fx_policy`].
@@ -171,6 +173,9 @@ struct RawHazardCurve {
     /// Survival-probability interpolation style between pillars
     #[serde(default = "default_survival_interp")]
     pub survival_interp: InterpStyle,
+    /// Exact calibration replay inputs.
+    #[serde(default)]
+    pub hazard_calibration: Option<super::HazardCalibrationRecipe>,
     /// Opaque FX policy stamp; see [`super::DiscountCurve::fx_policy`].
     #[serde(default)]
     pub fx_policy: Option<String>,
@@ -211,6 +216,7 @@ impl From<HazardCurve> for RawHazardCurve {
             par_points,
             par_interp: curve.par_interp,
             survival_interp: curve.survival_interp_style,
+            hazard_calibration: curve.hazard_calibration,
             fx_policy: curve.fx_policy,
         }
     }
@@ -228,6 +234,7 @@ impl TryFrom<RawHazardCurve> for HazardCurve {
             .par_spreads(state.par_points)
             .par_interp(state.par_interp)
             .interp(state.survival_interp)
+            .hazard_calibration_opt(state.hazard_calibration)
             .issuer_opt(state.issuer)
             .seniority_opt(state.seniority)
             .currency_opt(state.currency)
@@ -255,6 +262,7 @@ impl HazardCurve {
             par_interp: ParInterp::Linear,
             survival_interp: InterpStyle::LogLinear,
             max_hazard_rate: 10.0,
+            hazard_calibration: None,
             fx_policy: None,
         }
     }
@@ -459,6 +467,12 @@ impl HazardCurve {
     pub fn par_interp(&self) -> ParInterp {
         self.par_interp
     }
+    /// Exact inputs used to calibrate this curve, when available.
+    #[inline]
+    #[must_use]
+    pub fn hazard_calibration(&self) -> Option<&super::HazardCalibrationRecipe> {
+        self.hazard_calibration.as_ref()
+    }
 
     /// Number of knot points in the curve.
     #[inline]
@@ -504,6 +518,7 @@ impl HazardCurve {
             par_spreads_bp: self.par_spreads_bp.clone(),
             par_interp: self.par_interp,
             survival_interp_style: self.survival_interp_style,
+            hazard_calibration: self.hazard_calibration.clone(),
             interp: self.interp.clone(),
             fx_policy: self.fx_policy.clone(),
         })
@@ -528,6 +543,7 @@ impl HazardCurve {
             .day_count(self.day_count)
             .par_interp(self.par_interp)
             .interp(self.survival_interp_style)
+            .hazard_calibration_opt(self.hazard_calibration.clone())
             .issuer_opt(self.issuer.clone())
             .seniority_opt(self.seniority)
             .currency_opt(self.currency)
@@ -846,6 +862,7 @@ pub struct HazardCurveBuilder {
     /// Maximum allowed hazard rate (default 10.0).
     /// Rates above this trigger an error in `build()`.
     max_hazard_rate: f64,
+    hazard_calibration: Option<super::HazardCalibrationRecipe>,
     fx_policy: Option<String>,
 }
 
@@ -909,6 +926,30 @@ impl HazardCurveBuilder {
     /// between pillars while preserving the pillar values.
     pub fn interp(mut self, style: InterpStyle) -> Self {
         self.survival_interp = style;
+        self
+    }
+    /// Attach the exact inputs used to calibrate this curve.
+    ///
+    /// # Arguments
+    ///
+    /// * `calibration` - Original hazard parameters, typed CDS quotes, and
+    ///   solver policy required for deterministic quote-shock replay.
+    pub fn hazard_calibration(mut self, calibration: super::HazardCalibrationRecipe) -> Self {
+        self.hazard_calibration = Some(calibration);
+        self
+    }
+
+    /// Optionally attach exact calibration replay inputs.
+    ///
+    /// # Arguments
+    ///
+    /// * `calibration` - Replay inputs to retain, or `None` for a curve that
+    ///   was not produced by the calibration engine.
+    pub fn hazard_calibration_opt(
+        mut self,
+        calibration: Option<super::HazardCalibrationRecipe>,
+    ) -> Self {
+        self.hazard_calibration = calibration;
         self
     }
 
@@ -1064,6 +1105,7 @@ impl HazardCurveBuilder {
             par_spreads_bp: p_spd.into_boxed_slice(),
             par_interp: self.par_interp,
             survival_interp_style: self.survival_interp,
+            hazard_calibration: self.hazard_calibration,
             interp,
             fx_policy: self.fx_policy,
         })

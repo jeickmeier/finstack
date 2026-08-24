@@ -68,18 +68,6 @@ impl MetricCalculator for CdsTrancheCs01Calculator {
         let tranche: CDSTranche = context.instrument_as::<CDSTranche>()?.clone();
         let (hazard_id, discount_id) =
             resolve_tranche_cs01_curves(&tranche, context.curves.as_ref())?;
-        let hazard = context.curves.get_hazard(hazard_id.as_str())?;
-        if hazard.par_spread_points().next().is_none() {
-            return Err(finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "CDS tranche '{}' CS01 requires par-spread points on hazard curve '{}'; \
-                     use cs01_hazard for direct hazard-rate bumps",
-                    tranche.id(),
-                    hazard_id.as_str()
-                ),
-                category: "cs01_rebootstrap".to_string(),
-            });
-        }
 
         let bump_bp =
             sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?
@@ -156,18 +144,6 @@ impl MetricCalculator for CdsTrancheBucketedCs01Calculator {
         let tranche: CDSTranche = context.instrument_as::<CDSTranche>()?.clone();
         let (hazard_id, discount_id) =
             resolve_tranche_cs01_curves(&tranche, context.curves.as_ref())?;
-        let hazard = context.curves.get_hazard(hazard_id.as_str())?;
-        if hazard.par_spread_points().next().is_none() {
-            return Err(finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "CDS tranche '{}' bucketed CS01 requires par-spread points on hazard curve '{}'; \
-                     use bucketed_cs01_hazard for direct hazard-rate bumps",
-                    tranche.id(),
-                    hazard_id.as_str()
-                ),
-                category: "cs01_rebootstrap".to_string(),
-            });
-        }
 
         let defaults =
             sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;

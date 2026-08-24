@@ -12,6 +12,7 @@ use finstack_quant_valuations::calibration::api::engine;
 use finstack_quant_valuations::calibration::api::schema::{
     CalibrationEnvelope, CalibrationPlan, CalibrationStep, HazardCurveParams, StepParams,
 };
+use finstack_quant_valuations::calibration::bumps::{bump_hazard_spreads, BumpRequest};
 use finstack_quant_valuations::calibration::{
     CalibrationConfig, CalibrationMethod, ResidualWeightingScheme,
 };
@@ -161,6 +162,51 @@ fn hazard_calibration_positive_rates() {
     for (_t, lambda) in curve.knot_points() {
         assert!(lambda > 0.0, "hazard rate should be positive, got {lambda}");
     }
+
+    let recipe = curve
+        .hazard_calibration()
+        .expect("calibrated hazard curve must retain replay inputs");
+    assert_eq!(
+        recipe.cds_quotes[0]["pillar"]["date"],
+        serde_json::json!("2026-03-20"),
+        "absolute CDS pillars must survive calibration losslessly"
+    );
+
+    let zero = bump_hazard_spreads(
+        curve.as_ref(),
+        &ctx,
+        &BumpRequest::Parallel(0.0),
+        Some(&CurveId::new("TEST-DISC")),
+        None,
+        None,
+    )
+    .expect("zero-shock replay");
+    assert_eq!(
+        zero.knot_points().collect::<Vec<_>>(),
+        curve.knot_points().collect::<Vec<_>>(),
+        "zero-shock replay must be identical"
+    );
+
+    let up = bump_hazard_spreads(
+        curve.as_ref(),
+        &ctx,
+        &BumpRequest::Parallel(1.0),
+        Some(&CurveId::new("TEST-DISC")),
+        None,
+        None,
+    )
+    .expect("up replay");
+    let down = bump_hazard_spreads(
+        curve.as_ref(),
+        &ctx,
+        &BumpRequest::Parallel(-1.0),
+        Some(&CurveId::new("TEST-DISC")),
+        None,
+        None,
+    )
+    .expect("down replay");
+    assert!(up.hazard_rate(3.0) > zero.hazard_rate(3.0));
+    assert!(down.hazard_rate(3.0) < zero.hazard_rate(3.0));
 }
 
 #[test]

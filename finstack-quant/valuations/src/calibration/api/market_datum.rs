@@ -198,7 +198,17 @@ impl MarketDatum {
 
     /// Convenience: returns `true` if this datum is a quote variant.
     pub fn is_quote(&self) -> bool {
-        self.as_quote().is_some()
+        matches!(
+            self,
+            Self::RateQuote(_)
+                | Self::CdsQuote(_)
+                | Self::CdsTrancheQuote(_)
+                | Self::FxQuote(_)
+                | Self::InflationQuote(_)
+                | Self::VolQuote(_)
+                | Self::XccyQuote(_)
+                | Self::BondQuote(_)
+        )
     }
 }
 

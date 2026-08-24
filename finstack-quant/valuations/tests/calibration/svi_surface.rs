@@ -195,7 +195,7 @@ fn svi_surface_grid_is_calendar_monotone_under_nonflat_curve() {
                 target_expiries: target_expiries.clone(),
                 target_strikes: target_strikes.clone(),
                 spot_override: Some(SPOT),
-                dividend_yield_override: None,
+                dividend_yield_override: Some(0.0),
             }),
         }],
     };

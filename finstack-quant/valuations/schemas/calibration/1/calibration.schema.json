@@ -144,6 +144,10 @@
           },
           "description": "Inflation-curve specific solver configuration."
         },
+        "market_freshness": {
+          "$ref": "#/$defs/MarketFreshnessPolicy",
+          "description": "Snapshot timestamp, maximum age, and selected quote side."
+        },
         "rate_bounds": {
           "$ref": "#/$defs/RateBounds",
           "default": {
@@ -409,8 +413,8 @@
             },
             "interpolation": {
               "$ref": "#/$defs/InterpStyle",
-              "default": "linear",
-              "description": "Interpolation style for the constructed discount curve.\n\nCaller-owned: the engine does not override this field. `Linear`\ninterpolates discount-factor ordinates in time and is **not** the\nQuantLib or Bloomberg production default. Production curves typically\nuse `LogLinear` (log-DF) or `MonotoneConvex` (Hagan–West)."
+              "default": "log_linear",
+              "description": "Interpolation style for the constructed discount curve.\n\nDefaults to log-linear discount factors, preserving positive discount\nfactors and piecewise-constant continuously compounded forwards.\n`Linear` remains available only when explicitly requested."
             },
             "kind": {
               "const": "discount",
@@ -483,8 +487,8 @@
             },
             "interpolation": {
               "$ref": "#/$defs/InterpStyle",
-              "default": "linear",
-              "description": "Interpolation style for the constructed forward curve.\n\nCaller-owned: the engine does not override this field. `Linear`\ninterpolates the stored forward-rate ordinates in time and is **not**\nthe QuantLib or Bloomberg production default."
+              "default": "monotone_convex",
+              "description": "Interpolation style for the constructed forward curve.\n\nDefaults to Hagan-West monotone-convex interpolation for a smooth,\nshape-preserving forward term structure. `Linear` remains explicitly\nopt-in."
             },
             "kind": {
               "const": "forward",
@@ -1328,8 +1332,8 @@
             },
             "interpolation": {
               "$ref": "#/$defs/InterpStyle",
-              "default": "linear",
-              "description": "Interpolation style for the constructed foreign discount curve.\n\nCaller-owned: the engine does not override this field. `Linear`\ninterpolates discount-factor ordinates and is **not** the QuantLib\nor Bloomberg production default."
+              "default": "log_linear",
+              "description": "Interpolation style for the constructed foreign discount curve.\n\nDefaults to log-linear discount factors. `Linear` remains available\nonly when explicitly requested."
             },
             "kind": {
               "const": "xccy_basis",
@@ -1856,6 +1860,29 @@
     "FxOptionConventionId": {
       "description": "Identifier for FX option market conventions (e.g., \"EUR/USD-VANILLA\").",
       "type": "string"
+    },
+    "HazardCalibrationRecipe": {
+      "additionalProperties": false,
+      "description": "Exact valuation-layer inputs required to replay a hazard-curve calibration.\n\nThe core market-data crate stores these payloads without interpreting them;\nthe valuations crate deserializes them back into its canonical\n`HazardCurveParams`, typed CDS quotes, and `CalibrationConfig`. Keeping the\ncomplete serde payloads avoids replacing date pillars with rounded tenors or\nsilently substituting current defaults for the original solver policy.",
+      "properties": {
+        "calibration_config": {
+          "description": "Exact serialized `CalibrationConfig`, including solver and validation policy."
+        },
+        "cds_quotes": {
+          "description": "Complete ordered set of typed CDS quote payloads used for the original solve.",
+          "items": true,
+          "type": "array"
+        },
+        "hazard_params": {
+          "description": "Exact serialized `HazardCurveParams` used for the original solve."
+        }
+      },
+      "required": [
+        "hazard_params",
+        "cds_quotes",
+        "calibration_config"
+      ],
+      "type": "object"
     },
     "HazardCurveSolveConfig": {
       "additionalProperties": false,
@@ -2393,6 +2420,13 @@
                   "format": "double",
                   "type": "number"
                 },
+                "series": {
+                  "description": "CDS index series number.",
+                  "format": "uint16",
+                  "maximum": 65535,
+                  "minimum": 0,
+                  "type": "integer"
+                },
                 "type": {
                   "const": "cds_tranche",
                   "type": "string"
@@ -2407,6 +2441,7 @@
                 "type",
                 "id",
                 "index",
+                "series",
                 "attachment",
                 "detachment",
                 "maturity",
@@ -2702,7 +2737,7 @@
                       "description": "Underlying identifier"
                     },
                     "vol": {
-                      "description": "Implied volatility",
+                      "description": "Implied volatility in decimal units (for example, `0.20` for 20%).",
                       "format": "double",
                       "type": "number"
                     }
@@ -2756,7 +2791,7 @@
                       "type": "number"
                     },
                     "vol": {
-                      "description": "Implied volatility",
+                      "description": "Implied volatility in canonical decimal units: absolute rate\nvolatility for normal quotes and Black volatility for lognormal quotes.",
                       "format": "double",
                       "type": "number"
                     }
@@ -2810,7 +2845,7 @@
                       "type": "number"
                     },
                     "vol": {
-                      "description": "Implied volatility.",
+                      "description": "Implied volatility in canonical decimal units: absolute rate\nvolatility for normal quotes and Black volatility for lognormal quotes.",
                       "format": "double",
                       "type": "number"
                     }
@@ -3551,6 +3586,56 @@
         }
       ]
     },
+    "MarketFreshnessPolicy": {
+      "additionalProperties": false,
+      "description": "Audit metadata and freshness policy for calibration inputs.",
+      "properties": {
+        "max_age_seconds": {
+          "default": null,
+          "description": "Maximum permitted snapshot age in seconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "quote_side": {
+          "$ref": "#/$defs/MarketQuoteSide",
+          "default": "mid",
+          "description": "Market side represented by quote values in the envelope."
+        },
+        "snapshot_timestamp": {
+          "default": null,
+          "description": "RFC3339 timestamp at which the quote snapshot was captured.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "MarketQuoteSide": {
+      "description": "Selected side of the market snapshot.",
+      "oneOf": [
+        {
+          "const": "mid",
+          "description": "Mid-market observations.",
+          "type": "string"
+        },
+        {
+          "const": "bid",
+          "description": "Executable bid-side observations.",
+          "type": "string"
+        },
+        {
+          "const": "ask",
+          "description": "Executable ask-side observations.",
+          "type": "string"
+        }
+      ]
+    },
     "MarketScalar": {
       "description": "Single market observable that doesn't require a full curve.\n\nRepresents point-in-time market data like spot prices, spreads, or unitless\nparameters. Stored in [`MarketContext`](crate::market_data::context::MarketContext)\nalongside curves for simple lookups.\n\n# Use Cases\n\n- **Spot prices**: Equity spots, commodity prices, FX spots\n- **Recovery rates**: Credit recovery assumptions (unitless)\n- **Correlation parameters**: Equity-FX correlation, basis correlations\n- **Spreads**: Credit spreads, basis spreads (unitless or monetary)\n- **Multipliers**: Beta, vega notionals, adjustment factors\n\n# Examples\n\n```rust\nuse finstack_quant_core::market_data::scalars::MarketScalar;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::currency::Currency;\n\n// Equity beta (unitless)\nlet beta = MarketScalar::Unitless(1.2);\n\n// Spot price (with currency)\nlet spot = MarketScalar::Price(Money::new(152.75, Currency::USD));\n\nassert!(matches!(beta, MarketScalar::Unitless(_)));\nif let MarketScalar::Price(m) = spot {\n    assert_eq!(m.currency(), Currency::USD);\n}\n```",
       "oneOf": [
@@ -3989,6 +4074,18 @@
                 "string",
                 "null"
               ]
+            },
+            "hazard_calibration": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/HazardCalibrationRecipe"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Exact calibration replay inputs."
             },
             "id": {
               "description": "Curve identifier",
@@ -5163,17 +5260,17 @@
       "oneOf": [
         {
           "const": "normal",
-          "description": "Normal (absolute) volatility quoted in **basis points**.\n\nExample: `50.0` means 50bp = `0.0050` in internal model units.",
+          "description": "Normal (Bachelier) absolute volatility in decimal rate units.\n\nExample: `0.0050` means 50 basis points of absolute volatility.",
           "type": "string"
         },
         {
           "const": "lognormal",
-          "description": "Lognormal (Black) volatility quoted as **percentage**.\n\nExample: `20.0` means 20% = `0.20` in internal model units.",
+          "description": "Lognormal (Black) volatility in decimal units.\n\nExample: `0.20` means 20% Black volatility.",
           "type": "string"
         },
         {
           "additionalProperties": false,
-          "description": "Shifted lognormal (Black) volatility quoted as **percentage**, with an explicit shift.\n\nExample: `20.0` means 20% = `0.20` in internal model units.",
+          "description": "Shifted lognormal (Black) volatility in decimal units, with an explicit shift.\n\nExample: `0.20` means 20% Black volatility.",
           "properties": {
             "shifted_lognormal": {
               "properties": {

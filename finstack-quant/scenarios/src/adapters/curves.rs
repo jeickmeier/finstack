@@ -616,6 +616,16 @@ fn par_cds_effects(
             Ok(update_effects(new_curve, extra_warnings))
         }
         HazardBumpMode::SolveToPar => {
+            if base_curve.hazard_calibration().is_none() {
+                let new_curve = bump_hazard_shift(&base_curve, bump_req)?;
+                let mut warnings = extra_warnings;
+                warnings.push(Warning::HazardRecalibrationFallback {
+                    curve_id: curve_id.to_string(),
+                    reason: "hazard curve has no persisted lossless calibration recipe".to_string(),
+                    node: matches!(bump_req, BumpRequest::Tenors(_)),
+                });
+                return Ok(update_effects(new_curve, warnings));
+            }
             let (discount_id, warning) =
                 resolve_discount_curve_id(market, discount_curve_id, Some(curve_id))?;
             let new_curve = bump_hazard_spreads_cached(

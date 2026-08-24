@@ -268,6 +268,7 @@ fn base_correlation_preflight_rejects_invalid_attachment_detachment() {
     let tranche_quote = MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
         id: QuoteId::new("CDX-IG-7-3"),
         index: "CDX.NA.IG".to_string(),
+        series: 1,
         attachment: 0.07,
         detachment: 0.03,
         maturity: Date::from_calendar_date(2030, Month::June, 20).expect("maturity"),
@@ -317,6 +318,7 @@ fn base_correlation_preflight_requires_credit_index_data() {
     let tranche_quote = MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
         id: QuoteId::new("CDX-IG-0-3"),
         index: "CDX.NA.IG".to_string(),
+        series: 1,
         attachment: 0.0,
         detachment: 0.03,
         maturity: Date::from_calendar_date(2030, Month::June, 20).expect("maturity"),
@@ -393,6 +395,7 @@ fn base_correlation_preflight_rejects_non_monotone_tranche_points() {
     let tranche_quote = MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
         id: QuoteId::new("CDX-IG-7-3"),
         index: "CDX.NA.IG".to_string(),
+        series: 1,
         attachment: 0.15,
         detachment: 0.10, // invalid: detachment < attachment
         maturity: Date::from_calendar_date(2030, Month::June, 20).expect("maturity"),

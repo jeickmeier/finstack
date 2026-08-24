@@ -25,10 +25,9 @@ method: CalibrationMethod,
 /**
  * Interpolation style for the constructed discount curve.
  *
- * Caller-owned: the engine does not override this field. `Linear`
- * interpolates discount-factor ordinates in time and is **not** the
- * QuantLib or Bloomberg production default. Production curves typically
- * use `LogLinear` (log-DF) or `MonotoneConvex` (Hagan–West).
+ * Defaults to log-linear discount factors, preserving positive discount
+ * factors and piecewise-constant continuously compounded forwards.
+ * `Linear` remains available only when explicitly requested.
  */
 interpolation: string,
 /**

@@ -119,6 +119,7 @@ fn test_all_quote_types_instrument_construction() {
         MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
             id: QuoteId::new(format!("TR-0-3-{:?}", base_date.add_months(60))),
             index: "NA-HY".to_string(),
+            series: 40,
             attachment: 0.0,
             detachment: 0.03, // 0-3% Equity
             maturity: base_date.add_months(60),
@@ -132,6 +133,7 @@ fn test_all_quote_types_instrument_construction() {
         MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
             id: QuoteId::new(format!("TR-3-7-{:?}", base_date.add_months(60))),
             index: "NA-HY".to_string(),
+            series: 40,
             attachment: 0.03,
             detachment: 0.07, // 3-7% Mezz
             maturity: base_date.add_months(60),
@@ -210,7 +212,7 @@ fn test_all_quote_types_instrument_construction() {
             assert!(*detachment <= 1.0, "detachment should be capped at 100%");
         }
         if let MarketQuote::CDSTranche(tranche) = q {
-            let overrides = CDSTrancheBuildOverrides::new(40);
+            let overrides = CDSTrancheBuildOverrides::default();
             build_cds_tranche_instrument(tranche, &build_ctx, &overrides)
                 .expect("cds tranche instrument build");
         }

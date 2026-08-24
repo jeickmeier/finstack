@@ -85,7 +85,9 @@ def test_calibration_entry_points_enforce_semantic_validation(
 
     assert excinfo.value.kind == "undefined_quote_set"
     details = json.loads(excinfo.value.details)
-    assert details["ref_name"] == "missing_quotes"
+    envelope_details = details.get("envelope_error", details)
+    assert envelope_details["ref_name"] == "missing_quotes"
+    assert excinfo.value.stage == "ingestion"
 
 
 def test_calibration_envelope_error_inherits_runtime_error() -> None:
@@ -97,17 +99,18 @@ def test_dry_run_raises_typed_exception_on_bad_json() -> None:
     with pytest.raises(CalibrationEnvelopeError) as excinfo:
         dry_run("not json at all")
     exc = excinfo.value
-    assert exc.kind == "json_parse"
+    assert exc.kind == "strict_load"
+    assert exc.stage == "ingestion"
     assert exc.step_id is None
-    # `details` is a JSON string carrying the structured payload.
     payload = json.loads(exc.details)
-    assert payload["kind"] == "json_parse"
+    assert payload["kind"] == "strict_load"
 
 
 def test_calibrate_raises_typed_exception_on_bad_json() -> None:
     with pytest.raises(CalibrationEnvelopeError) as excinfo:
         calibrate("{ malformed")
-    assert excinfo.value.kind == "json_parse"
+    assert excinfo.value.kind == "strict_load"
+    assert excinfo.value.stage == "ingestion"
 
 
 def test_runtime_error_handler_catches_calibration_envelope_error() -> None:

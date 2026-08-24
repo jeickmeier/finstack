@@ -14,7 +14,7 @@ use crate::instruments::credit_derivatives::cds::CdsConventionResolved;
 use crate::market::build::context::BuildCtx;
 use crate::market::quotes::market_quote::{ExtractQuotes, MarketQuote};
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::market_data::term_structures::HazardCurve;
+use finstack_quant_core::market_data::term_structures::{HazardCalibrationRecipe, HazardCurve};
 use finstack_quant_core::HashMap;
 use finstack_quant_core::Result;
 use std::cell::RefCell;
@@ -230,6 +230,28 @@ impl HazardCurveTarget {
             config.validation.max_hazard_rate = config.validation.max_hazard_rate.max(2.0);
         }
         config.calibration_method = params.method.clone();
+        let calibration_recipe = HazardCalibrationRecipe {
+            hazard_params: serde_json::to_value(params).map_err(|error| {
+                finstack_quant_core::Error::Validation(format!(
+                    "failed to persist hazard calibration parameters: {error}"
+                ))
+            })?,
+            cds_quotes: cds_quotes
+                .iter()
+                .map(|quote| {
+                    serde_json::to_value(quote).map_err(|error| {
+                        finstack_quant_core::Error::Validation(format!(
+                            "failed to persist hazard calibration quote: {error}"
+                        ))
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?,
+            calibration_config: serde_json::to_value(&config).map_err(|error| {
+                finstack_quant_core::Error::Validation(format!(
+                    "failed to persist hazard calibration policy: {error}"
+                ))
+            })?,
+        };
 
         let target = HazardCurveTarget::new(params.clone(), context.clone(), config.clone())?;
 
@@ -381,16 +403,15 @@ impl HazardCurveTarget {
             points
         };
 
-        let curve = if !par_points.is_empty() {
-            let id = curve.id().to_string();
-            curve
-                .to_builder_with_id(id)
-                .par_spreads(par_points)
-                .par_interp(params.par_interp)
-                .build()?
-        } else {
-            curve
-        };
+        let id = curve.id().clone();
+        let mut builder = curve
+            .to_builder_with_id(id)
+            .par_interp(params.par_interp)
+            .hazard_calibration(calibration_recipe);
+        if !par_points.is_empty() {
+            builder = builder.par_spreads(par_points);
+        }
+        let curve = builder.build()?;
 
         let new_context = context.clone().insert(curve);
         Ok((new_context, report))

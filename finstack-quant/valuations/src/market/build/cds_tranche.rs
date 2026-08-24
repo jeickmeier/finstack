@@ -15,31 +15,22 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_core::{Error, Result};
 
-/// Overrides for CDS tranche schedule and index metadata.
+/// Overrides for CDS tranche schedule conventions.
 ///
-/// Allows customization of schedule parameters and index series when building CDS tranche
-/// instruments from quotes. Fields default to convention values if not specified.
+/// The typed quote owns index identity and series. Overrides are limited to
+/// schedule construction and default to the convention registry.
 ///
 /// # Examples
 ///
 /// ```text
 /// use finstack_quant_valuations::market::build::cds_tranche::CDSTrancheBuildOverrides;
 ///
-/// // Use default overrides with only series specified
-/// let overrides = CDSTrancheBuildOverrides::new(42);
-///
-/// // Customize payment frequency and day count
-/// let mut overrides = CDSTrancheBuildOverrides::new(42);
+/// let mut overrides = CDSTrancheBuildOverrides::default();
 /// overrides.frequency = Some("3M".parse().unwrap());
 /// overrides.day_count = Some(finstack_quant_core::dates::DayCount::Act360);
 /// ```
 #[derive(Debug, Clone)]
 pub struct CDSTrancheBuildOverrides {
-    /// Index series number.
-    ///
-    /// The series number identifies which version of the CDS index this tranche references
-    /// (e.g., CDX.NA.IG Series 42).
-    pub series: u16,
     /// Optional payment frequency override.
     ///
     /// If `None`, uses the payment frequency from the CDS convention.
@@ -63,33 +54,9 @@ pub struct CDSTrancheBuildOverrides {
     pub use_imm_dates: bool,
 }
 
-impl CDSTrancheBuildOverrides {
-    /// Create overrides with only the series specified.
-    ///
-    /// Optional convention fields default to `None`; `use_imm_dates` defaults to `true`
-    /// for standard CDS index-tranche schedules.
-    ///
-    /// # Arguments
-    ///
-    /// * `series` - The CDS index series number
-    ///
-    /// # Returns
-    ///
-    /// A new `CDSTrancheBuildOverrides` with default values.
-    ///
-    /// # Examples
-    ///
-    /// ```text
-    /// use finstack_quant_valuations::market::build::cds_tranche::CDSTrancheBuildOverrides;
-    ///
-    /// let overrides = CDSTrancheBuildOverrides::new(42);
-    /// assert_eq!(overrides.series, 42);
-    /// assert_eq!(overrides.frequency, None);
-    /// assert!(overrides.use_imm_dates);
-    /// ```
-    pub fn new(series: u16) -> Self {
+impl Default for CDSTrancheBuildOverrides {
+    fn default() -> Self {
         Self {
-            series,
             frequency: None,
             day_count: None,
             business_day_convention: None,
@@ -109,7 +76,7 @@ impl CDSTrancheBuildOverrides {
 ///
 /// * `quote` - The CDS tranche market quote with attachment/detachment and pricing
 /// * `ctx` - Build context with valuation date, notional, and curve mappings
-/// * `overrides` - Overrides for schedule parameters and index series
+/// * `overrides` - Optional schedule-convention overrides
 ///
 /// # Returns
 ///
@@ -155,6 +122,7 @@ impl CDSTrancheBuildOverrides {
 /// let quote = CDSTrancheQuote::CDSTranche {
 ///     id: QuoteId::new("CDX-IG-3-7"),
 ///     index: "CDX.NA.IG".to_string(),
+///     series: 46,
 ///     attachment: 0.03,  // 3%
 ///     detachment: 0.07,   // 7%
 ///     maturity: Date::from_calendar_date(2029, time::Month::June, 20).unwrap(),
@@ -166,7 +134,7 @@ impl CDSTrancheBuildOverrides {
 ///     },
 /// };
 ///
-/// let overrides = CDSTrancheBuildOverrides::new(42);
+/// let overrides = CDSTrancheBuildOverrides::default();
 /// let instrument = build_cds_tranche_instrument(&quote, &ctx, &overrides)?;
 /// # Ok(())
 /// # }
@@ -189,6 +157,7 @@ pub fn build_cds_tranche_instrument(
         id,
         convention_key,
         index,
+        series,
         attachment,
         detachment,
         maturity,
@@ -198,17 +167,18 @@ pub fn build_cds_tranche_instrument(
         CDSTrancheQuote::CDSTranche {
             id,
             index,
+            series,
             attachment,
             detachment,
             maturity,
             running_spread_bp,
             upfront_pct,
             convention,
-            ..
         } => (
             id,
             convention,
             index,
+            *series,
             *attachment,
             *detachment,
             *maturity,
@@ -274,7 +244,7 @@ pub fn build_cds_tranche_instrument(
 
     let tranche_params = CDSTrancheParams {
         index_name: index.clone(),
-        series: overrides.series,
+        series,
         attach_pct: attachment * 100.0, // Params expect percent
         detach_pct: detachment * 100.0, // Params expect percent
         notional: Money::new(notional_amt, convention_key.currency),
@@ -347,6 +317,7 @@ mod tests {
         let quote = CDSTrancheQuote::CDSTranche {
             id: QuoteId::new("CDX-IG-3-7"),
             index: "CDX.NA.IG".to_string(),
+            series: 1,
             attachment: 0.03,
             detachment: 0.07,
             maturity,
@@ -355,8 +326,10 @@ mod tests {
             convention: convention_key.clone(),
         };
 
-        let mut overrides = CDSTrancheBuildOverrides::new(42);
-        overrides.use_imm_dates = false;
+        let overrides = CDSTrancheBuildOverrides {
+            use_imm_dates: false,
+            ..CDSTrancheBuildOverrides::default()
+        };
 
         let instrument = build_cds_tranche_instrument(&quote, &ctx, &overrides)
             .expect("non-IMM tranche build should succeed");
@@ -406,6 +379,7 @@ mod tests {
         let quote = CDSTrancheQuote::CDSTranche {
             id: QuoteId::new("CDX-IG-3-7"),
             index: "CDX.NA.IG".to_string(),
+            series: 1,
             attachment: 0.03,
             detachment: 0.07,
             maturity,
@@ -414,7 +388,7 @@ mod tests {
             convention: convention_key,
         };
 
-        let overrides = CDSTrancheBuildOverrides::new(42);
+        let overrides = CDSTrancheBuildOverrides::default();
         let instrument = build_cds_tranche_instrument(&quote, &ctx, &overrides)
             .expect("tranche build should succeed");
         let tranche = instrument
@@ -460,6 +434,7 @@ mod tests {
         let quote = CDSTrancheQuote::CDSTranche {
             id: QuoteId::new("CDX-IG-3-7"),
             index: "CDX.NA.IG".to_string(),
+            series: 1,
             attachment: 0.03,
             detachment: 0.07,
             maturity,
@@ -468,7 +443,7 @@ mod tests {
             convention: convention_key,
         };
 
-        let overrides = CDSTrancheBuildOverrides::new(42);
+        let overrides = CDSTrancheBuildOverrides::default();
         let result = build_cds_tranche_instrument(&quote, &ctx, &overrides);
 
         assert!(result.is_err(), "Should reject upfront_pct with abs > 1.0");
@@ -499,6 +474,7 @@ mod tests {
         let quote = CDSTrancheQuote::CDSTranche {
             id: QuoteId::new("CDX-IG-3-7"),
             index: "CDX.NA.IG".to_string(),
+            series: 1,
             attachment: 0.03,
             detachment: 0.07,
             maturity,
@@ -507,7 +483,7 @@ mod tests {
             convention: convention_key,
         };
 
-        let overrides = CDSTrancheBuildOverrides::new(42);
+        let overrides = CDSTrancheBuildOverrides::default();
         let instrument = build_cds_tranche_instrument(&quote, &ctx, &overrides)
             .expect("tranche build should succeed");
         let tranche = instrument

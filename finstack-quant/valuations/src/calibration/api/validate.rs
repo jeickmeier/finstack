@@ -20,12 +20,10 @@
 #![allow(clippy::result_large_err)]
 
 use serde::Serialize;
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::calibration::api::errors::EnvelopeError;
-use crate::calibration::api::schema::{
-    CalibrationEnvelope, CalibrationStep, CALIBRATION_CONTRACT, CALIBRATION_SCHEMA,
-};
+use crate::calibration::api::schema::{CalibrationEnvelope, CalibrationStep, CALIBRATION_CONTRACT};
 use crate::market::quotes::{
     bond::BondQuote, cds::CdsQuote, cds_tranche::CDSTrancheQuote, fx::FxQuote,
     inflation::InflationQuote, market_quote::MarketQuote, rates::RateQuote, vol::VolQuote,
@@ -88,6 +86,7 @@ pub fn validate(envelope: &CalibrationEnvelope) -> CalibrationValidationReport {
     let initial_ids = collect_initial_ids(envelope);
     let nodes = build_nodes(&envelope.plan.steps);
 
+    check_step_id_uniqueness(envelope, &mut errors);
     check_quote_sets(envelope, &mut errors);
     check_market_data_uniqueness(envelope, &mut errors);
     check_quote_sets_resolve(envelope, &mut errors);
@@ -135,6 +134,9 @@ fn contract_diagnostic(error: &EnvelopeError) -> Diagnostic {
         | EnvelopeError::QuoteClassMismatch { step_index, .. } => {
             format!("/plan/steps/{step_index}")
         }
+        EnvelopeError::DuplicateStepId {
+            duplicate_index, ..
+        } => format!("/plan/steps/{duplicate_index}/id"),
         EnvelopeError::UndefinedQuoteSet { step_index, .. } => {
             format!("/plan/steps/{step_index}/quote_set")
         }
@@ -149,6 +151,7 @@ fn contract_diagnostic(error: &EnvelopeError) -> Diagnostic {
         | EnvelopeError::MalformedSchema { .. }
         | EnvelopeError::UnsupportedSchema { .. }
         | EnvelopeError::JsonSerialize { .. }
+        | EnvelopeError::StrictLoad { .. }
         | EnvelopeError::SolverNotConverged { .. } => "/".to_string(),
     };
     Diagnostic::new(
@@ -247,53 +250,22 @@ pub fn parse_envelope(json: &str) -> Result<CalibrationEnvelope, EnvelopeError> 
 pub fn parse_envelope_with_report(
     json: &str,
 ) -> Result<(CalibrationEnvelope, ContractValidationReport), EnvelopeError> {
-    let value: serde_json::Value =
-        serde_json::from_str(json).map_err(|e| EnvelopeError::JsonParse {
-            message: e.to_string(),
-            line: Some(e.line() as u32),
-            col: Some(e.column() as u32),
-        })?;
-    let schema = value
-        .get("schema")
-        .ok_or_else(|| EnvelopeError::SchemaMissing {
-            expected: CALIBRATION_SCHEMA.to_string(),
-        })?
-        .as_str()
-        .ok_or_else(|| EnvelopeError::MalformedSchema {
-            found: value["schema"].to_string(),
-            expected: CALIBRATION_SCHEMA.to_string(),
-        })?;
-
-    if schema != CALIBRATION_SCHEMA {
-        let has_numeric_calibration_version = schema
-            .strip_prefix("finstack_quant.calibration/")
-            .is_some_and(|version| version.parse::<u32>().is_ok());
-        let error = if has_numeric_calibration_version {
-            EnvelopeError::UnsupportedSchema {
-                found: schema.to_string(),
-                expected: CALIBRATION_SCHEMA.to_string(),
-            }
-        } else {
-            EnvelopeError::MalformedSchema {
-                found: schema.to_string(),
-                expected: CALIBRATION_SCHEMA.to_string(),
-            }
-        };
-        return Err(error);
-    }
-
-    let envelope = serde_json::from_value(value).map_err(|e| EnvelopeError::JsonParse {
-        message: e.to_string(),
-        line: None,
-        col: None,
-    })?;
-    Ok((envelope, ContractValidationReport::default()))
+    CalibrationEnvelope::from_slice_strict(json.as_bytes(), &LoadLimits::default()).map_err(
+        |error| EnvelopeError::StrictLoad {
+            message: error.to_string(),
+        },
+    )
 }
 
 fn collect_initial_ids(envelope: &CalibrationEnvelope) -> HashSet<String> {
     let mut ids = HashSet::new();
-    for obj in &envelope.prior_market {
-        ids.insert(obj.id().to_string());
+    for object in &envelope.prior_market {
+        ids.insert(object.id().to_string());
+    }
+    for datum in &envelope.market_data {
+        if !datum.is_quote() {
+            ids.insert(datum.id().to_string());
+        }
     }
     ids
 }
@@ -313,6 +285,21 @@ fn build_nodes(steps: &[CalibrationStep]) -> Vec<DependencyNode> {
             }
         })
         .collect()
+}
+
+fn check_step_id_uniqueness(envelope: &CalibrationEnvelope, errors: &mut Vec<EnvelopeError>) {
+    let mut first_indices = HashMap::new();
+    for (index, step) in envelope.plan.steps.iter().enumerate() {
+        if let Some(first_index) = first_indices.get(&step.id) {
+            errors.push(EnvelopeError::DuplicateStepId {
+                step_id: step.id.clone(),
+                first_index: *first_index,
+                duplicate_index: index,
+            });
+        } else {
+            first_indices.insert(step.id.clone(), index);
+        }
+    }
 }
 
 fn check_quote_sets(envelope: &CalibrationEnvelope, errors: &mut Vec<EnvelopeError>) {
@@ -815,14 +802,11 @@ mod tests {
     fn request_strict_loader_aggregates_bounded_semantic_diagnostics() {
         let envelope = semantically_invalid_envelope();
         let bytes = serde_json::to_vec(&envelope).expect("serialize invalid request");
-        let error = CalibrationEnvelope::from_slice_strict(
+        let (_loaded, report) = CalibrationEnvelope::from_slice_strict(
             &bytes,
             &LoadLimits::default().with_max_diagnostics(1),
         )
-        .expect_err("strict request loading must enforce envelope semantics");
-        let ContractError::Report(report) = error else {
-            panic!("semantic failures must be structured diagnostics");
-        };
+        .expect("bounded strict loading returns semantic diagnostics");
         assert!(report.truncated);
         assert_eq!(report.diagnostics.len(), 1);
         assert_eq!(
@@ -848,9 +832,10 @@ mod tests {
             .expect_err("execute path must not bypass envelope validation");
         assert!(matches!(
             error,
-            crate::calibration::api::engine::ExecuteError::Envelope(
-                EnvelopeError::DuplicateMarketDatumId { .. }
-            )
+            crate::calibration::api::engine::ExecuteError::Envelope {
+                error: EnvelopeError::DuplicateMarketDatumId { .. },
+                ..
+            }
         ));
     }
 
@@ -1034,8 +1019,8 @@ mod tests {
         let error = parse_envelope(&value.to_string())
             .expect_err("missing convexity_adjustment must fail parse");
         assert!(
-            matches!(error, EnvelopeError::JsonParse { .. }),
-            "missing convexity must be EnvelopeError, got {error}"
+            matches!(error, EnvelopeError::StrictLoad { .. }),
+            "missing convexity must be a strict load error, got {error}"
         );
     }
 
@@ -1068,15 +1053,12 @@ mod tests {
     }
 
     #[test]
-    fn json_parse_error_surfaces_line_and_col() {
-        let err = dry_run("not json").unwrap_err();
-        match err {
-            EnvelopeError::JsonParse { line, col, .. } => {
-                assert!(line.is_some());
-                assert!(col.is_some());
-            }
-            _ => panic!("expected JsonParse"),
-        }
+    fn json_parse_error_surfaces_as_strict_load_diagnostic() {
+        let error = dry_run("not json").expect_err("malformed JSON");
+        let EnvelopeError::StrictLoad { message } = error else {
+            panic!("expected strict load error");
+        };
+        assert!(!message.is_empty());
     }
 
     #[test]
@@ -1103,16 +1085,13 @@ mod tests {
         // schema-rejection-test
         let base = serde_json::to_value(empty_envelope("invalid")).expect("serialize");
         let cases = [
-            (None, "missing"),
-            (Some("finstack_quant.calibration/0"), "unsupported"),
-            (Some("finstack_quant.calibration/2"), "unsupported"),
-            (
-                Some("finstack_quant.calibration/not-a-version"),
-                "malformed",
-            ),
-            (Some("other.calibration/1"), "malformed"),
+            None,
+            Some("finstack_quant.calibration/0"),
+            Some("finstack_quant.calibration/2"),
+            Some("finstack_quant.calibration/not-a-version"),
+            Some("other.calibration/1"),
         ];
-        for (schema, expected) in cases {
+        for schema in cases {
             let mut value = base.clone();
             match schema {
                 Some(schema) => value["schema"] = serde_json::json!(schema),
@@ -1123,11 +1102,10 @@ mod tests {
                         .remove("schema");
                 }
             }
-            let error = parse_envelope(&value.to_string()).expect_err("schema must fail");
-            assert!(
-                error.to_string().contains(expected),
-                "expected {expected} in {error}"
-            );
+            assert!(matches!(
+                parse_envelope(&value.to_string()).expect_err("schema must fail"),
+                EnvelopeError::StrictLoad { .. }
+            ));
         }
     }
 
@@ -1308,6 +1286,28 @@ mod tests {
             .find(|diagnostic| diagnostic.code == "contract/depth-limit")
             .expect("nested depth diagnostic");
         assert_eq!(depth.pointer.as_deref(), Some("/result/final_market"));
+    }
+    #[test]
+    fn duplicate_step_ids_are_structured_validation_errors() {
+        let mut envelope = empty_envelope("duplicate-step");
+        envelope
+            .plan
+            .steps
+            .push(discount_step("duplicate", "quotes-a", "USD-OIS"));
+        envelope
+            .plan
+            .steps
+            .push(discount_step("duplicate", "quotes-b", "USD-SOFR"));
+
+        let report = validate(&envelope);
+        let duplicate = report
+            .errors
+            .iter()
+            .find(|error| matches!(error, EnvelopeError::DuplicateStepId { .. }))
+            .expect("duplicate step error");
+        assert_eq!(duplicate.kind_str(), "duplicate_step_id");
+        assert_eq!(duplicate.step_id(), Some("duplicate"));
+        assert!(duplicate.to_json().contains("\"duplicate_index\": 1"));
     }
 }
 

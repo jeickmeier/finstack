@@ -704,19 +704,21 @@ fn restore_market_context(
             None
         };
 
-        let data = crate::market_data::term_structures::CreditIndexData {
-            num_constituents: credit_state.num_constituents,
-            recovery_rate: credit_state.recovery_rate,
-            index_credit_curve: index_curve,
-            base_correlation_curve: base_corr,
-            issuer_credit_curves: issuer_curves,
-            issuer_recovery_rates: credit_state
-                .issuer_recovery_rates
-                .map(|m| m.into_iter().collect::<BTreeMap<_, _>>()),
-            issuer_weights: credit_state
-                .issuer_weights
-                .map(|m| m.into_iter().collect::<BTreeMap<_, _>>()),
-        };
+        let mut builder = crate::market_data::term_structures::CreditIndexData::builder()
+            .num_constituents(credit_state.num_constituents)
+            .recovery_rate(credit_state.recovery_rate)
+            .index_credit_curve(index_curve)
+            .base_correlation_curve(base_corr);
+        if let Some(issuer_curves) = issuer_curves {
+            builder = builder.issuer_curves(issuer_curves);
+        }
+        if let Some(recovery_rates) = credit_state.issuer_recovery_rates {
+            builder = builder.issuer_recovery_rates(recovery_rates);
+        }
+        if let Some(weights) = credit_state.issuer_weights {
+            builder = builder.issuer_weights(weights);
+        }
+        let data = builder.build()?;
 
         Arc::make_mut(&mut ctx.credit_indices)
             .insert(CurveId::from(credit_state.id), Arc::new(data));

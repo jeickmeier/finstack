@@ -646,6 +646,7 @@ mod tests {
         let quotes = vec![MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
             id: QuoteId::new("TRANCHE-1"),
             index: "CDX.NA.IG".to_string(),
+            series: 1,
             attachment: 0.03,
             detachment: 0.07,
             maturity: Date::from_calendar_date(2030, Month::March, 20).expect("valid maturity"),
@@ -704,6 +705,7 @@ mod tests {
         let quotes = vec![MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
             id: QuoteId::new("TRANCHE-1"),
             index: "CDX.NA.IG".to_string(),
+            series: 1,
             attachment: 0.03,
             detachment: 0.07,
             maturity: Date::from_calendar_date(2030, Month::March, 20).expect("valid maturity"),

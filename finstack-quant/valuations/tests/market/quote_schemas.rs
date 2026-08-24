@@ -94,6 +94,7 @@ fn cds_tranche_quote_id_and_bump_semantics() {
     let q = CDSTrancheQuote::CDSTranche {
         id: QuoteId::new("CDX-IG-3-7"),
         index: "CDX.NA.IG".to_string(),
+        series: 1,
         attachment: 0.03,
         detachment: 0.07,
         maturity: d(2029, time::Month::June, 20),
@@ -156,6 +157,7 @@ fn spread_bump_bp_decimal_parity_for_cds_and_tranche() {
     let tranche = CDSTrancheQuote::CDSTranche {
         id: QuoteId::new("CDX-IG-7-10"),
         index: "CDX.NA.IG".to_string(),
+        series: 1,
         attachment: 0.07,
         detachment: 0.10,
         maturity: d(2030, time::Month::June, 20),
@@ -326,6 +328,7 @@ fn quote_serialization_roundtrip() {
     let tranche = CDSTrancheQuote::CDSTranche {
         id: QuoteId::new("CDX-IG-3-7"),
         index: "CDX.NA.IG".to_string(),
+        series: 1,
         attachment: 0.03,
         detachment: 0.07,
         maturity: d(2029, time::Month::June, 20),
@@ -630,6 +633,7 @@ fn quote_denies_unknown_fields() {
       "type": "cds_tranche",
       "id": "CDX-IG-3-7",
       "index": "CDX.NA.IG",
+      "series": 46,
       "attachment": 0.03,
       "detachment": 0.07,
       "maturity": "2029-06-20",

@@ -702,12 +702,12 @@ class CalibrationResult:
     @property
     def step_ids(self) -> list[str]:
         """
-        List of step identifiers that were executed.
+        List of step identifiers ordered lexicographically by step ID.
 
         Returns
         -------
         list[str]
-            Step IDs in declared order.
+            Step IDs in lexicographic order.
 
         Notes
         -----
@@ -734,12 +734,12 @@ class CalibrationResult:
     @property
     def max_residual(self) -> float:
         """
-        Maximum absolute residual across all steps.
+        Maximum absolute dimensionless fit ratio across all steps.
 
         Returns
         -------
         float
-            Largest absolute residual.
+            Largest ``abs(residual) / step_tolerance`` ratio.
 
         Notes
         -----
@@ -750,12 +750,12 @@ class CalibrationResult:
     @property
     def rmse(self) -> float:
         """
-        Root mean square error across all steps.
+        Root mean square dimensionless fit ratio across all steps.
 
         Returns
         -------
         float
-            RMSE of all step residuals.
+            RMSE of ``abs(residual) / step_tolerance`` ratios.
 
         Notes
         -----
@@ -789,8 +789,8 @@ class CalibrationResult:
         Export the per-step summary as a pandas DataFrame.
 
         Columns: ``step_id``, ``success``, ``iterations``, ``max_residual``,
-        ``rmse``, ``convergence_reason``. One row per calibration step, in
-        plan execution order.
+        ``rmse``, ``convergence_reason``. Rows are ordered lexicographically
+        by step ID.
 
         This is the default export and the same table as
         :meth:`to_report_dataframe`. The plan-level roll-ups (``success``,
@@ -831,24 +831,23 @@ class CalibrationResult:
 
 class CalibrationEnvelopeError(RuntimeError):
     """
-    Raised when a calibration envelope fails validation or solving.
-
-    Inherits from :class:`RuntimeError`, so existing ``except RuntimeError``
-    callers continue to catch it (backward-compatible with pre-Phase-4 code).
+    Structured calibration ingestion or execution failure.
 
     Attributes
     ----------
     kind : str
-        Snake-case discriminator for the failure category. One of
-        ``"json_parse"``, ``"unknown_step_kind"``, ``"missing_dependency"``,
-        ``"undefined_quote_set"``, ``"quote_class_mismatch"``,
-        ``"solver_not_converged"``, ``"quote_data_invalid"``.
+        Programmatic failure category such as ``"strict_load"``,
+        ``"missing_dependency"``, ``"validation"``, or
+        ``"solver_not_converged"``.
+    stage : str
+        Pipeline stage: ``"ingestion"``, ``"configuration"``, ``"context"``,
+        ``"preflight"``, ``"target"``, or ``"solver"``.
     step_id : str or None
-        Identifier of the offending step, when applicable. ``None``
-        for ``"json_parse"``.
+        Identifier of the offending step for step-scoped failures.
+    solver_diagnostics : str or None
+        JSON-serialized solver diagnostics for fit-acceptance failures.
     details : str
-        JSON-serialized structured payload (see ``EnvelopeError``
-        in the Rust crate for the schema).
+        JSON-serialized stable execution-error payload.
 
     Examples
     --------
@@ -856,13 +855,14 @@ class CalibrationEnvelopeError(RuntimeError):
     >>> try:
     ...     dry_run("{ malformed")
     ... except CalibrationEnvelopeError as exc:
-    ...     print((exc.kind, exc.step_id))
-    ('json_parse', None)
-
+    ...     print((exc.kind, exc.stage, exc.step_id))
+    ('strict_load', 'ingestion', None)
     """
 
     kind: str
+    stage: str
     step_id: str | None
+    solver_diagnostics: str | None
     details: str
 
 def validate_calibration_json(json: str) -> str:
@@ -953,9 +953,9 @@ def dependency_graph_json(json: str) -> str:
     Returns
     -------
     str
-        Pretty-printed JSON ``DependencyGraph`` with ``initial_ids`` (curve
-        IDs available at execution start, sourced from ``prior_market``)
-        and ``nodes`` (per-step ``reads``/``writes`` in declared order).
+        Pretty-printed JSON ``DependencyGraph`` with ``initial_ids`` (curve,
+        surface, and scalar IDs supplied by ``market_data`` snapshots or
+        ``prior_market``) and ``nodes`` (declared-order ``reads``/``writes``).
 
     Raises
     ------

@@ -3,6 +3,7 @@
 //! This benchmark suite focuses on the plan-driven calibration step engine.
 
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
+use finstack_quant_core::contract::LoadLimits;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -323,11 +324,16 @@ fn bench_residual_normalization(c: &mut Criterion) {
     });
 }
 
+fn load_example(json: &str) -> CalibrationEnvelope {
+    CalibrationEnvelope::from_slice_strict(json.as_bytes(), &LoadLimits::default())
+        .map(|(envelope, _report)| envelope)
+        .expect("benchmark envelope should pass strict loading")
+}
+
 fn bench_hazard_bootstrap(c: &mut Criterion) {
-    let envelope: CalibrationEnvelope = serde_json::from_str(include_str!(
+    let envelope = load_example(include_str!(
         "../examples/market_bootstrap/03_single_name_hazard.json"
-    ))
-    .expect("single-name hazard benchmark envelope should deserialize");
+    ));
 
     c.bench_function("calibration_hazard_full_plan_5_pillars", |b| {
         b.iter(|| engine::execute(black_box(&envelope)).expect("hazard calibration should succeed"))
@@ -357,10 +363,9 @@ fn bench_hazard_bootstrap(c: &mut Criterion) {
 }
 
 fn bench_base_correlation_bootstrap(c: &mut Criterion) {
-    let envelope: CalibrationEnvelope = serde_json::from_str(include_str!(
+    let envelope = load_example(include_str!(
         "../examples/market_bootstrap/05_cdx_base_correlation.json"
-    ))
-    .expect("base-correlation benchmark envelope should deserialize");
+    ));
 
     c.bench_function("calibration_base_correlation_full_plan_5_knots", |b| {
         b.iter(|| {
@@ -371,10 +376,9 @@ fn bench_base_correlation_bootstrap(c: &mut Criterion) {
 }
 
 fn bench_rate_quote_risk_cache(c: &mut Criterion) {
-    let envelope: CalibrationEnvelope = serde_json::from_str(include_str!(
+    let envelope = load_example(include_str!(
         "../examples/market_bootstrap/02_usd_3m_forward_curve.json"
-    ))
-    .expect("rate replay benchmark envelope should deserialize");
+    ));
     let result = engine::execute(&envelope).expect("rate replay benchmark market should calibrate");
     let market =
         MarketContext::try_from(result.result.final_market).expect("market state should rebuild");

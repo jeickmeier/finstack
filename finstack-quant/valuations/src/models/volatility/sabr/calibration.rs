@@ -132,6 +132,60 @@ pub struct SABRCalibrator {
     max_iterations: usize,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct SabrCalibrationOutcome {
+    pub(crate) parameters: SABRParameters,
+    pub(crate) total_iterations: usize,
+    pub(crate) winning_iterations: usize,
+    pub(crate) residual_evaluations: usize,
+    pub(crate) winning_start: [f64; 3],
+    pub(crate) parameters_at_bounds: Vec<&'static str>,
+}
+
+fn bounded_to_unconstrained(value: f64, lower: f64, upper: f64) -> f64 {
+    let unit = ((value - lower) / (upper - lower)).clamp(1e-9, 1.0 - 1e-9);
+    (unit / (1.0 - unit)).ln()
+}
+
+fn unconstrained_to_bounded(value: f64, lower: f64, upper: f64) -> f64 {
+    let unit = if value >= 0.0 {
+        1.0 / (1.0 + (-value).exp())
+    } else {
+        let exp_value = value.exp();
+        exp_value / (1.0 + exp_value)
+    };
+    lower + (upper - lower) * unit
+}
+
+fn sabr_parameters_at_bounds(alpha: f64, nu: f64, rho: f64) -> Vec<&'static str> {
+    const BOUNDS: [(&str, f64, f64); 3] = [
+        ("alpha", 0.001, 5.0),
+        ("nu", 0.001, 2.0),
+        ("rho", -0.99, 0.99),
+    ];
+    [alpha, nu, rho]
+        .into_iter()
+        .zip(BOUNDS)
+        .filter_map(|(value, (name, lower, upper))| {
+            let threshold = 1e-5 * (upper - lower);
+            ((value - lower).abs() <= threshold || (upper - value).abs() <= threshold)
+                .then_some(name)
+        })
+        .collect()
+}
+
+fn deterministic_sabr_starts(alpha: f64) -> Vec<[f64; 3]> {
+    const NU_STARTS: [f64; 3] = [0.15, 0.4, 0.9];
+    const RHO_STARTS: [f64; 3] = [-0.6, 0.0, 0.6];
+    let mut starts = Vec::with_capacity(NU_STARTS.len() * RHO_STARTS.len());
+    for nu in NU_STARTS {
+        for rho in RHO_STARTS {
+            starts.push([alpha.clamp(0.001_001, 4.999_999), nu, rho]);
+        }
+    }
+    starts
+}
+
 impl SABRCalibrator {
     /// Create new calibrator with production-ready defaults.
     ///
@@ -207,20 +261,42 @@ impl SABRCalibrator {
         time_to_expiry: f64,
         beta: f64,
     ) -> Result<SABRParameters> {
-        // Check if we need shift for negative rates
+        Ok(self
+            .calibrate_auto_shift_with_diagnostics(
+                forward,
+                strikes,
+                market_vols,
+                time_to_expiry,
+                beta,
+            )?
+            .parameters)
+    }
+
+    pub(crate) fn calibrate_auto_shift_with_diagnostics(
+        &self,
+        forward: f64,
+        strikes: &[f64],
+        market_vols: &[f64],
+        time_to_expiry: f64,
+        beta: f64,
+    ) -> Result<SabrCalibrationOutcome> {
         let min_strike = strikes
             .iter()
             .min_by(|a, b| a.total_cmp(b))
             .ok_or_else(|| Error::Validation("Strikes should not be empty".to_string()))?;
         let min_rate = forward.min(*min_strike);
-
         if min_rate < 0.0 {
-            // Use shifted SABR with a standardized shift
             let shift = standard_shift(min_rate)?;
-            self.calibrate_shifted(forward, strikes, market_vols, time_to_expiry, beta, shift)
+            self.calibrate_shifted_with_diagnostics(
+                forward,
+                strikes,
+                market_vols,
+                time_to_expiry,
+                beta,
+                shift,
+            )
         } else {
-            // Use standard SABR
-            self.calibrate(forward, strikes, market_vols, time_to_expiry, beta)
+            self.calibrate_with_diagnostics(forward, strikes, market_vols, time_to_expiry, beta)
         }
     }
 
@@ -267,6 +343,27 @@ impl SABRCalibrator {
         beta: f64,
         shift: f64,
     ) -> Result<SABRParameters> {
+        Ok(self
+            .calibrate_shifted_with_diagnostics(
+                forward,
+                strikes,
+                market_vols,
+                time_to_expiry,
+                beta,
+                shift,
+            )?
+            .parameters)
+    }
+
+    pub(crate) fn calibrate_shifted_with_diagnostics(
+        &self,
+        forward: f64,
+        strikes: &[f64],
+        market_vols: &[f64],
+        time_to_expiry: f64,
+        beta: f64,
+        shift: f64,
+    ) -> Result<SabrCalibrationOutcome> {
         if strikes.len() != market_vols.len() {
             return Err(Error::Validation(format!(
                 "SABR calibration: strikes length ({}) must match market_vols length ({})",
@@ -274,39 +371,28 @@ impl SABRCalibrator {
                 market_vols.len()
             )));
         }
-
         let shifted_forward = forward + shift;
-        let shifted_strikes: Vec<f64> = strikes.iter().map(|&s| s + shift).collect();
-
-        if shifted_forward <= 0.0 || shifted_strikes.iter().any(|&s| s <= 0.0) {
-            let min_shifted_strike = shifted_strikes
-                .iter()
-                .copied()
-                .min_by(|a, b| a.total_cmp(b))
-                .unwrap_or(0.0);
+        let shifted_strikes: Vec<f64> = strikes.iter().map(|&strike| strike + shift).collect();
+        if shifted_forward <= 0.0 || shifted_strikes.iter().any(|&strike| strike <= 0.0) {
             return Err(Error::Validation(format!(
-                "Shifted SABR calibration: shift={:.6} is insufficient. \
-                 shifted_forward={:.6}, min_shifted_strike={:.6}. Increase shift.",
-                shift, shifted_forward, min_shifted_strike
+                "Shifted SABR calibration: shift={shift:.6} is insufficient"
             )));
         }
-
-        // Calibrate using shifted rates
-        let base_params = self.calibrate(
+        let mut outcome = self.calibrate_with_diagnostics(
             shifted_forward,
             &shifted_strikes,
             market_vols,
             time_to_expiry,
             beta,
         )?;
-
-        SABRParameters::new_with_shift(
-            base_params.alpha,
+        outcome.parameters = SABRParameters::new_with_shift(
+            outcome.parameters.alpha,
             beta,
-            base_params.nu,
-            base_params.rho,
+            outcome.parameters.nu,
+            outcome.parameters.rho,
             shift,
-        )
+        )?;
+        Ok(outcome)
     }
 
     /// Calibrate SABR parameters to market implied volatilities using multi-dimensional solver.
@@ -326,68 +412,115 @@ impl SABRCalibrator {
         time_to_expiry: f64,
         beta: f64, // Beta is usually fixed
     ) -> Result<SABRParameters> {
-        if strikes.len() != market_vols.len() {
+        Ok(self
+            .calibrate_with_diagnostics(forward, strikes, market_vols, time_to_expiry, beta)?
+            .parameters)
+    }
+
+    pub(crate) fn calibrate_with_diagnostics(
+        &self,
+        forward: f64,
+        strikes: &[f64],
+        market_vols: &[f64],
+        time_to_expiry: f64,
+        beta: f64,
+    ) -> Result<SabrCalibrationOutcome> {
+        if strikes.len() != market_vols.len() || strikes.len() < 3 {
             return Err(Error::Validation(format!(
-                "SABR calibration: strikes length ({}) must match market_vols length ({})",
+                "SABR calibration requires at least three aligned strike/vol quotes; strikes={}, vols={}",
                 strikes.len(),
                 market_vols.len()
             )));
         }
-
-        // Use Levenberg-Marquardt solver for robust calibration
-        use finstack_quant_core::math::solver_multi::LevenbergMarquardtSolver;
-
-        let solver = LevenbergMarquardtSolver::new()
-            .with_tolerance(self.tolerance)
-            .with_max_iterations(self.max_iterations);
-
-        // Define objective function: sum of squared volatility errors
-        let strikes_vec = strikes.to_vec();
-        let market_vols_vec = market_vols.to_vec();
-        let objective = move |params: &[f64]| -> f64 {
-            let alpha = params[0];
-            let nu = params[1];
-            let rho = params[2];
-
-            if let Ok(sabr_params) = SABRParameters::new(alpha, beta, nu, rho) {
-                let model = SABRModel::new(sabr_params);
-
-                // Vega-weighted sum of squared errors (see `vega_weight`).
-                strikes_vec
-                    .iter()
-                    .zip(market_vols_vec.iter())
-                    .map(|(&strike, &market_vol)| {
-                        let w = vega_weight(forward, strike, market_vol, time_to_expiry, beta);
-                        model
-                            .implied_volatility(forward, strike, time_to_expiry)
-                            .map(|model_vol| w * (model_vol - market_vol).powi(2))
-                            .unwrap_or(1e6) // Large penalty for invalid parameters
-                    })
-                    .sum()
-            } else {
-                1e12 // Very large penalty for invalid parameters
-            }
+        use finstack_quant_core::math::solver_multi::{
+            LevenbergMarquardtSolver, LmSolution, LmTerminationReason,
         };
 
-        // Initial guess for parameters
+        let residual_tolerance = self.tolerance.sqrt();
+        let solver = LevenbergMarquardtSolver::new()
+            .with_tolerance(residual_tolerance)
+            .with_max_iterations(self.max_iterations);
         let atm_vol = self.find_atm_vol(forward, strikes, market_vols)?;
-        let initial = vec![
-            initial_alpha_guess(atm_vol, forward, beta), // alpha
-            0.3,                                         // nu: typical vol-of-vol
-            0.0,                                         // rho: start neutral
-        ];
+        let alpha_start = initial_alpha_guess(atm_vol, forward, beta);
+        let starts = deterministic_sabr_starts(alpha_start);
+        let mut best: Option<(f64, LmSolution, [f64; 3], [f64; 3])> = None;
+        let mut total_iterations = 0;
 
-        // Parameter bounds for SABR model
-        let bounds = vec![
-            (0.001, 5.0),  // alpha: positive, reasonable range
-            (0.001, 2.0),  // nu: positive vol-of-vol
-            (-0.99, 0.99), // rho: correlation bounds
-        ];
+        for physical_start in starts {
+            let initial = [
+                bounded_to_unconstrained(physical_start[0], 0.001, 5.0),
+                bounded_to_unconstrained(physical_start[1], 0.001, 2.0),
+                bounded_to_unconstrained(physical_start[2], -0.99, 0.99),
+            ];
+            let residuals = |unconstrained: &[f64], output: &mut [f64]| {
+                let alpha = unconstrained_to_bounded(unconstrained[0], 0.001, 5.0);
+                let nu = unconstrained_to_bounded(unconstrained[1], 0.001, 2.0);
+                let rho = unconstrained_to_bounded(unconstrained[2], -0.99, 0.99);
+                let Ok(parameters) = SABRParameters::new(alpha, beta, nu, rho) else {
+                    output.fill(1e6);
+                    return;
+                };
+                let model = SABRModel::new(parameters);
+                for (index, (&strike, &market_vol)) in strikes.iter().zip(market_vols).enumerate() {
+                    let weight =
+                        vega_weight(forward, strike, market_vol, time_to_expiry, beta).sqrt();
+                    output[index] = model
+                        .implied_volatility(forward, strike, time_to_expiry)
+                        .map_or(1e6, |model_vol| weight * (model_vol - market_vol));
+                }
+            };
+            let Ok(solution) =
+                solver.solve_system_with_dim_stats(residuals, &initial, market_vols.len())
+            else {
+                continue;
+            };
+            total_iterations += solution.stats.iterations;
+            let physical = [
+                unconstrained_to_bounded(solution.params[0], 0.001, 5.0),
+                unconstrained_to_bounded(solution.params[1], 0.001, 2.0),
+                unconstrained_to_bounded(solution.params[2], -0.99, 0.99),
+            ];
+            let score = solution.stats.final_residual_norm;
+            if score.is_finite()
+                && best
+                    .as_ref()
+                    .is_none_or(|(best_score, _, _, _)| score < *best_score)
+            {
+                best = Some((score, solution, physical_start, physical));
+            }
+        }
 
-        // Calibrate using multi-dimensional solver
-        let solution = solver.minimize(objective, &initial, Some(&bounds))?;
+        let Some((score, solution, winning_start, physical)) = best else {
+            return Err(Error::Calibration {
+                message: "all deterministic SABR calibration starts failed".to_string(),
+                category: "sabr_multi_start".to_string(),
+            });
+        };
+        let converged = matches!(
+            solution.stats.termination_reason,
+            LmTerminationReason::ConvergedResidualNorm
+                | LmTerminationReason::ConvergedRelativeReduction
+                | LmTerminationReason::ConvergedGradient
+                | LmTerminationReason::StepTooSmall
+        ) || score <= residual_tolerance;
+        if !converged {
+            return Err(Error::Calibration {
+                message: format!(
+                    "best deterministic SABR start did not converge after {} iterations; residual={score:.6e}, reason={:?}",
+                    solution.stats.iterations, solution.stats.termination_reason
+                ),
+                category: "sabr_multi_start".to_string(),
+            });
+        }
 
-        SABRParameters::new(solution[0], beta, solution[1], solution[2])
+        Ok(SabrCalibrationOutcome {
+            parameters: SABRParameters::new(physical[0], beta, physical[1], physical[2])?,
+            total_iterations,
+            winning_iterations: solution.stats.iterations,
+            residual_evaluations: solution.stats.residual_evals,
+            winning_start,
+            parameters_at_bounds: sabr_parameters_at_bounds(physical[0], physical[1], physical[2]),
+        })
     }
 
     /// Calibrate SABR parameters with finite-difference parameter gradients.
@@ -637,89 +770,145 @@ impl SABRCalibrator {
         time_to_expiry: f64,
         beta: f64,
     ) -> Result<SABRParameters> {
-        if strikes.len() != market_vols.len() {
+        Ok(self
+            .calibrate_with_atm_pinning_diagnostics(
+                forward,
+                strikes,
+                market_vols,
+                time_to_expiry,
+                beta,
+            )?
+            .parameters)
+    }
+
+    pub(crate) fn calibrate_with_atm_pinning_diagnostics(
+        &self,
+        forward: f64,
+        strikes: &[f64],
+        market_vols: &[f64],
+        time_to_expiry: f64,
+        beta: f64,
+    ) -> Result<SabrCalibrationOutcome> {
+        if strikes.len() != market_vols.len() || strikes.len() < 3 {
             return Err(Error::Validation(format!(
-                "SABR calibration: strikes length ({}) must match market_vols length ({})",
+                "ATM-pinned SABR calibration requires at least three aligned quotes; strikes={}, vols={}",
                 strikes.len(),
                 market_vols.len()
             )));
         }
-
-        let atm_vol = self.find_atm_vol(forward, strikes, market_vols)?;
-
-        // Use 2D solver for nu and rho only
-        use finstack_quant_core::math::solver_multi::LevenbergMarquardtSolver;
-
-        let solver = LevenbergMarquardtSolver::new()
-            .with_tolerance(self.tolerance)
-            .with_max_iterations(self.max_iterations);
-
-        let strikes_vec = strikes.to_vec();
-        let market_vols_vec = market_vols.to_vec();
-        let tol = self.tolerance;
-
-        // Objective: fit nu and rho, with alpha solved to match ATM
-        let objective = move |params: &[f64]| -> f64 {
-            let nu = params[0];
-            let rho = params[1];
-
-            // Solve for alpha that matches ATM vol exactly
-            let Ok(alpha) =
-                solve_alpha_for_atm(forward, atm_vol, time_to_expiry, beta, nu, rho, tol)
-            else {
-                return 1e12;
-            };
-            if let Ok(sabr_params) = SABRParameters::new(alpha, beta, nu, rho) {
-                let model = SABRModel::new(sabr_params);
-
-                strikes_vec
-                    .iter()
-                    .zip(market_vols_vec.iter())
-                    .map(|(&strike, &market_vol)| {
-                        // ATM is matched by construction; scale safely near zero.
-                        let is_atm = (strike - forward).abs() / forward.abs().max(1e-8) < 0.001;
-                        if is_atm {
-                            0.0
-                        } else {
-                            let w = vega_weight(forward, strike, market_vol, time_to_expiry, beta);
-                            model
-                                .implied_volatility(forward, strike, time_to_expiry)
-                                .map(|model_vol| w * (model_vol - market_vol).powi(2))
-                                .unwrap_or(1e6)
-                        }
-                    })
-                    .sum()
-            } else {
-                1e12
-            }
+        use finstack_quant_core::math::solver_multi::{
+            LevenbergMarquardtSolver, LmSolution, LmTerminationReason,
         };
 
-        // Initial guess: nu=0.3 (typical), rho=0.0 (neutral)
-        let initial = vec![0.3, 0.0];
+        let atm_vol = self.find_atm_vol(forward, strikes, market_vols)?;
+        let alpha_start = initial_alpha_guess(atm_vol, forward, beta);
+        let starts = deterministic_sabr_starts(alpha_start);
+        let residual_tolerance = self.tolerance.sqrt();
+        let solver = LevenbergMarquardtSolver::new()
+            .with_tolerance(residual_tolerance)
+            .with_max_iterations(self.max_iterations);
+        let mut best: Option<(f64, LmSolution, [f64; 3], [f64; 3])> = None;
+        let mut total_iterations = 0;
 
-        // Bounds for nu and rho
-        let bounds = vec![
-            (0.001, 2.0),  // nu
-            (-0.99, 0.99), // rho
-        ];
+        for physical_start in starts {
+            let initial = [
+                bounded_to_unconstrained(physical_start[1], 0.001, 2.0),
+                bounded_to_unconstrained(physical_start[2], -0.99, 0.99),
+            ];
+            let residuals = |unconstrained: &[f64], output: &mut [f64]| {
+                let nu = unconstrained_to_bounded(unconstrained[0], 0.001, 2.0);
+                let rho = unconstrained_to_bounded(unconstrained[1], -0.99, 0.99);
+                let Ok(alpha) = solve_alpha_for_atm(
+                    forward,
+                    atm_vol,
+                    time_to_expiry,
+                    beta,
+                    nu,
+                    rho,
+                    self.tolerance,
+                ) else {
+                    output.fill(1e6);
+                    return;
+                };
+                let Ok(parameters) = SABRParameters::new(alpha, beta, nu, rho) else {
+                    output.fill(1e6);
+                    return;
+                };
+                let model = SABRModel::new(parameters);
+                for (index, (&strike, &market_vol)) in strikes.iter().zip(market_vols).enumerate() {
+                    let is_atm = (strike - forward).abs() / forward.abs().max(1e-8) < 0.001;
+                    output[index] = if is_atm {
+                        0.0
+                    } else {
+                        let weight =
+                            vega_weight(forward, strike, market_vol, time_to_expiry, beta).sqrt();
+                        model
+                            .implied_volatility(forward, strike, time_to_expiry)
+                            .map_or(1e6, |model_vol| weight * (model_vol - market_vol))
+                    };
+                }
+            };
+            let Ok(solution) =
+                solver.solve_system_with_dim_stats(residuals, &initial, market_vols.len())
+            else {
+                continue;
+            };
+            total_iterations += solution.stats.iterations;
+            let nu = unconstrained_to_bounded(solution.params[0], 0.001, 2.0);
+            let rho = unconstrained_to_bounded(solution.params[1], -0.99, 0.99);
+            let Ok(alpha) = solve_alpha_for_atm(
+                forward,
+                atm_vol,
+                time_to_expiry,
+                beta,
+                nu,
+                rho,
+                self.tolerance,
+            ) else {
+                continue;
+            };
+            let physical = [alpha, nu, rho];
+            let score = solution.stats.final_residual_norm;
+            if score.is_finite()
+                && best
+                    .as_ref()
+                    .is_none_or(|(best_score, _, _, _)| score < *best_score)
+            {
+                best = Some((score, solution, physical_start, physical));
+            }
+        }
 
-        let solution = solver.minimize(objective, &initial, Some(&bounds))?;
+        let Some((score, solution, winning_start, physical)) = best else {
+            return Err(Error::Calibration {
+                message: "all deterministic ATM-pinned SABR starts failed".to_string(),
+                category: "sabr_multi_start".to_string(),
+            });
+        };
+        let converged = matches!(
+            solution.stats.termination_reason,
+            LmTerminationReason::ConvergedResidualNorm
+                | LmTerminationReason::ConvergedRelativeReduction
+                | LmTerminationReason::ConvergedGradient
+                | LmTerminationReason::StepTooSmall
+        ) || score <= residual_tolerance;
+        if !converged {
+            return Err(Error::Calibration {
+                message: format!(
+                    "best deterministic ATM-pinned SABR start did not converge after {} iterations; residual={score:.6e}, reason={:?}",
+                    solution.stats.iterations, solution.stats.termination_reason
+                ),
+                category: "sabr_multi_start".to_string(),
+            });
+        }
 
-        let nu = solution[0];
-        let rho = solution[1];
-
-        // Final alpha solve with calibrated nu/rho
-        let alpha = solve_alpha_for_atm(
-            forward,
-            atm_vol,
-            time_to_expiry,
-            beta,
-            nu,
-            rho,
-            self.tolerance,
-        )?;
-
-        SABRParameters::new(alpha, beta, nu, rho)
+        Ok(SabrCalibrationOutcome {
+            parameters: SABRParameters::new(physical[0], beta, physical[1], physical[2])?,
+            total_iterations,
+            winning_iterations: solution.stats.iterations,
+            residual_evaluations: solution.stats.residual_evals,
+            winning_start,
+            parameters_at_bounds: sabr_parameters_at_bounds(physical[0], physical[1], physical[2]),
+        })
     }
 }
 

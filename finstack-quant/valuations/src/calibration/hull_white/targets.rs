@@ -98,17 +98,14 @@ pub(super) const HW_VALIDATION_TOLERANCE: f64 = 1e-6;
 /// Pre-computed market data for one swaption quote, captured once before
 /// LM iteration so that the residual loop is a pure numeric computation.
 ///
-/// `accruals` is the per-period payment-leg year-fraction sequence. When
-/// `None` the calibrator uses the legacy constant-`tenor/n_periods` schedule
-/// (preserved for the float-only public API and existing tests). When `Some`,
-/// the supplied year fractions are used directly — see
-/// [`calibrate_hull_white_to_swaptions_with_schedules`] for the recipe used
-/// to build them from real (date, day-count) market data.
+/// `schedule` is the contractual fixed-leg schedule. When `None` the
+/// calibrator uses the legacy constant-`tenor/n_periods` schedule preserved
+/// for the float-only public API and existing tests.
 pub(super) struct PreparedSwaption {
     pub(super) market_price: f64,
     pub(super) fwd_swap_rate: f64,
     pub(super) vega: f64,
-    pub(super) accruals: Option<Box<[f64]>>,
+    pub(super) schedule: Option<SwaptionSchedule>,
 }
 
 /// `GlobalSolveTarget` impl carrying everything HW1F swaption calibration
@@ -169,7 +166,7 @@ impl<'a> GlobalSolveTarget for HullWhiteSwaptionTarget<'a> {
                 tenor: q.tenor,
                 swap_rate: pre.fwd_swap_rate,
                 periods_per_year: self.ppy,
-                accruals: pre.accruals.as_deref(),
+                schedule: pre.schedule.as_ref(),
             });
             if !model_price.is_finite() {
                 // Signal infeasibility to the LM solver instead of injecting a

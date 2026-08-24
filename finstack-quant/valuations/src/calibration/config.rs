@@ -380,6 +380,88 @@ impl Default for DiscountCurveSolveConfig {
     }
 }
 
+#[cfg_attr(feature = "ts_export", derive(TS))]
+#[cfg_attr(feature = "ts_export", ts(export))]
+/// Selected side of the market snapshot.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum MarketQuoteSide {
+    /// Mid-market observations.
+    #[default]
+    Mid,
+    /// Executable bid-side observations.
+    Bid,
+    /// Executable ask-side observations.
+    Ask,
+}
+
+/// Audit metadata and freshness policy for calibration inputs.
+#[cfg_attr(feature = "ts_export", derive(TS))]
+#[cfg_attr(feature = "ts_export", ts(export))]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct MarketFreshnessPolicy {
+    /// RFC3339 timestamp at which the quote snapshot was captured.
+    pub snapshot_timestamp: Option<String>,
+    /// Maximum permitted snapshot age in seconds.
+    pub max_age_seconds: Option<u64>,
+    /// Market side represented by quote values in the envelope.
+    pub quote_side: MarketQuoteSide,
+}
+
+impl MarketFreshnessPolicy {
+    fn validate(&self) -> finstack_quant_core::Result<()> {
+        match (&self.snapshot_timestamp, self.max_age_seconds) {
+            (None, None) => Ok(()),
+            (Some(timestamp), Some(max_age_seconds)) if max_age_seconds > 0 => {
+                let captured = time::OffsetDateTime::parse(
+                    timestamp,
+                    &time::format_description::well_known::Rfc3339,
+                )
+                .map_err(|error| {
+                    finstack_quant_core::Error::Validation(format!(
+                        "market snapshot timestamp must be RFC3339: {error}"
+                    ))
+                })?;
+                let now = time::OffsetDateTime::now_utc();
+                if captured > now {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "market snapshot timestamp {timestamp} is in the future"
+                    )));
+                }
+                let age_seconds = (now - captured).whole_seconds();
+                if age_seconds > max_age_seconds as i64 {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "market snapshot is {age_seconds} seconds old, exceeding max_age_seconds={max_age_seconds}"
+                    )));
+                }
+                Ok(())
+            }
+            (Some(_), Some(0)) => Err(finstack_quant_core::Error::Validation(
+                "market freshness max_age_seconds must be positive".to_string(),
+            )),
+            _ => Err(finstack_quant_core::Error::Validation(
+                "market freshness requires snapshot_timestamp and max_age_seconds together"
+                    .to_string(),
+            )),
+        }
+    }
+
+    /// Whether the snapshot carries a complete, validated freshness assertion.
+    #[must_use]
+    pub fn is_verifiable(&self) -> bool {
+        self.snapshot_timestamp.is_some() && self.max_age_seconds.is_some()
+    }
+}
+
+fn market_freshness_is_default(policy: &MarketFreshnessPolicy) -> bool {
+    policy.snapshot_timestamp.is_none()
+        && policy.max_age_seconds.is_none()
+        && policy.quote_side == MarketQuoteSide::Mid
+}
+
 /// Global configuration for the calibration subsystem.
 ///
 /// This struct consolidates all settings for solvers, validation, and market-regime
@@ -523,6 +605,9 @@ pub struct CalibrationConfig {
     #[serde(default)]
     #[cfg_attr(feature = "ts_export", ts(type = "Record<string, unknown>"))]
     pub fx: FxConfig,
+    /// Snapshot timestamp, maximum age, and selected quote side.
+    #[serde(default, skip_serializing_if = "market_freshness_is_default")]
+    pub market_freshness: MarketFreshnessPolicy,
 
     /// Optional market-data hierarchy snapshot.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -556,6 +641,7 @@ impl Default for CalibrationConfig {
             vol_surface: VolSurfaceSolveConfig::default(),
             fail_on_bad_fit: default_fail_on_bad_fit(),
             fx: FxConfig::default(),
+            market_freshness: MarketFreshnessPolicy::default(),
             hierarchy: None,
         }
     }
@@ -613,6 +699,7 @@ impl CalibrationConfig {
     pub fn validate(&self) -> finstack_quant_core::Result<()> {
         self.validation.validate()?;
         self.rate_bounds.validate()?;
+        self.market_freshness.validate()?;
         self.validate_solver_vs_success_tolerance(
             "discount_curve.validation_tolerance",
             self.discount_curve.validation_tolerance,
@@ -908,5 +995,24 @@ mod fx_and_hierarchy_settings_tests {
             err.to_string().contains("vol_surface.validation_tolerance"),
             "unexpected validation error: {err}"
         );
+    }
+    #[test]
+    fn market_freshness_requires_complete_valid_policy() {
+        let mut incomplete = CalibrationConfig::default();
+        incomplete.market_freshness.snapshot_timestamp = Some("2026-01-01T00:00:00Z".to_string());
+        assert!(incomplete
+            .validate()
+            .expect_err("timestamp without max age")
+            .to_string()
+            .contains("together"));
+
+        let mut malformed = CalibrationConfig::default();
+        malformed.market_freshness.snapshot_timestamp = Some("not-a-timestamp".to_string());
+        malformed.market_freshness.max_age_seconds = Some(60);
+        assert!(malformed
+            .validate()
+            .expect_err("malformed timestamp")
+            .to_string()
+            .contains("RFC3339"));
     }
 }

@@ -124,6 +124,8 @@ mod discount_curve;
 mod forward_curve;
 /// Forward variance curves for rough volatility models.
 pub mod forward_variance;
+/// Serializable hazard-curve calibration replay inputs.
+mod hazard_calibration;
 /// Credit hazard curves.
 mod hazard_curve;
 /// Real/Breakeven inflation curves.
@@ -148,6 +150,7 @@ pub use discount_curve::{
 };
 pub use forward_curve::{ForwardCurve, ForwardCurveBuilder};
 pub use forward_variance::ForwardVarianceCurve;
+pub use hazard_calibration::HazardCalibrationRecipe;
 pub use hazard_curve::{HazardCurve, HazardCurveBuilder, ParInterp, Seniority};
 pub use inflation::{InflationCurve, InflationCurveBuilder};
 pub use parametric_curve::{NelsonSiegelModel, NsVariant, ParametricCurve, ParametricCurveBuilder};

@@ -53,9 +53,13 @@ quotes in two complementary tracks:
 Both tracks may appear in the same envelope; the engine merges `market_data` and
 `prior_market` into the working context before running steps.
 
-Envelope quotes are assumed live and uncrossed. The engine does not filter
-stale or crossed markets because quotes carry no bid/ask or timestamp. Callers
-must supply a clean snapshot.
+`plan.settings.market_freshness` records the RFC3339 snapshot timestamp,
+maximum permitted age, and selected quote side (`mid`, `bid`, or `ask`).
+Execution rejects incomplete, malformed, future, or stale freshness assertions
+and stamps the plan report as `verified` or `unverified`. Quotes remain
+single-sided values rather than bid/ask pairs, so crossed-market validation is
+not applicable inside this schema; upstream ingestion must reject a crossed
+pair before selecting the side placed in the envelope.
 
 ## Executing a plan
 

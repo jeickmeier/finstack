@@ -317,36 +317,15 @@ impl GlobalSolveTarget for ParametricCurveTarget {
 
     fn lower_bounds(&self) -> Option<Vec<f64>> {
         Some(match self.params.variant {
-            NsVariant::Ns => vec![
-                f64::NEG_INFINITY,
-                f64::NEG_INFINITY,
-                f64::NEG_INFINITY,
-                0.01,
-            ],
-            NsVariant::Nss => vec![
-                f64::NEG_INFINITY,
-                f64::NEG_INFINITY,
-                f64::NEG_INFINITY,
-                f64::NEG_INFINITY,
-                0.01,
-                0.01,
-            ],
+            NsVariant::Ns => vec![-2.0, -2.0, -2.0, 0.01],
+            NsVariant::Nss => vec![-2.0, -2.0, -2.0, -2.0, 0.01, 0.01],
         })
     }
 
     fn upper_bounds(&self) -> Option<Vec<f64>> {
         Some(match self.params.variant {
-            NsVariant::Ns => vec![f64::INFINITY, f64::INFINITY, f64::INFINITY, 30.0],
-            NsVariant::Nss => {
-                vec![
-                    f64::INFINITY,
-                    f64::INFINITY,
-                    f64::INFINITY,
-                    f64::INFINITY,
-                    30.0,
-                    30.0,
-                ]
-            }
+            NsVariant::Ns => vec![2.0, 2.0, 2.0, 30.0],
+            NsVariant::Nss => vec![2.0, 2.0, 2.0, 2.0, 30.0, 30.0],
         })
     }
 }

@@ -207,6 +207,7 @@ fn base_correlation_step_builds_curve_and_updates_credit_index_data() {
         MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
             id: QuoteId::new("TRANCHE-1"),
             index: "CDX".to_string(),
+            series: 40,
             attachment: 0.0,
             detachment: 0.03,
             maturity,
@@ -220,6 +221,7 @@ fn base_correlation_step_builds_curve_and_updates_credit_index_data() {
         MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
             id: QuoteId::new("TRANCHE-2"),
             index: "CDX".to_string(),
+            series: 40,
             attachment: 0.03,
             detachment: 0.07,
             maturity,

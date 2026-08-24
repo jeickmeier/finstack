@@ -403,8 +403,9 @@ impl CalibrationEnvelope {
     ///
     /// Returns [`ContractError`] for malformed JSON, resource-limit failures,
     /// a missing or malformed schema marker, an unsupported schema version, or
-    /// an invalid calibration-envelope shape, or semantic failures such as
-    /// undefined quote sets, duplicate market-data IDs, or missing dependencies.
+    /// an invalid calibration-envelope shape. Semantic findings are returned
+    /// in the bounded validation report so `dry_run` can report all findings;
+    /// execution rejects that report before constructing market state.
     pub fn from_slice_strict(
         bytes: &[u8],
         limits: &LoadLimits,
@@ -418,9 +419,6 @@ impl CalibrationEnvelope {
             envelope.validate().errors,
             limits,
         );
-        if report.has_errors() {
-            return Err(ContractError::Report(Box::new(report)));
-        }
         Ok((envelope, report))
     }
 }
@@ -716,11 +714,10 @@ pub struct DiscountCurveParams {
     pub method: CalibrationMethod,
     /// Interpolation style for the constructed discount curve.
     ///
-    /// Caller-owned: the engine does not override this field. `Linear`
-    /// interpolates discount-factor ordinates in time and is **not** the
-    /// QuantLib or Bloomberg production default. Production curves typically
-    /// use `LogLinear` (log-DF) or `MonotoneConvex` (Hagan–West).
-    #[serde(default = "default_interp_linear")]
+    /// Defaults to log-linear discount factors, preserving positive discount
+    /// factors and piecewise-constant continuously compounded forwards.
+    /// `Linear` remains available only when explicitly requested.
+    #[serde(default = "default_interp_log_linear")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub interpolation: InterpStyle,
     /// Extrapolation policy for the curve.
@@ -772,10 +769,10 @@ pub struct ForwardCurveParams {
     pub method: CalibrationMethod,
     /// Interpolation style for the constructed forward curve.
     ///
-    /// Caller-owned: the engine does not override this field. `Linear`
-    /// interpolates the stored forward-rate ordinates in time and is **not**
-    /// the QuantLib or Bloomberg production default.
-    #[serde(default = "default_interp_linear")]
+    /// Defaults to Hagan-West monotone-convex interpolation for a smooth,
+    /// shape-preserving forward term structure. `Linear` remains explicitly
+    /// opt-in.
+    #[serde(default = "default_interp_monotone_convex")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub interpolation: InterpStyle,
 
@@ -1325,18 +1322,18 @@ pub struct SviSurfaceParams {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SwaptionVolConvention {
-    /// Normal (absolute) volatility quoted in **basis points**.
+    /// Normal (Bachelier) absolute volatility in decimal rate units.
     ///
-    /// Example: `50.0` means 50bp = `0.0050` in internal model units.
+    /// Example: `0.0050` means 50 basis points of absolute volatility.
     Normal,
-    /// Lognormal (Black) volatility quoted as **percentage**.
+    /// Lognormal (Black) volatility in decimal units.
     ///
-    /// Example: `20.0` means 20% = `0.20` in internal model units.
+    /// Example: `0.20` means 20% Black volatility.
     #[default]
     Lognormal,
-    /// Shifted lognormal (Black) volatility quoted as **percentage**, with an explicit shift.
+    /// Shifted lognormal (Black) volatility in decimal units, with an explicit shift.
     ///
-    /// Example: `20.0` means 20% = `0.20` in internal model units.
+    /// Example: `0.20` means 20% Black volatility.
     ShiftedLognormal {
         /// Shift amount for negative rate handling
         shift: f64,
@@ -1375,6 +1372,10 @@ fn default_interp_linear() -> InterpStyle {
 
 fn default_interp_log_linear() -> InterpStyle {
     InterpStyle::LogLinear
+}
+
+fn default_interp_monotone_convex() -> InterpStyle {
+    InterpStyle::MonotoneConvex
 }
 
 fn default_par_interp_linear() -> ParInterp {
@@ -1435,10 +1436,9 @@ pub struct XccyBasisParams {
     pub method: CalibrationMethod,
     /// Interpolation style for the constructed foreign discount curve.
     ///
-    /// Caller-owned: the engine does not override this field. `Linear`
-    /// interpolates discount-factor ordinates and is **not** the QuantLib
-    /// or Bloomberg production default.
-    #[serde(default = "default_interp_linear")]
+    /// Defaults to log-linear discount factors. `Linear` remains available
+    /// only when explicitly requested.
+    #[serde(default = "default_interp_log_linear")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub interpolation: InterpStyle,
     /// Extrapolation policy for the foreign curve.
@@ -1484,4 +1484,40 @@ pub struct ParametricCurveParams {
     #[serde(default)]
     #[cfg_attr(feature = "ts_export", ts(type = "unknown | null"))]
     pub initial_params: Option<NelsonSiegelModel>,
+}
+
+#[cfg(test)]
+mod interpolation_default_tests {
+    use super::*;
+
+    #[test]
+    fn production_curve_interpolation_defaults_are_shape_safe() {
+        let discount: DiscountCurveParams = serde_json::from_value(serde_json::json!({
+            "curve_id": "USD-OIS",
+            "currency": "USD",
+            "base_date": "2025-01-01"
+        }))
+        .expect("discount params");
+        assert_eq!(discount.interpolation, InterpStyle::LogLinear);
+
+        let forward: ForwardCurveParams = serde_json::from_value(serde_json::json!({
+            "curve_id": "USD-SOFR-3M",
+            "currency": "USD",
+            "base_date": "2025-01-01",
+            "tenor_years": 0.25,
+            "discount_curve_id": "USD-OIS"
+        }))
+        .expect("forward params");
+        assert_eq!(forward.interpolation, InterpStyle::MonotoneConvex);
+
+        let xccy: XccyBasisParams = serde_json::from_value(serde_json::json!({
+            "curve_id": "EUR-OIS",
+            "currency": "EUR",
+            "base_date": "2025-01-01",
+            "fx_spot": 1.1,
+            "domestic_discount_id": "USD-OIS"
+        }))
+        .expect("xccy params");
+        assert_eq!(xccy.interpolation, InterpStyle::LogLinear);
+    }
 }

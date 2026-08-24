@@ -3,6 +3,7 @@ import type { CalibrationMethod } from "./CalibrationMethod";
 import type { DiscountCurveSolveConfig } from "./DiscountCurveSolveConfig";
 import type { HazardCurveSolveConfig } from "./HazardCurveSolveConfig";
 import type { InflationCurveSolveConfig } from "./InflationCurveSolveConfig";
+import type { MarketFreshnessPolicy } from "./MarketFreshnessPolicy";
 import type { RateBounds } from "./RateBounds";
 import type { RateBoundsPolicy } from "./RateBoundsPolicy";
 import type { SolverConfig } from "./SolverConfig";
@@ -156,6 +157,10 @@ fail_on_bad_fit: boolean,
  * FX matrix runtime config (pivot currency, triangulation, cache capacity).
  */
 fx: Record<string, unknown>,
+/**
+ * Snapshot timestamp, maximum age, and selected quote side.
+ */
+market_freshness?: MarketFreshnessPolicy,
 /**
  * Optional market-data hierarchy snapshot.
  */

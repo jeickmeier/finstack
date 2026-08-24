@@ -383,25 +383,18 @@ fn test_jtd_recovery_sensitivity() {
     }
 }
 
-/// Recovery01 must recalibrate the hazard curve (re-bootstrap from par
-/// spreads at the new recovery) when the curve carries par-spread quotes.
+/// Recovery01 must not treat reporting-only par points as a calibration recipe.
 ///
-/// We compare the metric's Recovery01 against a hand-rolled "frozen-curve"
-/// Recovery01 that bumps the instrument LGD without recalibrating the
-/// survival curve. For a curve with par_spread_points the two MUST differ —
-/// the recalibrated answer is the production-correct one (h ≈ S/(1-R)
-/// rebalances when R moves), while the frozen-curve answer is the partial
-/// LGD-only sensitivity.
+/// A manually built curve with no persisted recipe uses frozen hazard knots;
+/// only engine-calibrated curves opt into lossless recovery replay.
 #[test]
-fn test_recovery01_recalibrates_hazard_curve_with_par_spreads() {
+fn test_recovery01_ignores_unreplayable_par_spread_sidecar() {
     let base = base_date();
     let maturity = Date::from_calendar_date(2030, Month::March, 20).unwrap();
 
     let recovery = 0.40;
-    // Build a hazard curve carrying its own par-spread quotes (production
-    // shape — mirrors what a bootstrap would store). Parameterised on the
-    // recovery so the frozen-curve baseline below can produce a curve whose
-    // recovery metadata matches each bumped trade recovery.
+    // This manually built curve carries reporting par points but no calibration
+    // recipe, so it must not claim quote-space replay capability.
     let make_hazard = |rec: f64| {
         HazardCurve::builder("CDS-CAL-CREDIT")
             .base_date(base)
@@ -430,7 +423,7 @@ fn test_recovery01_recalibrates_hazard_curve_with_par_spreads() {
         .insert(create_discount_curve(base))
         .insert(hazard);
 
-    // Metric path — recalibrates the hazard curve under the bumped recovery.
+    // Metric path — correctly keeps unreplayable hazard knots frozen.
     let result = cds_test
         .price_with_metrics(
             &market,
@@ -471,14 +464,9 @@ fn test_recovery01_recalibrates_hazard_curve_with_par_spreads() {
         "Frozen-curve baseline should be finite"
     );
 
-    // The two answers MUST differ — that's the whole point of recalibration.
-    let abs_diff = (recalibrated_recovery01 - frozen_recovery01).abs();
+    let tolerance = 1e-9_f64.max(1e-10 * frozen_recovery01.abs());
     assert!(
-        abs_diff > 1e-3,
-        "Recalibrated Recovery01 ({recalibrated_recovery01:.6}) should differ \
-         materially from the frozen-curve baseline ({frozen_recovery01:.6}). \
-         Identical values indicate the hazard curve is NOT being recalibrated \
-         on recovery bumps — Recovery01 would then understate the true \
-         sensitivity for spread-bootstrapped curves."
+        (recalibrated_recovery01 - frozen_recovery01).abs() <= tolerance,
+        "unreplayable par sidecars must use the frozen-curve recovery path"
     );
 }

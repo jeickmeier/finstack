@@ -956,11 +956,10 @@ fn test_cs01_calculation() {
     // (higher spreads -> higher protection premium income)
 }
 
-/// `calculate_cs01` is a par-spread (re-bootstrap) bump; without stored par
-/// spreads a silent fallback to a hazard-λ bump would mislabel units by
-/// ≈1/(1−R), so the solve must fail loudly instead.
+/// Curves without a persisted calibration recipe use the explicit model-hazard
+/// fallback rather than pretending their par-spread sidecar is replayable.
 #[test]
-fn test_cs01_errors_without_par_spreads() {
+fn test_cs01_uses_model_hazard_shift_without_recipe() {
     let base_date = Date::from_calendar_date(2025, Month::January, 1).expect("Valid test date");
     let discount_curve = DiscountCurve::builder("USD-OIS")
         .base_date(base_date)
@@ -994,13 +993,10 @@ fn test_cs01_errors_without_par_spreads() {
     let tranche = sample_tranche();
     let as_of = base_date;
 
-    let err = model
+    let cs01 = model
         .calculate_cs01(&tranche, &market_ctx, as_of)
-        .expect_err("CS01 without par spreads must error, not fall back to a hazard bump");
-    assert!(
-        err.to_string().contains("par-spread"),
-        "error should explain the par-spread requirement: {err}"
-    );
+        .expect("model-hazard fallback");
+    assert!(cs01.is_finite() && cs01.abs() > 0.0);
 }
 
 #[test]

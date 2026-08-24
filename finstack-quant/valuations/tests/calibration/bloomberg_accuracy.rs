@@ -396,9 +396,13 @@ fn test_bloomberg_usd_ois_calibration_accuracy() {
         report
     );
     assert!(
-        report.max_residual < 1e-8,
-        "Calibration max_residual must be < 1e-8. Got {:.3e}",
+        report.max_residual < 1.0,
+        "dimensionless plan fit ratio must be below one tolerance unit; got {:.3e}",
         report.max_residual
+    );
+    assert_eq!(
+        report.metadata.get("residual_units").map(String::as_str),
+        Some("absolute_residual_over_step_tolerance")
     );
 
     // Bloomberg DF matching: calibrated curve vs reference discount factors

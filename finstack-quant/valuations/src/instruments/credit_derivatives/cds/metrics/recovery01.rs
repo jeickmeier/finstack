@@ -73,7 +73,7 @@ fn price_at_bumped_recovery(
     // If the curve was built from par-spread quotes we re-bootstrap it under
     // the bumped recovery. Otherwise we leave the curve frozen — Recovery01
     // becomes a partial sensitivity (the LGD-only direct effect).
-    let has_par_quotes = hazard.par_spread_points().next().is_some();
+    let has_par_quotes = hazard.hazard_calibration().is_some();
 
     // Frozen-curve fallback: reuse the hazard curve's λ knots unchanged but
     // realign its `recovery_rate` metadata with the bumped trade recovery.

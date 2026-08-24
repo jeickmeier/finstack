@@ -130,8 +130,7 @@ impl MetricCalculator for Recovery01Calculator {
 
         let has_par_quotes = original_index
             .index_credit_curve
-            .par_spread_points()
-            .next()
+            .hazard_calibration()
             .is_some();
 
         let (curves_up, curves_down) = if has_par_quotes {

@@ -30,6 +30,7 @@ use ts_rs::TS;
 /// let quote = CDSTrancheQuote::CDSTranche {
 ///     id: QuoteId::new("CDX-IG-3-7"),
 ///     index: "CDX.NA.IG".to_string(),
+///     series: 46,
 ///     attachment: 0.03,  // 3%
 ///     detachment: 0.07, // 7%
 ///     maturity: Date::from_calendar_date(2029, time::Month::June, 20).unwrap(),
@@ -57,6 +58,8 @@ pub enum CDSTrancheQuote {
         id: QuoteId,
         /// Index identifier (e.g. CDX.NA.HY).
         index: String,
+        /// CDS index series number.
+        series: u16,
         /// Attachment point (decimal, e.g. 0.03).
         attachment: f64,
         /// Detachment point (decimal, e.g. 0.07).
@@ -96,6 +99,7 @@ impl CDSTrancheQuote {
     /// let quote = CDSTrancheQuote::CDSTranche {
     ///     id: QuoteId::new("CDX-IG-3-7"),
     ///     index: "CDX.NA.IG".to_string(),
+    ///     series: 46,
     ///     attachment: 0.03,
     ///     detachment: 0.07,
     ///     maturity: Date::from_calendar_date(2029, time::Month::June, 20).unwrap(),
@@ -144,6 +148,7 @@ impl CDSTrancheQuote {
     ///     id: QuoteId::new("CDX-IG-3-7"),
     ///     index: "CDX.NA.IG".to_string(),
     ///     attachment: 0.03,
+    ///     series: 46,
     ///     detachment: 0.07,
     ///     maturity: Date::from_calendar_date(2029, time::Month::June, 20).unwrap(),
     ///     upfront_pct: -0.025, // -2.5% as decimal fraction
@@ -170,6 +175,7 @@ impl CDSTrancheQuote {
             CDSTrancheQuote::CDSTranche {
                 id,
                 index,
+                series,
                 attachment,
                 detachment,
                 maturity,
@@ -179,6 +185,7 @@ impl CDSTrancheQuote {
             } => CDSTrancheQuote::CDSTranche {
                 id: id.clone(),
                 index: index.clone(),
+                series: *series,
                 attachment: *attachment,
                 detachment: *detachment,
                 maturity: *maturity,

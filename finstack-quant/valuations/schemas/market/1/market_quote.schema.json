@@ -728,6 +728,13 @@
               "format": "double",
               "type": "number"
             },
+            "series": {
+              "description": "CDS index series number.",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
             "type": {
               "const": "cds_tranche",
               "type": "string"
@@ -742,6 +749,7 @@
             "type",
             "id",
             "index",
+            "series",
             "attachment",
             "detachment",
             "maturity",
@@ -1037,7 +1045,7 @@
                   "description": "Underlying identifier"
                 },
                 "vol": {
-                  "description": "Implied volatility",
+                  "description": "Implied volatility in decimal units (for example, `0.20` for 20%).",
                   "format": "double",
                   "type": "number"
                 }
@@ -1091,7 +1099,7 @@
                   "type": "number"
                 },
                 "vol": {
-                  "description": "Implied volatility",
+                  "description": "Implied volatility in canonical decimal units: absolute rate\nvolatility for normal quotes and Black volatility for lognormal quotes.",
                   "format": "double",
                   "type": "number"
                 }
@@ -1145,7 +1153,7 @@
                   "type": "number"
                 },
                 "vol": {
-                  "description": "Implied volatility.",
+                  "description": "Implied volatility in canonical decimal units: absolute rate\nvolatility for normal quotes and Black volatility for lognormal quotes.",
                   "format": "double",
                   "type": "number"
                 }

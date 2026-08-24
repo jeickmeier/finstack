@@ -1,14 +1,12 @@
 //! Shared runtime types and solver contracts for market calibration.
 //!
-use crate::calibration::api::schema::{
-    CalibrationStep, HullWhiteVolatilityMode, StepParams, StepPrimaryOutput,
-};
+use crate::calibration::api::schema::{CalibrationStep, HullWhiteVolatilityMode, StepParams};
 use crate::calibration::config::CalibrationConfig;
 use crate::calibration::hull_white::{
     bootstrap_hull_white_sigma_schedule_to_cap_floors, calibrate_hull_white_to_cap_floors,
     calibrate_hull_white_to_swaptions_with_schedules, capfloor_hw1f_scalar_keys,
     capfloor_hw1f_sigma_schedule_key, hw1f_scalar_keys, CapFloorCalibrationConfig, CapFloorQuote,
-    HullWhiteParams, PiecewiseSigmaCalibrationConfig, SwapFrequency, SwaptionQuote,
+    HullWhiteParams, PiecewiseSigmaCalibrationConfig, SwaptionQuote, SwaptionSchedule,
 };
 use crate::calibration::targets::base_correlation::BaseCorrelationTarget;
 use crate::calibration::targets::discount::DiscountCurveTarget;
@@ -35,13 +33,6 @@ use finstack_quant_core::market_data::term_structures::CreditIndexData;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::Result;
 use std::sync::Arc;
-
-/// Normalized output key for a step.
-pub(crate) enum OutputKey {
-    Curve(CurveId),
-    Surface(CurveId),
-    Scalar(String),
-}
 
 /// Normalized output payload for a step.
 pub(crate) enum StepOutput {
@@ -82,15 +73,6 @@ fn attach_validation_result(
                 report
             }
         },
-    }
-}
-
-/// Compute the output key for batching without executing the step.
-pub(crate) fn output_key(step: &CalibrationStep) -> OutputKey {
-    match step.params.io().primary_output {
-        StepPrimaryOutput::Curve(id) => OutputKey::Curve(id),
-        StepPrimaryOutput::Surface(id) => OutputKey::Surface(id),
-        StepPrimaryOutput::Scalar(key) => OutputKey::Scalar(key),
     }
 }
 
@@ -295,82 +277,90 @@ pub(crate) fn execute_params(
         StepParams::HullWhite(p) => {
             let disc_curve = context.get_discount(&p.curve_id)?;
             let df = |t: f64| disc_curve.df(t);
-            let day_count = DayCount::Act365F;
-
-            // Extract swaption quotes from MarketQuote::Vol(VolQuote::SwaptionVol { .. }).
-            //
-            // We build per-quote *real* accrual year fractions on the
-            // currency-appropriate day-count (Act/360 USD, 30/360 EUR, etc.)
-            // and pass them to `calibrate_hull_white_to_swaptions_with_schedules`
-            // so the calibrated (κ, σ) match vendor models that use real
-            // schedules (Bloomberg VCUB, QuantLib `Gaussian1dSwaptionEngine`).
-            let frequency = match p.currency {
-                finstack_quant_core::currency::Currency::EUR
-                | finstack_quant_core::currency::Currency::GBP => SwapFrequency::Annual,
-                _ => SwapFrequency::SemiAnnual,
-            };
-            let payment_day_count = match p.currency {
-                finstack_quant_core::currency::Currency::EUR
-                | finstack_quant_core::currency::Currency::GBP => DayCount::Thirty360,
-                _ => DayCount::Act360,
-            };
-            let ppy = frequency.periods_per_year();
+            let time_day_count = disc_curve.day_count();
 
             let mut hw_quotes = Vec::new();
-            let mut hw_schedules: Vec<Vec<f64>> = Vec::new();
+            let mut hw_schedules = Vec::new();
             for quote in quotes {
-                let MarketQuote::Vol(VolQuote::SwaptionVol {
-                    expiry,
-                    maturity,
-                    vol,
-                    quote_type,
-                    ..
-                }) = quote
+                let MarketQuote::Vol(
+                    vol_quote @ VolQuote::SwaptionVol {
+                        expiry,
+                        maturity,
+                        vol,
+                        quote_type,
+                        ..
+                    },
+                ) = quote
                 else {
                     continue;
                 };
+                vol_quote.validate()?;
+                let conventions = SwaptionVolTarget::resolve_quote_leg_conventions(vol_quote)?;
+                if conventions.currency != p.currency {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "Hull-White step currency {} conflicts with swaption convention currency {}",
+                        p.currency, conventions.currency
+                    )));
+                }
 
-                let t_exp =
-                    day_count.year_fraction(p.base_date, *expiry, DayCountContext::default())?;
-                let t_ten =
-                    day_count.year_fraction(*expiry, *maturity, DayCountContext::default())?;
+                let (swap_start, swap_end) =
+                    SwaptionVolTarget::resolve_underlying_dates(vol_quote, &conventions)?;
+                let periods =
+                    SwaptionVolTarget::build_fixed_leg_periods(swap_start, swap_end, &conventions)?;
+                if periods.is_empty() {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "swaption quote {} to {} produced an empty fixed-leg schedule",
+                        expiry, maturity
+                    )));
+                }
+
+                let t_exp = time_day_count.year_fraction(
+                    disc_curve.base_date(),
+                    *expiry,
+                    DayCountContext::default(),
+                )?;
+                let t_ten = time_day_count.year_fraction(
+                    swap_start,
+                    swap_end,
+                    DayCountContext::default(),
+                )?;
                 if t_exp <= 0.0 || t_ten <= 0.0 {
-                    continue;
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "swaption quote must expire after the discount-curve base date and have positive tenor; expiry={expiry}, maturity={maturity}"
+                    )));
                 }
 
-                // Build per-period accruals on the *real* payment day-count.
-                // The schedule is uniform-period in calendar terms (no BDC
-                // applied here — leg-level conventions can be threaded later
-                // when the swaption schema carries them).
-                let n_periods = (t_ten * ppy as f64).round().max(1.0) as usize;
-                let period_days =
-                    finstack_quant_core::dates::DayCount::calendar_days(*expiry, *maturity).max(0)
-                        / n_periods.max(1) as i64;
-                let mut accruals = Vec::with_capacity(n_periods);
-                let mut acc_start = *expiry;
-                for i in 0..n_periods {
-                    let acc_end = if i + 1 == n_periods {
-                        *maturity
-                    } else {
-                        acc_start + time::Duration::days(period_days)
-                    };
-                    let tau = payment_day_count.year_fraction(
-                        acc_start,
-                        acc_end,
-                        DayCountContext::default(),
-                    )?;
-                    accruals.push(tau);
-                    acc_start = acc_end;
-                }
+                let payment_times = periods
+                    .iter()
+                    .map(|period| {
+                        time_day_count.year_fraction(
+                            disc_curve.base_date(),
+                            period.payment_date,
+                            DayCountContext::default(),
+                        )
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let accruals = periods
+                    .iter()
+                    .map(|period| period.accrual_year_fraction)
+                    .collect();
+                let maturity_time = time_day_count.year_fraction(
+                    disc_curve.base_date(),
+                    swap_end,
+                    DayCountContext::default(),
+                )?;
 
-                let is_normal = *quote_type == VolQuoteType::Normal;
                 hw_quotes.push(SwaptionQuote {
                     expiry: t_exp,
                     tenor: t_ten,
                     volatility: *vol,
-                    is_normal_vol: is_normal,
+                    is_normal_vol: *quote_type == VolQuoteType::Normal,
                 });
-                hw_schedules.push(accruals);
+                hw_schedules.push(SwaptionSchedule {
+                    payment_times,
+                    accruals,
+                    maturity_time,
+                });
             }
 
             let initial_guess = match (p.initial_kappa, p.initial_sigma) {
@@ -386,7 +376,6 @@ pub(crate) fn execute_params(
             let (hw_params, report) = calibrate_hull_white_to_swaptions_with_schedules(
                 &df,
                 &hw_quotes,
-                frequency,
                 &hw_schedules,
                 initial_guess,
             )?;
@@ -606,10 +595,10 @@ mod tests {
     use crate::calibration::api::schema::{
         CapFloorHullWhiteStepParams, HullWhiteStepParams, StudentTParams, SviSurfaceParams,
     };
+    use crate::calibration::hull_white::SwapFrequency;
     use crate::instruments::credit_derivatives::cds_tranche::{
-        CDSTranche, CDSTranchePricer, CDSTranchePricerConfig, TrancheSide,
+        CDSTranche, CDSTranchePricer, CDSTranchePricerConfig,
     };
-    use crate::instruments::Attributes;
     use crate::instruments::OptionType;
     use crate::market::conventions::ids::{
         CapFloorConventionId, CdsConventionKey, CdsDocClause, OptionConventionId,
@@ -622,7 +611,6 @@ mod tests {
     use finstack_quant_core::market_data::term_structures::{
         BaseCorrelationCurve, CreditIndexData, DiscountCurve, HazardCurve,
     };
-    use finstack_quant_core::money::Money;
     use finstack_quant_core::types::{CurveId, UnderlyingId};
     use std::sync::Arc;
     use time::Month;
@@ -672,28 +660,34 @@ mod tests {
     fn build_student_t_quote(base_date: Date, df: f64, correlation: f64) -> CDSTrancheQuote {
         let market = build_student_t_market(base_date, correlation);
         let maturity = Date::from_calendar_date(2030, Month::March, 20).expect("valid maturity");
-        let tranche = CDSTranche::builder()
-            .id("TRANCHE-1".into())
-            .index_name("CDX.NA.IG".to_string())
-            .series(1)
-            .attach_pct(3.0)
-            .detach_pct(7.0)
-            .notional(Money::new(0.04, Currency::USD))
-            .maturity(maturity)
-            .running_coupon_bp(500.0)
-            .frequency("3M".parse().expect("tenor"))
-            .day_count(DayCount::Act360)
-            .business_day_convention(finstack_quant_core::dates::BusinessDayConvention::Following)
-            .calendar_id_opt(None)
-            .discount_curve_id(CurveId::from("USD-OIS"))
-            .credit_index_id(CurveId::from("CDX.NA.IG"))
-            .side(TrancheSide::SellProtection)
-            .effective_date_opt(None)
-            .accumulated_loss(0.0)
-            .standard_imm_dates(true)
-            .attributes(Attributes::new())
-            .build()
-            .expect("tranche");
+        let template = CDSTrancheQuote::CDSTranche {
+            id: QuoteId::new("TRANCHE-1"),
+            index: "CDX.NA.IG".to_string(),
+            series: 42,
+            attachment: 0.03,
+            detachment: 0.07,
+            maturity,
+            upfront_pct: 0.0,
+            running_spread_bp: 500.0,
+            convention: CdsConventionKey {
+                currency: Currency::USD,
+                doc_clause: CdsDocClause::IsdaNa,
+            },
+        };
+        let mut curve_ids = finstack_quant_core::HashMap::default();
+        curve_ids.insert("discount".to_string(), "USD-OIS".to_string());
+        curve_ids.insert("credit".to_string(), "CDX.NA.IG".to_string());
+        let build_context = crate::market::BuildCtx::new(base_date, 1.0 / (0.07 - 0.03), curve_ids);
+        let instrument = crate::market::build::cds_tranche::build_cds_tranche_instrument(
+            &template,
+            &build_context,
+            &crate::market::build::cds_tranche::CDSTrancheBuildOverrides::default(),
+        )
+        .expect("shared tranche builder");
+        let tranche = instrument
+            .as_any()
+            .downcast_ref::<CDSTranche>()
+            .expect("CDSTranche");
 
         let pricer = CDSTranchePricer::with_params(
             CDSTranchePricerConfig::default()
@@ -702,13 +696,14 @@ mod tests {
         )
         .expect("valid tranche pricer config");
         let upfront_pct = pricer
-            .calculate_upfront(&tranche, &market, base_date)
+            .calculate_upfront(tranche, &market, base_date)
             .expect("upfront")
             / tranche.notional.amount();
 
         CDSTrancheQuote::CDSTranche {
             id: QuoteId::new("TRANCHE-1"),
             index: "CDX.NA.IG".to_string(),
+            series: 42,
             attachment: 0.03,
             detachment: 0.07,
             maturity,
@@ -716,7 +711,7 @@ mod tests {
             running_spread_bp: 500.0,
             convention: CdsConventionKey {
                 currency: Currency::USD,
-                doc_clause: CdsDocClause::Cr14,
+                doc_clause: CdsDocClause::IsdaNa,
             },
         }
     }
@@ -975,7 +970,7 @@ mod tests {
             target_expiries: vec![t1, t2],
             target_strikes: vec![80.0, 90.0, 100.0, 110.0, 120.0],
             spot_override: Some(100.0),
-            dividend_yield_override: None,
+            dividend_yield_override: Some(0.0),
         });
 
         let quotes = vec![

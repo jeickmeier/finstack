@@ -14,7 +14,7 @@ use finstack_quant_core::market_data::term_structures::{
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, IndexId};
 use finstack_quant_valuations::calibration::bumps::{
-    bump_discount_curve_from_rate_calibration, bump_hazard_spreads, BumpRequest,
+    bump_discount_curve_from_rate_calibration, BumpRequest,
 };
 use finstack_quant_valuations::instruments::credit_derivatives::cds::{
     CdsValuationConvention, CreditDefaultSwap,
@@ -724,7 +724,7 @@ fn test_dv01_metric() {
 }
 
 #[test]
-fn test_cds_dv01_recalibrates_par_spread_hazard_curve() {
+fn test_cds_dv01_keeps_unreplayable_hazard_curve_frozen() {
     let as_of = date!(2024 - 03 - 20);
     let maturity = date!(2029 - 03 - 20);
     let discount_id = CurveId::new("USD_OIS");
@@ -732,7 +732,7 @@ fn test_cds_dv01_recalibrates_par_spread_hazard_curve() {
 
     let cds = create_test_cds(as_of, maturity);
     let discount = build_test_discount(0.04, as_of, discount_id.as_str());
-    let hazard = HazardCurve::builder(hazard_id.clone())
+    let hazard = HazardCurve::builder(hazard_id)
         .base_date(as_of)
         .day_count(DayCount::Act365F)
         .recovery_rate(0.4)
@@ -763,25 +763,14 @@ fn test_cds_dv01_recalibrates_par_spread_hazard_curve() {
         bumped_market
             .apply_curve_bump_in_place(&discount_id, BumpSpec::parallel_bp(bump_bp))
             .unwrap();
-        let base_hazard = market.get_hazard(hazard_id.as_str()).unwrap();
-        let recalibrated = bump_hazard_spreads(
-            base_hazard.as_ref(),
-            &bumped_market,
-            &BumpRequest::Parallel(0.0),
-            Some(&discount_id),
-            None,
-            None,
-        )
-        .unwrap();
-        cds.value_raw(&bumped_market.insert(recalibrated), as_of)
-            .unwrap()
+        cds.value_raw(&bumped_market, as_of).unwrap()
     };
     let expected = (bumped_pv(1.0) - bumped_pv(-1.0)) / 2.0;
 
     let tol = 1e-6_f64.max(1e-8 * expected.abs());
     assert!(
         (dv01 - expected).abs() <= tol,
-        "CDS DV01 should rebootstrap par-spread hazard curves under rate bumps: metric={dv01}, expected={expected}, diff={}, tol={tol}",
+        "CDS DV01 should keep a hazard curve without a replay recipe frozen under rate bumps: metric={dv01}, expected={expected}, diff={}, tol={tol}",
         (dv01 - expected).abs()
     );
 }

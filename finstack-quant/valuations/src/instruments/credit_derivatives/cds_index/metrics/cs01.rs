@@ -129,17 +129,10 @@ fn bump_index_credit_curve_at_tenor(
     t: f64,
     bp: f64,
 ) -> Result<Arc<HazardCurve>> {
-    if hazard.par_spread_points().next().is_none() {
-        return Err(Error::Calibration {
-            message: format!(
-                "CDS index bucketed CS01 requires par-spread points on hazard curve '{}'; \
-                 bootstrap the curve from par spreads or use bucketed_cs01_hazard",
-                hazard.id()
-            ),
-            category: "cs01_rebootstrap".to_string(),
-        });
-    }
     let req = BumpRequest::Tenors(vec![(t, bp)]);
+    if hazard.hazard_calibration().is_none() {
+        return crate::calibration::bumps::hazard::bump_hazard_shift(hazard, &req).map(Arc::new);
+    }
     context
         .bump_hazard_spreads_cached(hazard, base_ctx, &req, Some(discount_id), None, None)
         .map_err(|error| Error::Calibration {
@@ -246,7 +239,7 @@ mod tests {
     use finstack_quant_core::money::Money;
 
     #[test]
-    fn bucketed_par_cs01_rejects_curve_without_par_quotes() {
+    fn bucketed_cs01_uses_model_hazard_shift_without_recipe() {
         let index = CDSIndex::example();
         let as_of = index.premium.start;
         let discount_id = index.premium.discount_curve_id.clone();
@@ -265,7 +258,7 @@ mod tests {
             .build()
             .expect("hazard curve");
 
-        let error = bump_index_credit_curve_at_tenor(
+        let bumped = bump_index_credit_curve_at_tenor(
             &context,
             &hazard,
             &MarketContext::new(),
@@ -273,10 +266,8 @@ mod tests {
             5.0,
             1.0,
         )
-        .expect_err("par CS01 must not fall back to a hazard shift");
-        assert!(matches!(
-            error,
-            Error::Calibration { ref category, .. } if category == "cs01_rebootstrap"
-        ));
+        .expect("model hazard shift");
+        assert!(bumped.hazard_calibration().is_none());
+        assert!(bumped.hazard_rate(5.0) > hazard.hazard_rate(5.0));
     }
 }

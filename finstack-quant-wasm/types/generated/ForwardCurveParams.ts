@@ -37,9 +37,9 @@ method: CalibrationMethod,
 /**
  * Interpolation style for the constructed forward curve.
  *
- * Caller-owned: the engine does not override this field. `Linear`
- * interpolates the stored forward-rate ordinates in time and is **not**
- * the QuantLib or Bloomberg production default.
+ * Defaults to Hagan-West monotone-convex interpolation for a smooth,
+ * shape-preserving forward term structure. `Linear` remains explicitly
+ * opt-in.
  */
 interpolation: string,
 /**

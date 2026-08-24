@@ -149,7 +149,7 @@ where
     let base_ctx = curves.as_ref();
     let hazard = base_ctx.get_hazard(hazard_id.as_str())?;
     let hazard_ref = hazard.as_ref();
-    let has_par_points = hazard_ref.par_spread_points().next().is_some();
+    let has_par_points = hazard_ref.hazard_calibration().is_some();
 
     // If we have par spread points + a discount curve, CS01 is defined as the sensitivity
     // to *market par spreads* under a re-bootstrapped hazard curve. In that regime, we
@@ -289,7 +289,7 @@ where
     let base_ctx = curves.as_ref();
     let hazard = base_ctx.get_hazard(hazard_id.as_str())?;
     let hazard_ref = hazard.as_ref();
-    let has_par_points = hazard_ref.par_spread_points().next().is_some();
+    let has_par_points = hazard_ref.hazard_calibration().is_some();
 
     // Align the bucket grid with the hazard-curve knots so the sum of key-rate
     // CS01s reconciles to the parallel CS01.

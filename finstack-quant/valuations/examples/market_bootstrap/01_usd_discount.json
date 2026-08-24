@@ -23,7 +23,7 @@
         "currency": "USD",
         "base_date": "2026-05-08",
         "method": "bootstrap",
-        "interpolation": "linear",
+        "interpolation": "log_linear",
         "extrapolation": "flat_forward",
         "pricing_discount_id": null,
         "pricing_forward_id": null,

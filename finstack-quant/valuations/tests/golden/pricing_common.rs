@@ -1,8 +1,9 @@
 //! Shared pricing runner helpers for instrument-level golden fixtures.
 
 use crate::golden::schema::{GoldenFixture, Market};
+use finstack_quant_core::contract::LoadLimits;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_valuations::calibration::api::engine::{self, ExecuteError};
+use finstack_quant_valuations::calibration::api::engine;
 use finstack_quant_valuations::calibration::api::schema::CalibrationEnvelope;
 use finstack_quant_valuations::pricer::price_instrument_json;
 use std::collections::BTreeMap;
@@ -30,24 +31,22 @@ fn resolve_market(market: &Market) -> Result<MarketContext, String> {
         Market::Snapshot { data } => serde_json::from_value::<MarketContext>(data.clone())
             .map_err(|err| format!("parse market snapshot: {err}")),
         Market::Envelope { envelope } => {
-            let env: CalibrationEnvelope = serde_json::from_value(envelope.clone())
-                .map_err(|err| format!("parse market envelope: {err}"))?;
-            // Use `execute_with_diagnostics` so envelope failures surface the
-            // structured `EnvelopeError::SolverNotConverged` (worst-quote ID,
-            // tolerance, etc.) instead of the lossy `Error::Calibration` form.
-            let result = engine::execute_with_diagnostics(&env).map_err(|err| {
+            let bytes = serde_json::to_vec(envelope)
+                .map_err(|error| format!("encode market envelope: {error}"))?;
+            let (env, _load_report) =
+                CalibrationEnvelope::from_slice_strict(&bytes, &LoadLimits::default())
+                    .map_err(|error| format!("strictly load market envelope: {error}"))?;
+            let result = engine::execute_with_diagnostics(&env).map_err(|error| {
                 let plan_id = &env.plan.id;
-                match &err {
-                    ExecuteError::Envelope(envelope_err) => format!(
-                        "calibrate market envelope for plan '{plan_id}' failed \
-                         ({}, step={:?}): {envelope_err}",
-                        envelope_err.kind_str(),
-                        envelope_err.step_id(),
-                    ),
-                    ExecuteError::Other(other) => {
-                        format!("calibrate market envelope for plan '{plan_id}': {other}")
-                    }
-                }
+                let details = error.details();
+                format!(
+                    "calibrate market envelope for plan '{plan_id}' failed \
+                     (stage={}, category={}, step={:?}): {}",
+                    details.stage.as_str(),
+                    details.category,
+                    details.step_id,
+                    details.cause,
+                )
             })?;
             let plan_id = env.plan.id;
             MarketContext::try_from(result.result.final_market)

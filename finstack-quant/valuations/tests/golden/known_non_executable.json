@@ -9,6 +9,22 @@
           "metric": "embedded_option_value",
           "reason": "The Bloomberg proprietary callable-tree option value cannot be reconciled by widening the source-backed tolerance.",
           "evidence": "The corrected straight-bond decomposition leaves Finstack option value at -18155.735406 versus Bloomberg -19800.00, an 8.3% proprietary-tree model gap, while OAS remains within the established 3bp convention tolerance."
+        },
+        {
+          "metric": "npv",
+          "reason": "The Bloomberg invoice total remains the immutable source-backed target while the proprietary callable-tree inputs are unavailable.",
+          "evidence": "The executable callable-tree valuation produces 1039110.941365521983 versus Bloomberg 1039530.560000000056."
+        }
+      ]
+    },
+    {
+      "path": "pricing/bloomberg/bond/ibm_eur_2034_callable_bloomberg.json",
+      "description": "IBM Bloomberg proprietary-tree benchmark gap",
+      "metrics": [
+        {
+          "metric": "npv",
+          "reason": "The Bloomberg invoice total remains the immutable source-backed target while the proprietary callable-tree inputs are unavailable.",
+          "evidence": "The executable callable-tree valuation produces 983118.722559568007 versus Bloomberg 983535.890000000014."
         }
       ]
     },
@@ -36,6 +52,32 @@
           "metric": "dv01",
           "reason": "The external target must remain unchanged pending an independent Bloomberg combined-risk definition refresh.",
           "evidence": "The contractual grid restores Bloomberg par rate and zero NPV, but corrected DF-chained semantics produce DV01 -251.608657 versus Bloomberg -337.37 with 0.4 tolerance, an 85.76 gap."
+        }
+      ]
+    },
+    {
+      "path": "pricing/bloomberg/cds/cds_5y_par_spread.json",
+      "description": "Bloomberg CDS risk convention migration",
+      "metrics": [
+        {
+          "metric": "cs01",
+          "reason": "The preserved screen target predates lossless recipe replay.",
+          "evidence": "Lossless replay produces 2782.89749837 versus Bloomberg 4680.88."
+        },
+        {
+          "metric": "dv01",
+          "reason": "The preserved screen target predates identical recipe-based rate-risk paths.",
+          "evidence": "Lossless replay produces 49.4413127977 versus Bloomberg 45.91."
+        },
+        {
+          "metric": "recovery_01",
+          "reason": "The preserved screen target uses a different Bloomberg recovery-risk convention.",
+          "evidence": "Lossless recovery replay produces -4642.16049818 versus Bloomberg 76.03."
+        },
+        {
+          "metric": "risky_pv01",
+          "reason": "The preserved screen target predates lossless recipe replay.",
+          "evidence": "Lossless replay produces 2782.89749837 versus Bloomberg 4680.88."
         }
       ]
     }

@@ -7,6 +7,7 @@
 use crate::bindings::core::market_data::context::PyMarketContext;
 use crate::bindings::pandas_utils::dict_to_dataframe;
 use crate::errors::display_to_py;
+use finstack_quant_core::contract::LoadLimits;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_valuations::calibration::api::engine::{self, ExecuteError};
 use finstack_quant_valuations::calibration::api::errors::EnvelopeError;
@@ -24,29 +25,26 @@ create_exception!(
     finstack_quant.valuations,
     CalibrationEnvelopeError,
     PyRuntimeError,
-    "Raised when a calibration envelope fails validation or solving.\n\n\
-     Inherits from RuntimeError, so existing `except RuntimeError` callers \
-     continue to catch it. Carries `kind`, `step_id`, and `details` \
+    "Raised when calibration ingestion, validation, context construction, or solving fails.\n\n\
+     Carries `kind`, `stage`, `step_id`, `solver_diagnostics`, and `details` \
      attributes for programmatic handling."
 );
 
-/// Build a `CalibrationEnvelopeError` from a structured `EnvelopeError`,
-/// attaching `kind`, `step_id`, and pretty-printed `details` attributes.
-///
-/// The `kind` / `step_id` / `details` attributes are part of the exception's
-/// documented public contract, so a failed `setattr` is *not* discarded: the
-/// first failure is returned as the resulting `PyErr` rather than silently
-/// handing back a half-populated exception that would raise an unrelated
-/// `AttributeError` when a caller reads `e.kind`.
+/// Build a structured `CalibrationEnvelopeError` for ingestion-only helpers.
 fn envelope_error_to_py(py: Python<'_>, err: &EnvelopeError) -> PyErr {
     let exc = CalibrationEnvelopeError::new_err(err.to_string());
     let value = exc.value(py);
-    let attrs: [(&str, PyResult<()>); 3] = [
+    let attrs: [(&str, PyResult<()>); 5] = [
         ("kind", value.setattr("kind", err.kind_str())),
+        ("stage", value.setattr("stage", "ingestion")),
         ("details", value.setattr("details", err.to_json())),
         (
             "step_id",
-            value.setattr("step_id", err.step_id().map(|s| s.to_string())),
+            value.setattr("step_id", err.step_id().map(str::to_string)),
+        ),
+        (
+            "solver_diagnostics",
+            value.setattr("solver_diagnostics", py.None()),
         ),
     ];
     for (name, result) in attrs {
@@ -63,14 +61,36 @@ fn envelope_error_to_py(py: Python<'_>, err: &EnvelopeError) -> PyErr {
     exc
 }
 
-/// Map an [`ExecuteError`] (returned by `engine::execute_with_diagnostics`)
-/// to the appropriate Python exception, preserving the structured envelope
-/// payload when present.
+/// Map every execution stage to the same structured Python exception contract.
 fn execute_error_to_py(py: Python<'_>, err: ExecuteError) -> PyErr {
-    match err {
-        ExecuteError::Envelope(env) => envelope_error_to_py(py, &env),
-        ExecuteError::Other(other) => display_to_py(other),
+    let details = err.details();
+    let details_json = err.to_json();
+    let exc = CalibrationEnvelopeError::new_err(details.cause.clone());
+    let value = exc.value(py);
+    let attrs: [(&str, PyResult<()>); 5] = [
+        ("kind", value.setattr("kind", details.category.clone())),
+        ("stage", value.setattr("stage", details.stage.as_str())),
+        ("details", value.setattr("details", details_json)),
+        ("step_id", value.setattr("step_id", details.step_id.clone())),
+        (
+            "solver_diagnostics",
+            value.setattr(
+                "solver_diagnostics",
+                serde_json::to_string(&details.solver_diagnostics).unwrap_or_default(),
+            ),
+        ),
+    ];
+    for (name, result) in attrs {
+        if let Err(setattr_err) = result {
+            return PyRuntimeError::new_err(format!(
+                "failed to attach '{name}' attribute to CalibrationEnvelopeError \
+                 ({}): underlying calibration error: {}",
+                setattr_err.value(py),
+                details.cause
+            ));
+        }
     }
+    exc
 }
 
 /// Result of a calibration plan execution.
@@ -144,7 +164,9 @@ impl PyCalibrationResult {
     /// Deserialize from a JSON string.
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: CalibrationResultEnvelope = serde_json::from_str(json).map_err(display_to_py)?;
+        let (inner, _report) =
+            CalibrationResultEnvelope::from_slice_strict(json.as_bytes(), &LoadLimits::default())
+                .map_err(display_to_py)?;
         Ok(Self::new(inner))
     }
 
@@ -201,7 +223,7 @@ impl PyCalibrationResult {
         serde_json::to_string(&self.inner.result.report).map_err(display_to_py)
     }
 
-    /// List of step identifiers that were executed.
+    /// List of step identifiers in lexicographic step-ID order.
     #[getter]
     fn step_ids(&self) -> Vec<String> {
         self.inner.result.step_reports.keys().cloned().collect()
@@ -213,13 +235,13 @@ impl PyCalibrationResult {
         self.inner.result.report.iterations
     }
 
-    /// Maximum absolute residual across all steps.
+    /// Maximum absolute `|residual| / step_tolerance` ratio across all steps.
     #[getter]
     fn max_residual(&self) -> f64 {
         self.inner.result.report.max_residual
     }
 
-    /// Root mean square error across all steps.
+    /// Root mean square `|residual| / step_tolerance` ratio across all steps.
     #[getter]
     fn rmse(&self) -> f64 {
         self.inner.result.report.rmse
@@ -267,8 +289,8 @@ impl PyCalibrationResult {
     /// Export the per-step summary as a pandas ``DataFrame``.
     ///
     /// Columns: ``step_id``, ``success``, ``iterations``, ``max_residual``,
-    /// ``rmse``, ``convergence_reason``. One row per calibration step, in plan
-    /// execution order.
+    /// ``rmse``, ``convergence_reason``. Rows are ordered lexicographically by
+    /// step ID because the result contract stores reports in a ``BTreeMap``.
     ///
     /// This is the default export and the same table as
     /// ``to_report_dataframe`` — both call one implementation, so the two

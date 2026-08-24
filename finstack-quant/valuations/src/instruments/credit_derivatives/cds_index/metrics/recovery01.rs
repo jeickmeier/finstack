@@ -48,7 +48,7 @@ fn market_with_recovery(
             .insert(hazard.with_recovery_rate(new_recovery)?))
     };
 
-    if hazard.par_spread_points().next().is_some() {
+    if hazard.hazard_calibration().is_some() {
         let recalibrated = recalibrate_hazard_with_recovery(
             hazard.as_ref(),
             new_recovery,

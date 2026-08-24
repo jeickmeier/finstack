@@ -203,6 +203,7 @@ impl GlobalFitOptimizer {
 
         let lb = target.lower_bounds();
         let ub = target.upper_bounds();
+        validate_parameter_bounds(&initials, &lb, &ub)?;
 
         // Run the primary solve from the original initial guess. A hard LM error is
         // logged but does *not* short-circuit multi-start: if perturbed restarts exist
@@ -836,6 +837,46 @@ fn record_eval_error(
     ));
 }
 
+fn validate_parameter_bounds(
+    initials: &[f64],
+    lower: &Option<Vec<f64>>,
+    upper: &Option<Vec<f64>>,
+) -> Result<()> {
+    let expected = initials.len();
+    for (name, bounds) in [("lower", lower), ("upper", upper)] {
+        if let Some(values) = bounds {
+            if values.len() != expected {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "global solver {name} bounds length {} does not match parameter count {expected}",
+                    values.len()
+                )));
+            }
+            if let Some((index, value)) = values
+                .iter()
+                .enumerate()
+                .find(|(_, value)| !value.is_finite())
+            {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "global solver {name} bound at index {index} must be finite, got {value}"
+                )));
+            }
+        }
+    }
+    if let (Some(lower), Some(upper)) = (lower, upper) {
+        if let Some(index) = lower
+            .iter()
+            .zip(upper)
+            .position(|(lower, upper)| lower > upper)
+        {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "global solver bounds are inverted at index {index}: lower={} > upper={}",
+                lower[index], upper[index]
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Inward offset applied when clamping solver parameters to bounds.
 ///
 /// Keeps parameters strictly interior to the feasible region so that
@@ -855,26 +896,35 @@ fn clamp_to_bounds(
     out.reserve(params.len());
     let mut clamped = 0usize;
     for (i, &p) in params.iter().enumerate() {
-        let mut v = p;
-        if let Some(ref lower) = lb {
-            if i < lower.len() {
-                let lo = lower[i] + BOUND_INWARD_EPS;
-                if v < lo {
-                    v = lo;
-                    clamped += 1;
-                }
+        let lower_bound = lb.as_ref().map(|values| values[i]);
+        let upper_bound = ub.as_ref().map(|values| values[i]);
+        let fixed = lower_bound
+            .zip(upper_bound)
+            .is_some_and(|(lower, upper)| lower.to_bits() == upper.to_bits());
+        let mut value = p;
+        if let Some(lower) = lower_bound {
+            let minimum = if fixed {
+                lower
+            } else {
+                lower + BOUND_INWARD_EPS
+            };
+            if value < minimum {
+                value = minimum;
+                clamped += 1;
             }
         }
-        if let Some(ref upper) = ub {
-            if i < upper.len() {
-                let hi = upper[i] - BOUND_INWARD_EPS;
-                if v > hi {
-                    v = hi;
-                    clamped += 1;
-                }
+        if let Some(upper) = upper_bound {
+            let maximum = if fixed {
+                upper
+            } else {
+                upper - BOUND_INWARD_EPS
+            };
+            if value > maximum {
+                value = maximum;
+                clamped += 1;
             }
         }
-        out.push(v);
+        out.push(value);
     }
     clamped
 }
@@ -1155,6 +1205,35 @@ mod tests {
     use crate::calibration::CalibrationConfig;
     use finstack_quant_core::Error;
     use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+
+    #[test]
+    fn global_parameter_bounds_validate_dimensions_finiteness_and_ordering() {
+        let initials = [0.1, 0.2];
+        assert!(
+            validate_parameter_bounds(&initials, &Some(vec![0.0, 0.0]), &Some(vec![1.0, 1.0]))
+                .is_ok()
+        );
+        assert!(
+            validate_parameter_bounds(&initials, &Some(vec![0.0]), &Some(vec![1.0, 1.0]))
+                .expect_err("short lower bounds")
+                .to_string()
+                .contains("parameter count")
+        );
+        assert!(validate_parameter_bounds(
+            &initials,
+            &Some(vec![0.0, f64::NAN]),
+            &Some(vec![1.0, 1.0])
+        )
+        .expect_err("non-finite lower bound")
+        .to_string()
+        .contains("must be finite"));
+        assert!(
+            validate_parameter_bounds(&initials, &Some(vec![0.0, 2.0]), &Some(vec![1.0, 1.0]))
+                .expect_err("inverted bounds")
+                .to_string()
+                .contains("inverted")
+        );
+    }
 
     #[derive(Debug, Clone)]
     struct DummyCurve(#[allow(dead_code)] Vec<f64>);

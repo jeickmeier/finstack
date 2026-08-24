@@ -13,7 +13,7 @@
 //! This module is the single source of truth for both values;
 //! [`CDSOption::delta`] is a thin pass-through to [`delta`].
 
-use crate::calibration::bumps::{bump_hazard_spreads, BumpRequest};
+use crate::calibration::bumps::{bump_hazard_shift, bump_hazard_spreads, BumpRequest};
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds::pricer::CDSPricer;
 use crate::instruments::credit_derivatives::cds_option::bloomberg_quadrature::{
@@ -104,14 +104,19 @@ pub(super) fn price_strike_delta(
     let hazard = curves.get_hazard(&option.credit_curve_id)?;
 
     let bumped_market = |bump_bp: f64| -> Result<MarketContext> {
-        let bumped = bump_hazard_spreads(
-            hazard.as_ref(),
-            curves,
-            &BumpRequest::Parallel(bump_bp),
-            Some(&option.discount_curve_id),
-            None,
-            None,
-        )?;
+        let request = BumpRequest::Parallel(bump_bp);
+        let bumped = if hazard.hazard_calibration().is_some() {
+            bump_hazard_spreads(
+                hazard.as_ref(),
+                curves,
+                &request,
+                Some(&option.discount_curve_id),
+                None,
+                None,
+            )?
+        } else {
+            bump_hazard_shift(hazard.as_ref(), &request)?
+        };
         Ok(curves.clone().insert(bumped))
     };
     let up_market = bumped_market(PRICE_DELTA_SPREAD_BUMP_BP)?;

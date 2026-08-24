@@ -82,12 +82,14 @@ calibration steps.
 ## How to use one
 
 ```rust
+use finstack_quant_core::contract::LoadLimits;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_valuations::calibration::api::engine;
 use finstack_quant_valuations::calibration::api::schema::CalibrationEnvelope;
 
 let envelope_json = std::fs::read_to_string("01_usd_discount.json")?;
-let envelope: CalibrationEnvelope = serde_json::from_str(&envelope_json)?;
+let (envelope, _load_report) =
+    CalibrationEnvelope::from_slice_strict(envelope_json.as_bytes(), &LoadLimits::default())?;
 let result = engine::execute(&envelope)?;
 let market = MarketContext::try_from(result.result.final_market)?;
 let curve = market.get_discount("USD-OIS")?;

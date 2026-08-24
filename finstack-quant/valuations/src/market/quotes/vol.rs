@@ -86,7 +86,7 @@ pub enum VolQuote {
         expiry: Date,
         /// Strike
         strike: f64,
-        /// Implied volatility
+        /// Implied volatility in decimal units (for example, `0.20` for 20%).
         vol: f64,
         /// Option type (Call or Put).
         option_type: OptionType,
@@ -111,7 +111,8 @@ pub enum VolQuote {
         maturity: Date,
         /// Strike rate
         strike: f64,
-        /// Implied volatility
+        /// Implied volatility in canonical decimal units: absolute rate
+        /// volatility for normal quotes and Black volatility for lognormal quotes.
         vol: f64,
         /// Volatility quoting convention.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
@@ -132,7 +133,8 @@ pub enum VolQuote {
         expiry: Date,
         /// Strike rate.
         strike: f64,
-        /// Implied volatility.
+        /// Implied volatility in canonical decimal units: absolute rate
+        /// volatility for normal quotes and Black volatility for lognormal quotes.
         vol: f64,
         /// Volatility quoting convention.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]

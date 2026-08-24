@@ -72,7 +72,9 @@ pub use params::{
     capfloor_hw1f_scalar_keys, capfloor_hw1f_sigma_schedule_key, hw1f_scalar_keys,
     HullWhiteModelParams, HullWhiteParams,
 };
-pub use quotes::{CapFloorCalibrationConfig, CapFloorQuote, SwapFrequency, SwaptionQuote};
+pub use quotes::{
+    CapFloorCalibrationConfig, CapFloorQuote, SwapFrequency, SwaptionQuote, SwaptionSchedule,
+};
 pub use swaption::{
     calibrate_hull_white_to_swaptions, calibrate_hull_white_to_swaptions_with_schedules,
 };

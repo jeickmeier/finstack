@@ -130,6 +130,16 @@ pub enum EnvelopeError {
         /// `(class, count)` breakdown of the actual quote classes present.
         breakdown: Vec<(String, usize)>,
     },
+    /// Two calibration steps use the same audit identifier.
+    #[error("step[{duplicate_index}] duplicates step ID '{step_id}' first declared at step[{first_index}]")]
+    DuplicateStepId {
+        /// Duplicated step identifier.
+        step_id: String,
+        /// Zero-based index of the first declaration.
+        first_index: usize,
+        /// Zero-based index of the conflicting declaration.
+        duplicate_index: usize,
+    },
     /// A solver step did not converge to within tolerance.
     #[error("step '{step_id}' did not converge: max residual {max_residual:.3e} > tolerance {tolerance:.3e} after {iterations} iterations.{}", format_worst_quote(worst_quote_id, worst_quote_residual))]
     SolverNotConverged {
@@ -178,6 +188,12 @@ pub enum EnvelopeError {
         /// The unresolved quote identifier.
         id: String,
     },
+    /// Strict bounded contract loading rejected the request or result.
+    #[error("strict calibration contract load failed: {message}")]
+    StrictLoad {
+        /// Bounded parser or semantic-validation diagnostic.
+        message: String,
+    },
     /// A JSON response payload could not be serialized.
     #[error("failed to serialize {target} as JSON: {message}")]
     JsonSerialize {
@@ -203,11 +219,13 @@ impl EnvelopeError {
             EnvelopeError::MissingDependency { .. } => "missing_dependency",
             EnvelopeError::UndefinedQuoteSet { .. } => "undefined_quote_set",
             EnvelopeError::QuoteClassMismatch { .. } => "quote_class_mismatch",
+            EnvelopeError::DuplicateStepId { .. } => "duplicate_step_id",
             EnvelopeError::SolverNotConverged { .. } => "solver_not_converged",
             EnvelopeError::QuoteDataInvalid { .. } => "quote_data_invalid",
             EnvelopeError::DuplicateMarketDatumId { .. } => "duplicate_market_datum_id",
             EnvelopeError::QuoteIdNotInMarketData { .. } => "quote_id_not_in_market_data",
             EnvelopeError::JsonSerialize { .. } => "json_serialize",
+            EnvelopeError::StrictLoad { .. } => "strict_load",
         }
     }
 
@@ -221,6 +239,7 @@ impl EnvelopeError {
             | EnvelopeError::MissingDependency { step_id, .. }
             | EnvelopeError::UndefinedQuoteSet { step_id, .. }
             | EnvelopeError::QuoteClassMismatch { step_id, .. }
+            | EnvelopeError::DuplicateStepId { step_id, .. }
             | EnvelopeError::SolverNotConverged { step_id, .. }
             | EnvelopeError::QuoteDataInvalid { step_id, .. } => Some(step_id),
             EnvelopeError::JsonParse { .. }
@@ -229,7 +248,8 @@ impl EnvelopeError {
             | EnvelopeError::UnsupportedSchema { .. }
             | EnvelopeError::DuplicateMarketDatumId { .. }
             | EnvelopeError::QuoteIdNotInMarketData { .. }
-            | EnvelopeError::JsonSerialize { .. } => None,
+            | EnvelopeError::JsonSerialize { .. }
+            | EnvelopeError::StrictLoad { .. } => None,
         }
     }
 

@@ -24,6 +24,7 @@
 use crate::calibration::api::schema::SviSurfaceParams;
 use crate::calibration::config::CalibrationConfig;
 use crate::calibration::constants::OrderedF64;
+use crate::calibration::targets::util::resolve_equity_forward_inputs;
 use crate::calibration::validation::ValidationConfig;
 use crate::calibration::CalibrationReport;
 use crate::market::quotes::market_quote::MarketQuote;
@@ -118,29 +119,64 @@ impl SviSurfaceTarget {
             .map(|curve_id| context.get_discount(curve_id))
             .transpose()?;
 
-        // Resolve dividend yield from the override, market scalar, or zero.
-        let div_yield = if let Some(q) = params.dividend_yield_override {
-            q
-        } else {
-            let key = format!("{}-DIVYIELD", params.underlying_ticker);
-            if let Ok(MarketScalar::Unitless(v)) = context.get_price(&key) {
-                *v
+        let zero_rate_yield = if discount.is_none() {
+            let value = if let Some(value) = params.dividend_yield_override {
+                value
             } else {
-                0.0
+                let key = format!("{}-DIVYIELD", params.underlying_ticker);
+                match context.get_price(&key) {
+                    Ok(MarketScalar::Unitless(value)) => *value,
+                    Ok(MarketScalar::Price(_)) => {
+                        return Err(finstack_quant_core::Error::Validation(format!(
+                            "equity carry scalar '{key}' must be unitless"
+                        )))
+                    }
+                    Err(_) => {
+                        return Err(finstack_quant_core::Error::Input(
+                            finstack_quant_core::InputError::NotFound {
+                                id: format!(
+                                "explicit dividend yield for equity '{}' without a discount curve",
+                                params.underlying_ticker
+                            ),
+                            },
+                        ))
+                    }
+                }
+            };
+            if !value.is_finite() {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "SVI dividend yield must be finite, got {value}"
+                )));
             }
+            Some(value)
+        } else {
+            None
         };
-        if !div_yield.is_finite() {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "SVI dividend yield must be finite; got {div_yield}"
-            )));
-        }
-
-        let forward_fn = |t: f64| -> f64 {
-            if let Some(curve) = discount.as_ref() {
-                let r = curve.zero(t);
-                spot * ((r - div_yield) * t).exp()
+        let forward_inputs = discount
+            .as_ref()
+            .map(|discount| {
+                resolve_equity_forward_inputs(
+                    &params.underlying_ticker,
+                    params.base_date,
+                    spot,
+                    params.dividend_yield_override,
+                    discount.as_ref(),
+                    context,
+                )
+            })
+            .transpose()?;
+        let forward_fn = |t: f64| {
+            if let (Some(discount), Some(inputs)) = (&discount, &forward_inputs) {
+                inputs.forward(discount.as_ref(), t)
             } else {
-                spot * (-div_yield * t).exp()
+                let dividend_yield = zero_rate_yield.ok_or_else(|| {
+                    finstack_quant_core::Error::Validation(
+                        "SVI equity carry resolution is incomplete".to_string(),
+                    )
+                })?;
+                let forward = spot * (-dividend_yield * t).exp();
+                Self::validate_positive_input("SVI forward", forward)?;
+                Ok(forward)
             }
         };
 
@@ -188,7 +224,7 @@ impl SviSurfaceTarget {
             }
 
             let expiry = expiry_key.into_inner();
-            let forward = forward_fn(expiry);
+            let forward = forward_fn(expiry)?;
             Self::validate_positive_input("SVI forward", forward)?;
             let strikes: Vec<f64> = expiry_quotes.iter().map(|(strike, _)| *strike).collect();
             let vols: Vec<f64> = expiry_quotes.iter().map(|(_, vol)| *vol).collect();
@@ -198,10 +234,7 @@ impl SviSurfaceTarget {
             )?;
 
             for (idx, (strike, market_vol)) in expiry_quotes.iter().enumerate() {
-                let log_moneyness = (*strike / forward).ln();
-                let model_vol = svi_params
-                    .implied_vol(log_moneyness, expiry)
-                    .unwrap_or(f64::NAN);
+                let model_vol = evaluate_svi_model_vol(&svi_params, expiry, *strike, forward)?;
                 residuals.insert(
                     format!("svi_t{expiry:.6}_k{strike:.6}_i{idx}"),
                     model_vol - *market_vol,
@@ -214,7 +247,7 @@ impl SviSurfaceTarget {
         let mut grid =
             Vec::with_capacity(params.target_expiries.len() * params.target_strikes.len());
         for &target_expiry in &params.target_expiries {
-            let forward = forward_fn(target_expiry);
+            let forward = forward_fn(target_expiry)?;
             Self::validate_positive_input("SVI forward", forward)?;
             for &target_strike in &params.target_strikes {
                 let vol = interpolate_svi_vol(
@@ -245,7 +278,7 @@ impl SviSurfaceTarget {
             .target_expiries
             .iter()
             .map(|&t| forward_fn(t))
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
         let calendar_cfg = ValidationConfig {
             lenient_arbitrage: false,
             ..ValidationConfig::default()
@@ -263,7 +296,7 @@ impl SviSurfaceTarget {
         let mut slice_butterfly_arbitrage: Option<String> = None;
         for (&expiry_key, svi_params) in &params_by_expiry {
             let expiry = expiry_key.into_inner();
-            let forward = forward_fn(expiry);
+            let forward = forward_fn(expiry)?;
             let k_lo =
                 (params.target_strikes.first().copied().unwrap_or(forward) / forward).ln() - 1.0;
             let k_hi =
@@ -313,13 +346,34 @@ impl SviSurfaceTarget {
     }
 }
 
+/// Evaluate one calibrated SVI slice without allowing NaN sentinel residuals.
+fn evaluate_svi_model_vol(
+    params: &finstack_quant_core::math::volatility::svi::SviParams,
+    expiry: f64,
+    strike: f64,
+    forward: f64,
+) -> Result<f64> {
+    let log_moneyness = (strike / forward).ln();
+    params.implied_vol(log_moneyness, expiry).map_err(|source| {
+        finstack_quant_core::Error::Calibration {
+            message: format!(
+                "SVI implied-vol evaluation failed: expiry={expiry:.12}, strike={strike:.12}, \
+                 forward={forward:.12}, log_moneyness={log_moneyness:.12}, \
+                 params={{a:{:.12},b:{:.12},rho:{:.12},m:{:.12},sigma:{:.12}}}, cause={source}",
+                params.a, params.b, params.rho, params.m, params.sigma
+            ),
+            category: "svi_evaluation".to_string(),
+        }
+    })
+}
+
 /// Interpolate total variance at a fixed absolute strike, evaluating each SVI
-/// slice in its own forward-moneyness coordinate. Extrapolation uses the
+/// slice in its own forward-moneyness coordinate and extrapolating with the
 /// nearest calibrated slice.
 fn interpolate_svi_vol(
     target_expiry: f64,
     target_strike: f64,
-    forward_fn: &impl Fn(f64) -> f64,
+    forward_fn: &impl Fn(f64) -> Result<f64>,
     params_by_expiry: &BTreeMap<OrderedF64, finstack_quant_core::math::volatility::svi::SviParams>,
 ) -> Result<f64> {
     if target_expiry <= 0.0 {
@@ -329,7 +383,7 @@ fn interpolate_svi_vol(
     }
 
     let slice_log_moneyness = |slice_expiry: f64| -> Result<f64> {
-        let forward = forward_fn(slice_expiry);
+        let forward = forward_fn(slice_expiry)?;
         if !forward.is_finite() || forward <= 0.0 {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "SVI interpolation: non-positive forward {forward} at T={slice_expiry:.6}"
@@ -424,8 +478,29 @@ mod tests {
             target_expiries: vec![0.5],
             target_strikes: vec![80.0, 90.0, 100.0, 110.0, 120.0],
             spot_override: Some(100.0),
-            dividend_yield_override: None,
+            dividend_yield_override: Some(0.0),
         }
+    }
+
+    #[test]
+    fn svi_evaluation_failure_retains_slice_context_without_nan() {
+        let params = finstack_quant_core::math::volatility::svi::SviParams {
+            a: -1.0,
+            b: 0.0,
+            rho: 0.0,
+            m: 0.0,
+            sigma: 0.1,
+        };
+        let error = evaluate_svi_model_vol(&params, 1.0, 95.0, 100.0)
+            .expect_err("negative total variance must fail");
+        let finstack_quant_core::Error::Calibration { message, category } = error else {
+            panic!("expected structured calibration error");
+        };
+        assert_eq!(category, "svi_evaluation");
+        assert!(message.contains("expiry=1.000000000000"));
+        assert!(message.contains("strike=95.000000000000"));
+        assert!(message.contains("forward=100.000000000000"));
+        assert!(message.contains("params={a:-1.000000000000"));
     }
 
     fn sample_quotes() -> Vec<MarketQuote> {
@@ -513,7 +588,7 @@ mod tests {
         // Flat forward F = 100 ⇒ ATM strike K = 100 maps to k = 0 on
         // every slice, so the per-slice forward-moneyness recomputation is
         // a no-op here and the assertion still pins the Gatheral value.
-        let forward_fn = |_t: f64| -> f64 { 100.0 };
+        let forward_fn = |_t: f64| Ok(100.0);
         let vol =
             interpolate_svi_vol(0.75, 100.0, &forward_fn, &by_expiry).expect("interpolation ok");
         let expected = (0.04_f64 / 0.75).sqrt();
@@ -589,16 +664,17 @@ mod tests {
         // Non-flat discount curve: zero rate rises with T, so the forward
         // F(T) = S·exp(r(T)·T) is genuinely T-dependent and F(T₁) ≠ F(T₂).
         let spot = 100.0_f64;
-        let forward_fn = |t: f64| -> f64 { spot * ((0.01 + 0.09 * t) * t).exp() };
+        let forward_value = |t: f64| spot * ((0.01 + 0.09 * t) * t).exp();
+        let forward_fn = |t: f64| Ok(forward_value(t));
         assert!(
-            (forward_fn(t1) - forward_fn(t2)).abs() > 1.0,
+            (forward_value(t1) - forward_value(t2)).abs() > 1.0,
             "test fixture must use a non-flat forward curve"
         );
 
         // Pre-fix recipe: BOTH bracketing slices evaluated at one `k`
         // computed from the *target* expiry's forward.
         let single_k_total_variance = |t: f64, strike: f64| -> f64 {
-            let k_target = (strike / forward_fn(t)).ln();
+            let k_target = (strike / forward_value(t)).ln();
             let mut lower = (t1, slice_1);
             let mut upper = (t3, slice_3);
             for (&ek, &p) in &by_expiry {

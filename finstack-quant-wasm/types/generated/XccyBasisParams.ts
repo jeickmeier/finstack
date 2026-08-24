@@ -42,9 +42,8 @@ method: CalibrationMethod,
 /**
  * Interpolation style for the constructed foreign discount curve.
  *
- * Caller-owned: the engine does not override this field. `Linear`
- * interpolates discount-factor ordinates and is **not** the QuantLib
- * or Bloomberg production default.
+ * Defaults to log-linear discount factors. `Linear` remains available
+ * only when explicitly requested.
  */
 interpolation: string,
 /**

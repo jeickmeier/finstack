@@ -32,7 +32,9 @@ finstack-quant-wasm/types/generated/InflationQuote.ts
 finstack-quant-wasm/types/generated/InstrumentArtifact.ts
 finstack-quant-wasm/types/generated/LoadPhase.ts
 finstack-quant-wasm/types/generated/MarketDatum.ts
+finstack-quant-wasm/types/generated/MarketFreshnessPolicy.ts
 finstack-quant-wasm/types/generated/MarketQuote.ts
+finstack-quant-wasm/types/generated/MarketQuoteSide.ts
 finstack-quant-wasm/types/generated/MaterializationPhases.ts
 finstack-quant-wasm/types/generated/MaterializationReport.ts
 finstack-quant-wasm/types/generated/MaterializedPosition.ts

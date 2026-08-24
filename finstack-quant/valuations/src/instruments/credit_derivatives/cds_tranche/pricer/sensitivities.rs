@@ -569,30 +569,22 @@ impl CDSTranchePricer {
 
         let original_index_arc = market_ctx.get_credit_index(&tranche.credit_index_id)?;
         let hazard = &original_index_arc.index_credit_curve;
-        if hazard.par_spread_points().next().is_none() {
-            return Err(finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "CDS tranche '{}' CS01 requires par-spread points on hazard curve '{}' \
-                     for spread-bump recalibration; a direct hazard-rate bump would \
-                     mislabel units (≈1/(1−R) overstatement). Bootstrap the curve from \
-                     par spreads or use the cs01_hazard metric.",
-                    tranche.id,
-                    hazard.id().as_str()
-                ),
-                category: "cs01_rebootstrap".to_string(),
-            });
-        }
 
         let bump_bp = self.params.cs01_bump_size;
         let bump_index_spreads = |sign: f64| -> Result<_> {
-            let bumped_hazard = crate::calibration::bumps::hazard::bump_hazard_spreads(
-                hazard.as_ref(),
-                market_ctx,
-                &crate::calibration::bumps::BumpRequest::Parallel(sign * bump_bp),
-                Some(&tranche.discount_curve_id),
-                None,
-                None,
-            )?;
+            let request = crate::calibration::bumps::BumpRequest::Parallel(sign * bump_bp);
+            let bumped_hazard = if hazard.hazard_calibration().is_some() {
+                crate::calibration::bumps::hazard::bump_hazard_spreads(
+                    hazard.as_ref(),
+                    market_ctx,
+                    &request,
+                    Some(&tranche.discount_curve_id),
+                    None,
+                    None,
+                )?
+            } else {
+                crate::calibration::bumps::hazard::bump_hazard_shift(hazard.as_ref(), &request)?
+            };
             self.rebuild_credit_index(
                 original_index_arc.as_ref(),
                 original_index_arc.recovery_rate,

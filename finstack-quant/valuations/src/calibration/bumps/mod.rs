@@ -34,9 +34,8 @@
 //! For recalibrated bumps, both the base curve and the bumped curve reprice
 //! every input quote to within their respective calibration tolerances, so residual leakage into a
 //! sensitivity is bounded by roughly the **sum of the two repricing tolerances
-//! divided by the bump size**. With the default `1e-10` tolerance and a 1bp
-//! bump this is on the order of `2e-10 / 1e-4 ≈ 2e-6` of the PV unit —
-//! negligible versus the bump itself.
+//! divided by the bump size**. With the default `1e-8` fit tolerance and a 1bp
+//! bump this is on the order of `2e-8 / 1e-4 ≈ 2e-4` of the PV unit.
 
 mod currency;
 pub(crate) mod hazard;

@@ -79,7 +79,7 @@ fn calibrate_hull_white_to_swaptions_core(
     df: &dyn Fn(f64) -> f64,
     quotes: &[SwaptionQuote],
     frequency: SwapFrequency,
-    schedules: Option<&[Vec<f64>]>,
+    schedules: Option<&[SwaptionSchedule]>,
     initial_guess: Option<HullWhiteParams>,
     schedule_source: Option<&'static str>,
 ) -> finstack_quant_core::Result<(HullWhiteParams, CalibrationReport)> {
@@ -114,25 +114,19 @@ fn calibrate_hull_white_to_swaptions_core(
     let mut prepared = Vec::with_capacity(n_quotes);
     let mut fwd_swap_rates = Vec::with_capacity(n_quotes);
     for (idx, q) in quotes.iter().enumerate() {
-        // Validate the per-quote schedule up-front with the same predicate
-        // the pricer uses (`valid_swap_accruals`). A caller that supplies
-        // schedules is asserting they are the contractual accruals; a
-        // malformed one is rejected rather than silently swapped for the
-        // synthetic constant-dt recipe, which would calibrate to a different
-        // instrument than the caller described.
-        let n_periods = (q.tenor * ppy as f64).round().max(1.0) as usize;
-        let accruals_slice =
-            schedules.and_then(|s| valid_swap_accruals(Some(s[idx].as_slice()), n_periods));
-        if schedules.is_some() && accruals_slice.is_none() {
+        // Validate the per-quote schedule up front. Contractual schedules may
+        // contain stubs, so their period count is not inferred from tenor.
+        let schedule = schedules.and_then(|items| valid_swap_schedule(Some(&items[idx]), q.expiry));
+        if schedules.is_some() && schedule.is_none() {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "HW1F swaption calibration: per-quote accrual schedule for {}Yx{}Y is \
-                 malformed (expected {n_periods} positive entries); supply contractual \
-                 accruals or omit `schedules` to use the synthetic constant-dt schedule",
+                "HW1F swaption calibration: contractual schedule for {}Yx{}Y is malformed; \
+                 payment times must be strictly increasing after expiry, accruals must be \
+                 positive and quote-aligned, and maturity must lie after expiry",
                 q.expiry, q.tenor
             )));
         }
-        let (annuity, fwd_rate) = if let Some(accruals) = accruals_slice {
-            compute_swap_annuity_and_rate_inner(df, q.expiry, q.tenor, ppy, Some(accruals))
+        let (annuity, fwd_rate) = if let Some(schedule) = schedule {
+            compute_swap_annuity_and_rate_inner(df, q.expiry, q.tenor, ppy, Some(schedule))
         } else {
             compute_swap_annuity_and_rate(df, q.expiry, q.tenor, ppy)
         };
@@ -151,7 +145,7 @@ fn calibrate_hull_white_to_swaptions_core(
             market_price,
             fwd_swap_rate: fwd_rate,
             vega,
-            accruals: accruals_slice.map(|s| s.to_vec().into_boxed_slice()),
+            schedule: schedule.cloned(),
         });
         fwd_swap_rates.push(fwd_rate);
     }
@@ -202,13 +196,17 @@ fn calibrate_hull_white_to_swaptions_core(
             "residual_weighting",
             "1/vega (vega-weighted price residual)".to_string(),
         )
-        .with_metadata("swap_frequency", frequency.to_string());
+        .with_metadata(
+            "swap_frequency",
+            if schedules.is_some() {
+                "quote_specific".to_string()
+            } else {
+                frequency.to_string()
+            },
+        );
     if let Some(schedule_source) = schedule_source {
-        // Malformed schedules are rejected, so the stamped source is exactly
-        // what the caller supplied — no per-quote fallback can dilute it.
         report = report.with_metadata("schedule_source", schedule_source.to_string());
     }
-
     reject_at_bound_params(
         params.kappa,
         params.sigma,
@@ -247,7 +245,7 @@ fn validate_model_price_sanity(
             tenor: q.tenor,
             swap_rate: pre.fwd_swap_rate,
             periods_per_year: ppy,
-            accruals: pre.accruals.as_deref(),
+            schedule: pre.schedule.as_ref(),
         });
         if !model_price.is_finite() || model_price < 0.0 {
             return Err(finstack_quant_core::Error::Validation(format!(
@@ -262,35 +260,22 @@ fn validate_model_price_sanity(
     Ok(())
 }
 
-/// Calibrate HW1F to swaptions using *real* per-period accrual year fractions.
+/// Calibrate HW1F to swaptions using contractual fixed-leg schedules.
 ///
-/// Functionally identical to [`calibrate_hull_white_to_swaptions`] but takes
-/// per-quote accrual schedules so the synthetic constant-`dt` schedule is
-/// replaced by genuine market day-counts (e.g. Act/360 USD SOFR, 30/360 EUR
-/// EURIBOR). This brings calibrated `(κ, σ)` into tight parity with
-/// vendor models (Bloomberg VCUB, QuantLib `Gaussian1dSwaptionEngine`) that
-/// use real schedules.
+/// Functionally identical to [`calibrate_hull_white_to_swaptions`] but replaces
+/// the synthetic constant-period schedule with quote-aligned payment times,
+/// fixed-leg accrual factors, and unlagged maturity times. This preserves
+/// registered calendars, business-day adjustments, stubs, and payment lags.
 ///
 /// # Arguments
 ///
-/// * `df` - Discount-factor function where `df(t)` returns `P(0,t)` for a
-///   year fraction `t` measured on the same time axis as the quote expiries
-///   and tenors. It must return finite positive factors and `df(0) ≈ 1`.
-/// * `quotes` - ATM European swaption quotes to fit. Their expiries, tenors,
-///   and volatility conventions must be consistent with `df` and `frequency`.
-/// * `frequency` - Fixed-leg payment frequency used to construct each
-///   underlying swap's schedule and annuity.
-/// * `schedules` - Per-quote accrual year fractions, where `schedules[i]`
-///   corresponds to `quotes[i]`.
-///   Must contain `(quotes[i].tenor * frequency.periods_per_year()).round()`
-///   strictly-positive values; their sum must equal `quotes[i].tenor` to
-///   within numerical precision. If any schedule is malformed, the calibrator
-///   falls back to the constant-`dt` recipe for that quote, emits a
-///   `tracing::warn!`, and stamps the report metadata: `schedule_source`
-///   becomes `"mixed"` (or `"synthetic_constant_dt"` when every quote fell
-///   back) and `schedule_fallback_quotes` lists the affected quotes.
+/// * `df` - Discount-factor function where `df(t)` returns `P(0,t)` on the
+///   same time axis as quote expiries and schedule payment times.
+/// * `quotes` - ATM European swaption quotes to fit. Volatilities use decimal
+///   normal absolute-rate or Black units.
+/// * `schedules` - Contractual fixed-leg schedules aligned with `quotes`.
 /// * `initial_guess` - Optional starting `(kappa, sigma)` parameters for the
-///   optimizer. `None` uses the calibrator's bounded default seed.
+///   optimizer. `None` uses the bounded default seed.
 ///
 /// # OIS-Specific Limitations
 ///
@@ -305,14 +290,13 @@ fn validate_model_price_sanity(
 pub fn calibrate_hull_white_to_swaptions_with_schedules(
     df: &dyn Fn(f64) -> f64,
     quotes: &[SwaptionQuote],
-    frequency: SwapFrequency,
-    schedules: &[Vec<f64>],
+    schedules: &[SwaptionSchedule],
     initial_guess: Option<HullWhiteParams>,
 ) -> finstack_quant_core::Result<(HullWhiteParams, CalibrationReport)> {
     calibrate_hull_white_to_swaptions_core(
         df,
         quotes,
-        frequency,
+        SwapFrequency::Annual,
         Some(schedules),
         initial_guess,
         Some("real_day_count"),
@@ -338,8 +322,8 @@ fn swaption_atm_vega(annuity: f64, fwd_rate: f64, expiry: f64, vol: f64, is_norm
 ///
 /// The schedule is synthetic (constant `dt = tenor/n_periods`). For real
 /// market day-counts (Act/360 USD SOFR, 30/360 EUR EURIBOR, etc.), use
-/// `compute_swap_annuity_and_rate_inner` with explicit per-period year
-/// fractions.
+/// `compute_swap_annuity_and_rate_inner` with an explicit
+/// [`SwaptionSchedule`].
 pub(crate) fn compute_swap_annuity_and_rate(
     df: &dyn Fn(f64) -> f64,
     t0: f64,
@@ -354,34 +338,35 @@ pub(super) fn compute_swap_annuity_and_rate_inner(
     t0: f64,
     tenor: f64,
     periods_per_year: usize,
-    accruals: Option<&[f64]>,
+    schedule: Option<&SwaptionSchedule>,
 ) -> (f64, f64) {
-    let n_periods = (tenor * periods_per_year as f64).round().max(1.0) as usize;
-
-    let real_accruals = valid_swap_accruals(accruals, n_periods);
-
-    let mut annuity = 0.0;
-    let mut t_running = t0;
-    if let Some(accruals) = real_accruals {
-        for &tau in accruals {
-            t_running += tau;
-            annuity += tau * df(t_running);
-        }
-    } else {
-        let dt = tenor / n_periods as f64;
-        for i in 1..=n_periods {
-            let t_i = t0 + i as f64 * dt;
-            annuity += dt * df(t_i);
-        }
-        t_running = t0 + tenor;
+    if let Some(schedule) = valid_swap_schedule(schedule, t0) {
+        let annuity = schedule
+            .payment_times
+            .iter()
+            .zip(&schedule.accruals)
+            .map(|(payment_time, accrual)| accrual * df(*payment_time))
+            .sum();
+        let fwd_rate = if annuity > 1e-15 {
+            (df(t0) - df(schedule.maturity_time)) / annuity
+        } else {
+            0.0
+        };
+        return (annuity, fwd_rate);
     }
 
-    let t_n = t_running;
+    let n_periods = (tenor * periods_per_year as f64).round().max(1.0) as usize;
+    let dt = tenor / n_periods as f64;
+    let annuity = (1..=n_periods)
+        .map(|index| dt * df(t0 + index as f64 * dt))
+        .sum();
+    let maturity_time = t0 + tenor;
+
     let fwd_rate = if annuity > 1e-15 {
-        (df(t0) - df(t_n)) / annuity
+        (df(t0) - df(maturity_time)) / annuity
     } else {
         let p0 = df(t0).max(1e-12);
-        let p_n = df(t_n).max(1e-12);
+        let p_n = df(maturity_time).max(1e-12);
         ((p0 / p_n).ln() / tenor.max(1e-8)).max(0.0)
     };
 
@@ -389,8 +374,28 @@ pub(super) fn compute_swap_annuity_and_rate_inner(
 }
 
 #[inline]
-pub(super) fn valid_swap_accruals(accruals: Option<&[f64]>, n_periods: usize) -> Option<&[f64]> {
-    accruals.filter(|a| a.len() == n_periods && a.iter().all(|x| x.is_finite() && *x > 0.0))
+pub(super) fn valid_swap_schedule(
+    schedule: Option<&SwaptionSchedule>,
+    expiry: f64,
+) -> Option<&SwaptionSchedule> {
+    schedule.filter(|schedule| {
+        !schedule.payment_times.is_empty()
+            && schedule.payment_times.len() == schedule.accruals.len()
+            && schedule.maturity_time.is_finite()
+            && schedule.maturity_time > expiry
+            && schedule
+                .accruals
+                .iter()
+                .all(|accrual| accrual.is_finite() && *accrual > 0.0)
+            && schedule
+                .payment_times
+                .iter()
+                .all(|time| time.is_finite() && *time > expiry)
+            && schedule
+                .payment_times
+                .windows(2)
+                .all(|window| window[1] > window[0])
+    })
 }
 
 pub(super) fn infer_hw_initial_guess(
@@ -485,7 +490,7 @@ pub(crate) fn hw1f_swaption_price(
         tenor,
         swap_rate,
         periods_per_year,
-        accruals: None,
+        schedule: None,
     })
 }
 
@@ -497,7 +502,7 @@ pub(super) struct Hw1fSwaptionPriceInput<'a> {
     pub(super) tenor: f64,
     pub(super) swap_rate: f64,
     pub(super) periods_per_year: usize,
-    pub(super) accruals: Option<&'a [f64]>,
+    pub(super) schedule: Option<&'a SwaptionSchedule>,
 }
 
 pub(super) fn hw1f_swaption_price_inner(
@@ -509,27 +514,27 @@ pub(super) fn hw1f_swaption_price_inner(
         tenor,
         swap_rate,
         periods_per_year,
-        accruals,
+        schedule,
     }: Hw1fSwaptionPriceInput<'_>,
 ) -> f64 {
-    let n_periods = (tenor * periods_per_year as f64).round().max(1.0) as usize;
-
-    let real_accruals = valid_swap_accruals(accruals, n_periods);
+    let schedule = valid_swap_schedule(schedule, t0);
+    let n_periods = schedule.map_or_else(
+        || (tenor * periods_per_year as f64).round().max(1.0) as usize,
+        |schedule| schedule.accruals.len(),
+    );
 
     // Payment dates and cashflows
     let mut payment_times = Vec::with_capacity(n_periods);
     let mut cashflows = Vec::with_capacity(n_periods);
-    if let Some(accruals) = real_accruals {
-        let mut t_running = t0;
-        for (i, &tau) in accruals.iter().enumerate() {
-            t_running += tau;
-            payment_times.push(t_running);
-            let cf = if i + 1 < n_periods {
+    if let Some(schedule) = schedule {
+        payment_times.extend_from_slice(&schedule.payment_times);
+        for (index, &tau) in schedule.accruals.iter().enumerate() {
+            let cashflow = if index + 1 < n_periods {
                 swap_rate * tau
             } else {
                 1.0 + swap_rate * tau
             };
-            cashflows.push(cf);
+            cashflows.push(cashflow);
         }
     } else {
         let dt = tenor / n_periods as f64;

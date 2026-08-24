@@ -25,6 +25,7 @@
  * let quote = CDSTrancheQuote::CDSTranche {
  *     id: QuoteId::new("CDX-IG-3-7"),
  *     index: "CDX.NA.IG".to_string(),
+ *     series: 46,
  *     attachment: 0.03,  // 3%
  *     detachment: 0.07, // 7%
  *     maturity: Date::from_calendar_date(2029, time::Month::June, 20).unwrap(),
@@ -48,6 +49,10 @@ id: string,
  * Index identifier (e.g. CDX.NA.HY).
  */
 index: string,
+/**
+ * CDS index series number.
+ */
+series: number,
 /**
  * Attachment point (decimal, e.g. 0.03).
  */

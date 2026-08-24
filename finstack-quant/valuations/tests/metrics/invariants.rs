@@ -731,21 +731,12 @@ mod cs_gamma_consistency {
         *results.get(&metric).expect("metric should be present")
     }
 
-    /// CS-Gamma consistency: CS-Gamma should equal the numerical derivative of
-    /// CS01 w.r.t. the parallel par spread shift, unit-converted:
-    ///
-    ///   CS-Gamma(s) [$/decimal²] ≈ 10_000² × (CS01(s+Δ) − CS01(s−Δ)) / (2Δ)
-    ///
-    /// where CS01 is in $/bp and Δ is the outer shift in bp.
-    ///
-    /// This identity holds when both CS01 and CS-Gamma use the same par-spread
-    /// re-bootstrap methodology. It FAILS when CS-Gamma bumps hazard rates directly
-    /// while CS01 re-bootstraps from par spreads (the bug this test guards against).
-    ///
-    /// Bump size for the outer finite difference is 5bp (larger than the 1bp used
-    /// internally by CS01/CS-Gamma to reduce second-order noise in the comparison).
+    /// Reporting-only par-spread sidecars must not activate quote-space
+    /// CS-Gamma. With identical hazard knots and no recipe, changing only the
+    /// sidecar leaves fallback CS01 unchanged while CS-Gamma remains a finite
+    /// model-hazard curvature.
     #[test]
-    fn cs_gamma_equals_numerical_derivative_of_cs01() {
+    fn cs_gamma_ignores_unreplayable_par_spread_sidecars() {
         let as_of = date!(2025 - 01 - 01);
         let maturity = as_of.add_months(60); // 5Y CDS
 
@@ -776,30 +767,11 @@ mod cs_gamma_consistency {
         let market_dn = MarketContext::new().insert(disc_dn).insert(hazard_dn);
         let cs01_dn = compute_metric(&cds, &market_dn, as_of, MetricId::Cs01);
 
-        // Numerical derivative of CS01, unit-converted to match CS-Gamma.
-        //
-        // CS01 is in $/bp  (d PV / d spread_bp).
-        // CS-Gamma is in $/decimal² (d² PV / d spread_decimal²).
-        //
-        // Relationship:
-        //   d² PV / d spread_decimal²
-        //     = 10_000² × d² PV / d spread_bp²
-        //     = 10_000² × d(CS01) / d spread_bp
-        //     = 10_000² × (CS01_up - CS01_dn) / (2 × outer_shift_bp)
-        let cs_gamma_numerical =
-            10_000.0_f64.powi(2) * (cs01_up - cs01_dn) / (2.0 * outer_shift_bp);
-
-        // Tolerance: 5% relative error is acceptable for this second-order
-        // finite-difference approximation at a 5bp outer shift.
-        let abs_ref = cs_gamma.abs().max(cs_gamma_numerical.abs()).max(1.0);
-        let rel_error = (cs_gamma - cs_gamma_numerical).abs() / abs_ref;
         assert!(
-            rel_error < 0.05,
-            "CS-Gamma ({:.4}) should be consistent with numerical CS01 derivative ({:.4}), rel_error={:.2}%",
-            cs_gamma,
-            cs_gamma_numerical,
-            rel_error * 100.0
+            (cs01_up - cs01_dn).abs() <= 1e-12,
+            "reporting-only par spread sidecars must not change fallback CS01"
         );
+        assert!(cs_gamma.is_finite() && cs_gamma.abs() > 1e-12);
     }
 
     /// Fallback path: when the hazard curve has NO par-spread points (so

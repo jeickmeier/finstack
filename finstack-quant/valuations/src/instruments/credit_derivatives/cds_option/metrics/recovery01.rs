@@ -34,7 +34,7 @@ fn price_at_bumped_recovery(
     bumped_option.recovery_rate = new_recovery;
 
     let hazard = base_market.get_hazard(&option.credit_curve_id)?;
-    let has_par_quotes = hazard.par_spread_points().next().is_some();
+    let has_par_quotes = hazard.hazard_calibration().is_some();
     let market_for_pricing = if has_par_quotes {
         let synthetic = synthetic_underlying_cds(option, as_of)?;
         let recalibrated = recalibrate_hazard_with_recovery(

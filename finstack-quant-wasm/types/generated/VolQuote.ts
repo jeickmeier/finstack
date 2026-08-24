@@ -67,7 +67,7 @@ expiry: string,
  */
 strike: number,
 /**
- * Implied volatility
+ * Implied volatility in decimal units (for example, `0.20` for 20%).
  */
 vol: number,
 /**
@@ -95,7 +95,8 @@ maturity: string,
  */
 strike: number,
 /**
- * Implied volatility
+ * Implied volatility in canonical decimal units: absolute rate
+ * volatility for normal quotes and Black volatility for lognormal quotes.
  */
 vol: number,
 /**
@@ -119,7 +120,8 @@ expiry: string,
  */
 strike: number,
 /**
- * Implied volatility.
+ * Implied volatility in canonical decimal units: absolute rate
+ * volatility for normal quotes and Black volatility for lognormal quotes.
  */
 vol: number,
 /**

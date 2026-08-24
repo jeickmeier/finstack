@@ -3,6 +3,7 @@
 use crate::calibration::api::schema::SurfaceExtrapolationPolicy;
 use crate::calibration::api::schema::VolSurfaceParams;
 use crate::calibration::config::CalibrationConfig;
+use crate::calibration::targets::util::resolve_equity_forward_inputs;
 use crate::calibration::validation::ValidationConfig;
 use crate::calibration::CalibrationReport;
 use crate::market::quotes::market_quote::MarketQuote;
@@ -138,34 +139,30 @@ impl VolSurfaceTarget {
             ))?;
         let discount = context.get_discount(&disc_id)?;
 
-        // Dividend yield
-        let div_yield = if let Some(d) = params.dividend_yield_override {
-            d
-        } else {
-            // Try looking up underlying-DIVYIELD
-            let key = format!("{}-DIVYIELD", params.underlying_ticker);
-            if let Ok(MarketScalar::Unitless(v)) = context.get_price(&key) {
-                *v
-            } else {
-                0.0
-            }
-        };
-
-        let forward_fn = |t: f64| -> f64 {
-            let r = discount.zero(t); // Continuously compounded zero rate
-            spot * ((r - div_yield) * t).exp()
-        };
+        let forward_inputs = resolve_equity_forward_inputs(
+            &params.underlying_ticker,
+            params.base_date,
+            spot,
+            params.dividend_yield_override,
+            discount.as_ref(),
+            context,
+        )?;
+        let forward_fn = |t: f64| forward_inputs.forward(discount.as_ref(), t);
 
         // The SABR calibrator owns tolerances for its vega-weighted SSE.
         let sabr_calibrator = SABRCalibrator::new();
 
         let mut sabr_params_by_expiry: BTreeMap<OrderedF64, SABRParameters> = BTreeMap::new();
+        let mut sabr_winning_starts = Vec::new();
+        let mut sabr_winning_iterations = Vec::new();
+        let mut sabr_residual_evaluations = Vec::new();
+        let mut sabr_bound_hits = Vec::new();
         let mut residuals = BTreeMap::new();
         let mut total_iterations = 0;
 
         for (t_key, expiry_quotes) in &quotes_by_expiry {
             let t = t_key.into_inner();
-            let f = forward_fn(t);
+            let f = forward_fn(t)?;
 
             let mut strikes = Vec::new();
             let mut vols = Vec::new();
@@ -187,12 +184,26 @@ impl VolSurfaceTarget {
                 });
             }
 
-            let p = sabr_calibrator
-                .calibrate_auto_shift(f, &strikes, &vols, t, params.beta)
+            let outcome = sabr_calibrator
+                .calibrate_auto_shift_with_diagnostics(f, &strikes, &vols, t, params.beta)
                 .map_err(|e| finstack_quant_core::Error::Calibration {
                     message: format!("SABR calibration failed at t={t:.6}: {e}"),
                     category: "vol_surface".to_string(),
                 })?;
+            total_iterations += outcome.total_iterations;
+            sabr_winning_starts.push(format!(
+                "T={t:.6}:alpha={:.8},nu={:.8},rho={:.8}",
+                outcome.winning_start[0], outcome.winning_start[1], outcome.winning_start[2]
+            ));
+            sabr_winning_iterations.push(format!("T={t:.6}:{}", outcome.winning_iterations));
+            sabr_residual_evaluations.push(format!("T={t:.6}:{}", outcome.residual_evaluations));
+            if !outcome.parameters_at_bounds.is_empty() {
+                sabr_bound_hits.push(format!(
+                    "T={t:.6}:{}",
+                    outcome.parameters_at_bounds.join("|")
+                ));
+            }
+            let p = outcome.parameters;
             let model = SABRModel::new(p.clone());
             for (i, k) in strikes.iter().enumerate() {
                 let model_vol = model.implied_volatility(f, *k, t).map_err(|e| {
@@ -204,7 +215,6 @@ impl VolSurfaceTarget {
                 residuals.insert(format!("opt_vol_t{t:.2}_k{k:.2}_i{i}"), model_vol - vols[i]);
             }
             sabr_params_by_expiry.insert(*t_key, p);
-            total_iterations += 1;
         }
 
         if sabr_params_by_expiry.is_empty() {
@@ -221,7 +231,7 @@ impl VolSurfaceTarget {
                 let v = Self::interpolate_total_variance_vol(
                     t,
                     k,
-                    forward_fn,
+                    &forward_fn,
                     &sabr_params_by_expiry,
                     params.expiry_extrapolation,
                 )?;
@@ -245,7 +255,7 @@ impl VolSurfaceTarget {
             .target_expiries
             .iter()
             .map(|&t| forward_fn(t))
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
         let calendar_warning =
             validate_calendar_spread_with_forwards(&surface, &validation_cfg, &target_forwards)
                 .err()
@@ -282,6 +292,13 @@ impl VolSurfaceTarget {
         }
 
         report.update_solver_config(config.solver.clone());
+        report.update_metadata("sabr_winning_starts", sabr_winning_starts.join(";"));
+        report.update_metadata("sabr_winning_iterations", sabr_winning_iterations.join(";"));
+        report.update_metadata(
+            "sabr_residual_evaluations",
+            sabr_residual_evaluations.join(";"),
+        );
+        report.update_metadata("sabr_parameters_at_bounds", sabr_bound_hits.join(";"));
 
         let warnings: Vec<String> = [calendar_warning, butterfly_warning]
             .into_iter()
@@ -305,7 +322,7 @@ impl VolSurfaceTarget {
     fn interpolate_total_variance_vol(
         target_expiry: f64,
         target_strike: f64,
-        forward_fn: impl Fn(f64) -> f64,
+        forward_fn: &impl Fn(f64) -> Result<f64>,
         params: &BTreeMap<OrderedF64, SABRParameters>,
         extrapolation: SurfaceExtrapolationPolicy,
     ) -> Result<f64> {
@@ -343,7 +360,7 @@ total-variance extrapolation."
         let slice_total_variance = |slice_expiry: f64,
                                     slice_params: &SABRParameters|
          -> Result<f64> {
-            let forward = forward_fn(slice_expiry);
+            let forward = forward_fn(slice_expiry)?;
             let sigma = SABRModel::new(slice_params.clone())
                 .implied_volatility(forward, target_strike, slice_expiry)
                 .map_err(|e| finstack_quant_core::Error::Calibration {
@@ -438,12 +455,12 @@ mod tests {
         let mut map = BTreeMap::new();
         map.insert(OrderedF64(1.0), params(0.10, 0.5, 0.30, -0.20, 0.01));
         map.insert(OrderedF64(2.0), params(0.20, 0.5, 0.40, -0.10, 0.01));
-        let forward_fn = |_t: f64| 100.0;
+        let forward_fn = |_t: f64| Ok(100.0);
 
         let err = VolSurfaceTarget::interpolate_total_variance_vol(
             0.5,
             100.0,
-            forward_fn,
+            &forward_fn,
             &map,
             SurfaceExtrapolationPolicy::Error,
         )
@@ -458,13 +475,13 @@ mod tests {
         let mut map = BTreeMap::new();
         map.insert(OrderedF64(1.0), p1.clone());
         map.insert(OrderedF64(2.0), p2.clone());
-        let forward_fn = |_t: f64| 100.0;
+        let forward_fn = |_t: f64| Ok(100.0);
         let strike = 100.0;
 
         let left = VolSurfaceTarget::interpolate_total_variance_vol(
             0.5,
             strike,
-            forward_fn,
+            &forward_fn,
             &map,
             SurfaceExtrapolationPolicy::Clamp,
         )
@@ -478,7 +495,7 @@ mod tests {
         let right = VolSurfaceTarget::interpolate_total_variance_vol(
             3.0,
             strike,
-            forward_fn,
+            &forward_fn,
             &map,
             SurfaceExtrapolationPolicy::Clamp,
         )
@@ -497,18 +514,19 @@ mod tests {
         let mut map = BTreeMap::new();
         map.insert(OrderedF64(1.0), p1.clone());
         map.insert(OrderedF64(2.0), p2.clone());
-        let forward_fn = |t: f64| 100.0 * ((0.01 + 0.09 * t) * t).exp();
+        let forward_value = |t: f64| 100.0 * ((0.01 + 0.09 * t) * t).exp();
+        let forward_fn = |t: f64| Ok(forward_value(t));
         let strike = 95.0;
 
         let at_t1 = VolSurfaceTarget::interpolate_total_variance_vol(
             1.0,
             strike,
-            forward_fn,
+            &forward_fn,
             &map,
             SurfaceExtrapolationPolicy::Error,
         )
         .expect("knot t=1");
-        let expected_t1 = slice_vol(&p1, forward_fn(1.0), strike, 1.0);
+        let expected_t1 = slice_vol(&p1, forward_value(1.0), strike, 1.0);
         assert!(
             (at_t1 - expected_t1).abs() < 1e-12,
             "exact match at t=1: got {at_t1}, expected {expected_t1}"
@@ -517,12 +535,12 @@ mod tests {
         let at_t2 = VolSurfaceTarget::interpolate_total_variance_vol(
             2.0,
             strike,
-            forward_fn,
+            &forward_fn,
             &map,
             SurfaceExtrapolationPolicy::Error,
         )
         .expect("knot t=2");
-        let expected_t2 = slice_vol(&p2, forward_fn(2.0), strike, 2.0);
+        let expected_t2 = slice_vol(&p2, forward_value(2.0), strike, 2.0);
         assert!(
             (at_t2 - expected_t2).abs() < 1e-12,
             "exact match at t=2: got {at_t2}, expected {expected_t2}"
@@ -548,17 +566,18 @@ mod tests {
         map.insert(OrderedF64(t3), p3.clone());
 
         let spot = 100.0_f64;
-        let forward_fn = |t: f64| spot * ((0.01 + 0.09 * t) * t).exp();
+        let forward_value = |t: f64| spot * ((0.01 + 0.09 * t) * t).exp();
+        let forward_fn = |t: f64| Ok(forward_value(t));
         assert!(
-            (forward_fn(t1) - forward_fn(t2)).abs() > 1.0,
+            (forward_value(t1) - forward_value(t2)).abs() > 1.0,
             "test fixture must use a non-flat forward curve"
         );
 
         let strikes = [80.0_f64, 95.0, 103.0, 115.0, 135.0];
         for &strike in &strikes {
-            let w1 = slice_total_variance(&p1, forward_fn(t1), strike, t1);
-            let w2 = slice_total_variance(&p2, forward_fn(t2), strike, t2);
-            let w3 = slice_total_variance(&p3, forward_fn(t3), strike, t3);
+            let w1 = slice_total_variance(&p1, forward_value(t1), strike, t1);
+            let w2 = slice_total_variance(&p2, forward_value(t2), strike, t2);
+            let w3 = slice_total_variance(&p3, forward_value(t3), strike, t3);
             assert!(
                 w1 <= w2 + 1e-12 && w2 <= w3 + 1e-12,
                 "fixture slices must themselves be calendar-monotone at K={strike}: \
@@ -575,7 +594,7 @@ mod tests {
                 let vol = VolSurfaceTarget::interpolate_total_variance_vol(
                     t,
                     strike,
-                    forward_fn,
+                    &forward_fn,
                     &map,
                     SurfaceExtrapolationPolicy::Error,
                 )

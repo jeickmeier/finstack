@@ -111,7 +111,7 @@ impl MetricCalculator for CsGammaCalculator {
             // *fails* to silently fall back to a hazard-rate shift while CS01
             // surfaces a hard error — precisely the CS01/CS-Gamma inconsistency
             // this file was written to eliminate.
-            let has_par_points = hazard_ref.par_spread_points().next().is_some();
+            let has_par_points = hazard_ref.hazard_calibration().is_some();
             let used_rebootstrap = if discount_id.is_some() && has_par_points {
                 bump_hazard_spreads(
                     hazard_ref,

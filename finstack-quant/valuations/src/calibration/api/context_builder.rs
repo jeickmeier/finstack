@@ -178,21 +178,26 @@ pub fn build_initial_context(
             None
         };
 
-        let data = CreditIndexData {
-            num_constituents: credit_state.num_constituents,
-            recovery_rate: credit_state.recovery_rate,
-            index_credit_curve: Arc::clone(&index_curve),
-            base_correlation_curve: Arc::clone(&base_corr),
-            issuer_credit_curves: issuer_curves,
-            issuer_recovery_rates: credit_state
-                .issuer_recovery_rates
-                .as_ref()
-                .map(|m| m.iter().map(|(k, v)| (k.clone(), *v)).collect()),
-            issuer_weights: credit_state
-                .issuer_weights
-                .as_ref()
-                .map(|m| m.iter().map(|(k, v)| (k.clone(), *v)).collect()),
-        };
+        let mut builder = CreditIndexData::builder()
+            .num_constituents(credit_state.num_constituents)
+            .recovery_rate(credit_state.recovery_rate)
+            .index_credit_curve(Arc::clone(&index_curve))
+            .base_correlation_curve(Arc::clone(&base_corr));
+        if let Some(issuer_curves) = issuer_curves {
+            builder = builder.issuer_curves(issuer_curves);
+        }
+        if let Some(recovery_rates) = credit_state.issuer_recovery_rates.as_ref() {
+            builder = builder.issuer_recovery_rates(
+                recovery_rates
+                    .iter()
+                    .map(|(key, value)| (key.clone(), *value)),
+            );
+        }
+        if let Some(weights) = credit_state.issuer_weights.as_ref() {
+            builder =
+                builder.issuer_weights(weights.iter().map(|(key, value)| (key.clone(), *value)));
+        }
+        let data = builder.build()?;
 
         ctx.insert_credit_index_mut(&credit_state.id, data);
     }
@@ -255,5 +260,44 @@ mod tests {
         let cfg = CalibrationConfig::default();
         let ctx = build_initial_context(&[], &data, &cfg).expect("build succeeds");
         assert!(ctx.fx().is_some());
+    }
+
+    #[test]
+    fn credit_index_snapshot_reconstruction_enforces_builder_invariants() {
+        use finstack_quant_core::dates::Date;
+        use finstack_quant_core::market_data::context::CreditIndexState;
+        use finstack_quant_core::market_data::term_structures::{
+            BaseCorrelationCurve, HazardCurve,
+        };
+        use time::Month;
+
+        let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+        let hazard = HazardCurve::builder("CDX-HAZARD")
+            .base_date(base)
+            .knots([(1.0, 0.01), (5.0, 0.02)])
+            .build()
+            .expect("hazard");
+        let correlation = BaseCorrelationCurve::builder("CDX-CORRELATION")
+            .knots([(0.03, 0.2), (0.07, 0.35)])
+            .build()
+            .expect("base correlation");
+        let prior = vec![
+            PriorMarketObject::HazardCurve(hazard),
+            PriorMarketObject::BaseCorrelationCurve(correlation),
+        ];
+        let data = vec![MarketDatum::CreditIndex(CreditIndexState {
+            id: "CDX".to_string(),
+            num_constituents: 0,
+            recovery_rate: 0.4,
+            index_credit_curve_id: "CDX-HAZARD".to_string(),
+            base_correlation_curve_id: "CDX-CORRELATION".to_string(),
+            issuer_credit_curve_ids: None,
+            issuer_recovery_rates: None,
+            issuer_weights: None,
+        })];
+
+        let error = build_initial_context(&prior, &data, &CalibrationConfig::default())
+            .expect_err("zero constituents must be rejected");
+        assert!(matches!(error, finstack_quant_core::Error::Input(_)));
     }
 }

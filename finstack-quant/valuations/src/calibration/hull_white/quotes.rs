@@ -23,6 +23,23 @@ pub struct SwaptionQuote {
     pub is_normal_vol: bool,
 }
 
+/// Contractual fixed-leg schedule for one swaption calibration quote.
+///
+/// Payment times are year fractions from the discount curve's base date.
+/// Accrual factors use the underlying swap's fixed-leg day count, and
+/// `maturity_time` is the unlagged accrual-end time used in the par-rate
+/// numerator. This separates payment lags and business-day adjustments from
+/// accrual fractions instead of approximating dates by cumulative accruals.
+#[derive(Debug, Clone)]
+pub struct SwaptionSchedule {
+    /// Strictly increasing fixed-leg payment times.
+    pub payment_times: Vec<f64>,
+    /// Positive fixed-leg accrual factors aligned with `payment_times`.
+    pub accruals: Vec<f64>,
+    /// Underlying swap accrual-end time on the discount-curve time axis.
+    pub maturity_time: f64,
+}
+
 /// Wire shape for [`SwaptionQuote`]: rejects unknown fields, then routes
 /// through [`SwaptionQuote::try_new`] for value validation.
 #[derive(serde::Deserialize)]

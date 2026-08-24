@@ -37,7 +37,7 @@
 // allowance — keep the binding layer consistent.
 #![allow(clippy::result_large_err)]
 
-use crate::utils::{structured_js_error, to_js_err, to_js_value};
+use crate::utils::{structured_js_error, to_js_value};
 use finstack_quant_valuations::calibration::api::engine::{self, ExecuteError};
 use finstack_quant_valuations::calibration::api::errors::EnvelopeError;
 #[cfg(test)]
@@ -53,7 +53,7 @@ use wasm_bindgen::prelude::*;
 /// diagnostic. The Rust calibration API owns the canonical serialization path,
 /// keeping the WASM layer to error mapping only.
 fn validate_calibration_json_inner(json: &str) -> Result<String, ExecuteError> {
-    validate::validate_calibration_json(json).map_err(ExecuteError::Envelope)
+    validate::validate_calibration_json(json).map_err(ExecuteError::from)
 }
 
 /// Validate a calibration plan JSON and return the canonical (pretty-printed) form.
@@ -152,13 +152,16 @@ fn envelope_error_to_js(err: &EnvelopeError) -> JsValue {
     )
 }
 
-/// Map an [`ExecuteError`] (returned by `engine::execute_with_diagnostics`)
-/// to a JS-side error, preserving the structured envelope payload when present.
+/// Map every execution stage to the same structured JavaScript error contract.
 fn execute_error_to_js(err: ExecuteError) -> JsValue {
-    match err {
-        ExecuteError::Envelope(env) => envelope_error_to_js(&env),
-        ExecuteError::Other(other) => to_js_err(other),
-    }
+    let details = err.details();
+    let cause_json = err.to_json();
+    structured_js_error(
+        "CalibrationEnvelopeError",
+        &details.cause,
+        details.step_id.as_deref(),
+        Some(&cause_json),
+    )
 }
 
 #[cfg(test)]
@@ -210,11 +213,10 @@ mod tests {
                 .expect_err("validation must reject undefined quote sets"),
             calibrate_inner(&json).expect_err("execution must reject undefined quote sets"),
         ] {
-            assert!(matches!(
-                error,
-                ExecuteError::Envelope(EnvelopeError::UndefinedQuoteSet { ref_name, .. })
-                    if ref_name == "missing_quotes"
-            ));
+            let details = error.details();
+            assert_eq!(details.stage.as_str(), "ingestion");
+            assert_eq!(details.category, "undefined_quote_set");
+            assert!(details.cause.contains("missing_quotes"));
         }
     }
 
@@ -257,35 +259,13 @@ mod tests {
 
     #[test]
     fn validate_calibration_json_inner_preserves_parse_diagnostic() {
-        // A malformed envelope must surface a structured `EnvelopeError`
-        // carrying the parse diagnostic — never a silently nulled error.
-        let err = validate_calibration_json_inner("{ not valid json")
+        let error = validate_calibration_json_inner("{ not valid json")
             .expect_err("malformed JSON must error");
-        let envelope = match err {
-            ExecuteError::Envelope(env) => env,
-            ExecuteError::Other(other) => panic!("expected envelope diagnostic, got: {other:?}"),
-        };
-        match &envelope {
-            EnvelopeError::JsonParse { message, line, col } => {
-                assert!(!message.is_empty(), "parse message must be populated");
-                assert!(
-                    line.is_some() && col.is_some(),
-                    "parse location must be set"
-                );
-            }
-            other => panic!("expected JsonParse diagnostic, got: {other:?}"),
-        }
-        // The serialized payload (what wasm clients see via `e.cause`) carries
-        // both the structured kind and the human-readable message.
-        let json = envelope.to_json();
-        assert!(
-            json.contains("json_parse") && json.contains("message"),
-            "diagnostic JSON should carry the structured parse error, got: {json}"
-        );
-        assert!(
-            !envelope.to_string().is_empty(),
-            "diagnostic Display text must not be empty"
-        );
+        let details = error.details();
+        assert_eq!(details.stage.as_str(), "ingestion");
+        assert_eq!(details.category, "strict_load");
+        assert!(!details.cause.is_empty());
+        assert!(error.to_json().contains("\"stage\": \"ingestion\""));
     }
 
     #[test]
@@ -303,31 +283,29 @@ mod tests {
             canonical, "{}",
             "canonical envelope JSON must not collapse to an empty object"
         );
-        // The canonical form must itself parse back into a `CalibrationEnvelope`.
-        let reparsed: CalibrationEnvelope =
-            serde_json::from_str(&canonical).expect("canonical JSON must round-trip");
+        let (reparsed, _report) = CalibrationEnvelope::from_slice_strict(
+            canonical.as_bytes(),
+            &finstack_quant_core::contract::LoadLimits::default(),
+        )
+        .expect("canonical JSON must round-trip strictly");
         assert_eq!(reparsed.schema, CalibrationSchema::Calibration);
     }
 
     #[test]
     fn calibrate_inner_preserves_malformed_envelope_diagnostic() {
-        // A malformed calibration envelope must yield an `ExecuteError` whose
-        // structured payload carries the diagnostic message, not an empty/null
-        // error.
-        let err =
+        let error =
             calibrate_inner("{ this is not valid json").expect_err("malformed envelope must error");
-        let envelope = match err {
-            ExecuteError::Envelope(env) => env,
-            ExecuteError::Other(other) => panic!("expected envelope diagnostic, got: {other:?}"),
-        };
-        let json = envelope.to_json();
+        let details = error.details();
+        let json = error.to_json();
+        assert_eq!(details.stage.as_str(), "ingestion");
+        assert_eq!(details.category, "strict_load");
         assert!(
-            json.contains("json_parse") && json.contains("message"),
-            "diagnostic JSON should carry the structured parse error, got: {json}"
+            json.contains("strict_load") && json.contains("cause"),
+            "diagnostic JSON should carry the structured load error, got: {json}"
         );
         assert!(
-            !envelope.to_string().is_empty(),
-            "diagnostic Display text must not be empty"
+            !details.cause.is_empty(),
+            "diagnostic cause must not be empty"
         );
     }
 }
