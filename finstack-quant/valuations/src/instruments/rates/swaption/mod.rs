@@ -101,6 +101,8 @@
 //! - [`crate::instruments::rates::swaption::SimpleSwaptionBlackPricer`] for Black model pricer
 //! - [`crate::instruments::rates::swaption::VolatilityModel`] for selecting Black vs Normal
 
+use finstack_quant_core::dates::Date;
+
 /// Bermudan swaption pricing orchestration.
 pub(crate) mod bermudan;
 /// Bermudan swaption pricer using Cheyette + rough stochastic volatility
@@ -138,6 +140,31 @@ pub use types::{
     SABRParameters, Swaption, SwaptionBuilder, SwaptionExercise, SwaptionSettlement,
     VolatilityModel,
 };
+
+/// Convert effective swap dates to the canonical market tenor coordinate.
+///
+/// Swaption cubes are rectangular grids labeled by contractual month/year
+/// tenors (for example, 2Y, 5Y, 10Y), not by day-count year fractions. Business
+/// day adjustment and settlement lag can shorten or lengthen the actual accrual
+/// interval by a few days without changing that market tenor label.
+pub(crate) fn contractual_swap_tenor_years(
+    start: Date,
+    end: Date,
+) -> finstack_quant_core::Result<f64> {
+    if end <= start {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "swaption underlying maturity {end} must be after effective start {start}"
+        )));
+    }
+    let months = (end.year() - start.year()) * 12 + i32::from(end.month() as u8)
+        - i32::from(start.month() as u8);
+    if months <= 0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "swaption underlying dates {start} to {end} do not define a positive monthly tenor"
+        )));
+    }
+    Ok(f64::from(months) / 12.0)
+}
 
 /// Build the HW1F surface-calibration input from the normalized fixed-leg tenor.
 ///

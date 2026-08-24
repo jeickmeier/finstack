@@ -161,13 +161,13 @@ def build_fixed_hazard_bond() -> dict[str, Any]:
         return bond.NPV()
 
     expected = {
-        "cs01": central_difference(lambda hazard: npv(curve_rate, hazard), hazard_rate),
+        "cs01_hazard": central_difference(lambda hazard: npv(curve_rate, hazard), hazard_rate),
         "dv01": central_difference(lambda discount: npv(discount, hazard_rate), curve_rate),
         "npv": npv(curve_rate, hazard_rate),
     }
     reason = (
-        "Independent zero-recovery credit-bond target: price within 0.002 per 100 and DV01/CS01 "
-        "within 0.1%; zero recovery removes recovery-payment timing differences."
+        "Independent zero-recovery credit-bond target: price within 0.002 per 100 and "
+        "DV01/direct hazard CS01 within 0.1%; zero recovery removes recovery-payment timing differences."
     )
     fixture["metadata"] = metadata(
         name="usd_fixed_5y_hazard_quantlib",
@@ -187,7 +187,7 @@ def build_fixed_hazard_bond() -> dict[str, Any]:
     fixture["tolerances"] = {
         "npv": tolerance(0.002, reason),
         "dv01": {"rel": 0.001, "tolerance_reason": reason},
-        "cs01": {"rel": 0.001, "tolerance_reason": reason},
+        "cs01_hazard": {"rel": 0.001, "tolerance_reason": reason},
     }
     return fixture
 
@@ -366,7 +366,7 @@ def build_floating_hazard_bond() -> dict[str, Any]:
     projection_rate = 0.043
     hazard_rate = 0.02
     expected = {
-        "cs01": central_difference(
+        "cs01_hazard": central_difference(
             lambda hazard: _quantlib_floating_bond_npv(discount_rate, projection_rate, hazard),
             hazard_rate,
         ),
@@ -378,7 +378,7 @@ def build_floating_hazard_bond() -> dict[str, Any]:
     }
     reason = (
         "Credit floater validation target: price within 0.01 per 100, parallel DV01 within "
-        "0.5%, and CS01 within 0.5%; zero recovery isolates survival weighting."
+        "0.5%, and direct hazard CS01 within 0.5%; zero recovery isolates survival weighting."
     )
     fixture["metadata"] = metadata(
         name="usd_floating_5y_hazard_quantlib",
@@ -393,7 +393,7 @@ def build_floating_hazard_bond() -> dict[str, Any]:
     fixture["tolerances"] = {
         "npv": tolerance(0.01, reason),
         "dv01": {"rel": 0.005, "tolerance_reason": reason},
-        "cs01": {"rel": 0.005, "tolerance_reason": reason},
+        "cs01_hazard": {"rel": 0.005, "tolerance_reason": reason},
     }
     return fixture
 

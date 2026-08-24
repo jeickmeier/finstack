@@ -36,10 +36,11 @@
 //! label (e.g. `bucketed_cs01::<curve>::0y`) for such curves; it is part of
 //! the decomposition, not an artefact.
 //!
-//! When par-spread points are unavailable (e.g. directly-specified hazard
-//! curves), the helpers fall back to a parallel 1 bp **hazard-rate** shift
-//! using the same symmetric central difference; this is exposed separately as
-//! `cs01_hazard` / `bucketed_cs01_hazard` to keep the two regimes auditable.
+//! Standard CS01 requires a lossless calibration recipe and rejects
+//! directly-specified or otherwise unreplayable hazard curves. Direct
+//! intensity sensitivity is available only through the explicitly named
+//! `cs01_hazard` / `bucketed_cs01_hazard` metrics, keeping spread and hazard
+//! risk distinct and auditable.
 //!
 //! # Units and Sign Convention
 //!
@@ -66,6 +67,7 @@ use crate::market::conventions::ids::CdsDocClause;
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::{MetricContext, MetricId};
 use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_core::market_data::term_structures::HazardCurve;
 use finstack_quant_core::math::NeumaierAccumulator;
 use finstack_quant_core::types::CurveId;
 use std::sync::Arc;
@@ -114,6 +116,71 @@ pub(crate) fn validate_buckets_strictly_increasing(
     Ok(())
 }
 
+/// Return each effective direct-hazard node once, in curve order.
+pub(crate) fn effective_hazard_node_times(hazard: &HazardCurve) -> Vec<f64> {
+    let mut nodes: Vec<f64> = hazard.knot_points().map(|(time, _)| time).collect();
+    nodes.dedup_by(|left, right| {
+        let scale = left.abs().max(right.abs()).max(1.0);
+        (*left - *right).abs() <= 1e-12 * scale
+    });
+    nodes
+}
+
+/// Format an actual hazard-node time without collapsing distinct nodes.
+pub(crate) fn format_hazard_node_label(years: f64) -> std::borrow::Cow<'static, str> {
+    if super::config::STANDARD_BUCKETS_YEARS
+        .iter()
+        .any(|standard| (years - standard).abs() <= 1e-12)
+    {
+        return super::config::format_bucket_label_cow(years);
+    }
+
+    let months = years * 12.0;
+    if years < 1.0 && (months - months.round()).abs() <= 1e-9 {
+        return std::borrow::Cow::Owned(format!("{:.0}m", months.round()));
+    }
+
+    let mut value = format!("{years:.10}");
+    while value.ends_with('0') {
+        value.pop();
+    }
+    if value.ends_with('.') {
+        value.pop();
+    }
+    std::borrow::Cow::Owned(format!("{value}y"))
+}
+
+/// Require a lossless calibration recipe for quote-space spread risk.
+pub(crate) fn require_hazard_replay(
+    hazard: &HazardCurve,
+    operation: &str,
+) -> finstack_quant_core::Result<()> {
+    if hazard.hazard_calibration().is_some() {
+        return Ok(());
+    }
+    Err(finstack_quant_core::Error::Calibration {
+        message: format!(
+            "{operation} requires a lossless calibration recipe for hazard curve '{}'; \
+             use the explicitly named hazard-shift metric for direct intensity risk",
+            hazard.id()
+        ),
+        category: "cs01_rebootstrap".to_string(),
+    })
+}
+
+fn require_cs01_discount_id<'a>(
+    discount_id: Option<&'a CurveId>,
+    hazard: &HazardCurve,
+) -> finstack_quant_core::Result<&'a CurveId> {
+    discount_id.ok_or_else(|| finstack_quant_core::Error::Calibration {
+        message: format!(
+            "quote-space CS01 requires the calibration discount curve for hazard curve '{}'",
+            hazard.id()
+        ),
+        category: "cs01_rebootstrap".to_string(),
+    })
+}
+
 /// Compute parallel CS01 by bumping par spreads and re-calibrating.
 ///
 /// Calculates credit spread sensitivity by shifting the par spreads in parallel
@@ -149,85 +216,47 @@ where
     let base_ctx = curves.as_ref();
     let hazard = base_ctx.get_hazard(hazard_id.as_str())?;
     let hazard_ref = hazard.as_ref();
-    let has_par_points = hazard_ref.hazard_calibration().is_some();
-
-    // If we have par spread points + a discount curve, CS01 is defined as the sensitivity
-    // to *market par spreads* under a re-bootstrapped hazard curve. In that regime, we
-    // must also compute the base PV under the unbumped (re-calibrated) curve; otherwise
-    // we introduce a large "base effect" when the in-context hazard curve was not itself
-    // calibrated from the stored par points.
-    // Central differencing does not need the base PV, but we still probe whether
-    // par-spread re-bootstrapping is available so both legs use the same methodology.
-    let used_rebootstrap = if discount_id.is_some() && has_par_points {
-        context
-            .bump_hazard_spreads_cached(
-                hazard_ref,
-                base_ctx,
-                &BumpRequest::Parallel(0.0),
-                discount_id,
-                doc_clause,
-                cds_valuation_convention,
-            )
-            .map_err(|e| finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "CS01 hazard curve re-calibration failed for '{}': {} \
-                 (cannot compute CS01 under market-standard par spread bump methodology)",
-                    hazard_id.as_str(),
-                    e
-                ),
-                category: "cs01_rebootstrap".to_string(),
-            })?;
-        true
-    } else {
-        false
-    };
+    require_hazard_replay(hazard_ref, "quote-space CS01")?;
+    let discount_id = require_cs01_discount_id(discount_id, hazard_ref)?;
 
     let bump_request_up = BumpRequest::Parallel(bump_bp);
     let bump_request_down = BumpRequest::Parallel(-bump_bp);
 
-    let bumped_hazard_up = if used_rebootstrap {
-        context
-            .bump_hazard_spreads_cached(
-                hazard_ref,
-                base_ctx,
-                &bump_request_up,
-                discount_id,
-                doc_clause,
-                cds_valuation_convention,
-            )
-            .map_err(|e| finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "CS01 up-bumped hazard curve re-calibration failed for '{}': {}",
-                    hazard_id.as_str(),
-                    e
-                ),
-                category: "cs01_rebootstrap".to_string(),
-            })?
-    } else {
-        Arc::new(bump_hazard_shift(hazard_ref, &bump_request_up)?)
-    };
+    let bumped_hazard_up = context
+        .bump_hazard_spreads_cached(
+            hazard_ref,
+            base_ctx,
+            &bump_request_up,
+            Some(discount_id),
+            doc_clause,
+            cds_valuation_convention,
+        )
+        .map_err(|e| finstack_quant_core::Error::Calibration {
+            message: format!(
+                "CS01 up-bumped hazard curve re-calibration failed for '{}': {}",
+                hazard_id.as_str(),
+                e
+            ),
+            category: "cs01_rebootstrap".to_string(),
+        })?;
 
-    let bumped_hazard_down = if used_rebootstrap {
-        context
-            .bump_hazard_spreads_cached(
-                hazard_ref,
-                base_ctx,
-                &bump_request_down,
-                discount_id,
-                doc_clause,
-                cds_valuation_convention,
-            )
-            .map_err(|e| finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "CS01 down-bumped hazard curve re-calibration failed for '{}': {}",
-                    hazard_id.as_str(),
-                    e
-                ),
-                category: "cs01_rebootstrap".to_string(),
-            })?
-    } else {
-        Arc::new(bump_hazard_shift(hazard_ref, &bump_request_down)?)
-    };
+    let bumped_hazard_down = context
+        .bump_hazard_spreads_cached(
+            hazard_ref,
+            base_ctx,
+            &bump_request_down,
+            Some(discount_id),
+            doc_clause,
+            cds_valuation_convention,
+        )
+        .map_err(|e| finstack_quant_core::Error::Calibration {
+            message: format!(
+                "CS01 down-bumped hazard curve re-calibration failed for '{}': {}",
+                hazard_id.as_str(),
+                e
+            ),
+            category: "cs01_rebootstrap".to_string(),
+        })?;
 
     let (pv_bumped_up, pv_bumped_down) = context.with_market_scratch(|_, scratch| {
         scratch.insert_mut(bumped_hazard_up);
@@ -250,8 +279,8 @@ where
 
 /// Compute key-rate CS01 series by bumping par spreads at specific tenors.
 ///
-/// - `bucket_times_years` are maturities in years (e.g., 0.25, 0.5, 1.0, ...)
-/// - For bootstrapped curves, bumps the par quote corresponding to the bucket.
+/// - Buckets are the exact ordered `spread_risk_inputs` replay bindings.
+/// - Each bucket bumps one atomic replay quote by identity, never by tenor proximity.
 /// - `bump_bp` is the bump size in basis points (typically 1.0 for CS01)
 ///
 /// # Errors
@@ -259,28 +288,25 @@ where
 /// Returns an error if hazard curve re-calibration fails. This ensures that CS01
 /// is computed under a consistent definition rather than silently falling back.
 /// Inputs that define the key-rate CS01 bump grid and CDS bootstrap convention.
-pub(crate) struct KeyRateCs01Request<I> {
+pub(crate) struct KeyRateCs01Request {
     pub(crate) series_id: MetricId,
-    pub(crate) bucket_times_years: I,
     pub(crate) bump_bp: f64,
     pub(crate) doc_clause: Option<CdsDocClause>,
     pub(crate) cds_valuation_convention: Option<CdsValuationConvention>,
 }
 
-pub(crate) fn compute_key_rate_cs01_series_with_context_raw<I, RevalFn>(
+pub(crate) fn compute_key_rate_cs01_series_with_context_raw<RevalFn>(
     context: &mut MetricContext,
     hazard_id: &CurveId,
     discount_id: Option<&CurveId>,
-    request: KeyRateCs01Request<I>,
+    request: KeyRateCs01Request,
     mut revalue_raw: RevalFn,
 ) -> finstack_quant_core::Result<f64>
 where
-    I: IntoIterator<Item = f64>,
     RevalFn: FnMut(&MarketContext) -> finstack_quant_core::Result<f64>,
 {
     let KeyRateCs01Request {
         series_id,
-        bucket_times_years,
         bump_bp,
         doc_clause,
         cds_valuation_convention,
@@ -289,108 +315,66 @@ where
     let base_ctx = curves.as_ref();
     let hazard = base_ctx.get_hazard(hazard_id.as_str())?;
     let hazard_ref = hazard.as_ref();
-    let has_par_points = hazard_ref.hazard_calibration().is_some();
-
-    // Align the bucket grid with the hazard-curve knots so the sum of key-rate
-    // CS01s reconciles to the parallel CS01.
-    //
-    // Under the piecewise-constant hazard convention the knot at `t_i` controls
-    // the forward segment `[t_i, t_{i+1})`; in particular a *zero anchor* knot
-    // (`t = 0`) governs `[0, first_positive_knot)`. The standard bucket grid
-    // typically starts at the first positive tenor (e.g. `0.25`), so without
-    // explicitly including the zero anchor that leading segment's sensitivity
-    // is silently dropped from the bucketed decomposition. Prepending a
-    // synthetic `0.0` bucket when (and only when) the hazard curve actually
-    // carries a zero-anchor knot restores the invariant
-    // `sum(bucketed_cs01) ≈ parallel_cs01` without affecting curves that are
-    // natively supported by the grid.
-    let mut buckets: Vec<f64> = bucket_times_years.into_iter().collect();
-    let has_zero_anchor = hazard_ref
-        .knot_points()
-        .next()
-        .is_some_and(|(t, _)| t.abs() <= 1e-9);
-    if has_zero_anchor && !buckets.iter().any(|t| t.abs() <= 1e-9) {
-        buckets.insert(0, 0.0);
-    }
-    // Validate after optional zero-anchor insertion.
-    validate_buckets_strictly_increasing(&buckets)?;
-
-    // Central differencing does not need the base PV, but we still probe whether
-    // par-spread re-bootstrapping is available so all buckets use the same methodology.
-    let used_rebootstrap = if discount_id.is_some() && has_par_points {
-        context
-            .bump_hazard_spreads_cached(
-                hazard_ref,
-                base_ctx,
-                &BumpRequest::Parallel(0.0),
-                discount_id,
-                doc_clause,
-                cds_valuation_convention,
-            )
-            .map_err(|e| finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "CS01 hazard curve re-calibration failed for '{}': {}",
-                    hazard_id.as_str(),
-                    e
-                ),
-                category: "cs01_rebootstrap".to_string(),
-            })?;
-        true
-    } else {
-        false
-    };
+    require_hazard_replay(hazard_ref, "quote-space bucketed CS01")?;
+    let discount_id = require_cs01_discount_id(discount_id, hazard_ref)?;
+    let buckets = crate::calibration::bumps::hazard::hazard_spread_risk_buckets(hazard_ref)?;
+    let base_labels: Vec<_> = buckets
+        .iter()
+        .map(|bucket| super::config::format_bucket_label_cow(bucket.pillar_time))
+        .collect();
 
     let (series, total) = context.with_market_scratch(|context, scratch| {
         let mut series: Vec<(std::borrow::Cow<'static, str>, f64)> = Vec::new();
         let mut total_acc = NeumaierAccumulator::new();
 
-        for t in buckets {
-            let label = super::config::format_bucket_label_cow(t);
-
-            let bump_request_up = BumpRequest::Tenors(vec![(t, bump_bp)]);
-            let bump_request_down = BumpRequest::Tenors(vec![(t, -bump_bp)]);
-
-            let bumped_hazard_up = if used_rebootstrap {
-                context
-                    .bump_hazard_spreads_cached(
-                        hazard_ref,
-                        base_ctx,
-                        &bump_request_up,
-                        discount_id,
-                        doc_clause,
-                        cds_valuation_convention,
-                    )
-                    .map_err(|e| finstack_quant_core::Error::Calibration {
-                        message: format!(
-                            "CS01 bucket '{}' up-bump hazard re-calibration failed: {}",
-                            label, e
-                        ),
-                        category: "cs01_rebootstrap".to_string(),
-                    })?
+        for (bucket, base_label) in buckets.iter().zip(&base_labels) {
+            let duplicate_label = base_labels
+                .iter()
+                .filter(|candidate| candidate.as_ref() == base_label.as_ref())
+                .count()
+                > 1;
+            let label = if duplicate_label {
+                std::borrow::Cow::Owned(format!(
+                    "{}@{}@{}",
+                    base_label, bucket.pillar_date, bucket.quote_id
+                ))
             } else {
-                Arc::new(bump_hazard_shift(hazard_ref, &bump_request_up)?)
+                base_label.clone()
             };
 
-            let bumped_hazard_down = if used_rebootstrap {
-                context
-                    .bump_hazard_spreads_cached(
-                        hazard_ref,
-                        base_ctx,
-                        &bump_request_down,
-                        discount_id,
-                        doc_clause,
-                        cds_valuation_convention,
-                    )
-                    .map_err(|e| finstack_quant_core::Error::Calibration {
-                        message: format!(
-                            "CS01 bucket '{}' down-bump hazard re-calibration failed: {}",
-                            label, e
-                        ),
-                        category: "cs01_rebootstrap".to_string(),
-                    })?
-            } else {
-                Arc::new(bump_hazard_shift(hazard_ref, &bump_request_down)?)
-            };
+            let bumped_hazard_up = context
+                .bump_hazard_spread_risk_input_cached(
+                    hazard_ref,
+                    base_ctx,
+                    (bucket.index, bump_bp),
+                    Some(discount_id),
+                    doc_clause,
+                    cds_valuation_convention,
+                )
+                .map_err(|e| finstack_quant_core::Error::Calibration {
+                    message: format!(
+                        "CS01 bucket '{}' up-bump hazard re-calibration failed: {}",
+                        label, e
+                    ),
+                    category: "cs01_rebootstrap".to_string(),
+                })?;
+
+            let bumped_hazard_down = context
+                .bump_hazard_spread_risk_input_cached(
+                    hazard_ref,
+                    base_ctx,
+                    (bucket.index, -bump_bp),
+                    Some(discount_id),
+                    doc_clause,
+                    cds_valuation_convention,
+                )
+                .map_err(|e| finstack_quant_core::Error::Calibration {
+                    message: format!(
+                        "CS01 bucket '{}' down-bump hazard re-calibration failed: {}",
+                        label, e
+                    ),
+                    category: "cs01_rebootstrap".to_string(),
+                })?;
 
             scratch.insert_mut(bumped_hazard_up);
             let pv_bumped_up = revalue_raw(scratch)?;
@@ -554,7 +538,6 @@ where
 
         let defaults =
             sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
-        let buckets = defaults.cs01_buckets_years;
         let bump_bp = defaults.credit_spread_bump_bp;
 
         let reval = cs01_reval(context);
@@ -567,7 +550,6 @@ where
             discount_id.as_ref(),
             KeyRateCs01Request {
                 series_id,
-                bucket_times_years: buckets,
                 bump_bp,
                 doc_clause: None,
                 cds_valuation_convention: None,
@@ -708,14 +690,14 @@ where
 
         let defaults =
             sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
-        let buckets = defaults.cs01_buckets_years;
         let bump_bp = defaults.credit_spread_bump_bp;
-        validate_buckets_strictly_increasing(&buckets)?;
 
         let curves = Arc::clone(&context.curves);
         let base_ctx = curves.as_ref();
         let hazard = base_ctx.get_hazard(hazard_id.as_str())?;
         let hazard_ref = hazard.as_ref();
+        let node_times = effective_hazard_node_times(hazard_ref);
+        let single_node = node_times.len() == 1;
 
         let as_of = context.as_of;
 
@@ -723,13 +705,21 @@ where
             let mut series: Vec<(std::borrow::Cow<'static, str>, f64)> = Vec::new();
             let mut total_acc = NeumaierAccumulator::new();
 
-            for t in buckets {
-                let label = super::config::format_bucket_label_cow(t);
+            for t in node_times {
+                let label = format_hazard_node_label(t);
 
-                let bumped_up =
-                    bump_hazard_shift(hazard_ref, &BumpRequest::Tenors(vec![(t, bump_bp)]))?;
-                let bumped_down =
-                    bump_hazard_shift(hazard_ref, &BumpRequest::Tenors(vec![(t, -bump_bp)]))?;
+                let request_up = if single_node {
+                    BumpRequest::Parallel(bump_bp)
+                } else {
+                    BumpRequest::Tenors(vec![(t, bump_bp)])
+                };
+                let request_down = if single_node {
+                    BumpRequest::Parallel(-bump_bp)
+                } else {
+                    BumpRequest::Tenors(vec![(t, -bump_bp)])
+                };
+                let bumped_up = bump_hazard_shift(hazard_ref, &request_up)?;
+                let bumped_down = bump_hazard_shift(hazard_ref, &request_down)?;
 
                 scratch.insert_mut(bumped_up);
                 let pv_up = ctx.reprice_raw(scratch, as_of)?;
@@ -807,8 +797,74 @@ pub(crate) trait CdsCs01Conventions {
     }
 }
 
+/// Resolved CDS spread-risk inputs shared by CS01 and CS-Gamma.
+pub(crate) struct PreparedCdsRiskContext {
+    pub(crate) hazard_id: CurveId,
+    pub(crate) discount_id: CurveId,
+    pub(crate) doc_clause: CdsDocClause,
+    pub(crate) valuation_convention: CdsValuationConvention,
+}
+
+/// Resolve CDS spread-risk inputs, apply any deal-quote market override, run
+/// the calculation, and restore the original market on both success and error.
+pub(crate) fn with_prepared_cds_risk_context<I>(
+    context: &mut MetricContext,
+    missing_credit_curve_value: Option<f64>,
+    operation: &str,
+    calculate: impl FnOnce(
+        &mut MetricContext,
+        &PreparedCdsRiskContext,
+    ) -> finstack_quant_core::Result<f64>,
+) -> finstack_quant_core::Result<f64>
+where
+    I: Instrument + CdsCs01Conventions + 'static,
+{
+    let instrument: &I = context.instrument_as()?;
+    let Some((hazard_id, discount_id)) =
+        resolve_optional_cs01_curves(instrument, missing_credit_curve_value.is_some(), operation)?
+    else {
+        return Ok(missing_credit_curve_value.unwrap_or(0.0));
+    };
+
+    if let Some(value) = context
+        .instrument_as::<I>()?
+        .cs01_precheck(context, &hazard_id)?
+    {
+        return Ok(value);
+    }
+
+    let discount_id = discount_id.ok_or_else(|| finstack_quant_core::Error::Calibration {
+        message: format!(
+            "{operation} requires the calibration discount curve for hazard curve '{}'",
+            hazard_id.as_str()
+        ),
+        category: "cs01_rebootstrap".to_string(),
+    })?;
+    let (doc_clause, valuation_convention) = context
+        .instrument_as::<I>()?
+        .cs01_bootstrap_convention(context.as_of)?;
+    let original_curves = Arc::clone(&context.curves);
+    if let Some(override_ctx) = context.instrument_as::<I>()?.cs01_curve_override(
+        original_curves.as_ref(),
+        &hazard_id,
+        context.as_of,
+    )? {
+        context.set_market(Arc::new(override_ctx));
+    }
+
+    let prepared = PreparedCdsRiskContext {
+        hazard_id,
+        discount_id,
+        doc_clause,
+        valuation_convention,
+    };
+    let result = calculate(context, &prepared);
+    context.set_market(original_curves);
+    result
+}
+
 /// Build the reval closure used by CS01 calculators.
-fn cs01_reval(
+pub(crate) fn cs01_reval(
     context: &MetricContext,
 ) -> impl FnMut(&MarketContext) -> finstack_quant_core::Result<f64> {
     let inst_arc = Arc::clone(&context.instrument);
@@ -845,67 +901,28 @@ where
     I: Instrument + CdsCs01Conventions + 'static,
 {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
-        let instrument: &I = context.instrument_as()?;
-        let hazard_id = match resolve_cs01_curves(instrument)? {
-            Cs01Curves::Resolved(hazard_id, _discount_id) => hazard_id,
-            Cs01Curves::NoCreditCurve => {
-                return Err(missing_credit_curve_error(instrument, "CS01"))
-            }
-        };
-
-        // Re-borrow per step to keep the instrument borrow short-lived.
-        if let Some(v) = context
-            .instrument_as::<I>()?
-            .cs01_precheck(context, &hazard_id)?
-        {
-            return Ok(v);
-        }
-
-        let (doc_clause, valuation_convention) = context
-            .instrument_as::<I>()?
-            .cs01_bootstrap_convention(context.as_of)?;
-        let original_curves = Arc::clone(&context.curves);
-        if let Some(override_ctx) = context.instrument_as::<I>()?.cs01_curve_override(
-            original_curves.as_ref(),
-            &hazard_id,
-            context.as_of,
-        )? {
-            context.set_market(Arc::new(override_ctx));
-        }
-
-        // Resolve the discount curve from whatever context is now active.
-        let discount_id = context
-            .instrument_as::<I>()?
-            .market_dependencies()?
-            .curves
-            .discount_curves
-            .first()
-            .cloned();
-
-        let bump_bp =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?
-                .credit_spread_bump_bp;
-
-        let reval = cs01_reval(context);
-
-        let cs01_result = compute_parallel_cs01_with_context_raw(
-            context,
-            &hazard_id,
-            discount_id.as_ref(),
-            bump_bp,
-            Some(doc_clause),
-            Some(valuation_convention),
-            reval,
-        );
-        context.set_market(original_curves);
-        let cs01 = cs01_result?;
-
-        context.computed.insert(
-            MetricId::custom(format!("cs01::{}", hazard_id.as_str())),
-            cs01,
-        );
-
-        Ok(cs01)
+        with_prepared_cds_risk_context::<I>(context, None, "CS01", |context, prepared| {
+            let bump_bp = sens_config::from_context_or_default(
+                context.config(),
+                context.get_metric_overrides(),
+            )?
+            .credit_spread_bump_bp;
+            let reval = cs01_reval(context);
+            let cs01 = compute_parallel_cs01_with_context_raw(
+                context,
+                &prepared.hazard_id,
+                Some(&prepared.discount_id),
+                bump_bp,
+                Some(prepared.doc_clause),
+                Some(prepared.valuation_convention),
+                reval,
+            )?;
+            context.computed.insert(
+                MetricId::custom(format!("cs01::{}", prepared.hazard_id.as_str())),
+                cs01,
+            );
+            Ok(cs01)
+        })
     }
 }
 
@@ -930,95 +947,59 @@ where
     I: Instrument + CdsCs01Conventions + 'static,
 {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
-        let instrument: &I = context.instrument_as()?;
-        let hazard_id = match resolve_cs01_curves(instrument)? {
-            Cs01Curves::Resolved(hazard_id, _discount_id) => hazard_id,
-            Cs01Curves::NoCreditCurve => {
-                return Err(missing_credit_curve_error(instrument, "bucketed CS01"))
+        with_prepared_cds_risk_context::<I>(context, None, "bucketed CS01", |context, prepared| {
+            let defaults = sens_config::from_context_or_default(
+                context.config(),
+                context.get_metric_overrides(),
+            )?;
+            let bump_bp = defaults.credit_spread_bump_bp;
+            let series_id =
+                MetricId::custom(format!("bucketed_cs01::{}", prepared.hazard_id.as_str()));
+            let cds_cache = match context.instrument_as::<
+                    crate::instruments::credit_derivatives::cds::CreditDefaultSwap,
+                >() {
+                    Ok(cds) => Some(
+                        crate::instruments::credit_derivatives::cds::pricer::CdsHazardRepriceCache::try_new(
+                            cds,
+                            context.curves.as_ref(),
+                            context.as_of,
+                        )?,
+                    ),
+                    Err(_) => None,
+                };
+            if let Some(cache) = cds_cache {
+                let hazard_key = prepared.hazard_id.clone();
+                compute_key_rate_cs01_series_with_context_raw(
+                    context,
+                    &prepared.hazard_id,
+                    Some(&prepared.discount_id),
+                    KeyRateCs01Request {
+                        series_id,
+                        bump_bp,
+                        doc_clause: Some(prepared.doc_clause),
+                        cds_valuation_convention: Some(prepared.valuation_convention),
+                    },
+                    move |temp_ctx: &MarketContext| {
+                        let surv = temp_ctx.get_hazard(hazard_key.as_str())?;
+                        cache.npv(surv.as_ref())
+                    },
+                )
+            } else {
+                let reval = cs01_reval(context);
+                compute_key_rate_cs01_series_with_context_raw(
+                    context,
+                    &prepared.hazard_id,
+                    Some(&prepared.discount_id),
+                    KeyRateCs01Request {
+                        series_id,
+                        bump_bp,
+                        doc_clause: Some(prepared.doc_clause),
+                        cds_valuation_convention: Some(prepared.valuation_convention),
+                    },
+                    reval,
+                )
             }
-        };
-
-        if let Some(v) = context
-            .instrument_as::<I>()?
-            .cs01_precheck(context, &hazard_id)?
-        {
-            return Ok(v);
-        }
-
-        let (doc_clause, valuation_convention) = context
-            .instrument_as::<I>()?
-            .cs01_bootstrap_convention(context.as_of)?;
-        let original_curves = Arc::clone(&context.curves);
-        if let Some(override_ctx) = context.instrument_as::<I>()?.cs01_curve_override(
-            original_curves.as_ref(),
-            &hazard_id,
-            context.as_of,
-        )? {
-            context.set_market(Arc::new(override_ctx));
-        }
-
-        let discount_id = context
-            .instrument_as::<I>()?
-            .market_dependencies()?
-            .curves
-            .discount_curves
-            .first()
-            .cloned();
-
-        let defaults =
-            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
-        let buckets = defaults.cs01_buckets_years;
-        let bump_bp = defaults.credit_spread_bump_bp;
-
-        let series_id = MetricId::custom(format!("bucketed_cs01::{}", hazard_id.as_str()));
-        let cds_cache = match context
-            .instrument_as::<crate::instruments::credit_derivatives::cds::CreditDefaultSwap>()
-        {
-            Ok(cds) => Some(
-                crate::instruments::credit_derivatives::cds::pricer::CdsHazardRepriceCache::try_new(
-                    cds,
-                    context.curves.as_ref(),
-                    context.as_of,
-                )?,
-            ),
-            Err(_) => None,
-        };
-        let bucketed_result = if let Some(cache) = cds_cache {
-            let hazard_key = hazard_id.clone();
-            compute_key_rate_cs01_series_with_context_raw(
-                context,
-                &hazard_id,
-                discount_id.as_ref(),
-                KeyRateCs01Request {
-                    series_id,
-                    bucket_times_years: buckets,
-                    bump_bp,
-                    doc_clause: Some(doc_clause),
-                    cds_valuation_convention: Some(valuation_convention),
-                },
-                move |temp_ctx: &MarketContext| {
-                    let surv = temp_ctx.get_hazard(hazard_key.as_str())?;
-                    cache.npv(surv.as_ref())
-                },
-            )
-        } else {
-            let reval = cs01_reval(context);
-            compute_key_rate_cs01_series_with_context_raw(
-                context,
-                &hazard_id,
-                discount_id.as_ref(),
-                KeyRateCs01Request {
-                    series_id,
-                    bucket_times_years: buckets,
-                    bump_bp,
-                    doc_clause: Some(doc_clause),
-                    cds_valuation_convention: Some(valuation_convention),
-                },
-                reval,
-            )
-        };
-        context.set_market(original_curves);
-        bucketed_result
+        })
     }
 }
 

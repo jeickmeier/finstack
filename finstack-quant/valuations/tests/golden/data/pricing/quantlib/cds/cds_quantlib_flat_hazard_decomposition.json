@@ -1,6 +1,6 @@
 {
   "expected": {
-    "cs01": 2811.5386566023517,
+    "cs01_hazard": 2811.5386566023517,
     "dv01": 52.99810024019098,
     "npv": -198586.76210266817,
     "par_spread": 58.19641516560695,
@@ -10,7 +10,6 @@
     "risky_pv01": 4744.408070298757
   },
   "instrument": {
-    "schema": "finstack_quant.instrument/1",
     "instrument": {
       "spec": {
         "attributes": {
@@ -65,7 +64,8 @@
         "valuation_convention": "quant_lib_isda_parity"
       },
       "type": "credit_default_swap"
-    }
+    },
+    "schema": "finstack_quant.instrument/1"
   },
   "kind": "pricing",
   "market": {
@@ -110,8 +110,10 @@
         {
           "allow_non_monotonic": false,
           "base": "2026-01-05",
+          "calibration_ois_cutoff_days": null,
           "day_count": "act_365f",
           "extrapolation": "flat_forward",
+          "fx_policy": null,
           "id": "USD-FLAT-2PCT",
           "interp_style": "log_linear",
           "kind": "discount_curve",
@@ -127,9 +129,7 @@
           ],
           "min_forward_rate": null,
           "min_forward_tenor": 1e-06,
-          "rate_calibration": null,
-          "calibration_ois_cutoff_days": null,
-          "fx_policy": null
+          "rate_calibration": null
         }
       ],
       "schema": "finstack_quant.calibration/1"
@@ -154,7 +154,7 @@
   "model": "hazard_rate",
   "schema": "finstack_quant.golden/1",
   "tolerances": {
-    "cs01": {
+    "cs01_hazard": {
       "abs": 1.0,
       "tolerance_reason": "QuantLib central finite difference under a direct 1bp hazard-rate bump."
     },

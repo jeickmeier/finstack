@@ -316,7 +316,7 @@ policy.
 ```bash
 cargo nextest run -p finstack-quant-statements --lib --test '*'
 cargo test -p finstack-quant-statements --doc
-cargo clippy -p finstack-quant-statements --all-targets -- -D warnings
+cargo clippy -p finstack-quant-statements --lib --bins --tests --examples -- -D warnings
 RUSTDOCFLAGS='-D warnings' cargo doc -p finstack-quant-statements --no-deps
 ```
 

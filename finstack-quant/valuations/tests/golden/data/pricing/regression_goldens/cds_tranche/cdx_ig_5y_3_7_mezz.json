@@ -281,7 +281,7 @@
     "par_spread": 547.116731873908,
     "spread_dv01": -4140.909870544099,
     "dv01": -580.285728658782,
-    "cs01": 15759.680321152089
+    "cs01_hazard": 15759.680321152089
   },
   "tolerances": {
     "npv": {
@@ -304,7 +304,7 @@
       "rel": 5e-09,
       "tolerance_reason": "Formula self-test: tolerance pinned to ~10x the worst observed deterministic FP residual (1.16e-10 abs / 2.8e-11 rel) for canonical pricing on synthetic inputs. Tightening from 1e-6 to 1e-9 catches drift introduced by refactors, FP-contract changes, or algorithm swaps that would otherwise be invisible at the looser band."
     },
-    "cs01": {
+    "cs01_hazard": {
       "abs": 1e-09,
       "rel": 5e-09,
       "tolerance_reason": "Formula self-test: tolerance pinned to ~10x the worst observed deterministic FP residual (1.16e-10 abs / 2.8e-11 rel) for canonical pricing on synthetic inputs. Tightening from 1e-6 to 1e-9 catches drift introduced by refactors, FP-contract changes, or algorithm swaps that would otherwise be invisible at the looser band."

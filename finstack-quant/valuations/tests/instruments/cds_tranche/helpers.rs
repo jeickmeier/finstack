@@ -95,6 +95,33 @@ pub fn standard_market_context() -> MarketContext {
         .insert_credit_index("CDX.NA.IG.42", standard_credit_index())
 }
 
+/// Create a market whose index hazard curve carries a lossless replay recipe.
+pub fn replayable_market_context() -> MarketContext {
+    let discount = standard_discount_curve();
+    let correlation = standard_correlation_curve();
+    let source = MarketContext::new()
+        .insert(discount)
+        .insert(correlation.clone());
+    let hazard = crate::test_support::credit::calibrated_hazard_curve(
+        &source,
+        base_date(),
+        "CDX.NA.IG.42",
+        "CDX.NA.IG.42",
+        "USD-OIS",
+    )
+    .expect("index hazard calibration should succeed");
+    let index = CreditIndexData::builder()
+        .num_constituents(125)
+        .recovery_rate(0.40)
+        .index_credit_curve(Arc::new(hazard.clone()))
+        .base_correlation_curve(Arc::new(correlation))
+        .build()
+        .expect("replayable credit index");
+    source
+        .insert(hazard)
+        .insert_credit_index("CDX.NA.IG.42", index)
+}
+
 /// Create a market context with heterogeneous issuer curves
 pub fn market_context_with_issuers(n: usize) -> MarketContext {
     let discount_curve = DiscountCurve::builder("USD-OIS")

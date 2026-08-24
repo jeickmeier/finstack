@@ -348,7 +348,7 @@ pub(super) fn compute_swap_annuity_and_rate_inner(
             .map(|(payment_time, accrual)| accrual * df(*payment_time))
             .sum();
         let fwd_rate = if annuity > 1e-15 {
-            (df(t0) - df(schedule.maturity_time)) / annuity
+            (df(schedule.swap_start_time) - df(schedule.maturity_time)) / annuity
         } else {
             0.0
         };
@@ -381,8 +381,10 @@ pub(super) fn valid_swap_schedule(
     schedule.filter(|schedule| {
         !schedule.payment_times.is_empty()
             && schedule.payment_times.len() == schedule.accruals.len()
+            && schedule.swap_start_time.is_finite()
             && schedule.maturity_time.is_finite()
-            && schedule.maturity_time > expiry
+            && schedule.swap_start_time >= expiry
+            && schedule.maturity_time > schedule.swap_start_time
             && schedule
                 .accruals
                 .iter()
@@ -390,7 +392,11 @@ pub(super) fn valid_swap_schedule(
             && schedule
                 .payment_times
                 .iter()
-                .all(|time| time.is_finite() && *time > expiry)
+                .all(|time| time.is_finite() && *time > schedule.swap_start_time)
+            && schedule
+                .payment_times
+                .last()
+                .is_some_and(|time| *time >= schedule.maturity_time)
             && schedule
                 .payment_times
                 .windows(2)
@@ -505,6 +511,55 @@ pub(super) struct Hw1fSwaptionPriceInput<'a> {
     pub(super) schedule: Option<&'a SwaptionSchedule>,
 }
 
+fn build_swaption_cashflows(
+    swap_rate: f64,
+    t0: f64,
+    tenor: f64,
+    periods_per_year: usize,
+    schedule: Option<&SwaptionSchedule>,
+) -> Vec<(f64, f64)> {
+    let n_periods = schedule.map_or_else(
+        || (tenor * periods_per_year as f64).round().max(1.0) as usize,
+        |schedule| schedule.accruals.len(),
+    );
+    let mut cashflows = Vec::with_capacity(n_periods + 1);
+    if let Some(schedule) = schedule {
+        cashflows.extend(
+            schedule
+                .payment_times
+                .iter()
+                .zip(&schedule.accruals)
+                .map(|(&payment_time, &accrual)| (payment_time, swap_rate * accrual)),
+        );
+        cashflows.push((schedule.maturity_time, 1.0));
+    } else {
+        let dt = tenor / n_periods as f64;
+        let maturity_time = t0 + tenor;
+        for index in 1..=n_periods {
+            let payment_time = if index == n_periods {
+                maturity_time
+            } else {
+                t0 + index as f64 * dt
+            };
+            cashflows.push((payment_time, swap_rate * dt));
+        }
+        cashflows.push((maturity_time, 1.0));
+    }
+
+    cashflows.sort_by(|left, right| left.0.total_cmp(&right.0));
+    let mut aggregated: Vec<(f64, f64)> = Vec::with_capacity(cashflows.len());
+    for (time, amount) in cashflows {
+        if let Some(last) = aggregated.last_mut() {
+            if last.0.to_bits() == time.to_bits() {
+                last.1 += amount;
+                continue;
+            }
+        }
+        aggregated.push((time, amount));
+    }
+    aggregated
+}
+
 pub(super) fn hw1f_swaption_price_inner(
     Hw1fSwaptionPriceInput {
         kappa,
@@ -518,37 +573,11 @@ pub(super) fn hw1f_swaption_price_inner(
     }: Hw1fSwaptionPriceInput<'_>,
 ) -> f64 {
     let schedule = valid_swap_schedule(schedule, t0);
-    let n_periods = schedule.map_or_else(
-        || (tenor * periods_per_year as f64).round().max(1.0) as usize,
-        |schedule| schedule.accruals.len(),
-    );
-
-    // Payment dates and cashflows
-    let mut payment_times = Vec::with_capacity(n_periods);
-    let mut cashflows = Vec::with_capacity(n_periods);
-    if let Some(schedule) = schedule {
-        payment_times.extend_from_slice(&schedule.payment_times);
-        for (index, &tau) in schedule.accruals.iter().enumerate() {
-            let cashflow = if index + 1 < n_periods {
-                swap_rate * tau
-            } else {
-                1.0 + swap_rate * tau
-            };
-            cashflows.push(cashflow);
-        }
-    } else {
-        let dt = tenor / n_periods as f64;
-        for i in 1..=n_periods {
-            let t_i = t0 + i as f64 * dt;
-            payment_times.push(t_i);
-            let cf = if i < n_periods {
-                swap_rate * dt
-            } else {
-                1.0 + swap_rate * dt
-            };
-            cashflows.push(cf);
-        }
-    }
+    let swap_start_time = schedule.map_or(t0, |schedule| schedule.swap_start_time);
+    let cashflow_entries =
+        build_swaption_cashflows(swap_rate, t0, tenor, periods_per_year, schedule);
+    let n_cashflows = cashflow_entries.len();
+    let (payment_times, cashflows): (Vec<_>, Vec<_>) = cashflow_entries.into_iter().unzip();
 
     // Pre-compute B and ln A for each payment date
     let b_vals: Vec<f64> = payment_times
@@ -559,22 +588,26 @@ pub(super) fn hw1f_swaption_price_inner(
         .iter()
         .map(|&t_i| hw_ln_a(kappa, sigma, t0, t_i, df))
         .collect();
+    let b_start = hw_b(kappa, t0, swap_start_time);
+    let ln_a_start = hw_ln_a(kappa, sigma, t0, swap_start_time, df);
 
-    // Find r* such that Σ c_i × A_i × exp(−B_i × r*) = 1
-    // g(r) = Σ c_i exp(ln_A_i − B_i r) − 1
-    // g'(r) = −Σ c_i B_i exp(ln_A_i − B_i r)
+    // Find r* such that the fixed-bond value equals the forward-start bond:
+    // Σ c_i P(T₀,T_i;r*) / P(T₀,T_start;r*) = 1.
     let g = |r: f64| -> f64 {
         let mut sum = 0.0;
-        for i in 0..n_periods {
-            sum += cashflows[i] * (ln_a_vals[i] - b_vals[i] * r).exp();
+        for i in 0..n_cashflows {
+            let log_ratio = ln_a_vals[i] - ln_a_start - (b_vals[i] - b_start) * r;
+            sum += cashflows[i] * log_ratio.exp();
         }
         sum - 1.0
     };
 
     let g_prime = |r: f64| -> f64 {
         let mut sum = 0.0;
-        for i in 0..n_periods {
-            sum -= cashflows[i] * b_vals[i] * (ln_a_vals[i] - b_vals[i] * r).exp();
+        for i in 0..n_cashflows {
+            let b_ratio = b_vals[i] - b_start;
+            let log_ratio = ln_a_vals[i] - ln_a_start - b_ratio * r;
+            sum -= cashflows[i] * b_ratio * log_ratio.exp();
         }
         sum
     };
@@ -585,8 +618,10 @@ pub(super) fn hw1f_swaption_price_inner(
     // (rather than a fixed absolute floor) detects a numerically near-flat objective.
     let g_prime_scale = |r: f64| -> f64 {
         let mut sum = 0.0;
-        for i in 0..n_periods {
-            sum += (cashflows[i] * b_vals[i] * (ln_a_vals[i] - b_vals[i] * r).exp()).abs();
+        for i in 0..n_cashflows {
+            let b_ratio = b_vals[i] - b_start;
+            let log_ratio = ln_a_vals[i] - ln_a_start - b_ratio * r;
+            sum += (cashflows[i] * b_ratio * log_ratio.exp()).abs();
         }
         sum
     };
@@ -601,7 +636,7 @@ pub(super) fn hw1f_swaption_price_inner(
 
     // Newton iterations to find r*.
     //
-    // Derivative guard (item 5): a fixed `|g'| < 1e-15` *absolute* floor is the wrong
+    // Derivative guard: a fixed `|g'| < 1e-15` *absolute* floor is the wrong
     // criterion. A `g'` of ~1e-10 — a near-flat objective — sails straight past it, and
     // `step = g / g'` then explodes to a ~1e8-scale jump that throws the iterate far
     // outside any plausible short-rate range. Two scale-aware guards replace it:
@@ -656,8 +691,8 @@ pub(super) fn hw1f_swaption_price_inner(
     // yields and too narrow at long expiries where σ√t0 dominates.
     //
     // Heuristic: half-width = max(0.5, 5·σ√t0) — covers ±5σ of the short-rate
-    // distribution under HW1F (more than enough to bracket r*) plus a 50bp
-    // floor for short-expiry, low-vol cases.
+    // distribution under HW1F (more than enough to bracket r*) plus a 50%
+    // (5,000bp) floor for short-expiry, low-vol cases.
     if !newton_converged {
         tracing::warn!(
             "HW1F r* Newton solver did not converge (kappa={kappa:.4}, sigma={sigma:.4}), \
@@ -686,32 +721,33 @@ pub(super) fn hw1f_swaption_price_inner(
         return f64::NAN;
     }
 
-    // Compute strike prices K_i = A_i × exp(−B_i × r*)
-    let k_strikes: Vec<f64> = (0..n_periods)
-        .map(|i| (ln_a_vals[i] - b_vals[i] * r_star).exp())
+    // Compute strike ratios K_i = P(T₀,T_i;r*) / P(T₀,T_start;r*).
+    let k_strikes: Vec<f64> = (0..n_cashflows)
+        .map(|i| (ln_a_vals[i] - ln_a_start - (b_vals[i] - b_start) * r_star).exp())
         .collect();
 
     // Sum zero-coupon bond put prices (payer swaption = portfolio of bond puts)
     // ZBO_put(0, T₀, T_i, K_i) = K_i P(0,T₀) N(−d₂) − P(0,T_i) N(−d₁)
-    let p0_t0 = df(t0);
-    if !(p0_t0 > 0.0 && p0_t0.is_finite()) {
+    let p0_start = df(swap_start_time);
+    if !(p0_start > 0.0 && p0_start.is_finite()) {
         return f64::NAN;
     }
     let mut swaption_price = 0.0;
+    let start_bond_vol = hw_bond_vol(kappa, sigma, 0.0, t0, swap_start_time);
 
-    for i in 0..n_periods {
+    for i in 0..n_cashflows {
         let t_i = payment_times[i];
         let p0_ti = df(t_i);
         if !(p0_ti > 0.0 && p0_ti.is_finite()) {
             return f64::NAN;
         }
-        let sigma_p = hw_bond_vol(kappa, sigma, 0.0, t0, t_i);
+        let sigma_p = (hw_bond_vol(kappa, sigma, 0.0, t0, t_i) - start_bond_vol).abs();
 
         if sigma_p < 1e-15 {
             // Degenerate: intrinsic value. `< 0.0` is false for NaN so NaN
             // would propagate, but inputs are positive-finite by the checks
             // above, so the subtraction is safe.
-            let put_intrinsic_raw = k_strikes[i] * p0_t0 - p0_ti;
+            let put_intrinsic_raw = k_strikes[i] * p0_start - p0_ti;
             let put_intrinsic = if put_intrinsic_raw < 0.0 {
                 0.0
             } else {
@@ -721,10 +757,10 @@ pub(super) fn hw1f_swaption_price_inner(
             continue;
         }
 
-        let d1 = ((p0_ti / (k_strikes[i] * p0_t0)).ln() + 0.5 * sigma_p * sigma_p) / sigma_p;
+        let d1 = ((p0_ti / (k_strikes[i] * p0_start)).ln() + 0.5 * sigma_p * sigma_p) / sigma_p;
         let d2 = d1 - sigma_p;
 
-        let put_price = k_strikes[i] * p0_t0 * norm_cdf(-d2) - p0_ti * norm_cdf(-d1);
+        let put_price = k_strikes[i] * p0_start * norm_cdf(-d2) - p0_ti * norm_cdf(-d1);
         // Preserve NaN: `put_price < 0.0` is false for NaN, so NaN flows
         // through; only genuinely-negative numerical noise gets clamped.
         let put_price_clamped = if put_price < 0.0 { 0.0 } else { put_price };
@@ -735,5 +771,96 @@ pub(super) fn hw1f_swaption_price_inner(
         0.0
     } else {
         swaption_price
+    }
+}
+
+#[cfg(test)]
+mod timing_tests {
+    use super::*;
+
+    fn lagged_schedule() -> SwaptionSchedule {
+        SwaptionSchedule {
+            swap_start_time: 1.01,
+            payment_times: vec![1.51, 2.01, 2.11],
+            accruals: vec![0.5, 0.5, 0.1],
+            maturity_time: 2.01,
+        }
+    }
+
+    #[test]
+    fn swaption_schedule_forward_uses_contractual_start() {
+        let df = |time: f64| (-0.03 * time).exp();
+        let schedule = lagged_schedule();
+
+        let (annuity, forward) =
+            compute_swap_annuity_and_rate_inner(&df, 1.0, 1.01, 2, Some(&schedule));
+        let expected_annuity = schedule
+            .payment_times
+            .iter()
+            .zip(&schedule.accruals)
+            .map(|(&payment_time, &accrual)| accrual * df(payment_time))
+            .sum::<f64>();
+        let expected_forward =
+            (df(schedule.swap_start_time) - df(schedule.maturity_time)) / expected_annuity;
+
+        assert!((annuity - expected_annuity).abs() < 1.0e-15);
+        assert!((forward - expected_forward).abs() < 1.0e-15);
+    }
+
+    #[test]
+    fn jamshidian_cashflows_keep_redemption_at_contractual_maturity() {
+        let schedule = lagged_schedule();
+        let cashflows = build_swaption_cashflows(0.04, 1.0, 1.01, 2, Some(&schedule));
+
+        assert_eq!(cashflows.len(), 3);
+        assert_eq!(cashflows[0], (1.51, 0.02));
+        assert_eq!(cashflows[1], (2.01, 1.02));
+        assert_eq!(cashflows[2], (2.11, 0.004));
+    }
+
+    #[test]
+    fn explicit_zero_lag_schedule_reduces_to_synthetic_price() {
+        let df = |time: f64| (-0.03 * time).exp();
+        let schedule = SwaptionSchedule {
+            swap_start_time: 1.0,
+            payment_times: vec![1.5, 2.0],
+            accruals: vec![0.5, 0.5],
+            maturity_time: 2.0,
+        };
+        let (_, forward) = compute_swap_annuity_and_rate(&df, 1.0, 1.0, 2);
+        let synthetic = hw1f_swaption_price(0.05, 0.01, &df, 1.0, 1.0, forward, 2);
+        let explicit = hw1f_swaption_price_inner(Hw1fSwaptionPriceInput {
+            kappa: 0.05,
+            sigma: 0.01,
+            df: &df,
+            t0: 1.0,
+            tenor: 1.0,
+            swap_rate: forward,
+            periods_per_year: 2,
+            schedule: Some(&schedule),
+        });
+
+        assert!((explicit - synthetic).abs() < 1.0e-14);
+    }
+
+    #[test]
+    fn swaption_schedule_rejects_malformed_time_roles() {
+        let mut schedule = lagged_schedule();
+        assert!(valid_swap_schedule(Some(&schedule), 1.0).is_some());
+
+        schedule.swap_start_time = 0.99;
+        assert!(valid_swap_schedule(Some(&schedule), 1.0).is_none());
+
+        schedule = lagged_schedule();
+        schedule.swap_start_time = schedule.maturity_time;
+        assert!(valid_swap_schedule(Some(&schedule), 1.0).is_none());
+
+        schedule = lagged_schedule();
+        schedule.payment_times.swap(0, 1);
+        assert!(valid_swap_schedule(Some(&schedule), 1.0).is_none());
+
+        schedule = lagged_schedule();
+        schedule.payment_times = vec![1.2, 1.5, 1.9];
+        assert!(valid_swap_schedule(Some(&schedule), 1.0).is_none());
     }
 }

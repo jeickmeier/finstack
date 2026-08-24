@@ -85,9 +85,14 @@ def test_calibration_entry_points_enforce_semantic_validation(
 
     assert excinfo.value.kind == "undefined_quote_set"
     details = json.loads(excinfo.value.details)
-    envelope_details = details.get("envelope_error", details)
+    assert details["category"] == "undefined_quote_set"
+    assert details["stage"] == "ingestion"
+    assert details["step_id"] == "discount_step"
+    assert details["solver_diagnostics"] is None
+    envelope_details = details["envelope_error"]
     assert envelope_details["ref_name"] == "missing_quotes"
     assert excinfo.value.stage == "ingestion"
+    assert excinfo.value.solver_diagnostics is None
 
 
 def test_calibration_envelope_error_inherits_runtime_error() -> None:
@@ -95,22 +100,35 @@ def test_calibration_envelope_error_inherits_runtime_error() -> None:
     assert issubclass(CalibrationEnvelopeError, RuntimeError)
 
 
-def test_dry_run_raises_typed_exception_on_bad_json() -> None:
+@pytest.mark.parametrize(
+    "operation",
+    [validate_calibration_json, calibrate, dry_run, dependency_graph_json],
+)
+def test_all_calibration_entry_points_expose_execution_error_details(
+    operation: Callable[[str], object],
+) -> None:
     with pytest.raises(CalibrationEnvelopeError) as excinfo:
-        dry_run("not json at all")
+        operation("{ malformed")
+
     exc = excinfo.value
     assert exc.kind == "strict_load"
     assert exc.stage == "ingestion"
     assert exc.step_id is None
+    assert exc.solver_diagnostics is None
     payload = json.loads(exc.details)
-    assert payload["kind"] == "strict_load"
-
-
-def test_calibrate_raises_typed_exception_on_bad_json() -> None:
-    with pytest.raises(CalibrationEnvelopeError) as excinfo:
-        calibrate("{ malformed")
-    assert excinfo.value.kind == "strict_load"
-    assert excinfo.value.stage == "ingestion"
+    assert set(payload) == {
+        "stage",
+        "step_id",
+        "category",
+        "solver_diagnostics",
+        "cause",
+        "envelope_error",
+    }
+    assert payload["category"] == exc.kind
+    assert payload["stage"] == exc.stage
+    assert payload["step_id"] == exc.step_id
+    assert payload["solver_diagnostics"] == exc.solver_diagnostics
+    assert payload["envelope_error"]["kind"] == exc.kind
 
 
 def test_runtime_error_handler_catches_calibration_envelope_error() -> None:

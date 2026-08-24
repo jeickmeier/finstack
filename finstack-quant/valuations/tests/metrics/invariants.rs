@@ -629,7 +629,7 @@ mod cs01_invariants {
             let market = build_cds_market(0.04, hazard_rate);
             let pv = cds.value(&market, as_of).expect("Valuation should succeed");
 
-            let metrics = vec![MetricId::Cs01];
+            let metrics = vec![MetricId::Cs01Hazard];
             let registry = standard_registry();
 
             let mut context = MetricContext::new(
@@ -641,7 +641,10 @@ mod cs01_invariants {
             );
 
             let results = registry.compute(&metrics, &mut context).expect("Metrics should compute");
-            let cs01 = results.get(&MetricId::Cs01).copied().unwrap_or(0.0);
+            let cs01 = results
+                .get(&MetricId::Cs01Hazard)
+                .copied()
+                .unwrap_or(0.0);
 
             // CS01 should be positive for protection buyer
             // (spread widening increases protection value)
@@ -708,12 +711,12 @@ mod cs_gamma_consistency {
         (disc, hazard)
     }
 
-    fn compute_metric(
+    fn compute_metric_error(
         cds: &finstack_quant_valuations::instruments::credit_derivatives::cds::CreditDefaultSwap,
         market: &MarketContext,
         as_of: time::Date,
         metric: MetricId,
-    ) -> f64 {
+    ) -> String {
         let pv = cds
             .value(market, as_of)
             .expect("CDS valuation should succeed");
@@ -725,18 +728,15 @@ mod cs_gamma_consistency {
             pv,
             MetricContext::default_config(),
         );
-        let results = registry
+        registry
             .compute(std::slice::from_ref(&metric), &mut context)
-            .expect("metric should compute");
-        *results.get(&metric).expect("metric should be present")
+            .expect_err("standard spread risk requires quote-space replay")
+            .to_string()
     }
 
-    /// Reporting-only par-spread sidecars must not activate quote-space
-    /// CS-Gamma. With identical hazard knots and no recipe, changing only the
-    /// sidecar leaves fallback CS01 unchanged while CS-Gamma remains a finite
-    /// model-hazard curvature.
+    /// Reporting-only par-spread sidecars must not activate standard CS-Gamma.
     #[test]
-    fn cs_gamma_ignores_unreplayable_par_spread_sidecars() {
+    fn cs_gamma_rejects_unreplayable_par_spread_sidecars() {
         let as_of = date!(2025 - 01 - 01);
         let maturity = as_of.add_months(60); // 5Y CDS
 
@@ -751,37 +751,15 @@ mod cs_gamma_consistency {
         )
         .expect("CDS construction should succeed");
 
-        // CS-Gamma at base spreads.
         let (disc, hazard_base) = build_curves_with_par_spreads(0.0);
         let market_base = MarketContext::new().insert(disc).insert(hazard_base);
-        let cs_gamma = compute_metric(&cds, &market_base, as_of, MetricId::CsGamma);
-
-        // CS01 at spreads shifted +5bp / −5bp.
-        let outer_shift_bp = 5.0;
-
-        let (disc_up, hazard_up) = build_curves_with_par_spreads(outer_shift_bp);
-        let market_up = MarketContext::new().insert(disc_up).insert(hazard_up);
-        let cs01_up = compute_metric(&cds, &market_up, as_of, MetricId::Cs01);
-
-        let (disc_dn, hazard_dn) = build_curves_with_par_spreads(-outer_shift_bp);
-        let market_dn = MarketContext::new().insert(disc_dn).insert(hazard_dn);
-        let cs01_dn = compute_metric(&cds, &market_dn, as_of, MetricId::Cs01);
-
-        assert!(
-            (cs01_up - cs01_dn).abs() <= 1e-12,
-            "reporting-only par spread sidecars must not change fallback CS01"
-        );
-        assert!(cs_gamma.is_finite() && cs_gamma.abs() > 1e-12);
+        let error = compute_metric_error(&cds, &market_base, as_of, MetricId::CsGamma);
+        assert!(error.contains("calibration recipe"));
     }
 
-    /// Fallback path: when the hazard curve has NO par-spread points (so
-    /// `used_rebootstrap = false`), CS-Gamma must still be finite and
-    /// non-trivially non-zero, computed via the direct hazard-rate shift path.
-    ///
-    /// This exercises a code path that `cs_gamma_equals_numerical_derivative_of_cs01`
-    /// does NOT cover (that test always uses a curve with par-spread points).
+    /// Standard CS-Gamma requires quote-space replay, even without sidecars.
     #[test]
-    fn cs_gamma_fallback_direct_shift_is_finite_without_par_spreads() {
+    fn cs_gamma_requires_replay_recipe_without_par_spreads() {
         let as_of = date!(2025 - 01 - 01);
         let maturity = as_of.add_months(60); // 5Y CDS
 
@@ -796,8 +774,8 @@ mod cs_gamma_consistency {
         )
         .expect("CDS construction should succeed");
 
-        // Hazard curve has NO par-spread points — forces the direct hazard-rate
-        // shift fallback (`used_rebootstrap = false`).
+        // A directly specified hazard curve has no lossless quote replay recipe,
+        // so standard CS-Gamma must reject it instead of changing risk units.
         let disc = DiscountCurve::builder("USD-OIS")
             .base_date(as_of)
             .day_count(DayCount::Act365F)
@@ -819,23 +797,13 @@ mod cs_gamma_consistency {
                 (5.0, 0.035),
                 (10.0, 0.045),
             ])
-            // Intentionally no `.par_spreads(...)` — stays on fallback path.
+            // Intentionally no replay recipe.
             .build()
             .unwrap();
 
         let market = MarketContext::new().insert(disc).insert(hazard_no_par);
-        let cs_gamma = compute_metric(&cds, &market, as_of, MetricId::CsGamma);
-
-        assert!(
-            cs_gamma.is_finite(),
-            "CS-Gamma (fallback path) should be finite, got {cs_gamma}"
-        );
-        // The fallback computes a genuine second-order finite difference, so the
-        // result should be non-zero for a standard vanilla CDS.
-        assert!(
-            cs_gamma.abs() > 0.0,
-            "CS-Gamma (fallback path) should be non-zero for a live CDS, got {cs_gamma}"
-        );
+        let error = compute_metric_error(&cds, &market, as_of, MetricId::CsGamma);
+        assert!(error.contains("calibration recipe"));
     }
 }
 
@@ -909,7 +877,7 @@ mod bucketed_cs01_invariants {
         let market = build_cds_market(0.04, 0.02);
         let pv = cds.value(&market, as_of).expect("Valuation should succeed");
 
-        let metrics = vec![MetricId::Cs01, MetricId::BucketedCs01];
+        let metrics = vec![MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard];
         let registry = standard_registry();
 
         let mut context = MetricContext::new(
@@ -923,7 +891,7 @@ mod bucketed_cs01_invariants {
         let results = registry
             .compute(&metrics, &mut context)
             .expect("Metrics should compute");
-        let parallel_cs01 = results.get(&MetricId::Cs01).copied().unwrap_or(0.0);
+        let parallel_cs01 = results.get(&MetricId::Cs01Hazard).copied().unwrap_or(0.0);
 
         // Parallel CS01 should be positive for protection buyer
         assert!(
@@ -933,7 +901,7 @@ mod bucketed_cs01_invariants {
         );
 
         // Check bucketed CS01 properties
-        if let Some(series) = context.computed_series.get(&MetricId::BucketedCs01) {
+        if let Some(series) = context.computed_series.get(&MetricId::BucketedCs01Hazard) {
             // At least one bucket should have non-zero value
             let non_zero_count = series.iter().filter(|(_, v)| v.abs() > 1.0).count();
             assert!(

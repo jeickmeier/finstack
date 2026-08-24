@@ -437,7 +437,7 @@ fn test_metrics_with_zero_notional() {
             &market,
             as_of,
             &[
-                MetricId::Cs01,
+                MetricId::Cs01Hazard,
                 MetricId::RiskyPv01,
                 MetricId::ExpectedLoss,
                 MetricId::JumpToDefault,
@@ -447,7 +447,12 @@ fn test_metrics_with_zero_notional() {
         .unwrap();
 
     // All notional-dependent metrics should be zero
-    for k in ["cs01", "risky_pv01", "expected_loss", "jump_to_default"] {
+    for k in [
+        "cs01_hazard",
+        "risky_pv01",
+        "expected_loss",
+        "jump_to_default",
+    ] {
         let v = *result.measures.get(k).unwrap();
         assert!(
             v.abs() < 1e-12,

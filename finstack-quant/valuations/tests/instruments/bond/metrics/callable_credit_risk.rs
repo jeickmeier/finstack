@@ -75,11 +75,11 @@ fn test_quoted_callable_credit_bond_risk_nonzero_and_call_aware() {
         .price_with_metrics(
             &market,
             as_of,
-            &[MetricId::Cs01, MetricId::CleanPrice],
+            &[MetricId::Cs01Hazard, MetricId::CleanPrice],
             PricingOptions::default(),
         )
         .expect("unquoted callable-credit bond should price");
-    let base_cs01 = *base.measures.get("cs01").unwrap();
+    let base_cs01 = *base.measures.get("cs01_hazard").unwrap();
     let model_clean = *base.measures.get("clean_price").unwrap() / 1_000_000.0 * 100.0;
     assert!(
         base_cs01.abs() > 1e-3,
@@ -96,8 +96,8 @@ fn test_quoted_callable_credit_bond_risk_nonzero_and_call_aware() {
             &market,
             as_of,
             &[
-                MetricId::Cs01,
-                MetricId::BucketedCs01,
+                MetricId::Cs01Hazard,
+                MetricId::BucketedCs01Hazard,
                 MetricId::Dv01,
                 MetricId::BucketedDv01,
                 MetricId::EmbeddedOptionValue,
@@ -106,7 +106,7 @@ fn test_quoted_callable_credit_bond_risk_nonzero_and_call_aware() {
         )
         .expect("quoted callable-credit bond should price");
 
-    let cs01 = *result.measures.get("cs01").unwrap();
+    let cs01 = *result.measures.get("cs01_hazard").unwrap();
     let dv01 = *result.measures.get("dv01").unwrap();
     let eov = *result.measures.get("embedded_option_value").unwrap();
 
@@ -132,7 +132,7 @@ fn test_quoted_callable_credit_bond_risk_nonzero_and_call_aware() {
     let bcs = result
         .measures
         .iter()
-        .filter(|(k, v)| k.as_str().starts_with("bucketed_cs01") && v.abs() > 1e-6)
+        .filter(|(k, v)| k.as_str().starts_with("bucketed_cs01_hazard") && v.abs() > 1e-6)
         .count();
     let bdv = result
         .measures

@@ -521,22 +521,7 @@ impl Swaption {
     }
 
     fn underlying_tenor_years(&self) -> Result<f64> {
-        if self.get_swap_end() <= self.get_swap_start() {
-            return Err(Error::Validation(format!(
-                "Swaption '{}' has non-positive underlying tenor",
-                self.id
-            )));
-        }
-
-        // Use a proper day-count year fraction over [swap_start, swap_end]
-        // rather than an ad-hoc 30-day-month / ACT-365 mix. This value feeds
-        // the vol-surface tenor axis, so it must be consistent with the rest
-        // of the instrument's day-count conventions.
-        year_fraction(
-            self.get_day_count(),
-            self.get_swap_start(),
-            self.get_swap_end(),
-        )
+        super::super::contractual_swap_tenor_years(self.get_swap_start(), self.get_swap_end())
     }
 
     /// Set the cash settlement annuity method.

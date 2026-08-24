@@ -233,7 +233,7 @@ are in [INVARIANTS.md](../../INVARIANTS.md).
 ```bash
 cargo nextest run -p finstack-quant-statements-analytics --lib --test '*'
 cargo test -p finstack-quant-statements-analytics --doc
-cargo clippy -p finstack-quant-statements-analytics --all-targets -- -D warnings
+cargo clippy -p finstack-quant-statements-analytics --lib --bins --tests --examples -- -D warnings
 RUSTDOCFLAGS='-D warnings' cargo doc -p finstack-quant-statements-analytics --no-deps
 ```
 

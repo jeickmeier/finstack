@@ -1,11 +1,6 @@
-//! PR-8a: credit-factor hierarchy detail for waterfall + parallel attribution.
-//!
-//! Four named tests:
-//!  1. `waterfall_credit_factor_detail_reconciles_to_credit_curves_pnl`
-//!  2. `parallel_credit_detail_plus_cross_effects_preserves_total`
-//!  3. `waterfall_no_model_keeps_default_credit_step`
-//!  4. `same_credit_total_different_hierarchy_different_detail`
+//! Credit-factor hierarchy detail for waterfall and parallel attribution.
 
+use crate::attribution_support::calibrated_hazard_curve;
 use finstack_quant_attribution::{
     default_waterfall_order, AttributionEnvelope, AttributionMethod, AttributionSpec,
     CreditFactorDetailOptions,
@@ -26,6 +21,7 @@ use finstack_quant_factor_model::{
 };
 use finstack_quant_valuations::instruments::json_loader::InstrumentJson;
 use finstack_quant_valuations::instruments::{Attributes, Bond};
+use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
 use std::collections::BTreeMap;
 use time::Month;
 
@@ -678,8 +674,34 @@ fn metrics_based_credit_factor_detail_uses_t1_cs01_baseline() {
             .build()
             .expect("discount curve")
     };
-    let market_t0 = make_market_state(drift_discount(as_of_t0, 0.05), flat_hazard(as_of_t0, 0.01));
-    let market_t1 = make_market_state(drift_discount(as_of_t1, 0.06), flat_hazard(as_of_t1, 0.02));
+    let disc_t0 = drift_discount(as_of_t0, 0.05);
+    let disc_t1 = drift_discount(as_of_t1, 0.06);
+    let convention = CdsConventionKey {
+        currency: Currency::USD,
+        doc_clause: CdsDocClause::IsdaNa,
+    };
+    let haz_t0 = calibrated_hazard_curve(
+        &disc_t0,
+        as_of_t0,
+        "ISSUER-A-HAZ",
+        "ISSUER-A",
+        0.4,
+        convention.clone(),
+        &[(1, 100.0), (3, 100.0), (5, 100.0), (10, 100.0)],
+    )
+    .expect("T0 hazard calibration");
+    let haz_t1 = calibrated_hazard_curve(
+        &disc_t1,
+        as_of_t1,
+        "ISSUER-A-HAZ",
+        "ISSUER-A",
+        0.4,
+        convention,
+        &[(1, 200.0), (3, 200.0), (5, 200.0), (10, 200.0)],
+    )
+    .expect("T1 hazard calibration");
+    let market_t0 = make_market_state(disc_t0, haz_t0);
+    let market_t1 = make_market_state(disc_t1, haz_t1);
 
     let run = |method: AttributionMethod| {
         let spec = AttributionSpec {

@@ -14,7 +14,7 @@ use finstack_quant_core::market_data::term_structures::{
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, IndexId};
 use finstack_quant_valuations::calibration::bumps::{
-    bump_discount_curve_from_rate_calibration, BumpRequest,
+    bump_discount_curve_from_rate_calibration, bump_hazard_spreads, BumpRequest,
 };
 use finstack_quant_valuations::instruments::credit_derivatives::cds::{
     CdsValuationConvention, CreditDefaultSwap,
@@ -24,11 +24,11 @@ use finstack_quant_valuations::market::conventions::ids::CdsDocClause;
 use finstack_quant_valuations::metrics::MetricId;
 use time::macros::date;
 
-fn sum_bucketed_cs01(result: &finstack_quant_valuations::results::ValuationResult) -> f64 {
+fn sum_bucketed_cs01_hazard(result: &finstack_quant_valuations::results::ValuationResult) -> f64 {
     result
         .measures
         .iter()
-        .filter(|(id, _)| id.as_str().starts_with("bucketed_cs01::"))
+        .filter(|(id, _)| id.as_str().starts_with("bucketed_cs01_hazard::"))
         .map(|(_, v)| *v)
         .sum()
 }
@@ -144,12 +144,12 @@ fn test_cs01_positive_for_buyer() {
         .price_with_metrics(
             &market,
             as_of,
-            &[MetricId::Cs01],
+            &[MetricId::Cs01Hazard],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
 
-    let cs01 = *result.measures.get("cs01").unwrap();
+    let cs01 = *result.measures.get("cs01_hazard").unwrap();
 
     assert!(cs01 > 0.0, "CS01 should be positive for protection buyer");
     // For $10M 5Y CDS with 1.5% hazard rate, CS01 ≈ notional × (1-rec) × annuity × 1bp ≈ $2,700
@@ -162,15 +162,359 @@ fn test_cs01_positive_for_buyer() {
 }
 
 #[test]
+fn standard_cs01_without_deal_quote_matches_direct_up_down_replay() {
+    let as_of = date!(2024 - 01 - 01);
+    let maturity = date!(2029 - 01 - 01);
+    let source = MarketContext::new().insert(build_test_discount(0.05, as_of, "USD_OIS"));
+    let hazard = crate::test_support::credit::calibrated_hazard_curve(
+        &source, as_of, "CORP", "CORP", "USD_OIS",
+    )
+    .expect("hazard calibration should succeed");
+    let market = source.insert(hazard.clone());
+    let cds = create_test_cds(as_of, maturity);
+
+    let result = cds
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect("standard CS01 should compute");
+    let standard = result.measures[MetricId::Cs01.as_str()];
+
+    let discount_id = CurveId::new("USD_OIS");
+    let bumped_up = bump_hazard_spreads(
+        &hazard,
+        &market,
+        &BumpRequest::Parallel(1.0),
+        Some(&discount_id),
+        None,
+        None,
+    )
+    .expect("up replay");
+    let bumped_down = bump_hazard_spreads(
+        &hazard,
+        &market,
+        &BumpRequest::Parallel(-1.0),
+        Some(&discount_id),
+        None,
+        None,
+    )
+    .expect("down replay");
+    let pv_up = cds
+        .value(&market.clone().insert(bumped_up), as_of)
+        .expect("up valuation")
+        .amount();
+    let pv_down = cds
+        .value(&market.insert(bumped_down), as_of)
+        .expect("down valuation")
+        .amount();
+    let direct_up_down = (pv_up - pv_down) / 2.0;
+
+    assert!(
+        (standard - direct_up_down).abs() <= 1e-9,
+        "removing the redundant zero replay must not alter the no-deal central difference: \
+         standard={standard}, direct={direct_up_down}"
+    );
+}
+
+#[test]
+fn deal_quote_override_is_shared_by_cs01_and_cs_gamma() {
+    let as_of = date!(2024 - 01 - 01);
+    let maturity = date!(2029 - 01 - 01);
+    let source = MarketContext::new().insert(build_test_discount(0.05, as_of, "USD_OIS"));
+    let hazard = crate::test_support::credit::calibrated_hazard_curve(
+        &source, as_of, "CORP", "CORP", "USD_OIS",
+    )
+    .expect("hazard calibration should succeed");
+    let market = source.insert(hazard);
+    let base = create_test_cds(as_of, maturity);
+
+    let spread_risk_at_quote = |quote_bp: f64| {
+        let mut cds = base.clone();
+        cds.instrument_pricing_overrides.market_quotes.cds_quote_bp = Some(quote_bp);
+        let result = cds
+            .price_with_metrics(
+                &market,
+                as_of,
+                &[MetricId::Cs01, MetricId::CsGamma],
+                finstack_quant_valuations::instruments::PricingOptions::default(),
+            )
+            .expect("deal-quote spread risk should compute");
+        (
+            result.measures[MetricId::Cs01.as_str()],
+            result.measures[MetricId::CsGamma.as_str()],
+        )
+    };
+
+    let tight = spread_risk_at_quote(90.0);
+    let wide = spread_risk_at_quote(130.0);
+    assert!(tight.0.is_finite() && tight.1.is_finite());
+    assert!(wide.0.is_finite() && wide.1.is_finite());
+    assert!(
+        (tight.0 - wide.0).abs() > 1e-4,
+        "deal quote must affect CS01: tight={}, wide={}",
+        tight.0,
+        wide.0
+    );
+    assert!(
+        (tight.1 - wide.1).abs() > 1e-4,
+        "deal quote must affect CS-Gamma: tight={}, wide={}",
+        tight.1,
+        wide.1
+    );
+}
+
+#[test]
+fn risky_pv01_with_deal_quote_does_not_require_replayable_hazard() {
+    let as_of = date!(2024 - 01 - 01);
+    let maturity = date!(2029 - 01 - 01);
+    let market = create_test_market(as_of);
+    let base = create_test_cds(as_of, maturity);
+
+    let base_result = base
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::RiskyPv01],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect("risky PV01 should compute from a manual hazard curve");
+    let expected = base_result.measures[MetricId::RiskyPv01.as_str()];
+
+    let mut quoted = base;
+    quoted.valuation_convention = CdsValuationConvention::BloombergCdswClean;
+    quoted
+        .instrument_pricing_overrides
+        .market_quotes
+        .cds_quote_bp = Some(130.0);
+    let quoted_result = quoted
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::RiskyPv01],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect("risky PV01 must not depend on standard CS01 replay");
+
+    assert_eq!(
+        quoted_result.measures[MetricId::RiskyPv01.as_str()],
+        expected,
+        "an unreplayable deal quote cannot change the premium annuity"
+    );
+}
+
+#[test]
+fn deal_quote_cs_gamma_is_centered_on_override_quote_set() {
+    let as_of = date!(2024 - 01 - 01);
+    let maturity = date!(2029 - 03 - 20);
+    let discount_id = CurveId::new("USD_OIS");
+    let source = MarketContext::new().insert(build_test_discount(0.05, as_of, "USD_OIS"));
+    let hazard = crate::test_support::credit::calibrated_hazard_curve(
+        &source, as_of, "CORP", "CORP", "USD_OIS",
+    )
+    .expect("hazard calibration should succeed");
+    let market = source.insert(hazard.clone());
+    let base = create_test_cds(as_of, maturity);
+
+    let override_quote_bp = 130.0;
+    let override_tenor = hazard
+        .hazard_calibration()
+        .expect("replayable hazard curve")
+        .spread_risk_inputs
+        .iter()
+        .find(|input| input.pillar_date == maturity)
+        .expect("matched 5Y replay quote")
+        .pillar_time;
+    let centered_hazard = bump_hazard_spreads(
+        &hazard,
+        &market,
+        &BumpRequest::Tenors(vec![(override_tenor, override_quote_bp - 100.0)]),
+        Some(&discount_id),
+        None,
+        None,
+    )
+    .expect("replay the materially wider deal-quote center");
+    let centered_market = market.clone().insert(centered_hazard.clone());
+    let bumped_up = bump_hazard_spreads(
+        &centered_hazard,
+        &centered_market,
+        &BumpRequest::Parallel(1.0),
+        Some(&discount_id),
+        None,
+        None,
+    )
+    .expect("up replay around deal quote");
+    let bumped_down = bump_hazard_spreads(
+        &centered_hazard,
+        &centered_market,
+        &BumpRequest::Parallel(-1.0),
+        Some(&discount_id),
+        None,
+        None,
+    )
+    .expect("down replay around deal quote");
+    let pv_up = base
+        .value(&centered_market.clone().insert(bumped_up), as_of)
+        .expect("up valuation")
+        .amount();
+    let pv_center = base
+        .value(&centered_market, as_of)
+        .expect("deal-center valuation")
+        .amount();
+    let pv_down = base
+        .value(&centered_market.insert(bumped_down), as_of)
+        .expect("down valuation")
+        .amount();
+    let bump_decimal = 1.0e-4;
+    let expected_gamma = (pv_up + pv_down - 2.0 * pv_center) / (bump_decimal * bump_decimal);
+
+    let original_center = base
+        .value(&market, as_of)
+        .expect("original-center valuation")
+        .amount();
+    let artificial_gamma =
+        (pv_up + pv_down - 2.0 * original_center) / (bump_decimal * bump_decimal);
+
+    let mut quoted_cds = base;
+    quoted_cds
+        .instrument_pricing_overrides
+        .market_quotes
+        .cds_quote_bp = Some(override_quote_bp);
+    let result = quoted_cds
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::CsGamma],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect("deal-quote CS-Gamma should compute");
+    let actual_gamma = result.measures[MetricId::CsGamma.as_str()];
+    let tolerance = 1e-6 * expected_gamma.abs().max(1.0);
+
+    assert!(
+        (actual_gamma - expected_gamma).abs() <= tolerance,
+        "CS-Gamma must use F(q+h)+F(q-h)-2F(q): actual={actual_gamma}, \
+         expected={expected_gamma}, artificial_original_center={artificial_gamma}"
+    );
+    assert!(
+        (actual_gamma - artificial_gamma).abs() > tolerance,
+        "deal-override CS-Gamma must not retain the original calibration center"
+    );
+}
+
+#[test]
+fn bucketed_cs01_quote_uses_each_off_grid_replay_pillar_once() {
+    let as_of = date!(2024 - 01 - 01);
+    let maturity = date!(2030 - 01 - 01);
+    let source = MarketContext::new().insert(build_test_discount(0.05, as_of, "USD_OIS"));
+    let hazard = crate::test_support::credit::calibrated_hazard_curve_with_pillars(
+        &source,
+        as_of,
+        "CORP",
+        "CORP",
+        "USD_OIS",
+        &[
+            (365, 80.0),
+            (3 * 365, 100.0),
+            (4 * 365, 115.0),
+            (5 * 365, 125.0),
+            (10 * 365, 140.0),
+        ],
+    )
+    .expect("off-grid hazard calibration should succeed");
+    let recipe = hazard
+        .hazard_calibration()
+        .expect("replayable hazard curve");
+    let expected_bucket_count = recipe.spread_risk_inputs.len();
+    let market = source.insert(hazard);
+    let cds = create_test_cds(as_of, maturity);
+
+    let result = cds
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01, MetricId::BucketedCs01],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect("off-grid quote-space CS01 should compute");
+    let prefix = "bucketed_cs01::CORP::";
+    let buckets: Vec<_> = result
+        .measures
+        .iter()
+        .filter(|(key, _)| key.as_str().starts_with(prefix))
+        .collect();
+    let bucket_sum: f64 = buckets.iter().map(|(_, value)| **value).sum();
+
+    assert_eq!(
+        buckets.len(),
+        expected_bucket_count,
+        "each replay quote must produce exactly one bucket: {buckets:?}"
+    );
+    assert!(
+        buckets
+            .iter()
+            .any(|(key, _)| key.as_str() == "bucketed_cs01::CORP::4y"),
+        "the off-grid 4Y replay quote must not disappear: {buckets:?}"
+    );
+    assert!(
+        buckets
+            .iter()
+            .all(|(key, _)| !key.as_str().ends_with("::0y")),
+        "quote-space CS01 must not manufacture a synthetic 0Y bucket"
+    );
+    let parallel = result.measures[MetricId::Cs01.as_str()];
+    assert!(
+        (bucket_sum - parallel).abs() <= 0.02 * parallel.abs().max(1.0),
+        "quote buckets must reconcile to parallel CS01: sum={bucket_sum}, parallel={parallel}"
+    );
+}
+
+#[test]
+fn deal_quote_override_rejects_non_matching_replay_maturity() {
+    let as_of = date!(2024 - 01 - 01);
+    let maturity = date!(2034 - 01 - 01);
+    let source = MarketContext::new().insert(build_test_discount(0.05, as_of, "USD_OIS"));
+    let hazard = crate::test_support::credit::calibrated_hazard_curve_with_pillars(
+        &source,
+        as_of,
+        "CORP",
+        "CORP",
+        "USD_OIS",
+        &[(5 * 365, 100.0)],
+    )
+    .expect("5Y-only hazard calibration should succeed");
+    let market = source.insert(hazard);
+    let mut cds = create_test_cds(as_of, maturity);
+    cds.instrument_pricing_overrides.market_quotes.cds_quote_bp = Some(150.0);
+
+    let error = cds
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect_err("a 10Y deal quote must not overwrite the nearest 5Y replay pillar");
+    let message = error.to_string();
+    assert!(
+        message.contains("no exact spread-risk replay pillar"),
+        "mismatch must return a clear structured error, got: {message}"
+    );
+}
+
+#[test]
 fn test_cs01_hazard_vs_risky_pv01_consistency() {
-    // Validate CS01 equals a direct finite-difference bump of the hazard curve.
+    // Standard CS01 rejects a manual curve; the explicitly named hazard metric
+    // retains direct-intensity finite differences.
     let as_of = date!(2024 - 01 - 01);
     let maturity = date!(2029 - 01 - 01);
 
     let cds = create_test_cds(as_of, maturity);
 
     // Ensure hazard builder used in market has explicit base/daycount/recovery.
-    // Use a hazard curve WITHOUT par points so GenericParallelCs01 uses a model hazard shift.
+    // Use a hazard curve without a replay recipe.
     let market = {
         let mut ctx = MarketContext::new();
         let disc = DiscountCurve::builder("USD_OIS")
@@ -207,22 +551,34 @@ fn test_cs01_hazard_vs_risky_pv01_consistency() {
         .unwrap();
     let expected_cs01 = (pv_up - pv_down) / 2.0; // per 1bp central difference
 
-    let result = cds
+    let standard_error = cds
         .price_with_metrics(
             &market,
             as_of,
             &[MetricId::Cs01],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
-        .unwrap();
-    let cs01 = *result.measures.get("cs01").unwrap();
+        .expect_err("standard CS01 requires quote-space replay");
+    assert!(
+        standard_error.to_string().contains("calibration recipe"),
+        "unexpected error: {standard_error}"
+    );
 
-    assert!(cs01 > 0.0, "CS01 should be positive");
+    let result = cds
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01Hazard],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .unwrap();
+    let cs01 = *result.measures.get("cs01_hazard").unwrap();
+    assert!(cs01 > 0.0, "hazard CS01 should be positive");
 
     let tol = 1e-6_f64.max(1e-8 * expected_cs01.abs());
     assert!(
         (cs01 - expected_cs01).abs() <= tol,
-        "CS01 should match direct finite-difference bump: metric={}, expected={}, diff={}, tol={}",
+        "hazard CS01 should match direct finite-difference bump: metric={}, expected={}, diff={}, tol={}",
         cs01,
         expected_cs01,
         (cs01 - expected_cs01).abs(),
@@ -263,13 +619,13 @@ fn test_bucketed_cs01_reconciles_with_parallel_under_cds_convention() {
         .price_with_metrics(
             &market,
             as_of,
-            &[MetricId::Cs01, MetricId::BucketedCs01],
+            &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
-    let parallel = *result.measures.get("cs01").unwrap();
-    let bucket_total = *result.measures.get("bucketed_cs01").unwrap();
-    let bucket_sum = sum_bucketed_cs01(&result);
+    let parallel = *result.measures.get("cs01_hazard").unwrap();
+    let bucket_total = *result.measures.get("bucketed_cs01_hazard").unwrap();
+    let bucket_sum = sum_bucketed_cs01_hazard(&result);
 
     let total_tol = 1e-6_f64.max(1e-10 * bucket_total.abs());
     assert!(
@@ -383,6 +739,40 @@ fn test_cds_par_spread_metric_does_not_return_quoted_spread_override() {
     assert_eq!(
         quoted_par_spread, base_par_spread,
         "quoted spread metadata should not alter the par_spread metric"
+    );
+}
+
+#[test]
+fn test_recovery01_uses_deal_quote_replay_inputs() {
+    let as_of = date!(2024 - 01 - 01);
+    let maturity = date!(2029 - 01 - 01);
+    let source = MarketContext::new().insert(build_test_discount(0.05, as_of, "USD_OIS"));
+    let hazard = crate::test_support::credit::calibrated_hazard_curve(
+        &source, as_of, "CORP", "CORP", "USD_OIS",
+    )
+    .expect("hazard calibration should succeed");
+    let market = source.insert(hazard);
+    let base = create_test_cds(as_of, maturity);
+
+    let recovery01_at_quote = |quote_bp: f64| {
+        let mut cds = base.clone();
+        cds.instrument_pricing_overrides.market_quotes.cds_quote_bp = Some(quote_bp);
+        let result = cds
+            .price_with_metrics(
+                &market,
+                as_of,
+                &[MetricId::Recovery01],
+                finstack_quant_valuations::instruments::PricingOptions::default(),
+            )
+            .expect("deal-quote Recovery01 should compute");
+        result.measures[MetricId::Recovery01.as_str()]
+    };
+
+    let tight = recovery01_at_quote(90.0);
+    let wide = recovery01_at_quote(110.0);
+    assert!(
+        (tight - wide).abs() > 1e-4,
+        "deal quote must affect replay-backed Recovery01: tight={tight}, wide={wide}"
     );
 }
 
@@ -815,6 +1205,38 @@ fn test_cds_dv01_uses_discount_quote_bump_when_calibration_exists() {
     );
 }
 
+#[test]
+fn test_cds_dv01_recalibrates_hazard_on_bumped_discount_market() {
+    let as_of = date!(2024 - 03 - 20);
+    let maturity = date!(2029 - 03 - 20);
+    let discount_id = CurveId::new("USD_OIS");
+    let hazard_id = CurveId::new("CORP");
+
+    let cds = create_test_cds(as_of, maturity);
+    let discount = build_quote_calibrated_discount(0.04, as_of, discount_id.as_str());
+    let source = MarketContext::new().insert(discount);
+    let hazard = crate::test_support::credit::calibrated_hazard_curve(
+        &source,
+        as_of,
+        hazard_id.as_str(),
+        hazard_id.as_str(),
+        discount_id.as_str(),
+    )
+    .expect("hazard calibration should succeed");
+    let market = source.insert(hazard);
+
+    let result = cds
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Dv01],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .expect("DV01 should recalibrate hazard against each bumped discount curve");
+
+    assert!(result.measures[MetricId::Dv01.as_str()].is_finite());
+}
+
 // `test_cdsw_clean_value_excludes_accrued_premium_from_dirty_value` was removed
 // when the `cds_clean_price` and `cds_adjust_premium_accrual_dates` override
 // flags were folded into `CdsValuationConvention`. Its purpose was to isolate
@@ -959,12 +1381,12 @@ fn test_hazard_cs01_metric() {
         .price_with_metrics(
             &market,
             as_of,
-            &[MetricId::Cs01],
+            &[MetricId::Cs01Hazard],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
 
-    let cs01 = *result.measures.get("cs01").unwrap();
+    let cs01 = *result.measures.get("cs01_hazard").unwrap();
 
     assert!(cs01 > 0.0, "CS01 should be positive");
     assert!(cs01.is_finite(), "CS01 should be finite");
@@ -979,7 +1401,7 @@ fn test_multiple_metrics_simultaneously() {
     let market = create_test_market(as_of);
 
     let metrics = vec![
-        MetricId::Cs01,
+        MetricId::Cs01Hazard,
         MetricId::RiskyPv01,
         MetricId::ParSpread,
         MetricId::ProtectionLegPv,
@@ -988,7 +1410,6 @@ fn test_multiple_metrics_simultaneously() {
         MetricId::JumpToDefault,
         MetricId::Dv01,
         MetricId::Theta,
-        MetricId::Cs01,
     ];
 
     let result = cds
@@ -1001,7 +1422,7 @@ fn test_multiple_metrics_simultaneously() {
         .unwrap();
 
     // All metrics should be present
-    assert!(result.measures.contains_key("cs01"));
+    assert!(result.measures.contains_key("cs01_hazard"));
     assert!(result.measures.contains_key("risky_pv01"));
     assert!(result.measures.contains_key("par_spread"));
     assert!(result.measures.contains_key("protection_leg_pv"));
@@ -1114,12 +1535,12 @@ fn test_cs01_increases_with_tenor() {
             .price_with_metrics(
                 &market,
                 as_of,
-                &[MetricId::Cs01],
+                &[MetricId::Cs01Hazard],
                 finstack_quant_valuations::instruments::PricingOptions::default(),
             )
             .unwrap();
 
-        let cs01 = *result.measures.get("cs01").unwrap();
+        let cs01 = *result.measures.get("cs01_hazard").unwrap();
         cs01_values.push((years, cs01));
     }
 

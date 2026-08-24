@@ -179,7 +179,7 @@ with `--workspace` and clippy does not link. Binding behavior is tested from Pyt
 against the built extension.
 
 ```bash
-mise run rust-lint          # fmt --check + clippy --workspace --all-targets -D warnings
+mise run rust-lint          # fmt --check + clippy --workspace --lib --bins --tests --examples -D warnings
 mise run python-build       # maturin develop; required before any pytest run
 mise run python-lint        # ruff + the two PyO3/Python doc checkers
 mise run python-doc         # doc completeness gates on their own

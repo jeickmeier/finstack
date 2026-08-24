@@ -449,6 +449,31 @@ impl MetricContext {
         )
     }
 
+    /// Recalibrate after bumping one exact spread-risk recipe binding.
+    pub(crate) fn bump_hazard_spread_risk_input_cached(
+        &self,
+        hazard: &finstack_quant_core::market_data::term_structures::HazardCurve,
+        market: &MarketContext,
+        quote_bump: (usize, f64),
+        discount_id: Option<&CurveId>,
+        doc_clause: Option<crate::market::conventions::ids::CdsDocClause>,
+        cds_valuation_convention: Option<
+            crate::instruments::credit_derivatives::cds::CdsValuationConvention,
+        >,
+    ) -> finstack_quant_core::Result<
+        Arc<finstack_quant_core::market_data::term_structures::HazardCurve>,
+    > {
+        crate::calibration::bumps::hazard::bump_hazard_spread_risk_input_cached(
+            self.risk_rebuild.hazard_recalibration_cache.as_deref(),
+            hazard,
+            market,
+            quote_bump,
+            discount_id,
+            doc_clause,
+            cds_valuation_convention,
+        )
+    }
+
     /// Clone the pricing dispatch for use in sub-contexts.
     #[inline]
     pub(crate) fn clone_pricer_dispatch(&self) -> PricingDispatch {

@@ -15,11 +15,13 @@ use finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::Tra
 use finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::{
     CDSTranchePricer, CDSTranchePricerConfig,
 };
+use finstack_quant_valuations::instruments::Instrument;
+use finstack_quant_valuations::metrics::MetricId;
 
 // ==================== CS01 Tests ====================
 
 #[test]
-fn test_cs01_is_finite() {
+fn test_standard_cs01_requires_replay_recipe() {
     // Arrange
     let pricer = CDSTranchePricer::new();
     let tranche = mezzanine_tranche();
@@ -27,23 +29,32 @@ fn test_cs01_is_finite() {
     let as_of = base_date();
 
     // Act
-    let cs01 = pricer.calculate_cs01(&tranche, &market, as_of).unwrap();
+    let error = pricer
+        .calculate_cs01(&tranche, &market, as_of)
+        .expect_err("standard tranche CS01 requires quote-space replay");
 
     // Assert
-    assert!(cs01.is_finite(), "CS01 should be finite");
+    assert!(error.to_string().contains("calibration recipe"));
 }
 
 #[test]
 fn test_cs01_sell_protection_typically_positive() {
     // Arrange
-    let pricer = CDSTranchePricer::new();
     let mut tranche = mezzanine_tranche();
     tranche.side = TrancheSide::SellProtection;
     let market = standard_market_context();
     let as_of = base_date();
 
     // Act
-    let cs01 = pricer.calculate_cs01(&tranche, &market, as_of).unwrap();
+    let result = tranche
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01Hazard],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .unwrap();
+    let cs01 = *result.measures.get("cs01_hazard").unwrap();
 
     // Assert
     // For protection seller, higher spreads typically increase PV
@@ -54,7 +65,6 @@ fn test_cs01_sell_protection_typically_positive() {
 #[test]
 fn test_cs01_buy_sell_opposite_sign() {
     // Arrange
-    let pricer = CDSTranchePricer::new();
     let market = standard_market_context();
     let as_of = base_date();
 
@@ -62,10 +72,30 @@ fn test_cs01_buy_sell_opposite_sign() {
     let buy_tranche = custom_tranche(3.0, 7.0, 500.0, TrancheSide::BuyProtection);
 
     // Act
-    let cs01_sell = pricer
-        .calculate_cs01(&sell_tranche, &market, as_of)
+    let cs01_sell = sell_tranche
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01Hazard],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .unwrap()
+        .measures
+        .get("cs01_hazard")
+        .copied()
         .unwrap();
-    let cs01_buy = pricer.calculate_cs01(&buy_tranche, &market, as_of).unwrap();
+    let cs01_buy = buy_tranche
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01Hazard],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .unwrap()
+        .measures
+        .get("cs01_hazard")
+        .copied()
+        .unwrap();
 
     // Assert
     assert_relative_eq(
@@ -79,25 +109,27 @@ fn test_cs01_buy_sell_opposite_sign() {
 #[test]
 fn test_cs01_hazard_rate_bump() {
     // Arrange
-    let pricer = CDSTranchePricer::with_params(CDSTranchePricerConfig::default())
-        .expect("valid tranche pricer config");
-
     let tranche = mezzanine_tranche();
     let market = standard_market_context();
     let as_of = base_date();
 
     // Act
-    let result = pricer.calculate_cs01(&tranche, &market, as_of);
+    let result = tranche.price_with_metrics(
+        &market,
+        as_of,
+        &[MetricId::Cs01Hazard],
+        finstack_quant_valuations::instruments::PricingOptions::default(),
+    );
 
     // Assert
     assert!(result.is_ok());
-    assert!(result.unwrap().is_finite());
+    assert!(result.unwrap().measures["cs01_hazard"].is_finite());
 }
 
 #[test]
-fn test_cs01_different_bump_sizes() {
+fn test_standard_cs01_is_normalized_across_bump_sizes() {
     // Arrange
-    let market = standard_market_context();
+    let market = replayable_market_context();
     let as_of = base_date();
     let tranche = mezzanine_tranche();
 
@@ -111,16 +143,19 @@ fn test_cs01_different_bump_sizes() {
     let pricer_2bp =
         CDSTranchePricer::with_params(config_2bp).expect("valid tranche pricer config");
 
-    // Act
-    let cs01_1bp = pricer_1bp.calculate_cs01(&tranche, &market, as_of).unwrap();
-    let cs01_2bp = pricer_2bp.calculate_cs01(&tranche, &market, as_of).unwrap();
+    let cs01_1bp = pricer_1bp
+        .calculate_cs01(&tranche, &market, as_of)
+        .expect("1bp replay-backed CS01");
+    let cs01_2bp = pricer_2bp
+        .calculate_cs01(&tranche, &market, as_of)
+        .expect("2bp replay-backed CS01");
 
-    // Assert: normalized CS01 should be approximately invariant to bump size
+    assert!(cs01_1bp.is_finite() && cs01_2bp.is_finite());
     assert_relative_eq(
-        cs01_2bp / cs01_1bp,
-        1.0,
-        0.1,
-        "CS01 should be normalized per 1bp regardless of configured bump size",
+        cs01_1bp,
+        cs01_2bp,
+        0.01,
+        "CS01 must be normalized to one basis point independently of finite-difference bump size",
     );
 }
 
@@ -201,7 +236,17 @@ fn test_cs01_preserves_bespoke_index_structure_during_bumps() {
         .unwrap()
         .amount();
     let expected_cs01 = (pv_up - pv_down) / (2.0 * bump_bp);
-    let actual_cs01 = pricer.calculate_cs01(&tranche, &market, as_of).unwrap();
+    let actual_cs01 = *tranche
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01Hazard],
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .unwrap()
+        .measures
+        .get("cs01_hazard")
+        .unwrap();
 
     assert_relative_eq(
         actual_cs01,

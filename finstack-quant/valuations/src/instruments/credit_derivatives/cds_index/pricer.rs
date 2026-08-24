@@ -11,7 +11,7 @@
 //! risky PV01, and leg PVs. Heavy numerical work is delegated to
 //! `crate::instruments::credit_derivatives::cds::pricer::CDSPricer`.
 
-use crate::calibration::bumps::hazard::{bump_hazard_shift, bump_hazard_spreads};
+use crate::calibration::bumps::hazard::bump_hazard_spreads;
 use crate::calibration::bumps::BumpRequest;
 use crate::cashflow::builder::schedule::merge_cashflow_schedules;
 use crate::cashflow::builder::{CashFlowSchedule, Notional};
@@ -446,36 +446,24 @@ impl CDSIndexPricer {
         let pricer = CDSPricer::with_config(self.cds_config.clone());
         let hazard = curves.get_hazard(credit_id)?;
         let hazard_ref = hazard.as_ref();
-        let has_par_points = hazard_ref.hazard_calibration().is_some();
+        crate::metrics::sensitivities::cs01::require_hazard_replay(hazard_ref, "CDS index CS01")?;
 
-        // Par-spread re-bootstrap is the CS01 contract when par points exist.
-        // A silent fallback to a direct hazard-λ shift on re-bootstrap failure
-        // would change units by ≈1/(1−R) with no signal, so the error is
-        // propagated instead. Curves without par points use the hazard shift
-        // explicitly (the only available definition).
         let bump_hazard_for = |bp: f64| -> Result<_> {
-            if has_par_points {
-                bump_hazard_spreads(
-                    hazard_ref,
-                    curves,
-                    &BumpRequest::Parallel(bp),
-                    Some(discount_id),
-                    None,
-                    None,
-                )
-                .map_err(|e| finstack_quant_core::Error::Calibration {
-                    message: format!(
-                        "CDS index CS01: par-spread re-bootstrap failed for curve '{}' \
-                             ({e}); refusing silent fallback to a hazard-rate bump \
-                             (≈1/(1−R) unit mismatch). Fix the par-spread quotes or strip \
-                             them to opt into hazard-shift CS01.",
-                        credit_id
-                    ),
-                    category: "cs01_rebootstrap".to_string(),
-                })
-            } else {
-                bump_hazard_shift(hazard_ref, &BumpRequest::Parallel(bp))
-            }
+            bump_hazard_spreads(
+                hazard_ref,
+                curves,
+                &BumpRequest::Parallel(bp),
+                Some(discount_id),
+                None,
+                None,
+            )
+            .map_err(|e| finstack_quant_core::Error::Calibration {
+                message: format!(
+                    "CDS index CS01: par-spread re-bootstrap failed for curve '{}' ({e})",
+                    credit_id
+                ),
+                category: "cs01_rebootstrap".to_string(),
+            })
         };
 
         let bumped_up = bump_hazard_for(bump_bp)?;

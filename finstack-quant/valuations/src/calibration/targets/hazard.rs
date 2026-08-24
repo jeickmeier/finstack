@@ -12,9 +12,12 @@ use crate::calibration::solver::traits::{BootstrapTarget, GlobalSolveTarget};
 use crate::calibration::CalibrationReport;
 use crate::instruments::credit_derivatives::cds::CdsConventionResolved;
 use crate::market::build::context::BuildCtx;
+use crate::market::quotes::cds::CdsQuote;
 use crate::market::quotes::market_quote::{ExtractQuotes, MarketQuote};
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::market_data::term_structures::{HazardCalibrationRecipe, HazardCurve};
+use finstack_quant_core::market_data::term_structures::{
+    HazardCalibrationInput, HazardCalibrationRecipe, HazardCurve,
+};
 use finstack_quant_core::HashMap;
 use finstack_quant_core::Result;
 use std::cell::RefCell;
@@ -43,6 +46,59 @@ pub(crate) struct HazardCurveTarget {
     pub(crate) config: CalibrationConfig,
     /// Optional reusable context for sequential solvers to reduce memory pressure.
     reuse_context: Option<RefCell<MarketContext>>,
+}
+
+pub(crate) fn validate_hazard_recipe_bindings(
+    params: &HazardCurveParams,
+    recipe: &HazardCalibrationRecipe,
+) -> Result<()> {
+    let conventions = crate::instruments::credit_derivatives::cds::resolve_market_conventions(
+        params.currency,
+        params.doc_clause.as_deref(),
+    )?;
+    let mut curve_ids = HashMap::default();
+    curve_ids.insert("discount".to_string(), params.discount_curve_id.to_string());
+    curve_ids.insert("credit".to_string(), params.curve_id.to_string());
+    let build_ctx = BuildCtx::new(params.base_date, params.notional, curve_ids)
+        .with_cds_valuation_convention(params.cds_valuation_convention);
+
+    for (input_kind, inputs) in [
+        ("calibration", recipe.calibration_inputs.as_slice()),
+        ("spread-risk", recipe.spread_risk_inputs.as_slice()),
+    ] {
+        for input in inputs {
+            let quote: CdsQuote = serde_json::from_value(input.quote.clone()).map_err(|error| {
+                finstack_quant_core::Error::Validation(format!(
+                    "hazard {input_kind} replay contains an invalid serialized CDS quote: {error}"
+                ))
+            })?;
+            let prepared = crate::market::build::prepared::prepare_cds_quote(
+                quote.clone(),
+                &build_ctx,
+                conventions.day_count,
+                params.base_date,
+            )?;
+            let time_scale = prepared
+                .pillar_time
+                .abs()
+                .max(input.pillar_time.abs())
+                .max(1.0);
+            if prepared.pillar_date != input.pillar_date
+                || (prepared.pillar_time - input.pillar_time).abs() > 1e-12 * time_scale
+            {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "hazard {input_kind} serialized quote '{}' resolves to pillar date {} and time {}, \
+                     not stored pillar date {} and time {}",
+                    quote.id(),
+                    prepared.pillar_date,
+                    prepared.pillar_time,
+                    input.pillar_date,
+                    input.pillar_time
+                )));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Build the log-spaced hazard bracketing scan grid for a spread-implied
@@ -230,29 +286,6 @@ impl HazardCurveTarget {
             config.validation.max_hazard_rate = config.validation.max_hazard_rate.max(2.0);
         }
         config.calibration_method = params.method.clone();
-        let calibration_recipe = HazardCalibrationRecipe {
-            hazard_params: serde_json::to_value(params).map_err(|error| {
-                finstack_quant_core::Error::Validation(format!(
-                    "failed to persist hazard calibration parameters: {error}"
-                ))
-            })?,
-            cds_quotes: cds_quotes
-                .iter()
-                .map(|quote| {
-                    serde_json::to_value(quote).map_err(|error| {
-                        finstack_quant_core::Error::Validation(format!(
-                            "failed to persist hazard calibration quote: {error}"
-                        ))
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?,
-            calibration_config: serde_json::to_value(&config).map_err(|error| {
-                finstack_quant_core::Error::Validation(format!(
-                    "failed to persist hazard calibration policy: {error}"
-                ))
-            })?,
-        };
-
         let target = HazardCurveTarget::new(params.clone(), context.clone(), config.clone())?;
 
         let mut prepared_quotes: Vec<CalibrationQuote> = Vec::with_capacity(cds_quotes.len());
@@ -303,105 +336,125 @@ impl HazardCurveTarget {
             .with_metadata("curve_id", params.curve_id.as_str())
             .with_metadata("entity", &params.entity);
         let mut report = report;
-        report.update_solver_config(config.solver);
+        report.update_solver_config(config.solver.clone());
 
-        // Attach par spread points from the calibration quotes to the bootstrapped
-        // curve so that downstream quote-bump CS01 metrics can re-bootstrap from
-        // par spreads. The pillar_time values come from the prepared quotes and
-        // reflect the actual IMM-rolled maturity dates used during calibration.
-        //
-        // Quote-type handling:
-        //   * `CdsParSpread` — `spread_bp` is already the par spread by definition.
-        //   * `CdsUpfront`  — `running_spread_bp` is the *fixed coupon* (e.g.
-        //     100bp for CDX IG), NOT the implied par spread. Storing the
-        //     coupon would corrupt downstream par-spread CS01 because a
-        //     1bp shock to a coupon is not the same as a 1bp shock to the
-        //     par spread. We therefore reprice each upfront pillar against
-        //     the freshly bootstrapped hazard curve and back out the implied
-        //     par spread via `CDSPricer::par_spread()`. If the implied solve
-        //     fails for any reason (e.g. zero risky annuity), we drop that
-        //     pillar from the sidecar rather than persisting a misleading
-        //     value.
-        let par_points: Vec<(f64, f64)> = {
-            // The hazard curve we just bootstrapped lives under `params.curve_id`;
-            // the discount curve was already provided in `context`. Insert by
-            // id-overwrite so par_spread sees the new hazard knots.
-            let bumped_ctx = context.clone().insert(curve.clone());
-            let mut points: Vec<(f64, f64)> = Vec::with_capacity(prepared_quotes.len());
-            for q in prepared_quotes.iter() {
-                let CalibrationQuote::Cds(pq) = q else {
-                    continue;
-                };
-                let spread_bp = match pq.quote.as_ref() {
-                    crate::market::quotes::cds::CdsQuote::CdsParSpread { spread_bp, .. } => {
-                        *spread_bp
-                    }
-                    crate::market::quotes::cds::CdsQuote::CdsUpfront { .. } => {
-                        // W7: dropped pillars must surface in observability,
-                        // not silently. Downstream CS01 quote-bump will refuse
-                        // to re-bootstrap from a missing par pillar, and the
-                        // operator needs to know the sidecar is incomplete.
-                        let Some(cds) = pq.instrument.as_any().downcast_ref::<
+        let calibrated_context = context.clone().insert(curve.clone());
+        let mut par_points = Vec::with_capacity(prepared_quotes.len());
+        let mut calibration_inputs = Vec::with_capacity(prepared_quotes.len());
+        let mut spread_risk_inputs = Vec::with_capacity(prepared_quotes.len());
+        for prepared in &prepared_quotes {
+            let CalibrationQuote::Cds(prepared) = prepared else {
+                continue;
+            };
+            let original_quote = prepared.quote.as_ref();
+            let original_payload = serde_json::to_value(original_quote).map_err(|error| {
+                finstack_quant_core::Error::Validation(format!(
+                    "failed to persist hazard calibration quote: {error}"
+                ))
+            })?;
+            calibration_inputs.push(HazardCalibrationInput {
+                quote: original_payload,
+                pillar_date: prepared.pillar_date,
+                pillar_time: prepared.pillar_time,
+            });
+
+            let risk_quote = match original_quote {
+                crate::market::quotes::cds::CdsQuote::CdsParSpread { spread_bp, .. } => {
+                    par_points.push((prepared.pillar_time, *spread_bp));
+                    original_quote.clone()
+                }
+                crate::market::quotes::cds::CdsQuote::CdsUpfront {
+                    id,
+                    entity,
+                    convention,
+                    pillar,
+                    recovery_rate,
+                    ..
+                } => {
+                    let cds = prepared
+                        .instrument
+                        .as_any()
+                        .downcast_ref::<
                             crate::instruments::credit_derivatives::cds::CreditDefaultSwap,
-                        >() else {
-                            tracing::warn!(
-                                pillar_time = pq.pillar_time,
-                                curve = %params.curve_id.as_str(),
-                                "CdsUpfront pillar dropped from par_points sidecar: \
-                                 instrument not downcastable to CreditDefaultSwap"
-                            );
-                            continue;
-                        };
-                        let disc = match bumped_ctx.get_discount(&cds.premium.discount_curve_id) {
-                            Ok(c) => c,
-                            Err(e) => {
-                                tracing::warn!(
-                                    pillar_time = pq.pillar_time,
-                                    curve = %params.curve_id.as_str(),
-                                    discount_curve = %cds.premium.discount_curve_id.as_ref(),
-                                    error = %e,
-                                    "CdsUpfront pillar dropped: discount curve lookup failed"
-                                );
-                                continue;
-                            }
-                        };
-                        let surv = match bumped_ctx.get_hazard(&cds.protection.credit_curve_id) {
-                            Ok(c) => c,
-                            Err(e) => {
-                                tracing::warn!(
-                                    pillar_time = pq.pillar_time,
-                                    curve = %params.curve_id.as_str(),
-                                    credit_curve = %cds.protection.credit_curve_id.as_ref(),
-                                    error = %e,
-                                    "CdsUpfront pillar dropped: hazard curve lookup failed"
-                                );
-                                continue;
-                            }
-                        };
-                        let pricer = crate::instruments::credit_derivatives::cds::pricer::CDSPricer::with_config(
-                            crate::instruments::credit_derivatives::cds::pricer::CDSPricerConfig::from_cds(cds),
-                        );
-                        match pricer.par_spread(cds, disc.as_ref(), surv.as_ref(), params.base_date)
-                        {
-                            Ok(s) => s,
-                            Err(e) => {
-                                tracing::warn!(
-                                    pillar_time = pq.pillar_time,
-                                    curve = %params.curve_id.as_str(),
-                                    error = %e,
-                                    "CdsUpfront pillar dropped: par_spread back-out failed \
-                                     (likely zero risky annuity); downstream par-spread CS01 \
-                                     for this pillar will be unavailable"
-                                );
-                                continue;
-                            }
-                        }
+                        >()
+                        .ok_or_else(|| {
+                            finstack_quant_core::Error::Validation(format!(
+                                "cannot derive par-spread replay input for upfront quote '{}': \
+                                 calibrated instrument is not a CreditDefaultSwap",
+                                id.as_str()
+                            ))
+                        })?;
+                    let discount = calibrated_context
+                        .get_discount(&cds.premium.discount_curve_id)
+                        .map_err(|error| {
+                            finstack_quant_core::Error::Validation(format!(
+                                "cannot derive par-spread replay input for upfront quote '{}': \
+                                 discount curve lookup failed: {error}",
+                                id.as_str()
+                            ))
+                        })?;
+                    let hazard = calibrated_context
+                        .get_hazard(&cds.protection.credit_curve_id)
+                        .map_err(|error| {
+                            finstack_quant_core::Error::Validation(format!(
+                                "cannot derive par-spread replay input for upfront quote '{}': \
+                                 hazard curve lookup failed: {error}",
+                                id.as_str()
+                            ))
+                        })?;
+                    let pricer = crate::instruments::credit_derivatives::cds::pricer::CDSPricer::with_config(
+                        crate::instruments::credit_derivatives::cds::pricer::CDSPricerConfig::from_cds(cds),
+                    );
+                    let spread_bp = pricer
+                        .par_spread(
+                            cds,
+                            discount.as_ref(),
+                            hazard.as_ref(),
+                            params.base_date,
+                        )
+                        .map_err(|error| {
+                            finstack_quant_core::Error::Validation(format!(
+                                "cannot derive par-spread replay input for upfront quote '{}': {error}",
+                                id.as_str()
+                            ))
+                        })?;
+                    par_points.push((prepared.pillar_time, spread_bp));
+                    crate::market::quotes::cds::CdsQuote::CdsParSpread {
+                        id: id.clone(),
+                        entity: entity.clone(),
+                        convention: convention.clone(),
+                        pillar: pillar.clone(),
+                        spread_bp,
+                        recovery_rate: *recovery_rate,
                     }
-                };
-                points.push((pq.pillar_time, spread_bp));
-            }
-            points
-        };
+                }
+            };
+            spread_risk_inputs.push(HazardCalibrationInput {
+                quote: serde_json::to_value(risk_quote).map_err(|error| {
+                    finstack_quant_core::Error::Validation(format!(
+                        "failed to persist hazard spread-risk quote: {error}"
+                    ))
+                })?,
+                pillar_date: prepared.pillar_date,
+                pillar_time: prepared.pillar_time,
+            });
+        }
+
+        let calibration_recipe = HazardCalibrationRecipe::new(
+            serde_json::to_value(params).map_err(|error| {
+                finstack_quant_core::Error::Validation(format!(
+                    "failed to persist hazard calibration parameters: {error}"
+                ))
+            })?,
+            calibration_inputs,
+            spread_risk_inputs,
+            serde_json::to_value(&config).map_err(|error| {
+                finstack_quant_core::Error::Validation(format!(
+                    "failed to persist hazard calibration policy: {error}"
+                ))
+            })?,
+        )?;
+        validate_hazard_recipe_bindings(params, &calibration_recipe)?;
 
         let id = curve.id().clone();
         let mut builder = curve

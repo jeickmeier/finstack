@@ -6,14 +6,6 @@
 //! `From<EnvelopeError> for finstack_quant_core::Error` for callers that use
 //! the workspace-wide result type.
 
-fn json_parse_loc(line: &Option<u32>, col: &Option<u32>) -> String {
-    match (line, col) {
-        (Some(l), Some(c)) => format!(" at line {l}, column {c}"),
-        (Some(l), None) => format!(" at line {l}"),
-        _ => String::new(),
-    }
-}
-
 fn suggestion_hint(suggestion: &Option<String>) -> String {
     match suggestion {
         Some(s) => format!(" Did you mean '{s}'?"),
@@ -41,38 +33,6 @@ fn format_worst_quote(id: &Option<String>, residual: &Option<f64>) -> String {
 #[non_exhaustive]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum EnvelopeError {
-    /// JSON parse failure (malformed envelope).
-    #[error("JSON parse error{}: {message}", json_parse_loc(line, col))]
-    JsonParse {
-        /// Parser-provided error description.
-        message: String,
-        /// 1-based line number of the parse failure, when available.
-        line: Option<u32>,
-        /// 1-based column number of the parse failure, when available.
-        col: Option<u32>,
-    },
-    /// Required calibration schema marker is absent.
-    #[error("missing calibration schema; expected {expected:?}")]
-    SchemaMissing {
-        /// Current schema marker required for newly written envelopes.
-        expected: String,
-    },
-    /// Calibration schema marker is malformed or names another contract.
-    #[error("malformed calibration schema {found:?}; expected {expected:?}")]
-    MalformedSchema {
-        /// Rejected schema marker.
-        found: String,
-        /// Expected stable contract identifier and version shape.
-        expected: String,
-    },
-    /// Calibration schema marker names a non-current contract.
-    #[error("unsupported calibration schema {found:?}; expected {expected:?}")]
-    UnsupportedSchema {
-        /// Rejected schema marker.
-        found: String,
-        /// Exact schema marker accepted by this build.
-        expected: String,
-    },
     /// A step's `kind` discriminator is not a recognized variant.
     #[error("step[{step_index}] '{step_id}': unknown kind '{found}'; expected one of: {}", expected_one_of.join(", "))]
     UnknownStepKind {
@@ -211,10 +171,6 @@ impl EnvelopeError {
     /// error kind without parsing the full JSON payload.
     pub fn kind_str(&self) -> &'static str {
         match self {
-            EnvelopeError::JsonParse { .. } => "json_parse",
-            EnvelopeError::SchemaMissing { .. } => "schema_missing",
-            EnvelopeError::MalformedSchema { .. } => "malformed_schema",
-            EnvelopeError::UnsupportedSchema { .. } => "unsupported_schema",
             EnvelopeError::UnknownStepKind { .. } => "unknown_step_kind",
             EnvelopeError::MissingDependency { .. } => "missing_dependency",
             EnvelopeError::UndefinedQuoteSet { .. } => "undefined_quote_set",
@@ -232,7 +188,7 @@ impl EnvelopeError {
     /// Step identifier associated with this error, if any.
     ///
     /// Returns `None` for variants that are not bound to a specific step
-    /// (`JsonParse`, `StepCycle`).
+    /// (for example, [`EnvelopeError::StrictLoad`]).
     pub fn step_id(&self) -> Option<&str> {
         match self {
             EnvelopeError::UnknownStepKind { step_id, .. }
@@ -242,11 +198,7 @@ impl EnvelopeError {
             | EnvelopeError::DuplicateStepId { step_id, .. }
             | EnvelopeError::SolverNotConverged { step_id, .. }
             | EnvelopeError::QuoteDataInvalid { step_id, .. } => Some(step_id),
-            EnvelopeError::JsonParse { .. }
-            | EnvelopeError::SchemaMissing { .. }
-            | EnvelopeError::MalformedSchema { .. }
-            | EnvelopeError::UnsupportedSchema { .. }
-            | EnvelopeError::DuplicateMarketDatumId { .. }
+            EnvelopeError::DuplicateMarketDatumId { .. }
             | EnvelopeError::QuoteIdNotInMarketData { .. }
             | EnvelopeError::JsonSerialize { .. }
             | EnvelopeError::StrictLoad { .. } => None,

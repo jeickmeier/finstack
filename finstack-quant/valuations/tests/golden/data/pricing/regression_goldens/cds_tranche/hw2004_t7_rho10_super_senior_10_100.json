@@ -163,7 +163,7 @@
   "expected": {
     "par_spread": 1.0,
     "dv01": 111.050230972731,
-    "cs01": 165.366906529613
+    "cs01_hazard": 165.366906529613
   },
   "tolerances": {
     "par_spread": {
@@ -175,10 +175,10 @@
       "rel": 5e-09,
       "tolerance_reason": "Internal deterministic regression pin, NOT a Hull-White value (the paper publishes only fair spreads). Computed by finstack's own dv01 calculator on this analytic fixture on 2026-07-22 and pinned at ~10x FP-residual tightness so refactor drift is caught; the external benchmark assertion for this fixture is par_spread."
     },
-    "cs01": {
+    "cs01_hazard": {
       "abs": 1e-06,
       "rel": 5e-09,
-      "tolerance_reason": "Internal deterministic regression pin, NOT an external benchmark value. Re-pinned from the library's own calculator on 2026-07-23 at ~10x FP-residual tightness so refactor drift is caught; external/textbook assertions remain on other metrics where present."
+      "tolerance_reason": "Internal deterministic regression pin, NOT an external benchmark value. Re-pinned from the library's explicit direct hazard-shift calculator on 2026-07-23 at ~10x FP-residual tightness so refactor drift is caught; external/textbook assertions remain on other metrics where present."
     }
   }
 }

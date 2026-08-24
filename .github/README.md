@@ -28,7 +28,7 @@ races on the shared `mise.toml`-derived key. Jobs then fan out in parallel:
 
 | Job | Command | Notes |
 | --- | --- | --- |
-| Lint | `mise run pre-commit-run`, then `mise run gen-check` | `SKIP: cargo-deny` — the supply-chain job owns it. 90-minute budget because clippy runs `--workspace --all-targets --all-features`. |
+| Lint | `mise run pre-commit-run`, then `mise run gen-check` | `SKIP: cargo-deny` — the supply-chain job owns it. Clippy covers lib/bins/tests/examples (`--all-features`), not Criterion benches. |
 | Test Rust | `mise run rust-test` | cargo-nextest, lib + integration targets. |
 | Rust MSRV (1.90) | `mise run rust-msrv` | `cargo +1.90 check --locked --workspace --all-features --lib --bins --examples`. Production targets only — tests and benches are not MSRV-checked. |
 | Rust release build | `mise run rust-build-prod` | Release compile without debug info. |

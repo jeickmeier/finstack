@@ -8,7 +8,7 @@ use crate::test_support::credit as test_utils;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve, Seniority};
+use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::credit_derivatives::cds::CreditDefaultSwap;
@@ -46,23 +46,16 @@ fn create_test_market(base_date: Date) -> MarketContext {
         .build()
         .unwrap();
 
-    let hazard = HazardCurve::builder("ACME-HAZARD")
-        .issuer("ACME-Corp")
-        .seniority(Seniority::Senior)
-        .currency(Currency::USD)
-        .recovery_rate(0.40)
-        .base_date(base_date)
-        .knots([
-            (0.0, 0.015), // 150bp hazard
-            (1.0, 0.016),
-            (3.0, 0.018),
-            (5.0, 0.020),
-            (10.0, 0.025),
-        ])
-        .build()
-        .unwrap();
-
-    MarketContext::new().insert(disc).insert(hazard)
+    let source = MarketContext::new().insert(disc);
+    let hazard = test_utils::calibrated_hazard_curve(
+        &source,
+        base_date,
+        "ACME-HAZARD",
+        "ACME-Corp",
+        "USD-OIS",
+    )
+    .unwrap();
+    source.insert(hazard)
 }
 
 fn metric_value(

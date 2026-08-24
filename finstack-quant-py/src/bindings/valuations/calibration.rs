@@ -10,7 +10,6 @@ use crate::errors::display_to_py;
 use finstack_quant_core::contract::LoadLimits;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_valuations::calibration::api::engine::{self, ExecuteError};
-use finstack_quant_valuations::calibration::api::errors::EnvelopeError;
 use finstack_quant_valuations::calibration::api::schema::CalibrationResultEnvelope;
 use finstack_quant_valuations::calibration::api::validate as validate_api;
 use numpy::PyArray1;
@@ -30,41 +29,23 @@ create_exception!(
      attributes for programmatic handling."
 );
 
-/// Build a structured `CalibrationEnvelopeError` for ingestion-only helpers.
-fn envelope_error_to_py(py: Python<'_>, err: &EnvelopeError) -> PyErr {
-    let exc = CalibrationEnvelopeError::new_err(err.to_string());
-    let value = exc.value(py);
-    let attrs: [(&str, PyResult<()>); 5] = [
-        ("kind", value.setattr("kind", err.kind_str())),
-        ("stage", value.setattr("stage", "ingestion")),
-        ("details", value.setattr("details", err.to_json())),
-        (
-            "step_id",
-            value.setattr("step_id", err.step_id().map(str::to_string)),
-        ),
-        (
-            "solver_diagnostics",
-            value.setattr("solver_diagnostics", py.None()),
-        ),
-    ];
-    for (name, result) in attrs {
-        if let Err(setattr_err) = result {
-            // Surface the failure to set a contracted attribute instead of
-            // returning an exception missing `kind` / `step_id` / `details`.
-            return PyRuntimeError::new_err(format!(
-                "failed to attach '{name}' attribute to CalibrationEnvelopeError \
-                 ({}): underlying calibration error: {err}",
-                setattr_err.value(py),
-            ));
-        }
-    }
-    exc
-}
-
 /// Map every execution stage to the same structured Python exception contract.
 fn execute_error_to_py(py: Python<'_>, err: ExecuteError) -> PyErr {
     let details = err.details();
     let details_json = err.to_json();
+    let solver_diagnostics = match details.solver_diagnostics.as_ref() {
+        Some(diagnostics) => match serde_json::to_string(diagnostics) {
+            Ok(json) => Some(json),
+            Err(serialization_err) => {
+                return PyRuntimeError::new_err(format!(
+                    "failed to serialize solver diagnostics for CalibrationEnvelopeError: \
+                     {serialization_err}; underlying calibration error: {}",
+                    details.cause
+                ));
+            }
+        },
+        None => None,
+    };
     let exc = CalibrationEnvelopeError::new_err(details.cause.clone());
     let value = exc.value(py);
     let attrs: [(&str, PyResult<()>); 5] = [
@@ -74,10 +55,7 @@ fn execute_error_to_py(py: Python<'_>, err: ExecuteError) -> PyErr {
         ("step_id", value.setattr("step_id", details.step_id.clone())),
         (
             "solver_diagnostics",
-            value.setattr(
-                "solver_diagnostics",
-                serde_json::to_string(&details.solver_diagnostics).unwrap_or_default(),
-            ),
+            value.setattr("solver_diagnostics", solver_diagnostics),
         ),
     ];
     for (name, result) in attrs {
@@ -359,11 +337,13 @@ impl PyCalibrationResult {
 ///
 /// Raises
 /// ------
-/// ValueError
-///     If the JSON is not a valid calibration envelope.
+/// CalibrationEnvelopeError
+///     If strict loading or static validation rejects the calibration envelope.
 #[pyfunction]
 fn validate_calibration_json(py: Python<'_>, json: &str) -> PyResult<String> {
-    validate_api::validate_calibration_json(json).map_err(|e| envelope_error_to_py(py, &e))
+    validate_api::validate_calibration_json(json)
+        .map_err(ExecuteError::from)
+        .map_err(|error| execute_error_to_py(py, error))
 }
 
 /// Pre-flight envelope validation without invoking the solver.
@@ -385,7 +365,9 @@ fn validate_calibration_json(py: Python<'_>, json: &str) -> PyResult<String> {
 ///     If the envelope JSON is malformed.
 #[pyfunction]
 fn dry_run(py: Python<'_>, json: &str) -> PyResult<String> {
-    validate_api::dry_run(json).map_err(|e| envelope_error_to_py(py, &e))
+    validate_api::dry_run(json)
+        .map_err(ExecuteError::from)
+        .map_err(|error| execute_error_to_py(py, error))
 }
 
 /// Dump the static dependency graph of a calibration plan.
@@ -407,7 +389,9 @@ fn dry_run(py: Python<'_>, json: &str) -> PyResult<String> {
 ///     If the envelope JSON is malformed.
 #[pyfunction]
 fn dependency_graph_json(py: Python<'_>, json: &str) -> PyResult<String> {
-    validate_api::dependency_graph_json(json).map_err(|e| envelope_error_to_py(py, &e))
+    validate_api::dependency_graph_json(json)
+        .map_err(ExecuteError::from)
+        .map_err(|error| execute_error_to_py(py, error))
 }
 
 /// Execute a calibration plan and return the full result.
@@ -425,11 +409,14 @@ fn dependency_graph_json(py: Python<'_>, json: &str) -> PyResult<String> {
 ///
 /// Raises
 /// ------
-/// ValueError
-///     If the JSON is invalid or calibration fails.
+/// CalibrationEnvelopeError
+///     If ingestion, validation, context construction, target construction,
+///     solving, or final fit acceptance fails.
 #[pyfunction]
 fn calibrate(py: Python<'_>, json: &str) -> PyResult<PyCalibrationResult> {
-    let envelope = validate_api::parse_envelope(json).map_err(|e| envelope_error_to_py(py, &e))?;
+    let envelope = validate_api::parse_envelope(json)
+        .map_err(ExecuteError::from)
+        .map_err(|error| execute_error_to_py(py, error))?;
     // Release the GIL for the duration of the solver: calibration can run for seconds.
     // The error is boxed inside the closure: `ExecuteError` is a large enum, and
     // an un-boxed large `Err` variant on the `detach` closure trips

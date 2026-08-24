@@ -518,7 +518,7 @@ impl HazardCurve {
             par_spreads_bp: self.par_spreads_bp.clone(),
             par_interp: self.par_interp,
             survival_interp_style: self.survival_interp_style,
-            hazard_calibration: self.hazard_calibration.clone(),
+            hazard_calibration: None,
             interp: self.interp.clone(),
             fx_policy: self.fx_policy.clone(),
         })
@@ -543,7 +543,6 @@ impl HazardCurve {
             .day_count(self.day_count)
             .par_interp(self.par_interp)
             .interp(self.survival_interp_style)
-            .hazard_calibration_opt(self.hazard_calibration.clone())
             .issuer_opt(self.issuer.clone())
             .seniority_opt(self.seniority)
             .currency_opt(self.currency)
@@ -622,6 +621,7 @@ impl HazardCurve {
         // approximation λ·(1−R)·1e4, which reflects the bumped curve.
         self.par_tenors = Box::new([]);
         self.par_spreads_bp = Box::new([]);
+        self.hazard_calibration = None;
         self.interp = interp;
         Ok(())
     }
@@ -1075,6 +1075,9 @@ impl HazardCurveBuilder {
         }
         par_pts.sort_by(|a, b| a.0.total_cmp(&b.0));
         let (p_ten, p_spd): (Vec<f64>, Vec<f64>) = par_pts.into_iter().unzip();
+        if let Some(recipe) = &self.hazard_calibration {
+            recipe.validate()?;
+        }
 
         // Convert hazard rates to survival probabilities for interpolation
         // using the single canonical λ-attribution convention shared with
@@ -1152,7 +1155,62 @@ fn survival_pillars(knots: &[f64], lambdas: &[f64]) -> (Vec<f64>, Vec<f64>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::market_data::term_structures::{HazardCalibrationInput, HazardCalibrationRecipe};
     use time::Month;
+
+    fn test_hazard_recipe(base: Date) -> HazardCalibrationRecipe {
+        let input = HazardCalibrationInput {
+            quote: serde_json::json!({
+                "type": "cds_par_spread",
+                "id": "CDS-5Y"
+            }),
+            pillar_date: base + time::Duration::days(365),
+            pillar_time: 1.0,
+        };
+        HazardCalibrationRecipe::new(
+            serde_json::json!({"curve_id": "RECIPE"}),
+            vec![input.clone()],
+            vec![input],
+            serde_json::json!({"fail_on_bad_fit": true}),
+        )
+        .expect("valid hazard calibration recipe")
+    }
+
+    #[test]
+    fn hazard_recipe_invalidation_covers_synthetic_transformations() {
+        use crate::market_data::bumps::BumpSpec;
+
+        let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+        let source = HazardCurve::builder("RECIPE")
+            .base_date(base)
+            .recovery_rate(0.4)
+            .knots([(1.0, 0.01), (5.0, 0.02), (10.0, 0.03)])
+            .hazard_calibration(test_hazard_recipe(base))
+            .build()
+            .expect("recipe-backed curve");
+
+        let recovery = source.with_recovery_rate(0.35).expect("recovery override");
+        assert!(recovery.hazard_calibration().is_none());
+
+        let parallel = source.with_parallel_bump(1e-4).expect("parallel bump");
+        assert!(parallel.hazard_calibration().is_none());
+
+        let rolled = source.roll_forward(30).expect("curve roll");
+        assert!(rolled.hazard_calibration().is_none());
+
+        let rebuilt = source
+            .to_builder_with_id("REBUILT")
+            .build()
+            .expect("generic rebuild");
+        assert!(rebuilt.hazard_calibration().is_none());
+
+        let mut in_place = source;
+        in_place
+            .bump_in_place(&BumpSpec::parallel_bp(1.0))
+            .expect("in-place bump");
+        assert!(in_place.hazard_calibration().is_none());
+    }
+
     /// The builder's `interp` style must be wired to the survival
     /// interpolator: Linear and LogLinear curves share pillar values but
     /// differ strictly between pillars.

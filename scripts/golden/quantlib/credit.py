@@ -71,13 +71,16 @@ def build_single_name_cds() -> dict[str, Any]:
     cds = _quantlib_cds()
     premium_leg_pv = abs(cds.couponLegNPV())
     dv01 = (_quantlib_cds(rate=FLAT_RATE + BUMP_BP).NPV() - _quantlib_cds(rate=FLAT_RATE - BUMP_BP).NPV()) / 2.0
-    cs01 = (_quantlib_cds(hazard=FLAT_HAZARD + BUMP_BP).NPV() - _quantlib_cds(hazard=FLAT_HAZARD - BUMP_BP).NPV()) / 2.0
+    cs01_hazard = (
+        _quantlib_cds(hazard=FLAT_HAZARD + BUMP_BP).NPV()
+        - _quantlib_cds(hazard=FLAT_HAZARD - BUMP_BP).NPV()
+    ) / 2.0
     quantlib_reason = "Strict executable QuantLib IsdaCdsEngine decomposition benchmark."
     canonical_reason = (
         "Canonical sum of discounted survival-weighted accruals, excluding the "
         "accrual-on-default contribution included in QuantLib couponLegNPV."
     )
-    return {
+    fixture = {
         "schema": SCHEMA,
         "metadata": metadata(
             name="cds_quantlib_flat_hazard_decomposition",
@@ -95,7 +98,7 @@ def build_single_name_cds() -> dict[str, Any]:
         "market": {
             "kind": "envelope",
             "envelope": {
-                "schema": "finstack_quant.calibration",
+                "schema": "finstack_quant.calibration/1",
                 "plan": {
                     "id": "cds_quantlib_flat_hazard_decomposition_tier_a_wrap",
                     "description": "Pre-built deterministic flat curves; no calibration steps required.",
@@ -136,6 +139,8 @@ def build_single_name_cds() -> dict[str, Any]:
                         "allow_non_monotonic": False,
                         "min_forward_tenor": 1e-6,
                         "rate_calibration": None,
+                        "calibration_ois_cutoff_days": None,
+                        "fx_policy": None,
                     },
                 ],
             },
@@ -191,7 +196,7 @@ def build_single_name_cds() -> dict[str, Any]:
             "protection_leg_pv": cds.defaultLegNPV(),
             "premium_leg_pv": premium_leg_pv,
             "dv01": dv01,
-            "cs01": cs01,
+            "cs01_hazard": cs01_hazard,
         },
         "tolerances": {
             "npv": tolerance(1.0, quantlib_reason),
@@ -201,6 +206,14 @@ def build_single_name_cds() -> dict[str, Any]:
             "protection_leg_pv": tolerance(1.0, quantlib_reason),
             "premium_leg_pv": tolerance(1.0, quantlib_reason),
             "dv01": tolerance(0.1, "QuantLib central finite difference under a 1bp parallel continuous-rate bump."),
-            "cs01": tolerance(1.0, "QuantLib central finite difference under a direct 1bp hazard-rate bump."),
+            "cs01_hazard": tolerance(
+                1.0,
+                "QuantLib central finite difference under a direct 1bp hazard-rate bump.",
+            ),
         },
     }
+    fixture["instrument"] = {
+        "schema": "finstack_quant.instrument/1",
+        "instrument": fixture["instrument"],
+    }
+    return fixture

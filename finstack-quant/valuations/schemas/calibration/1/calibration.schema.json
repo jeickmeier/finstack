@@ -1861,25 +1861,58 @@
       "description": "Identifier for FX option market conventions (e.g., \"EUR/USD-VANILLA\").",
       "type": "string"
     },
-    "HazardCalibrationRecipe": {
+    "HazardCalibrationInput": {
       "additionalProperties": false,
+      "description": "One atomic quote binding retained for hazard calibration replay.",
+      "properties": {
+        "pillar_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Contractual pillar date resolved from the quote and CDS conventions."
+        },
+        "pillar_time": {
+          "description": "Frozen year-fraction pillar time used by the original solve.",
+          "format": "double",
+          "type": "number"
+        },
+        "quote": {
+          "description": "Exact serialized typed CDS quote."
+        }
+      },
+      "required": [
+        "quote",
+        "pillar_date",
+        "pillar_time"
+      ],
+      "type": "object"
+    },
+    "HazardCalibrationRecipe": {
       "description": "Exact valuation-layer inputs required to replay a hazard-curve calibration.\n\nThe core market-data crate stores these payloads without interpreting them;\nthe valuations crate deserializes them back into its canonical\n`HazardCurveParams`, typed CDS quotes, and `CalibrationConfig`. Keeping the\ncomplete serde payloads avoids replacing date pillars with rounded tenors or\nsilently substituting current defaults for the original solver policy.",
       "properties": {
         "calibration_config": {
           "description": "Exact serialized `CalibrationConfig`, including solver and validation policy."
         },
-        "cds_quotes": {
-          "description": "Complete ordered set of typed CDS quote payloads used for the original solve.",
-          "items": true,
+        "calibration_inputs": {
+          "description": "Original par-spread or upfront inputs used to calibrate the curve.",
+          "items": {
+            "$ref": "#/$defs/HazardCalibrationInput"
+          },
           "type": "array"
         },
         "hazard_params": {
           "description": "Exact serialized `HazardCurveParams` used for the original solve."
+        },
+        "spread_risk_inputs": {
+          "description": "Par-spread-only inputs used for quote-space spread risk.",
+          "items": {
+            "$ref": "#/$defs/HazardCalibrationInput"
+          },
+          "type": "array"
         }
       },
       "required": [
         "hazard_params",
-        "cds_quotes",
+        "calibration_inputs",
+        "spread_risk_inputs",
         "calibration_config"
       ],
       "type": "object"

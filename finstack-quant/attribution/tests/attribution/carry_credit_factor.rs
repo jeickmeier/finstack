@@ -1,14 +1,6 @@
-//! PR-8b: carry decomposition under a calibrated `CreditFactorModel`.
-//!
-//! Required tests (spec §10.4 / PR-8b):
-//!   1. `carry_coupon_total_equals_rates_plus_credit`
-//!   2. `carry_roll_down_total_equals_rates_plus_credit`
-//!   3. `credit_carry_total_equals_sum_of_credit_source_lines`
-//!   4. `credit_carry_total_equals_generic_levels_and_adder`
-//!   5. `rates_carry_total_matches_rates_source_lines_minus_funding`
-//!   6. `carry_no_model_keeps_scalar_source_lines`
-//!   7. `carry_credit_roll_down_all_to_adder` (per spec §7.3 v1)
+//! Carry decomposition under a calibrated `CreditFactorModel`.
 
+use crate::attribution_support::calibrated_hazard_curve;
 use finstack_quant_attribution::{
     AttributionConfig, AttributionEnvelope, AttributionMethod, AttributionSpec,
     CreditFactorDetailOptions, PnlAttribution,
@@ -30,6 +22,7 @@ use finstack_quant_factor_model::{
 };
 use finstack_quant_valuations::instruments::json_loader::InstrumentJson;
 use finstack_quant_valuations::instruments::{Attributes, Bond};
+use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
 use std::collections::BTreeMap;
 use time::Month;
 
@@ -181,16 +174,6 @@ fn flat_discount(base: time::Date, r: f64) -> DiscountCurve {
         .expect("discount curve")
 }
 
-fn flat_hazard(base: time::Date, h: f64) -> HazardCurve {
-    HazardCurve::builder("ISSUER-A-HAZ")
-        .base_date(base)
-        .day_count(DayCount::Act365F)
-        .recovery_rate(0.4)
-        .knots([(0.5_f64, h), (5.0_f64, h), (10.0_f64, h)])
-        .build()
-        .expect("hazard curve")
-}
-
 fn make_market_state(disc: DiscountCurve, haz: HazardCurve) -> MarketContextState {
     MarketContextState {
         schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
@@ -215,8 +198,30 @@ fn run_metrics_based_with_model(model: Option<CreditFactorModel>) -> PnlAttribut
     let bond = build_bond_with_issuer();
     let disc_t0 = flat_discount(as_of_t0, 0.05);
     let disc_t1 = flat_discount(as_of_t1, 0.05);
-    let haz_t0 = flat_hazard(as_of_t0, 0.011); // 110 bp ≈ implied issuer S in model
-    let haz_t1 = flat_hazard(as_of_t1, 0.012); // small +10 bp move
+    let convention = CdsConventionKey {
+        currency: Currency::USD,
+        doc_clause: CdsDocClause::IsdaNa,
+    };
+    let haz_t0 = calibrated_hazard_curve(
+        &disc_t0,
+        as_of_t0,
+        "ISSUER-A-HAZ",
+        "ISSUER-A",
+        0.4,
+        convention.clone(),
+        &[(1, 110.0), (3, 110.0), (5, 110.0), (10, 110.0)],
+    )
+    .expect("T0 hazard calibration");
+    let haz_t1 = calibrated_hazard_curve(
+        &disc_t1,
+        as_of_t1,
+        "ISSUER-A-HAZ",
+        "ISSUER-A",
+        0.4,
+        convention,
+        &[(1, 120.0), (3, 120.0), (5, 120.0), (10, 120.0)],
+    )
+    .expect("T1 hazard calibration");
     let credit_factor_model = model.map(Box::new);
     // Request carry-decomposition metrics so MetricsBased populates
     // coupon_income / pull_to_par / roll_down / funding_cost.

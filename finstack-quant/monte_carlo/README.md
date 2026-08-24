@@ -473,7 +473,7 @@ payoffs are Rust-only.
 ```bash
 cargo nextest run -p finstack-quant-monte-carlo --lib
 cargo nextest run -p finstack-quant-monte-carlo --lib --run-ignored only
-cargo clippy -p finstack-quant-monte-carlo --all-targets -- -D warnings
+cargo clippy -p finstack-quant-monte-carlo --lib --bins --tests --examples -- -D warnings
 RUSTDOCFLAGS='-D warnings' cargo doc -p finstack-quant-monte-carlo --no-deps
 cargo bench -p finstack-quant-monte-carlo --bench mc_hot_paths
 ```

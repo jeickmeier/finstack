@@ -366,12 +366,12 @@ fn test_bucketed_dv01_sums_to_parallel() {
     }
 }
 
-/// Test bucketed CS01 sum with full curve support (strict tolerance).
+/// Test bucketed direct-hazard CS01 sum with full curve support.
 ///
 /// When the hazard curve has knots covering the full standard bucket grid,
 /// bucketed CS01 should sum very closely to total CS01 (within 2%).
 #[test]
-fn test_bucketed_cs01_sums_to_total_strict() {
+fn test_bucketed_hazard_cs01_sums_to_total_strict() {
     let as_of = date!(2025 - 01 - 01);
 
     use finstack_quant_core::market_data::term_structures::HazardCurve;
@@ -445,13 +445,16 @@ fn test_bucketed_cs01_sums_to_total_strict() {
 
     // Compute both total CS01 and bucketed CS01
     let results = registry
-        .compute(&[MetricId::Cs01, MetricId::BucketedCs01], &mut context)
+        .compute(
+            &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
+            &mut context,
+        )
         .unwrap();
 
-    let total_cs01 = *results.get(&MetricId::Cs01).unwrap();
+    let total_cs01 = *results.get(&MetricId::Cs01Hazard).unwrap();
 
     // Get bucketed CS01 series (now stored under curve-specific key)
-    let curve_key = MetricId::custom("bucketed_cs01::HAZARD");
+    let curve_key = MetricId::custom("bucketed_cs01_hazard::HAZARD");
     let bucketed_series = context.computed_series.get(&curve_key);
 
     if let Some(series) = bucketed_series {
@@ -471,13 +474,13 @@ fn test_bucketed_cs01_sums_to_total_strict() {
     }
 }
 
-/// Test bucketed CS01 sum when curve support is limited (fallback tolerance).
+/// Test bucketed direct-hazard CS01 with limited curve support.
 ///
 /// When the hazard curve has fewer knots than the standard bucket grid,
 /// some buckets will have zero or extrapolated values. This test documents
 /// the graceful degradation behavior with a looser tolerance.
 #[test]
-fn test_bucketed_cs01_sums_to_total_limited_curve_support() {
+fn test_bucketed_hazard_cs01_sums_to_total_limited_curve_support() {
     let as_of = date!(2025 - 01 - 01);
 
     use finstack_quant_core::market_data::term_structures::HazardCurve;
@@ -539,13 +542,16 @@ fn test_bucketed_cs01_sums_to_total_limited_curve_support() {
 
     // Compute both total CS01 and bucketed CS01
     let results = registry
-        .compute(&[MetricId::Cs01, MetricId::BucketedCs01], &mut context)
+        .compute(
+            &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
+            &mut context,
+        )
         .unwrap();
 
-    let total_cs01 = *results.get(&MetricId::Cs01).unwrap();
+    let total_cs01 = *results.get(&MetricId::Cs01Hazard).unwrap();
 
     // Get bucketed CS01 series (stored under curve-specific key)
-    let curve_key = MetricId::custom("bucketed_cs01::HZD-LIMITED");
+    let curve_key = MetricId::custom("bucketed_cs01_hazard::HAZARD");
     let bucketed_series = context.computed_series.get(&curve_key);
 
     if let Some(series) = bucketed_series {

@@ -11,7 +11,6 @@
 use super::common::*;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_valuations::calibration::bumps::{bump_hazard_shift, BumpRequest};
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::bloomberg_quadrature::ForwardCdsContext;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::pricer::synthetic_underlying_cds;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::CDSOption;
@@ -56,7 +55,7 @@ fn atm_price_pct(market: &MarketContext, as_of: Date) -> f64 {
 #[test]
 fn price_delta_signs_payer_positive_receiver_negative() {
     let as_of = date!(2025 - 01 - 01);
-    let market = standard_market(as_of);
+    let market = replayable_standard_market(as_of);
     let atm = atm_price_pct(&market, as_of);
 
     let payer_delta = hy_option(OptionType::Call, atm, as_of)
@@ -78,7 +77,7 @@ fn price_delta_signs_payer_positive_receiver_negative() {
 #[test]
 fn price_delta_deep_itm_near_one_deep_otm_near_zero() {
     let as_of = date!(2025 - 01 - 01);
-    let market = standard_market(as_of);
+    let market = replayable_standard_market(as_of);
     let atm = atm_price_pct(&market, as_of);
 
     // Payers gain value as the price strike rises: deep ITM at ATM + 15,
@@ -115,63 +114,30 @@ fn price_delta_deep_itm_near_one_deep_otm_near_zero() {
 }
 
 #[test]
-fn price_delta_matches_independent_cs01_ratio() {
+fn price_delta_requires_replay_recipe() {
     let as_of = date!(2025 - 01 - 01);
     let market = standard_market(as_of);
     let atm = atm_price_pct(&market, as_of);
     let option = hy_option(OptionType::Call, atm, as_of);
 
-    // Independent reconstruction from public pieces: symmetric model-hazard
-    // bump, sticky σ (the instrument override), and option CS01 over
-    // underlying spread DV01.
-    let hazard = market.get_hazard("HZ-SN").expect("hazard");
-    let cds = synthetic_underlying_cds(&option, as_of).expect("synthetic cds");
-    let bumped = |bp: f64| -> MarketContext {
-        let curve =
-            bump_hazard_shift(hazard.as_ref(), &BumpRequest::Parallel(bp)).expect("bumped hazard");
-        market.clone().insert(curve)
-    };
-    let up = bumped(1.0);
-    let down = bumped(-1.0);
-    let option_cs01 = (option.value(&up, as_of).unwrap().amount()
-        - option.value(&down, as_of).unwrap().amount())
-        / 2.0;
-    let underlying_dv01 =
-        (cds.value(&up, as_of).unwrap().amount() - cds.value(&down, as_of).unwrap().amount()) / 2.0;
-    let expected = option_cs01 / underlying_dv01;
-
-    let delta = option.delta(&market, as_of).expect("price-strike delta");
-    assert_approx_eq(delta, expected, 1e-9, "delta vs independent CS01 ratio");
+    let error = option
+        .delta(&market, as_of)
+        .expect_err("standard price delta requires quote-space replay");
+    assert!(error.to_string().contains("calibration recipe"));
 }
 
 #[test]
-fn price_gamma_positive_and_consistent_with_bumped_deltas() {
+fn price_gamma_requires_replay_recipe() {
     let as_of = date!(2025 - 01 - 01);
     let market = standard_market(as_of);
     let atm = atm_price_pct(&market, as_of);
 
     for option_type in [OptionType::Call, OptionType::Put] {
         let option = hy_option(option_type, atm, as_of);
-        let gamma = option.gamma(&market, as_of).expect("price-strike gamma");
-        assert_finite(gamma, "price-strike gamma");
-        assert_positive(gamma, "long-option gamma");
-
-        // Nested finite-difference check under the same model-hazard bump used
-        // by price delta when the curve has no calibration recipe.
-        let hazard = market.get_hazard("HZ-SN").expect("hazard");
-        let bumped = |bp: f64| -> MarketContext {
-            let curve = bump_hazard_shift(hazard.as_ref(), &BumpRequest::Parallel(bp))
-                .expect("bumped hazard");
-            market.clone().insert(curve)
-        };
-        let delta_up = option.delta(&bumped(5.0), as_of).expect("delta up");
-        let delta_down = option.delta(&bumped(-5.0), as_of).expect("delta down");
-        assert_approx_eq(
-            gamma,
-            delta_up - delta_down,
-            1e-9,
-            "gamma vs nested delta difference",
-        );
+        let error = option
+            .gamma(&market, as_of)
+            .expect_err("standard price gamma requires quote-space replay");
+        assert!(error.to_string().contains("calibration recipe"));
     }
 }
 

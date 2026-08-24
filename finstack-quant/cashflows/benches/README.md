@@ -65,9 +65,8 @@ cargo bench -p finstack-quant-cashflows -- --baseline before
 ```
 
 Benchmarks are measurement tasks, not gates: they are not run by `mise run rust-test`
-(nextest), not by `mise run all-test`, and not by PR CI. What CI enforces is that they
-compile — `mise run rust-lint` runs `clippy --workspace --all-targets --all-features --
--D warnings`. Workspace-wide measurement goes through `mise run rust-bench` (reduced
+(nextest), not by `mise run all-test`, and not by PR CI. `mise run rust-fmt` and
+`mise run rust-lint` also skip Criterion targets. Workspace-wide measurement goes through `mise run rust-bench` (reduced
 sampling, tunable via `FQ_BENCH_SAMPLE_SIZE`, `FQ_BENCH_WARM_UP_TIME`,
 `FQ_BENCH_MEASUREMENT_TIME`, `FQ_BENCH_NRESAMPLES`), with
 `mise run rust-bench-baseline` and `mise run rust-bench-compare` (fails above a 10%

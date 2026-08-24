@@ -399,10 +399,9 @@ Do not run `cargo test` directly: it pulls in doc tests, which are owned by
 `mise run rust-doc`. Use `mise run rust-test` (nextest) for unit and integration
 tests.
 
-Benchmarks are measurement tasks and stay outside `all-test`, nextest, and
-wall-clock-gated PR CI. `rust-lint --all-targets` compile-checks and lints the
-Criterion targets; run `mise run rust-bench`, or a specific
-`cargo bench -p <crate> --bench <target>`, to collect measurements.
+Benchmarks are measurement tasks and stay outside `all-test`, nextest,
+`rust-fmt`, `rust-lint`, and wall-clock-gated PR CI. Run `mise run rust-bench`,
+or a specific `cargo bench -p <crate> --bench <target>`, to compile and measure.
 `mise run python-bench-portfolio` is the materialization-specific Python
 benchmark path; see
 [`benchmarks/MATERIALIZATION_BENCHMARKS.md`](benchmarks/MATERIALIZATION_BENCHMARKS.md).

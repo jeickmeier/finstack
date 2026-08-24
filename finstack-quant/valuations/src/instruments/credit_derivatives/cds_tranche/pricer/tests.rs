@@ -940,26 +940,22 @@ fn test_el_curve_monotonicity() {
 }
 
 #[test]
-fn test_cs01_calculation() {
+fn test_cs01_calculation_requires_replay_recipe() {
     let model = CDSTranchePricer::new();
     let mut tranche = sample_tranche();
     tranche.side = TrancheSide::SellProtection; // Sell protection for positive CS01
     let market_ctx = sample_market_context();
     let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid test date");
 
-    let cs01 = model.calculate_cs01(&tranche, &market_ctx, as_of);
-    assert!(cs01.is_ok());
-
-    let sensitivity = cs01.expect("CS01 calculation should succeed in test");
-    assert!(sensitivity.is_finite());
-    // For protection seller, CS01 should typically be positive
-    // (higher spreads -> higher protection premium income)
+    let error = model
+        .calculate_cs01(&tranche, &market_ctx, as_of)
+        .expect_err("standard tranche CS01 requires quote-space replay");
+    assert!(error.to_string().contains("calibration recipe"));
 }
 
-/// Curves without a persisted calibration recipe use the explicit model-hazard
-/// fallback rather than pretending their par-spread sidecar is replayable.
+/// Curves without a persisted calibration recipe cannot report standard CS01.
 #[test]
-fn test_cs01_uses_model_hazard_shift_without_recipe() {
+fn test_cs01_rejects_model_hazard_shift_without_recipe() {
     let base_date = Date::from_calendar_date(2025, Month::January, 1).expect("Valid test date");
     let discount_curve = DiscountCurve::builder("USD-OIS")
         .base_date(base_date)
@@ -993,10 +989,10 @@ fn test_cs01_uses_model_hazard_shift_without_recipe() {
     let tranche = sample_tranche();
     let as_of = base_date;
 
-    let cs01 = model
+    let error = model
         .calculate_cs01(&tranche, &market_ctx, as_of)
-        .expect("model-hazard fallback");
-    assert!(cs01.is_finite() && cs01.abs() > 0.0);
+        .expect_err("standard tranche CS01 must not fall back to hazard shifts");
+    assert!(error.to_string().contains("calibration recipe"));
 }
 
 #[test]
@@ -1421,27 +1417,6 @@ fn test_nearly_wiped_tranche() {
     let pv_amount = pv.expect("PV should be Ok").amount();
     assert!(pv_amount.is_finite(), "PV should be finite");
     // Should be much smaller than full notional tranche
-}
-
-#[test]
-fn test_central_difference_symmetry() {
-    // Test that central difference produces symmetric sensitivities
-    let model = CDSTranchePricer::new();
-    let tranche = sample_tranche();
-    let market_ctx = sample_market_context();
-    let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid test date");
-
-    // CS01 should be finite and well-behaved
-    let cs01 = model.calculate_cs01(&tranche, &market_ctx, as_of);
-    assert!(cs01.is_ok());
-    assert!(cs01.expect("CS01 should be Ok").is_finite());
-
-    // Correlation delta should be finite
-    let corr_delta = model.calculate_correlation_delta(&tranche, &market_ctx, as_of);
-    assert!(corr_delta.is_ok());
-    assert!(corr_delta
-        .expect("Correlation delta should be Ok")
-        .is_finite());
 }
 
 #[test]

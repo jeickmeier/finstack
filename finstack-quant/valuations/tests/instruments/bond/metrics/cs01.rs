@@ -1,7 +1,6 @@
 //! CS01 calculator tests.
 
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::market_data::term_structures::HazardCurve;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
@@ -31,16 +30,16 @@ fn test_cs01_negative_for_long_bond() {
         .build()
         .unwrap();
 
-    let hazard = HazardCurve::builder("USD-CREDIT")
-        .base_date(as_of)
-        .recovery_rate(0.4)
-        .knots([(0.0, 0.02), (5.0, 0.02)])
-        .build()
-        .unwrap();
-
-    let market = finstack_quant_core::market_data::context::MarketContext::new()
-        .insert(disc)
-        .insert(hazard);
+    let source = finstack_quant_core::market_data::context::MarketContext::new().insert(disc);
+    let hazard = crate::test_support::credit::calibrated_hazard_curve(
+        &source,
+        as_of,
+        "USD-CREDIT",
+        "USD-CREDIT-ENTITY",
+        "USD-OIS",
+    )
+    .unwrap();
+    let market = source.insert(hazard);
 
     let result = bond
         .price_with_metrics(

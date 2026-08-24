@@ -221,12 +221,12 @@ fn test_revolving_credit_standard_metrics() {
 
     let market = MarketContext::new().insert(disc_curve).insert(hazard_curve);
 
-    // Test standard metrics
+    // Test rate, direct hazard, and time-decay metrics.
     let result = facility
         .price_with_metrics(
             &market,
             val_date,
-            &[MetricId::Dv01, MetricId::Cs01, MetricId::Theta],
+            &[MetricId::Dv01, MetricId::Cs01Hazard, MetricId::Theta],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
@@ -249,7 +249,7 @@ fn test_revolving_credit_standard_metrics() {
     // CS01 should be non-zero (PV changes when credit spreads widen)
     // For a lender position, CS01 should be negative (PV decreases when spreads widen)
     // but we allow for small values that might round to zero
-    let cs01 = result.measures.get("cs01").unwrap();
+    let cs01 = result.measures.get("cs01_hazard").unwrap();
     assert!(cs01.is_finite(), "CS01 should be finite, got {}", cs01);
     // CS01 should be negative for lender position, but allow for very small values
     if cs01.abs() > 1e-6 {

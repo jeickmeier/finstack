@@ -16,9 +16,10 @@
 //! through that guard first.
 //!
 //! On error, all four functions throw a JS `Error` with `name =
-//! "CalibrationEnvelopeError"` and a structured `cause` property carrying
-//! the serialized `EnvelopeError` payload. Standard `try/catch (e)` exposes
-//! both via `e.name` and `e.cause`.
+//! "CalibrationEnvelopeError"`. The error exposes `kind`, `stage`, `step_id`,
+//! `solver_diagnostics`, and JSON-string `details` properties plus a
+//! structured `cause` object. Absent optional properties are JavaScript
+//! `null`.
 //!
 //! # Native (non-wasm32) builds
 //!
@@ -37,8 +38,12 @@
 // allowance — keep the binding layer consistent.
 #![allow(clippy::result_large_err)]
 
-use crate::utils::{structured_js_error, to_js_value};
-use finstack_quant_valuations::calibration::api::engine::{self, ExecuteError};
+#[cfg(target_arch = "wasm32")]
+use crate::utils::structured_js_error;
+use crate::utils::to_js_value;
+use finstack_quant_valuations::calibration::api::engine::{
+    self, ExecuteError, ExecutionSolverDiagnostics,
+};
 use finstack_quant_valuations::calibration::api::errors::EnvelopeError;
 #[cfg(test)]
 use finstack_quant_valuations::calibration::api::schema::CalibrationEnvelope;
@@ -49,9 +54,10 @@ use wasm_bindgen::prelude::*;
 /// Native-testable core of [`validate_calibration_json`].
 ///
 /// Parses the envelope and returns its canonical (pretty-printed) form. A parse
-/// failure surfaces a structured [`EnvelopeError`] preserving the full parse
-/// diagnostic. The Rust calibration API owns the canonical serialization path,
-/// keeping the WASM layer to error mapping only.
+/// failure surfaces a structured
+/// [`EnvelopeError`](finstack_quant_valuations::calibration::api::errors::EnvelopeError)
+/// preserving the full parse diagnostic. The Rust calibration API owns the
+/// canonical serialization path, keeping the WASM layer to error mapping only.
 fn validate_calibration_json_inner(json: &str) -> Result<String, ExecuteError> {
     validate::validate_calibration_json(json).map_err(ExecuteError::from)
 }
@@ -114,7 +120,7 @@ pub fn calibrate(envelope_json: &str) -> Result<JsValue, JsValue> {
 /// are returned in the report rather than thrown.
 #[wasm_bindgen(js_name = dryRun)]
 pub fn dry_run(envelope_json: &str) -> Result<String, JsValue> {
-    validate::dry_run(envelope_json).map_err(|e| envelope_error_to_js(&e))
+    validate::dry_run(envelope_json).map_err(|error| execute_error_to_js(error.into()))
 }
 
 /// Returns the static dependency graph of a calibration plan as JSON.
@@ -127,41 +133,106 @@ pub fn dry_run(envelope_json: &str) -> Result<String, JsValue> {
 /// invalid, or the dependency graph cannot be serialized.
 #[wasm_bindgen(js_name = dependencyGraphJson)]
 pub fn dependency_graph_json(envelope_json: &str) -> Result<String, JsValue> {
-    validate::dependency_graph_json(envelope_json).map_err(|e| envelope_error_to_js(&e))
-}
-
-/// Convert an [`EnvelopeError`] into a JS-side error value.
-///
-/// On `wasm32`, returns a JS `Error` with `name = "CalibrationEnvelopeError"`
-/// and a structured `cause` property carrying the serialized payload.
-///
-/// On native targets `JsValue` cannot carry a string (every constructor is a
-/// process-aborting `wasm-bindgen` stub), so this returns the opaque
-/// `JsValue::NULL`. The diagnostic is **not** lost: native callers use the
-/// `*_inner` helpers above, which return the structured error *before* this
-/// lossy boundary conversion. This function is reached natively only at the
-/// thin `#[wasm_bindgen]` edge, which native tests do not assert through.
-fn envelope_error_to_js(err: &EnvelopeError) -> JsValue {
-    let display = err.to_string();
-    let cause_json = err.to_json();
-    structured_js_error(
-        "CalibrationEnvelopeError",
-        &display,
-        None,
-        Some(&cause_json),
-    )
+    validate::dependency_graph_json(envelope_json)
+        .map_err(|error| execute_error_to_js(error.into()))
 }
 
 /// Map every execution stage to the same structured JavaScript error contract.
 fn execute_error_to_js(err: ExecuteError) -> JsValue {
     let details = err.details();
-    let cause_json = err.to_json();
-    structured_js_error(
+    let details_json = err.to_json();
+    match structured_calibration_js_error(
         "CalibrationEnvelopeError",
         &details.cause,
+        &details.category,
+        details.stage.as_str(),
         details.step_id.as_deref(),
-        Some(&cause_json),
-    )
+        details.solver_diagnostics.as_ref(),
+        &details_json,
+    ) {
+        Ok(error) => error,
+        Err(message) => execute_error_to_js(ExecuteError::envelope(
+            details.stage,
+            EnvelopeError::JsonSerialize {
+                target: "ExecutionSolverDiagnostics".to_string(),
+                message,
+            },
+        )),
+    }
+}
+
+/// Serialize solver diagnostics into the canonical JSON wire representation.
+///
+/// `ExecutionSolverDiagnostics` has only JSON-native fields, so this conversion
+/// is structurally serializable today. Keeping the fallible result makes a
+/// future non-JSON field an explicit structured calibration error instead of a
+/// silently absent `solver_diagnostics` property.
+#[cfg(any(test, target_arch = "wasm32"))]
+fn solver_diagnostics_json(
+    diagnostics: &ExecutionSolverDiagnostics,
+) -> Result<String, serde_json::Error> {
+    serde_json::to_string(diagnostics)
+}
+
+/// Build the calibration-specific JavaScript error contract.
+///
+/// A present diagnostic is parsed from its canonical JSON representation. If
+/// that conversion fails, callers receive `Err` and replace the original
+/// error with a structured `json_serialize` calibration failure; only a
+/// genuinely absent diagnostic is represented as JavaScript `null`.
+fn structured_calibration_js_error(
+    name: &str,
+    message: &str,
+    kind: &str,
+    stage: &str,
+    step_id: Option<&str>,
+    solver_diagnostics: Option<&ExecutionSolverDiagnostics>,
+    details_json: &str,
+) -> Result<JsValue, String> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let error = structured_js_error(name, message, Some(kind), Some(details_json));
+        let _ = js_sys::Reflect::set(
+            &error,
+            &JsValue::from_str("stage"),
+            &JsValue::from_str(stage),
+        );
+        let step_value = step_id.map_or(JsValue::NULL, JsValue::from_str);
+        let _ = js_sys::Reflect::set(&error, &JsValue::from_str("step_id"), &step_value);
+        let solver_value = match solver_diagnostics {
+            Some(diagnostics) => {
+                let json = solver_diagnostics_json(diagnostics)
+                    .map_err(|error| format!("failed to serialize solver diagnostics: {error}"))?;
+                js_sys::JSON::parse(&json)
+                    .map_err(|_| "failed to parse serialized solver diagnostics".to_string())?
+            }
+            None => JsValue::NULL,
+        };
+        let _ = js_sys::Reflect::set(
+            &error,
+            &JsValue::from_str("solver_diagnostics"),
+            &solver_value,
+        );
+        let _ = js_sys::Reflect::set(
+            &error,
+            &JsValue::from_str("details"),
+            &JsValue::from_str(details_json),
+        );
+        Ok(error)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = (
+            name,
+            message,
+            kind,
+            stage,
+            step_id,
+            solver_diagnostics,
+            details_json,
+        );
+        Ok(JsValue::NULL)
+    }
 }
 
 #[cfg(test)]
@@ -307,5 +378,23 @@ mod tests {
             !details.cause.is_empty(),
             "diagnostic cause must not be empty"
         );
+    }
+
+    #[test]
+    fn solver_diagnostics_use_the_canonical_json_conversion() {
+        let diagnostics = ExecutionSolverDiagnostics {
+            max_residual: 0.02,
+            tolerance: 0.01,
+            iterations: 12,
+            worst_quote_id: Some("quote-1".to_string()),
+            worst_quote_residual: Some(-0.02),
+        };
+
+        let value: serde_json::Value =
+            serde_json::from_str(&solver_diagnostics_json(&diagnostics).expect("serialize"))
+                .expect("canonical diagnostic JSON");
+        assert_eq!(value["iterations"], 12);
+        assert_eq!(value["worst_quote_id"], "quote-1");
+        assert_ne!(value, serde_json::Value::Null);
     }
 }

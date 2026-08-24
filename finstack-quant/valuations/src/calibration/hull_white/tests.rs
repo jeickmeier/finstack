@@ -1044,11 +1044,13 @@ fn swaption_malformed_schedule_is_rejected() {
     ];
     let schedules = vec![
         SwaptionSchedule {
+            swap_start_time: 1.0,
             payment_times: (1..=10).map(|index| 1.0 + index as f64 * 0.5).collect(),
             accruals: vec![0.5; 10],
             maturity_time: 6.0,
         },
         SwaptionSchedule {
+            swap_start_time: 5.0,
             payment_times: vec![5.5, 6.0],
             accruals: vec![0.5],
             maturity_time: 10.0,

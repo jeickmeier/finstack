@@ -7,11 +7,9 @@ use crate::calibration::CalibrationConfig;
 use crate::instruments::credit_derivatives::cds::CdsValuationConvention;
 use crate::market::conventions::ids::CdsDocClause;
 use crate::market::quotes::cds::CdsQuote;
-use crate::market::quotes::ids::Pillar;
 use crate::market::quotes::market_quote::MarketQuote;
-use finstack_quant_core::dates::DayCountContext;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::market_data::term_structures::HazardCurve;
+use finstack_quant_core::market_data::term_structures::{HazardCalibrationInput, HazardCurve};
 use finstack_quant_core::types::CurveId;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -20,11 +18,14 @@ use std::sync::{Arc, Mutex};
 struct HazardParRecalibration<'a> {
     hazard: &'a HazardCurve,
     context: &'a MarketContext,
+    identity_context: Option<&'a MarketContext>,
     discount_id: &'a CurveId,
     recovery_rate: f64,
     doc_clause: Option<CdsDocClause>,
     cds_valuation_convention: Option<CdsValuationConvention>,
     spread_bump: Option<&'a BumpRequest>,
+    exact_spread_bump: Option<(usize, f64)>,
+    replay_spread_risk_center: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -32,6 +33,7 @@ enum HazardBumpKey {
     None,
     Parallel(u64),
     Tenors(Vec<(u64, u64)>),
+    ExactQuote { index: usize, bump_bp: u64 },
 }
 
 impl From<Option<&BumpRequest>> for HazardBumpKey {
@@ -47,6 +49,16 @@ impl From<Option<&BumpRequest>> for HazardBumpKey {
             ),
         }
     }
+}
+
+fn hazard_bump_key(request: &HazardParRecalibration<'_>) -> HazardBumpKey {
+    request
+        .exact_spread_bump
+        .map(|(index, bump_bp)| HazardBumpKey::ExactQuote {
+            index,
+            bump_bp: bump_bp.to_bits(),
+        })
+        .unwrap_or_else(|| request.spread_bump.into())
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -78,7 +90,56 @@ fn hazard_source_fingerprint(hazard: &HazardCurve) -> u64 {
             .wrapping_mul(0x0000_013B)
             .wrapping_add(value.to_bits());
     }
+    hash = stable_hash_bytes(hash, b"hazard-calibration-recipe");
+    match hazard.hazard_calibration() {
+        Some(recipe) => {
+            if let Ok(value) = serde_json::to_value(recipe) {
+                hash = stable_hash_json(hash, &value);
+            }
+        }
+        None => {
+            hash = stable_hash_bytes(hash, b"none");
+        }
+    }
     hash
+}
+
+fn stable_hash_bytes(mut hash: u64, bytes: &[u8]) -> u64 {
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01B3);
+    }
+    hash
+}
+
+fn stable_hash_json(mut hash: u64, value: &serde_json::Value) -> u64 {
+    match value {
+        serde_json::Value::Null => stable_hash_bytes(hash, b"null"),
+        serde_json::Value::Bool(value) => {
+            stable_hash_bytes(hash, if *value { b"true" } else { b"false" })
+        }
+        serde_json::Value::Number(value) => stable_hash_bytes(hash, value.to_string().as_bytes()),
+        serde_json::Value::String(value) => stable_hash_bytes(hash, value.as_bytes()),
+        serde_json::Value::Array(values) => {
+            hash = stable_hash_bytes(hash, b"[");
+            for value in values {
+                hash = stable_hash_json(hash, value);
+                hash = stable_hash_bytes(hash, b",");
+            }
+            stable_hash_bytes(hash, b"]")
+        }
+        serde_json::Value::Object(values) => {
+            hash = stable_hash_bytes(hash, b"{");
+            let mut keys: Vec<_> = values.keys().collect();
+            keys.sort_unstable();
+            for key in keys {
+                hash = stable_hash_bytes(hash, key.as_bytes());
+                hash = stable_hash_json(hash, &values[key]);
+                hash = stable_hash_bytes(hash, b",");
+            }
+            stable_hash_bytes(hash, b"}")
+        }
+    }
 }
 
 type CachedHazardCurve = Arc<Mutex<Option<Arc<HazardCurve>>>>;
@@ -129,7 +190,7 @@ impl HazardRecalibrationCache {
             recovery_rate: request.recovery_rate.to_bits(),
             doc_clause: request.doc_clause,
             cds_valuation_convention: request.cds_valuation_convention,
-            bump: request.spread_bump.into(),
+            bump: hazard_bump_key(&request),
             source_fingerprint: hazard_source_fingerprint(request.hazard),
         };
         let entry = {
@@ -166,7 +227,12 @@ fn require_discount_id(discount_id: Option<&CurveId>) -> finstack_quant_core::Re
 
 fn recipe_inputs(
     hazard: &HazardCurve,
-) -> finstack_quant_core::Result<(HazardCurveParams, Vec<CdsQuote>, CalibrationConfig)> {
+) -> finstack_quant_core::Result<(
+    HazardCurveParams,
+    Vec<ReplayQuote>,
+    Vec<ReplayQuote>,
+    CalibrationConfig,
+)> {
     let recipe = hazard.hazard_calibration().ok_or_else(|| {
         finstack_quant_core::Error::Validation(format!(
             "hazard curve '{}' has no lossless calibration recipe; quote-space spread risk is unavailable",
@@ -179,44 +245,75 @@ fn recipe_inputs(
             hazard.id()
         ))
     })?;
-    let quotes = recipe
-        .cds_quotes
-        .iter()
-        .cloned()
-        .map(|value| {
-            serde_json::from_value(value).map_err(|error| {
-                finstack_quant_core::Error::Validation(format!(
-                    "hazard curve '{}' contains an invalid replay quote: {error}",
-                    hazard.id()
-                ))
-            })
-        })
-        .collect::<finstack_quant_core::Result<Vec<_>>>()?;
+    recipe.validate()?;
+    crate::calibration::targets::hazard::validate_hazard_recipe_bindings(&params, recipe)?;
+    let calibration_inputs =
+        decode_recipe_inputs(&recipe.calibration_inputs, hazard, "calibration")?;
+    let spread_risk_inputs =
+        decode_recipe_inputs(&recipe.spread_risk_inputs, hazard, "spread-risk")?;
     let config = serde_json::from_value(recipe.calibration_config.clone()).map_err(|error| {
         finstack_quant_core::Error::Validation(format!(
             "hazard curve '{}' contains an invalid replay policy: {error}",
             hazard.id()
         ))
     })?;
-    Ok((params, quotes, config))
+    Ok((params, calibration_inputs, spread_risk_inputs, config))
 }
 
-fn quote_pillar_years(
-    quote: &CdsQuote,
-    params: &HazardCurveParams,
+#[derive(Clone)]
+struct ReplayQuote {
+    quote: CdsQuote,
+    pillar_date: finstack_quant_core::dates::Date,
+    pillar_time: f64,
+}
+
+/// Exact spread-risk quote binding used by bucketed CS01.
+#[derive(Clone, Debug)]
+pub(crate) struct HazardSpreadRiskBucket {
+    pub(crate) index: usize,
+    pub(crate) quote_id: String,
+    pub(crate) pillar_date: finstack_quant_core::dates::Date,
+    pub(crate) pillar_time: f64,
+}
+
+fn decode_recipe_inputs(
+    inputs: &[HazardCalibrationInput],
     hazard: &HazardCurve,
-) -> finstack_quant_core::Result<f64> {
-    let pillar = match quote {
-        CdsQuote::CdsParSpread { pillar, .. } | CdsQuote::CdsUpfront { pillar, .. } => pillar,
-    };
-    match pillar {
-        Pillar::Tenor(tenor) => Ok(tenor.to_years_simple()),
-        Pillar::Date(date) => {
-            hazard
-                .day_count()
-                .year_fraction(params.base_date, *date, DayCountContext::default())
-        }
-    }
+    input_kind: &str,
+) -> finstack_quant_core::Result<Vec<ReplayQuote>> {
+    inputs
+        .iter()
+        .map(|input| {
+            let quote: CdsQuote = serde_json::from_value(input.quote.clone()).map_err(|error| {
+                finstack_quant_core::Error::Validation(format!(
+                    "hazard curve '{}' contains an invalid {input_kind} replay quote: {error}",
+                    hazard.id(),
+                ))
+            })?;
+            Ok(ReplayQuote {
+                quote,
+                pillar_date: input.pillar_date,
+                pillar_time: input.pillar_time,
+            })
+        })
+        .collect()
+}
+
+/// Return the exact, deterministically ordered spread-risk replay bindings.
+pub(crate) fn hazard_spread_risk_buckets(
+    hazard: &HazardCurve,
+) -> finstack_quant_core::Result<Vec<HazardSpreadRiskBucket>> {
+    let (_, _, spread_risk_inputs, _) = recipe_inputs(hazard)?;
+    Ok(spread_risk_inputs
+        .into_iter()
+        .enumerate()
+        .map(|(index, input)| HazardSpreadRiskBucket {
+            index,
+            quote_id: input.quote.id().as_str().to_string(),
+            pillar_date: input.pillar_date,
+            pillar_time: input.pillar_time,
+        })
+        .collect())
 }
 
 fn bump_for_pillar(tenor_years: f64, bump: Option<&BumpRequest>) -> f64 {
@@ -229,6 +326,32 @@ fn bump_for_pillar(tenor_years: f64, bump: Option<&BumpRequest>) -> f64 {
             .sum(),
         None => 0.0,
     }
+}
+
+fn ensure_replay_fit_accepted(
+    hazard_id: &str,
+    config: &CalibrationConfig,
+    report: &crate::calibration::CalibrationReport,
+) -> finstack_quant_core::Result<()> {
+    if !config.fail_on_bad_fit || report.success {
+        return Ok(());
+    }
+
+    let tolerance = config.hazard_curve.validation_tolerance;
+    let worst = match (&report.worst_quote_id, report.worst_quote_residual) {
+        (Some(id), Some(residual)) => {
+            format!(", worst quote '{id}' residual {residual:.3e}")
+        }
+        _ => String::new(),
+    };
+    Err(finstack_quant_core::Error::Calibration {
+        message: format!(
+            "hazard replay for '{hazard_id}' failed fit acceptance: max residual {:.3e} \
+             exceeds tolerance {tolerance:.3e}{worst}",
+            report.max_residual
+        ),
+        category: "hazard_replay_bad_fit".to_string(),
+    })
 }
 
 fn with_quote_recovery(quote: &CdsQuote, recovery_rate: f64) -> CdsQuote {
@@ -271,47 +394,38 @@ fn with_quote_recovery(quote: &CdsQuote, recovery_rate: f64) -> CdsQuote {
 fn replay_once(
     request: &HazardParRecalibration<'_>,
     mut params: HazardCurveParams,
-    quotes: &[CdsQuote],
+    quotes: &[ReplayQuote],
     config: &CalibrationConfig,
     spread_bump: Option<&BumpRequest>,
+    exact_spread_bump: Option<(usize, f64)>,
 ) -> finstack_quant_core::Result<HazardCurve> {
     params.recovery_rate = request.recovery_rate;
-    let stored_pillars: Vec<f64> = request
-        .hazard
-        .par_spread_points()
-        .map(|(time, _)| time)
-        .collect();
-    let use_stored_pillars = stored_pillars.len() == quotes.len();
     let market_quotes = quotes
         .iter()
         .enumerate()
-        .map(|(index, quote)| {
-            let tenor = if use_stored_pillars {
-                stored_pillars[index]
-            } else {
-                quote_pillar_years(quote, &params, request.hazard)?
-            };
-            let bump_bp = bump_for_pillar(tenor, spread_bump);
-            if bump_bp != 0.0 && matches!(quote, CdsQuote::CdsUpfront { .. }) {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "hazard curve '{}' was calibrated from an upfront CDS quote at {tenor:.8} years; par-spread shocks require par-spread calibration quotes",
-                    request.hazard.id()
-                )));
-            }
-            Ok(MarketQuote::Cds(
-                with_quote_recovery(quote, request.recovery_rate).bump_spread_bp(bump_bp),
-            ))
+        .map(|(index, input)| {
+            let bump_bp = exact_spread_bump
+                .filter(|(target_index, _)| *target_index == index)
+                .map_or_else(
+                    || bump_for_pillar(input.pillar_time, spread_bump),
+                    |(_, bump_bp)| bump_bp,
+                );
+            MarketQuote::Cds(
+                with_quote_recovery(&input.quote, request.recovery_rate).bump_spread_bp(bump_bp),
+            )
         })
-        .collect::<finstack_quant_core::Result<Vec<_>>>()?;
+        .collect::<Vec<_>>();
     let step = StepParams::Hazard(params.clone());
-    let (context, _report) =
+    let (context, report) =
         step_runtime::execute_params_and_apply(&step, &market_quotes, request.context, config)?;
+    ensure_replay_fit_accepted(params.curve_id.as_str(), config, &report)?;
     let replayed = context
         .get_hazard(params.curve_id.as_str())?
         .as_ref()
         .clone();
     replayed
         .to_builder_with_id(replayed.id().clone())
+        .hazard_calibration_opt(replayed.hazard_calibration().cloned())
         .fx_policy_opt(request.hazard.fx_policy().map(ToOwned::to_owned))
         .build()
 }
@@ -353,7 +467,7 @@ fn bump_is_zero(bump: &BumpRequest) -> bool {
 fn recalibrate_from_par_spreads(
     request: HazardParRecalibration<'_>,
 ) -> finstack_quant_core::Result<HazardCurve> {
-    let (params, quotes, config) = recipe_inputs(request.hazard)?;
+    let (params, calibration_inputs, spread_risk_inputs, config) = recipe_inputs(request.hazard)?;
     if &params.curve_id != request.hazard.id() {
         return Err(finstack_quant_core::Error::Validation(format!(
             "hazard replay recipe curve ID '{}' does not match stored curve '{}'",
@@ -386,19 +500,60 @@ fn recalibrate_from_par_spreads(
     }
 
     let base_request = HazardParRecalibration {
+        context: request.identity_context.unwrap_or(request.context),
+        identity_context: None,
         recovery_rate: params.recovery_rate,
         spread_bump: None,
+        exact_spread_bump: None,
+        replay_spread_risk_center: false,
         ..request
     };
-    let replayed_base = replay_once(&base_request, params.clone(), &quotes, &config, None)?;
+    let replayed_base = replay_once(
+        &base_request,
+        params.clone(),
+        &calibration_inputs,
+        &config,
+        None,
+        None,
+    )?;
     require_zero_shock_identity(request.hazard, &replayed_base)?;
 
+    if let Some((index, _)) = request.exact_spread_bump {
+        if index >= spread_risk_inputs.len() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "hazard spread-risk quote index {index} is out of range for '{}' ({})",
+                request.hazard.id(),
+                spread_risk_inputs.len()
+            )));
+        }
+    }
     if request.recovery_rate.to_bits() == params.recovery_rate.to_bits()
         && request.spread_bump.is_none_or(bump_is_zero)
+        && request
+            .exact_spread_bump
+            .is_none_or(|(_, bump_bp)| bump_bp == 0.0)
+        && !request.replay_spread_risk_center
+        && request.identity_context.is_none()
     {
         return Ok(replayed_base);
     }
-    replay_once(&request, params, &quotes, &config, request.spread_bump)
+    let replay_inputs = if request.replay_spread_risk_center
+        || request.spread_bump.is_some()
+        || request.exact_spread_bump.is_some()
+        || request.recovery_rate.to_bits() != params.recovery_rate.to_bits()
+    {
+        &spread_risk_inputs
+    } else {
+        &calibration_inputs
+    };
+    replay_once(
+        &request,
+        params,
+        replay_inputs,
+        &config,
+        request.spread_bump,
+        request.exact_spread_bump,
+    )
 }
 
 /// Bump hazard par spreads and re-calibrate, optionally reusing a batch cache.
@@ -431,11 +586,54 @@ pub fn bump_hazard_spreads_cached(
     let request = HazardParRecalibration {
         hazard,
         context,
+        identity_context: None,
         discount_id,
         recovery_rate: hazard.recovery_rate(),
         doc_clause,
         cds_valuation_convention,
         spread_bump: Some(bump),
+        exact_spread_bump: None,
+        replay_spread_risk_center: false,
+    };
+    match cache {
+        Some(cache) => cache.get_or_recalibrate(request),
+        None => recalibrate_from_par_spreads(request).map(Arc::new),
+    }
+}
+
+/// Bump exactly one spread-risk replay binding and recalibrate.
+///
+/// # Arguments
+///
+/// * `cache` - Optional batch-local recalibration cache.
+/// * `hazard` - Existing hazard curve carrying its lossless replay recipe.
+/// * `context` - Market context supplying calibration dependencies.
+/// * `quote_bump` - Exact ordered `spread_risk_inputs` index and additive
+///   spread shock in basis points.
+/// * `discount_id` - Discount curve ID required by the stored recipe.
+/// * `doc_clause` - Optional documentation-clause assertion.
+/// * `cds_valuation_convention` - Optional valuation-convention assertion.
+pub(crate) fn bump_hazard_spread_risk_input_cached(
+    cache: Option<&HazardRecalibrationCache>,
+    hazard: &HazardCurve,
+    context: &MarketContext,
+    quote_bump: (usize, f64),
+    discount_id: Option<&CurveId>,
+    doc_clause: Option<CdsDocClause>,
+    cds_valuation_convention: Option<CdsValuationConvention>,
+) -> finstack_quant_core::Result<Arc<HazardCurve>> {
+    let discount_id = require_discount_id(discount_id)?;
+    let request = HazardParRecalibration {
+        hazard,
+        context,
+        identity_context: None,
+        discount_id,
+        recovery_rate: hazard.recovery_rate(),
+        doc_clause,
+        cds_valuation_convention,
+        spread_bump: None,
+        exact_spread_bump: Some(quote_bump),
+        replay_spread_risk_center: false,
     };
     match cache {
         Some(cache) => cache.get_or_recalibrate(request),
@@ -481,6 +679,78 @@ pub fn bump_hazard_spreads(
         cds_valuation_convention,
     )
     .map(|curve| curve.as_ref().clone())
+}
+
+/// Replay the curve from its quote-space spread-risk center.
+///
+/// Unlike a normal zero bump, this explicitly uses `spread_risk_inputs`.
+/// That distinction is required when a deal quote overrides one risk pillar
+/// while `calibration_inputs` retain the original calibration provenance.
+///
+/// # Arguments
+///
+/// * `hazard` - Existing hazard curve carrying its lossless calibration recipe.
+/// * `context` - Market context supplying the original calibration dependencies.
+/// * `discount_id` - Discount curve ID, which must match the stored recipe.
+/// * `doc_clause` - Optional documentation-clause assertion.
+/// * `cds_valuation_convention` - Optional valuation-convention assertion.
+pub(crate) fn replay_hazard_spread_risk_center(
+    hazard: &HazardCurve,
+    context: &MarketContext,
+    discount_id: Option<&CurveId>,
+    doc_clause: Option<CdsDocClause>,
+    cds_valuation_convention: Option<CdsValuationConvention>,
+) -> finstack_quant_core::Result<HazardCurve> {
+    let discount_id = require_discount_id(discount_id)?;
+    let zero_bump = BumpRequest::Parallel(0.0);
+    recalibrate_from_par_spreads(HazardParRecalibration {
+        hazard,
+        context,
+        identity_context: None,
+        discount_id,
+        recovery_rate: hazard.recovery_rate(),
+        doc_clause,
+        cds_valuation_convention,
+        spread_bump: Some(&zero_bump),
+        exact_spread_bump: None,
+        replay_spread_risk_center: true,
+    })
+}
+
+/// Replay unchanged hazard quotes against a different dependency market.
+///
+/// The source market is used only to prove that the stored recipe reproduces
+/// `hazard`; the same quotes are then calibrated against `target_context`.
+///
+/// # Arguments
+///
+/// * `hazard` - Source curve carrying its lossless calibration recipe.
+/// * `source_context` - Original market used for zero-shock identity validation.
+/// * `target_context` - Market containing the changed calibration dependencies.
+/// * `discount_id` - Discount curve ID required by the stored recipe.
+/// * `doc_clause` - Optional documentation-clause assertion.
+/// * `cds_valuation_convention` - Optional valuation-convention assertion.
+pub(crate) fn replay_hazard_on_dependency_market(
+    hazard: &HazardCurve,
+    source_context: &MarketContext,
+    target_context: &MarketContext,
+    discount_id: Option<&CurveId>,
+    doc_clause: Option<CdsDocClause>,
+    cds_valuation_convention: Option<CdsValuationConvention>,
+) -> finstack_quant_core::Result<HazardCurve> {
+    let discount_id = require_discount_id(discount_id)?;
+    recalibrate_from_par_spreads(HazardParRecalibration {
+        hazard,
+        context: target_context,
+        identity_context: Some(source_context),
+        discount_id,
+        recovery_rate: hazard.recovery_rate(),
+        doc_clause,
+        cds_valuation_convention,
+        spread_bump: None,
+        exact_spread_bump: None,
+        replay_spread_risk_center: false,
+    })
 }
 
 /// Bump hazard curve directly (model hazard shift), without recalibration.
@@ -560,11 +830,14 @@ pub fn recalibrate_hazard_with_recovery(
     recalibrate_from_par_spreads(HazardParRecalibration {
         hazard,
         context,
+        identity_context: None,
         discount_id,
         recovery_rate: new_recovery,
         doc_clause,
         cds_valuation_convention,
         spread_bump: None,
+        exact_spread_bump: None,
+        replay_spread_risk_center: false,
     })
 }
 
@@ -631,7 +904,6 @@ fn with_key_rate_hazard_bump(
         .par_interp(hazard.par_interp())
         .par_spreads(hazard.par_spread_points())
         .interp(hazard.survival_interp_style())
-        .hazard_calibration_opt(hazard.hazard_calibration().cloned())
         .fx_policy_opt(hazard.fx_policy().map(ToOwned::to_owned));
 
     if let Some(issuer) = hazard.issuer() {
@@ -650,4 +922,128 @@ fn with_key_rate_hazard_bump(
             message: format!("Failed to rebuild hazard curve after key-rate bump: {e}"),
             category: "bumps".to_string(),
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::calibration::CalibrationReport;
+    use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
+    use crate::market::conventions::ids::CdsConventionKey;
+    use crate::market::quotes::ids::{Pillar, QuoteId};
+    use finstack_quant_core::market_data::term_structures::HazardCalibrationRecipe;
+    use std::collections::BTreeMap;
+
+    fn failed_report() -> CalibrationReport {
+        CalibrationReport::new(
+            BTreeMap::from([("CDS-1Y".to_string(), 2e-7), ("CDS-5Y".to_string(), -3e-5)]),
+            12,
+            false,
+            "residual tolerance exceeded",
+        )
+    }
+
+    #[test]
+    fn hazard_replay_strict_bad_fit_is_rejected_with_worst_quote() {
+        let config = CalibrationConfig::default();
+        let error = ensure_replay_fit_accepted("ACME-HZD", &config, &failed_report())
+            .expect_err("strict replay must reject a failed fit");
+        let message = error.to_string();
+        assert!(message.contains("1.000e-8"), "{message}");
+        assert!(message.contains("CDS-5Y"), "{message}");
+        assert!(message.contains("-3.000e-5"), "{message}");
+    }
+
+    #[test]
+    fn hazard_replay_permissive_bad_fit_is_allowed() {
+        let config = CalibrationConfig {
+            fail_on_bad_fit: false,
+            ..CalibrationConfig::default()
+        };
+        ensure_replay_fit_accepted("ACME-HZD", &config, &failed_report())
+            .expect("permissive replay should preserve the reported curve");
+    }
+
+    fn deal_quote_source_curve(cds: &CreditDefaultSwap) -> HazardCurve {
+        let base_date = cds.premium.start;
+        let pillar_date = cds.premium.end;
+        let pillar_time = finstack_quant_core::dates::DayCount::Act365F
+            .year_fraction(
+                base_date,
+                pillar_date,
+                finstack_quant_core::dates::DayCountContext::default(),
+            )
+            .expect("valid pillar time");
+        let quote = CdsQuote::CdsParSpread {
+            id: QuoteId::new("ACME-5Y"),
+            entity: "ACME".to_string(),
+            convention: CdsConventionKey {
+                currency: cds.notional.currency(),
+                doc_clause: CdsDocClause::IsdaNa,
+            },
+            pillar: Pillar::Date(pillar_date),
+            spread_bp: 150.0,
+            recovery_rate: cds.protection.recovery_rate,
+        };
+        let input = HazardCalibrationInput {
+            quote: serde_json::to_value(quote).expect("serialize source quote"),
+            pillar_date,
+            pillar_time,
+        };
+        let recipe = HazardCalibrationRecipe::new(
+            serde_json::json!({"curve_id": "ACME-HZD"}),
+            vec![input.clone()],
+            vec![input],
+            serde_json::json!({"fail_on_bad_fit": true}),
+        )
+        .expect("valid deal quote recipe");
+        HazardCurve::builder("ACME-HZD")
+            .base_date(base_date)
+            .recovery_rate(cds.protection.recovery_rate)
+            .knots([(0.0, 0.02), (pillar_time, 0.02)])
+            .par_spreads([(pillar_time, 150.0)])
+            .hazard_calibration(recipe)
+            .build()
+            .expect("deal quote curve")
+    }
+
+    #[test]
+    fn hazard_cache_identity_distinguishes_deal_quote_replay_inputs() {
+        let mut low_deal = CreditDefaultSwap::example();
+        low_deal
+            .instrument_pricing_overrides
+            .market_quotes
+            .cds_quote_bp = Some(100.0);
+        let mut high_deal = low_deal.clone();
+        high_deal
+            .instrument_pricing_overrides
+            .market_quotes
+            .cds_quote_bp = Some(300.0);
+        let source = deal_quote_source_curve(&low_deal);
+        let low_quote =
+            crate::instruments::credit_derivatives::cds::metrics::hazard_with_deal_quote(
+                &low_deal, &source,
+            )
+            .expect("low deal quote override")
+            .expect("low deal curve");
+        let high_quote =
+            crate::instruments::credit_derivatives::cds::metrics::hazard_with_deal_quote(
+                &high_deal, &source,
+            )
+            .expect("high deal quote override")
+            .expect("high deal curve");
+
+        let low_fingerprint = hazard_source_fingerprint(&low_quote);
+        let high_fingerprint = hazard_source_fingerprint(&high_quote);
+        assert_ne!(
+            low_fingerprint, high_fingerprint,
+            "deal curves with distinct replay quotes must not alias in the batch cache"
+        );
+        let low_then_high = HashMap::from([(low_fingerprint, 100.0), (high_fingerprint, 300.0)]);
+        let high_then_low = HashMap::from([(high_fingerprint, 300.0), (low_fingerprint, 100.0)]);
+        assert_eq!(
+            low_then_high, high_then_low,
+            "cache results must be independent of deal evaluation order"
+        );
+    }
 }

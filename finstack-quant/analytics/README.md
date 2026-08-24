@@ -215,7 +215,7 @@ Entries live in [`docs/REFERENCES.md`](../../docs/REFERENCES.md):
 ## Verification
 
 ```bash
-cargo clippy -p finstack-quant-analytics --all-targets --all-features -- -D warnings
+cargo clippy -p finstack-quant-analytics --lib --bins --tests --examples --all-features -- -D warnings
 cargo nextest run -p finstack-quant-analytics --lib --test '*'
 cargo bench -p finstack-quant-analytics --bench analytics_hot_paths
 ```

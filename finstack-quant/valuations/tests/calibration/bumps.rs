@@ -654,6 +654,7 @@ fn replayable_hazard_curve() -> HazardCurve {
         .expect("calibrated hazard");
     hazard
         .to_builder_with_id(hazard.id().clone())
+        .hazard_calibration_opt(hazard.hazard_calibration().cloned())
         .fx_policy("single_curve_credit::USD")
         .build()
         .expect("replayable hazard metadata")

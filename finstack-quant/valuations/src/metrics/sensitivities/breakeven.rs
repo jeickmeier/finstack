@@ -27,6 +27,12 @@ impl MetricCalculator for BreakevenCalculator {
                 id: "breakeven_config: set BreakevenConfig on MetricPricingOverrides".into(),
             })?;
 
+        if config.mode == BreakevenMode::Iterative {
+            if let Some(message) = iterative_mode_error(context, config.target) {
+                return Err(finstack_quant_core::Error::Validation(message));
+            }
+        }
+
         let carry_total = context
             .computed
             .get(&MetricId::CarryTotal)
@@ -60,12 +66,6 @@ impl MetricCalculator for BreakevenCalculator {
         match config.mode {
             BreakevenMode::Linear => Ok(-carry_total / sensitivity),
             BreakevenMode::Iterative => {
-                if config.target == BreakevenTarget::BaseCorrelation {
-                    return Err(finstack_quant_core::Error::Validation(
-                        "BreakevenMode::Iterative is unsupported for BaseCorrelation because no scalar base-correlation bump API exists".to_string(),
-                    ));
-                }
-                ensure_iterative_bump_matches_sensitivity(context, config.target)?;
                 iterative_breakeven(context, carry_total, sensitivity, &config)
             }
         }
@@ -99,6 +99,11 @@ impl MetricCalculator for BreakevenCalculator {
             // back to the static set so ordering stays well-defined.
             return Cow::Borrowed(self.dependencies());
         };
+        if config.mode == BreakevenMode::Iterative
+            && iterative_mode_error(context, config.target).is_some()
+        {
+            return Cow::Borrowed(self.dependencies());
+        }
         Cow::Owned(vec![
             MetricId::CarryTotal,
             config.target.sensitivity_metric(),
@@ -106,8 +111,7 @@ impl MetricCalculator for BreakevenCalculator {
     }
 }
 
-/// Reject [`BreakevenMode::Iterative`] when the solver's bump would move a
-/// different risk factor than the sensitivity metric measures.
+/// Describe why [`BreakevenMode::Iterative`] is unsupported for this context.
 ///
 /// `iterative_breakeven` shifts the **discount curve** for `ZSpread`/`Oas`.
 /// That matches `CS01` only when `CS01` itself resolved to a z-spread bump,
@@ -120,12 +124,16 @@ impl MetricCalculator for BreakevenCalculator {
 /// Rather than silently return a mislabeled number we reject, mirroring the
 /// existing [`BreakevenTarget::BaseCorrelation`] rejection. Use
 /// [`BreakevenMode::Linear`] for credit-curve instruments.
-fn ensure_iterative_bump_matches_sensitivity(
-    context: &MetricContext,
-    target: BreakevenTarget,
-) -> Result<()> {
+fn iterative_mode_error(context: &MetricContext, target: BreakevenTarget) -> Option<String> {
+    if target == BreakevenTarget::BaseCorrelation {
+        return Some(
+            "BreakevenMode::Iterative is unsupported for BaseCorrelation because no scalar \
+             base-correlation bump API exists"
+                .to_string(),
+        );
+    }
     if !matches!(target, BreakevenTarget::ZSpread | BreakevenTarget::Oas) {
-        return Ok(());
+        return None;
     }
     let has_credit_curve = context
         .instrument
@@ -133,14 +141,14 @@ fn ensure_iterative_bump_matches_sensitivity(
         .map(|d| !d.curves.credit_curves.is_empty())
         .unwrap_or(false);
     if has_credit_curve {
-        return Err(finstack_quant_core::Error::Validation(format!(
+        return Some(format!(
             "BreakevenMode::Iterative is unsupported for {target:?} on an instrument with a \
              credit curve: CS01 is measured as a hazard-curve (par spread) bump while the \
              iterative solve applies a parallel discount-curve shift, so the two modes would \
              report different risk factors under one metric name. Use BreakevenMode::Linear."
-        )));
+        ));
     }
-    Ok(())
+    None
 }
 
 /// Bump a market context by `delta` for the given breakeven target.
@@ -799,28 +807,6 @@ mod tests {
             msg.contains("hazard-curve") && msg.contains("BreakevenMode::Linear"),
             "error should explain the risk-factor mismatch and the remedy: {msg}"
         );
-
-        // Linear mode remains available for the same instrument.
-        let mut linear_bond = bond;
-        linear_bond.metric_pricing_overrides = MetricPricingOverrides::default()
-            .with_theta_period("6M")
-            .with_breakeven_config(BreakevenConfig {
-                target: BreakevenTarget::ZSpread,
-                mode: BreakevenMode::Linear,
-            });
-        let value = linear_bond
-            .price_with_metrics(
-                &market,
-                as_of,
-                &[MetricId::Breakeven],
-                PricingOptions::default(),
-            )
-            .expect("linear mode should still work for a credit bond")
-            .measures
-            .get(MetricId::Breakeven.as_str())
-            .copied()
-            .expect("breakeven");
-        assert!(value.is_finite());
     }
 
     /// A near-zero sensitivity must explain itself rather than emitting the

@@ -57,16 +57,16 @@ fn hazard_total_variation(
 }
 
 #[test]
-fn hazard_calibration_positive_rates() {
+fn hazard_recipe_act365f_inputs_replay_round_trip_and_reject_tampering() {
     // Use ISDA-friendly dates (IMM 20th) because canonical hazard bootstrapping builds
     // canonical CDS instruments under ISDA conventions.
     let base = Date::from_calendar_date(2025, Month::March, 20).unwrap();
-    let currency = Currency::USD;
+    let currency = Currency::JPY;
 
     let disc = create_test_discount_curve(base);
     let source_market = MarketContext::new().insert(disc);
 
-    let quotes = vec![
+    let mut quotes = vec![
         MarketQuote::Cds(CdsQuote::CdsParSpread {
             id: QuoteId::new(format!(
                 "CDS-{:?}",
@@ -78,7 +78,7 @@ fn hazard_calibration_positive_rates() {
             recovery_rate: 0.40,
             convention: CdsConventionKey {
                 currency,
-                doc_clause: CdsDocClause::IsdaNa,
+                doc_clause: CdsDocClause::IsdaAs,
             },
         }),
         MarketQuote::Cds(CdsQuote::CdsParSpread {
@@ -92,7 +92,7 @@ fn hazard_calibration_positive_rates() {
             recovery_rate: 0.40,
             convention: CdsConventionKey {
                 currency,
-                doc_clause: CdsDocClause::IsdaNa,
+                doc_clause: CdsDocClause::IsdaAs,
             },
         }),
         MarketQuote::Cds(CdsQuote::CdsParSpread {
@@ -106,10 +106,11 @@ fn hazard_calibration_positive_rates() {
             recovery_rate: 0.40,
             convention: CdsConventionKey {
                 currency,
-                doc_clause: CdsDocClause::IsdaNa,
+                doc_clause: CdsDocClause::IsdaAs,
             },
         }),
     ];
+    quotes.reverse();
 
     let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &quotes);
@@ -138,7 +139,7 @@ fn hazard_calibration_positive_rates() {
                 method: CalibrationMethod::Bootstrap,
                 interpolation: finstack_quant_core::math::interp::InterpStyle::LogLinear,
                 par_interp: finstack_quant_core::market_data::term_structures::ParInterp::Linear,
-                doc_clause: None,
+                doc_clause: Some("isda_as".to_string()),
                 cds_valuation_convention: None,
             }),
         }],
@@ -166,10 +167,118 @@ fn hazard_calibration_positive_rates() {
     let recipe = curve
         .hazard_calibration()
         .expect("calibrated hazard curve must retain replay inputs");
+    assert!(
+        recipe
+            .calibration_inputs
+            .windows(2)
+            .all(|pair| pair[0].pillar_time < pair[1].pillar_time),
+        "unsorted market inputs must persist in canonical pillar order"
+    );
+    let serialized_recipe = serde_json::to_string(recipe).expect("serialize recipe");
+    let round_trip: finstack_quant_core::market_data::term_structures::HazardCalibrationRecipe =
+        serde_json::from_str(&serialized_recipe).expect("deserialize recipe");
+    assert!(
+        round_trip
+            .calibration_inputs
+            .windows(2)
+            .all(|pair| pair[0].pillar_time < pair[1].pillar_time),
+        "canonical pillar ordering must survive serde"
+    );
     assert_eq!(
-        recipe.cds_quotes[0]["pillar"]["date"],
+        recipe.calibration_inputs[0].quote["pillar"]["date"],
         serde_json::json!("2026-03-20"),
         "absolute CDS pillars must survive calibration losslessly"
+    );
+    assert_eq!(
+        recipe.calibration_inputs[0].pillar_date,
+        Date::from_calendar_date(2026, Month::March, 20).expect("valid pillar date")
+    );
+    assert_eq!(
+        recipe.calibration_inputs[0].pillar_time,
+        recipe.spread_risk_inputs[0].pillar_time
+    );
+
+    let mut mismatched_recipe = recipe.clone();
+    mismatched_recipe.spread_risk_inputs[0].pillar_time += 0.25;
+    let mismatched_curve = curve
+        .to_builder_with_id(curve.id().clone())
+        .hazard_calibration(mismatched_recipe)
+        .build()
+        .expect("core accepts convention-dependent bindings");
+    let mismatch_error = bump_hazard_spreads(
+        &mismatched_curve,
+        &ctx,
+        &BumpRequest::Parallel(1.0),
+        Some(&CurveId::new("TEST-DISC")),
+        None,
+        None,
+    )
+    .expect_err("valuations replay must reject mismatched pillar time");
+    assert!(
+        mismatch_error.to_string().contains("stored pillar"),
+        "{mismatch_error}"
+    );
+
+    let mut tampered_recipe = recipe.clone();
+    for input in [
+        &mut tampered_recipe.calibration_inputs[0],
+        &mut tampered_recipe.spread_risk_inputs[0],
+    ] {
+        input.quote["pillar"]["date"] = serde_json::json!("2027-03-20");
+    }
+    let tampered_curve = curve
+        .to_builder_with_id(curve.id().clone())
+        .hazard_calibration(tampered_recipe)
+        .build()
+        .expect("core accepts structurally coherent serialized quote");
+    let tamper_error = bump_hazard_spreads(
+        &tampered_curve,
+        &ctx,
+        &BumpRequest::Parallel(1.0),
+        Some(&CurveId::new("TEST-DISC")),
+        None,
+        None,
+    )
+    .expect_err("valuations replay must reject altered quote pillar");
+    assert!(
+        tamper_error.to_string().contains("serialized quote")
+            && tamper_error.to_string().contains("stored pillar"),
+        "{tamper_error}"
+    );
+
+    let mut upfront_recipe = recipe.clone();
+    let par_quote: CdsQuote =
+        serde_json::from_value(upfront_recipe.spread_risk_inputs[0].quote.clone())
+            .expect("stored par quote");
+    let CdsQuote::CdsParSpread {
+        id,
+        entity,
+        pillar,
+        recovery_rate,
+        convention,
+        ..
+    } = par_quote
+    else {
+        panic!("spread-risk input must start as par spread");
+    };
+    upfront_recipe.spread_risk_inputs[0].quote = serde_json::to_value(CdsQuote::CdsUpfront {
+        id,
+        entity,
+        pillar,
+        running_spread_bp: 100.0,
+        upfront_pct: 2.0,
+        recovery_rate,
+        convention,
+    })
+    .expect("serialize malformed upfront risk quote");
+    let upfront_error = curve
+        .to_builder_with_id(curve.id().clone())
+        .hazard_calibration(upfront_recipe)
+        .build()
+        .expect_err("curve construction must reject upfront spread-risk input");
+    assert!(
+        upfront_error.to_string().contains("par-spread"),
+        "{upfront_error}"
     );
 
     let zero = bump_hazard_spreads(

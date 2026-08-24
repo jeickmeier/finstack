@@ -10,8 +10,13 @@
 //! - Risk metric sign conventions
 
 use super::test_utils::*;
+use finstack_quant_core::config::FinstackConfig;
+use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_valuations::constants::isda::STANDARD_RECOVERY_SENIOR;
 use finstack_quant_valuations::instruments::Instrument;
+use finstack_quant_valuations::instruments::PricingOptions;
 use finstack_quant_valuations::metrics::MetricId;
+use serde_json::json;
 use time::macros::date;
 
 #[test]
@@ -52,11 +57,11 @@ fn test_cs01_positive() {
         .price_with_metrics(
             &ctx,
             as_of,
-            &[MetricId::Cs01],
+            &[MetricId::Cs01Hazard],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
-    let cs01 = *result.measures.get("cs01").unwrap();
+    let cs01 = *result.measures.get("cs01_hazard").unwrap();
 
     assert_positive(cs01, "CS01");
 }
@@ -99,13 +104,16 @@ fn test_hazard_cs01_calculation() {
         .price_with_metrics(
             &ctx,
             as_of,
-            &[MetricId::Cs01],
+            &[MetricId::Cs01Hazard],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
 
     // CS01 should be present
-    let cs01 = result.measures.get("cs01").expect("CS01 should be present");
+    let cs01 = result
+        .measures
+        .get("cs01_hazard")
+        .expect("hazard CS01 should be present");
     assert!(cs01.is_finite(), "CS01 should be finite");
 }
 
@@ -164,7 +172,7 @@ fn test_cs01_increases_with_maturity() {
         .price_with_metrics(
             &ctx,
             as_of,
-            &[MetricId::Cs01],
+            &[MetricId::Cs01Hazard],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
@@ -172,13 +180,13 @@ fn test_cs01_increases_with_maturity() {
         .price_with_metrics(
             &ctx,
             as_of,
-            &[MetricId::Cs01],
+            &[MetricId::Cs01Hazard],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
 
-    let cs01_3y = *result_3y.measures.get("cs01").unwrap();
-    let cs01_5y = *result_5y.measures.get("cs01").unwrap();
+    let cs01_3y = *result_3y.measures.get("cs01_hazard").unwrap();
+    let cs01_5y = *result_5y.measures.get("cs01_hazard").unwrap();
 
     assert!(
         cs01_3y < cs01_5y,
@@ -189,8 +197,7 @@ fn test_cs01_increases_with_maturity() {
 }
 
 #[test]
-fn test_cs01_matches_direct_method() {
-    // Test: CS01 via metrics matches direct method
+fn test_standard_cs01_requires_replay_recipe() {
     let start = date!(2025 - 01 - 01);
     let end = date!(2030 - 01 - 01);
     let as_of = start;
@@ -198,7 +205,10 @@ fn test_cs01_matches_direct_method() {
     let idx = standard_single_curve_index("CDX-CS01", start, end, 10_000_000.0);
     let ctx = standard_market_context(as_of);
 
-    let direct_cs01 = idx.cs01(&ctx, as_of).unwrap();
+    let direct_error = idx
+        .cs01(&ctx, as_of)
+        .expect_err("standard CS01 requires quote-space replay");
+    assert!(direct_error.to_string().contains("calibration recipe"));
 
     let result = idx
         .price_with_metrics(
@@ -207,10 +217,8 @@ fn test_cs01_matches_direct_method() {
             &[MetricId::Cs01],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
-        .unwrap();
-    let metric_cs01 = *result.measures.get("cs01").unwrap();
-
-    assert_relative_eq(direct_cs01, metric_cs01, 0.001, "CS01: direct vs metric");
+        .expect_err("standard CS01 metric requires quote-space replay");
+    assert!(result.to_string().contains("calibration recipe"));
 }
 
 #[test]
@@ -269,7 +277,7 @@ fn test_cs01_single_vs_constituents() {
         .price_with_metrics(
             &ctx,
             as_of,
-            &[MetricId::Cs01],
+            &[MetricId::Cs01Hazard],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
@@ -277,23 +285,21 @@ fn test_cs01_single_vs_constituents() {
         .price_with_metrics(
             &ctx,
             as_of,
-            &[MetricId::Cs01],
+            &[MetricId::Cs01Hazard],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
 
-    let cs01_single = *result_single.measures.get("cs01").unwrap();
-    let cs01_const = *result_const.measures.get("cs01").unwrap();
+    let cs01_single = *result_single.measures.get("cs01_hazard").unwrap();
+    let cs01_const = *result_const.measures.get("cs01_hazard").unwrap();
 
     // 5% tolerance: aggregation of per-constituent CS01 vs single curve
     assert_relative_eq(cs01_single, cs01_const, 0.05, "CS01 parity");
 }
 
 #[test]
-fn test_bucketed_cs01_model_shift_fallback_reports_consistent_series() {
-    // Manually built curves have no replay recipe, so both metrics use model
-    // hazard shifts. The bucket grid is diagnostic rather than quote-pillar
-    // additive; its series must reconcile to its own reported total.
+fn test_bucketed_cs01_requires_replay_recipe() {
+    // Manually built curves have no replay recipe.
     let start = date!(2025 - 01 - 01);
     let end = date!(2030 - 01 - 01);
     let as_of = start;
@@ -301,38 +307,165 @@ fn test_bucketed_cs01_model_shift_fallback_reports_consistent_series() {
     let idx = standard_single_curve_index("CDX-BKT-SC", start, end, 10_000_000.0);
     let ctx = standard_market_context(as_of);
 
-    let result = idx
+    let error = idx
         .price_with_metrics(
             &ctx,
             as_of,
             &[MetricId::Cs01, MetricId::BucketedCs01],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
-        .unwrap();
+        .expect_err("standard CDS index CS01 requires quote-space replay");
+    assert!(error.to_string().contains("calibration recipe"));
+}
 
-    let cs01 = *result.measures.get("cs01").expect("cs01 present");
-    let bucketed = *result
-        .measures
-        .get("bucketed_cs01")
-        .expect("bucketed_cs01 present");
-    assert!(
-        cs01.is_finite() && bucketed.is_finite(),
-        "CS01 metrics must be finite (cs01={cs01}, bucketed={bucketed})"
-    );
-    assert_positive(bucketed, "BucketedCs01");
-    assert_positive(cs01, "Cs01");
+#[test]
+fn bucketed_cs01_quote_single_curve_uses_each_off_grid_replay_quote_once() {
+    let as_of = date!(2025 - 01 - 01);
+    let end = date!(2030 - 01 - 01);
+    let source = MarketContext::new().insert(flat_discount_curve("USD-OIS", as_of, 0.03));
+    let hazard = crate::test_support::credit::calibrated_hazard_curve_with_pillars(
+        &source,
+        as_of,
+        "HZ-INDEX",
+        "INDEX",
+        "USD-OIS",
+        &[
+            (365, 80.0),
+            (3 * 365, 100.0),
+            (4 * 365, 115.0),
+            (5 * 365, 125.0),
+            (10 * 365, 140.0),
+        ],
+    )
+    .expect("off-grid index hazard calibration");
+    let expected_count = hazard
+        .hazard_calibration()
+        .expect("replayable index hazard")
+        .spread_risk_inputs
+        .len();
+    let market = source.insert(hazard);
+    let index = standard_single_curve_index("CDX-QUOTE-OFFGRID", as_of, end, 10_000_000.0);
 
-    let series_sum: f64 = result
+    let result = index
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01, MetricId::BucketedCs01],
+            PricingOptions::default(),
+        )
+        .expect("single-curve quote-space bucketed CS01");
+    let prefix = "bucketed_cs01::HZ-INDEX::";
+    let buckets: Vec<_> = result
         .measures
         .iter()
-        .filter(|(k, _)| k.as_str().starts_with("bucketed_cs01::"))
-        .map(|(_, v)| *v)
-        .sum();
+        .filter(|(key, _)| key.as_str().starts_with(prefix))
+        .collect();
+    let bucket_sum: f64 = buckets.iter().map(|(_, value)| **value).sum();
+
+    assert_eq!(
+        buckets.len(),
+        expected_count,
+        "each index replay quote must appear once: {buckets:?}"
+    );
+    assert!(
+        buckets
+            .iter()
+            .any(|(key, _)| key.as_str() == "bucketed_cs01::HZ-INDEX::4y"),
+        "off-grid 4Y index quote must be represented: {buckets:?}"
+    );
     assert_relative_eq(
-        series_sum,
-        bucketed,
-        1e-12,
-        "per-tenor series vs bucketed total",
+        bucket_sum,
+        result.measures[MetricId::Cs01.as_str()],
+        0.02,
+        "single-curve quote buckets vs parallel CS01",
+    );
+}
+
+#[test]
+fn bucketed_cs01_quote_constituents_use_each_off_grid_replay_quote_once() {
+    let as_of = date!(2025 - 01 - 01);
+    let end = date!(2030 - 01 - 01);
+    let source = MarketContext::new().insert(flat_discount_curve("USD-OIS", as_of, 0.03));
+    let hz1 = crate::test_support::credit::calibrated_hazard_curve_with_pillars(
+        &source,
+        as_of,
+        "HZ1",
+        "NAME1",
+        "USD-OIS",
+        &[
+            (365, 80.0),
+            (3 * 365, 100.0),
+            (4 * 365, 115.0),
+            (5 * 365, 125.0),
+            (10 * 365, 140.0),
+        ],
+    )
+    .expect("first off-grid constituent hazard calibration");
+    let hz2 = crate::test_support::credit::calibrated_hazard_curve_with_pillars(
+        &source,
+        as_of,
+        "HZ2",
+        "NAME2",
+        "USD-OIS",
+        &[
+            (365, 90.0),
+            (3 * 365, 105.0),
+            (4 * 365, 118.0),
+            (5 * 365, 130.0),
+            (10 * 365, 145.0),
+        ],
+    )
+    .expect("second off-grid constituent hazard calibration");
+    let expected_per_curve = hz1
+        .hazard_calibration()
+        .expect("replayable constituent hazard")
+        .spread_risk_inputs
+        .len();
+    let market = source.insert(hz1).insert(hz2).insert(flat_hazard_curve(
+        "HZ-INDEX",
+        as_of,
+        STANDARD_RECOVERY_SENIOR,
+        STANDARD_HAZARD_RATE,
+    ));
+    let index = standard_constituents_index("CDX-CONSTITUENT-OFFGRID", as_of, end, 10_000_000.0, 2);
+
+    let result = index
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01, MetricId::BucketedCs01],
+            PricingOptions::default(),
+        )
+        .expect("constituent quote-space bucketed CS01");
+    let curve_buckets = |curve_id: &str| {
+        let prefix = format!("bucketed_cs01::{curve_id}::");
+        result
+            .measures
+            .iter()
+            .filter(|(key, _)| key.as_str().starts_with(&prefix))
+            .collect::<Vec<_>>()
+    };
+    let hz1_buckets = curve_buckets("HZ1");
+    let hz2_buckets = curve_buckets("HZ2");
+    let bucket_sum: f64 = hz1_buckets
+        .iter()
+        .chain(&hz2_buckets)
+        .map(|(_, value)| **value)
+        .sum();
+
+    assert_eq!(hz1_buckets.len(), expected_per_curve);
+    assert_eq!(hz2_buckets.len(), expected_per_curve);
+    assert!(hz1_buckets
+        .iter()
+        .any(|(key, _)| key.as_str() == "bucketed_cs01::HZ1::4y"));
+    assert!(hz2_buckets
+        .iter()
+        .any(|(key, _)| key.as_str() == "bucketed_cs01::HZ2::4y"));
+    assert_relative_eq(
+        bucket_sum,
+        result.measures[MetricId::Cs01.as_str()],
+        0.02,
+        "constituent quote buckets vs parallel CS01",
     );
 }
 
@@ -353,15 +486,15 @@ fn test_bucketed_cs01_reconciles_to_parallel_constituents() {
         .price_with_metrics(
             &ctx,
             as_of,
-            &[MetricId::Cs01, MetricId::BucketedCs01],
+            &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
 
-    let cs01 = *result.measures.get("cs01").expect("cs01 present");
+    let cs01 = *result.measures.get("cs01_hazard").expect("cs01 present");
     let bucketed = *result
         .measures
-        .get("bucketed_cs01")
+        .get("bucketed_cs01_hazard")
         .expect("bucketed_cs01 present");
     assert!(
         cs01.is_finite() && bucketed.is_finite(),
@@ -377,7 +510,7 @@ fn test_bucketed_cs01_reconciles_to_parallel_constituents() {
     let series_sum: f64 = result
         .measures
         .iter()
-        .filter(|(k, _)| k.as_str().starts_with("bucketed_cs01::"))
+        .filter(|(k, _)| k.as_str().starts_with("bucketed_cs01_hazard::"))
         .map(|(_, v)| *v)
         .sum();
     assert_relative_eq(
@@ -385,6 +518,258 @@ fn test_bucketed_cs01_reconciles_to_parallel_constituents() {
         cs01,
         0.02,
         "per-tenor series vs parallel Cs01 (constituents)",
+    );
+}
+
+#[test]
+fn bucketed_hazard_cs01_reports_each_distinct_constituent_curve() {
+    let start = date!(2025 - 01 - 01);
+    let end = date!(2030 - 01 - 01);
+    let as_of = start;
+    let index = standard_constituents_index("CDX-BKT-DISTINCT", start, end, 10_000_000.0, 2);
+    let market = MarketContext::new()
+        .insert(flat_discount_curve("USD-OIS", as_of, 0.03))
+        .insert(flat_hazard_curve(
+            "HZ-INDEX",
+            as_of,
+            STANDARD_RECOVERY_SENIOR,
+            STANDARD_HAZARD_RATE,
+        ))
+        .insert(flat_hazard_curve(
+            "HZ1",
+            as_of,
+            STANDARD_RECOVERY_SENIOR,
+            0.01,
+        ))
+        .insert(flat_hazard_curve(
+            "HZ2",
+            as_of,
+            STANDARD_RECOVERY_SENIOR,
+            0.03,
+        ));
+    let mut config = FinstackConfig::default();
+    config
+        .extensions
+        .insert(
+            "valuations.sensitivities.v1",
+            json!({"cs01_buckets_years": [1.0, 5.0, 10.0]}),
+        )
+        .expect("valid sensitivity configuration");
+
+    let result = index
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
+            PricingOptions::default().with_config(&config),
+        )
+        .expect("constituent hazard CS01 should compute");
+
+    let parallel = result.measures[MetricId::Cs01Hazard.as_str()];
+    let bucketed = result.measures[MetricId::BucketedCs01Hazard.as_str()];
+    let curve_total = |curve_id: &str| {
+        [1, 5, 10]
+            .into_iter()
+            .map(|tenor| {
+                let key = format!("bucketed_cs01_hazard::{curve_id}::{tenor}y");
+                *result
+                    .measures
+                    .get(key.as_str())
+                    .unwrap_or_else(|| panic!("missing constituent bucket {key}"))
+            })
+            .sum::<f64>()
+    };
+    let hz1_total = curve_total("HZ1");
+    let hz2_total = curve_total("HZ2");
+
+    assert!(
+        hz1_total.is_finite() && hz1_total.abs() > 1.0,
+        "HZ1 bucketed hazard CS01 must be finite and non-zero: {hz1_total}"
+    );
+    assert!(
+        hz2_total.is_finite() && hz2_total.abs() > 1.0,
+        "HZ2 bucketed hazard CS01 must be finite and non-zero: {hz2_total}"
+    );
+    assert!(
+        (hz1_total - hz2_total).abs() > 1.0,
+        "distinct constituent curves must retain distinct bucket values: \
+         HZ1={hz1_total}, HZ2={hz2_total}"
+    );
+    assert_relative_eq(
+        bucketed,
+        hz1_total + hz2_total,
+        1e-12,
+        "bucketed aggregate vs constituent curve totals",
+    );
+    assert_relative_eq(
+        bucketed,
+        parallel,
+        0.02,
+        "bucketed constituent hazard CS01 vs parallel hazard CS01",
+    );
+}
+
+#[test]
+fn bucketed_hazard_cs01_uses_each_non_aligned_curve_node_once() {
+    let start = date!(2025 - 01 - 01);
+    let end = date!(2030 - 01 - 01);
+    let as_of = start;
+    let index = standard_constituents_index("CDX-BKT-NON-ALIGNED", start, end, 10_000_000.0, 1);
+    let constituent_hazard =
+        finstack_quant_core::market_data::term_structures::HazardCurve::builder("HZ1")
+            .base_date(as_of)
+            .recovery_rate(STANDARD_RECOVERY_SENIOR)
+            .knots([(0.75, 0.01), (2.5, 0.0175), (4.5, 0.025)])
+            .build()
+            .expect("non-aligned constituent hazard curve");
+    let market = MarketContext::new()
+        .insert(flat_discount_curve("USD-OIS", as_of, 0.03))
+        .insert(flat_hazard_curve(
+            "HZ-INDEX",
+            as_of,
+            STANDARD_RECOVERY_SENIOR,
+            STANDARD_HAZARD_RATE,
+        ))
+        .insert(constituent_hazard);
+
+    let result = index
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
+            PricingOptions::default(),
+        )
+        .expect("non-aligned constituent hazard CS01 should compute");
+    let constituent_buckets: Vec<_> = result
+        .measures
+        .iter()
+        .filter(|(key, _)| key.as_str().starts_with("bucketed_cs01_hazard::HZ1::"))
+        .collect();
+    let bucket_sum: f64 = constituent_buckets.iter().map(|(_, value)| **value).sum();
+
+    assert_eq!(
+        constituent_buckets.len(),
+        3,
+        "three hazard nodes must produce exactly three effective buckets: {constituent_buckets:?}"
+    );
+    assert_relative_eq(
+        result.measures[MetricId::BucketedCs01Hazard.as_str()],
+        bucket_sum,
+        1e-12,
+        "non-aligned bucket aggregate vs series",
+    );
+    assert_relative_eq(
+        bucket_sum,
+        result.measures[MetricId::Cs01Hazard.as_str()],
+        0.02,
+        "non-aligned hazard nodes vs parallel hazard CS01",
+    );
+}
+
+#[test]
+fn bucketed_hazard_cs01_single_node_is_not_repeated() {
+    let start = date!(2025 - 01 - 01);
+    let end = date!(2030 - 01 - 01);
+    let as_of = start;
+    let index = standard_single_curve_index("CDX-BKT-SINGLE-NODE", start, end, 10_000_000.0);
+    let single_node =
+        finstack_quant_core::market_data::term_structures::HazardCurve::builder("HZ-INDEX")
+            .base_date(as_of)
+            .recovery_rate(STANDARD_RECOVERY_SENIOR)
+            .knots([(5.0, 0.02)])
+            .build()
+            .expect("single-node hazard curve");
+    let market = MarketContext::new()
+        .insert(flat_discount_curve("USD-OIS", as_of, 0.03))
+        .insert(single_node);
+
+    let result = index
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
+            PricingOptions::default(),
+        )
+        .expect("single-node hazard CS01 should compute");
+    let buckets: Vec<_> = result
+        .measures
+        .iter()
+        .filter(|(key, _)| key.as_str().starts_with("bucketed_cs01_hazard::HZ-INDEX::"))
+        .collect();
+
+    assert_eq!(
+        buckets.len(),
+        1,
+        "one hazard node must produce one bucket, not repeated parallel bumps: {buckets:?}"
+    );
+    assert_relative_eq(
+        result.measures[MetricId::BucketedCs01Hazard.as_str()],
+        result.measures[MetricId::Cs01Hazard.as_str()],
+        1e-12,
+        "single-node bucketed vs parallel hazard CS01",
+    );
+}
+
+#[test]
+fn constituent_using_index_curve_id_is_included_once() {
+    let start = date!(2025 - 01 - 01);
+    let end = date!(2030 - 01 - 01);
+    let as_of = start;
+    let mut constituents = equal_weight_constituents(2);
+    constituents[0].credit.credit_curve_id = "HZ-INDEX".into();
+    let index = standard_single_curve_index("CDX-SHARED-CURVE", start, end, 10_000_000.0)
+        .with_constituents(constituents);
+    let market = MarketContext::new()
+        .insert(flat_discount_curve("USD-OIS", as_of, 0.03))
+        .insert(flat_hazard_curve(
+            "HZ-INDEX",
+            as_of,
+            STANDARD_RECOVERY_SENIOR,
+            0.0125,
+        ))
+        .insert(flat_hazard_curve(
+            "HZ2",
+            as_of,
+            STANDARD_RECOVERY_SENIOR,
+            0.0275,
+        ));
+
+    let result = index
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
+            PricingOptions::default(),
+        )
+        .expect("shared index/constituent hazard curve risk should compute");
+    let shared_buckets: Vec<_> = result
+        .measures
+        .iter()
+        .filter(|(key, _)| key.as_str().starts_with("bucketed_cs01_hazard::HZ-INDEX::"))
+        .collect();
+    let other_buckets: Vec<_> = result
+        .measures
+        .iter()
+        .filter(|(key, _)| key.as_str().starts_with("bucketed_cs01_hazard::HZ2::"))
+        .collect();
+    let bucket_sum: f64 = shared_buckets
+        .iter()
+        .chain(&other_buckets)
+        .map(|(_, value)| **value)
+        .sum();
+
+    assert_eq!(
+        shared_buckets.len(),
+        3,
+        "the shared index-level curve must appear once per effective node"
+    );
+    assert_eq!(other_buckets.len(), 3);
+    assert!(shared_buckets.iter().any(|(_, value)| value.abs() > 1.0));
+    assert_relative_eq(
+        bucket_sum,
+        result.measures[MetricId::Cs01Hazard.as_str()],
+        0.02,
+        "unique constituent curve buckets vs parallel hazard CS01",
     );
 }
 
@@ -398,7 +783,7 @@ fn test_all_risk_metrics_together() {
     let idx = standard_single_curve_index("CDX-ALL-RISK", start, end, 10_000_000.0);
     let ctx = standard_market_context(as_of);
 
-    let metrics = vec![MetricId::RiskyPv01, MetricId::Cs01, MetricId::Dv01];
+    let metrics = vec![MetricId::RiskyPv01, MetricId::Cs01Hazard, MetricId::Dv01];
 
     let result = idx
         .price_with_metrics(
@@ -410,7 +795,7 @@ fn test_all_risk_metrics_together() {
         .unwrap();
 
     assert!(result.measures.contains_key("risky_pv01"));
-    assert!(result.measures.contains_key("cs01"));
+    assert!(result.measures.contains_key("cs01_hazard"));
     assert!(result.measures.contains_key("dv01"));
 }
 
@@ -453,7 +838,7 @@ fn test_risk_metrics_finite() {
     let idx = standard_single_curve_index("CDX-FINITE", start, end, 10_000_000.0);
     let ctx = standard_market_context(as_of);
 
-    let metrics = vec![MetricId::RiskyPv01, MetricId::Cs01, MetricId::Dv01];
+    let metrics = vec![MetricId::RiskyPv01, MetricId::Cs01Hazard, MetricId::Dv01];
 
     let result = idx
         .price_with_metrics(
@@ -557,7 +942,7 @@ fn test_recovery01_scales_with_notional() {
 }
 
 #[test]
-fn test_cs01_hazard_nonzero_and_same_sign_as_cs01() {
+fn test_cs01_hazard_is_finite_and_nonzero() {
     let start = date!(2025 - 01 - 01);
     let end = date!(2030 - 01 - 01);
     let as_of = start;
@@ -568,12 +953,11 @@ fn test_cs01_hazard_nonzero_and_same_sign_as_cs01() {
         .price_with_metrics(
             &ctx,
             as_of,
-            &[MetricId::Cs01Hazard, MetricId::Cs01],
+            &[MetricId::Cs01Hazard],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
     let cs01_hazard = *result.measures.get("cs01_hazard").unwrap();
-    let cs01 = *result.measures.get("cs01").unwrap();
 
     assert!(
         cs01_hazard.is_finite(),
@@ -584,14 +968,6 @@ fn test_cs01_hazard_nonzero_and_same_sign_as_cs01() {
         cs01_hazard.abs() > 0.0,
         "Cs01Hazard should be non-zero for a live index, got {}",
         cs01_hazard
-    );
-    // Both measure credit-spread sensitivity (par-spread re-bootstrap vs direct
-    // hazard shift), so they must agree in sign.
-    assert!(
-        cs01_hazard.signum() == cs01.signum(),
-        "Cs01Hazard ({}) and Cs01 ({}) should share the same sign",
-        cs01_hazard,
-        cs01
     );
 }
 

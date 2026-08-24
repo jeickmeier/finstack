@@ -251,7 +251,7 @@ fn enrich_cap_floor_report(
         )
         .with_metadata("calibration_family", "cap_floor_hw1f".to_string())
         .with_metadata("frequency", frequency.to_string())
-        // Audit P3a: off-ATM diagnostic. Vega-weighted residuals linearise
+        // Off-ATM diagnostic. Vega-weighted residuals linearise
         // around the *ATM* vega, so quotes whose strikes are far from the
         // per-caplet forward rate sit outside the regime where the
         // linearisation is accurate. Report both the max and mean
@@ -374,7 +374,7 @@ pub(super) fn solve_cap_floor_sigma_for_fixed_kappa(
 
     // Plausible normal-vol search range for cap/floor sigma. The full
     // interval `[1e-8, SIGMA_MAX]` is split into three sub-brackets and each
-    // is minimised independently. **Audit P2d**: a single golden-section
+    // is minimised independently. A single golden-section
     // sweep assumes the SSE is unimodal in σ, which holds for a single quote
     // (each cap's price is monotone in σ) but **not** for multi-quote
     // baskets at different strikes where individual squared residuals can

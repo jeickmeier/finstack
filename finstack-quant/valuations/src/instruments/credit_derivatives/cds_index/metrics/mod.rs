@@ -52,6 +52,7 @@ pub(crate) fn register_cds_index_metrics(
             (Cs01, cs01::Cs01Calculator),
             (BucketedCs01, cs01::CdsIndexBucketedCs01Calculator),
             (Cs01Hazard, cs01::Cs01HazardCalculator),
+            (BucketedCs01Hazard, cs01::CdsIndexBucketedCs01HazardCalculator),
             (ProtectionLegPv, simple::ProtectionLegPvCalculator),
             (PremiumLegPv, simple::PremiumLegPvCalculator),
             (ExpectedLoss, expected_loss::ExpectedLossCalculator),

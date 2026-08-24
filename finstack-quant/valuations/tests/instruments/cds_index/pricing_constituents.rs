@@ -139,8 +139,8 @@ fn test_constituents_risky_pv01() {
 }
 
 #[test]
-fn test_constituents_cs01() {
-    // Test: CS01 aggregation across constituents
+fn test_constituents_hazard_cs01() {
+    // Test: direct hazard CS01 aggregation across hand-built constituent curves
     let start = date!(2025 - 01 - 01);
     let end = date!(2030 - 01 - 01);
     let as_of = start;
@@ -148,7 +148,7 @@ fn test_constituents_cs01() {
     let idx = standard_constituents_index("CDX-CS01", start, end, 10_000_000.0, 5);
     let ctx = multi_constituent_market_context(as_of, 5);
 
-    let cs01 = idx.cs01(&ctx, as_of).unwrap();
+    let cs01 = metric_value(&idx, &ctx, as_of, MetricId::Cs01Hazard);
 
     assert_positive(cs01, "CS01");
 }
@@ -280,8 +280,8 @@ fn test_constituents_risky_pv01_scales_with_notional() {
 }
 
 #[test]
-fn test_constituents_cs01_scales_with_notional() {
-    // Test: CS01 scales linearly with notional
+fn test_constituents_hazard_cs01_scales_with_notional() {
+    // Test: direct hazard CS01 scales linearly with notional
     let start = date!(2025 - 01 - 01);
     let end = date!(2030 - 01 - 01);
     let as_of = start;
@@ -290,8 +290,8 @@ fn test_constituents_cs01_scales_with_notional() {
     let idx_10mm = standard_constituents_index("CDX-10MM", start, end, 10_000_000.0, 5);
     let idx_20mm = standard_constituents_index("CDX-20MM", start, end, 20_000_000.0, 5);
 
-    let cs01_10mm = idx_10mm.cs01(&ctx, as_of).unwrap();
-    let cs01_20mm = idx_20mm.cs01(&ctx, as_of).unwrap();
+    let cs01_10mm = metric_value(&idx_10mm, &ctx, as_of, MetricId::Cs01Hazard);
+    let cs01_20mm = metric_value(&idx_20mm, &ctx, as_of, MetricId::Cs01Hazard);
 
     assert_linear_scaling(
         cs01_10mm,
@@ -428,7 +428,19 @@ fn test_constituents_detailed_additive_metrics() {
     let as_of = start;
 
     let idx = standard_constituents_index("CDX-DETAIL-ADD", start, end, 10_000_000.0, 5);
-    let ctx = multi_constituent_market_context(as_of, 5);
+    let mut ctx = multi_constituent_market_context(as_of, 5);
+    for index in 1..=5 {
+        let hazard_id = format!("HZ{index}");
+        let hazard = crate::test_support::credit::calibrated_hazard_curve(
+            &ctx,
+            as_of,
+            hazard_id.as_str(),
+            hazard_id.as_str(),
+            "USD-OIS",
+        )
+        .expect("constituent hazard calibration should succeed");
+        ctx = ctx.insert(hazard);
+    }
 
     let npv = idx.npv_detailed(&ctx, as_of).unwrap();
     let npv_sum = npv

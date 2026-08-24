@@ -10,9 +10,7 @@ use super::{
 use crate::metrics::risk::{GenericExpectedShortfall, GenericHVar, VarConfig};
 use crate::metrics::sensitivities::breakeven::BreakevenCalculator;
 use crate::metrics::sensitivities::carry_decomposition::CarryDecompositionCalculator;
-use crate::metrics::sensitivities::cs01::{
-    GenericBucketedCs01, GenericBucketedCs01Hazard, GenericParallelCs01Hazard,
-};
+use crate::metrics::sensitivities::cs01::{GenericBucketedCs01Hazard, GenericParallelCs01Hazard};
 use crate::metrics::sensitivities::theta::GenericThetaAny;
 
 static STANDARD_REGISTRY: OnceLock<MetricRegistry> = OnceLock::new();
@@ -302,27 +300,6 @@ fn register_universal_metrics(
 fn register_credit_cs01_metrics(
     registry: &mut MetricRegistry,
 ) -> std::result::Result<(), MetricRegistryError> {
-    // BucketedCs01 (par-spread rebootstrap)
-    registry.register_metric(
-        MetricId::BucketedCs01,
-        Arc::new(GenericBucketedCs01::<crate::instruments::CreditDefaultSwap>::default()),
-        &[crate::pricer::InstrumentType::Cds],
-    )?;
-    registry.register_metric(
-        MetricId::BucketedCs01,
-        Arc::new(GenericBucketedCs01::<
-            crate::instruments::credit_derivatives::cds_index::CDSIndex,
-        >::default()),
-        &[crate::pricer::InstrumentType::CdsIndex],
-    )?;
-    registry.register_metric(
-        MetricId::BucketedCs01,
-        Arc::new(GenericBucketedCs01::<
-            crate::instruments::credit_derivatives::cds_option::CDSOption,
-        >::default()),
-        &[crate::pricer::InstrumentType::CdsOption],
-    )?;
-
     // Cs01Hazard (direct hazard-rate bump, parallel)
     registry.register_metric(
         MetricId::Cs01Hazard,
@@ -341,13 +318,6 @@ fn register_credit_cs01_metrics(
             crate::instruments::CreditDefaultSwap,
         >::default()),
         &[crate::pricer::InstrumentType::Cds],
-    )?;
-    registry.register_metric(
-        MetricId::BucketedCs01Hazard,
-        Arc::new(GenericBucketedCs01Hazard::<
-            crate::instruments::credit_derivatives::cds_index::CDSIndex,
-        >::default()),
-        &[crate::pricer::InstrumentType::CdsIndex],
     )?;
     // BucketedCs01Hazard for CDSTranche and RevolvingCredit are registered
     // locally by their respective metrics modules with custom wrappers. CDS

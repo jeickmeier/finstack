@@ -119,8 +119,9 @@ strip = "none"      # REQUIRED: `release` sets strip="symbols", which would othe
 profile = "finstack-strict"
 
 # Workspace-wide lints. Every member crate opts in via `[lints] workspace = true`,
-# so this table is enforced on ALL targets (lib, tests, benches, examples, bins)
-# of every crate by `cargo clippy --workspace --all-targets`.
+# so this table is enforced on lib, tests, examples, and bins of every crate by
+# `cargo clippy --workspace --lib --bins --tests --examples`. Criterion benches
+# are compiled by `mise run rust-bench`, not by fmt or lint.
 #
 # Lints that are correct for library code but wrong for tests/benches —
 # `clippy::panic`, `clippy::unwrap_used`, `clippy::expect_used`,

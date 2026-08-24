@@ -57,8 +57,8 @@ mise run rust-bench-baseline   # saves the baseline named "main"
 mise run rust-bench-compare    # fails above a 10% median regression
 ```
 
-`mise run rust-lint` compiles these targets (`clippy --all-targets`), so a bench
-that stops compiling fails lint even when nobody runs it.
+`mise run rust-fmt` and `mise run rust-lint` skip Criterion targets. Compile
+them with `mise run rust-bench` or `cargo bench`.
 
 ## Reading results
 

@@ -6,7 +6,7 @@
 //! Bloomberg-style IR DV01 for CDS screens.
 
 use super::{hazard_with_deal_quote, market_doc_clause};
-use crate::calibration::bumps::hazard::bump_hazard_spreads;
+use crate::calibration::bumps::hazard::replay_hazard_on_dependency_market;
 use crate::calibration::bumps::BumpRequest;
 use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
 use crate::metrics::sensitivities::config as sens_config;
@@ -49,10 +49,10 @@ impl CdsDv01Calculator {
             let base_hazard = context
                 .curves
                 .get_hazard(cds.protection.credit_curve_id.as_str())?;
-            let recalibrated = bump_hazard_spreads(
+            let recalibrated = replay_hazard_on_dependency_market(
                 base_hazard.as_ref(),
+                context.curves.as_ref(),
                 &bumped_market,
-                &BumpRequest::Parallel(0.0),
                 Some(&cds.premium.discount_curve_id),
                 Some(market_doc_clause(cds)),
                 Some(cds.valuation_convention),

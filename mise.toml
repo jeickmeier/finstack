@@ -245,8 +245,8 @@ fi
 # `#[test]` modules out of this crate while `[lib] test = false`.
 # Type-checking it is still gated: `rust-lint` runs clippy with `--workspace`, and
 # clippy type-checks without linking, so binding compile errors are caught there.
-# Native Criterion targets are compile/lint-owned by `rust-lint --all-targets`;
-# run `mise run rust-bench-crate` or `mise run rust-bench` for measurements.
+# Criterion benches are compiled by `rust-bench` / `rust-bench-crate`, not by
+# fmt or lint. Run those tasks for measurements.
 description = "Run full-workspace Rust tests via cargo-nextest (use rust-test-crate while iterating)"
 run = [
   "cargo nextest run --workspace --exclude finstack-quant-py --exclude finstack-quant-wasm --lib --test '*' --no-fail-fast",
@@ -318,15 +318,17 @@ fi
 [tasks.rust-fmt]
 # `--workspace` keeps the mutating pass in step with `rust-lint`'s check-only pass;
 # without it, auto-fixes would skip the binding crates that rust-lint now gates on.
-description = "Format + auto-fix full workspace (use rust-fmt-crate while iterating)"
+# Clippy covers lib/bins/tests/examples only — Criterion benches are compiled by
+# `rust-bench`, not by fmt or lint.
+description = "Format + auto-fix full workspace (use rust-fmt-crate while iterating; skips benches)"
 run = [
   "cargo fmt --all",
-  "cargo clippy --workspace --all-targets --all-features --fix --allow-dirty -- -D warnings",
+  "cargo clippy --workspace --lib --bins --tests --examples --all-features --fix --allow-dirty -- -D warnings",
 ]
 
 [tasks.rust-lint]
 # Full-workspace pass — matches CI pre-commit (.pre-commit-config.yaml).
-# During iteration prefer: rust-lint-crate (skips compiling every bench target).
+# During iteration prefer: rust-lint-crate (one crate, same target set).
 #
 # `--workspace` is deliberate: a bare `cargo clippy` operates on `default-members`,
 # which omits finstack-quant-py and finstack-quant-wasm. That blind spot let a
@@ -335,10 +337,11 @@ run = [
 # `cargo fmt --all` already covered those crates; clippy type-checks the whole
 # workspace (including `--all-features`) so feature-gated code is covered in one
 # pass at commit time.
-description = "Lint full workspace (use rust-lint-crate while iterating; run before commit/CI)"
+# Omit `--benches`: Criterion targets are compiled by `rust-bench`, not lint.
+description = "Lint full workspace (use rust-lint-crate while iterating; run before commit/CI; skips benches)"
 run = [
   "cargo fmt --all -- --check",
-  "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+  "cargo clippy --workspace --lib --bins --tests --examples --all-features -- -D warnings",
 ]
 
 [tasks.rust-audit]

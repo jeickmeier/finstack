@@ -12,7 +12,7 @@
 //! thin pass-through to [`gamma`].
 
 use super::delta::{black_delta_ratio, delta_display_forward, price_strike_delta};
-use crate::calibration::bumps::{bump_hazard_shift, bump_hazard_spreads, BumpRequest};
+use crate::calibration::bumps::{bump_hazard_spreads, BumpRequest};
 use crate::instruments::credit_derivatives::cds_option::bloomberg_quadrature::ForwardCdsContext;
 use crate::instruments::credit_derivatives::cds_option::pricer::{
     resolve_sigma, synthetic_underlying_cds,
@@ -96,20 +96,20 @@ fn price_strike_gamma(
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<f64> {
     let hazard = curves.get_hazard(&option.credit_curve_id)?;
+    crate::metrics::sensitivities::cs01::require_hazard_replay(
+        hazard.as_ref(),
+        "CDS option price-strike gamma",
+    )?;
     let bumped_market = |bump_bp: f64| -> Result<MarketContext> {
         let request = BumpRequest::Parallel(bump_bp);
-        let bumped = if hazard.hazard_calibration().is_some() {
-            bump_hazard_spreads(
-                hazard.as_ref(),
-                curves,
-                &request,
-                Some(&option.discount_curve_id),
-                None,
-                None,
-            )?
-        } else {
-            bump_hazard_shift(hazard.as_ref(), &request)?
-        };
+        let bumped = bump_hazard_spreads(
+            hazard.as_ref(),
+            curves,
+            &request,
+            Some(&option.discount_curve_id),
+            None,
+            None,
+        )?;
         Ok(curves.clone().insert(bumped))
     };
     let delta_up = price_strike_delta(option, &bumped_market(PRICE_GAMMA_SPREAD_BUMP_BP)?, as_of)?;

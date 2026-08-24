@@ -32,13 +32,10 @@ use crate::metrics::MetricRegistry;
 /// conventions are read off `synthetic_underlying_cds`.
 ///
 /// `cs01_precheck` short-circuits CS01 to `0.0` once the option has expired
-/// (no spread risk remains). When the hazard curve carries CDS quote /
-/// par-spread points, CS01 is the par-spread bump with hazard re-bootstrap;
-/// when it does not (a directly-specified hazard curve), the shared CS01
-/// engine falls back to a parallel hazard-rate shift — the same graceful
-/// fallback the underlying CDS uses, so a CDS option on a directly-specified
-/// curve still reports a well-defined credit-spread sensitivity instead of
-/// erroring.
+/// (no spread risk remains). Before expiry, standard CS01 requires a lossless
+/// hazard calibration recipe and measures a par-spread bump with hazard
+/// re-bootstrap. Directly specified hazard curves are rejected rather than
+/// silently interpreted as quote-spread risk.
 ///
 impl crate::metrics::sensitivities::cs01::CdsCs01Conventions
     for crate::instruments::credit_derivatives::cds_option::CDSOption
@@ -79,10 +76,8 @@ impl crate::metrics::sensitivities::cs01::CdsCs01Conventions
             return Ok(Some(0.0));
         }
 
-        // No par-spread guard: when the hazard curve has no CDS quote points the
-        // shared CS01 engine falls back to a parallel hazard-rate shift (same as
-        // the underlying CDS), so a directly-specified hazard curve still yields
-        // a well-defined CS01 rather than an error.
+        // The shared standard-CS01 engine enforces the lossless replay-recipe
+        // requirement for live options.
         Ok(None)
     }
 }

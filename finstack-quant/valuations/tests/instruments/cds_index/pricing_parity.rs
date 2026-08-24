@@ -120,8 +120,8 @@ fn test_risky_pv01_parity_equal_hazards() {
 }
 
 #[test]
-fn test_cs01_parity_equal_hazards() {
-    // Test: CS01 consistency across modes
+fn test_hazard_cs01_parity_equal_hazards() {
+    // Test: direct hazard CS01 consistency across modes
     //
     // CS01 uses finite-difference bumping of hazard curves:
     // - Single-curve: bumps HZ-INDEX by 1bp
@@ -138,8 +138,8 @@ fn test_cs01_parity_equal_hazards() {
 
     let ctx = multi_constituent_market_context(as_of, 5);
 
-    let cs01_single = idx_single.cs01(&ctx, as_of).unwrap();
-    let cs01_constituents = idx_constituents.cs01(&ctx, as_of).unwrap();
+    let cs01_single = metric_value(&idx_single, &ctx, as_of, MetricId::Cs01Hazard);
+    let cs01_constituents = metric_value(&idx_constituents, &ctx, as_of, MetricId::Cs01Hazard);
 
     // CS01 uses same bump size in both modes - tight for identical hazards
     assert_relative_eq(cs01_single, cs01_constituents, 0.01, "CS01 parity");

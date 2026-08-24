@@ -307,7 +307,7 @@ benchmarks.
 ## Verification
 
 ```bash
-cargo clippy -p finstack-quant-features --all-targets --all-features -- -D warnings
+cargo clippy -p finstack-quant-features --lib --bins --tests --examples --all-features -- -D warnings
 cargo nextest run -p finstack-quant-features --lib --test '*'
 cargo nextest run -p finstack-quant-wasm --lib --test dts_contract \
   -E 'test(features_dts_matches_transform_surface)'

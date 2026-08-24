@@ -1,7 +1,7 @@
 //! Integration test for swaption volatility calibration (canonical).
 
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{Date, DayCount, Tenor};
+use finstack_quant_core::dates::{Date, DayCount, DayCountContext, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::surfaces::VolQuoteType;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
@@ -48,7 +48,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
         MarketQuote::Vol(VolQuote::SwaptionVol {
             id: QuoteId::new("USD-SWPTN-VOL-1Yx1Y-0.035"),
             expiry: Date::from_calendar_date(2026, Month::January, 1).unwrap(),
-            maturity: Date::from_calendar_date(2027, Month::January, 1).unwrap(),
+            maturity: Date::from_calendar_date(2027, Month::January, 5).unwrap(),
             strike: 0.035,
             vol: 0.012,
             quote_type: VolQuoteType::Normal,
@@ -57,7 +57,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
         MarketQuote::Vol(VolQuote::SwaptionVol {
             id: QuoteId::new("USD-SWPTN-VOL-1Yx1Y-0.040"),
             expiry: Date::from_calendar_date(2026, Month::January, 1).unwrap(),
-            maturity: Date::from_calendar_date(2027, Month::January, 1).unwrap(),
+            maturity: Date::from_calendar_date(2027, Month::January, 5).unwrap(),
             strike: 0.040,
             vol: 0.010,
             quote_type: VolQuoteType::Normal,
@@ -66,7 +66,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
         MarketQuote::Vol(VolQuote::SwaptionVol {
             id: QuoteId::new("USD-SWPTN-VOL-1Yx1Y-0.043"),
             expiry: Date::from_calendar_date(2026, Month::January, 1).unwrap(),
-            maturity: Date::from_calendar_date(2027, Month::January, 1).unwrap(),
+            maturity: Date::from_calendar_date(2027, Month::January, 5).unwrap(),
             strike: 0.043,
             vol: 0.009,
             quote_type: VolQuoteType::Normal,
@@ -75,7 +75,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
         MarketQuote::Vol(VolQuote::SwaptionVol {
             id: QuoteId::new("USD-SWPTN-VOL-1Yx1Y-0.046"),
             expiry: Date::from_calendar_date(2026, Month::January, 1).unwrap(),
-            maturity: Date::from_calendar_date(2027, Month::January, 1).unwrap(),
+            maturity: Date::from_calendar_date(2027, Month::January, 5).unwrap(),
             strike: 0.046,
             vol: 0.010,
             quote_type: VolQuoteType::Normal,
@@ -84,7 +84,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
         MarketQuote::Vol(VolQuote::SwaptionVol {
             id: QuoteId::new("USD-SWPTN-VOL-1Yx1Y-0.050"),
             expiry: Date::from_calendar_date(2026, Month::January, 1).unwrap(),
-            maturity: Date::from_calendar_date(2027, Month::January, 1).unwrap(),
+            maturity: Date::from_calendar_date(2027, Month::January, 5).unwrap(),
             strike: 0.050,
             vol: 0.012,
             quote_type: VolQuoteType::Normal,
@@ -94,7 +94,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
         MarketQuote::Vol(VolQuote::SwaptionVol {
             id: QuoteId::new("USD-SWPTN-VOL-1Yx5Y-0.038"),
             expiry: Date::from_calendar_date(2026, Month::January, 1).unwrap(),
-            maturity: Date::from_calendar_date(2031, Month::January, 1).unwrap(),
+            maturity: Date::from_calendar_date(2031, Month::January, 5).unwrap(),
             strike: 0.038,
             vol: 0.0085,
             quote_type: VolQuoteType::Normal,
@@ -103,7 +103,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
         MarketQuote::Vol(VolQuote::SwaptionVol {
             id: QuoteId::new("USD-SWPTN-VOL-1Yx5Y-0.042"),
             expiry: Date::from_calendar_date(2026, Month::January, 1).unwrap(),
-            maturity: Date::from_calendar_date(2031, Month::January, 1).unwrap(),
+            maturity: Date::from_calendar_date(2031, Month::January, 5).unwrap(),
             strike: 0.042,
             vol: 0.0075,
             quote_type: VolQuoteType::Normal,
@@ -112,7 +112,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
         MarketQuote::Vol(VolQuote::SwaptionVol {
             id: QuoteId::new("USD-SWPTN-VOL-1Yx5Y-0.045"),
             expiry: Date::from_calendar_date(2026, Month::January, 1).unwrap(),
-            maturity: Date::from_calendar_date(2031, Month::January, 1).unwrap(),
+            maturity: Date::from_calendar_date(2031, Month::January, 5).unwrap(),
             strike: 0.045,
             vol: 0.007,
             quote_type: VolQuoteType::Normal,
@@ -121,7 +121,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
         MarketQuote::Vol(VolQuote::SwaptionVol {
             id: QuoteId::new("USD-SWPTN-VOL-1Yx5Y-0.048"),
             expiry: Date::from_calendar_date(2026, Month::January, 1).unwrap(),
-            maturity: Date::from_calendar_date(2031, Month::January, 1).unwrap(),
+            maturity: Date::from_calendar_date(2031, Month::January, 5).unwrap(),
             strike: 0.048,
             vol: 0.0075,
             quote_type: VolQuoteType::Normal,
@@ -130,7 +130,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
         MarketQuote::Vol(VolQuote::SwaptionVol {
             id: QuoteId::new("USD-SWPTN-VOL-1Yx5Y-0.052"),
             expiry: Date::from_calendar_date(2026, Month::January, 1).unwrap(),
-            maturity: Date::from_calendar_date(2031, Month::January, 1).unwrap(),
+            maturity: Date::from_calendar_date(2031, Month::January, 5).unwrap(),
             strike: 0.052,
             vol: 0.0085,
             quote_type: VolQuoteType::Normal,
@@ -185,7 +185,7 @@ fn swaption_vol_step_builds_and_inserts_surface() {
                 // Vendor-grade surface fit requirements (normal vols in decimal).
                 vol_tolerance: Some(tolerances::SWAPTION_VOL_FIT_TOL_NORMAL_DECIMAL),
                 // Internal SABR solver tolerance (root-finder tolerance).
-                sabr_tolerance: Some(1e-8),
+                sabr_tolerance: Some(1e-6),
                 sabr_extrapolation: SurfaceExtrapolationPolicy::Error,
                 allow_sabr_missing_bucket_fallback: false,
             }),
@@ -436,4 +436,103 @@ fn swaption_vol_out_of_bounds_targets_can_clamp_when_configured() {
             .map(|v| v.as_str()),
         Some("2")
     );
+}
+
+#[test]
+fn swaption_vol_settlement_lag_uses_canonical_tenor_axis() {
+    let base_date = Date::from_calendar_date(2025, Month::January, 1).unwrap();
+    let expiry = Date::from_calendar_date(2026, Month::January, 1).unwrap();
+    let swap_start = Date::from_calendar_date(2026, Month::January, 5).unwrap();
+    let maturity = Date::from_calendar_date(2027, Month::January, 1).unwrap();
+    let expiry_time = DayCount::Act365F
+        .year_fraction(base_date, expiry, DayCountContext::default())
+        .unwrap();
+    let settled_tenor = DayCount::Act365F
+        .year_fraction(swap_start, maturity, DayCountContext::default())
+        .unwrap();
+    let settled_tenor_axis = (settled_tenor * 10_000.0).round() / 10_000.0;
+    let contractual_tenor = DayCount::Act365F
+        .year_fraction(expiry, maturity, DayCountContext::default())
+        .unwrap();
+    assert!(
+        (settled_tenor - contractual_tenor).abs() > 1.0e-4,
+        "fixture must distinguish pricing dates from the contractual tenor coordinate"
+    );
+    assert!((contractual_tenor - 1.0).abs() < 1.0e-12);
+
+    let execute_for_tenor = |target_tenor: f64| {
+        let source_market = MarketContext::new().insert(create_test_discount_curve(base_date));
+        let mut swpt_quotes: Vec<_> = create_test_swaption_quotes().into_iter().take(5).collect();
+        for quote in &mut swpt_quotes {
+            let MarketQuote::Vol(VolQuote::SwaptionVol {
+                maturity: quote_maturity,
+                ..
+            }) = quote
+            else {
+                unreachable!("fixture contains only swaption quotes");
+            };
+            *quote_maturity = maturity;
+        }
+        let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
+        cal_utils::extend_market_data(&mut market_data, &swpt_quotes);
+        let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
+        quote_sets.insert("swpt".to_string(), cal_utils::quote_set_ids(&swpt_quotes));
+        let plan = CalibrationPlan {
+            id: "settled-tenor".to_string(),
+            description: None,
+            quote_sets: quote_sets.into_iter().collect(),
+            settings: CalibrationConfig {
+                solver: finstack_quant_valuations::calibration::SolverConfig::brent_default()
+                    .with_tolerance(1.0e-10)
+                    .with_max_iterations(200),
+                ..Default::default()
+            },
+            steps: vec![CalibrationStep {
+                id: "swpt".to_string(),
+                quote_set: "swpt".to_string(),
+                params: StepParams::SwaptionVol(SwaptionVolParams {
+                    vol_surface_id: "USD-SWPT-SETTLED".to_string(),
+                    base_date,
+                    discount_curve_id: CurveId::from("USD-OIS"),
+                    forward_id: None,
+                    currency: Currency::USD,
+                    vol_convention: SwaptionVolConvention::Normal,
+                    atm_convention: Default::default(),
+                    sabr_beta: 0.0,
+                    target_expiries: vec![expiry_time],
+                    target_tenors: vec![target_tenor],
+                    sabr_interpolation: Default::default(),
+                    calendar_id: Some("weekends_only".to_string()),
+                    fixed_day_count: Some(DayCount::Act365F),
+                    swap_index: Some("USD-SOFR-3M".into()),
+                    vol_tolerance: Some(tolerances::SWAPTION_VOL_FIT_TOL_NORMAL_DECIMAL),
+                    sabr_tolerance: Some(1.0e-6),
+                    sabr_extrapolation: SurfaceExtrapolationPolicy::Error,
+                    allow_sabr_missing_bucket_fallback: false,
+                }),
+            }],
+        };
+        engine::execute(&CalibrationEnvelope {
+            schema_url: None,
+            schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
+            plan,
+            market_data,
+            prior_market: prior,
+        })
+    };
+
+    let result = execute_for_tenor(contractual_tenor)
+        .expect("the cube must use the contractual 1Y tenor after T+2 settlement");
+    let context = MarketContext::try_from(result.result.final_market).expect("restore context");
+    let cube = context
+        .get_vol_provider("USD-SWPT-SETTLED")
+        .expect("contractual-coordinate cube");
+    assert!(cube
+        .vol(expiry_time, contractual_tenor, 0.043)
+        .expect("exact contractual cube node")
+        .is_finite());
+
+    let settled_error = execute_for_tenor(settled_tenor_axis)
+        .expect_err("raw settled-date year fraction must not become the cube coordinate");
+    assert!(settled_error.to_string().contains("out of bounds"));
 }

@@ -15,11 +15,11 @@
 //!   reprices end-to-end. Replaces the generic `GenericParallelCs01Hazard`,
 //!   which would only bump the (unused) index-level curve in `Constituents`
 //!   mode.
-//! - [`CdsIndexBucketedCs01Calculator`]: key-rate (per-tenor) par-spread CS01 —
-//!   the bucketed counterpart of [`Cs01Calculator`]. Applies the par-spread
-//!   shock one standard tenor at a time to the same mode-aware credit-curve
-//!   set as [`Cs01HazardCalculator`], reprices end-to-end, and stores a
-//!   per-tenor series whose sum reconciles to the parallel `Cs01`.
+//! - [`CdsIndexBucketedCs01Calculator`]: quote-bucketed par-spread CS01 — the
+//!   bucketed counterpart of [`Cs01Calculator`]. Applies one exact atomic
+//!   `spread_risk_inputs` shock at a time to each mode-aware credit curve,
+//!   reprices end-to-end, and stores per-curve series whose sum reconciles to
+//!   parallel `Cs01`.
 //!
 //! Sign convention (per canonical reference):
 //! - Long index protection (sell protection) → CS01 negative.
@@ -30,15 +30,17 @@
 
 use crate::calibration::bumps::hazard::bump_hazard_shift;
 use crate::calibration::bumps::BumpRequest;
-use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds_index::{CDSIndex, IndexPricing};
 use crate::metrics::sensitivities::config as sens_config;
-use crate::metrics::sensitivities::cs01::sensitivity_central_diff;
+use crate::metrics::sensitivities::cs01::{
+    compute_key_rate_cs01_series_with_context_raw, cs01_reval, sensitivity_central_diff,
+    KeyRateCs01Request,
+};
 use crate::metrics::{MetricCalculator, MetricContext, MetricId};
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::market_data::term_structures::HazardCurve;
+use finstack_quant_core::math::NeumaierAccumulator;
 use finstack_quant_core::types::CurveId;
-use finstack_quant_core::{Error, Result};
+use finstack_quant_core::Result;
 use std::borrow::Cow;
 use std::sync::Arc;
 
@@ -61,6 +63,26 @@ impl MetricCalculator for Cs01Calculator {
 /// only bump the unused index-level curve.
 pub(crate) struct Cs01HazardCalculator;
 
+fn index_credit_curve_ids(index: &CDSIndex) -> Result<Vec<CurveId>> {
+    match index.pricing {
+        IndexPricing::SingleCurve => Ok(vec![index.protection.credit_curve_id.clone()]),
+        IndexPricing::Constituents => {
+            let mut curve_ids = Vec::new();
+            for constituent in index
+                .constituents
+                .iter()
+                .filter(|constituent| !constituent.defaulted)
+            {
+                let curve_id = &constituent.credit.credit_curve_id;
+                if !curve_ids.contains(curve_id) {
+                    curve_ids.push(curve_id.clone());
+                }
+            }
+            Ok(curve_ids)
+        }
+    }
+}
+
 impl MetricCalculator for Cs01HazardCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let index: &CDSIndex = context.instrument_as()?;
@@ -69,24 +91,7 @@ impl MetricCalculator for Cs01HazardCalculator {
             sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?
                 .credit_spread_bump_bp;
 
-        // Determine which credit curves to bump. In SingleCurve mode this is
-        // just the index-level curve; in Constituents mode it's the union
-        // of surviving constituent curves.
-        let credit_ids: Vec<_> = match index.pricing {
-            IndexPricing::SingleCurve => {
-                vec![index.protection.credit_curve_id.clone()]
-            }
-            IndexPricing::Constituents => {
-                // Pull from canonical dependencies but skip the index-level curve
-                // because it is informational only in Constituents mode.
-                let curves = index.market_dependencies()?.curves;
-                curves
-                    .credit_curves
-                    .into_iter()
-                    .filter(|id| id != &index.protection.credit_curve_id)
-                    .collect()
-            }
-        };
+        let credit_ids = index_credit_curve_ids(index)?;
 
         if credit_ids.is_empty() {
             return Ok(0.0);
@@ -114,47 +119,86 @@ impl MetricCalculator for Cs01HazardCalculator {
     }
 }
 
-/// Bump one index credit curve by `bp` at a single tenor `t`.
+/// Key-rate direct hazard-shift CS01 for CDS Index.
 ///
-/// Re-bootstrap a hazard curve after a tenor-local par-spread shock.
-///
-/// Curves without par-spread points and failed re-bootstrap attempts are
-/// errors. A direct hazard-rate shift has different units and is available
-/// separately through `BucketedCs01Hazard`.
-fn bump_index_credit_curve_at_tenor(
-    context: &MetricContext,
-    hazard: &HazardCurve,
-    base_ctx: &MarketContext,
-    discount_id: &CurveId,
-    t: f64,
-    bp: f64,
-) -> Result<Arc<HazardCurve>> {
-    let req = BumpRequest::Tenors(vec![(t, bp)]);
-    if hazard.hazard_calibration().is_none() {
-        return crate::calibration::bumps::hazard::bump_hazard_shift(hazard, &req).map(Arc::new);
+/// Uses the same mode-aware credit-curve resolution and end-to-end repricing as
+/// [`Cs01HazardCalculator`]. In constituent mode each curve gets its own
+/// `bucketed_cs01_hazard::{curve}` series.
+pub(crate) struct CdsIndexBucketedCs01HazardCalculator;
+
+impl MetricCalculator for CdsIndexBucketedCs01HazardCalculator {
+    fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
+        let index: CDSIndex = context.instrument_as::<CDSIndex>()?.clone();
+        if context.as_of >= index.premium.end {
+            return Ok(0.0);
+        }
+
+        let defaults =
+            sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
+        let bump_bp = defaults.credit_spread_bump_bp;
+        let credit_ids = index_credit_curve_ids(&index)?;
+        if credit_ids.is_empty() {
+            return Ok(0.0);
+        }
+
+        let curves = Arc::clone(&context.curves);
+        let base_ctx = curves.as_ref();
+        let as_of = context.as_of;
+        let mut total = NeumaierAccumulator::new();
+
+        for curve_id in credit_ids {
+            let hazard = base_ctx.get_hazard(curve_id.as_str())?;
+            let node_times =
+                crate::metrics::sensitivities::cs01::effective_hazard_node_times(hazard.as_ref());
+            let single_node = node_times.len() == 1;
+            let mut series: Vec<(Cow<'static, str>, f64)> = Vec::with_capacity(node_times.len());
+            for tenor in node_times {
+                let request_up = if single_node {
+                    BumpRequest::Parallel(bump_bp)
+                } else {
+                    BumpRequest::Tenors(vec![(tenor, bump_bp)])
+                };
+                let request_down = if single_node {
+                    BumpRequest::Parallel(-bump_bp)
+                } else {
+                    BumpRequest::Tenors(vec![(tenor, -bump_bp)])
+                };
+                let bumped_up = bump_hazard_shift(hazard.as_ref(), &request_up)?;
+                let bumped_down = bump_hazard_shift(hazard.as_ref(), &request_down)?;
+                let (pv_up, pv_down) = context.with_market_scratch(|ctx, scratch| {
+                    scratch.insert_mut(bumped_up);
+                    let pv_up = ctx.reprice_raw(scratch, as_of)?;
+                    scratch.insert_mut(Arc::clone(&hazard));
+
+                    scratch.insert_mut(bumped_down);
+                    let pv_down = ctx.reprice_raw(scratch, as_of)?;
+                    scratch.insert_mut(Arc::clone(&hazard));
+
+                    Ok((pv_up, pv_down))
+                })?;
+                let cs01 = sensitivity_central_diff(pv_up, pv_down, bump_bp);
+                series.push((
+                    crate::metrics::sensitivities::cs01::format_hazard_node_label(tenor),
+                    cs01,
+                ));
+                total.add(cs01);
+            }
+            context.store_bucketed_series(
+                MetricId::custom(format!("bucketed_cs01_hazard::{}", curve_id.as_str())),
+                series,
+            );
+        }
+
+        Ok(total.total())
     }
-    context
-        .bump_hazard_spreads_cached(hazard, base_ctx, &req, Some(discount_id), None, None)
-        .map_err(|error| Error::Calibration {
-            message: format!(
-                "CDS index bucketed CS01 failed to re-bootstrap hazard curve '{}' \
-                 at tenor {t}: {error}",
-                hazard.id()
-            ),
-            category: "cs01_rebootstrap".to_string(),
-        })
 }
 
-/// Key-rate (bucketed) par-spread CS01 calculator for CDS Index.
+/// Quote-bucketed par-spread CS01 calculator for CDS Index.
 ///
-/// The bucketed counterpart of [`Cs01Calculator`]: applies a par-spread shock
-/// one standard tenor at a time to the same mode-aware credit-curve set as
-/// [`Cs01HazardCalculator`] (`SingleCurve` → the synthetic index curve;
-/// `Constituents` → the surviving constituent curves), reprices the index
-/// end-to-end, central-differences, and stores the per-tenor series under
-/// `bucketed_cs01::{index_credit_curve}`. Because each curve's par point is
-/// bumped by exactly the bucket within 0.1y of it, the per-bucket CS01s sum to
-/// the parallel `Cs01`.
+/// Uses the shared exact replay-binding decomposition for each relevant curve:
+/// `SingleCurve` processes the synthetic index curve, while `Constituents`
+/// processes each distinct surviving constituent curve. Every series is stored
+/// under `bucketed_cs01::{curve_id}` with collision-safe quote labels.
 pub(crate) struct CdsIndexBucketedCs01Calculator;
 
 impl MetricCalculator for CdsIndexBucketedCs01Calculator {
@@ -169,105 +213,29 @@ impl MetricCalculator for CdsIndexBucketedCs01Calculator {
         let defaults =
             sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
         let bump_bp = defaults.credit_spread_bump_bp;
-        let buckets = defaults.cs01_buckets_years;
 
-        // Credit-curve set — identical resolution to `Cs01HazardCalculator`.
-        let credit_ids: Vec<CurveId> = match index.pricing {
-            IndexPricing::SingleCurve => vec![index.protection.credit_curve_id.clone()],
-            IndexPricing::Constituents => index
-                .market_dependencies()?
-                .curves
-                .credit_curves
-                .into_iter()
-                .filter(|id| id != &index.protection.credit_curve_id)
-                .collect(),
-        };
+        let credit_ids = index_credit_curve_ids(&index)?;
         if credit_ids.is_empty() {
             return Ok(0.0);
         }
-        let discount_id = index.premium.discount_curve_id.clone();
-
-        // Clone the Arc so building bumped contexts holds no borrow of
-        // `context` across the reprice / `store_bucketed_series` calls.
-        let curves = Arc::clone(&context.curves);
-        let base_ctx = curves.as_ref();
-        let as_of = context.as_of;
-
-        let build_bumped_ctx = |t: f64, bp: f64| -> Result<MarketContext> {
-            let mut out = base_ctx.clone();
-            for id in &credit_ids {
-                let hazard = base_ctx.get_hazard(id.as_str())?;
-                out.insert_mut(bump_index_credit_curve_at_tenor(
-                    context,
-                    hazard.as_ref(),
-                    base_ctx,
-                    &discount_id,
-                    t,
-                    bp,
-                )?);
-            }
-            Ok(out)
-        };
-
-        let mut series: Vec<(Cow<'static, str>, f64)> = Vec::new();
-        let mut total = 0.0;
-        for t in buckets {
-            let ctx_up = build_bumped_ctx(t, bump_bp)?;
-            let ctx_down = build_bumped_ctx(t, -bump_bp)?;
-            let pv_up = context.reprice_raw(&ctx_up, as_of)?;
-            let pv_down = context.reprice_raw(&ctx_down, as_of)?;
-            let cs01 = sensitivity_central_diff(pv_up, pv_down, bump_bp);
-            series.push((sens_config::format_bucket_label_cow(t), cs01));
-            total += cs01;
+        let discount_id = index.premium.discount_curve_id;
+        let mut total = NeumaierAccumulator::new();
+        for credit_id in credit_ids {
+            let series_id = MetricId::custom(format!("bucketed_cs01::{}", credit_id.as_str()));
+            let reval = cs01_reval(context);
+            total.add(compute_key_rate_cs01_series_with_context_raw(
+                context,
+                &credit_id,
+                Some(&discount_id),
+                KeyRateCs01Request {
+                    series_id,
+                    bump_bp,
+                    doc_clause: None,
+                    cds_valuation_convention: None,
+                },
+                reval,
+            )?);
         }
-
-        context.store_bucketed_series(
-            MetricId::custom(format!(
-                "bucketed_cs01::{}",
-                index.protection.credit_curve_id.as_str()
-            )),
-            series,
-        );
-        Ok(total)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use finstack_quant_core::market_data::term_structures::HazardCurve;
-    use finstack_quant_core::money::Money;
-
-    #[test]
-    fn bucketed_cs01_uses_model_hazard_shift_without_recipe() {
-        let index = CDSIndex::example();
-        let as_of = index.premium.start;
-        let discount_id = index.premium.discount_curve_id.clone();
-        let currency = index.notional.currency();
-        let context = MetricContext::new(
-            Arc::new(index),
-            Arc::new(MarketContext::new()),
-            as_of,
-            Money::new(0.0, currency),
-            MetricContext::default_config(),
-        );
-        let hazard = HazardCurve::builder("DIRECT-HAZARD")
-            .base_date(as_of)
-            .recovery_rate(0.40)
-            .knots([(1.0, 0.02), (5.0, 0.03)])
-            .build()
-            .expect("hazard curve");
-
-        let bumped = bump_index_credit_curve_at_tenor(
-            &context,
-            &hazard,
-            &MarketContext::new(),
-            &discount_id,
-            5.0,
-            1.0,
-        )
-        .expect("model hazard shift");
-        assert!(bumped.hazard_calibration().is_none());
-        assert!(bumped.hazard_rate(5.0) > hazard.hazard_rate(5.0));
+        Ok(total.total())
     }
 }

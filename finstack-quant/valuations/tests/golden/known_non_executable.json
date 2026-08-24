@@ -60,24 +60,9 @@
       "description": "Bloomberg CDS risk convention migration",
       "metrics": [
         {
-          "metric": "cs01",
-          "reason": "The preserved screen target predates lossless recipe replay.",
-          "evidence": "Lossless replay produces 2782.89749837 versus Bloomberg 4680.88."
-        },
-        {
-          "metric": "dv01",
-          "reason": "The preserved screen target predates identical recipe-based rate-risk paths.",
-          "evidence": "Lossless replay produces 49.4413127977 versus Bloomberg 45.91."
-        },
-        {
-          "metric": "recovery_01",
-          "reason": "The preserved screen target uses a different Bloomberg recovery-risk convention.",
-          "evidence": "Lossless recovery replay produces -4642.16049818 versus Bloomberg 76.03."
-        },
-        {
           "metric": "risky_pv01",
-          "reason": "The preserved screen target predates lossless recipe replay.",
-          "evidence": "Lossless replay produces 2782.89749837 versus Bloomberg 4680.88."
+          "reason": "The preserved screen target uses Bloomberg's premium-annuity convention.",
+          "evidence": "The replay-backed flat deal-spread proxy produces 4721.57548128 versus Bloomberg 4680.88."
         }
       ]
     }

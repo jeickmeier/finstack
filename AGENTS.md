@@ -25,7 +25,7 @@
 - `uv` is the Python package manager; use `uv run` when running Python functions
 - Tasks are defined in `mise.toml`; invoke them with `mise run <task>` (or `mise r <task>`). List everything with `mise tasks`. Common ones: `mise run all-fmt`, `mise run all-lint`, `mise run all-test`, `mise run python-build` (dev profile, fast compile), `mise run python-build -- --release` (release; faster runtime).
 - **Scoped Rust iteration (preferred while implementing):**
-  - `mise run rust-lint-crate -- <package>` — fmt check + clippy for one crate (skips workspace benches)
+  - `mise run rust-lint-crate -- <package>` — fmt check + clippy for one crate (lib/bins/tests/examples; skips benches)
   - `mise run rust-fmt-crate -- <package>` — format + clippy --fix for one crate
   - `mise run rust-test-crate -- <package>` — lib + integration tests for one crate
   - `mise run rust-test-integration -- <package> <test>` — one integration binary (e.g. `instruments`)

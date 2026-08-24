@@ -154,8 +154,8 @@ fn test_single_curve_risky_pv01() {
 }
 
 #[test]
-fn test_single_curve_cs01() {
-    // Test: CS01 (credit sensitivity) calculation
+fn test_single_curve_hazard_cs01() {
+    // Test: direct hazard sensitivity on a hand-built curve
     let start = date!(2025 - 01 - 01);
     let end = date!(2030 - 01 - 01);
     let as_of = start;
@@ -163,7 +163,7 @@ fn test_single_curve_cs01() {
     let idx = standard_single_curve_index("CDX-CS01", start, end, 10_000_000.0);
     let ctx = standard_market_context(as_of);
 
-    let cs01 = idx.cs01(&ctx, as_of).unwrap();
+    let cs01 = metric_value(&idx, &ctx, as_of, MetricId::Cs01Hazard);
 
     assert_positive(cs01, "CS01");
     // CS01 should be positive and reasonable
@@ -252,8 +252,8 @@ fn test_single_curve_risky_pv01_scales_with_notional() {
 }
 
 #[test]
-fn test_single_curve_cs01_scales_with_notional() {
-    // Test: CS01 scales linearly with notional
+fn test_single_curve_hazard_cs01_scales_with_notional() {
+    // Test: direct hazard CS01 scales linearly with notional
     let start = date!(2025 - 01 - 01);
     let end = date!(2030 - 01 - 01);
     let as_of = start;
@@ -262,8 +262,8 @@ fn test_single_curve_cs01_scales_with_notional() {
     let idx_10mm = standard_single_curve_index("CDX-10MM", start, end, 10_000_000.0);
     let idx_20mm = standard_single_curve_index("CDX-20MM", start, end, 20_000_000.0);
 
-    let cs01_10mm = idx_10mm.cs01(&ctx, as_of).unwrap();
-    let cs01_20mm = idx_20mm.cs01(&ctx, as_of).unwrap();
+    let cs01_10mm = metric_value(&idx_10mm, &ctx, as_of, MetricId::Cs01Hazard);
+    let cs01_20mm = metric_value(&idx_20mm, &ctx, as_of, MetricId::Cs01Hazard);
 
     assert_linear_scaling(
         cs01_10mm,

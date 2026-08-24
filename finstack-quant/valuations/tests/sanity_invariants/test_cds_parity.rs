@@ -193,7 +193,16 @@ fn test_cds_buy_sell_symmetry() {
 #[test]
 fn test_cds_cs01_vs_risky_annuity() {
     let as_of = Date::from_calendar_date(2025, Month::March, 20).expect("valid IMM date");
-    let market = test_market(as_of);
+    let source = test_market(as_of);
+    let hazard = credit_support::calibrated_hazard_curve(
+        &source,
+        as_of,
+        "CDS-CREDIT",
+        "CDS-PARITY-ENTITY",
+        "USD-OIS",
+    )
+    .expect("hazard calibration should succeed");
+    let market = source.insert(hazard);
     let cds = create_5y_cds_buy(as_of);
 
     let metrics = vec![MetricId::Cs01, MetricId::RiskyAnnuity];

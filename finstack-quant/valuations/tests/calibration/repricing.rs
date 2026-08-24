@@ -18,6 +18,7 @@ use finstack_quant_valuations::calibration::api::schema::{
     CalibrationEnvelope, CalibrationPlan, CalibrationStep, DiscountCurveParams, ForwardCurveParams,
     HazardCurveParams, InflationCurveParams, StepParams,
 };
+use finstack_quant_valuations::calibration::bumps::{bump_hazard_spreads, BumpRequest};
 use finstack_quant_valuations::calibration::{CalibrationConfig, CalibrationMethod};
 use finstack_quant_valuations::instruments::rates::InflationSwap;
 use finstack_quant_valuations::instruments::Instrument;
@@ -940,7 +941,7 @@ fn hazard_curve_step_report_matches_market_built_cds_repricing() {
 }
 
 #[test]
-fn hazard_curve_standard_upfront_cds_repricing() {
+fn hazard_recipe_upfront_inputs_support_par_space_replay() {
     let base_date = Date::from_calendar_date(2025, Month::March, 20).unwrap();
     let currency = Currency::USD;
 
@@ -1060,6 +1061,24 @@ fn hazard_curve_standard_upfront_cds_repricing() {
     };
 
     let ctx = run_plan(&envelope);
+    let hazard = ctx
+        .get_hazard("REPRICE-UPFRONT-SENIOR")
+        .expect("upfront hazard curve");
+    let recipe = hazard
+        .hazard_calibration()
+        .expect("upfront calibration must retain replay inputs");
+    assert_eq!(recipe.calibration_inputs[0].quote["type"], "cds_upfront");
+    assert_eq!(recipe.spread_risk_inputs[0].quote["type"], "cds_par_spread");
+    let spread_bumped = bump_hazard_spreads(
+        hazard.as_ref(),
+        &ctx,
+        &BumpRequest::Parallel(1.0),
+        Some(&CurveId::new("USD-OIS")),
+        None,
+        None,
+    )
+    .expect("upfront-calibrated curve should support par-space CS01 replay");
+    assert!(spread_bumped.hazard_calibration().is_some());
 
     let mut curve_ids = HashMap::default();
     curve_ids.insert("discount".to_string(), "USD-OIS".to_string());

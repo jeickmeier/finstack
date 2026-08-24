@@ -27,11 +27,14 @@ pub struct SwaptionQuote {
 ///
 /// Payment times are year fractions from the discount curve's base date.
 /// Accrual factors use the underlying swap's fixed-leg day count, and
-/// `maturity_time` is the unlagged accrual-end time used in the par-rate
-/// numerator. This separates payment lags and business-day adjustments from
-/// accrual fractions instead of approximating dates by cumulative accruals.
+/// `swap_start_time` and `maturity_time` are the adjusted swap start and
+/// unlagged accrual-end times used in the par-rate numerator. This separates
+/// settlement, payment lags, and business-day adjustments from accrual
+/// fractions instead of approximating dates by cumulative accruals.
 #[derive(Debug, Clone)]
 pub struct SwaptionSchedule {
+    /// Convention-adjusted underlying swap start time.
+    pub swap_start_time: f64,
     /// Strictly increasing fixed-leg payment times.
     pub payment_times: Vec<f64>,
     /// Positive fixed-leg accrual factors aligned with `payment_times`.

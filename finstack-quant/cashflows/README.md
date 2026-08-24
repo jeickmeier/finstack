@@ -235,7 +235,7 @@ Entries live in [`docs/REFERENCES.md`](../../docs/REFERENCES.md):
 ## Verification
 
 ```bash
-cargo clippy -p finstack-quant-cashflows --all-targets --all-features -- -D warnings
+cargo clippy -p finstack-quant-cashflows --lib --bins --tests --examples --all-features -- -D warnings
 cargo nextest run -p finstack-quant-cashflows --lib --test '*'
 cargo bench -p finstack-quant-cashflows --bench cashflow_hot_paths
 ```

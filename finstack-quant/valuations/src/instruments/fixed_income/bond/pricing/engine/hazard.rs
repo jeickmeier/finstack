@@ -355,7 +355,6 @@ mod tests {
     use crate::instruments::common_impl::traits::Instrument;
     use crate::instruments::fixed_income::bond::pricing::engine::discount::BondEngine;
     use crate::instruments::fixed_income::bond::CashflowSpec;
-    use crate::metrics::sensitivities::config::STANDARD_BUCKETS_YEARS;
     use crate::metrics::{standard_registry, MetricContext, MetricId};
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{DayCount, Tenor};
@@ -580,7 +579,7 @@ mod tests {
     }
 
     #[test]
-    fn cs01_and_bucketed_cs01_with_hazard_engine() {
+    fn hazard_cs01_metrics_with_hand_built_curve() {
         let issue = Date::from_calendar_date(2025, Month::January, 1).expect("Valid test date");
         let maturity = Date::from_calendar_date(2030, Month::January, 1).expect("Valid test date");
 
@@ -597,8 +596,7 @@ mod tests {
             .insert(build_flat_discount(issue))
             .insert(hazard);
 
-        // Use the standard metrics registry and MetricContext to request CS01 and
-        // BucketedCs01, ensuring the metrics plumbing works for bonds with hazard curves.
+        // This hand-built curve intentionally exercises direct model-hazard risk.
         let base_pv = bond
             .value(&market, issue)
             .expect("Base bond valuation should succeed in CS01 test");
@@ -614,29 +612,34 @@ mod tests {
         );
 
         let registry = standard_registry();
-        let metric_ids = [MetricId::Cs01, MetricId::BucketedCs01];
+        let metric_ids = [MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard];
         let _ = registry
             .compute(&metric_ids, &mut ctx)
-            .expect("CS01 metrics should compute for bond with hazard curve");
+            .expect("hazard CS01 metrics should compute for bond with hazard curve");
 
         // Parallel CS01 should be nonzero since Bond::value now uses the hazard
         // engine when credit_curve_id is set.
-        let cs01 = ctx.computed.get(&MetricId::Cs01).copied().unwrap_or(0.0);
+        let cs01 = ctx
+            .computed
+            .get(&MetricId::Cs01Hazard)
+            .copied()
+            .unwrap_or(0.0);
         assert!(
             cs01.abs() > 1e-6,
             "CS01 should be nonzero for bond with hazard curve; got {}",
             cs01
         );
 
-        // Bucketed CS01 series should be stored with standard bucket count.
-        if let Some(series) = ctx.get_series(&MetricId::BucketedCs01) {
-            let buckets = STANDARD_BUCKETS_YEARS;
-            assert_eq!(
-                series.len(),
-                buckets.len(),
-                "Bucketed CS01 series length should match standard bucket count"
-            );
-        }
+        // Bucketed CS01 series should be stored under its curve-qualified key.
+        let series_id = MetricId::custom("bucketed_cs01_hazard::USD-CREDIT");
+        let series = ctx
+            .get_series(&series_id)
+            .expect("curve-qualified bucketed hazard CS01 series must be present");
+        assert_eq!(
+            series.len(),
+            3,
+            "Bucketed CS01 series should contain each effective hazard node"
+        );
     }
 
     #[test]

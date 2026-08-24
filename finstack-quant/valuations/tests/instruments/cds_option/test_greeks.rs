@@ -88,7 +88,16 @@ fn test_theta_exists() {
 #[test]
 fn test_cs01_call_positive() {
     let as_of = date!(2025 - 01 - 01);
-    let market = standard_market(as_of);
+    let source = standard_market(as_of);
+    let hazard = crate::test_support::credit::calibrated_hazard_curve(
+        &source,
+        as_of,
+        "HZ-SN",
+        "CDS-OPTION-ENTITY",
+        "USD-OIS",
+    )
+    .expect("hazard calibration should succeed");
+    let market = source.insert(hazard);
     let option = CDSOptionBuilder::new().call().build(as_of);
 
     let result = option

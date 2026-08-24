@@ -83,8 +83,10 @@ repos:
         # `default-members`, omitting finstack-quant-py / finstack-quant-wasm.
         # `--all-features` covers the old pre-push `cargo check --all-features`
         # pass so CI/local lint is one compile, not two.
+        # Lib/bins/tests/examples only — Criterion benches are compiled by
+        # `mise run rust-bench`, not by fmt or lint.
         # Keep in step with `mise run rust-lint`.
-        entry: bash -c 'CARGO_INCREMENTAL=1 cargo clippy --workspace --all-targets --all-features -- -D warnings'
+        entry: bash -c 'CARGO_INCREMENTAL=1 cargo clippy --workspace --lib --bins --tests --examples --all-features -- -D warnings'
         language: system
         types: [rust]
         pass_filenames: false

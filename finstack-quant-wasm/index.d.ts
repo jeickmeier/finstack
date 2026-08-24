@@ -28,11 +28,18 @@
 // `validateCalibrationJson` is a fast pre-flight check that canonicalizes
 // the envelope without solving — use it to surface schema errors early.
 //
-// Phase 4 diagnostics: errors thrown by `calibrate`,
+// Structured diagnostics: errors thrown by `calibrate`,
 // `validateCalibrationJson`, `dryRun`, and `dependencyGraphJson` have:
 //   - name: 'CalibrationEnvelopeError'
-//   - cause: structured EnvelopeError payload (object with `kind` etc.)
-// Standard try/catch exposes both via `e.name` and `e.cause`.
+//   - kind: Rust-owned execution category such as 'strict_load' or
+//     'solver_not_converged'
+//   - stage: 'ingestion', 'configuration', 'context', 'preflight', 'target',
+//     or 'solver'
+//   - step_id: offending step ID, or null for plan-wide failures
+//   - solver_diagnostics: structured fit diagnostics, or null when unavailable
+//   - details: JSON-serialized stable execution-error payload
+//   - cause: the same stable execution-error payload as a structured object
+// `kind` and `step_id` are independent: never use a step ID as the category.
 
 // WASM ownership: every wasm-bindgen class exposed below owns a wasm heap
 // allocation. Call `free()` when a handle is no longer needed. On runtimes
@@ -7524,7 +7531,6 @@ export interface ValuationsNamespace {
   validateValuationResultJson(json: string): string;
   /**
    * Validate a calibration plan JSON and return the canonical (pretty-printed) form.
-   * @param json - Canonical JSON string defining the object to deserialize or normalize.
    * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
    * @returns Canonical calibration-plan JSON after validation.
    * @throws Error - Throws a JavaScript exception if `json` is malformed, its calibration schema marker is missing, malformed, or unsupported, static envelope validation fails, or the canonical envelope cannot be serialized.
@@ -7537,7 +7543,6 @@ export interface ValuationsNamespace {
    * `result.final_market` is a materialized state ready for `MarketContext::try_from`
    * (Rust) or `result.market` (Python).
    *
-   * @param envelope_json - CalibrationEnvelope JSON containing targets, parameters, bounds, and dependencies.
    * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
    * @returns Calibration result including the fitted market and step reports.
    * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed or violates the calibration schema or static plan contract, market context construction or a calibration step fails, a solver does not converge, or the result envelope cannot be converted to a JavaScript value.
@@ -7548,7 +7553,6 @@ export interface ValuationsNamespace {
    *
    * Returns a JSON-serialized `CalibrationValidationReport` listing every error found
    * plus the dependency graph. Microseconds.
-   * @param envelope_json - CalibrationEnvelope JSON containing targets, parameters, bounds, and dependencies.
    * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
    * @returns Canonical calibration envelope JSON without running the solver.
    * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed, its schema marker is missing, malformed, or unsupported, the envelope structure is invalid, or the validation report cannot be serialized. Semantic findings are returned in the report rather than thrown.
@@ -7556,7 +7560,6 @@ export interface ValuationsNamespace {
   dryRun(envelope: CalibrationEnvelope | string): string;
   /**
    * Returns the static dependency graph of a calibration plan as JSON.
-   * @param envelope_json - CalibrationEnvelope JSON containing targets, parameters, bounds, and dependencies.
    * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
    * @returns Static calibration-plan dependency graph as JSON.
    * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed, its schema marker is missing, malformed, or unsupported, the envelope structure is invalid, or the dependency graph cannot be serialized.

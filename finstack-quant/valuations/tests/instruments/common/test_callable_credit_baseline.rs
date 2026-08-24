@@ -346,7 +346,7 @@ fn risk_metrics_share_the_resolved_model_inputs() {
             as_of(),
             &[
                 MetricId::Vega,
-                MetricId::Cs01,
+                MetricId::Cs01Hazard,
                 MetricId::EmbeddedOptionValue,
             ],
             PricingOptions::default(),
@@ -360,7 +360,10 @@ fn risk_metrics_share_the_resolved_model_inputs() {
          the bump moved a channel the model no longer reads: {vega}"
     );
 
-    let cs01 = *result.measures.get("cs01").expect("cs01 measure");
+    let cs01 = *result
+        .measures
+        .get("cs01_hazard")
+        .expect("cs01_hazard measure");
     assert!(
         cs01.is_finite() && cs01.abs() > 1e-9,
         "CS01 must be live on the rates-credit path: {cs01}"

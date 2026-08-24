@@ -207,7 +207,7 @@ The derive has no unit tests of its own; it is exercised through the
 instruments that use it.
 
 ```bash
-cargo clippy -p finstack-quant-valuations-macros --all-targets --all-features -- -D warnings
+cargo clippy -p finstack-quant-valuations-macros --lib --bins --tests --examples --all-features -- -D warnings
 cargo nextest run -p finstack-quant-valuations --test instruments
 cargo nextest run -p finstack-quant-valuations --test default_attribute_consistency
 ```

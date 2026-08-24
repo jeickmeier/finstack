@@ -2,6 +2,9 @@
 //!
 use super::model::{SABRModel, BETA_SNAP_TOL};
 use super::parameters::SABRParameters;
+use finstack_quant_core::math::solver_multi::{
+    LevenbergMarquardtSolver, LmSolution, LmTerminationReason,
+};
 use finstack_quant_core::math::volatility::{bachelier_vega, black_vega};
 use finstack_quant_core::{Error, Result};
 
@@ -184,6 +187,148 @@ fn deterministic_sabr_starts(alpha: f64) -> Vec<[f64; 3]> {
         }
     }
     starts
+}
+
+fn sabr_termination_is_acceptable(
+    reason: &LmTerminationReason,
+    final_residual_norm: f64,
+    residual_tolerance: f64,
+) -> bool {
+    match reason {
+        LmTerminationReason::ConvergedResidualNorm
+        | LmTerminationReason::ConvergedRelativeReduction
+        | LmTerminationReason::ConvergedGradient => true,
+        LmTerminationReason::StepTooSmall | LmTerminationReason::MaxIterations => {
+            final_residual_norm.is_finite() && final_residual_norm <= residual_tolerance
+        }
+        LmTerminationReason::NumericalFailure => false,
+    }
+}
+
+#[derive(Default)]
+struct RejectedSabrStarts {
+    rejected_starts: usize,
+    solver_failures: usize,
+    best_rejected: Option<(f64, LmTerminationReason, usize)>,
+}
+
+impl RejectedSabrStarts {
+    fn record_solver_failure(&mut self) {
+        self.solver_failures += 1;
+    }
+
+    fn record_rejected(&mut self, solution: &LmSolution) {
+        self.rejected_starts += 1;
+        let score = solution.stats.final_residual_norm;
+        if score.is_finite()
+            && self
+                .best_rejected
+                .as_ref()
+                .is_none_or(|(best_score, _, _)| score < *best_score)
+        {
+            self.best_rejected = Some((
+                score,
+                solution.stats.termination_reason.clone(),
+                solution.stats.iterations,
+            ));
+        }
+    }
+
+    fn no_acceptable_error(&self, path: &str) -> Error {
+        let best = self.best_rejected.as_ref().map_or_else(
+            || "best_rejected_residual=none".to_string(),
+            |(score, reason, iterations)| {
+                format!(
+                    "best_rejected_residual={score:.6e}, best_rejected_reason={reason:?}, \
+                     best_rejected_iterations={iterations}"
+                )
+            },
+        );
+        Error::Calibration {
+            message: format!(
+                "no acceptable deterministic {path} start; rejected_starts={}, \
+                 solver_failures={}; {best}",
+                self.rejected_starts, self.solver_failures
+            ),
+            category: "sabr_multi_start".to_string(),
+        }
+    }
+}
+
+struct SabrMultiStartResult {
+    outcome: SabrCalibrationOutcome,
+    rejected: RejectedSabrStarts,
+}
+
+impl SabrMultiStartResult {
+    fn into_outcome(self) -> SabrCalibrationOutcome {
+        let Self {
+            outcome,
+            rejected: _rejected,
+        } = self;
+        outcome
+    }
+}
+
+fn run_deterministic_sabr_starts<Solve, Reconstruct>(
+    starts: Vec<[f64; 3]>,
+    residual_tolerance: f64,
+    path: &str,
+    beta: f64,
+    mut solve: Solve,
+    mut reconstruct: Reconstruct,
+) -> Result<SabrMultiStartResult>
+where
+    Solve: FnMut([f64; 3]) -> Result<LmSolution>,
+    Reconstruct: FnMut(&LmSolution) -> Option<[f64; 3]>,
+{
+    let mut best: Option<(f64, LmSolution, [f64; 3], [f64; 3])> = None;
+    let mut rejected = RejectedSabrStarts::default();
+    let mut total_iterations = 0;
+
+    for physical_start in starts {
+        let Ok(solution) = solve(physical_start) else {
+            rejected.record_solver_failure();
+            continue;
+        };
+        total_iterations += solution.stats.iterations;
+        let score = solution.stats.final_residual_norm;
+        if !score.is_finite()
+            || !sabr_termination_is_acceptable(
+                &solution.stats.termination_reason,
+                score,
+                residual_tolerance,
+            )
+        {
+            rejected.record_rejected(&solution);
+            continue;
+        }
+        let Some(physical) = reconstruct(&solution) else {
+            continue;
+        };
+        if best
+            .as_ref()
+            .is_none_or(|(best_score, _, _, _)| score < *best_score)
+        {
+            best = Some((score, solution, physical_start, physical));
+        }
+    }
+
+    let Some((_score, solution, winning_start, physical)) = best else {
+        return Err(rejected.no_acceptable_error(path));
+    };
+
+    Ok(SabrMultiStartResult {
+        outcome: SabrCalibrationOutcome {
+            parameters: SABRParameters::new(physical[0], beta, physical[1], physical[2])?,
+            total_iterations,
+            winning_iterations: solution.stats.iterations,
+            residual_evaluations: solution.stats.residual_evals,
+            winning_start,
+            parameters_at_bounds: sabr_parameters_at_bounds(physical[0], physical[1], physical[2]),
+        },
+        rejected,
+    })
 }
 
 impl SABRCalibrator {
@@ -432,10 +577,6 @@ impl SABRCalibrator {
                 market_vols.len()
             )));
         }
-        use finstack_quant_core::math::solver_multi::{
-            LevenbergMarquardtSolver, LmSolution, LmTerminationReason,
-        };
-
         let residual_tolerance = self.tolerance.sqrt();
         let solver = LevenbergMarquardtSolver::new()
             .with_tolerance(residual_tolerance)
@@ -443,84 +584,47 @@ impl SABRCalibrator {
         let atm_vol = self.find_atm_vol(forward, strikes, market_vols)?;
         let alpha_start = initial_alpha_guess(atm_vol, forward, beta);
         let starts = deterministic_sabr_starts(alpha_start);
-        let mut best: Option<(f64, LmSolution, [f64; 3], [f64; 3])> = None;
-        let mut total_iterations = 0;
-
-        for physical_start in starts {
-            let initial = [
-                bounded_to_unconstrained(physical_start[0], 0.001, 5.0),
-                bounded_to_unconstrained(physical_start[1], 0.001, 2.0),
-                bounded_to_unconstrained(physical_start[2], -0.99, 0.99),
-            ];
-            let residuals = |unconstrained: &[f64], output: &mut [f64]| {
-                let alpha = unconstrained_to_bounded(unconstrained[0], 0.001, 5.0);
-                let nu = unconstrained_to_bounded(unconstrained[1], 0.001, 2.0);
-                let rho = unconstrained_to_bounded(unconstrained[2], -0.99, 0.99);
-                let Ok(parameters) = SABRParameters::new(alpha, beta, nu, rho) else {
-                    output.fill(1e6);
-                    return;
+        run_deterministic_sabr_starts(
+            starts,
+            residual_tolerance,
+            "SABR",
+            beta,
+            |physical_start| {
+                let initial = [
+                    bounded_to_unconstrained(physical_start[0], 0.001, 5.0),
+                    bounded_to_unconstrained(physical_start[1], 0.001, 2.0),
+                    bounded_to_unconstrained(physical_start[2], -0.99, 0.99),
+                ];
+                let residuals = |unconstrained: &[f64], output: &mut [f64]| {
+                    let alpha = unconstrained_to_bounded(unconstrained[0], 0.001, 5.0);
+                    let nu = unconstrained_to_bounded(unconstrained[1], 0.001, 2.0);
+                    let rho = unconstrained_to_bounded(unconstrained[2], -0.99, 0.99);
+                    let Ok(parameters) = SABRParameters::new(alpha, beta, nu, rho) else {
+                        output.fill(1e6);
+                        return;
+                    };
+                    let model = SABRModel::new(parameters);
+                    for (index, (&strike, &market_vol)) in
+                        strikes.iter().zip(market_vols).enumerate()
+                    {
+                        let weight =
+                            vega_weight(forward, strike, market_vol, time_to_expiry, beta).sqrt();
+                        output[index] = model
+                            .implied_volatility(forward, strike, time_to_expiry)
+                            .map_or(1e6, |model_vol| weight * (model_vol - market_vol));
+                    }
                 };
-                let model = SABRModel::new(parameters);
-                for (index, (&strike, &market_vol)) in strikes.iter().zip(market_vols).enumerate() {
-                    let weight =
-                        vega_weight(forward, strike, market_vol, time_to_expiry, beta).sqrt();
-                    output[index] = model
-                        .implied_volatility(forward, strike, time_to_expiry)
-                        .map_or(1e6, |model_vol| weight * (model_vol - market_vol));
-                }
-            };
-            let Ok(solution) =
                 solver.solve_system_with_dim_stats(residuals, &initial, market_vols.len())
-            else {
-                continue;
-            };
-            total_iterations += solution.stats.iterations;
-            let physical = [
-                unconstrained_to_bounded(solution.params[0], 0.001, 5.0),
-                unconstrained_to_bounded(solution.params[1], 0.001, 2.0),
-                unconstrained_to_bounded(solution.params[2], -0.99, 0.99),
-            ];
-            let score = solution.stats.final_residual_norm;
-            if score.is_finite()
-                && best
-                    .as_ref()
-                    .is_none_or(|(best_score, _, _, _)| score < *best_score)
-            {
-                best = Some((score, solution, physical_start, physical));
-            }
-        }
-
-        let Some((score, solution, winning_start, physical)) = best else {
-            return Err(Error::Calibration {
-                message: "all deterministic SABR calibration starts failed".to_string(),
-                category: "sabr_multi_start".to_string(),
-            });
-        };
-        let converged = matches!(
-            solution.stats.termination_reason,
-            LmTerminationReason::ConvergedResidualNorm
-                | LmTerminationReason::ConvergedRelativeReduction
-                | LmTerminationReason::ConvergedGradient
-                | LmTerminationReason::StepTooSmall
-        ) || score <= residual_tolerance;
-        if !converged {
-            return Err(Error::Calibration {
-                message: format!(
-                    "best deterministic SABR start did not converge after {} iterations; residual={score:.6e}, reason={:?}",
-                    solution.stats.iterations, solution.stats.termination_reason
-                ),
-                category: "sabr_multi_start".to_string(),
-            });
-        }
-
-        Ok(SabrCalibrationOutcome {
-            parameters: SABRParameters::new(physical[0], beta, physical[1], physical[2])?,
-            total_iterations,
-            winning_iterations: solution.stats.iterations,
-            residual_evaluations: solution.stats.residual_evals,
-            winning_start,
-            parameters_at_bounds: sabr_parameters_at_bounds(physical[0], physical[1], physical[2]),
-        })
+            },
+            |solution| {
+                Some([
+                    unconstrained_to_bounded(solution.params[0], 0.001, 5.0),
+                    unconstrained_to_bounded(solution.params[1], 0.001, 2.0),
+                    unconstrained_to_bounded(solution.params[2], -0.99, 0.99),
+                ])
+            },
+        )
+        .map(SabrMultiStartResult::into_outcome)
     }
 
     /// Calibrate SABR parameters with finite-difference parameter gradients.
@@ -796,10 +900,6 @@ impl SABRCalibrator {
                 market_vols.len()
             )));
         }
-        use finstack_quant_core::math::solver_multi::{
-            LevenbergMarquardtSolver, LmSolution, LmTerminationReason,
-        };
-
         let atm_vol = self.find_atm_vol(forward, strikes, market_vols)?;
         let alpha_start = initial_alpha_guess(atm_vol, forward, beta);
         let starts = deterministic_sabr_starts(alpha_start);
@@ -807,18 +907,58 @@ impl SABRCalibrator {
         let solver = LevenbergMarquardtSolver::new()
             .with_tolerance(residual_tolerance)
             .with_max_iterations(self.max_iterations);
-        let mut best: Option<(f64, LmSolution, [f64; 3], [f64; 3])> = None;
-        let mut total_iterations = 0;
-
-        for physical_start in starts {
-            let initial = [
-                bounded_to_unconstrained(physical_start[1], 0.001, 2.0),
-                bounded_to_unconstrained(physical_start[2], -0.99, 0.99),
-            ];
-            let residuals = |unconstrained: &[f64], output: &mut [f64]| {
-                let nu = unconstrained_to_bounded(unconstrained[0], 0.001, 2.0);
-                let rho = unconstrained_to_bounded(unconstrained[1], -0.99, 0.99);
-                let Ok(alpha) = solve_alpha_for_atm(
+        run_deterministic_sabr_starts(
+            starts,
+            residual_tolerance,
+            "ATM-pinned SABR",
+            beta,
+            |physical_start| {
+                let initial = [
+                    bounded_to_unconstrained(physical_start[1], 0.001, 2.0),
+                    bounded_to_unconstrained(physical_start[2], -0.99, 0.99),
+                ];
+                let residuals = |unconstrained: &[f64], output: &mut [f64]| {
+                    let nu = unconstrained_to_bounded(unconstrained[0], 0.001, 2.0);
+                    let rho = unconstrained_to_bounded(unconstrained[1], -0.99, 0.99);
+                    let Ok(alpha) = solve_alpha_for_atm(
+                        forward,
+                        atm_vol,
+                        time_to_expiry,
+                        beta,
+                        nu,
+                        rho,
+                        self.tolerance,
+                    ) else {
+                        output.fill(1e6);
+                        return;
+                    };
+                    let Ok(parameters) = SABRParameters::new(alpha, beta, nu, rho) else {
+                        output.fill(1e6);
+                        return;
+                    };
+                    let model = SABRModel::new(parameters);
+                    for (index, (&strike, &market_vol)) in
+                        strikes.iter().zip(market_vols).enumerate()
+                    {
+                        let is_atm = (strike - forward).abs() / forward.abs().max(1e-8) < 0.001;
+                        output[index] = if is_atm {
+                            0.0
+                        } else {
+                            let weight =
+                                vega_weight(forward, strike, market_vol, time_to_expiry, beta)
+                                    .sqrt();
+                            model
+                                .implied_volatility(forward, strike, time_to_expiry)
+                                .map_or(1e6, |model_vol| weight * (model_vol - market_vol))
+                        };
+                    }
+                };
+                solver.solve_system_with_dim_stats(residuals, &initial, market_vols.len())
+            },
+            |solution| {
+                let nu = unconstrained_to_bounded(solution.params[0], 0.001, 2.0);
+                let rho = unconstrained_to_bounded(solution.params[1], -0.99, 0.99);
+                solve_alpha_for_atm(
                     forward,
                     atm_vol,
                     time_to_expiry,
@@ -826,89 +966,12 @@ impl SABRCalibrator {
                     nu,
                     rho,
                     self.tolerance,
-                ) else {
-                    output.fill(1e6);
-                    return;
-                };
-                let Ok(parameters) = SABRParameters::new(alpha, beta, nu, rho) else {
-                    output.fill(1e6);
-                    return;
-                };
-                let model = SABRModel::new(parameters);
-                for (index, (&strike, &market_vol)) in strikes.iter().zip(market_vols).enumerate() {
-                    let is_atm = (strike - forward).abs() / forward.abs().max(1e-8) < 0.001;
-                    output[index] = if is_atm {
-                        0.0
-                    } else {
-                        let weight =
-                            vega_weight(forward, strike, market_vol, time_to_expiry, beta).sqrt();
-                        model
-                            .implied_volatility(forward, strike, time_to_expiry)
-                            .map_or(1e6, |model_vol| weight * (model_vol - market_vol))
-                    };
-                }
-            };
-            let Ok(solution) =
-                solver.solve_system_with_dim_stats(residuals, &initial, market_vols.len())
-            else {
-                continue;
-            };
-            total_iterations += solution.stats.iterations;
-            let nu = unconstrained_to_bounded(solution.params[0], 0.001, 2.0);
-            let rho = unconstrained_to_bounded(solution.params[1], -0.99, 0.99);
-            let Ok(alpha) = solve_alpha_for_atm(
-                forward,
-                atm_vol,
-                time_to_expiry,
-                beta,
-                nu,
-                rho,
-                self.tolerance,
-            ) else {
-                continue;
-            };
-            let physical = [alpha, nu, rho];
-            let score = solution.stats.final_residual_norm;
-            if score.is_finite()
-                && best
-                    .as_ref()
-                    .is_none_or(|(best_score, _, _, _)| score < *best_score)
-            {
-                best = Some((score, solution, physical_start, physical));
-            }
-        }
-
-        let Some((score, solution, winning_start, physical)) = best else {
-            return Err(Error::Calibration {
-                message: "all deterministic ATM-pinned SABR starts failed".to_string(),
-                category: "sabr_multi_start".to_string(),
-            });
-        };
-        let converged = matches!(
-            solution.stats.termination_reason,
-            LmTerminationReason::ConvergedResidualNorm
-                | LmTerminationReason::ConvergedRelativeReduction
-                | LmTerminationReason::ConvergedGradient
-                | LmTerminationReason::StepTooSmall
-        ) || score <= residual_tolerance;
-        if !converged {
-            return Err(Error::Calibration {
-                message: format!(
-                    "best deterministic ATM-pinned SABR start did not converge after {} iterations; residual={score:.6e}, reason={:?}",
-                    solution.stats.iterations, solution.stats.termination_reason
-                ),
-                category: "sabr_multi_start".to_string(),
-            });
-        }
-
-        Ok(SabrCalibrationOutcome {
-            parameters: SABRParameters::new(physical[0], beta, physical[1], physical[2])?,
-            total_iterations,
-            winning_iterations: solution.stats.iterations,
-            residual_evaluations: solution.stats.residual_evals,
-            winning_start,
-            parameters_at_bounds: sabr_parameters_at_bounds(physical[0], physical[1], physical[2]),
-        })
+                )
+                .ok()
+                .map(|alpha| [alpha, nu, rho])
+            },
+        )
+        .map(SabrMultiStartResult::into_outcome)
     }
 }
 
@@ -987,5 +1050,268 @@ pub(super) fn solve_alpha_for_atm(
 impl Default for SABRCalibrator {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod acceptance_tests {
+    use super::*;
+    use finstack_quant_core::math::solver_multi::{LmStats, LmTerminationReason};
+
+    #[test]
+    fn sabr_step_too_small_requires_residual_tolerance() {
+        let tolerance = 1.0e-4;
+        assert!(!sabr_termination_is_acceptable(
+            &LmTerminationReason::StepTooSmall,
+            1.0e-3,
+            tolerance,
+        ));
+        assert!(sabr_termination_is_acceptable(
+            &LmTerminationReason::StepTooSmall,
+            1.0e-5,
+            tolerance,
+        ));
+    }
+
+    #[test]
+    fn sabr_max_iterations_requires_residual_tolerance_for_both_paths() {
+        let tolerance = 1.0e-4;
+        assert!(!sabr_termination_is_acceptable(
+            &LmTerminationReason::MaxIterations,
+            1.0e-3,
+            tolerance,
+        ));
+        assert!(sabr_termination_is_acceptable(
+            &LmTerminationReason::MaxIterations,
+            1.0e-5,
+            tolerance,
+        ));
+    }
+
+    #[test]
+    fn sabr_genuine_convergence_reasons_remain_acceptable() {
+        for reason in [
+            LmTerminationReason::ConvergedResidualNorm,
+            LmTerminationReason::ConvergedRelativeReduction,
+            LmTerminationReason::ConvergedGradient,
+        ] {
+            assert!(sabr_termination_is_acceptable(&reason, 1.0, 1.0e-4));
+        }
+    }
+
+    #[test]
+    fn sabr_numerical_failure_is_never_acceptable() {
+        assert!(!sabr_termination_is_acceptable(
+            &LmTerminationReason::NumericalFailure,
+            0.0,
+            1.0e-4,
+        ));
+    }
+
+    #[test]
+    fn deterministic_runner_filters_before_selection_and_retains_rejections() {
+        let starts = vec![[0.02, 0.15, -0.6], [0.02, 0.4, 0.0]];
+        let result = run_deterministic_sabr_starts(
+            starts.clone(),
+            1.0e-4,
+            "test SABR",
+            0.5,
+            |start| {
+                let (score, reason, iterations) = if start == starts[0] {
+                    (1.0e-12, LmTerminationReason::NumericalFailure, 2)
+                } else {
+                    (1.0e-3, LmTerminationReason::ConvergedGradient, 3)
+                };
+                Ok(LmSolution {
+                    params: vec![0.02, start[1], start[2]],
+                    stats: LmStats {
+                        iterations,
+                        residual_evals: iterations + 1,
+                        jacobian_evals: iterations,
+                        termination_reason: reason,
+                        final_residual_norm: score,
+                        final_step_norm: 0.0,
+                        lambda_final: 1.0,
+                        lambda_bound_hits: 0,
+                    },
+                })
+            },
+            |solution| {
+                Some(
+                    solution
+                        .params
+                        .as_slice()
+                        .try_into()
+                        .expect("three parameters"),
+                )
+            },
+        )
+        .expect("higher-residual converged candidate should win");
+
+        assert_eq!(result.outcome.winning_start, starts[1]);
+        assert_eq!(result.outcome.parameters.alpha, 0.02);
+        assert_eq!(result.outcome.parameters.nu, 0.4);
+        assert_eq!(result.outcome.parameters.rho, 0.0);
+        assert_eq!(result.rejected.rejected_starts, 1);
+        assert_eq!(result.rejected.solver_failures, 0);
+        assert!(matches!(
+            result.rejected.best_rejected,
+            Some((score, LmTerminationReason::NumericalFailure, 2))
+                if score == 1.0e-12
+        ));
+    }
+
+    #[test]
+    fn free_and_atm_pinned_multi_start_outputs_are_repeatable_and_fit() {
+        let forward = 0.03;
+        let strikes = [0.02, 0.025, 0.03, 0.035, 0.04];
+        let time_to_expiry = 2.0;
+        let beta = 0.5;
+        let source_parameters =
+            SABRParameters::new(0.02, beta, 0.4, -0.3).expect("source parameters");
+        let source = SABRModel::new(source_parameters.clone());
+        let market_vols: Vec<f64> = strikes
+            .iter()
+            .map(|&strike| {
+                source
+                    .implied_volatility(forward, strike, time_to_expiry)
+                    .expect("source volatility")
+            })
+            .collect();
+        let calibrator = SABRCalibrator::new()
+            .with_tolerance(1.0e-8)
+            .with_max_iterations(2_000);
+
+        let calibrate_free = || {
+            calibrator
+                .calibrate_with_diagnostics(forward, &strikes, &market_vols, time_to_expiry, beta)
+                .expect("free-alpha calibration")
+        };
+        let calibrate_pinned = || {
+            calibrator
+                .calibrate_with_atm_pinning_diagnostics(
+                    forward,
+                    &strikes,
+                    &market_vols,
+                    time_to_expiry,
+                    beta,
+                )
+                .expect("ATM-pinned calibration")
+        };
+        let free_first = calibrate_free();
+        let free_second = calibrate_free();
+        let pinned_first = calibrate_pinned();
+        let pinned_second = calibrate_pinned();
+
+        let assert_repeatable = |first: &SabrCalibrationOutcome,
+                                 second: &SabrCalibrationOutcome| {
+            assert_eq!(first.parameters.alpha, second.parameters.alpha);
+            assert_eq!(first.parameters.beta, second.parameters.beta);
+            assert_eq!(first.parameters.nu, second.parameters.nu);
+            assert_eq!(first.parameters.rho, second.parameters.rho);
+            assert_eq!(first.parameters.shift, second.parameters.shift);
+            assert_eq!(first.total_iterations, second.total_iterations);
+            assert_eq!(first.winning_iterations, second.winning_iterations);
+            assert_eq!(first.residual_evaluations, second.residual_evaluations);
+            assert_eq!(first.winning_start, second.winning_start);
+            assert_eq!(first.parameters_at_bounds, second.parameters_at_bounds);
+        };
+        assert_repeatable(&free_first, &free_second);
+        assert_repeatable(&pinned_first, &pinned_second);
+
+        let residual_norm = |outcome: &SabrCalibrationOutcome, pin_atm: bool| {
+            let model = SABRModel::new(outcome.parameters.clone());
+            strikes
+                .iter()
+                .zip(&market_vols)
+                .map(|(&strike, &market_vol)| {
+                    let is_atm = (strike - forward).abs() / forward.abs().max(1.0e-8) < 0.001;
+                    if pin_atm && is_atm {
+                        0.0
+                    } else {
+                        let weight =
+                            vega_weight(forward, strike, market_vol, time_to_expiry, beta).sqrt();
+                        let model_vol = model
+                            .implied_volatility(forward, strike, time_to_expiry)
+                            .expect("fitted volatility");
+                        weight * (model_vol - market_vol)
+                    }
+                })
+                .map(|residual| residual * residual)
+                .sum::<f64>()
+                .sqrt()
+        };
+        let residual_tolerance = calibrator.tolerance.sqrt();
+        assert!(
+            residual_norm(&free_first, false) <= residual_tolerance,
+            "free-alpha winner must satisfy the configured residual tolerance"
+        );
+        assert!(
+            residual_norm(&pinned_first, true) <= residual_tolerance,
+            "ATM-pinned winner must satisfy the configured residual tolerance"
+        );
+
+        let atm_vol = calibrator
+            .find_atm_vol(forward, &strikes, &market_vols)
+            .expect("ATM volatility");
+        let expected_alpha_start = initial_alpha_guess(atm_vol, forward, beta);
+        for outcome in [&free_first, &pinned_first] {
+            assert!((outcome.winning_start[0] - expected_alpha_start).abs() <= 1.0e-15);
+            assert_eq!(outcome.winning_start[1], 0.4);
+            assert_eq!(outcome.winning_start[2], 0.0);
+            assert_eq!(outcome.parameters.beta, beta);
+            assert_eq!(outcome.parameters.shift, None);
+            assert!(outcome.parameters_at_bounds.is_empty());
+            assert!((outcome.parameters.alpha - source_parameters.alpha).abs() <= 2.0e-6);
+            assert!((outcome.parameters.nu - source_parameters.nu).abs() <= 5.0e-4);
+            assert!((outcome.parameters.rho - source_parameters.rho).abs() <= 2.0e-4);
+        }
+
+        let pinned_atm = SABRModel::new(pinned_first.parameters)
+            .atm_volatility(forward, time_to_expiry)
+            .expect("pinned ATM volatility");
+        assert!((pinned_atm - atm_vol).abs() <= calibrator.tolerance);
+    }
+
+    #[test]
+    fn free_alpha_path_reports_rejected_stalled_starts() {
+        let calibrator = SABRCalibrator::new()
+            .with_tolerance(1.0e-12)
+            .with_max_iterations(1);
+        let error = calibrator
+            .calibrate(
+                0.03,
+                &[0.02, 0.025, 0.03, 0.035, 0.04],
+                &[0.02, 0.015, 0.01, 0.015, 0.02],
+                5.0,
+                0.0,
+            )
+            .expect_err("one iteration cannot accept this bounded SABR smile");
+        let message = error.to_string();
+
+        assert!(message.contains("no acceptable deterministic SABR start"));
+        assert!(message.contains("rejected_starts="));
+        assert!(message.contains("best_rejected_residual="));
+    }
+
+    #[test]
+    fn atm_pinned_path_reports_rejected_stalled_starts() {
+        let calibrator = SABRCalibrator::new()
+            .with_tolerance(1.0e-12)
+            .with_max_iterations(1);
+        let error = calibrator
+            .calibrate_with_atm_pinning(
+                0.03,
+                &[0.02, 0.025, 0.03, 0.035, 0.04],
+                &[0.02, 0.015, 0.01, 0.015, 0.02],
+                5.0,
+                0.0,
+            )
+            .expect_err("one iteration cannot accept this bounded ATM-pinned smile");
+        let message = error.to_string();
+
+        assert!(message.contains("no acceptable deterministic ATM-pinned SABR start"));
+        assert!(message.contains("rejected_starts="));
+        assert!(message.contains("best_rejected_residual="));
     }
 }

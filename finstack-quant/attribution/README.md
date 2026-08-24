@@ -269,7 +269,7 @@ Entries live in [`docs/REFERENCES.md`](../../docs/REFERENCES.md):
 ## Verification
 
 ```bash
-cargo clippy -p finstack-quant-attribution --all-targets --all-features -- -D warnings
+cargo clippy -p finstack-quant-attribution --lib --bins --tests --examples --all-features -- -D warnings
 cargo nextest run -p finstack-quant-attribution --lib --test '*'
 cargo bench -p finstack-quant-attribution --bench attribution
 ```

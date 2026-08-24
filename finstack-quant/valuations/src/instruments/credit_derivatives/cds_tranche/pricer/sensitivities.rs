@@ -569,22 +569,22 @@ impl CDSTranchePricer {
 
         let original_index_arc = market_ctx.get_credit_index(&tranche.credit_index_id)?;
         let hazard = &original_index_arc.index_credit_curve;
+        crate::metrics::sensitivities::cs01::require_hazard_replay(
+            hazard.as_ref(),
+            "CDS tranche CS01",
+        )?;
 
         let bump_bp = self.params.cs01_bump_size;
         let bump_index_spreads = |sign: f64| -> Result<_> {
             let request = crate::calibration::bumps::BumpRequest::Parallel(sign * bump_bp);
-            let bumped_hazard = if hazard.hazard_calibration().is_some() {
-                crate::calibration::bumps::hazard::bump_hazard_spreads(
-                    hazard.as_ref(),
-                    market_ctx,
-                    &request,
-                    Some(&tranche.discount_curve_id),
-                    None,
-                    None,
-                )?
-            } else {
-                crate::calibration::bumps::hazard::bump_hazard_shift(hazard.as_ref(), &request)?
-            };
+            let bumped_hazard = crate::calibration::bumps::hazard::bump_hazard_spreads(
+                hazard.as_ref(),
+                market_ctx,
+                &request,
+                Some(&tranche.discount_curve_id),
+                None,
+                None,
+            )?;
             self.rebuild_credit_index(
                 original_index_arc.as_ref(),
                 original_index_arc.recovery_rate,

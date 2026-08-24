@@ -315,7 +315,7 @@ authority on what the namespaces must contain.
 ```bash
 cargo nextest run -p finstack-quant-core
 cargo fmt -p finstack-quant-core -- --check
-cargo clippy -p finstack-quant-core --all-targets --all-features -- -D warnings
+cargo clippy -p finstack-quant-core --lib --bins --tests --examples --all-features -- -D warnings
 RUSTDOCFLAGS='-D warnings' cargo doc -p finstack-quant-core --no-deps
 cargo test -p finstack-quant-core --doc
 ```

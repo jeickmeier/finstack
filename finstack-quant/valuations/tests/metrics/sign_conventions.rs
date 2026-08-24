@@ -28,6 +28,32 @@ use finstack_quant_valuations::metrics::{standard_registry, MetricContext, Metri
 use std::sync::Arc;
 use time::macros::date;
 
+fn calibrated_cds_market(as_of: Date) -> MarketContext {
+    let disc_curve = DiscountCurve::builder("USD-OIS")
+        .base_date(as_of)
+        .day_count(DayCount::Act365F)
+        .knots([
+            (0.0f64, 1.0f64),
+            (1.0f64, (-0.05f64).exp()),
+            (2.0f64, (-0.10f64).exp()),
+            (3.0f64, (-0.15f64).exp()),
+            (4.0f64, (-0.20f64).exp()),
+            (5.0f64, (-0.25f64).exp()),
+        ])
+        .build()
+        .unwrap();
+    let source = MarketContext::new().insert(disc_curve);
+    let hazard = crate::credit_support::calibrated_hazard_curve(
+        &source,
+        as_of,
+        "HAZARD",
+        "SIGN-CONVENTION-ENTITY",
+        "USD-OIS",
+    )
+    .expect("hazard calibration should succeed");
+    source.insert(hazard)
+}
+
 fn create_option_market(
     as_of: Date,
     spot: f64,
@@ -461,8 +487,6 @@ fn test_cds_cs01_protection_buyer_positive() {
     // This is the market-standard directional sign convention.
     let as_of = date!(2025 - 01 - 01);
 
-    use finstack_quant_core::market_data::term_structures::HazardCurve;
-
     let cds = crate::credit_support::cds_buy_protection(
         "CS01_BUY_TEST",
         Money::new(1_000_000.0, Currency::USD),
@@ -474,36 +498,7 @@ fn test_cds_cs01_protection_buyer_positive() {
     )
     .expect("CDS construction should succeed");
 
-    let disc_curve = DiscountCurve::builder("USD-OIS")
-        .base_date(as_of)
-        .day_count(DayCount::Act365F)
-        .knots([
-            (0.0f64, 1.0f64),
-            (1.0f64, (-0.05f64).exp()),
-            (2.0f64, (-0.10f64).exp()),
-            (3.0f64, (-0.15f64).exp()),
-            (4.0f64, (-0.20f64).exp()),
-            (5.0f64, (-0.25f64).exp()),
-        ])
-        .build()
-        .unwrap();
-
-    let hazard_curve = HazardCurve::builder("HAZARD")
-        .base_date(as_of)
-        .day_count(DayCount::Act365F)
-        .recovery_rate(0.4)
-        .knots([
-            (0.0f64, 0.02f64),
-            (1.0f64, 0.025f64),
-            (2.0f64, 0.03f64),
-            (3.0f64, 0.035f64),
-            (4.0f64, 0.04f64),
-            (5.0f64, 0.045f64),
-        ])
-        .build()
-        .unwrap();
-
-    let market = MarketContext::new().insert(disc_curve).insert(hazard_curve);
+    let market = calibrated_cds_market(as_of);
 
     let registry = standard_registry();
     let pv = cds.value(&market, as_of).unwrap();
@@ -533,8 +528,6 @@ fn test_cds_cs01_protection_seller_negative() {
     // This validates that CS01 sign correctly reflects position direction.
     let as_of = date!(2025 - 01 - 01);
 
-    use finstack_quant_core::market_data::term_structures::HazardCurve;
-
     let cds = crate::credit_support::cds_sell_protection(
         "CS01_SELL_TEST",
         Money::new(1_000_000.0, Currency::USD),
@@ -546,36 +539,7 @@ fn test_cds_cs01_protection_seller_negative() {
     )
     .expect("CDS construction should succeed");
 
-    let disc_curve = DiscountCurve::builder("USD-OIS")
-        .base_date(as_of)
-        .day_count(DayCount::Act365F)
-        .knots([
-            (0.0f64, 1.0f64),
-            (1.0f64, (-0.05f64).exp()),
-            (2.0f64, (-0.10f64).exp()),
-            (3.0f64, (-0.15f64).exp()),
-            (4.0f64, (-0.20f64).exp()),
-            (5.0f64, (-0.25f64).exp()),
-        ])
-        .build()
-        .unwrap();
-
-    let hazard_curve = HazardCurve::builder("HAZARD")
-        .base_date(as_of)
-        .day_count(DayCount::Act365F)
-        .recovery_rate(0.4)
-        .knots([
-            (0.0f64, 0.02f64),
-            (1.0f64, 0.025f64),
-            (2.0f64, 0.03f64),
-            (3.0f64, 0.035f64),
-            (4.0f64, 0.04f64),
-            (5.0f64, 0.045f64),
-        ])
-        .build()
-        .unwrap();
-
-    let market = MarketContext::new().insert(disc_curve).insert(hazard_curve);
+    let market = calibrated_cds_market(as_of);
 
     let registry = standard_registry();
     let pv = cds.value(&market, as_of).unwrap();
@@ -604,8 +568,6 @@ fn test_cds_cs01_opposite_signs() {
     // This is a fundamental property: they are opposite positions.
     let as_of = date!(2025 - 01 - 01);
 
-    use finstack_quant_core::market_data::term_structures::HazardCurve;
-
     let cds_buy = crate::credit_support::cds_buy_protection(
         "CS01_BUY",
         Money::new(1_000_000.0, Currency::USD),
@@ -628,36 +590,7 @@ fn test_cds_cs01_opposite_signs() {
     )
     .expect("CDS construction should succeed");
 
-    let disc_curve = DiscountCurve::builder("USD-OIS")
-        .base_date(as_of)
-        .day_count(DayCount::Act365F)
-        .knots([
-            (0.0f64, 1.0f64),
-            (1.0f64, (-0.05f64).exp()),
-            (2.0f64, (-0.10f64).exp()),
-            (3.0f64, (-0.15f64).exp()),
-            (4.0f64, (-0.20f64).exp()),
-            (5.0f64, (-0.25f64).exp()),
-        ])
-        .build()
-        .unwrap();
-
-    let hazard_curve = HazardCurve::builder("HAZARD")
-        .base_date(as_of)
-        .day_count(DayCount::Act365F)
-        .recovery_rate(0.4)
-        .knots([
-            (0.0f64, 0.02f64),
-            (1.0f64, 0.025f64),
-            (2.0f64, 0.03f64),
-            (3.0f64, 0.035f64),
-            (4.0f64, 0.04f64),
-            (5.0f64, 0.045f64),
-        ])
-        .build()
-        .unwrap();
-
-    let market = MarketContext::new().insert(disc_curve).insert(hazard_curve);
+    let market = calibrated_cds_market(as_of);
 
     let registry = standard_registry();
 

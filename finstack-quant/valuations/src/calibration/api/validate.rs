@@ -146,11 +146,7 @@ fn contract_diagnostic(error: &EnvelopeError) -> Diagnostic {
         EnvelopeError::QuoteIdNotInMarketData { quote_set, .. } => {
             format!("/plan/quote_sets/{}", escape_json_pointer(quote_set))
         }
-        EnvelopeError::JsonParse { .. }
-        | EnvelopeError::SchemaMissing { .. }
-        | EnvelopeError::MalformedSchema { .. }
-        | EnvelopeError::UnsupportedSchema { .. }
-        | EnvelopeError::JsonSerialize { .. }
+        EnvelopeError::JsonSerialize { .. }
         | EnvelopeError::StrictLoad { .. }
         | EnvelopeError::SolverNotConverged { .. } => "/".to_string(),
     };
@@ -171,7 +167,8 @@ fn escape_json_pointer(segment: &str) -> String {
 /// Wrap [`validate`] to take a JSON string.
 ///
 /// Returns the report serialized as pretty-printed JSON. Returns an
-/// [`EnvelopeError::JsonParse`] if the envelope is malformed.
+/// [`EnvelopeError::StrictLoad`] if strict contract ingestion rejects the
+/// envelope.
 ///
 /// # Arguments
 ///
@@ -245,8 +242,9 @@ pub fn parse_envelope(json: &str) -> Result<CalibrationEnvelope, EnvelopeError> 
 ///
 /// # Errors
 ///
-/// Returns [`EnvelopeError`] for malformed JSON, a missing or malformed schema
-/// marker, an unsupported schema version, or an invalid v1 envelope structure.
+/// Returns [`EnvelopeError::StrictLoad`] for malformed JSON, a missing or
+/// malformed schema marker, an unsupported schema version, or an invalid v1
+/// envelope structure.
 pub fn parse_envelope_with_report(
     json: &str,
 ) -> Result<(CalibrationEnvelope, ContractValidationReport), EnvelopeError> {

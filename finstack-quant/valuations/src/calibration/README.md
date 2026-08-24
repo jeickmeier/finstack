@@ -61,6 +61,14 @@ single-sided values rather than bid/ask pairs, so crossed-market validation is
 not applicable inside this schema; upstream ingestion must reject a crossed
 pair before selecting the side placed in the envelope.
 
+### Strict loading
+
+All bounded parser, schema-marker, schema-version, and envelope-structure
+failures use the single `EnvelopeError::StrictLoad` variant and serialize with
+`"kind": "strict_load"`. The underlying contract diagnostic remains in the
+error message; callers should branch on the canonical kind rather than parsing
+that message.
+
 ## Executing a plan
 
 ```rust

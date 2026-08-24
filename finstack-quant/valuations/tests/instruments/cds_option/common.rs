@@ -10,17 +10,31 @@ use finstack_quant_core::dates::DateExt;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{
-    DiscountCurve, HazardCurve, RateCalibrationCurveRole, RateCalibrationMethod,
-    RateCalibrationPillar, RateCalibrationQuote, RateCalibrationRecipe,
+    DiscountCurve, HazardCurve, ParInterp, RateCalibrationCurveRole, RateCalibrationMethod,
+    RateCalibrationPillar, RateCalibrationQuote, RateCalibrationRecipe, Seniority,
 };
+use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, IndexId};
+use finstack_quant_core::HashMap;
+use finstack_quant_valuations::calibration::api::engine;
+use finstack_quant_valuations::calibration::api::market_datum::MarketDatum;
+use finstack_quant_valuations::calibration::api::prior_market::PriorMarketObject;
+use finstack_quant_valuations::calibration::api::schema::{
+    CalibrationEnvelope, CalibrationPlan, CalibrationSchema, CalibrationStep, HazardCurveParams,
+    StepParams,
+};
+use finstack_quant_valuations::calibration::{CalibrationConfig, CalibrationMethod};
 use finstack_quant_valuations::constants::isda::STANDARD_RECOVERY_SENIOR;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::{
     CDSOption, CDSOptionParams, CDSOptionStrike, ProtectionStartConvention,
 };
 use finstack_quant_valuations::instruments::CreditParams;
 use finstack_quant_valuations::instruments::OptionType;
+use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
+use finstack_quant_valuations::market::quotes::cds::CdsQuote;
+use finstack_quant_valuations::market::quotes::ids::{Pillar, QuoteId};
+use finstack_quant_valuations::market::quotes::market_quote::MarketQuote;
 use rust_decimal::Decimal;
 
 /// Standard flat discount curve for testing
@@ -82,6 +96,75 @@ pub fn standard_market(as_of: Date) -> MarketContext {
     let credit = flat_hazard("HZ-SN", as_of, STANDARD_RECOVERY_SENIOR, 0.02);
 
     MarketContext::new().insert(disc).insert(credit)
+}
+
+/// Standard market whose hazard curve retains lossless quote replay inputs.
+pub fn replayable_standard_market(as_of: Date) -> MarketContext {
+    let discount = flat_discount("USD-OIS", as_of, 0.03);
+    let quote_dates = [
+        as_of.add_months(12),
+        as_of.add_months(36),
+        as_of.add_months(60),
+        as_of.add_months(120),
+    ];
+    let quotes: Vec<_> = quote_dates
+        .into_iter()
+        .map(|pillar_date| {
+            MarketQuote::Cds(CdsQuote::CdsParSpread {
+                id: QuoteId::new(format!("CDX-HY-{pillar_date}")),
+                entity: "CDX-HY".to_string(),
+                pillar: Pillar::Date(pillar_date),
+                spread_bp: 500.0,
+                recovery_rate: STANDARD_RECOVERY_SENIOR,
+                convention: CdsConventionKey {
+                    currency: Currency::USD,
+                    doc_clause: CdsDocClause::IsdaNa,
+                },
+            })
+        })
+        .collect();
+    let quote_ids = quotes
+        .iter()
+        .map(|quote| match quote {
+            MarketQuote::Cds(quote) => quote.id().clone(),
+            _ => unreachable!("fixture only builds CDS quotes"),
+        })
+        .collect();
+    let mut quote_sets = HashMap::default();
+    quote_sets.insert("credit".to_string(), quote_ids);
+    let envelope = CalibrationEnvelope {
+        schema_url: None,
+        schema: CalibrationSchema::CURRENT,
+        plan: CalibrationPlan {
+            id: "cdx-hy-option-fixture".to_string(),
+            description: None,
+            quote_sets: quote_sets.into_iter().collect(),
+            settings: CalibrationConfig::default(),
+            steps: vec![CalibrationStep {
+                id: "hazard".to_string(),
+                quote_set: "credit".to_string(),
+                params: StepParams::Hazard(HazardCurveParams {
+                    curve_id: CurveId::new("HZ-SN"),
+                    entity: "CDX-HY".to_string(),
+                    seniority: Seniority::Senior,
+                    currency: Currency::USD,
+                    base_date: as_of,
+                    discount_curve_id: CurveId::new("USD-OIS"),
+                    recovery_rate: STANDARD_RECOVERY_SENIOR,
+                    notional: 1.0,
+                    method: CalibrationMethod::Bootstrap,
+                    interpolation: InterpStyle::LogLinear,
+                    par_interp: ParInterp::Linear,
+                    doc_clause: None,
+                    cds_valuation_convention: None,
+                }),
+            }],
+        },
+        market_data: quotes.into_iter().map(MarketDatum::from).collect(),
+        prior_market: vec![PriorMarketObject::DiscountCurve(discount)],
+    };
+    let result = engine::execute(&envelope).expect("hazard calibration should execute");
+    MarketContext::try_from(result.result.final_market).expect("calibrated market context")
 }
 
 /// Clone `market` with the named hazard curve's `recovery_rate` metadata

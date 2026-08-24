@@ -245,7 +245,6 @@ fn test_risky_pv01_market_standard() {
 
     let disc_curve = build_flat_discount(0.05, as_of, "USD_OIS");
     let hazard_curve = build_flat_hazard(0.01, 0.40, as_of, "CORP_HAZARD");
-
     let market = MarketContext::new().insert(disc_curve).insert(hazard_curve);
 
     let mut cds = test_utils::cds_buy_protection(
@@ -289,9 +288,12 @@ fn test_cs01_positive_for_protection_buyer() {
     let end = date!(2029 - 01 - 01);
 
     let disc_curve = build_flat_discount(0.05, as_of, "USD_OIS");
-    let hazard_curve = build_flat_hazard(0.01, 0.40, as_of, "CORP_HAZARD");
-
-    let market = MarketContext::new().insert(disc_curve).insert(hazard_curve);
+    let source = MarketContext::new().insert(disc_curve);
+    let hazard_curve =
+        test_utils::calibrated_hazard_curve(&source, as_of, "CORP_HAZARD", "CORP", "USD_OIS")
+            .expect("hazard calibration should succeed");
+    assert!(hazard_curve.hazard_calibration().is_some());
+    let market = source.insert(hazard_curve);
 
     let mut cds = test_utils::cds_buy_protection(
         "CS01_BUYER",

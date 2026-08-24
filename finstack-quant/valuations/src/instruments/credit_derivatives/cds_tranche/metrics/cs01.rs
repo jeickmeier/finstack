@@ -147,7 +147,6 @@ impl MetricCalculator for CdsTrancheBucketedCs01Calculator {
 
         let defaults =
             sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
-        let buckets = defaults.cs01_buckets_years;
         let bump_bp = defaults.credit_spread_bump_bp;
 
         let index_data = context.curves.get_credit_index(&tranche.credit_index_id)?;
@@ -181,7 +180,6 @@ impl MetricCalculator for CdsTrancheBucketedCs01Calculator {
             discount_id.as_ref(),
             KeyRateCs01Request {
                 series_id,
-                bucket_times_years: buckets,
                 bump_bp,
                 doc_clause: None,
                 cds_valuation_convention: None,

@@ -261,7 +261,7 @@ non-overlapping windows, and valid threshold schedules.
 ```bash
 cargo nextest run -p finstack-quant-covenants --lib --test '*'
 cargo test -p finstack-quant-covenants --doc
-cargo clippy -p finstack-quant-covenants --all-targets -- -D warnings
+cargo clippy -p finstack-quant-covenants --lib --bins --tests --examples -- -D warnings
 RUSTDOCFLAGS='-D warnings' cargo doc -p finstack-quant-covenants --no-deps
 ```
 

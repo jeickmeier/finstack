@@ -322,7 +322,7 @@ See [`docs/SERDE_STABILITY.md`](../../docs/SERDE_STABILITY.md) and
 
 ```bash
 cargo nextest run -p finstack-quant-margin --lib --test '*'
-cargo clippy -p finstack-quant-margin --all-targets -- -D warnings
+cargo clippy -p finstack-quant-margin --lib --bins --tests --examples -- -D warnings
 RUSTDOCFLAGS='-D warnings' cargo doc -p finstack-quant-margin --no-deps
 ```
 

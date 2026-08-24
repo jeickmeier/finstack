@@ -42,9 +42,38 @@
       "schema": "finstack_quant.calibration/1",
       "plan": {
         "id": "cds_5y_par_spread_market",
-        "description": "the canonical typed market inputs are supplied with no calibration steps. Routes through engine::execute_with_diagnostics without changing pricing math.",
-        "quote_sets": {},
-        "steps": [],
+        "description": "Calibrate a replayable flat IBM senior quote curve centered on the Bloomberg deal spread; this replaces the prior manual hazard proxy while preserving quote-space CS01 semantics.",
+        "quote_sets": {
+          "ibm_cds": [
+            "IBM-CDS-6M",
+            "IBM-CDS-1Y",
+            "IBM-CDS-2Y",
+            "IBM-CDS-3Y",
+            "IBM-CDS-4Y",
+            "IBM-CDS-5Y",
+            "IBM-CDS-7Y",
+            "IBM-CDS-10Y"
+          ]
+        },
+        "steps": [
+          {
+            "id": "IBM-USD-SENIOR",
+            "quote_set": "ibm_cds",
+            "kind": "hazard",
+            "curve_id": "IBM-USD-SENIOR",
+            "entity": "IBM",
+            "seniority": "senior",
+            "currency": "USD",
+            "base_date": "2026-05-02",
+            "discount_curve_id": "USD-S531-SWAP",
+            "recovery_rate": 0.4,
+            "notional": 1.0,
+            "method": "bootstrap",
+            "interpolation": "log_linear",
+            "par_interp": "linear",
+            "doc_clause": "isda_na"
+          }
+        ],
         "settings": {
           "fx": {
             "pivot_currency": "USD",
@@ -53,139 +82,153 @@
           }
         }
       },
-      "market_data": [],
-      "prior_market": [
+      "market_data": [
         {
-          "kind": "hazard_curve",
-          "id": "IBM-USD-SENIOR",
-          "base": "2026-05-02",
-          "knot_points": [
-            [
-              0.13972602739726028,
-              0.00997646002277055
-            ],
-            [
-              0.38904109589041097,
-              0.010174852397118335
-            ],
-            [
-              0.6383561643835617,
-              0.01017246986940027
-            ],
-            [
-              0.8876712328767123,
-              0.010174050726913558
-            ],
-            [
-              1.1369863013698631,
-              0.010175577951597636
-            ],
-            [
-              1.3863013698630138,
-              0.010177051103745225
-            ],
-            [
-              1.6356164383561644,
-              0.010174391557496821
-            ],
-            [
-              1.884931506849315,
-              0.010171645976754755
-            ],
-            [
-              2.136986301369863,
-              0.010175861524607865
-            ],
-            [
-              2.389041095890411,
-              0.010173574090087208
-            ],
-            [
-              2.638356164383562,
-              0.010175851741102629
-            ],
-            [
-              2.884931506849315,
-              0.010177267513353206
-            ],
-            [
-              3.136986301369863,
-              0.010173574731178204
-            ],
-            [
-              3.389041095890411,
-              0.010175091002821083
-            ],
-            [
-              3.638356164383562,
-              0.01017184051056745
-            ],
-            [
-              3.884931506849315,
-              0.010176000795259658
-            ],
-            [
-              4.136986301369863,
-              0.01017429786109359
-            ],
-            [
-              4.389041095890411,
-              0.010175565889646949
-            ],
-            [
-              4.638356164383562,
-              0.010175080613668765
-            ],
-            [
-              4.884931506849315,
-              0.010173650631709216
-            ],
-            [
-              5.136986301369863,
-              0.010286841673740938
-            ]
-          ],
-          "recovery_rate": 0.4,
-          "issuer": null,
-          "seniority": null,
-          "currency": null,
-          "day_count": "act_365f",
-          "par_points": [
-            [
-              0.5,
-              10.5
-            ],
-            [
-              1.0,
-              14.5
-            ],
-            [
-              2.0,
-              22.0
-            ],
-            [
-              3.0,
-              32.0
-            ],
-            [
-              4.0,
-              43.5
-            ],
-            [
-              5.0,
-              57.0
-            ],
-            [
-              7.0,
-              68.5
-            ],
-            [
-              10.0,
-              80.4
-            ]
-          ],
-          "par_interp": "linear"
+          "kind": "cds_quote",
+          "type": "cds_par_spread",
+          "id": "IBM-CDS-6M",
+          "entity": "IBM",
+          "convention": {
+            "currency": "USD",
+            "doc_clause": "isda_na"
+          },
+          "pillar": {
+            "tenor": {
+              "count": 6,
+              "unit": "months"
+            }
+          },
+          "spread_bp": 60.472879,
+          "recovery_rate": 0.4
         },
+        {
+          "kind": "cds_quote",
+          "type": "cds_par_spread",
+          "id": "IBM-CDS-1Y",
+          "entity": "IBM",
+          "convention": {
+            "currency": "USD",
+            "doc_clause": "isda_na"
+          },
+          "pillar": {
+            "tenor": {
+              "count": 1,
+              "unit": "years"
+            }
+          },
+          "spread_bp": 60.472879,
+          "recovery_rate": 0.4
+        },
+        {
+          "kind": "cds_quote",
+          "type": "cds_par_spread",
+          "id": "IBM-CDS-2Y",
+          "entity": "IBM",
+          "convention": {
+            "currency": "USD",
+            "doc_clause": "isda_na"
+          },
+          "pillar": {
+            "tenor": {
+              "count": 2,
+              "unit": "years"
+            }
+          },
+          "spread_bp": 60.472879,
+          "recovery_rate": 0.4
+        },
+        {
+          "kind": "cds_quote",
+          "type": "cds_par_spread",
+          "id": "IBM-CDS-3Y",
+          "entity": "IBM",
+          "convention": {
+            "currency": "USD",
+            "doc_clause": "isda_na"
+          },
+          "pillar": {
+            "tenor": {
+              "count": 3,
+              "unit": "years"
+            }
+          },
+          "spread_bp": 60.472879,
+          "recovery_rate": 0.4
+        },
+        {
+          "kind": "cds_quote",
+          "type": "cds_par_spread",
+          "id": "IBM-CDS-4Y",
+          "entity": "IBM",
+          "convention": {
+            "currency": "USD",
+            "doc_clause": "isda_na"
+          },
+          "pillar": {
+            "tenor": {
+              "count": 4,
+              "unit": "years"
+            }
+          },
+          "spread_bp": 60.472879,
+          "recovery_rate": 0.4
+        },
+        {
+          "kind": "cds_quote",
+          "type": "cds_par_spread",
+          "id": "IBM-CDS-5Y",
+          "entity": "IBM",
+          "convention": {
+            "currency": "USD",
+            "doc_clause": "isda_na"
+          },
+          "pillar": {
+            "tenor": {
+              "count": 5,
+              "unit": "years"
+            }
+          },
+          "spread_bp": 60.472879,
+          "recovery_rate": 0.4
+        },
+        {
+          "kind": "cds_quote",
+          "type": "cds_par_spread",
+          "id": "IBM-CDS-7Y",
+          "entity": "IBM",
+          "convention": {
+            "currency": "USD",
+            "doc_clause": "isda_na"
+          },
+          "pillar": {
+            "tenor": {
+              "count": 7,
+              "unit": "years"
+            }
+          },
+          "spread_bp": 60.472879,
+          "recovery_rate": 0.4
+        },
+        {
+          "kind": "cds_quote",
+          "type": "cds_par_spread",
+          "id": "IBM-CDS-10Y",
+          "entity": "IBM",
+          "convention": {
+            "currency": "USD",
+            "doc_clause": "isda_na"
+          },
+          "pillar": {
+            "tenor": {
+              "count": 10,
+              "unit": "years"
+            }
+          },
+          "spread_bp": 60.472879,
+          "recovery_rate": 0.4
+        }
+      ],
+      "prior_market": [
         {
           "kind": "discount_curve",
           "id": "USD-S531-SWAP",

@@ -108,12 +108,45 @@ fn envelope_error_step_id_returns_some_for_step_bound_variants() {
     };
     assert_eq!(err.step_id(), Some("discount_step"));
 
-    let parse = EnvelopeError::JsonParse {
+    let load = EnvelopeError::StrictLoad {
         message: "x".to_string(),
-        line: None,
-        col: None,
     };
-    assert!(parse.step_id().is_none());
+    assert!(load.step_id().is_none());
+}
+
+#[test]
+fn obsolete_strict_load_error_kinds_are_rejected() {
+    let obsolete = [
+        serde_json::json!({
+            "kind": "json_parse",
+            "message": "bad JSON",
+            "line": 1,
+            "col": 2,
+        }),
+        serde_json::json!({
+            "kind": "schema_missing",
+            "expected": "finstack_quant.calibration/1",
+        }),
+        serde_json::json!({
+            "kind": "malformed_schema",
+            "found": "bad",
+            "expected": "finstack_quant.calibration/1",
+        }),
+        serde_json::json!({
+            "kind": "unsupported_schema",
+            "found": "future-schema",
+            "expected": "finstack_quant.calibration/1",
+        }),
+    ];
+
+    for payload in obsolete {
+        let error = serde_json::from_value::<EnvelopeError>(payload.clone())
+            .expect_err("obsolete load-error kind must not deserialize");
+        assert!(
+            error.to_string().contains("unknown variant"),
+            "unexpected rejection for {payload}: {error}"
+        );
+    }
 }
 
 #[test]

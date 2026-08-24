@@ -24,12 +24,13 @@ use crate::calibration::validation::ValidationMode;
 use crate::calibration::{CalibrationReport, CurveValidator};
 use crate::market::quotes::market_quote::MarketQuote;
 use crate::market::quotes::vol::VolQuote;
+use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{DayCount, DayCountContext};
 use finstack_quant_core::explain::TraceEntry;
 use finstack_quant_core::market_data::context::{CurveStorage, MarketContext};
 use finstack_quant_core::market_data::scalars::{MarketScalar, ScalarTimeSeries};
 use finstack_quant_core::market_data::surfaces::{VolCube, VolQuoteType, VolSurface};
-use finstack_quant_core::market_data::term_structures::CreditIndexData;
+use finstack_quant_core::market_data::term_structures::{CreditIndexData, DiscountCurve};
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::Result;
 use std::sync::Arc;
@@ -74,6 +75,80 @@ fn attach_validation_result(
             }
         },
     }
+}
+
+fn prepare_hw_swaption_input(
+    vol_quote: &VolQuote,
+    disc_curve: &DiscountCurve,
+    expected_currency: Currency,
+) -> Result<(SwaptionQuote, SwaptionSchedule)> {
+    let VolQuote::SwaptionVol {
+        expiry,
+        maturity,
+        vol,
+        quote_type,
+        ..
+    } = vol_quote
+    else {
+        return Err(finstack_quant_core::Error::Validation(
+            "Hull-White calibration expected a swaption volatility quote".to_string(),
+        ));
+    };
+    vol_quote.validate()?;
+    let conventions = SwaptionVolTarget::resolve_quote_leg_conventions(vol_quote)?;
+    if conventions.currency != expected_currency {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Hull-White step currency {expected_currency} conflicts with swaption convention currency {}",
+            conventions.currency
+        )));
+    }
+
+    let (swap_start, swap_end) =
+        SwaptionVolTarget::resolve_underlying_dates(vol_quote, &conventions)?;
+    let periods = SwaptionVolTarget::build_fixed_leg_periods(swap_start, swap_end, &conventions)?;
+    if periods.is_empty() {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "swaption quote {expiry} to {maturity} produced an empty fixed-leg schedule"
+        )));
+    }
+
+    let time_day_count = disc_curve.day_count();
+    let time_from_base = |date| {
+        time_day_count.year_fraction(disc_curve.base_date(), date, DayCountContext::default())
+    };
+    let expiry_time = time_from_base(*expiry)?;
+    let swap_start_time = time_from_base(swap_start)?;
+    let maturity_time = time_from_base(swap_end)?;
+    let tenor = time_day_count.year_fraction(swap_start, swap_end, DayCountContext::default())?;
+    if expiry_time <= 0.0 || tenor <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "swaption quote must expire after the discount-curve base date and have positive tenor; expiry={expiry}, maturity={maturity}"
+        )));
+    }
+
+    let payment_times = periods
+        .iter()
+        .map(|period| time_from_base(period.payment_date))
+        .collect::<Result<Vec<_>>>()?;
+    let accruals = periods
+        .iter()
+        .map(|period| period.accrual_year_fraction)
+        .collect();
+
+    Ok((
+        SwaptionQuote {
+            expiry: expiry_time,
+            tenor,
+            volatility: *vol,
+            is_normal_vol: *quote_type == VolQuoteType::Normal,
+        },
+        SwaptionSchedule {
+            swap_start_time,
+            payment_times,
+            accruals,
+            maturity_time,
+        },
+    ))
 }
 
 /// Apply a normalized step output into the mutable market context.
@@ -277,90 +352,17 @@ pub(crate) fn execute_params(
         StepParams::HullWhite(p) => {
             let disc_curve = context.get_discount(&p.curve_id)?;
             let df = |t: f64| disc_curve.df(t);
-            let time_day_count = disc_curve.day_count();
 
             let mut hw_quotes = Vec::new();
             let mut hw_schedules = Vec::new();
             for quote in quotes {
-                let MarketQuote::Vol(
-                    vol_quote @ VolQuote::SwaptionVol {
-                        expiry,
-                        maturity,
-                        vol,
-                        quote_type,
-                        ..
-                    },
-                ) = quote
-                else {
+                let MarketQuote::Vol(vol_quote @ VolQuote::SwaptionVol { .. }) = quote else {
                     continue;
                 };
-                vol_quote.validate()?;
-                let conventions = SwaptionVolTarget::resolve_quote_leg_conventions(vol_quote)?;
-                if conventions.currency != p.currency {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "Hull-White step currency {} conflicts with swaption convention currency {}",
-                        p.currency, conventions.currency
-                    )));
-                }
-
-                let (swap_start, swap_end) =
-                    SwaptionVolTarget::resolve_underlying_dates(vol_quote, &conventions)?;
-                let periods =
-                    SwaptionVolTarget::build_fixed_leg_periods(swap_start, swap_end, &conventions)?;
-                if periods.is_empty() {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "swaption quote {} to {} produced an empty fixed-leg schedule",
-                        expiry, maturity
-                    )));
-                }
-
-                let t_exp = time_day_count.year_fraction(
-                    disc_curve.base_date(),
-                    *expiry,
-                    DayCountContext::default(),
-                )?;
-                let t_ten = time_day_count.year_fraction(
-                    swap_start,
-                    swap_end,
-                    DayCountContext::default(),
-                )?;
-                if t_exp <= 0.0 || t_ten <= 0.0 {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "swaption quote must expire after the discount-curve base date and have positive tenor; expiry={expiry}, maturity={maturity}"
-                    )));
-                }
-
-                let payment_times = periods
-                    .iter()
-                    .map(|period| {
-                        time_day_count.year_fraction(
-                            disc_curve.base_date(),
-                            period.payment_date,
-                            DayCountContext::default(),
-                        )
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-                let accruals = periods
-                    .iter()
-                    .map(|period| period.accrual_year_fraction)
-                    .collect();
-                let maturity_time = time_day_count.year_fraction(
-                    disc_curve.base_date(),
-                    swap_end,
-                    DayCountContext::default(),
-                )?;
-
-                hw_quotes.push(SwaptionQuote {
-                    expiry: t_exp,
-                    tenor: t_ten,
-                    volatility: *vol,
-                    is_normal_vol: *quote_type == VolQuoteType::Normal,
-                });
-                hw_schedules.push(SwaptionSchedule {
-                    payment_times,
-                    accruals,
-                    maturity_time,
-                });
+                let (prepared_quote, schedule) =
+                    prepare_hw_swaption_input(vol_quote, disc_curve.as_ref(), p.currency)?;
+                hw_quotes.push(prepared_quote);
+                hw_schedules.push(schedule);
             }
 
             let initial_guess = match (p.initial_kappa, p.initial_sigma) {
@@ -748,6 +750,50 @@ mod tests {
             }
             _ => panic!("expected scalar output"),
         }
+    }
+
+    #[test]
+    fn hull_white_step_builds_convention_driven_timing_roles() {
+        let base_date = Date::from_calendar_date(2025, Month::January, 1).expect("base date");
+        let expiry = Date::from_calendar_date(2026, Month::January, 1).expect("expiry");
+        let swap_start = Date::from_calendar_date(2026, Month::January, 5).expect("swap start");
+        let maturity = Date::from_calendar_date(2027, Month::January, 5).expect("maturity");
+        let payment = Date::from_calendar_date(2027, Month::January, 7).expect("payment");
+        let discount = build_flat_discount_curve(0.03, base_date, "USD-OIS");
+        let quote = VolQuote::SwaptionVol {
+            id: QuoteId::new("USD-SWPTN-T2-LAG2"),
+            expiry,
+            maturity,
+            strike: 0.03,
+            vol: 0.01,
+            quote_type: VolQuoteType::Normal,
+            convention: SwaptionConventionId::new("USD"),
+        };
+
+        let (prepared_quote, schedule) =
+            prepare_hw_swaption_input(&quote, &discount, Currency::USD)
+                .expect("convention-driven HW input");
+        let expected_expiry = DayCount::Act365F
+            .year_fraction(base_date, expiry, DayCountContext::default())
+            .expect("expiry time");
+        let expected_start = DayCount::Act365F
+            .year_fraction(base_date, swap_start, DayCountContext::default())
+            .expect("start time");
+        let expected_maturity = DayCount::Act365F
+            .year_fraction(base_date, maturity, DayCountContext::default())
+            .expect("maturity time");
+        let expected_payment = DayCount::Act365F
+            .year_fraction(base_date, payment, DayCountContext::default())
+            .expect("payment time");
+
+        assert!((prepared_quote.expiry - expected_expiry).abs() < 1.0e-15);
+        assert!((schedule.swap_start_time - expected_start).abs() < 1.0e-15);
+        assert!((schedule.maturity_time - expected_maturity).abs() < 1.0e-15);
+        assert_eq!(schedule.payment_times.len(), 1);
+        assert!((schedule.payment_times[0] - expected_payment).abs() < 1.0e-15);
+        assert!(schedule.swap_start_time > prepared_quote.expiry);
+        assert!(schedule.payment_times[0] > schedule.maturity_time);
+        assert!((prepared_quote.tenor - (expected_maturity - expected_start)).abs() < 1.0e-15);
     }
 
     #[test]

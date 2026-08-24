@@ -884,8 +884,8 @@ fn validate_parameter_bounds(
 /// exactly on the boundary, which would create a flat gradient plateau.
 const BOUND_INWARD_EPS: f64 = 1e-8;
 
-/// Clamp `params` to `[lower + eps, upper - eps]` and return the number of
-/// parameters that were actually clamped.
+/// Clamp `params` to representable points within the original bounds and return
+/// the number of parameters that were actually clamped.
 fn clamp_to_bounds(
     params: &[f64],
     lb: &Option<Vec<f64>>,
@@ -898,31 +898,43 @@ fn clamp_to_bounds(
     for (i, &p) in params.iter().enumerate() {
         let lower_bound = lb.as_ref().map(|values| values[i]);
         let upper_bound = ub.as_ref().map(|values| values[i]);
-        let fixed = lower_bound
-            .zip(upper_bound)
-            .is_some_and(|(lower, upper)| lower.to_bits() == upper.to_bits());
-        let mut value = p;
-        if let Some(lower) = lower_bound {
-            let minimum = if fixed {
-                lower
-            } else {
-                lower + BOUND_INWARD_EPS
-            };
-            if value < minimum {
-                value = minimum;
-                clamped += 1;
+        let value = match (lower_bound, upper_bound) {
+            (Some(lower), Some(upper)) if lower.to_bits() == upper.to_bits() => lower,
+            (Some(lower), Some(upper)) => {
+                let width = upper - lower;
+                let inward = BOUND_INWARD_EPS.min(0.25 * width);
+                let interior_lower = (lower + inward).clamp(lower, upper);
+                let interior_upper = (upper - inward).clamp(lower, upper);
+                if interior_lower <= interior_upper {
+                    p.clamp(interior_lower, interior_upper)
+                } else {
+                    // The interval has no representable interior point at this
+                    // scale. Preserve the inclusive original bounds.
+                    p.clamp(lower, upper)
+                }
             }
-        }
-        if let Some(upper) = upper_bound {
-            let maximum = if fixed {
-                upper
-            } else {
-                upper - BOUND_INWARD_EPS
-            };
-            if value > maximum {
-                value = maximum;
-                clamped += 1;
+            (Some(lower), None) => {
+                let candidate = lower + BOUND_INWARD_EPS;
+                let minimum = if candidate.is_finite() && candidate >= lower {
+                    candidate
+                } else {
+                    lower
+                };
+                p.max(minimum).max(lower)
             }
+            (None, Some(upper)) => {
+                let candidate = upper - BOUND_INWARD_EPS;
+                let maximum = if candidate.is_finite() && candidate <= upper {
+                    candidate
+                } else {
+                    upper
+                };
+                p.min(maximum).min(upper)
+            }
+            (None, None) => p,
+        };
+        if value.to_bits() != p.to_bits() {
+            clamped += 1;
         }
         out.push(value);
     }
@@ -1923,5 +1935,54 @@ mod tests {
             "second coordinate should clamp to lower bound, got {}",
             first[1]
         );
+    }
+
+    #[test]
+    fn global_clamp_handles_wide_narrow_and_fixed_bounds() {
+        let mut out = Vec::new();
+        let count = clamp_to_bounds(
+            &[-1.0, 2.0, 8.0],
+            &Some(vec![0.0, 1.0, 3.0]),
+            &Some(vec![10.0, 1.0 + 1.0e-12, 3.0]),
+            &mut out,
+        );
+
+        assert_eq!(count, 3);
+        assert!(out[0] >= 0.0 && out[0] <= 10.0);
+        assert!(out[1] >= 1.0 && out[1] <= 1.0 + 1.0e-12);
+        assert_eq!(out[2], 3.0);
+    }
+
+    #[test]
+    fn global_clamp_handles_one_sided_bounds() {
+        let mut lower_only = Vec::new();
+        assert_eq!(
+            clamp_to_bounds(&[-1.0], &Some(vec![0.0]), &None, &mut lower_only),
+            1
+        );
+        assert!(lower_only[0] >= 0.0);
+
+        let mut upper_only = Vec::new();
+        assert_eq!(
+            clamp_to_bounds(&[2.0], &None, &Some(vec![1.0]), &mut upper_only),
+            1
+        );
+        assert!(upper_only[0] <= 1.0);
+    }
+
+    #[test]
+    fn global_clamp_handles_no_representable_interior() {
+        let lower = 1.0_f64;
+        let upper = f64::from_bits(lower.to_bits() + 1);
+        let mut out = Vec::new();
+        let count = clamp_to_bounds(
+            &[0.0, 2.0],
+            &Some(vec![lower, lower]),
+            &Some(vec![upper, upper]),
+            &mut out,
+        );
+
+        assert_eq!(count, 2);
+        assert!(out.iter().all(|value| *value >= lower && *value <= upper));
     }
 }

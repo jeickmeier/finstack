@@ -68,6 +68,11 @@ struct SpreadMetrics {
 fn priced(credit: bool) -> SpreadMetrics {
     let (bond, market) = bullet_5y(credit);
     let as_of = date!(2025 - 01 - 06);
+    let credit_risk_metric = if credit {
+        MetricId::Cs01Hazard
+    } else {
+        MetricId::Cs01
+    };
     let result = bond
         .price_with_metrics(
             &market,
@@ -75,7 +80,7 @@ fn priced(credit: bool) -> SpreadMetrics {
             &[
                 MetricId::DurationMod,
                 MetricId::ZSpread,
-                MetricId::Cs01,
+                credit_risk_metric.clone(),
                 MetricId::SpreadDuration,
             ],
             finstack_quant_valuations::instruments::PricingOptions::default(),
@@ -90,7 +95,10 @@ fn priced(credit: bool) -> SpreadMetrics {
         .get("spread_duration")
         .expect("spread_duration measure");
     let z_spread = *result.measures.get("z_spread").expect("z_spread measure");
-    let cs01 = *result.measures.get("cs01").expect("cs01 measure");
+    let cs01 = *result
+        .measures
+        .get(credit_risk_metric.as_str())
+        .expect("credit risk measure");
     let base_pv =
         price_from_z_spread(&bond, &market, as_of, z_spread).expect("base z-spread reprice");
     let bumped_pv = price_from_z_spread(&bond, &market, as_of, z_spread + ONE_BASIS_POINT)

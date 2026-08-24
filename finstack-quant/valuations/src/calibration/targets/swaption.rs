@@ -5,6 +5,7 @@ use crate::calibration::api::schema::{
 };
 use crate::calibration::config::CalibrationConfig;
 use crate::calibration::CalibrationReport;
+use crate::instruments::rates::swaption::contractual_swap_tenor_years;
 use crate::market::conventions::registry::ConventionRegistry;
 use crate::market::quotes::market_quote::MarketQuote;
 use crate::market::quotes::vol::VolQuote;
@@ -120,28 +121,18 @@ impl SwaptionVolTarget {
         };
 
         for q in quotes {
-            if let MarketQuote::Vol(VolQuote::SwaptionVol {
-                expiry, maturity, ..
-            }) = q
-            {
-                if *maturity < *expiry {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "Swaption maturity {} must be on/after expiry {}",
-                        maturity, expiry
-                    )));
-                }
+            if let MarketQuote::Vol(vol_quote @ VolQuote::SwaptionVol { expiry, .. }) = q {
+                let leg_conventions = Self::resolve_leg_conventions(params, vol_quote)?;
+                let (swap_start, swap_end) =
+                    Self::resolve_underlying_dates(vol_quote, &leg_conventions)?;
                 let t_exp = day_count.year_fraction(
                     params.base_date,
                     *expiry,
                     DayCountContext::default(),
                 )?;
-                let t_ten =
-                    day_count.year_fraction(*expiry, *maturity, DayCountContext::default())?;
+                let t_ten = contractual_swap_tenor_years(swap_start, swap_end)?;
                 let key = (to_basis_points(t_exp), to_basis_points(t_ten));
-
-                if let MarketQuote::Vol(vq) = q {
-                    grouped_quotes.entry(key).or_default().push(vq);
-                }
+                grouped_quotes.entry(key).or_default().push(vol_quote);
             }
         }
 
@@ -636,20 +627,27 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
                 "Expected SwaptionVol quote".into(),
             ));
         };
-        let calendar =
-            crate::cashflow::builder::calendar::resolve_calendar_strict(conventions.calendar_id)?;
-        let unadjusted_start = expiry.add_business_days(conventions.settlement_days, calendar)?;
-        let start = adjust(
-            unadjusted_start,
-            conventions.fixed_business_day_convention,
-            calendar,
-        )?;
+        let start = Self::adjusted_swap_start(*expiry, conventions)?;
         if *maturity <= start {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "swaption maturity {maturity} must be after convention-adjusted swap start {start}"
             )));
         }
         Ok((start, *maturity))
+    }
+
+    fn adjusted_swap_start(
+        expiry: finstack_quant_core::dates::Date,
+        conventions: &SwaptionLegConventions<'_>,
+    ) -> Result<finstack_quant_core::dates::Date> {
+        let calendar =
+            crate::cashflow::builder::calendar::resolve_calendar_strict(conventions.calendar_id)?;
+        let unadjusted_start = expiry.add_business_days(conventions.settlement_days, calendar)?;
+        adjust(
+            unadjusted_start,
+            conventions.fixed_business_day_convention,
+            calendar,
+        )
     }
 
     fn default_leg_conventions<'a>(
@@ -697,10 +695,11 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
         let expiry_months = (expiry_years * 12.0).round() as i32;
         let tenor_months = (tenor_years * 12.0).round() as i32;
         let expiry_date = params.base_date.add_months(expiry_months);
-        let maturity_date = expiry_date.add_months(tenor_months);
+        let swap_start = Self::adjusted_swap_start(expiry_date, leg_conv)?;
+        let maturity_date = swap_start.add_months(tenor_months);
         Self::calculate_forward_swap_rate_dates(
             params,
-            expiry_date,
+            swap_start,
             maturity_date,
             leg_conv,
             context,
@@ -1120,6 +1119,35 @@ mod tests {
         }
     }
 
+    fn settled_swap_dates(
+        params: &SwaptionVolParams,
+        expiry_years: f64,
+        tenor_years: f64,
+    ) -> (Date, Date, Date) {
+        let conventions =
+            SwaptionVolTarget::default_leg_conventions(params).expect("leg conventions");
+        let expiry = params
+            .base_date
+            .add_months((expiry_years * 12.0).round() as i32);
+        let start =
+            SwaptionVolTarget::adjusted_swap_start(expiry, &conventions).expect("adjusted start");
+        let maturity = start.add_months((tenor_years * 12.0).round() as i32);
+        (expiry, start, maturity)
+    }
+
+    #[test]
+    fn adjusted_swap_start_applies_settlement_and_business_day_conventions() {
+        let base_date = date(2024, Month::January, 2);
+        let p = params(base_date);
+        let conventions = SwaptionVolTarget::default_leg_conventions(&p).expect("leg conventions");
+        let expiry = date(2025, Month::January, 3);
+
+        let start = SwaptionVolTarget::adjusted_swap_start(expiry, &conventions)
+            .expect("adjusted swap start");
+
+        assert_eq!(start, date(2025, Month::January, 7));
+    }
+
     #[test]
     fn quoted_vols_are_decimal_and_must_match_the_plan_convention() {
         let normal = SwaptionVolTarget::validate_quoted_vol(
@@ -1162,23 +1190,21 @@ mod tests {
 
         let expiry_years: f64 = 1.0;
         let tenor_years: f64 = 5.0;
-        let expiry_date = base_date.add_months((expiry_years * 12.0).round() as i32);
-        let maturity_date = expiry_date.add_months((tenor_years * 12.0).round() as i32);
-        let t_exp_raw = DayCount::Act365F
-            .year_fraction(base_date, expiry_date, DayCountContext::default())
-            .expect("t_exp");
-        let t_ten_raw = DayCount::Act365F
-            .year_fraction(expiry_date, maturity_date, DayCountContext::default())
-            .expect("t_ten");
-        let t_exp = to_basis_points(t_exp_raw) as f64 / 10_000.0;
-        let t_ten = to_basis_points(t_ten_raw) as f64 / 10_000.0;
-
         let mut p = params(base_date);
         p.vol_convention = SwaptionVolConvention::Normal;
         p.sabr_beta = 0.0;
+        p.vol_tolerance = Some(0.0020);
+        let (expiry_date, swap_start, maturity_date) =
+            settled_swap_dates(&p, expiry_years, tenor_years);
+        let t_exp_raw = DayCount::Act365F
+            .year_fraction(base_date, expiry_date, DayCountContext::default())
+            .expect("t_exp");
+        let t_exp = to_basis_points(t_exp_raw) as f64 / 10_000.0;
+        let t_ten =
+            contractual_swap_tenor_years(swap_start, maturity_date).expect("contractual tenor");
+
         p.target_expiries = vec![t_exp];
         p.target_tenors = vec![t_ten];
-        p.vol_tolerance = Some(0.0020);
 
         let leg = SwaptionVolTarget::default_leg_conventions(&p).expect("leg conventions");
         let fwd = SwaptionVolTarget::calculate_forward_swap_rate_years(
@@ -1252,23 +1278,21 @@ mod tests {
 
         let expiry_years: f64 = 1.0;
         let tenor_years: f64 = 5.0;
-        let expiry_date = base_date.add_months((expiry_years * 12.0).round() as i32);
-        let maturity_date = expiry_date.add_months((tenor_years * 12.0).round() as i32);
-        let t_exp_raw = DayCount::Act365F
-            .year_fraction(base_date, expiry_date, DayCountContext::default())
-            .expect("t_exp");
-        let t_ten_raw = DayCount::Act365F
-            .year_fraction(expiry_date, maturity_date, DayCountContext::default())
-            .expect("t_ten");
-        let t_exp = to_basis_points(t_exp_raw) as f64 / 10_000.0;
-        let t_ten = to_basis_points(t_ten_raw) as f64 / 10_000.0;
-
         let mut p = params(base_date);
         p.vol_convention = SwaptionVolConvention::Lognormal;
         p.sabr_beta = 0.5;
+        p.vol_tolerance = Some(0.0020);
+        let (expiry_date, swap_start, maturity_date) =
+            settled_swap_dates(&p, expiry_years, tenor_years);
+        let t_exp_raw = DayCount::Act365F
+            .year_fraction(base_date, expiry_date, DayCountContext::default())
+            .expect("t_exp");
+        let t_exp = to_basis_points(t_exp_raw) as f64 / 10_000.0;
+        let t_ten =
+            contractual_swap_tenor_years(swap_start, maturity_date).expect("contractual tenor");
+
         p.target_expiries = vec![t_exp];
         p.target_tenors = vec![t_ten];
-        p.vol_tolerance = Some(0.0020);
 
         let leg = SwaptionVolTarget::default_leg_conventions(&p).expect("leg conventions");
         let fwd = SwaptionVolTarget::calculate_forward_swap_rate_years(
@@ -1346,32 +1370,24 @@ mod tests {
         // --- Good bucket: 1Y x 5Y, five strikes. ---
         let good_expiry_years = 1.0_f64;
         let tenor_years = 5.0_f64;
-        let good_expiry_date = base_date.add_months((good_expiry_years * 12.0).round() as i32);
-        let good_maturity_date = good_expiry_date.add_months((tenor_years * 12.0).round() as i32);
+        let mut p = params(base_date);
+        p.vol_convention = SwaptionVolConvention::Lognormal;
+        p.sabr_beta = 0.5;
+        p.vol_tolerance = Some(0.0020);
+        let (good_expiry_date, good_swap_start, good_maturity_date) =
+            settled_swap_dates(&p, good_expiry_years, tenor_years);
         let good_t_exp = to_basis_points(
             DayCount::Act365F
                 .year_fraction(base_date, good_expiry_date, DayCountContext::default())
                 .expect("t_exp"),
         ) as f64
             / 10_000.0;
-        let good_t_ten = to_basis_points(
-            DayCount::Act365F
-                .year_fraction(
-                    good_expiry_date,
-                    good_maturity_date,
-                    DayCountContext::default(),
-                )
-                .expect("t_ten"),
-        ) as f64
-            / 10_000.0;
+        let good_t_ten = contractual_swap_tenor_years(good_swap_start, good_maturity_date)
+            .expect("contractual tenor");
 
-        let mut p = params(base_date);
-        p.vol_convention = SwaptionVolConvention::Lognormal;
-        p.sabr_beta = 0.5;
         // Target only the good bucket so the cube can be built from it alone.
         p.target_expiries = vec![good_t_exp];
         p.target_tenors = vec![good_t_ten];
-        p.vol_tolerance = Some(0.0020);
 
         let leg = SwaptionVolTarget::default_leg_conventions(&p).expect("leg conventions");
         let good_fwd = SwaptionVolTarget::calculate_forward_swap_rate_years(
@@ -1414,8 +1430,7 @@ mod tests {
         }
 
         // --- Bad bucket: 2Y x 5Y, only TWO strikes (< 3 required for SABR). ---
-        let bad_expiry_date = base_date.add_months(24);
-        let bad_maturity_date = bad_expiry_date.add_months((tenor_years * 12.0).round() as i32);
+        let (bad_expiry_date, _, bad_maturity_date) = settled_swap_dates(&p, 2.0, tenor_years);
         for &k in &[good_fwd, good_fwd + 0.005] {
             quotes.push(MarketQuote::Vol(VolQuote::SwaptionVol {
                 id: QuoteId::new(format!("BAD-2Yx5Y-{k}")),
@@ -1484,21 +1499,19 @@ mod tests {
 
         let expiry_years: f64 = 1.0;
         let tenor_years: f64 = 5.0;
-        let expiry_date = base_date.add_months((expiry_years * 12.0).round() as i32);
-        let maturity_date = expiry_date.add_months((tenor_years * 12.0).round() as i32);
-        let t_exp_raw = DayCount::Act365F
-            .year_fraction(base_date, expiry_date, DayCountContext::default())
-            .expect("t_exp");
-        let t_ten_raw = DayCount::Act365F
-            .year_fraction(expiry_date, maturity_date, DayCountContext::default())
-            .expect("t_ten");
-        let t_exp = to_basis_points(t_exp_raw) as f64 / 10_000.0;
-        let t_ten = to_basis_points(t_ten_raw) as f64 / 10_000.0;
-
         let mut p = params(base_date);
         p.forward_id = Some("USD-FWD".to_string());
         p.vol_convention = SwaptionVolConvention::ShiftedLognormal { shift: 1e-6 };
         p.sabr_beta = 0.5;
+        let (expiry_date, swap_start, maturity_date) =
+            settled_swap_dates(&p, expiry_years, tenor_years);
+        let t_exp_raw = DayCount::Act365F
+            .year_fraction(base_date, expiry_date, DayCountContext::default())
+            .expect("t_exp");
+        let t_exp = to_basis_points(t_exp_raw) as f64 / 10_000.0;
+        let t_ten =
+            contractual_swap_tenor_years(swap_start, maturity_date).expect("contractual tenor");
+
         p.target_expiries = vec![t_exp];
         p.target_tenors = vec![t_ten];
 
@@ -1554,14 +1567,13 @@ mod tests {
 
         let expiry_years: f64 = 1.0;
         let tenor_years: f64 = 5.0;
-        let expiry_date = base_date.add_months((expiry_years * 12.0).round() as i32);
-        let maturity_date = expiry_date.add_months((tenor_years * 12.0).round() as i32);
+        let (_, swap_start, maturity_date) = settled_swap_dates(&p, expiry_years, tenor_years);
 
         let disc_ref = ctx
             .get_discount(p.discount_curve_id.as_ref())
             .expect("disc");
         let pv01 = SwaptionVolTarget::calculate_pv01_proper(
-            expiry_date,
+            swap_start,
             maturity_date,
             &leg,
             disc_ref.as_ref(),
@@ -1569,11 +1581,7 @@ mod tests {
         .expect("pv01");
         let t_start = disc_ref
             .day_count()
-            .year_fraction(
-                disc_ref.base_date(),
-                expiry_date,
-                DayCountContext::default(),
-            )
+            .year_fraction(disc_ref.base_date(), swap_start, DayCountContext::default())
             .expect("t_start");
         let t_end = disc_ref
             .day_count()
@@ -1629,8 +1637,7 @@ mod tests {
         let leg = SwaptionVolTarget::default_leg_conventions(&p).expect("leg conventions");
         let expiry_years = 1.0;
         let tenor_years = 1.0;
-        let swap_start = base_date.add_months(12);
-        let swap_end = swap_start.add_months(12);
+        let (_, swap_start, swap_end) = settled_swap_dates(&p, expiry_years, tenor_years);
         let disc = ctx.get_discount("USD-OIS").expect("discount curve");
         let fwd = ctx.get_forward("USD-FWD").expect("forward curve");
         let pv01 =

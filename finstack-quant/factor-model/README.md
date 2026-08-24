@@ -303,7 +303,7 @@ Entries live in [`docs/REFERENCES.md`](../../docs/REFERENCES.md):
 ## Verification
 
 ```bash
-cargo clippy -p finstack-quant-factor-model --all-targets --all-features -- -D warnings
+cargo clippy -p finstack-quant-factor-model --lib --bins --tests --examples --all-features -- -D warnings
 cargo nextest run -p finstack-quant-factor-model --lib --test '*'
 cargo bench -p finstack-quant-factor-model --bench factor_model
 ```

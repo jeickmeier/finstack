@@ -241,7 +241,7 @@ fn test_metrics_registry_implied_vol() {
 }
 
 #[test]
-fn test_cs01_uses_delta_dependency() {
+fn test_cs01_dependency_propagates_replay_error() {
     let as_of = date!(2025 - 01 - 01);
     let market = standard_market(as_of);
     let option = CDSOptionBuilder::new().build(as_of);
@@ -255,21 +255,11 @@ fn test_cs01_uses_delta_dependency() {
         MetricContext::default_config(),
     );
 
-    // Compute CS01 which should use Delta if available
     let registry = standard_registry();
-    let results = registry
+    let error = registry
         .compute(&[MetricId::Delta, MetricId::Cs01], &mut ctx)
-        .unwrap();
-
-    assert!(results.contains_key(&MetricId::Delta));
-    assert!(results.contains_key(&MetricId::Cs01));
-
-    let delta = *results.get(&MetricId::Delta).unwrap();
-    let cs01 = *results.get(&MetricId::Cs01).unwrap();
-
-    assert_finite(delta, "Delta");
-    assert_finite(cs01, "CS01");
-    assert_positive(cs01, "CS01 for call");
+        .expect_err("standard option CS01 requires quote-space replay");
+    assert!(error.to_string().contains("calibration recipe"));
 }
 
 #[test]
@@ -306,10 +296,8 @@ fn test_cds_option_rejects_hazard_rate_cs01_metrics() {
 }
 
 #[test]
-fn test_cds_option_cs01_falls_back_to_hazard_shift_without_quote_points() {
-    // A directly-specified hazard curve has no CDS par-spread points. CS01 must
-    // still be well-defined: the shared CS01 engine falls back to a parallel
-    // hazard-rate shift (same as the underlying CDS) instead of erroring.
+fn test_cds_option_cs01_requires_replay_recipe() {
+    // A directly-specified hazard curve has no CDS par-spread replay recipe.
     let as_of = date!(2025 - 01 - 01);
     let discount = flat_discount("USD-OIS", as_of, 0.03);
     let hazard = HazardCurve::builder("HZ-SN")
@@ -331,54 +319,28 @@ fn test_cds_option_cs01_falls_back_to_hazard_shift_without_quote_points() {
     );
 
     let registry = standard_registry();
-    let results = registry
+    let error = registry
         .compute(&[MetricId::Cs01], &mut ctx)
-        .expect("CDS option CS01 should fall back to a hazard-rate shift");
-    let cs01 = *results.get(&MetricId::Cs01).unwrap();
-    assert_finite(cs01, "CDS option CS01 (hazard-shift fallback)");
-    // A call on the (long-protection) underlying gains as spreads widen.
-    assert_positive(cs01, "CDS option CS01 (hazard-shift fallback)");
+        .expect_err("standard CDS option CS01 requires quote-space replay");
+    assert!(error.to_string().contains("calibration recipe"));
 }
 
 #[test]
-fn test_bucketed_cs01_model_shift_fallback_reports_consistent_series() {
-    // The standard fixture has no replay recipe. Bucketed model-hazard shifts
-    // report a diagnostic tenor decomposition whose series sums to its own
-    // total; quote-pillar additivity is tested on calibrated recipe curves.
+fn test_bucketed_cs01_requires_replay_recipe() {
+    // The standard fixture has no replay recipe.
     let as_of = date!(2025 - 01 - 01);
     let market = standard_market(as_of);
     let option = CDSOptionBuilder::new().build(as_of);
 
-    let result = option
+    let error = option
         .price_with_metrics(
             &market,
             as_of,
             &[MetricId::Cs01, MetricId::BucketedCs01],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
-        .expect("should compute Cs01 and BucketedCs01");
-
-    let cs01 = *result.measures.get("cs01").expect("cs01 present");
-    let bucketed = *result
-        .measures
-        .get("bucketed_cs01")
-        .expect("bucketed_cs01 present");
-    assert!(
-        cs01.is_finite() && bucketed.is_finite(),
-        "CS01 metrics must be finite (cs01={cs01}, bucketed={bucketed})"
-    );
-
-    // The per-tenor series must be present and sum to the same total.
-    let series_sum: f64 = result
-        .measures
-        .iter()
-        .filter(|(k, _)| k.as_str().starts_with("bucketed_cs01::"))
-        .map(|(_, v)| *v)
-        .sum();
-    assert!(
-        (series_sum - bucketed).abs() <= 1e-9 + 1e-10 * bucketed.abs(),
-        "per-tenor bucketed_cs01 series ({series_sum}) must sum to bucketed total ({bucketed})"
-    );
+        .expect_err("standard CDS option CS01 metrics require quote-space replay");
+    assert!(error.to_string().contains("calibration recipe"));
 }
 
 #[test]
@@ -413,36 +375,20 @@ fn test_metrics_near_expiry() {
     assert_finite(vega, "Near-expiry vega");
 }
 
-/// `SpreadDv01` (spread sensitivity of the option's synthetic underlying CDS)
-/// is registered but previously only appeared inside an `#[ignore]`d Bloomberg
-/// diagnostic. A payer CDS option's underlying is a buy-protection CDS, whose
-/// value rises as spreads widen, so its spread DV01 is positive. This is a
-/// running (non-ignored) end-to-end check.
+/// `SpreadDv01` is standard quote-space spread risk and requires replay.
 #[test]
-fn test_spread_dv01_positive_for_payer() {
+fn test_spread_dv01_requires_replay_recipe() {
     let as_of = date!(2025 - 01 - 01);
     let market = standard_market(as_of);
     let option = CDSOptionBuilder::new().call().build(as_of);
 
-    let result = option
+    let error = option
         .price_with_metrics(
             &market,
             as_of,
             &[MetricId::SpreadDv01],
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
-        .expect("SpreadDv01 should compute");
-    let spread_dv01 = *result
-        .measures
-        .get("spread_dv01")
-        .expect("spread_dv01 should be in measures");
-
-    assert!(
-        spread_dv01.is_finite(),
-        "SpreadDv01 should be finite, got {spread_dv01}"
-    );
-    assert!(
-        spread_dv01 > 0.0,
-        "payer CDS option underlying (buy protection) should have positive spread DV01, got {spread_dv01}"
-    );
+        .expect_err("standard spread DV01 requires quote-space replay");
+    assert!(error.to_string().contains("calibration recipe"));
 }

@@ -1,7 +1,7 @@
 //! Quoted credit-bond risk regression.
 //!
 //! A bond with a credit (hazard) curve AND a `quoted_clean_price` must still
-//! produce non-zero CS01 / bucketed CS01 — the engine calibrates a flat hazard
+//! produce non-zero direct hazard CS01 — the engine calibrates a flat hazard
 //! shift that reproduces the quote and bumps that shifted curve, mirroring the
 //! same bond priced WITHOUT a quote. Before the fix, `Bond::base_value`
 //! short-circuits to the constant quoted price, so the hazard bump reprices the
@@ -9,7 +9,7 @@
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
+use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
@@ -46,17 +46,20 @@ fn build_market(as_of: time::Date) -> MarketContext {
         ])
         .build()
         .expect("discount curve should build");
-    let hazard = HazardCurve::builder("USD-CREDIT")
-        .base_date(as_of)
-        .recovery_rate(0.4)
-        .knots([(0.0, 0.02), (5.0, 0.02)])
-        .build()
-        .expect("hazard curve should build");
-    MarketContext::new().insert(disc).insert(hazard)
+    let source = MarketContext::new().insert(disc);
+    let hazard = crate::test_support::credit::calibrated_hazard_curve(
+        &source,
+        as_of,
+        "USD-CREDIT",
+        "USD-CREDIT-ENTITY",
+        "USD-OIS",
+    )
+    .expect("hazard calibration should succeed");
+    source.insert(hazard)
 }
 
 #[test]
-fn test_quoted_credit_bond_cs01_nonzero_and_matches_unquoted() {
+fn test_quoted_credit_bond_hazard_cs01_nonzero_and_matches_unquoted() {
     let as_of = date!(2025 - 01 - 01);
     let market = build_market(as_of);
 
@@ -66,11 +69,11 @@ fn test_quoted_credit_bond_cs01_nonzero_and_matches_unquoted() {
         .price_with_metrics(
             &market,
             as_of,
-            &[MetricId::Cs01, MetricId::CleanPrice],
+            &[MetricId::Cs01Hazard, MetricId::CleanPrice],
             PricingOptions::default(),
         )
         .expect("unquoted credit bond should price");
-    let base_cs01 = *base.measures.get("cs01").unwrap();
+    let base_cs01 = *base.measures.get("cs01_hazard").unwrap();
     let model_clean_pct = *base.measures.get("clean_price").unwrap() / 1_000_000.0 * 100.0;
     assert!(
         base_cs01.abs() > 1e-3,
@@ -85,25 +88,27 @@ fn test_quoted_credit_bond_cs01_nonzero_and_matches_unquoted() {
         .price_with_metrics(
             &market,
             as_of,
-            &[MetricId::Cs01, MetricId::BucketedCs01],
+            &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
             PricingOptions::default(),
         )
         .expect("quoted credit bond should price");
 
-    let cs01 = *result.measures.get("cs01").unwrap();
+    let cs01 = *result.measures.get("cs01_hazard").unwrap();
     assert!(
         cs01.abs() > 1e-3,
         "quoted credit CS01 must be non-zero (was 0 before the fix), got {cs01}"
     );
 
+    let bucket_series_prefix = "bucketed_cs01_hazard::USD-CREDIT::";
     let bucketed_nonzero = result
         .measures
         .iter()
-        .filter(|(k, v)| k.as_str().starts_with("bucketed_cs01") && v.abs() > 1e-6)
+        .filter(|(k, v)| k.as_str().starts_with(bucket_series_prefix) && v.abs() > 1e-6)
         .count();
     assert!(
         bucketed_nonzero >= 1,
-        "quoted credit bucketed CS01 must be populated, got {bucketed_nonzero}"
+        "quoted credit bucketed CS01 series '{bucket_series_prefix}' must be populated, \
+         got {bucketed_nonzero}"
     );
 
     assert!(
@@ -113,7 +118,7 @@ fn test_quoted_credit_bond_cs01_nonzero_and_matches_unquoted() {
 }
 
 #[test]
-fn test_quoted_credit_bond_offmodel_recalibrates_hazard() {
+fn test_quoted_credit_bond_offmodel_changes_hazard_cs01() {
     let as_of = date!(2025 - 01 - 01);
     let market = build_market(as_of);
 
@@ -128,21 +133,26 @@ fn test_quoted_credit_bond_offmodel_recalibrates_hazard() {
         .unwrap();
     let model_clean_pct = *base.measures.get("clean_price").unwrap() / 1_000_000.0 * 100.0;
 
-    let cs01_at = |clean_pct: f64| -> f64 {
+    let hazard_cs01_at = |clean_pct: f64| -> f64 {
         let mut q = build_credit_bond(as_of);
         q.instrument_pricing_overrides =
             InstrumentPricingOverrides::default().with_quoted_clean_price(clean_pct);
         let r = q
-            .price_with_metrics(&market, as_of, &[MetricId::Cs01], PricingOptions::default())
+            .price_with_metrics(
+                &market,
+                as_of,
+                &[MetricId::Cs01Hazard],
+                PricingOptions::default(),
+            )
             .unwrap();
-        *r.measures.get("cs01").unwrap()
+        *r.measures.get("cs01_hazard").unwrap()
     };
 
     // Quoting 8pts below model recalibrates the hazard wider, so CS01 must differ
     // from the at-model quote. If the calibrated shift were silently discarded
     // (curve-id bug), both would equal the unquoted CS01 and this would fail.
-    let cs01_model = cs01_at(model_clean_pct);
-    let cs01_distressed = cs01_at(model_clean_pct - 8.0);
+    let cs01_model = hazard_cs01_at(model_clean_pct);
+    let cs01_distressed = hazard_cs01_at(model_clean_pct - 8.0);
     assert!(
         (cs01_distressed - cs01_model).abs() > 1e-2,
         "off-model quote should recalibrate the hazard and change CS01: \

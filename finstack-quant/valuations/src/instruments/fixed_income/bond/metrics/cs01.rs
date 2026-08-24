@@ -161,3 +161,25 @@ impl MetricCalculator for BondBucketedCs01Calculator {
         &[MetricId::Cs01]
     }
 }
+
+/// Bond direct hazard-rate CS01 evaluated around the quote-reproducing risk view.
+pub(crate) struct BondCs01HazardCalculator;
+
+impl MetricCalculator for BondCs01HazardCalculator {
+    fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
+        with_bond_risk_view(context, |ctx| {
+            crate::metrics::GenericParallelCs01Hazard::<Bond>::default().calculate(ctx)
+        })
+    }
+}
+
+/// Bond bucketed hazard-rate CS01 evaluated around the quote-reproducing risk view.
+pub(crate) struct BondBucketedCs01HazardCalculator;
+
+impl MetricCalculator for BondBucketedCs01HazardCalculator {
+    fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
+        with_bond_risk_view(context, |ctx| {
+            crate::metrics::GenericBucketedCs01Hazard::<Bond>::default().calculate(ctx)
+        })
+    }
+}
