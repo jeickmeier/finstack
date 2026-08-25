@@ -232,8 +232,10 @@ fn test_valuation_at_far_date() {
 
     let pv = swap.value(&market, dates.far_date_1y).unwrap();
 
-    // At far date, remaining PV should be small
-    assert!(pv.amount().is_finite(), "PV at far date should be finite");
+    assert!(
+        pv.amount().abs() > 1.0,
+        "end-of-day policy must retain far-leg settlement on the event date"
+    );
 }
 
 #[test]
@@ -247,10 +249,10 @@ fn test_valuation_after_maturity() {
     let as_of_after = Date::from_calendar_date(2026, Month::January, 1).unwrap();
     let pv = swap.value(&market, as_of_after).unwrap();
 
-    // After maturity, PV should be close to zero or represent final settlement
-    assert!(
-        pv.amount().is_finite(),
-        "PV after maturity should be finite"
+    assert_eq!(
+        pv.amount(),
+        0.0,
+        "swap must be extinguished after far-leg settlement"
     );
 }
 

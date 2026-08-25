@@ -5444,6 +5444,7 @@ class FxOption:
     ...     .quote_currency(Currency("USD"))
     ...     .strike(1.12)
     ...     .option_type("call")
+    ...     .delta_convention("forward", Currency("USD"), "generic_interbank")
     ...     .expiry(datetime.date(2025, 12, 15))
     ...     .notional(Money(1_000_000.0, Currency("EUR")))
     ...     .domestic_discount_curve_id("USD-OIS")
@@ -5996,17 +5997,23 @@ class FxOptionBuilder:
         """
         ...
 
-    def exercise_style(self, value: Literal["european", "american", "bermudan"]) -> FxOptionBuilder:
+    def delta_convention(
+        self,
+        kind: Literal["spot", "forward", "premium_adjusted_spot", "premium_adjusted_forward"],
+        premium_currency: Currency,
+        venue: str,
+    ) -> FxOptionBuilder:
         """
-        Set whether exercise is European, American, or Bermudan.
+        Set the pair/venue delta convention and premium currency.
 
         Parameters
         ----------
-        value : {"european", "american", "bermudan"}
-            Exercise style of the FX option. Only ``"european"`` is
-            currently priceable; ``"american"`` and ``"bermudan"`` are
-            accepted here but rejected with a ``ValueError`` at pricing
-            time (specialized pricers are not yet implemented).
+        kind : {"spot", "forward", "premium_adjusted_spot", "premium_adjusted_forward"}
+            Delta convention quoted by the venue.
+        premium_currency : Currency
+            Currency in which the FX option premium is paid.
+        venue : str
+            Non-empty market venue or quoting-source identifier.
 
         Returns
         -------
@@ -6016,8 +6023,7 @@ class FxOptionBuilder:
         Raises
         ------
         ValueError
-            If ``value`` is not a recognized exercise style.
-
+            If ``kind`` is unknown, ``venue`` is blank, or the builder was consumed.
         """
         ...
 
@@ -8403,7 +8409,7 @@ def list_standard_metrics() -> list[str]:
     >>> from finstack_quant.valuations.instruments import list_standard_metrics
     >>> metrics = list_standard_metrics()
     >>> (len(metrics), "dirty_price" in metrics, "dv01" in metrics)
-    (219, True, True)
+    (220, True, True)
     """
     ...
 

@@ -141,10 +141,12 @@ def build_european_fx_option() -> dict[str, Any]:
             / (volatility * math.sqrt(time_to_expiry))
         )
     )
+    premium_adjusted_forward_delta = premium_adjusted_delta * math.exp(foreign_rate * time_to_expiry)
     expected = {
         "delta": option.delta() * notional,
         "delta_forward": forward_delta * notional,
-        "delta_premium_adjusted": premium_adjusted_delta * notional,
+        "delta_premium_adjusted_spot": premium_adjusted_delta * notional,
+        "delta_premium_adjusted_forward": premium_adjusted_forward_delta * notional,
         "foreign_rho": option.dividendRho() * notional * 1e-4,
         "gamma": option.gamma() * notional,
         "npv": option.NPV() * notional,

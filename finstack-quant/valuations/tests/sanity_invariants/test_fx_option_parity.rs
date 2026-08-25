@@ -16,8 +16,11 @@ use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::fx::{FxConversionPolicy, FxMatrix, FxProvider};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
-use finstack_quant_valuations::instruments::{Attributes, FxOption, Instrument, SettlementType};
-use finstack_quant_valuations::instruments::{ExerciseStyle, OptionType};
+use finstack_quant_valuations::instruments::fx::fx_option::{
+    FxDeltaConvention, FxDeltaConventionKind,
+};
+use finstack_quant_valuations::instruments::OptionType;
+use finstack_quant_valuations::instruments::{Attributes, FxOption, Instrument};
 use finstack_quant_valuations::metrics::MetricId;
 use std::sync::Arc;
 use time::Month;
@@ -113,11 +116,13 @@ fn create_fx_option(expiry: Date, option_type: OptionType) -> FxOption {
         .quote_currency(QUOTE)
         .strike(STRIKE)
         .option_type(option_type)
-        .exercise_style(ExerciseStyle::European)
+        .delta_convention(
+            FxDeltaConvention::new(FxDeltaConventionKind::Forward, Currency::USD, "test")
+                .expect("valid delta convention"),
+        )
         .expiry(expiry)
         .day_count(DayCount::Act365F)
         .notional(Money::new(1.0, BASE)) // Per-unit notional
-        .settlement(SettlementType::Cash)
         .domestic_discount_curve_id(CurveId::new("USD-OIS"))
         .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
         .vol_surface_id(CurveId::new("EURUSD-VOL"))

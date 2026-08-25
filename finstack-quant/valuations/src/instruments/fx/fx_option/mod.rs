@@ -48,18 +48,16 @@
 //!
 //! # Delta Conventions
 //!
-//! FX markets use multiple delta conventions:
+//! `FxOption::delta_convention` records the quoted venue convention and premium
+//! currency. The metric surface keeps each hedge coordinate distinct:
 //!
-//! - **Spot delta**: ∂V/∂S
-//! - **Forward delta**: ∂V/∂F where F = S·e^((r_d - r_f)T)
-//! - **Premium-adjusted spot delta**: spot delta scaled for domestic-currency premium settlement
-//! - **Premium-adjusted forward delta**: forward-delta quoting with premium adjustment
+//! - `delta`: unadjusted spot delta
+//! - `delta_forward`: unadjusted forward delta
+//! - `delta_premium_adjusted_spot`: premium-adjusted spot delta
+//! - `delta_premium_adjusted_forward`: premium-adjusted forward delta
 //!
-//! Common strikes quoted in delta terms:
-//! - **25-delta call/put**: Out-of-money options
-//! - **ATM**: Either spot, forward, or premium-adjusted delta-neutral ATM
-//! - **Risk reversal**: Spread between OTM call and put
-//! - **Butterfly**: Convexity measure
+//! Base-currency premium changes both premium-adjusted metrics. Quote-currency
+//! premium leaves them equal to their unadjusted spot/forward counterparts.
 //!
 //! # Academic References
 //!
@@ -113,4 +111,6 @@ pub(crate) mod pricer;
 mod types;
 
 pub use crate::instruments::common_impl::parameters::FxUnderlyingParams;
-pub use types::{FxAtmDeltaConvention, FxOption, FxOptionBuilder};
+pub use types::{
+    FxAtmDeltaConvention, FxDeltaConvention, FxDeltaConventionKind, FxOption, FxOptionBuilder,
+};

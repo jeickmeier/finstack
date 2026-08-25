@@ -30,8 +30,8 @@
 //! - [`crate::instruments::fx::fx_option`] for vanilla FX options
 
 pub(crate) mod metrics;
-pub mod monte_carlo;
+pub(crate) mod monte_carlo;
 pub(crate) mod pricer;
 pub(crate) mod types;
 
-pub use types::FxBarrierOption;
+pub use types::{FxBarrierOption, Monitoring};

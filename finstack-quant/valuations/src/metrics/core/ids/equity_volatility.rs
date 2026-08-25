@@ -77,8 +77,12 @@ impl MetricId {
     /// Forward delta before spot/premium convention adjustments.
     pub const DeltaForward: Self = Self(Cow::Borrowed("delta_forward"));
 
-    /// Premium-adjusted delta under FX option market quoting conventions.
-    pub const DeltaPremiumAdjusted: Self = Self(Cow::Borrowed("delta_premium_adjusted"));
+    /// Premium-adjusted spot delta under the instrument's premium currency.
+    pub const DeltaPremiumAdjustedSpot: Self = Self(Cow::Borrowed("delta_premium_adjusted_spot"));
+
+    /// Premium-adjusted forward delta under the instrument's premium currency.
+    pub const DeltaPremiumAdjustedForward: Self =
+        Self(Cow::Borrowed("delta_premium_adjusted_forward"));
 
     /// Cash gamma with respect to the instrument's chosen spot driver.
     ///

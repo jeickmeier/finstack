@@ -7,6 +7,15 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::fx::FxQuery;
 use finstack_quant_core::types::{CurveId, PriceId};
 
+/// Return whether an FX contractual event is complete under the end-of-day policy.
+///
+/// FX fixing, expiry, delivery, and settlement cashflows remain live on their
+/// event date and are extinguished on the following valuation date.
+#[inline]
+pub(crate) fn event_has_occurred(event_date: Date, as_of: Date) -> bool {
+    event_date < as_of
+}
+
 /// Inputs for a covered-interest-parity FX forward rate.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct FxForwardRateRequest<'a> {
@@ -30,11 +39,29 @@ pub(crate) struct FxForwardRateRequest<'a> {
     pub(crate) context: &'a str,
 }
 
-/// Compute `S × DF_base / DF_quote` with date-based discount factors.
-pub(crate) fn covered_interest_parity_forward(
+/// Resolved covered-interest-parity inputs shared by forward rate and PV.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct FxForwardInputs {
+    /// Quote-per-base spot at the valuation date.
+    pub(crate) spot: f64,
+    /// Quote-currency discount factor to maturity.
+    pub(crate) df_domestic: f64,
+    /// Base-currency discount factor to maturity.
+    pub(crate) df_foreign: f64,
+}
+
+impl FxForwardInputs {
+    /// Compute the covered-interest-parity forward rate.
+    pub(crate) fn forward_rate(self) -> f64 {
+        self.spot * self.df_foreign / self.df_domestic
+    }
+}
+
+/// Resolve spot and both discount factors once for CIP calculations.
+pub(crate) fn collect_fx_forward_inputs(
     request: FxForwardRateRequest<'_>,
-) -> finstack_quant_core::Result<f64> {
-    if request.maturity <= request.as_of {
+) -> finstack_quant_core::Result<FxForwardInputs> {
+    if request.maturity < request.as_of {
         return Err(finstack_quant_core::InputError::Invalid.into());
     }
     let domestic = request
@@ -79,7 +106,18 @@ pub(crate) fn covered_interest_parity_forward(
             request.context
         )));
     }
-    Ok(spot * df_foreign / df_domestic)
+    Ok(FxForwardInputs {
+        spot,
+        df_domestic,
+        df_foreign,
+    })
+}
+
+/// Compute `S × DF_base / DF_quote` with date-based discount factors.
+pub(crate) fn covered_interest_parity_forward(
+    request: FxForwardRateRequest<'_>,
+) -> finstack_quant_core::Result<f64> {
+    Ok(collect_fx_forward_inputs(request)?.forward_rate())
 }
 
 /// Source for the FX spot used by an option-style FX pricer.

@@ -1,19 +1,9 @@
-//! Barrier option payoffs with Brownian bridge correction.
+//! Barrier option payoffs with explicit monitoring semantics.
 //!
-//! Implements knock-in and knock-out barrier options with:
-//! - Discrete monitoring with exact Brownian-bridge correction
-//! - Up and down barriers
-//! - Rebate support (paid at maturity)
-//!
-//! # Discrete-monitoring correction
-//!
-//! Barrier hits are evaluated with the exact log-Brownian-bridge
-//! conditional-crossing law. The bridge already removes essentially all
-//! of the discrete-monitoring bias, so the Broadie–Glasserman–Kou / Gobet–Miri
-//! barrier *shift* — an alternative first-order correction for plain discrete
-//! checking — is deliberately **not** applied on top of it; doing so would
-//! double-count the correction. The true (unshifted) barrier is always passed
-//! to the bridge.
+//! Continuous barriers use an exact log-Brownian-bridge crossing test between
+//! simulation steps. Discrete barriers observe the simulated level only at
+//! their contractual observation steps and never interpolate crossings between
+//! observations.
 //!
 //! # Local volatility under stochastic-vol models
 //!
@@ -51,6 +41,20 @@ fn barrier_direction(barrier_type: BarrierType) -> BarrierDirection {
         BarrierDirection::Down
     }
 }
+/// Simulation-step representation of a barrier's monitoring contract.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BarrierMonitoring {
+    /// Continuously monitor from `start_step` through maturity.
+    Continuous {
+        /// First simulation step at which monitoring is active.
+        start_step: usize,
+    },
+    /// Observe only at the listed simulation steps.
+    Discrete {
+        /// Strictly increasing simulation steps corresponding to contractual dates.
+        observation_steps: Vec<usize>,
+    },
+}
 
 /// Barrier option payoff with bridge correction.
 ///
@@ -72,23 +76,14 @@ pub struct BarrierOptionPayoff {
     pub notional: f64,
     /// Maturity step
     pub maturity_step: usize,
-    /// Fallback volatility for the Brownian-bridge correction. Must match
-    /// the simulating process's diffusion volatility for deterministic-vol
-    /// processes; ignored when the path state carries a variance key (see
-    /// [`Self::new`]).
+    /// Fallback volatility for continuous Brownian-bridge crossing tests. Must
+    /// match the simulating process's diffusion volatility for deterministic-vol
+    /// processes; ignored when the path state carries a variance key.
     pub sigma: f64,
-    /// Time steps for each monitoring interval (for bridge correction)
+    /// Time steps for each simulation interval.
     pub step_dts: Vec<f64>,
-    /// Whether the caller requested the discrete-monitoring correction.
-    ///
-    /// Retained as a record of caller intent and for dispatch on the
-    /// valuations side. It does **not** gate a barrier shift inside this
-    /// payoff: barrier hits are always evaluated with the exact Brownian
-    /// bridge (see [`on_event`](Payoff::on_event)), which already removes
-    /// the discrete-monitoring bias. Applying the Broadie–Glasserman–Kou
-    /// barrier shift on top of the bridge would double-count the
-    /// correction, so the true (unshifted) barrier is always used here.
-    pub use_gobet_miri: bool,
+    /// Contractual monitoring convention mapped onto the simulation grid.
+    pub monitoring: BarrierMonitoring,
     /// When `Some(r)`, knock-out rebates are paid **at the hit time** τ and
     /// compounded forward to maturity at the continuously compounded rate
     /// `r`, so the engine's maturity discount factor `DF(T)` nets to the
@@ -101,6 +96,8 @@ pub struct BarrierOptionPayoff {
 
     terminal_spot: f64,
     barrier_hit: bool,
+    /// Barrier state restored by [`Self::reset`] before each simulated path.
+    initial_barrier_hit: bool,
     previous_spot: f64,
     /// Year fraction at which the barrier was first hit (valid only when
     /// `barrier_hit` is true). The bridge detects intra-interval crossings,
@@ -136,10 +133,9 @@ impl BarrierOptionPayoff {
     ///   stochastic-vol models (e.g. Heston) the path's `sqrt(variance)` is
     ///   used instead and this value is ignored.
     /// * `time_grid` - Simulation grid whose step year-fractions size the
-    ///   bridge intervals and the at-hit forward-compounding horizon.
-    /// * `use_gobet_miri` - Caller-intent flag retained for valuations
-    ///   dispatch; this payoff always uses the unshifted barrier plus the
-    ///   exact Brownian bridge and does not apply a BGK barrier shift.
+    ///   continuous bridge intervals and the at-hit forward-compounding horizon.
+    /// * `monitoring` - Continuous start step or discrete contractual
+    ///   observation steps mapped onto `time_grid`.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         strike: f64,
@@ -151,7 +147,7 @@ impl BarrierOptionPayoff {
         maturity_step: usize,
         sigma: f64,
         time_grid: &TimeGrid,
-        use_gobet_miri: bool,
+        monitoring: BarrierMonitoring,
     ) -> Self {
         let step_dts: Vec<f64> = time_grid.dts().to_vec();
         let total_time: f64 = step_dts.iter().take(maturity_step).sum();
@@ -165,11 +161,12 @@ impl BarrierOptionPayoff {
             maturity_step,
             sigma,
             step_dts,
-            use_gobet_miri,
+            monitoring,
             rebate_at_hit_rate: None,
             total_time,
             terminal_spot: 0.0,
             barrier_hit: false,
+            initial_barrier_hit: false,
             previous_spot: 0.0,
             hit_time: 0.0,
         }
@@ -179,6 +176,7 @@ impl BarrierOptionPayoff {
     #[must_use]
     pub fn with_observed_barrier_breached(mut self, breached: bool) -> Self {
         self.barrier_hit = breached;
+        self.initial_barrier_hit = breached;
         if breached {
             self.hit_time = 0.0;
         }
@@ -218,84 +216,77 @@ impl BarrierOptionPayoff {
 }
 
 impl Payoff for BarrierOptionPayoff {
-    /// Reads the per-step uniform draw for the Brownian-bridge barrier
-    /// correction (`state.uniform_random()` in `on_event`), so the engine must
-    /// draw it.
     fn needs_uniform_random(&self) -> bool {
-        true
+        matches!(self.monitoring, BarrierMonitoring::Continuous { .. })
     }
 
     fn on_event(&mut self, state: &mut PathState) -> finstack_quant_core::Result<()> {
-        // Ignore events beyond the payoff's maturity: a longer engine grid
-        // must not flip the knockout state after expiry.
         if state.step > self.maturity_step {
             return Ok(());
         }
 
         let current_spot = super::require_finite_state(state.spot(), "SPOT", state.step)?;
+        let breached = |spot: f64| match barrier_direction(self.barrier_type) {
+            BarrierDirection::Up => spot >= self.barrier,
+            BarrierDirection::Down => spot <= self.barrier,
+        };
 
         if state.step == 0 {
             self.previous_spot = current_spot;
-
-            let breached = match barrier_direction(self.barrier_type) {
-                BarrierDirection::Up => current_spot >= self.barrier,
-                BarrierDirection::Down => current_spot <= self.barrier,
+            let observe_initial = match &self.monitoring {
+                BarrierMonitoring::Continuous { start_step } => *start_step == 0,
+                BarrierMonitoring::Discrete { observation_steps } => {
+                    observation_steps.binary_search(&0).is_ok()
+                }
             };
-            if breached {
+            if !self.barrier_hit && observe_initial && breached(current_spot) {
                 self.barrier_hit = true;
                 self.hit_time = 0.0;
+            }
+            if self.maturity_step == 0 {
+                self.terminal_spot = current_spot;
             }
             return Ok(());
         }
 
-        // Check barrier hit using bridge correction.
         if !self.barrier_hit {
-            // Use independent uniform random from PathState for bridge sampling
-            // so the barrier hit probability is statistically correct.
-            let uniform_random = state.uniform_random();
-            // A payoff grid shorter than the engine grid is a wiring bug: a
-            // silent dt = 0 here would disable the bridge correction.
-            let dt = super::require_finite_state(
-                self.step_dts.get(state.step - 1).copied(),
-                "step_dts",
-                state.step,
-            )?;
-            // Prefer the process's local instantaneous variance when available
-            // (e.g. Heston). For deterministic-vol processes the state carries
-            // no variance entry and we fall back to the configured flat sigma.
-            let local_sigma = match state.variance() {
-                Some(v) if v.is_finite() && v > 0.0 => v.sqrt(),
-                _ => self.sigma,
+            let hit = match &self.monitoring {
+                BarrierMonitoring::Continuous { start_step } if state.step >= *start_step => {
+                    if state.step == *start_step {
+                        breached(current_spot)
+                    } else {
+                        let dt = super::require_finite_state(
+                            self.step_dts.get(state.step - 1).copied(),
+                            "step_dts",
+                            state.step,
+                        )?;
+                        let local_sigma = match state.variance() {
+                            Some(v) if v.is_finite() && v > 0.0 => v.sqrt(),
+                            _ => self.sigma,
+                        };
+                        check_barrier_hit(
+                            self.previous_spot,
+                            current_spot,
+                            self.barrier,
+                            barrier_direction(self.barrier_type),
+                            local_sigma,
+                            dt,
+                            state.uniform_random(),
+                        )
+                    }
+                }
+                BarrierMonitoring::Continuous { .. } => false,
+                BarrierMonitoring::Discrete { observation_steps } => {
+                    observation_steps.binary_search(&state.step).is_ok() && breached(current_spot)
+                }
             };
-            // W-43: `check_barrier_hit` applies the exact Brownian-bridge
-            // conditional-crossing law, which already removes the
-            // discrete-monitoring bias. The BGK `exp(±βσ√Δt)` barrier shift
-            // is an *alternative* first-order correction for plain discrete
-            // checking; layering it on top of the bridge over-corrects by
-            // order `βσ√Δt`. The bridge therefore always receives the true,
-            // unshifted barrier.
-            let hit = check_barrier_hit(
-                self.previous_spot,
-                current_spot,
-                self.barrier,
-                barrier_direction(self.barrier_type),
-                local_sigma,
-                dt,
-                uniform_random,
-            );
-
             if hit {
                 self.barrier_hit = true;
-                // τ at the end of the crossing interval (O(Δt), consistent
-                // with the monitoring resolution).
-                self.hit_time = self.step_dts.iter().take(state.step).sum();
+                self.hit_time = state.time;
             }
         }
 
-        // Update state
         self.previous_spot = current_spot;
-
-        // Capture terminal spot at maturity
         if state.step == self.maturity_step {
             self.terminal_spot = current_spot;
         }
@@ -327,7 +318,7 @@ impl Payoff for BarrierOptionPayoff {
 
     fn reset(&mut self) {
         self.terminal_spot = 0.0;
-        self.barrier_hit = false;
+        self.barrier_hit = self.initial_barrier_hit;
         self.previous_spot = 0.0;
         self.hit_time = 0.0;
     }
@@ -362,7 +353,7 @@ mod tests {
             1,
             0.2,
             &grid,
-            false,
+            BarrierMonitoring::Continuous { start_step: 0 },
         );
         payoff
             .on_event(&mut create_path_state(0, 0.0, spot, 0.5))
@@ -412,7 +403,7 @@ mod tests {
             10,
             0.2,
             &grid,
-            false,
+            BarrierMonitoring::Continuous { start_step: 0 },
         )
         .with_rebate_at_hit(rate);
 
@@ -445,7 +436,7 @@ mod tests {
             10,
             0.2,
             &grid,
-            false,
+            BarrierMonitoring::Continuous { start_step: 0 },
         );
         payoff_expiry
             .on_event(&mut create_path_state(0, 0.0, 100.0, 0.5))
@@ -475,7 +466,7 @@ mod tests {
             10,
             0.2,
             &grid,
-            false,
+            BarrierMonitoring::Continuous { start_step: 0 },
         )
         .with_rebate_at_hit(0.05);
 
@@ -502,7 +493,7 @@ mod tests {
             10,
             0.2,
             &TimeGrid::uniform(1.0, 10).expect("grid should build"),
-            false,
+            BarrierMonitoring::Continuous { start_step: 0 },
         );
 
         // Path that never hits barrier (active)
@@ -532,7 +523,7 @@ mod tests {
             10,
             0.2,
             &TimeGrid::uniform(1.0, 10).expect("grid should build"),
-            false,
+            BarrierMonitoring::Continuous { start_step: 0 },
         );
 
         // Hit barrier
@@ -567,7 +558,7 @@ mod tests {
                 4,
                 flat_sigma,
                 &time_grid,
-                true,
+                BarrierMonitoring::Continuous { start_step: 0 },
             )
         };
 
@@ -621,7 +612,7 @@ mod tests {
                 4,
                 flat_sigma,
                 &time_grid,
-                true,
+                BarrierMonitoring::Continuous { start_step: 0 },
             )
         };
 
@@ -682,7 +673,7 @@ mod tests {
             4,
             0.2, // sigma — with dt=0.25 the BGK shift is ~5.7%
             &time_grid,
-            true, // use_gobet_miri
+            BarrierMonitoring::Continuous { start_step: 0 },
         );
 
         // step 0: spot 105, above barrier (no initial breach).
@@ -717,6 +708,40 @@ mod tests {
              the bridge and moved the barrier away from spot (W-43)",
         );
     }
+    #[test]
+    fn discrete_monitoring_ignores_between_observation_crossings() {
+        let time_grid = TimeGrid::from_times(vec![0.0, 0.5, 1.0]).expect("grid should build");
+        let mut payoff = BarrierOptionPayoff::new(
+            80.0,
+            100.0,
+            BarrierType::UpAndOut,
+            OptionKind::Call,
+            None,
+            1.0,
+            2,
+            0.2,
+            &time_grid,
+            BarrierMonitoring::Discrete {
+                observation_steps: vec![2],
+            },
+        );
+
+        let mut initial = create_path_state(0, 0.0, 90.0, 0.5);
+        payoff
+            .on_event(&mut initial)
+            .expect("initial state should be valid");
+        let mut between_observations = create_path_state(1, 0.5, 110.0, 0.5);
+        payoff
+            .on_event(&mut between_observations)
+            .expect("unobserved crossing should be ignored");
+        let mut observation = create_path_state(2, 1.0, 90.0, 0.5);
+        payoff
+            .on_event(&mut observation)
+            .expect("contractual observation should be valid");
+
+        assert_eq!(payoff.value(Currency::USD).amount(), 10.0);
+        assert!(!payoff.needs_uniform_random());
+    }
 
     #[test]
     fn test_barrier_uses_step_dt_for_irregular_grid() {
@@ -731,7 +756,7 @@ mod tests {
             2,
             0.2,
             &time_grid,
-            false,
+            BarrierMonitoring::Continuous { start_step: 0 },
         );
 
         let mut s0 = create_path_state(0, 0.0, 90.0, 0.65);

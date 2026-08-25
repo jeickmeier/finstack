@@ -276,6 +276,8 @@ pub fn add_joint_business_days(
 ///   calendars, spot rolls forward to the next date that is.
 /// - `spot_lag_days == 0` returns `trade_date` unchanged (T+0 behavior matches
 ///   [`add_joint_business_days`]).
+/// - Negative lags move backward by joint business days. Intermediate and
+///   final-day calendar rules are applied in the same direction.
 ///
 /// `usd_cal_id` names the USD settlement calendar (typically `"usny"`). When it
 /// matches `base_cal_id` or `quote_cal_id` (case-insensitive), that side is
@@ -287,7 +289,8 @@ pub fn add_joint_business_days(
 /// # Arguments
 ///
 /// * `trade_date` - The trade execution date
-/// * `spot_lag_days` - Business days to spot (typically 2; 1 for e.g. USD/CAD)
+/// * `spot_lag_days` - Signed business days to spot; positive values move
+///   forward and negative values represent T−N settlement.
 /// * `base_cal_id` - Optional calendar ID for the base currency
 /// * `quote_cal_id` - Optional calendar ID for the quote currency
 /// * `usd_cal_id` - Optional USD settlement calendar ID (e.g. `Some("usny")`)
@@ -312,7 +315,7 @@ pub fn add_joint_business_days(
 /// ```
 pub fn fx_spot_date(
     trade_date: Date,
-    spot_lag_days: u32,
+    spot_lag_days: i32,
     base_cal_id: Option<&str>,
     quote_cal_id: Option<&str>,
     usd_cal_id: Option<&str>,
@@ -327,6 +330,15 @@ pub fn fx_spot_date(
     if spot_lag_days == 0 {
         return Ok(trade_date);
     }
+    const MAX_ABS_FX_SPOT_LAG_DAYS: u32 = 31;
+    let lag_magnitude = spot_lag_days.unsigned_abs();
+    if lag_magnitude > MAX_ABS_FX_SPOT_LAG_DAYS {
+        return Err(Error::Validation(format!(
+            "FX spot lag {spot_lag_days} exceeds the supported range \
+             [-{MAX_ABS_FX_SPOT_LAG_DAYS}, {MAX_ABS_FX_SPOT_LAG_DAYS}]"
+        )));
+    }
+    let direction = if spot_lag_days > 0 { 1 } else { -1 };
 
     let is_usd = |id: Option<&str>| matches!((id, usd_cal_id), (Some(a), Some(u)) if a.eq_ignore_ascii_case(u));
     let base_is_usd = is_usd(base_cal_id);
@@ -344,30 +356,31 @@ pub fn fx_spot_date(
             && usd_cal.is_none_or(|c| c.is_business_day(d))
     };
 
-    let max_iters: u32 = (spot_lag_days.saturating_mul(10).saturating_add(25)).max(1000);
+    let max_iters: u32 = (lag_magnitude.saturating_mul(10).saturating_add(25)).max(1000);
     let mut iters: u32 = 0;
     let mut date = trade_date;
     let mut count = 0u32;
 
-    while count < spot_lag_days && iters < max_iters {
-        date += Duration::days(1);
+    while count < lag_magnitude && iters < max_iters {
+        date += Duration::days(direction);
         if intermediate_good(date) {
             count += 1;
         }
         iters += 1;
     }
 
-    // Roll the candidate value date forward until it is good in all calendars.
+    // Roll the candidate value date in the requested direction until it is
+    // good in all calendars.
     while !final_good(date) && iters < max_iters {
-        date += Duration::days(1);
+        date += Duration::days(direction);
         iters += 1;
     }
 
-    if count < spot_lag_days || !final_good(date) {
+    if count < lag_magnitude || !final_good(date) {
         return Err(Error::Input(
             crate::error::InputError::JointCalendarIterationLimitExceeded {
                 start: trade_date,
-                n_days: spot_lag_days,
+                n_days: lag_magnitude,
                 max_iters,
             },
         ));
@@ -794,6 +807,21 @@ mod tests {
         let spot =
             fx_spot_date(trade, 0, Some("target2"), Some("usny"), Some("usny")).expect("T+0");
         assert_eq!(spot, trade);
+    }
+    #[test]
+    fn fx_spot_date_supports_negative_joint_business_day_lags() {
+        let trade = create_date(2025, Month::January, 15).unwrap();
+        let spot =
+            fx_spot_date(trade, -1, Some("target2"), Some("usny"), Some("usny")).expect("T-1");
+        assert_eq!(spot, create_date(2025, Month::January, 14).unwrap());
+    }
+
+    #[test]
+    fn fx_spot_date_rejects_unbounded_lags_before_iteration() {
+        let trade = create_date(2025, Month::January, 15).unwrap();
+        let error = fx_spot_date(trade, i32::MIN, Some("target2"), Some("usny"), Some("usny"))
+            .expect_err("extreme lag must be rejected");
+        assert!(error.to_string().contains("supported range"));
     }
 
     #[test]

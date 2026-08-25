@@ -2,7 +2,8 @@
   "expected": {
     "delta": 536419.5443643782,
     "delta_forward": 539773.4225472712,
-    "delta_premium_adjusted": 514752.39318191545,
+    "delta_premium_adjusted_forward": 517970.8009361119,
+    "delta_premium_adjusted_spot": 514752.39318191545,
     "foreign_rho": -14.711122298869693,
     "gamma": 7182418.217391691,
     "npv": 23833.866300710717,
@@ -10,7 +11,6 @@
     "vega": 2166.7289586767106
   },
   "instrument": {
-    "schema": "finstack_quant.instrument/1",
     "instrument": {
       "spec": {
         "attributes": {
@@ -21,6 +21,11 @@
           ]
         },
         "base_currency": "EUR",
+        "delta_convention": {
+          "kind": "premium_adjusted_forward",
+          "premium_currency": "EUR",
+          "venue": "golden_reference"
+        },
         "domestic_discount_curve_id": "USD-OIS",
         "expiry": "2026-07-30",
         "foreign_discount_curve_id": "EUR-OIS",
@@ -35,7 +40,8 @@
         "vol_surface_id": "EURUSD-VOL-QL"
       },
       "type": "fx_option"
-    }
+    },
+    "schema": "finstack_quant.instrument/1"
   },
   "kind": "pricing",
   "market": {
@@ -169,7 +175,11 @@
       "abs": 1e-07,
       "tolerance_reason": "QuantLib AnalyticEuropeanEngine and Finstack use the same Garman-Kohlhagen closed form; tolerance permits only floating-point and date-clock residuals."
     },
-    "delta_premium_adjusted": {
+    "delta_premium_adjusted_forward": {
+      "abs": 1e-07,
+      "tolerance_reason": "QuantLib AnalyticEuropeanEngine and Finstack use the same Garman-Kohlhagen closed form; tolerance permits only floating-point and date-clock residuals."
+    },
+    "delta_premium_adjusted_spot": {
       "abs": 1e-07,
       "tolerance_reason": "QuantLib AnalyticEuropeanEngine and Finstack use the same Garman-Kohlhagen closed form; tolerance permits only floating-point and date-clock residuals."
     },

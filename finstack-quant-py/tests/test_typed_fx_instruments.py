@@ -95,6 +95,7 @@ class TestFxOptionTyped:
             .quote_currency(Currency("USD"))
             .strike(1.12)
             .option_type("call")
+            .delta_convention("forward", Currency("USD"), "generic_interbank")
             .expiry(datetime.date(2025, 12, 15))
             .notional(Money(1_000_000.0, Currency("EUR")))
             .domestic_discount_curve_id("USD-OIS")
@@ -110,27 +111,24 @@ class TestFxOptionTyped:
         with pytest.raises(ValueError, match="invalid option_type"):
             FxOption.builder().option_type("straddle")
 
-    def test_exercise_style_wrong_case_is_rejected(self) -> None:
-        with pytest.raises(ValueError, match="invalid exercise_style"):
-            FxOption.builder().exercise_style("European")
+    def test_delta_convention_wrong_case_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="invalid delta convention kind"):
+            FxOption.builder().delta_convention("Forward", Currency("USD"), "test")
 
-    @pytest.mark.parametrize("value", ["european", "american", "bermudan"])
-    def test_every_exercise_style_literal_value_accepted(self, value: str) -> None:
-        """Every value in the `exercise_style` stub Literal must be a real accepted wire value.
-
-        Only "european" is currently priceable (see
-        `finstack_quant_valuations::instruments::fx::fx_option::pricer::validate_exercise_style`);
-        "american"/"bermudan" are still accepted by the builder itself.
-        """
+    @pytest.mark.parametrize(
+        "value",
+        ["spot", "forward", "premium_adjusted_spot", "premium_adjusted_forward"],
+    )
+    def test_every_delta_convention_literal_value_accepted(self, value: str) -> None:
         option = (
             FxOption
             .builder()
-            .id("EURUSD-EX")
+            .id("EURUSD-DELTA")
             .base_currency(Currency("EUR"))
             .quote_currency(Currency("USD"))
             .strike(1.12)
             .option_type("call")
-            .exercise_style(value)
+            .delta_convention(value, Currency("EUR"), "test")
             .expiry(datetime.date(2025, 12, 15))
             .notional(Money(1_000_000.0, Currency("EUR")))
             .domestic_discount_curve_id("USD-OIS")
@@ -138,4 +136,5 @@ class TestFxOptionTyped:
             .vol_surface_id("EURUSD-VOL")
             .build()
         )
-        assert option.id == "EURUSD-EX"
+        payload = json.loads(option.to_json())
+        assert payload["instrument"]["spec"]["delta_convention"]["kind"] == value

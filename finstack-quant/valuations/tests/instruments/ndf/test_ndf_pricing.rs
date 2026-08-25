@@ -69,6 +69,31 @@ fn test_ndf_pricing_pre_fixing_at_market() {
 }
 
 #[test]
+fn fixing_remains_projectable_on_the_fixing_date() {
+    let fixing_date = Date::from_calendar_date(2024, Month::April, 13).expect("valid date");
+    let maturity = Date::from_calendar_date(2024, Month::April, 15).expect("valid date");
+    let ndf = Ndf::builder()
+        .id(InstrumentId::new("USDCNY-FIXING-DATE"))
+        .base_currency(Currency::CNY)
+        .settlement_currency(Currency::USD)
+        .fixing_date(fixing_date)
+        .maturity(maturity)
+        .notional(Money::new(10_000_000.0, Currency::CNY))
+        .contract_rate(7.25)
+        .domestic_discount_curve_id(CurveId::new("USD-OIS"))
+        .quote_convention(NdfQuoteConvention::BasePerSettlement)
+        .forward_rate_override_opt(Some(7.25))
+        .attributes(Attributes::new())
+        .build()
+        .expect("ndf");
+
+    let pv = ndf
+        .value(&create_test_market(fixing_date), fixing_date)
+        .expect("fixing-date projection remains live");
+    assert!(pv.amount().abs() < 1e-9);
+}
+
+#[test]
 fn test_ndf_pricing_post_fixing_favorable() {
     let as_of = Date::from_calendar_date(2024, Month::April, 14).expect("valid date");
     let fixing_date = Date::from_calendar_date(2024, Month::April, 13).expect("valid date");

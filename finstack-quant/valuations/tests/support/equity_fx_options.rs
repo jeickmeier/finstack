@@ -4,6 +4,9 @@ use finstack_quant_core::{
     money::Money,
     types::{CurveId, InstrumentId},
 };
+use finstack_quant_valuations::instruments::fx::fx_option::{
+    FxDeltaConvention, FxDeltaConventionKind,
+};
 use finstack_quant_valuations::instruments::{
     Attributes, EquityOption, EquityUnderlyingParams, ExerciseStyle, FxOption, FxUnderlyingParams,
     InstrumentPricingOverrides, OptionType, SettlementType,
@@ -128,11 +131,13 @@ pub fn fx_option_european_call(
         .quote_currency(fx_underlying.quote_currency)
         .strike(strike)
         .option_type(OptionType::Call)
-        .exercise_style(ExerciseStyle::European)
+        .delta_convention(
+            FxDeltaConvention::new(FxDeltaConventionKind::Forward, Currency::USD, "test")
+                .expect("valid delta convention"),
+        )
         .expiry(expiry)
         .day_count(finstack_quant_core::dates::DayCount::Act365F)
         .notional(notional)
-        .settlement(SettlementType::Cash)
         .domestic_discount_curve_id(fx_underlying.domestic_discount_curve_id)
         .foreign_discount_curve_id(fx_underlying.foreign_discount_curve_id)
         .vol_surface_id(vol_surface_id.into())
@@ -167,11 +172,13 @@ pub fn fx_option_european_put(
         .quote_currency(fx_underlying.quote_currency)
         .strike(strike)
         .option_type(OptionType::Put)
-        .exercise_style(ExerciseStyle::European)
+        .delta_convention(
+            FxDeltaConvention::new(FxDeltaConventionKind::Forward, Currency::USD, "test")
+                .expect("valid delta convention"),
+        )
         .expiry(expiry)
         .day_count(finstack_quant_core::dates::DayCount::Act365F)
         .notional(notional)
-        .settlement(SettlementType::Cash)
         .domestic_discount_curve_id(fx_underlying.domestic_discount_curve_id)
         .foreign_discount_curve_id(fx_underlying.foreign_discount_curve_id)
         .vol_surface_id(vol_surface_id.into())

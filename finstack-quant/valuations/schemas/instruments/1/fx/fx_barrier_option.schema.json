@@ -86,6 +86,13 @@
           "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
           "description": "Metric-time pricing configuration."
         },
+        "monitoring": {
+          "$ref": "#/$defs/Monitoring",
+          "default": {
+            "type": "continuous"
+          },
+          "description": "Contractual barrier-monitoring convention.\n\nContinuous monitoring uses the analytical Reiner-Rubinstein pricer by\ndefault. Discrete monitoring requires explicit observation dates and\nuses Monte Carlo without interpolating barrier hits between those dates."
+        },
         "monitoring_start_date": {
           "anyOf": [
             {
@@ -138,11 +145,6 @@
           "format": "double",
           "type": "number"
         },
-        "use_gobet_miri": {
-          "default": false,
-          "description": "Whether to use Gobet-Miri continuous barrier adjustment.\n\nDefaults to `false` (analytical continuous-monitoring pricer).",
-          "type": "boolean"
-        },
         "vol_surface_id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
           "description": "FX volatility surface ID"
@@ -169,6 +171,47 @@
       "const": "finstack_quant.instrument/1",
       "description": "Canonical schema marker for persisted instrument envelopes.",
       "type": "string"
+    },
+    "Monitoring": {
+      "description": "Contractual barrier-monitoring convention.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Monitor continuously from `monitoring_start_date` through expiry.",
+          "properties": {
+            "type": {
+              "const": "continuous",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Monitor only at the stated contractual observation dates.",
+          "properties": {
+            "observation_dates": {
+              "description": "Strictly increasing dates on which the barrier level is observed.",
+              "items": {
+                "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "discrete",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "observation_dates"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "OptionType": {
       "description": "Option type for pricing",
@@ -236,6 +279,9 @@
           "foreign_discount_curve_id": "EUR-OIS",
           "fx_spot_id": "EURUSD-SPOT",
           "id": "FXBAR-EURUSD-UO-CALL",
+          "monitoring": {
+            "type": "continuous"
+          },
           "monitoring_start_date": "2024-01-01",
           "notional": {
             "amount": "1000000",
@@ -246,7 +292,6 @@
           "rebate": null,
           "rebate_timing": "at_hit",
           "strike": 1.1,
-          "use_gobet_miri": false,
           "vol_surface_id": "EURUSD-VOL"
         },
         "type": "fx_barrier_option"

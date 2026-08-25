@@ -1,28 +1,57 @@
 {
   "$defs": {
-    "ExerciseStyle": {
-      "description": "Exercise style for options",
+    "FxDeltaConvention": {
+      "additionalProperties": false,
+      "description": "Explicit venue and premium-currency convention for FX delta reporting.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/FxDeltaConventionKind",
+          "description": "Delta convention quoted by the venue."
+        },
+        "premium_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Currency in which the option premium is paid."
+        },
+        "venue": {
+          "description": "Non-empty market venue or quoting-source identifier.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "premium_currency",
+        "venue"
+      ],
+      "type": "object"
+    },
+    "FxDeltaConventionKind": {
+      "description": "Pair/venue FX delta quoting convention selected by the contract.",
       "oneOf": [
         {
-          "const": "european",
-          "description": "European exercise (only at expiry)",
+          "const": "spot",
+          "description": "Unadjusted spot delta.",
           "type": "string"
         },
         {
-          "const": "american",
-          "description": "American exercise (any time before/at expiry)",
+          "const": "forward",
+          "description": "Unadjusted forward delta.",
           "type": "string"
         },
         {
-          "const": "bermudan",
-          "description": "Bermudan exercise (specific dates before expiry)",
+          "const": "premium_adjusted_spot",
+          "description": "Premium-adjusted spot delta.",
+          "type": "string"
+        },
+        {
+          "const": "premium_adjusted_forward",
+          "description": "Premium-adjusted forward delta.",
           "type": "string"
         }
       ]
     },
     "FxOption": {
       "additionalProperties": false,
-      "description": "FX option instrument (Garman-Kohlhagen model)",
+      "description": "European FX option with same-day cash settlement at expiry.\n\nPhysical delivery is intentionally not represented: exercised payoff is a\nquote-currency cash amount on `expiry`.",
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
@@ -37,14 +66,13 @@
           "default": "act_365f",
           "description": "Day count convention"
         },
+        "delta_convention": {
+          "$ref": "#/$defs/FxDeltaConvention",
+          "description": "Pair/venue delta convention and premium currency."
+        },
         "domestic_discount_curve_id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
           "description": "Domestic currency discount curve ID"
-        },
-        "exercise_style": {
-          "$ref": "#/$defs/ExerciseStyle",
-          "default": "european",
-          "description": "Exercise style (European or American)"
         },
         "expiry": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
@@ -82,11 +110,6 @@
           "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
           "description": "Scenario-only pricing adjustments."
         },
-        "settlement": {
-          "$ref": "#/$defs/SettlementType",
-          "default": "cash",
-          "description": "Settlement type (physical or cash)"
-        },
         "strike": {
           "description": "Strike exchange rate (quote per base).\n\n**Note on ATM convention**: Professional FX markets define ATM as the\nDelta-Neutral Straddle (DNS) strike, not the forward rate. See module\ndocumentation for details. If constructing an \"ATM\" option, compute\nthe forward rate or DNS strike externally.",
           "format": "double",
@@ -103,6 +126,7 @@
         "quote_currency",
         "strike",
         "option_type",
+        "delta_convention",
         "expiry",
         "notional",
         "domestic_discount_curve_id",
@@ -128,21 +152,6 @@
         {
           "const": "put",
           "description": "Put option",
-          "type": "string"
-        }
-      ]
-    },
-    "SettlementType": {
-      "description": "Settlement type for options",
-      "oneOf": [
-        {
-          "const": "physical",
-          "description": "Physical delivery",
-          "type": "string"
-        },
-        {
-          "const": "cash",
-          "description": "Cash settlement",
           "type": "string"
         }
       ]
@@ -176,8 +185,12 @@
           "attributes": {},
           "base_currency": "EUR",
           "day_count": "act_365f",
+          "delta_convention": {
+            "kind": "forward",
+            "premium_currency": "USD",
+            "venue": "generic_interbank"
+          },
           "domestic_discount_curve_id": "USD-OIS",
-          "exercise_style": "european",
           "expiry": "2030-06-21",
           "foreign_discount_curve_id": "EUR-OIS",
           "id": "FXOPT-EURUSD-CALL",
@@ -187,7 +200,6 @@
           },
           "option_type": "call",
           "quote_currency": "USD",
-          "settlement": "cash",
           "strike": 1.12,
           "vol_surface_id": "EURUSD-VOL"
         },

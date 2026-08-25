@@ -11,6 +11,9 @@
       "foreign_discount_curve_id": "EUR-OIS",
       "fx_spot_id": "EURUSD-SPOT",
       "id": "FXBAR-EURUSD-UO-CALL",
+      "monitoring": {
+        "type": "continuous"
+      },
       "monitoring_start_date": "2024-01-01",
       "notional": {
         "amount": "1000000",
@@ -21,7 +24,6 @@
       "rebate": null,
       "rebate_timing": "at_hit",
       "strike": 1.1,
-      "use_gobet_miri": false,
       "vol_surface_id": "EURUSD-VOL"
     },
     "type": "fx_barrier_option"

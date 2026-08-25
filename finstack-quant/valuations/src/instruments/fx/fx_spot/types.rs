@@ -329,7 +329,7 @@ impl FxSpot {
                 // review, FX spot finding).
                 fx_spot_date_for_pair(
                     as_of,
-                    lag_days as u32,
+                    lag_days,
                     self.base_currency,
                     self.quote_currency,
                     self.base_calendar_id.as_deref(),
@@ -615,7 +615,7 @@ impl finstack_quant_cashflows::CashflowScheduleSource for FxSpot {
         self.validate_economics()?;
         let settle_date = self.effective_settlement_date(as_of)?;
 
-        if settle_date <= as_of {
+        if crate::instruments::fx::shared::event_has_occurred(settle_date, as_of) {
             return Ok(crate::cashflow::traits::schedule_from_classified_flows(
                 Vec::new(),
                 finstack_quant_core::dates::DayCount::Act365F,
@@ -644,7 +644,7 @@ impl finstack_quant_cashflows::CashflowScheduleSource for FxSpot {
                 let q = finstack_quant_core::money::fx::FxQuery::new(
                     self.base_currency,
                     self.quote_currency,
-                    settle_date,
+                    as_of,
                 );
                 matrix.as_ref().rate(q)?.rate
             };
@@ -897,6 +897,8 @@ mod tests {
     fn test_fx_spot_negative_settlement_lag() {
         // Negative lag for historical valuations (T-1)
         let spot = FxSpot::new(InstrumentId::new("EURUSD"), Currency::EUR, Currency::USD)
+            .with_base_calendar_id("target2")
+            .with_quote_calendar_id("usny")
             .with_settlement_lag_days(-1);
 
         // Wednesday with T-1 -> should settle Tuesday
@@ -1023,16 +1025,21 @@ mod tests {
 
     #[test]
     fn cashflow_schedule_marks_settled_spot_as_no_residual() {
-        let as_of = date(2025, Month::January, 15);
+        let settlement = date(2025, Month::January, 15);
+        let as_of = date(2025, Month::January, 16);
         let market = MarketContext::new();
-        let spot = FxSpot::new(InstrumentId::new("EURUSD-T0"), Currency::EUR, Currency::USD)
-            .with_rate(1.10)
-            .expect("valid rate")
-            .with_settlement_lag_days(0);
+        let spot = FxSpot::new(
+            InstrumentId::new("EURUSD-SETTLED"),
+            Currency::EUR,
+            Currency::USD,
+        )
+        .with_rate(1.10)
+        .expect("valid rate")
+        .with_settlement(settlement);
 
         let schedule = spot
             .cashflow_schedule(&market, as_of)
-            .expect("same-day settled spot schedule");
+            .expect("post-settlement spot schedule");
 
         assert_eq!(
             schedule.get_meta().representation,

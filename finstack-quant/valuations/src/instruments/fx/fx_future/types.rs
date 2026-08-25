@@ -1,4 +1,8 @@
-//! Exchange-listed FX futures priced by covered interest parity.
+//! Exchange-listed FX futures under a deterministic-rate CIP approximation.
+//!
+//! The model sets the futures mark equal to the corresponding FX forward.
+//! It does not include forward/futures convexity from stochastic domestic
+//! rates, foreign rates, or their correlations with FX.
 
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::listed::ListedFutureTerms;
@@ -15,6 +19,12 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
 /// Prices are quote-currency units per one base-currency unit. The listed
 /// multiplier is the base-currency contract size, so a one-unit price move is
 /// worth `multiplier` units of the quote currency per contract.
+///
+/// # Model limitation
+///
+/// [`Self::fair_price`] is a deterministic-rate approximation: it equals the
+/// covered-interest-parity forward. Use it only when forward/futures convexity
+/// is immaterial or handled outside this instrument.
 #[derive(
     Clone,
     Debug,
@@ -125,6 +135,9 @@ impl FxFuture {
     }
 
     /// Calculate the fair futures price from spot and the two discount curves.
+    ///
+    /// This is the deterministic-rate approximation `F = S × DF_base / DF_quote`.
+    /// No stochastic-rate/FX convexity adjustment is applied.
     ///
     /// # Arguments
     ///

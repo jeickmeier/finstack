@@ -9,9 +9,12 @@ use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::fx::{FxMatrix, FxQuery, SimpleFxProvider};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_valuations::instruments::fx::fx_option::{
+    FxDeltaConvention, FxDeltaConventionKind,
+};
 use finstack_quant_valuations::instruments::Instrument;
-use finstack_quant_valuations::instruments::{Attributes, ExerciseStyle, FxOption, OptionType};
-use finstack_quant_valuations::instruments::{InstrumentPricingOverrides, SettlementType};
+use finstack_quant_valuations::instruments::InstrumentPricingOverrides;
+use finstack_quant_valuations::instruments::{Attributes, FxOption, OptionType};
 use finstack_quant_valuations::instruments::{
     OptionGreekKind, OptionGreeksProvider, OptionGreeksRequest,
 };
@@ -190,11 +193,13 @@ fn build_fx_call_option(expiry: Date, strike: f64, notional: f64) -> FxOption {
         .quote_currency(Currency::USD)
         .strike(strike)
         .option_type(OptionType::Call)
-        .exercise_style(ExerciseStyle::European)
+        .delta_convention(
+            FxDeltaConvention::new(FxDeltaConventionKind::Forward, Currency::USD, "test")
+                .expect("valid delta convention"),
+        )
         .expiry(expiry)
         .day_count(DayCount::Act365F)
         .notional(Money::new(notional, Currency::EUR))
-        .settlement(SettlementType::Cash)
         .domestic_discount_curve_id(CurveId::new("USD-OIS"))
         .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
         .vol_surface_id(CurveId::new("EURUSD-VOL"))

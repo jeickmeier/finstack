@@ -1,7 +1,7 @@
 //! Tests for FX Forward types and builders.
 
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{BusinessDayConvention, Date};
+use finstack_quant_core::dates::{BusinessDayConvention, Date, Tenor};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::fx::fx_forward::FxForward;
@@ -75,7 +75,7 @@ fn test_fx_forward_from_trade_date() {
         Currency::EUR,
         Currency::USD,
         trade_date,
-        90, // 3 month tenor
+        Tenor::parse("3M").expect("valid tenor"),
         Money::new(1_000_000.0, Currency::EUR),
         "USD-OIS",
         "EUR-OIS",
@@ -83,17 +83,39 @@ fn test_fx_forward_from_trade_date() {
         None,
         2, // T+2 spot
         BusinessDayConvention::ModifiedFollowing,
+        false,
     )
     .expect("should build");
 
-    // Check that maturity is roughly 3 months from spot
-    let spot_date = trade_date + time::Duration::days(2);
-    let expected_maturity = spot_date + time::Duration::days(90);
+    assert_eq!(
+        forward.maturity,
+        Date::from_calendar_date(2024, Month::April, 17).expect("valid date")
+    );
+}
 
-    assert!(forward.maturity >= spot_date);
-    // Allow some business day adjustment tolerance
-    let days_diff = (forward.maturity - expected_maturity).whole_days().abs();
-    assert!(days_diff <= 5, "Maturity should be close to expected");
+#[test]
+fn standard_forward_tenor_preserves_explicit_end_of_month_policy() {
+    let forward = FxForward::from_trade_date(
+        "EURUSD-1M-EOM",
+        Currency::EUR,
+        Currency::USD,
+        Date::from_calendar_date(2024, Month::January, 29).expect("valid date"),
+        Tenor::parse("1M").expect("valid tenor"),
+        Money::new(1_000_000.0, Currency::EUR),
+        "USD-OIS",
+        "EUR-OIS",
+        None,
+        None,
+        2,
+        BusinessDayConvention::Unadjusted,
+        true,
+    )
+    .expect("should build");
+
+    assert_eq!(
+        forward.maturity,
+        Date::from_calendar_date(2024, Month::February, 29).expect("valid date")
+    );
 }
 
 #[test]
@@ -146,7 +168,7 @@ fn test_fx_forward_with_forward_points_builder() {
         .with_forward_points(1.10, 0.0100)
         .expect("valid forward points"); // 100 pips
 
-    assert_eq!(forward.spot_rate_override, Some(1.10));
+    assert_eq!(forward.spot_rate_override, None);
     assert!((forward.contract_rate.unwrap() - 1.11).abs() < 1e-10);
 }
 
@@ -166,7 +188,7 @@ fn test_fx_forward_with_forward_pips() {
         .with_forward_pips(1.10, 50.0)
         .expect("valid forward pips");
 
-    assert_eq!(forward.spot_rate_override, Some(1.10));
+    assert_eq!(forward.spot_rate_override, None);
     assert!((forward.contract_rate.unwrap() - 1.1050).abs() < 1e-10);
 }
 
@@ -186,7 +208,7 @@ fn test_fx_forward_with_forward_pips_jpy_pair() {
         .with_forward_pips(150.00, 50.0)
         .expect("valid JPY pips");
 
-    assert_eq!(forward.spot_rate_override, Some(150.00));
+    assert_eq!(forward.spot_rate_override, None);
     assert!((forward.contract_rate.unwrap() - 150.50).abs() < 1e-10);
 }
 

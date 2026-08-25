@@ -33,6 +33,8 @@ pub enum ValuationDetails {
     /// project-wide FX-policy-visibility invariant for instruments that
     /// resolve their spot through the matrix.
     Fx(FxValuationDetails),
+    /// Monte Carlo estimator and reproducibility metadata.
+    MonteCarlo(MonteCarloValuationDetails),
 }
 
 /// Metadata for CDS-family valuation paths.
@@ -62,6 +64,29 @@ pub struct FxValuationDetails {
     /// `None` when the instrument resolved spot from an explicit market
     /// scalar (`fx_rate_id`) rather than the matrix.
     pub fx_triangulated: Option<bool>,
+}
+
+/// Reproducibility and convergence diagnostics for a Monte Carlo valuation.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+pub struct MonteCarloValuationDetails {
+    /// Registered model used for the simulation.
+    pub model_key: ModelKey,
+    /// Standard error of the discounted PV mean in the result currency.
+    pub standard_error: f64,
+    /// Number of independent path estimators contributing to the mean.
+    pub estimator_paths: usize,
+    /// Total number of simulated paths, including antithetic partners.
+    pub simulated_paths: usize,
+    /// Deterministic random seed used for the run.
+    pub seed: u64,
+    /// Simulation times in year fractions, including zero and maturity.
+    pub time_grid: Vec<f64>,
+    /// Whether antithetic variates were enabled.
+    pub antithetic: bool,
+    /// Whether Sobol quasi-random sampling was enabled.
+    pub sobol: bool,
+    /// Whether Brownian-bridge ordering was enabled for Sobol paths.
+    pub brownian_bridge: bool,
 }
 
 /// Complete valuation result envelope with NPV, risk metrics, and metadata.

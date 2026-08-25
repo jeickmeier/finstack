@@ -456,10 +456,10 @@ mod tests {
 
     #[test]
     fn test_extract_vol_factors_from_fx_option() -> Result<()> {
-        use crate::instruments::fx::fx_option::FxOption;
-        use crate::instruments::{
-            Attributes, ExerciseStyle, InstrumentPricingOverrides, OptionType, SettlementType,
+        use crate::instruments::fx::fx_option::{
+            FxDeltaConvention, FxDeltaConventionKind, FxOption,
         };
+        use crate::instruments::{Attributes, InstrumentPricingOverrides, OptionType};
 
         let as_of = date!(2024 - 01 - 01);
         let option = FxOption::builder()
@@ -468,11 +468,13 @@ mod tests {
             .quote_currency(Currency::USD)
             .strike(1.10)
             .option_type(OptionType::Call)
-            .exercise_style(ExerciseStyle::European)
+            .delta_convention(
+                FxDeltaConvention::new(FxDeltaConventionKind::Forward, Currency::USD, "test")
+                    .expect("valid delta convention"),
+            )
             .expiry(date!(2025 - 01 - 01))
             .day_count(DayCount::Act365F)
             .notional(Money::new(1_000_000.0, Currency::EUR))
-            .settlement(SettlementType::Cash)
             .domestic_discount_curve_id(CurveId::new("USD-OIS"))
             .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
             .vol_surface_id(CurveId::new("EURUSD-VOL"))

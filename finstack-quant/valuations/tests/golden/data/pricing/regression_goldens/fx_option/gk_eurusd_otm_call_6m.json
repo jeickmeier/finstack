@@ -1,61 +1,87 @@
 {
-  "schema": "finstack_quant.golden/1",
-  "metadata": {
-    "name": "gk_eurusd_otm_call_6m",
-    "domain": "fx.fx_option",
-    "description": "Synthetic six-month EUR/USD out-of-the-money European call.",
-    "valuation_date": "2026-04-30",
-    "source": "formula",
-    "source_detail": "Finstack Quant canonical Garman-Kohlhagen FX option calculation on deterministic synthetic market inputs The canonical typed market inputs are supplied with no calibration steps. Pricing tolerance contracts preserved.",
-    "captured_by": "jeickmeier",
-    "captured_on": "2026-05-01",
-    "last_reviewed_by": "jeickmeier",
-    "last_reviewed_on": "2026-05-09",
-    "review_interval_months": 6,
-    "regen_command": "manual formula fixture; values captured from canonical pricing runner",
-    "screenshots": []
+  "expected": {
+    "delta": 339333.8420470126,
+    "delta_forward": 344480.58056577947,
+    "delta_premium_adjusted_forward": 328841.2236634729,
+    "delta_premium_adjusted_spot": 323928.14615527925,
+    "npv": 16946.265480906663,
+    "vega": 2825.235413649336
+  },
+  "instrument": {
+    "instrument": {
+      "spec": {
+        "attributes": {
+          "meta": {},
+          "tags": [
+            "golden"
+          ]
+        },
+        "base_currency": "EUR",
+        "delta_convention": {
+          "kind": "premium_adjusted_forward",
+          "premium_currency": "EUR",
+          "venue": "golden_reference"
+        },
+        "domestic_discount_curve_id": "USD-OIS",
+        "expiry": "2026-10-30",
+        "foreign_discount_curve_id": "EUR-OIS",
+        "id": "EURUSD-GK-OTM-CALL-6M-GOLDEN",
+        "notional": {
+          "amount": "1000000",
+          "currency": "EUR"
+        },
+        "option_type": "call",
+        "quote_currency": "USD",
+        "strike": 1.14,
+        "vol_surface_id": "EURUSD-VOL"
+      },
+      "type": "fx_option"
+    },
+    "schema": "finstack_quant.instrument/1"
   },
   "kind": "pricing",
-  "model": "black76",
   "market": {
-    "kind": "envelope",
     "envelope": {
-      "schema": "finstack_quant.calibration/1",
-      "plan": {
-        "id": "gk_eurusd_otm_call_6m_market",
-        "description": "the canonical typed market inputs are supplied with no calibration steps. Routes through engine::execute_with_diagnostics without changing pricing math.",
-        "quote_sets": {},
-        "steps": [],
-        "settings": {
-          "fx": {
-            "pivot_currency": "USD",
-            "enable_triangulation": true,
-            "cache_capacity": 256
-          }
-        }
-      },
       "market_data": [
         {
-          "kind": "fx_spot",
-          "id": "USD/JPY",
           "from": "USD",
-          "to": "JPY",
-          "rate": 145.0
+          "id": "USD/JPY",
+          "kind": "fx_spot",
+          "rate": 145.0,
+          "to": "JPY"
         },
         {
-          "kind": "fx_spot",
-          "id": "EUR/USD",
           "from": "EUR",
-          "to": "USD",
-          "rate": 1.1
+          "id": "EUR/USD",
+          "kind": "fx_spot",
+          "rate": 1.1,
+          "to": "USD"
         }
       ],
+      "plan": {
+        "description": "the canonical typed market inputs are supplied with no calibration steps. Routes through engine::execute_with_diagnostics without changing pricing math.",
+        "id": "gk_eurusd_otm_call_6m_market",
+        "quote_sets": {},
+        "settings": {
+          "fx": {
+            "cache_capacity": 256,
+            "enable_triangulation": true,
+            "pivot_currency": "USD"
+          }
+        },
+        "steps": []
+      },
       "prior_market": [
         {
-          "kind": "discount_curve",
-          "id": "EUR-OIS",
+          "allow_non_monotonic": false,
           "base": "2026-04-30",
+          "calibration_ois_cutoff_days": null,
           "day_count": "act_365f",
+          "extrapolation": "flat_forward",
+          "fx_policy": null,
+          "id": "EUR-OIS",
+          "interp_style": "log_linear",
+          "kind": "discount_curve",
           "knot_points": [
             [
               0.0,
@@ -82,20 +108,20 @@
               0.8607
             ]
           ],
-          "interp_style": "log_linear",
-          "extrapolation": "flat_forward",
           "min_forward_rate": null,
-          "allow_non_monotonic": false,
           "min_forward_tenor": 1e-06,
-          "rate_calibration": null,
-          "calibration_ois_cutoff_days": null,
-          "fx_policy": null
+          "rate_calibration": null
         },
         {
-          "kind": "discount_curve",
-          "id": "JPY-OIS",
+          "allow_non_monotonic": false,
           "base": "2026-04-30",
+          "calibration_ois_cutoff_days": null,
           "day_count": "act_365f",
+          "extrapolation": "flat_forward",
+          "fx_policy": null,
+          "id": "JPY-OIS",
+          "interp_style": "log_linear",
+          "kind": "discount_curve",
           "knot_points": [
             [
               0.0,
@@ -122,20 +148,20 @@
               0.9802
             ]
           ],
-          "interp_style": "log_linear",
-          "extrapolation": "flat_forward",
           "min_forward_rate": null,
-          "allow_non_monotonic": false,
           "min_forward_tenor": 1e-06,
-          "rate_calibration": null,
-          "calibration_ois_cutoff_days": null,
-          "fx_policy": null
+          "rate_calibration": null
         },
         {
-          "kind": "discount_curve",
-          "id": "USD-OIS",
+          "allow_non_monotonic": false,
           "base": "2026-04-30",
+          "calibration_ois_cutoff_days": null,
           "day_count": "act_365f",
+          "extrapolation": "flat_forward",
+          "fx_policy": null,
+          "id": "USD-OIS",
+          "interp_style": "log_linear",
+          "kind": "discount_curve",
           "knot_points": [
             [
               0.0,
@@ -162,24 +188,22 @@
               0.8187
             ]
           ],
-          "interp_style": "log_linear",
-          "extrapolation": "flat_forward",
           "min_forward_rate": null,
-          "allow_non_monotonic": false,
           "min_forward_tenor": 1e-06,
-          "rate_calibration": null,
-          "calibration_ois_cutoff_days": null,
-          "fx_policy": null
+          "rate_calibration": null
         },
         {
-          "kind": "vol_surface",
-          "id": "EURUSD-VOL",
           "expiries": [
             0.25,
             0.5,
             1.0,
             2.0
           ],
+          "id": "EURUSD-VOL",
+          "interpolation_mode": "vol",
+          "kind": "vol_surface",
+          "quote_type": "black_lognormal",
+          "secondary_axis": "strike",
           "strikes": [
             1.0,
             1.05,
@@ -187,9 +211,6 @@
             1.15,
             1.2
           ],
-          "secondary_axis": "strike",
-          "quote_type": "black_lognormal",
-          "interpolation_mode": "vol",
           "vols_row_major": [
             0.105,
             0.1,
@@ -214,14 +235,17 @@
           ]
         },
         {
-          "kind": "vol_surface",
-          "id": "USDJPY-VOL",
           "expiries": [
             0.25,
             0.5,
             1.0,
             2.0
           ],
+          "id": "USDJPY-VOL",
+          "interpolation_mode": "vol",
+          "kind": "vol_surface",
+          "quote_type": "black_lognormal",
+          "secondary_axis": "strike",
           "strikes": [
             135.0,
             140.0,
@@ -229,9 +253,6 @@
             150.0,
             155.0
           ],
-          "secondary_axis": "strike",
-          "quote_type": "black_lognormal",
-          "interpolation_mode": "vol",
           "vols_row_major": [
             0.115,
             0.11,
@@ -255,49 +276,29 @@
             0.126
           ]
         }
-      ]
-    }
-  },
-  "instrument": {
-    "schema": "finstack_quant.instrument/1",
-    "instrument": {
-      "type": "fx_option",
-      "spec": {
-        "id": "EURUSD-GK-OTM-CALL-6M-GOLDEN",
-        "base_currency": "EUR",
-        "quote_currency": "USD",
-        "strike": 1.14,
-        "option_type": "call",
-        "expiry": "2026-10-30",
-        "notional": {
-          "amount": "1000000",
-          "currency": "EUR"
-        },
-        "domestic_discount_curve_id": "USD-OIS",
-        "foreign_discount_curve_id": "EUR-OIS",
-        "vol_surface_id": "EURUSD-VOL",
-        "attributes": {
-          "tags": [
-            "golden"
-          ],
-          "meta": {}
-        }
-      }
-    }
-  },
-  "expected": {
-    "npv": 16946.265480906663,
-    "delta": 339333.8420470126,
-    "delta_forward": 344480.58056577947,
-    "delta_premium_adjusted": 323928.14615527925,
-    "vega": 2825.235413649336
-  },
-  "tolerances": {
-    "npv": {
-      "abs": 1e-09,
-      "rel": 5e-09,
-      "tolerance_reason": "Formula self-test: tolerance pinned to ~10x the worst observed deterministic FP residual (1.16e-10 abs / 2.8e-11 rel) for canonical pricing on synthetic inputs. Tightening from 1e-6 to 1e-9 catches drift introduced by refactors, FP-contract changes, or algorithm swaps that would otherwise be invisible at the looser band."
+      ],
+      "schema": "finstack_quant.calibration/1"
     },
+    "kind": "envelope"
+  },
+  "metadata": {
+    "captured_by": "jeickmeier",
+    "captured_on": "2026-05-01",
+    "description": "Synthetic six-month EUR/USD out-of-the-money European call.",
+    "domain": "fx.fx_option",
+    "last_reviewed_by": "jeickmeier",
+    "last_reviewed_on": "2026-05-09",
+    "name": "gk_eurusd_otm_call_6m",
+    "regen_command": "manual formula fixture; values captured from canonical pricing runner",
+    "review_interval_months": 6,
+    "screenshots": [],
+    "source": "formula",
+    "source_detail": "Finstack Quant canonical Garman-Kohlhagen FX option calculation on deterministic synthetic market inputs The canonical typed market inputs are supplied with no calibration steps. Pricing tolerance contracts preserved.",
+    "valuation_date": "2026-04-30"
+  },
+  "model": "black76",
+  "schema": "finstack_quant.golden/1",
+  "tolerances": {
     "delta": {
       "abs": 1e-09,
       "rel": 5e-09,
@@ -308,7 +309,17 @@
       "rel": 5e-09,
       "tolerance_reason": "Formula self-test: tolerance pinned to ~10x the worst observed deterministic FP residual (1.16e-10 abs / 2.8e-11 rel) for canonical pricing on synthetic inputs. Tightening from 1e-6 to 1e-9 catches drift introduced by refactors, FP-contract changes, or algorithm swaps that would otherwise be invisible at the looser band."
     },
-    "delta_premium_adjusted": {
+    "delta_premium_adjusted_forward": {
+      "abs": 1e-09,
+      "rel": 5e-09,
+      "tolerance_reason": "Formula self-test: tolerance pinned to ~10x the worst observed deterministic FP residual (1.16e-10 abs / 2.8e-11 rel) for canonical pricing on synthetic inputs. Tightening from 1e-6 to 1e-9 catches drift introduced by refactors, FP-contract changes, or algorithm swaps that would otherwise be invisible at the looser band."
+    },
+    "delta_premium_adjusted_spot": {
+      "abs": 1e-09,
+      "rel": 5e-09,
+      "tolerance_reason": "Formula self-test: tolerance pinned to ~10x the worst observed deterministic FP residual (1.16e-10 abs / 2.8e-11 rel) for canonical pricing on synthetic inputs. Tightening from 1e-6 to 1e-9 catches drift introduced by refactors, FP-contract changes, or algorithm swaps that would otherwise be invisible at the looser band."
+    },
+    "npv": {
       "abs": 1e-09,
       "rel": 5e-09,
       "tolerance_reason": "Formula self-test: tolerance pinned to ~10x the worst observed deterministic FP residual (1.16e-10 abs / 2.8e-11 rel) for canonical pricing on synthetic inputs. Tightening from 1e-6 to 1e-9 catches drift introduced by refactors, FP-contract changes, or algorithm swaps that would otherwise be invisible at the looser band."

@@ -1,7 +1,7 @@
 //! Tests for NDF types and builders.
 
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{BusinessDayConvention, Date};
+use finstack_quant_core::dates::{BusinessDayConvention, Date, Tenor};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::fx::ndf::{Ndf, NdfFixingSource, NdfQuoteConvention};
@@ -81,7 +81,7 @@ fn test_ndf_from_trade_date() {
         Currency::CNY,
         Currency::USD,
         trade_date,
-        90, // 3 month tenor
+        Tenor::parse("3M").expect("valid tenor"),
         Money::new(10_000_000.0, Currency::CNY),
         7.25,
         "USD-OIS",
@@ -90,17 +90,17 @@ fn test_ndf_from_trade_date() {
         2, // T+2 spot
         2, // T-2 fixing before maturity
         BusinessDayConvention::ModifiedFollowing,
+        false,
     )
     .expect("should build");
 
     // Check that fixing date is before maturity
     assert!(ndf.fixing_date < ndf.maturity);
 
-    // Check that maturity is roughly 3 months from spot
-    let spot_date = trade_date + time::Duration::days(2);
-    let expected_maturity = spot_date + time::Duration::days(90);
-    let days_diff = (ndf.maturity - expected_maturity).whole_days().abs();
-    assert!(days_diff <= 5, "Maturity should be close to expected");
+    assert_eq!(
+        ndf.maturity,
+        Date::from_calendar_date(2024, Month::April, 17).expect("valid date")
+    );
 }
 
 #[test]

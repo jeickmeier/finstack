@@ -10,7 +10,7 @@ use crate::impl_instrument_base;
 use crate::instruments::common_impl::traits::Attributes;
 use crate::instruments::common_impl::validation;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::Date;
+use finstack_quant_core::dates::{Date, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
@@ -302,7 +302,8 @@ impl FxForward {
     /// * `base_currency` - Foreign currency (numerator)
     /// * `quote_currency` - Domestic currency (denominator)
     /// * `trade_date` - Trade date
-    /// * `tenor_days` - Days from spot to maturity
+    /// * `tenor` - Calendar tenor from spot to maturity (for example, 3M).
+    /// * `end_of_month` - Preserve month-end when the spot date is month-end.
     /// * `notional` - Notional in base currency
     /// * `domestic_discount_curve_id` - Quote currency discount curve
     /// * `foreign_discount_curve_id` - Base currency discount curve
@@ -312,18 +313,19 @@ impl FxForward {
         base_currency: Currency,
         quote_currency: Currency,
         trade_date: Date,
-        tenor_days: i64,
+        tenor: Tenor,
         notional: Money,
         domestic_discount_curve_id: impl Into<CurveId>,
         foreign_discount_curve_id: impl Into<CurveId>,
+        end_of_month: bool,
     ) -> finstack_quant_core::Result<Self> {
-        let spot_lag = Self::standard_spot_days(base_currency, quote_currency);
+        let spot_lag = Self::standard_spot_days(base_currency, quote_currency) as i32;
         Self::from_trade_date(
             id,
             base_currency,
             quote_currency,
             trade_date,
-            tenor_days,
+            tenor,
             notional,
             domestic_discount_curve_id,
             foreign_discount_curve_id,
@@ -331,6 +333,7 @@ impl FxForward {
             None,
             spot_lag,
             finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+            end_of_month,
         )
     }
 
@@ -342,7 +345,7 @@ impl FxForward {
     /// * `base_currency` - Foreign currency (numerator)
     /// * `quote_currency` - Domestic currency (denominator)
     /// * `trade_date` - Trade date
-    /// * `tenor_days` - Days from spot to maturity
+    /// * `tenor` - Calendar tenor from spot to maturity (for example, 3M).
     /// * `notional` - Notional in base currency
     /// * `domestic_discount_curve_id` - Quote currency discount curve
     /// * `foreign_discount_curve_id` - Base currency discount curve
@@ -351,23 +354,25 @@ impl FxForward {
     /// * `spot_lag_days` - Spot lag (typically 2, or 1 for USD/CAD). Use
     ///   [`standard_spot_days`](Self::standard_spot_days) to determine automatically.
     /// * `business_day_convention` - Business day convention
+    /// * `end_of_month` - Preserve month-end when the spot date is month-end.
     #[allow(clippy::too_many_arguments)]
     pub fn from_trade_date(
         id: impl Into<InstrumentId>,
         base_currency: Currency,
         quote_currency: Currency,
         trade_date: Date,
-        tenor_days: i64,
+        tenor: Tenor,
         notional: Money,
         domestic_discount_curve_id: impl Into<CurveId>,
         foreign_discount_curve_id: impl Into<CurveId>,
         base_calendar_id: Option<String>,
         quote_calendar_id: Option<String>,
-        spot_lag_days: u32,
+        spot_lag_days: i32,
         business_day_convention: finstack_quant_core::dates::BusinessDayConvention,
+        end_of_month: bool,
     ) -> finstack_quant_core::Result<Self> {
         use crate::instruments::common_impl::fx_dates::{
-            adjust_joint_calendar, fx_spot_date_for_pair,
+            add_fx_standard_tenor, fx_spot_date_for_pair,
         };
 
         // CLS-consistent spot roll: a US holiday on an intermediate day does not
@@ -381,10 +386,11 @@ impl FxForward {
             base_calendar_id.as_deref(),
             quote_calendar_id.as_deref(),
         )?;
-        let maturity_unadjusted = spot_date + time::Duration::days(tenor_days);
-        let maturity = adjust_joint_calendar(
-            maturity_unadjusted,
+        let maturity = add_fx_standard_tenor(
+            spot_date,
+            tenor,
             business_day_convention,
+            end_of_month,
             base_calendar_id.as_deref(),
             quote_calendar_id.as_deref(),
         )?;
@@ -399,6 +405,41 @@ impl FxForward {
             .foreign_discount_curve_id(foreign_discount_curve_id.into())
             .base_calendar_id_opt(base_calendar_id)
             .quote_calendar_id_opt(quote_calendar_id)
+            .attributes(Attributes::new())
+            .build()
+    }
+
+    /// Construct an FX forward with an explicit broken maturity date.
+    ///
+    /// The supplied maturity is contractual and is not tenor-generated or
+    /// business-day-adjusted.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Instrument identifier.
+    /// * `base_currency` - Currency received by the long position.
+    /// * `quote_currency` - Currency paid by the long position.
+    /// * `maturity` - Explicit contractual exchange date.
+    /// * `notional` - Positive base-currency notional.
+    /// * `domestic_discount_curve_id` - Quote-currency discount curve.
+    /// * `foreign_discount_curve_id` - Base-currency discount curve.
+    pub fn from_broken_date(
+        id: impl Into<InstrumentId>,
+        base_currency: Currency,
+        quote_currency: Currency,
+        maturity: Date,
+        notional: Money,
+        domestic_discount_curve_id: impl Into<CurveId>,
+        foreign_discount_curve_id: impl Into<CurveId>,
+    ) -> finstack_quant_core::Result<Self> {
+        Self::builder()
+            .id(id.into())
+            .base_currency(base_currency)
+            .quote_currency(quote_currency)
+            .maturity(maturity)
+            .notional(notional)
+            .domestic_discount_curve_id(domestic_discount_curve_id.into())
+            .foreign_discount_curve_id(foreign_discount_curve_id.into())
             .attributes(Attributes::new())
             .build()
     }
@@ -481,7 +522,6 @@ impl FxForward {
             )));
         }
         self.contract_rate = Some(contract_rate);
-        self.spot_rate_override = Some(spot_rate);
         Ok(self)
     }
 
@@ -548,7 +588,7 @@ impl FxForward {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - The maturity date is on or before the valuation date
+    /// - The maturity date is before the valuation date
     /// - Required discount curves are not found
     /// - FX rate is not available and no spot override is set
     pub fn market_forward_rate(&self, market: &MarketContext, as_of: Date) -> Result<f64> {
@@ -622,60 +662,33 @@ impl crate::instruments::common_impl::traits::Instrument for FxForward {
         market: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
-        use finstack_quant_core::money::fx::FxQuery;
-
         self.validate()?;
 
-        // If maturity has passed or is today, the forward is settled with zero remaining value.
-        if self.maturity <= as_of {
+        // End-of-day policy: the settlement legs remain live on maturity.
+        if crate::instruments::fx::shared::event_has_occurred(self.maturity, as_of) {
             return Ok(finstack_quant_core::money::Money::new(
                 0.0,
                 self.quote_currency,
             ));
         }
 
-        let domestic_disc = market.get_discount(self.domestic_discount_curve_id.as_str())?;
-        let foreign_disc = market.get_discount(self.foreign_discount_curve_id.as_str())?;
-
-        // Discount factors from as_of to maturity
-        let df_domestic = domestic_disc.df_between_dates(as_of, self.maturity)?;
-        let df_foreign = foreign_disc.df_between_dates(as_of, self.maturity)?;
-
-        let spot = if let Some(rate) = self.spot_rate_override {
-            rate
-        } else if let Some(fx) = market.fx() {
-            (**fx)
-                .rate(FxQuery::new(self.base_currency, self.quote_currency, as_of))?
-                .rate
-        } else {
-            return Err(finstack_quant_core::Error::from(
-                finstack_quant_core::InputError::NotFound {
-                    id: "fx_matrix".to_string(),
-                },
-            ));
-        };
-
-        // Guard against near-zero domestic discount factor (same threshold as market_forward_rate)
-        const DF_NEAR_ZERO_THRESHOLD: f64 = 1e-14;
-        if df_domestic.abs() < DF_NEAR_ZERO_THRESHOLD {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "FxForward: domestic discount factor ({}) is near zero for maturity {}, \
-                 which would cause division by zero in CIRP forward rate calculation",
-                df_domestic, self.maturity
-            )));
-        }
-
-        // Compute market forward rate via CIRP: F = S × DF_foreign / DF_domestic
-        let market_forward = spot * df_foreign / df_domestic;
-
-        // Contract rate (if None, at-market forward has zero PV)
-        let contract_fwd = self.contract_rate.unwrap_or(market_forward);
-
-        let n_base = self.notional.amount();
-
-        // PV = notional × (F_market - F_contract) × DF_domestic
-        // Long base currency means we profit when market forward > contract forward
-        let pv = n_base * (market_forward - contract_fwd) * df_domestic;
+        let inputs = crate::instruments::fx::shared::collect_fx_forward_inputs(
+            crate::instruments::fx::shared::FxForwardRateRequest {
+                market,
+                as_of,
+                maturity: self.maturity,
+                base_currency: self.base_currency,
+                quote_currency: self.quote_currency,
+                domestic_discount_curve_id: &self.domestic_discount_curve_id,
+                foreign_discount_curve_id: &self.foreign_discount_curve_id,
+                spot_rate_override: self.spot_rate_override,
+                context: "FxForward",
+            },
+        )?;
+        let pv = self.contract_rate.map_or(0.0, |contract_rate| {
+            self.notional.amount()
+                * (inputs.spot * inputs.df_foreign - contract_rate * inputs.df_domestic)
+        });
 
         Ok(finstack_quant_core::money::Money::new(
             pv,
@@ -723,6 +736,20 @@ impl finstack_quant_cashflows::CashflowScheduleSource for FxForward {
         as_of: Date,
     ) -> finstack_quant_core::Result<CashFlowSchedule> {
         self.validate()?;
+        if crate::instruments::fx::shared::event_has_occurred(self.maturity, as_of) {
+            return Ok(crate::cashflow::traits::schedule_from_classified_flows(
+                Vec::new(),
+                finstack_quant_core::dates::DayCount::Act365F,
+                crate::cashflow::traits::ScheduleBuildOpts {
+                    notional_hint: Some(Money::new(0.0, self.base_currency)),
+                    meta: crate::cashflow::builder::CashFlowMeta {
+                        representation:
+                            crate::cashflow::builder::CashflowRepresentation::NoResidual,
+                        ..Default::default()
+                    },
+                },
+            ));
+        }
         let contract_rate = self.contractual_forward_rate(market, as_of)?;
         let base_amount = Money::new(self.notional.amount(), self.base_currency);
         let quote_amount = Money::new(-self.notional.amount() * contract_rate, self.quote_currency);
@@ -754,6 +781,7 @@ impl finstack_quant_cashflows::CashflowScheduleSource for FxForward {
 mod tests {
     use super::*;
     use crate::cashflow::CashflowProvider;
+    use crate::instruments::common_impl::traits::Instrument;
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::money::fx::{FxMatrix, SimpleFxProvider};
@@ -915,6 +943,59 @@ mod tests {
     fn test_validation_valid_forward_passes() {
         let forward = FxForward::example().unwrap();
         assert!(forward.validate().is_ok());
+    }
+    #[test]
+    fn forward_points_set_contract_rate_without_pinning_market_spot() {
+        let as_of = Date::from_calendar_date(2024, Month::January, 15).expect("valid date");
+        let forward = FxForward::builder()
+            .id(InstrumentId::new("EURUSD-POINTS"))
+            .base_currency(Currency::EUR)
+            .quote_currency(Currency::USD)
+            .maturity(Date::from_calendar_date(2024, Month::July, 15).expect("valid date"))
+            .notional(Money::new(1_000_000.0, Currency::EUR))
+            .domestic_discount_curve_id(CurveId::new("USD-OIS"))
+            .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
+            .attributes(Attributes::new())
+            .build()
+            .expect("should build")
+            .with_forward_points(1.10, 0.005)
+            .expect("valid forward points");
+
+        assert_eq!(forward.contract_rate, Some(1.105));
+        assert_eq!(forward.spot_rate_override, None);
+
+        let pv_at_trade_spot = forward
+            .base_value(&test_market(as_of), as_of)
+            .expect("price at trade spot")
+            .amount();
+
+        let usd_curve = DiscountCurve::builder("USD-OIS")
+            .base_date(as_of)
+            .knots(vec![(0.0, 1.0), (0.5, 0.9753), (1.0, 0.9512)])
+            .build()
+            .expect("should build");
+        let eur_curve = DiscountCurve::builder("EUR-OIS")
+            .base_date(as_of)
+            .knots(vec![(0.0, 1.0), (0.5, 0.9851), (1.0, 0.9704)])
+            .build()
+            .expect("should build");
+        let fx_provider = Arc::new(SimpleFxProvider::new());
+        fx_provider
+            .set_quote(Currency::EUR, Currency::USD, 1.20)
+            .expect("valid rate");
+        let moved_market = MarketContext::new()
+            .insert(usd_curve)
+            .insert(eur_curve)
+            .insert_fx(FxMatrix::new(fx_provider));
+        let pv_after_spot_move = forward
+            .base_value(&moved_market, as_of)
+            .expect("price after spot move")
+            .amount();
+
+        assert!(
+            pv_after_spot_move > pv_at_trade_spot + 90_000.0,
+            "long-base forward must retain live spot delta"
+        );
     }
 
     #[test]

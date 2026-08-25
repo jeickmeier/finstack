@@ -325,7 +325,7 @@ mod tests {
     fn build_no_touch(
         expiry: Date,
         timing: crate::instruments::fx::fx_touch_option::PayoutTiming,
-    ) -> FxTouchOption {
+    ) -> finstack_quant_core::Result<FxTouchOption> {
         FxTouchOption::builder()
             .id(InstrumentId::new("FX-NOTOUCH-TEST"))
             .base_currency(Currency::EUR)
@@ -343,38 +343,16 @@ mod tests {
             .vol_surface_id(CurveId::new("EURUSD-VOL"))
             .attributes(Attributes::new())
             .build()
-            .expect("fx no-touch option")
     }
 
-    /// A no-touch option pays only at expiry (if the barrier is never hit), so its
-    /// value must be independent of `payout_timing`. The at-hit branch previously
-    /// discounted the touch probability at the (earlier) hit time, understating
-    /// the no-touch value.
     #[test]
-    fn no_touch_value_is_independent_of_payout_timing() {
+    fn no_touch_at_hit_is_rejected_during_construction() {
         use crate::instruments::fx::fx_touch_option::PayoutTiming;
-        let as_of = date!(2024 - 01 - 01);
         let expiry = date!(2025 - 01 - 01);
-        let market = build_market(as_of);
 
-        let pv_expiry = compute_pv(
-            &build_no_touch(expiry, PayoutTiming::AtExpiry),
-            &market,
-            as_of,
-        )
-        .expect("no-touch at-expiry pv");
-        let pv_hit = compute_pv(&build_no_touch(expiry, PayoutTiming::AtHit), &market, as_of)
-            .expect("no-touch at-hit pv");
-
-        assert!(
-            (pv_expiry.amount() - pv_hit.amount()).abs() < 1e-9,
-            "no-touch value must not depend on payout timing: at_expiry={} at_hit={}",
-            pv_expiry.amount(),
-            pv_hit.amount()
-        );
-        assert!(
-            pv_expiry.amount() > 0.0,
-            "no-touch should have positive value"
-        );
+        build_no_touch(expiry, PayoutTiming::AtExpiry).expect("no-touch at-expiry must construct");
+        let error = build_no_touch(expiry, PayoutTiming::AtHit)
+            .expect_err("no-touch at-hit must be rejected");
+        assert!(error.to_string().contains("must be at_expiry"));
     }
 }

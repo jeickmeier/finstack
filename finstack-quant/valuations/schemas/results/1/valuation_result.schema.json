@@ -401,6 +401,70 @@
         }
       ]
     },
+    "MonteCarloValuationDetails": {
+      "description": "Reproducibility and convergence diagnostics for a Monte Carlo valuation.",
+      "properties": {
+        "antithetic": {
+          "description": "Whether antithetic variates were enabled.",
+          "type": "boolean"
+        },
+        "brownian_bridge": {
+          "description": "Whether Brownian-bridge ordering was enabled for Sobol paths.",
+          "type": "boolean"
+        },
+        "estimator_paths": {
+          "description": "Number of independent path estimators contributing to the mean.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "model_key": {
+          "$ref": "#/$defs/ModelKey",
+          "description": "Registered model used for the simulation."
+        },
+        "seed": {
+          "description": "Deterministic random seed used for the run.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "simulated_paths": {
+          "description": "Total number of simulated paths, including antithetic partners.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sobol": {
+          "description": "Whether Sobol quasi-random sampling was enabled.",
+          "type": "boolean"
+        },
+        "standard_error": {
+          "description": "Standard error of the discounted PV mean in the result currency.",
+          "format": "double",
+          "type": "number"
+        },
+        "time_grid": {
+          "description": "Simulation times in year fractions, including zero and maturity.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "model_key",
+        "standard_error",
+        "estimator_paths",
+        "simulated_paths",
+        "seed",
+        "time_grid",
+        "antithetic",
+        "sobol",
+        "brownian_bridge"
+      ],
+      "type": "object"
+    },
     "PositiveF64Wire": {
       "description": "Finite JSON number that is strictly greater than zero.\n\nThis type is used by serde field adapters so runtime deserialization and\ngenerated schemas enforce the same positive-number contract.",
       "exclusiveMinimum": 0.0,
@@ -1182,6 +1246,23 @@
             },
             "type": {
               "const": "fx",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Monte Carlo estimator and reproducibility metadata.",
+          "properties": {
+            "data": {
+              "$ref": "#/$defs/MonteCarloValuationDetails"
+            },
+            "type": {
+              "const": "monte_carlo",
               "type": "string"
             }
           },

@@ -13,8 +13,9 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 
 // MC-specific imports
-use finstack_quant_monte_carlo::payoff::barrier::BarrierOptionPayoff;
-use finstack_quant_monte_carlo::payoff::barrier::OptionKind;
+use finstack_quant_monte_carlo::payoff::barrier::{
+    BarrierMonitoring, BarrierOptionPayoff, OptionKind,
+};
 use finstack_quant_monte_carlo::pricer::path_dependent::{
     PathDependentPricer, PathDependentPricerConfig,
 };
@@ -169,7 +170,7 @@ impl BarrierOptionMcPricer {
             maturity_step,
             sigma,
             &time_grid,
-            inst.use_gobet_miri,
+            BarrierMonitoring::Continuous { start_step: 0 },
         );
         if wants_at_hit_rebate(inst) {
             payoff = payoff.with_rebate_at_hit(r);

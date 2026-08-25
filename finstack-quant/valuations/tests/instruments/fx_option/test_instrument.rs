@@ -8,11 +8,12 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
-use finstack_quant_valuations::instruments::fx::fx_option::FxOption;
+use finstack_quant_valuations::instruments::fx::fx_option::{
+    FxDeltaConvention, FxDeltaConventionKind, FxOption,
+};
 use finstack_quant_valuations::instruments::FxUnderlyingParams;
-use finstack_quant_valuations::instruments::SettlementType;
+use finstack_quant_valuations::instruments::OptionType;
 use finstack_quant_valuations::instruments::{Attributes, Instrument};
-use finstack_quant_valuations::instruments::{ExerciseStyle, OptionType};
 use finstack_quant_valuations::metrics::MetricId;
 use time::macros::date;
 
@@ -25,11 +26,13 @@ fn test_builder_pattern_creates_valid_option() {
         .quote_currency(Currency::USD)
         .strike(1.20)
         .option_type(OptionType::Call)
-        .exercise_style(ExerciseStyle::European)
+        .delta_convention(
+            FxDeltaConvention::new(FxDeltaConventionKind::Forward, Currency::USD, "test")
+                .expect("valid delta convention"),
+        )
         .expiry(date!(2025 - 01 - 01))
         .day_count(DayCount::Act365F)
         .notional(Money::new(1_000_000.0, Currency::EUR))
-        .settlement(SettlementType::Cash)
         .domestic_discount_curve_id(CurveId::new("USD-OIS"))
         .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
         .vol_surface_id(CurveId::new("EURUSD-VOL"))
@@ -61,8 +64,6 @@ fn test_european_call_convenience_constructor() {
     // Assert
     assert_eq!(call.id.as_str(), "EUR_USD_CALL");
     assert_eq!(call.option_type, OptionType::Call);
-    assert_eq!(call.exercise_style, ExerciseStyle::European);
-    assert_eq!(call.settlement, SettlementType::Cash);
     assert_eq!(call.strike, 1.20);
     assert_eq!(call.notional.amount(), 1_000_000.0);
     assert_eq!(call.notional.currency(), Currency::EUR);
@@ -85,8 +86,6 @@ fn test_european_put_convenience_constructor() {
     // Assert
     assert_eq!(put.id.as_str(), "EUR_USD_PUT");
     assert_eq!(put.option_type, OptionType::Put);
-    assert_eq!(put.exercise_style, ExerciseStyle::European);
-    assert_eq!(put.settlement, SettlementType::Cash);
 }
 
 #[test]
@@ -101,11 +100,13 @@ fn test_builder_with_underlying_params() {
         .quote_currency(underlying_params.quote_currency)
         .strike(1.20)
         .option_type(OptionType::Call)
-        .exercise_style(ExerciseStyle::European)
+        .delta_convention(
+            FxDeltaConvention::new(FxDeltaConventionKind::Forward, Currency::USD, "test")
+                .expect("valid delta convention"),
+        )
         .expiry(date!(2025 - 01 - 01))
         .day_count(DayCount::Act365F)
         .notional(Money::new(1_000_000.0, Currency::EUR))
-        .settlement(SettlementType::Physical)
         .domestic_discount_curve_id(underlying_params.domestic_discount_curve_id.clone())
         .foreign_discount_curve_id(underlying_params.foreign_discount_curve_id.clone())
         .vol_surface_id(CurveId::new("EURUSD-VOL"))
@@ -323,38 +324,33 @@ fn test_debug_trait_implemented() {
 }
 
 #[test]
-fn test_settlement_types() {
-    // Arrange & Act: Create with physical settlement
-    let mut call = build_call_option(
+fn serde_rejects_unimplemented_fx_option_settlement_modes() {
+    let call = build_call_option(
         date!(2024 - 01 - 01),
         date!(2025 - 01 - 01),
         1.20,
         1_000_000.0,
     );
-    call.settlement = SettlementType::Physical;
+    let mut value = serde_json::to_value(call).expect("serialize option");
+    value["settlement"] = serde_json::json!("physical");
 
-    // Assert
-    assert_eq!(call.settlement, SettlementType::Physical);
-
-    // Change to cash
-    call.settlement = SettlementType::Cash;
-    assert_eq!(call.settlement, SettlementType::Cash);
+    let error =
+        serde_json::from_value::<FxOption>(value).expect_err("settlement field must be rejected");
+    assert!(error.to_string().contains("unknown field `settlement`"));
 }
 
 #[test]
-fn test_exercise_styles() {
-    // Arrange: Test different exercise styles can be set
-    let mut call = build_call_option(
+fn serde_rejects_non_european_fx_option_exercise_styles() {
+    let call = build_call_option(
         date!(2024 - 01 - 01),
         date!(2025 - 01 - 01),
         1.20,
         1_000_000.0,
     );
+    let mut value = serde_json::to_value(call).expect("serialize option");
+    value["exercise_style"] = serde_json::json!("american");
 
-    // Act & Assert: European (default)
-    assert_eq!(call.exercise_style, ExerciseStyle::European);
-
-    // Change to American (though not priced differently yet)
-    call.exercise_style = ExerciseStyle::American;
-    assert_eq!(call.exercise_style, ExerciseStyle::American);
+    let error = serde_json::from_value::<FxOption>(value)
+        .expect_err("exercise_style field must be rejected");
+    assert!(error.to_string().contains("unknown field `exercise_style`"));
 }

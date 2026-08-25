@@ -17,7 +17,7 @@ use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::BarrierType;
 use finstack_quant_core::types::{CurveId, InstrumentId};
-use finstack_quant_valuations::instruments::fx::fx_barrier_option::FxBarrierOption;
+use finstack_quant_valuations::instruments::fx::fx_barrier_option::{FxBarrierOption, Monitoring};
 use finstack_quant_valuations::instruments::{Attributes, Instrument, OptionType, PricingOptions};
 use finstack_quant_valuations::metrics::MetricId;
 
@@ -63,7 +63,7 @@ fn vanna_is_reported_per_vol_point() -> finstack_quant_core::Result<()> {
         .notional(Money::new(1_000_000.0, Currency::EUR))
         .base_currency(Currency::EUR)
         .quote_currency(Currency::USD)
-        .use_gobet_miri(false)
+        .monitoring(Monitoring::Continuous)
         .domestic_discount_curve_id(CurveId::new("USD-OIS"))
         .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
         .fx_spot_id("EURUSD-SPOT".into())
@@ -75,7 +75,7 @@ fn vanna_is_reported_per_vol_point() -> finstack_quant_core::Result<()> {
     let result = option.price_with_metrics(
         &market,
         as_of,
-        &[MetricId::Vanna],
+        &[MetricId::Vanna, MetricId::Vega, MetricId::Volga],
         PricingOptions::default(),
     )?;
     let vanna = result
@@ -83,6 +83,16 @@ fn vanna_is_reported_per_vol_point() -> finstack_quant_core::Result<()> {
         .get(&MetricId::Vanna)
         .copied()
         .expect("Vanna in measures");
+    let vega = result
+        .measures
+        .get(&MetricId::Vega)
+        .copied()
+        .expect("Vega in measures");
+    let volga = result
+        .measures
+        .get(&MetricId::Volga)
+        .copied()
+        .expect("Volga in measures");
 
     let spot_bump_pct = 0.01;
     let vol_bump_abs = 0.01;
@@ -106,10 +116,34 @@ fn vanna_is_reported_per_vol_point() -> finstack_quant_core::Result<()> {
     let delta_dn = delta_at(-vol_bump_abs)?;
     // Vol-axis width expressed in vol points: 2 × 0.01 × 100 = 2.
     let vanna_ref = (delta_up - delta_dn) / (2.0 * vol_bump_abs * 100.0);
+    let pv_base = option.value(&market, as_of)?.amount();
+    let pv_up = option
+        .value(
+            &bump_surface_vol_absolute(&market, "EURUSD-VOL", vol_bump_abs)?,
+            as_of,
+        )?
+        .amount();
+    let pv_down = option
+        .value(
+            &bump_surface_vol_absolute(&market, "EURUSD-VOL", -vol_bump_abs)?,
+            as_of,
+        )?
+        .amount();
+    let vol_width_points = vol_bump_abs * 100.0;
+    let vega_ref = (pv_up - pv_down) / (2.0 * vol_width_points);
+    let volga_ref = (pv_up - 2.0 * pv_base + pv_down) / (vol_width_points * vol_width_points);
 
     assert!(
         (vanna - vanna_ref).abs() <= 1e-9 * vanna_ref.abs().max(1.0),
         "FX barrier vanna must be per vol point: expected {vanna_ref}, got {vanna}"
+    );
+    assert!(
+        (vega - vega_ref).abs() <= 1e-9 * vega_ref.abs().max(1.0),
+        "FX barrier vega must be cash PV per vol point: expected {vega_ref}, got {vega}"
+    );
+    assert!(
+        (volga - volga_ref).abs() <= 1e-9 * volga_ref.abs().max(1.0),
+        "FX barrier volga must be cash PV per vol point squared: expected {volga_ref}, got {volga}"
     );
     Ok(())
 }

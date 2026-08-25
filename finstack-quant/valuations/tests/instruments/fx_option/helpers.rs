@@ -12,11 +12,12 @@ use finstack_quant_core::money::fx::FxMatrix;
 use finstack_quant_core::money::fx::SimpleFxProvider;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
-use finstack_quant_valuations::instruments::fx::fx_option::FxOption;
+use finstack_quant_valuations::instruments::fx::fx_option::{
+    FxDeltaConvention, FxDeltaConventionKind, FxOption,
+};
 use finstack_quant_valuations::instruments::Attributes;
 use finstack_quant_valuations::instruments::Instrument;
-use finstack_quant_valuations::instruments::SettlementType;
-use finstack_quant_valuations::instruments::{ExerciseStyle, OptionType};
+use finstack_quant_valuations::instruments::OptionType;
 use finstack_quant_valuations::metrics::MetricId;
 use std::sync::Arc;
 
@@ -141,11 +142,13 @@ pub fn build_call_option(_as_of: Date, expiry: Date, strike: f64, notional: f64)
         .quote_currency(QUOTE)
         .strike(strike)
         .option_type(OptionType::Call)
-        .exercise_style(ExerciseStyle::European)
+        .delta_convention(
+            FxDeltaConvention::new(FxDeltaConventionKind::Forward, Currency::USD, "test")
+                .expect("valid delta convention"),
+        )
         .expiry(expiry)
         .day_count(DayCount::Act365F)
         .notional(Money::new(notional, BASE))
-        .settlement(SettlementType::Cash)
         .domestic_discount_curve_id(CurveId::new(DOMESTIC_ID))
         .foreign_discount_curve_id(CurveId::new(FOREIGN_ID))
         .vol_surface_id(CurveId::new(VOL_ID))
@@ -162,11 +165,13 @@ pub fn build_put_option(_as_of: Date, expiry: Date, strike: f64, notional: f64) 
         .quote_currency(QUOTE)
         .strike(strike)
         .option_type(OptionType::Put)
-        .exercise_style(ExerciseStyle::European)
+        .delta_convention(
+            FxDeltaConvention::new(FxDeltaConventionKind::Forward, Currency::USD, "test")
+                .expect("valid delta convention"),
+        )
         .expiry(expiry)
         .day_count(DayCount::Act365F)
         .notional(Money::new(notional, BASE))
-        .settlement(SettlementType::Cash)
         .domestic_discount_curve_id(CurveId::new(DOMESTIC_ID))
         .foreign_discount_curve_id(CurveId::new(FOREIGN_ID))
         .vol_surface_id(CurveId::new(VOL_ID))

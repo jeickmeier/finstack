@@ -16,8 +16,9 @@ use finstack_quant_core::money::Money;
 
 use finstack_quant_monte_carlo::discretization::qe_heston::QeHeston;
 use finstack_quant_monte_carlo::engine::McEngine;
-use finstack_quant_monte_carlo::payoff::barrier::BarrierOptionPayoff;
-use finstack_quant_monte_carlo::payoff::barrier::OptionKind;
+use finstack_quant_monte_carlo::payoff::barrier::{
+    BarrierMonitoring, BarrierOptionPayoff, OptionKind,
+};
 use finstack_quant_monte_carlo::process::heston::{HestonParams, HestonProcess};
 use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_monte_carlo::seed;
@@ -125,7 +126,7 @@ impl BarrierOptionHestonMcPricer {
             maturity_step,
             sigma,
             &time_grid,
-            inst.use_gobet_miri,
+            BarrierMonitoring::Continuous { start_step: 0 },
         )
         .with_observed_barrier_breached(inst.observed_barrier_breached.unwrap_or(false));
         if super::pricer::wants_at_hit_rebate(inst) {

@@ -1811,10 +1811,10 @@ mod tests {
     /// `calculate_var_dyn` returned `Err`; the fix degrades gracefully.
     #[test]
     fn test_taylor_vol_shock_skips_gracefully_for_fx_option() -> Result<()> {
-        use crate::instruments::fx::fx_option::FxOption;
-        use crate::instruments::{
-            Attributes, ExerciseStyle, InstrumentPricingOverrides, OptionType, SettlementType,
+        use crate::instruments::fx::fx_option::{
+            FxDeltaConvention, FxDeltaConventionKind, FxOption,
         };
+        use crate::instruments::{Attributes, InstrumentPricingOverrides, OptionType};
         use finstack_quant_core::currency::Currency;
         use finstack_quant_core::dates::DayCount;
         use finstack_quant_core::market_data::context::MarketContext;
@@ -1835,11 +1835,13 @@ mod tests {
             .quote_currency(Currency::USD)
             .strike(1.15)
             .option_type(OptionType::Call)
-            .exercise_style(ExerciseStyle::European)
+            .delta_convention(
+                FxDeltaConvention::new(FxDeltaConventionKind::Forward, Currency::USD, "test")
+                    .expect("valid delta convention"),
+            )
             .expiry(expiry)
             .day_count(DayCount::Act365F)
             .notional(Money::new(1_000_000.0, Currency::EUR))
-            .settlement(SettlementType::Cash)
             .domestic_discount_curve_id(CurveId::new("USD-OIS"))
             .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
             .vol_surface_id(CurveId::new("EURUSD-VOL"))

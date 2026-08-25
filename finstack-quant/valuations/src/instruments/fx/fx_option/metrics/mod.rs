@@ -41,8 +41,13 @@ pub(crate) fn register_fx_option_metrics(
         &[InstrumentType::FxOption],
     )?;
     registry.replace_metric(
-        MetricId::DeltaPremiumAdjusted,
-        Arc::new(delta_conventions::DeltaPremiumAdjustedCalculator),
+        MetricId::DeltaPremiumAdjustedSpot,
+        Arc::new(delta_conventions::DeltaPremiumAdjustedSpotCalculator),
+        &[InstrumentType::FxOption],
+    )?;
+    registry.replace_metric(
+        MetricId::DeltaPremiumAdjustedForward,
+        Arc::new(delta_conventions::DeltaPremiumAdjustedForwardCalculator),
         &[InstrumentType::FxOption],
     )?;
 
@@ -102,6 +107,7 @@ mod tests {
         let metrics = registry.metrics_for_instrument(InstrumentType::FxOption);
 
         assert!(metrics.contains(&MetricId::DeltaForward));
-        assert!(metrics.contains(&MetricId::DeltaPremiumAdjusted));
+        assert!(metrics.contains(&MetricId::DeltaPremiumAdjustedSpot));
+        assert!(metrics.contains(&MetricId::DeltaPremiumAdjustedForward));
     }
 }

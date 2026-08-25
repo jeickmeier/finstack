@@ -22,7 +22,7 @@ use finstack_quant_core::money::fx::{FxMatrix, SimpleFxProvider};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::BarrierType;
 use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
-use finstack_quant_valuations::instruments::fx::fx_barrier_option::FxBarrierOption;
+use finstack_quant_valuations::instruments::fx::fx_barrier_option::{FxBarrierOption, Monitoring};
 use finstack_quant_valuations::instruments::fx::fx_digital_option::{
     DigitalPayoutType, FxDigitalOption,
 };
@@ -187,12 +187,13 @@ fn make_barrier(as_of: Date, tenor_years: i32, barrier_type: BarrierType) -> FxB
         .option_type(OptionType::Call)
         .barrier_type(barrier_type)
         .expiry(expiry)
+        .monitoring_start_date(as_of)
         .observed_barrier_breached_opt(None)
         .notional(Money::new(1_000_000.0, Currency::EUR))
         .base_currency(Currency::EUR)
         .quote_currency(Currency::USD)
         .day_count(DayCount::Act365F)
-        .use_gobet_miri(false)
+        .monitoring(Monitoring::Continuous)
         .domestic_discount_curve_id(CurveId::new("USD-OIS"))
         .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
         .fx_spot_id_opt(Some("EURUSD-SPOT".into()))

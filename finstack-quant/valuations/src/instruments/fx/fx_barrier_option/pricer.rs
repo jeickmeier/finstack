@@ -1,7 +1,7 @@
 //! FX barrier option pricers (Monte Carlo and analytical).
 
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::fx::fx_barrier_option::types::FxBarrierOption;
+use crate::instruments::fx::fx_barrier_option::types::{FxBarrierOption, Monitoring};
 use crate::instruments::fx::shared::{
     collect_fx_option_inputs, resolve_fx_spot as resolve_shared_fx_spot, FxOptionInputRequest,
     FxSpotSource,
@@ -16,11 +16,41 @@ use finstack_quant_core::money::Money;
 
 // MC-specific imports
 use crate::instruments::fx::fx_barrier_option::monte_carlo::FxBarrierPayoff;
+use finstack_quant_monte_carlo::payoff::barrier::BarrierMonitoring as McBarrierMonitoring;
 use finstack_quant_monte_carlo::payoff::barrier::OptionKind as McOptionKind;
 use finstack_quant_monte_carlo::pricer::path_dependent::{
     PathDependentPricer, PathDependentPricerConfig,
 };
 use finstack_quant_monte_carlo::process::gbm::{GbmParams, GbmProcess};
+use finstack_quant_monte_carlo::time_grid::TimeGrid;
+
+struct FxBarrierPricingOutcome {
+    value: Money,
+    diagnostics: Option<crate::results::MonteCarloValuationDetails>,
+}
+
+impl FxBarrierPricingOutcome {
+    fn deterministic(value: Money) -> Self {
+        Self {
+            value,
+            diagnostics: None,
+        }
+    }
+}
+
+fn barrier_pricing_context(inst: &FxBarrierOption, model: ModelKey) -> PricingErrorContext {
+    let mut context = PricingErrorContext::from_instrument(inst)
+        .model(model)
+        .curve_ids([
+            inst.domestic_discount_curve_id.as_str(),
+            inst.foreign_discount_curve_id.as_str(),
+            inst.vol_surface_id.as_str(),
+        ]);
+    if let Some(spot_id) = &inst.fx_spot_id {
+        context = context.curve_id(spot_id.as_str());
+    }
+    context
+}
 
 /// FX barrier option Monte Carlo pricer.
 pub struct FxBarrierOptionMcPricer {
@@ -35,38 +65,28 @@ impl FxBarrierOptionMcPricer {
         }
     }
 
-    fn merged_path_config(&self, inst: &FxBarrierOption) -> PathDependentPricerConfig {
-        let mut c = self.config.clone();
-        if let Some(n) = inst.instrument_pricing_overrides.model_config.mc_paths {
-            if n > 0 {
-                c.num_paths = n;
-            }
-        }
-        c
-    }
-
     /// Price an FX barrier option using Monte Carlo.
     fn price_internal(
         &self,
         inst: &FxBarrierOption,
         curves: &MarketContext,
         as_of: Date,
-    ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
+    ) -> finstack_quant_core::Result<FxBarrierPricingOutcome> {
         inst.validate()?;
         if as_of > inst.expiry {
-            return Ok(finstack_quant_core::money::Money::new(
+            return Ok(FxBarrierPricingOutcome::deterministic(Money::new(
                 0.0,
                 inst.quote_currency,
-            ));
+            )));
         }
 
         let (fx_spot, t) = collect_fx_barrier_expiry_state(inst, curves, as_of)?;
         if t <= 0.0 {
             let per_unit = expired_barrier_value_per_unit(inst, fx_spot)?;
-            return Ok(finstack_quant_core::money::Money::new(
+            return Ok(FxBarrierPricingOutcome::deterministic(Money::new(
                 per_unit * inst.notional.amount(),
                 inst.quote_currency,
-            ));
+            )));
         }
 
         let (_, r_dom, r_for, sigma, discount_factor) =
@@ -82,10 +102,10 @@ impl FxBarrierOptionMcPricer {
                 t,
                 discount_factor,
             );
-            return Ok(Money::new(
+            return Ok(FxBarrierPricingOutcome::deterministic(Money::new(
                 per_unit * inst.notional.amount(),
                 inst.quote_currency,
-            ));
+            )));
         }
 
         // For FX, drift is r_dom - r_for.
@@ -95,13 +115,10 @@ impl FxBarrierOptionMcPricer {
         let gbm_params = GbmParams::new(r_dom, q, sigma)?;
         let process = GbmProcess::new(gbm_params);
 
-        let steps_per_year = self.config.steps_per_year;
-        let num_steps = ((t * steps_per_year).round() as usize).max(self.config.min_steps);
-        let dt = t / num_steps as f64;
-        // `maturity_step` must equal `num_steps`: the engine fires `on_event` with
-        // `state.step = num_steps` on the last iteration, so the terminal-spot capture
-        // guard `state.step == maturity_step` must fire at that step.
-        let maturity_step = num_steps;
+        let mut config = crate::instruments::common_impl::helpers::merged_path_config(
+            &self.config,
+            &inst.instrument_pricing_overrides,
+        )?;
 
         // Standard FX barrier: the GBM drift `r_dom - r_for` (set above via
         // `GbmParams`) fully describes the dynamics. Quanto barriers are not
@@ -110,20 +127,28 @@ impl FxBarrierOptionMcPricer {
             crate::instruments::OptionType::Call => McOptionKind::Call,
             crate::instruments::OptionType::Put => McOptionKind::Put,
         };
+        use finstack_quant_monte_carlo::seed;
+
+        let seed = if let Some(scenario) = &inst.metric_pricing_overrides.mc_seed_scenario {
+            seed::derive_seed(&inst.id, scenario)
+        } else {
+            seed::derive_seed(&inst.id, "base")
+        };
+        config.seed = seed;
+
+        let (time_grid, monitoring) = barrier_time_grid(inst, as_of, t, &config)?;
         let mut payoff = FxBarrierPayoff::new(
             inst.strike,
             inst.barrier,
             inst.barrier_type,
             mc_option_kind,
-            inst.notional.amount(),
-            maturity_step,
-            sigma,
-            dt,
-            inst.use_gobet_miri,
-            inst.base_currency,
-            inst.quote_currency,
             inst.rebate,
-        )?;
+            inst.notional.amount(),
+            time_grid.num_steps(),
+            sigma,
+            &time_grid,
+            monitoring,
+        );
         // Exact at-hit rebate timing: compound the rebate forward from the
         // hit time at the domestic rate so DF(T) nets to DF(τ).
         {
@@ -133,31 +158,93 @@ impl FxBarrierOptionMcPricer {
             }
         }
 
-        // Derive deterministic seed from instrument ID and scenario
-
-        use finstack_quant_monte_carlo::seed;
-
-        let seed = if let Some(ref scenario) = inst.metric_pricing_overrides.mc_seed_scenario {
-            seed::derive_seed(&inst.id, scenario)
-        } else {
-            seed::derive_seed(&inst.id, "base")
-        };
-
-        let mut config = self.merged_path_config(inst);
-        config.seed = seed;
+        let time_grid_values = time_grid.times().to_vec();
+        let antithetic = config.antithetic;
+        let sobol = config.use_sobol;
+        let brownian_bridge = config.use_brownian_bridge;
         let pricer = PathDependentPricer::new(config);
-        let result = pricer.price(
+        let result = pricer.price_with_grid(
             &process,
             fx_spot,
-            t,
-            num_steps,
+            time_grid,
             &payoff,
             inst.quote_currency,
             discount_factor,
         )?;
 
-        Ok(result.mean)
+        Ok(FxBarrierPricingOutcome {
+            value: result.mean,
+            diagnostics: Some(crate::results::MonteCarloValuationDetails {
+                model_key: ModelKey::MonteCarloGBM,
+                standard_error: result.stderr,
+                estimator_paths: result.num_paths,
+                simulated_paths: result.num_simulated_paths,
+                seed,
+                time_grid: time_grid_values,
+                antithetic,
+                sobol,
+                brownian_bridge,
+            }),
+        })
     }
+}
+fn barrier_time_grid(
+    inst: &FxBarrierOption,
+    as_of: Date,
+    time_to_maturity: f64,
+    config: &PathDependentPricerConfig,
+) -> finstack_quant_core::Result<(TimeGrid, McBarrierMonitoring)> {
+    let date_time = |date: Date| {
+        inst.day_count
+            .year_fraction(as_of, date, DayCountContext::default())
+    };
+
+    let required_times = match &inst.monitoring {
+        Monitoring::Continuous => {
+            let start = inst.monitoring_start_date.ok_or_else(|| {
+                finstack_quant_core::Error::Validation(
+                    "FxBarrierOption requires monitoring_start_date".to_string(),
+                )
+            })?;
+            if start <= as_of {
+                vec![0.0]
+            } else {
+                vec![date_time(start)?]
+            }
+        }
+        Monitoring::Discrete { observation_dates } => observation_dates
+            .iter()
+            .copied()
+            .filter(|date| *date >= as_of)
+            .map(date_time)
+            .collect::<finstack_quant_core::Result<Vec<_>>>()?,
+    };
+    let time_grid = config.build_time_grid(time_to_maturity, &required_times)?;
+    let step_for_time = |required: f64| {
+        let tolerance = 1.0e-12 * required.abs().max(1.0);
+        time_grid
+            .times()
+            .iter()
+            .position(|time| (*time - required).abs() <= tolerance)
+            .ok_or_else(|| {
+                finstack_quant_core::Error::Internal(format!(
+                    "FX barrier required monitoring time {required} is missing from the simulation grid"
+                ))
+            })
+    };
+    let monitoring = match &inst.monitoring {
+        Monitoring::Continuous => McBarrierMonitoring::Continuous {
+            start_step: step_for_time(required_times[0])?,
+        },
+        Monitoring::Discrete { .. } => McBarrierMonitoring::Discrete {
+            observation_steps: required_times
+                .iter()
+                .copied()
+                .map(step_for_time)
+                .collect::<finstack_quant_core::Result<Vec<_>>>()?,
+        },
+    };
+    Ok((time_grid, monitoring))
 }
 
 impl Default for FxBarrierOptionMcPricer {
@@ -184,20 +271,18 @@ impl Pricer for FxBarrierOptionMcPricer {
                 PricingError::type_mismatch(InstrumentType::FxBarrierOption, instrument.key())
             })?;
 
-        validate_monitoring_state(fx_barrier, as_of).map_err(|e| {
-            PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
-        })?;
+        let context = barrier_pricing_context(fx_barrier, ModelKey::MonteCarloGBM);
+        validate_monitoring_state(fx_barrier, as_of)
+            .map_err(|error| PricingError::from_core(error, context.clone()))?;
 
-        let pv = self
+        let outcome = self
             .price_internal(fx_barrier, market, as_of)
-            .map_err(|e| {
-                PricingError::model_failure_with_context(
-                    e.to_string(),
-                    PricingErrorContext::default(),
-                )
-            })?;
-
-        Ok(ValuationResult::stamped(fx_barrier.id(), as_of, pv))
+            .map_err(|error| PricingError::from_core(error, context))?;
+        let mut result = ValuationResult::stamped(fx_barrier.id(), as_of, outcome.value);
+        if let Some(diagnostics) = outcome.diagnostics {
+            result = result.with_details(crate::results::ValuationDetails::MonteCarlo(diagnostics));
+        }
+        Ok(result)
     }
 }
 
@@ -212,19 +297,29 @@ pub(crate) fn compute_pv(
         return Ok(Money::new(0.0, inst.quote_currency));
     }
     let pricer = FxBarrierOptionMcPricer::new();
-    pricer.price_internal(inst, curves, as_of)
+    pricer
+        .price_internal(inst, curves, as_of)
+        .map(|outcome| outcome.value)
 }
 
 fn validate_monitoring_state(
     inst: &FxBarrierOption,
     as_of: Date,
 ) -> finstack_quant_core::Result<()> {
-    let start = inst.monitoring_start_date.ok_or_else(|| {
-        finstack_quant_core::Error::Validation(
-            "FxBarrierOption requires monitoring_start_date".to_string(),
-        )
-    })?;
-    if as_of > start && as_of <= inst.expiry && inst.observed_barrier_breached.is_none() {
+    let has_past_monitoring = match &inst.monitoring {
+        Monitoring::Continuous => {
+            let start = inst.monitoring_start_date.ok_or_else(|| {
+                finstack_quant_core::Error::Validation(
+                    "FxBarrierOption requires monitoring_start_date".to_string(),
+                )
+            })?;
+            as_of > start
+        }
+        Monitoring::Discrete { observation_dates } => {
+            observation_dates.iter().any(|date| *date < as_of)
+        }
+    };
+    if has_past_monitoring && as_of <= inst.expiry && inst.observed_barrier_breached.is_none() {
         return Err(finstack_quant_core::Error::Validation(
             "Seasoned FX barrier option requires observed_barrier_breached after monitoring starts"
                 .to_string(),
@@ -464,12 +559,12 @@ impl Pricer for FxBarrierOptionAnalyticalPricer {
                 PricingError::type_mismatch(InstrumentType::FxBarrierOption, instrument.key())
             })?;
 
-        fx_barrier.validate().map_err(|e| {
-            PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
-        })?;
-        validate_monitoring_state(fx_barrier, as_of).map_err(|e| {
-            PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
-        })?;
+        let context = barrier_pricing_context(fx_barrier, ModelKey::FxBarrierBSContinuous);
+        fx_barrier
+            .validate()
+            .map_err(|error| PricingError::from_core(error, context.clone()))?;
+        validate_monitoring_state(fx_barrier, as_of)
+            .map_err(|error| PricingError::from_core(error, context.clone()))?;
 
         if as_of > fx_barrier.expiry {
             return Ok(ValuationResult::stamped(
@@ -479,33 +574,20 @@ impl Pricer for FxBarrierOptionAnalyticalPricer {
             ));
         }
 
-        if fx_barrier.use_gobet_miri {
-            return Err(PricingError::model_failure_with_context(
-                "Discrete barrier monitoring (use_gobet_miri = true) requires the Monte Carlo \
-                 pricer; the analytical Black-Scholes barrier pricer assumes continuous \
-                 monitoring and would silently mis-price under discrete observation. \
-                 Switch to ModelKey::FxBarrierMonteCarlo, or set use_gobet_miri = false to \
-                 confirm continuous-monitoring pricing is intended."
-                    .to_string(),
-                PricingErrorContext::default(),
+        if matches!(fx_barrier.monitoring, Monitoring::Discrete { .. }) {
+            return Err(PricingError::invalid_input_with_context(
+                "Discrete FX barrier monitoring requires the Monte Carlo pricer; the analytical \
+                 Reiner-Rubinstein pricer assumes continuous monitoring.",
+                context,
             ));
         }
 
-        let (fx_spot, t) =
-            collect_fx_barrier_expiry_state(fx_barrier, market, as_of).map_err(|e| {
-                PricingError::model_failure_with_context(
-                    e.to_string(),
-                    PricingErrorContext::default(),
-                )
-            })?;
+        let (fx_spot, t) = collect_fx_barrier_expiry_state(fx_barrier, market, as_of)
+            .map_err(|error| PricingError::from_core(error, context.clone()))?;
 
         if t <= 0.0 {
-            let per_unit = expired_barrier_value_per_unit(fx_barrier, fx_spot).map_err(|e| {
-                PricingError::model_failure_with_context(
-                    e.to_string(),
-                    PricingErrorContext::default(),
-                )
-            })?;
+            let per_unit = expired_barrier_value_per_unit(fx_barrier, fx_spot)
+                .map_err(|error| PricingError::from_core(error, context.clone()))?;
             return Ok(ValuationResult::stamped(
                 fx_barrier.id(),
                 as_of,
@@ -517,12 +599,8 @@ impl Pricer for FxBarrierOptionAnalyticalPricer {
         }
 
         let (_, r_dom, r_for, sigma, discount_factor) =
-            collect_fx_barrier_inputs(fx_barrier, market, as_of).map_err(|e| {
-                PricingError::model_failure_with_context(
-                    e.to_string(),
-                    PricingErrorContext::default(),
-                )
-            })?;
+            collect_fx_barrier_inputs(fx_barrier, market, as_of)
+                .map_err(|error| PricingError::from_core(error, context))?;
 
         if fx_barrier.observed_barrier_breached == Some(true) {
             let per_unit = seasoned_breached_value_per_unit(
@@ -582,6 +660,32 @@ mod tests {
     use finstack_quant_core::types::BarrierType;
     use std::sync::Arc;
     use time::Month;
+
+    #[test]
+    fn analytical_barrier_error_preserves_category_and_context() {
+        let mut inst = FxBarrierOption::example();
+        let start = inst.monitoring_start_date.expect("example start");
+        inst.monitoring = Monitoring::Discrete {
+            observation_dates: vec![start, inst.expiry],
+        };
+
+        let error = FxBarrierOptionAnalyticalPricer::new()
+            .price_dyn(&inst, &MarketContext::new(), start)
+            .expect_err("discrete contract must reject analytical model");
+        let PricingError::InvalidInput { context, .. } = error else {
+            panic!("monitoring/model mismatch must remain an invalid-input error");
+        };
+        assert_eq!(context.instrument_id.as_deref(), Some(inst.id.as_str()));
+        assert_eq!(
+            context.instrument_type,
+            Some(InstrumentType::FxBarrierOption)
+        );
+        assert_eq!(context.model, Some(ModelKey::FxBarrierBSContinuous));
+        assert!(context
+            .curve_ids
+            .contains(&inst.domestic_discount_curve_id.to_string()));
+        assert!(context.curve_ids.contains(&inst.vol_surface_id.to_string()));
+    }
 
     #[test]
     fn expired_up_and_in_call_returns_intrinsic_when_hit() {
@@ -669,7 +773,7 @@ mod tests {
 
         let mut option = FxBarrierOption::example();
         option.expiry = as_of;
-        option.use_gobet_miri = false;
+        option.monitoring = Monitoring::Continuous;
         option.option_type = OptionType::Call;
         option.barrier_type = BarrierType::UpAndIn;
         option.rebate = Some(0.02);
@@ -705,7 +809,7 @@ mod tests {
             .base_currency(Currency::EUR)
             .quote_currency(Currency::USD)
             .day_count(finstack_quant_core::dates::DayCount::Act365F)
-            .use_gobet_miri(false)
+            .monitoring(Monitoring::Continuous)
             .domestic_discount_curve_id("USD-OIS".into())
             .foreign_discount_curve_id("EUR-OIS".into())
             .fx_spot_id_opt(Some("EURUSD-SPOT".into()))
@@ -772,7 +876,7 @@ mod tests {
                 .base_currency(Currency::EUR)
                 .quote_currency(Currency::USD)
                 .day_count(DayCount::Act365F)
-                .use_gobet_miri(false)
+                .monitoring(Monitoring::Continuous)
                 .domestic_discount_curve_id("USD-OIS".into())
                 .foreign_discount_curve_id("EUR-OIS".into())
                 .fx_spot_id_opt(Some("EURUSD-SPOT".into()))
@@ -941,11 +1045,11 @@ mod tests {
 
     /// Regression: MC pricer must honour option_type for puts.
     ///
-    /// A deep-ITM down-and-out put (spot well below strike, barrier far below spot
-    /// so the barrier is never hit) priced via the MC path (use_gobet_miri = true)
-    /// must be close to the analytical price.  Under the bug the MC path hardcodes
-    /// OptionKind::Call and returns max(S-K,0) ≈ 0 for this deep-ITM put, while
-    /// the analytical path returns max(K-S,0) * df ≈ a large positive number.
+    /// A deep-ITM down-and-out put with a far barrier priced through the
+    /// discrete-monitoring MC path must remain close to the continuous
+    /// analytical benchmark.
+    /// This catches regressions that evaluate the terminal payoff as a call
+    /// instead of honoring `option_type`.
     #[test]
     fn mc_barrier_put_honours_option_type() {
         let as_of = Date::from_calendar_date(2024, Month::January, 1).expect("valid date");
@@ -968,7 +1072,9 @@ mod tests {
             .base_currency(Currency::EUR)
             .quote_currency(Currency::USD)
             .day_count(finstack_quant_core::dates::DayCount::Act365F)
-            .use_gobet_miri(true) // force MC path
+            .monitoring(Monitoring::Discrete {
+                observation_dates: vec![as_of, expiry],
+            })
             .domestic_discount_curve_id("USD-OIS".into())
             .foreign_discount_curve_id("EUR-OIS".into())
             .fx_spot_id_opt(Some("EURUSD-SPOT".into()))
@@ -977,7 +1083,7 @@ mod tests {
             .build()
             .expect("mc put option");
 
-        // Matching analytical option (use_gobet_miri=false for analytical pricer)
+        // Matching continuous-monitoring analytical option.
         let analytical_option = FxBarrierOption::builder()
             .id("FXBAR-ANAL-PUT-BUG".into())
             .strike(1.30)
@@ -991,7 +1097,7 @@ mod tests {
             .base_currency(Currency::EUR)
             .quote_currency(Currency::USD)
             .day_count(finstack_quant_core::dates::DayCount::Act365F)
-            .use_gobet_miri(false)
+            .monitoring(Monitoring::Continuous)
             .domestic_discount_curve_id("USD-OIS".into())
             .foreign_discount_curve_id("EUR-OIS".into())
             .fx_spot_id_opt(Some("EURUSD-SPOT".into()))
@@ -1033,6 +1139,32 @@ mod tests {
             .value(&market, as_of)
             .expect("MC put price")
             .amount();
+
+        let diagnostic_result = FxBarrierOptionMcPricer::new()
+            .price_dyn(&mc_option, &market, as_of)
+            .expect("MC diagnostic result");
+        let Some(crate::results::ValuationDetails::MonteCarlo(diagnostics)) =
+            diagnostic_result.details
+        else {
+            panic!("MC barrier result must include typed diagnostics");
+        };
+        assert!(diagnostics.standard_error.is_finite());
+        assert!(diagnostics.estimator_paths > 0);
+        assert!(diagnostics.simulated_paths >= diagnostics.estimator_paths);
+        assert_eq!(
+            diagnostics.time_grid.first().copied(),
+            Some(0.0),
+            "time grid must include valuation time"
+        );
+        let expected_maturity_time = mc_option
+            .day_count
+            .year_fraction(as_of, expiry, DayCountContext::default())
+            .expect("maturity time");
+        assert_eq!(
+            diagnostics.time_grid.last().copied(),
+            Some(expected_maturity_time),
+            "time grid must end at contractual maturity"
+        );
 
         let analytical_pv = analytical_option
             .value(&market, as_of)
@@ -1081,7 +1213,9 @@ mod tests {
             .base_currency(Currency::EUR)
             .quote_currency(Currency::USD)
             .day_count(finstack_quant_core::dates::DayCount::Act365F)
-            .use_gobet_miri(true)
+            .monitoring(Monitoring::Discrete {
+                observation_dates: vec![as_of, expiry],
+            })
             .domestic_discount_curve_id("USD-OIS".into())
             .foreign_discount_curve_id("EUR-OIS".into())
             .fx_spot_id_opt(Some("EURUSD-SPOT".into()))

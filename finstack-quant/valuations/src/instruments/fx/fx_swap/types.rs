@@ -8,7 +8,7 @@
 
 use crate::instruments::common_impl::traits::Attributes;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::Date;
+use finstack_quant_core::dates::{Date, Tenor};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 
@@ -232,27 +232,29 @@ impl FxSwap {
             .expect("Example FX swap construction should not fail")
     }
 
-    /// Construct an FX swap from trade date and tenor using joint calendar spot roll.
+    /// Construct an FX swap from trade date and a standard calendar tenor.
     ///
     /// `spot_lag_days` defaults to 2 in most markets; supply calendar IDs to enforce
-    /// base/quote business-day adjustment.
+    /// base/quote business-day adjustment. `end_of_month` explicitly controls
+    /// whether a month-end near date produces a month-end far date.
     #[allow(clippy::too_many_arguments)]
     pub fn from_trade_date(
         id: impl Into<InstrumentId>,
         base_currency: Currency,
         quote_currency: Currency,
         trade_date: Date,
-        far_tenor_days: i64,
+        far_tenor: Tenor,
         base_notional: Money,
         domestic_discount_curve_id: impl Into<CurveId>,
         foreign_discount_curve_id: impl Into<CurveId>,
         base_calendar_id: Option<String>,
         quote_calendar_id: Option<String>,
-        spot_lag_days: u32,
+        spot_lag_days: i32,
         business_day_convention: finstack_quant_core::dates::BusinessDayConvention,
+        end_of_month: bool,
     ) -> finstack_quant_core::Result<Self> {
         use crate::instruments::common_impl::fx_dates::{
-            adjust_joint_calendar, fx_spot_date_for_pair,
+            add_fx_standard_tenor, fx_spot_date_for_pair,
         };
         // CLS-consistent spot roll: a US holiday on an intermediate day does not
         // delay a USD pair's spot date (FX spot convention
@@ -265,10 +267,11 @@ impl FxSwap {
             base_calendar_id.as_deref(),
             quote_calendar_id.as_deref(),
         )?;
-        let far_unadjusted = near_date + time::Duration::days(far_tenor_days);
-        let far_date = adjust_joint_calendar(
-            far_unadjusted,
+        let far_date = add_fx_standard_tenor(
+            near_date,
+            far_tenor,
             business_day_convention,
+            end_of_month,
             base_calendar_id.as_deref(),
             quote_calendar_id.as_deref(),
         )?;
@@ -288,6 +291,42 @@ impl FxSwap {
             .build()
     }
 
+    /// Construct an FX swap from explicit broken near and far dates.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Instrument identifier.
+    /// * `base_currency` - Currency exchanged as the base leg.
+    /// * `quote_currency` - Currency exchanged as the quote leg.
+    /// * `near_date` - Explicit near-leg settlement date.
+    /// * `far_date` - Explicit far-leg settlement date.
+    /// * `base_notional` - Positive base-currency amount on both legs.
+    /// * `domestic_discount_curve_id` - Quote-currency discount curve.
+    /// * `foreign_discount_curve_id` - Base-currency discount curve.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_broken_dates(
+        id: impl Into<InstrumentId>,
+        base_currency: Currency,
+        quote_currency: Currency,
+        near_date: Date,
+        far_date: Date,
+        base_notional: Money,
+        domestic_discount_curve_id: impl Into<CurveId>,
+        foreign_discount_curve_id: impl Into<CurveId>,
+    ) -> finstack_quant_core::Result<Self> {
+        Self::builder()
+            .id(id.into())
+            .base_currency(base_currency)
+            .quote_currency(quote_currency)
+            .near_date(near_date)
+            .far_date(far_date)
+            .base_notional(base_notional)
+            .domestic_discount_curve_id(domestic_discount_curve_id.into())
+            .foreign_discount_curve_id(foreign_discount_curve_id.into())
+            .attributes(Attributes::new())
+            .build()
+    }
+
     // Builder entrypoint is provided via derive
 
     fn single_cashflow_schedule(
@@ -296,9 +335,13 @@ impl FxSwap {
         payment_date: Date,
         amount: Money,
     ) -> finstack_quant_core::Result<CashFlowSchedule> {
-        let _ = as_of;
+        let flows = if crate::instruments::fx::shared::event_has_occurred(payment_date, as_of) {
+            Vec::new()
+        } else {
+            vec![(payment_date, amount)]
+        };
         Ok(crate::cashflow::traits::schedule_from_dated_flows(
-            vec![(payment_date, amount)],
+            flows,
             CFKind::Notional,
             finstack_quant_core::dates::DayCount::Act365F,
             crate::cashflow::traits::ScheduleBuildOpts {
@@ -344,9 +387,8 @@ impl crate::instruments::common_impl::traits::Instrument for FxSwap {
             )));
         }
 
-        // If fully settled (on or after far date), return zero.
-        // Uses >= for consistency with FxForward (settled when as_of >= maturity_date).
-        if as_of >= self.far_date {
+        // End-of-day policy: far-leg settlement remains live on its event date.
+        if crate::instruments::fx::shared::event_has_occurred(self.far_date, as_of) {
             return Ok(finstack_quant_core::money::Money::new(
                 0.0,
                 self.quote_currency,
@@ -395,6 +437,20 @@ impl finstack_quant_cashflows::CashflowScheduleSource for FxSwap {
                 expected: self.base_currency,
                 actual: self.base_notional.currency(),
             });
+        }
+        if crate::instruments::fx::shared::event_has_occurred(self.far_date, as_of) {
+            return Ok(crate::cashflow::traits::schedule_from_classified_flows(
+                Vec::new(),
+                finstack_quant_core::dates::DayCount::Act365F,
+                crate::cashflow::traits::ScheduleBuildOpts {
+                    notional_hint: Some(Money::new(0.0, self.base_currency)),
+                    meta: crate::cashflow::builder::CashFlowMeta {
+                        representation:
+                            crate::cashflow::builder::CashflowRepresentation::NoResidual,
+                        ..Default::default()
+                    },
+                },
+            ));
         }
 
         let ctx = FxSwapPricingContext::build(self, curves, as_of)?;

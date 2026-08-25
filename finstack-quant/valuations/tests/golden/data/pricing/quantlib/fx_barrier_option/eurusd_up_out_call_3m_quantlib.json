@@ -29,7 +29,9 @@
         "quote_currency": "USD",
         "rebate": null,
         "strike": 1.1,
-        "use_gobet_miri": false,
+        "monitoring": {
+          "type": "continuous"
+        },
         "vol_surface_id": "EURUSD-BARRIER-VOL-QL",
         "monitoring_start_date": "2026-04-30"
       },

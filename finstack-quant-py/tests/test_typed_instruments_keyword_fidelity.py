@@ -170,7 +170,11 @@ def test_fx_option_builder_setters_accept_keyword_value() -> None:
         .quote_currency(value=Currency("USD"))
         .strike(value=1.12)
         .option_type(value="call")
-        .exercise_style(value="european")
+        .delta_convention(
+            kind="forward",
+            premium_currency=Currency("USD"),
+            venue="generic_interbank",
+        )
         .expiry(value=datetime.date(2025, 12, 15))
         .notional(value=Money(1_000_000.0, Currency("EUR")))
         .domestic_discount_curve_id(value="USD-OIS")

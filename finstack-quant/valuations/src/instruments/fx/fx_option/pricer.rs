@@ -18,10 +18,9 @@ const THETA_DAYS_PER_YEAR: f64 = 365.0;
 
 pub(crate) fn compute_pv(inst: &FxOption, curves: &MarketContext, as_of: Date) -> Result<Money> {
     inst.validate()?;
-    if as_of > inst.expiry {
+    if crate::instruments::fx::shared::event_has_occurred(inst.expiry, as_of) {
         return Ok(Money::new(0.0, inst.quote_currency));
     }
-    validate_exercise_style(inst)?;
     let (spot, r_d, r_f, sigma, t) = collect_inputs(inst, curves, as_of)?;
     if spot <= 0.0 || inst.strike < 0.0 || inst.notional.amount() <= 0.0 {
         return Err(finstack_quant_core::Error::Validation(format!(
@@ -154,7 +153,7 @@ pub(crate) fn compute_greeks(
     curves: &MarketContext,
     as_of: Date,
 ) -> Result<FxOptionGreeks> {
-    if as_of > inst.expiry {
+    if crate::instruments::fx::shared::event_has_occurred(inst.expiry, as_of) {
         return Ok(FxOptionGreeks::default());
     }
     inst.validate()?;
@@ -230,16 +229,29 @@ pub(crate) fn compute_greeks(
         OptionType::Call => cdf_d1,
         OptionType::Put => cdf_d1 - 1.0,
     };
-    let delta_premium_adjusted_unit = match inst.option_type {
-        OptionType::Call => (inst.strike / spot) * exp_rd_t * cdf_d2,
-        OptionType::Put => (inst.strike / spot) * exp_rd_t * (cdf_d2 - 1.0),
+    let signed_cdf_d2 = match inst.option_type {
+        OptionType::Call => cdf_d2,
+        OptionType::Put => cdf_d2 - 1.0,
+    };
+    let premium_in_base = inst.delta_convention.premium_currency == inst.base_currency;
+    let delta_premium_adjusted_spot_unit = if premium_in_base {
+        (inst.strike / spot) * exp_rd_t * signed_cdf_d2
+    } else {
+        greeks_unit.delta
+    };
+    let forward = spot * ((r_d - r_f) * t).exp();
+    let delta_premium_adjusted_forward_unit = if premium_in_base {
+        (inst.strike / forward) * signed_cdf_d2
+    } else {
+        delta_forward_unit
     };
 
     let scale = inst.notional.amount();
     Ok(FxOptionGreeks {
         delta: greeks_unit.delta * scale,
         delta_forward: delta_forward_unit * scale,
-        delta_premium_adjusted: delta_premium_adjusted_unit * scale,
+        delta_premium_adjusted_spot: delta_premium_adjusted_spot_unit * scale,
+        delta_premium_adjusted_forward: delta_premium_adjusted_forward_unit * scale,
         gamma: greeks_unit.gamma * scale,
         vega: greeks_unit.vega * scale,
         theta: greeks_unit.theta * scale,
@@ -248,37 +260,20 @@ pub(crate) fn compute_greeks(
     })
 }
 
-#[inline]
-fn validate_exercise_style(inst: &FxOption) -> Result<()> {
-    use crate::instruments::ExerciseStyle;
-    if inst.exercise_style != ExerciseStyle::European {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "FxOption only supports European exercise style. \
-                 Got {:?}. American and Bermudan options require \
-                 specialized pricers not yet implemented.",
-            inst.exercise_style
-        )));
-    }
-    Ok(())
-}
-
 #[derive(Debug, Clone, Copy, Default)]
 #[allow(dead_code)]
 pub(crate) struct FxOptionGreeks {
     /// Garman–Kohlhagen **spot delta** `e^{-r_f·T}·N(d1)` (premium-unadjusted).
     ///
-    /// This is only one of three FX delta conventions. Interbank G10 pairs are
-    /// typically quoted/hedged on **forward delta** (`delta_forward`), while
-    /// many EM and premium-in-foreign-currency pairs use **premium-adjusted
-    /// delta** (`delta_premium_adjusted`). Pick the field matching the pair's
-    /// market convention rather than assuming `delta` is the hedge ratio — using
-    /// spot delta where forward/premium-adjusted is conventional gives the wrong
-    /// hedge.
+    /// This is one of four explicit FX delta metrics. Consumers should select
+    /// the metric named by `FxOption::delta_convention`.
     pub(crate) delta: f64,
     /// Forward delta `N(d1)` — the interbank G10 quoting convention.
     pub(crate) delta_forward: f64,
-    /// Premium-adjusted delta — convention for premium-in-foreign-ccy / EM pairs.
-    pub(crate) delta_premium_adjusted: f64,
+    /// Premium-adjusted spot delta under the instrument's premium currency.
+    pub(crate) delta_premium_adjusted_spot: f64,
+    /// Premium-adjusted forward delta under the instrument's premium currency.
+    pub(crate) delta_premium_adjusted_forward: f64,
     pub(crate) gamma: f64,
     pub(crate) vega: f64,
     pub(crate) theta: f64,
@@ -290,7 +285,7 @@ pub(crate) struct FxOptionGreeks {
 mod delegation_tests {
     use super::*;
     use crate::instruments::common_impl::traits::{Attributes, Instrument};
-    use crate::instruments::{ExerciseStyle, SettlementType};
+    use crate::instruments::fx::fx_option::{FxDeltaConvention, FxDeltaConventionKind};
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{Date, DayCount};
     use finstack_quant_core::market_data::surfaces::VolSurface;
@@ -342,11 +337,13 @@ mod delegation_tests {
             .quote_currency(Currency::USD)
             .strike(1.20)
             .option_type(OptionType::Call)
-            .exercise_style(ExerciseStyle::European)
+            .delta_convention(
+                FxDeltaConvention::new(FxDeltaConventionKind::Forward, Currency::USD, "test")
+                    .expect("valid delta convention"),
+            )
             .expiry(expiry)
             .day_count(DayCount::Act365F)
             .notional(Money::new(1_000_000.0, Currency::EUR))
-            .settlement(SettlementType::Cash)
             .domestic_discount_curve_id(CurveId::new("USD-OIS"))
             .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
             .vol_surface_id(CurveId::new("EURUSD-VOL"))
@@ -386,6 +383,44 @@ mod delegation_tests {
 
         assert!((via_pricer.amount() - via_instrument.amount()).abs() < 1e-10);
         assert_eq!(via_pricer.currency(), via_instrument.currency());
+    }
+
+    #[test]
+    fn premium_currency_selects_explicit_spot_and_forward_delta_adjustments() {
+        let as_of = date!(2024 - 01 - 01);
+        let expiry = date!(2025 - 01 - 01);
+        let mut base_premium = build_option(expiry);
+        base_premium.delta_convention = FxDeltaConvention::new(
+            FxDeltaConventionKind::PremiumAdjustedForward,
+            Currency::EUR,
+            "test",
+        )
+        .expect("base premium convention");
+        let market = build_market(as_of);
+        let adjusted = compute_greeks(&base_premium, &market, as_of).expect("adjusted greeks");
+
+        let mut quote_premium = base_premium;
+        quote_premium.delta_convention = FxDeltaConvention::new(
+            FxDeltaConventionKind::PremiumAdjustedForward,
+            Currency::USD,
+            "test",
+        )
+        .expect("quote premium convention");
+        let unadjusted = compute_greeks(&quote_premium, &market, as_of).expect("quote greeks");
+
+        assert_eq!(unadjusted.delta_premium_adjusted_spot, unadjusted.delta);
+        assert_eq!(
+            unadjusted.delta_premium_adjusted_forward,
+            unadjusted.delta_forward
+        );
+        assert_ne!(
+            adjusted.delta_premium_adjusted_spot,
+            unadjusted.delta_premium_adjusted_spot
+        );
+        assert_ne!(
+            adjusted.delta_premium_adjusted_forward,
+            unadjusted.delta_premium_adjusted_forward
+        );
     }
 
     #[test]

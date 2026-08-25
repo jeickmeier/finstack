@@ -19,10 +19,10 @@ impl MetricCalculator for DeltaForwardCalculator {
     }
 }
 
-/// Premium-adjusted delta calculator for FX options.
-pub(crate) struct DeltaPremiumAdjustedCalculator;
+/// Premium-adjusted spot delta calculator for FX options.
+pub(crate) struct DeltaPremiumAdjustedSpotCalculator;
 
-impl MetricCalculator for DeltaPremiumAdjustedCalculator {
+impl MetricCalculator for DeltaPremiumAdjustedSpotCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let option: &FxOption = context.instrument_as()?;
         let greeks = crate::instruments::fx::fx_option::pricer::compute_greeks(
@@ -30,6 +30,21 @@ impl MetricCalculator for DeltaPremiumAdjustedCalculator {
             &context.curves,
             context.as_of,
         )?;
-        Ok(greeks.delta_premium_adjusted)
+        Ok(greeks.delta_premium_adjusted_spot)
+    }
+}
+
+/// Premium-adjusted forward delta calculator for FX options.
+pub(crate) struct DeltaPremiumAdjustedForwardCalculator;
+
+impl MetricCalculator for DeltaPremiumAdjustedForwardCalculator {
+    fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
+        let option: &FxOption = context.instrument_as()?;
+        let greeks = crate::instruments::fx::fx_option::pricer::compute_greeks(
+            option,
+            &context.curves,
+            context.as_of,
+        )?;
+        Ok(greeks.delta_premium_adjusted_forward)
     }
 }

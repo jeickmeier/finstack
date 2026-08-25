@@ -79,8 +79,9 @@ fn test_settlement_on_valuation_date() {
 
     let cashflows = fx.dated_cashflows(&market, settlement).unwrap();
 
-    // Settlement on as_of means already settled
-    assert_eq!(cashflows.len(), 0);
+    // End-of-day policy: settlement remains live on the event date.
+    assert_eq!(cashflows.len(), 1);
+    assert_eq!(cashflows[0].0, settlement);
 }
 
 #[test]
@@ -291,4 +292,55 @@ fn test_calendar_aware_settlement_lag() {
     assert_eq!(cashflows.len(), 1);
     // Should respect calendar holidays if any
     assert!(cashflows[0].0 > as_of);
+}
+
+#[test]
+fn cashflow_uses_valuation_date_spot_not_settlement_date_rate() {
+    use finstack_quant_core::dates::Date;
+    use finstack_quant_core::money::fx::{FxConversionPolicy, FxMatrix, FxProvider};
+    use std::sync::Arc;
+
+    struct DateAwareFx {
+        valuation_date: Date,
+    }
+
+    impl FxProvider for DateAwareFx {
+        fn rate(
+            &self,
+            _from: Currency,
+            _to: Currency,
+            on: Date,
+            _policy: FxConversionPolicy,
+        ) -> finstack_quant_core::Result<f64> {
+            Ok(if on == self.valuation_date {
+                1.10
+            } else {
+                9.99
+            })
+        }
+    }
+
+    let as_of = d(2025, 1, 15);
+    let spot = FxSpot::new(
+        InstrumentId::new("EURUSD-DATE-AWARE"),
+        Currency::EUR,
+        Currency::USD,
+    )
+    .with_notional(Money::new(1_000_000.0, Currency::EUR))
+    .expect("valid notional")
+    .with_settlement(d(2025, 1, 17));
+    let market = MarketContext::new().insert_fx(FxMatrix::new(Arc::new(DateAwareFx {
+        valuation_date: as_of,
+    })));
+
+    let cashflows = spot
+        .dated_cashflows(&market, as_of)
+        .expect("cashflow schedule");
+    assert_eq!(cashflows.len(), 1);
+    assert_approx_eq(
+        cashflows[0].1.amount(),
+        1_100_000.0,
+        EPSILON,
+        "cashflow must use as-of spot",
+    );
 }

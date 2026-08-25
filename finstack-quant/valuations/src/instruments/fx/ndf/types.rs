@@ -9,7 +9,7 @@ use crate::cashflow::primitives::CFKind;
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::traits::Attributes;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::Date;
+use finstack_quant_core::dates::{Date, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
@@ -644,7 +644,7 @@ impl Ndf {
     /// * `base_currency` - Restricted currency (numerator)
     /// * `settlement_currency` - Convertible currency (denominator)
     /// * `trade_date` - Trade date
-    /// * `tenor_days` - Days from spot to maturity
+    /// * `tenor` - Calendar tenor from spot to maturity (for example, 3M).
     /// * `notional` - Notional in base currency
     /// * `contract_rate` - Contract forward rate
     /// * `domestic_discount_curve_id` - Settlement/quote currency discount curve
@@ -653,24 +653,27 @@ impl Ndf {
     /// * `spot_lag_days` - Spot lag (typically 2)
     /// * `fixing_offset_days` - Days before maturity for fixing (typically 2)
     /// * `business_day_convention` - Business day convention
+    /// * `end_of_month` - Preserve month-end when the spot date is month-end.
     #[allow(clippy::too_many_arguments)]
     pub fn from_trade_date(
         id: impl Into<InstrumentId>,
         base_currency: Currency,
         settlement_currency: Currency,
         trade_date: Date,
-        tenor_days: i64,
+        tenor: Tenor,
         notional: Money,
         contract_rate: f64,
         domestic_discount_curve_id: impl Into<CurveId>,
         base_calendar_id: Option<String>,
         quote_calendar_id: Option<String>,
-        spot_lag_days: u32,
+        spot_lag_days: i32,
         fixing_offset_days: i64,
         business_day_convention: finstack_quant_core::dates::BusinessDayConvention,
+        end_of_month: bool,
     ) -> finstack_quant_core::Result<Self> {
         use crate::instruments::common_impl::fx_dates::{
-            adjust_joint_calendar, fx_spot_date_for_pair, ResolvedCalendarPair,
+            add_fx_standard_tenor, adjust_joint_calendar, fx_spot_date_for_pair,
+            ResolvedCalendarPair,
         };
 
         // CLS-consistent spot roll: a US holiday on an intermediate day does not
@@ -685,10 +688,11 @@ impl Ndf {
             base_calendar_id.as_deref(),
             quote_calendar_id.as_deref(),
         )?;
-        let maturity_unadjusted = spot_date + time::Duration::days(tenor_days);
-        let maturity = adjust_joint_calendar(
-            maturity_unadjusted,
+        let maturity = add_fx_standard_tenor(
+            spot_date,
+            tenor,
             business_day_convention,
+            end_of_month,
             base_calendar_id.as_deref(),
             quote_calendar_id.as_deref(),
         )?;
@@ -735,6 +739,43 @@ impl Ndf {
             .quote_convention(NdfQuoteConvention::BasePerSettlement)
             .base_calendar_id_opt(base_calendar_id)
             .quote_calendar_id_opt(quote_calendar_id)
+            .attributes(Attributes::new())
+            .build()
+    }
+
+    /// Construct an NDF from explicit broken fixing and maturity dates.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Instrument identifier.
+    /// * `base_currency` - Restricted currency underlying the fixing.
+    /// * `settlement_currency` - Convertible payout currency.
+    /// * `fixing_date` - Explicit contractual fixing date.
+    /// * `maturity` - Explicit cash-settlement date.
+    /// * `notional` - Positive base-currency notional.
+    /// * `contract_rate` - Positive contractual NDF rate.
+    /// * `domestic_discount_curve_id` - Settlement-currency discount curve.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_broken_dates(
+        id: impl Into<InstrumentId>,
+        base_currency: Currency,
+        settlement_currency: Currency,
+        fixing_date: Date,
+        maturity: Date,
+        notional: Money,
+        contract_rate: f64,
+        domestic_discount_curve_id: impl Into<CurveId>,
+    ) -> finstack_quant_core::Result<Self> {
+        Self::builder()
+            .id(id.into())
+            .base_currency(base_currency)
+            .settlement_currency(settlement_currency)
+            .fixing_date(fixing_date)
+            .maturity(maturity)
+            .notional(notional)
+            .contract_rate(contract_rate)
+            .domestic_discount_curve_id(domestic_discount_curve_id.into())
+            .quote_convention(NdfQuoteConvention::BasePerSettlement)
             .attributes(Attributes::new())
             .build()
     }
@@ -852,7 +893,7 @@ impl Ndf {
     fn settlement_amount_for_schedule(&self, market: &MarketContext, as_of: Date) -> Result<f64> {
         let fixing_rate = if let Some(fixed_rate) = self.fixing_rate {
             fixed_rate
-        } else if as_of >= self.fixing_date {
+        } else if crate::instruments::fx::shared::event_has_occurred(self.fixing_date, as_of) {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "NDF {} is past fixing date ({}) but no fixing_rate is set. \
                  Use with_fixing_rate() to set the observed rate.",
@@ -921,8 +962,8 @@ impl crate::instruments::common_impl::traits::Instrument for Ndf {
             Self::validate_rate("spot_rate_override", rate)?;
         }
 
-        // If maturity has passed, value is zero
-        if self.maturity < as_of {
+        // End-of-day policy: settlement remains live on maturity.
+        if crate::instruments::fx::shared::event_has_occurred(self.maturity, as_of) {
             return Ok(Money::new(0.0, self.settlement_currency));
         }
 
@@ -932,7 +973,7 @@ impl crate::instruments::common_impl::traits::Instrument for Ndf {
         let effective_forward = if let Some(fixed_rate) = self.fixing_rate {
             // Post-fixing: use observed rate
             fixed_rate
-        } else if as_of >= self.fixing_date {
+        } else if crate::instruments::fx::shared::event_has_occurred(self.fixing_date, as_of) {
             // Past fixing date but no rate set - this is an error condition
             return Err(finstack_quant_core::Error::Validation(format!(
                 "NDF {} is past fixing date ({}) but no fixing_rate is set. \
@@ -986,6 +1027,20 @@ impl finstack_quant_cashflows::CashflowScheduleSource for Ndf {
         market: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<CashFlowSchedule> {
+        if crate::instruments::fx::shared::event_has_occurred(self.maturity, as_of) {
+            return Ok(crate::cashflow::traits::schedule_from_classified_flows(
+                Vec::new(),
+                finstack_quant_core::dates::DayCount::Act365F,
+                crate::cashflow::traits::ScheduleBuildOpts {
+                    notional_hint: Some(Money::new(0.0, self.settlement_currency)),
+                    meta: crate::cashflow::builder::CashFlowMeta {
+                        representation:
+                            crate::cashflow::builder::CashflowRepresentation::NoResidual,
+                        ..Default::default()
+                    },
+                },
+            ));
+        }
         let settlement_amount = self.settlement_amount_for_schedule(market, as_of)?;
         let ccy = self.settlement_currency;
         let schedule = crate::cashflow::traits::schedule_from_dated_flows(

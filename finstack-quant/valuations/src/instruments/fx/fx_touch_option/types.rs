@@ -267,6 +267,11 @@ impl FxTouchOption {
                 actual: self.payout_amount.currency(),
             });
         }
+        if self.touch_type == TouchType::NoTouch && self.payout_timing == PayoutTiming::AtHit {
+            return Err(finstack_quant_core::Error::Validation(
+                "FxTouchOption no-touch payout_timing must be at_expiry".to_string(),
+            ));
+        }
         let start = self.monitoring_start_date.ok_or_else(|| {
             finstack_quant_core::Error::Validation(
                 "FxTouchOption requires monitoring_start_date".to_string(),
@@ -512,16 +517,21 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxTouchOp
             return Ok(Some(0.0));
         }
 
-        let base_pv = self.value(market, as_of)?.amount();
-        let bumped = crate::metrics::bump_surface_vol_absolute(
+        let vol_bump = crate::metrics::bump_sizes::VOLATILITY;
+        let up = crate::metrics::bump_surface_vol_absolute(
             market,
             self.vol_surface_id.as_str(),
-            crate::metrics::bump_sizes::VOLATILITY,
+            vol_bump,
         )?;
-        let pv_bumped = self.value(&bumped, as_of)?.amount();
-        Ok(Some(
-            (pv_bumped - base_pv) / crate::metrics::bump_sizes::VOLATILITY,
-        ))
+        let down = crate::metrics::bump_surface_vol_absolute(
+            market,
+            self.vol_surface_id.as_str(),
+            -vol_bump,
+        )?;
+        let pv_up = self.value(&up, as_of)?.amount();
+        let pv_down = self.value(&down, as_of)?.amount();
+        let width = 2.0 * vol_bump * crate::metrics::VOL_POINTS_PER_ABSOLUTE_VOL;
+        Ok(Some((pv_up - pv_down) / width))
     }
 
     fn option_rho_bp(
@@ -808,6 +818,30 @@ mod tests {
         assert!(
             (pv1 - pv2).abs() < 1e-9,
             "base PV must be stable after FD Greeks ran: pv1={pv1} pv2={pv2}"
+        );
+
+        let vol_bump = crate::metrics::bump_sizes::VOLATILITY;
+        let up = crate::metrics::bump_surface_vol_absolute(
+            &market,
+            touch.vol_surface_id.as_str(),
+            vol_bump,
+        )
+        .expect("up vol bump");
+        let down = crate::metrics::bump_surface_vol_absolute(
+            &market,
+            touch.vol_surface_id.as_str(),
+            -vol_bump,
+        )
+        .expect("down vol bump");
+        let expected_vega = (touch.value(&up, as_of).expect("up pv").amount()
+            - touch.value(&down, as_of).expect("down pv").amount())
+            / (2.0 * vol_bump * crate::metrics::VOL_POINTS_PER_ABSOLUTE_VOL);
+        let vega = OptionGreeksProvider::option_vega(&touch, &market, as_of)
+            .expect("vega")
+            .expect("touch vega");
+        assert!(
+            (vega - expected_vega).abs() <= 1e-9 * expected_vega.abs().max(1.0),
+            "touch vega must be cash PV per vol point: expected {expected_vega}, got {vega}"
         );
     }
 }

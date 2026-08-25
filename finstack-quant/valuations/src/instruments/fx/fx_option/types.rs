@@ -43,7 +43,7 @@
 
 use crate::instruments::common_impl::parameters::FxUnderlyingParams;
 use crate::instruments::common_impl::traits::Attributes;
-use crate::instruments::{ExerciseStyle, OptionType, SettlementType};
+use crate::instruments::OptionType;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 // Pricing/greeks live in pricing engine; keep types minimal.
@@ -61,7 +61,94 @@ fn default_fx_underlying(base_currency: Currency, quote_currency: Currency) -> F
     FxUnderlyingParams::new(base_currency, quote_currency, domestic, foreign)
 }
 
-/// FX option instrument (Garman-Kohlhagen model)
+/// Pair/venue FX delta quoting convention selected by the contract.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum FxDeltaConventionKind {
+    /// Unadjusted spot delta.
+    Spot,
+    /// Unadjusted forward delta.
+    Forward,
+    /// Premium-adjusted spot delta.
+    PremiumAdjustedSpot,
+    /// Premium-adjusted forward delta.
+    PremiumAdjustedForward,
+}
+
+impl std::fmt::Display for FxDeltaConventionKind {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Spot => "spot",
+            Self::Forward => "forward",
+            Self::PremiumAdjustedSpot => "premium_adjusted_spot",
+            Self::PremiumAdjustedForward => "premium_adjusted_forward",
+        })
+    }
+}
+
+impl std::str::FromStr for FxDeltaConventionKind {
+    type Err = String;
+
+    fn from_str(value: &str) -> std::result::Result<Self, Self::Err> {
+        match value {
+            "spot" => Ok(Self::Spot),
+            "forward" => Ok(Self::Forward),
+            "premium_adjusted_spot" => Ok(Self::PremiumAdjustedSpot),
+            "premium_adjusted_forward" => Ok(Self::PremiumAdjustedForward),
+            _ => Err(format!(
+                "invalid FX delta convention '{value}'; expected spot, forward, \
+                 premium_adjusted_spot, or premium_adjusted_forward"
+            )),
+        }
+    }
+}
+/// Explicit venue and premium-currency convention for FX delta reporting.
+#[derive(
+    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
+#[serde(deny_unknown_fields)]
+pub struct FxDeltaConvention {
+    /// Delta convention quoted by the venue.
+    pub kind: FxDeltaConventionKind,
+    /// Currency in which the option premium is paid.
+    pub premium_currency: Currency,
+    /// Non-empty market venue or quoting-source identifier.
+    pub venue: String,
+}
+
+impl FxDeltaConvention {
+    /// Create an explicit FX delta convention.
+    ///
+    /// # Arguments
+    ///
+    /// * `kind` - Spot, forward, or premium-adjusted quoting convention.
+    /// * `premium_currency` - Currency in which premium is paid.
+    /// * `venue` - Non-empty venue or quoting-source identifier.
+    pub fn new(
+        kind: FxDeltaConventionKind,
+        premium_currency: Currency,
+        venue: impl Into<String>,
+    ) -> finstack_quant_core::Result<Self> {
+        let venue = venue.into();
+        if venue.trim().is_empty() {
+            return Err(finstack_quant_core::Error::Validation(
+                "FX delta convention venue must not be blank".to_string(),
+            ));
+        }
+        Ok(Self {
+            kind,
+            premium_currency,
+            venue,
+        })
+    }
+}
+
+/// European FX option with same-day cash settlement at expiry.
+///
+/// Physical delivery is intentionally not represented: exercised payoff is a
+/// quote-currency cash amount on `expiry`.
 #[derive(
     PartialEq,
     Clone,
@@ -89,10 +176,8 @@ pub struct FxOption {
     pub strike: f64,
     /// Option type (call or put on base currency)
     pub option_type: OptionType,
-    /// Exercise style (European or American)
-    #[serde(default)]
-    #[builder(default)]
-    pub exercise_style: ExerciseStyle,
+    /// Pair/venue delta convention and premium currency.
+    pub delta_convention: FxDeltaConvention,
     /// Option expiry date
     #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
@@ -103,10 +188,6 @@ pub struct FxOption {
     pub day_count: finstack_quant_core::dates::DayCount,
     /// Notional amount in base currency
     pub notional: Money,
-    /// Settlement type (physical or cash)
-    #[serde(default = "crate::serde_defaults::settlement_cash")]
-    #[builder(default = SettlementType::Cash)]
-    pub settlement: SettlementType,
     /// Domestic currency discount curve ID
     pub domestic_discount_curve_id: CurveId,
     /// Foreign currency discount curve ID
@@ -171,6 +252,20 @@ impl FxOption {
                 actual: self.notional.currency(),
             });
         }
+        if !matches!(
+            self.delta_convention.premium_currency,
+            currency if currency == self.base_currency || currency == self.quote_currency
+        ) {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "FxOption premium currency {} must be either base {} or quote {} currency",
+                self.delta_convention.premium_currency, self.base_currency, self.quote_currency
+            )));
+        }
+        if self.delta_convention.venue.trim().is_empty() {
+            return Err(finstack_quant_core::Error::Validation(
+                "FxOption delta convention venue must not be blank".to_string(),
+            ));
+        }
         crate::instruments::common_impl::validation::validate_money_finite(
             self.notional,
             "FxOption notional",
@@ -221,11 +316,14 @@ impl FxOption {
             .quote_currency(Currency::USD)
             .strike(1.12)
             .option_type(OptionType::Call)
-            .exercise_style(ExerciseStyle::European)
+            .delta_convention(FxDeltaConvention::new(
+                FxDeltaConventionKind::Forward,
+                Currency::USD,
+                "generic_interbank",
+            )?)
             .expiry(crate::instruments::common_impl::example_constants::FAR_EXPIRY)
             .day_count(DayCount::Act365F)
             .notional(Money::new(1_000_000.0, Currency::EUR))
-            .settlement(SettlementType::Cash)
             .domestic_discount_curve_id(CurveId::new("USD-OIS"))
             .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
             .vol_surface_id(CurveId::new("EURUSD-VOL"))
@@ -248,6 +346,7 @@ impl FxOption {
         notional: Money,
         vol_surface_id: impl Into<CurveId>,
         option_type: OptionType,
+        delta_convention: FxDeltaConvention,
     ) -> finstack_quant_core::Result<Self> {
         let fx_underlying = if quote_currency == Currency::USD && base_currency == Currency::EUR {
             FxUnderlyingParams::usd_eur()
@@ -262,11 +361,10 @@ impl FxOption {
             .quote_currency(fx_underlying.quote_currency)
             .strike(strike)
             .option_type(option_type)
-            .exercise_style(ExerciseStyle::European)
+            .delta_convention(delta_convention)
             .expiry(expiry)
             .day_count(finstack_quant_core::dates::DayCount::Act365F)
             .notional(notional)
-            .settlement(SettlementType::Cash)
             .domestic_discount_curve_id(fx_underlying.domestic_discount_curve_id.to_owned())
             .foreign_discount_curve_id(fx_underlying.foreign_discount_curve_id)
             .vol_surface_id(vol_surface_id.into())
@@ -290,9 +388,10 @@ impl FxOption {
         vol_surface_id: impl Into<CurveId>,
         base_calendar_id: Option<String>,
         quote_calendar_id: Option<String>,
-        spot_lag_days: u32,
+        spot_lag_days: i32,
         business_day_convention: finstack_quant_core::dates::BusinessDayConvention,
         option_type: OptionType,
+        delta_convention: FxDeltaConvention,
     ) -> finstack_quant_core::Result<Self> {
         use crate::instruments::common_impl::fx_dates::{
             adjust_joint_calendar, fx_spot_date_for_pair,
@@ -329,11 +428,10 @@ impl FxOption {
             .quote_currency(fx_underlying.quote_currency)
             .strike(strike)
             .option_type(option_type)
-            .exercise_style(ExerciseStyle::European)
+            .delta_convention(delta_convention)
             .expiry(expiry)
             .day_count(finstack_quant_core::dates::DayCount::Act365F)
             .notional(notional)
-            .settlement(SettlementType::Cash)
             .domestic_discount_curve_id(fx_underlying.domestic_discount_curve_id.to_owned())
             .foreign_discount_curve_id(fx_underlying.foreign_discount_curve_id)
             .vol_surface_id(vol_surface_id.into())
@@ -718,6 +816,10 @@ mod validation_tests {
             .quote_currency(Currency::USD)
             .strike(1.0)
             .option_type(OptionType::Call)
+            .delta_convention(
+                FxDeltaConvention::new(FxDeltaConventionKind::Forward, Currency::USD, "test")
+                    .expect("valid delta convention"),
+            )
             .expiry(crate::instruments::common_impl::example_constants::FAR_EXPIRY)
             .notional(Money::new(1_000_000.0, Currency::USD))
             .domestic_discount_curve_id(CurveId::new("USD-OIS"))

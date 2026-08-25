@@ -12,6 +12,23 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::BarrierType;
 use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
+/// Contractual barrier-monitoring convention.
+#[derive(
+    PartialEq, Eq, Clone, Debug, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Monitoring {
+    /// Monitor continuously from `monitoring_start_date` through expiry.
+    #[default]
+    Continuous,
+    /// Monitor only at the stated contractual observation dates.
+    Discrete {
+        /// Strictly increasing dates on which the barrier level is observed.
+        #[serde(with = "finstack_quant_core::wire::dates")]
+        #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+        observation_dates: Vec<Date>,
+    },
+}
 
 /// FX barrier option instrument.
 #[derive(
@@ -78,12 +95,14 @@ pub struct FxBarrierOption {
     #[serde(default = "crate::serde_defaults::day_count_act365f")]
     #[builder(default = finstack_quant_core::dates::DayCount::Act365F)]
     pub day_count: finstack_quant_core::dates::DayCount,
-    /// Whether to use Gobet-Miri continuous barrier adjustment.
+    /// Contractual barrier-monitoring convention.
     ///
-    /// Defaults to `false` (analytical continuous-monitoring pricer).
+    /// Continuous monitoring uses the analytical Reiner-Rubinstein pricer by
+    /// default. Discrete monitoring requires explicit observation dates and
+    /// uses Monte Carlo without interpolating barrier hits between those dates.
     #[serde(default)]
     #[builder(default)]
-    pub use_gobet_miri: bool,
+    pub monitoring: Monitoring,
     /// Domestic discount curve ID
     pub domestic_discount_curve_id: CurveId,
     /// Foreign discount curve ID
@@ -166,6 +185,32 @@ impl FxBarrierOption {
                 self.expiry
             )));
         }
+        if let Monitoring::Discrete { observation_dates } = &self.monitoring {
+            if observation_dates.is_empty() {
+                return Err(finstack_quant_core::Error::Validation(
+                    "FxBarrierOption discrete monitoring requires observation_dates".to_string(),
+                ));
+            }
+            if observation_dates.first().copied() != Some(start) {
+                return Err(finstack_quant_core::Error::Validation(
+                    "FxBarrierOption monitoring_start_date must equal the first discrete observation date"
+                        .to_string(),
+                ));
+            }
+            if observation_dates.iter().any(|date| *date > self.expiry) {
+                return Err(finstack_quant_core::Error::Validation(
+                    "FxBarrierOption observation_dates must not be after expiry".to_string(),
+                ));
+            }
+            if observation_dates
+                .windows(2)
+                .any(|dates| dates[0] >= dates[1])
+            {
+                return Err(finstack_quant_core::Error::Validation(
+                    "FxBarrierOption observation_dates must be strictly increasing".to_string(),
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -197,7 +242,7 @@ impl FxBarrierOption {
             .base_currency(Currency::EUR)
             .quote_currency(Currency::USD)
             .day_count(DayCount::Act365F)
-            .use_gobet_miri(false)
+            .monitoring(Monitoring::Continuous)
             .domestic_discount_curve_id(CurveId::new("USD-OIS"))
             .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
             .fx_spot_id_opt(Some("EURUSD-SPOT".into()))
@@ -205,15 +250,6 @@ impl FxBarrierOption {
             .attributes(Attributes::new())
             .build()
             .expect("Example FxBarrierOption construction should not fail")
-    }
-    /// Calculate the net present value using Monte Carlo.
-    pub fn npv_mc(
-        &self,
-        curves: &finstack_quant_core::market_data::context::MarketContext,
-        as_of: finstack_quant_core::dates::Date,
-    ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
-        use crate::instruments::fx::fx_barrier_option::pricer;
-        pricer::compute_pv(self, curves, as_of)
     }
 }
 
@@ -307,16 +343,21 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxBarrier
             return Ok(Some(0.0));
         }
 
-        let base_pv = self.value(market, as_of)?.amount();
-        let bumped = crate::metrics::bump_surface_vol_absolute(
+        let vol_bump = crate::metrics::bump_sizes::VOLATILITY;
+        let up = crate::metrics::bump_surface_vol_absolute(
             market,
             self.vol_surface_id.as_str(),
-            crate::metrics::bump_sizes::VOLATILITY,
+            vol_bump,
         )?;
-        let pv_bumped = self.value(&bumped, as_of)?.amount();
-        Ok(Some(
-            (pv_bumped - base_pv) / crate::metrics::bump_sizes::VOLATILITY,
-        ))
+        let down = crate::metrics::bump_surface_vol_absolute(
+            market,
+            self.vol_surface_id.as_str(),
+            -vol_bump,
+        )?;
+        let pv_up = self.value(&up, as_of)?.amount();
+        let pv_down = self.value(&down, as_of)?.amount();
+        let width = 2.0 * vol_bump * crate::metrics::VOL_POINTS_PER_ABSOLUTE_VOL;
+        Ok(Some((pv_up - pv_down) / width))
     }
 
     fn option_rho_bp(
@@ -454,9 +495,8 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxBarrier
         )?;
         let pv_up = self.value(&up, as_of)?.amount();
         let pv_dn = self.value(&dn, as_of)?.amount();
-        Ok(Some(
-            (pv_up - 2.0 * base_pv + pv_dn) / (vol_bump * vol_bump),
-        ))
+        let width = vol_bump * crate::metrics::VOL_POINTS_PER_ABSOLUTE_VOL;
+        Ok(Some((pv_up - 2.0 * base_pv + pv_dn) / (width * width)))
     }
 }
 
@@ -468,10 +508,9 @@ impl crate::instruments::common_impl::traits::Instrument for FxBarrierOption {
     }
 
     fn default_model(&self) -> crate::pricer::ModelKey {
-        if self.use_gobet_miri {
-            crate::pricer::ModelKey::MonteCarloGBM
-        } else {
-            crate::pricer::ModelKey::FxBarrierBSContinuous
+        match self.monitoring {
+            Monitoring::Continuous => crate::pricer::ModelKey::FxBarrierBSContinuous,
+            Monitoring::Discrete { .. } => crate::pricer::ModelKey::MonteCarloGBM,
         }
     }
 
@@ -497,29 +536,29 @@ impl crate::instruments::common_impl::traits::Instrument for FxBarrierOption {
         Ok(deps)
     }
 
-    /// Compute present value with explicit monitoring semantics.
+    /// Compute present value with explicit contractual monitoring semantics.
     ///
-    /// Dispatch rules:
-    /// - `use_gobet_miri = false` -> analytical continuous-monitoring pricer
-    /// - `use_gobet_miri = true` -> MC discrete-monitoring-corrected pricer
-    ///
-    /// If `use_gobet_miri = true` but `mc` is disabled, this returns an error.
+    /// Continuous monitoring uses the analytical Reiner-Rubinstein pricer.
+    /// Discrete monitoring uses Monte Carlo and observes the barrier only on
+    /// the dates carried by [`Monitoring::Discrete`].
     fn base_value(
         &self,
         market: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
-        if self.use_gobet_miri {
-            return self.npv_mc(market, as_of);
-        }
-
-        use crate::instruments::fx::fx_barrier_option::pricer::FxBarrierOptionAnalyticalPricer;
+        use crate::instruments::fx::fx_barrier_option::pricer::{
+            compute_pv, FxBarrierOptionAnalyticalPricer,
+        };
         use crate::pricer::Pricer;
+
+        if matches!(self.monitoring, Monitoring::Discrete { .. }) {
+            return compute_pv(self, market, as_of);
+        }
 
         let pricer = FxBarrierOptionAnalyticalPricer::new();
         let result = pricer
             .price_dyn(self, market, as_of)
-            .map_err(|e| finstack_quant_core::Error::Validation(e.to_string()))?;
+            .map_err(finstack_quant_core::Error::from)?;
         Ok(result.value)
     }
 
@@ -605,7 +644,7 @@ mod tests {
             .base_currency(Currency::EUR)
             .quote_currency(Currency::USD)
             .day_count(DayCount::Act365F)
-            .use_gobet_miri(false)
+            .monitoring(Monitoring::Continuous)
             .domestic_discount_curve_id(CurveId::new("USD-OIS"))
             .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
             .fx_spot_id_opt(Some("EURUSD-SPOT".into()))
@@ -620,14 +659,27 @@ mod tests {
     }
 
     #[test]
-    fn test_fx_barrier_option_serde_defaults_use_gobet_miri_false() {
+    fn test_fx_barrier_option_serde_defaults_to_continuous_monitoring() {
         let mut value = serde_json::to_value(FxBarrierOption::example()).expect("serialize");
         let obj = value
             .as_object_mut()
             .expect("FxBarrierOption should serialize to an object");
-        obj.remove("use_gobet_miri");
+        obj.remove("monitoring");
         let option: FxBarrierOption = serde_json::from_value(value).expect("deserialize");
-        assert!(!option.use_gobet_miri);
+        assert_eq!(option.monitoring, Monitoring::Continuous);
+    }
+
+    #[test]
+    fn discrete_monitoring_requires_strict_contractual_dates() {
+        let mut option = FxBarrierOption::example();
+        let start = option.monitoring_start_date.expect("example start");
+        option.monitoring = Monitoring::Discrete {
+            observation_dates: vec![start, start],
+        };
+        let error = option
+            .validate()
+            .expect_err("duplicate observation dates must fail");
+        assert!(error.to_string().contains("strictly increasing"));
     }
 
     #[test]
@@ -657,7 +709,7 @@ mod tests {
             .base_currency(Currency::USD)
             .quote_currency(Currency::USD)
             .day_count(DayCount::Act365F)
-            .use_gobet_miri(false)
+            .monitoring(Monitoring::Continuous)
             .domestic_discount_curve_id(CurveId::new("USD-OIS"))
             .foreign_discount_curve_id(CurveId::new("USD-OIS"))
             .vol_surface_id(CurveId::new("USDUSD-VOL"))

@@ -44,6 +44,34 @@ fn create_test_market(as_of: Date) -> MarketContext {
 }
 
 #[test]
+fn forward_settlement_is_live_on_maturity_and_extinguished_afterward() {
+    let maturity = Date::from_calendar_date(2024, Month::July, 15).expect("valid date");
+    let forward = FxForward::builder()
+        .id(InstrumentId::new("EURUSD-EVENT-DATE"))
+        .base_currency(Currency::EUR)
+        .quote_currency(Currency::USD)
+        .maturity(maturity)
+        .notional(Money::new(1_000_000.0, Currency::EUR))
+        .contract_rate_opt(Some(1.05))
+        .domestic_discount_curve_id(CurveId::new("USD-OIS"))
+        .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
+        .attributes(Attributes::new())
+        .build()
+        .expect("forward");
+
+    let on_event = forward
+        .value(&create_test_market(maturity), maturity)
+        .expect("maturity value");
+    assert!((on_event.amount() - 50_000.0).abs() < 1e-9);
+
+    let after = maturity + time::Duration::days(1);
+    let after_event = forward
+        .value(&create_test_market(after), after)
+        .expect("post-maturity value");
+    assert_eq!(after_event.amount(), 0.0);
+}
+
+#[test]
 fn test_fx_forward_pricing_at_market() {
     let as_of = Date::from_calendar_date(2024, Month::January, 15).expect("valid date");
     let maturity = Date::from_calendar_date(2024, Month::July, 15).expect("valid date");
@@ -278,7 +306,7 @@ fn test_fx_forward_with_forward_points() {
         .with_forward_points(spot, forward_points)
         .expect("valid forward points");
 
-    assert_eq!(forward.spot_rate_override, Some(1.10));
+    assert_eq!(forward.spot_rate_override, None);
     assert!((forward.contract_rate.unwrap() - 1.105).abs() < 1e-10);
 
     let npv = forward.value(&market, as_of).expect("should price");
@@ -305,7 +333,7 @@ fn test_fx_forward_with_forward_pips() {
         .with_forward_pips(1.10, 50.0)
         .expect("valid forward pips");
 
-    assert_eq!(forward.spot_rate_override, Some(1.10));
+    assert_eq!(forward.spot_rate_override, None);
     assert!((forward.contract_rate.unwrap() - 1.105).abs() < 1e-10);
 
     let npv = forward.value(&market, as_of).expect("should price");

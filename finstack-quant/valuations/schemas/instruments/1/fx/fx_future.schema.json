@@ -2,7 +2,7 @@
   "$defs": {
     "FxFuture": {
       "additionalProperties": false,
-      "description": "Exchange-listed future on a deliverable currency pair.\n\nPrices are quote-currency units per one base-currency unit. The listed\nmultiplier is the base-currency contract size, so a one-unit price move is\nworth `multiplier` units of the quote currency per contract.",
+      "description": "Exchange-listed future on a deliverable currency pair.\n\nPrices are quote-currency units per one base-currency unit. The listed\nmultiplier is the base-currency contract size, so a one-unit price move is\nworth `multiplier` units of the quote currency per contract.\n\n# Model limitation\n\n[`Self::fair_price`] is a deterministic-rate approximation: it equals the\ncovered-interest-parity forward. Use it only when forward/futures convexity\nis immaterial or handled outside this instrument.",
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",

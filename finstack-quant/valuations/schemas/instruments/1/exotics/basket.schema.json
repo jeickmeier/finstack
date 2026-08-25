@@ -10826,6 +10826,13 @@
           "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
           "description": "Metric-time pricing configuration."
         },
+        "monitoring": {
+          "$ref": "#/$defs/Monitoring",
+          "default": {
+            "type": "continuous"
+          },
+          "description": "Contractual barrier-monitoring convention.\n\nContinuous monitoring uses the analytical Reiner-Rubinstein pricer by\ndefault. Discrete monitoring requires explicit observation dates and\nuses Monte Carlo without interpolating barrier hits between those dates."
+        },
         "monitoring_start_date": {
           "anyOf": [
             {
@@ -10878,11 +10885,6 @@
           "format": "double",
           "type": "number"
         },
-        "use_gobet_miri": {
-          "default": false,
-          "description": "Whether to use Gobet-Miri continuous barrier adjustment.\n\nDefaults to `false` (analytical continuous-monitoring pricer).",
-          "type": "boolean"
-        },
         "vol_surface_id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
           "description": "FX volatility surface ID"
@@ -10921,6 +10923,55 @@
         {
           "const": "period_average",
           "description": "Use an average over the period.",
+          "type": "string"
+        }
+      ]
+    },
+    "FxDeltaConvention": {
+      "additionalProperties": false,
+      "description": "Explicit venue and premium-currency convention for FX delta reporting.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/FxDeltaConventionKind",
+          "description": "Delta convention quoted by the venue."
+        },
+        "premium_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Currency in which the option premium is paid."
+        },
+        "venue": {
+          "description": "Non-empty market venue or quoting-source identifier.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "premium_currency",
+        "venue"
+      ],
+      "type": "object"
+    },
+    "FxDeltaConventionKind": {
+      "description": "Pair/venue FX delta quoting convention selected by the contract.",
+      "oneOf": [
+        {
+          "const": "spot",
+          "description": "Unadjusted spot delta.",
+          "type": "string"
+        },
+        {
+          "const": "forward",
+          "description": "Unadjusted forward delta.",
+          "type": "string"
+        },
+        {
+          "const": "premium_adjusted_spot",
+          "description": "Premium-adjusted spot delta.",
+          "type": "string"
+        },
+        {
+          "const": "premium_adjusted_forward",
+          "description": "Premium-adjusted forward delta.",
           "type": "string"
         }
       ]
@@ -11120,7 +11171,7 @@
     },
     "FxFuture": {
       "additionalProperties": false,
-      "description": "Exchange-listed future on a deliverable currency pair.\n\nPrices are quote-currency units per one base-currency unit. The listed\nmultiplier is the base-currency contract size, so a one-unit price move is\nworth `multiplier` units of the quote currency per contract.",
+      "description": "Exchange-listed future on a deliverable currency pair.\n\nPrices are quote-currency units per one base-currency unit. The listed\nmultiplier is the base-currency contract size, so a one-unit price move is\nworth `multiplier` units of the quote currency per contract.\n\n# Model limitation\n\n[`Self::fair_price`] is a deterministic-rate approximation: it equals the\ncovered-interest-parity forward. Use it only when forward/futures convexity\nis immaterial or handled outside this instrument.",
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
@@ -11220,7 +11271,7 @@
     },
     "FxOption": {
       "additionalProperties": false,
-      "description": "FX option instrument (Garman-Kohlhagen model)",
+      "description": "European FX option with same-day cash settlement at expiry.\n\nPhysical delivery is intentionally not represented: exercised payoff is a\nquote-currency cash amount on `expiry`.",
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
@@ -11235,14 +11286,13 @@
           "default": "act_365f",
           "description": "Day count convention"
         },
+        "delta_convention": {
+          "$ref": "#/$defs/FxDeltaConvention",
+          "description": "Pair/venue delta convention and premium currency."
+        },
         "domestic_discount_curve_id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
           "description": "Domestic currency discount curve ID"
-        },
-        "exercise_style": {
-          "$ref": "#/$defs/ExerciseStyle",
-          "default": "european",
-          "description": "Exercise style (European or American)"
         },
         "expiry": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
@@ -11280,11 +11330,6 @@
           "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
           "description": "Scenario-only pricing adjustments."
         },
-        "settlement": {
-          "$ref": "#/$defs/SettlementType",
-          "default": "cash",
-          "description": "Settlement type (physical or cash)"
-        },
         "strike": {
           "description": "Strike exchange rate (quote per base).\n\n**Note on ATM convention**: Professional FX markets define ATM as the\nDelta-Neutral Straddle (DNS) strike, not the forward rate. See module\ndocumentation for details. If constructing an \"ATM\" option, compute\nthe forward rate or DNS strike externally.",
           "format": "double",
@@ -11301,6 +11346,7 @@
         "quote_currency",
         "strike",
         "option_type",
+        "delta_convention",
         "expiry",
         "notional",
         "domestic_discount_curve_id",
@@ -14880,6 +14926,47 @@
     "MetricId": {
       "description": "Strongly-typed metric identifier.\n\nProvides compile-time validation, autocomplete support, and safe refactoring\nwhen metric names change. Covers bond, IRS, deposit, and risk metrics.\n\nSee unit tests and `examples/` for usage.",
       "type": "string"
+    },
+    "Monitoring": {
+      "description": "Contractual barrier-monitoring convention.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Monitor continuously from `monitoring_start_date` through expiry.",
+          "properties": {
+            "type": {
+              "const": "continuous",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Monitor only at the stated contractual observation dates.",
+          "properties": {
+            "observation_dates": {
+              "description": "Strictly increasing dates on which the barrier level is observed.",
+              "items": {
+                "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "discrete",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "observation_dates"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "Ndf": {
       "additionalProperties": false,

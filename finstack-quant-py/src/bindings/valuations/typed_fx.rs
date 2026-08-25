@@ -14,6 +14,9 @@ use crate::bindings::core::money::PyMoney;
 use crate::bindings::extract::extract_market;
 use crate::errors::{core_to_py, value_error};
 use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_valuations::instruments::fx::fx_option::{
+    FxDeltaConvention, FxDeltaConventionKind,
+};
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 
 use super::instruments::{
@@ -1089,15 +1092,16 @@ impl PyFxOptionBuilder {
         Ok(slf)
     }
 
-    /// Set the exercise style.
+    /// Set the pair/venue delta convention and premium currency.
     ///
     /// Parameters
     /// ----------
-    /// value : {"european", "american", "bermudan"}
-    ///     Exercise style of the FX option. Only ``"european"`` is
-    ///     currently priceable; ``"american"`` and ``"bermudan"`` are
-    ///     accepted here but rejected with a ``ValueError`` at pricing time
-    ///     (specialized pricers are not yet implemented).
+    /// kind : {"spot", "forward", "premium_adjusted_spot", "premium_adjusted_forward"}
+    ///     Delta convention quoted by the venue.
+    /// premium_currency : Currency
+    ///     Currency in which the FX option premium is paid.
+    /// venue : str
+    ///     Non-empty market venue or quoting-source identifier.
     ///
     /// Returns
     /// -------
@@ -1107,15 +1111,19 @@ impl PyFxOptionBuilder {
     /// Raises
     /// ------
     /// ValueError
-    ///     If ``value`` is not a recognized exercise style.
-    #[pyo3(text_signature = "($self, value)")]
-    fn exercise_style<'py>(
+    ///     If ``kind`` is unknown or ``venue`` is blank.
+    #[pyo3(text_signature = "($self, kind, premium_currency, venue)")]
+    fn delta_convention<'py>(
         mut slf: PyRefMut<'py, Self>,
-        value: &str,
+        kind: &str,
+        premium_currency: PyRef<'_, PyCurrency>,
+        venue: &str,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let exercise_style = enum_from_str(value, "exercise_style")?;
-        let b = take_fx_option(&mut slf)?;
-        slf.inner = Some(b.exercise_style(exercise_style));
+        let kind: FxDeltaConventionKind = enum_from_str(kind, "delta convention kind")?;
+        let convention =
+            FxDeltaConvention::new(kind, premium_currency.inner, venue).map_err(core_to_py)?;
+        let builder = take_fx_option(&mut slf)?;
+        slf.inner = Some(builder.delta_convention(convention));
         Ok(slf)
     }
 
