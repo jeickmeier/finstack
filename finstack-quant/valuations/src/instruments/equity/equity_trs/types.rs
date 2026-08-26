@@ -21,6 +21,19 @@ use finstack_quant_margin::types::OtcMarginSpec;
 use rust_decimal::Decimal;
 use time::macros::date;
 
+/// Settlement timing for manufactured discrete dividends on an equity TRS.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum TrsDividendSettlement {
+    /// Settle on the supplied dividend date, matching standard manufactured
+    /// dividend pass-through economics.
+    OnDividendDate,
+    /// Defer the dividend to the reset period's contractual payment date.
+    AtPeriodEnd,
+}
+
 /// Equity total-return swap exchanging price and net dividend return against
 /// floating-rate financing plus a contractual spread.
 ///
@@ -37,9 +50,8 @@ use time::macros::date;
 /// use finstack_quant_valuations::instruments::{
 ///     Attributes, EquityUnderlyingParams, FinancingLegSpec,
 /// };
-/// use finstack_quant_valuations::instruments::equity::equity_trs::EquityTotalReturnSwap;
 /// use finstack_quant_valuations::instruments::equity::equity_trs::{
-///     TrsScheduleSpec, TrsSide,
+///     EquityTotalReturnSwap, TrsDividendSettlement, TrsScheduleSpec, TrsSide,
 /// };
 /// use rust_decimal::Decimal;
 /// use time::macros::date;
@@ -61,6 +73,7 @@ use time::macros::date;
 ///         ScheduleParams::quarterly_act360(),
 ///     ))
 ///     .side(TrsSide::ReceiveTotalReturn)
+///     .dividend_settlement(TrsDividendSettlement::OnDividendDate)
 ///     .initial_level_opt(None)
 ///     .attributes(Attributes::new())
 ///     .build()?;
@@ -68,6 +81,7 @@ use time::macros::date;
 /// # Ok(())
 /// # }
 /// ```
+
 #[derive(
     Clone,
     Debug,
@@ -132,6 +146,11 @@ pub struct EquityTotalReturnSwap {
     #[serde(default)]
     #[builder(default)]
     pub dividend_tax_rate: f64,
+    /// Settlement timing for explicit manufactured dividends.
+    ///
+    /// This field is mandatory because dividend-date and period-end settlement
+    /// differ by the funding carry between the two dates.
+    pub dividend_settlement: TrsDividendSettlement,
     /// Optional discrete cash dividends `(ex_date, amount)` for the underlying.
     ///
     /// When non-empty, pricing uses explicit period dividend pass-through and does
@@ -222,6 +241,8 @@ struct EquityTotalReturnSwapUnchecked {
     /// - European: varies by country (15-30% typical)
     #[serde(default)]
     dividend_tax_rate: f64,
+    /// Settlement timing for explicit manufactured dividends.
+    dividend_settlement: TrsDividendSettlement,
     /// Optional discrete cash dividends `(ex_date, amount)` for the underlying.
     ///
     /// When non-empty, pricing uses explicit period dividend pass-through and does
@@ -258,6 +279,7 @@ impl TryFrom<EquityTotalReturnSwapUnchecked> for EquityTotalReturnSwap {
             past_fixings: value.past_fixings,
             margin_spec: value.margin_spec,
             dividend_tax_rate: value.dividend_tax_rate,
+            dividend_settlement: value.dividend_settlement,
             discrete_dividends: value.discrete_dividends,
             instrument_pricing_overrides: value.instrument_pricing_overrides,
             metric_pricing_overrides: value.metric_pricing_overrides,
@@ -306,6 +328,7 @@ impl EquityTotalReturnSwap {
                 },
             ))
             .side(TrsSide::ReceiveTotalReturn)
+            .dividend_settlement(TrsDividendSettlement::OnDividendDate)
             .initial_level_opt(None)
             .attributes(Attributes::new())
             .build()
@@ -360,6 +383,7 @@ impl EquityTotalReturnSwap {
             .financing(financing)
             .schedule(schedule)
             .side(TrsSide::ReceiveTotalReturn)
+            .dividend_settlement(TrsDividendSettlement::OnDividendDate)
             .initial_level_opt(None)
             .attributes(Attributes::new())
             .build()

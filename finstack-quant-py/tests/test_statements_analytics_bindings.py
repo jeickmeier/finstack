@@ -121,7 +121,10 @@ class TestEvaluateDcf:
     def test_market_without_as_of_is_an_error(self) -> None:
         b = statements.ModelBuilder("dcf")
         b.periods("2025..2026")
-        b.value("ufcf", [("2025", 100.0), ("2026", 110.0)])
+        b.value_money(
+            "ufcf",
+            [("2025", Money(100.0, "USD")), ("2026", Money(110.0, "USD"))],
+        )
         b.with_meta("currency", '"USD"')
         terminal = '{"type":"gordon_growth","growth_rate":0.02}'
         with pytest.raises(ValueError, match="as_of"):

@@ -98,6 +98,57 @@ impl TreeValuator for OptionValuator {
     }
 }
 
+/// Recombining-tree valuator for an escrowed stock process with known cash
+/// dividends. The lattice evolves the ex-dividend component; node exercise
+/// compares continuation against the full pre-dividend spot obtained by adding
+/// the remaining dividend value at that step.
+struct DiscreteDividendOptionValuator {
+    strike: f64,
+    option_type: OptionType,
+    exercise_steps: Option<HashSet<usize>>,
+    remaining_dividend_values: Vec<f64>,
+}
+
+impl DiscreteDividendOptionValuator {
+    fn spot_with_dividends(&self, state: &NodeState) -> Result<f64> {
+        let escrowed_spot = state
+            .spot()
+            .ok_or_else(|| Error::internal("option node state missing escrowed spot"))?;
+        let remaining = self
+            .remaining_dividend_values
+            .get(state.step)
+            .copied()
+            .ok_or_else(|| Error::internal("missing discrete-dividend tree step"))?;
+        Ok(escrowed_spot + remaining)
+    }
+}
+
+impl TreeValuator for DiscreteDividendOptionValuator {
+    fn value_at_maturity(&self, state: &NodeState) -> Result<f64> {
+        Ok(intrinsic(
+            self.option_type,
+            self.spot_with_dividends(state)?,
+            self.strike,
+        ))
+    }
+
+    fn value_at_node(&self, state: &NodeState, continuation_value: f64, _dt: f64) -> Result<f64> {
+        if self
+            .exercise_steps
+            .as_ref()
+            .is_some_and(|steps| steps.contains(&state.step))
+        {
+            let exercise = intrinsic(
+                self.option_type,
+                self.spot_with_dividends(state)?,
+                self.strike,
+            );
+            return Ok(continuation_value.max(exercise));
+        }
+        Ok(continuation_value)
+    }
+}
+
 #[inline]
 fn intrinsic(option_type: OptionType, spot: f64, strike: f64) -> f64 {
     match option_type {
@@ -427,6 +478,133 @@ impl BinomialTree {
             custom_state_generator: None,
             custom_rate_generator: None,
         })
+    }
+
+    fn price_with_discrete_dividends(
+        &self,
+        market_params: &OptionMarketParams,
+        exercise_steps: Option<&[usize]>,
+        dividends: &[(f64, f64)],
+    ) -> Result<f64> {
+        if dividends.is_empty() {
+            return self.price_with_exercise(market_params, exercise_steps);
+        }
+        if self.steps == 0 || market_params.time_to_expiry <= 0.0 {
+            return Err(Error::Validation(
+                "Discrete-dividend tree requires positive steps and time to expiry".to_string(),
+            ));
+        }
+        if dividends.iter().any(|(time, amount)| {
+            !time.is_finite()
+                || *time <= 0.0
+                || *time > market_params.time_to_expiry
+                || !amount.is_finite()
+                || *amount <= 0.0
+        }) {
+            return Err(Error::Validation(
+                "Discrete-dividend tree requires positive finite dividends within option life"
+                    .to_string(),
+            ));
+        }
+
+        let dt = market_params.time_to_expiry / self.steps as f64;
+        let mapped_dividends = dividends
+            .iter()
+            .map(|(time, amount)| {
+                let step = ((*time / market_params.time_to_expiry) * self.steps as f64)
+                    .round()
+                    .clamp(1.0, self.steps as f64) as usize;
+                (step, *time, *amount)
+            })
+            .collect::<Vec<_>>();
+        let dividend_pv = mapped_dividends
+            .iter()
+            .map(|(_, time, amount)| amount * (-market_params.rate * time).exp())
+            .sum::<f64>();
+        let escrowed_spot = market_params.spot - dividend_pv;
+        if !escrowed_spot.is_finite() || escrowed_spot <= 0.0 {
+            return Err(Error::Validation(format!(
+                "Discrete-dividend tree requires spot above dividend PV; spot={}, dividend_pv={dividend_pv}",
+                market_params.spot
+            )));
+        }
+
+        let (u, d, p) = self.calculate_parameters(
+            escrowed_spot,
+            market_params.strike,
+            market_params.rate,
+            market_params.volatility,
+            market_params.time_to_expiry,
+            0.0,
+        )?;
+        let remaining_dividend_values = (0..=self.steps)
+            .map(|step| {
+                let node_time = step as f64 * dt;
+                mapped_dividends
+                    .iter()
+                    .filter(|(dividend_step, _, _)| *dividend_step >= step)
+                    .map(|(_, dividend_time, amount)| {
+                        amount * (-market_params.rate * (dividend_time - node_time).max(0.0)).exp()
+                    })
+                    .sum()
+            })
+            .collect();
+        let valuator = DiscreteDividendOptionValuator {
+            strike: market_params.strike,
+            option_type: market_params.option_type,
+            exercise_steps: exercise_steps
+                .map(|steps| steps.iter().copied().collect::<HashSet<usize>>()),
+            remaining_dividend_values,
+        };
+        let initial_vars = single_factor_equity_state(
+            escrowed_spot,
+            market_params.rate,
+            0.0,
+            market_params.volatility,
+        );
+
+        price_recombining_tree(RecombiningInputs {
+            branching: TreeBranching::Binomial,
+            steps: self.steps,
+            initial_vars,
+            time_to_maturity: market_params.time_to_expiry,
+            market_context: &MarketContext::new(),
+            valuator: &valuator,
+            up_factor: u,
+            down_factor: d,
+            middle_factor: None,
+            prob_up: p,
+            prob_down: 1.0 - p,
+            prob_middle: None,
+            interest_rate: market_params.rate,
+            barrier: None,
+            custom_state_generator: None,
+            custom_rate_generator: None,
+        })
+    }
+
+    /// Price an American option with known cash dividends.
+    pub(crate) fn price_american_with_discrete_dividends(
+        &self,
+        market_params: &OptionMarketParams,
+        dividends: &[(f64, f64)],
+    ) -> Result<f64> {
+        let all_steps: Vec<usize> = (0..self.steps).collect();
+        self.price_with_discrete_dividends(market_params, Some(&all_steps), dividends)
+    }
+
+    /// Price a Bermudan option with known cash dividends.
+    pub(crate) fn price_bermudan_with_discrete_dividends(
+        &self,
+        market_params: &OptionMarketParams,
+        exercise_dates: &[f64],
+        dividends: &[(f64, f64)],
+    ) -> Result<f64> {
+        let mut steps =
+            map_exercise_dates_to_steps(exercise_dates, market_params.time_to_expiry, self.steps);
+        steps.sort();
+        steps.dedup();
+        self.price_with_discrete_dividends(market_params, Some(&steps), dividends)
     }
 
     /// Price American option using binomial tree

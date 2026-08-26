@@ -7,35 +7,43 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
 use finstack_quant_statements::builder::ModelBuilder;
+use finstack_quant_statements::checks::builtins::NonFiniteCheck;
+use finstack_quant_statements::checks::CheckSuite;
 use finstack_quant_statements::evaluator::Evaluator;
 use finstack_quant_statements::types::AmountOrScalar;
 use finstack_quant_statements_analytics::analysis::{evaluate_dcf_with_market, DcfOptions};
 use finstack_quant_valuations::instruments::TerminalValueSpec;
 use time::Month;
 
+fn non_finite_suite() -> CheckSuite {
+    CheckSuite::builder("corporate-test")
+        .add_check(NonFiniteCheck { nodes: vec![] })
+        .build()
+}
+
 #[test]
 fn test_dcf_evaluation_gordon_growth() {
     let model = ModelBuilder::new("test-corp")
         .periods("2025Q1..Q4", None)
         .expect("valid periods")
-        .value(
+        .value_money(
             "ufcf",
             &[
                 (
                     PeriodId::quarter(2025, 1),
-                    AmountOrScalar::scalar(100_000.0),
+                    Money::new(100_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 2),
-                    AmountOrScalar::scalar(110_000.0),
+                    Money::new(110_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 3),
-                    AmountOrScalar::scalar(120_000.0),
+                    Money::new(120_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 4),
-                    AmountOrScalar::scalar(130_000.0),
+                    Money::new(130_000.0, Currency::USD),
                 ),
             ],
         )
@@ -57,6 +65,30 @@ fn test_dcf_evaluation_gordon_growth() {
 
     assert!(result.equity_value.amount() > 0.0);
     assert_eq!(result.equity_value.currency(), Currency::USD);
+}
+
+#[test]
+fn test_dcf_rejects_scalar_ufcf_node() {
+    let model = ModelBuilder::new("scalar-ufcf")
+        .periods("2025Q1..Q1", None)
+        .expect("periods")
+        .value_scalar("ufcf", &[(PeriodId::quarter(2025, 1), 100_000.0)])
+        .with_meta("currency", serde_json::json!("USD"))
+        .build()
+        .expect("model");
+
+    let error = evaluate_dcf_with_market(
+        &model,
+        0.10,
+        TerminalValueSpec::GordonGrowth { growth_rate: 0.02 },
+        "ufcf",
+        Some(0.0),
+        &DcfOptions::default(),
+        None,
+        None,
+    )
+    .expect_err("scalar UFCF must fail");
+    assert!(error.to_string().contains("must be monetary"));
 }
 
 #[test]
@@ -141,24 +173,24 @@ fn test_dcf_with_market_context() {
     let model = ModelBuilder::new("mkt-test")
         .periods("2025Q1..Q4", None)
         .expect("valid periods")
-        .value(
+        .value_money(
             "ufcf",
             &[
                 (
                     PeriodId::quarter(2025, 1),
-                    AmountOrScalar::scalar(100_000.0),
+                    Money::new(100_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 2),
-                    AmountOrScalar::scalar(100_000.0),
+                    Money::new(100_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 3),
-                    AmountOrScalar::scalar(100_000.0),
+                    Money::new(100_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 4),
-                    AmountOrScalar::scalar(100_000.0),
+                    Money::new(100_000.0, Currency::USD),
                 ),
             ],
         )
@@ -228,24 +260,24 @@ fn test_dcf_excludes_historical_periods_from_explicit_flows() {
     let model = ModelBuilder::new("hist-vs-forecast")
         .periods("2025Q1..Q4", Some("2025Q2"))
         .expect("valid periods")
-        .value(
+        .value_money(
             "ufcf",
             &[
                 (
                     PeriodId::quarter(2025, 1),
-                    AmountOrScalar::scalar(100_000.0),
+                    Money::new(100_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 2),
-                    AmountOrScalar::scalar(110_000.0),
+                    Money::new(110_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 3),
-                    AmountOrScalar::scalar(120_000.0),
+                    Money::new(120_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 4),
-                    AmountOrScalar::scalar(130_000.0),
+                    Money::new(130_000.0, Currency::USD),
                 ),
             ],
         )
@@ -278,28 +310,28 @@ fn test_dcf_excludes_historical_periods_from_explicit_flows() {
 }
 
 #[test]
-fn test_dcf_uses_forecast_boundary_for_valuation_date_and_auto_net_debt() {
+fn test_dcf_uses_as_of_for_valuation_date_and_auto_net_debt() {
     let model = ModelBuilder::new("hist-boundary-dcf")
         .periods("2025Q1..Q4", Some("2025Q2"))
         .expect("valid periods")
-        .value(
+        .value_money(
             "ufcf",
             &[
                 (
                     PeriodId::quarter(2025, 1),
-                    AmountOrScalar::scalar(100_000.0),
+                    Money::new(100_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 2),
-                    AmountOrScalar::scalar(110_000.0),
+                    Money::new(110_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 3),
-                    AmountOrScalar::scalar(120_000.0),
+                    Money::new(120_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 4),
-                    AmountOrScalar::scalar(130_000.0),
+                    Money::new(130_000.0, Currency::USD),
                 ),
             ],
         )
@@ -325,6 +357,7 @@ fn test_dcf_uses_forecast_boundary_for_valuation_date_and_auto_net_debt() {
         .build()
         .expect("valid model");
 
+    let as_of = Date::from_calendar_date(2025, Month::August, 15).expect("valid date");
     let result = evaluate_dcf_with_market(
         &model,
         0.10,
@@ -333,37 +366,30 @@ fn test_dcf_uses_forecast_boundary_for_valuation_date_and_auto_net_debt() {
         None,
         &DcfOptions::default(),
         None,
-        None,
+        Some(as_of),
     )
     .expect("DCF evaluation should succeed");
 
-    let first_forecast = model
+    let last_available_period = model
         .periods
         .iter()
-        .find(|p| !p.is_actual)
-        .expect("forecast period should exist");
-    let last_actual = model
-        .periods
-        .iter()
-        .rfind(|p| p.is_actual)
-        .expect("actual period should exist");
+        .rev()
+        .find(|period| period.end <= as_of)
+        .expect("balance-sheet period before valuation date");
     let dcf = result
         .dcf_instrument
         .as_ref()
         .expect("dcf instrument should be returned");
 
     assert_eq!(
-        dcf.valuation_date, first_forecast.start,
-        "DCF should discount from the first forecast start date"
-    );
-    assert_eq!(
-        dcf.valuation_date, last_actual.end,
-        "valuation date should align with the last actual balance-sheet boundary"
+        dcf.valuation_date, as_of,
+        "DCF should discount from the supplied as-of date"
     );
     assert!(
         (result.net_debt.amount() - 100.0).abs() < 1e-9,
-        "auto net debt should come from the last actual balance sheet, not the terminal forecast period"
+        "auto net debt should come from the latest balance sheet before as-of"
     );
+    assert_eq!(last_available_period.id, PeriodId::quarter(2025, 2));
 }
 
 #[test]
@@ -371,24 +397,24 @@ fn test_dcf_forecast_only_uses_first_forecast_boundary_for_net_debt() {
     let model = ModelBuilder::new("forecast-only-dcf")
         .periods("2025Q1..Q4", None)
         .expect("valid periods")
-        .value(
+        .value_money(
             "ufcf",
             &[
                 (
                     PeriodId::quarter(2025, 1),
-                    AmountOrScalar::scalar(100_000.0),
+                    Money::new(100_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 2),
-                    AmountOrScalar::scalar(110_000.0),
+                    Money::new(110_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 3),
-                    AmountOrScalar::scalar(120_000.0),
+                    Money::new(120_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 4),
-                    AmountOrScalar::scalar(130_000.0),
+                    Money::new(130_000.0, Currency::USD),
                 ),
             ],
         )
@@ -445,24 +471,24 @@ fn make_simple_dcf_model() -> finstack_quant_statements::types::FinancialModelSp
     ModelBuilder::new("parity-dcf")
         .periods("2025Q1..Q4", None)
         .expect("valid periods")
-        .value(
+        .value_money(
             "ufcf",
             &[
                 (
                     PeriodId::quarter(2025, 1),
-                    AmountOrScalar::scalar(100_000.0),
+                    Money::new(100_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 2),
-                    AmountOrScalar::scalar(110_000.0),
+                    Money::new(110_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 3),
-                    AmountOrScalar::scalar(120_000.0),
+                    Money::new(120_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 4),
-                    AmountOrScalar::scalar(130_000.0),
+                    Money::new(130_000.0, Currency::USD),
                 ),
             ],
         )
@@ -492,6 +518,7 @@ fn parity_orchestrator_dcf_matches_standalone() {
     let orchestrated = CorporateAnalysisBuilder::new(model)
         .dcf(0.10, tv)
         .net_debt_override(50_000.0)
+        .checks(non_finite_suite())
         .analyze()
         .expect("orchestrated analysis")
         .equity
@@ -544,12 +571,12 @@ fn annual_gordon_terminal_value_unchanged() {
     let model = ModelBuilder::new("annual-dcf")
         .periods("2025..2027", None)
         .expect("valid periods")
-        .value(
+        .value_money(
             "ufcf",
             &[
-                (PeriodId::annual(2025), AmountOrScalar::scalar(400_000.0)),
-                (PeriodId::annual(2026), AmountOrScalar::scalar(440_000.0)),
-                (PeriodId::annual(2027), AmountOrScalar::scalar(480_000.0)),
+                (PeriodId::annual(2025), Money::new(400_000.0, Currency::USD)),
+                (PeriodId::annual(2026), Money::new(440_000.0, Currency::USD)),
+                (PeriodId::annual(2027), Money::new(480_000.0, Currency::USD)),
             ],
         )
         .with_meta("currency", serde_json::json!("USD"))
@@ -655,6 +682,27 @@ fn nan_terminal_value_parameters_error() {
     assert!(result.is_err(), "NaN growth_rate must fail closed");
 }
 
+#[test]
+fn stable_growth_above_policy_ceiling_is_rejected() {
+    let model = make_simple_dcf_model();
+    let options = DcfOptions {
+        max_stable_growth_rate: 0.03,
+        ..DcfOptions::default()
+    };
+    let error = evaluate_dcf_with_market(
+        &model,
+        0.10,
+        TerminalValueSpec::GordonGrowth { growth_rate: 0.04 },
+        "ufcf",
+        Some(0.0),
+        &options,
+        None,
+        None,
+    )
+    .expect_err("growth above policy ceiling must fail");
+    assert!(error.to_string().contains("ceiling"));
+}
+
 /// Standalone DCF must evaluate statements with market + as_of so
 /// curve-dependent capital-structure nodes such as `cs.interest` resolve.
 #[test]
@@ -670,27 +718,29 @@ fn evaluate_dcf_with_market_uses_curve_for_cs_interest() {
     let model = ModelBuilder::new("dcf-cs-interest")
         .periods("2025Q1..Q4", Some("2025Q1"))
         .expect("periods")
-        .value(
+        .value_money(
             "revenue",
             &[
                 (
                     PeriodId::quarter(2025, 1),
-                    AmountOrScalar::scalar(1_000_000.0),
+                    Money::new(1_000_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 2),
-                    AmountOrScalar::scalar(1_100_000.0),
+                    Money::new(1_100_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 3),
-                    AmountOrScalar::scalar(1_200_000.0),
+                    Money::new(1_200_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 4),
-                    AmountOrScalar::scalar(1_300_000.0),
+                    Money::new(1_300_000.0, Currency::USD),
                 ),
             ],
         )
+        .availability_dates("revenue", &[(PeriodId::quarter(2025, 1), as_of)])
+        .expect("availability")
         .add_bond(
             "BOND-001",
             Money::new(1_000_000.0, Currency::USD),

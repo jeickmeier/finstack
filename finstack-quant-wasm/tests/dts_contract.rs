@@ -721,7 +721,7 @@ fn statements_analytics_dts_matches_runtime_exports() {
     // parameters as the Python twin (contracted 1:1 in parity_contract.toml).
     assert!(contains_ignoring_ws(
         &dts,
-        "dcfSensitivity(modelJson: string, wacc: number, terminalValueJson: string, ufcfNode: string, netDebtOverride?: number | null, waccSensitivityBump?: number | null, waccDenominatorEpsilon?: number | null, exitMultipleBump?: number | null, midYearConvention?: boolean | null, marketJson?: string | null): DcfSensitivityResult;",
+        "dcfSensitivity(modelJson: string, wacc: number, terminalValueJson: string, ufcfNode: string, netDebtOverride?: number | null, waccSensitivityBump?: number | null, waccDenominatorEpsilon?: number | null, maxStableGrowthRate?: number | null, exitMultipleBump?: number | null, midYearConvention?: boolean | null, marketJson?: string | null): DcfSensitivityResult;",
     ));
     assert!(dts.contains("export interface LboResult"));
     assert!(dts.contains("export interface TornadoEntry"));

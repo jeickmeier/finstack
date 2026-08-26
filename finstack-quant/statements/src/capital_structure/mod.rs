@@ -49,6 +49,10 @@
 //!         (PeriodId::quarter(2025, 3), AmountOrScalar::scalar(120.0)),
 //!         (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(130.0)),
 //!     ])
+//!     .availability_dates(
+//!         "revenue",
+//!         &[(PeriodId::quarter(2025, 1), issue_date)],
+//!     )?
 //!     // Add debt instruments
 //!     .add_bond(
 //!         "BOND-001",

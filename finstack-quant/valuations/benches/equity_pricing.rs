@@ -161,6 +161,9 @@ fn equity_trs(tenor_years: i32) -> EquityTotalReturnSwap {
         .financing(financing)
         .schedule(schedule)
         .side(TrsSide::ReceiveTotalReturn)
+        .dividend_settlement(
+            finstack_quant_valuations::instruments::equity::TrsDividendSettlement::OnDividendDate,
+        )
         .build()
         .unwrap()
 }

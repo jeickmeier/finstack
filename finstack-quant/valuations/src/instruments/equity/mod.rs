@@ -72,6 +72,18 @@
 //! - [`Autocallable`] for structured notes
 //! - [`PrivateMarketsFund`] for PE/credit fund valuation
 
+/// Explicit stochastic model policy for path-dependent equity structures.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum EquityPathModel {
+    /// Piecewise GBM calibrated to the ATM-forward total-variance term
+    /// structure. This model does not represent strike skew or smile and must
+    /// be selected explicitly as an approximation.
+    AtmTermGbm,
+}
+
 /// Autocallable module - Autocallable structured notes.
 pub mod autocallable;
 /// Cliquet option module - Cliquet/ratchet options.
@@ -109,9 +121,11 @@ pub use cliquet_option::CliquetOption;
 pub use dcf_equity::{DiscountedCashFlow, TerminalValueSpec};
 pub use equity_future::{EquityFuture, EquityFutureQuantoSpec};
 pub use equity_future_option::EquityFutureOption;
-pub use equity_option::{EquityOption, EquityOptionMarketData};
+pub use equity_option::{
+    EquityOption, EquityOptionExercise, EquityOptionMarketData, ThetaDayBasis,
+};
 pub use equity_total_return_future::EquityTotalReturnFuture;
-pub use equity_trs::EquityTotalReturnSwap;
+pub use equity_trs::{EquityTotalReturnSwap, TrsDividendSettlement};
 pub use pe_fund::PrivateMarketsFund;
 pub use real_estate::{
     LeveredRealEstateEquity, RealEstateAsset, RealEstateFinancing, RealEstateValuationMethod,

@@ -98,4 +98,4 @@ pub(crate) mod rough_heston_market;
 pub(crate) mod rough_heston_mc_pricer;
 
 pub use parameters::{EquityOptionMarketData, EquityOptionParams};
-pub use types::{EquityOption, EquityOptionBuilder};
+pub use types::{EquityOption, EquityOptionBuilder, EquityOptionExercise, ThetaDayBasis};

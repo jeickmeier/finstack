@@ -47,10 +47,8 @@ use serde_json::json;
 
 /// Definition for a single named scenario.
 ///
-/// Scenarios are attached to a base [`FinancialModelSpec`] and specify:
-/// - An optional `parent` scenario to inherit overrides from.
-/// - A set of scalar overrides applied as explicit values for all periods
-///   of the referenced nodes.
+/// Scenarios are attached to a base [`FinancialModelSpec`] and specify an
+/// optional parent plus typed scalar or monetary overrides for named nodes.
 ///
 /// The JSON representation mirrors the design docs example:
 ///
@@ -70,23 +68,19 @@ pub struct ScenarioDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
 
-    /// Scalar overrides for model nodes (`node_id -> scalar value`).
+    /// Typed overrides for model nodes.
     ///
-    /// During evaluation these are applied as explicit `AmountOrScalar::scalar`
-    /// values for the model's **forecast periods only** (`!period.is_actual`),
-    /// leveraging the existing `Value > Forecast > Formula` precedence to
-    /// override forecasts and formulas when present. A model with no actuals
-    /// cutoff has only forecast periods, so the override then applies
-    /// throughout.
+    /// Overrides apply to forecast periods only and must match the target
+    /// node's scalar or monetary type and currency.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
-    pub overrides: IndexMap<String, f64>,
+    pub overrides: IndexMap<String, AmountOrScalar>,
 }
 
 /// Registry of named scenarios built on top of a base model.
 ///
-/// The `scenarios` map preserves insertion order and is the primary surface
-/// for JSON (de)serialization. Scenario overrides use plain scalar values that
-/// are broadcast to every forecast period of the model.
+/// The `scenarios` map preserves insertion order and is the primary serialized
+/// surface. Overrides preserve scalar/monetary units while broadcasting across
+/// forecast periods.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ScenarioSet {
@@ -164,7 +158,10 @@ impl ScenarioSet {
     ///     "downside".to_string(),
     ///     ScenarioDefinition {
     ///         parent: Some("base".to_string()),
-    ///         overrides: IndexMap::from([("revenue".to_string(), 90.0)]),
+    ///         overrides: IndexMap::from([(
+    ///             "revenue".to_string(),
+    ///             AmountOrScalar::scalar(90.0),
+    ///         )]),
     ///     },
     /// );
     ///
@@ -244,7 +241,10 @@ impl ScenarioSet {
     ///     }),
     ///     ("downside".to_string(), ScenarioDefinition {
     ///         parent: Some("base".to_string()),
-    ///         overrides: IndexMap::from([("revenue".to_string(), 90.0)]),
+    ///         overrides: IndexMap::from([(
+    ///             "revenue".to_string(),
+    ///             AmountOrScalar::scalar(90.0),
+    ///         )]),
     ///     }),
     /// ]);
     ///
@@ -373,7 +373,7 @@ impl ScenarioSet {
     ///
     /// Later scenarios in the chain override earlier ones for the same
     /// `node_id`.
-    fn resolve_overrides(&self, name: &str) -> Result<IndexMap<String, f64>> {
+    fn resolve_overrides(&self, name: &str) -> Result<IndexMap<String, AmountOrScalar>> {
         let mut merged = IndexMap::new();
         let mut stack = Vec::new();
         let mut seen = IndexSet::new();
@@ -507,7 +507,10 @@ impl ScenarioResults {
     ///     }),
     ///     ("downside".to_string(), ScenarioDefinition {
     ///         parent: Some("base".to_string()),
-    ///         overrides: IndexMap::from([("revenue".to_string(), 90.0)]),
+    ///         overrides: IndexMap::from([(
+    ///             "revenue".to_string(),
+    ///             AmountOrScalar::scalar(90.0),
+    ///         )]),
     ///     }),
     /// ]);
     /// let results = ScenarioSet { scenarios }.evaluate_all(&model)?;
@@ -652,15 +655,10 @@ impl ScenarioResults {
     }
 }
 
-/// Apply a resolved override map to a financial model.
-///
-/// For each `(node_id, value)` pair, this function:
-/// - Looks up the corresponding [`NodeSpec`](finstack_quant_statements::types::NodeSpec).
-/// - Clones or creates the `values` map.
-/// - Inserts `AmountOrScalar::scalar(value)` for **all** model periods.
+/// Apply typed scenario overrides to forecast periods.
 fn apply_overrides(
     model: &mut FinancialModelSpec,
-    overrides: &IndexMap<String, f64>,
+    overrides: &IndexMap<String, AmountOrScalar>,
 ) -> Result<()> {
     if overrides.is_empty() {
         return Ok(());
@@ -674,16 +672,36 @@ fn apply_overrides(
         .collect();
 
     for (node_id, value) in overrides {
-        let node = model.get_node_mut(node_id).ok_or_else(|| {
-            Error::invalid_input(format!("Node '{}' not found in model", node_id))
-        })?;
-
-        let mut values = node.values.clone().unwrap_or_default();
-
-        for period_id in &forecast_period_ids {
-            values.insert(*period_id, AmountOrScalar::scalar(*value));
+        let node = model
+            .get_node_mut(node_id)
+            .ok_or_else(|| Error::invalid_input(format!("Node '{node_id}' not found in model")))?;
+        match (node.value_type, value) {
+            (
+                Some(finstack_quant_statements::types::NodeValueType::Monetary { currency }),
+                AmountOrScalar::Amount(money),
+            ) if currency == money.currency() => {}
+            (
+                Some(finstack_quant_statements::types::NodeValueType::Scalar),
+                AmountOrScalar::Scalar(_),
+            ) => {}
+            (Some(expected), supplied) => {
+                return Err(Error::invalid_input(format!(
+                    "Scenario override for node '{node_id}' is incompatible with {expected:?}: \
+                     got {supplied:?}"
+                )));
+            }
+            (None, _) => {
+                return Err(Error::invalid_input(format!(
+                    "Scenario override for node '{node_id}' requires a declared or inferred \
+                     value_type"
+                )));
+            }
         }
 
+        let mut values = node.values.clone().unwrap_or_default();
+        for period_id in &forecast_period_ids {
+            values.insert(*period_id, *value);
+        }
         node.values = Some(values);
     }
 
@@ -707,7 +725,7 @@ mod tests {
         );
 
         let mut downside_overrides = IndexMap::new();
-        downside_overrides.insert("revenue".to_string(), 90_000.0);
+        downside_overrides.insert("revenue".to_string(), AmountOrScalar::scalar(90_000.0));
         scenarios.insert(
             "downside".to_string(),
             ScenarioDefinition {
@@ -717,7 +735,7 @@ mod tests {
         );
 
         let mut stress_overrides = IndexMap::new();
-        stress_overrides.insert("revenue".to_string(), 80_000.0);
+        stress_overrides.insert("revenue".to_string(), AmountOrScalar::scalar(80_000.0));
         scenarios.insert(
             "stress".to_string(),
             ScenarioDefinition {
@@ -736,12 +754,18 @@ mod tests {
         let downside = set
             .resolve_overrides("downside")
             .expect("downside overrides should resolve");
-        assert_eq!(downside.get("revenue"), Some(&90_000.0));
+        assert_eq!(
+            downside.get("revenue"),
+            Some(&AmountOrScalar::scalar(90_000.0))
+        );
 
         let stress = set
             .resolve_overrides("stress")
             .expect("stress overrides should resolve");
-        assert_eq!(stress.get("revenue"), Some(&80_000.0));
+        assert_eq!(
+            stress.get("revenue"),
+            Some(&AmountOrScalar::scalar(80_000.0))
+        );
     }
 
     #[test]

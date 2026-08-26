@@ -6407,6 +6407,28 @@ class EquityOptionBuilder:
         """
         ...
 
+    def theta_day_basis(self, value: Literal["calendar_365", "trading_252"]) -> EquityOptionBuilder:
+        """
+        Set the day basis for per-day theta.
+
+        Parameters
+        ----------
+        value : {"calendar_365", "trading_252"}
+            Calendar-day theta is the default; trading-day theta must be
+            selected explicitly.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized theta day basis.
+        """
+        ...
+
     def expiry(self, value: datetime.date) -> EquityOptionBuilder:
         """
         Set the option expiry date.
@@ -6427,6 +6449,61 @@ class EquityOptionBuilder:
             If this builder was already consumed by a prior call to
             :meth:`EquityOptionBuilder.build`.
 
+        """
+        ...
+
+    def settlement(self, value: Literal["physical", "cash"]) -> EquityOptionBuilder:
+        """
+        Set the settlement method.
+
+        Parameters
+        ----------
+        value : {"physical", "cash"}
+            Physical delivery or fixed cash settlement.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized settlement method.
+        """
+        ...
+
+    def exercise(
+        self,
+        date: datetime.date,
+        spot: float,
+        settlement_date: datetime.date,
+        exercised: bool,
+    ) -> EquityOptionBuilder:
+        """
+        Set the observed exercise or expiry lifecycle state.
+
+        Parameters
+        ----------
+        date : datetime.date
+            Exercise date, or expiry date for an unexercised observation.
+        spot : float
+            Positive observed underlying level in strike-price units.
+        settlement_date : datetime.date
+            Contractual cash-payment or physical-delivery date.
+        exercised : bool
+            Whether exercise or assignment occurred.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If the dates or observed spot violate the canonical Rust lifecycle
+            invariants, or this builder was already consumed.
         """
         ...
 
@@ -6553,9 +6630,10 @@ class EquityOptionBuilder:
         Parameters
         ----------
         value : list[tuple[datetime.date, float]]
-            Discrete dividend schedule as ``(ex_date, dividend_amount)``
-            pairs. When provided, the escrowed dividend model is used for
-            pricing.
+            Positive ``(ex_date, dividend_amount)`` pairs in strictly
+            increasing date order. European pricing uses escrowed spot
+            adjustment; American/Bermudan tree pricing restores remaining
+            dividend value at exercise nodes to model ex-date jumps.
 
         Returns
         -------

@@ -3,7 +3,7 @@
 //! This module implements the total return leg pricing for equity TRS using
 //! a cost-of-carry forward model with dividend yield.
 
-use super::types::EquityTotalReturnSwap;
+use super::types::{EquityTotalReturnSwap, TrsDividendSettlement};
 use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use crate::instruments::common_impl::pricing::{
     PeriodReturnInputs, TotalReturnLegParams, TrsEngine, TrsReturnModel,
@@ -175,73 +175,43 @@ impl TrsReturnModel for EquityReturnModel<'_> {
                 * (-carry_div_yield * t_end).exp();
             (fwd_start, fwd_end)
         };
-        // Dividend return component (Income), net of withholding tax
-        // Gross dividend return: q * dt
-        // Net dividend return: q * dt * (1 - tax_rate)
-        //
-        // When dividend_tax_rate = 0.0, this is a Gross TRS (100% dividend pass-through)
-        // When dividend_tax_rate > 0.0, this is a Net TRS (reduced by withholding)
+        // Dividend return component, net of withholding tax.
         let dt = self.trs.schedule.params.day_count.year_fraction(
             period_start,
             period_end,
             finstack_quant_core::dates::DayCountContext::default(),
         )?;
         let tax_rate = self.trs.dividend_tax_rate.clamp(0.0, 1.0);
-        let dividend_return = if uses_discrete_dividends {
-            // Sum discrete dividends paid in the period, normalized by start forward level.
-            let gross_divs = neumaier_sum(
-                self.trs
-                    .discrete_dividends
-                    .iter()
-                    .filter(|(div_date, amount)| {
-                        *div_date > period_start
-                            && *div_date <= period_end
-                            && amount.is_finite()
-                            && *amount > 0.0
-                    })
-                    .map(|(_, amount)| *amount),
-            );
-            if fwd_start.abs() > 1e-12 {
-                (gross_divs / fwd_start) * (1.0 - tax_rate)
-            } else {
-                0.0
-            }
-        } else {
-            self.div_yield * dt * (1.0 - tax_rate)
-        };
 
-        // Combine discrete price and income cashflows with compensated
-        // summation before normalizing. This preserves small distributions
-        // alongside very large ones and avoids subtracting two huge returns.
-        //
-        // Dividend SETTLEMENT CONVENTION: discrete dividends pass through at
-        // FACE VALUE at the period end (they enter the period-end numerator
-        // undiscounted and the whole period return is discounted from the
-        // payment date). The ex-div forward drop is worth `D·df_d/df_pe` at
-        // period end, so a gross (tax = 0) pass-through is dividend-neutral
-        // only on a flat curve; with rates the receiver bears the funding
-        // carry `D·(df_d/df_pe − 1)` between ex-date and period end. That is
-        // deliberate — the modeled contract pays dividend amounts with the
-        // period-end equity settlement, not at each ex-date. Pinned by
-        // `gross_dividend_period_end_settlement_bears_funding_carry`.
         if uses_discrete_dividends {
-            let net_dividends = self
-                .trs
-                .discrete_dividends
-                .iter()
-                .filter(|(div_date, amount)| {
-                    *div_date > period_start
-                        && *div_date <= period_end
-                        && amount.is_finite()
-                        && *amount > 0.0
-                })
-                .map(|(_, amount)| *amount * (1.0 - tax_rate));
+            let payment_date = self.trs.schedule.payment_date_for(period_end)?;
+            let payment_df = relative_df_discount_curve(disc.as_ref(), as_of, payment_date)?;
+            let mut net_dividends = Vec::new();
+            for (dividend_date, amount) in &self.trs.discrete_dividends {
+                let in_period = *dividend_date > period_start && *dividend_date <= period_end;
+                let still_unpaid = matches!(
+                    self.trs.dividend_settlement,
+                    TrsDividendSettlement::AtPeriodEnd
+                ) || *dividend_date > as_of;
+                if !in_period || !still_unpaid || !amount.is_finite() || *amount <= 0.0 {
+                    continue;
+                }
+                let settlement_ratio = match self.trs.dividend_settlement {
+                    TrsDividendSettlement::OnDividendDate => {
+                        relative_df_discount_curve(disc.as_ref(), as_of, *dividend_date)?
+                            / payment_df
+                    }
+                    TrsDividendSettlement::AtPeriodEnd => 1.0,
+                };
+                net_dividends.push(*amount * (1.0 - tax_rate) * settlement_ratio);
+            }
             Ok(neumaier_sum(
                 std::iter::once(fwd_end)
                     .chain(std::iter::once(-fwd_start))
                     .chain(net_dividends),
             ) / fwd_start)
         } else {
+            let dividend_return = self.div_yield * dt * (1.0 - tax_rate);
             Ok((fwd_end - fwd_start) / fwd_start + dividend_return)
         }
     }
@@ -325,7 +295,9 @@ pub(crate) fn pv_total_return_leg(
 #[cfg(test)]
 mod tests {
     use super::{EquityReturnModel, TrsReturnModel};
-    use crate::instruments::equity::equity_trs::types::EquityTotalReturnSwap;
+    use crate::instruments::equity::equity_trs::types::{
+        EquityTotalReturnSwap, TrsDividendSettlement,
+    };
     use finstack_quant_core::dates::{Date, DayCount};
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
@@ -408,6 +380,7 @@ mod tests {
         with_div.financing.discount_curve_id = CurveId::new("DISC");
         with_div.underlying.div_yield_id = None;
         with_div.dividend_tax_rate = 0.0;
+        with_div.dividend_settlement = TrsDividendSettlement::AtPeriodEnd;
         with_div.discrete_dividends = vec![(div_date, dividend)];
 
         let mut no_div = with_div.clone();
@@ -458,6 +431,20 @@ mod tests {
             "period-end dividend settlement must bear exactly the funding \
              carry: got Δ={}, expected {expected_delta}",
             ret_with - ret_without
+        );
+
+        let mut on_dividend_date = with_div;
+        on_dividend_date.dividend_settlement = TrsDividendSettlement::OnDividendDate;
+        let ret_on_dividend_date = EquityReturnModel {
+            trs: &on_dividend_date,
+            spot: 100.0,
+            div_yield: 0.0,
+        }
+        .period_return(&inputs, &context)
+        .expect("dividend-date settlement return");
+        assert!(
+            (ret_on_dividend_date - ret_without).abs() < 1e-12,
+            "dividend-date settlement must exactly offset the ex-dividend price drop"
         );
     }
 

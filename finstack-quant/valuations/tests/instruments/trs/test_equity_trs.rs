@@ -153,6 +153,9 @@ fn completed_period_remains_valued_until_lagged_payment_date() {
         ))
         .schedule(schedule)
         .side(TrsSide::ReceiveTotalReturn)
+        .dividend_settlement(
+            finstack_quant_valuations::instruments::equity::TrsDividendSettlement::OnDividendDate,
+        )
         .initial_level(4_900.0)
         .build()
         .expect("completed TRS");

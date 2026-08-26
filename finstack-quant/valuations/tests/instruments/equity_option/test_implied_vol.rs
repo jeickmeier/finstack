@@ -430,6 +430,11 @@ fn test_implied_vol_returns_zero_for_expired() {
     let vol = 0.25;
 
     let mut call = create_call(as_of, expiry, strike);
+    call.exercise = Some(
+        finstack_quant_valuations::instruments::equity::EquityOptionExercise::new(
+            expiry, spot, expiry, true,
+        ),
+    );
     let market = build_standard_market(as_of, spot, 0.25, 0.05, 0.0);
 
     let market_price = analytical_call_price(

@@ -271,6 +271,34 @@ impl PyEquityOptionBuilder {
         Ok(slf)
     }
 
+    /// Set the day basis for per-day theta.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : {"calendar_365", "trading_252"}
+    ///     Calendar-day theta is the default; trading-day theta must be
+    ///     selected explicitly.
+    ///
+    /// Returns
+    /// -------
+    /// EquityOptionBuilder
+    ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``value`` is not a recognized theta day basis.
+    #[pyo3(text_signature = "($self, value)")]
+    fn theta_day_basis<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let basis = enum_from_str(value, "theta_day_basis")?;
+        let b = take_equity_option(&mut slf)?;
+        slf.inner = Some(b.theta_day_basis(basis));
+        Ok(slf)
+    }
+
     /// Set the option expiry date.
     ///
     /// Parameters
@@ -290,6 +318,66 @@ impl PyEquityOptionBuilder {
         let expiry = py_to_date(value)?;
         let b = take_equity_option(&mut slf)?;
         slf.inner = Some(b.expiry(expiry));
+        Ok(slf)
+    }
+
+    /// Set the settlement method.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : {"physical", "cash"}
+    ///     Physical delivery or fixed cash settlement.
+    ///
+    /// Returns
+    /// -------
+    /// EquityOptionBuilder
+    ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``value`` is not a recognized settlement method.
+    #[pyo3(text_signature = "($self, value)")]
+    fn settlement<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyResult<PyRefMut<'py, Self>> {
+        let settlement = enum_from_str(value, "settlement")?;
+        let b = take_equity_option(&mut slf)?;
+        slf.inner = Some(b.settlement(settlement));
+        Ok(slf)
+    }
+
+    /// Set the observed exercise or expiry lifecycle state.
+    ///
+    /// Parameters
+    /// ----------
+    /// date : datetime.date
+    ///     Exercise date, or expiry date for an unexercised observation.
+    /// spot : float
+    ///     Positive observed underlying level in strike-price units.
+    /// settlement_date : datetime.date
+    ///     Contractual cash-payment or physical-delivery date.
+    /// exercised : bool
+    ///     Whether exercise or assignment occurred.
+    ///
+    /// Returns
+    /// -------
+    /// EquityOptionBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, date, spot, settlement_date, exercised)")]
+    fn exercise<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        date: &Bound<'_, PyAny>,
+        spot: f64,
+        settlement_date: &Bound<'_, PyAny>,
+        exercised: bool,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let exercise = finstack_quant_valuations::instruments::equity::EquityOptionExercise::new(
+            py_to_date(date)?,
+            spot,
+            py_to_date(settlement_date)?,
+            exercised,
+        );
+        let b = take_equity_option(&mut slf)?;
+        slf.inner = Some(b.exercise(exercise));
         Ok(slf)
     }
 
@@ -401,8 +489,10 @@ impl PyEquityOptionBuilder {
     /// Parameters
     /// ----------
     /// value : list[tuple[datetime.date, float]]
-    ///     Discrete dividend schedule as ``(ex_date, dividend_amount)`` pairs.
-    ///     When provided, the escrowed dividend model is used for pricing.
+    ///     Positive ``(ex_date, dividend_amount)`` pairs in strictly increasing
+    ///     date order. European pricing uses escrowed spot adjustment;
+    ///     American/Bermudan tree pricing restores remaining dividend value at
+    ///     exercise nodes to model ex-date jumps.
     ///
     /// Returns
     /// -------

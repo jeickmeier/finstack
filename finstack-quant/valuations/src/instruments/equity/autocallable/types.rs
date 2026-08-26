@@ -35,6 +35,7 @@
 
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::traits::Attributes;
+use crate::instruments::equity::EquityPathModel;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
@@ -136,6 +137,11 @@ pub struct Autocallable {
     pub spot_id: PriceId,
     /// Volatility surface ID for option pricing
     pub vol_surface_id: CurveId,
+    /// Explicit path model selection.
+    ///
+    /// `AtmTermGbm` is an ATM-term-structure approximation and does not model
+    /// equity strike skew; callers must opt into that limitation.
+    pub path_model: EquityPathModel,
     /// Optional dividend-yield scalar ID.
     ///
     /// `Some(id)`: lookup MUST succeed (a missing or non-unitless scalar
@@ -245,6 +251,8 @@ struct AutocallableUnchecked {
     spot_id: PriceId,
     /// Volatility surface ID for option pricing
     vol_surface_id: CurveId,
+    /// Explicit path model selection; required to acknowledge model risk.
+    path_model: EquityPathModel,
     /// Optional dividend-yield scalar ID.
     ///
     /// `Some(id)`: lookup MUST succeed (a missing or non-unitless scalar
@@ -308,6 +316,7 @@ impl TryFrom<AutocallableUnchecked> for Autocallable {
             discount_curve_id: value.discount_curve_id,
             spot_id: value.spot_id,
             vol_surface_id: value.vol_surface_id,
+            path_model: value.path_model,
             div_yield_id: value.div_yield_id,
             initial_level: value.initial_level,
             past_fixings: value.past_fixings,
@@ -538,6 +547,7 @@ impl Autocallable {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
+            .path_model(crate::instruments::equity::EquityPathModel::AtmTermGbm)
             .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .attributes(Attributes::new())
             .build()
@@ -629,6 +639,7 @@ mod validation_tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
+            .path_model(crate::instruments::equity::EquityPathModel::AtmTermGbm)
             .div_yield_id_opt(None)
             .attributes(Attributes::new())
     }
@@ -711,5 +722,16 @@ mod validation_tests {
     fn builder_rejects_non_positive_cap_level() {
         let result = base_builder().cap_level(0.0).build();
         assert!(result.is_err(), "non-positive cap_level must be rejected");
+    }
+
+    #[test]
+    fn serde_requires_explicit_path_model() {
+        let option = base_builder().build().expect("valid autocallable");
+        let mut value = serde_json::to_value(option).expect("serialize");
+        value.as_object_mut().expect("object").remove("path_model");
+
+        let error = serde_json::from_value::<Autocallable>(value)
+            .expect_err("missing path model must fail");
+        assert!(error.to_string().contains("path_model"));
     }
 }

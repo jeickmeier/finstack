@@ -16,7 +16,9 @@ use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
-use finstack_quant_valuations::instruments::equity::equity_option::EquityOption;
+use finstack_quant_valuations::instruments::equity::equity_option::{
+    EquityOption, EquityOptionExercise,
+};
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::SettlementType;
 use finstack_quant_valuations::instruments::{ExerciseStyle, OptionType};
@@ -36,7 +38,8 @@ fn test_expired_option_returns_zero_theta() {
     let as_of = date!(2025 - 01 - 01);
     let expiry = as_of; // Expired at as_of
 
-    let option = test_option(expiry).id("EXPIRED_OPTION").build();
+    let mut option = test_option(expiry).id("EXPIRED_OPTION").build();
+    option.exercise = Some(EquityOptionExercise::new(expiry, 100.0, expiry, false));
 
     let market = create_option_market(as_of, 100.0, 0.25, 0.05);
     let registry = standard_registry();
@@ -216,7 +219,9 @@ fn test_zero_volatility_option_limits() {
         expiry,
         notional: Money::new(100.0, Currency::USD),
         day_count: DayCount::Act365F,
+        theta_day_basis: Default::default(),
         settlement: SettlementType::Cash,
+        exercise: None,
         discount_curve_id: "USD-OIS".into(),
         spot_id: "SPOT".into(),
         vol_surface_id: "SPOT_VOL".into(),
@@ -258,7 +263,9 @@ fn test_zero_volatility_option_limits() {
         expiry,
         notional: Money::new(100.0, Currency::USD),
         day_count: DayCount::Act365F,
+        theta_day_basis: Default::default(),
         settlement: SettlementType::Cash,
+        exercise: None,
         discount_curve_id: "USD-OIS".into(),
         spot_id: "SPOT".into(),
         vol_surface_id: "SPOT_VOL".into(),
@@ -312,9 +319,11 @@ fn test_zero_notional_is_rejected() {
         option_type: OptionType::Call,
         exercise_style: ExerciseStyle::European,
         expiry,
-        notional: Money::new(0.0, Currency::USD), // Zero notional
+        notional: Money::new(0.0, Currency::USD),
         day_count: DayCount::Act365F,
+        theta_day_basis: Default::default(),
         settlement: SettlementType::Cash,
+        exercise: None,
         discount_curve_id: "USD-OIS".into(),
         spot_id: "SPOT".into(),
         vol_surface_id: "SPOT_VOL".into(),
@@ -351,7 +360,9 @@ fn test_deep_otm_option_greeks() {
         expiry,
         notional: Money::new(100.0, Currency::USD),
         day_count: DayCount::Act365F,
+        theta_day_basis: Default::default(),
         settlement: SettlementType::Cash,
+        exercise: None,
         discount_curve_id: "USD-OIS".into(),
         spot_id: "SPOT".into(),
         vol_surface_id: "SPOT_VOL".into(),
@@ -405,7 +416,9 @@ fn test_deep_itm_put_greeks() {
         expiry,
         notional: Money::new(100.0, Currency::USD),
         day_count: DayCount::Act365F,
+        theta_day_basis: Default::default(),
         settlement: SettlementType::Cash,
+        exercise: None,
         discount_curve_id: "USD-OIS".into(),
         spot_id: "SPOT".into(),
         vol_surface_id: "SPOT_VOL".into(),
@@ -458,7 +471,9 @@ fn test_deep_otm_put_greeks() {
         expiry,
         notional: Money::new(100.0, Currency::USD),
         day_count: DayCount::Act365F,
+        theta_day_basis: Default::default(),
         settlement: SettlementType::Cash,
+        exercise: None,
         discount_curve_id: "USD-OIS".into(),
         spot_id: "SPOT".into(),
         vol_surface_id: "SPOT_VOL".into(),
@@ -526,7 +541,9 @@ fn test_atm_option_gamma_peak() {
             expiry,
             notional: Money::new(100.0, Currency::USD),
             day_count: DayCount::Act365F,
+            theta_day_basis: Default::default(),
             settlement: SettlementType::Cash,
+            exercise: None,
             discount_curve_id: "USD-OIS".into(),
             spot_id: "SPOT".into(),
             vol_surface_id: "SPOT_VOL".into(),
@@ -589,7 +606,9 @@ fn test_extreme_volatility_handling() {
         expiry,
         notional: Money::new(100.0, Currency::USD),
         day_count: DayCount::Act365F,
+        theta_day_basis: Default::default(),
         settlement: SettlementType::Cash,
+        exercise: None,
         discount_curve_id: "USD-OIS".into(),
         spot_id: "SPOT".into(),
         vol_surface_id: "SPOT_VOL".into(),
@@ -646,7 +665,9 @@ fn test_very_short_dated_option() {
         expiry,
         notional: Money::new(100.0, Currency::USD),
         day_count: DayCount::Act365F,
+        theta_day_basis: Default::default(),
         settlement: SettlementType::Cash,
+        exercise: None,
         discount_curve_id: "USD-OIS".into(),
         spot_id: "SPOT".into(),
         vol_surface_id: "SPOT_VOL".into(),
@@ -725,7 +746,9 @@ fn test_very_low_interest_rate_greeks() {
         expiry,
         notional: Money::new(100.0, Currency::USD),
         day_count: DayCount::Act365F,
+        theta_day_basis: Default::default(),
         settlement: SettlementType::Cash,
+        exercise: None,
         discount_curve_id: "USD-OIS".into(),
         spot_id: "SPOT".into(),
         vol_surface_id: "SPOT_VOL".into(),
@@ -809,7 +832,9 @@ fn test_vol_smile_greeks() {
         expiry,
         notional: Money::new(100.0, Currency::USD),
         day_count: DayCount::Act365F,
+        theta_day_basis: Default::default(),
         settlement: SettlementType::Cash,
+        exercise: None,
         discount_curve_id: "USD-OIS".into(),
         spot_id: "SPOT".into(),
         vol_surface_id: "SMILE_VOL".into(),

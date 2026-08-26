@@ -4,7 +4,9 @@
 //! grid. Supports both European and American exercise via the penalty method.
 
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::equity::equity_option::pricer::collect_inputs_extended;
+use crate::instruments::equity::equity_option::pricer::{
+    collect_inputs_extended, has_future_discrete_dividends, resolve_lifecycle_value,
+};
 use crate::instruments::equity::equity_option::types::EquityOption;
 use crate::instruments::ExerciseStyle;
 use crate::pricer::{
@@ -46,14 +48,28 @@ impl EquityOptionPdePricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<Money, PricingError> {
+        if let Some(value) = resolve_lifecycle_value(inst, market, as_of).map_err(|error| {
+            PricingError::model_failure_with_context(
+                error.to_string(),
+                PricingErrorContext::from_instrument(inst).model(ModelKey::PdeCrankNicolson1D),
+            )
+        })? {
+            return Ok(value);
+        }
         if matches!(inst.exercise_style, ExerciseStyle::Bermudan) {
             return Err(PricingError::model_failure_with_context(
                 "EquityOption PDE1D does not support Bermudan exercise; use a tree model",
                 PricingErrorContext::from_instrument(inst).model(ModelKey::PdeCrankNicolson1D),
             ));
         }
-        if as_of > inst.expiry {
-            return Ok(Money::new(0.0, inst.notional.currency()));
+        if matches!(inst.exercise_style, ExerciseStyle::American)
+            && has_future_discrete_dividends(inst, as_of)
+        {
+            return Err(PricingError::model_failure_with_context(
+                "EquityOption PDE1D does not support American exercise with discrete \
+                 dividends; use the discrete-dividend tree model",
+                PricingErrorContext::from_instrument(inst).model(ModelKey::PdeCrankNicolson1D),
+            ));
         }
         let inputs = collect_inputs_extended(inst, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(

@@ -74,7 +74,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
-      "bytes": 85187,
+      "bytes": 85932,
       "kind": "component",
       "path": "schemas/common/1/instrument_pricing_overrides.schema.json",
       "summary": "Instrument-owned market quote and model configuration overrides.",
@@ -186,7 +186,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/composite/composite.schema.json",
-      "bytes": 900475,
+      "bytes": 904366,
       "kind": "input",
       "path": "schemas/instruments/1/composite/composite.schema.json",
       "summary": "Resolved cross-asset synthetic instrument with immutable leg quantities.",
@@ -226,7 +226,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/autocallable.schema.json",
-      "bytes": 12309,
+      "bytes": 12726,
       "kind": "input",
       "path": "schemas/instruments/1/equity/autocallable.schema.json",
       "summary": "Structured note that redeems early when a barrier is met.",
@@ -234,7 +234,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/cliquet_option.schema.json",
-      "bytes": 8410,
+      "bytes": 8827,
       "kind": "input",
       "path": "schemas/instruments/1/equity/cliquet_option.schema.json",
       "summary": "Series of forward-starting options with local and global caps.",
@@ -274,7 +274,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/equity_option.schema.json",
-      "bytes": 9201,
+      "bytes": 11758,
       "kind": "input",
       "path": "schemas/instruments/1/equity/equity_option.schema.json",
       "summary": "European or American option on a single equity.",
@@ -298,7 +298,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/private_markets_fund.schema.json",
-      "bytes": 15837,
+      "bytes": 15857,
       "kind": "input",
       "path": "schemas/instruments/1/equity/private_markets_fund.schema.json",
       "summary": "Closed-end fund with a commitment schedule and distribution waterfall.",
@@ -314,7 +314,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/trs_equity.schema.json",
-      "bytes": 42950,
+      "bytes": 43789,
       "kind": "input",
       "path": "schemas/instruments/1/equity/trs_equity.schema.json",
       "summary": "Equity total-return swap versus a funding leg.",
@@ -362,7 +362,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/basket.schema.json",
-      "bytes": 899442,
+      "bytes": 903333,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/basket.schema.json",
       "summary": "Weighted basket of constituents priced as one position.",
@@ -602,7 +602,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json",
-      "bytes": 986419,
+      "bytes": 990488,
       "kind": "input",
       "path": "schemas/instruments/1/instrument.schema.json",
       "summary": "The seventy-branch union of every instrument type. Prefer the per-type schema beside it: this document is too large to hand to a model.",

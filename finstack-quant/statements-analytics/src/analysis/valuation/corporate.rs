@@ -13,7 +13,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_statements::error::Result;
 use finstack_quant_statements::evaluator::{Evaluator, StatementResult};
-use finstack_quant_statements::types::FinancialModelSpec;
+use finstack_quant_statements::types::{FinancialModelSpec, NodeValueType};
 use finstack_quant_valuations::instruments::equity::dcf_equity::{
     DiscountedCashFlow, EquityBridge, TerminalValueSpec, ValuationDiscounts,
 };
@@ -44,9 +44,8 @@ pub struct CorporateValuationResult {
 
 /// Optional configuration for DCF valuation beyond the core WACC/terminal parameters.
 ///
-/// All fields default to `None`/`false`.
-///
 /// Percentage-style inputs use decimal form, so `0.10` means `10%`.
+/// [`Default`] caps perpetual stable growth at 5%.
 #[derive(Debug, Clone)]
 pub struct DcfOptions {
     /// Enable mid-year discounting convention (default: false).
@@ -76,6 +75,13 @@ pub struct DcfOptions {
     /// well defined. The clamp is reported in the trace so the caller
     /// knows the bump was shortened.
     pub wacc_denominator_epsilon: f64,
+    /// Maximum perpetual stable growth rate accepted by Gordon Growth and the
+    /// H-Model (default `0.05` = 5%).
+    ///
+    /// This is a policy ceiling, not merely the mathematical `g < WACC`
+    /// constraint. Set it to the valuation's defensible long-run nominal
+    /// economy or risk-free growth assumption.
+    pub max_stable_growth_rate: f64,
     /// Exit-multiple sensitivity bump (default: `ExitMultipleBump::Absolute(1.0)`).
     ///
     /// Use `ExitMultipleBump::Relative` for a proportional shock,
@@ -112,6 +118,7 @@ impl Default for DcfOptions {
             valuation_discounts: None,
             wacc_sensitivity_bump: 0.01,
             wacc_denominator_epsilon: 0.005,
+            max_stable_growth_rate: 0.05,
             exit_multiple_bump: ExitMultipleBump::default(),
             discount_curve_id: None,
             exit_multiple_metric_node: None,
@@ -147,21 +154,19 @@ pub(crate) struct DcfEvalContext<'a> {
 
 /// Evaluate a financial model using DCF methodology with optional market context.
 ///
-/// `market` and `as_of` are used only for **statement evaluation** (for
-/// example capital-structure curve lookups such as `cs.interest`). DCF
-/// discounting stays WACC-only and does not read discount curves from
-/// `market`.
+/// `as_of` is the DCF valuation date and, when `market` is present, the
+/// statement-evaluation visibility and curve date. DCF discounting remains
+/// WACC-based; `market` is used only for statement-level instruments.
 ///
-/// - `Some(market)` + `Some(as_of)` evaluates the model with
-///   [`Evaluator::evaluate_with_market`].
-/// - `Some(market)` + `None` is an error: a market without a valuation date
-///   would silently drop curve-dependent nodes.
-/// - `None` market uses plain [`Evaluator::evaluate`], ignoring `as_of`.
+/// - `Some(market)` + `Some(as_of)` evaluates the model point-in-time and
+///   discounts future UFCF from the same date.
+/// - `Some(market)` + `None` is an error.
+/// - `None` market uses plain [`Evaluator::evaluate`]; a supplied `as_of`
+///   still anchors DCF discounting.
+/// - `None` `as_of` uses the first forecast-period start as the valuation date.
 ///
-/// `wacc` and any growth rates embedded in `terminal_value` must be provided as
-/// decimal fractions. Cash flows are sourced from the model's non-actual
-/// periods and anchored to the first forecast boundary when historical actuals
-/// are present.
+/// `wacc` and terminal growth rates use decimal fractions. Cashflows dated on
+/// or before the valuation date are excluded.
 ///
 /// # Arguments
 ///
@@ -176,11 +181,10 @@ pub(crate) struct DcfEvalContext<'a> {
 ///   model-derived bridge
 /// * `options` - Mid-year, bridge, share-count, exit-multiple node, and
 ///   discount configuration
-/// * `market` - Optional market context for statement evaluation (curve
-///   lookups). Not used as the DCF discounting basis
-/// * `as_of` - Valuation date for market-context lookups during statement
-///   evaluation. Required when `market` is `Some`; ignored when `market` is
-///   `None`
+/// * `market` - Optional market context for statement-level curve lookups
+/// * `as_of` - Optional DCF valuation date and statement visibility cutoff;
+///   required when `market` is `Some`, otherwise defaults to the first forecast
+///   boundary
 ///
 /// # Returns
 ///
@@ -202,19 +206,19 @@ pub(crate) struct DcfEvalContext<'a> {
 /// use finstack_quant_statements_analytics::analysis::{evaluate_dcf_with_market, DcfOptions};
 /// use finstack_quant_statements::builder::ModelBuilder;
 /// use finstack_quant_statements::types::AmountOrScalar;
-/// use finstack_quant_core::dates::PeriodId;
+/// use finstack_quant_core::{currency::Currency, dates::PeriodId, money::Money};
 /// use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let model = ModelBuilder::new("acme")
 ///     .periods("2025Q1..Q4", Some("2025Q1"))?
-///     .value(
+///     .value_money(
 ///         "ufcf",
 ///         &[
-///             (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(1_000_000.0)),
-///             (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(1_050_000.0)),
-///             (PeriodId::quarter(2025, 3), AmountOrScalar::scalar(1_100_000.0)),
-///             (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(1_150_000.0)),
+///             (PeriodId::quarter(2025, 1), Money::new(1_000_000.0, Currency::USD)),
+///             (PeriodId::quarter(2025, 2), Money::new(1_050_000.0, Currency::USD)),
+///             (PeriodId::quarter(2025, 3), Money::new(1_100_000.0, Currency::USD)),
+///             (PeriodId::quarter(2025, 4), Money::new(1_150_000.0, Currency::USD)),
 ///         ],
 ///     )
 ///     .value(
@@ -446,6 +450,7 @@ pub fn dcf_sensitivity(
             terminal,
             ufcf_node,
             context,
+            None,
         )?;
         Ok(result.enterprise_value.amount())
     };
@@ -722,7 +727,15 @@ fn evaluate_dcf_impl(
         (None, _) => evaluator.evaluate(model)?,
     };
 
-    evaluate_dcf_from_results_impl(model, &results, wacc, terminal_value, ufcf_node, context)
+    evaluate_dcf_from_results_impl(
+        model,
+        &results,
+        wacc,
+        terminal_value,
+        ufcf_node,
+        context,
+        as_of,
+    )
 }
 
 pub(crate) fn evaluate_dcf_from_results_impl(
@@ -732,27 +745,49 @@ pub(crate) fn evaluate_dcf_from_results_impl(
     terminal_value: TerminalValueSpec,
     ufcf_node: &str,
     context: DcfEvalContext<'_>,
+    valuation_date: Option<Date>,
 ) -> Result<CorporateValuationResult> {
     let first_forecast_period = model.periods.iter().find(|period| !period.is_actual);
-    let last_actual_period = model.periods.iter().rfind(|period| period.is_actual);
+    let fallback_valuation_date = first_forecast_period
+        .or_else(|| model.periods.first())
+        .map(|period| period.start)
+        .ok_or_else(|| {
+            finstack_quant_statements::error::Error::Eval("Model has no periods".into())
+        })?;
+    let valuation_date = valuation_date.unwrap_or(fallback_valuation_date);
 
-    // Extract UFCF series from results
-    let mut flows = Vec::new();
     let currency = extract_currency_from_model(model)?;
+    match results.node_value_types.get(ufcf_node) {
+        Some(NodeValueType::Monetary {
+            currency: node_currency,
+        }) if *node_currency == currency => {}
+        Some(NodeValueType::Monetary {
+            currency: node_currency,
+        }) => {
+            return Err(finstack_quant_statements::error::Error::Eval(format!(
+                "UFCF node '{ufcf_node}' uses {node_currency}, but the DCF model currency is \
+                 {currency}"
+            )));
+        }
+        _ => {
+            return Err(finstack_quant_statements::error::Error::Eval(format!(
+                "UFCF node '{ufcf_node}' must be monetary in {currency}; scalar statement \
+                 nodes cannot be used as DCF cashflows"
+            )));
+        }
+    }
 
+    let mut flows = Vec::new();
     for period in &model.periods {
         if period.is_actual {
             continue;
         }
-        if let Some(ufcf_value) = results.get(ufcf_node, &period.id) {
-            // Use the last inclusive day of the period. Periods use
-            // half-open semantics [start, end), so `end` is the first
-            // day of the *next* period. Subtracting one day gives the
-            // correct economic period-end for discounting.
-            let date = period.end - time::Duration::days(1);
-            flows.push((date, ufcf_value));
-
-            // Record UFCF contribution in the explanation trace
+        let date = period.end - time::Duration::days(1);
+        if date <= valuation_date {
+            continue;
+        }
+        if let Some(ufcf_value) = results.get_money(ufcf_node, &period.id) {
+            flows.push((date, ufcf_value.amount()));
         }
     }
 
@@ -773,22 +808,44 @@ pub(crate) fn evaluate_dcf_from_results_impl(
     // Validate terminal value constraints. Guards are written fail-closed
     // (negated comparisons) so NaN parameters error instead of silently
     // producing NaN valuations.
+    if !context.options.max_stable_growth_rate.is_finite() {
+        return Err(finstack_quant_statements::error::Error::Eval(
+            "DcfOptions.max_stable_growth_rate must be finite".into(),
+        ));
+    }
     use std::cmp::Ordering;
     match &terminal_value {
-        TerminalValueSpec::GordonGrowth { growth_rate }
-            if growth_rate.partial_cmp(&wacc) != Some(Ordering::Less) =>
-        {
-            return Err(finstack_quant_statements::error::Error::Eval(format!(
-                "Gordon Growth terminal value requires growth_rate ({:.4}) < WACC ({:.4}). \
-                 A growth rate >= WACC produces an infinite terminal value.",
-                growth_rate, wacc
-            )));
+        TerminalValueSpec::GordonGrowth { growth_rate } => {
+            if growth_rate.partial_cmp(&context.options.max_stable_growth_rate)
+                == Some(Ordering::Greater)
+            {
+                return Err(finstack_quant_statements::error::Error::Eval(format!(
+                    "Gordon Growth rate ({growth_rate:.4}) exceeds the configured stable-growth \
+                     ceiling ({:.4})",
+                    context.options.max_stable_growth_rate
+                )));
+            }
+            if growth_rate.partial_cmp(&wacc) != Some(Ordering::Less) {
+                return Err(finstack_quant_statements::error::Error::Eval(format!(
+                    "Gordon Growth terminal value requires growth_rate ({growth_rate:.4}) < \
+                     WACC ({wacc:.4}). A growth rate >= WACC produces an infinite terminal value."
+                )));
+            }
         }
         TerminalValueSpec::HModel {
             high_growth_rate,
             stable_growth_rate,
             half_life_years,
         } => {
+            if stable_growth_rate.partial_cmp(&context.options.max_stable_growth_rate)
+                == Some(Ordering::Greater)
+            {
+                return Err(finstack_quant_statements::error::Error::Eval(format!(
+                    "H-Model stable growth rate ({stable_growth_rate:.4}) exceeds the configured \
+                     stable-growth ceiling ({:.4})",
+                    context.options.max_stable_growth_rate
+                )));
+            }
             if stable_growth_rate.partial_cmp(&wacc) != Some(Ordering::Less) {
                 return Err(finstack_quant_statements::error::Error::Eval(format!(
                     "H-Model terminal value requires stable_growth_rate ({:.4}) < WACC ({:.4}).",
@@ -811,7 +868,7 @@ pub(crate) fn evaluate_dcf_from_results_impl(
                 )));
             }
         }
-        _ => {}
+        TerminalValueSpec::ExitMultiple { .. } => {}
     }
 
     // Growth-perpetuity terminal values (Gordon, H-Model) capitalize an
@@ -846,28 +903,20 @@ pub(crate) fn evaluate_dcf_from_results_impl(
         TerminalValueSpec::ExitMultiple { .. } => None,
     };
 
-    // Determine net debt
-    let net_debt_period = last_actual_period
+    // Determine net debt from the latest balance-sheet period ending on or
+    // before the valuation date. This keeps the equity bridge on the same
+    // temporal anchor as discounted cashflows.
+    let net_debt_period = model
+        .periods
+        .iter()
+        .rev()
+        .find(|period| period.end <= valuation_date)
         .map(|period| period.id)
         .or_else(|| first_forecast_period.map(|period| period.id));
     let net_debt = if let Some(override_val) = context.net_debt_override {
         override_val
     } else {
         calculate_net_debt_from_model(model, results, net_debt_period)?
-    };
-
-    // Determine valuation date. When historical actuals exist, anchor the DCF to the
-    // first forecast boundary so explicit cashflows and bridge values share the same cut.
-    let valuation_date = if let Some(forecast_period) = first_forecast_period {
-        forecast_period.start
-    } else {
-        model
-            .periods
-            .first()
-            .ok_or_else(|| {
-                finstack_quant_statements::error::Error::Eval("Model has no periods".into())
-            })?
-            .start
     };
 
     // Create DCF instrument.
@@ -1061,7 +1110,9 @@ fn resolve_exit_multiple_metric(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::PeriodId;
+    use finstack_quant_core::money::Money;
     use finstack_quant_statements::builder::ModelBuilder;
     use finstack_quant_statements::types::AmountOrScalar;
 
@@ -1149,12 +1200,12 @@ mod tests {
         ModelBuilder::new("dcf-sensitivity")
             .periods("2025..2027", None)
             .expect("valid periods")
-            .value(
+            .value_money(
                 "ufcf",
                 &[
-                    (PeriodId::annual(2025), AmountOrScalar::scalar(100.0)),
-                    (PeriodId::annual(2026), AmountOrScalar::scalar(110.0)),
-                    (PeriodId::annual(2027), AmountOrScalar::scalar(120.0)),
+                    (PeriodId::annual(2025), Money::new(100.0, Currency::USD)),
+                    (PeriodId::annual(2026), Money::new(110.0, Currency::USD)),
+                    (PeriodId::annual(2027), Money::new(120.0, Currency::USD)),
                 ],
             )
             .with_meta("currency", serde_json::json!("USD"))
@@ -1218,6 +1269,7 @@ mod tests {
             // A 300 bp bump on a 50 bp WACC-to-growth spread would invert the
             // terminal denominator in both directions.
             wacc_sensitivity_bump: 0.03,
+            max_stable_growth_rate: 0.06,
             ..Default::default()
         };
         let result = dcf_sensitivity(
@@ -1319,12 +1371,12 @@ mod tests {
         ModelBuilder::new("exit-multiple-node")
             .periods("2025..2027", None)
             .expect("valid periods")
-            .value(
+            .value_money(
                 "ufcf",
                 &[
-                    (PeriodId::annual(2025), AmountOrScalar::scalar(100.0)),
-                    (PeriodId::annual(2026), AmountOrScalar::scalar(110.0)),
-                    (PeriodId::annual(2027), AmountOrScalar::scalar(120.0)),
+                    (PeriodId::annual(2025), Money::new(100.0, Currency::USD)),
+                    (PeriodId::annual(2026), Money::new(110.0, Currency::USD)),
+                    (PeriodId::annual(2027), Money::new(120.0, Currency::USD)),
                 ],
             )
             .value(

@@ -8853,6 +8853,7 @@ export interface StatementsAnalyticsNamespace {
    * @param netDebtOverride - Optional flat net-debt amount used instead of the model-derived bridge.
    * @param waccSensitivityBump - Absolute shock applied to WACC and to the terminal growth rate, in decimal (0.01 = +/-100 bp).
    * @param waccDenominatorEpsilon - Minimum spread preserved between WACC and the terminal growth rate so 1/(wacc - g) stays defined, in decimal.
+   * @param maxStableGrowthRate - Maximum perpetual stable growth rate; omitted uses the canonical 5% default.
    * @param exitMultipleBump - Absolute shock applied to an exit multiple, in turns of the multiple (1.0 = +/-1.0x).
    * @param midYearConvention - Whether every DCF re-run uses the mid-year discounting convention.
    * @param marketJson - Optional canonical market-context JSON used for statement evaluation, not WACC discounting.
@@ -8866,6 +8867,7 @@ export interface StatementsAnalyticsNamespace {
     netDebtOverride?: number | null,
     waccSensitivityBump?: number | null,
     waccDenominatorEpsilon?: number | null,
+    maxStableGrowthRate?: number | null,
     exitMultipleBump?: number | null,
     midYearConvention?: boolean | null,
     marketJson?: string | null

@@ -365,6 +365,7 @@ mod tests {
             discount_curve_id: "USD-OIS".into(),
             spot_id: "SPOT".into(),
             vol_surface_id: "SPOT_VOL".into(),
+            path_model: finstack_quant_valuations::instruments::equity::EquityPathModel::AtmTermGbm,
             div_yield_id: None,
             initial_level: None,
             past_fixings: vec![],

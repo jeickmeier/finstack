@@ -4,11 +4,12 @@
 //! statement evaluation, credit instrument pricing, and equity valuation
 //! in a single pipeline.
 
-use crate::analysis::credit::{compute_credit_context, CreditContextMetrics};
+use crate::analysis::credit::{compute_credit_context, CreditContextMetrics, CreditNumeratorNodes};
 use crate::analysis::valuation::corporate::{CorporateValuationResult, DcfOptions};
 use finstack_quant_core::dates::{Date, Period, PeriodId};
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_statements::error::Result;
+use finstack_quant_statements::checks::CheckSuite;
+use finstack_quant_statements::error::{Error, Result};
 use finstack_quant_statements::evaluator::StatementResult;
 use finstack_quant_statements::types::FinancialModelSpec;
 use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
@@ -52,20 +53,21 @@ enum EquityMode {
 /// # Example
 ///
 /// ```
-/// use finstack_quant_statements_analytics::analysis::CorporateAnalysisBuilder;
+/// use finstack_quant_core::{currency::Currency, dates::PeriodId, money::Money};
 /// use finstack_quant_statements::builder::ModelBuilder;
-/// use finstack_quant_core::dates::PeriodId;
+/// use finstack_quant_statements::checks::{builtins::NonFiniteCheck, CheckSuite};
+/// use finstack_quant_statements_analytics::analysis::CorporateAnalysisBuilder;
 /// use finstack_quant_statements::types::AmountOrScalar;
 /// use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
 ///
 /// # fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 /// let model = ModelBuilder::new("demo")
 ///     .periods("2025Q1..Q4", None)?
-///     .value("ufcf", &[
-///         (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100_000.0)),
-///         (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(105_000.0)),
-///         (PeriodId::quarter(2025, 3), AmountOrScalar::scalar(110_000.0)),
-///         (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(115_000.0)),
+///     .value_money("ufcf", &[
+///         (PeriodId::quarter(2025, 1), Money::new(100_000.0, Currency::USD)),
+///         (PeriodId::quarter(2025, 2), Money::new(105_000.0, Currency::USD)),
+///         (PeriodId::quarter(2025, 3), Money::new(110_000.0, Currency::USD)),
+///         (PeriodId::quarter(2025, 4), Money::new(115_000.0, Currency::USD)),
 ///     ])
 ///     .value("total_debt", &[
 ///         (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(500_000.0)),
@@ -82,8 +84,13 @@ enum EquityMode {
 ///     .with_meta("currency", serde_json::json!("USD"))
 ///     .build()?;
 ///
+/// let checks = CheckSuite::builder("corporate")
+///     .add_check(NonFiniteCheck { nodes: vec![] })
+///     .build();
+///
 /// let _result = CorporateAnalysisBuilder::new(model)
 ///     .dcf(0.10, TerminalValueSpec::GordonGrowth { growth_rate: 0.02 })
+///     .checks(checks)
 ///     .analyze()?;
 /// # Ok(())
 /// # }
@@ -93,8 +100,10 @@ pub struct CorporateAnalysisBuilder {
     market: Option<MarketContext>,
     as_of: Option<Date>,
     equity_mode: Option<EquityMode>,
-    coverage_node: String,
+    cfads_node: Option<String>,
+    interest_coverage_node: String,
     ltv_value_node: Option<String>,
+    check_suite: Option<CheckSuite>,
 }
 
 impl CorporateAnalysisBuilder {
@@ -106,8 +115,8 @@ impl CorporateAnalysisBuilder {
     ///
     /// # Returns
     ///
-    /// A builder with no market context, no DCF valuation, and `"ebitda"` as
-    /// the default credit coverage node.
+    /// A builder with no market context, no DCF valuation, no implicit CFADS
+    /// assumption, and `"ebitda"` as the interest-coverage numerator.
     ///
     /// # Examples
     ///
@@ -127,8 +136,10 @@ impl CorporateAnalysisBuilder {
             market: None,
             as_of: None,
             equity_mode: None,
-            coverage_node: "ebitda".to_string(),
+            cfads_node: None,
+            interest_coverage_node: "ebitda".to_string(),
             ltv_value_node: None,
+            check_suite: None,
         }
     }
 
@@ -150,14 +161,14 @@ impl CorporateAnalysisBuilder {
         self
     }
 
-    /// Set the as-of date for valuation.
-    ///
-    /// The date controls market-context lookups during evaluation. It does not
-    /// change the model's discrete period grid.
+    /// The date anchors DCF discounting and controls market-context lookups and
+    /// explicit-observation visibility during statement evaluation. It does
+    /// not change the model's discrete period grid; forecast cashflows dated on
+    /// or before this date are excluded from DCF.
     ///
     /// # Arguments
     ///
-    /// * `date` - Valuation date for market-context lookups.
+    /// * `date` - Shared statement and DCF valuation date.
     ///
     /// # Returns
     ///
@@ -228,20 +239,54 @@ impl CorporateAnalysisBuilder {
         self
     }
 
-    /// Set the coverage node for credit metrics (default: "ebitda").
+    /// Set the cash-flow-available-for-debt-service node.
     ///
-    /// The selected node is used as the numerator in DSCR and interest-coverage
-    /// calculations.
+    /// This explicit mapping is required before capital-structure credit
+    /// metrics are produced. EBITDA is not accepted as an implicit DSCR
+    /// numerator.
     ///
     /// # Arguments
     ///
-    /// * `node` - Statement node id to use as the coverage numerator.
+    /// * `node` - Statement node containing CFADS in model currency
     ///
     /// # Returns
     ///
     /// The updated builder.
-    pub fn coverage_node(mut self, node: &str) -> Self {
-        self.coverage_node = node.to_string();
+    pub fn cfads_node(mut self, node: &str) -> Self {
+        self.cfads_node = Some(node.to_string());
+        self
+    }
+
+    /// Set the earnings node used for interest coverage.
+    ///
+    /// # Arguments
+    ///
+    /// * `node` - Statement node containing EBITDA, EBIT, or another documented
+    ///   interest-coverage numerator
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    pub fn interest_coverage_node(mut self, node: &str) -> Self {
+        self.interest_coverage_node = node.to_string();
+        self
+    }
+
+    /// Attach the validation suite required before valuation or credit output.
+    ///
+    /// The suite must include `NonFiniteCheck`; production three-statement
+    /// models should pass [`crate::analysis::three_statement_checks`].
+    ///
+    /// # Arguments
+    ///
+    /// * `suite` - Accounting and data-quality checks run against evaluated
+    ///   statements before analytics
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    pub fn checks(mut self, suite: CheckSuite) -> Self {
+        self.check_suite = Some(suite);
         self
     }
 
@@ -320,14 +365,45 @@ impl CorporateAnalysisBuilder {
     /// # }
     /// ```
     pub fn analyze(self) -> Result<CorporateAnalysis> {
-        // Step 1: Evaluate statement
-        let mut evaluator = finstack_quant_statements::evaluator::Evaluator::new();
+        let requires_checks = self.equity_mode.is_some() || self.model.capital_structure.is_some();
+        let mut evaluator = if requires_checks {
+            let suite = self.check_suite.ok_or_else(|| {
+                Error::eval(
+                    "Corporate valuation and credit analysis require a CheckSuite; \
+                     call CorporateAnalysisBuilder::checks before analyze"
+                        .to_string(),
+                )
+            })?;
+            if !suite.check_ids().contains(&"non_finite") {
+                return Err(Error::eval(
+                    "Corporate analysis CheckSuite must include NonFiniteCheck".to_string(),
+                ));
+            }
+            finstack_quant_statements::evaluator::Evaluator::new().with_checks(suite)
+        } else {
+            finstack_quant_statements::evaluator::Evaluator::new()
+        };
         let statement = match (self.market.as_ref(), self.as_of) {
             (Some(market), Some(as_of)) => {
                 evaluator.evaluate_with_market(&self.model, market, as_of)?
             }
-            _ => evaluator.evaluate(&self.model)?,
+            (Some(_), None) => {
+                return Err(Error::eval(
+                    "Corporate analysis requires as_of when market context is provided".to_string(),
+                ));
+            }
+            (None, _) => evaluator.evaluate(&self.model)?,
         };
+        if requires_checks
+            && statement
+                .check_report
+                .as_ref()
+                .is_some_and(finstack_quant_statements::checks::CheckReport::has_errors)
+        {
+            return Err(Error::eval(
+                "Corporate analysis blocked by error-severity statement checks".to_string(),
+            ));
+        }
 
         // Step 2: Equity valuation (if configured)
         let equity = match self.equity_mode {
@@ -349,6 +425,7 @@ impl CorporateAnalysisBuilder {
                         options: &dcf_options,
                         market: self.market.as_ref(),
                     },
+                    self.as_of,
                 )
                 .map_err(|e| {
                     finstack_quant_statements::error::Error::Eval(format!(
@@ -384,15 +461,28 @@ impl CorporateAnalysisBuilder {
 
         let mut credit = IndexMap::new();
         if let Some(ref cs) = statement.cs_cashflows {
+            let cfads_node = self.cfads_node.as_deref().ok_or_else(|| {
+                Error::eval(
+                    "Corporate credit analysis requires an explicit CFADS node; \
+                     call CorporateAnalysisBuilder::cfads_node before analyze"
+                        .to_string(),
+                )
+            })?;
+            let reporting_currency =
+                crate::analysis::valuation::corporate::extract_currency_from_model(&self.model)?;
             for instrument_id in cs.by_instrument.keys() {
                 let metrics = compute_credit_context(
                     &statement,
                     cs,
                     instrument_id,
-                    &self.coverage_node,
+                    CreditNumeratorNodes {
+                        cfads: cfads_node,
+                        interest_coverage: &self.interest_coverage_node,
+                    },
+                    reporting_currency,
                     &self.model.periods,
                     ltv_refs.as_deref(),
-                );
+                )?;
                 credit.insert(instrument_id.clone(), metrics);
             }
         }
@@ -437,11 +527,14 @@ fn ltv_reference_path(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::PeriodId;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::math::interp::InterpStyle;
     use finstack_quant_core::money::Money;
     use finstack_quant_statements::builder::ModelBuilder;
+    use finstack_quant_statements::checks::builtins::NonFiniteCheck;
+    use finstack_quant_statements::checks::CheckSuite;
     use finstack_quant_statements::types::AmountOrScalar;
     use time::macros::date;
 
@@ -467,6 +560,12 @@ mod tests {
         }
 
         builder.build().expect("valid flat discount curve")
+    }
+
+    fn non_finite_suite() -> CheckSuite {
+        CheckSuite::builder("corporate-test")
+            .add_check(NonFiniteCheck { nodes: vec![] })
+            .build()
     }
 
     #[test]
@@ -510,24 +609,24 @@ mod tests {
         let model = ModelBuilder::new("dcf-test")
             .periods("2025Q1..Q4", None)
             .expect("periods")
-            .value(
+            .value_money(
                 "ufcf",
                 &[
                     (
                         PeriodId::quarter(2025, 1),
-                        AmountOrScalar::scalar(100_000.0),
+                        Money::new(100_000.0, Currency::USD),
                     ),
                     (
                         PeriodId::quarter(2025, 2),
-                        AmountOrScalar::scalar(110_000.0),
+                        Money::new(110_000.0, Currency::USD),
                     ),
                     (
                         PeriodId::quarter(2025, 3),
-                        AmountOrScalar::scalar(120_000.0),
+                        Money::new(120_000.0, Currency::USD),
                     ),
                     (
                         PeriodId::quarter(2025, 4),
-                        AmountOrScalar::scalar(130_000.0),
+                        Money::new(130_000.0, Currency::USD),
                     ),
                 ],
             )
@@ -538,6 +637,7 @@ mod tests {
         let result = CorporateAnalysisBuilder::new(model)
             .dcf(0.10, TerminalValueSpec::GordonGrowth { growth_rate: 0.02 })
             .net_debt_override(50_000.0)
+            .checks(non_finite_suite())
             .analyze()
             .expect("should succeed");
 
@@ -549,13 +649,54 @@ mod tests {
     }
 
     #[test]
-    fn test_non_positive_enterprise_value_status_is_top_level() {
-        let model = ModelBuilder::new("non-positive-ev")
+    fn test_dcf_requires_check_suite() {
+        let model = ModelBuilder::new("unchecked-dcf")
             .periods("2025Q1..Q1", None)
             .expect("periods")
             .value(
                 "ufcf",
-                &[(PeriodId::quarter(2025, 1), AmountOrScalar::scalar(0.0))],
+                &[(PeriodId::quarter(2025, 1), AmountOrScalar::scalar(100.0))],
+            )
+            .with_meta("currency", serde_json::json!("USD"))
+            .build()
+            .expect("model");
+
+        let error = CorporateAnalysisBuilder::new(model)
+            .dcf(0.10, TerminalValueSpec::GordonGrowth { growth_rate: 0.02 })
+            .net_debt_override(0.0)
+            .analyze()
+            .expect_err("unchecked valuation must fail");
+        assert!(error.to_string().contains("require a CheckSuite"));
+    }
+
+    #[test]
+    fn test_error_severity_check_blocks_dcf() {
+        let model = ModelBuilder::new("non-finite-dcf")
+            .periods("2025Q1..Q1", None)
+            .expect("periods")
+            .compute("ufcf", "0 / 0")
+            .expect("formula")
+            .with_meta("currency", serde_json::json!("USD"))
+            .build()
+            .expect("model");
+
+        let error = CorporateAnalysisBuilder::new(model)
+            .dcf(0.10, TerminalValueSpec::GordonGrowth { growth_rate: 0.02 })
+            .net_debt_override(0.0)
+            .checks(non_finite_suite())
+            .analyze()
+            .expect_err("error-severity check must block valuation");
+        assert!(error.to_string().contains("blocked"));
+    }
+
+    #[test]
+    fn test_non_positive_enterprise_value_status_is_top_level() {
+        let model = ModelBuilder::new("non-positive-ev")
+            .periods("2025Q1..Q1", None)
+            .expect("periods")
+            .value_money(
+                "ufcf",
+                &[(PeriodId::quarter(2025, 1), Money::new(0.0, Currency::USD))],
             )
             .with_meta("currency", serde_json::json!("USD"))
             .build()
@@ -564,6 +705,7 @@ mod tests {
         let result = CorporateAnalysisBuilder::new(model)
             .dcf(0.10, TerminalValueSpec::GordonGrowth { growth_rate: 0.02 })
             .net_debt_override(0.0)
+            .checks(non_finite_suite())
             .analyze()
             .expect("analysis should succeed");
 
@@ -577,19 +719,21 @@ mod tests {
         let model = ModelBuilder::new("dcf-cs-test")
             .periods("2025Q1..Q2", Some("2025Q1"))
             .expect("periods")
-            .value(
+            .value_money(
                 "revenue",
                 &[
                     (
                         PeriodId::quarter(2025, 1),
-                        AmountOrScalar::scalar(1_000_000.0),
+                        Money::new(1_000_000.0, Currency::USD),
                     ),
                     (
                         PeriodId::quarter(2025, 2),
-                        AmountOrScalar::scalar(1_100_000.0),
+                        Money::new(1_100_000.0, Currency::USD),
                     ),
                 ],
             )
+            .availability_dates("revenue", &[(PeriodId::quarter(2025, 1), as_of)])
+            .expect("availability")
             .add_bond(
                 "BOND-001",
                 Money::new(1_000_000.0, finstack_quant_core::currency::Currency::USD),
@@ -610,6 +754,9 @@ mod tests {
             .as_of(as_of)
             .dcf(0.10, TerminalValueSpec::GordonGrowth { growth_rate: 0.02 })
             .net_debt_override(0.0)
+            .cfads_node("ufcf")
+            .interest_coverage_node("revenue")
+            .checks(non_finite_suite())
             .analyze();
 
         assert!(
@@ -697,6 +844,26 @@ mod tests {
                     (q2, AmountOrScalar::scalar(8_000_000.0)),
                 ],
             )
+            .value(
+                "cfads",
+                &[
+                    (q1, AmountOrScalar::scalar(1_000_000.0)),
+                    (q2, AmountOrScalar::scalar(1_000_000.0)),
+                ],
+            )
+            .value(
+                "ebitda",
+                &[
+                    (q1, AmountOrScalar::scalar(1_500_000.0)),
+                    (q2, AmountOrScalar::scalar(1_500_000.0)),
+                ],
+            )
+            .availability_dates("enterprise_value", &[(q1, as_of)])
+            .expect("availability")
+            .availability_dates("cfads", &[(q1, as_of)])
+            .expect("availability")
+            .availability_dates("ebitda", &[(q1, as_of)])
+            .expect("availability")
             .add_bond(
                 "BOND-001",
                 Money::new(4_000_000.0, finstack_quant_core::currency::Currency::USD),
@@ -714,6 +881,9 @@ mod tests {
             .market(market)
             .as_of(as_of)
             .ltv_value_node("enterprise_value")
+            .cfads_node("cfads")
+            .interest_coverage_node("ebitda")
+            .checks(non_finite_suite())
             .analyze()
             .expect("analysis");
 

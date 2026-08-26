@@ -18,6 +18,7 @@ import pandas as pd
 
 from finstack_quant.statements import CheckReport, FinancialModelSpec, StatementResult
 from finstack_quant.core.market_data import MarketContext
+from finstack_quant.core.money import Money
 from finstack_quant.core.table import ArrowTable
 
 __all__ = [
@@ -417,9 +418,9 @@ class ScenarioSet:
 
     Parameters
     ----------
-    scenarios : dict[str, dict[str, float]]
-        Mapping from scenario name to node-ID overrides expressed as numeric
-        model values.
+    scenarios : dict[str, dict[str, float | Money]]
+        Mapping from scenario name to typed node overrides. Monetary nodes
+        require ``Money`` in the node currency; scalar nodes require ``float``.
     parents : dict[str, str] or None
         Optional mapping from scenario to inherited parent scenario; omitted
         scenarios have no parent.
@@ -432,7 +433,7 @@ class ScenarioSet:
     """
     def __init__(
         self,
-        scenarios: dict[str, dict[str, float]],
+        scenarios: dict[str, dict[str, float | Money]],
         parents: dict[str, str] | None = ...,
     ) -> None:
         """
@@ -440,8 +441,8 @@ class ScenarioSet:
 
         Parameters
         ----------
-        scenarios : dict[str, dict[str, float]]
-            Mapping from scenario names to statement node IDs and numeric overrides.
+        scenarios : dict[str, dict[str, float | Money]]
+            Typed scalar or monetary node overrides.
         parents : dict[str, str] or None, default None
             Optional mapping from each child scenario to its inherited parent.
 
@@ -1460,6 +1461,7 @@ def evaluate_dcf(
     ufcf_node: str = "ufcf",
     net_debt_override: float | None = None,
     mid_year_convention: bool = False,
+    max_stable_growth_rate: float | None = None,
     shares_outstanding: float | None = None,
     equity_bridge_json: str | None = None,
     valuation_discounts_json: str | None = None,
@@ -1470,10 +1472,9 @@ def evaluate_dcf(
     """
     Evaluate DCF valuation on a financial model.
 
-    ``market`` and ``as_of`` are used only for statement evaluation (for
-    example capital-structure curve lookups). DCF discounting stays
-    WACC-only. Year-end discounting (``mid_year_convention=False``) is the
-    default.
+    ``as_of`` anchors DCF discounting and, when market data is present,
+    statement visibility and curve lookups. Discounting remains WACC-only.
+    Year-end discounting is the default.
 
     Parameters
     ----------
@@ -1489,6 +1490,8 @@ def evaluate_dcf(
         Optional flat net debt.
     mid_year_convention : bool
         Use mid-year discounting when ``True``. Default ``False`` (year-end).
+    max_stable_growth_rate : float or None
+        Maximum perpetual stable growth rate. ``None`` uses 5%.
     shares_outstanding : float or None
         Optional basic shares for per-share equity value.
     equity_bridge_json : str or None
@@ -1500,10 +1503,8 @@ def evaluate_dcf(
         evaluation. Not used as the DCF discounting basis. When set,
         ``as_of`` is required.
     as_of : datetime.date or str or None
-        Valuation date for market-context lookups during statement
-        evaluation. Required when ``market`` is set; ignored when
-        ``market`` is ``None``. Accepts a date-like object or an ISO 8601
-        string.
+        DCF valuation date and statement visibility date. Required with
+        ``market``; otherwise defaults to the first forecast boundary.
     exit_multiple_metric_node : str or None
         Statement node whose last-forecast-period value supplies the
         exit-multiple terminal metric. When set, that value replaces
@@ -1525,11 +1526,12 @@ def evaluate_dcf(
 
     Examples
     --------
+    >>> from finstack_quant.core.money import Money
     >>> from finstack_quant.statements_analytics import evaluate_dcf
     >>> from finstack_quant.statements import ModelBuilder
     >>> builder = ModelBuilder("dcf")
     >>> _ = builder.periods("2025..2026")
-    >>> _ = builder.value("ufcf", [("2025", 100.0), ("2026", 110.0)])
+    >>> _ = builder.value_money("ufcf", [("2025", Money(100.0, "USD")), ("2026", Money(110.0, "USD"))])
     >>> _ = builder.with_meta("currency", '"USD"')
     >>> terminal = '{"type":"gordon_growth","growth_rate":0.02}'
     >>> evaluate_dcf(builder.build(), 0.10, terminal, net_debt_override=0.0)["enterprise_value"] > 0.0
@@ -1546,6 +1548,7 @@ def dcf_sensitivity(
     net_debt_override: float | None = None,
     wacc_sensitivity_bump: float | None = None,
     wacc_denominator_epsilon: float | None = None,
+    max_stable_growth_rate: float | None = None,
     exit_multiple_bump: float | None = None,
     mid_year_convention: bool = False,
     market: MarketContext | str | None = None,
@@ -1580,6 +1583,8 @@ def dcf_sensitivity(
         Minimum spread preserved between WACC and terminal growth so the terminal
         denominator stays defined, as a decimal (``0.005`` = 50 bp). ``None``
         uses the canonical Rust ``DcfOptions`` default.
+    max_stable_growth_rate : float or None
+        Maximum perpetual stable growth rate. ``None`` uses 5%.
     exit_multiple_bump : float or None
         Absolute shock applied to an exit multiple, in turns (``1.0`` =
         +/-1.0x). ``None`` uses the canonical Rust ``DcfOptions`` default.
@@ -1608,11 +1613,12 @@ def dcf_sensitivity(
 
     Examples
     --------
+    >>> from finstack_quant.core.money import Money
     >>> from finstack_quant.statements_analytics import dcf_sensitivity
     >>> from finstack_quant.statements import ModelBuilder
     >>> builder = ModelBuilder("dcf")
     >>> _ = builder.periods("2025..2026")
-    >>> _ = builder.value("ufcf", [("2025", 100.0), ("2026", 110.0)])
+    >>> _ = builder.value_money("ufcf", [("2025", Money(100.0, "USD")), ("2026", Money(110.0, "USD"))])
     >>> _ = builder.with_meta("currency", '"USD"')
     >>> terminal = '{"type":"gordon_growth","growth_rate":0.02}'
     >>> len(dcf_sensitivity(builder.build(), 0.10, terminal, net_debt_override=0.0)["entries"])
@@ -1751,7 +1757,9 @@ def run_corporate_analysis(
     wacc: float | None = None,
     terminal_value_json: str | None = None,
     net_debt_override: float | None = None,
-    coverage_node: str = "ebitda",
+    cfads_node: str | None = None,
+    interest_coverage_node: str = "ebitda",
+    check_suite_json: str | None = None,
     market: MarketContext | str | None = None,
     as_of: datetime.date | str | None = None,
     ltv_value_node: str | None = None,
@@ -1769,8 +1777,13 @@ def run_corporate_analysis(
         Required JSON ``TerminalValueSpec`` when ``wacc`` is set.
     net_debt_override : float or None
         Optional flat net debt for the equity bridge.
-    coverage_node : str
-        Node for DSCR / interest coverage (default ``ebitda``).
+    cfads_node : str or None
+        Required CFADS numerator for capital-structure credit analysis.
+    interest_coverage_node : str
+        Earnings numerator used only for interest coverage.
+    check_suite_json : str or None
+        JSON ``CheckSuiteSpec`` required for DCF or credit analysis; it must
+        include ``NonFiniteCheck``.
     market : MarketContext or str or None
         Optional ``MarketContext`` object or JSON string used for
         statement evaluation, not WACC discounting.
@@ -1796,8 +1809,8 @@ def run_corporate_analysis(
     Raises
     ------
     ValueError
-        If model, market, terminal-value, or as_of data is invalid, or terminal-value
-        JSON is omitted when wacc is supplied.
+        If model, market, terminal-value, check-suite, or as_of data is invalid,
+        or required DCF/credit configuration is omitted.
 
     Examples
     --------

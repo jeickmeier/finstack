@@ -16,7 +16,7 @@ use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 use finstack_quant_valuations::instruments::equity::autocallable::{Autocallable, FinalPayoffType};
-use finstack_quant_valuations::instruments::equity::CliquetOption;
+use finstack_quant_valuations::instruments::equity::{CliquetOption, EquityPathModel};
 use finstack_quant_valuations::instruments::exotics::lookback_option::{
     LookbackOption, LookbackType,
 };
@@ -139,6 +139,7 @@ fn autocallable_note(mc_paths: usize) -> Autocallable {
         discount_curve_id: CurveId::new("USD-OIS"),
         spot_id: "SPOT".into(),
         vol_surface_id: CurveId::new("SPOT_VOL"),
+        path_model: finstack_quant_valuations::instruments::equity::EquityPathModel::AtmTermGbm,
         div_yield_id: Some(finstack_quant_core::types::PriceId::new("SPOT_DIV")),
         initial_level: None,
         past_fixings: vec![],
@@ -215,6 +216,7 @@ fn make_cliquet(as_of: Date, n_resets: usize) -> CliquetOption {
         .discount_curve_id(CurveId::new("USD-OIS"))
         .spot_id("SPOT".into())
         .vol_surface_id(CurveId::new("SPOT_VOL"))
+        .path_model(EquityPathModel::AtmTermGbm)
         .div_yield_id_opt(Some(PriceId::new("SPOT_DIV")))
         .instrument_pricing_overrides(InstrumentPricingOverrides::default())
         .attributes(Attributes::new())

@@ -136,6 +136,10 @@
           },
           "type": "array"
         },
+        "path_model": {
+          "$ref": "#/$defs/EquityPathModel",
+          "description": "Explicit path model selection; required to acknowledge model risk."
+        },
         "payment_dates": {
           "description": "Contractual payment dates corresponding to observation dates.",
           "items": {
@@ -179,9 +183,15 @@
         "discount_curve_id",
         "spot_id",
         "vol_surface_id",
+        "path_model",
         "attributes"
       ],
       "type": "object"
+    },
+    "EquityPathModel": {
+      "const": "atm_term_gbm",
+      "description": "Explicit stochastic model policy for path-dependent equity structures.",
+      "type": "string"
     },
     "FinalPayoffType": {
       "description": "Final payoff type for autocallable products.",
@@ -333,6 +343,7 @@
           ],
           "participation_rate": 1.0,
           "past_fixings": [],
+          "path_model": "atm_term_gbm",
           "payment_dates": [
             "2024-03-29",
             "2024-06-28",

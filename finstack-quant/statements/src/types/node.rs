@@ -78,6 +78,35 @@ impl PartialEq<str> for NodeId {
     }
 }
 
+mod period_availability_dates {
+    use super::{IndexMap, PeriodId};
+    use finstack_quant_core::{dates::Date, wire::DateWire};
+    use serde::{Deserialize, Serialize};
+
+    pub fn serialize<S>(values: &IndexMap<PeriodId, Date>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        values
+            .iter()
+            .map(|(period, date)| (period, DateWire::from(*date)))
+            .collect::<IndexMap<_, _>>()
+            .serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<IndexMap<PeriodId, Date>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        IndexMap::<PeriodId, DateWire>::deserialize(deserializer).map(|values| {
+            values
+                .into_iter()
+                .map(|(period, date)| (period, date.into()))
+                .collect()
+        })
+    }
+}
+
 /// Specification for a single node (metric/line item) in the financial model.
 ///
 /// A node can be:
@@ -101,6 +130,20 @@ pub struct NodeSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<IndexMap<String, AmountOrScalar>>")]
     pub values: Option<IndexMap<PeriodId, AmountOrScalar>>,
+    /// Point-in-time availability date for each explicit period value.
+    ///
+    /// When absent for a value, market-aware evaluation conservatively makes
+    /// that value visible on the period's exclusive end date. An explicit
+    /// entry permits filing/release dates later than period end, or earlier
+    /// availability for operational data known before the reporting period
+    /// closes.
+    #[serde(
+        default,
+        with = "period_availability_dates",
+        skip_serializing_if = "IndexMap::is_empty"
+    )]
+    #[schemars(with = "IndexMap<String, finstack_quant_core::wire::DateWire>")]
+    pub availability_dates: IndexMap<PeriodId, finstack_quant_core::dates::Date>,
 
     /// Forecast specification (for Mixed nodes)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -140,6 +183,7 @@ impl NodeSpec {
             node_type,
             values: None,
             forecast: None,
+            availability_dates: IndexMap::new(),
             formula_text: None,
             where_text: None,
             tags: Vec::new(),
@@ -166,6 +210,40 @@ impl NodeSpec {
     pub fn with_values(mut self, values: IndexMap<PeriodId, AmountOrScalar>) -> Self {
         self.values = Some(values);
         self
+    }
+
+    /// Set point-in-time availability dates for explicit observations.
+    ///
+    /// Dates are keyed by the same periods as [`Self::values`]. During
+    /// market-aware evaluation an explicit value is visible only when its
+    /// availability date is on or before the requested `as_of` date.
+    ///
+    /// # Arguments
+    ///
+    /// * `availability_dates` - Period-to-date map recording when each explicit
+    ///   observation became available to the model
+    #[must_use = "builder methods take self by value and return the modified value"]
+    pub fn with_availability_dates(
+        mut self,
+        availability_dates: IndexMap<PeriodId, finstack_quant_core::dates::Date>,
+    ) -> Self {
+        self.availability_dates = availability_dates;
+        self
+    }
+
+    /// Return whether an explicit observation is visible at the cutoff.
+    pub(crate) fn explicit_value_is_visible(
+        &self,
+        period: &finstack_quant_core::dates::Period,
+        cutoff: Option<finstack_quant_core::dates::Date>,
+    ) -> bool {
+        cutoff.is_none_or(|as_of| {
+            self.availability_dates
+                .get(&period.id)
+                .copied()
+                .unwrap_or(period.end)
+                <= as_of
+        })
     }
 
     /// Set the formula text.

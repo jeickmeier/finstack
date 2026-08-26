@@ -5470,12 +5470,27 @@
           ],
           "description": "Optional piecewise-constant Hull-White short-rate volatility schedule.\n\nWhen supplied, this replaces the scalar [`Self::hw1f_sigma`] override.\nThe schedule is left-continuous, starts at time zero, and carries\nabsolute annual short-rate volatilities."
         },
+        "mc_antithetic": {
+          "description": "Optional antithetic-variates override for Monte Carlo pricing.\n\n`None` keeps the selected pricer's default. Structured equity pricers\ndefault to `true`; set `Some(false)` only for controlled diagnostics.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "mc_paths": {
           "description": "Optional Monte Carlo path count for path-dependent GBM pricers (Asians, lookbacks, autocallables, etc.).\n\nWhen set, overrides the default simulation size (typically 100,000 paths). Intended for tests,\nbenchmarks, and controlled revaluation—not a market quote.",
           "format": "uint",
           "minimum": 0,
           "type": [
             "integer",
+            "null"
+          ]
+        },
+        "mc_target_ci_half_width": {
+          "description": "Optional absolute target for the Monte Carlo confidence-interval\nhalf-width in instrument currency.\n\nThe engine may stop before `mc_paths` after its minimum sample count\nwhen this positive finite target is reached.",
+          "format": "double",
+          "type": [
+            "number",
             "null"
           ]
         },
@@ -5611,6 +5626,13 @@
       "additionalProperties": false,
       "description": "Specification for a single node (metric/line item) in the financial model.\n\nA node can be:\n- **Value**: Explicit values only\n- **Calculated**: Formula-derived only\n- **Mixed**: Value OR Forecast OR Formula (precedence: Value > Forecast > Formula)",
       "properties": {
+        "availability_dates": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DateWire"
+          },
+          "description": "Point-in-time availability date for each explicit period value.\n\nWhen absent for a value, market-aware evaluation conservatively makes\nthat value visible on the period's exclusive end date. An explicit\nentry permits filing/release dates later than period end, or earlier\navailability for operational data known before the reporting period\ncloses.",
+          "type": "object"
+        },
         "forecast": {
           "anyOf": [
             {

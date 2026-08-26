@@ -52,14 +52,16 @@ pub(crate) fn evaluate_forecast(
             node_spec.node_id
         )))?;
 
-    // Find all forecast periods. Actual periods whose explicit values are
-    // hidden by the as-of visibility cutoff are treated as forecast periods
-    // so the forecast series covers them instead of hard-erroring.
+    // Find all forecast periods. Actual periods whose explicit observation is
+    // unavailable at the as-of cutoff are forecast for this node, allowing
+    // different statement lines to carry their own filing/release dates.
     let forecast_periods: Vec<PeriodId> = model
         .periods
         .iter()
-        .filter(|p| !p.is_actual || visibility_cutoff.is_some_and(|cutoff| p.start > cutoff))
-        .map(|p| p.id)
+        .filter(|period| {
+            !period.is_actual || !node_spec.explicit_value_is_visible(period, visibility_cutoff)
+        })
+        .map(|period| period.id)
         .collect();
 
     if forecast_periods.is_empty() {
@@ -170,10 +172,10 @@ pub(crate) fn evaluate_forecast(
 /// to the most recent observed data point. The resolution order is:
 ///
 /// 1. **Last visible actual period** — if the node has an explicit value or a
-///    previously-evaluated result in the most recent `is_actual` period that
-///    is visible under the as-of policy (`period.start <= visibility_cutoff`),
-///    that value is used. Actuals hidden by the cutoff are never consulted so
-///    the forecast base cannot leak future data.
+///    previously-evaluated result in the most recent `is_actual` period whose
+///    observation availability date is on or before the cutoff, that value is
+///    used. Values without an explicit availability date default to the
+///    period's exclusive end date.
 /// 2. **Most recent historical value** — falls back to the chronologically
 ///    latest value found anywhere in `EvaluationContext::history`.
 ///    Covers cases where the last actual period has no value for this
@@ -194,13 +196,11 @@ fn determine_base_value(
     context: &EvaluationContext,
     visibility_cutoff: Option<Date>,
 ) -> Result<f64> {
-    // Try to get the last actual period whose values are visible under the
-    // as-of policy.
-    let last_actual_period = model
-        .periods
-        .iter()
-        .rfind(|p| p.is_actual && visibility_cutoff.is_none_or(|cutoff| p.start <= cutoff));
-
+    // Try to get the last actual period whose observation is visible under
+    // the as-of policy.
+    let last_actual_period = model.periods.iter().rfind(|period| {
+        period.is_actual && node_spec.explicit_value_is_visible(period, visibility_cutoff)
+    });
     if let Some(last_actual) = last_actual_period {
         // Check node's explicit values
         if let Some(values) = &node_spec.values {

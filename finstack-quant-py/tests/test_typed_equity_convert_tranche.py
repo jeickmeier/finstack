@@ -79,6 +79,39 @@ class TestEquityOptionTyped:
         assert payload["instrument"]["type"] == "equity_option"
         assert EquityOption.from_json(option.to_json()).id == "AAPL-C-200-DIV"
 
+    def test_settlement_and_exercise_lifecycle_round_trip(self) -> None:
+        expiry = datetime.date(2025, 6, 20)
+        settlement = datetime.date(2025, 6, 23)
+        option = (
+            EquityOption
+            .builder()
+            .id("AAPL-C-200-EXERCISED")
+            .underlying_ticker("AAPL")
+            .strike(200.0)
+            .option_type("call")
+            .exercise_style("european")
+            .theta_day_basis("trading_252")
+            .expiry(expiry)
+            .settlement("physical")
+            .exercise(expiry, 215.0, settlement, True)
+            .notional(Money(100.0, Currency("USD")))
+            .discount_curve_id("USD-OIS")
+            .spot_id("AAPL")
+            .vol_surface_id("AAPL-VOL")
+            .build()
+        )
+
+        payload = json.loads(option.to_json())["instrument"]["spec"]
+        assert payload["settlement"] == "physical"
+        assert payload["theta_day_basis"] == "trading_252"
+        assert payload["exercise"] == {
+            "date": "2025-06-20",
+            "spot": 215.0,
+            "settlement_date": "2025-06-23",
+            "exercised": True,
+        }
+        assert EquityOption.from_json(option.to_json()).id == "AAPL-C-200-EXERCISED"
+
 
 class TestCDSTrancheTyped:
     def test_builder_round_trip(self) -> None:

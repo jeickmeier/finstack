@@ -1,6 +1,8 @@
 //! Pricing and metric helpers for equity instruments.
 //!
-use crate::instruments::equity::pe_fund::waterfall::{AllocationLedger, EquityWaterfallEngine};
+use crate::instruments::equity::pe_fund::waterfall::{
+    AllocationLedger, EquityWaterfallEngine, FundEventKind,
+};
 use crate::instruments::equity::pe_fund::PrivateMarketsFund;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -28,17 +30,34 @@ pub(crate) fn lp_cashflows(
     Ok(ledger.lp_cashflows())
 }
 
-/// Holder-view present value of the fund position .
+/// Holder-view present value of the fund position.
 ///
-/// PV = PV of LP cashflows strictly after `as_of` + the fund's stated
-/// `unrealized_nav` (taken as of `as_of`, undiscounted). Realized flows on or
-/// before `as_of` are sunk and excluded, so a fully realized fund with no
-/// unrealized NAV prices to ~0.
+/// Uses one residual-value mode at a time:
+/// - stated `unrealized_nav` as of `as_of`, with no future realization events; or
+/// - projected future LP cashflows, with no NAV mark.
+///
+/// Realized flows on or before `as_of` are sunk and excluded.
 pub(crate) fn compute_pv(
     fund: &PrivateMarketsFund,
     curves: &MarketContext,
     as_of: Date,
 ) -> finstack_quant_core::Result<Money> {
+    if fund.unrealized_nav.is_some()
+        && fund.events.iter().any(|event| {
+            event.date > as_of
+                && matches!(
+                    event.kind,
+                    FundEventKind::Distribution | FundEventKind::Proceeds
+                )
+        })
+    {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "PrivateMarketsFund '{}' cannot combine unrealized_nav with future \
+             distribution/proceeds events after {as_of}; choose a NAV mark or \
+             projected-cashflow valuation mode",
+            fund.id
+        )));
+    }
     let nav = match fund.unrealized_nav {
         Some(nav) => {
             if nav.currency() != fund.currency {
@@ -137,6 +156,14 @@ mod tests {
             "future LP distribution should be included, got {}",
             pv.amount()
         );
+    }
+
+    #[test]
+    fn unrealized_nav_rejects_future_realization_events() {
+        let fund = fully_realized_fund().with_unrealized_nav(Money::new(750_000.0, Currency::USD));
+        let error = compute_pv(&fund, &MarketContext::new(), date!(2024 - 01 - 01))
+            .expect_err("NAV plus future distributions must fail");
+        assert!(error.to_string().contains("valuation mode"));
     }
 
     #[test]

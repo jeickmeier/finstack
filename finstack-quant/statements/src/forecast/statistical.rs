@@ -233,15 +233,14 @@ pub(crate) fn normal_forecast_with_stream(
 /// multiplicative increment is `exp(mean)`, matching the drift convention
 /// in Black–Scholes and standard GBM literature.
 ///
-/// When `base_value` is zero, falls back to i.i.d.
-/// `exp(N(mean - 0.5*std_dev², std_dev))` draws (no path dependence since
-/// multiplication by zero would collapse the path). The fallback keeps the
-/// same Itô-corrected drift convention as the path, so `mean` means
-/// "expected log-growth" in both regimes.
+/// `base_value` must be strictly positive. Zero is an absorbing state under
+/// GBM and cannot be inverted to recover Monte Carlo correlation shocks, so
+/// callers must use a Normal or explicitly level-based forecast for zero-
+/// anchored series.
 ///
 /// # Arguments
 ///
-/// * `base_value` - Starting level for the geometric random walk
+/// * `base_value` - Strictly positive starting level for the geometric walk
 /// * `forecast_periods` - Periods to simulate
 /// * `params` - JSON parameter map containing `mean`, `std_dev`, and `seed`
 ///
@@ -254,8 +253,9 @@ pub(crate) fn normal_forecast_with_stream(
 ///
 /// # Errors
 ///
-/// Returns an error if the parameter map is incomplete, if `std_dev` is
-/// negative, or if exponentiation produces a non-finite value.
+/// Returns an error if the parameter map is incomplete, `base_value` is not
+/// finite and strictly positive, `std_dev` is negative, or exponentiation
+/// produces a non-finite value.
 ///
 /// # References
 ///
@@ -269,36 +269,18 @@ pub(super) fn lognormal_forecast(
     lognormal_forecast_with_stream(base_value, forecast_periods, params, None)
 }
 
-/// Validate the anchor of a LogNormal path.
+/// Validate the strictly positive anchor required by a LogNormal path.
 ///
-/// Every LogNormal entry point must apply this identically. Both halves of the
-/// guard matter, and each covers a case the other silently mis-handles:
-///
-/// * **Non-finite** — `NaN < 0.0` and `NaN > 0.0` are both false, so a bare
-///   sign test lets `NaN` through and the `base > 0.0` regime switch then
-///   routes it into the i.i.d. fallback, emitting a finite, plausible-looking
-///   level series with no relation to the model. Reachable in practice: the
-///   evaluator stores non-finite formula results by design and
-///   `determine_base_value` returns them.
-/// * **Negative** — a LogNormal level is non-negative by construction, so a
-///   negative base cannot anchor the geometric walk. Without this test the
-///   `base > 0.0` switch silently drops to the i.i.d. fallback and reports
-///   positive levels for a series whose last actual was a loss.
-///
-/// Only a base of exactly zero legitimately selects the documented i.i.d.
-/// `exp(N(mean - 0.5*std_dev², std_dev))` fallback.
+/// Zero is not silently converted into an unrelated i.i.d. level process:
+/// under GBM it is absorbing, and no path-return shocks can be recovered for
+/// correlated Monte Carlo peers. Negative and non-finite levels are likewise
+/// invalid.
 fn validate_lognormal_base(base_value: f64, context: &str) -> Result<()> {
-    if !base_value.is_finite() {
+    if !base_value.is_finite() || base_value <= 0.0 {
         return Err(crate::error::Error::forecast(format!(
-            "{context} requires a finite base value; got {base_value}. A non-finite base \
-             cannot anchor a LogNormal path and would otherwise be silently simulated as an \
-             i.i.d. level series. Check the upstream formula for division by zero or overflow."
-        )));
-    }
-    if base_value < 0.0 {
-        return Err(crate::error::Error::forecast(format!(
-            "{context} requires a non-negative base value; got {base_value}. \
-             Use a Normal forecast for series that can go negative."
+            "{context} requires a finite, strictly positive base value; got {base_value}. \
+             Use a Normal forecast or an explicitly level-based model for series that can \
+             be zero or negative."
         )));
     }
     Ok(())
@@ -323,43 +305,20 @@ pub(crate) fn lognormal_forecast_with_stream(
     let mut rng = build_rng(p.seed, stream_id);
     let mut results = IndexMap::new();
     let mut prev = base_value;
-    // Anchor the geometric walk at any strictly-positive base; a base of exactly
-    // zero uses the documented i.i.d. `exp(N(mean - 0.5*std_dev², std_dev))`
-    // fallback. Keying on
-    // `> 0.0` (rather than `abs() > f64::EPSILON`) removes the discontinuity where
-    // a rounding residue like 1e-17 vs 1e-15 produced forecasts orders of
-    // magnitude apart.
-    let use_path = base_value > 0.0;
 
     const EXP_CLAMP: f64 = 709.0;
 
     for period_id in forecast_periods {
         let z = rng.normal(0.0, 1.0);
-        let value = if use_path {
-            let log_return = (p.mean - 0.5 * p.std_dev * p.std_dev) + p.std_dev * z;
-            if log_return.abs() > EXP_CLAMP {
-                tracing::warn!(
-                    mean = p.mean,
-                    std_dev = p.std_dev,
-                    "LogNormal exponent clamped to avoid overflow"
-                );
-            }
-            prev * log_return.clamp(-EXP_CLAMP, EXP_CLAMP).exp()
-        } else {
-            // Same drift convention as the geometric path: the Itô correction
-            // keeps `mean` meaning "expected log-growth" (`E[·] = exp(mean)`)
-            // in both regimes instead of silently switching to
-            // `exp(mean + σ²/2)` at the base-0 boundary.
-            let normal_value = (p.mean - 0.5 * p.std_dev * p.std_dev) + p.std_dev * z;
-            if normal_value.abs() > EXP_CLAMP {
-                tracing::warn!(
-                    mean = p.mean,
-                    std_dev = p.std_dev,
-                    "LogNormal exponent clamped to avoid overflow"
-                );
-            }
-            normal_value.clamp(-EXP_CLAMP, EXP_CLAMP).exp()
-        };
+        let log_return = (p.mean - 0.5 * p.std_dev * p.std_dev) + p.std_dev * z;
+        if log_return.abs() > EXP_CLAMP {
+            tracing::warn!(
+                mean = p.mean,
+                std_dev = p.std_dev,
+                "LogNormal exponent clamped to avoid overflow"
+            );
+        }
+        let value = prev * log_return.clamp(-EXP_CLAMP, EXP_CLAMP).exp();
         if !value.is_finite() {
             return Err(Error::forecast(format!(
                 "LogNormal forecast produced a non-finite value at period {:?}",
@@ -703,11 +662,9 @@ pub(crate) fn bootstrap_forecast_with_stream(
 ///
 /// - Normal (random walk): `v_t = v_{t-1} + mean + std_dev * z_t`
 ///   ⇒ `z_t = (v_t - v_{t-1} - mean) / std_dev`.
-/// - LogNormal with path (`base_value > 0.0`, GBM):
+/// - LogNormal (strictly positive GBM):
 ///   `v_t = v_{t-1} * exp((mean - 0.5*std_dev²) + std_dev * z_t)`
 ///   ⇒ `z_t = (ln(v_t / v_{t-1}) - (mean - 0.5*std_dev²)) / std_dev`.
-/// - LogNormal zero-base fallback (i.i.d. `exp(N(mean - 0.5*std_dev², std_dev))`):
-///   ⇒ `z_t = (ln(v_t) - (mean - 0.5*std_dev²)) / std_dev`.
 ///
 /// These per-period shocks are what [`monte_carlo_correlated_series`] mixes
 /// via `ρ·Z_peer + sqrt(1-ρ²)·Z_indep`, so the correlation is applied in the
@@ -753,9 +710,8 @@ pub(crate) fn record_independent_z_scores_for_mc(
                 &format!("Monte Carlo Z-score recording for '{node_id}'"),
             )?;
             let entry = mc_z_cache.entry(node_id.clone()).or_default();
-            // Must match `lognormal_forecast_with_stream`'s regime switch so the
-            // recorded Z-scores invert the same recurrence.
-            let use_path = base_value > 0.0;
+            // Must match the strictly positive GBM recurrence used by the
+            // generator.
             let mut prev = base_value;
             for pid in forecast_periods {
                 let v = *values.get(pid).ok_or_else(|| {
@@ -766,19 +722,12 @@ pub(crate) fn record_independent_z_scores_for_mc(
                 })?;
                 let z = if p.std_dev == 0.0 {
                     0.0
-                } else if use_path {
-                    // GBM: log-return space with Itô correction
+                } else {
                     let ln_ratio = (v / prev).ln();
                     (ln_ratio - (p.mean - 0.5 * p.std_dev * p.std_dev)) / p.std_dev
-                } else {
-                    // Zero-base fallback: i.i.d. exp((mean − σ²/2) + σz),
-                    // matching the generator's Itô-corrected drift.
-                    (v.ln() - (p.mean - 0.5 * p.std_dev * p.std_dev)) / p.std_dev
                 };
                 entry.insert(*pid, z);
-                if use_path {
-                    prev = v;
-                }
+                prev = v;
             }
         }
         ForecastMethod::MeanReverting => {
@@ -839,11 +788,9 @@ pub(crate) struct CorrelatedMonteCarloSeries<'a> {
 ///
 /// - Normal: additive random walk `v_t = v_{t-1} + mean + std_dev * z_t`
 ///   anchored at `base_value`.
-/// - LogNormal (GBM) when `base_value > 0.0`:
+/// - LogNormal (strictly positive GBM):
 ///   `v_t = v_{t-1} * exp((mean - 0.5*std_dev²) + std_dev * z_t)`.
-/// - LogNormal zero-base fallback (`base_value == 0.0`): i.i.d.
-///   `exp((mean - 0.5*std_dev²) + std_dev * z_t)`. Negative and non-finite
-///   bases are rejected.
+///   Zero, negative, and non-finite bases are rejected.
 /// - MeanReverting: AR(1)
 ///   `v_t = v_{t-1} + reversion_speed·(long_run_mean - v_{t-1}) + std_dev * z_t`.
 ///
@@ -943,10 +890,6 @@ pub(crate) fn monte_carlo_correlated_series(
     let mut values = IndexMap::new();
     let mut z_out = IndexMap::new();
     let mut prev = base_value;
-    // Match the non-correlated LogNormal regime switch (`base > 0.0`, not an
-    // absolute-epsilon threshold) so both paths anchor the geometric walk
-    // identically.
-    let use_path = matches!(method, ForecastMethod::LogNormal) && base_value > 0.0;
 
     // Clamp kept in sync with `lognormal_forecast_with_stream`.
     const EXP_CLAMP: f64 = 709.0;
@@ -968,7 +911,7 @@ pub(crate) fn monte_carlo_correlated_series(
 
         let value = match &kernel {
             Kernel::Normal(p) => prev + p.mean + p.std_dev * z,
-            Kernel::LogNormal(p) if use_path => {
+            Kernel::LogNormal(p) => {
                 let log_return = (p.mean - 0.5 * p.std_dev * p.std_dev) + p.std_dev * z;
                 if log_return.abs() > EXP_CLAMP {
                     tracing::warn!(
@@ -978,19 +921,6 @@ pub(crate) fn monte_carlo_correlated_series(
                     );
                 }
                 prev * log_return.clamp(-EXP_CLAMP, EXP_CLAMP).exp()
-            }
-            Kernel::LogNormal(p) => {
-                // base_value = 0 fallback: i.i.d. exp((mean − σ²/2) + σz),
-                // same Itô-corrected drift convention as the geometric path.
-                let normal_value = (p.mean - 0.5 * p.std_dev * p.std_dev) + p.std_dev * z;
-                if normal_value.abs() > EXP_CLAMP {
-                    tracing::warn!(
-                        mean = p.mean,
-                        std_dev = p.std_dev,
-                        "LogNormal correlated exponent clamped to avoid overflow"
-                    );
-                }
-                normal_value.clamp(-EXP_CLAMP, EXP_CLAMP).exp()
             }
             Kernel::MeanReverting(p) => {
                 prev + p.reversion_speed * (p.long_run_mean - prev) + p.std_dev * z
@@ -1004,14 +934,7 @@ pub(crate) fn monte_carlo_correlated_series(
             )));
         }
         values.insert(*period_id, value);
-        if use_path
-            || matches!(
-                method,
-                ForecastMethod::Normal | ForecastMethod::MeanReverting
-            )
-        {
-            prev = value;
-        }
+        prev = value;
     }
 
     Ok((values, z_out))
@@ -1036,49 +959,23 @@ mod tests {
         params
     }
 
-    /// The zero-base i.i.d. fallback must use the same drift convention as
-    /// the geometric path: `exp((mean − σ²/2) + σz)`, so `mean` means
-    /// "expected log-growth" (`E[·] = exp(mean)`) in both regimes.
-    ///
-    /// Without the Itô correction in the fallback, the same `(mean, std_dev)`
-    /// produced `E[value] = exp(mean + σ²/2)` when the base was exactly 0 but
-    /// `E[ratio] = exp(mean)` otherwise — a silent convention switch at the
-    /// base-0 boundary. With the shared drift, a unit-base GBM step and the
-    /// fallback draw are identical for identical seeds.
     #[test]
-    fn lognormal_zero_base_fallback_matches_unit_base_drift_convention() {
+    fn lognormal_zero_base_is_rejected() {
         let periods = vec![PeriodId::quarter(2025, 1), PeriodId::quarter(2025, 2)];
-        let params = lognormal_params();
-
-        let from_zero = lognormal_forecast_with_stream(0.0, &periods, &params, Some(11))
-            .expect("zero-base forecast");
-        let from_unit = lognormal_forecast_with_stream(1.0, &periods, &params, Some(11))
-            .expect("unit-base forecast");
-
-        // First step: unit-base GBM gives 1·exp((mean−σ²/2)+σz); the fallback
-        // draw with the same seed must produce exactly the same value.
-        let z0 = from_zero.get(&periods[0]).unwrap();
-        let u0 = from_unit.get(&periods[0]).unwrap();
-        assert!(
-            (z0 - u0).abs() < 1e-15,
-            "fallback drift convention diverges from the GBM path: {z0} vs {u0}"
-        );
+        let error = lognormal_forecast_with_stream(0.0, &periods, &lognormal_params(), Some(11))
+            .expect_err("zero cannot anchor a GBM path");
+        assert!(error.to_string().contains("strictly positive"));
     }
 
-    /// The Z-score recorder must invert exactly the recurrence the generator
-    /// applied, in the zero-base fallback regime as well: recorded shocks must
-    /// reproduce the raw normals the RNG drew.
     #[test]
-    fn lognormal_zero_base_z_recording_inverts_the_generator() {
+    fn lognormal_zero_base_z_recording_is_rejected() {
         let periods = vec![PeriodId::quarter(2025, 1), PeriodId::quarter(2025, 2)];
         let params = lognormal_params();
         let node = NodeId::new("node");
-
-        let values = lognormal_forecast_with_stream(0.0, &periods, &params, Some(5))
-            .expect("zero-base forecast");
-
+        let values = IndexMap::from([(periods[0], 0.0), (periods[1], 0.0)]);
         let mut cache: IndexMap<NodeId, IndexMap<PeriodId, f64>> = IndexMap::new();
-        record_independent_z_scores_for_mc(
+
+        let error = record_independent_z_scores_for_mc(
             ForecastMethod::LogNormal,
             &params,
             &periods,
@@ -1087,17 +984,8 @@ mod tests {
             &node,
             &mut cache,
         )
-        .expect("record z-scores");
-
-        let mut rng = build_rng(7, Some(5));
-        for pid in &periods {
-            let expected_z = rng.normal(0.0, 1.0);
-            let recorded_z = cache[&node][pid];
-            assert!(
-                (recorded_z - expected_z).abs() < 1e-12,
-                "recorded z {recorded_z} must invert the generator's draw {expected_z}"
-            );
-        }
+        .expect_err("zero cannot produce GBM return shocks");
+        assert!(error.to_string().contains("strictly positive"));
     }
 
     /// A misspelled parameter must fail loudly rather than be ignored.
@@ -1176,28 +1064,22 @@ mod tests {
             .expect("correlation parameters are legal to configure");
     }
 
-    /// A `NaN` base must be rejected, not silently routed into the zero-base
-    /// i.i.d. fallback. `NaN < 0.0` is false, so a bare `< 0.0` guard lets NaN
-    /// through and `NaN > 0.0` is false too — the walk would emit a plausible
-    /// but meaningless `exp(N(mean, sigma))` level series. NaN bases are
-    /// reachable: the evaluator stores non-finite formula results and
-    /// `determine_base_value` hands them to the forecast.
+    /// A non-finite base must fail the same strict-positive validation as zero
+    /// and negative anchors. Non-finite formula outputs can reach
+    /// `determine_base_value`, so the forecast boundary must fail closed.
     #[test]
     fn lognormal_rejects_non_finite_base_value() {
         let periods = vec![PeriodId::quarter(2025, 1)];
         let err = lognormal_forecast(f64::NAN, &periods, &lognormal_params())
-            .expect_err("NaN base must be rejected, not treated as a zero base");
+            .expect_err("NaN base must be rejected");
         assert!(
             err.to_string().contains("finite"),
             "error should flag the non-finite base: {err}"
         );
     }
 
-    /// The correlated path must reject a negative base exactly like the
-    /// independent path. Previously it rejected only non-finite bases, so a
-    /// negative base (e.g. an EBITDA loss as the last actual) silently
-    /// switched regime to the i.i.d. fallback and produced positive levels
-    /// disconnected from the base — with no diagnostic across every MC path.
+    /// Correlated and independent paths apply the same strictly-positive base
+    /// requirement, so enabling correlation cannot change validation.
     #[test]
     fn correlated_lognormal_rejects_negative_base_like_independent_path() {
         let periods = vec![PeriodId::quarter(2025, 1)];
@@ -1633,7 +1515,7 @@ mod tests {
         params.insert("seed".to_string(), serde_json::json!(42));
 
         let results =
-            lognormal_forecast(0.0, &periods, &params).expect("lognormal_forecast should succeed");
+            lognormal_forecast(1.0, &periods, &params).expect("lognormal_forecast should succeed");
 
         // All values should be positive
         for value in results.values() {
@@ -1651,9 +1533,9 @@ mod tests {
         params.insert("seed".to_string(), serde_json::json!(42));
 
         let results1 =
-            lognormal_forecast(0.0, &periods, &params).expect("lognormal_forecast should succeed");
+            lognormal_forecast(1.0, &periods, &params).expect("lognormal_forecast should succeed");
         let results2 =
-            lognormal_forecast(0.0, &periods, &params).expect("lognormal_forecast should succeed");
+            lognormal_forecast(1.0, &periods, &params).expect("lognormal_forecast should succeed");
 
         // Same seed should produce identical results
         assert_eq!(
@@ -1671,7 +1553,7 @@ mod tests {
         params.insert("std_dev".to_string(), serde_json::json!(0.0));
         params.insert("seed".to_string(), serde_json::json!(42));
 
-        let result = lognormal_forecast(0.0, &periods, &params);
+        let result = lognormal_forecast(1.0, &periods, &params);
         assert!(
             result.is_ok(),
             "lognormal with large mean should clamp, not fail"
@@ -1709,8 +1591,8 @@ mod tests {
         }
     }
 
-    /// Lognormal with std_dev=0.0 is a degenerate distribution — every draw
-    /// should return exp(mean) exactly.
+    /// Lognormal with std_dev=0.0 is a deterministic geometric path whose
+    /// per-period multiplier is `exp(mean)`.
     #[test]
     fn test_lognormal_zero_stddev_degenerate() {
         let periods = vec![
@@ -1725,11 +1607,11 @@ mod tests {
         params.insert("seed".to_string(), serde_json::json!(42));
 
         let values =
-            lognormal_forecast(0.0, &periods, &params).expect("lognormal std_dev=0 should succeed");
-        let expected = (11.5_f64).exp();
-        for value in values.values() {
+            lognormal_forecast(1.0, &periods, &params).expect("lognormal std_dev=0 should succeed");
+        for (index, value) in values.values().enumerate() {
+            let expected = (11.5_f64 * (index + 1) as f64).exp();
             assert!(
-                (*value - expected).abs() < 1e-10,
+                (*value - expected).abs() < 1e-10 * expected,
                 "Expected {}, got {}",
                 expected,
                 value

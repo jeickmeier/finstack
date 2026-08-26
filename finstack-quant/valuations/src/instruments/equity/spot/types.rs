@@ -293,7 +293,12 @@ impl Equity {
         self.shares.unwrap_or(1.0)
     }
 
-    /// Resolve price per share for the equity
+    /// Resolve price per share for the equity.
+    ///
+    /// A direct `price_quote` has highest priority. When `price_id` is set,
+    /// that identifier is authoritative: missing or invalid data returns an
+    /// error and never falls through to a different underlying. Candidate
+    /// lookup is used only when no explicit identifier was configured.
     pub fn price_per_share(
         &self,
         curves: &MarketContext,
@@ -303,21 +308,18 @@ impl Equity {
         if let Some(px) = self.price_quote {
             return Ok(Money::new(px, self.currency));
         }
+        if let Some(price_id) = &self.price_id {
+            return self.money_from_scalar(curves.get_price(price_id)?, curves, as_of);
+        }
 
         let candidates = self.price_id_candidates();
         for key in &candidates {
             match curves.get_price(key) {
-                Ok(scalar) => {
-                    return self.money_from_scalar(scalar, curves, as_of);
-                }
-                Err(err) => match err {
-                    finstack_quant_core::Error::Input(
-                        finstack_quant_core::InputError::NotFound { .. },
-                    ) => {
-                        continue;
-                    }
-                    _ => return Err(err),
-                },
+                Ok(scalar) => return self.money_from_scalar(scalar, curves, as_of),
+                Err(finstack_quant_core::Error::Input(
+                    finstack_quant_core::InputError::NotFound { .. },
+                )) => continue,
+                Err(error) => return Err(error),
             }
         }
 
@@ -449,11 +451,19 @@ impl crate::instruments::common_impl::traits::Instrument for Equity {
     fn market_dependencies(&self) -> finstack_quant_core::Result<MarketDependencies> {
         let mut deps = MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
-        for spot_id in self.price_id_candidates() {
-            deps.add_market_scalar_id(spot_id);
+        if let Some(price_id) = &self.price_id {
+            deps.add_market_scalar_id(price_id.as_str());
+        } else {
+            for spot_id in self.price_id_candidates() {
+                deps.add_market_scalar_id(spot_id);
+            }
         }
-        for dividend_yield_id in self.dividend_yield_id_candidates() {
-            deps.add_market_scalar_id(dividend_yield_id);
+        if let Some(dividend_yield_id) = &self.div_yield_id {
+            deps.add_market_scalar_id(dividend_yield_id.as_str());
+        } else {
+            for dividend_yield_id in self.dividend_yield_id_candidates() {
+                deps.add_market_scalar_id(dividend_yield_id);
+            }
         }
         Ok(deps)
     }
@@ -525,18 +535,30 @@ mod tests {
     }
 
     #[test]
-    fn market_dependencies_cover_price_and_dividend_scalar_candidates() {
+    fn explicit_market_dependencies_exclude_fallback_candidates() {
         let equity = Equity::example();
-        let price_candidates = equity.price_id_candidates();
-        let dividend_candidates = equity.dividend_yield_id_candidates();
         let deps =
             crate::instruments::Instrument::market_dependencies(&equity).expect("dependencies");
 
-        assert!(price_candidates
-            .iter()
-            .chain(&dividend_candidates)
-            .all(|id| deps.market_scalar_ids.contains(id)));
+        assert_eq!(deps.market_scalar_ids.len(), 2);
+        assert!(deps.market_scalar_ids.iter().any(|id| id == "AAPL-SPOT"));
+        assert!(deps.market_scalar_ids.iter().any(|id| id == "AAPL-DIV"));
         assert!(deps.series_ids.is_empty());
+    }
+
+    #[test]
+    fn missing_explicit_price_id_does_not_use_global_fallback() {
+        let equity = Equity::new("AAPL", "AAPL", Currency::USD).with_price_id("AAPL-PRIMARY");
+        let market = MarketContext::new().insert_price(
+            "EQUITY-SPOT",
+            finstack_quant_core::market_data::scalars::MarketScalar::Unitless(999.0),
+        );
+        let as_of = Date::from_calendar_date(2025, Month::January, 2).expect("valid date");
+
+        let error = equity
+            .price_per_share(&market, as_of)
+            .expect_err("missing explicit quote must fail");
+        assert!(error.to_string().contains("AAPL-PRIMARY"));
     }
 
     #[test]

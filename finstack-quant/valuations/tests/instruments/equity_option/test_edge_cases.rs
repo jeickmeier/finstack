@@ -1,6 +1,7 @@
 //! Tests for edge cases and boundary conditions.
 
 use super::helpers::*;
+use finstack_quant_valuations::instruments::equity::EquityOptionExercise;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::MetricId;
 use time::macros::date;
@@ -14,7 +15,8 @@ fn test_expired_itm_call_equals_intrinsic() {
     let strike = 90.0;
     let spot = 100.0;
 
-    let call = create_call(as_of, expiry, strike);
+    let mut call = create_call(as_of, expiry, strike);
+    call.exercise = Some(EquityOptionExercise::new(expiry, spot, expiry, true));
     let market = build_standard_market(as_of, spot, 0.25, 0.05, 0.0);
 
     let pv = call.value(&market, as_of).unwrap();
@@ -35,7 +37,8 @@ fn test_expired_otm_call_is_worthless() {
     let strike = 110.0;
     let spot = 100.0;
 
-    let call = create_call(as_of, expiry, strike);
+    let mut call = create_call(as_of, expiry, strike);
+    call.exercise = Some(EquityOptionExercise::new(expiry, spot, expiry, false));
     let market = build_standard_market(as_of, spot, 0.25, 0.05, 0.0);
 
     let pv = call.value(&market, as_of).unwrap();
@@ -50,7 +53,8 @@ fn test_expired_itm_put_equals_intrinsic() {
     let strike = 110.0;
     let spot = 100.0;
 
-    let put = create_put(as_of, expiry, strike);
+    let mut put = create_put(as_of, expiry, strike);
+    put.exercise = Some(EquityOptionExercise::new(expiry, spot, expiry, true));
     let market = build_standard_market(as_of, spot, 0.25, 0.05, 0.0);
 
     let pv = put.value(&market, as_of).unwrap();
@@ -71,7 +75,8 @@ fn test_expired_otm_put_is_worthless() {
     let strike = 90.0;
     let spot = 100.0;
 
-    let put = create_put(as_of, expiry, strike);
+    let mut put = create_put(as_of, expiry, strike);
+    put.exercise = Some(EquityOptionExercise::new(expiry, spot, expiry, false));
     let market = build_standard_market(as_of, spot, 0.25, 0.05, 0.0);
 
     let pv = put.value(&market, as_of).unwrap();
@@ -86,7 +91,8 @@ fn test_expired_option_greeks_are_static() {
     let strike = 90.0;
     let spot = 100.0;
 
-    let call = create_call(as_of, expiry, strike);
+    let mut call = create_call(as_of, expiry, strike);
+    call.exercise = Some(EquityOptionExercise::new(expiry, spot, expiry, true));
     let market = build_standard_market(as_of, spot, 0.25, 0.05, 0.0);
 
     let metrics = vec![
@@ -112,8 +118,8 @@ fn test_expired_option_greeks_are_static() {
     let theta = *result.measures.get("theta").unwrap();
     let rho = *result.measures.get("rho").unwrap();
 
-    // Delta should be 1.0 * contract_size for ITM call
-    assert_approx_eq_tol(delta, 100.0, TIGHT_TOL, "Expired ITM call delta");
+    // A fixed cash-settlement payoff has no remaining equity delta.
+    assert_approx_eq_tol(delta, 0.0, TIGHT_TOL, "Expired cash-settled call delta");
     // All other Greeks should be zero
     assert_approx_eq_tol(gamma, 0.0, TIGHT_TOL, "Expired gamma");
     assert_approx_eq_tol(vega, 0.0, TIGHT_TOL, "Expired vega");

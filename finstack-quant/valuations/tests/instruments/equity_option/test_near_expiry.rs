@@ -7,6 +7,7 @@
 //! - Expired option handling
 
 use super::helpers::*;
+use finstack_quant_valuations::instruments::equity::EquityOptionExercise;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::MetricId;
 use time::macros::date;
@@ -262,7 +263,8 @@ fn test_expired_option_price_is_intrinsic() {
     let market = build_standard_market(as_of, spot, 0.25, 0.05, 0.0);
 
     // ITM call: intrinsic = max(S - K, 0)
-    let itm_call = create_call(as_of, expiry, 90.0);
+    let mut itm_call = create_call(as_of, expiry, 90.0);
+    itm_call.exercise = Some(EquityOptionExercise::new(expiry, spot, expiry, true));
     let pv_itm = itm_call.value(&market, as_of).unwrap().amount();
     let intrinsic_itm = (spot - 90.0).max(0.0) * itm_call.notional.amount();
 
@@ -274,7 +276,8 @@ fn test_expired_option_price_is_intrinsic() {
     );
 
     // OTM call: intrinsic = 0
-    let otm_call = create_call(as_of, expiry, 110.0);
+    let mut otm_call = create_call(as_of, expiry, 110.0);
+    otm_call.exercise = Some(EquityOptionExercise::new(expiry, spot, expiry, false));
     let pv_otm = otm_call.value(&market, as_of).unwrap().amount();
 
     assert!(
@@ -291,7 +294,8 @@ fn test_expired_option_greeks() {
     let expiry = as_of; // Expired
     let market = build_standard_market(as_of, 100.0, 0.25, 0.05, 0.0);
 
-    let call = create_call(as_of, expiry, 100.0);
+    let mut call = create_call(as_of, expiry, 100.0);
+    call.exercise = Some(EquityOptionExercise::new(expiry, 100.0, expiry, true));
     let result = call
         .price_with_metrics(
             &market,

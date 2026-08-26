@@ -8,6 +8,8 @@ use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_statements::builder::ModelBuilder;
+use finstack_quant_statements::checks::builtins::NonFiniteCheck;
+use finstack_quant_statements::checks::CheckSuite;
 use finstack_quant_statements::evaluator::Evaluator;
 use finstack_quant_statements::types::AmountOrScalar;
 use finstack_quant_statements_analytics::analysis::CorporateAnalysisBuilder;
@@ -37,6 +39,12 @@ fn flat_discount_curve(rate: f64, base_date: Date, curve_id: &str) -> DiscountCu
     builder.build().expect("valid flat discount curve")
 }
 
+fn non_finite_suite() -> CheckSuite {
+    CheckSuite::builder("corporate-test")
+        .add_check(NonFiniteCheck { nodes: vec![] })
+        .build()
+}
+
 #[test]
 fn test_full_lbo_analysis() {
     // Build a simple LBO model:
@@ -44,24 +52,24 @@ fn test_full_lbo_analysis() {
     let model = ModelBuilder::new("lbo-test")
         .periods("2025Q1..Q4", None)
         .expect("valid periods")
-        .value(
+        .value_money(
             "revenue",
             &[
                 (
                     PeriodId::quarter(2025, 1),
-                    AmountOrScalar::scalar(10_000_000.0),
+                    Money::new(10_000_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 2),
-                    AmountOrScalar::scalar(10_500_000.0),
+                    Money::new(10_500_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 3),
-                    AmountOrScalar::scalar(11_000_000.0),
+                    Money::new(11_000_000.0, Currency::USD),
                 ),
                 (
                     PeriodId::quarter(2025, 4),
-                    AmountOrScalar::scalar(11_500_000.0),
+                    Money::new(11_500_000.0, Currency::USD),
                 ),
             ],
         )
@@ -89,7 +97,9 @@ fn test_full_lbo_analysis() {
         .as_of(time::macros::date!(2025 - 01 - 01))
         .dcf(0.10, TerminalValueSpec::GordonGrowth { growth_rate: 0.02 })
         .net_debt_override(20_000_000.0)
-        .coverage_node("ebitda")
+        .cfads_node("ufcf")
+        .interest_coverage_node("ebitda")
+        .checks(non_finite_suite())
         .analyze()
         .expect("analysis should succeed");
 
@@ -121,7 +131,7 @@ fn test_full_lbo_analysis() {
             "SENIOR-BOND should be in credit results"
         );
         let bond = bond_analysis.expect("bond analysis");
-        // DSCR should be positive (EBITDA > debt service)
+        // DSCR uses UFCF/CFADS rather than EBITDA.
         if !bond.dscr.is_empty() {
             assert!(
                 bond.dscr[0].1 > 0.0,

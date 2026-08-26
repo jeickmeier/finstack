@@ -417,6 +417,47 @@ fn test_formula_with_monetary_nodes() {
         results.node_value_types.get("revenue"),
         Some(NodeValueType::Monetary { .. })
     ));
+    assert_eq!(
+        results.node_value_types.get("cogs"),
+        Some(&NodeValueType::Monetary {
+            currency: Currency::USD
+        })
+    );
+    assert_eq!(
+        results.node_value_types.get("gross_profit"),
+        Some(&NodeValueType::Monetary {
+            currency: Currency::USD
+        })
+    );
+}
+
+#[test]
+fn test_formula_dimension_propagation_rejects_indirect_currency_mix() {
+    let result = ModelBuilder::new("indirect-currency-mix")
+        .periods("2025Q1..Q1", None)
+        .unwrap()
+        .value_money(
+            "usd_revenue",
+            &[(
+                PeriodId::quarter(2025, 1),
+                Money::new(100_000.0, Currency::USD),
+            )],
+        )
+        .value_money(
+            "eur_cost",
+            &[(
+                PeriodId::quarter(2025, 1),
+                Money::new(50_000.0, Currency::EUR),
+            )],
+        )
+        .compute("eur_total", "eur_cost * 1.1")
+        .unwrap()
+        .compute("invalid_total", "usd_revenue + eur_total")
+        .unwrap()
+        .build();
+
+    let error = result.expect_err("indirect USD/EUR addition must fail");
+    assert!(error.to_string().contains("cannot combine USD and EUR"));
 }
 
 // Results Accessor Tests

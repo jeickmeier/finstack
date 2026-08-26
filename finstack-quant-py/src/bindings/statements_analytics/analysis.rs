@@ -431,6 +431,9 @@ fn goal_seek(
 ///     Optional flat net-debt amount.
 /// mid_year_convention : bool
 ///     Enable mid-year discounting convention. Default ``False`` (year-end).
+/// max_stable_growth_rate : float | None
+///     Maximum perpetual growth rate accepted for Gordon Growth or H-Model
+///     stable growth. ``None`` uses the canonical 5% default.
 /// shares_outstanding : float | None
 ///     Basic shares outstanding for per-share equity value.
 /// equity_bridge_json : str | None
@@ -444,10 +447,10 @@ fn goal_seek(
 ///     discount curves from ``market``. When ``market`` is supplied,
 ///     ``as_of`` is required.
 /// as_of : datetime.date | str | None
-///     Valuation date for market-context lookups during statement
-///     evaluation. Required when ``market`` is set; ignored when
-///     ``market`` is ``None``. Accepts a date-like object
-///     (``datetime.date``, ``pandas.Timestamp``) or an ISO 8601 string.
+///     DCF valuation date and, when ``market`` is supplied, the statement
+///     visibility and market-data date. Accepts a date-like object or ISO 8601
+///     string. Required with ``market``; otherwise the first forecast boundary
+///     is used when omitted.
 /// exit_multiple_metric_node : str | None
 ///     Statement node whose last-forecast-period value supplies the
 ///     exit-multiple terminal metric. When set, that value replaces
@@ -475,6 +478,7 @@ fn goal_seek(
     ufcf_node="ufcf",
     net_debt_override=None,
     mid_year_convention=false,
+    max_stable_growth_rate=None,
     shares_outstanding=None,
     equity_bridge_json=None,
     valuation_discounts_json=None,
@@ -491,6 +495,7 @@ fn evaluate_dcf<'py>(
     ufcf_node: &str,
     net_debt_override: Option<f64>,
     mid_year_convention: bool,
+    max_stable_growth_rate: Option<f64>,
     shares_outstanding: Option<f64>,
     equity_bridge_json: Option<&str>,
     valuation_discounts_json: Option<&str>,
@@ -514,6 +519,10 @@ fn evaluate_dcf<'py>(
 
     let options = finstack_quant_statements_analytics::analysis::DcfOptions {
         mid_year_convention,
+        max_stable_growth_rate: max_stable_growth_rate.unwrap_or_else(|| {
+            finstack_quant_statements_analytics::analysis::DcfOptions::default()
+                .max_stable_growth_rate
+        }),
         equity_bridge,
         shares_outstanding,
         valuation_discounts,
@@ -573,6 +582,9 @@ fn evaluate_dcf<'py>(
 ///     Minimum spread preserved between WACC and the terminal growth rate so
 ///     ``1/(wacc - g)`` stays defined, in decimal (``0.005`` = 50 bp).
 ///     ``None`` uses the canonical Rust ``DcfOptions`` default.
+/// max_stable_growth_rate : float | None
+///     Maximum perpetual stable growth rate. ``None`` uses the canonical 5%
+///     default.
 /// exit_multiple_bump : float | None
 ///     Absolute shock applied to an exit multiple, in turns (``1.0`` =
 ///     +/-1.0x). ``None`` uses the canonical Rust ``DcfOptions`` default.
@@ -605,6 +617,7 @@ fn evaluate_dcf<'py>(
     net_debt_override=None,
     wacc_sensitivity_bump=None,
     wacc_denominator_epsilon=None,
+    max_stable_growth_rate=None,
     exit_multiple_bump=None,
     mid_year_convention=false,
     market=None,
@@ -620,6 +633,7 @@ fn dcf_sensitivity<'py>(
     net_debt_override: Option<f64>,
     wacc_sensitivity_bump: Option<f64>,
     wacc_denominator_epsilon: Option<f64>,
+    max_stable_growth_rate: Option<f64>,
     exit_multiple_bump: Option<f64>,
     mid_year_convention: bool,
     market: Option<&Bound<'py, PyAny>>,
@@ -643,6 +657,7 @@ fn dcf_sensitivity<'py>(
         wacc_sensitivity_bump: wacc_sensitivity_bump.unwrap_or(defaults.wacc_sensitivity_bump),
         wacc_denominator_epsilon: wacc_denominator_epsilon
             .unwrap_or(defaults.wacc_denominator_epsilon),
+        max_stable_growth_rate: max_stable_growth_rate.unwrap_or(defaults.max_stable_growth_rate),
         exit_multiple_bump: exit_multiple_bump
             .map_or(defaults.exit_multiple_bump, ExitMultipleBump::Absolute),
         exit_multiple_metric_node: exit_multiple_metric_node.map(str::to_owned),
@@ -868,8 +883,15 @@ fn wacc(
 ///     JSON ``TerminalValueSpec`` (required when ``wacc`` is set).
 /// net_debt_override : float | None
 ///     Optional flat net-debt for equity bridge.
-/// coverage_node : str
-///     Node used for DSCR/interest-coverage (default: ``"ebitda"``).
+/// cfads_node : str | None
+///     Required CFADS numerator when the model has capital-structure credit
+///     analytics. No EBITDA fallback is applied.
+/// interest_coverage_node : str
+///     EBITDA, EBIT, or another earnings numerator used only for interest
+///     coverage (default: ``"ebitda"``).
+/// check_suite_json : str | None
+///     JSON-serialized ``CheckSuiteSpec`` required for DCF or credit analysis.
+///     The suite must include ``NonFiniteCheck``.
 /// market : MarketContext | str | None
 ///     Optional ``MarketContext`` object or JSON string used for
 ///     statement evaluation (not WACC discounting).
@@ -899,7 +921,9 @@ fn wacc(
     wacc=None,
     terminal_value_json=None,
     net_debt_override=None,
-    coverage_node="ebitda",
+    cfads_node=None,
+    interest_coverage_node="ebitda",
+    check_suite_json=None,
     market=None,
     as_of=None,
     ltv_value_node=None,
@@ -911,7 +935,9 @@ fn run_corporate_analysis<'py>(
     wacc: Option<f64>,
     terminal_value_json: Option<&str>,
     net_debt_override: Option<f64>,
-    coverage_node: &str,
+    cfads_node: Option<&str>,
+    interest_coverage_node: &str,
+    check_suite_json: Option<&str>,
     market: Option<&Bound<'py, PyAny>>,
     as_of: Option<&Bound<'py, PyAny>>,
     ltv_value_node: Option<&str>,
@@ -919,11 +945,17 @@ fn run_corporate_analysis<'py>(
     use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
 
     let model = extract_model_ref(model)?.into_owned();
-    let coverage_node = coverage_node.to_owned();
-
     let mut builder =
         finstack_quant_statements_analytics::analysis::CorporateAnalysisBuilder::new(model)
-            .coverage_node(&coverage_node);
+            .interest_coverage_node(interest_coverage_node);
+    if let Some(node) = cfads_node {
+        builder = builder.cfads_node(node);
+    }
+    if let Some(json) = check_suite_json {
+        let spec: finstack_quant_statements::checks::CheckSuiteSpec =
+            serde_json::from_str(json).map_err(display_to_py)?;
+        builder = builder.checks(spec.resolve().map_err(display_to_py)?);
+    }
 
     if let Some(w) = wacc {
         let tv_json = terminal_value_json.ok_or_else(|| {

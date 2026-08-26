@@ -1979,6 +1979,10 @@
           },
           "type": "array"
         },
+        "path_model": {
+          "$ref": "#/$defs/EquityPathModel",
+          "description": "Explicit path model selection; required to acknowledge model risk."
+        },
         "payment_dates": {
           "description": "Contractual payment dates corresponding to observation dates.",
           "items": {
@@ -2022,6 +2026,7 @@
         "discount_curve_id",
         "spot_id",
         "vol_surface_id",
+        "path_model",
         "attributes"
       ],
       "type": "object"
@@ -5149,6 +5154,10 @@
           },
           "type": "array"
         },
+        "path_model": {
+          "$ref": "#/$defs/EquityPathModel",
+          "description": "Explicit path model selection; required to acknowledge model risk."
+        },
         "payoff_type": {
           "$ref": "#/$defs/CliquetPayoffType",
           "default": "additive",
@@ -5193,6 +5202,7 @@
         "discount_curve_id",
         "spot_id",
         "vol_surface_id",
+        "path_model",
         "attributes"
       ],
       "type": "object"
@@ -11774,6 +11784,17 @@
           ],
           "description": "Optional continuous dividend yield identifier.\n\nThe dividend yield should be a unitless scalar representing the annualized\ncontinuous dividend yield (e.g., 0.02 for 2%). This is used in the BSM model\nas the `q` parameter: `d1 = (ln(S/K) + (r - q + σ²/2)T) / (σ√T)`.\n\n# Semantics by value\n\n- **`Some(id)`** — the lookup MUST succeed. A missing market scalar\n  (or a non-unitless type) returns a hard error rather than silently\n  defaulting to zero, preventing market-data configuration errors\n  from quietly distorting P&L.\n- **`None`** — there is *no implicit default curve*. The pricer treats\n  the underlying as having **zero continuous dividend yield**. This is\n  correct for non-dividend-paying single stocks; for index options\n  (typically ~2% yield) callers should set `div_yield_id` explicitly.\n\nIf `discrete_dividends` is non-empty, an escrowed-dividend adjustment\nis applied to spot and `q` is set to 0 internally regardless of\n`div_yield_id`."
         },
+        "exercise": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EquityOptionExercise"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Observed exercise or expiry state.\n\nRequired from expiry onward. It fixes cash-settled intrinsic value or\nidentifies a physical-delivery obligation through its settlement date."
+        },
         "exercise_schedule": {
           "description": "Exercise schedule for Bermudan options.\n\nRequired when `exercise_style` is `Bermudan`. Each date represents a time\nat which early exercise is permitted. Dates before as_of or after expiry\nare filtered out automatically.",
           "items": {
@@ -11831,6 +11852,11 @@
           "format": "double",
           "type": "number"
         },
+        "theta_day_basis": {
+          "$ref": "#/$defs/ThetaDayBasis",
+          "default": "calendar_365",
+          "description": "Basis used for the reported per-day theta.\n\nDefaults to calendar-day theta (`annual theta / 365`). Select\n`Trading252` explicitly for a trading-day risk convention."
+        },
         "underlying_ticker": {
           "description": "Underlying equity ticker symbol",
           "type": "string"
@@ -11853,6 +11879,41 @@
         "attributes"
       ],
       "type": "object"
+    },
+    "EquityOptionExercise": {
+      "additionalProperties": false,
+      "description": "Observed exercise or expiry state for an equity option.\n\nFrom `date` onward the option pricer uses this fixed lifecycle state rather\nthan re-running the live option model. Cash settlement fixes the intrinsic\npayoff from `spot`; physical settlement retains the marked delivery\nobligation until `settlement_date`.",
+      "properties": {
+        "date": {
+          "$ref": "#/$defs/DateWire",
+          "description": "Exercise date, or the expiry observation date for an unexercised option."
+        },
+        "exercised": {
+          "description": "Whether the option was exercised or automatically assigned.",
+          "type": "boolean"
+        },
+        "settlement_date": {
+          "$ref": "#/$defs/DateWire",
+          "description": "Contractual cash-payment or physical-delivery date."
+        },
+        "spot": {
+          "description": "Observed underlying level used to determine the fixed cash payoff.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "date",
+        "spot",
+        "settlement_date",
+        "exercised"
+      ],
+      "type": "object"
+    },
+    "EquityPathModel": {
+      "const": "atm_term_gbm",
+      "description": "Explicit stochastic model policy for path-dependent equity structures.",
+      "type": "string"
     },
     "EquityPriceSeriesPolicy": {
       "description": "Corporate-action treatment of historical equity price observations.",
@@ -11937,7 +11998,7 @@
     },
     "EquityTotalReturnSwap": {
       "additionalProperties": false,
-      "description": "Equity total-return swap exchanging price and net dividend return against\nfloating-rate financing plus a contractual spread.\n\nSeasoned trades require the observed level at the current period start in\n`past_fixings`, except that `initial_level` may anchor the first period.\n\n# Construction\n\n```\nuse finstack_quant_core::{\n    currency::Currency, dates::DayCount, money::Money, types::InstrumentId,\n};\nuse finstack_quant_cashflows::builder::ScheduleParams;\nuse finstack_quant_valuations::instruments::{\n    Attributes, EquityUnderlyingParams, FinancingLegSpec,\n};\nuse finstack_quant_valuations::instruments::equity::equity_trs::EquityTotalReturnSwap;\nuse finstack_quant_valuations::instruments::equity::equity_trs::{\n    TrsScheduleSpec, TrsSide,\n};\nuse rust_decimal::Decimal;\nuse time::macros::date;\n\n# fn main() -> finstack_quant_core::Result<()> {\nlet trs = EquityTotalReturnSwap::builder()\n    .id(InstrumentId::new(\"SPX-TRS\"))\n    .notional(Money::new(10_000_000.0, Currency::USD))\n    .underlying(\n        EquityUnderlyingParams::new(\"SPX\", \"SPX-SPOT\", Currency::USD)\n            .with_dividend_yield(\"SPX-DIV\"),\n    )\n    .financing(FinancingLegSpec::new(\n        \"USD-OIS\", \"USD-SOFR-3M\", Decimal::from(50), DayCount::Act360,\n    ))\n    .schedule(TrsScheduleSpec::from_params(\n        date!(2026 - 01 - 02),\n        date!(2027 - 01 - 02),\n        ScheduleParams::quarterly_act360(),\n    ))\n    .side(TrsSide::ReceiveTotalReturn)\n    .initial_level_opt(None)\n    .attributes(Attributes::new())\n    .build()?;\nassert_eq!(trs.notional.currency(), Currency::USD);\n# Ok(())\n# }\n```",
+      "description": "Equity total-return swap exchanging price and net dividend return against\nfloating-rate financing plus a contractual spread.\n\nSeasoned trades require the observed level at the current period start in\n`past_fixings`, except that `initial_level` may anchor the first period.\n\n# Construction\n\n```\nuse finstack_quant_core::{\n    currency::Currency, dates::DayCount, money::Money, types::InstrumentId,\n};\nuse finstack_quant_cashflows::builder::ScheduleParams;\nuse finstack_quant_valuations::instruments::{\n    Attributes, EquityUnderlyingParams, FinancingLegSpec,\n};\nuse finstack_quant_valuations::instruments::equity::equity_trs::{\n    EquityTotalReturnSwap, TrsDividendSettlement, TrsScheduleSpec, TrsSide,\n};\nuse rust_decimal::Decimal;\nuse time::macros::date;\n\n# fn main() -> finstack_quant_core::Result<()> {\nlet trs = EquityTotalReturnSwap::builder()\n    .id(InstrumentId::new(\"SPX-TRS\"))\n    .notional(Money::new(10_000_000.0, Currency::USD))\n    .underlying(\n        EquityUnderlyingParams::new(\"SPX\", \"SPX-SPOT\", Currency::USD)\n            .with_dividend_yield(\"SPX-DIV\"),\n    )\n    .financing(FinancingLegSpec::new(\n        \"USD-OIS\", \"USD-SOFR-3M\", Decimal::from(50), DayCount::Act360,\n    ))\n    .schedule(TrsScheduleSpec::from_params(\n        date!(2026 - 01 - 02),\n        date!(2027 - 01 - 02),\n        ScheduleParams::quarterly_act360(),\n    ))\n    .side(TrsSide::ReceiveTotalReturn)\n    .dividend_settlement(TrsDividendSettlement::OnDividendDate)\n    .initial_level_opt(None)\n    .attributes(Attributes::new())\n    .build()?;\nassert_eq!(trs.notional.currency(), Currency::USD);\n# Ok(())\n# }\n```",
       "properties": {
         "attributes": {
           "$ref": "#/$defs/Attributes",
@@ -11961,6 +12022,10 @@
             "type": "array"
           },
           "type": "array"
+        },
+        "dividend_settlement": {
+          "$ref": "#/$defs/TrsDividendSettlement",
+          "description": "Settlement timing for explicit manufactured dividends."
         },
         "dividend_tax_rate": {
           "default": 0.0,
@@ -12057,6 +12122,7 @@
         "financing",
         "schedule",
         "side",
+        "dividend_settlement",
         "attributes"
       ],
       "type": "object"
@@ -13922,7 +13988,7 @@
           "description": "Date of the event"
         },
         "deal_id": {
-          "description": "Deal identifier for American-style waterfalls",
+          "description": "Deal identifier. Required for every event in an American-style\ndeal-by-deal waterfall.",
           "type": [
             "string",
             "null"
@@ -20259,12 +20325,27 @@
           ],
           "description": "Optional piecewise-constant Hull-White short-rate volatility schedule.\n\nWhen supplied, this replaces the scalar [`Self::hw1f_sigma`] override.\nThe schedule is left-continuous, starts at time zero, and carries\nabsolute annual short-rate volatilities."
         },
+        "mc_antithetic": {
+          "description": "Optional antithetic-variates override for Monte Carlo pricing.\n\n`None` keeps the selected pricer's default. Structured equity pricers\ndefault to `true`; set `Some(false)` only for controlled diagnostics.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "mc_paths": {
           "description": "Optional Monte Carlo path count for path-dependent GBM pricers (Asians, lookbacks, autocallables, etc.).\n\nWhen set, overrides the default simulation size (typically 100,000 paths). Intended for tests,\nbenchmarks, and controlled revaluation—not a market quote.",
           "format": "uint",
           "minimum": 0,
           "type": [
             "integer",
+            "null"
+          ]
+        },
+        "mc_target_ci_half_width": {
+          "description": "Optional absolute target for the Monte Carlo confidence-interval\nhalf-width in instrument currency.\n\nThe engine may stop before `mc_paths` after its minimum sample count\nwhen this positive finite target is reached.",
+          "format": "double",
+          "type": [
+            "number",
             "null"
           ]
         },
@@ -27123,6 +27204,21 @@
         }
       ]
     },
+    "ThetaDayBasis": {
+      "description": "Day basis used to convert annual option theta into a per-day amount.",
+      "oneOf": [
+        {
+          "const": "calendar_365",
+          "description": "Calendar-day theta, annual theta divided by 365.",
+          "type": "string"
+        },
+        {
+          "const": "trading_252",
+          "description": "Trading-day theta, annual theta divided by 252.",
+          "type": "string"
+        }
+      ]
+    },
     "ThresholdDirection": {
       "description": "Direction for threshold comparison.",
       "oneOf": [
@@ -27529,6 +27625,21 @@
             "custom"
           ],
           "type": "object"
+        }
+      ]
+    },
+    "TrsDividendSettlement": {
+      "description": "Settlement timing for manufactured discrete dividends on an equity TRS.",
+      "oneOf": [
+        {
+          "const": "on_dividend_date",
+          "description": "Settle on the supplied dividend date, matching standard manufactured\ndividend pass-through economics.",
+          "type": "string"
+        },
+        {
+          "const": "at_period_end",
+          "description": "Defer the dividend to the reset period's contractual payment date.",
+          "type": "string"
         }
       ]
     },
@@ -28425,7 +28536,7 @@
         },
         {
           "const": "american",
-          "description": "American style: chronological fund-level allocation with per-deal\ntagging of `Proceeds` rows. Balances (unreturned capital, GP carry)\nare threaded fund-wide, so deal-level carve-out economics are not\nmodeled; fund-level distributions are allocated untagged.",
+          "description": "American style: deal-by-deal allocation. Every event must carry a\nnon-empty `deal_id`; capital, preferred return, catch-up, and carry are\ntracked independently for each deal, while clawback remains a fund-level\nlifetime reconciliation.",
           "type": "string"
         }
       ]

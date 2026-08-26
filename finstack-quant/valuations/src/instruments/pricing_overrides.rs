@@ -583,6 +583,19 @@ pub struct ModelConfig {
     /// benchmarks, and controlled revaluation—not a market quote.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mc_paths: Option<usize>,
+    /// Optional antithetic-variates override for Monte Carlo pricing.
+    ///
+    /// `None` keeps the selected pricer's default. Structured equity pricers
+    /// default to `true`; set `Some(false)` only for controlled diagnostics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mc_antithetic: Option<bool>,
+    /// Optional absolute target for the Monte Carlo confidence-interval
+    /// half-width in instrument currency.
+    ///
+    /// The engine may stop before `mc_paths` after its minimum sample count
+    /// when this positive finite target is reached.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mc_target_ci_half_width: Option<f64>,
     /// Apply ISDA half-day accrual-on-default bias.
     ///
     /// Adds half a day of premium accrual in the default-accrual integral.
@@ -629,6 +642,13 @@ impl ModelConfig {
         if let Some(paths) = self.mc_paths {
             if paths == 0 {
                 return Err(InputError::Invalid.into());
+            }
+        }
+        if let Some(target) = self.mc_target_ci_half_width {
+            if !target.is_finite() || target <= 0.0 {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "mc_target_ci_half_width must be finite and positive, got {target}"
+                )));
             }
         }
         // Friction, volatilities, and mean reversions must be finite and
@@ -847,6 +867,28 @@ impl InstrumentPricingOverrides {
     /// Set the path count for path-dependent Monte Carlo pricing.
     pub fn with_mc_paths(mut self, paths: usize) -> Self {
         self.model_config.mc_paths = Some(paths);
+        self
+    }
+
+    /// Enable or disable antithetic variates for Monte Carlo pricing.
+    ///
+    /// # Arguments
+    ///
+    /// * `enabled` - `true` pairs each estimator with sign-flipped shocks.
+    #[must_use]
+    pub fn with_mc_antithetic(mut self, enabled: bool) -> Self {
+        self.model_config.mc_antithetic = Some(enabled);
+        self
+    }
+
+    /// Set an absolute Monte Carlo confidence-interval half-width target.
+    ///
+    /// # Arguments
+    ///
+    /// * `target` - Positive finite target in the instrument's reporting currency.
+    #[must_use]
+    pub fn with_mc_target_ci_half_width(mut self, target: f64) -> Self {
+        self.model_config.mc_target_ci_half_width = Some(target);
         self
     }
 
@@ -1230,6 +1272,24 @@ mod tests {
         for period in ["1x", "D", "abc", "1", "1.5d", "-1d", ""] {
             assert!(MetricPricingOverrides::default()
                 .with_theta_period(period)
+                .validate()
+                .is_err());
+        }
+    }
+
+    #[test]
+    fn monte_carlo_accuracy_controls_validate() {
+        let controls = InstrumentPricingOverrides::default()
+            .with_mc_paths(10_000)
+            .with_mc_antithetic(false)
+            .with_mc_target_ci_half_width(1.25);
+        assert!(controls.validate().is_ok());
+        assert_eq!(controls.model_config.mc_antithetic, Some(false));
+        assert_eq!(controls.model_config.mc_target_ci_half_width, Some(1.25));
+
+        for target in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            assert!(InstrumentPricingOverrides::default()
+                .with_mc_target_ci_half_width(target)
                 .validate()
                 .is_err());
         }

@@ -88,18 +88,13 @@ pub fn compile(ast: &StmtExpr) -> Result<Expr> {
 /// must be compatible for addition, subtraction, comparison, and conditional
 /// branches. This catches currency-unit mistakes before numerical evaluation.
 ///
-/// # Coverage limits (currency-safety is gradual, not total)
-///
-/// The checker is sound only over *typed* references. Any node whose
-/// `value_type` is not in `node_types` — notably formula-only `Calculated`
-/// nodes, whose type is not inferred until after evaluation — degrades to
-/// `Dimension::Unknown`, and `Unknown` combines with anything without error.
-/// Direct mixing of typed monetary leaves (e.g. `usd_revenue + eur_costs`) is
-/// rejected, but the same mix routed through an intermediate Calculated node
-/// (`usd_revenue + eur_total` where `eur_total` is itself a formula) is not
-/// detectable at validation time. Statement evaluation itself runs in `f64`
-/// (see `NumericMode::Float64`), so nothing re-checks units numerically —
-/// declare `value_type` on nodes wherever possible to maximize coverage.
+/// `FinancialModelSpec::validate_semantics` repeatedly applies the companion
+/// inference routine through formula dependencies, so calculated monetary
+/// nodes retain currency and indirect cross-currency operations are rejected.
+/// This standalone validator checks only the `node_types` supplied by its
+/// caller; references absent from that map remain unknown. Variance-like
+/// squared units also remain unknown because `NodeValueType` intentionally
+/// represents only scalar and monetary outputs.
 ///
 /// # Arguments
 ///
@@ -119,13 +114,30 @@ pub fn validate_dimensions(
     ast: &StmtExpr,
     node_types: &IndexMap<NodeId, NodeValueType>,
 ) -> Result<()> {
-    infer_dimension(ast, node_types)?;
+    infer_dimension(ast, node_types, None)?;
     Ok(())
+}
+
+/// Infer a formula's output type from known node types and capital-structure
+/// reporting currency.
+pub(crate) fn infer_value_type(
+    ast: &StmtExpr,
+    node_types: &IndexMap<NodeId, NodeValueType>,
+    capital_structure_currency: Option<finstack_quant_core::currency::Currency>,
+) -> Result<Option<NodeValueType>> {
+    Ok(
+        match infer_dimension(ast, node_types, capital_structure_currency)? {
+            Dimension::Unknown => None,
+            Dimension::Scalar => Some(NodeValueType::Scalar),
+            Dimension::Monetary(currency) => Some(NodeValueType::Monetary { currency }),
+        },
+    )
 }
 
 fn infer_dimension(
     ast: &StmtExpr,
     node_types: &IndexMap<NodeId, NodeValueType>,
+    capital_structure_currency: Option<finstack_quant_core::currency::Currency>,
 ) -> Result<Dimension> {
     match ast {
         StmtExpr::Literal(_) => Ok(Dimension::Scalar),
@@ -133,28 +145,32 @@ fn infer_dimension(
             .get(name)
             .map(node_value_type_to_dimension)
             .unwrap_or(Dimension::Unknown)),
-        StmtExpr::CsRef { .. } => Ok(Dimension::Unknown),
+        StmtExpr::CsRef { .. } => Ok(capital_structure_currency
+            .map(Dimension::Monetary)
+            .unwrap_or(Dimension::Unknown)),
         StmtExpr::UnaryOp { op, operand } => {
-            let dim = infer_dimension(operand, node_types)?;
+            let dim = infer_dimension(operand, node_types, capital_structure_currency)?;
             match op {
                 StmtUnaryOp::Neg => Ok(dim),
                 StmtUnaryOp::Not => Ok(Dimension::Scalar),
             }
         }
         StmtExpr::BinOp { op, left, right } => {
-            let left_dim = infer_dimension(left, node_types)?;
-            let right_dim = infer_dimension(right, node_types)?;
+            let left_dim = infer_dimension(left, node_types, capital_structure_currency)?;
+            let right_dim = infer_dimension(right, node_types, capital_structure_currency)?;
             infer_bin_op_dimension(*op, left_dim, right_dim)
         }
-        StmtExpr::Call { func, args } => infer_call_dimension(func, args, node_types),
+        StmtExpr::Call { func, args } => {
+            infer_call_dimension(func, args, node_types, capital_structure_currency)
+        }
         StmtExpr::IfThenElse {
             condition,
             then_expr,
             else_expr,
         } => {
-            infer_dimension(condition, node_types)?;
-            let then_dim = infer_dimension(then_expr, node_types)?;
-            let else_dim = infer_dimension(else_expr, node_types)?;
+            infer_dimension(condition, node_types, capital_structure_currency)?;
+            let then_dim = infer_dimension(then_expr, node_types, capital_structure_currency)?;
+            let else_dim = infer_dimension(else_expr, node_types, capital_structure_currency)?;
             compatible_dimensions("if branches", then_dim, else_dim)
         }
     }
@@ -247,12 +263,12 @@ fn infer_call_dimension(
     func: &str,
     args: &[StmtExpr],
     node_types: &IndexMap<NodeId, NodeValueType>,
+    capital_structure_currency: Option<finstack_quant_core::currency::Currency>,
 ) -> Result<Dimension> {
     let arg_dims: Vec<_> = args
         .iter()
-        .map(|arg| infer_dimension(arg, node_types))
+        .map(|arg| infer_dimension(arg, node_types, capital_structure_currency))
         .collect::<Result<Vec<_>>>()?;
-
     match func {
         // Dimension-preserving: the result carries the same units as its
         // value-bearing argument(s). Includes same-unit transforms such as

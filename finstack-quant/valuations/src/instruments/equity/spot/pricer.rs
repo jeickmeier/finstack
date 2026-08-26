@@ -21,11 +21,12 @@ impl EquityPricer {
     /// Resolve price per share for the equity.
     ///
     /// Priority:
-    /// 1) `inst.price_quote` if set
-    /// 2) `MarketContext::price` using instrument-provided overrides and fallbacks:
-    ///    explicit `price_id`, attribute hints, ticker, instrument id, `{ticker}-SPOT`, then `EQUITY-SPOT`
-    ///    - If `Price`, convert to `inst.currency` via FX matrix
-    ///    - If `Unitless`, treat as amount in `inst.currency`
+    /// 1) `inst.price_quote` when set.
+    /// 2) Authoritative `inst.price_id` when set; missing data is an error.
+    /// 3) Without an explicit ID, attribute hints, ticker, instrument ID,
+    ///    `{ticker}-SPOT`, and finally `EQUITY-SPOT`.
+    ///    `Price` values are FX-converted to `inst.currency`; `Unitless`
+    ///    values are interpreted in `inst.currency`.
     pub fn price_per_share(
         &self,
         inst: &Equity,

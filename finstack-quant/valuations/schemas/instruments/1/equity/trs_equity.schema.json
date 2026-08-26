@@ -224,7 +224,7 @@
     },
     "EquityTotalReturnSwap": {
       "additionalProperties": false,
-      "description": "Equity total-return swap exchanging price and net dividend return against\nfloating-rate financing plus a contractual spread.\n\nSeasoned trades require the observed level at the current period start in\n`past_fixings`, except that `initial_level` may anchor the first period.\n\n# Construction\n\n```\nuse finstack_quant_core::{\n    currency::Currency, dates::DayCount, money::Money, types::InstrumentId,\n};\nuse finstack_quant_cashflows::builder::ScheduleParams;\nuse finstack_quant_valuations::instruments::{\n    Attributes, EquityUnderlyingParams, FinancingLegSpec,\n};\nuse finstack_quant_valuations::instruments::equity::equity_trs::EquityTotalReturnSwap;\nuse finstack_quant_valuations::instruments::equity::equity_trs::{\n    TrsScheduleSpec, TrsSide,\n};\nuse rust_decimal::Decimal;\nuse time::macros::date;\n\n# fn main() -> finstack_quant_core::Result<()> {\nlet trs = EquityTotalReturnSwap::builder()\n    .id(InstrumentId::new(\"SPX-TRS\"))\n    .notional(Money::new(10_000_000.0, Currency::USD))\n    .underlying(\n        EquityUnderlyingParams::new(\"SPX\", \"SPX-SPOT\", Currency::USD)\n            .with_dividend_yield(\"SPX-DIV\"),\n    )\n    .financing(FinancingLegSpec::new(\n        \"USD-OIS\", \"USD-SOFR-3M\", Decimal::from(50), DayCount::Act360,\n    ))\n    .schedule(TrsScheduleSpec::from_params(\n        date!(2026 - 01 - 02),\n        date!(2027 - 01 - 02),\n        ScheduleParams::quarterly_act360(),\n    ))\n    .side(TrsSide::ReceiveTotalReturn)\n    .initial_level_opt(None)\n    .attributes(Attributes::new())\n    .build()?;\nassert_eq!(trs.notional.currency(), Currency::USD);\n# Ok(())\n# }\n```",
+      "description": "Equity total-return swap exchanging price and net dividend return against\nfloating-rate financing plus a contractual spread.\n\nSeasoned trades require the observed level at the current period start in\n`past_fixings`, except that `initial_level` may anchor the first period.\n\n# Construction\n\n```\nuse finstack_quant_core::{\n    currency::Currency, dates::DayCount, money::Money, types::InstrumentId,\n};\nuse finstack_quant_cashflows::builder::ScheduleParams;\nuse finstack_quant_valuations::instruments::{\n    Attributes, EquityUnderlyingParams, FinancingLegSpec,\n};\nuse finstack_quant_valuations::instruments::equity::equity_trs::{\n    EquityTotalReturnSwap, TrsDividendSettlement, TrsScheduleSpec, TrsSide,\n};\nuse rust_decimal::Decimal;\nuse time::macros::date;\n\n# fn main() -> finstack_quant_core::Result<()> {\nlet trs = EquityTotalReturnSwap::builder()\n    .id(InstrumentId::new(\"SPX-TRS\"))\n    .notional(Money::new(10_000_000.0, Currency::USD))\n    .underlying(\n        EquityUnderlyingParams::new(\"SPX\", \"SPX-SPOT\", Currency::USD)\n            .with_dividend_yield(\"SPX-DIV\"),\n    )\n    .financing(FinancingLegSpec::new(\n        \"USD-OIS\", \"USD-SOFR-3M\", Decimal::from(50), DayCount::Act360,\n    ))\n    .schedule(TrsScheduleSpec::from_params(\n        date!(2026 - 01 - 02),\n        date!(2027 - 01 - 02),\n        ScheduleParams::quarterly_act360(),\n    ))\n    .side(TrsSide::ReceiveTotalReturn)\n    .dividend_settlement(TrsDividendSettlement::OnDividendDate)\n    .initial_level_opt(None)\n    .attributes(Attributes::new())\n    .build()?;\nassert_eq!(trs.notional.currency(), Currency::USD);\n# Ok(())\n# }\n```",
       "properties": {
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
@@ -248,6 +248,10 @@
             "type": "array"
           },
           "type": "array"
+        },
+        "dividend_settlement": {
+          "$ref": "#/$defs/TrsDividendSettlement",
+          "description": "Settlement timing for explicit manufactured dividends."
         },
         "dividend_tax_rate": {
           "default": 0.0,
@@ -344,6 +348,7 @@
         "financing",
         "schedule",
         "side",
+        "dividend_settlement",
         "attributes"
       ],
       "type": "object"
@@ -757,6 +762,21 @@
         }
       ]
     },
+    "TrsDividendSettlement": {
+      "description": "Settlement timing for manufactured discrete dividends on an equity TRS.",
+      "oneOf": [
+        {
+          "const": "on_dividend_date",
+          "description": "Settle on the supplied dividend date, matching standard manufactured\ndividend pass-through economics.",
+          "type": "string"
+        },
+        {
+          "const": "at_period_end",
+          "description": "Defer the dividend to the reset period's contractual payment date.",
+          "type": "string"
+        }
+      ]
+    },
     "TrsScheduleSpec": {
       "additionalProperties": false,
       "description": "Schedule specification for TRS payment periods.\n\nDefines the payment schedule and frequency for both legs of the TRS.\nThis is shared between equity and fixed income TRS instruments.\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::TrsScheduleSpec;\nuse finstack_quant_cashflows::builder::ScheduleParams;\nuse finstack_quant_core::dates::{Date, Tenor, DayCount, BusinessDayConvention, StubKind};\n\nlet schedule = TrsScheduleSpec::from_params(\n    Date::from_calendar_date(2024, time::Month::January, 1).unwrap(),\n    Date::from_calendar_date(2025, time::Month::January, 1).unwrap(),\n    ScheduleParams {\n        frequency: Tenor::quarterly(),\n        day_count: DayCount::Act360,\n        business_day_convention: BusinessDayConvention::Following,\n        calendar_id: \"weekends_only\".to_string(),\n        stub: StubKind::None,\n        end_of_month: false,\n        payment_lag_days: 0,\n        adjust_accrual_dates: false,\n        roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,\n    },\n);\n```",
@@ -864,6 +884,7 @@
       "instrument": {
         "spec": {
           "attributes": {},
+          "dividend_settlement": "on_dividend_date",
           "dividend_tax_rate": 0.0,
           "financing": {
             "compounding": "term_rate",

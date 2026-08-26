@@ -47,6 +47,17 @@
           ],
           "description": "Optional continuous dividend yield identifier.\n\nThe dividend yield should be a unitless scalar representing the annualized\ncontinuous dividend yield (e.g., 0.02 for 2%). This is used in the BSM model\nas the `q` parameter: `d1 = (ln(S/K) + (r - q + σ²/2)T) / (σ√T)`.\n\n# Semantics by value\n\n- **`Some(id)`** — the lookup MUST succeed. A missing market scalar\n  (or a non-unitless type) returns a hard error rather than silently\n  defaulting to zero, preventing market-data configuration errors\n  from quietly distorting P&L.\n- **`None`** — there is *no implicit default curve*. The pricer treats\n  the underlying as having **zero continuous dividend yield**. This is\n  correct for non-dividend-paying single stocks; for index options\n  (typically ~2% yield) callers should set `div_yield_id` explicitly.\n\nIf `discrete_dividends` is non-empty, an escrowed-dividend adjustment\nis applied to spot and `q` is set to 0 internally regardless of\n`div_yield_id`."
         },
+        "exercise": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EquityOptionExercise"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Observed exercise or expiry state.\n\nRequired from expiry onward. It fixes cash-settled intrinsic value or\nidentifies a physical-delivery obligation through its settlement date."
+        },
         "exercise_schedule": {
           "description": "Exercise schedule for Bermudan options.\n\nRequired when `exercise_style` is `Bermudan`. Each date represents a time\nat which early exercise is permitted. Dates before as_of or after expiry\nare filtered out automatically.",
           "items": {
@@ -104,6 +115,11 @@
           "format": "double",
           "type": "number"
         },
+        "theta_day_basis": {
+          "$ref": "#/$defs/ThetaDayBasis",
+          "default": "calendar_365",
+          "description": "Basis used for the reported per-day theta.\n\nDefaults to calendar-day theta (`annual theta / 365`). Select\n`Trading252` explicitly for a trading-day risk convention."
+        },
         "underlying_ticker": {
           "description": "Underlying equity ticker symbol",
           "type": "string"
@@ -124,6 +140,36 @@
         "spot_id",
         "vol_surface_id",
         "attributes"
+      ],
+      "type": "object"
+    },
+    "EquityOptionExercise": {
+      "additionalProperties": false,
+      "description": "Observed exercise or expiry state for an equity option.\n\nFrom `date` onward the option pricer uses this fixed lifecycle state rather\nthan re-running the live option model. Cash settlement fixes the intrinsic\npayoff from `spot`; physical settlement retains the marked delivery\nobligation until `settlement_date`.",
+      "properties": {
+        "date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Exercise date, or the expiry observation date for an unexercised option."
+        },
+        "exercised": {
+          "description": "Whether the option was exercised or automatically assigned.",
+          "type": "boolean"
+        },
+        "settlement_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Contractual cash-payment or physical-delivery date."
+        },
+        "spot": {
+          "description": "Observed underlying level used to determine the fixed cash payoff.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "date",
+        "spot",
+        "settlement_date",
+        "exercised"
       ],
       "type": "object"
     },
@@ -182,6 +228,21 @@
         }
       ]
     },
+    "ThetaDayBasis": {
+      "description": "Day basis used to convert annual option theta into a per-day amount.",
+      "oneOf": [
+        {
+          "const": "calendar_365",
+          "description": "Calendar-day theta, annual theta divided by 365.",
+          "type": "string"
+        },
+        {
+          "const": "trading_252",
+          "description": "Trading-day theta, annual theta divided by 252.",
+          "type": "string"
+        }
+      ]
+    },
     "equity_option": {
       "additionalProperties": false,
       "properties": {
@@ -224,6 +285,7 @@
           "settlement": "cash",
           "spot_id": "EQUITY-SPOT",
           "strike": 4500.0,
+          "theta_day_basis": "calendar_365",
           "underlying_ticker": "SPX",
           "vol_surface_id": "EQUITY-VOL"
         },

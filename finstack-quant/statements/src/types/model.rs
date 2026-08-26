@@ -282,6 +282,25 @@ impl FinancialModelSpec {
                 }
                 NodeType::Mixed => {}
             }
+
+            for period_id in node.availability_dates.keys() {
+                if !self.periods.iter().any(|period| period.id == *period_id) {
+                    return Err(Error::build(format!(
+                        "Node '{node_id}' has an availability date for period {period_id}, \
+                         which is not present in the model timeline"
+                    )));
+                }
+                if !node
+                    .values
+                    .as_ref()
+                    .is_some_and(|values| values.contains_key(period_id))
+                {
+                    return Err(Error::build(format!(
+                        "Node '{node_id}' has an availability date for period {period_id}, \
+                         but no explicit value for that period"
+                    )));
+                }
+            }
         }
 
         for node in self.nodes.values_mut() {
@@ -293,7 +312,17 @@ impl FinancialModelSpec {
             }
         }
 
-        let node_value_types: IndexMap<NodeId, crate::types::NodeValueType> = self
+        let capital_structure_currency = self
+            .capital_structure
+            .as_ref()
+            .and_then(|capital_structure| capital_structure.reporting_currency)
+            .or_else(|| {
+                self.meta
+                    .get("currency")
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(|currency| currency.parse().ok())
+            });
+        let mut node_value_types: IndexMap<NodeId, crate::types::NodeValueType> = self
             .nodes
             .iter()
             .filter_map(|(node_id, node)| {
@@ -301,15 +330,80 @@ impl FinancialModelSpec {
                     .map(|value_type| (node_id.clone(), value_type))
             })
             .collect();
+        let mut unresolved: Vec<NodeId> = self
+            .nodes
+            .iter()
+            .filter(|(_, node)| node.formula_text.is_some() && node.value_type.is_none())
+            .map(|(node_id, _)| node_id.clone())
+            .collect();
+        loop {
+            let mut next = Vec::new();
+            let mut progress = false;
+            for node_id in unresolved {
+                let inferred = {
+                    let node = self.nodes.get(&node_id).ok_or_else(|| {
+                        Error::build(format!("Formula node '{node_id}' disappeared"))
+                    })?;
+                    let formula = node.formula_text.as_deref().ok_or_else(|| {
+                        Error::build(format!("Formula node '{node_id}' has no formula"))
+                    })?;
+                    let ast = crate::dsl::parse_formula(formula).map_err(|error| {
+                        Error::build(format!("Invalid formula on node '{node_id}': {error}"))
+                    })?;
+                    crate::dsl::compiler::infer_value_type(
+                        &ast,
+                        &node_value_types,
+                        capital_structure_currency,
+                    )?
+                };
+                if let Some(value_type) = inferred {
+                    self.nodes
+                        .get_mut(&node_id)
+                        .ok_or_else(|| {
+                            Error::build(format!("Formula node '{node_id}' disappeared"))
+                        })?
+                        .value_type = Some(value_type);
+                    node_value_types.insert(node_id, value_type);
+                    progress = true;
+                } else {
+                    next.push(node_id);
+                }
+            }
+            if next.is_empty() {
+                break;
+            }
+            if !progress {
+                // Unknown registry references, same-period cycles, and
+                // dimension families not represented by NodeValueType remain
+                // unresolved here. The dependency graph diagnoses references
+                // and cycles later; callers may use `node_value_type` for
+                // intentionally unrepresentable outputs such as variance.
+                break;
+            }
+            unresolved = next;
+        }
 
         for (node_id, node) in &self.nodes {
             if let Some(formula) = &node.formula_text {
                 let ast = crate::dsl::parse_formula(formula).map_err(|e| {
                     Error::build(format!("Invalid formula on node '{}': {}", node_id, e))
                 })?;
-                crate::dsl::compiler::validate_dimensions(&ast, &node_value_types).map_err(
-                    |e| Error::build(format!("Invalid formula on node '{}': {}", node_id, e)),
-                )?;
+                if let Some(inferred) = crate::dsl::compiler::infer_value_type(
+                    &ast,
+                    &node_value_types,
+                    capital_structure_currency,
+                )
+                .map_err(|error| {
+                    Error::build(format!("Invalid formula on node '{node_id}': {error}"))
+                })? {
+                    if node.value_type != Some(inferred) {
+                        return Err(Error::build(format!(
+                            "Formula node '{node_id}' declares {:?} but its expression returns \
+                             {:?}",
+                            node.value_type, inferred
+                        )));
+                    }
+                }
                 crate::dsl::compile(&ast).map_err(|e| {
                     Error::build(format!("Invalid formula on node '{}': {}", node_id, e))
                 })?;
@@ -319,9 +413,19 @@ impl FinancialModelSpec {
                 let ast = crate::dsl::parse_formula(where_text).map_err(|e| {
                     Error::build(format!("Invalid where clause on node '{}': {}", node_id, e))
                 })?;
-                crate::dsl::compiler::validate_dimensions(&ast, &node_value_types).map_err(
-                    |e| Error::build(format!("Invalid where clause on node '{}': {}", node_id, e)),
-                )?;
+                let where_type = crate::dsl::compiler::infer_value_type(
+                    &ast,
+                    &node_value_types,
+                    capital_structure_currency,
+                )
+                .map_err(|error| {
+                    Error::build(format!("Invalid where clause on node '{node_id}': {error}"))
+                })?;
+                if where_type != Some(crate::types::NodeValueType::Scalar) {
+                    return Err(Error::build(format!(
+                        "Where clause on node '{node_id}' must return a scalar condition"
+                    )));
+                }
                 crate::dsl::compile(&ast).map_err(|e| {
                     Error::build(format!("Invalid where clause on node '{}': {}", node_id, e))
                 })?;

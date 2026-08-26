@@ -186,6 +186,7 @@ pub fn generate_tornado_entries(
 /// @param net_debt_override - Optional flat net-debt amount used instead of the model-derived bridge.
 /// @param wacc_sensitivity_bump - Absolute shock applied to WACC and to the terminal growth rate, in decimal (0.01 = +/-100 bp).
 /// @param wacc_denominator_epsilon - Minimum spread preserved between WACC and the terminal growth rate so 1/(wacc - g) stays defined, in decimal.
+/// @param max_stable_growth_rate - Maximum perpetual stable growth rate; omitted uses the canonical 5% default.
 /// @param exit_multiple_bump - Absolute shock applied to an exit multiple, in turns of the multiple (1.0 = +/-1.0x).
 /// @param mid_year_convention - Whether every DCF re-run uses the mid-year discounting convention.
 /// @param market_json - Optional canonical market-context JSON used for statement evaluation, not WACC discounting.
@@ -199,6 +200,7 @@ pub fn dcf_sensitivity(
     net_debt_override: Option<f64>,
     wacc_sensitivity_bump: Option<f64>,
     wacc_denominator_epsilon: Option<f64>,
+    max_stable_growth_rate: Option<f64>,
     exit_multiple_bump: Option<f64>,
     mid_year_convention: Option<bool>,
     market_json: Option<String>,
@@ -218,6 +220,7 @@ pub fn dcf_sensitivity(
         wacc_sensitivity_bump: wacc_sensitivity_bump.unwrap_or(defaults.wacc_sensitivity_bump),
         wacc_denominator_epsilon: wacc_denominator_epsilon
             .unwrap_or(defaults.wacc_denominator_epsilon),
+        max_stable_growth_rate: max_stable_growth_rate.unwrap_or(defaults.max_stable_growth_rate),
         exit_multiple_bump: exit_multiple_bump
             .map_or(defaults.exit_multiple_bump, ExitMultipleBump::Absolute),
         ..DcfOptions::default()
@@ -906,7 +909,10 @@ mod tests {
     fn evaluate_scenario_set_with_override() {
         let model_json = test_model_json();
         let mut overrides = indexmap::IndexMap::new();
-        overrides.insert("revenue".to_string(), 200_000.0);
+        overrides.insert(
+            "revenue".to_string(),
+            finstack_quant_statements::types::AmountOrScalar::scalar(200_000.0),
+        );
         let scenario_set = finstack_quant_statements_analytics::analysis::ScenarioSet {
             scenarios: indexmap::indexmap! {
                 "upside".to_string() => finstack_quant_statements_analytics::analysis::ScenarioDefinition {

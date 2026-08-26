@@ -17,6 +17,7 @@
         "currency": "USD"
       },
       "past_fixings": [],
+      "path_model": "atm_term_gbm",
       "payoff_type": "additive",
       "reset_dates": [
         "2024-03-29",

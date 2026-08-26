@@ -177,20 +177,21 @@ fn test_currency_mismatch_error() {
 
 #[test]
 fn test_american_vs_european_style() {
-    // Create identical events for both styles
+    // Identical deal-tagged events can be aggregated by the European style or
+    // evaluated independently by the American style.
     let events = vec![
-        FundEvent::contribution(
-            test_date(2020, 1, 1),
-            Money::new(1000000.0, test_currency()),
-        ),
+        FundEvent::contribution(test_date(2020, 1, 1), Money::new(500000.0, test_currency()))
+            .with_deal_id("Deal_A"),
+        FundEvent::contribution(test_date(2020, 1, 1), Money::new(500000.0, test_currency()))
+            .with_deal_id("Deal_B"),
         FundEvent::proceeds(
             test_date(2023, 1, 1),
-            Money::new(800000.0, test_currency()),
+            Money::new(200000.0, test_currency()),
             "Deal_A",
         ),
         FundEvent::proceeds(
             test_date(2025, 1, 1),
-            Money::new(1200000.0, test_currency()),
+            Money::new(1800000.0, test_currency()),
             "Deal_B",
         ),
     ];
@@ -236,6 +237,17 @@ fn test_american_vs_european_style() {
     assert!(
         american_with_deals > 0,
         "American style should have deal_id entries"
+    );
+
+    let european_gp: f64 = euro_ledger.rows.iter().map(|row| row.to_gp.amount()).sum();
+    let american_gp: f64 = american_ledger
+        .rows
+        .iter()
+        .map(|row| row.to_gp.amount())
+        .sum();
+    assert!(
+        american_gp > european_gp,
+        "deal-by-deal carry should crystallize on the winning deal before fund-level loss netting"
     );
 }
 

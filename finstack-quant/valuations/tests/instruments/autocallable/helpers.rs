@@ -109,6 +109,7 @@ pub fn create_quarterly_autocallable(
         discount_curve_id: CurveId::new(DISC_ID),
         spot_id: SPOT_ID.into(),
         vol_surface_id: CurveId::new(VOL_ID),
+        path_model: finstack_quant_valuations::instruments::equity::EquityPathModel::AtmTermGbm,
         div_yield_id: Some(finstack_quant_core::types::PriceId::new(DIV_ID)),
         initial_level: None,
         past_fixings: vec![],

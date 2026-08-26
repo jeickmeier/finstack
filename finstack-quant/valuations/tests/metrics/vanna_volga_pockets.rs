@@ -18,7 +18,9 @@ use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::money::fx::{FxConversionPolicy, FxMatrix, FxProvider};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
-use finstack_quant_valuations::instruments::equity::equity_option::EquityOption;
+use finstack_quant_valuations::instruments::equity::equity_option::{
+    EquityOption, EquityOptionExercise,
+};
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::{standard_registry, MetricContext, MetricId};
 use std::sync::Arc;
@@ -167,7 +169,8 @@ fn equity_vanna_and_volga_match_reference_fd() -> finstack_quant_core::Result<()
 fn equity_vanna_and_volga_are_zero_when_expired() -> finstack_quant_core::Result<()> {
     let as_of = date(2025, 7, 2);
     let expiry = date(2025, 7, 2); // expired at as_of
-    let opt = equity_option(as_of, expiry, 100.0);
+    let mut opt = equity_option(as_of, expiry, 100.0);
+    opt.exercise = Some(EquityOptionExercise::new(expiry, 100.0, expiry, false));
     let market = equity_market(as_of, 100.0, 0.20, 0.03, 0.0);
 
     let pv = opt.value(&market, as_of)?;

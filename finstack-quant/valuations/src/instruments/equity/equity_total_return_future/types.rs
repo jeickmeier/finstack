@@ -115,12 +115,38 @@ impl EquityTotalReturnFuture {
             .build()
     }
 
-    fn scalar(
+    fn point_scalar(
+        &self,
         market: &MarketContext,
         id: &PriceId,
         label: &str,
     ) -> finstack_quant_core::Result<f64> {
-        let value = crate::metrics::scalar_numeric_value(market.get_price(id)?);
+        let value = crate::instruments::common_impl::helpers::scalar_price_amount(
+            market.get_price(id)?,
+            self.terms.currency,
+        )?;
+        if !value.is_finite() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "EquityTotalReturnFuture {label} must be finite"
+            )));
+        }
+        Ok(value)
+    }
+
+    fn unitless_scalar(
+        market: &MarketContext,
+        id: &PriceId,
+        label: &str,
+    ) -> finstack_quant_core::Result<f64> {
+        let value = match market.get_price(id)? {
+            finstack_quant_core::market_data::scalars::MarketScalar::Unitless(value) => *value,
+            finstack_quant_core::market_data::scalars::MarketScalar::Price(money) => {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "EquityTotalReturnFuture {label} must be unitless, got Price({})",
+                    money.currency()
+                )));
+            }
+        };
         if !value.is_finite() {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "EquityTotalReturnFuture {label} must be finite"
@@ -135,20 +161,20 @@ impl EquityTotalReturnFuture {
         as_of: Date,
     ) -> finstack_quant_core::Result<TrfProjection> {
         self.validate()?;
-        let spot = Self::scalar(market, &self.spot_id, "spot")?;
+        let spot = self.point_scalar(market, &self.spot_id, "spot")?;
         if spot <= 0.0 {
             return Err(finstack_quant_core::Error::Validation(
                 "EquityTotalReturnFuture spot must be positive".to_string(),
             ));
         }
-        let distributions = Self::scalar(
+        let distributions = self.point_scalar(
             market,
             &self.accrued_distributions_id,
             "accrued distributions",
         )?;
-        let funding = Self::scalar(market, &self.accrued_funding_id, "accrued funding")?;
+        let funding = self.point_scalar(market, &self.accrued_funding_id, "accrued funding")?;
         let spread_basis_points =
-            Self::scalar(market, &self.spread_basis_points_id, "spread basis points")?;
+            Self::unitless_scalar(market, &self.spread_basis_points_id, "spread basis points")?;
         let year_fraction = self
             .spread_day_count
             .year_fraction(
@@ -350,5 +376,24 @@ mod tests {
             20.0
         );
         assert_eq!(future.funding_delta().expect("funding delta"), -20.0);
+    }
+
+    #[test]
+    fn spread_rejects_money_scalar() {
+        let as_of = date!(2026 - 01 - 01);
+        let future = EquityTotalReturnFuture::example().expect("example future");
+        let market = MarketContext::new()
+            .insert_price("SX5E-CLOSE", MarketScalar::Unitless(100.0))
+            .insert_price("TESX-ACCRUED-DISTRIBUTIONS", MarketScalar::Unitless(8.0))
+            .insert_price("TESX-ACCRUED-FUNDING", MarketScalar::Unitless(3.0))
+            .insert_price(
+                "TESX-SPREAD-BPS",
+                MarketScalar::Price(Money::new(50.0, Currency::EUR)),
+            );
+
+        let error = future
+            .fair_price(&market, as_of)
+            .expect_err("money-valued spread must fail");
+        assert!(error.to_string().contains("must be unitless"));
     }
 }

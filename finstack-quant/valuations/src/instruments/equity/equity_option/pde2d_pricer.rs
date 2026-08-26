@@ -8,6 +8,7 @@
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::equity::equity_option::pricer::{
     collect_inputs_extended, reject_future_discrete_dividends_for_stochastic_vol,
+    resolve_lifecycle_value,
 };
 use crate::instruments::equity::equity_option::types::EquityOption;
 use crate::pricer::{
@@ -55,6 +56,14 @@ impl EquityOptionHestonPdePricer {
         market: &MarketContext,
         as_of: Date,
     ) -> std::result::Result<Money, PricingError> {
+        if let Some(value) = resolve_lifecycle_value(inst, market, as_of).map_err(|error| {
+            PricingError::model_failure_with_context(
+                error.to_string(),
+                PricingErrorContext::from_instrument(inst).model(ModelKey::PdeAdi2D),
+            )
+        })? {
+            return Ok(value);
+        }
         if !matches!(
             inst.exercise_style,
             crate::instruments::ExerciseStyle::European
@@ -63,9 +72,6 @@ impl EquityOptionHestonPdePricer {
                 "Heston PDE supports European exercise only",
                 PricingErrorContext::from_instrument(inst).model(ModelKey::PdeAdi2D),
             ));
-        }
-        if as_of > inst.expiry {
-            return Ok(Money::new(0.0, inst.notional.currency()));
         }
         reject_future_discrete_dividends_for_stochastic_vol(
             inst,

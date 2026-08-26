@@ -406,6 +406,48 @@ impl PyModelBuilder {
         Ok(slf)
     }
 
+    /// Set point-in-time availability dates for explicit observations.
+    ///
+    /// Parameters
+    /// ----------
+    /// node_id : str
+    ///     Existing value or mixed node.
+    /// availability_dates : list[tuple[str, datetime.date | str]]
+    ///     Period IDs paired with the date each observation became available.
+    ///     Unspecified observations default to the period's exclusive end.
+    ///
+    /// Returns
+    /// -------
+    /// ModelBuilder
+    ///     This builder, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If a period/date is invalid or the node does not exist.
+    #[pyo3(text_signature = "($self, node_id, availability_dates)")]
+    fn availability_dates<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        node_id: &str,
+        availability_dates: Vec<(String, Bound<'py, PyAny>)>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let parsed = availability_dates
+            .into_iter()
+            .map(|(period, date)| {
+                Ok((
+                    period.parse::<PeriodId>().map_err(core_to_py)?,
+                    py_to_date(&date)?,
+                ))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let state = slf.take_ready()?;
+        let ready = state
+            .availability_dates(node_id, &parsed)
+            .map_err(statements_to_py)?;
+        slf.inner = Some(BuilderState::Ready(ready));
+        Ok(slf)
+    }
+
     /// Add a computed node with a formula.
     ///
     /// Parameters

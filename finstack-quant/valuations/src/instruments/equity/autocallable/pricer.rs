@@ -23,10 +23,10 @@ pub struct AutocallableMcPricer {
 }
 
 impl AutocallableMcPricer {
-    /// Create a new autocallable MC pricer with default config.
+    /// Create an autocallable MC pricer with antithetic variance reduction.
     pub fn new() -> Self {
         Self {
-            config: PathDependentPricerConfig::default(),
+            config: PathDependentPricerConfig::default().with_antithetic(true),
         }
     }
 
@@ -288,7 +288,10 @@ impl AutocallableMcPricer {
         let engine_config = McEngineConfig {
             num_paths: merged_cfg.num_paths,
             time_grid,
-            target_ci_half_width: None,
+            target_ci_half_width: inst
+                .instrument_pricing_overrides
+                .model_config
+                .mc_target_ci_half_width,
             use_parallel: merged_cfg.use_parallel,
             chunk_size: Some(merged_cfg.chunk_size),
             path_capture: merged_cfg.path_capture.clone(),

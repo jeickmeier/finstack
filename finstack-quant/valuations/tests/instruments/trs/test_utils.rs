@@ -230,7 +230,10 @@ impl TestEquityTrsBuilder {
             .underlying(underlying)
             .financing(financing)
             .schedule(schedule)
-            .side(self.side);
+            .side(self.side)
+            .dividend_settlement(
+                finstack_quant_valuations::instruments::equity::TrsDividendSettlement::OnDividendDate,
+            );
 
         if let Some(level) = self.initial_level {
             builder = builder.initial_level(level);

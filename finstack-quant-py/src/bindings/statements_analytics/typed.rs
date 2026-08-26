@@ -1,5 +1,6 @@
 //! Typed Python wrappers for statement-analysis configs and root results.
 
+use crate::bindings::core::money::PyMoney;
 use crate::bindings::pandas_utils::{
     serde_rows_to_dataframe_with_schema, table_to_dataframe, ColumnSchema,
 };
@@ -7,6 +8,7 @@ use crate::bindings::statements::evaluator::PyStatementResult;
 use crate::errors::display_to_py;
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements::evaluator::StatementResult;
+use finstack_quant_statements::types::AmountOrScalar;
 use finstack_quant_statements_analytics::analysis::{
     BridgeChart as RustBridgeChart, ParameterSpec, ScenarioDefinition,
     ScenarioDiff as RustScenarioDiff, ScenarioResults, ScenarioSet as RustScenarioSet,
@@ -59,11 +61,16 @@ fn sensitivity_mode_name(mode: SensitivityMode) -> &'static str {
     }
 }
 
-fn extract_overrides(value: &Bound<'_, PyAny>) -> PyResult<IndexMap<String, f64>> {
+fn extract_overrides(value: &Bound<'_, PyAny>) -> PyResult<IndexMap<String, AmountOrScalar>> {
     let values = value.cast::<PyDict>()?;
     let mut overrides = IndexMap::with_capacity(values.len());
     for (node_id, value) in values.iter() {
-        overrides.insert(node_id.extract()?, value.extract()?);
+        let value = if let Ok(money) = value.extract::<PyRef<'_, PyMoney>>() {
+            AmountOrScalar::Amount(money.inner)
+        } else {
+            AmountOrScalar::scalar(value.extract()?)
+        };
+        overrides.insert(node_id.extract()?, value);
     }
     Ok(overrides)
 }

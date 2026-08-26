@@ -38,22 +38,22 @@ paths return `finstack_quant_core::Result`.
 valuation and per-instrument credit context:
 
 ```rust
-use finstack_quant_core::dates::PeriodId;
+use finstack_quant_core::{currency::Currency, dates::PeriodId, money::Money};
 use finstack_quant_statements::builder::ModelBuilder;
-use finstack_quant_statements::types::AmountOrScalar;
+use finstack_quant_statements::checks::{builtins::NonFiniteCheck, CheckSuite};
 use finstack_quant_statements_analytics::analysis::CorporateAnalysisBuilder;
 use finstack_quant_valuations::instruments::equity::dcf_equity::TerminalValueSpec;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let model = ModelBuilder::new("lbo-demo")
         .periods("2025Q1..Q4", None)?
-        .value(
+        .value_money(
             "revenue",
             &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(10_000_000.0)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(10_500_000.0)),
-                (PeriodId::quarter(2025, 3), AmountOrScalar::scalar(11_000_000.0)),
-                (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(11_500_000.0)),
+                (PeriodId::quarter(2025, 1), Money::new(10_000_000.0, Currency::USD)),
+                (PeriodId::quarter(2025, 2), Money::new(10_500_000.0, Currency::USD)),
+                (PeriodId::quarter(2025, 3), Money::new(11_000_000.0, Currency::USD)),
+                (PeriodId::quarter(2025, 4), Money::new(11_500_000.0, Currency::USD)),
             ],
         )
         .compute("ebitda", "revenue * 0.25")?
@@ -61,10 +61,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_meta("currency", serde_json::json!("USD"))
         .build()?;
 
+    let checks = CheckSuite::builder("corporate")
+        .add_check(NonFiniteCheck { nodes: vec![] })
+        .build();
+
     let analysis = CorporateAnalysisBuilder::new(model)
         .dcf(0.10, TerminalValueSpec::GordonGrowth { growth_rate: 0.02 })
         .net_debt_override(20_000_000.0)
-        .coverage_node("ebitda")
+        .checks(checks)
         .analyze()?;
 
     if let Some(equity) = &analysis.equity {
@@ -75,15 +79,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`dcf()` reads the free-cash-flow series from a node named `ufcf`.
-`net_debt_override` only takes effect when `dcf()` was called first.
-`coverage_node` defaults to `"ebitda"`. Add `.market(ctx)` and `.as_of(date)`
-when the model needs curve lookups during **statement evaluation** (for
-example `cs.interest`). DCF discounting stays WACC-only and does not read
-discount curves from the market. Year-end DCF (`mid_year_convention = false`)
-is the default. `.ltv_value_node("enterprise_value")` supplies a per-period
-LTV denominator; otherwise a positive DCF EV is broadcast as a
-constant-denominator path (current valuation versus forward debt).
+`dcf()` reads a monetary free-cash-flow series from `ufcf`; its currency must
+match `model.meta["currency"]`. Valuation and credit analysis require a
+`CheckSuite` containing `NonFiniteCheck`; production three-statement models
+should use `three_statement_checks`. Credit analysis also requires explicit
+`.cfads_node(...)` and `.interest_coverage_node(...)` mappings. `.as_of(date)`
+is the DCF valuation date and, with `.market(ctx)`, the statement visibility and
+curve date. DCF discounting remains WACC-only. `.ltv_value_node(...)` supplies a
+per-period denominator; otherwise a positive DCF EV is broadcast.
 
 ## Module layout
 
@@ -117,11 +120,11 @@ Item-level detail is in the rustdoc:
 ## Workflows
 
 **Scenarios and variance.** `ScenarioSet` is an ordered map of named
-`ScenarioDefinition`s, each an optional `parent` plus `overrides: node_id → f64`.
-Parent chains may be arbitrarily deep but must be acyclic; a child's overrides
-win over its ancestors' for the same node, and `trace` shows the resolution
-chain. `evaluate_all(&model)` runs every case; `diff(&results, baseline,
-comparison, metrics, periods)` compares two and returns a `ScenarioDiff`;
+`ScenarioDefinition`s, each with an optional `parent` and typed
+`AmountOrScalar` node overrides. Child overrides win over ancestors, and
+`trace` shows the resolution chain. `evaluate_all(&model)` runs every case;
+`diff(&results, baseline, comparison, metrics, periods)` returns a
+`ScenarioDiff`;
 `to_comparison_table` renders the set as a `TableEnvelope`.
 `VarianceAnalyzer::new(&baseline, &comparison)` then `.compute(&config)` yields a
 `VarianceReport`, and `.bridge_decomposition(...)` a `BridgeChart`.
@@ -130,16 +133,14 @@ comparison, metrics, periods)` compares two and returns a `ScenarioDiff`;
 `finstack-quant-statements`, not here.
 
 **Credit and covenants.** `compute_credit_context` derives coverage, leverage,
-and LTV-style metrics from a `StatementResult` plus its capital-structure
-cashflows. LTV is a path (`debt_t / value_t`); pass
-`reference_values: Option<&[(PeriodId, f64)]>` and broadcast a scalar EV as
-one entry per period. Metrics include cash DSCR, total (PIK) DSCR, and
-`dscr_incl_fees` / `dscr_incl_fees_min`
-(`coverage / (interest_cash + principal + fees)`). `StatementsAdapter`
-implements the covenants crate's `ModelTimeSeries` trait over a statement
-result, so `forecast_covenant`, `forecast_covenants`, and `forecast_breaches`
-reach `finstack-quant-covenants` without that crate depending on statements.
-`to_table` renders a `CovenantForecast` as a `TableEnvelope`.
+and LTV metrics from a `StatementResult` plus capital-structure cashflows.
+`CreditNumeratorNodes` separates CFADS for DSCR from EBITDA/EBIT for interest
+coverage. Instrument cashflows must already be in the reporting currency;
+mixed-currency ratios fail. LTV is `debt_t / value_t`; scalar EV references may
+be broadcast across periods. Metrics include cash DSCR, total (PIK) DSCR, and
+fee-inclusive DSCR. `StatementsAdapter` implements the covenants crate's
+`ModelTimeSeries` bridge, so covenant forecasts do not make that crate depend
+on statements. `to_table` renders a `CovenantForecast` as a `TableEnvelope`.
 
 **Checks.** `analysis::checks` extends the structural checks in
 `finstack_quant_statements::checks::builtins` with cross-statement
@@ -193,12 +194,10 @@ trait objects, and both error if no configuration was supplied.
   `2.0` means `2.0x`.
 - Percentage-style inputs (WACC, growth rates, discounts) use decimal form:
   `0.10` means `10%`.
-- `ScenarioDefinition.overrides` are broadcast as explicit scalar values across
-  **forecast** periods only, so historical actuals survive when the model
-  declares an actuals cutoff. With no cutoff every period is a forecast period
-  and the override applies throughout. Overrides ride the statements crate's
-  `Value > Forecast > Formula` precedence, so they replace forecasts and
-  formulas alike.
+- `ScenarioDefinition.overrides` preserve scalar/monetary type and currency and
+  are broadcast across **forecast** periods only, so historical actuals survive.
+  Incompatible target-node units fail before evaluation. Overrides use the
+  statements crate's `Value > Forecast > Formula` precedence.
 - Monetary outputs (`equity_value`, `enterprise_value`, `net_debt`,
   `terminal_value_pv`) are `Money` in the evaluated model's currency; coverage
   and leverage metrics are unitless scalars.

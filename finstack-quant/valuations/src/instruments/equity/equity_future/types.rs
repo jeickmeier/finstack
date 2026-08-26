@@ -217,7 +217,17 @@ impl EquityFuture {
 
     fn dividend_yield(&self, market: &MarketContext) -> finstack_quant_core::Result<f64> {
         self.div_yield_id.as_ref().map_or(Ok(0.0), |id| {
-            let yield_value = crate::metrics::scalar_numeric_value(market.get_price(id)?);
+            let yield_value = match market.get_price(id)? {
+                finstack_quant_core::market_data::scalars::MarketScalar::Unitless(value) => *value,
+                finstack_quant_core::market_data::scalars::MarketScalar::Price(money) => {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "EquityFuture '{}' dividend yield '{}' must be unitless, got Price({})",
+                        self.id,
+                        id,
+                        money.currency()
+                    )));
+                }
+            };
             if !yield_value.is_finite() {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "EquityFuture '{}' dividend yield must be finite",
@@ -283,7 +293,16 @@ impl EquityFuture {
         let equity_vol = market
             .get_surface(&quanto.equity_vol_surface_id)?
             .value_clamped(t, domestic_forward);
-        let fx_spot = crate::metrics::scalar_numeric_value(market.get_price(&quanto.fx_spot_id)?);
+        let fx_spot = match market.get_price(&quanto.fx_spot_id)? {
+            finstack_quant_core::market_data::scalars::MarketScalar::Unitless(value) => *value,
+            finstack_quant_core::market_data::scalars::MarketScalar::Price(money) => {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "EquityFuture quanto FX spot '{}' must be unitless settlement-per-underlying, got Price({})",
+                    quanto.fx_spot_id,
+                    money.currency()
+                )));
+            }
+        };
         if !fx_spot.is_finite() || fx_spot <= 0.0 {
             return Err(finstack_quant_core::Error::Validation(
                 "EquityFuture quanto FX spot must be finite and positive".to_string(),
@@ -599,5 +618,23 @@ mod tests {
             .to_string()
             .contains("forward must be finite and positive"));
         assert!(future.spot_delta(&market, as_of).is_err());
+    }
+
+    #[test]
+    fn dividend_yield_rejects_money_scalar() {
+        let as_of = date!(2026 - 01 - 01);
+        let future = EquityFuture::example().expect("example future");
+        let market = MarketContext::new()
+            .insert(flat_discount("EUR-OIS", as_of, 0.03))
+            .insert_price("SX5E-SPOT", MarketScalar::Unitless(100.0))
+            .insert_price(
+                "SX5E-DIV",
+                MarketScalar::Price(Money::new(0.02, Currency::EUR)),
+            );
+
+        let error = future
+            .fair_price(&market, as_of)
+            .expect_err("money-valued dividend yield must fail");
+        assert!(error.to_string().contains("must be unitless"));
     }
 }

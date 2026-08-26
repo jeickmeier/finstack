@@ -41,8 +41,9 @@ forecast can never silently shadow a formula it was not declared alongside.
 
 The actuals boundary comes from the second argument to `ModelBuilder::periods`
 (`actuals_until`). `Evaluator::evaluate_with_market` additionally applies the
-`as_of` date as a visibility cutoff: explicit values on actual periods starting
-after `as_of` are hidden and the node falls back through forecast/formula.
+`as_of` visibility cutoff. Explicit actuals become visible on their node-level
+availability date; when omitted, availability defaults to the period's
+exclusive end date.
 
 ## Public surface
 

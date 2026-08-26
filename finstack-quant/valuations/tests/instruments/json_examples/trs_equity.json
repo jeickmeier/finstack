@@ -2,6 +2,7 @@
   "instrument": {
     "spec": {
       "attributes": {},
+      "dividend_settlement": "on_dividend_date",
       "dividend_tax_rate": 0.0,
       "financing": {
         "compounding": "term_rate",

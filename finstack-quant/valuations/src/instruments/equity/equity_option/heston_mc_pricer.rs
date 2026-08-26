@@ -6,7 +6,7 @@
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::equity::equity_option::pricer::{
-    collect_inputs_extended, require_european,
+    collect_inputs_extended, require_european, resolve_lifecycle_value,
 };
 use crate::instruments::equity::equity_option::types::EquityOption;
 use crate::models::closed_form::heston::HestonParams as ClosedFormHestonParams;
@@ -53,8 +53,8 @@ impl EquityOptionHestonMcPricer {
         market: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<(Money, f64)> {
-        if as_of > inst.expiry {
-            return Ok((Money::new(0.0, inst.notional.currency()), 0.0));
+        if let Some(value) = resolve_lifecycle_value(inst, market, as_of)? {
+            return Ok((value, 0.0));
         }
         // The escrowed-dividend identity used by `collect_inputs_extended`
         // is Black-Scholes-specific; reject it for Heston stochastic vol.
@@ -200,6 +200,17 @@ impl Pricer for EquityOptionHestonMcPricer {
             .ok_or_else(|| {
                 PricingError::type_mismatch(InstrumentType::EquityOption, instrument.key())
             })?;
+        if let Some(pv) =
+            resolve_lifecycle_value(equity_option, market, as_of).map_err(|error| {
+                PricingError::model_failure_with_context(
+                    error.to_string(),
+                    PricingErrorContext::from_instrument(equity_option)
+                        .model(ModelKey::MonteCarloHeston),
+                )
+            })?
+        {
+            return Ok(ValuationResult::stamped(equity_option.id(), as_of, pv));
+        }
         require_european(equity_option, "Heston Monte Carlo").map_err(|e| {
             PricingError::model_failure_with_context(
                 e.to_string(),

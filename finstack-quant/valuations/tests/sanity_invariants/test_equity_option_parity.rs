@@ -81,9 +81,11 @@ fn create_option(expiry: Date, option_type: OptionType) -> EquityOption {
         option_type,
         exercise_style: ExerciseStyle::European,
         expiry,
-        notional: Money::new(1.0, Currency::USD), // Per-unit pricing
+        notional: Money::new(1.0, Currency::USD),
         day_count: DayCount::Act365F,
+        theta_day_basis: Default::default(),
         settlement: SettlementType::Cash,
+        exercise: None,
         discount_curve_id: "USD-OIS".into(),
         spot_id: "SPOT".into(),
         vol_surface_id: "SPOT_VOL".into(),

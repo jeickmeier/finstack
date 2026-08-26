@@ -70,7 +70,7 @@
           "description": "Date of the event"
         },
         "deal_id": {
-          "description": "Deal identifier for American-style waterfalls",
+          "description": "Deal identifier. Required for every event in an American-style\ndeal-by-deal waterfall.",
           "type": [
             "string",
             "null"
@@ -351,7 +351,7 @@
         },
         {
           "const": "american",
-          "description": "American style: chronological fund-level allocation with per-deal\ntagging of `Proceeds` rows. Balances (unreturned capital, GP carry)\nare threaded fund-wide, so deal-level carve-out economics are not\nmodeled; fund-level distributions are allocated untagged.",
+          "description": "American style: deal-by-deal allocation. Every event must carry a\nnon-empty `deal_id`; capital, preferred return, catch-up, and carry are\ntracked independently for each deal, while clawback remains a fund-level\nlifetime reconciliation.",
           "type": "string"
         }
       ]

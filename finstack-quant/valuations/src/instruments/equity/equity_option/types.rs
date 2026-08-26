@@ -25,19 +25,16 @@
 //! S_adj = S - Σ D_i × e^{-r × t_i}  (for all dividends D_i at times t_i before expiry)
 //! ```
 //!
-//! This is the QuantLib default approach and is supported via the
-//! `discrete_dividends` field. When a non-empty discrete schedule is provided,
-//! the pricer applies spot adjustment and sets continuous dividend yield `q = 0`.
-//! When no discrete schedule is provided, pricing uses the continuous `q` model.
+//! The `discrete_dividends` field selects the model by exercise style:
+//! - European pricing uses the escrowed-dividend spot adjustment.
+//! - American and Bermudan tree pricing evolves the escrowed stock component
+//!   but restores remaining dividend value at each exercise node. This creates
+//!   the contractual ex-date jump in the exercise decision while retaining a
+//!   stable recombining lattice.
 //!
-//! ## American Exercise Limitation
-//!
-//! European pricing with discrete dividends uses the escrowed-dividend spot
-//! adjustment directly. American pricing reuses the tree engine with that
-//! adjusted spot and a continuous-yield-style state description, which is a
-//! practical approximation rather than a full discrete-dividend early-exercise
-//! model. Near large ex-dividend dates, prefer a dedicated discrete-dividend
-//! American engine or treat the result as approximate.
+//! When no discrete schedule is provided, pricing uses the continuous `q`
+//! model. The one-dimensional PDE pricer rejects American discrete-dividend
+//! contracts; select the tree pricer for that combination.
 //!
 //! ## Example: Manual Discrete Dividend Adjustment
 //!
@@ -79,6 +76,83 @@ use super::parameters::{EquityOptionMarketData, EquityOptionParams};
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::validation;
 
+/// Day basis used to convert annual option theta into a per-day amount.
+#[derive(
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum ThetaDayBasis {
+    /// Calendar-day theta, annual theta divided by 365.
+    #[default]
+    #[serde(rename = "calendar_365")]
+    Calendar365,
+    /// Trading-day theta, annual theta divided by 252.
+    #[serde(rename = "trading_252")]
+    Trading252,
+}
+
+impl ThetaDayBasis {
+    pub(crate) const fn days_per_year(self) -> f64 {
+        match self {
+            Self::Calendar365 => 365.0,
+            Self::Trading252 => 252.0,
+        }
+    }
+}
+
+/// Observed exercise or expiry state for an equity option.
+///
+/// From `date` onward the option pricer uses this fixed lifecycle state rather
+/// than re-running the live option model. Cash settlement fixes the intrinsic
+/// payoff from `spot`; physical settlement retains the marked delivery
+/// obligation until `settlement_date`.
+#[derive(
+    PartialEq, Clone, Copy, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
+#[serde(deny_unknown_fields)]
+pub struct EquityOptionExercise {
+    /// Exercise date, or the expiry observation date for an unexercised option.
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    pub date: Date,
+    /// Observed underlying level used to determine the fixed cash payoff.
+    pub spot: f64,
+    /// Contractual cash-payment or physical-delivery date.
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    pub settlement_date: Date,
+    /// Whether the option was exercised or automatically assigned.
+    pub exercised: bool,
+}
+
+impl EquityOptionExercise {
+    /// Create an observed exercise or expiry state.
+    ///
+    /// # Arguments
+    ///
+    /// * `date` - Exercise date, or expiry date for an unexercised observation.
+    /// * `spot` - Positive finite observed underlying level in strike-price units.
+    /// * `settlement_date` - Cash-payment or physical-delivery date, on or after `date`.
+    /// * `exercised` - Whether exercise or assignment occurred.
+    #[must_use]
+    pub fn new(date: Date, spot: f64, settlement_date: Date, exercised: bool) -> Self {
+        Self {
+            date,
+            spot,
+            settlement_date,
+            exercised,
+        }
+    }
+}
+
 /// Equity option instrument
 #[derive(
     PartialEq,
@@ -113,10 +187,24 @@ pub struct EquityOption {
     #[serde(default = "crate::serde_defaults::day_count_act365f")]
     #[builder(default = finstack_quant_core::dates::DayCount::Act365F)]
     pub day_count: finstack_quant_core::dates::DayCount,
+    /// Basis used for the reported per-day theta.
+    ///
+    /// Defaults to calendar-day theta (`annual theta / 365`). Select
+    /// `Trading252` explicitly for a trading-day risk convention.
+    #[serde(default)]
+    #[builder(default)]
+    pub theta_day_basis: ThetaDayBasis,
     /// Settlement type (physical or cash)
     #[serde(default = "crate::serde_defaults::settlement_cash")]
     #[builder(default = SettlementType::Cash)]
     pub settlement: SettlementType,
+    /// Observed exercise or expiry state.
+    ///
+    /// Required from expiry onward. It fixes cash-settled intrinsic value or
+    /// identifies a physical-delivery obligation through its settlement date.
+    #[builder(optional)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exercise: Option<EquityOptionExercise>,
     /// Discount curve ID for present value calculations
     pub discount_curve_id: CurveId,
     /// Equity spot price identifier
@@ -230,10 +318,11 @@ impl EquityOption {
             .build()
     }
 
-    /// Validate structural invariants.
+    /// Validate structural and lifecycle invariants.
     ///
-    /// Checks that the strike is finite and positive, and the notional amount
-    /// is finite and non-zero.
+    /// Checks strike/notional validity and, when an exercise observation is
+    /// present, verifies its date, spot, settlement date, and exercise-style
+    /// compatibility.
     pub fn validate(&self) -> finstack_quant_core::Result<()> {
         validation::validate_f64_finite(self.strike, "equity option strike")?;
         validation::validate_f64_positive(self.strike, "equity option strike")?;
@@ -242,6 +331,58 @@ impl EquityOption {
             return Err(finstack_quant_core::Error::Validation(
                 "Equity option notional must be non-zero".into(),
             ));
+        }
+        for (_, amount) in &self.discrete_dividends {
+            validation::validate_f64_positive(*amount, "equity option discrete dividend")?;
+        }
+        if self
+            .discrete_dividends
+            .windows(2)
+            .any(|window| window[0].0 >= window[1].0)
+        {
+            return Err(finstack_quant_core::Error::Validation(
+                "Equity option discrete dividend dates must be strictly increasing".into(),
+            ));
+        }
+        if let Some(exercise) = self.exercise {
+            validation::validate_f64_finite(exercise.spot, "equity option exercise spot")?;
+            validation::validate_f64_positive(exercise.spot, "equity option exercise spot")?;
+            if exercise.date > self.expiry {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "Equity option exercise date {} is after expiry {}",
+                    exercise.date, self.expiry
+                )));
+            }
+            if exercise.settlement_date < exercise.date {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "Equity option settlement date {} precedes exercise date {}",
+                    exercise.settlement_date, exercise.date
+                )));
+            }
+            if !exercise.exercised && exercise.date != self.expiry {
+                return Err(finstack_quant_core::Error::Validation(
+                    "An unexercised equity option observation must be dated at expiry".into(),
+                ));
+            }
+            match self.exercise_style {
+                ExerciseStyle::European if exercise.date != self.expiry => {
+                    return Err(finstack_quant_core::Error::Validation(
+                        "European equity option exercise must occur on expiry".into(),
+                    ));
+                }
+                ExerciseStyle::Bermudan
+                    if exercise.exercised
+                        && self
+                            .exercise_schedule
+                            .as_ref()
+                            .is_none_or(|dates| !dates.contains(&exercise.date)) =>
+                {
+                    return Err(finstack_quant_core::Error::Validation(
+                        "Bermudan equity option exercise date is not in exercise_schedule".into(),
+                    ));
+                }
+                _ => {}
+            }
         }
         Ok(())
     }
@@ -406,7 +547,9 @@ impl EquityOption {
             expiry: option_params.expiry,
             notional: option_params.notional,
             day_count: finstack_quant_core::dates::DayCount::Act365F,
+            theta_day_basis: ThetaDayBasis::Calendar365,
             settlement: option_params.settlement,
+            exercise: None,
             discount_curve_id,
             spot_id: underlying_params.spot_id.clone(),
             vol_surface_id,
@@ -545,15 +688,7 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for EquityOpt
         market: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<Option<f64>> {
-        use crate::instruments::common_impl::traits::Instrument;
-
-        if as_of >= self.expiry {
-            return Ok(Some(0.0));
-        }
-        let rolled = (as_of + time::Duration::days(1)).min(self.expiry);
-        let base = self.value(market, as_of)?.amount();
-        let rolled_value = self.value(market, rolled)?.amount();
-        Ok(Some(rolled_value - base))
+        Ok(Some(self.greeks(market, as_of)?.theta))
     }
 
     fn option_rho_bp(
@@ -1026,13 +1161,14 @@ mod tests {
         let as_of = expiry;
         let mut option = base_option(expiry);
         option.notional = Money::new(50.0, Currency::USD);
+        option.exercise = Some(EquityOptionExercise::new(expiry, 120.0, expiry, true));
         let curves = build_market_context(as_of, 120.0, 0.25, 0.01, 0.0);
 
         let pv = option.value(&curves, as_of).expect("should succeed");
         assert_eq!(pv.amount(), (120.0 - 100.0) * 50.0);
 
         let greeks = option.greeks(&curves, as_of).expect("should succeed");
-        assert_eq!(greeks.delta, 50.0);
+        assert_eq!(greeks.delta, 0.0);
         assert_eq!(greeks.gamma, 0.0);
         assert_eq!(greeks.vega, 0.0);
         assert_eq!(greeks.theta, 0.0);

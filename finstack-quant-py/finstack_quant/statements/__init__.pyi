@@ -1817,6 +1817,35 @@ class ModelBuilder:
         """
         ...
 
+    def availability_dates(
+        self,
+        node_id: str,
+        availability_dates: list[tuple[str, date | str]],
+    ) -> ModelBuilder:
+        """
+        Set when explicit observations became available point-in-time.
+
+        Parameters
+        ----------
+        node_id:
+            Existing value or mixed node.
+        availability_dates:
+            ``(period_id, available_on)`` pairs. Unspecified observations
+            default to the reporting period's exclusive end date.
+
+        Returns
+        -------
+        ModelBuilder
+            This builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If a period/date is invalid, the node does not exist, or the
+            builder was consumed.
+        """
+        ...
+
     def compute(self, node_id: str, formula: str) -> ModelBuilder:
         """
         Add a calculated node from a DSL formula.

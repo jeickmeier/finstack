@@ -23,10 +23,10 @@ pub struct CliquetOptionMcPricer {
 }
 
 impl CliquetOptionMcPricer {
-    /// Create a new cliquet option MC pricer with default config.
+    /// Create a cliquet MC pricer with antithetic variance reduction.
     pub fn new() -> Self {
         Self {
-            config: PathDependentPricerConfig::default(),
+            config: PathDependentPricerConfig::default().with_antithetic(true),
         }
     }
 
@@ -283,7 +283,10 @@ impl CliquetOptionMcPricer {
         let engine_config = McEngineConfig {
             num_paths: merged_cfg.num_paths,
             time_grid,
-            target_ci_half_width: None,
+            target_ci_half_width: inst
+                .instrument_pricing_overrides
+                .model_config
+                .mc_target_ci_half_width,
             use_parallel: merged_cfg.use_parallel,
             chunk_size: Some(merged_cfg.chunk_size),
             path_capture: merged_cfg.path_capture.clone(),
@@ -430,6 +433,7 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
+            .path_model(crate::instruments::equity::EquityPathModel::AtmTermGbm)
             .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .attributes(Attributes::new())
             .build()
@@ -580,6 +584,7 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
+            .path_model(crate::instruments::equity::EquityPathModel::AtmTermGbm)
             .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .attributes(Attributes::new())
             .build()
@@ -758,6 +763,7 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
+            .path_model(crate::instruments::equity::EquityPathModel::AtmTermGbm)
             .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .attributes(Attributes::new())
             .build()
@@ -778,6 +784,7 @@ mod tests {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .spot_id("SPX-SPOT".into())
             .vol_surface_id(CurveId::new("SPX-VOL"))
+            .path_model(crate::instruments::equity::EquityPathModel::AtmTermGbm)
             .div_yield_id_opt(Some(PriceId::new("SPX-DIV")))
             .attributes(Attributes::new())
             .build()
@@ -819,6 +826,22 @@ mod tests {
         }
         assert_eq!(
             result.measures[&crate::metrics::MetricId::custom("mc_num_paths")],
+            64.0
+        );
+        assert_eq!(
+            result.measures[&crate::metrics::MetricId::custom("mc_num_simulated_paths")],
+            128.0
+        );
+
+        option
+            .instrument_pricing_overrides
+            .model_config
+            .mc_antithetic = Some(false);
+        let unpaired = CliquetOptionMcPricer::default()
+            .price_dyn(&option, &market(as_of), as_of)
+            .expect("unpaired cliquet result");
+        assert_eq!(
+            unpaired.measures[&crate::metrics::MetricId::custom("mc_num_simulated_paths")],
             64.0
         );
     }

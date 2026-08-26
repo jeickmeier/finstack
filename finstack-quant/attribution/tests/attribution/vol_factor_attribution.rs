@@ -79,7 +79,9 @@ fn build_option() -> EquityOption {
         expiry: date!(2026 - 01 - 01), // 1Y to expiry from as_of
         notional: Money::new(1_000_000.0, Currency::USD),
         day_count: DayCount::Act365F,
+        theta_day_basis: Default::default(),
         settlement: SettlementType::Cash,
+        exercise: None,
         discount_curve_id: "USD-OIS".into(),
         spot_id: "EQ-SPOT".into(),
         vol_surface_id: "EQ-VOL".into(),

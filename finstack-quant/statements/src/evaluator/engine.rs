@@ -137,17 +137,16 @@ impl Evaluator {
     ///
     /// # As-of visibility
     ///
-    /// The `as_of` date is also the explicit-value visibility cutoff. Explicit
-    /// values on actual periods are visible only when `period.start <= as_of`.
-    /// Actual periods that start after `as_of` keep their place in the model
-    /// timeline, but their explicit values are hidden and the evaluator resolves
-    /// the node through forecast or formula fallbacks using the normal precedence
-    /// rules. This avoids leaking future actuals while preserving the current
-    /// actual period when the as-of date is on or after that period's start.
+    /// The `as_of` date is also the explicit-value visibility cutoff. Each
+    /// observation is visible only when its node-specific availability date is
+    /// on or before `as_of`. Observations without an explicit availability date
+    /// conservatively default to the reporting period's exclusive end date.
+    /// Unavailable actuals keep their place in the model timeline, but the node
+    /// resolves through forecast or formula fallbacks under normal precedence.
     ///
-    /// `actuals_until` still controls which periods are classified as actuals.
-    /// `as_of` only controls whether explicit values in those actual periods are
-    /// visible during this evaluation run.
+    /// `actuals_until` still classifies periods as actual or forecast.
+    /// Availability is observation-specific and only decides whether an
+    /// explicit actual value was known at this evaluation's point in time.
     ///
     /// # Arguments
     ///
@@ -283,9 +282,6 @@ impl Evaluator {
         let mut has_cs = false;
 
         for period in &model.periods {
-            let explicit_values_visible =
-                !period.is_actual || as_of.is_none_or(|as_of_date| period.start <= as_of_date);
-            let is_actual_for_eval = period.is_actual && explicit_values_visible;
             let (period_results, period_row, period_warnings) =
                 if let (Some(market_ctx), Some(as_of), Some(ref mut state), Some(insts)) =
                     (market_ctx, as_of, cs_state.as_mut(), instruments.as_ref())
@@ -293,8 +289,7 @@ impl Evaluator {
                     let (vals, row, warns, period_cs) = self.evaluate_period_dynamic(
                         model,
                         period,
-                        is_actual_for_eval,
-                        explicit_values_visible,
+                        period.is_actual,
                         &prepared.eval_order,
                         &historical,
                         &historical_cs,
@@ -313,8 +308,7 @@ impl Evaluator {
                     self.evaluate_period(
                         model,
                         &period.id,
-                        is_actual_for_eval,
-                        explicit_values_visible,
+                        period.is_actual,
                         &prepared.eval_order,
                         &historical,
                         &historical_cs,
@@ -535,7 +529,6 @@ impl Evaluator {
                 model,
                 &period.id,
                 period.is_actual,
-                true,
                 &prepared.eval_order,
                 &historical,
                 &historical_cs,
@@ -778,7 +771,6 @@ impl Evaluator {
         model: &FinancialModelSpec,
         period_id: &PeriodId,
         is_actual: bool,
-        explicit_values_visible: bool,
         eval_order: &[NodeId],
         context: &mut EvaluationContext,
         seed_offset: Option<u64>,
@@ -786,6 +778,11 @@ impl Evaluator {
         mut mc_z_cache: Option<&mut IndexMap<NodeId, IndexMap<PeriodId, f64>>>,
     ) -> Result<()> {
         let visibility_cutoff = self.visibility_cutoff;
+        let period = model
+            .periods
+            .iter()
+            .find(|period| period.id == *period_id)
+            .ok_or_else(|| Error::eval(format!("Period '{period_id}' not found in model")))?;
         for node_id in eval_order {
             if let Some(filter) = node_filter {
                 if !filter.contains(node_id.as_str()) {
@@ -808,13 +805,14 @@ impl Evaluator {
                     }
                 }
             }
-
+            let explicit_value_is_visible =
+                !period.is_actual || node_spec.explicit_value_is_visible(period, visibility_cutoff);
             let value = {
                 let source = resolve_node_value_with_policy(
                     node_spec,
                     period_id,
-                    is_actual,
-                    explicit_values_visible,
+                    is_actual && explicit_value_is_visible,
+                    explicit_value_is_visible,
                 )?;
                 let mut mc_z_wrapper: Option<&mut IndexMap<NodeId, IndexMap<PeriodId, f64>>> =
                     mc_z_cache.as_deref_mut();
@@ -861,7 +859,6 @@ impl Evaluator {
         model: &FinancialModelSpec,
         period_id: &PeriodId,
         is_actual: bool,
-        explicit_values_visible: bool,
         eval_order: &[NodeId],
         historical: &std::sync::Arc<PeriodHistory>,
         historical_cs: &std::sync::Arc<
@@ -878,7 +875,6 @@ impl Evaluator {
             model,
             period_id,
             is_actual,
-            explicit_values_visible,
             eval_order,
             &mut context,
             None,
@@ -916,7 +912,6 @@ impl Evaluator {
             model,
             period_id,
             is_actual,
-            true,
             eval_order,
             &mut context,
             Some(seed_offset),
@@ -1038,6 +1033,10 @@ mod tests {
         model.add_node(
             NodeSpec::new("revenue", NodeType::Mixed)
                 .with_values(values)
+                .with_availability_dates(IndexMap::from([(
+                    PeriodId::quarter(2025, 1),
+                    Date::from_calendar_date(2025, Month::January, 1).expect("date"),
+                )]))
                 .with_formula("123"),
         );
 

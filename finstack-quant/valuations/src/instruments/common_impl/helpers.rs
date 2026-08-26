@@ -415,11 +415,10 @@ pub fn resolve_mc_paths(
     Ok(n)
 }
 
-/// Apply the per-instrument `mc_paths` override (if any) to a base
+/// Apply per-instrument path count and antithetic overrides to a base
 /// `PathDependentPricerConfig`, enforcing [`mc_defaults::MAX_MC_PATHS`].
 ///
-/// Centralizes the merge logic shared by all path-dependent MC pricers
-/// (autocallable, cliquet, …).
+/// Centralizes the merge logic shared by path-dependent MC pricers.
 ///
 /// # Errors
 ///
@@ -433,6 +432,9 @@ pub fn merged_path_config(
 > {
     let mut c = base.clone();
     c.num_paths = resolve_mc_paths(overrides.model_config.mc_paths, c.num_paths)?;
+    if let Some(antithetic) = overrides.model_config.mc_antithetic {
+        c.antithetic = antithetic;
+    }
     Ok(c)
 }
 

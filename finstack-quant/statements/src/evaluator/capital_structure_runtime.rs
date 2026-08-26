@@ -57,7 +57,6 @@ impl Evaluator {
         model: &FinancialModelSpec,
         period: &Period,
         is_actual: bool,
-        explicit_values_visible: bool,
         eval_order: &[crate::types::NodeId],
         historical: &Arc<PeriodHistory>,
         historical_cs: &Arc<
@@ -89,7 +88,6 @@ impl Evaluator {
             model,
             &period_id,
             is_actual,
-            explicit_values_visible,
             eval_order,
             &mut context,
             None,
@@ -131,7 +129,6 @@ impl Evaluator {
                 model,
                 &period_id,
                 is_actual,
-                explicit_values_visible,
                 eval_order,
                 &mut context,
                 None,

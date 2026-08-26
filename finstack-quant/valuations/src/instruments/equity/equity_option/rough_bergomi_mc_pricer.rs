@@ -9,7 +9,9 @@
 //! hybrid scheme (`RiemannLiouvilleVolterra`). This differs from the rough
 //! Heston model, which uses standard Brownian motion with a singular kernel.
 
-use super::pricer::{collect_inputs_extended, option_currency, require_european};
+use super::pricer::{
+    collect_inputs_extended, option_currency, require_european, resolve_lifecycle_value,
+};
 use super::types::EquityOption;
 use crate::instruments::common_impl::parameters::OptionType;
 use crate::instruments::common_impl::traits::Instrument;
@@ -272,20 +274,27 @@ impl crate::pricer::Pricer for EquityOptionRoughBergomiMcPricer {
                     instrument.key(),
                 )
             })?;
+        if let Some(pv) =
+            resolve_lifecycle_value(equity_option, market, as_of).map_err(|error| {
+                crate::pricer::PricingError::model_failure_with_context(
+                    error.to_string(),
+                    crate::pricer::PricingErrorContext::from_instrument(equity_option)
+                        .model(crate::pricer::ModelKey::MonteCarloRoughBergomi),
+                )
+            })?
+        {
+            return Ok(crate::results::ValuationResult::stamped(
+                equity_option.id(),
+                as_of,
+                pv,
+            ));
+        }
         require_european(equity_option, "Rough Bergomi Monte Carlo").map_err(|e| {
             crate::pricer::PricingError::model_failure_with_context(
                 e.to_string(),
                 crate::pricer::PricingErrorContext::from_instrument(equity_option),
             )
         })?;
-
-        if as_of > equity_option.expiry {
-            return Ok(crate::results::ValuationResult::stamped(
-                equity_option.id(),
-                as_of,
-                Money::new(0.0, option_currency(equity_option)),
-            ));
-        }
 
         // W-31: `collect_inputs_extended` applies the escrowed-dividend model
         // (spot shift + `q = 0`) when `discrete_dividends` is non-empty. The

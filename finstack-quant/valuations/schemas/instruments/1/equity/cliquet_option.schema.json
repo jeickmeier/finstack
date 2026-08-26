@@ -101,6 +101,10 @@
           },
           "type": "array"
         },
+        "path_model": {
+          "$ref": "#/$defs/EquityPathModel",
+          "description": "Explicit path model selection; required to acknowledge model risk."
+        },
         "payoff_type": {
           "$ref": "#/$defs/CliquetPayoffType",
           "default": "additive",
@@ -145,6 +149,7 @@
         "discount_curve_id",
         "spot_id",
         "vol_surface_id",
+        "path_model",
         "attributes"
       ],
       "type": "object"
@@ -163,6 +168,11 @@
           "type": "string"
         }
       ]
+    },
+    "EquityPathModel": {
+      "const": "atm_term_gbm",
+      "description": "Explicit stochastic model policy for path-dependent equity structures.",
+      "type": "string"
     },
     "InstrumentSchema": {
       "const": "finstack_quant.instrument/1",
@@ -211,6 +221,7 @@
             "currency": "USD"
           },
           "past_fixings": [],
+          "path_model": "atm_term_gbm",
           "payoff_type": "additive",
           "reset_dates": [
             "2024-03-29",

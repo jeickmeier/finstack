@@ -439,6 +439,36 @@ impl ModelBuilder<Ready> {
         self
     }
 
+    /// Set point-in-time availability dates for an existing value or mixed node.
+    ///
+    /// Explicit observations without an entry use the reporting period's
+    /// exclusive end date. Use this method for filing/release dates or
+    /// operational observations whose availability differs from period end.
+    ///
+    /// # Arguments
+    ///
+    /// * `node_id` - Existing node whose explicit observations are dated
+    /// * `availability_dates` - Slice of `(period, available_on)` pairs
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `node_id` does not exist. Whole-model validation
+    /// later rejects dates for periods that have no explicit observation.
+    #[must_use = "builder methods must be chained"]
+    pub fn availability_dates(
+        mut self,
+        node_id: &str,
+        availability_dates: &[(PeriodId, finstack_quant_core::dates::Date)],
+    ) -> Result<Self> {
+        let node = self.nodes.get_mut(node_id).ok_or_else(|| {
+            Error::build(format!(
+                "Cannot set availability dates for unknown node '{node_id}'"
+            ))
+        })?;
+        node.availability_dates = availability_dates.iter().copied().collect();
+        Ok(self)
+    }
+
     /// Add a calculated node with a formula.
     ///
     /// Calculated nodes derive their values from formulas only.

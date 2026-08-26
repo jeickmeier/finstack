@@ -378,6 +378,9 @@ fn test_equity_trs_with_past_start_date() {
             ScheduleParams::quarterly_act360(),
         ))
         .side(TrsSide::ReceiveTotalReturn)
+        .dividend_settlement(
+            finstack_quant_valuations::instruments::equity::TrsDividendSettlement::OnDividendDate,
+        )
         .build()
         .unwrap();
 
@@ -416,6 +419,9 @@ fn test_equity_trs_with_very_short_tenor_1_day() {
             ScheduleParams::quarterly_act360(),
         ))
         .side(TrsSide::ReceiveTotalReturn)
+        .dividend_settlement(
+            finstack_quant_valuations::instruments::equity::TrsDividendSettlement::OnDividendDate,
+        )
         .build()
         .unwrap();
 
@@ -536,6 +542,9 @@ fn test_equity_trs_with_zero_contract_size() {
             ScheduleParams::quarterly_act360(),
         ))
         .side(TrsSide::ReceiveTotalReturn)
+        .dividend_settlement(
+            finstack_quant_valuations::instruments::equity::TrsDividendSettlement::OnDividendDate,
+        )
         .build()
         .unwrap();
 
@@ -579,6 +588,9 @@ fn test_equity_trs_with_fractional_contract_size() {
             ScheduleParams::quarterly_act360(),
         ))
         .side(TrsSide::ReceiveTotalReturn)
+        .dividend_settlement(
+            finstack_quant_valuations::instruments::equity::TrsDividendSettlement::OnDividendDate,
+        )
         .build()
         .unwrap();
 

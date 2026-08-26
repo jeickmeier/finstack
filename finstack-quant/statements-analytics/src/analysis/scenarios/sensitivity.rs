@@ -7,7 +7,7 @@ use super::types::{
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements::error::{Error, Result};
 use finstack_quant_statements::evaluator::{Evaluator, StatementResult};
-use finstack_quant_statements::types::{AmountOrScalar, FinancialModelSpec};
+use finstack_quant_statements::types::{AmountOrScalar, FinancialModelSpec, NodeValueType};
 use indexmap::IndexMap;
 
 /// Sensitivity analyzer for financial models.
@@ -314,8 +314,20 @@ impl<'a> SensitivityAnalyzer<'a> {
         }
 
         if let Some(node) = model.nodes.get_mut(node_id) {
+            let typed_value = match node.value_type {
+                Some(NodeValueType::Monetary { currency }) => {
+                    AmountOrScalar::amount(value, currency)
+                }
+                Some(NodeValueType::Scalar) => AmountOrScalar::scalar(value),
+                None => {
+                    return Err(Error::invalid_input(format!(
+                        "Cannot override parameter '{node_id}' without a declared or inferred \
+                         value_type"
+                    )));
+                }
+            };
             let mut values = node.values.clone().unwrap_or_default();
-            values.insert(period_id, AmountOrScalar::scalar(value));
+            values.insert(period_id, typed_value);
             node.values = Some(values);
             Ok(())
         } else {
@@ -546,7 +558,9 @@ fn approx_equal(lhs: f64, rhs: f64) -> bool {
 mod tests {
     use super::*;
     use crate::analysis::scenarios::types::ParameterSpec;
+    use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::PeriodId;
+    use finstack_quant_core::money::Money;
     use finstack_quant_statements::builder::ModelBuilder;
 
     #[test]
@@ -869,5 +883,33 @@ mod tests {
         assert!(values[0].is_infinite());
         assert_eq!(values[1], 10.0);
         assert!(values[2].is_nan());
+    }
+
+    #[test]
+    fn monetary_sensitivity_preserves_node_currency() {
+        let period = PeriodId::quarter(2025, 1);
+        let model = ModelBuilder::new("money-sensitivity")
+            .periods("2025Q1..Q1", None)
+            .expect("periods")
+            .value_money("revenue", &[(period, Money::new(100_000.0, Currency::USD))])
+            .build()
+            .expect("model");
+        let analyzer = SensitivityAnalyzer::new(&model);
+        let mut config = SensitivityConfig::new(SensitivityMode::Diagonal);
+        config.add_parameter(ParameterSpec::new(
+            "revenue",
+            period,
+            100_000.0,
+            vec![110_000.0],
+        ));
+        config.add_target_metric("revenue");
+
+        let result = analyzer.run(&config).expect("sensitivity");
+        let shocked = result.scenarios[0]
+            .results
+            .get_money("revenue", &period)
+            .expect("monetary result");
+        assert_eq!(shocked.currency(), Currency::USD);
+        assert_eq!(shocked.amount(), 110_000.0);
     }
 }

@@ -1,7 +1,9 @@
 //! Scenario set integration tests.
 #![allow(clippy::expect_used)]
 
+use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::PeriodId;
+use finstack_quant_core::money::Money;
 use finstack_quant_statements::builder::ModelBuilder;
 use finstack_quant_statements::types::{AmountOrScalar, FinancialModelSpec};
 use finstack_quant_statements_analytics::analysis::{ScenarioDefinition, ScenarioSet};
@@ -45,7 +47,7 @@ fn evaluate_all_applies_overrides_and_evaluates() {
     );
 
     let mut downside_overrides = IndexMap::new();
-    downside_overrides.insert("revenue".to_string(), 90_000.0);
+    downside_overrides.insert("revenue".to_string(), AmountOrScalar::scalar(90_000.0));
     scenarios.insert(
         "downside".to_string(),
         ScenarioDefinition {
@@ -106,7 +108,7 @@ fn diff_uses_variance_analyzer() {
     );
 
     let mut downside_overrides = IndexMap::new();
-    downside_overrides.insert("revenue".to_string(), 90_000.0);
+    downside_overrides.insert("revenue".to_string(), AmountOrScalar::scalar(90_000.0));
     scenarios.insert(
         "downside".to_string(),
         ScenarioDefinition {
@@ -191,7 +193,7 @@ fn evaluate_all_preserves_actual_history_when_applying_overrides() {
     );
 
     let mut downside_overrides = IndexMap::new();
-    downside_overrides.insert("revenue".to_string(), 90_000.0);
+    downside_overrides.insert("revenue".to_string(), AmountOrScalar::scalar(90_000.0));
     scenarios.insert(
         "downside".to_string(),
         ScenarioDefinition {
@@ -258,7 +260,7 @@ fn comparison_table_emits_null_pct_on_zero_baseline() {
         },
     );
     let mut upside_overrides = IndexMap::new();
-    upside_overrides.insert("fcf".to_string(), 10_000.0);
+    upside_overrides.insert("fcf".to_string(), AmountOrScalar::scalar(10_000.0));
     scenarios.insert(
         "upside".to_string(),
         ScenarioDefinition {
@@ -287,4 +289,53 @@ fn comparison_table_emits_null_pct_on_zero_baseline() {
         }
         other => panic!("pct column should be nullable float, got {other:?}"),
     }
+}
+
+#[test]
+fn monetary_scenario_overrides_preserve_and_validate_currency() {
+    let period = PeriodId::quarter(2025, 1);
+    let model = ModelBuilder::new("money-scenario")
+        .periods("2025Q1..Q1", None)
+        .expect("periods")
+        .value_money("revenue", &[(period, Money::new(100_000.0, Currency::USD))])
+        .build()
+        .expect("model");
+
+    let valid = ScenarioSet {
+        scenarios: IndexMap::from([(
+            "upside".to_string(),
+            ScenarioDefinition {
+                parent: None,
+                overrides: IndexMap::from([(
+                    "revenue".to_string(),
+                    AmountOrScalar::amount(110_000.0, Currency::USD),
+                )]),
+            },
+        )]),
+    };
+    let results = valid.evaluate_all(&model).expect("same-currency override");
+    assert_eq!(
+        results.scenarios["upside"]
+            .get_money("revenue", &period)
+            .expect("money")
+            .amount(),
+        110_000.0
+    );
+
+    let invalid = ScenarioSet {
+        scenarios: IndexMap::from([(
+            "invalid".to_string(),
+            ScenarioDefinition {
+                parent: None,
+                overrides: IndexMap::from([(
+                    "revenue".to_string(),
+                    AmountOrScalar::amount(110_000.0, Currency::EUR),
+                )]),
+            },
+        )]),
+    };
+    let error = invalid
+        .evaluate_all(&model)
+        .expect_err("cross-currency override must fail");
+    assert!(error.to_string().contains("incompatible"));
 }

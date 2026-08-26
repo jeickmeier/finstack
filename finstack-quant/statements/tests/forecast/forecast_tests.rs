@@ -528,14 +528,15 @@ fn test_as_of_hidden_actuals_are_forecast_with_visible_base() {
         .build()
         .unwrap();
 
-    // as_of before Q2's start hides the Q2 actual value.
-    let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
+    // Q1's explicit value becomes visible at its exclusive period end; Q2
+    // remains hidden until its own period end.
+    let as_of = Date::from_calendar_date(2025, Month::April, 1).unwrap();
     let mut evaluator = Evaluator::new();
     let results = evaluator
         .evaluate_with_market(&model, &MarketContext::new(), as_of)
         .expect("hidden actuals must resolve through the forecast, not hard-error");
 
-    // Q1 actual is visible.
+    // Q1 actual is visible at its default period-end availability date.
     assert_eq!(
         results.get("revenue", &PeriodId::quarter(2025, 1)),
         Some(100_000.0)
@@ -549,6 +550,53 @@ fn test_as_of_hidden_actuals_are_forecast_with_visible_base() {
     assert!((q2 - 110_000.0).abs() < 1.0, "got q2={q2}");
     assert!((q3 - 121_000.0).abs() < 1.0, "got q3={q3}");
     assert!((q4 - 133_100.0).abs() < 1.0, "got q4={q4}");
+}
+
+#[test]
+fn test_explicit_availability_date_controls_actual_visibility() {
+    use finstack_quant_core::dates::Date;
+    use finstack_quant_core::market_data::context::MarketContext;
+    use time::Month;
+
+    let q4_2024 = PeriodId::quarter(2024, 4);
+    let q1_2025 = PeriodId::quarter(2025, 1);
+    let q2_2025 = PeriodId::quarter(2025, 2);
+    let release_date = Date::from_calendar_date(2025, Month::May, 15).unwrap();
+    let model = ModelBuilder::new("dated-actual")
+        .periods("2024Q4..2025Q2", Some("2025Q1"))
+        .unwrap()
+        .value(
+            "revenue",
+            &[
+                (q4_2024, AmountOrScalar::scalar(100.0)),
+                (q1_2025, AmountOrScalar::scalar(999.0)),
+            ],
+        )
+        .forecast(
+            "revenue",
+            ForecastSpec {
+                method: ForecastMethod::GrowthPct,
+                params: indexmap! { "rate".into() => serde_json::json!(0.10) },
+            },
+        )
+        .availability_dates("revenue", &[(q1_2025, release_date)])
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let before_release = Date::from_calendar_date(2025, Month::April, 1).unwrap();
+    let mut evaluator = Evaluator::new();
+    let hidden = evaluator
+        .evaluate_with_market(&model, &MarketContext::new(), before_release)
+        .unwrap();
+    assert!((hidden.get("revenue", &q1_2025).unwrap() - 110.0).abs() < 1e-12);
+
+    let mut evaluator = Evaluator::new();
+    let visible = evaluator
+        .evaluate_with_market(&model, &MarketContext::new(), release_date)
+        .unwrap();
+    assert_eq!(visible.get("revenue", &q1_2025), Some(999.0));
+    assert!((visible.get("revenue", &q2_2025).unwrap() - 1_098.9).abs() < 1e-12);
 }
 
 /// Two stochastic nodes configured with the same seed must not share

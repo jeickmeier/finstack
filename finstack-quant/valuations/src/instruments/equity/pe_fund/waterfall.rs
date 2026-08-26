@@ -28,10 +28,10 @@ pub enum WaterfallStyle {
     /// European style: aggregate all events at fund level
     #[default]
     European,
-    /// American style: chronological fund-level allocation with per-deal
-    /// tagging of `Proceeds` rows. Balances (unreturned capital, GP carry)
-    /// are threaded fund-wide, so deal-level carve-out economics are not
-    /// modeled; fund-level distributions are allocated untagged.
+    /// American style: deal-by-deal allocation. Every event must carry a
+    /// non-empty `deal_id`; capital, preferred return, catch-up, and carry are
+    /// tracked independently for each deal, while clawback remains a fund-level
+    /// lifetime reconciliation.
     American,
 }
 
@@ -386,7 +386,8 @@ pub struct FundEvent {
     pub amount: Money,
     /// Type of event
     pub kind: FundEventKind,
-    /// Deal identifier for American-style waterfalls
+    /// Deal identifier. Required for every event in an American-style
+    /// deal-by-deal waterfall.
     pub deal_id: Option<String>,
 }
 
@@ -730,56 +731,86 @@ impl<'a> EquityWaterfallEngine<'a> {
         Ok(())
     }
 
-    /// Run American-style waterfall (deal-tagged, chronological).
+    /// Run American-style waterfall (deal-by-deal, chronological).
     ///
-    /// Every distribution-type event is allocated through the waterfall in
-    /// strict chronological order — deal-tagged `Proceeds` have their ledger
-    /// rows tagged with the deal id, while fund-level `Distribution` events
-    /// (and `Proceeds` without a `deal_id`) are allocated untagged at fund
-    /// level. No event is ever dropped: silently discarding fund-level cash
-    /// would understate LP economics with no diagnostic. Contributions
-    /// increase the LP's unreturned-capital balance as of their event date,
-    /// so a distribution never returns capital that has not yet been called.
-    ///
-    /// LP/GP balances are threaded fund-wide across deals (return of capital
-    /// draws on the total unreturned balance, not a per-deal balance), so the
-    /// per-deal tagging is a reporting dimension; deal-level carve-out
-    /// economics are not modeled.
+    /// Every event must identify its deal. Capital, LP return history,
+    /// preferred-return hurdles, and GP carry are maintained independently for
+    /// each deal. Rows from all deals remain globally date-ordered because
+    /// `run` sorts the input events before dispatching here.
     fn run_american(
         &self,
         events: &[FundEvent],
         ledger_rows: &mut Vec<AllocationRow>,
     ) -> finstack_quant_core::Result<()> {
-        let mut lp_unreturned = 0.0;
-        let mut gp_carry_cum = 0.0;
+        #[derive(Default)]
+        struct DealState {
+            lp_unreturned: f64,
+            gp_carry_cum: f64,
+            rows: Vec<AllocationRow>,
+        }
+
         let currency = events
             .first()
             .ok_or(finstack_quant_core::InputError::TooFewPoints)?
             .amount
             .currency();
 
+        let mut events_by_deal: IndexMap<String, Vec<FundEvent>> = IndexMap::new();
         for event in events {
-            if event.kind == FundEventKind::Distribution || event.kind == FundEventKind::Proceeds {
-                let lp_distributed_so_far: f64 = ledger_rows.iter().map(|r| r.to_lp.amount()).sum();
-                let allocations = self.allocate_distribution(AllocationParams {
-                    total_amount: event.amount,
-                    initial_lp_unreturned: lp_unreturned,
-                    initial_gp_carry: gp_carry_cum,
-                    lp_distributed_cum_before: lp_distributed_so_far,
-                    all_events: events,
-                    prior_rows: ledger_rows,
-                    allocation_date: event.date,
-                    currency,
+            let deal_id = event
+                .deal_id
+                .as_deref()
+                .filter(|id| !id.trim().is_empty())
+                .ok_or_else(|| {
+                    finstack_quant_core::Error::Validation(format!(
+                        "American waterfall requires a non-empty deal_id on every event; \
+                         missing on {:?} event dated {}",
+                        event.kind, event.date
+                    ))
                 })?;
+            events_by_deal
+                .entry(deal_id.to_owned())
+                .or_default()
+                .push(event.clone());
+        }
 
-                for mut alloc in allocations {
-                    alloc.deal_id = event.deal_id.as_deref().map(Arc::from);
-                    lp_unreturned = alloc.lp_unreturned.amount();
-                    gp_carry_cum = alloc.gp_carry_cum.amount();
-                    ledger_rows.push(alloc);
-                }
-            } else if event.kind == FundEventKind::Contribution {
-                lp_unreturned += event.amount.amount();
+        let mut states: IndexMap<String, DealState> = IndexMap::new();
+        for event in events {
+            let deal_id = event.deal_id.as_deref().ok_or_else(|| {
+                finstack_quant_core::Error::Validation(
+                    "American waterfall event lost its validated deal_id".to_string(),
+                )
+            })?;
+            let deal_events = events_by_deal.get(deal_id).ok_or_else(|| {
+                finstack_quant_core::Error::Validation(format!(
+                    "American waterfall has no event ledger for deal '{deal_id}'"
+                ))
+            })?;
+            let state = states.entry(deal_id.to_owned()).or_default();
+
+            if event.kind == FundEventKind::Contribution {
+                state.lp_unreturned += event.amount.amount();
+                continue;
+            }
+
+            let lp_distributed_so_far: f64 = state.rows.iter().map(|row| row.to_lp.amount()).sum();
+            let allocations = self.allocate_distribution(AllocationParams {
+                total_amount: event.amount,
+                initial_lp_unreturned: state.lp_unreturned,
+                initial_gp_carry: state.gp_carry_cum,
+                lp_distributed_cum_before: lp_distributed_so_far,
+                all_events: deal_events,
+                prior_rows: &state.rows,
+                allocation_date: event.date,
+                currency,
+            })?;
+
+            for mut allocation in allocations {
+                allocation.deal_id = Some(Arc::from(deal_id));
+                state.lp_unreturned = allocation.lp_unreturned.amount();
+                state.gp_carry_cum = allocation.gp_carry_cum.amount();
+                state.rows.push(allocation.clone());
+                ledger_rows.push(allocation);
             }
         }
 
@@ -1542,8 +1573,14 @@ mod tests {
         let events = vec![
             FundEvent::contribution(
                 test_date(2020, 1, 1),
-                Money::new(2_000_000.0, test_currency()),
-            ),
+                Money::new(1_000_000.0, test_currency()),
+            )
+            .with_deal_id("A_late"),
+            FundEvent::contribution(
+                test_date(2020, 1, 1),
+                Money::new(1_000_000.0, test_currency()),
+            )
+            .with_deal_id("Z_early"),
             FundEvent::proceeds(
                 test_date(2022, 1, 1),
                 Money::new(1_000_000.0, test_currency()),
@@ -1579,8 +1616,14 @@ mod tests {
         let mut events = vec![
             FundEvent::contribution(
                 test_date(2020, 1, 1),
-                Money::new(2_000_000.0, test_currency()),
-            ),
+                Money::new(1_000_000.0, test_currency()),
+            )
+            .with_deal_id("deal_a"),
+            FundEvent::contribution(
+                test_date(2020, 1, 1),
+                Money::new(1_000_000.0, test_currency()),
+            )
+            .with_deal_id("deal_b"),
             FundEvent::proceeds(
                 test_date(2022, 1, 1),
                 Money::new(1_500_000.0, test_currency()),
@@ -2360,10 +2403,7 @@ mod tests {
     }
 
     #[test]
-    fn american_allocates_fund_level_distributions() {
-        // Regression: fund-level `Distribution` events (no deal_id) in an
-        // American-style fund must flow through the waterfall, not be
-        // silently dropped.
+    fn american_rejects_events_without_deal_id() {
         let spec = WaterfallSpec::builder()
             .style(WaterfallStyle::American)
             .return_of_capital()
@@ -2382,24 +2422,14 @@ mod tests {
             ),
         ];
 
-        let engine = EquityWaterfallEngine::new(&spec);
-        let ledger = engine.run(&events).expect("runs");
-
-        let total_alloc: f64 = ledger
-            .rows
-            .iter()
-            .map(|r| r.to_lp.amount() + r.to_gp.amount())
-            .sum();
-        assert!(
-            (total_alloc - 1_500_000.0).abs() < 1e-6,
-            "fund-level distribution must be fully allocated, got {total_alloc}"
-        );
-        // Fund-level rows are untagged.
-        assert!(ledger.rows.iter().all(|r| r.deal_id.is_none()));
+        let error = EquityWaterfallEngine::new(&spec)
+            .run(&events)
+            .expect_err("American waterfall requires deal-tagged events");
+        assert!(error.to_string().contains("deal_id"));
     }
 
     #[test]
-    fn american_interleaves_deal_and_fund_level_events_chronologically() {
+    fn american_tracks_carry_independently_by_deal() {
         let spec = WaterfallSpec::builder()
             .style(WaterfallStyle::American)
             .return_of_capital()
@@ -2408,41 +2438,41 @@ mod tests {
             .expect("spec builds");
 
         let events = vec![
-            FundEvent::contribution(
-                test_date(2020, 1, 1),
-                Money::new(2_000_000.0, test_currency()),
-            ),
-            FundEvent::distribution(
-                test_date(2021, 6, 1),
-                Money::new(500_000.0, test_currency()),
-            ),
+            FundEvent::contribution(test_date(2020, 1, 1), Money::new(100.0, test_currency()))
+                .with_deal_id("WINNER"),
+            FundEvent::contribution(test_date(2020, 1, 1), Money::new(100.0, test_currency()))
+                .with_deal_id("LOSER"),
             FundEvent::proceeds(
                 test_date(2021, 1, 1),
-                Money::new(1_000_000.0, test_currency()),
-                "DEAL-1",
+                Money::new(150.0, test_currency()),
+                "WINNER",
+            ),
+            FundEvent::proceeds(
+                test_date(2022, 1, 1),
+                Money::new(50.0, test_currency()),
+                "LOSER",
             ),
         ];
 
-        let engine = EquityWaterfallEngine::new(&spec);
-        let ledger = engine.run(&events).expect("runs");
-
-        // Total cash conservation across deal and fund-level events.
-        let total_alloc: f64 = ledger
+        let ledger = EquityWaterfallEngine::new(&spec)
+            .run(&events)
+            .expect("deal-by-deal waterfall runs");
+        let winner_gp: f64 = ledger
             .rows
             .iter()
-            .map(|r| r.to_lp.amount() + r.to_gp.amount())
+            .filter(|row| row.deal_id.as_deref() == Some("WINNER"))
+            .map(|row| row.to_gp.amount())
             .sum();
-        assert!((total_alloc - 1_500_000.0).abs() < 1e-6);
-
-        // The earlier deal proceeds are allocated before the later
-        // fund-level distribution, and only deal rows carry the tag.
-        let first_row = ledger.rows.first().expect("rows");
-        assert_eq!(first_row.deal_id.as_deref(), Some("DEAL-1"));
-        assert!(ledger
+        let loser_gp: f64 = ledger
             .rows
             .iter()
-            .filter(|r| r.date == test_date(2021, 6, 1))
-            .all(|r| r.deal_id.is_none()));
+            .filter(|row| row.deal_id.as_deref() == Some("LOSER"))
+            .map(|row| row.to_gp.amount())
+            .sum();
+
+        assert!((winner_gp - 10.0).abs() < 1e-9);
+        assert!(loser_gp.abs() < 1e-9);
+        assert!(ledger.rows.iter().all(|row| row.deal_id.is_some()));
     }
 
     #[test]
