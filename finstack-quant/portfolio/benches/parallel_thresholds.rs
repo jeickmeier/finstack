@@ -18,10 +18,9 @@
 //! work the threshold is supposed to optimise.
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use finstack_quant_portfolio::factor_model::{
+use finstack_quant_models::factor::risk::{
     DecompositionConfig, HistoricalPositionDecomposer, PositionRiskDecomposition,
 };
-use finstack_quant_portfolio::types::PositionId;
 
 fn bench_historical_tail_threshold(c: &mut Criterion) {
     let mut group = c.benchmark_group("historical_decomp_tail");
@@ -47,7 +46,7 @@ fn bench_historical_tail_threshold(c: &mut Criterion) {
                 pnls.push(v);
             }
         }
-        let ids: Vec<PositionId> = (0..n).map(|i| PositionId::new(format!("P{i}"))).collect();
+        let ids: Vec<String> = (0..n).map(|i| format!("P{i}")).collect();
         let mut config = DecompositionConfig::historical(confidence);
         config.confidence = confidence;
         let decomposer = HistoricalPositionDecomposer;

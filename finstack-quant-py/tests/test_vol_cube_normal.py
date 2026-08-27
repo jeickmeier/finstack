@@ -40,7 +40,7 @@ def test_vol_normal_atm_approximates_lognormal_times_forward() -> None:
 
 def test_vol_normal_raises_outside_grid() -> None:
     cube = _example_cube()
-    with pytest.raises(ValueError, match="Invalid input data"):
+    with pytest.raises(ValueError, match="volatility coordinate 20 is out of bounds"):
         get_cube_normal_vol(cube, 20.0, 2.0, FORWARD)
 
 

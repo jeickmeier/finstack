@@ -45,6 +45,7 @@ from finstack_quant.core.market_data import (
 )
 from finstack_quant.core.money import Money
 from finstack_quant.core.types import Bps, CreditRating, Percentage, Rate
+from finstack_quant.models.credit import moodys_warf_factor
 
 
 def test_tenor_constructor_uses_checked_rust_validation() -> None:
@@ -209,11 +210,11 @@ class TestCoreTypesParity:
         assert pos_zero == neg_zero
         assert hash(pos_zero) == hash(neg_zero)
 
-    def test_credit_rating_notches_and_warf_are_preserved(self) -> None:
+    def test_credit_rating_notches_are_preserved_and_models_owns_warf(self) -> None:
         assert CreditRating.from_name("BBB+") == CreditRating.BBB_PLUS
         assert CreditRating.from_name("Baa1") == CreditRating.BBB_PLUS
         assert CreditRating.BBB_PLUS.name == "BBB+"
-        assert CreditRating.BBB_PLUS.warf > 0.0
+        assert moodys_warf_factor(CreditRating.BBB_PLUS) > 0.0
 
 
 class TestDayCountParity:

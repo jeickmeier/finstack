@@ -11,8 +11,8 @@ the Rust crate — not here.
 
 ## Where it sits
 
-The crate depends on the 14 domain crates under [`../finstack-quant/`](../finstack-quant)
-(`core`, `analytics`, `attribution`, `cashflows`, `covenants`, `factor-model`,
+The crate depends on the 13 domain crates under [`../finstack-quant/`](../finstack-quant)
+(`core`, `analytics`, `attribution`, `cashflows`, `covenants`,
 `features`, `margin`, `models`, `valuations`, `statements`,
 `statements-analytics`, `portfolio`, `scenarios`). No Rust crate depends on this one.
 
@@ -59,7 +59,7 @@ Its `README.md` and `.d.ts` are wasm-pack copies; treat nothing in `pkg/` or
 | `covenants`            | spec/report/engine validation, `evaluateEngine`, preset covenant packages                                                                                                                                                                                       |
 | `features`             | signal cleaning, neutralization, weighting, and timeseries / cross-sectional / panel transforms                                                                                                                                                                 |
 | `margin`               | CSA presets and validation, `calculateVm`, `computeBilateralXva`                                                                                                                                                                                                |
-| `models`               | analytical/Fourier/SABR exports plus nested `monteCarlo`, `credit`, `correlation`, `factor`, `rates`, `volatility`, and `liquidity` model engines                                                                                                                |
+| `models`               | analytical/Fourier/SABR exports plus nested `monteCarlo`, `credit`, `correlation`, `factor`, `rates`, `volatility`, and `liquidity` model engines                                                                                                               |
 | `portfolio`            | `Portfolio` and `InstrumentArtifactCache`, materialization, Brinson / Campisi / grid attribution, TWRR and MWR, valuation and scenario revaluation, VaR and ES decomposition, factor sensitivities                                                              |
 | `scenarios`            | spec parse/compose/validate, builtin templates and components, `applyScenario`, `computeHorizonReturn`                                                                                                                                                          |
 | `statements`           | model and check-suite validation, `evaluateModel`, `runMonteCarlo`, formula parsing                                                                                                                                                                             |

@@ -814,7 +814,7 @@ class CreditIndexData:
     --------
     >>> import datetime
     >>> from finstack_quant.core.market_data import BaseCorrelationCurve, CreditIndexData, HazardCurve
-    >>> hazard = HazardCurve("CDX-HZ", datetime.date(2025, 1, 1), [(0.0, 0.02), (5.0, 0.03)])
+    >>> hazard = HazardCurve("CDX-HZ", datetime.date(2025, 1, 1), [(0.0, 0.02), (5.0, 0.03)], 0.40)
     >>> data = CreditIndexData(125, 0.4, hazard, BaseCorrelationCurve("CDX-CORR", [(0.03, 0.2), (0.10, 0.4)]))
     >>> (data.num_constituents, data.recovery_rate)
     (125, 0.4)

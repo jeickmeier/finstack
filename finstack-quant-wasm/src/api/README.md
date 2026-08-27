@@ -36,7 +36,8 @@ enforces.
 | `margin/mod.rs`                    | `margin`                               | CSA presets and validation, `calculateVm`, `computeBilateralXva`                                                                                                                                                                           |
 | `models/monte_carlo.rs`            | `models.monteCarlo`                    | European / Asian / American / Heston pricers plus Black-Scholes helpers                                                                                                                                                                    |
 | `models/rates/dtsm.rs`             | `models.rates.dtsm`                    | `nelsonSiegelYields`                                                                                                                                                                                                                       |
-| `portfolio/mod.rs`                 | `portfolio`                            | Much the largest file: `Portfolio`, spec parsing, valuation, attribution (Brinson, Campisi, grid, factor-Brinson), TWRR/MWR, optimization, replay, VaR/ES decomposition, risk budget, liquidity metrics                                    |
+| `models/liquidity.rs`              | `models.liquidity`                     | Roll and Amihud estimators, days-to-liquidate tiering, Bangia LVaR, Almgren-Chriss impact, Kyle lambda                                                                                                                                     |
+| `portfolio/mod.rs`                 | `portfolio`                            | `Portfolio`, spec parsing, valuation, attribution (Brinson, Campisi, grid, factor-Brinson), TWRR/MWR, optimization, replay, VaR/ES decomposition, and risk budgets                                                                         |
 | `portfolio/materialization.rs`     | `portfolio`                            | Strict materialization: `InstrumentArtifactCache`, plus the `Portfolio.fromMaterialization` / `Portfolio.validateMaterialization` half of the `Portfolio` class                                                                            |
 | `portfolio/sensitivity.rs`         | `portfolio`                            | `computeFactorSensitivities(WithMarket)`, `computePnlProfiles(WithMarket)`, `decomposeFactorRisk`                                                                                                                                          |
 | `scenarios/mod.rs`                 | `scenarios`                            | Spec parse/compose/validate, builtin templates, `applyScenario`, `computeHorizonReturn`                                                                                                                                                    |
@@ -46,6 +47,7 @@ enforces.
 | `valuations/pricing.rs`            | `valuations.instruments`, `valuations` | `validateInstrumentJson`, `priceInstrument(WithMarket)`, `instrumentCashflows*`, `listModels*`, `listStandardMetrics*`, `bondFromCashflowsJson`, and `validateValuationResultJson` (root)                                                  |
 | `valuations/fixed_income.rs`       | `valuations.instruments`               | Typed `Bond`, `TermLoan`                                                                                                                                                                                                                   |
 | `valuations/structured_credit.rs`  | `valuations.instruments`               | `structuredCreditTranche{DiscountMargin,Oas,BreakevenCdr,ScenarioTable,Metrics}`                                                                                                                                                           |
+| `valuations/composite.rs`          | `valuations.composite`                 | Composite initialization, rebalancing, primitive exposures, execution trades, and history                                                                                                                                                  |
 | `valuations/fx.rs`                 | `valuations.fx`                        | `FxSpot`, `FxForward`, `FxSwap`, `Ndf`, `FxOption`, `FxDigitalOption`, `FxTouchOption`, `FxBarrierOption`, `FxVarianceSwap`, `QuantoOption`                                                                                                |
 | `models/credit.rs`                 | `models.credit`                        | Structural-credit factories: Merton, CreditGrades, dynamic recovery, endogenous hazard, toggle exercise                                                                                                                                    |
 | `valuations/credit_derivatives.rs` | `valuations.creditDerivatives`         | CDS-family example payload factories                                                                                                                                                                                                       |
@@ -57,9 +59,9 @@ enforces.
 | `valuations/calibration.rs`        | `valuations`                           | `calibrate`, `validateCalibrationJson`, `dryRun`, `dependencyGraphJson`                                                                                                                                                                    |
 | `valuations/market_handle.rs`      | `valuations`                           | `Market` — parse a `MarketContext` once, reuse across `*WithMarket` calls                                                                                                                                                                  |
 
-The table lists the 38 files that declare bindings. The other three of the 41
-`.rs` files here — `core/mod.rs`, `analytics/mod.rs`, `valuations/mod.rs` — only
-declare submodules (and, in `analytics/mod.rs`, re-export two names).
+The table lists binding-bearing files plus the root wiring and analytics
+conversion helper. The remaining `mod.rs` files only declare submodules or
+re-export their children.
 
 Shared conversion helpers are one level up in [`../utils/`](../utils): `to_js_value`,
 `to_js_err`, `to_js_error`, `structured_js_error`, `contract_to_js_error`,
@@ -78,8 +80,8 @@ src/api/<domain>/*.rs   →   exports/<domain>.js   →   index.js   →   index
 The `Feeds` column above names the JS namespace, which is not always the filename.
 `valuations` splits into `exports/valuations.js` plus five nested files under
 `exports/valuations/` — `instruments.js`, `fx.js`, `credit.js`,
-`creditDerivatives.js`, `correlation.js` — and `factor_model` exposes everything
-under a nested `credit` key. The mapping is many-to-many in both directions:
+`creditDerivatives.js`, `correlation.js` — and `models.factor` exposes credit
+engines under a nested `credit` key. The mapping is many-to-many in both directions:
 `pricing.rs`, `fixed_income.rs`, and `structured_credit.rs` all feed
 `instruments.js`, while `pricing.rs` alone also puts `validateValuationResultJson`
 on the `valuations` root.

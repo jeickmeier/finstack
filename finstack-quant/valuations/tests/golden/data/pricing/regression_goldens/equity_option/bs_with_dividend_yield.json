@@ -10,7 +10,7 @@
     "captured_by": "jeickmeier",
     "captured_on": "2026-05-01",
     "last_reviewed_by": "jeickmeier",
-    "last_reviewed_on": "2026-05-09",
+    "last_reviewed_on": "2026-08-27",
     "review_interval_months": 6,
     "regen_command": "manual formula fixture; values captured from canonical pricing runner",
     "screenshots": []
@@ -181,7 +181,7 @@
     "delta": 56.786829092343,
     "gamma": 0.044828512669,
     "vega": 1724.777024925848,
-    "theta": -49.889220726902,
+    "theta": -54.766524720014,
     "rho": 21.794024890955
   },
   "tolerances": {

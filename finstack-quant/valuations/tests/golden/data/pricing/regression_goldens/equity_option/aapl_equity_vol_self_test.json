@@ -10,7 +10,7 @@
     "captured_by": "claude",
     "captured_on": "2026-05-09",
     "last_reviewed_by": "jeickmeier",
-    "last_reviewed_on": "2026-06-11",
+    "last_reviewed_on": "2026-08-27",
     "review_interval_months": 12,
     "regen_command": "uv run pytest finstack-quant-py/tests/golden/test_pricing_equity_option.py -v -k self_test",
     "screenshots": []
@@ -389,7 +389,7 @@
     "delta": 59.708916461316,
     "gamma": 0.944312757717,
     "vega": 66.3280238035,
-    "theta": -2.536333992349
+    "theta": -2.84076479255
   },
   "tolerances": {
     "npv": {

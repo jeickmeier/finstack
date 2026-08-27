@@ -10,9 +10,9 @@ description = "Financial-statements modeling for Finstack Quant with determinist
 autobenches = false
 
 [dependencies]
-finstack-quant-core = { path = "../core", version = "0.7.0" }
-finstack-quant-cashflows = { path = "../cashflows", version = "0.7.0" }
-finstack-quant-valuations = { path = "../valuations", version = "0.7.0" }
+finstack-quant-core = { path = "../core", version = "0.8.0" }
+finstack-quant-cashflows = { path = "../cashflows", version = "0.8.0" }
+finstack-quant-valuations = { path = "../valuations", version = "0.8.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 indexmap = { workspace = true, features = ["serde"] }

@@ -53,7 +53,9 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
     AssetPool, DealType, PoolAsset, StructuredCredit, Tranche, TrancheCoupon, TrancheSeniority,
     TrancheStructure,
 };
-use finstack_quant_valuations::instruments::fx::fx_option::FxOption;
+use finstack_quant_valuations::instruments::fx::fx_option::{
+    FxDeltaConvention, FxDeltaConventionKind, FxOption,
+};
 use finstack_quant_valuations::instruments::fx::fx_spot::FxSpot;
 use finstack_quant_valuations::instruments::rates::deposit::Deposit;
 use finstack_quant_valuations::instruments::rates::inflation_swap::InflationSwap;
@@ -312,6 +314,8 @@ fn build_market_context(base: Date, rate_shift: f64) -> MarketContext {
         None,
     )
     .unwrap();
+    let sofr_fixings =
+        ScalarTimeSeries::new("FIXING:USD-SOFR-3M", vec![(base, 0.04 + rate_shift)], None).unwrap();
 
     let usd_alias = DiscountCurve::builder("USD")
         .base_date(base)
@@ -380,6 +384,7 @@ fn build_market_context(base: Date, rate_shift: f64) -> MarketContext {
         .insert_surface(cds_spread_vol)
         .insert_fx(fx)
         .insert_series(aapl_history)
+        .insert_series(sofr_fixings)
         .insert_price("EQUITY-SPOT", MarketScalar::Unitless(150.0))
         .insert_price("EQUITY-DIVYIELD", MarketScalar::Unitless(0.02))
         .insert_price(
@@ -756,10 +761,12 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
             .notional(Money::new(1_000_000.0, Currency::EUR))
             .strike(1.15)
             .option_type(OptionType::Call)
-            .exercise_style(ExerciseStyle::European)
+            .delta_convention(
+                FxDeltaConvention::new(FxDeltaConventionKind::Forward, Currency::USD, "benchmark")
+                    .expect("valid benchmark FX delta convention"),
+            )
             .expiry(maturity_2y())
             .day_count(DayCount::Act365F)
-            .settlement(SettlementType::Cash)
             .domestic_discount_curve_id("USD-OIS".into())
             .foreign_discount_curve_id("EUR-OIS".into())
             .vol_surface_id("FX-VOL".into())
@@ -831,11 +838,18 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
             .observation_frequency(Tenor::daily())
             .observation_calendar_id("USNY".to_string())
             .realized_var_method(RealizedVarMethod::CloseToClose)
+            .price_series_policy(
+                finstack_quant_valuations::instruments::EquityPriceSeriesPolicy::Adjusted,
+            )
             .side(
                 finstack_quant_valuations::instruments::equity::variance_swap::PayReceive::Receive,
             )
             .discount_curve_id("USD-OIS".into())
             .day_count(DayCount::Act365F)
+            .instrument_pricing_overrides(
+                finstack_quant_valuations::instruments::InstrumentPricingOverrides::default()
+                    .with_implied_vol(0.25),
+            )
             .attributes(Attributes::default())
             .build()
             .unwrap();
@@ -1114,10 +1128,12 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
 
 /// Build a portfolio suited to generic P&L attribution benchmarks.
 ///
-/// CDS tranches are covered by valuation and metrics benchmarks, but the generic
-/// attribution path builds intermediate market states that do not preserve
-/// credit-index aggregates. Excluding them keeps this benchmark focused on
-/// portfolio attribution mechanics across instruments with direct dependencies.
+/// Credit instruments are covered by dedicated valuation and attribution tests.
+/// This generic benchmark uses a manually specified hazard curve, which is not a
+/// valid source for quote-space CS01, and its intermediate market states do not
+/// preserve credit-index aggregates. Excluding the credit family keeps this
+/// benchmark focused on portfolio attribution mechanics across instruments with
+/// complete benchmark market data.
 pub fn create_attribution_portfolio(num_positions: usize) -> Portfolio {
     let portfolio = create_institutional_portfolio(num_positions);
     let mut builder = PortfolioBuilder::new(format!("ATTRIBUTION_{}", num_positions))
@@ -1132,7 +1148,12 @@ pub fn create_attribution_portfolio(num_positions: usize) -> Portfolio {
     for position in portfolio
         .positions()
         .iter()
-        .filter(|position| !position.instrument_id.as_str().starts_with("CDSTRANCHE_"))
+        .filter(|position| {
+            let id = position.instrument_id.as_str();
+            !id.starts_with("CDS_")
+                && !id.starts_with("CDSOPTION_")
+                && !id.starts_with("CDSTRANCHE_")
+        })
         .cloned()
     {
         builder = builder.position(position);

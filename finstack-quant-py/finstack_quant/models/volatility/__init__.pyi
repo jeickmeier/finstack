@@ -951,7 +951,10 @@ def get_fx_delta_pillar_vols(surface: FxDeltaVolSurface, expiry_index: int) -> t
     --------
     >>> from finstack_quant.core.market_data import FxDeltaVolSurface
     >>> from finstack_quant.models.volatility import get_fx_delta_pillar_vols
-    >>> get_fx_delta_pillar_vols(FxDeltaVolSurface("FX", [1.0], [0.12], [0.01], [0.002]), 0)
+    >>> tuple(
+    ...     round(value, 6)
+    ...     for value in get_fx_delta_pillar_vols(FxDeltaVolSurface("FX", [1.0], [0.12], [0.01], [0.002]), 0)
+    ... )
     (0.12, 0.117, 0.127)
     """
     ...
@@ -1054,7 +1057,7 @@ def delta_to_strike(delta: float, forward: float, vol: float, expiry: float) -> 
     --------
     >>> from finstack_quant.models.volatility import delta_to_strike
     >>> round(delta_to_strike(0.25, 1.1, 0.12, 1.0), 6)
-    1.206685
+    1.201354
     """
     ...
 

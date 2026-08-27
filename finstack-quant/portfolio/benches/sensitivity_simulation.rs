@@ -21,13 +21,14 @@ use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::Result;
+use finstack_quant_models::factor::risk::{
+    ParametricDecomposer, RiskDecomposer, SimulationDecomposer,
+};
 use finstack_quant_models::factor::{
     BumpSizeConfig, FactorCovarianceMatrix, FactorDefinition, FactorId, FactorType, MarketMapping,
     PricingMode, RiskMeasure, SensitivityMatrix, UnmatchedPolicy,
 };
-use finstack_quant_portfolio::factor_model::{
-    FactorModelBuilder, ParametricDecomposer, RiskDecomposer, SimulationDecomposer,
-};
+use finstack_quant_portfolio::factor_model::FactorModelBuilder;
 use finstack_quant_portfolio::position::{Position, PositionUnit};
 use finstack_quant_portfolio::sensitivity::{
     DeltaBasedEngine, FactorSensitivityEngine, FullRepricingEngine,

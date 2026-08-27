@@ -49,7 +49,7 @@ fn base_date() -> Date {
 /// - `USD-OIS` domestic discount curve (5%)
 /// - `EUR-OIS` foreign discount curve (3%)
 /// - `JPY-OIS` third-currency discount curve (0.1%) for quanto benchmarks
-/// - `NKY-DIV` dividend yield curve (1%) for quanto benchmarks
+/// - `NKY-DIV` dividend yield scalar (1%) for quanto benchmarks
 /// - Flat `EURUSD-VOL` vol surface at 10%
 /// - Flat `NKY-VOL` equity vol surface at 20% (strikes in JPY levels)
 /// - Flat `JPYUSD-VOL` FX vol surface at 8% (quote-per-base: USD per JPY)
@@ -88,18 +88,6 @@ fn create_market(as_of: Date) -> MarketContext {
             (1.0, 0.9990),
             (5.0, 0.9950),
             (10.0, 0.9900),
-        ])
-        .interp(InterpStyle::LogLinear)
-        .build()
-        .unwrap();
-
-    let nky_div = DiscountCurve::builder("NKY-DIV")
-        .base_date(as_of)
-        .knots(vec![
-            (0.0, 1.0),
-            (1.0, 0.9900),
-            (5.0, 0.9512),
-            (10.0, 0.9048),
         ])
         .interp(InterpStyle::LogLinear)
         .build()
@@ -164,7 +152,6 @@ fn create_market(as_of: Date) -> MarketContext {
         .insert(usd_disc)
         .insert(eur_disc)
         .insert(jpy_disc)
-        .insert(nky_div)
         .insert_surface(eurusd_vol)
         .insert_surface(nky_vol)
         .insert_surface(jpyusd_vol)
@@ -172,6 +159,7 @@ fn create_market(as_of: Date) -> MarketContext {
         .insert_price("EURUSD", MarketScalar::Unitless(1.10))
         .insert_price("EURUSD-SPOT", MarketScalar::Unitless(1.10))
         .insert_price("NKY-SPOT", MarketScalar::Unitless(35_000.0))
+        .insert_price("NKY-DIV", MarketScalar::Unitless(0.01))
         .insert_price("JPYUSD-SPOT", MarketScalar::Unitless(1.0 / 150.0))
 }
 
@@ -217,6 +205,7 @@ fn make_touch(as_of: Date, tenor_years: i32, touch_type: TouchType) -> FxTouchOp
         .payout_amount(Money::new(1_000_000.0, Currency::USD))
         .payout_timing(PayoutTiming::AtExpiry)
         .expiry(expiry)
+        .monitoring_start_date(as_of)
         .day_count(DayCount::Act365F)
         .domestic_discount_curve_id(CurveId::new("USD-OIS"))
         .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
@@ -241,6 +230,7 @@ fn make_digital(as_of: Date, tenor_years: i32, payout_type: DigitalPayoutType) -
         .payout_amount(Money::new(1_000_000.0, Currency::USD))
         .expiry(expiry)
         .day_count(DayCount::Act365F)
+        .notional(Money::new(1_000_000.0, Currency::EUR))
         .domestic_discount_curve_id(CurveId::new("USD-OIS"))
         .foreign_discount_curve_id(CurveId::new("EUR-OIS"))
         .vol_surface_id(CurveId::new("EURUSD-VOL"))
@@ -287,8 +277,8 @@ fn make_quanto(as_of: Date, tenor_years: i32) -> QuantoOption {
         .option_type(OptionType::Call)
         .expiry(expiry)
         .notional(Money::new(1_000_000.0, Currency::USD))
-        .underlying_quantity_opt(Some(100.0))
-        .payoff_fx_rate_opt(Some(1.0 / 150.0))
+        .underlying_quantity_opt(Some(4_000.0))
+        .payoff_fx_rate_opt(Some(1.0 / 140.0))
         .base_currency(Currency::JPY)
         .quote_currency(Currency::USD)
         .correlation(-0.2)

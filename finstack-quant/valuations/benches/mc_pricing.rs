@@ -14,7 +14,6 @@ use finstack_quant_valuations::instruments::rates::swaption::{
     BermudanSchedule, BermudanSwaption, BermudanSwaptionPricer, BermudanSwaptionPricerConfig,
     CalibratedHullWhiteModel,
 };
-use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::pricer::Pricer;
 use std::hint::black_box;
 use time::Month;
@@ -140,25 +139,5 @@ fn bench_bermudan_hw_tree(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_bermudan_default_value(c: &mut Criterion) {
-    let mut group = c.benchmark_group("mc_bermudan_default_value");
-    let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
-    let swaption = build_swaption(as_of);
-    let market = build_market(as_of);
-    group.bench_function("instrument_value", |b| {
-        b.iter(|| {
-            black_box(&swaption)
-                .value(black_box(&market), black_box(as_of))
-                .expect("default Bermudan value")
-        });
-    });
-    group.finish();
-}
-
-criterion_group!(
-    benches,
-    bench_bermudan_hw_tree,
-    bench_bermudan_default_value,
-    bench_bermudan_lsmc
-);
+criterion_group!(benches, bench_bermudan_hw_tree, bench_bermudan_lsmc);
 criterion_main!(benches);

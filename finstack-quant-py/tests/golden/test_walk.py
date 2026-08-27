@@ -17,11 +17,12 @@ PYTHON_DISCOVER_FIXTURES_RE = re.compile(r'discover_fixtures(?:_with_marks)?\("(
 def _all_fixtures() -> list[Path]:
     paths: list[Path] = []
     seen: set[Path] = set()
-    for root in DATA_ROOTS.values():
-        if root in seen or not root.exists():
+    for domain, root in DATA_ROOTS.items():
+        domain_root = root / domain
+        if domain_root in seen or not domain_root.exists():
             continue
-        seen.add(root)
-        paths.extend(path for path in root.rglob("*.json") if "screenshots" not in path.parts)
+        seen.add(domain_root)
+        paths.extend(path for path in domain_root.rglob("*.json") if "screenshots" not in path.parts)
     return sorted(paths)
 
 

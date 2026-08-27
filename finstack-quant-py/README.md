@@ -65,14 +65,14 @@ Domains that mirror a nested Rust module tree expose it as nested packages:
   `core.market_data.{arbitrage, context, curves, fx, scalars}`,
   and `core.math.{linalg, special_functions, stats,
   summation}`.
-- `finstack_quant.models.{credit, correlation, factor, monte_carlo, rates,
-  volatility}`, with `models.credit.{scoring, pd, lgd, migration,
+- `finstack_quant.models.{credit, correlation, factor, liquidity, monte_carlo,
+  rates, volatility}`, with `models.credit.{scoring, pd, lgd, migration,
   recovery_waterfall, liability_management}` and `models.rates.dtsm`.
 - `finstack_quant.valuations.{instruments, credit_derivatives, composite,
   market, envelope, schema}`.
 - `finstack_quant.cashflows.{accrual, aggregation, builder, primitives,
   schema}`.
-- `finstack_quant.models.factor.{credit, schema}`,
+- `finstack_quant.models.factor.{credit, risk, schema}`,
   `finstack_quant.features.dataframe`.
 
 Each of the nine schema-publishing registry domains also has a Python schema

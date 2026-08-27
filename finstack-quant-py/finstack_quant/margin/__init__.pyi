@@ -7017,7 +7017,7 @@ def compute_bilateral_xva(
     ...     [(0.5 * i, 1.0) for i in range(9)],
     ...     interp="log_linear",
     ... )
-    >>> hz = HazardCurve("CPTY", dt.date(2025, 1, 1), [(0.0, 0.02), (30.0, 0.02)])
+    >>> hz = HazardCurve("CPTY", dt.date(2025, 1, 1), [(0.0, 0.02), (30.0, 0.02)], 0.40)
     >>> result = compute_bilateral_xva(profile, hz, hz, df, 0.40, 0.40)
     >>> result.total_xva == result.cva - result.dva
     True

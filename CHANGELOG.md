@@ -1,6 +1,45 @@
 # Changelog
 
-## Unreleased
+## [0.8.0] - 2026-08-27
+
+### Changed — model-engine consolidation (BREAKING)
+
+- Product-independent mathematical and stochastic engines now have one owner:
+  `finstack-quant-models`. Characteristic functions, DTSM, volatility
+  evaluation and fitting, credit analytics, factor models and pure factor-risk
+  kernels, liquidity, Hull-White equations, and structured-credit pool
+  stochastic models moved out of `core`, `valuations`, `portfolio`, and the
+  former standalone factor-model package.
+- Core volatility surfaces and cubes are data artifacts. Model evaluation goes
+  through `models::volatility::VolSource`; valuation-owned market resolution
+  retains lookup and override precedence.
+- Hull-White calibration remains in valuations but returns
+  `models::rates::hull_white::HullWhiteParams`. Structured-credit deals,
+  waterfalls, presets, and pricing remain in valuations while pool default,
+  prepayment, and correlation engines live in `models::credit::pool`.
+- Python model APIs now live under `finstack_quant.models`; WASM model APIs
+  live under `models`. Rust and Python use snake case, while WASM retains the
+  corresponding camel-case names.
+
+### Changed — explicit recovery inputs (BREAKING)
+
+- Calculations whose results depend on recovery now require a finite decimal
+  recovery in `[0.0, 1.0]`; explicit zero remains valid. The implicit 40%
+  recovery fallback and the global recovery assumption were removed.
+- Because the project is pre-release, affected persisted contracts were fixed
+  in place and remain version 1. This includes
+  `finstack_quant.calibration/1`, `finstack_quant.credit_assumptions/1`, and
+  their existing schema directories and registry keys.
+
+### Removed — obsolete model paths (BREAKING)
+
+- Removed the standalone `finstack-quant-factor-model` package and the old
+  `finstack_quant.factor_model` host namespace.
+- Removed model-bearing `core::credit`, `core::market_data::dtsm`, and
+  `core::math::characteristic_function` paths.
+- Removed portfolio-owned liquidity implementations, valuation-owned
+  Hull-White kernels, valuation-owned structured-credit stochastic engines,
+  and all related compatibility exports.
 
 ### Changed — reusable model ownership (BREAKING)
 

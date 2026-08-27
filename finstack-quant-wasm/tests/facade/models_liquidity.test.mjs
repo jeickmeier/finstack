@@ -45,7 +45,7 @@ test('portfolio retains no liquidity compatibility exports', () => {
 
 test('models.liquidity preserves estimator and risk results', () => {
   assert.equal(liquidity.rollEffectiveSpread('[0.01,-0.01,0.01,-0.01]'), 0.02);
-  assert.equal(liquidity.daysToLiquidate(1_000_000, 250_000, 0.20), 20);
+  assert.equal(liquidity.daysToLiquidate(1_000_000, 250_000, 0.2), 20);
   assert.equal(liquidity.liquidityTier(3), 'tier2');
   assert.equal(liquidity.kyleLambda('[100,200]', '[0.01,-0.02]', 50), 0.005);
 

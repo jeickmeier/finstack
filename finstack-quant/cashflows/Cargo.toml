@@ -10,7 +10,7 @@ description = "Cashflow schedule construction, projection, and aggregation for s
 autobenches = false
 
 [dependencies]
-finstack-quant-core = { path = "../core", version = "0.7.0" }
+finstack-quant-core = { path = "../core", version = "0.8.0" }
 indexmap = { workspace = true, features = ["serde"] }
 jsonschema = { version = "0.28", default-features = false }
 rust_decimal = { workspace = true }

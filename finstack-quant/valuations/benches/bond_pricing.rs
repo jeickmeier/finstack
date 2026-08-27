@@ -13,6 +13,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
@@ -62,8 +63,20 @@ fn create_market() -> MarketContext {
         .interp(InterpStyle::Linear)
         .build()
         .unwrap();
+    let fixings = ScalarTimeSeries::new(
+        "FIXING:USD-SOFR-3M",
+        vec![(
+            Date::from_calendar_date(2024, Month::December, 30).unwrap(),
+            0.045,
+        )],
+        None,
+    )
+    .unwrap();
 
-    MarketContext::new().insert(curve).insert(forward_curve)
+    MarketContext::new()
+        .insert(curve)
+        .insert(forward_curve)
+        .insert_series(fixings)
 }
 
 fn bench_bond_pv(c: &mut Criterion) {

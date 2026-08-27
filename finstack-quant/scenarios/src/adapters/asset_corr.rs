@@ -24,9 +24,8 @@ pub(crate) fn prepay_default_corr_effects(delta_pts: f64) -> Vec<ScenarioEffect>
 
 #[cfg(test)]
 mod tests {
-    use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
-        CorrelationStructure, StructuredCredit,
-    };
+    use finstack_quant_models::credit::pool::CorrelationStructure;
+    use finstack_quant_valuations::instruments::fixed_income::structured_credit::StructuredCredit;
 
     /// Test-only helper: apply a parallel shock to asset correlation.
     fn apply_asset_correlation_shock(

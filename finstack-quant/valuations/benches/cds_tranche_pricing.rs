@@ -230,16 +230,17 @@ fn bench_cds_tranche_npv(c: &mut Criterion) {
 }
 
 fn bench_cds_tranche_cs01(c: &mut Criterion) {
-    let mut group = c.benchmark_group("cds_tranche_cs01");
+    let mut group = c.benchmark_group("cds_tranche_cs01_hazard");
     let market = create_market();
     let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let registry = standard_registry();
 
     let tranche = create_tranche(3.0, 7.0, 5);
 
-    group.bench_function("cs01", |b| {
+    group.bench_function("cs01_hazard", |b| {
         b.iter(|| {
-            // Use generic CS01 calculator via MetricContext
+            // The benchmark fixture uses a manually specified intensity curve,
+            // so direct hazard-shift CS01 is the financially valid risk measure.
             let base_pv = tranche.value(black_box(&market), black_box(as_of)).unwrap();
             let mut context = MetricContext::new(
                 Arc::new(tranche.clone()),
@@ -248,8 +249,10 @@ fn bench_cds_tranche_cs01(c: &mut Criterion) {
                 base_pv,
                 MetricContext::default_config(),
             );
-            let results = registry.compute(&[MetricId::Cs01], &mut context).unwrap();
-            black_box(*results.get(&MetricId::Cs01).unwrap())
+            let results = registry
+                .compute(&[MetricId::Cs01Hazard], &mut context)
+                .unwrap();
+            black_box(*results.get(&MetricId::Cs01Hazard).unwrap())
         });
     });
 

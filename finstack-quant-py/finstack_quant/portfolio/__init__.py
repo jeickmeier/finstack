@@ -24,8 +24,10 @@ typed result classes may gain fields between releases:
 
 * ``optimize_portfolio`` (``PortfolioOptimizationSpec`` /
   ``PortfolioOptimizationResult``)
-* ``parametric_var_decomposition``, ``parametric_es_decomposition``,
-  ``historical_var_decomposition``, ``evaluate_risk_budget``
+
+Pure factor-risk decomposition and risk-budget kernels live under
+``finstack_quant.models.factor.risk``. Portfolio retains allocation policy,
+valuation sensitivities, what-if workflows, and portfolio report adapters.
 
 Bindings should be considered cross-version-compatible only within a single
 ``finstack-quant-portfolio`` minor release; pin the upstream version when

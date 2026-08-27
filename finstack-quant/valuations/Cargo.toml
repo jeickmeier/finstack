@@ -10,13 +10,13 @@ description = "Instrument pricing, cashflows, and risk for Finstack Quant: fixed
 autobenches = false
 
 [dependencies]
-finstack-quant-core = { path = "../core", version = "0.7.0" }
-finstack-quant-analytics = { path = "../analytics", version = "0.7.0" }
-finstack-quant-cashflows = { path = "../cashflows", version = "0.7.0" }
-finstack-quant-covenants = { path = "../covenants", version = "0.7.0" }
-finstack-quant-margin = { path = "../margin", version = "0.7.0" }
-finstack-quant-models = { path = "../models", version = "0.7.0", default-features = false }
-finstack-quant-valuations-macros = { path = "macros", version = "0.7.0" }
+finstack-quant-core = { path = "../core", version = "0.8.0" }
+finstack-quant-analytics = { path = "../analytics", version = "0.8.0" }
+finstack-quant-cashflows = { path = "../cashflows", version = "0.8.0" }
+finstack-quant-covenants = { path = "../covenants", version = "0.8.0" }
+finstack-quant-margin = { path = "../margin", version = "0.8.0" }
+finstack-quant-models = { path = "../models", version = "0.8.0", default-features = false }
+finstack-quant-valuations-macros = { path = "macros", version = "0.8.0" }
 indexmap = { workspace = true, features = ["serde"] }
 smallvec = { version = "1.15", default-features = false, features = ["serde"] }
 rayon = "1.11"

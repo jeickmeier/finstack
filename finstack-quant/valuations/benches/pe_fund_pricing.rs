@@ -10,8 +10,8 @@
 //!
 //! Scenarios:
 //! - Event count scaling (10 / 30 / 60 / 100 events) — waterfall + IRR cost
-//! - Waterfall complexity: simple (RoC only) vs. standard (RoC + pref + catchup + promote)
-//!   vs. full (same + clawback)
+//! - Waterfall complexity: simple (RoC + residual LP split) vs. standard
+//!   (RoC + pref + catchup + promote) vs. clawback (RoC + promote + clawback)
 //! - Style: European vs. American waterfall
 //! - IRR iteration: direct `run_waterfall()` vs. full `value()` with NAV discounting
 
@@ -50,6 +50,7 @@ fn simple_waterfall() -> WaterfallSpec {
     WaterfallSpec::builder()
         .style(WaterfallStyle::European)
         .return_of_capital()
+        .promote_tier(0.0, 1.0, 0.0)
         .build()
         .unwrap()
 }
@@ -69,9 +70,7 @@ fn full_waterfall_with_clawback() -> WaterfallSpec {
     WaterfallSpec::builder()
         .style(WaterfallStyle::European)
         .return_of_capital()
-        .preferred_irr(0.08)
-        .catchup(0.5)
-        .promote_tier(0.12, 0.80, 0.20)
+        .promote_tier(0.0, 0.80, 0.20)
         .clawback(ClawbackSpec {
             enable: true,
             holdback_pct: Some(0.20),
@@ -124,6 +123,25 @@ fn make_events(n: usize) -> Vec<FundEvent> {
     events
 }
 
+/// Build a clawback workload with one aggregate contribution and many
+/// distributions so the fund-end entitlement replay has a unique IRR root.
+fn make_clawback_events(n: usize) -> Vec<FundEvent> {
+    let mut events = Vec::with_capacity(n);
+    events.push(FundEvent::contribution(
+        Date::from_calendar_date(2020, Month::January, 1).unwrap(),
+        Money::new(10_000_000.0, Currency::USD),
+    ));
+    for i in 0..n.saturating_sub(1) {
+        let date = Date::from_calendar_date(2024, Month::January, 1).unwrap()
+            + time::Duration::days((i as i64 * 365 * 6) / n.saturating_sub(1).max(1) as i64);
+        events.push(FundEvent::distribution(
+            date,
+            Money::new(500_000.0, Currency::USD),
+        ));
+    }
+    events
+}
+
 fn make_fund(
     events: Vec<FundEvent>,
     spec: WaterfallSpec,
@@ -162,7 +180,11 @@ fn bench_pe_waterfall_complexity(c: &mut Criterion) {
 
     let simple = make_fund(events.clone(), simple_waterfall(), false);
     let standard = make_fund(events.clone(), standard_waterfall(), false);
-    let full = make_fund(events, full_waterfall_with_clawback(), false);
+    let full = make_fund(
+        make_clawback_events(30),
+        full_waterfall_with_clawback(),
+        false,
+    );
 
     for (label, fund) in [
         ("simple", &simple),
@@ -184,7 +206,11 @@ fn bench_pe_waterfall_style(c: &mut Criterion) {
     let events = make_events(30);
 
     let european = make_fund(events.clone(), standard_waterfall(), false);
-    let american = make_fund(events, american_waterfall(), false);
+    let american_events = events
+        .into_iter()
+        .map(|event| event.with_deal_id("BENCH-DEAL"))
+        .collect();
+    let american = make_fund(american_events, american_waterfall(), false);
 
     group.bench_function("european", |b| {
         b.iter(|| black_box(&european).run_waterfall().unwrap());

@@ -656,6 +656,9 @@ def variance_swap(idx: int) -> tuple[str, dict]:
             "observation_calendar_id": "USNY",
             "realized_var_method": "close_to_close",
             "price_series_policy": "adjusted",
+            "instrument_pricing_overrides": {
+                "market_quotes": {"implied_volatility": 0.20}
+            },
             "side": side,
             "discount_curve_id": "USD-OIS",
             "day_count": "act_365f",
@@ -700,6 +703,7 @@ def convertible_bond(idx: int) -> tuple[str, dict]:
             "maturity": f"{mat_year}-01-15",
             "discount_curve_id": "USD-IG",
             "credit_curve_id": "USD-CREDIT-BBB",
+            "recovery_rate": 0.4,
             "conversion": {
                 "ratio": ratio,
                 "policy": "voluntary",

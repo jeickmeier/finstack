@@ -15,7 +15,7 @@ use finstack_quant_cashflows::builder::specs::CouponType;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::market_data::scalars::MarketScalar;
+use finstack_quant_core::market_data::scalars::{MarketScalar, ScalarTimeSeries};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::fixed_income::cmo::AgencyCmo;
@@ -101,6 +101,7 @@ fn revolving_credit_floating(maturity: Date) -> RevolvingCredit {
         .fees(RevolvingCreditFees::flat(25.0, 10.0, 0.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.40)
         .build()
         .unwrap()
 }
@@ -207,9 +208,11 @@ fn fi_trs_market(as_of: Date) -> MarketContext {
     .knots([(0.0, 0.04), (1.0, 0.045), (5.0, 0.05)])
     .build()
     .unwrap();
+    let fixings = ScalarTimeSeries::new("FIXING:USD-SOFR-3M", vec![(as_of, 0.04)], None).unwrap();
     MarketContext::new()
         .insert(disc)
         .insert(fwd)
+        .insert_series(fixings)
         .insert_price("US-CORP-INDEX", MarketScalar::Unitless(100.0))
         .insert_price("US-CORP-YIELD", MarketScalar::Unitless(0.055))
         .insert_price("US-CORP-DURATION", MarketScalar::Unitless(5.5))

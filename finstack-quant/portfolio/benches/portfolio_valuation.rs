@@ -41,6 +41,13 @@ fn xl_benchmarks_enabled() -> bool {
     std::env::var("FINSTACK_PORTFOLIO_BENCH_XL").is_ok_and(|value| value == "1")
 }
 
+fn best_effort_standard_metrics() -> PortfolioValuationOptions {
+    PortfolioValuationOptions {
+        strict_risk: false,
+        metrics: RequestedMetrics::Standard,
+    }
+}
+
 /// Uniform-cost fixture used to isolate selective invalidation and scheduling.
 ///
 /// The headline valuation and attribution groups remain mixed/credit-bearing.
@@ -119,6 +126,7 @@ fn bench_portfolio_valuation(c: &mut Criterion) {
     let mut group = c.benchmark_group("portfolio_valuation");
     let market = create_market_context();
     let config = FinstackConfig::default();
+    let options = best_effort_standard_metrics();
 
     {
         let num_positions = &250;
@@ -132,7 +140,7 @@ fn bench_portfolio_valuation(c: &mut Criterion) {
                         black_box(&portfolio),
                         black_box(&market),
                         black_box(&config),
-                        &Default::default(),
+                        black_box(&options),
                     )
                     .expect("portfolio valuation benchmark")
                 });
@@ -148,6 +156,7 @@ fn bench_entity_aggregation(c: &mut Criterion) {
     let mut group = c.benchmark_group("portfolio_entity_aggregation");
     let market = create_market_context();
     let config = FinstackConfig::default();
+    let options = best_effort_standard_metrics();
 
     {
         let num_positions = &250;
@@ -161,7 +170,7 @@ fn bench_entity_aggregation(c: &mut Criterion) {
                         black_box(&portfolio),
                         black_box(&market),
                         black_box(&config),
-                        &Default::default(),
+                        black_box(&options),
                     )
                     .unwrap();
                     // Access entity aggregates
@@ -182,6 +191,7 @@ fn bench_multicurrency_aggregation(c: &mut Criterion) {
     let market = create_market_context();
     let config = FinstackConfig::default();
     let portfolio = create_institutional_portfolio(100);
+    let options = best_effort_standard_metrics();
 
     group.bench_function("100pos_multicurrency", |b| {
         b.iter(|| {
@@ -189,7 +199,7 @@ fn bench_multicurrency_aggregation(c: &mut Criterion) {
                 black_box(&portfolio),
                 black_box(&market),
                 black_box(&config),
-                &Default::default(),
+                black_box(&options),
             )
             .expect("multicurrency portfolio benchmark")
         });
@@ -351,6 +361,7 @@ fn bench_revalue_affected(c: &mut Criterion) {
     let mut group = c.benchmark_group("portfolio_revalue_affected");
     let market = create_market_context();
     let config = FinstackConfig::default();
+    let options = best_effort_standard_metrics();
 
     let broad_curve = vec![MarketFactorKey::curve(
         "USD-OIS".into(),
@@ -370,7 +381,7 @@ fn bench_revalue_affected(c: &mut Criterion) {
 
     for num_positions in [250usize] {
         let portfolio = create_institutional_portfolio(num_positions);
-        let prior = value_portfolio(&portfolio, &market, &config, &Default::default()).unwrap();
+        let prior = value_portfolio(&portfolio, &market, &config, &options).unwrap();
 
         for (label, changed) in scenarios {
             group.bench_with_input(
@@ -382,7 +393,7 @@ fn bench_revalue_affected(c: &mut Criterion) {
                             black_box(&portfolio),
                             black_box(&market),
                             black_box(&config),
-                            black_box(&Default::default()),
+                            black_box(&options),
                             black_box(&prior),
                             black_box(changed),
                         )

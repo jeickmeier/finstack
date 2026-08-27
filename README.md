@@ -85,7 +85,7 @@ reaches the whole API.
 | [`finstack-quant-covenants`](finstack-quant/covenants/README.md) | `finstack_quant::covenants` | Covenant specs, evaluation engine, threshold schedules, forecasting, standard packages |
 | [`finstack-quant-features`](finstack-quant/features/README.md) | `finstack_quant::features` | Time-series, cross-sectional, and panel feature transforms over `Option<f64>` columns |
 | [`finstack-quant-margin`](finstack-quant/margin/README.md) | `finstack_quant::margin` | CSA/repo terms, VM and IM engines (SIMM, schedule, haircut, CCP), collateral metrics, XVA config, regulatory capital |
-| [`finstack-quant-models`](finstack-quant/models/README.md) | `finstack_quant::models` | Closed-form/Fourier formulas, SABR, PDE/tree engines, factor models, structural credit, copulas/portfolio loss, and Monte Carlo |
+| [`finstack-quant-models`](finstack-quant/models/README.md) | `finstack_quant::models` | Closed-form/Fourier formulas, volatility, rates/DTSM, credit and structured-credit pool models, factor risk, liquidity, PDE/tree engines, and Monte Carlo |
 | [`finstack-quant-valuations`](finstack-quant/valuations/README.md) | `finstack_quant::valuations` | Instruments, market resolution, pricing registries, calibration, metrics, and result envelopes |
 | [`finstack-quant-statements`](finstack-quant/statements/README.md) | `finstack_quant::statements` | Statement model graph, DSL formulas, forecasting, corkscrews, deterministic period evaluation |
 | [`finstack-quant-statements-analytics`](finstack-quant/statements-analytics/README.md) | `finstack_quant::statements_analytics` | Sensitivity, scenario sets, variance, DCF, goal seek, covenant forecasting, backtesting, templates |
@@ -120,7 +120,7 @@ edges, read off the manifests:
 | `portfolio` | `attribution`, `cashflows`, `margin`, `models`, `scenarios`, `valuations` |
 
 `valuations` is the mid-stack hub and `portfolio` is the top. No Rust crate
-depends on a binding crate.
+depends on a binding crate, and `core` never depends on `models`.
 
 No cargo feature selects financial behavior. The workspace declares two:
 `ts_export` (on `core`, `valuations`, `portfolio`, and the WASM crate), which

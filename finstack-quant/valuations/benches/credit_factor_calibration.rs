@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used)]
 
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
+use finstack_quant_core::dates::DateExt;
 use finstack_quant_models::factor::credit::calibration::{
     BetaShrinkage, BucketSizeThresholds, CovarianceStrategy, CreditCalibrationConfig,
     CreditCalibrationInputs, CreditCalibrator, PanelSpace, VolModelChoice,
@@ -31,16 +32,14 @@ fn det_rand(seed_a: usize, seed_b: usize) -> f64 {
     (x & 0xFFFF) as f64 / 65535.0
 }
 
-/// Generate a sequence of monthly ISO date strings ending at `2024-03-31`.
+/// Generate a regular sequence of monthly ISO date strings ending at `2024-03-15`.
 fn monthly_dates(n: usize) -> Vec<String> {
-    let end = Date::from_calendar_date(2024, Month::March, 31).unwrap();
-    let mut dates = Vec::with_capacity(n);
-    for i in 0..n {
-        let approx_days_back = (n - 1 - i) as i64 * 30;
-        let d = end - time::Duration::days(approx_days_back);
-        dates.push(d.to_string());
-    }
-    dates
+    let end = Date::from_calendar_date(2024, Month::March, 15).unwrap();
+    let periods_back = i32::try_from(n.saturating_sub(1)).unwrap();
+    let start = end.add_months(-periods_back);
+    (0..n)
+        .map(|index| start.add_months(i32::try_from(index).unwrap()).to_string())
+        .collect()
 }
 
 fn bucket_label(idx: usize) -> &'static str {
@@ -60,7 +59,7 @@ fn build_inputs(n_issuers: usize, n_months: usize, n_levels: usize) -> CreditCal
     let as_of = dates.last().unwrap().clone();
 
     let generic_values: Vec<f64> = (0..n_months)
-        .map(|i| 100.0 + 0.5 * (i as f64 * 0.3_f64).sin())
+        .map(|i| 0.01 + 0.00005 * (i as f64 * 0.3_f64).sin())
         .collect();
 
     let mut spreads = serde_json::Map::new();
@@ -69,12 +68,13 @@ fn build_inputs(n_issuers: usize, n_months: usize, n_levels: usize) -> CreditCal
 
     for idx in 0..n_issuers {
         let id = format!("ISSUER-{idx:04}");
-        let base = 80.0 + (idx % 200) as f64 * 1.5;
+        let base = 0.008 + (idx % 200) as f64 * 0.00015;
         let beta_pc = 0.4 + (idx % 10) as f64 * 0.06;
 
         let series: Vec<Value> = (0..n_months)
             .map(|t| {
-                let v = base + beta_pc * (generic_values[t] - 100.0) + 2.0 * det_rand(idx, t) - 1.0;
+                let v = base + beta_pc * (generic_values[t] - 0.01) + 0.0002 * det_rand(idx, t)
+                    - 0.0001;
                 Value::from(v)
             })
             .collect();

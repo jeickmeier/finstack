@@ -1431,7 +1431,6 @@ class VolHorizon:
         """
         ...
 
-
 __all__ = [
     "CreditFactorModel",
     "CreditCalibrator",

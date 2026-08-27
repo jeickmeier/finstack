@@ -333,6 +333,7 @@ class TestPortfolioNamespace:
 
     def test_factor_risk_exports(self) -> None:
         """Pure factor-risk kernels should live under models.factor.risk."""
+        from finstack_quant import portfolio
         from finstack_quant.models.factor.risk import (  # noqa: F401
             DecompositionConfig,
             RiskDecomposition,
@@ -341,8 +342,6 @@ class TestPortfolioNamespace:
             evaluate_risk_budget,
             parametric_var_decomposition,
         )
-
-        import finstack_quant.portfolio as portfolio
 
         assert not hasattr(portfolio, "RiskDecomposition")
         assert not hasattr(portfolio, "build_stress_attribution")

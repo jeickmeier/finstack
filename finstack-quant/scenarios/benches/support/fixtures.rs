@@ -21,15 +21,14 @@ use finstack_quant_core::market_data::term_structures::{
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::fx::{FxMatrix, SimpleFxProvider};
 use finstack_quant_core::money::Money;
+use finstack_quant_models::credit::pool::CorrelationStructure;
 use finstack_quant_scenarios::{
     ApplicationReport, Compounding, ExecutionContext, OperationSpec, RateBindingSpec,
     ScenarioEngine, ScenarioSpec,
 };
 use finstack_quant_statements::types::{AmountOrScalar, NodeSpec, NodeType};
 use finstack_quant_statements::FinancialModelSpec;
-use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
-    CorrelationStructure, StructuredCredit,
-};
+use finstack_quant_valuations::instruments::fixed_income::structured_credit::StructuredCredit;
 use finstack_quant_valuations::instruments::{Bond, Instrument};
 use indexmap::{indexmap, IndexMap};
 use std::sync::Arc;

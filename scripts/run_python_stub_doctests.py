@@ -25,6 +25,10 @@ def module_name_for(path: Path) -> str:
     parts = list(rel.with_suffix("").parts)
     if parts[-1] == "__init__":
         parts = parts[:-1]
+    elif parts[-1].startswith("_"):
+        # Private stub fragments organize declarations for their public parent
+        # namespace; they are not runtime submodules of the extension.
+        parts = parts[:-1]
     return ".".join(["finstack_quant", *parts])
 
 
