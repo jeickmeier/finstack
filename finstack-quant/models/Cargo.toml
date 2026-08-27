@@ -65,6 +65,10 @@ name = "factor_model_scale"
 path = "benches/factor/factor_model_scale.rs"
 harness = false
 
+[[bench]]
+name = "liquidity"
+harness = false
+
 [[bin]]
 name = "gen_factor_model_schemas"
 path = "src/bin/gen_factor_model_schemas.rs"

@@ -616,6 +616,7 @@ pde          = { python = "finstack_quant.models.pde", status = "missing", note 
 trees        = { python = "finstack_quant.models.trees", status = "missing", note = "Rust-only tree engines consumed by valuation instruments." }
 credit       = { python = "finstack_quant.models.credit", status = "exists", note = "Structural credit, rating factors, scoring, PD, LGD, migration, recovery-waterfall, and liability-management models." }
 factor       = { python = "finstack_quant.models.factor", status = "exists", note = "Factor definitions, matching, covariance, sensitivity matrices, and credit hierarchy calibration." }
+liquidity    = { python = "finstack_quant.models.liquidity", status = "exists", note = "Product-independent liquidity estimation, liquidity-adjusted risk, and market-impact models." }
 correlation  = { python = "finstack_quant.models.correlation", status = "exists", note = "Copula, recovery, and portfolio-loss infrastructure." }
 monte_carlo  = { python = "finstack_quant.models.monte_carlo", status = "exists", note = "Productized subset of the reusable stochastic engine." }
 rates        = { python = "finstack_quant.models.rates", status = "exists", note = "Product-independent interest-rate models." }
@@ -657,6 +658,18 @@ public = [
     "price_heston_call",
     "price_heston_put",
     "simulate_gbm_paths",
+]
+
+[crates.models.liquidity]
+python_package = "finstack_quant.models.liquidity"
+public = [
+    "almgren_chriss_impact",
+    "amihud_illiquidity",
+    "days_to_liquidate",
+    "kyle_lambda",
+    "liquidity_tier",
+    "lvar_bangia",
+    "roll_effective_spread",
 ]
 
 [crates.models.rates]
@@ -1519,7 +1532,6 @@ margin       = { python = "finstack_quant.portfolio.margin",       status = "mis
 metrics      = { python = "finstack_quant.portfolio.metrics",      status = "missing", note = "Bindings are currently exported from finstack_quant.portfolio root" }
 optimization = { python = "finstack_quant.portfolio",              status = "flattened", note = "Spec/result types (PortfolioOptimizationSpec, Constraint, Objective, MetricExpr, PerPositionMetric, PositionFilter, WeightingScheme, MissingMetricPolicy, Inequality, OptimizationStatus, TradeSpec, TradeDirection, TradeType, CandidatePosition, TradeUniverse, PortfolioOptimizationResult) and the typed optimize_portfolio entry point are exported flat on finstack_quant.portfolio" }
 performance  = { python = "finstack_quant.portfolio",              status = "flattened", note = "TWRR/MWRR performance helpers are exported flat on finstack_quant.portfolio" }
-liquidity    = { python = "finstack_quant.portfolio",              status = "flattened", note = "Liquidity risk functions (roll_effective_spread, amihud_illiquidity, days_to_liquidate, liquidity_tier, lvar_bangia, almgren_chriss_impact, kyle_lambda) are exported flat on finstack_quant.portfolio; model/profile types (LiquidityProfile, LiquidityConfig, AlmgrenChrissModel, KyleLambdaModel, ImpactEstimate) remain Rust-only" }
 materialization = { python = "finstack_quant.portfolio",           status = "flattened", note = "InstrumentArtifactCache, MaterializationReport, Portfolio.from_materialization, and Portfolio.validate_materialization (typed twin of the WASM Portfolio.validateMaterialization; diagnostics returned, not raised) are exported flat on finstack_quant.portfolio; envelope types (PortfolioMaterializationEnvelope, MaterializedPosition, InstrumentArtifact, PortfolioHeader, MaterializerInfo, PORTFOLIO_MATERIALIZATION_CONTRACT) remain Rust-only" }
 portfolio    = { python = "finstack_quant.portfolio.portfolio",    status = "missing", note = "Bindings are currently exported from finstack_quant.portfolio root" }
 position     = { python = "finstack_quant.portfolio.position",     status = "missing", note = "Position/PositionUnit are Rust-only; hosts describe positions through PortfolioSpec JSON, never as typed objects" }
@@ -1613,8 +1625,6 @@ public = [
     "aggregate_metrics_json",
     "allocate_weights",
     "allocate_weights_json",
-    "almgren_chriss_impact",
-    "amihud_illiquidity",
     "apply_scenario_and_revalue",
     "attribute_portfolio_pnl",
     "brinson_fachler",
@@ -1635,7 +1645,6 @@ public = [
     "cell_returns_from_reference",
     "compute_factor_sensitivities",
     "compute_pnl_profiles",
-    "days_to_liquidate",
     "decompose_factor_risk",
     "cell_returns_from_curves_json",
     "cell_returns_from_reference_json",
@@ -1648,9 +1657,6 @@ public = [
     "grid_attribution_json",
     "grid_carino_link",
     "grid_carino_link_json",
-    "kyle_lambda",
-    "liquidity_tier",
-    "lvar_bangia",
     "mwr_xirr",
     "net_in_currency_by_date",
     "optimize_portfolio",
@@ -1660,7 +1666,6 @@ public = [
     "position_what_if",
     "replay_portfolio",
     "replay_portfolio_json",
-    "roll_effective_spread",
     "scenario_pnl",
     "scenario_pnl_batch",
     "scenario_pnl_batch_json",
@@ -1724,13 +1729,6 @@ root_exports = [
   "computePnlProfiles",
   "computePnlProfilesWithMarket",
   "decomposeFactorRisk",
-  "rollEffectiveSpread",
-  "amihudIlliquidity",
-  "daysToLiquidate",
-  "liquidityTier",
-  "lvarBangia",
-  "almgrenChrissImpact",
-  "kyleLambda",
 ]
 
 python_only = [
@@ -1893,13 +1891,6 @@ replay_portfolio = "replayPortfolio"
 compute_factor_sensitivities = "computeFactorSensitivities"
 compute_pnl_profiles = "computePnlProfiles"
 decompose_factor_risk = "decomposeFactorRisk"
-roll_effective_spread = "rollEffectiveSpread"
-amihud_illiquidity = "amihudIlliquidity"
-days_to_liquidate = "daysToLiquidate"
-liquidity_tier = "liquidityTier"
-lvar_bangia = "lvarBangia"
-almgren_chriss_impact = "almgrenChrissImpact"
-kyle_lambda = "kyleLambda"
 
 # ---------------------------------------------------------------------------
 # reporting  →  finstack_quant.reporting  (pure-Python, no Rust counterpart)
@@ -2437,7 +2428,7 @@ wasm_only = [
 [wasm_models_subset]
 rust_module_root = "../finstack-quant-wasm/src/api/models/"
 js_export_file   = "../finstack-quant-wasm/exports/models.js"
-nested = ["correlation", "credit", "factor", "monteCarlo", "rates", "volatility"]
+nested = ["correlation", "credit", "factor", "liquidity", "monteCarlo", "rates", "volatility"]
 root_exports = [
     "asianOptionPrice",
     "barrierCall",
@@ -2525,6 +2516,15 @@ factor = [
     "credit",
     "risk",
 ]
+liquidity = [
+    "almgrenChrissImpact",
+    "amihudIlliquidity",
+    "daysToLiquidate",
+    "kyleLambda",
+    "liquidityTier",
+    "lvarBangia",
+    "rollEffectiveSpread",
+]
 monteCarlo = [
     "blackScholesCall",
     "blackScholesPut",
@@ -2543,6 +2543,15 @@ rates = ["dtsm"]
 
 [wasm_models_subset.rates_dtsm_python_js_map]
 nelson_siegel_yields = "nelsonSiegelYields"
+
+[wasm_models_subset.liquidity_python_js_map]
+almgren_chriss_impact = "almgrenChrissImpact"
+amihud_illiquidity = "amihudIlliquidity"
+days_to_liquidate = "daysToLiquidate"
+kyle_lambda = "kyleLambda"
+liquidity_tier = "liquidityTier"
+lvar_bangia = "lvarBangia"
+roll_effective_spread = "rollEffectiveSpread"
 
 [wasm_models_subset.nested_python_only]
 factor = [

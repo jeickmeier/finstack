@@ -1,5 +1,5 @@
 {
-  "schema": "finstack_quant.portfolio.liquidity_defaults/1",
+  "schema": "finstack_quant.models.liquidity_defaults/1",
   "version": 1,
   "default_config": {
     "tier_thresholds": [1.0, 5.0, 20.0, 60.0]

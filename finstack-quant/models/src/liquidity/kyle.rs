@@ -8,7 +8,9 @@
 //! - Kyle, A.S. (1985). "Continuous Auctions and Insider Trading."
 //!   *Econometrica*, 53(6). `docs/REFERENCES.md#kyle-1985`
 
-use crate::error::{Error, Result};
+use finstack_quant_core::Result;
+
+use super::invalid_input;
 use serde::{Deserialize, Serialize};
 
 use super::impact::{ExecutionTrajectory, ImpactEstimate, MarketImpactModel, TradeParams};
@@ -35,12 +37,10 @@ impl KyleLambdaModel {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidInput` if `lambda` is negative or non-finite.
+    /// Returns `finstack_quant_core::Error::Validation` if `lambda` is negative or non-finite.
     pub fn new(lambda: f64) -> Result<Self> {
         if !lambda.is_finite() || lambda < 0.0 {
-            return Err(Error::invalid_input(
-                "lambda must be finite and non-negative",
-            ));
+            return Err(invalid_input("lambda must be finite and non-negative"));
         }
         Ok(Self { lambda })
     }
@@ -84,7 +84,7 @@ impl KyleLambdaModel {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidInput` if inputs are non-finite, negative, or if
+    /// Returns `finstack_quant_core::Error::Validation` if inputs are non-finite, negative, or if
     /// `reference_price` is zero.
     ///
     /// # Arguments
@@ -95,14 +95,12 @@ impl KyleLambdaModel {
     ///   convert the return-space ratio into price-space lambda.
     pub fn from_amihud(amihud_ratio: f64, reference_price: f64) -> Result<Self> {
         if !amihud_ratio.is_finite() || amihud_ratio < 0.0 {
-            return Err(Error::invalid_input(
+            return Err(invalid_input(
                 "amihud_ratio must be finite and non-negative",
             ));
         }
         if !reference_price.is_finite() || reference_price <= 0.0 {
-            return Err(Error::invalid_input(
-                "reference_price must be finite and positive",
-            ));
+            return Err(invalid_input("reference_price must be finite and positive"));
         }
         Self::new(amihud_ratio * reference_price)
     }
@@ -117,15 +115,13 @@ impl KyleLambdaModel {
 impl MarketImpactModel for KyleLambdaModel {
     fn estimate_cost(&self, params: &TradeParams) -> Result<ImpactEstimate> {
         if !params.quantity.is_finite() {
-            return Err(Error::invalid_input("quantity must be finite"));
+            return Err(invalid_input("quantity must be finite"));
         }
         if !params.horizon_days.is_finite() || params.horizon_days <= 0.0 {
-            return Err(Error::invalid_input(
-                "horizon_days must be finite and positive",
-            ));
+            return Err(invalid_input("horizon_days must be finite and positive"));
         }
         if !params.daily_volatility.is_finite() || params.daily_volatility <= 0.0 {
-            return Err(Error::invalid_input(
+            return Err(invalid_input(
                 "daily_volatility must be finite and positive",
             ));
         }
@@ -175,15 +171,13 @@ impl MarketImpactModel for KyleLambdaModel {
         num_buckets: usize,
     ) -> Result<ExecutionTrajectory> {
         if num_buckets == 0 {
-            return Err(Error::invalid_input("num_buckets must be > 0"));
+            return Err(invalid_input("num_buckets must be > 0"));
         }
         if !params.quantity.is_finite() {
-            return Err(Error::invalid_input("quantity must be finite"));
+            return Err(invalid_input("quantity must be finite"));
         }
         if !params.horizon_days.is_finite() || params.horizon_days <= 0.0 {
-            return Err(Error::invalid_input(
-                "horizon_days must be finite and positive",
-            ));
+            return Err(invalid_input("horizon_days must be finite and positive"));
         }
 
         let q = params.quantity;

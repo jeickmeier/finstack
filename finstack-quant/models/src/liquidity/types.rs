@@ -4,7 +4,9 @@
 //! classification, configuration parameters, and tier allocation types used
 //! throughout the liquidity submodule.
 
-use crate::error::{Error, Result};
+use finstack_quant_core::Result;
+
+use super::invalid_input;
 use serde::{Deserialize, Serialize};
 
 /// How [`LiquidityProfile::spread_volatility`] should be interpreted.
@@ -131,7 +133,7 @@ impl LiquidityProfile {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidInput` if:
+    /// Returns `finstack_quant_core::Error::Validation` if:
     /// - `mid`, `bid`, `ask` are not finite or non-positive
     /// - `bid > ask` (crossed market)
     /// - `avg_daily_volume` is not finite or negative
@@ -147,31 +149,31 @@ impl LiquidityProfile {
         spread_volatility: f64,
     ) -> Result<Self> {
         if !mid.is_finite() || mid <= 0.0 {
-            return Err(Error::invalid_input("mid must be finite and positive"));
+            return Err(invalid_input("mid must be finite and positive"));
         }
         if !bid.is_finite() || bid <= 0.0 {
-            return Err(Error::invalid_input("bid must be finite and positive"));
+            return Err(invalid_input("bid must be finite and positive"));
         }
         if !ask.is_finite() || ask <= 0.0 {
-            return Err(Error::invalid_input("ask must be finite and positive"));
+            return Err(invalid_input("ask must be finite and positive"));
         }
         if bid > ask {
-            return Err(Error::invalid_input(format!(
+            return Err(invalid_input(format!(
                 "crossed market: bid ({bid}) > ask ({ask})"
             )));
         }
         if !avg_daily_volume.is_finite() || avg_daily_volume < 0.0 {
-            return Err(Error::invalid_input(
+            return Err(invalid_input(
                 "avg_daily_volume must be finite and non-negative",
             ));
         }
         if !avg_trade_size.is_finite() || avg_trade_size < 0.0 {
-            return Err(Error::invalid_input(
+            return Err(invalid_input(
                 "avg_trade_size must be finite and non-negative",
             ));
         }
         if !spread_volatility.is_finite() || spread_volatility < 0.0 {
-            return Err(Error::invalid_input(
+            return Err(invalid_input(
                 "spread_volatility must be finite and non-negative",
             ));
         }
@@ -317,7 +319,7 @@ pub struct LiquidityConfig {
 
 impl Default for LiquidityConfig {
     fn default() -> Self {
-        crate::registry::embedded_liquidity_defaults_or_panic()
+        super::registry::embedded_liquidity_defaults_or_panic()
             .default_config
             .clone()
     }

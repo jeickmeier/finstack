@@ -10,7 +10,9 @@
 //!   Transactions." *Journal of Risk*, 3(2). `docs/REFERENCES.md#almgren-chriss-2000`
 //!
 
-use crate::error::{Error, Result};
+use finstack_quant_core::Result;
+
+use super::invalid_input;
 use serde::{Deserialize, Serialize};
 
 use super::impact::{ExecutionTrajectory, ImpactEstimate, MarketImpactModel, TradeParams};
@@ -57,18 +59,16 @@ impl AlmgrenChrissModel {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidInput` if parameters are out of valid range.
+    /// Returns `finstack_quant_core::Error::Validation` if parameters are out of valid range.
     pub fn new(gamma: f64, eta: f64, delta: f64) -> Result<Self> {
         if !gamma.is_finite() || gamma < 0.0 {
-            return Err(Error::invalid_input(
-                "gamma must be finite and non-negative",
-            ));
+            return Err(invalid_input("gamma must be finite and non-negative"));
         }
         if !eta.is_finite() || eta <= 0.0 {
-            return Err(Error::invalid_input("eta must be finite and positive"));
+            return Err(invalid_input("eta must be finite and positive"));
         }
         if !delta.is_finite() || delta <= 0.0 || delta > 1.0 {
-            return Err(Error::invalid_input("delta must be in (0, 1]"));
+            return Err(invalid_input("delta must be in (0, 1]"));
         }
 
         Ok(Self { gamma, eta, delta })
@@ -88,16 +88,16 @@ impl AlmgrenChrissModel {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidInput` if daily_volatility is non-positive or
+    /// Returns `finstack_quant_core::Error::Validation` if daily_volatility is non-positive or
     /// if the profile has zero volume.
     pub fn from_profile(profile: &LiquidityProfile, daily_volatility: f64) -> Result<Self> {
         if !daily_volatility.is_finite() || daily_volatility <= 0.0 {
-            return Err(Error::invalid_input(
+            return Err(invalid_input(
                 "daily_volatility must be finite and positive",
             ));
         }
         if profile.avg_daily_volume <= 0.0 {
-            return Err(Error::invalid_input(
+            return Err(invalid_input(
                 "avg_daily_volume must be positive for calibration",
             ));
         }
@@ -132,15 +132,13 @@ impl AlmgrenChrissModel {
 impl MarketImpactModel for AlmgrenChrissModel {
     fn estimate_cost(&self, params: &TradeParams) -> Result<ImpactEstimate> {
         if !params.quantity.is_finite() {
-            return Err(Error::invalid_input("quantity must be finite"));
+            return Err(invalid_input("quantity must be finite"));
         }
         if !params.horizon_days.is_finite() || params.horizon_days <= 0.0 {
-            return Err(Error::invalid_input(
-                "horizon_days must be finite and positive",
-            ));
+            return Err(invalid_input("horizon_days must be finite and positive"));
         }
         if !params.daily_volatility.is_finite() || params.daily_volatility <= 0.0 {
-            return Err(Error::invalid_input(
+            return Err(invalid_input(
                 "daily_volatility must be finite and positive",
             ));
         }
@@ -190,18 +188,16 @@ impl MarketImpactModel for AlmgrenChrissModel {
         num_buckets: usize,
     ) -> Result<ExecutionTrajectory> {
         if num_buckets == 0 {
-            return Err(Error::invalid_input("num_buckets must be > 0"));
+            return Err(invalid_input("num_buckets must be > 0"));
         }
         if !params.quantity.is_finite() {
-            return Err(Error::invalid_input("quantity must be finite"));
+            return Err(invalid_input("quantity must be finite"));
         }
         if !params.horizon_days.is_finite() || params.horizon_days <= 0.0 {
-            return Err(Error::invalid_input(
-                "horizon_days must be finite and positive",
-            ));
+            return Err(invalid_input("horizon_days must be finite and positive"));
         }
         if !params.daily_volatility.is_finite() || params.daily_volatility <= 0.0 {
-            return Err(Error::invalid_input(
+            return Err(invalid_input(
                 "daily_volatility must be finite and positive",
             ));
         }
@@ -211,7 +207,7 @@ impl MarketImpactModel for AlmgrenChrissModel {
         let dt = t / num_buckets as f64;
         let risk_aversion = params.risk_aversion.unwrap_or(1e-6);
         if !risk_aversion.is_finite() || risk_aversion < 0.0 {
-            return Err(Error::invalid_input(
+            return Err(invalid_input(
                 "risk_aversion must be finite and non-negative",
             ));
         }
@@ -225,7 +221,7 @@ impl MarketImpactModel for AlmgrenChrissModel {
         // either change the model's `delta` or drop down to `estimate_cost`,
         // which uses the true `delta` for cost reporting.
         if (self.delta - 1.0).abs() > 1e-12 {
-            return Err(Error::invalid_input(format!(
+            return Err(invalid_input(format!(
                 "Almgren-Chriss optimal_trajectory is only defined for delta = 1 \
                  (linear temporary impact); model has delta = {delta}. Either set \
                  the model's delta to 1.0 to opt into the closed-form schedule, or \

@@ -32,8 +32,6 @@ const EXPORTED_KEYS = [
   'aggregateFullCashflows',
   'aggregateFullCashflowsBuilt',
   'aggregateMetrics',
-  'almgrenChrissImpact',
-  'amihudIlliquidity',
   'applyScenarioAndRevalue',
   'applyScenarioAndRevalueBuilt',
   'brinsonFachler',
@@ -49,22 +47,17 @@ const EXPORTED_KEYS = [
   'computeFactorSensitivitiesWithMarket',
   'computePnlProfiles',
   'computePnlProfilesWithMarket',
-  'daysToLiquidate',
   'decomposeFactorRisk',
   'excessReturns',
   'factorBrinsonAttribution',
   'gridAttribution',
   'gridCarinoLink',
-  'kyleLambda',
-  'liquidityTier',
-  'lvarBangia',
   'mwrXirr',
   'optimizePortfolio',
   'parsePortfolioSpecJson',
   'portfolioResultGetMetric',
   'portfolioResultTotalValue',
   'replayPortfolio',
-  'rollEffectiveSpread',
   'scenarioPnl',
   'scenarioPnlBuilt',
   'twrrLinked',
@@ -110,10 +103,6 @@ test('portfolio Campisi exports keep their declared arity', () => {
   assert.equal(portfolio.campisiCarinoLink.length, 1);
   assert.equal(portfolio.campisiCarinoLinkFromSnapshots.length, 2);
   assert.equal(portfolio.campisiReconciliationCheck.length, 2);
-});
-
-test('portfolio.kyleLambda requires the reference-price argument', () => {
-  assert.equal(portfolio.kyleLambda.length, 3);
 });
 
 // Same lesson as the Campisi arity gate above, applied to the credit
@@ -998,40 +987,4 @@ test('factor-risk kernels are absent from the portfolio namespace', () => {
   assert.equal('parametricEsDecomposition' in portfolio, false);
   assert.equal('historicalVarDecomposition' in portfolio, false);
   assert.equal('evaluateRiskBudget' in portfolio, false);
-});
-
-test('portfolio.lvarBangia returns the Python-parity dict shape', () => {
-  const lvar = assertStructured(
-    portfolio.lvarBangia(-100_000, 0.002, 0.0005, 0.99, 1_000_000),
-    'lvarBangia result'
-  );
-  assert.deepEqual(Object.keys(lvar).sort(), ['lvar', 'lvar_ratio', 'spread_cost', 'var']);
-  assert.equal(lvar.var, -100_000);
-  assert.ok(lvar.lvar <= lvar.var);
-  assert.ok(Math.abs(lvar.lvar_ratio - lvar.lvar / lvar.var) < 1e-12);
-});
-
-test('portfolio.almgrenChrissImpact returns the Python-parity dict shape', () => {
-  const impact = assertStructured(
-    portfolio.almgrenChrissImpact(10_000, 1_000_000, 0.02, 1.0, 0.0, 0.01, 100.0),
-    'almgrenChrissImpact result'
-  );
-  assert.deepEqual(Object.keys(impact).sort(), [
-    'execution_risk',
-    'expected_cost_bp',
-    'permanent_impact',
-    'temporary_impact',
-    'total_impact',
-  ]);
-  // The ADV-calibrated model derives gamma/eta from a profile whose mid is
-  // the reference price: monetary costs scale linearly with price while
-  // cost-in-bp of traded notional is price-invariant.
-  const unpriced = portfolio.almgrenChrissImpact(10_000, 1_000_000, 0.02, 1.0, 0.0, 0.01);
-  assert.ok(Math.abs(impact.expected_cost_bp - unpriced.expected_cost_bp) < 1e-12);
-  assert.ok(
-    Math.abs(impact.total_impact - 100 * unpriced.total_impact) < 1e-9 * impact.total_impact
-  );
-  assert.ok(
-    Math.abs(impact.execution_risk - 100 * unpriced.execution_risk) < 1e-9 * impact.execution_risk
-  );
 });

@@ -2,7 +2,7 @@
 
 Positions, entities, and books; deterministic base-currency valuation and
 rollups with explicit FX; and the portfolio-level analytics that sit on top —
-attribution, factor risk, margin, liquidity, optimization, scenario P&L, and
+attribution, factor risk, margin, optimization, scenario P&L, and
 historical replay.
 
 ## Where it sits
@@ -65,7 +65,6 @@ through its module path. See the rustdoc for detail
 | `performance` | `twrr_modified_dietz`, `twrr_linked`, `mwr_xirr`, `mwr_xirr_from_cashflows` |
 | `factor_model` | `FactorModel` (`assign_factors` / `compute_sensitivities` / `analyze`), `ParametricDecomposer`, `SimulationDecomposer`, `allocate_weights` |
 | `sensitivity` | `DeltaBasedEngine`, `FullRepricingEngine` + `ScenarioGrid`, `FactorSensitivityEngine` |
-| `liquidity` | `roll_effective_spread`, `amihud_illiquidity`, `days_to_liquidate`, `classify_tier`, `lvar_bangia_scalar`, `AlmgrenChrissModel`, `KyleLambdaModel` |
 | `optimization` | `PortfolioOptimizationProblem`, `DefaultLpOptimizer`, `optimize_from_spec`, `PortfolioOptimizationResult` |
 | `margin` (re-exported at root) | `PortfolioMarginAggregator`, `NettingSet`, `PortfolioMarginResult` — see [`src/margin/README.md`](src/margin/README.md) |
 | `scenarios` | `apply_and_revalue`, `scenario_pnl`, `scenario_pnl_batch` |

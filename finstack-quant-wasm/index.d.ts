@@ -3854,8 +3854,8 @@ export interface FactorRiskNamespace {
    * @param weightsJson - Position or asset weight-vector JSON.
    * @param covarianceJson - Covariance-matrix JSON.
    * @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
-   * @param computeIncremental - Optional; when `true`, also computes incremental VaR (one full repricing per position). Defaults to `false`.
-   * @throws Error - Throws if JSON decoding fails; dimensions disagree; covariance is invalid; confidence is outside `(0.5, 1)`; or result conversion fails.
+   * @param computeIncremental - Optional; when `true`, also computes incremental VaR (one full repricing per position). Defaults to `false`, mirroring the Python `compute_incremental=` keyword.
+   * @throws Error - Throws a JavaScript exception if any JSON input is malformed; identifier, weight, or covariance dimensions disagree; the covariance matrix is not finite, symmetric, and positive semidefinite; `confidence` is not finite and in `(0.5, 1)`; or the result cannot be converted to a JavaScript value.
    */
   parametricVarDecomposition(
     positionIdsJson: string,
@@ -3872,7 +3872,7 @@ export interface FactorRiskNamespace {
    * @param weightsJson - Position or asset weight-vector JSON.
    * @param covarianceJson - Covariance-matrix JSON.
    * @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
-   * @throws Error - Throws if JSON decoding fails; dimensions disagree; covariance is invalid; confidence is outside `(0.5, 1)`; or result conversion fails.
+   * @throws Error - Throws a JavaScript exception if any JSON input is malformed; identifier, weight, or covariance dimensions disagree; the covariance matrix is not finite, symmetric, and positive semidefinite; `confidence` is not finite and in `(0.5, 1)`; or the result cannot be converted to a JavaScript value.
    */
   parametricEsDecomposition(
     positionIdsJson: string,
@@ -3885,9 +3885,9 @@ export interface FactorRiskNamespace {
    * profit-and-loss series using historical simulation.
    * @returns Returns a structured `VarDecompositionResult` object.
    * @param positionIdsJson - JSON array of position identifiers.
-   * @param positionPnlsJson - Nested per-position P&L array shaped `[n_positions][n_scenarios]`.
+   * @param positionPnlsJson - Per-position P&L JSON.
    * @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
-   * @throws Error - Throws if JSON decoding fails; dimensions disagree; confidence is outside `(0.5, 1)`; the tail has too few scenarios; a P&L is non-finite; or result conversion fails.
+   * @throws Error - Throws a JavaScript exception if either JSON input is malformed, position or scenario dimensions disagree, `confidence` is not finite and in `(0.5, 1)`, too few scenarios resolve the requested tail, a P-and-L value is non-finite, or the result cannot be converted to a JavaScript value.
    */
   historicalVarDecomposition(
     positionIdsJson: string,
@@ -3898,11 +3898,11 @@ export interface FactorRiskNamespace {
    * Evaluate per-position component VaRs against target risk-budget shares.
    * @returns Returns a structured `RiskBudgetResult` object.
    * @param positionIdsJson - JSON array of position identifiers.
-   * @param actualVarJson - Actual component-VaR JSON array in the same order as the identifiers.
-   * @param targetVarPctJson - Target VaR-share JSON array of decimal proportions summing to one.
-   * @param portfolioVar - Total portfolio VaR used to convert shares into absolute amounts.
-   * @param utilizationThreshold - Optional actual-to-target ratio that flags a breach; defaults to 1.2.
-   * @throws Error - Throws if JSON decoding fails; dimensions disagree; identifiers are duplicated; target shares are invalid; `portfolioVar` is inconsistent with component risk; or result conversion fails.
+   * @param actualVarJson - Actual component-VaR JSON.
+   * @param targetVarPctJson - Target VaR-share JSON.
+   * @param portfolioVar - Total portfolio VaR used to convert risk-budget shares into absolute amounts.
+   * @param utilizationThreshold - Optional actual-to-target risk ratio that flags a budget breach; omit for the Rust default of 1.2.
+   * @throws Error - Throws a JavaScript exception if any JSON input is malformed, actual or target arrays do not match the identifier count, a position id is duplicated, non-empty target shares do not sum to one within tolerance, nonzero component risk is paired with zero `portfolioVar`, or the result cannot be converted to a JavaScript value.
    */
   evaluateRiskBudget(
     positionIdsJson: string,
@@ -7627,6 +7627,95 @@ export interface VolatilityNamespace {
 }
 
 /**
+ * Product-independent liquidity risk and market-impact models.
+ *
+ * @example
+ * ```typescript
+ * import init, { models } from "finstack-quant-wasm";
+ * await init();
+ * console.log(models.liquidity.daysToLiquidate(1_000_000, 250_000, 0.20));
+ * ```
+ */
+export interface LiquidityNamespace {
+  /**
+   * Estimate Roll effective spread from an ordered return series.
+   * @param returnsJson - JSON array of decimal returns in time order.
+   * @returns Effective spread in return units, or `undefined` when it cannot be estimated.
+   * @throws Error - Throws a JavaScript exception if `returnsJson` is malformed or is not a numeric array. Invalid estimator samples return `undefined`.
+   */
+  rollEffectiveSpread(returnsJson: string): number | undefined;
+  /**
+   * Compute Amihud illiquidity from aligned returns and volumes.
+   * @param returnsJson - JSON array of decimal returns in time order.
+   * @param volumesJson - JSON array of positive volumes aligned with the returns.
+   * @returns Mean absolute return per unit volume, or `undefined` for an invalid sample.
+   * @throws Error - Throws a JavaScript exception if either JSON input is malformed or is not a numeric array. Invalid estimator samples return `undefined`.
+   */
+  amihudIlliquidity(returnsJson: string, volumesJson: string): number | undefined;
+  /**
+   * Calculate the trading days required to liquidate a position.
+   * @param positionQuantity - Shares or contracts to liquidate; the absolute value is used.
+   * @param adv - Average daily volume in the same quantity units.
+   * @param participationRate - Fraction of ADV available for execution each trading day.
+   * @returns Liquidation horizon in trading days, or infinity for non-positive capacity.
+   */
+  daysToLiquidate(positionQuantity: number, adv: number, participationRate: number): number;
+  /**
+   * Classify a liquidation horizon using the default model thresholds.
+   * @param daysToLiquidate - Estimated unwind horizon in trading days.
+   * @returns One of `tier1` through `tier5`, with Tier 1 the most liquid.
+   */
+  liquidityTier(daysToLiquidate: number): string;
+  /**
+   * Compute Bangia liquidity-adjusted VaR under the loss-sign convention.
+   * @param spreadMean - Finite non-negative mean relative bid-ask spread as a decimal.
+   * @param spreadVol - Finite non-negative volatility of the relative spread.
+   * @param confidence - Confidence level strictly between 0.5 and 1.
+   * @param positionValue - Finite current market value; only its magnitude is used.
+   * @returns An object containing `var`, `spread_cost`, `lvar`, and `lvar_ratio`.
+   * @throws Error - Throws a JavaScript exception if an input violates the stated finiteness, sign, or range contract, or if the result cannot be converted.
+   * @param varValue - Loss-convention VaR in the same units as `positionValue`; must be non-positive.
+   */
+  lvarBangia(
+    varValue: number,
+    spreadMean: number,
+    spreadVol: number,
+    confidence: number,
+    positionValue: number
+  ): LvarBangiaResult;
+  /**
+   * Estimate uniform Almgren-Chriss execution-impact components.
+   * @param positionSize - Finite signed quantity in shares or contracts.
+   * @param avgDailyVolume - Positive finite ADV in matching quantity units.
+   * @param volatility - Positive finite daily volatility as a decimal.
+   * @param executionHorizonDays - Positive finite execution horizon in trading days.
+   * @param permanentImpactCoef - Non-negative finite multiplier on permanent impact.
+   * @param temporaryImpactCoef - Positive finite multiplier on temporary impact.
+   * @param referencePrice - Optional positive finite price for notional and basis-point scaling.
+   * @returns Permanent, temporary, total, basis-point, and execution-risk impact fields.
+   * @throws Error - Throws a JavaScript exception if an input violates the stated finiteness, sign, or range contract, calculation fails, or conversion fails.
+   */
+  almgrenChrissImpact(
+    positionSize: number,
+    avgDailyVolume: number,
+    volatility: number,
+    executionHorizonDays: number,
+    permanentImpactCoef: number,
+    temporaryImpactCoef: number,
+    referencePrice?: number | null
+  ): AlmgrenChrissImpactResult;
+  /**
+   * Estimate price-space Kyle lambda using an Amihud-ratio proxy.
+   * @param volumesJson - JSON array of positive volume observations.
+   * @param returnsJson - JSON array of decimal returns aligned with the volumes.
+   * @param referencePrice - Positive price per share or contract.
+   * @returns Estimated price-space impact coefficient, or `undefined` for invalid inputs.
+   * @throws Error - Throws a JavaScript exception if either JSON input is malformed or is not a numeric array. Invalid estimator samples return `undefined`.
+   */
+  kyleLambda(volumesJson: string, returnsJson: string, referencePrice: number): number | undefined;
+}
+
+/**
  * Namespaced TypeScript entry points for reusable quantitative models.
  *
  * @example
@@ -7641,6 +7730,10 @@ export interface ModelsNamespace {
    * Factor definitions, covariance, matching, and credit-factor calibration.
    */
   factor: FactorNamespace;
+  /**
+   * Product-independent liquidity risk and market-impact models.
+   */
+  liquidity: LiquidityNamespace;
   /**
    * Monte Carlo pricing engines.
    */
@@ -10256,94 +10349,6 @@ export interface PortfolioNamespace {
     snapshotsJson: string,
     configJson: string
   ): Record<string, unknown>;
-  /**
-   * Effective bid-ask spread via Roll (1984). Returns `undefined` when the
-   * serial covariance is non-negative (Roll assumption violated) or inputs too short.
-   * @returns Effective spread estimate, or `undefined` when the Roll assumption is violated.
-   * @param returnsJson - Numeric return-series JSON.
-   * @throws Error - Throws a JavaScript exception if `returnsJson` is malformed or does not contain a numeric array. Invalid estimator inputs return `undefined`.
-   */
-  rollEffectiveSpread(returnsJson: string): number | undefined;
-  /**
-   * Amihud (2002) illiquidity ratio from returns and volumes.
-   * @returns Amihud illiquidity ratio, or `undefined` when the estimator inputs are invalid.
-   * @param returnsJson - Numeric return-series JSON.
-   * @param volumesJson - Volume-series JSON.
-   * @throws Error - Throws a JavaScript exception if either JSON input is malformed or does not contain a numeric array. Invalid estimator inputs return `undefined`.
-   */
-  amihudIlliquidity(returnsJson: string, volumesJson: string): number | undefined;
-  /**
-   * Trading days required to liquidate at the given participation rate.
-   *
-   * Share-space contract (matches the Rust `days_to_liquidate` signature):
-   * both quantity and ADV are counts of shares/contracts, not currency
-   * notionals. Mixing a notional with a share-count ADV silently mis-scales
-   * the result by the share price.
-   * @returns Trading days required to liquidate at `participationRate`.
-   * @param positionQuantity - Number of shares/contracts to liquidate (absolute value used).
-   * @param adv - Average daily traded volume in shares/contracts.
-   * @param participationRate - Maximum fraction of average daily volume used for execution.
-   */
-  daysToLiquidate(positionQuantity: number, adv: number, participationRate: number): number;
-  /**
-   * Classify a position into a liquidity tier from its days-to-liquidate.
-   *
-   * Uses the default `[1, 5, 20, 60]` trading-day thresholds. Returns one of
-   * `"tier1" .. "tier5"`.
-   * @returns Liquidity tier identifier: `"tier1"` through `"tier5"`.
-   * @param daysToLiquidate - Trading days to liquidate; classified with default thresholds `[1, 5, 20, 60]`.
-   */
-  liquidityTier(daysToLiquidate: number): string;
-  /**
-   * Liquidity-adjusted VaR following Bangia, Diebold, Schuermann & Stroughair (1999).
-   * Loss sign convention: `var` and `lvar` are non-positive. Returns a
-   * structured object matching the Python binding's dict.
-   * @returns Returns a structured `LvarBangiaResult` object.
-   * @param spreadMean - Mean bid-ask spread in the quote units required by the liquidity model.
-   * @param spreadVol - Volatility of the bid-ask spread in the liquidity model's units.
-   * @param confidence - Tail confidence as a decimal probability strictly inside (0.5, 1), such as 0.95 for 95%.
-   * @param positionValue - Current position market value in the relevant currency units.
-   * @throws Error - Throws a JavaScript exception if `var` is non-finite or positive; either spread input is non-finite or negative; `confidence` is outside `(0.5, 1)`; `positionValue` is non-finite; or the result cannot be converted to a JavaScript value.
-   * @param varValue - Loss-convention VaR in the same units as `positionValue`; must be non-positive.
-   */
-  lvarBangia(
-    varValue: number,
-    spreadMean: number,
-    spreadVol: number,
-    confidence: number,
-    positionValue: number
-  ): LvarBangiaResult;
-  /**
-   * Almgren-Chriss (2001) market impact decomposition for a uniform execution.
-   * @returns Returns a structured `AlmgrenChrissImpactResult` object.
-   * @param positionSize - Trade size in shares or notional units for the execution calculation.
-   * @param avgDailyVolume - Average daily trading volume in the same units as the position size.
-   * @param volatility - Daily return volatility expressed as a decimal, such as 0.02 for 2% (per the Rust `almgren_chriss_uniform_impact` contract; do not pass annualized vol).
-   * @param executionHorizonDays - Planned execution horizon measured in trading days.
-   * @param permanentImpactCoef - Permanent market-impact coefficient in the execution-cost model.
-   * @param temporaryImpactCoef - Temporary market-impact coefficient in the execution-cost model.
-   * @param referencePrice - Optional reference price used to express execution impact in monetary units.
-   * @throws Error - Throws a JavaScript exception if `positionSize` is non-finite; volume, volatility, or horizon is not finite and positive; an impact coefficient is outside its valid range; `referencePrice` is present but not finite and positive; impact calculation fails; or the result cannot be converted to a JavaScript value.
-   */
-  almgrenChrissImpact(
-    positionSize: number,
-    avgDailyVolume: number,
-    volatility: number,
-    executionHorizonDays: number,
-    permanentImpactCoef: number,
-    temporaryImpactCoef: number,
-    referencePrice?: number | null
-  ): AlmgrenChrissImpactResult;
-  /**
-   * Kyle (1985) linear price impact lambda estimated from observed volumes
-   * and returns via the Amihud-ratio proxy. Returns `undefined` on invalid inputs.
-   * @returns Kyle lambda in price-per-unit-volume, or `undefined` when inputs are invalid.
-   * @param volumesJson - Volume-series JSON.
-   * @param returnsJson - Numeric return-series JSON.
-   * @param referencePrice - Positive price per share or contract used to convert the return-space ratio into price-space lambda.
-   * @throws Error - Throws a JavaScript exception if either JSON input is malformed or does not contain a numeric array. Invalid estimator inputs, including a non-positive or non-finite `referencePrice`, return `undefined`.
-   */
-  kyleLambda(volumesJson: string, returnsJson: string, referencePrice: number): number | undefined;
   /**
    * Compute first-order factor sensitivities and return the matrix.
    *

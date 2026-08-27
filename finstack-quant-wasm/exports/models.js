@@ -2,6 +2,7 @@ import * as wasm from '../pkg/finstack_quant_wasm.js';
 import { correlation } from './models/correlation.js';
 import { credit } from './models/credit.js';
 import { factor } from './models/factor.js';
+import { liquidity } from './models/liquidity.js';
 import { monteCarlo } from './models/monteCarlo.js';
 import { rates } from './models/rates.js';
 import { volatility } from './models/volatility.js';
@@ -10,6 +11,7 @@ export const models = {
   correlation,
   credit,
   factor,
+  liquidity,
   monteCarlo,
   rates,
   volatility,

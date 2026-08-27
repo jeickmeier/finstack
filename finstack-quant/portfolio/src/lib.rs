@@ -194,8 +194,6 @@ pub(crate) mod fx;
 pub mod grid_attribution;
 /// Grouping and aggregation by attributes or books.
 pub mod grouping;
-/// Liquidity risk metrics, spread estimation, and portfolio scoring.
-pub mod liquidity;
 /// Portfolio margin and netting set utilities.
 pub(crate) mod margin;
 /// Metrics aggregation and reporting.
@@ -212,8 +210,6 @@ pub mod position;
 pub mod primitive;
 pub mod schema;
 
-/// Embedded portfolio defaults registries.
-pub(crate) mod registry;
 /// Result envelopes for portfolio operations.
 pub mod results;
 /// Factor sensitivity engines (delta-based + full-repricing) and JSON façade.

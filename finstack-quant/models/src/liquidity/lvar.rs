@@ -16,13 +16,15 @@
 //!   Risk Measurement and Management." *Risk*, 12(1). `docs/REFERENCES.md#bangia-1999-lvar`
 //!
 
-use crate::error::{Error, Result};
+use finstack_quant_core::Result;
+
+use super::invalid_input;
 use finstack_quant_core::math::special_functions::standard_normal_inv_cdf;
 use serde::{Deserialize, Serialize};
 
 fn validate_lvar_confidence(confidence: f64) -> Result<()> {
     if !confidence.is_finite() || confidence <= 0.5 || confidence >= 1.0 {
-        return Err(Error::invalid_input(
+        return Err(invalid_input(
             "confidence must be finite and in the open interval (0.5, 1)",
         ));
     }
@@ -69,7 +71,7 @@ pub struct LvarBangiaScalar {
 ///
 /// # Errors
 ///
-/// Returns `Error::InvalidInput` if `var` is positive or non-finite, if
+/// Returns `finstack_quant_core::Error::Validation` if `var` is positive or non-finite, if
 /// `spread_mean` or `spread_vol` are negative or non-finite, if `confidence`
 /// is outside the open interval `(0.5, 1)`, or if `position_value` is
 /// non-finite.
@@ -85,23 +87,19 @@ pub fn lvar_bangia_scalar(
     position_value: f64,
 ) -> Result<LvarBangiaScalar> {
     if !var.is_finite() || var > 0.0 {
-        return Err(Error::invalid_input(format!(
+        return Err(invalid_input(format!(
             "var must be non-positive and finite (loss sign convention), got {var}"
         )));
     }
     if !spread_mean.is_finite() || spread_mean < 0.0 {
-        return Err(Error::invalid_input(
-            "spread_mean must be non-negative and finite",
-        ));
+        return Err(invalid_input("spread_mean must be non-negative and finite"));
     }
     if !spread_vol.is_finite() || spread_vol < 0.0 {
-        return Err(Error::invalid_input(
-            "spread_vol must be non-negative and finite",
-        ));
+        return Err(invalid_input("spread_vol must be non-negative and finite"));
     }
     validate_lvar_confidence(confidence)?;
     if !position_value.is_finite() {
-        return Err(Error::invalid_input("position_value must be finite"));
+        return Err(invalid_input("position_value must be finite"));
     }
 
     let pv = position_value.abs();

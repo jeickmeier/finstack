@@ -1,4 +1,4 @@
-"""Reusable analytical, Fourier, credit, correlation, and stochastic models.
+"""Reusable analytical, Fourier, credit, correlation, liquidity, and stochastic models.
 
 Bindings for the ``finstack-quant-models`` Rust crate.
 
@@ -15,6 +15,7 @@ from finstack_quant.models import (
     correlation as correlation,
     credit as credit,
     factor as factor,
+    liquidity as liquidity,
     monte_carlo as monte_carlo,
     rates as rates,
     volatility as volatility,
@@ -44,6 +45,7 @@ __all__: list[str] = [
     "correlation",
     "credit",
     "factor",
+    "liquidity",
     "lookback_option_price",
     "merton_jump_cos_price",
     "monte_carlo",

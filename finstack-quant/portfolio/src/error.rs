@@ -71,10 +71,6 @@ pub enum Error {
     #[error(transparent)]
     Core(#[from] finstack_quant_core::Error),
 
-    /// Liquidity calculation error
-    #[error("Liquidity error: {0}")]
-    LiquidityError(String),
-
     /// Invalid input data
     #[error("Invalid input: {0}")]
     InvalidInput(String),
@@ -138,19 +134,6 @@ impl Error {
     /// [`Error::FxConversionFailed`] for the requested currency pair.
     pub fn fx_conversion(from: Currency, to: Currency) -> Self {
         Self::FxConversionFailed { from, to }
-    }
-
-    /// Create a liquidity error with context.
-    ///
-    /// # Arguments
-    ///
-    /// * `msg` - Description of the liquidity calculation failure.
-    ///
-    /// # Returns
-    ///
-    /// [`Error::LiquidityError`] carrying the supplied message.
-    pub fn liquidity(msg: impl Into<String>) -> Self {
-        Self::LiquidityError(msg.into())
     }
 
     /// Create an invalid input error.

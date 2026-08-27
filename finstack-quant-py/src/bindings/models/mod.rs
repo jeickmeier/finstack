@@ -5,6 +5,7 @@ pub mod correlation;
 pub(crate) mod credit;
 pub mod factor;
 mod fourier;
+mod liquidity;
 pub mod monte_carlo;
 pub mod rates;
 mod volatility;
@@ -34,6 +35,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     monte_carlo::register(py, &module)?;
     credit::register(py, &module)?;
     factor::register(py, &module)?;
+    liquidity::register(py, &module)?;
     correlation::register(py, &module)?;
     rates::register(py, &module)?;
 
@@ -50,6 +52,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "correlation",
             "credit",
             "factor",
+            "liquidity",
             "lookback_option_price",
             "merton_jump_cos_price",
             "monte_carlo",

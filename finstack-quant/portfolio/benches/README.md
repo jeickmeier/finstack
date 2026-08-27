@@ -18,7 +18,7 @@ expand benchmark runtime unless a matching `[[bench]]` entry is added.
 | `portfolio_metrics.rs` | yes | `aggregate_metrics` scaling (63 / 64 / 250 / 3,000), combined valuation, and table export |
 | `portfolio_attribution.rs` | yes | Parallel, metrics-based, and method-owned attribution controls |
 | `portfolio_workflows.rs` | yes | `scenario_pnl` / `scenario_pnl_batch` reuse and `replay_portfolio` |
-| `portfolio_analytics.rs` | yes | Book rollup, primitive exposure, Brinson / Campisi / grid / factor-Brinson / excess-return, liquidity estimators |
+| `portfolio_analytics.rs` | yes | Book rollup, primitive exposure, Brinson / Campisi / grid / factor-Brinson / excess-return |
 | `portfolio_margin.rs` | yes | `PortfolioMarginAggregator::calculate` over 256 / 1,024 mocked-marginable positions |
 | `portfolio_optimization.rs` | yes | `DefaultLpOptimizer::optimize` on 32 / 64-bond books |
 | `sensitivity_simulation.rs` | yes | Full-repricing grids, delta-based sensitivities, `FactorModel::analyze` / `factor_stress`, parametric and Monte Carlo decomposition |

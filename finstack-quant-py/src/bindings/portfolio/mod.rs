@@ -14,7 +14,6 @@ pub(crate) mod factor_model;
 mod fi_attribution;
 mod grid_attribution;
 mod json_bridge;
-mod liquidity;
 mod materialization;
 mod matrix_input;
 mod optimization_spec;
@@ -88,7 +87,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     replay::register(py, &m)?;
     factor_model::register(py, &m)?;
     sensitivity::register(py, &m)?;
-    liquidity::register(py, &m)?;
     brinson::register(py, &m)?;
     fi_attribution::register(py, &m)?;
     performance::register(py, &m)?;
@@ -149,13 +147,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "optimize_portfolio",
         "replay_portfolio",
         "replay_portfolio_json",
-        "roll_effective_spread",
-        "amihud_illiquidity",
-        "days_to_liquidate",
-        "liquidity_tier",
-        "lvar_bangia",
-        "almgren_chriss_impact",
-        "kyle_lambda",
         "brinson_fachler",
         "brinson_fachler_json",
         "carino_link",

@@ -350,16 +350,10 @@
       "reason": "Python module import alias `pd`, not probability-of-default data."
     },
     {
-      "path": "finstack-quant-py/src/bindings/portfolio/liquidity.rs",
-      "category": "binding_default",
-      "contains": "LiquidityTier::",
-      "reason": "Python binding label mapping for liquidity tiers; tier thresholds are separately audited."
-    },
-    {
-      "path": "finstack-quant-py/src/bindings/portfolio/mod.rs",
+      "path": "finstack-quant-py/src/bindings/models/liquidity.rs",
       "category": "binding_default",
       "contains": "\"liquidity_tier\",",
-      "reason": "Binding metadata or validation around registry-backed defaults; not a separate mutable assumption."
+      "reason": "Python binding export metadata; tier thresholds remain registry-backed."
     },
     {
       "path": "finstack-quant-py/src/bindings/statements_analytics/comps.rs",
@@ -426,12 +420,6 @@
       "category": "binding_default",
       "contains": "\"unknown basis '{other}'; expected 'laguerre', 'polynomial', \\",
       "reason": "Validation or diagnostic text; underlying defaults are supplied by typed inputs or registries."
-    },
-    {
-      "path": "finstack-quant-wasm/src/api/portfolio/mod.rs",
-      "category": "binding_default",
-      "contains": "LiquidityTier::",
-      "reason": "WASM binding label mapping for liquidity tiers; tier thresholds are separately audited."
     },
     {
       "path": "finstack-quant/analytics/src/benchmark.rs",
@@ -1304,13 +1292,13 @@
       "reason": "Validation or diagnostic text; underlying defaults are supplied by typed inputs or registries."
     },
     {
-      "path": "finstack-quant/portfolio/src/liquidity/types.rs",
+      "path": "finstack-quant/models/src/liquidity/types.rs",
       "category": "binding_default",
       "contains": "pub fn classify_tier(days_to_liquidate: f64, thresholds: &[f64; 4]) -> LiquidityTier {",
       "reason": "Binding metadata or validation around registry-backed defaults; not a separate mutable assumption."
     },
     {
-      "path": "finstack-quant/portfolio/src/liquidity/types.rs",
+      "path": "finstack-quant/models/src/liquidity/types.rs",
       "category": "binding_default",
       "contains": "pub tier_thresholds: [f64; 4],",
       "reason": "Binding metadata or validation around registry-backed defaults; not a separate mutable assumption."
@@ -1322,13 +1310,13 @@
       "reason": "Validation or diagnostic text; underlying defaults are supplied by typed inputs or registries."
     },
     {
-      "path": "finstack-quant/portfolio/src/registry.rs",
+      "path": "finstack-quant/models/src/liquidity/registry.rs",
       "category": "binding_default",
       "contains": "\"liquidity tier threshold {idx} must be greater than prior threshold\"",
       "reason": "Validation or diagnostic text; underlying defaults are supplied by typed inputs or registries."
     },
     {
-      "path": "finstack-quant/portfolio/src/registry.rs",
+      "path": "finstack-quant/models/src/liquidity/registry.rs",
       "category": "binding_default",
       "contains": "validate_positive(&format!(\"liquidity.tier_thresholds[{idx}]\"), threshold)?;",
       "reason": "Binding metadata, repr text, or module/export label; not a mutable financial assumption."

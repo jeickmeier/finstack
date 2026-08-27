@@ -1,0 +1,181 @@
+//! WASM bindings for product-independent liquidity models.
+
+use crate::utils::{to_js_err, to_js_value};
+use finstack_quant_models::liquidity::{self, KyleLambdaModel};
+use wasm_bindgen::prelude::*;
+
+/// Estimate the effective bid-ask spread using Roll's serial-covariance model.
+/// @param returnsJson - JSON array of decimal returns in time order.
+/// @returns Effective spread in return units, or `undefined` when it cannot be estimated.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `returnsJson` is malformed or is not a
+/// numeric array. Invalid estimator samples return `undefined`.
+#[wasm_bindgen(js_name = rollEffectiveSpread)]
+pub fn roll_effective_spread(returns_json: &str) -> Result<Option<f64>, JsValue> {
+    let returns: Vec<f64> = serde_json::from_str(returns_json).map_err(to_js_err)?;
+    Ok(liquidity::roll_effective_spread(&returns))
+}
+
+/// Compute the Amihud illiquidity ratio from aligned returns and volumes.
+/// @param returnsJson - JSON array of decimal returns in time order.
+/// @param volumesJson - JSON array of positive volumes aligned with the returns.
+/// @returns Mean absolute return per unit volume, or `undefined` for an invalid sample.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either JSON input is malformed or is not
+/// a numeric array. Invalid estimator samples return `undefined`.
+#[wasm_bindgen(js_name = amihudIlliquidity)]
+pub fn amihud_illiquidity(returns_json: &str, volumes_json: &str) -> Result<Option<f64>, JsValue> {
+    let returns: Vec<f64> = serde_json::from_str(returns_json).map_err(to_js_err)?;
+    let volumes: Vec<f64> = serde_json::from_str(volumes_json).map_err(to_js_err)?;
+    Ok(liquidity::amihud_illiquidity(&returns, &volumes))
+}
+
+/// Calculate the trading days required to liquidate a position.
+/// @param positionQuantity - Shares or contracts to liquidate; the absolute value is used.
+/// @param adv - Average daily volume in the same quantity units.
+/// @param participationRate - Fraction of ADV available for execution each trading day.
+/// @returns Liquidation horizon in trading days, or infinity for non-positive capacity.
+#[wasm_bindgen(js_name = daysToLiquidate)]
+pub fn days_to_liquidate(position_quantity: f64, adv: f64, participation_rate: f64) -> f64 {
+    liquidity::days_to_liquidate(position_quantity, adv, participation_rate)
+}
+
+/// Classify a liquidation horizon using the default model thresholds.
+/// @param daysToLiquidate - Estimated unwind horizon in trading days.
+/// @returns One of `tier1` through `tier5`, with Tier 1 the most liquid.
+#[wasm_bindgen(js_name = liquidityTier)]
+pub fn liquidity_tier(days_to_liquidate: f64) -> String {
+    let config = liquidity::LiquidityConfig::default();
+    liquidity::classify_tier(days_to_liquidate, &config.tier_thresholds)
+        .as_binding_str()
+        .to_string()
+}
+
+/// Compute Bangia liquidity-adjusted VaR under the loss-sign convention.
+/// @param var - Finite non-positive base VaR; a negative value denotes a loss.
+/// @param spreadMean - Finite non-negative mean relative bid-ask spread as a decimal.
+/// @param spreadVol - Finite non-negative volatility of the relative spread.
+/// @param confidence - Confidence level strictly between 0.5 and 1.
+/// @param positionValue - Finite current market value; only its magnitude is used.
+/// @returns An object containing `var`, `spread_cost`, `lvar`, and `lvar_ratio`.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if an input violates the stated finiteness,
+/// sign, or range contract, or if the result cannot be converted.
+#[wasm_bindgen(js_name = lvarBangia)]
+pub fn lvar_bangia(
+    var: f64,
+    spread_mean: f64,
+    spread_vol: f64,
+    confidence: f64,
+    position_value: f64,
+) -> Result<JsValue, JsValue> {
+    let result =
+        liquidity::lvar_bangia_scalar(var, spread_mean, spread_vol, confidence, position_value)
+            .map_err(to_js_err)?;
+    to_js_value(&result)
+}
+
+/// Estimate uniform Almgren-Chriss execution-impact components.
+/// @param positionSize - Finite signed quantity in shares or contracts.
+/// @param avgDailyVolume - Positive finite ADV in matching quantity units.
+/// @param volatility - Positive finite daily volatility as a decimal.
+/// @param executionHorizonDays - Positive finite execution horizon in trading days.
+/// @param permanentImpactCoef - Non-negative finite multiplier on permanent impact.
+/// @param temporaryImpactCoef - Positive finite multiplier on temporary impact.
+/// @param referencePrice - Optional positive finite price for notional and basis-point scaling.
+/// @returns Permanent, temporary, total, basis-point, and execution-risk impact fields.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if an input violates the stated finiteness,
+/// sign, or range contract, calculation fails, or conversion fails.
+#[wasm_bindgen(js_name = almgrenChrissImpact)]
+#[allow(clippy::too_many_arguments)]
+pub fn almgren_chriss_impact(
+    position_size: f64,
+    avg_daily_volume: f64,
+    volatility: f64,
+    execution_horizon_days: f64,
+    permanent_impact_coef: f64,
+    temporary_impact_coef: f64,
+    reference_price: Option<f64>,
+) -> Result<JsValue, JsValue> {
+    let estimate = liquidity::almgren_chriss_uniform_impact(
+        position_size,
+        avg_daily_volume,
+        volatility,
+        execution_horizon_days,
+        permanent_impact_coef,
+        temporary_impact_coef,
+        reference_price,
+    )
+    .map_err(to_js_err)?;
+    to_js_value(&liquidity::almgren_chriss_impact_view(&estimate))
+}
+
+/// Estimate price-space Kyle lambda using an Amihud-ratio proxy.
+/// @param volumesJson - JSON array of positive volume observations.
+/// @param returnsJson - JSON array of decimal returns aligned with the volumes.
+/// @param referencePrice - Positive price per share or contract.
+/// @returns Estimated price-space impact coefficient, or `undefined` for invalid inputs.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either JSON input is malformed or is not
+/// a numeric array. Invalid estimator samples return `undefined`.
+#[wasm_bindgen(js_name = kyleLambda)]
+pub fn kyle_lambda(
+    volumes_json: &str,
+    returns_json: &str,
+    reference_price: f64,
+) -> Result<Option<f64>, JsValue> {
+    let volumes: Vec<f64> = serde_json::from_str(volumes_json).map_err(to_js_err)?;
+    let returns: Vec<f64> = serde_json::from_str(returns_json).map_err(to_js_err)?;
+    Ok(KyleLambdaModel::lambda_from_series(
+        &volumes,
+        &returns,
+        reference_price,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn estimators_return_none_for_missing_estimates() {
+        assert_eq!(roll_effective_spread("[0.01]").expect("valid JSON"), None);
+        assert_eq!(
+            amihud_illiquidity("[0.01]", "[0.0]").expect("valid JSON"),
+            None
+        );
+        assert_eq!(
+            kyle_lambda("[0.0]", "[0.01]", 100.0).expect("valid JSON"),
+            None
+        );
+    }
+
+    #[test]
+    fn kyle_lambda_calibrates_in_price_space() {
+        let lambda = kyle_lambda("[100.0, 200.0]", "[0.01, -0.02]", 50.0)
+            .expect("valid JSON")
+            .expect("valid price-space inputs");
+        assert!((lambda - 0.005).abs() < 1e-15);
+    }
+
+    #[test]
+    fn tier_uses_default_config_thresholds() {
+        let config = liquidity::LiquidityConfig::default();
+        let threshold = config.tier_thresholds[0];
+        let expected = liquidity::classify_tier(threshold, &config.tier_thresholds)
+            .as_binding_str()
+            .to_string();
+        assert_eq!(liquidity_tier(threshold), expected);
+    }
+}

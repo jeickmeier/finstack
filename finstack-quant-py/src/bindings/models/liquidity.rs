@@ -1,4 +1,4 @@
-//! Python bindings for the `finstack-quant-portfolio::liquidity` submodule.
+//! Python bindings for the `finstack-quant-models::liquidity` submodule.
 //!
 //! Exposes a function-based API for market microstructure liquidity modeling:
 //! spread estimation (Roll, Amihud), liquidity-adjusted VaR (Bangia et al.),
@@ -8,8 +8,8 @@
 //! (PyO3 converts automatically). Results are returned as `PyDict`s rather
 //! than opaque `#[pyclass]` wrappers to keep the API numpy-friendly.
 
-use crate::errors::portfolio_to_py;
-use finstack_quant_portfolio::liquidity::{self, KyleLambdaModel};
+use crate::errors::core_to_py;
+use finstack_quant_models::liquidity::{self, KyleLambdaModel};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -172,7 +172,7 @@ fn lvar_bangia<'py>(
 ) -> PyResult<Bound<'py, PyDict>> {
     let result =
         liquidity::lvar_bangia_scalar(var, spread_mean, spread_vol, confidence, position_value)
-            .map_err(portfolio_to_py)?;
+            .map_err(core_to_py)?;
 
     let out = PyDict::new(py);
     out.set_item("var", result.var)?;
@@ -251,7 +251,7 @@ fn almgren_chriss_impact<'py>(
         temporary_impact_coef,
         reference_price,
     )
-    .map_err(portfolio_to_py)?;
+    .map_err(core_to_py)?;
 
     crate::bindings::pandas_utils::serde_to_py(py, &liquidity::almgren_chriss_impact_view(&est))
 }
@@ -295,14 +295,39 @@ fn kyle_lambda(
     py.detach(move || KyleLambdaModel::lambda_from_series(&volumes, &returns, reference_price))
 }
 
-/// Register liquidity-risk functions on the portfolio submodule.
-pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(roll_effective_spread, m)?)?;
-    m.add_function(wrap_pyfunction!(amihud_illiquidity, m)?)?;
-    m.add_function(wrap_pyfunction!(days_to_liquidate, m)?)?;
-    m.add_function(wrap_pyfunction!(liquidity_tier, m)?)?;
-    m.add_function(wrap_pyfunction!(lvar_bangia, m)?)?;
-    m.add_function(wrap_pyfunction!(almgren_chriss_impact, m)?)?;
-    m.add_function(wrap_pyfunction!(kyle_lambda, m)?)?;
+/// Register the `models.liquidity` Python domain.
+pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
+    let m = PyModule::new(py, "liquidity")?;
+    let qualified_name = crate::bindings::module_utils::set_submodule_package_by_package(
+        parent,
+        &m,
+        "liquidity",
+        "finstack_quant.models",
+    )?;
+    m.setattr(
+        "__doc__",
+        "Product-independent liquidity estimation, risk, and market-impact models.",
+    )?;
+    m.add_function(wrap_pyfunction!(roll_effective_spread, &m)?)?;
+    m.add_function(wrap_pyfunction!(amihud_illiquidity, &m)?)?;
+    m.add_function(wrap_pyfunction!(days_to_liquidate, &m)?)?;
+    m.add_function(wrap_pyfunction!(liquidity_tier, &m)?)?;
+    m.add_function(wrap_pyfunction!(lvar_bangia, &m)?)?;
+    m.add_function(wrap_pyfunction!(almgren_chriss_impact, &m)?)?;
+    m.add_function(wrap_pyfunction!(kyle_lambda, &m)?)?;
+    let all = pyo3::types::PyList::new(
+        py,
+        [
+            "roll_effective_spread",
+            "amihud_illiquidity",
+            "days_to_liquidate",
+            "liquidity_tier",
+            "lvar_bangia",
+            "almgren_chriss_impact",
+            "kyle_lambda",
+        ],
+    )?;
+    m.setattr("__all__", all)?;
+    crate::bindings::module_utils::register_submodule_at(py, parent, &m, &qualified_name)?;
     Ok(())
 }

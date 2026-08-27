@@ -75,11 +75,4 @@ export const portfolio = {
   // ⚠️ BLOCKING: validate sensitivity/covariance dimensions before calling;
   // malformed matrices throw instead of returning partial decompositions.
   decomposeFactorRisk: wasm.decomposeFactorRisk,
-  rollEffectiveSpread: wasm.rollEffectiveSpread,
-  amihudIlliquidity: wasm.amihudIlliquidity,
-  daysToLiquidate: wasm.daysToLiquidate,
-  liquidityTier: wasm.liquidityTier,
-  lvarBangia: wasm.lvarBangia,
-  almgrenChrissImpact: wasm.almgrenChrissImpact,
-  kyleLambda: wasm.kyleLambda,
 };

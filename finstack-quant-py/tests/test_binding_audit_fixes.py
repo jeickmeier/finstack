@@ -1,6 +1,6 @@
 """Regression tests for the 2026-08 binding-audit fixes.
 
-Covers strict metric-name parsing, canonical error taxonomy for liquidity
+Covers strict metric-name parsing, core validation taxonomy for liquidity
 entry points, the ``measure`` getter wire form, ``OptimizationStatus``
 equality, residual-contribution parity on ``decompose_factor_risk``, new
 result fields (``specific_return``, ``degraded_positions``,
@@ -19,15 +19,14 @@ import pytest
 from finstack_quant.attribution import ReturnContributionResult
 from finstack_quant.core.market_data import DiscountCurve, MarketContext
 from finstack_quant.models.factor.risk import evaluate_risk_budget
+from finstack_quant.models.liquidity import lvar_bangia
 from finstack_quant.portfolio import (
     OptimizationStatus,
     PerPositionMetric,
     Portfolio,
-    PortfolioError,
     PortfolioMetrics,
     compute_factor_sensitivities,
     decompose_factor_risk,
-    lvar_bangia,
     value_portfolio,
 )
 
@@ -132,11 +131,11 @@ def test_decompose_factor_risk_exposes_position_residual_contributions() -> None
     assert decomp.position_residual_contributions() == []
 
 
-# MD9: liquidity errors use the canonical portfolio taxonomy
+# MD9: models liquidity errors use the canonical validation taxonomy
 
 
-def test_lvar_bangia_validation_failure_is_catchable_as_portfolio_error() -> None:
-    with pytest.raises(PortfolioError, match="confidence"):
+def test_lvar_bangia_validation_failure_is_value_error() -> None:
+    with pytest.raises(ValueError, match="confidence"):
         lvar_bangia(-100.0, 0.01, 0.005, 0.3, 1_000_000.0)
 
 
@@ -263,7 +262,7 @@ def test_zero_target_breach_reports_infinite_utilization_everywhere() -> None:
 
 
 def test_days_to_liquidate_uses_rust_share_space_keywords() -> None:
-    from finstack_quant.portfolio import days_to_liquidate
+    from finstack_quant.models.liquidity import days_to_liquidate
 
     assert days_to_liquidate(position_quantity=1000.0, adv=100.0, participation_rate=0.1) == 100.0
 

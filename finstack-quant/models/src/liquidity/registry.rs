@@ -1,19 +1,19 @@
-//! Embedded portfolio defaults registries.
+//! Embedded models liquidity defaults registry.
 
 use std::sync::OnceLock;
 
 use serde::Deserialize;
 
-use crate::liquidity::LiquidityConfig;
+use super::LiquidityConfig;
 use finstack_quant_core::{ContractDescriptor, Error, Result};
 
-const LIQUIDITY_DEFAULTS: &str = include_str!("../data/defaults/liquidity_defaults.v1.json");
+const LIQUIDITY_DEFAULTS: &str = include_str!("../../data/defaults/liquidity_defaults.v1.json");
 pub(crate) const LIQUIDITY_DEFAULTS_CONTRACT: ContractDescriptor =
-    ContractDescriptor::new("finstack_quant.portfolio.liquidity_defaults");
+    ContractDescriptor::new("finstack_quant.models.liquidity_defaults");
 
 static EMBEDDED_LIQUIDITY_DEFAULTS: OnceLock<Result<LiquidityDefaults>> = OnceLock::new();
 
-/// Registry-backed portfolio liquidity defaults.
+/// Registry-backed models liquidity defaults.
 #[derive(Debug, Clone)]
 pub struct LiquidityDefaults {
     /// Default liquidity configuration.
@@ -52,7 +52,7 @@ pub fn embedded_liquidity_defaults() -> Result<&'static LiquidityDefaults> {
 #[allow(clippy::expect_used)]
 pub fn embedded_liquidity_defaults_or_panic() -> &'static LiquidityDefaults {
     embedded_liquidity_defaults()
-        .expect("embedded portfolio liquidity defaults are compile-time assets")
+        .expect("embedded models liquidity defaults are compile-time assets")
 }
 
 fn parse_liquidity_defaults() -> Result<LiquidityDefaults> {
@@ -147,9 +147,10 @@ mod tests {
         }
 
         for schema in [
-            "finstack_quant.portfolio.liquidity_defaults/0",
-            "finstack_quant.portfolio.liquidity_defaults/2",
-            "finstack_quant.portfolio.liquidity_defaults/not-a-version",
+            "finstack_quant.models.liquidity_defaults/0",
+            "finstack_quant.models.liquidity_defaults/2",
+            "finstack_quant.models.liquidity_defaults/not-a-version",
+            "finstack_quant.portfolio.liquidity_defaults/1",
             "other.liquidity_defaults/1",
         ] {
             let mut value = base.clone();

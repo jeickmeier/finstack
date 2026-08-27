@@ -98,7 +98,7 @@ def test_example_modules_export_symbols_used_by_scripts(
         "merton_jump_cos_price",
         "vg_cos_price",
     }
-    portfolio_exports = {
+    liquidity_exports = {
         "almgren_chriss_impact",
         "amihud_illiquidity",
         "days_to_liquidate",
@@ -111,4 +111,5 @@ def test_example_modules_export_symbols_used_by_scripts(
     assert analytics_exports.issubset(set(analytics.__all__))
     assert statements_analytics_exports.issubset(set(statements_analytics.__all__))
     assert model_exports.issubset(set(models.__all__))
-    assert portfolio_exports.issubset(set(portfolio.__all__))
+    assert liquidity_exports.issubset(set(models.liquidity.__all__))
+    assert liquidity_exports.isdisjoint(set(portfolio.__all__))

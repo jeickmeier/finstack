@@ -528,20 +528,24 @@ fn campisi_dts_declarations_pin_their_argument_lists() {
 }
 
 #[test]
-fn portfolio_dts_exposes_reference_price_for_almgren_chriss() {
+fn models_liquidity_dts_exposes_reference_price_for_almgren_chriss() {
     let dts = index_dts();
+    let liquidity = interface_block(&dts, "LiquidityNamespace");
 
-    assert!(dts.contains("referencePrice?: number | null"));
+    assert!(liquidity.contains("referencePrice?: number | null"));
+    assert!(!interface_block(&dts, "PortfolioNamespace").contains("almgrenChrissImpact("));
 }
 
 #[test]
-fn portfolio_dts_requires_reference_price_for_kyle_lambda() {
+fn models_liquidity_dts_requires_reference_price_for_kyle_lambda() {
     let dts = index_dts();
+    let liquidity = interface_block(&dts, "LiquidityNamespace");
 
     assert!(contains_signature(
-        &dts,
+        liquidity,
         "kyleLambda(volumesJson: string, returnsJson: string, referencePrice: number): number | undefined;",
     ));
+    assert!(!interface_block(&dts, "PortfolioNamespace").contains("kyleLambda("));
 }
 
 #[test]
@@ -895,30 +899,21 @@ fn features_dts_matches_transform_surface() {
 }
 
 #[test]
-fn core_market_data_dts_exposes_vol_cube_normal_vol_queries() {
+fn core_market_data_dts_exposes_data_only_vol_cube() {
     let dts = index_dts();
 
     let cube = interface_block(&dts, "VolCube ");
-    assert!(contains_signature(
-        cube,
-        "vol(expiry: number, tenor: number, strike: number): number;"
-    ));
-    assert!(contains_signature(
-        cube,
-        "volClamped(expiry: number, tenor: number, strike: number): number;"
-    ));
-    assert!(contains_signature(
-        cube,
-        "volNormal(expiry: number, tenor: number, strike: number): number;"
-    ));
-    assert!(contains_signature(
-        cube,
-        "volNormalClamped(expiry: number, tenor: number, strike: number): number;"
-    ));
+    assert!(contains_signature(cube, "readonly id: string;"));
     assert!(contains_signature(
         cube,
         "readonly interpolationMode: string;"
     ));
+    for removed_method in ["vol(", "volClamped(", "volNormal(", "volNormalClamped("] {
+        assert!(
+            !cube.contains(removed_method),
+            "core VolCube must remain a data artifact without {removed_method}"
+        );
+    }
     let constructor = interface_block(&dts, "VolCubeConstructor");
     assert!(constructor.contains("interpolationMode?: string"));
     for input in ["expiries", "tenors", "paramsFlat", "forwards"] {
@@ -930,7 +925,7 @@ fn core_market_data_dts_exposes_vol_cube_normal_vol_queries() {
 }
 
 #[test]
-fn core_market_data_dts_exposes_fx_surface_and_rate_result() {
+fn core_market_data_dts_exposes_data_only_fx_surface_and_rate_result() {
     let dts = index_dts();
 
     // FxDeltaVolSurface instance + constructor interfaces.
@@ -941,14 +936,12 @@ fn core_market_data_dts_exposes_fx_surface_and_rate_result() {
         "readonly expiries: Float64Array;"
     ));
     assert!(contains_signature(surface, "readonly numExpiries: number;"));
-    assert!(contains_signature(
-        surface,
-        "pillarVols(expiryIdx: number): Float64Array;"
-    ));
-    assert!(contains_signature(
-        surface,
-        "impliedVol(expiry: number, strike: number, forward: number): number;"
-    ));
+    for removed_method in ["pillarVols(", "impliedVol("] {
+        assert!(
+            !surface.contains(removed_method),
+            "core FxDeltaVolSurface must remain a data artifact without {removed_method}"
+        );
+    }
 
     let ctor = interface_block(&dts, "FxDeltaVolSurfaceConstructor");
     for input in ["expiries", "atmVols", "rr25d", "bf25d"] {
@@ -963,14 +956,8 @@ fn core_market_data_dts_exposes_fx_surface_and_rate_result() {
             "FxDeltaVolSurface optional constructor input must accept NumericArray for {input}"
         );
     }
-    assert!(contains_signature(
-        ctor,
-        "deltaToStrike(delta: number, forward: number, vol: number, expiry: number): number;"
-    ));
-    assert!(contains_signature(
-        ctor,
-        "strikeToDelta(strike: number, forward: number, vol: number, expiry: number): number;"
-    ));
+    assert!(!ctor.contains("deltaToStrike("));
+    assert!(!ctor.contains("strikeToDelta("));
 
     // Registered on the core namespace.
     let core_ns = interface_block(&dts, "CoreNamespace");

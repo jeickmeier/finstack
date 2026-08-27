@@ -93,8 +93,6 @@ __all__ = [
     "aggregate_metrics_json",
     "allocate_weights",
     "allocate_weights_json",
-    "almgren_chriss_impact",
-    "amihud_illiquidity",
     "apply_scenario_and_revalue",
     "attribute_portfolio_pnl",
     "brinson_fachler",
@@ -117,7 +115,6 @@ __all__ = [
     "cell_returns_from_reference_json",
     "compute_factor_sensitivities",
     "compute_pnl_profiles",
-    "days_to_liquidate",
     "decompose_factor_risk",
     "excess_returns",
     "excess_returns_json",
@@ -128,9 +125,6 @@ __all__ = [
     "grid_attribution_json",
     "grid_carino_link",
     "grid_carino_link_json",
-    "kyle_lambda",
-    "liquidity_tier",
-    "lvar_bangia",
     "mwr_xirr",
     "net_in_currency_by_date",
     "optimize_portfolio",
@@ -140,7 +134,6 @@ __all__ = [
     "position_what_if",
     "replay_portfolio",
     "replay_portfolio_json",
-    "roll_effective_spread",
     "scenario_pnl",
     "scenario_pnl_batch",
     "scenario_pnl_batch_json",
@@ -3351,294 +3344,6 @@ def replay_portfolio_json(
     ... except ValueError as exc:
     ...     print("must be non-empty" in str(exc))
     True
-    """
-    ...
-
-def roll_effective_spread(returns: list[float]) -> float | None:
-    """
-    Estimate the Roll effective bid-ask spread from returns.
-
-    Returns ``None`` when there are too few observations or the first-order
-    autocovariance does not imply a positive spread.
-
-    Parameters
-    ----------
-    returns : list[float]
-        Ordered simple decimal returns sampled at a consistent observation
-        frequency.
-
-    Returns
-    -------
-    float | None
-        Effective spread as a decimal, or ``None`` when the estimate is unavailable.
-
-    Notes
-    -----
-    This helper does not raise; unavailable estimates return ``None``.
-
-    Examples
-    --------
-    >>> from finstack_quant.portfolio import roll_effective_spread
-    >>> roll_effective_spread([0.01, -0.01, 0.01, -0.01])
-    0.02
-
-    Sources
-    -------
-    - Roll (1984): see docs/REFERENCES.md#roll-1984
-    """
-    ...
-
-def amihud_illiquidity(returns: list[float], volumes: list[float]) -> float | None:
-    """
-    Compute Amihud illiquidity from absolute returns and traded volumes.
-
-    Parameters
-    ----------
-    returns : list[float]
-        Period returns.
-    volumes : list[float]
-        Traded volumes aligned with ``returns``.
-
-    Returns
-    -------
-    float or None
-        Average ``abs(return) / volume`` over positive-volume observations, or
-        ``None`` when no valid observations are available.
-
-    Notes
-    -----
-    This helper does not raise; unavailable estimates return ``None``.
-
-    Examples
-    --------
-    >>> from finstack_quant.portfolio import amihud_illiquidity
-    >>> amihud_illiquidity([0.01, 0.02], [100.0, 200.0])
-    0.0001
-
-    Sources
-    -------
-    - Amihud (2002): see docs/REFERENCES.md#amihud-2002
-    """
-    ...
-
-def days_to_liquidate(
-    position_quantity: float,
-    adv: float,
-    participation_rate: float,
-) -> float:
-    """
-    Estimate liquidation horizon in trading days.
-
-    Share-space contract (matches the Rust ``days_to_liquidate`` signature):
-    both quantity and ADV are counts of shares/contracts, not currency
-    notionals. Mixing a notional with a share-count ADV silently mis-scales
-    the result by the share price.
-
-    Parameters
-    ----------
-    position_quantity : float
-        Number of shares/contracts to liquidate (absolute value used).
-    adv : float
-        Average daily traded volume in shares/contracts.
-    participation_rate : float
-        Maximum fraction of daily volume the liquidation may consume.
-
-    Returns
-    -------
-    float
-        ``position_quantity / (adv * participation_rate)``; ``inf`` if ADV or
-        participation rate is non-positive.
-
-    Notes
-    -----
-    This helper does not raise; non-positive ADV or participation rate returns
-    ``inf`` rather than an exception.
-
-    Examples
-    --------
-    >>> from finstack_quant.portfolio import days_to_liquidate
-    >>> days_to_liquidate(1_000_000, 250_000, 0.20)
-    20.0
-    """
-    ...
-
-def liquidity_tier(days_to_liquidate: float) -> str:
-    """
-    Classify liquidation horizon into the Rust liquidity-tier labels.
-
-    Parameters
-    ----------
-    days_to_liquidate : float
-        Estimated trading-day horizon required to fully liquidate the position.
-
-    Returns
-    -------
-    str
-        One of ``"tier1"``, ``"tier2"``, ``"tier3"``, ``"tier4"``, or
-        ``"tier5"``, using the default thresholds ``[1.0, 5.0, 20.0, 60.0]``
-        trading days (Tier 1 most liquid).
-
-    Notes
-    -----
-    This helper does not raise; the horizon is classified into a tier label.
-
-    Examples
-    --------
-    >>> from finstack_quant.portfolio import liquidity_tier
-    >>> liquidity_tier(3.0)
-    'tier2'
-    """
-    ...
-
-def lvar_bangia(
-    var: float,
-    spread_mean: float,
-    spread_vol: float,
-    confidence: float,
-    position_value: float,
-) -> dict[str, float]:
-    """
-    Compute Bangia-style liquidity-adjusted VaR.
-
-    Parameters
-    ----------
-    var : float
-        Market VaR under the loss sign convention (non-positive; ``-10_000.0``
-        is a $10,000 loss). ``0.0`` is accepted for a zero-risk position.
-    spread_mean : float
-        Mean relative bid-ask spread over the lookback, e.g. ``0.001`` for 10bp.
-    spread_vol : float
-        Standard deviation of the relative bid-ask spread.
-    confidence : float
-        Confidence level for the liquidity adjustment, strictly inside
-        ``(0.5, 1)``.
-    position_value : float
-        Market value of the position; only the magnitude is used.
-
-    Returns
-    -------
-    dict[str, float]
-        ``{var, spread_cost, lvar, lvar_ratio}`` where ``spread_cost`` is a
-        non-negative magnitude, ``lvar <= var <= 0``, and ``lvar_ratio =
-        lvar / var`` (or ``NaN`` if VaR is zero).
-
-    Raises
-    ------
-    ValueError
-        If ``var`` is non-finite or positive; ``spread_mean`` or
-        ``spread_vol`` is non-finite or negative; ``confidence`` is outside
-        ``(0.5, 1)``; or ``position_value`` is non-finite.
-
-    Examples
-    --------
-    >>> from finstack_quant.portfolio import lvar_bangia
-    >>> result = lvar_bangia(-100.0, 0.01, 0.005, 0.99, 1_000_000)
-    >>> round(result["lvar"], 2)
-    -10915.87
-
-    Sources
-    -------
-    - Bangia, Diebold, Schuermann, and Stroughair (1999): see
-      docs/REFERENCES.md#bangia-1999-lvar
-    """
-    ...
-
-def almgren_chriss_impact(
-    position_size: float,
-    avg_daily_volume: float,
-    volatility: float,
-    execution_horizon_days: float,
-    permanent_impact_coef: float,
-    temporary_impact_coef: float,
-    reference_price: float | None = None,
-) -> dict[str, float]:
-    """
-    Estimate Almgren-Chriss execution impact components.
-
-    Parameters
-    ----------
-    position_size : float
-        Trade size in shares or notional units.
-    avg_daily_volume : float
-        Average daily volume in matching units.
-    volatility : float
-        Asset volatility used for risk scaling.
-    execution_horizon_days : float
-        Execution horizon in trading days.
-    permanent_impact_coef : float
-        Permanent impact coefficient.
-    temporary_impact_coef : float
-        Temporary impact coefficient.
-    reference_price : float, optional
-        Optional price used to convert share impact to notional impact.
-
-    Returns
-    -------
-    dict[str, float]
-        ``{permanent_impact, temporary_impact, total_impact,
-        expected_cost_bp, execution_risk}`` — the canonical Rust
-        ``AlmgrenChrissImpactView`` keys shared with the WASM binding.
-        ``execution_risk`` is the timing-risk standard deviation of
-        execution cost in the same cost units as the impacts.
-
-    Raises
-    ------
-    ValueError
-        If ``position_size`` is non-finite; ``avg_daily_volume``, ``volatility``,
-        or ``execution_horizon_days`` is non-finite or non-positive;
-        ``permanent_impact_coef`` is non-finite or negative;
-        ``temporary_impact_coef`` is non-finite or non-positive; or a supplied
-        ``reference_price`` is non-finite or non-positive.
-
-    Examples
-    --------
-    >>> from finstack_quant.portfolio import almgren_chriss_impact
-    >>> result = almgren_chriss_impact(100_000, 1_000_000, 0.20, 5.0, 0.10, 0.20)
-    >>> round(result["expected_cost_bp"], 2)
-    56.62
-
-    Sources
-    -------
-    - Almgren and Chriss (2000): see docs/REFERENCES.md#almgren-chriss-2000
-    """
-    ...
-
-def kyle_lambda(volumes: list[float], returns: list[float], reference_price: float) -> float | None:
-    """
-    Estimate Kyle's lambda from volume and return observations.
-
-    Multiplies the mean absolute decimal return per unit volume by a reference
-    price so the result is a price-space impact coefficient.
-
-    Parameters
-    ----------
-    volumes : list[float]
-        Ordered trading-volume observations in consistent notional or share units.
-    returns : list[float]
-        Ordered simple decimal returns aligned one-for-one with ``volumes``.
-    reference_price : float
-        Positive price per share or contract used to convert the return-space
-        ratio into price-space lambda.
-
-    Returns
-    -------
-    float | None
-        Estimated price-space Kyle lambda, or ``None`` for invalid samples or
-        a non-positive or non-finite reference price.
-
-    Notes
-    -----
-    This helper does not raise; unavailable estimates return ``None``.
-
-    Examples
-    --------
-    >>> from finstack_quant.portfolio import kyle_lambda
-    >>> kyle_lambda([100.0, 200.0], [0.01, -0.02], 50.0)
-    0.005
-
-    Sources
-    -------
-    - Kyle (1985): see docs/REFERENCES.md#kyle-1985
     """
     ...
 

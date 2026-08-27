@@ -27,17 +27,6 @@ typed result classes may gain fields between releases:
 * ``parametric_var_decomposition``, ``parametric_es_decomposition``,
   ``historical_var_decomposition``, ``evaluate_risk_budget``
 
-**Experimental** — calibration constants and convenience defaults still
-under review; signatures or default coefficients may change:
-
-* ``lvar_bangia`` — exogenous spread-cost model; calibration defaults live
-  in the Rust crate's ``liquidity`` module.
-* ``almgren_chriss_impact`` — fixes ``delta`` at 0.5; the underlying
-  ``optimal_trajectory`` accepts only ``delta = 1`` (linear impact).
-* ``kyle_lambda``, ``roll_effective_spread``, ``amihud_illiquidity``,
-  ``days_to_liquidate``, ``liquidity_tier`` — small free functions, may be
-  re-grouped or renamed.
-
 Bindings should be considered cross-version-compatible only within a single
 ``finstack-quant-portfolio`` minor release; pin the upstream version when
 exporting to downstream services.
@@ -120,13 +109,6 @@ validate_allocation_json = _portfolio.validate_allocation_json
 optimize_portfolio = _portfolio.optimize_portfolio
 replay_portfolio = _portfolio.replay_portfolio
 replay_portfolio_json = _portfolio.replay_portfolio_json
-roll_effective_spread = _portfolio.roll_effective_spread
-amihud_illiquidity = _portfolio.amihud_illiquidity
-days_to_liquidate = _portfolio.days_to_liquidate
-liquidity_tier = _portfolio.liquidity_tier
-lvar_bangia = _portfolio.lvar_bangia
-almgren_chriss_impact = _portfolio.almgren_chriss_impact
-kyle_lambda = _portfolio.kyle_lambda
 brinson_fachler = _portfolio.brinson_fachler
 brinson_fachler_json = _portfolio.brinson_fachler_json
 carino_link = _portfolio.carino_link
@@ -267,8 +249,6 @@ __all__: list[str] = [
     "aggregate_metrics_json",
     "allocate_weights",
     "allocate_weights_json",
-    "almgren_chriss_impact",
-    "amihud_illiquidity",
     "apply_scenario_and_revalue",
     "attribute_portfolio_pnl",
     "brinson_fachler",
@@ -291,7 +271,6 @@ __all__: list[str] = [
     "cell_returns_from_reference_json",
     "compute_factor_sensitivities",
     "compute_pnl_profiles",
-    "days_to_liquidate",
     "decompose_factor_risk",
     "excess_returns",
     "excess_returns_json",
@@ -302,9 +281,6 @@ __all__: list[str] = [
     "grid_attribution_json",
     "grid_carino_link",
     "grid_carino_link_json",
-    "kyle_lambda",
-    "liquidity_tier",
-    "lvar_bangia",
     "mwr_xirr",
     "net_in_currency_by_date",
     "optimize_portfolio",
@@ -314,7 +290,6 @@ __all__: list[str] = [
     "position_what_if",
     "replay_portfolio",
     "replay_portfolio_json",
-    "roll_effective_spread",
     "scenario_pnl",
     "scenario_pnl_batch",
     "scenario_pnl_batch_json",

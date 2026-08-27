@@ -3,7 +3,7 @@
 //! Defines the [`MarketImpactModel`] trait and the data structures for
 //! trade parameters, impact estimates, and execution trajectories.
 
-use crate::error::Result;
+use finstack_quant_core::Result;
 use serde::{Deserialize, Serialize};
 
 use super::types::LiquidityProfile;

@@ -31,6 +31,7 @@
 //! - `factor`: Factor definitions, matching, covariance, sensitivity matrices,
 //!   and hierarchical credit-factor calibration
 //! - `rates`: Interest-rate models and dynamic term-structure engines
+//! - `liquidity`: Liquidity risk estimators and market-impact models
 //! - `volatility`: Volatility models (SABR) and Black-Scholes helper functions
 //! - `trees`: Tree-based methods (Binomial, Trinomial, Multi-factor, Short-rate)
 //! - `pde`: Finite difference PDE methods (1D Crank-Nicolson, 2D Craig-Sneyd ADI, Heston, American penalty)
@@ -44,6 +45,7 @@ pub mod correlation;
 pub mod credit;
 pub mod factor;
 pub mod fourier;
+pub mod liquidity;
 pub mod monte_carlo;
 pub mod pde;
 pub mod rates;

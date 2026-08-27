@@ -1,4 +1,4 @@
-//! Liquidity risk metrics, spread estimation, and portfolio scoring.
+//! Product-independent liquidity risk metrics and market-impact models.
 //!
 //! This module provides market microstructure liquidity modeling for traded
 //! positions. It is orthogonal to the balance-sheet liquidity ratios in
@@ -29,7 +29,7 @@
 //! against an existing VaR number:
 //!
 //! ```
-//! use finstack_quant_portfolio::liquidity::{lvar_bangia_scalar, roll_effective_spread};
+//! use finstack_quant_models::liquidity::{lvar_bangia_scalar, roll_effective_spread};
 //!
 //! # fn main() -> finstack_quant_core::Result<()> {
 //! let returns = [0.004, -0.005, 0.006, -0.004, 0.005, -0.006];
@@ -49,7 +49,14 @@ mod estimators;
 mod impact;
 mod kyle;
 mod lvar;
+mod registry;
 mod types;
+
+use finstack_quant_core::{Error, Result};
+
+fn invalid_input(message: impl Into<String>) -> Error {
+    Error::Validation(message.into())
+}
 
 pub use types::{
     classify_tier, days_to_liquidate, LiquidityConfig, LiquidityProfile, LiquidityTier,
@@ -112,22 +119,18 @@ pub fn almgren_chriss_uniform_impact(
     permanent_impact_coef: f64,
     temporary_impact_coef: f64,
     reference_price: Option<f64>,
-) -> crate::error::Result<ImpactEstimate> {
+) -> Result<ImpactEstimate> {
     if !avg_daily_volume.is_finite() || avg_daily_volume <= 0.0 {
-        return Err(crate::Error::validation(
+        return Err(invalid_input(
             "avg_daily_volume must be finite and positive",
         ));
     }
     if !volatility.is_finite() || volatility <= 0.0 {
-        return Err(crate::Error::validation(
-            "volatility must be finite and positive",
-        ));
+        return Err(invalid_input("volatility must be finite and positive"));
     }
     if let Some(price) = reference_price {
         if !price.is_finite() || price <= 0.0 {
-            return Err(crate::Error::validation(
-                "reference_price must be finite and positive",
-            ));
+            return Err(invalid_input("reference_price must be finite and positive"));
         }
     }
 

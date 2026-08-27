@@ -201,7 +201,6 @@ fn materialization_error_kind(error: &finstack_quant_portfolio::Error) -> &'stat
         Error::MissingMarketData(_) => "missing_market_data",
         Error::OptimizationError(_) => "optimization",
         Error::Core(_) => "core",
-        Error::LiquidityError(_) => "liquidity",
         Error::InvalidInput(_) => "invalid_input",
         Error::ContractLimitExceeded { .. } => "limit_exceeded",
         Error::MaterializationFailed(_) => "report",
@@ -571,10 +570,6 @@ mod tests {
                     "missing curve malformed validation".to_string(),
                 )),
                 "core",
-            ),
-            (
-                Error::LiquidityError("missing curve".to_string()),
-                "liquidity",
             ),
             (
                 Error::InvalidInput("not found malformed validation".to_string()),

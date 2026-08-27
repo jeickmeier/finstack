@@ -13,20 +13,22 @@ import time
 import pytest
 
 from finstack_quant.core.market_data import DiscountCurve, MarketContext
+from finstack_quant.models.liquidity import (
+    amihud_illiquidity,
+    kyle_lambda,
+    roll_effective_spread,
+)
 from finstack_quant.portfolio import (
     Portfolio,
     aggregate_metrics_json,
-    amihud_illiquidity,
     attribute_portfolio_pnl,
     build_portfolio_from_spec,
     carino_link_json,
     compute_factor_sensitivities,
     decompose_factor_risk,
     factor_stress,
-    kyle_lambda,
     position_what_if,
     replay_portfolio_json,
-    roll_effective_spread,
     twrr_linked_json,
     value_portfolio,
 )
