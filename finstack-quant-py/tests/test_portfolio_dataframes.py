@@ -20,6 +20,16 @@ import pytest
 
 from finstack_quant.core.market_data import DiscountCurve, FxMatrix, MarketContext
 from finstack_quant.models.factor.credit import CreditFactorModel
+from finstack_quant.models.factor.risk import (
+    PositionBudgetEntry,
+    PositionRiskDecomposition,
+    PositionVarContribution,
+    RiskBudgetResult,
+    RiskDecomposition,
+    StressAttribution,
+    TailScenarioBreakdown,
+    build_stress_attribution,
+)
 from finstack_quant.portfolio import (
     Constraint,
     FactorAssignmentReport,
@@ -32,22 +42,14 @@ from finstack_quant.portfolio import (
     PortfolioMetrics,
     PortfolioOptimizationResult,
     PortfolioOptimizationSpec,
-    PositionBudgetEntry,
     PositionFilter,
-    PositionRiskDecomposition,
-    PositionVarContribution,
-    RiskBudgetResult,
-    RiskDecomposition,
-    StressAttribution,
     StressResult,
-    TailScenarioBreakdown,
     TradeSpec,
     WeightingScheme,
     WhatIfResult,
     aggregate_full_cashflows,
     attribute_portfolio_pnl,
     build_credit_vol_report,
-    build_stress_attribution,
     optimize_portfolio,
     value_portfolio,
 )

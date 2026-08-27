@@ -321,7 +321,6 @@ class TestPortfolioNamespace:
             aggregate_metrics,
             build_credit_vol_report,
             build_portfolio_from_spec,
-            build_stress_attribution,
             compute_factor_sensitivities,
             compute_pnl_profiles,
             decompose_factor_risk,
@@ -331,6 +330,22 @@ class TestPortfolioNamespace:
             portfolio_result_total_value,
             position_what_if,
         )
+
+    def test_factor_risk_exports(self) -> None:
+        """Pure factor-risk kernels should live under models.factor.risk."""
+        from finstack_quant.models.factor.risk import (  # noqa: F401
+            DecompositionConfig,
+            RiskDecomposition,
+            StressAttribution,
+            build_stress_attribution,
+            evaluate_risk_budget,
+            parametric_var_decomposition,
+        )
+
+        import finstack_quant.portfolio as portfolio
+
+        assert not hasattr(portfolio, "RiskDecomposition")
+        assert not hasattr(portfolio, "build_stress_attribution")
 
     def test_m18_position_filter_exports_python_keyword_safe_not(self) -> None:
         """PositionFilter exposes not_ rather than unusable Python keyword spelling."""

@@ -4,11 +4,10 @@
 //! position (or group of positions). The budgeting engine compares actual
 //! component VaR against targets and computes utilization ratios.
 
-use crate::types::PositionId;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use super::position_risk::PositionRiskDecomposition;
+use super::position::PositionRiskDecomposition;
 
 /// Default maximum acceptable utilization before a budget breach is flagged.
 ///
@@ -29,7 +28,7 @@ pub struct RiskBudget {
     ///
     /// Keys are position IDs; values are target fractions of portfolio VaR
     /// (must sum to 1.0).
-    pub targets: IndexMap<PositionId, f64>,
+    pub targets: IndexMap<String, f64>,
 
     /// Maximum acceptable utilization before triggering a rebalance alert.
     ///
@@ -69,7 +68,7 @@ pub struct RiskBudgetResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PositionBudgetEntry {
     /// Position identifier.
-    pub position_id: PositionId,
+    pub position_id: String,
 
     /// Actual component VaR from the decomposition, signed as reported by
     /// the engine (loss convention: negative for risk consumers when the
@@ -102,7 +101,7 @@ impl RiskBudget {
     /// # Arguments
     ///
     /// * `targets` - Per-position target fractions of portfolio VaR.
-    pub fn new(targets: IndexMap<PositionId, f64>) -> Self {
+    pub fn new(targets: IndexMap<String, f64>) -> Self {
         Self {
             targets,
             utilization_threshold: DEFAULT_UTILIZATION_THRESHOLD,
@@ -167,7 +166,7 @@ impl RiskBudget {
         portfolio_var: f64,
     ) -> finstack_quant_core::Result<RiskBudgetResult>
     where
-        I: IntoIterator<Item = (&'a PositionId, f64)>,
+        I: IntoIterator<Item = (&'a String, f64)>,
     {
         // Validate that targets sum to ~1.0.
         let target_sum: f64 = self.targets.values().sum();
@@ -177,7 +176,7 @@ impl RiskBudget {
             )));
         }
 
-        let actual_by_id: IndexMap<&PositionId, f64> = components.into_iter().collect();
+        let actual_by_id: IndexMap<&String, f64> = components.into_iter().collect();
         let portfolio_var_magnitude = portfolio_var.abs();
         if portfolio_var_magnitude <= 1e-15
             && actual_by_id
@@ -326,8 +325,8 @@ pub fn evaluate_risk_budget_arrays(
         )));
     }
 
-    let shared_ids: Vec<PositionId> = position_ids.into_iter().map(PositionId::new).collect();
-    let mut targets: IndexMap<PositionId, f64> = IndexMap::with_capacity(n);
+    let shared_ids: Vec<String> = position_ids;
+    let mut targets: IndexMap<String, f64> = IndexMap::with_capacity(n);
     for (id, &pct) in shared_ids.iter().zip(target_var_pct.iter()) {
         if targets.insert(id.clone(), pct).is_some() {
             return Err(finstack_quant_core::Error::Validation(format!(
@@ -345,11 +344,11 @@ pub fn evaluate_risk_budget_arrays(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::factor_model::position_risk::{
+    use super::super::position::{
         DecompositionConfig, DecompositionMethod, ParametricPositionDecomposer,
         PositionRiskDecomposition, PositionVarContribution,
     };
+    use super::*;
 
     type TestResult = finstack_quant_core::Result<()>;
 
@@ -362,21 +361,21 @@ mod tests {
             method: DecompositionMethod::Parametric,
             var_contributions: vec![
                 PositionVarContribution {
-                    position_id: PositionId::new("A"),
+                    position_id: String::from("A"),
                     component_var: 40.0,
                     relative_var: 0.40,
                     marginal_var: Some(0.10),
                     incremental_var: None,
                 },
                 PositionVarContribution {
-                    position_id: PositionId::new("B"),
+                    position_id: String::from("B"),
                     component_var: 35.0,
                     relative_var: 0.35,
                     marginal_var: Some(0.09),
                     incremental_var: None,
                 },
                 PositionVarContribution {
-                    position_id: PositionId::new("C"),
+                    position_id: String::from("C"),
                     component_var: 25.0,
                     relative_var: 0.25,
                     marginal_var: Some(0.08),
@@ -394,9 +393,9 @@ mod tests {
         let decomp = sample_decomposition();
 
         let mut targets = IndexMap::new();
-        targets.insert(PositionId::new("A"), 0.33);
-        targets.insert(PositionId::new("B"), 0.34);
-        targets.insert(PositionId::new("C"), 0.33);
+        targets.insert(String::from("A"), 0.33);
+        targets.insert(String::from("B"), 0.34);
+        targets.insert(String::from("C"), 0.33);
 
         let budget = RiskBudget::new(targets);
         let result = budget.evaluate(&decomp)?;
@@ -445,9 +444,9 @@ mod tests {
         let decomp = sample_decomposition();
 
         let mut targets = IndexMap::new();
-        targets.insert(PositionId::new("A"), 0.20); // Actual 40% vs target 20% => 200% utilization.
-        targets.insert(PositionId::new("B"), 0.40);
-        targets.insert(PositionId::new("C"), 0.40);
+        targets.insert(String::from("A"), 0.20); // Actual 40% vs target 20% => 200% utilization.
+        targets.insert(String::from("B"), 0.40);
+        targets.insert(String::from("C"), 0.40);
 
         let budget = RiskBudget::new(targets).with_threshold(1.50);
         let result = budget.evaluate(&decomp)?;
@@ -461,14 +460,11 @@ mod tests {
     #[test]
     fn risk_budget_handles_negative_loss_convention_components() -> TestResult {
         let mut targets = IndexMap::new();
-        targets.insert(PositionId::new("A"), 0.20);
-        targets.insert(PositionId::new("B"), 0.80);
+        targets.insert(String::from("A"), 0.20);
+        targets.insert(String::from("B"), 0.80);
 
         let budget = RiskBudget::new(targets).with_threshold(1.50);
-        let components = [
-            (&PositionId::new("A"), -40.0),
-            (&PositionId::new("B"), -60.0),
-        ];
+        let components = [(&String::from("A"), -40.0), (&String::from("B"), -60.0)];
         let result = budget.evaluate_components(components, -100.0)?;
 
         let a_entry = result
@@ -488,12 +484,12 @@ mod tests {
     #[test]
     fn risk_budget_flags_unbudgeted_nonzero_positions() -> TestResult {
         let mut targets = IndexMap::new();
-        targets.insert(PositionId::new("A"), 1.0);
+        targets.insert(String::from("A"), 1.0);
 
         let budget = RiskBudget::new(targets);
         let components = [
-            (&PositionId::new("A"), 80.0),
-            (&PositionId::new("UNBUDGETED"), 20.0),
+            (&String::from("A"), 80.0),
+            (&String::from("UNBUDGETED"), 20.0),
         ];
         let result = budget.evaluate_components(components, 100.0)?;
 
@@ -518,7 +514,7 @@ mod tests {
     fn risk_budget_diversifier_has_negative_utilization_and_cannot_breach() -> TestResult {
         let weights = [1.0, 0.2];
         let covariance = [0.04, -0.03, -0.03, 0.09];
-        let ids = [PositionId::new("A"), PositionId::new("B")];
+        let ids = [String::from("A"), String::from("B")];
         let config = DecompositionConfig::parametric_95();
         let decomp = ParametricPositionDecomposer.decompose_positions(
             &weights,
@@ -544,8 +540,8 @@ mod tests {
         );
 
         let mut targets = IndexMap::new();
-        targets.insert(PositionId::new("A"), 0.9);
-        targets.insert(PositionId::new("B"), 0.1);
+        targets.insert(String::from("A"), 0.9);
+        targets.insert(String::from("B"), 0.1);
         let budget = RiskBudget::new(targets);
         let result = budget.evaluate(&decomp)?;
 
@@ -588,7 +584,7 @@ mod tests {
     #[test]
     fn risk_budget_entry_serializes_non_finite_utilization() {
         let entry = PositionBudgetEntry {
-            position_id: PositionId::new("A"),
+            position_id: String::from("A"),
             actual_component_var: 1.0,
             target_component_var: 0.0,
             utilization: f64::INFINITY,
@@ -608,9 +604,9 @@ mod tests {
         let decomp = sample_decomposition();
 
         let mut targets = IndexMap::new();
-        targets.insert(PositionId::new("A"), 0.5);
-        targets.insert(PositionId::new("B"), 0.5);
-        targets.insert(PositionId::new("C"), 0.5);
+        targets.insert(String::from("A"), 0.5);
+        targets.insert(String::from("B"), 0.5);
+        targets.insert(String::from("C"), 0.5);
 
         let budget = RiskBudget::new(targets);
         let result = budget.evaluate(&decomp);
@@ -691,20 +687,16 @@ mod tests {
         // Run the full parametric decomposer then evaluate budget.
         let weights = [0.4, 0.35, 0.25];
         let covariance = [0.04, 0.01, 0.005, 0.01, 0.09, 0.02, 0.005, 0.02, 0.0625];
-        let ids = [
-            PositionId::new("A"),
-            PositionId::new("B"),
-            PositionId::new("C"),
-        ];
+        let ids = [String::from("A"), String::from("B"), String::from("C")];
         let config = DecompositionConfig::parametric_95();
 
         let decomposer = ParametricPositionDecomposer;
         let decomp = decomposer.decompose_positions(&weights, &covariance, &ids, &config)?;
 
         let mut targets = IndexMap::new();
-        targets.insert(PositionId::new("A"), 0.33);
-        targets.insert(PositionId::new("B"), 0.34);
-        targets.insert(PositionId::new("C"), 0.33);
+        targets.insert(String::from("A"), 0.33);
+        targets.insert(String::from("B"), 0.34);
+        targets.insert(String::from("C"), 0.33);
 
         let budget = RiskBudget::new(targets);
         let result = budget.evaluate(&decomp)?;

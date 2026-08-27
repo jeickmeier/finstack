@@ -7,12 +7,14 @@ import json
 import pytest
 
 from finstack_quant.models.factor.credit import CreditFactorModel
-from finstack_quant.portfolio import (
-    CreditVolReport,
+from finstack_quant.models.factor.risk import (
     RiskDecomposition,
     StressAttribution,
-    build_credit_vol_report,
     build_stress_attribution,
+)
+from finstack_quant.portfolio import (
+    CreditVolReport,
+    build_credit_vol_report,
 )
 
 

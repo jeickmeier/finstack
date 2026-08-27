@@ -10,6 +10,34 @@ Examples
 10.4506
 """
 
+from finstack_quant.models import correlation as correlation
+from finstack_quant.models import credit as credit
+from finstack_quant.models import factor as factor
+from finstack_quant.models import monte_carlo as monte_carlo
+from finstack_quant.models import rates as rates
+from finstack_quant.models import volatility as volatility
+
+__all__ = [
+    "asian_option_price",
+    "barrier_call",
+    "black76_implied_vol",
+    "bs_cos_price",
+    "bs_greeks",
+    "bs_implied_vol",
+    "bs_price",
+    "correlation",
+    "credit",
+    "factor",
+    "lookback_option_price",
+    "merton_jump_cos_price",
+    "monte_carlo",
+    "quanto_option_price",
+    "rates",
+    "vanilla_expiry_payoff",
+    "vg_cos_price",
+    "volatility",
+]
+
 def bs_price(
     spot: float,
     strike: float,
@@ -704,47 +732,3 @@ def merton_jump_cos_price(
 
     """
     ...
-
-# Exotic rate products — deterministic coupon / payoff helpers
-"""Reusable analytical, Fourier, credit, correlation, and stochastic models.
-
-Examples
---------
->>> from finstack_quant.models import bs_price
->>> round(bs_price(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, True), 4)
-10.4506
-"""
-
-from __future__ import annotations
-
-from typing import Any, Optional
-
-from finstack_quant.models import correlation as correlation
-from finstack_quant.models import credit as credit
-from finstack_quant.models import factor as factor
-from finstack_quant.models import monte_carlo as monte_carlo
-from finstack_quant.models import rates as rates
-from finstack_quant.models import volatility as volatility
-
-__all__ = [
-    "asian_option_price",
-    "barrier_call",
-    "black76_implied_vol",
-    "bs_cos_price",
-    "bs_greeks",
-    "bs_implied_vol",
-    "bs_price",
-    "correlation",
-    "credit",
-    "factor",
-    "lookback_option_price",
-    "merton_jump_cos_price",
-    "monte_carlo",
-    "quanto_option_price",
-    "rates",
-    "vanilla_expiry_payoff",
-    "vg_cos_price",
-    "volatility",
-]
-
-# Closed-form analytical primitives.

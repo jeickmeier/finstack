@@ -1,11 +1,13 @@
 //! Factor model serialization tests for portfolio.
 
 use finstack_quant_core::types::CurveId;
+use finstack_quant_models::factor::risk::{
+    FactorContribution, PositionFactorContribution, RiskDecomposition,
+};
 use finstack_quant_models::factor::{CurveType, FactorId, MarketDependency, RiskMeasure};
-use finstack_quant_portfolio::factor_model::RiskDecomposition;
 use finstack_quant_portfolio::factor_model::{
-    FactorAssignmentReport, FactorContribution, FactorContributionDelta, PositionAssignment,
-    PositionFactorContribution, StressPnl, StressResult, UnmatchedEntry, WhatIfResult,
+    FactorAssignmentReport, FactorContributionDelta, PositionAssignment, StressPnl, StressResult,
+    UnmatchedEntry, WhatIfResult,
 };
 use finstack_quant_portfolio::types::PositionId;
 
@@ -40,7 +42,7 @@ fn sample_decomposition() -> RiskDecomposition {
         }],
         residual_risk: 40.0,
         position_factor_contributions: vec![PositionFactorContribution {
-            position_id: PositionId::new("POS_1"),
+            position_id: "POS_1".to_owned(),
             factor_id: FactorId::new("Rates"),
             risk_contribution: 60.0,
         }],

@@ -10,7 +10,7 @@ mod attribution;
 mod brinson;
 mod excess_return;
 mod factor_brinson;
-mod factor_model;
+pub(crate) mod factor_model;
 mod fi_attribution;
 mod grid_attribution;
 mod json_bridge;
@@ -149,10 +149,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "optimize_portfolio",
         "replay_portfolio",
         "replay_portfolio_json",
-        "parametric_var_decomposition",
-        "parametric_es_decomposition",
-        "historical_var_decomposition",
-        "evaluate_risk_budget",
         "roll_effective_spread",
         "amihud_illiquidity",
         "days_to_liquidate",
@@ -194,36 +190,20 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "compute_factor_sensitivities",
         "compute_pnl_profiles",
         "decompose_factor_risk",
-        // factor_model typed result classes (Slice 8)
-        "FactorContribution",
-        "PositionFactorContribution",
-        "PositionResidualContribution",
-        "RiskDecomposition",
-        "PositionVarContribution",
-        "PositionEsContribution",
-        "PositionRiskDecomposition",
-        "PositionBudgetEntry",
-        "RiskBudgetResult",
+        // portfolio-owned factor workflow result classes
         "FactorContributionDelta",
         "WhatIfResult",
         "StressResult",
-        "StressPositionEntry",
-        "TailScenarioBreakdown",
-        "StressAttribution",
         "PositionAssignment",
         "UnmatchedEntry",
         "FactorAssignmentReport",
         "LevelVolContribution",
         "PositionVolContribution",
         "CreditVolReport",
-        "VolHorizon",
-        "DecompositionConfig",
         "factor_stress",
         "position_what_if",
-        "build_stress_attribution",
         "build_credit_vol_report",
         "validate_allocation_json",
-        "position_component_var",
         // optimization spec/result classes (Slice 9)
         "WeightingScheme",
         "MissingMetricPolicy",

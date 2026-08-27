@@ -238,8 +238,8 @@ pub fn decompose_factor_risk(
         None => finstack_quant_models::factor::RiskMeasure::Variance,
     };
 
-    let decomposer = finstack_quant_portfolio::factor_model::ParametricDecomposer;
-    let result = finstack_quant_portfolio::factor_model::RiskDecomposer::decompose(
+    let decomposer = finstack_quant_models::factor::risk::ParametricDecomposer;
+    let result = finstack_quant_models::factor::risk::RiskDecomposer::decompose(
         &decomposer,
         &matrix,
         &covariance,

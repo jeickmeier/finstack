@@ -1,9 +1,10 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use finstack_quant_portfolio::factor_model::{
-    self as fm, StressAttribution, StressPositionEntry, StressResult, TailScenarioBreakdown,
+use finstack_quant_models::factor::risk::{
+    self as model_risk, StressAttribution, StressPositionEntry, TailScenarioBreakdown,
 };
+use finstack_quant_portfolio::factor_model::{self as fm, StressResult};
 
 use crate::bindings::extract::{extract_market_ref, extract_portfolio_ref};
 use crate::bindings::pandas_utils::dict_to_dataframe;
@@ -12,7 +13,6 @@ use crate::errors::{core_to_py, display_to_py, portfolio_to_py, value_error};
 use super::super::json_bridge::{deserialize_json, serialize_json};
 use super::super::matrix_input::extract_position_pnls;
 use super::contributions::PyRiskDecomposition;
-use super::to_position_ids;
 
 /// Result of a factor-stress scenario.
 #[pyclass(
@@ -127,7 +127,7 @@ impl PyStressResult {
 /// Single position's contribution to tail stress.
 #[pyclass(
     name = "StressPositionEntry",
-    module = "finstack_quant.portfolio",
+    module = "finstack_quant.models.factor.risk",
     frozen,
     from_py_object
 )]
@@ -207,7 +207,7 @@ impl PyStressPositionEntry {
 /// Breakdown of a single tail scenario.
 #[pyclass(
     name = "TailScenarioBreakdown",
-    module = "finstack_quant.portfolio",
+    module = "finstack_quant.models.factor.risk",
     frozen,
     from_py_object
 )]
@@ -319,7 +319,7 @@ impl PyTailScenarioBreakdown {
 /// Per-position attribution of portfolio losses in tail scenarios.
 #[pyclass(
     name = "StressAttribution",
-    module = "finstack_quant.portfolio",
+    module = "finstack_quant.models.factor.risk",
     frozen,
     from_py_object
 )]
@@ -567,9 +567,8 @@ pub(super) fn build_stress_attribution(
     let n_scenarios = position_pnls.n_scenarios();
     let result = py
         .detach(move || {
-            let ids = to_position_ids(position_ids);
             let flat = position_pnls.into_scenario_major(n_positions);
-            fm::build_stress_attribution(&ids, &flat, n_scenarios, confidence)
+            model_risk::build_stress_attribution(&position_ids, &flat, n_scenarios, confidence)
         })
         .map_err(core_to_py)?;
     Ok(PyStressAttribution::from_inner(result))

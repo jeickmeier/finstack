@@ -18,6 +18,7 @@ import pytest
 
 from finstack_quant.attribution import ReturnContributionResult
 from finstack_quant.core.market_data import DiscountCurve, MarketContext
+from finstack_quant.models.factor.risk import evaluate_risk_budget
 from finstack_quant.portfolio import (
     OptimizationStatus,
     PerPositionMetric,
@@ -26,7 +27,6 @@ from finstack_quant.portfolio import (
     PortfolioMetrics,
     compute_factor_sensitivities,
     decompose_factor_risk,
-    evaluate_risk_budget,
     lvar_bangia,
     value_portfolio,
 )
@@ -273,7 +273,7 @@ def test_days_to_liquidate_uses_rust_share_space_keywords() -> None:
 
 def test_square_matrix_column_mismatch_message_has_no_fake_row_index() -> None:
     np = pytest.importorskip("numpy")
-    from finstack_quant.portfolio import parametric_var_decomposition
+    from finstack_quant.models.factor.risk import parametric_var_decomposition
 
     with pytest.raises(ValueError, match="columns") as excinfo:
         parametric_var_decomposition(

@@ -3,10 +3,7 @@
 use super::simulation::cholesky;
 use super::traits::RiskDecomposer;
 use super::types::{FactorContribution, PositionFactorContribution, RiskDecomposition};
-use crate::types::PositionId;
-use finstack_quant_models::factor::{FactorCovarianceMatrix, RiskMeasure};
-
-use crate::sensitivity::SensitivityMatrix;
+use crate::factor::{FactorCovarianceMatrix, RiskMeasure, SensitivityMatrix};
 
 /// Reject sensitivity matrices that contain non-finite deltas.
 ///
@@ -228,12 +225,6 @@ impl ParametricDecomposer {
                     (0.0, 0.0)
                 }
             }
-            other => {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "ParametricDecomposer does not support RiskMeasure::{other:?}; \
-                     supported measures are Variance, Volatility, VaR and ExpectedShortfall"
-                )));
-            }
         };
 
         Ok(scaled)
@@ -329,7 +320,7 @@ impl RiskDecomposer for ParametricDecomposer {
                     .zip(row.iter().zip(cov_times_exposure.iter()))
                     .map(move |(factor_id, (delta, covariance_exposure))| {
                         PositionFactorContribution {
-                            position_id: PositionId::from(position_id.clone()),
+                            position_id: position_id.clone(),
                             factor_id: factor_id.clone(),
                             risk_contribution: delta * covariance_exposure * scale,
                         }
@@ -351,10 +342,9 @@ impl RiskDecomposer for ParametricDecomposer {
 #[cfg(test)]
 mod tests {
     use super::ParametricDecomposer;
-    use crate::factor_model::RiskDecomposer;
-    use crate::sensitivity::SensitivityMatrix;
-    use crate::types::PositionId;
-    use finstack_quant_models::factor::{FactorCovarianceMatrix, FactorId, RiskMeasure};
+    use super::RiskDecomposer;
+    use crate::factor::SensitivityMatrix;
+    use crate::factor::{FactorCovarianceMatrix, FactorId, RiskMeasure};
 
     type TestResult = finstack_quant_core::Result<()>;
 
@@ -466,10 +456,10 @@ mod tests {
         assert!((sum_relative - 1.0).abs() < 1e-12);
 
         let expected_rows = vec![
-            (PositionId::new("pos-A"), FactorId::new("Rates"), 550.0),
-            (PositionId::new("pos-A"), FactorId::new("Credit"), 0.0),
-            (PositionId::new("pos-B"), FactorId::new("Rates"), 0.0),
-            (PositionId::new("pos-B"), FactorId::new("Credit"), 375.0),
+            (String::from("pos-A"), FactorId::new("Rates"), 550.0),
+            (String::from("pos-A"), FactorId::new("Credit"), 0.0),
+            (String::from("pos-B"), FactorId::new("Rates"), 0.0),
+            (String::from("pos-B"), FactorId::new("Credit"), 375.0),
         ];
 
         assert_eq!(

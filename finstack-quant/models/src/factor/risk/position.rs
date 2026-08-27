@@ -21,7 +21,6 @@
 //! - `docs/REFERENCES.md#meucci-risk-and-asset-allocation`
 //! - `docs/REFERENCES.md#litterman-1996-hotspots`
 
-use crate::types::PositionId;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
@@ -135,7 +134,7 @@ impl DecompositionConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PositionVarContribution {
     /// Position identifier.
-    pub position_id: PositionId,
+    pub position_id: String,
 
     /// Component VaR: position's Euler-allocated share of portfolio VaR.
     ///
@@ -184,7 +183,7 @@ pub struct PositionVarContribution {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PositionEsContribution {
     /// Position identifier.
-    pub position_id: PositionId,
+    pub position_id: String,
 
     /// Component ES: position's contribution to portfolio Expected Shortfall.
     ///
@@ -296,7 +295,7 @@ pub struct StressAttribution {
     /// scenario) avoids duplicating it `n_tail_scenarios` times.
     ///
     /// [`tail_scenarios`]: Self::tail_scenarios
-    pub position_ids: Vec<PositionId>,
+    pub position_ids: Vec<String>,
 
     /// Per-position average contribution to tail losses.
     ///
@@ -315,7 +314,7 @@ pub struct StressAttribution {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StressPositionEntry {
     /// Position identifier.
-    pub position_id: PositionId,
+    pub position_id: String,
 
     /// Average P&L contribution in tail scenarios.
     pub avg_tail_pnl: f64,
@@ -371,7 +370,7 @@ pub struct TailScenarioBreakdown {
 /// * `confidence` - Tail confidence level strictly between 0.5 and 1.0, such
 ///   as `0.99` for a 99% stress-tail attribution.
 pub fn build_stress_attribution(
-    position_ids: &[PositionId],
+    position_ids: &[String],
     position_pnls: &[f64],
     n_scenarios: usize,
     confidence: f64,
@@ -513,7 +512,7 @@ use super::math::{normal_pdf, normal_quantile};
 fn validate_decomposition_inputs(
     weights: &[f64],
     covariance: &[f64],
-    position_ids: &[PositionId],
+    position_ids: &[String],
     config: &DecompositionConfig,
 ) -> finstack_quant_core::Result<()> {
     let n = weights.len();
@@ -682,7 +681,7 @@ impl ParametricPositionDecomposer {
         &self,
         weights: &[f64],
         covariance: &[f64],
-        position_ids: &[PositionId],
+        position_ids: &[String],
         config: &DecompositionConfig,
     ) -> finstack_quant_core::Result<PositionRiskDecomposition> {
         validate_decomposition_inputs(weights, covariance, position_ids, config)?;
@@ -888,7 +887,7 @@ impl HistoricalPositionDecomposer {
     pub fn decompose_from_pnls(
         &self,
         position_pnls: &[f64],
-        position_ids: &[PositionId],
+        position_ids: &[String],
         n_scenarios: usize,
         config: &DecompositionConfig,
     ) -> finstack_quant_core::Result<PositionRiskDecomposition> {
@@ -1099,7 +1098,7 @@ mod tests {
         // Weights: 0.6, 0.4.
         let weights = [0.6, 0.4];
         let covariance = [0.04, 0.0, 0.0, 0.09];
-        let ids = [PositionId::new("A"), PositionId::new("B")];
+        let ids = [String::from("A"), String::from("B")];
         let config = DecompositionConfig::parametric_99();
 
         let decomposer = ParametricPositionDecomposer;
@@ -1146,7 +1145,7 @@ mod tests {
     fn parametric_var_and_es_report_losses_as_negative() -> TestResult {
         let weights = [0.6, 0.4];
         let covariance = [0.04, 0.0, 0.0, 0.09];
-        let ids = [PositionId::new("A"), PositionId::new("B")];
+        let ids = [String::from("A"), String::from("B")];
         let config = DecompositionConfig::parametric_99();
 
         let result = ParametricPositionDecomposer.decompose_positions(
@@ -1192,7 +1191,7 @@ mod tests {
         // at least two tail observations, like the simulation engine.)
         let n_scenarios = 200;
         let pnls: Vec<f64> = (0..n_scenarios).map(|s| s as f64 - 50.0).collect();
-        let ids = [PositionId::new("A")];
+        let ids = [String::from("A")];
         let config = DecompositionConfig {
             confidence: 0.99,
             method: DecompositionMethod::Historical,
@@ -1233,7 +1232,7 @@ mod tests {
         // floating-point rounding noise.
         let weights = [0.5, 0.5];
         let covariance = [0.25, 0.25, 0.25, 0.25];
-        let ids = [PositionId::new("A"), PositionId::new("A2")];
+        let ids = [String::from("A"), String::from("A2")];
         let config = DecompositionConfig::parametric_99();
 
         let decomposer = ParametricPositionDecomposer;
@@ -1267,7 +1266,7 @@ mod tests {
         for i in 0..n {
             covariance[i * n + i] = var;
         }
-        let ids: Vec<PositionId> = (0..n).map(|i| PositionId::new(format!("P{i}"))).collect();
+        let ids: Vec<String> = (0..n).map(|i| format!("P{i}")).collect();
         let config = DecompositionConfig::parametric_95();
 
         let decomposer = ParametricPositionDecomposer;
@@ -1299,7 +1298,7 @@ mod tests {
     fn single_position_portfolio() -> TestResult {
         let weights = [1.0];
         let covariance = [0.04]; // sigma = 0.20
-        let ids = [PositionId::new("SOLO")];
+        let ids = [String::from("SOLO")];
         let config = DecompositionConfig::parametric_95().with_incremental();
 
         let decomposer = ParametricPositionDecomposer;
@@ -1334,7 +1333,7 @@ mod tests {
     fn zero_weight_position_has_zero_contributions() -> TestResult {
         let weights = [1.0, 0.0];
         let covariance = [0.04, 0.01, 0.01, 0.09];
-        let ids = [PositionId::new("A"), PositionId::new("ZERO")];
+        let ids = [String::from("A"), String::from("ZERO")];
         let config = DecompositionConfig::parametric_95();
 
         let decomposer = ParametricPositionDecomposer;
@@ -1362,11 +1361,7 @@ mod tests {
         // i.e. ES <= VaR as signed numbers.
         let weights = [0.4, 0.3, 0.3];
         let covariance = [0.04, 0.01, 0.005, 0.01, 0.09, 0.02, 0.005, 0.02, 0.0625];
-        let ids = [
-            PositionId::new("A"),
-            PositionId::new("B"),
-            PositionId::new("C"),
-        ];
+        let ids = [String::from("A"), String::from("B"), String::from("C")];
         let config = DecompositionConfig::parametric_99();
 
         let decomposer = ParametricPositionDecomposer;
@@ -1407,7 +1402,7 @@ mod tests {
         // sigma1 = 0.2, sigma2 = 0.2, rho = -0.8
         // cov(1,2) = rho * sigma1 * sigma2 = -0.8 * 0.04 = -0.032
         let covariance = [0.04, -0.032, -0.032, 0.04];
-        let ids = [PositionId::new("A"), PositionId::new("B")];
+        let ids = [String::from("A"), String::from("B")];
         let config = DecompositionConfig::parametric_95();
 
         let decomposer = ParametricPositionDecomposer;
@@ -1476,7 +1471,7 @@ mod tests {
             }
         }
 
-        let ids: Vec<PositionId> = (0..n).map(|i| PositionId::new(format!("P{i}"))).collect();
+        let ids: Vec<String> = (0..n).map(|i| format!("P{i}")).collect();
         let config = DecompositionConfig::parametric_99();
 
         let decomposer = ParametricPositionDecomposer;
@@ -1526,7 +1521,7 @@ mod tests {
         let result = decomposer.decompose_positions(
             &[0.5, 0.5],
             &[0.04, 0.0, 0.0, 0.04],
-            &[PositionId::new("A")],
+            &[String::from("A")],
             &DecompositionConfig::parametric_95(),
         );
         assert!(result.is_err());
@@ -1538,8 +1533,7 @@ mod tests {
         let mut config = DecompositionConfig::parametric_95();
         config.confidence = 1.5;
 
-        let result =
-            decomposer.decompose_positions(&[1.0], &[0.04], &[PositionId::new("A")], &config);
+        let result = decomposer.decompose_positions(&[1.0], &[0.04], &[String::from("A")], &config);
         assert!(result.is_err());
     }
 
@@ -1550,7 +1544,7 @@ mod tests {
             let mut config = DecompositionConfig::parametric_95();
             config.confidence = confidence;
             let result =
-                decomposer.decompose_positions(&[1.0], &[0.04], &[PositionId::new("A")], &config);
+                decomposer.decompose_positions(&[1.0], &[0.04], &[String::from("A")], &config);
             assert!(
                 result.is_err(),
                 "minor 22/23: confidence {confidence:?} must fail"
@@ -1562,7 +1556,7 @@ mod tests {
             let mut config = DecompositionConfig::historical(0.95);
             config.confidence = confidence;
             let result =
-                historical.decompose_from_pnls(&[-1.0, -2.0], &[PositionId::new("A")], 2, &config);
+                historical.decompose_from_pnls(&[-1.0, -2.0], &[String::from("A")], 2, &config);
             assert!(
                 result.is_err(),
                 "minor 22/23: historical confidence {confidence:?} must fail"
@@ -1574,11 +1568,7 @@ mod tests {
     fn incremental_var_three_positions() -> TestResult {
         let weights = [0.4, 0.35, 0.25];
         let covariance = [0.04, 0.01, 0.005, 0.01, 0.09, 0.02, 0.005, 0.02, 0.0625];
-        let ids = [
-            PositionId::new("A"),
-            PositionId::new("B"),
-            PositionId::new("C"),
-        ];
+        let ids = [String::from("A"), String::from("B"), String::from("C")];
         let config = DecompositionConfig::parametric_99().with_incremental();
 
         let decomposer = ParametricPositionDecomposer;
@@ -1638,7 +1628,7 @@ mod tests {
             pnls.push(b_pnl);
         }
 
-        let ids = [PositionId::new("A"), PositionId::new("B")];
+        let ids = [String::from("A"), String::from("B")];
         let config = DecompositionConfig::historical(0.95);
 
         let decomposer = HistoricalPositionDecomposer;
@@ -1663,7 +1653,7 @@ mod tests {
         let decomposer = HistoricalPositionDecomposer;
         let result = decomposer.decompose_from_pnls(
             &[1.0, 2.0, 3.0], // 3 values, but 2 scenarios x 2 positions = 4.
-            &[PositionId::new("A"), PositionId::new("B")],
+            &[String::from("A"), String::from("B")],
             2,
             &DecompositionConfig::historical(0.95),
         );
@@ -1683,7 +1673,7 @@ mod tests {
 
     #[test]
     fn stress_attribution_uses_historical_tail_boundary() -> TestResult {
-        let ids = [PositionId::new("A"), PositionId::new("B")];
+        let ids = [String::from("A"), String::from("B")];
         let n_scenarios = 20;
         let mut pnls = Vec::with_capacity(n_scenarios * ids.len());
         for scenario in 0..n_scenarios {
@@ -1713,12 +1703,12 @@ mod tests {
         // carried once on the parent (no per-scenario id duplication).
         assert_eq!(
             attr.position_ids,
-            vec![PositionId::new("A"), PositionId::new("B")]
+            vec![String::from("A"), String::from("B")]
         );
         assert_eq!(attr.tail_scenarios[0].position_pnls, vec![-8.0, -2.0]);
         assert_eq!(
             attr.position_contributions[0].position_id,
-            PositionId::new("A")
+            String::from("A")
         );
         assert!((attr.position_contributions[0].avg_tail_pnl + 8.0).abs() < 1e-12);
         assert!((attr.position_contributions[0].pct_of_tail_loss - 0.8).abs() < 1e-12);
@@ -1729,7 +1719,7 @@ mod tests {
 
     #[test]
     fn stress_attribution_averages_multiple_tail_scenarios() -> TestResult {
-        let ids = [PositionId::new("A"), PositionId::new("B")];
+        let ids = [String::from("A"), String::from("B")];
         let n_scenarios = 40;
         let mut pnls = Vec::with_capacity(n_scenarios * ids.len());
         for scenario in 0..n_scenarios {
@@ -1759,12 +1749,12 @@ mod tests {
         let contrib_a = attr
             .position_contributions
             .iter()
-            .find(|entry| entry.position_id == PositionId::new("A"))
+            .find(|entry| entry.position_id == "A")
             .expect("A contribution should exist");
         let contrib_b = attr
             .position_contributions
             .iter()
-            .find(|entry| entry.position_id == PositionId::new("B"))
+            .find(|entry| entry.position_id == "B")
             .expect("B contribution should exist");
 
         assert!((contrib_a.avg_tail_pnl + 5.0).abs() < 1e-12);
@@ -1777,7 +1767,7 @@ mod tests {
 
     #[test]
     fn stress_attribution_rejects_underspecified_tail() {
-        let ids = [PositionId::new("A")];
+        let ids = [String::from("A")];
         let pnls = vec![0.0; 50];
         let result = build_stress_attribution(&ids, &pnls, 50, 0.99);
         assert!(result.is_err());
@@ -1799,7 +1789,7 @@ mod tests {
             pnls.push(s as f64 / 100.0 - 0.5);
         }
 
-        let ids = [PositionId::new("X")];
+        let ids = [String::from("X")];
         let config = DecompositionConfig::historical(0.95);
 
         let decomposer = HistoricalPositionDecomposer;
@@ -1823,7 +1813,7 @@ mod tests {
         let n_scenarios = 50;
         let n = 1;
         let pnls = vec![0.0; n_scenarios * n];
-        let ids = [PositionId::new("X")];
+        let ids = [String::from("X")];
         let config = DecompositionConfig::historical(0.99);
 
         let decomposer = HistoricalPositionDecomposer;
@@ -1846,7 +1836,7 @@ mod tests {
             pnls.push(-0.01 + 0.001 * (s as f64 / 10.0).sin());
             pnls.push(if s < 10 { -0.10 } else { 0.005 });
         }
-        let ids = [PositionId::new("A"), PositionId::new("B")];
+        let ids = [String::from("A"), String::from("B")];
         let config = DecompositionConfig::historical(0.95);
 
         let decomposer = HistoricalPositionDecomposer;
@@ -1882,11 +1872,7 @@ mod tests {
     fn incremental_var_non_positive_for_long_only_portfolio() -> TestResult {
         let weights = [0.4, 0.35, 0.25];
         let covariance = [0.04, 0.01, 0.005, 0.01, 0.09, 0.02, 0.005, 0.02, 0.0625];
-        let ids = [
-            PositionId::new("A"),
-            PositionId::new("B"),
-            PositionId::new("C"),
-        ];
+        let ids = [String::from("A"), String::from("B"), String::from("C")];
         let config = DecompositionConfig::parametric_99().with_incremental();
 
         let decomposer = ParametricPositionDecomposer;
@@ -1922,7 +1908,7 @@ mod tests {
     fn parametric_reports_some_for_marginals_and_residual() -> TestResult {
         let weights = [0.6, 0.4];
         let covariance = [0.04, 0.0, 0.0, 0.09];
-        let ids = [PositionId::new("A"), PositionId::new("B")];
+        let ids = [String::from("A"), String::from("B")];
         let config = DecompositionConfig::parametric_95();
 
         let decomposer = ParametricPositionDecomposer;
@@ -1968,7 +1954,7 @@ mod tests {
                 pnls.push(v);
             }
         }
-        let ids: Vec<PositionId> = (0..n).map(|i| PositionId::new(format!("P{i}"))).collect();
+        let ids: Vec<String> = (0..n).map(|i| format!("P{i}")).collect();
         let mut config = DecompositionConfig::historical(confidence);
         config.confidence = confidence;
 
@@ -2021,7 +2007,7 @@ mod tests {
         // scenario, overstating VaR by one quantile step.
         let n_scenarios = 1000;
         let pnls: Vec<f64> = (0..n_scenarios).map(|s| s as f64 - 500.0).collect();
-        let ids = [PositionId::new("A")];
+        let ids = [String::from("A")];
         let config = DecompositionConfig::historical(0.90);
 
         let result =
@@ -2048,7 +2034,7 @@ mod tests {
         // rejected like the simulation engine's tail >= 2 guard.
         let n_scenarios = 100;
         let pnls: Vec<f64> = (0..n_scenarios).map(|s| s as f64 - 50.0).collect();
-        let ids = [PositionId::new("A")];
+        let ids = [String::from("A")];
         let config = DecompositionConfig::historical(0.99);
 
         let result =
@@ -2065,7 +2051,7 @@ mod tests {
         // at 90% of 1000 scenarios is exactly 100 scenarios.
         let n_scenarios = 1000;
         let pnls: Vec<f64> = (0..n_scenarios).map(|s| s as f64 - 500.0).collect();
-        let ids = [PositionId::new("A")];
+        let ids = [String::from("A")];
 
         let attr = build_stress_attribution(&ids, &pnls, n_scenarios, 0.90)?;
         assert_eq!(attr.n_tail_scenarios, 100);
@@ -2082,7 +2068,7 @@ mod tests {
         // clamping to zero risk with only a tracing warning.
         let weights = [1.0, -2.5e-5];
         let covariance = [1e-12, 1e-6, 1e-6, 0.04];
-        let ids = [PositionId::new("A"), PositionId::new("B")];
+        let ids = [String::from("A"), String::from("B")];
         let config = DecompositionConfig::parametric_95();
 
         let result =
@@ -2103,7 +2089,7 @@ mod tests {
         // to 0 (no proration when ES ~ 0), matching the simulation engine.
         let n_scenarios = 200;
         let pnls: Vec<f64> = (0..n_scenarios).map(|s| 1.0 + s as f64).collect();
-        let ids = [PositionId::new("A")];
+        let ids = [String::from("A")];
         let config = DecompositionConfig::historical(0.95);
 
         let result =

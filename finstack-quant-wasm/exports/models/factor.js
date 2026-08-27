@@ -10,6 +10,14 @@ const credit = {
   decomposePeriod: wasm.decomposePeriod,
 };
 
+const risk = {
+  parametricVarDecomposition: wasm.parametricVarDecomposition,
+  parametricEsDecomposition: wasm.parametricEsDecomposition,
+  historicalVarDecomposition: wasm.historicalVarDecomposition,
+  evaluateRiskBudget: wasm.evaluateRiskBudget,
+};
+
 export const factor = {
   credit,
+  risk,
 };

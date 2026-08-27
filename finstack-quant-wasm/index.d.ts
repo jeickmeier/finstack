@@ -3829,6 +3829,91 @@ export interface FactorModelCreditNamespace {
 }
 
 /**
+ * Product-independent factor and position risk decomposition kernels.
+ * @example
+ * ```typescript
+ * import init, { models } from "finstack-quant-wasm";
+ * await init();
+ * const result = models.factor.risk.parametricVarDecomposition(
+ *   JSON.stringify(["A", "B"]),
+ *   JSON.stringify([0.6, 0.4]),
+ *   JSON.stringify([[0.04, 0.01], [0.01, 0.09]]),
+ *   0.95
+ * );
+ * console.log(result.portfolio_var);
+ * ```
+ */
+export interface FactorRiskNamespace {
+  /**
+   * Decompose portfolio VaR into position contributions via parametric Euler
+   * allocation. Inputs mirror the Python binding's signature.
+   *
+   * `covariance_json` must deserialize to an `n x n` row-major nested array.
+   * @returns Returns a structured `VarDecompositionResult` object.
+   * @param positionIdsJson - JSON array of position identifiers.
+   * @param weightsJson - Position or asset weight-vector JSON.
+   * @param covarianceJson - Covariance-matrix JSON.
+   * @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
+   * @param computeIncremental - Optional; when `true`, also computes incremental VaR (one full repricing per position). Defaults to `false`.
+   * @throws Error - Throws if JSON decoding fails; dimensions disagree; covariance is invalid; confidence is outside `(0.5, 1)`; or result conversion fails.
+   */
+  parametricVarDecomposition(
+    positionIdsJson: string,
+    weightsJson: string,
+    covarianceJson: string,
+    confidence: number,
+    computeIncremental?: boolean
+  ): VarDecompositionResult;
+  /**
+   * Decompose portfolio Expected Shortfall into position contributions via
+   * parametric Euler allocation.
+   * @returns Returns a structured `EsDecompositionResult` object.
+   * @param positionIdsJson - JSON array of position identifiers.
+   * @param weightsJson - Position or asset weight-vector JSON.
+   * @param covarianceJson - Covariance-matrix JSON.
+   * @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
+   * @throws Error - Throws if JSON decoding fails; dimensions disagree; covariance is invalid; confidence is outside `(0.5, 1)`; or result conversion fails.
+   */
+  parametricEsDecomposition(
+    positionIdsJson: string,
+    weightsJson: string,
+    covarianceJson: string,
+    confidence: number
+  ): EsDecompositionResult;
+  /**
+   * Decompose portfolio VaR and Expected Shortfall from per-position scenario
+   * profit-and-loss series using historical simulation.
+   * @returns Returns a structured `VarDecompositionResult` object.
+   * @param positionIdsJson - JSON array of position identifiers.
+   * @param positionPnlsJson - Nested per-position P&L array shaped `[n_positions][n_scenarios]`.
+   * @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
+   * @throws Error - Throws if JSON decoding fails; dimensions disagree; confidence is outside `(0.5, 1)`; the tail has too few scenarios; a P&L is non-finite; or result conversion fails.
+   */
+  historicalVarDecomposition(
+    positionIdsJson: string,
+    positionPnlsJson: string,
+    confidence: number
+  ): VarDecompositionResult;
+  /**
+   * Evaluate per-position component VaRs against target risk-budget shares.
+   * @returns Returns a structured `RiskBudgetResult` object.
+   * @param positionIdsJson - JSON array of position identifiers.
+   * @param actualVarJson - Actual component-VaR JSON array in the same order as the identifiers.
+   * @param targetVarPctJson - Target VaR-share JSON array of decimal proportions summing to one.
+   * @param portfolioVar - Total portfolio VaR used to convert shares into absolute amounts.
+   * @param utilizationThreshold - Optional actual-to-target ratio that flags a breach; defaults to 1.2.
+   * @throws Error - Throws if JSON decoding fails; dimensions disagree; identifiers are duplicated; target shares are invalid; `portfolioVar` is inconsistent with component risk; or result conversion fails.
+   */
+  evaluateRiskBudget(
+    positionIdsJson: string,
+    actualVarJson: string,
+    targetVarPctJson: string,
+    portfolioVar: number,
+    utilizationThreshold?: number
+  ): RiskBudgetResult;
+}
+
+/**
  * Namespaced TypeScript entry points for factor model calculations and types.
  * @example
  * ```typescript
@@ -3855,6 +3940,10 @@ export interface FactorNamespace {
    * Credit factor hierarchy artifacts, calibration, and decomposition.
    */
   credit: FactorModelCreditNamespace;
+  /**
+   * Pure factor and position risk decomposition kernels.
+   */
+  risk: FactorRiskNamespace;
 }
 
 // --- features ---------------------------------------------------------------
@@ -10167,81 +10256,6 @@ export interface PortfolioNamespace {
     snapshotsJson: string,
     configJson: string
   ): Record<string, unknown>;
-  /**
-   * Decompose portfolio VaR into position contributions via parametric Euler
-   * allocation. Inputs mirror the Python binding's signature.
-   *
-   * `covariance_json` must deserialize to an `n x n` row-major nested array.
-   * @returns Returns a structured `VarDecompositionResult` object.
-   * @param positionIdsJson - JSON array of position identifiers.
-   * @param weightsJson - Position or asset weight-vector JSON.
-   * @param covarianceJson - Covariance-matrix JSON.
-   * @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
-   * @param computeIncremental - Optional; when `true`, also computes incremental VaR (one full repricing per position). Defaults to `false`, mirroring the Python `compute_incremental=` keyword.
-   * @throws Error - Throws a JavaScript exception if any JSON input is malformed; identifier, weight, or covariance dimensions disagree; the covariance matrix is not finite, symmetric, and positive semidefinite; `confidence` is not finite and in `(0.5, 1)`; or the result cannot be converted to a JavaScript value.
-   */
-  parametricVarDecomposition(
-    positionIdsJson: string,
-    weightsJson: string,
-    covarianceJson: string,
-    confidence: number,
-    computeIncremental?: boolean
-  ): VarDecompositionResult;
-  /**
-   * Decompose portfolio Expected Shortfall into position contributions via
-   * parametric Euler allocation.
-   *
-   * Returns an ES-shaped structured object mirroring the Python
-   * ``parametric_es_decomposition`` return value: a top-level
-   * ``{portfolio_var, portfolio_es, confidence, n_positions, contributions}``
-   * object whose ``contributions`` entries are
-   * ``{position_id, component_es, marginal_es, pct_contribution}``.
-   * @returns Returns a structured `EsDecompositionResult` object.
-   * @param positionIdsJson - JSON array of position identifiers.
-   * @param weightsJson - Position or asset weight-vector JSON.
-   * @param covarianceJson - Covariance-matrix JSON.
-   * @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
-   * @throws Error - Throws a JavaScript exception if any JSON input is malformed; identifier, weight, or covariance dimensions disagree; the covariance matrix is not finite, symmetric, and positive semidefinite; `confidence` is not finite and in `(0.5, 1)`; or the result cannot be converted to a JavaScript value.
-   */
-  parametricEsDecomposition(
-    positionIdsJson: string,
-    weightsJson: string,
-    covarianceJson: string,
-    confidence: number
-  ): EsDecompositionResult;
-  /**
-   * Decompose portfolio VaR/ES from per-position scenario P&Ls via historical
-   * simulation.
-   *
-   * `position_pnls_json` is a nested array shaped `[n_positions][n_scenarios]`.
-   * @returns Returns a structured `VarDecompositionResult` object.
-   * @param positionIdsJson - JSON array of position identifiers.
-   * @param positionPnlsJson - Per-position P&L JSON.
-   * @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
-   * @throws Error - Throws a JavaScript exception if either JSON input is malformed, position or scenario dimensions disagree, `confidence` is not finite and in `(0.5, 1)`, too few scenarios resolve the requested tail, a P-and-L value is non-finite, or the result cannot be converted to a JavaScript value.
-   */
-  historicalVarDecomposition(
-    positionIdsJson: string,
-    positionPnlsJson: string,
-    confidence: number
-  ): VarDecompositionResult;
-  /**
-   * Evaluate a per-position risk budget against actual component VaRs.
-   * @returns Returns a structured `RiskBudgetResult` object.
-   * @param positionIdsJson - JSON array of position identifiers.
-   * @param actualVarJson - Actual component-VaR JSON.
-   * @param targetVarPctJson - Target VaR-share JSON.
-   * @param portfolioVar - Total portfolio VaR used to convert risk-budget shares into absolute amounts.
-   * @param utilizationThreshold - Optional actual-to-target risk ratio that flags a budget breach; omit for the Rust default of 1.2.
-   * @throws Error - Throws a JavaScript exception if any JSON input is malformed, actual or target arrays do not match the identifier count, a position id is duplicated, non-empty target shares do not sum to one within tolerance, nonzero component risk is paired with zero `portfolioVar`, or the result cannot be converted to a JavaScript value.
-   */
-  evaluateRiskBudget(
-    positionIdsJson: string,
-    actualVarJson: string,
-    targetVarPctJson: string,
-    portfolioVar: number,
-    utilizationThreshold?: number
-  ): RiskBudgetResult;
   /**
    * Effective bid-ask spread via Roll (1984). Returns `undefined` when the
    * serial covariance is non-negative (Roll assumption violated) or inputs too short.

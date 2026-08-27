@@ -66,10 +66,6 @@ export const portfolio = {
   scenarioPnlBuilt: wasm.scenarioPnlBuilt,
   optimizePortfolio: wasm.optimizePortfolio,
   replayPortfolio: wasm.replayPortfolio,
-  parametricVarDecomposition: wasm.parametricVarDecomposition,
-  parametricEsDecomposition: wasm.parametricEsDecomposition,
-  historicalVarDecomposition: wasm.historicalVarDecomposition,
-  evaluateRiskBudget: wasm.evaluateRiskBudget,
   // ⚠️ BLOCKING: prefer computeFactorSensitivitiesWithMarket for repeated calls
   // so large MarketContext JSON is parsed once into Market.
   computeFactorSensitivities: wasm.computeFactorSensitivities,

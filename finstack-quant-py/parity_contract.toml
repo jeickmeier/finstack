@@ -171,12 +171,13 @@ rust_lib   = "finstack-quant/models/src/factor/mod.rs"
 python_package = "finstack_quant.models.factor"
 visibility = "pub"
 status = "exists"
-note = "Generic factor-model types are exported at the Rust crate root. FactorCovarianceMatrix and FactorModelConfig are typed output wrappers under finstack_quant.models.factor.credit; WASM returns equivalent plain objects. Remaining generic configuration primitives cross host boundaries through explicit JSON inputs. Credit hierarchy APIs are exposed under finstack_quant.models.factor.credit."
-public = ["credit", "schema"]
+note = "Generic factor-model types are exported at the Rust crate root. Credit hierarchy and forecast APIs live under finstack_quant.models.factor.credit; pure covariance, decomposition, position-risk, stress-attribution, and risk-budget kernels live under finstack_quant.models.factor.risk."
+public = ["credit", "risk", "schema"]
 
 [crates.models.factor.modules]
 matching           = { python = "finstack_quant.models.factor.matching", status = "missing", note = "MatchingConfig typed host-language constructors deferred; JSON contracts remain Rust-owned. The crate-root matching re-exports (CascadeMatcher, HierarchicalMatcher, MappingTableMatcher, FactorMatcher trait family, MappingRule, AttributeFilter, DependencyFilter) are Rust-only." }
-credit             = { python = "finstack_quant.models.factor.credit", status = "exists", note = "Credit hierarchy artifacts plus typed FactorCovarianceMatrix/FactorModelConfig forecast outputs are flattened into this namespace. FactorCovarianceForecast is bound here but its canonical Rust home is finstack-quant-portfolio::factor_model::credit_vol_forecast; WASM returns equivalent forecast outputs as plain objects." }
+credit             = { python = "finstack_quant.models.factor.credit", status = "exists", note = "Credit hierarchy artifacts, covariance forecasts, VolHorizon, and typed FactorCovarianceMatrix/FactorModelConfig forecast outputs are flattened into this namespace." }
+risk               = { python = "finstack_quant.models.factor.risk", status = "exists", note = "Pure factor and position decomposition, stress attribution, and risk-budget result types and functions." }
 schema             = { python = "finstack_quant.models.factor.schema", status = "exists", note = "Compiled-in JSON Schema accessors; no WASM twin." }
 
 # The remaining crate-root `pub use` surface (BumpSizeConfig, FactorBumpUnit,
@@ -197,8 +198,33 @@ public = [
     "FactorModelConfig",
     "LevelsAtDate",
     "PeriodDecomposition",
+    "VolHorizon",
     "decompose_levels",
     "decompose_period",
+]
+
+[crates.models.factor.module_symbols.risk]
+python_package = "finstack_quant.models.factor.risk"
+public = [
+    "DecompositionConfig",
+    "FactorContribution",
+    "PositionBudgetEntry",
+    "PositionEsContribution",
+    "PositionFactorContribution",
+    "PositionResidualContribution",
+    "PositionRiskDecomposition",
+    "PositionVarContribution",
+    "RiskBudgetResult",
+    "RiskDecomposition",
+    "StressAttribution",
+    "StressPositionEntry",
+    "TailScenarioBreakdown",
+    "build_stress_attribution",
+    "evaluate_risk_budget",
+    "historical_var_decomposition",
+    "parametric_es_decomposition",
+    "parametric_var_decomposition",
+    "position_component_var",
 ]
 
 [crates.models.factor.module_symbols.schema]
@@ -1485,7 +1511,7 @@ dependencies = { python = "finstack_quant.portfolio.dependencies", status = "mis
 error        = { python = "finstack_quant.portfolio",              status = "flattened", note = "The Rust Error/Result surface flattens onto the Python root as the exception types PortfolioError, ValuationError, FxError, and OptimizationError (plus the materialization ContractValidationError family)" }
 excess_return = { python = "finstack_quant.portfolio",             status = "flattened", note = "Duration-matched credit excess return functions (cell_returns_from_reference, cell_returns_from_curves, excess_returns) are exported flat on finstack_quant.portfolio (Dynkin, Hyman & Vankudre 1998, Appendix B); duration_cell_label remains Rust-only" }
 factor_brinson = { python = "finstack_quant.portfolio",            status = "flattened", note = "Jeet-Partani (2023) factor-Brinson unified attribution (factor_brinson_attribution) is exported flat on finstack_quant.portfolio" }
-factor_model = { python = "finstack_quant.portfolio",              status = "flattened", note = "Result types (RiskDecomposition, PositionRiskDecomposition, RiskBudgetResult, WhatIfResult, StressResult, StressAttribution, FactorAssignmentReport, CreditVolReport, VolHorizon, DecompositionConfig, ...) plus typed allocation and risk functions are exported flat on finstack_quant.portfolio; engine and builder types remain Rust-only" }
+factor_model = { python = "finstack_quant.portfolio",              status = "flattened", note = "Portfolio-owned assignment, what-if, valuation stress, and credit report adapters remain flat on finstack_quant.portfolio; pure risk kernels are owned by finstack_quant.models.factor.risk." }
 fi_attribution = { python = "finstack_quant.portfolio",            status = "flattened", note = "Campisi fixed-income benchmark attribution (campisi_attribution, campisi_carino_link, campisi_carino_link_from_snapshots, campisi_reconciliation_check) is exported flat on finstack_quant.portfolio; campisi_reconciliation_check binds the Rust method FiAttributionResult::reconciliation_check; snapshot_from_position_metrics and typed results remain Rust-only" }
 grid_attribution = { python = "finstack_quant.portfolio",          status = "flattened", note = "Hierarchical duration-cell x sector grid attribution (grid_attribution, grid_carino_link) is exported flat on finstack_quant.portfolio (Dynkin, Hyman & Vankudre 1998, Appendix A; Carino 1999 linking)" }
 grouping     = { python = "finstack_quant.portfolio.grouping",     status = "missing", note = "Attribute/book grouping and aggregation helpers (incl. aggregate_by_book) are bound in no host; Rust-only. The Python root does NOT carry them." }
@@ -1528,12 +1554,10 @@ public = [
     "ContractLimitExceededError",
     "ContractValidationError",
     "CreditVolReport",
-    "DecompositionConfig",
     "DurationCellTable",
     "ExcessReturnResult",
     "FactorAssignmentReport",
     "FactorBrinsonResult",
-    "FactorContribution",
     "FactorContributionDelta",
     "FactorPnlProfile",
     "FactorRiskDecomposition",
@@ -1568,31 +1592,19 @@ public = [
     "PortfolioResult",
     "PortfolioValuation",
     "PositionAssignment",
-    "PositionBudgetEntry",
-    "PositionEsContribution",
-    "PositionFactorContribution",
     "PositionFilter",
-    "PositionResidualContribution",
-    "PositionRiskDecomposition",
-    "PositionVarContribution",
     "PositionVolContribution",
     "ReplayResult",
-    "RiskBudgetResult",
-    "RiskDecomposition",
     "ScenarioPnl",
     "ScenarioPnlBatchItem",
     "SensitivityMatrix",
-    "StressAttribution",
-    "StressPositionEntry",
     "StressResult",
-    "TailScenarioBreakdown",
     "TradeDirection",
     "TradeSpec",
     "TradeType",
     "TradeUniverse",
     "UnmatchedEntry",
     "UnsupportedContractVersionError",
-    "VolHorizon",
     "WeightAllocationResult",
     "WeightingScheme",
     "WhatIfResult",
@@ -1609,7 +1621,6 @@ public = [
     "brinson_fachler_json",
     "build_credit_vol_report",
     "build_portfolio_from_spec",
-    "build_stress_attribution",
     "campisi_attribution",
     "campisi_attribution_json",
     "campisi_carino_link",
@@ -1626,7 +1637,6 @@ public = [
     "compute_pnl_profiles",
     "days_to_liquidate",
     "decompose_factor_risk",
-    "evaluate_risk_budget",
     "cell_returns_from_curves_json",
     "cell_returns_from_reference_json",
     "excess_returns",
@@ -1638,19 +1648,15 @@ public = [
     "grid_attribution_json",
     "grid_carino_link",
     "grid_carino_link_json",
-    "historical_var_decomposition",
     "kyle_lambda",
     "liquidity_tier",
     "lvar_bangia",
     "mwr_xirr",
     "net_in_currency_by_date",
     "optimize_portfolio",
-    "parametric_es_decomposition",
-    "parametric_var_decomposition",
     "parse_portfolio_spec",
     "portfolio_result_get_metric",
     "portfolio_result_total_value",
-    "position_component_var",
     "position_what_if",
     "replay_portfolio",
     "replay_portfolio_json",
@@ -1713,10 +1719,6 @@ root_exports = [
   "scenarioPnlBuilt",
   "optimizePortfolio",
   "replayPortfolio",
-  "parametricVarDecomposition",
-  "parametricEsDecomposition",
-  "historicalVarDecomposition",
-  "evaluateRiskBudget",
   "computeFactorSensitivities",
   "computeFactorSensitivitiesWithMarket",
   "computePnlProfiles",
@@ -1776,9 +1778,7 @@ python_only = [
   "CandidatePosition",
   "Constraint",
   "CreditVolReport",
-  "DecompositionConfig",
   "FactorAssignmentReport",
-  "FactorContribution",
   "FactorContributionDelta",
   "FactorPnlProfile",
   "FactorRiskDecomposition",
@@ -1807,37 +1807,23 @@ python_only = [
   "PortfolioResult",
   "PortfolioValuation",
   "PositionAssignment",
-  "PositionBudgetEntry",
-  "PositionEsContribution",
-  "PositionFactorContribution",
   "PositionFilter",
-  "PositionResidualContribution",
-  "PositionRiskDecomposition",
-  "PositionVarContribution",
   "PositionVolContribution",
-  "RiskBudgetResult",
-  "RiskDecomposition",
   "ScenarioPnl",
   "SensitivityMatrix",
-  "StressAttribution",
-  "StressPositionEntry",
   "StressResult",
-  "TailScenarioBreakdown",
   "TradeDirection",
   "TradeSpec",
   "TradeType",
   "TradeUniverse",
   "UnmatchedEntry",
   "UnsupportedContractVersionError",
-  "VolHorizon",
   "WeightingScheme",
   "WhatIfResult",
   "allocate_weights",
   "attribute_portfolio_pnl",
   "build_credit_vol_report",
-  "build_stress_attribution",
   "factor_stress",
-  "position_component_var",
   "position_what_if",
   "validate_allocation_json",
 ]
@@ -1904,10 +1890,6 @@ apply_scenario_and_revalue = "applyScenarioAndRevalue"
 scenario_pnl = "scenarioPnl"
 optimize_portfolio = "optimizePortfolio"
 replay_portfolio = "replayPortfolio"
-parametric_var_decomposition = "parametricVarDecomposition"
-parametric_es_decomposition = "parametricEsDecomposition"
-historical_var_decomposition = "historicalVarDecomposition"
-evaluate_risk_budget = "evaluateRiskBudget"
 compute_factor_sensitivities = "computeFactorSensitivities"
 compute_pnl_profiles = "computePnlProfiles"
 decompose_factor_risk = "decomposeFactorRisk"
@@ -2541,6 +2523,7 @@ credit = [
 ]
 factor = [
     "credit",
+    "risk",
 ]
 monteCarlo = [
     "blackScholesCall",

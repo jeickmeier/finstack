@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use finstack_quant_portfolio::factor_model::{
+use finstack_quant_models::factor::risk::{
     FactorContribution, PositionEsContribution, PositionFactorContribution,
     PositionResidualContribution, PositionRiskDecomposition, PositionVarContribution,
     ResidualContributionSource, RiskDecomposition,
@@ -17,7 +17,7 @@ use super::config::decomposition_method_label;
 /// Aggregate contribution of a single factor to portfolio risk.
 #[pyclass(
     name = "FactorContribution",
-    module = "finstack_quant.portfolio",
+    module = "finstack_quant.models.factor.risk",
     frozen,
     from_py_object
 )]
@@ -99,7 +99,7 @@ impl PyFactorContribution {
 /// Per-position contribution to a specific factor bucket.
 #[pyclass(
     name = "PositionFactorContribution",
-    module = "finstack_quant.portfolio",
+    module = "finstack_quant.models.factor.risk",
     frozen,
     from_py_object
 )]
@@ -172,7 +172,7 @@ impl PyPositionFactorContribution {
 /// Annualized residual variance contributed by a single position.
 #[pyclass(
     name = "PositionResidualContribution",
-    module = "finstack_quant.portfolio",
+    module = "finstack_quant.models.factor.risk",
     frozen,
     from_py_object
 )]
@@ -260,7 +260,7 @@ impl PyPositionResidualContribution {
 /// Portfolio-level decomposition of total risk across common factors and residuals.
 #[pyclass(
     name = "RiskDecomposition",
-    module = "finstack_quant.portfolio",
+    module = "finstack_quant.models.factor.risk",
     frozen,
     from_py_object
 )]
@@ -468,7 +468,7 @@ impl PyRiskDecomposition {
 /// Per-position component VaR and marginal VaR.
 #[pyclass(
     name = "PositionVarContribution",
-    module = "finstack_quant.portfolio",
+    module = "finstack_quant.models.factor.risk",
     frozen,
     from_py_object
 )]
@@ -597,7 +597,7 @@ impl PyPositionVarContribution {
 /// Per-position component ES and marginal ES.
 #[pyclass(
     name = "PositionEsContribution",
-    module = "finstack_quant.portfolio",
+    module = "finstack_quant.models.factor.risk",
     frozen,
     from_py_object
 )]
@@ -678,7 +678,7 @@ impl PyPositionEsContribution {
 /// Complete position-level risk decomposition.
 #[pyclass(
     name = "PositionRiskDecomposition",
-    module = "finstack_quant.portfolio",
+    module = "finstack_quant.models.factor.risk",
     frozen,
     from_py_object
 )]

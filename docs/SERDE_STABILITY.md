@@ -123,7 +123,7 @@ request documents. The current public inventory contains 28 one-way types:
   `BenchmarkRelativeContribution`;
 - credit decomposition: `LevelValuesAtDate`, `LevelsAtDate`,
   `LevelValuesDelta`, and `PeriodDecomposition`;
-- portfolio factor views: `PositionEsContributionView`,
+- model factor-risk views: `PositionEsContributionView`,
   `ParametricEsDecompositionView`, `PositionVarContributionView`,
   `ParametricVarDecompositionView`, `PositionBudgetEntryView`, and
   `RiskBudgetResultView`;

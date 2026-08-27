@@ -1,9 +1,8 @@
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 
-use finstack_quant_portfolio::factor_model::{
-    DecompositionConfig, DecompositionMethod, VolHorizon,
-};
+use finstack_quant_models::factor::credit::VolHorizon;
+use finstack_quant_models::factor::risk::{DecompositionConfig, DecompositionMethod};
 
 /// Convert a Rust `DecompositionMethod` to a stable Python string.
 pub(super) fn decomposition_method_label(method: DecompositionMethod) -> &'static str {
@@ -23,7 +22,7 @@ pub(super) fn decomposition_method_label(method: DecompositionMethod) -> &'stati
 ///   - ``VolHorizon.parse("one_step" | "unconditional" | '{"n_steps": N}' | '{"years": Y}')``
 #[pyclass(
     name = "VolHorizon",
-    module = "finstack_quant.portfolio",
+    module = "finstack_quant.models.factor.credit",
     frozen,
     from_py_object
 )]
@@ -121,7 +120,7 @@ impl PyVolHorizon {
 /// Configuration for position-level VaR decomposition.
 #[pyclass(
     name = "DecompositionConfig",
-    module = "finstack_quant.portfolio",
+    module = "finstack_quant.models.factor.risk",
     from_py_object
 )]
 #[derive(Clone)]

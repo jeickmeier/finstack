@@ -85,6 +85,8 @@ mod envelope;
 pub mod matching;
 /// Generic factor identifiers, definitions, and market dependencies.
 mod primitives;
+/// Product-independent factor and position risk kernels.
+pub mod risk;
 /// JSON Schema generation helpers for factor-model contracts.
 pub mod schema;
 /// Positions × factors sensitivity matrix storage.

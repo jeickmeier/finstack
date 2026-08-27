@@ -4,9 +4,10 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::Deserialize;
 
-use finstack_quant_portfolio::factor_model::{
-    self as fm, FactorContributionDelta, PositionBudgetEntry, RiskBudgetResult, WhatIfResult,
+use finstack_quant_models::factor::risk::{
+    self as model_risk, PositionBudgetEntry, RiskBudgetResult,
 };
+use finstack_quant_portfolio::factor_model::{self as fm, FactorContributionDelta, WhatIfResult};
 use finstack_quant_portfolio::types::PositionId;
 
 use crate::bindings::extract::{extract_market_ref, extract_portfolio_ref};
@@ -54,7 +55,7 @@ fn parse_position_changes(
 /// Per-position budget comparison entry.
 #[pyclass(
     name = "PositionBudgetEntry",
-    module = "finstack_quant.portfolio",
+    module = "finstack_quant.models.factor.risk",
     frozen,
     from_py_object
 )]
@@ -185,7 +186,7 @@ impl PyPositionBudgetEntry {
 /// Budget evaluation result across positions.
 #[pyclass(
     name = "RiskBudgetResult",
-    module = "finstack_quant.portfolio",
+    module = "finstack_quant.models.factor.risk",
     frozen,
     from_py_object
 )]
@@ -490,7 +491,7 @@ impl PyWhatIfResult {
 /// ``evaluate_risk_budget_arrays`` / ``DEFAULT_UTILIZATION_THRESHOLD``
 /// canonical path shared with the WASM binding.
 #[pyfunction]
-#[pyo3(signature = (position_ids, actual_var, target_var_pct, portfolio_var, utilization_threshold = fm::DEFAULT_UTILIZATION_THRESHOLD))]
+#[pyo3(signature = (position_ids, actual_var, target_var_pct, portfolio_var, utilization_threshold = model_risk::DEFAULT_UTILIZATION_THRESHOLD))]
 pub(super) fn evaluate_risk_budget(
     py: Python<'_>,
     position_ids: Vec<String>,
@@ -501,7 +502,7 @@ pub(super) fn evaluate_risk_budget(
 ) -> PyResult<PyRiskBudgetResult> {
     let result = py
         .detach(move || {
-            fm::evaluate_risk_budget_arrays(
+            model_risk::evaluate_risk_budget_arrays(
                 position_ids,
                 &actual_var,
                 &target_var_pct,

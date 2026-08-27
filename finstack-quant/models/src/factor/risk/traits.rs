@@ -1,8 +1,7 @@
 //! Trait abstractions for portfolio factor risk decomposition engines.
 
 use super::types::RiskDecomposition;
-use crate::sensitivity::SensitivityMatrix;
-use finstack_quant_models::factor::{FactorCovarianceMatrix, RiskMeasure};
+use crate::factor::{FactorCovarianceMatrix, RiskMeasure, SensitivityMatrix};
 
 /// Common interface for engines that decompose portfolio risk into factor contributions.
 pub trait RiskDecomposer: Send + Sync {

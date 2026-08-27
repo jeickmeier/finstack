@@ -120,10 +120,6 @@ validate_allocation_json = _portfolio.validate_allocation_json
 optimize_portfolio = _portfolio.optimize_portfolio
 replay_portfolio = _portfolio.replay_portfolio
 replay_portfolio_json = _portfolio.replay_portfolio_json
-parametric_var_decomposition = _portfolio.parametric_var_decomposition
-parametric_es_decomposition = _portfolio.parametric_es_decomposition
-historical_var_decomposition = _portfolio.historical_var_decomposition
-evaluate_risk_budget = _portfolio.evaluate_risk_budget
 roll_effective_spread = _portfolio.roll_effective_spread
 amihud_illiquidity = _portfolio.amihud_illiquidity
 days_to_liquidate = _portfolio.days_to_liquidate
@@ -160,41 +156,25 @@ twrr_linked = _portfolio.twrr_linked
 twrr_linked_json = _portfolio.twrr_linked_json
 mwr_xirr = _portfolio.mwr_xirr
 
-# Factor-model decomposition results
-FactorContribution = _portfolio.FactorContribution
-PositionFactorContribution = _portfolio.PositionFactorContribution
-PositionResidualContribution = _portfolio.PositionResidualContribution
-RiskDecomposition = _portfolio.RiskDecomposition
+# Portfolio factor-model workflow results
 FactorRiskDecomposition = _portfolio.FactorRiskDecomposition
 SensitivityMatrix = _portfolio.SensitivityMatrix
 FactorPnlProfile = _portfolio.FactorPnlProfile
 compute_factor_sensitivities = _portfolio.compute_factor_sensitivities
 compute_pnl_profiles = _portfolio.compute_pnl_profiles
 decompose_factor_risk = _portfolio.decompose_factor_risk
-PositionVarContribution = _portfolio.PositionVarContribution
-PositionEsContribution = _portfolio.PositionEsContribution
-PositionRiskDecomposition = _portfolio.PositionRiskDecomposition
-PositionBudgetEntry = _portfolio.PositionBudgetEntry
-RiskBudgetResult = _portfolio.RiskBudgetResult
 FactorContributionDelta = _portfolio.FactorContributionDelta
 WhatIfResult = _portfolio.WhatIfResult
 StressResult = _portfolio.StressResult
-StressPositionEntry = _portfolio.StressPositionEntry
-TailScenarioBreakdown = _portfolio.TailScenarioBreakdown
-StressAttribution = _portfolio.StressAttribution
 PositionAssignment = _portfolio.PositionAssignment
 UnmatchedEntry = _portfolio.UnmatchedEntry
 FactorAssignmentReport = _portfolio.FactorAssignmentReport
 LevelVolContribution = _portfolio.LevelVolContribution
 PositionVolContribution = _portfolio.PositionVolContribution
 CreditVolReport = _portfolio.CreditVolReport
-VolHorizon = _portfolio.VolHorizon
-DecompositionConfig = _portfolio.DecompositionConfig
 factor_stress = _portfolio.factor_stress
 position_what_if = _portfolio.position_what_if
-build_stress_attribution = _portfolio.build_stress_attribution
 build_credit_vol_report = _portfolio.build_credit_vol_report
-position_component_var = _portfolio.position_component_var
 
 # Portfolio optimization specifications and results
 WeightingScheme = _portfolio.WeightingScheme
@@ -228,12 +208,10 @@ __all__: list[str] = [
     "ContractLimitExceededError",
     "ContractValidationError",
     "CreditVolReport",
-    "DecompositionConfig",
     "DurationCellTable",
     "ExcessReturnResult",
     "FactorAssignmentReport",
     "FactorBrinsonResult",
-    "FactorContribution",
     "FactorContributionDelta",
     "FactorPnlProfile",
     "FactorRiskDecomposition",
@@ -267,24 +245,13 @@ __all__: list[str] = [
     "PortfolioResult",
     "PortfolioValuation",
     "PositionAssignment",
-    "PositionBudgetEntry",
-    "PositionEsContribution",
-    "PositionFactorContribution",
     "PositionFilter",
-    "PositionResidualContribution",
-    "PositionRiskDecomposition",
-    "PositionVarContribution",
     "PositionVolContribution",
     "ReplayResult",
-    "RiskBudgetResult",
-    "RiskDecomposition",
     "ScenarioPnl",
     "ScenarioPnlBatchItem",
     "SensitivityMatrix",
-    "StressAttribution",
-    "StressPositionEntry",
     "StressResult",
-    "TailScenarioBreakdown",
     "TradeDirection",
     "TradeSpec",
     "TradeType",
@@ -292,7 +259,6 @@ __all__: list[str] = [
     "UnmatchedEntry",
     "UnsupportedContractVersionError",
     "ValuationError",
-    "VolHorizon",
     "WeightAllocationResult",
     "WeightingScheme",
     "WhatIfResult",
@@ -309,7 +275,6 @@ __all__: list[str] = [
     "brinson_fachler_json",
     "build_credit_vol_report",
     "build_portfolio_from_spec",
-    "build_stress_attribution",
     "campisi_attribution",
     "campisi_attribution_json",
     "campisi_carino_link",
@@ -328,7 +293,6 @@ __all__: list[str] = [
     "compute_pnl_profiles",
     "days_to_liquidate",
     "decompose_factor_risk",
-    "evaluate_risk_budget",
     "excess_returns",
     "excess_returns_json",
     "factor_brinson_attribution",
@@ -338,19 +302,15 @@ __all__: list[str] = [
     "grid_attribution_json",
     "grid_carino_link",
     "grid_carino_link_json",
-    "historical_var_decomposition",
     "kyle_lambda",
     "liquidity_tier",
     "lvar_bangia",
     "mwr_xirr",
     "net_in_currency_by_date",
     "optimize_portfolio",
-    "parametric_es_decomposition",
-    "parametric_var_decomposition",
     "parse_portfolio_spec",
     "portfolio_result_get_metric",
     "portfolio_result_total_value",
-    "position_component_var",
     "position_what_if",
     "replay_portfolio",
     "replay_portfolio_json",

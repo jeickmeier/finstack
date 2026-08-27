@@ -1,7 +1,7 @@
 use pyo3::exceptions::PyKeyError;
 use pyo3::prelude::*;
 
-use finstack_quant_portfolio::factor_model::{
+use finstack_quant_models::factor::risk::{
     DecompositionConfig, HistoricalPositionDecomposer, ParametricPositionDecomposer,
 };
 
@@ -9,7 +9,6 @@ use crate::errors::core_to_py;
 
 use super::super::matrix_input::{extract_position_pnls, extract_square_matrix};
 use super::contributions::PyPositionRiskDecomposition;
-use super::to_position_ids;
 
 /// Decompose portfolio VaR/ES into position contributions via parametric
 /// Euler allocation, returning a typed :class:`PositionRiskDecomposition`.
@@ -33,8 +32,12 @@ pub(super) fn parametric_var_decomposition(
 
     let result = py
         .detach(move || {
-            let ids = to_position_ids(position_ids);
-            ParametricPositionDecomposer.decompose_positions(&weights, &cov_flat, &ids, &config)
+            ParametricPositionDecomposer.decompose_positions(
+                &weights,
+                &cov_flat,
+                &position_ids,
+                &config,
+            )
         })
         .map_err(core_to_py)?;
 
@@ -58,8 +61,12 @@ pub(super) fn parametric_es_decomposition(
 
     let result = py
         .detach(move || {
-            let ids = to_position_ids(position_ids);
-            ParametricPositionDecomposer.decompose_positions(&weights, &cov_flat, &ids, &config)
+            ParametricPositionDecomposer.decompose_positions(
+                &weights,
+                &cov_flat,
+                &position_ids,
+                &config,
+            )
         })
         .map_err(core_to_py)?;
 
@@ -84,8 +91,12 @@ pub(super) fn historical_var_decomposition(
     let result = py
         .detach(move || {
             let flat = position_pnls.into_scenario_major(n);
-            let ids = to_position_ids(position_ids);
-            HistoricalPositionDecomposer.decompose_from_pnls(&flat, &ids, n_scenarios, &config)
+            HistoricalPositionDecomposer.decompose_from_pnls(
+                &flat,
+                &position_ids,
+                n_scenarios,
+                &config,
+            )
         })
         .map_err(core_to_py)?;
 

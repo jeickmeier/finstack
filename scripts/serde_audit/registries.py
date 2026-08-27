@@ -54,8 +54,8 @@ ONE_WAY_EXCEPTIONS = (
         "Computed credit decomposition output; reconstructed by rerunning decomposition.",
     ),
     *_exception(
-        "portfolio",
-        "src/factor_model/mod.rs",
+        "models",
+        "src/factor/risk/views.rs",
         (
             "PositionEsContributionView",
             "ParametricEsDecompositionView",
@@ -201,7 +201,7 @@ NON_MAINTAINED_SERDE_EXCEPTIONS = (
     *_computed_output("portfolio", "src/brinson.rs", ("BrinsonPeriodResult",)),
     *_computed_output("portfolio", "src/excess_return.rs", ("ExcessReturnResult",)),
     *_computed_output("portfolio", "src/factor_brinson.rs", ("FactorBrinsonResult",)),
-    *_computed_output("portfolio", "src/factor_model/risk_budget.rs", ("RiskBudgetResult",)),
+    *_computed_output("models", "src/factor/risk/budget.rs", ("RiskBudgetResult",)),
     *_in_process_spec(
         "portfolio",
         "src/factor_model/weight_allocation.rs",

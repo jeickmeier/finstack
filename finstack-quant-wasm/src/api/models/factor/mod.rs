@@ -1,8 +1,7 @@
-//! WASM bindings for the credit factor hierarchy.
+//! WASM bindings for factor, credit-factor, and factor-risk models.
 //!
-//! Exposes [`JsCreditFactorModel`], [`JsCreditCalibrator`], the free
-//! functions [`decompose_levels`] and [`decompose_period`], and
-//! [`JsFactorCovarianceForecast`].
+//! Exposes credit hierarchy artifacts and product-independent factor-risk
+//! decomposition kernels through the `models.factor` facade.
 //!
 //! `VolHorizon::Custom` is intentionally **not** exposed — closures do not
 //! cross the WASM boundary.
@@ -22,11 +21,11 @@ use wasm_bindgen::prelude::*;
 /// Parse a horizon descriptor string into a [`VolHorizon`].
 ///
 /// Delegates to the canonical [`VolHorizon::parse`] implementation in
-/// `finstack-quant-portfolio`; this wrapper only maps the error to a `JsValue`.
+/// `finstack-quant-models`; this wrapper only maps the error to a `JsValue`.
 fn parse_vol_horizon(
     s: &str,
-) -> Result<finstack_quant_portfolio::factor_model::VolHorizon, JsValue> {
-    finstack_quant_portfolio::factor_model::VolHorizon::parse(s).map_err(to_js_err)
+) -> Result<finstack_quant_models::factor::credit::VolHorizon, JsValue> {
+    finstack_quant_models::factor::credit::VolHorizon::parse(s).map_err(to_js_err)
 }
 
 //
@@ -355,7 +354,7 @@ impl JsFactorCovarianceForecast {
     pub fn covariance_at(&self, horizon_json: &str) -> Result<JsValue, JsValue> {
         let h = parse_vol_horizon(horizon_json)?;
         let forecast =
-            finstack_quant_portfolio::factor_model::FactorCovarianceForecast::new(&self.model);
+            finstack_quant_models::factor::credit::FactorCovarianceForecast::new(&self.model);
         let cov = forecast.covariance_at(h).map_err(to_js_err)?;
         ensure_covariance_finite(&cov)?;
         crate::utils::to_js_value(&cov)
@@ -374,7 +373,7 @@ impl JsFactorCovarianceForecast {
         let h = parse_vol_horizon(horizon_json)?;
         let id = finstack_quant_core::types::IssuerId::new(issuer_id);
         let forecast =
-            finstack_quant_portfolio::factor_model::FactorCovarianceForecast::new(&self.model);
+            finstack_quant_models::factor::credit::FactorCovarianceForecast::new(&self.model);
         let vol = forecast.idiosyncratic_vol(&id, h).map_err(to_js_err)?;
         ensure_finite("idiosyncratic_vol", vol)?;
         Ok(vol)
@@ -399,7 +398,7 @@ impl JsFactorCovarianceForecast {
         let measure: finstack_quant_models::factor::RiskMeasure =
             serde_json::from_str(risk_measure_json).map_err(to_js_err)?;
         let forecast =
-            finstack_quant_portfolio::factor_model::FactorCovarianceForecast::new(&self.model);
+            finstack_quant_models::factor::credit::FactorCovarianceForecast::new(&self.model);
         let config = forecast
             .factor_model_config_at(h, measure)
             .map_err(to_js_err)?;
@@ -412,6 +411,188 @@ impl JsFactorCovarianceForecast {
 // Native tests call underlying Rust APIs directly — WASM wrapper methods that
 // invoke `js_sys::Error::new` cannot run on non-wasm32 targets.  The WASM
 // surface is exercised end-to-end by `wasm-pack test`.
+
+// Position-level VaR / ES decomposition and risk budgeting
+
+/// Decompose portfolio VaR into position contributions via parametric Euler
+/// allocation. Inputs mirror the Python binding's signature.
+///
+/// `covariance_json` must deserialize to an `n x n` row-major nested array.
+/// @param position_ids_json - JSON array of position identifiers.
+/// @param weights_json - Position or asset weight-vector JSON.
+/// @param covariance_json - Covariance-matrix JSON.
+/// @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
+/// @param compute_incremental - Optional; when `true`, also computes
+///   incremental VaR (one full repricing per position). Defaults to `false`,
+///   mirroring the Python `compute_incremental=` keyword.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if any JSON input is malformed; identifier,
+/// weight, or covariance dimensions disagree; the covariance matrix is not
+/// finite, symmetric, and positive semidefinite; `confidence` is not finite and
+/// in `(0.5, 1)`; or the result cannot be converted to a JavaScript value.
+#[wasm_bindgen(js_name = parametricVarDecomposition)]
+pub fn parametric_var_decomposition(
+    position_ids_json: &str,
+    weights_json: &str,
+    covariance_json: &str,
+    confidence: f64,
+    compute_incremental: Option<bool>,
+) -> Result<JsValue, JsValue> {
+    use finstack_quant_models::factor::risk::{
+        parametric_var_decomposition_view, DecompositionConfig, ParametricPositionDecomposer,
+    };
+
+    let ids: Vec<String> = serde_json::from_str(position_ids_json).map_err(to_js_err)?;
+    let weights: Vec<f64> = serde_json::from_str(weights_json).map_err(to_js_err)?;
+    let covariance: Vec<Vec<f64>> = serde_json::from_str(covariance_json).map_err(to_js_err)?;
+    let n = weights.len();
+    let cov_flat =
+        finstack_quant_models::factor::risk::flatten_square_matrix(covariance, n, "covariance")
+            .map_err(to_js_err)?;
+    let mut config = DecompositionConfig::parametric(confidence);
+    if compute_incremental.unwrap_or(false) {
+        config = config.with_incremental();
+    }
+
+    let decomposer = ParametricPositionDecomposer;
+    let result = decomposer
+        .decompose_positions(&weights, &cov_flat, &ids, &config)
+        .map_err(to_js_err)?;
+    let out = parametric_var_decomposition_view(&result);
+    crate::utils::to_js_value(&out)
+}
+
+/// Decompose portfolio Expected Shortfall into position contributions via
+/// parametric Euler allocation.
+///
+/// Returns an ES-shaped structured object mirroring the Python
+/// ``parametric_es_decomposition`` return value: a top-level
+/// ``{portfolio_var, portfolio_es, confidence, n_positions, contributions}``
+/// object whose ``contributions`` entries are
+/// ``{position_id, component_es, marginal_es, pct_contribution}``.
+/// @param position_ids_json - JSON array of position identifiers.
+/// @param weights_json - Position or asset weight-vector JSON.
+/// @param covariance_json - Covariance-matrix JSON.
+/// @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if any JSON input is malformed; identifier,
+/// weight, or covariance dimensions disagree; the covariance matrix is not
+/// finite, symmetric, and positive semidefinite; `confidence` is not finite and
+/// in `(0.5, 1)`; or the result cannot be converted to a JavaScript value.
+#[wasm_bindgen(js_name = parametricEsDecomposition)]
+pub fn parametric_es_decomposition(
+    position_ids_json: &str,
+    weights_json: &str,
+    covariance_json: &str,
+    confidence: f64,
+) -> Result<JsValue, JsValue> {
+    use finstack_quant_models::factor::risk::{
+        parametric_es_decomposition_view, DecompositionConfig, ParametricPositionDecomposer,
+    };
+
+    let ids: Vec<String> = serde_json::from_str(position_ids_json).map_err(to_js_err)?;
+    let weights: Vec<f64> = serde_json::from_str(weights_json).map_err(to_js_err)?;
+    let covariance: Vec<Vec<f64>> = serde_json::from_str(covariance_json).map_err(to_js_err)?;
+    let n = weights.len();
+    let cov_flat =
+        finstack_quant_models::factor::risk::flatten_square_matrix(covariance, n, "covariance")
+            .map_err(to_js_err)?;
+    let config = DecompositionConfig::parametric(confidence);
+
+    let decomposition = ParametricPositionDecomposer
+        .decompose_positions(&weights, &cov_flat, &ids, &config)
+        .map_err(to_js_err)?;
+
+    let out = parametric_es_decomposition_view(&decomposition);
+    crate::utils::to_js_value(&out)
+}
+
+/// Decompose portfolio VaR/ES from per-position scenario P&Ls via historical
+/// simulation.
+///
+/// `position_pnls_json` is a nested array shaped `[n_positions][n_scenarios]`.
+/// @param position_ids_json - JSON array of position identifiers.
+/// @param position_pnls_json - Per-position P&L JSON.
+/// @param confidence - Tail confidence as a decimal probability, such as 0.95 for 95%.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either JSON input is malformed, position or
+/// scenario dimensions disagree, `confidence` is not finite and in `(0.5, 1)`,
+/// too few scenarios resolve the requested tail, a P-and-L value is non-finite,
+/// or the result cannot be converted to a JavaScript value.
+#[wasm_bindgen(js_name = historicalVarDecomposition)]
+pub fn historical_var_decomposition(
+    position_ids_json: &str,
+    position_pnls_json: &str,
+    confidence: f64,
+) -> Result<JsValue, JsValue> {
+    use finstack_quant_models::factor::risk::{
+        flatten_position_pnls, parametric_var_decomposition_view, DecompositionConfig,
+        HistoricalPositionDecomposer,
+    };
+
+    let ids: Vec<String> = serde_json::from_str(position_ids_json).map_err(to_js_err)?;
+    let position_pnls: Vec<Vec<f64>> =
+        serde_json::from_str(position_pnls_json).map_err(to_js_err)?;
+    let n = ids.len();
+    let config = DecompositionConfig::historical(confidence);
+
+    let (flat, n_scenarios) = flatten_position_pnls(position_pnls, n).map_err(to_js_err)?;
+    let result = HistoricalPositionDecomposer
+        .decompose_from_pnls(&flat, &ids, n_scenarios, &config)
+        .map_err(to_js_err)?;
+    let out = parametric_var_decomposition_view(&result);
+    crate::utils::to_js_value(&out)
+}
+
+/// Evaluate a per-position risk budget against actual component VaRs.
+///
+/// Validation (array-length agreement, duplicate position-id rejection) and
+/// the default `utilizationThreshold` live in the canonical Rust
+/// `evaluate_risk_budget_arrays` / `DEFAULT_UTILIZATION_THRESHOLD` path
+/// shared with the Python binding.
+/// @param position_ids_json - JSON array of position identifiers.
+/// @param actual_var_json - Actual component-VaR JSON.
+/// @param target_var_pct_json - Target VaR-share JSON.
+/// @param portfolio_var - Total portfolio VaR used to convert risk-budget shares into absolute amounts.
+/// @param utilization_threshold - Optional actual-to-target risk ratio that
+///   flags a budget breach; omit for the Rust default of 1.2.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if any JSON input is malformed, actual or
+/// target arrays do not match the identifier count, a position id is
+/// duplicated, non-empty target shares do not sum to one within tolerance,
+/// nonzero component risk is paired with zero `portfolioVar`, or the result
+/// cannot be converted to a JavaScript value.
+#[wasm_bindgen(js_name = evaluateRiskBudget)]
+pub fn evaluate_risk_budget(
+    position_ids_json: &str,
+    actual_var_json: &str,
+    target_var_pct_json: &str,
+    portfolio_var: f64,
+    utilization_threshold: Option<f64>,
+) -> Result<JsValue, JsValue> {
+    use finstack_quant_models::factor::risk::{
+        evaluate_risk_budget_arrays, risk_budget_result_view, DEFAULT_UTILIZATION_THRESHOLD,
+    };
+
+    let ids: Vec<String> = serde_json::from_str(position_ids_json).map_err(to_js_err)?;
+    let actual_var: Vec<f64> = serde_json::from_str(actual_var_json).map_err(to_js_err)?;
+    let target_var_pct: Vec<f64> = serde_json::from_str(target_var_pct_json).map_err(to_js_err)?;
+    let threshold = utilization_threshold.unwrap_or(DEFAULT_UTILIZATION_THRESHOLD);
+
+    let result =
+        evaluate_risk_budget_arrays(ids, &actual_var, &target_var_pct, portfolio_var, threshold)
+            .map_err(to_js_err)?;
+    let out = risk_budget_result_view(&result, portfolio_var, threshold);
+    crate::utils::to_js_value(&out)
+}
 
 #[cfg(test)]
 mod tests {
@@ -618,10 +799,9 @@ mod tests {
         let cal = CreditCalibrator::new(fixture_config());
         let model = cal.calibrate(fixture_inputs()).expect("calibrate");
 
-        let forecast =
-            finstack_quant_portfolio::factor_model::FactorCovarianceForecast::new(&model);
+        let forecast = finstack_quant_models::factor::credit::FactorCovarianceForecast::new(&model);
         let cov = forecast
-            .covariance_at(finstack_quant_portfolio::factor_model::VolHorizon::OneStep)
+            .covariance_at(finstack_quant_models::factor::credit::VolHorizon::OneStep)
             .expect("covariance_at");
         let cov_json = serde_json::to_string_pretty(&cov).expect("serialize");
         let cov_val: serde_json::Value = serde_json::from_str(&cov_json).expect("valid json");
@@ -707,7 +887,7 @@ mod tests {
     /// `js_sys` (which only works on wasm32 targets).
     #[test]
     fn parse_vol_horizon_valid_forms() {
-        use finstack_quant_portfolio::factor_model::VolHorizon;
+        use finstack_quant_models::factor::credit::VolHorizon;
         // OneStep and Unconditional match early without calling to_js_err.
         assert!(matches!(
             super::parse_vol_horizon("one_step").unwrap(),

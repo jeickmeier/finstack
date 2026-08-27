@@ -22,10 +22,6 @@
 use super::assignment::{assign_position_factors, FactorAssignmentReport};
 use super::dependencies::flatten as flatten_dependencies;
 use super::whatif::{StressPnl, StressResult, WhatIfEngine};
-use super::{
-    ParametricDecomposer, PositionResidualContribution, ResidualContributionSource, RiskDecomposer,
-    RiskDecomposition,
-};
 use crate::error::{Error, Result};
 use crate::sensitivity::{
     exact_factor_market_keys, DeltaBasedEngine, FactorSensitivityEngine, FullRepricingEngine,
@@ -35,6 +31,10 @@ use crate::{MarketFactorKey, Portfolio};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_models::factor::matching::ISSUER_ID_META_KEY;
+use finstack_quant_models::factor::risk::{
+    apply_residual_contributions, ParametricDecomposer, PositionResidualContribution,
+    ResidualContributionSource, RiskDecomposer, RiskDecomposition,
+};
 use finstack_quant_models::factor::{
     BumpSizeConfig, CurveType, FactorCovarianceMatrix, FactorDefinition, FactorModelConfig,
     FactorType, MarketDependency, MatchingConfig, PricingMode, RiskMeasure, UnmatchedPolicy,
@@ -634,12 +634,17 @@ impl FactorModel {
                 net * exposure * idio_variance
             };
             residual_contributions.push(PositionResidualContribution {
-                position_id,
+                position_id: position_id.as_str().to_owned(),
                 residual_variance,
-                source: ResidualContributionSource::FromCreditModel { issuer_id },
+                source: ResidualContributionSource::FromCreditModel {
+                    issuer_id: issuer_id.as_str().to_owned(),
+                },
             });
         }
-        apply_residual_contributions(decomposition, residual_contributions)
+        Ok(apply_residual_contributions(
+            decomposition,
+            residual_contributions,
+        )?)
     }
 
     /// Create a what-if engine anchored to a base decomposition and sensitivity matrix.
@@ -885,146 +890,6 @@ fn collect_credit_idiosyncratic_variance(
         }
         _ => {}
     }
-}
-
-fn apply_residual_contributions(
-    decomposition: &mut RiskDecomposition,
-    residual_contributions: Vec<PositionResidualContribution>,
-) -> Result<()> {
-    let residual_variance: f64 = residual_contributions
-        .iter()
-        .map(|contribution| contribution.residual_variance)
-        .sum();
-    if residual_variance <= 0.0 {
-        // Zero total idio variance (e.g. a flat single-name book): keep the
-        // per-position rows visible without rescaling the decomposition.
-        decomposition
-            .position_residual_contributions
-            .extend(residual_contributions);
-        return Ok(());
-    }
-    let systematic_variance =
-        variance_from_measure(decomposition.measure, decomposition.total_risk)?;
-    let combined_variance = systematic_variance + residual_variance;
-    let (combined_total, combined_component_scale) =
-        risk_total_and_component_scale(decomposition.measure, combined_variance)?;
-    let (_, systematic_component_scale) =
-        risk_total_and_component_scale(decomposition.measure, systematic_variance)?;
-    let factor_rescale = if systematic_component_scale.abs() > 0.0 {
-        combined_component_scale / systematic_component_scale
-    } else {
-        0.0
-    };
-
-    for contribution in &mut decomposition.factor_contributions {
-        contribution.absolute_risk *= factor_rescale;
-        contribution.marginal_risk *= factor_rescale;
-        contribution.relative_risk = if combined_total.abs() > 0.0 {
-            contribution.absolute_risk / combined_total
-        } else {
-            0.0
-        };
-    }
-    for contribution in &mut decomposition.position_factor_contributions {
-        contribution.risk_contribution *= factor_rescale;
-    }
-
-    decomposition.total_risk = combined_total;
-    decomposition.residual_risk = residual_variance * combined_component_scale;
-    decomposition
-        .position_residual_contributions
-        .extend(residual_contributions);
-
-    // Invariant: the rescale above is chosen so the decomposition stays
-    // Euler-additive after the residual term is folded in, i.e. the factor
-    // contributions plus the residual still exhaust `total_risk`. This holds
-    // for every risk measure because `factor_rescale` is exactly the ratio of
-    // combined-to-systematic component scales.
-    debug_assert!(
-        {
-            let factor_sum: f64 = decomposition
-                .factor_contributions
-                .iter()
-                .map(|c| c.absolute_risk)
-                .sum();
-            (factor_sum + decomposition.residual_risk - decomposition.total_risk).abs()
-                <= 1e-6 * decomposition.total_risk.abs().max(1.0)
-        },
-        "residual overlay broke Euler additivity of the risk decomposition"
-    );
-    Ok(())
-}
-
-/// Error for a risk measure the credit residual overlay cannot invert.
-///
-/// `RiskMeasure` is `#[non_exhaustive]` and defined in another crate; the
-/// decomposition engines reject unsupported measures before the overlay runs,
-/// so this is a defensive error rather than a silent zero.
-fn unsupported_residual_measure(measure: RiskMeasure) -> Error {
-    Error::validation(format!(
-        "credit residual overlay does not support RiskMeasure::{measure:?}; \
-         supported measures are Variance, Volatility, VaR and ExpectedShortfall"
-    ))
-}
-
-fn variance_from_measure(measure: RiskMeasure, total_risk: f64) -> Result<f64> {
-    let variance = match measure {
-        RiskMeasure::Variance => total_risk.max(0.0),
-        RiskMeasure::Volatility => total_risk * total_risk,
-        RiskMeasure::VaR { confidence } => {
-            let z = super::math::normal_quantile(confidence);
-            if z > 0.0 {
-                (total_risk / -z).powi(2)
-            } else {
-                0.0
-            }
-        }
-        RiskMeasure::ExpectedShortfall { confidence } => {
-            let z = super::math::normal_quantile(confidence);
-            let es_multiplier = super::math::normal_pdf(z) / (1.0 - confidence);
-            if es_multiplier > 0.0 {
-                (total_risk / -es_multiplier).powi(2)
-            } else {
-                0.0
-            }
-        }
-        other => return Err(unsupported_residual_measure(other)),
-    };
-    Ok(variance)
-}
-
-fn risk_total_and_component_scale(measure: RiskMeasure, variance: f64) -> Result<(f64, f64)> {
-    let variance = variance.max(0.0);
-    let sigma = variance.sqrt();
-    let scaled = match measure {
-        RiskMeasure::Variance => (variance, 1.0),
-        RiskMeasure::Volatility => {
-            if sigma > 0.0 {
-                (sigma, sigma.recip())
-            } else {
-                (0.0, 0.0)
-            }
-        }
-        RiskMeasure::VaR { confidence } => {
-            let z = super::math::normal_quantile(confidence);
-            if sigma > 0.0 {
-                (-sigma * z, -z * sigma.recip())
-            } else {
-                (0.0, 0.0)
-            }
-        }
-        RiskMeasure::ExpectedShortfall { confidence } => {
-            let z = super::math::normal_quantile(confidence);
-            let es_multiplier = super::math::normal_pdf(z) / (1.0 - confidence);
-            if sigma > 0.0 {
-                (-sigma * es_multiplier, -es_multiplier * sigma.recip())
-            } else {
-                (0.0, 0.0)
-            }
-        }
-        other => return Err(unsupported_residual_measure(other)),
-    };
-    Ok(scaled)
 }
 
 fn uses_assignment_driven_credit_shock(factor: &FactorDefinition) -> bool {
@@ -1659,7 +1524,7 @@ mod tests {
 
     struct FixedDecomposer(RiskDecomposition);
 
-    impl crate::factor_model::RiskDecomposer for FixedDecomposer {
+    impl finstack_quant_models::factor::risk::RiskDecomposer for FixedDecomposer {
         fn decompose(
             &self,
             _sensitivities: &SensitivityMatrix,

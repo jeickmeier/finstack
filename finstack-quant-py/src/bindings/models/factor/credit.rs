@@ -1069,8 +1069,8 @@ pub(crate) struct PyFactorCovarianceForecast {
 ///
 /// Delegates to the canonical [`VolHorizon::parse`] implementation in
 /// `finstack-quant-portfolio`; this wrapper only maps the error to `PyValueError`.
-fn parse_vol_horizon(s: &str) -> PyResult<finstack_quant_portfolio::factor_model::VolHorizon> {
-    finstack_quant_portfolio::factor_model::VolHorizon::parse(s).map_err(crate::errors::value_error)
+fn parse_vol_horizon(s: &str) -> PyResult<finstack_quant_models::factor::credit::VolHorizon> {
+    finstack_quant_models::factor::credit::VolHorizon::parse(s).map_err(crate::errors::value_error)
 }
 
 #[pymethods]
@@ -1102,10 +1102,9 @@ impl PyFactorCovarianceForecast {
         let h = parse_vol_horizon(horizon)?;
         let cov = py
             .detach(|| {
-                let forecast =
-                    finstack_quant_portfolio::factor_model::FactorCovarianceForecast::new(
-                        &self.model,
-                    );
+                let forecast = finstack_quant_models::factor::credit::FactorCovarianceForecast::new(
+                    &self.model,
+                );
                 forecast.covariance_at(h)
             })
             .map_err(display_to_py)?;
@@ -1129,7 +1128,7 @@ impl PyFactorCovarianceForecast {
         let id = finstack_quant_core::types::IssuerId::new(issuer_id);
         py.detach(|| {
             let forecast =
-                finstack_quant_portfolio::factor_model::FactorCovarianceForecast::new(&self.model);
+                finstack_quant_models::factor::credit::FactorCovarianceForecast::new(&self.model);
             forecast.idiosyncratic_vol(&id, h)
         })
         .map_err(display_to_py)
@@ -1160,10 +1159,9 @@ impl PyFactorCovarianceForecast {
             serde_json::from_str(risk_measure_json).map_err(display_to_py)?;
         let config = py
             .detach(|| {
-                let forecast =
-                    finstack_quant_portfolio::factor_model::FactorCovarianceForecast::new(
-                        &self.model,
-                    );
+                let forecast = finstack_quant_models::factor::credit::FactorCovarianceForecast::new(
+                    &self.model,
+                );
                 forecast.factor_model_config_at(h, measure)
             })
             .map_err(display_to_py)?;

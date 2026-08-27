@@ -1,8 +1,6 @@
 //! Portfolio-level factor assignment, decomposition, and what-if analysis.
 //!
-use crate::types::PositionId;
-use finstack_quant_core::types::IssuerId;
-use finstack_quant_models::factor::{FactorId, RiskMeasure};
+use crate::factor::{FactorId, RiskMeasure};
 use serde::{Deserialize, Serialize};
 
 /// Portfolio-level decomposition of total risk across common factors and residuals.
@@ -55,7 +53,7 @@ pub enum ResidualContributionSource {
     /// vol forecast for the named issuer.
     FromCreditModel {
         /// Issuer whose idiosyncratic vol drives this residual contribution.
-        issuer_id: IssuerId,
+        issuer_id: String,
     },
     /// Residual variance from any other source (e.g. unattributed simulation
     /// noise or a decomposer that does not track the issuer).
@@ -71,7 +69,7 @@ pub enum ResidualContributionSource {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PositionResidualContribution {
     /// Portfolio position identifier.
-    pub position_id: PositionId,
+    pub position_id: String,
     /// Annualized variance contributed by this position's idiosyncratic risk.
     /// Always non-negative.
     pub residual_variance: f64,
@@ -102,7 +100,7 @@ pub struct FactorContribution {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PositionFactorContribution {
     /// Portfolio position identifier.
-    pub position_id: PositionId,
+    pub position_id: String,
     /// Identifier of the contributing factor.
     pub factor_id: FactorId,
     /// Risk attributed to this position-factor pair.
@@ -112,7 +110,7 @@ pub struct PositionFactorContribution {
 #[cfg(test)]
 mod tests {
     use super::{FactorContribution, RiskDecomposition};
-    use finstack_quant_models::factor::{FactorId, RiskMeasure};
+    use crate::factor::{FactorId, RiskMeasure};
 
     #[test]
     fn test_risk_decomposition_total_matches_sum() {

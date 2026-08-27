@@ -1237,11 +1237,207 @@ def decompose_period(
     """
     ...
 
+class VolHorizon:
+    """
+    Forecast horizon used to scale a calibrated `Sample` vol estimate.
+
+    Examples
+    --------
+    >>> from finstack_quant.models.factor.credit import VolHorizon
+    >>> VolHorizon.n_steps(5).n
+    5
+    """
+
+    @classmethod
+    def one_step(cls) -> VolHorizon:
+        """
+        Use the calibrated one-step forecast horizon.
+
+        Returns
+        -------
+        VolHorizon
+            One-calibrated-period forecast horizon.
+
+        Notes
+        -----
+        This method does not raise; it returns a fixed instance.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.factor.credit import VolHorizon
+        >>> VolHorizon.one_step().kind
+        'one_step'
+        """
+        ...
+
+    @classmethod
+    def unconditional(cls) -> VolHorizon:
+        """
+        Use the unconditional long-run forecast horizon.
+
+        Returns
+        -------
+        VolHorizon
+            Unconditional long-run forecast horizon.
+
+        Notes
+        -----
+        This method does not raise; it returns a fixed instance.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.factor.credit import VolHorizon
+        >>> VolHorizon.unconditional().kind
+        'unconditional'
+        """
+        ...
+
+    @classmethod
+    def n_steps(cls, n: int) -> VolHorizon:
+        """
+        Scale the forecast to a fixed number of discrete steps.
+
+        Parameters
+        ----------
+        n : int
+            Positive number of calibrated sampling periods to forecast ahead.
+
+        Returns
+        -------
+        VolHorizon
+            Discrete forecast horizon spanning ``n`` calibrated periods.
+
+        Notes
+        -----
+        This method does not raise; it returns a fixed instance.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.factor.credit import VolHorizon
+        >>> VolHorizon.n_steps(5).n
+        5
+        """
+        ...
+
+    @classmethod
+    def years(cls, years: float) -> VolHorizon:
+        """
+        Scale the forecast to a year fraction.
+
+        Parameters
+        ----------
+        years : float
+            Positive forecast horizon in years, converted using the calibrated
+            model's observation frequency.
+
+        Returns
+        -------
+        VolHorizon
+            Forecast horizon spanning the supplied fractional number of years.
+
+        Raises
+        ------
+        ValueError
+            If ``years`` is non-finite or negative.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.factor.credit import VolHorizon
+        >>> VolHorizon.years(2.5).years_value
+        2.5
+        """
+        ...
+
+    @classmethod
+    def parse(cls, s: str) -> VolHorizon:
+        """
+        Parse a horizon string accepted by the Rust factor model.
+
+        Parameters
+        ----------
+        s : str
+            Horizon expression such as ``"one_step"``, ``"unconditional"``,
+            a step count, or a year-based form accepted by the model.
+
+        Returns
+        -------
+        VolHorizon
+            Horizon variant represented by the keyword or JSON descriptor in ``s``.
+
+        Raises
+        ------
+        ValueError
+            If ``s`` is not a horizon descriptor accepted by ``VolHorizon``.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.factor.credit import VolHorizon
+        >>> VolHorizon.parse('{"n_steps":5}').n
+        5
+        """
+        ...
+
+    @property
+    def kind(self) -> str:
+        """
+        Discriminator for the volatility-horizon variant.
+
+        Returns
+        -------
+        str
+            Discriminator for the volatility-horizon variant.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def n(self) -> int | None:
+        """
+        Step count for ``n_steps`` horizons.
+
+        Returns
+        -------
+            Step count for ``n_steps`` horizons.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def years_value(self) -> float | None:
+        """
+        Year fraction for ``years`` horizons.
+
+        Returns
+        -------
+            Year fraction for ``years`` horizons.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    def __repr__(self) -> str:
+        """Return a concise debug representation.
+        Returns
+        -------
+        str
+        """
+        ...
+
+
 __all__ = [
     "CreditFactorModel",
     "CreditCalibrator",
     "LevelsAtDate",
     "PeriodDecomposition",
+    "VolHorizon",
     "FactorCovarianceForecast",
     "FactorCovarianceMatrix",
     "FactorModelConfig",

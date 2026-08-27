@@ -1,7 +1,6 @@
 //! Portfolio-level factor assignment, decomposition, and what-if analysis.
 //!
 use super::model::FactorModel;
-use super::RiskDecomposition;
 use crate::error::{Error, Result};
 use crate::evaluation::{
     evaluate_raw_portfolio, PositionExecution, RawEvaluationInput, RawSelectiveSeed,
@@ -13,6 +12,7 @@ use crate::Portfolio;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::summation::NeumaierAccumulator;
+use finstack_quant_models::factor::risk::{FactorContribution, RiskDecomposition};
 use finstack_quant_models::factor::FactorId;
 
 /// Base/after delta for a single factor contribution.
@@ -397,12 +397,11 @@ fn factor_deltas(
     before: &RiskDecomposition,
     after: &RiskDecomposition,
 ) -> Vec<FactorContributionDelta> {
-    let after_by_id: std::collections::HashMap<&FactorId, &super::types::FactorContribution> =
-        after
-            .factor_contributions
-            .iter()
-            .map(|fc| (&fc.factor_id, fc))
-            .collect();
+    let after_by_id: std::collections::HashMap<&FactorId, &FactorContribution> = after
+        .factor_contributions
+        .iter()
+        .map(|fc| (&fc.factor_id, fc))
+        .collect();
 
     before
         .factor_contributions

@@ -22,7 +22,7 @@ if (!existsSync(WASM_BG)) {
 
 const facade = await import('../../index.js');
 const init = facade.default;
-const { portfolio, analytics, core } = facade;
+const { portfolio, analytics, core, models } = facade;
 
 await init({ module_or_path: readFileSync(WASM_BG) });
 
@@ -51,19 +51,15 @@ const EXPORTED_KEYS = [
   'computePnlProfilesWithMarket',
   'daysToLiquidate',
   'decomposeFactorRisk',
-  'evaluateRiskBudget',
   'excessReturns',
   'factorBrinsonAttribution',
   'gridAttribution',
   'gridCarinoLink',
-  'historicalVarDecomposition',
   'kyleLambda',
   'liquidityTier',
   'lvarBangia',
   'mwrXirr',
   'optimizePortfolio',
-  'parametricEsDecomposition',
-  'parametricVarDecomposition',
   'parsePortfolioSpecJson',
   'portfolioResultGetMetric',
   'portfolioResultTotalValue',
@@ -939,9 +935,9 @@ const VAR_COVARIANCE = JSON.stringify([
   [0.01, 0.09],
 ]);
 
-test('portfolio.parametricVarDecomposition returns the Python-parity object', () => {
+test('models.factor.risk.parametricVarDecomposition returns the Python-parity object', () => {
   const decomposition = assertStructured(
-    portfolio.parametricVarDecomposition(VAR_IDS, VAR_WEIGHTS, VAR_COVARIANCE, 0.95),
+    models.factor.risk.parametricVarDecomposition(VAR_IDS, VAR_WEIGHTS, VAR_COVARIANCE, 0.95),
     'parametricVarDecomposition result'
   );
   assert.equal(decomposition.confidence, 0.95);
@@ -952,9 +948,9 @@ test('portfolio.parametricVarDecomposition returns the Python-parity object', ()
   assert.equal(typeof decomposition.contributions[0].pct_contribution, 'number');
 });
 
-test('portfolio.parametricEsDecomposition returns the Python-parity object', () => {
+test('models.factor.risk.parametricEsDecomposition returns the Python-parity object', () => {
   const decomposition = assertStructured(
-    portfolio.parametricEsDecomposition(VAR_IDS, VAR_WEIGHTS, VAR_COVARIANCE, 0.95),
+    models.factor.risk.parametricEsDecomposition(VAR_IDS, VAR_WEIGHTS, VAR_COVARIANCE, 0.95),
     'parametricEsDecomposition result'
   );
   assert.equal(decomposition.n_positions, 2);
@@ -963,7 +959,7 @@ test('portfolio.parametricEsDecomposition returns the Python-parity object', () 
   assert.equal(typeof decomposition.contributions[0].pct_contribution, 'number');
 });
 
-test('portfolio.historicalVarDecomposition returns a structured decomposition', () => {
+test('models.factor.risk.historicalVarDecomposition returns a structured decomposition', () => {
   // (1 - confidence) * n_scenarios must be at least 1 to resolve the tail, so
   // 0.9 confidence needs >= 10 scenarios per position.
   const scenarios = 20;
@@ -972,16 +968,16 @@ test('portfolio.historicalVarDecomposition returns a structured decomposition', 
     Array.from({ length: scenarios }, (_, i) => (i - scenarios / 2) / 2),
   ]);
   const decomposition = assertStructured(
-    portfolio.historicalVarDecomposition(VAR_IDS, pnls, 0.9),
+    models.factor.risk.historicalVarDecomposition(VAR_IDS, pnls, 0.9),
     'historicalVarDecomposition result'
   );
   assert.equal(decomposition.n_positions, 2);
   assert.equal(decomposition.contributions.length, 2);
 });
 
-test('portfolio.evaluateRiskBudget returns a structured budget report', () => {
+test('models.factor.risk.evaluateRiskBudget returns a structured budget report', () => {
   const budget = assertStructured(
-    portfolio.evaluateRiskBudget(
+    models.factor.risk.evaluateRiskBudget(
       VAR_IDS,
       JSON.stringify([60.0, 40.0]),
       JSON.stringify([0.5, 0.5]),
@@ -995,6 +991,13 @@ test('portfolio.evaluateRiskBudget returns a structured budget report', () => {
   assert.equal(budget.positions.length, 2);
   assert.equal(budget.positions[0].position_id, 'A');
   assert.equal(typeof budget.positions[0].breach, 'boolean');
+});
+
+test('factor-risk kernels are absent from the portfolio namespace', () => {
+  assert.equal('parametricVarDecomposition' in portfolio, false);
+  assert.equal('parametricEsDecomposition' in portfolio, false);
+  assert.equal('historicalVarDecomposition' in portfolio, false);
+  assert.equal('evaluateRiskBudget' in portfolio, false);
 });
 
 test('portfolio.lvarBangia returns the Python-parity dict shape', () => {

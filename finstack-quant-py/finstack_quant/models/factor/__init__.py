@@ -17,6 +17,7 @@ import sys as _sys
 
 from finstack_quant.finstack_quant import models as _models
 from finstack_quant.models.factor import credit as credit
+from finstack_quant.models.factor import risk as risk
 
 # `schema` is a compiled submodule with no pure-Python shim package, so alias it
 # onto the public dotted path that `import finstack_quant.models.factor.schema` uses.
@@ -25,5 +26,6 @@ _sys.modules.setdefault("finstack_quant.models.factor.schema", schema)
 
 __all__: list[str] = [
     "credit",
+    "risk",
     "schema",
 ]

@@ -21,7 +21,6 @@ mod credit_vol;
 mod functions;
 mod stress;
 
-use finstack_quant_portfolio::types::PositionId;
 use pyo3::prelude::*;
 
 use assignment::{PyFactorAssignmentReport, PyPositionAssignment, PyUnmatchedEntry};
@@ -47,14 +46,27 @@ use stress::{
     PyStressResult, PyTailScenarioBreakdown,
 };
 
-/// Convert `Vec<String>` of position ids into the Rust newtype.
-pub(super) fn to_position_ids(ids: Vec<String>) -> Vec<PositionId> {
-    ids.into_iter().map(PositionId::new).collect()
-}
-
 /// Register factor_model typed result classes and typed-sibling functions on
 /// the portfolio submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyFactorContributionDelta>()?;
+    m.add_class::<PyWhatIfResult>()?;
+    m.add_class::<PyStressResult>()?;
+    m.add_class::<PyPositionAssignment>()?;
+    m.add_class::<PyUnmatchedEntry>()?;
+    m.add_class::<PyFactorAssignmentReport>()?;
+    m.add_class::<PyLevelVolContribution>()?;
+    m.add_class::<PyPositionVolContribution>()?;
+    m.add_class::<PyCreditVolReport>()?;
+    m.add_function(wrap_pyfunction!(factor_stress, m)?)?;
+    m.add_function(wrap_pyfunction!(position_what_if, m)?)?;
+    m.add_function(wrap_pyfunction!(build_credit_vol_report, m)?)?;
+
+    Ok(())
+}
+
+/// Register models-owned factor-risk classes and pure calculation functions.
+pub(crate) fn register_risk(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyFactorContribution>()?;
     m.add_class::<PyPositionFactorContribution>()?;
     m.add_class::<PyPositionResidualContribution>()?;
@@ -64,30 +76,22 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPositionRiskDecomposition>()?;
     m.add_class::<PyPositionBudgetEntry>()?;
     m.add_class::<PyRiskBudgetResult>()?;
-    m.add_class::<PyFactorContributionDelta>()?;
-    m.add_class::<PyWhatIfResult>()?;
-    m.add_class::<PyStressResult>()?;
     m.add_class::<PyStressPositionEntry>()?;
     m.add_class::<PyTailScenarioBreakdown>()?;
     m.add_class::<PyStressAttribution>()?;
-    m.add_class::<PyPositionAssignment>()?;
-    m.add_class::<PyUnmatchedEntry>()?;
-    m.add_class::<PyFactorAssignmentReport>()?;
-    m.add_class::<PyLevelVolContribution>()?;
-    m.add_class::<PyPositionVolContribution>()?;
-    m.add_class::<PyCreditVolReport>()?;
-    m.add_class::<PyVolHorizon>()?;
     m.add_class::<PyDecompositionConfig>()?;
 
     m.add_function(wrap_pyfunction!(parametric_var_decomposition, m)?)?;
     m.add_function(wrap_pyfunction!(parametric_es_decomposition, m)?)?;
     m.add_function(wrap_pyfunction!(historical_var_decomposition, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_risk_budget, m)?)?;
-    m.add_function(wrap_pyfunction!(factor_stress, m)?)?;
-    m.add_function(wrap_pyfunction!(position_what_if, m)?)?;
     m.add_function(wrap_pyfunction!(build_stress_attribution, m)?)?;
-    m.add_function(wrap_pyfunction!(build_credit_vol_report, m)?)?;
     m.add_function(wrap_pyfunction!(position_component_var, m)?)?;
+    Ok(())
+}
 
+/// Register the models-owned credit forecast horizon wrapper.
+pub(crate) fn register_credit_forecast(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyVolHorizon>()?;
     Ok(())
 }

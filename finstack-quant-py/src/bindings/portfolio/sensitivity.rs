@@ -383,8 +383,7 @@ struct PyFactorRiskDecomposition {
     pfc_position_ids: Vec<String>,
     pfc_factor_ids: Vec<String>,
     pfc_risk_contributions: Vec<f64>,
-    residual_contributions:
-        Vec<finstack_quant_portfolio::factor_model::PositionResidualContribution>,
+    residual_contributions: Vec<finstack_quant_models::factor::risk::PositionResidualContribution>,
 }
 
 /// Bare snake_case serde tag of a [`RiskMeasure`], without JSON quoting or
@@ -412,7 +411,7 @@ fn risk_measure_tag(measure: &finstack_quant_models::factor::RiskMeasure) -> Str
 }
 
 impl PyFactorRiskDecomposition {
-    fn from_inner(decomp: finstack_quant_portfolio::factor_model::RiskDecomposition) -> Self {
+    fn from_inner(decomp: finstack_quant_models::factor::risk::RiskDecomposition) -> Self {
         let measure = risk_measure_tag(&decomp.measure);
         let factor_ids: Vec<String> = decomp
             .factor_contributions
@@ -646,8 +645,8 @@ fn decompose_factor_risk(
         }
         let covariance: finstack_quant_models::factor::FactorCovarianceMatrix =
             serde_json::from_str(covariance_json).map_err(display_to_py)?;
-        let decomposer = finstack_quant_portfolio::factor_model::ParametricDecomposer;
-        let result = finstack_quant_portfolio::factor_model::RiskDecomposer::decompose(
+        let decomposer = finstack_quant_models::factor::risk::ParametricDecomposer;
+        let result = finstack_quant_models::factor::risk::RiskDecomposer::decompose(
             &decomposer,
             &matrix,
             &covariance,

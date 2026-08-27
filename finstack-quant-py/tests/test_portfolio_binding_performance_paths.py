@@ -9,13 +9,15 @@ import numpy as np
 import pytest
 
 from finstack_quant.core.market_data import DiscountCurve, MarketContext
-from finstack_quant.portfolio import (
-    Portfolio,
-    PortfolioValuation,
+from finstack_quant.models.factor.risk import (
     build_stress_attribution,
     historical_var_decomposition,
     parametric_es_decomposition,
     parametric_var_decomposition,
+)
+from finstack_quant.portfolio import (
+    Portfolio,
+    PortfolioValuation,
     scenario_pnl,
     scenario_pnl_batch,
     scenario_pnl_batch_json,
