@@ -5,6 +5,7 @@ pub mod correlation;
 pub(crate) mod credit;
 mod fourier;
 pub mod monte_carlo;
+pub mod rates;
 mod sabr;
 
 use pyo3::prelude::*;
@@ -22,7 +23,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     module.setattr(
         "__doc__",
-        "Reusable analytical, Fourier, volatility, credit, correlation, and Monte Carlo models.",
+        "Reusable analytical, Fourier, volatility, credit, correlation, rates, and Monte Carlo models.",
     )?;
 
     analytic::register(py, &module)?;
@@ -31,6 +32,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     monte_carlo::register(py, &module)?;
     credit::register(py, &module)?;
     correlation::register(py, &module)?;
+    rates::register(py, &module)?;
 
     let all = PyList::new(
         py,
@@ -52,6 +54,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "merton_jump_cos_price",
             "monte_carlo",
             "quanto_option_price",
+            "rates",
             "vanilla_expiry_payoff",
             "vg_cos_price",
         ],

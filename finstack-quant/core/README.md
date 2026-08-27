@@ -76,7 +76,6 @@ Full item documentation is in the rustdoc (`cargo doc -p finstack-quant-core
 | `market_data::diff` | `measure_*_shift` functions that report the realized shift between two contexts (used to verify that a bump did what it claimed). |
 | `market_data::hierarchy` | Tree of tagged nodes referencing `CurveId`s, for scenario targeting and factor scoping. |
 | `market_data::arbitrage` | Model-free and SVI-specific arbitrage checks over a `VolSurface`. |
-| `market_data::dtsm` | Dynamic term-structure models: Diebold-Li and PCA. |
 | `market_data::fixings` | The `FIXING:{forward_curve_id}` lookup convention. |
 | `market_data::traits` | `TermStructure`, `Discounting`, `Forward`, `Survival`, `VolProvider` — the minimal trait surface for polymorphic pricing code; concrete curve types carry the rest. |
 
@@ -98,7 +97,6 @@ want it; domain-specific numerics (stochastic processes, payoffs) belong in
 | `math::random` | `Pcg64Rng`, `RandomNumberGenerator`, `SobolRng` (up to `MAX_SOBOL_DIMENSION` = 40), `BrownianBridge`, Poisson inversion, `box_muller_transform`. |
 | `math::distributions` / `math::probability` | Binomial and chi-squared helpers, `CorrelatedBernoulli`, `correlation_bounds`. |
 | `math::volatility` | Black-76 / BSM / Bachelier pricing and implied-vol inversion, plus `sabr`, `svi`, `heston`, `rough_heston`, `local_vol` parameterizations. |
-| `math::characteristic_function` | Black-Scholes, Merton jump, and variance-gamma characteristic functions. |
 | `math::compounding` | `Compounding` conversions between simple, periodic, and continuous rates. |
 | `math::{time_grid, piecewise, fractional, consecutive}` | `TimeGrid` with `map_date_to_step`/`map_exercise_dates_to_steps`; validated left-continuous piecewise-constant curves; fractional Brownian motion kernels, fBM covariance, and Mittag-Leffler for rough-vol models; `count_consecutive` streaks. |
 

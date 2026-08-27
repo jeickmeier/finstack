@@ -168,7 +168,6 @@ pub fn clamp_or_nan(x: f64, lo: f64, hi: f64) -> f64 {
     x.min(hi).max(lo)
 }
 
-pub mod characteristic_function;
 pub mod compounding;
 /// Consecutive streak counter for return series analysis.
 pub mod consecutive;

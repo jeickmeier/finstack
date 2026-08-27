@@ -1025,24 +1025,6 @@ fn forward_variance_curve_rejects_invalid_values_on_deserialize() {
 }
 
 #[test]
-fn diebold_li_rejects_unknown_fields() {
-    use finstack_quant_core::market_data::dtsm::DieboldLi;
-    let model = DieboldLi::with_default_lambda();
-    assert_strict_inbound(&model);
-}
-
-#[test]
-fn diebold_li_rejects_invalid_lambda_on_deserialize() {
-    use finstack_quant_core::market_data::dtsm::DieboldLi;
-    let model = DieboldLi::with_default_lambda();
-    let mut json = serde_json::to_value(&model).unwrap();
-    json.as_object_mut()
-        .unwrap()
-        .insert("lambda".to_string(), serde_json::json!(-1.0));
-    assert!(serde_json::from_value::<DieboldLi>(json).is_err());
-}
-
-#[test]
 fn fx_delta_vol_surface_rejects_unknown_fields() {
     use finstack_quant_core::market_data::surfaces::FxDeltaVolSurface;
     let surface = FxDeltaVolSurface::new(

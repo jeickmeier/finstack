@@ -1,5 +1,6 @@
 //! Fourier pricing engines.
 
+pub mod characteristic_function;
 pub mod cos;
 
 pub use cos::{

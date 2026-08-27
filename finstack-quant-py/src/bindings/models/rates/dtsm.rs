@@ -1,4 +1,4 @@
-//! Python bindings for `finstack_quant_core::market_data::dtsm`.
+//! Python bindings for `finstack_quant_models::rates::dtsm`.
 //!
 //! Exposes a function-based API for dynamic term structure models:
 //!
@@ -7,7 +7,7 @@
 //! - PCA decomposition of yield curve changes.
 //! - PCA-based scenario generation (N-sigma shocks along principal components).
 
-use finstack_quant_core::market_data::dtsm::{DieboldLi, YieldPanel, YieldPca};
+use finstack_quant_models::rates::dtsm::{DieboldLi, YieldPanel, YieldPca};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule};
 
@@ -275,11 +275,11 @@ fn yield_pca_scenario(
 #[pyo3(signature = (lambda_, factors, tenors))]
 #[pyo3(text_signature = "(lambda_, factors, tenors)")]
 fn nelson_siegel_yields(lambda_: f64, factors: [f64; 3], tenors: Vec<f64>) -> PyResult<Vec<f64>> {
-    finstack_quant_core::market_data::dtsm::nelson_siegel_yields(lambda_, factors, &tenors)
+    finstack_quant_models::rates::dtsm::nelson_siegel_yields(lambda_, factors, &tenors)
         .map_err(core_to_py)
 }
 
-/// Build the `finstack_quant.core.market_data.dtsm` submodule.
+/// Build the `finstack_quant.models.rates.dtsm` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "dtsm")?;
     m.setattr(
@@ -309,7 +309,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         parent,
         &m,
         "dtsm",
-        "finstack_quant.core.market_data",
+        "finstack_quant.models.rates",
         crate::bindings::module_utils::ParentNameSource::Package,
     )?;
 

@@ -13,8 +13,8 @@
 #![allow(clippy::unwrap_used)]
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use finstack_quant_core::math::characteristic_function::BlackScholesCf;
 use finstack_quant_models::closed_form::{heston_call_price_fourier, HestonParams};
+use finstack_quant_models::fourier::characteristic_function::BlackScholesCf;
 use finstack_quant_models::fourier::cos::{CosConfig, CosPricer};
 use std::hint::black_box;
 

@@ -63,17 +63,17 @@ impl YieldPca {
     /// # Arguments
     ///
     /// * `panel` - Panel supplied by the caller for this operation
-    pub fn fit(panel: &YieldPanel) -> crate::Result<Self> {
+    pub fn fit(panel: &YieldPanel) -> finstack_quant_core::Result<Self> {
         let n = panel.num_tenors();
         let t = panel.num_dates();
 
         if n < 2 {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "Need at least 2 tenors for PCA, got {n}"
             )));
         }
         if t < 3 {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "Need at least 3 observations for PCA (to get 2 yield changes), got {t}"
             )));
         }
@@ -107,7 +107,7 @@ impl YieldPca {
         // Check for degenerate covariance
         let trace = (0..n).map(|i| cov[(i, i)]).sum::<f64>();
         if trace < 1e-30 {
-            return Err(crate::Error::Validation(
+            return Err(finstack_quant_core::Error::Validation(
                 "Covariance matrix is degenerate (all-zero yield changes)".into(),
             ));
         }
@@ -193,7 +193,7 @@ impl YieldPca {
     /// # Arguments
     ///
     /// * `yield_changes` - Yield changes supplied by the caller for this operation
-    pub fn fit_yield_changes(yield_changes: Vec<Vec<f64>>) -> crate::Result<Self> {
+    pub fn fit_yield_changes(yield_changes: Vec<Vec<f64>>) -> finstack_quant_core::Result<Self> {
         let panel = YieldPanel::from_yield_changes(yield_changes)?;
         Self::fit(&panel)
     }
@@ -220,9 +220,9 @@ impl YieldPca {
     ///
     /// # Errors
     /// - k >= num_components
-    pub fn loading(&self, k: usize) -> crate::Result<DVector<f64>> {
+    pub fn loading(&self, k: usize) -> finstack_quant_core::Result<DVector<f64>> {
         if k >= self.num_components() {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "Component index {k} out of range (have {} components)",
                 self.num_components()
             )));
@@ -269,9 +269,9 @@ impl YieldPca {
     ///
     /// # Errors
     /// - shocks length exceeds num_components
-    pub fn scenario(&self, shocks: &[f64]) -> crate::Result<Vec<f64>> {
+    pub fn scenario(&self, shocks: &[f64]) -> finstack_quant_core::Result<Vec<f64>> {
         if shocks.len() > self.num_components() {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "Shocks length {} exceeds number of components {}",
                 shocks.len(),
                 self.num_components()
@@ -306,16 +306,16 @@ impl YieldPca {
         component_index: usize,
         sigma_shock: f64,
         n_components: usize,
-    ) -> crate::Result<Vec<f64>> {
+    ) -> finstack_quant_core::Result<Vec<f64>> {
         let pca = Self::fit_yield_changes(yield_changes)?;
         if n_components == 0 || n_components > pca.num_components() {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "n_components must be in [1, {}], got {n_components}",
                 pca.num_components()
             )));
         }
         if component_index >= n_components {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "component_index {component_index} must be < n_components {n_components}"
             )));
         }
@@ -329,9 +329,9 @@ impl YieldPca {
     ///
     /// # Errors
     /// - num_components == 0 or exceeds available components
-    pub fn reconstruct(&self, num_components: usize) -> crate::Result<DMatrix<f64>> {
+    pub fn reconstruct(&self, num_components: usize) -> finstack_quant_core::Result<DMatrix<f64>> {
         if num_components == 0 || num_components > self.num_components() {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "num_components must be in [1, {}], got {num_components}",
                 self.num_components()
             )));
@@ -361,10 +361,14 @@ impl YieldPca {
     /// # Errors
     /// - base_yields length != N
     /// - shocks length exceeds num_components
-    pub fn apply_scenario(&self, base_yields: &[f64], shocks: &[f64]) -> crate::Result<Vec<f64>> {
+    pub fn apply_scenario(
+        &self,
+        base_yields: &[f64],
+        shocks: &[f64],
+    ) -> finstack_quant_core::Result<Vec<f64>> {
         let n = self.tenors.len();
         if base_yields.len() != n {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "base_yields length {} does not match number of tenors {n}",
                 base_yields.len()
             )));

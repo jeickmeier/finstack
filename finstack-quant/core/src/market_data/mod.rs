@@ -84,7 +84,6 @@ pub mod diff;
 /// Shared dividend schedules (cash/yield/stock) for equities/ETFs.
 pub mod dividends;
 /// Dynamic term structure models (Diebold-Li, PCA).
-pub mod dtsm;
 /// Historical rate fixing lookup utilities.
 ///
 /// Provides the canonical `FIXING:{curve_id}` convention and shared helpers

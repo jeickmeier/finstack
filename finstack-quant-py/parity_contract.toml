@@ -83,7 +83,6 @@ public = [
     "arbitrage",
     "context",
     "curves",
-    "dtsm",
     "fx",
     "fx_market_pair",
     "fx_pair_convention",
@@ -117,7 +116,7 @@ note = "Subset scope: the Rust money module's FormatOpts family (FormatOpts + Mo
 [crates.core.module_symbols.math]
 python_package = "finstack_quant.core.math"
 public = ["count_consecutive", "linalg", "stats", "special_functions", "summation"]
-note = "Subset scope: 13 Rust-only math submodules are deliberately unbound (characteristic_function, compounding, distributions, fractional, integration, interp, piecewise, probability, random, solver, solver_multi, time_grid, volatility) — they are engine internals consumed by the domain crates, not host-facing numerics."
+note = "Subset scope: 12 Rust-only math submodules are deliberately unbound (compounding, distributions, fractional, integration, interp, piecewise, probability, random, solver, solver_multi, time_grid, volatility) — they are engine internals consumed by the domain crates, not host-facing numerics."
 
 [crates.core.module_symbols.dates]
 python_package = "finstack_quant.core.dates"
@@ -141,7 +140,7 @@ note = "Subset scope: the Rust dates::fx (FX spot-lag/settlement date logic) and
 [crates.core.module_symbols.market_data]
 python_package = "finstack_quant.core.market_data"
 public = [
-    "curves", "fx", "context", "scalars", "dtsm", "arbitrage",
+    "curves", "fx", "context", "scalars", "arbitrage",
     "BaseCorrelationCurve", "CreditIndexData", "DiscountCurve", "ForwardCurve",
     "FxDeltaVolSurface", "HazardCurve", "InflationCurve", "PriceCurve", "VolSurface",
     "VolCube", "VolatilityIndexCurve", "FxConversionPolicy", "FxRateResult", "FxMatrix",
@@ -616,6 +615,7 @@ trees        = { python = "finstack_quant.models.trees", status = "missing", not
 credit       = { python = "finstack_quant.models.credit", status = "exists", note = "Structural-credit model wrappers." }
 correlation  = { python = "finstack_quant.models.correlation", status = "exists", note = "Copula, recovery, and portfolio-loss infrastructure." }
 monte_carlo  = { python = "finstack_quant.models.monte_carlo", status = "exists", note = "Productized subset of the reusable stochastic engine." }
+rates        = { python = "finstack_quant.models.rates", status = "exists", note = "Product-independent interest-rate models." }
 
 [crates.models.symbols]
 public = [
@@ -658,6 +658,20 @@ public = [
     "price_heston_call",
     "price_heston_put",
     "simulate_gbm_paths",
+]
+
+[crates.models.rates]
+python_package = "finstack_quant.models.rates"
+public = ["dtsm"]
+
+[crates.models.rates.dtsm]
+python_package = "finstack_quant.models.rates.dtsm"
+public = [
+    "diebold_li_fit_factors",
+    "diebold_li_forecast",
+    "nelson_siegel_yields",
+    "yield_pca_fit",
+    "yield_pca_scenario",
 ]
 
 [crates.valuations]
@@ -2207,7 +2221,6 @@ root_exports = [
     "fxPairConvention",
     "fxPipSize",
     "invertFxRate",
-    "nelsonSiegelYields",
     "applyLowerTriangular",
     "choleskyDecomposition",
     "choleskySolve",
@@ -2249,7 +2262,6 @@ python_only_market_data = [
     "fx",
     "context",
     "scalars",
-    "dtsm",
     "arbitrage",
     "BaseCorrelationCurve",
     "CreditIndexData",
@@ -2391,7 +2403,6 @@ wasm_only = [
 "market_data.fx_pair_convention" = "fxPairConvention"
 "market_data.fx_pip_size" = "fxPipSize"
 "market_data.invert_fx_rate" = "invertFxRate"
-"market_data.dtsm.nelson_siegel_yields" = "nelsonSiegelYields"
 "math.linalg.apply_lower_triangular" = "applyLowerTriangular"
 "math.linalg.cholesky_decomposition" = "choleskyDecomposition"
 "math.linalg.cholesky_solve" = "choleskySolve"
@@ -2437,7 +2448,7 @@ wasm_only = [
 [wasm_models_subset]
 rust_module_root = "../finstack-quant-wasm/src/api/models/"
 js_export_file   = "../finstack-quant-wasm/exports/models.js"
-nested = ["correlation", "credit", "monteCarlo"]
+nested = ["correlation", "credit", "monteCarlo", "rates"]
 root_exports = [
     "SabrCalibrator",
     "SabrModel",
@@ -2528,6 +2539,10 @@ monteCarlo = [
     "priceHestonCall",
     "priceHestonPut",
 ]
+rates = ["dtsm"]
+
+[wasm_models_subset.rates_dtsm_python_js_map]
+nelson_siegel_yields = "nelsonSiegelYields"
 
 [wasm_models_subset.nested_python_only]
 monteCarlo = [

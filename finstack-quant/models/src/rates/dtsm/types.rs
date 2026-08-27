@@ -6,9 +6,9 @@
 use nalgebra::DMatrix;
 use serde::{Deserialize, Serialize};
 
-fn rows_to_dmatrix(rows: &[Vec<f64>], label: &str) -> crate::Result<DMatrix<f64>> {
+fn rows_to_dmatrix(rows: &[Vec<f64>], label: &str) -> finstack_quant_core::Result<DMatrix<f64>> {
     if rows.is_empty() {
-        return Err(crate::Error::Validation(format!(
+        return Err(finstack_quant_core::Error::Validation(format!(
             "{label} must not be empty"
         )));
     }
@@ -17,7 +17,7 @@ fn rows_to_dmatrix(rows: &[Vec<f64>], label: &str) -> crate::Result<DMatrix<f64>
     let ncols = rows[0].len();
     for (i, row) in rows.iter().enumerate() {
         if row.len() != ncols {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "{label}: row {i} has length {} but expected {ncols} (first row)",
                 row.len()
             )));
@@ -45,7 +45,7 @@ pub struct YieldPanel {
     /// Tenor grid in years, length N. Must be sorted ascending, all > 0.
     pub tenors: Vec<f64>,
     /// Observation dates (optional, for labeling). Length T if provided.
-    pub dates: Option<Vec<crate::dates::Date>>,
+    pub dates: Option<Vec<finstack_quant_core::dates::Date>>,
 }
 
 impl YieldPanel {
@@ -61,8 +61,8 @@ impl YieldPanel {
     pub fn from_rows(
         tenors: Vec<f64>,
         yield_rows: Vec<Vec<f64>>,
-        dates: Option<Vec<crate::dates::Date>>,
-    ) -> crate::Result<Self> {
+        dates: Option<Vec<finstack_quant_core::dates::Date>>,
+    ) -> finstack_quant_core::Result<Self> {
         let yields = rows_to_dmatrix(&yield_rows, "yield_rows")?;
         Self::new(yields, tenors, dates)
     }
@@ -81,7 +81,7 @@ impl YieldPanel {
     /// # Arguments
     ///
     /// * `yield_changes` - Yield changes supplied by the caller for this operation
-    pub fn from_yield_changes(yield_changes: Vec<Vec<f64>>) -> crate::Result<Self> {
+    pub fn from_yield_changes(yield_changes: Vec<Vec<f64>>) -> finstack_quant_core::Result<Self> {
         let changes = rows_to_dmatrix(&yield_changes, "yield_changes")?;
         let n = changes.ncols();
         let m = changes.nrows();
@@ -113,22 +113,22 @@ impl YieldPanel {
     pub fn new(
         yields: DMatrix<f64>,
         tenors: Vec<f64>,
-        dates: Option<Vec<crate::dates::Date>>,
-    ) -> crate::Result<Self> {
+        dates: Option<Vec<finstack_quant_core::dates::Date>>,
+    ) -> finstack_quant_core::Result<Self> {
         // Validate tenor grid
         if tenors.is_empty() {
-            return Err(crate::Error::Validation(
+            return Err(finstack_quant_core::Error::Validation(
                 "Tenor grid must not be empty".into(),
             ));
         }
         for (i, tau) in tenors.iter().enumerate() {
             if !tau.is_finite() || *tau <= 0.0 {
-                return Err(crate::Error::Validation(format!(
+                return Err(finstack_quant_core::Error::Validation(format!(
                     "Tenor at index {i} must be positive and finite, got {tau}"
                 )));
             }
             if i > 0 && tenors[i] <= tenors[i - 1] {
-                return Err(crate::Error::Validation(format!(
+                return Err(finstack_quant_core::Error::Validation(format!(
                     "Tenor grid must be strictly ascending: tenor[{}]={} <= tenor[{}]={}",
                     i,
                     tenors[i],
@@ -140,14 +140,14 @@ impl YieldPanel {
 
         // Validate matrix dimensions
         if yields.ncols() != tenors.len() {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "Yield matrix has {} columns but tenor grid has {} entries",
                 yields.ncols(),
                 tenors.len()
             )));
         }
         if yields.nrows() < 2 {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "Need at least 2 observations, got {}",
                 yields.nrows()
             )));
@@ -156,7 +156,7 @@ impl YieldPanel {
         // Validate dates length if provided
         if let Some(ref d) = dates {
             if d.len() != yields.nrows() {
-                return Err(crate::Error::Validation(format!(
+                return Err(finstack_quant_core::Error::Validation(format!(
                     "Dates vector has length {} but yield matrix has {} rows",
                     d.len(),
                     yields.nrows()
@@ -168,7 +168,7 @@ impl YieldPanel {
         for r in 0..yields.nrows() {
             for c in 0..yields.ncols() {
                 if !yields[(r, c)].is_finite() {
-                    return Err(crate::Error::Validation(format!(
+                    return Err(finstack_quant_core::Error::Validation(format!(
                         "Non-finite yield at row {r}, col {c}: {}",
                         yields[(r, c)]
                     )));
@@ -244,7 +244,7 @@ pub struct YieldForecast {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dates::Date;
+    use finstack_quant_core::dates::Date;
     use time::Month;
 
     fn panel() -> DMatrix<f64> {

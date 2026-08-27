@@ -2,11 +2,13 @@ import * as wasm from '../pkg/finstack_quant_wasm.js';
 import { correlation } from './models/correlation.js';
 import { credit } from './models/credit.js';
 import { monteCarlo } from './models/monteCarlo.js';
+import { rates } from './models/rates.js';
 
 export const models = {
   correlation,
   credit,
   monteCarlo,
+  rates,
   SabrParameters: wasm.SabrParameters,
   SabrModel: wasm.SabrModel,
   SabrSmile: wasm.SabrSmile,

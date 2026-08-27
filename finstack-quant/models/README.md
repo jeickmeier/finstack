@@ -2,7 +2,8 @@
 
 Reusable product-independent model engines for quantitative finance. The crate
 owns closed-form and Fourier pricing formulas, volatility models, PDE and tree
-solvers, structural-credit and correlation models, and Monte Carlo simulation.
+solvers, dynamic term-structure models, structural-credit and correlation
+models, and Monte Carlo simulation.
 Instrument definitions, market resolution, calibration orchestration, pricing
 registries, metrics, and valuation results remain in `finstack-quant-valuations`.
 
@@ -34,7 +35,8 @@ unconditional dependency. A few convenience entry points (`EuropeanPricer`,
 |--------|----------|
 | `types` | Canonical `OptionType`, `ExerciseStyle`, and `OptionMarketParams` |
 | `closed_form` | Black-Scholes/Black-76, implied volatility, exotics, and Heston Fourier formulas |
-| `fourier` | Product-independent COS characteristic-function engine and parameter types |
+| `fourier` | Characteristic-function models and the product-independent COS pricing engine |
+| `rates` | Interest-rate models, including Diebold-Li and PCA dynamic term structures |
 | `volatility` | SABR parameters, model, smile, and calibration |
 | `pde` | One- and two-dimensional grids, steppers, and solvers |
 | `trees` | Equity, short-rate, and multi-factor tree engines |

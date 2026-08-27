@@ -896,7 +896,7 @@
       "reason": "Margin/collateral API plumbing, display text, or sensitivity bump; regulatory schedules live in margin registries."
     },
     {
-      "path": "finstack-quant/core/src/market_data/dtsm/diebold_li.rs",
+      "path": "finstack-quant/models/src/rates/dtsm/diebold_li.rs",
       "category": "accounting_policy",
       "contains": "Forecast horizon must be",
       "reason": "DTSM forecast validation error text; unrelated to ECL or accounting-policy defaults."

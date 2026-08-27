@@ -88,11 +88,11 @@ struct RawDieboldLi {
 }
 
 impl TryFrom<RawDieboldLi> for DieboldLi {
-    type Error = crate::Error;
+    type Error = finstack_quant_core::Error;
 
-    fn try_from(raw: RawDieboldLi) -> crate::Result<Self> {
+    fn try_from(raw: RawDieboldLi) -> finstack_quant_core::Result<Self> {
         if !raw.lambda.is_finite() || raw.lambda <= 0.0 {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "Lambda must be positive and finite, got {}",
                 raw.lambda
             )));
@@ -119,11 +119,11 @@ impl DieboldLi {
     ///
     /// # Errors
     ///
-    /// Returns [`crate::Error::Validation`] when `lambda` is non-finite or
+    /// Returns [`finstack_quant_core::Error::Validation`] when `lambda` is non-finite or
     /// not strictly positive.
-    pub fn new(lambda: f64) -> crate::Result<Self> {
+    pub fn new(lambda: f64) -> finstack_quant_core::Result<Self> {
         if !lambda.is_finite() || lambda <= 0.0 {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "Lambda must be positive and finite, got {lambda}"
             )));
         }
@@ -163,12 +163,12 @@ impl DieboldLi {
     /// # Errors
     /// - Panel has fewer than 3 tenors (underdetermined system)
     /// - OLS system is singular
-    pub fn extract_factors(mut self, panel: &YieldPanel) -> crate::Result<Self> {
+    pub fn extract_factors(mut self, panel: &YieldPanel) -> finstack_quant_core::Result<Self> {
         let n = panel.num_tenors();
         let t = panel.num_dates();
 
         if n < 3 {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "Need at least 3 tenors for factor extraction, got {n}"
             )));
         }
@@ -184,7 +184,7 @@ impl DieboldLi {
 
         // Solve via Cholesky: (X'X) is 3x3 symmetric positive definite
         let chol = xtx.cholesky().ok_or_else(|| {
-            crate::Error::Validation(
+            finstack_quant_core::Error::Validation(
                 "NS loading matrix is singular -- check lambda and tenor grid".into(),
             )
         })?;
@@ -262,14 +262,16 @@ impl DieboldLi {
     /// # Errors
     /// - Factors not yet extracted
     /// - Fewer than 5 observations (insufficient for VAR estimation)
-    pub fn fit_var(mut self) -> crate::Result<Self> {
+    pub fn fit_var(mut self) -> finstack_quant_core::Result<Self> {
         let fts = self.factors.as_ref().ok_or_else(|| {
-            crate::Error::Validation("Factors not extracted -- call extract_factors first".into())
+            finstack_quant_core::Error::Validation(
+                "Factors not extracted -- call extract_factors first".into(),
+            )
         })?;
 
         let t = fts.factors.nrows();
         if t < 5 {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "Need at least 5 factor observations for VAR(1), got {t}"
             )));
         }
@@ -290,9 +292,9 @@ impl DieboldLi {
         // OLS: [c, Phi'] = (Z'Z)^{-1} Z'Y  =>  B = (Z'Z)^{-1} Z'Y  (4 x 3)
         let zt = z_mat.transpose();
         let ztz = &zt * &z_mat;
-        let chol = ztz
-            .cholesky()
-            .ok_or_else(|| crate::Error::Validation("VAR(1) design matrix is singular".into()))?;
+        let chol = ztz.cholesky().ok_or_else(|| {
+            finstack_quant_core::Error::Validation("VAR(1) design matrix is singular".into())
+        })?;
         let zty = &zt * &y_mat;
 
         // Solve column-by-column
@@ -344,26 +346,25 @@ impl DieboldLi {
     /// # Errors
     /// - VAR not yet fitted
     /// - horizon == 0
-    pub fn forecast(&self, horizon: usize) -> crate::Result<YieldForecast> {
+    pub fn forecast(&self, horizon: usize) -> finstack_quant_core::Result<YieldForecast> {
         if horizon == 0 {
-            return Err(crate::Error::Validation(
+            return Err(finstack_quant_core::Error::Validation(
                 "Forecast horizon must be >= 1".into(),
             ));
         }
 
         let mu = self.mu.as_ref().ok_or_else(|| {
-            crate::Error::Validation("VAR not fitted -- call fit_var first".into())
+            finstack_quant_core::Error::Validation("VAR not fitted -- call fit_var first".into())
         })?;
         let phi = self.phi.as_ref().ok_or_else(|| {
-            crate::Error::Validation("VAR not fitted -- call fit_var first".into())
+            finstack_quant_core::Error::Validation("VAR not fitted -- call fit_var first".into())
         })?;
         let q = self.q_cov.as_ref().ok_or_else(|| {
-            crate::Error::Validation("VAR not fitted -- call fit_var first".into())
+            finstack_quant_core::Error::Validation("VAR not fitted -- call fit_var first".into())
         })?;
-        let fts = self
-            .factors
-            .as_ref()
-            .ok_or_else(|| crate::Error::Validation("Factors not extracted".into()))?;
+        let fts = self.factors.as_ref().ok_or_else(|| {
+            finstack_quant_core::Error::Validation("Factors not extracted".into())
+        })?;
 
         let t = fts.factors.nrows();
         // Last observed factor vector
@@ -470,11 +471,13 @@ impl DieboldLi {
     /// this conversion.
     pub fn to_parametric_curve(
         &self,
-        id: impl Into<crate::types::CurveId>,
-        base_date: crate::dates::Date,
+        id: impl Into<finstack_quant_core::types::CurveId>,
+        base_date: finstack_quant_core::dates::Date,
         forecast: &YieldForecast,
-    ) -> crate::Result<crate::market_data::term_structures::ParametricCurve> {
-        use crate::market_data::term_structures::NelsonSiegelModel;
+    ) -> finstack_quant_core::Result<
+        finstack_quant_core::market_data::term_structures::ParametricCurve,
+    > {
+        use finstack_quant_core::market_data::term_structures::NelsonSiegelModel;
 
         // The forecast factors are already NS parameters; tau = 1/lambda
         let model = NelsonSiegelModel::Ns {
@@ -484,7 +487,7 @@ impl DieboldLi {
             tau: 1.0 / self.lambda,
         };
 
-        crate::market_data::term_structures::ParametricCurve::builder(id)
+        finstack_quant_core::market_data::term_structures::ParametricCurve::builder(id)
             .base_date(base_date)
             .model(model)
             .build()
@@ -556,7 +559,7 @@ pub(crate) fn ns_loading_matrix(lambda: f64, tenors: &[f64]) -> DMatrix<f64> {
 ///
 /// # Errors
 ///
-/// Returns [`crate::Error::Validation`] if `lambda` is not finite and strictly
+/// Returns [`finstack_quant_core::Error::Validation`] if `lambda` is not finite and strictly
 /// positive, if any factor is not finite, or if any tenor is not finite or is
 /// negative.
 ///
@@ -574,7 +577,7 @@ pub(crate) fn ns_loading_matrix(lambda: f64, tenors: &[f64]) -> DMatrix<f64> {
 /// # Examples
 ///
 /// ```
-/// use finstack_quant_core::market_data::dtsm::nelson_siegel_yields;
+/// use finstack_quant_models::rates::dtsm::nelson_siegel_yields;
 ///
 /// // Level 6%, slope -2%, curvature +1% with the years-convention default lambda.
 /// let ys = nelson_siegel_yields(0.7308, [0.06, -0.02, 0.01], &[0.0, 1.0, 30.0])
@@ -597,22 +600,22 @@ pub fn nelson_siegel_yields(
     lambda: f64,
     factors: [f64; 3],
     tenors: &[f64],
-) -> crate::Result<Vec<f64>> {
+) -> finstack_quant_core::Result<Vec<f64>> {
     if !lambda.is_finite() || lambda <= 0.0 {
-        return Err(crate::Error::Validation(format!(
+        return Err(finstack_quant_core::Error::Validation(format!(
             "Nelson-Siegel lambda must be finite and positive, got {lambda}"
         )));
     }
     for (i, &beta) in factors.iter().enumerate() {
         if !beta.is_finite() {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "Nelson-Siegel factor {i} must be finite, got {beta}"
             )));
         }
     }
     for (i, &tau) in tenors.iter().enumerate() {
         if !tau.is_finite() || tau < 0.0 {
-            return Err(crate::Error::Validation(format!(
+            return Err(finstack_quant_core::Error::Validation(format!(
                 "Nelson-Siegel tenor {i} must be finite and non-negative (years), got {tau}"
             )));
         }
@@ -876,7 +879,8 @@ mod tests {
 
         let fc = model.forecast(1).unwrap();
         let base_date =
-            crate::dates::Date::from_calendar_date(2025, time::Month::January, 1).unwrap();
+            finstack_quant_core::dates::Date::from_calendar_date(2025, time::Month::January, 1)
+                .unwrap();
         let curve = model
             .to_parametric_curve("USD-FORECAST", base_date, &fc)
             .unwrap();

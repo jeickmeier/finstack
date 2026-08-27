@@ -137,7 +137,7 @@ Deep dives:
   adjustment, schedule building.
 - `market_data/` (10): discount, forward, hazard, inflation, price and
   volatility-index curves; FX matrix; volatility surfaces; SABR smiles and
-  calibration; dynamic term structure (`core.market_data.dtsm`).
+  calibration; dynamic term structure (`models.rates.dtsm`).
 
 ## Level 2 — Instrument pricing (`02_pricing/`)
 

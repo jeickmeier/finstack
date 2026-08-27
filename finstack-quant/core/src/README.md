@@ -111,7 +111,6 @@ not duplication.
 | `distributions.rs` | `binomial_pmf_all`, `binomial_probability`, `chi_squared_quantile`, `log_factorial` | |
 | `probability.rs` | `CorrelatedBernoulli`, `correlation_bounds`, `joint_probabilities` | |
 | `volatility/` | See below | |
-| `characteristic_function/` | `CharacteristicFunction` trait, `Cumulants`, `cumulants_from_cf`, `LogForwardCf`; `BlackScholesCf`, `MertonJumpCf`, `VarianceGammaCf` | The three model files are private `mod`s |
 | `compounding.rs` | `Compounding` conversions between simple, periodic, and continuous | |
 | `time_grid.rs` | `TimeGrid`, `TimeGridError`, `map_date_to_step`, `map_dates_to_steps`, `map_exercise_dates_to_steps` | |
 | `piecewise.rs` | `PiecewiseConstantCurve` — validated left-continuous piecewise-constant curve | |
@@ -144,7 +143,6 @@ and `svi` are `pub mod` and reached by their own path.
 | `fixings.rs` | The `FIXING:{forward_curve_id}` lookup convention over `ScalarTimeSeries` in a `MarketContext` | `pub mod` |
 | `hierarchy/` | `builder.rs`, `completeness.rs`, `resolution.rs` — tagged tree over `CurveId`s for scenario targeting | All private `mod`s |
 | `arbitrage/` | `types.rs` plus `checks/` (`butterfly`, `calendar_spread`, `local_vol_density`, `svi`) | `checks` and `types` are `pub mod`, and each check file is `pub mod` |
-| `dtsm/` | `diebold_li.rs`, `pca.rs`, `types.rs` | All three `pub mod` |
 
 <a name="dates"></a>
 

@@ -13,7 +13,7 @@
 //!
 
 use super::FourierError;
-use finstack_quant_core::math::characteristic_function::{
+use crate::fourier::characteristic_function::{
     BlackScholesCf, CharacteristicFunction, MertonJumpCf, VarianceGammaCf,
 };
 use finstack_quant_core::math::NeumaierAccumulator;
@@ -556,7 +556,7 @@ const DEGENERATE_CUMULANT_RADICAND: f64 = 1e-12;
 /// mis-pricing such an input rather than rejecting it; this returns an
 /// explicit error instead.
 fn truncation_range(
-    c: &finstack_quant_core::math::characteristic_function::Cumulants,
+    c: &crate::fourier::characteristic_function::Cumulants,
     l: f64,
 ) -> std::result::Result<(f64, f64), FourierError> {
     let radicand = c.c2 + c.c4.abs().sqrt();
@@ -605,9 +605,7 @@ fn psi_k(k: usize, a: f64, b: f64, c: f64, d: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use finstack_quant_core::math::characteristic_function::{
-        BlackScholesCf, Cumulants, MertonJumpCf,
-    };
+    use crate::fourier::characteristic_function::{BlackScholesCf, Cumulants, MertonJumpCf};
 
     /// Test CF whose `cf` evaluation returns a non-finite value.
     ///
@@ -787,7 +785,7 @@ mod tests {
     #[test]
     fn cos_variance_gamma_prices_are_positive(
     ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        use finstack_quant_core::math::characteristic_function::VarianceGammaCf;
+        use crate::fourier::characteristic_function::VarianceGammaCf;
         let vg = VarianceGammaCf {
             r: 0.05,
             q: 0.0,
@@ -847,7 +845,7 @@ mod tests {
 
     #[test]
     fn cos_merton_prices_are_reasonable() -> std::result::Result<(), Box<dyn std::error::Error>> {
-        use finstack_quant_core::math::characteristic_function::MertonJumpCf;
+        use crate::fourier::characteristic_function::MertonJumpCf;
         let merton = MertonJumpCf {
             r: 0.05,
             q: 0.0,

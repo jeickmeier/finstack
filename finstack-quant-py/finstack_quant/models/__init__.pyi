@@ -1,7 +1,7 @@
 """Reusable analytical, numerical, volatility, Fourier, and stochastic models.
 
 The root namespace contains model-family functions and classes. Correlation,
-credit, and Monte Carlo APIs are grouped under the matching submodules.
+credit, Monte Carlo, and rates APIs are grouped under the matching submodules.
 
 Examples
 --------
@@ -1293,6 +1293,7 @@ from typing import Any, Optional
 from finstack_quant.models import correlation as correlation
 from finstack_quant.models import credit as credit
 from finstack_quant.models import monte_carlo as monte_carlo
+from finstack_quant.models import rates as rates
 
 __all__ = [
     "SabrCalibrator",
@@ -1312,6 +1313,7 @@ __all__ = [
     "merton_jump_cos_price",
     "monte_carlo",
     "quanto_option_price",
+    "rates",
     "vanilla_expiry_payoff",
     "vg_cos_price",
 ]

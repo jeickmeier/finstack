@@ -1030,7 +1030,7 @@ def test_core_market_data_public_matches_contract() -> None:
 
 @pytest.mark.parametrize(
     "submodule_name",
-    ["curves", "fx", "context", "scalars", "dtsm", "arbitrage"],
+    ["curves", "fx", "context", "scalars", "arbitrage"],
 )
 def test_core_market_data_submodule_stubs_match_runtime(submodule_name: str) -> None:
     """Each runtime market-data submodule must have an exact stub ``__all__``."""
@@ -1090,6 +1090,8 @@ def test_valuations_instruments_public_matches_contract() -> None:
         ("models", "credit"),
         ("models", "correlation"),
         ("models", "monte_carlo"),
+        ("models", "rates"),
+        ("models", "rates", "dtsm"),
     ],
 )
 def test_models_nested_public_matches_contract(contract_path: tuple[str, ...]) -> None:
@@ -1106,6 +1108,24 @@ def test_models_nested_public_matches_contract(contract_path: tuple[str, ...]) -
     )
     for name in expected:
         assert hasattr(module, name), f"{block['python_package']} does not expose `{name}`"
+
+
+def test_dtsm_removed_from_core_market_data() -> None:
+    """DTSM must have one canonical host path under models."""
+    core_market_data = importlib.import_module("finstack_quant.core.market_data")
+    assert not hasattr(core_market_data, "dtsm")
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("finstack_quant.core.market_data.dtsm")
+
+
+def test_wasm_models_rates_dtsm_map_matches_leaf_facade() -> None:
+    """The moved DTSM triplet must resolve in Python and the WASM leaf facade."""
+    mapping = CONTRACT["wasm_models_subset"]["rates_dtsm_python_js_map"]
+    python_module = importlib.import_module("finstack_quant.models.rates.dtsm")
+    assert not [name for name in mapping if not hasattr(python_module, name)]
+
+    leaf = CONTRACT_PATH.parent.parent / "finstack-quant-wasm" / "exports" / "models" / "rates" / "dtsm.js"
+    assert _parse_exported_const_object_keys(leaf, "dtsm") == set(mapping.values())
 
 
 def test_models_correlation_member_pins_resolve_in_both_hosts() -> None:

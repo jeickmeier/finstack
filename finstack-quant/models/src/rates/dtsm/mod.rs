@@ -11,7 +11,7 @@
 //!
 //! # Architecture
 //!
-//! Both models operate on a [`YieldPanel`][crate::market_data::dtsm::YieldPanel]
+//! Both models operate on a [`YieldPanel`][crate::rates::dtsm::YieldPanel]
 //! -- a matrix of yield observations across dates and tenors. The Diebold-Li
 //! model extracts interpretable Nelson-Siegel factors (level, slope, curvature)
 //! and models their dynamics. PCA provides a purely statistical decomposition of
@@ -20,7 +20,7 @@
 //! # Quick Start
 //!
 //! ```rust
-//! use finstack_quant_core::market_data::dtsm::{DieboldLi, YieldPca, YieldPanel};
+//! use finstack_quant_models::rates::dtsm::{DieboldLi, YieldPca, YieldPanel};
 //! use nalgebra::DMatrix;
 //!
 //! // Build a yield panel with time-varying NS-shaped curves.

@@ -13,7 +13,7 @@ form (e.g. ``0.045`` for 4.5%). Tenors are in years unless you also rescale
 
 Examples
 --------
->>> from finstack_quant.core.market_data.dtsm import nelson_siegel_yields
+>>> from finstack_quant.models.rates.dtsm import nelson_siegel_yields
 >>> len(nelson_siegel_yields(0.7308, (0.03, -0.01, 0.005), [1.0, 5.0, 10.0]))
 3
 
@@ -74,7 +74,7 @@ def diebold_li_fit_factors(
 
     Examples
     --------
-    >>> from finstack_quant.core.market_data.dtsm import diebold_li_fit_factors
+    >>> from finstack_quant.models.rates.dtsm import diebold_li_fit_factors
     >>> tenors = [1.0, 2.0, 5.0, 10.0]
     >>> yields = [[0.02, 0.025, 0.03, 0.035], [0.021, 0.026, 0.031, 0.036]]
     >>> len(diebold_li_fit_factors(tenors, yields)["beta1"])
@@ -132,7 +132,7 @@ def diebold_li_forecast(
 
     Examples
     --------
-    >>> from finstack_quant.core.market_data.dtsm import diebold_li_forecast
+    >>> from finstack_quant.models.rates.dtsm import diebold_li_forecast
     >>> tenors = [1.0, 2.0, 5.0, 10.0]
     >>> yields = [
     ...     [0.02, 0.025, 0.03, 0.035],
@@ -201,7 +201,7 @@ def nelson_siegel_yields(
 
     Examples
     --------
-    >>> from finstack_quant.core.market_data.dtsm import nelson_siegel_yields
+    >>> from finstack_quant.models.rates.dtsm import nelson_siegel_yields
     >>> len(nelson_siegel_yields(0.7308, (0.03, -0.01, 0.005), [1.0, 5.0, 10.0]))
     3
 
@@ -236,7 +236,7 @@ def yield_pca_fit(
 
     Examples
     --------
-    >>> from finstack_quant.core.market_data.dtsm import yield_pca_fit
+    >>> from finstack_quant.models.rates.dtsm import yield_pca_fit
     >>> changes = [[0.001, 0.002, 0.003], [0.002, 0.001, 0.002], [-0.001, 0.0, 0.001]]
     >>> len(yield_pca_fit(changes, 2)["eigenvalues"])
     2
@@ -278,7 +278,7 @@ def yield_pca_scenario(
 
     Examples
     --------
-    >>> from finstack_quant.core.market_data.dtsm import yield_pca_scenario
+    >>> from finstack_quant.models.rates.dtsm import yield_pca_scenario
     >>> changes = [[0.001, 0.002, 0.003], [0.002, 0.001, 0.002], [-0.001, 0.0, 0.001]]
     >>> len(yield_pca_scenario(changes, 0, 1.0, 2))
     3

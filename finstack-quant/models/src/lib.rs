@@ -27,6 +27,8 @@
 //!
 //! - `closed_form`: Closed-form and semi-analytical pricing formulas (Black-Scholes Greeks,
 //!   Asian, Barrier, Lookback, Quanto, Heston)
+//! - `fourier`: Characteristic functions and COS-method pricing engines
+//! - `rates`: Interest-rate models and dynamic term-structure engines
 //! - `volatility`: Volatility models (SABR) and Black-Scholes helper functions
 //! - `trees`: Tree-based methods (Binomial, Trinomial, Multi-factor, Short-rate)
 //! - `pde`: Finite difference PDE methods (1D Crank-Nicolson, 2D Craig-Sneyd ADI, Heston, American penalty)
@@ -41,6 +43,7 @@ pub mod credit;
 pub mod fourier;
 pub mod monte_carlo;
 pub mod pde;
+pub mod rates;
 pub mod trees;
 pub mod types;
 pub mod volatility;

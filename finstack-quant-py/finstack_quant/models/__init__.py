@@ -15,6 +15,7 @@ from finstack_quant.models import (
     correlation as correlation,
     credit as credit,
     monte_carlo as monte_carlo,
+    rates as rates,
 )
 
 SabrParameters = _models.SabrParameters
@@ -52,6 +53,7 @@ __all__: list[str] = [
     "merton_jump_cos_price",
     "monte_carlo",
     "quanto_option_price",
+    "rates",
     "vanilla_expiry_payoff",
     "vg_cos_price",
 ]

@@ -39,7 +39,6 @@ from finstack_quant.core.money import Money
 from finstack_quant.core.market_data import arbitrage as arbitrage
 from finstack_quant.core.market_data import context as context
 from finstack_quant.core.market_data import curves as curves
-from finstack_quant.core.market_data import dtsm as dtsm
 from finstack_quant.core.market_data import fx as fx
 from finstack_quant.core.market_data import scalars as scalars
 
@@ -66,7 +65,6 @@ __all__ = [
     "arbitrage",
     "context",
     "curves",
-    "dtsm",
     "fx",
     "fx_market_pair",
     "fx_pair_convention",
