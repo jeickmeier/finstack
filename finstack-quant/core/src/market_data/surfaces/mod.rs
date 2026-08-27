@@ -6,10 +6,9 @@
 //!
 //! # Surface Types
 //!
-//! - `VolSurface`: Implied volatility by strike and maturity (bilinear interpolation)
-//! - `FxDeltaVolSurface`: FX smile representation quoted in delta space; each
-//!   expiry's smile is built independently from its own pillar strikes
-//!   (derived from that expiry's forward) and queried via `implied_vol`
+//! - `VolSurface`: Observed implied volatility by strike and maturity
+//! - `VolCube`: SABR parameter and forward nodes by expiry and tenor
+//! - `FxDeltaVolSurface`: FX smile quotes in delta space
 //! - `FxDeltaVolSurfaceBuilder`: Builder for market-standard FX ATM / risk-reversal
 //!   / butterfly inputs, materializing a strike-based `VolSurface` that samples
 //!   each expiry's own smile on the union of all pillar strikes
@@ -53,38 +52,9 @@
 
 mod delta_vol_surface;
 pub mod fx_delta_vol_surface;
+mod sabr_parameter_data;
 mod vol_cube;
 mod vol_surface;
-
-/// Minimum vol substituted when a SABR expansion yields a non-finite or
-/// non-positive value (degenerate parameters or extreme strikes).
-pub(crate) const SABR_VOL_FLOOR: f64 = 0.001;
-
-/// Floor a SABR-expanded vol at [`SABR_VOL_FLOOR`], counting replacements so
-/// callers can emit one aggregated warning via [`warn_sabr_vol_floored`].
-#[inline]
-pub(crate) fn floor_sabr_vol(v: f64, floored: &mut usize) -> f64 {
-    if v.is_finite() && v > 0.0 {
-        v
-    } else {
-        *floored += 1;
-        SABR_VOL_FLOOR
-    }
-}
-
-/// Emit a single aggregated warning when SABR expansion vols were floored.
-#[inline]
-pub(crate) fn warn_sabr_vol_floored(context: &str, id: &crate::types::CurveId, floored: usize) {
-    if floored > 0 {
-        tracing::warn!(
-            vol_surface_id = %id,
-            count = floored,
-            floor = SABR_VOL_FLOOR,
-            context = context,
-            "SABR expansion produced non-finite or non-positive vols; floored to minimum"
-        );
-    }
-}
 
 /// Recover 25d/10d wing vols from ATM/RR/BF quotes, treating BF as a
 /// **smile (broker) strangle**: `sigma_wing = ATM + BF ± RR/2` exactly.
@@ -145,10 +115,9 @@ pub(crate) fn fx_put_call_25d_strikes(
 /// 3-point (25Δ put, ATM DNS, 25Δ call) or 5-point (plus 10Δ wings) smile.
 ///
 /// This is the canonical per-expiry smile representation shared by
-/// [`FxDeltaVolSurface::implied_vol`](fx_delta_vol_surface::FxDeltaVolSurface::implied_vol)
-/// (the query path) and [`FxDeltaVolSurfaceBuilder`] (the rectangular
-/// materialization). Each expiry's strikes are derived from *that expiry's*
-/// forward and vol scale; no strikes from other expiries are involved.
+/// [`FxDeltaVolSurfaceBuilder`] uses this representation when materializing a
+/// rectangular data artifact. Each expiry's strikes are derived from *that
+/// expiry's* forward and vol scale; no strikes from other expiries are involved.
 ///
 /// `wings_10d` carries `(rr_10d, bf_10d)` when 10-delta quotes are available.
 ///
@@ -215,6 +184,7 @@ pub(crate) fn interp_linear_clamp(xs: &[f64], ys: &[f64], x: f64) -> f64 {
 
 pub use delta_vol_surface::FxDeltaVolSurfaceBuilder;
 pub use fx_delta_vol_surface::FxDeltaVolSurface;
+pub use sabr_parameter_data::SabrParameterData;
 pub use vol_cube::{VolCube, VolCubeBuilder};
 pub use vol_surface::{
     VolGridOpts, VolInterpolationMode, VolQuoteType, VolSurface, VolSurfaceAxis, VolSurfaceBuilder,

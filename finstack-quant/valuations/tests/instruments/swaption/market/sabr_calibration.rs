@@ -1,7 +1,7 @@
 //! SABR calibration and smile tests
 
 use crate::swaption::common::*;
-use finstack_quant_valuations::instruments::rates::swaption::SABRParameters;
+use finstack_quant_models::volatility::SabrParameters;
 use finstack_quant_valuations::instruments::Instrument;
 
 #[test]
@@ -10,7 +10,7 @@ fn test_sabr_parameters_validation() {
     let market = create_flat_market(as_of, 0.05, 0.30);
 
     // Valid SABR parameters
-    let valid_params = SABRParameters {
+    let valid_params = SabrParameters {
         alpha: 0.20,
         beta: 0.5,
         rho: -0.3,
@@ -38,7 +38,7 @@ fn test_sabr_beta_range() {
     // be set to Normal — feeding a normal vol into the Black model is now a
     // hard error rather than a silent unit mismatch.
     for beta in [0.0, 0.5, 1.0] {
-        let params = SABRParameters {
+        let params = SabrParameters {
             alpha: if beta == 0.0 { 0.01 } else { 0.20 },
             beta,
             rho: 0.0,
@@ -68,7 +68,7 @@ fn test_sabr_rho_effect() {
     let market = create_flat_market(as_of, 0.05, 0.25);
 
     // Negative rho (typical for rates)
-    let params_neg = SABRParameters {
+    let params_neg = SabrParameters {
         alpha: 0.25,
         beta: 0.5,
         rho: -0.5,
@@ -77,7 +77,7 @@ fn test_sabr_rho_effect() {
     };
 
     // Positive rho
-    let params_pos = SABRParameters {
+    let params_pos = SabrParameters {
         alpha: 0.25,
         beta: 0.5,
         rho: 0.5,
@@ -107,7 +107,7 @@ fn test_sabr_nu_volatility_of_volatility() {
     let market = create_flat_market(as_of, 0.05, 0.25);
 
     // Low vol-of-vol
-    let params_low = SABRParameters {
+    let params_low = SabrParameters {
         alpha: 0.25,
         beta: 0.5,
         rho: -0.3,
@@ -116,7 +116,7 @@ fn test_sabr_nu_volatility_of_volatility() {
     };
 
     // High vol-of-vol
-    let params_high = SABRParameters {
+    let params_high = SabrParameters {
         alpha: 0.25,
         beta: 0.5,
         rho: -0.3,

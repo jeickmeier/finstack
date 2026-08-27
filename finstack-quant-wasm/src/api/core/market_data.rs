@@ -7,14 +7,14 @@ use crate::utils::{date_to_iso, parse_iso_date, to_js_err};
 use finstack_quant_core::currency::Currency as RustCurrency;
 use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::market_data::surfaces::{
-    FxDeltaVolSurface as RustFxDeltaVolSurface, VolCube as RustVolCube, VolInterpolationMode,
+    FxDeltaVolSurface as RustFxDeltaVolSurface, SabrParameterData, VolCube as RustVolCube,
+    VolInterpolationMode,
 };
 use finstack_quant_core::market_data::term_structures::{
     DiscountCurve as RustDiscountCurve, ForwardCurve as RustForwardCurve,
     HazardCurve as RustHazardCurve, ValidationMode,
 };
 use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
-use finstack_quant_core::math::volatility::sabr::SabrParams;
 use finstack_quant_core::money::fx::{
     fx_market_pair as rust_fx_market_pair, fx_pair_convention as rust_fx_pair_convention,
     fx_pip_size as rust_fx_pip_size, invert_fx_rate as rust_invert_fx_rate,
@@ -950,7 +950,7 @@ impl JsVolCube {
             let base = i * 5;
             let shift = params_flat[base + 4];
             let shift = if shift.is_nan() { None } else { Some(shift) };
-            let p = SabrParams::new_with_shift(
+            let p = SabrParameterData::new_with_shift(
                 params_flat[base],     // alpha
                 params_flat[base + 1], // beta
                 params_flat[base + 2], // rho
@@ -977,35 +977,6 @@ impl JsVolCube {
         })
     }
 
-    /// Implied volatility at `(expiry, tenor, strike)`.
-    ///
-    /// Returns `Err` if `expiry` or `tenor` falls outside the grid.
-    /// @param expiry - Time to option expiry in years on the model's annual time basis.
-    /// @param tenor - Underlying swap or index tenor measured in years for the quoted surface point.
-    /// @param strike - Option strike price in the same price units as the underlying.
-    ///
-    /// # Errors
-    ///
-    /// Throws a JavaScript exception if `expiry` or `tenor` is outside the cube
-    /// grid, `strike` is non-finite, the shifted-lognormal SABR domain is invalid,
-    /// or the interpolated volatility or total variance is non-finite or
-    /// non-positive.
-    pub fn vol(&self, expiry: f64, tenor: f64, strike: f64) -> Result<f64, JsValue> {
-        self.inner.vol(expiry, tenor, strike).map_err(to_js_err)
-    }
-
-    /// Implied volatility with clamped extrapolation.
-    ///
-    /// Clamps finite `expiry` and `tenor` values to the grid edges before
-    /// interpolation. Non-finite inputs return `NaN`.
-    /// @param expiry - Time to option expiry in years on the model's annual time basis.
-    /// @param tenor - Underlying swap or index tenor measured in years for the quoted surface point.
-    /// @param strike - Option strike price in the same price units as the underlying.
-    #[wasm_bindgen(js_name = volClamped)]
-    pub fn vol_clamped(&self, expiry: f64, tenor: f64, strike: f64) -> f64 {
-        self.inner.vol_clamped(expiry, tenor, strike)
-    }
-
     /// Interpolation contract used across the expiry axis.
     #[wasm_bindgen(getter, js_name = interpolationMode)]
     pub fn interpolation_mode(&self) -> String {
@@ -1014,43 +985,6 @@ impl JsVolCube {
             VolInterpolationMode::TotalVariance => "total_variance",
         }
         .to_string()
-    }
-
-    /// Normal (Bachelier) implied volatility at `(expiry, tenor, strike)`.
-    ///
-    /// The returned vol is in absolute rate units (e.g. `0.008` = 80 bp/yr
-    /// normal vol), the swaption market quoting convention.
-    ///
-    /// Returns `Err` if `expiry` or `tenor` falls outside the grid, if the
-    /// expansion yields a non-finite volatility, or for cross-zero quotes
-    /// (`(F+s)(K+s) <= 0`) with `beta > 0`, which require an explicit shift.
-    /// @param expiry - Time to option expiry in years on the model's annual time basis.
-    /// @param tenor - Underlying swap or index tenor measured in years for the quoted surface point.
-    /// @param strike - Option strike price in the same price units as the underlying.
-    ///
-    /// # Errors
-    ///
-    /// Throws a JavaScript exception if `expiry` or `tenor` is outside the cube
-    /// grid, `strike` is non-finite, the SABR expansion is non-finite, total
-    /// variance is invalid, or an unshifted positive-beta quote crosses zero.
-    #[wasm_bindgen(js_name = volNormal)]
-    pub fn vol_normal(&self, expiry: f64, tenor: f64, strike: f64) -> Result<f64, JsValue> {
-        self.inner
-            .vol_normal(expiry, tenor, strike)
-            .map_err(to_js_err)
-    }
-
-    /// Normal (Bachelier) implied volatility with clamped extrapolation.
-    ///
-    /// Clamps finite `expiry` and `tenor` values to the grid edges; a
-    /// degenerate finite expansion is floored to a small positive normal vol
-    /// (absolute rate units). Non-finite inputs return `NaN`.
-    /// @param expiry - Time to option expiry in years on the model's annual time basis.
-    /// @param tenor - Underlying swap or index tenor measured in years for the quoted surface point.
-    /// @param strike - Option strike price in the same price units as the underlying.
-    #[wasm_bindgen(js_name = volNormalClamped)]
-    pub fn vol_normal_clamped(&self, expiry: f64, tenor: f64, strike: f64) -> f64 {
-        self.inner.vol_normal_clamped(expiry, tenor, strike)
     }
 
     /// Cube identifier.
@@ -1150,63 +1084,6 @@ impl JsFxDeltaVolSurface {
     #[wasm_bindgen(getter, js_name = numExpiries)]
     pub fn num_expiries(&self) -> usize {
         self.inner.num_expiries()
-    }
-
-    /// Pillar vols at the given expiry index as `[atm, put25d_vol, call25d_vol]`.
-    /// @param expiry_idx - Zero-based index of the requested expiry pillar in the volatility surface.
-    ///
-    /// # Errors
-    ///
-    /// Throws a JavaScript exception if `expiryIdx` is outside the surface's
-    /// expiry axis.
-    #[wasm_bindgen(js_name = pillarVols)]
-    pub fn pillar_vols(&self, expiry_idx: usize) -> Result<Box<[f64]>, JsValue> {
-        if expiry_idx >= self.inner.num_expiries() {
-            return Err(to_js_err(format!(
-                "expiry_idx {} out of range (num_expiries={})",
-                expiry_idx,
-                self.inner.num_expiries()
-            )));
-        }
-        let (atm, p, c) = self.inner.pillar_vols(expiry_idx);
-        Ok(Box::new([atm, p, c]))
-    }
-
-    /// Implied vol at `(expiry, strike)` for the supplied forward.
-    /// @param expiry - Time to option expiry in years on the model's annual time basis.
-    /// @param strike - Option strike price in the same price units as the underlying.
-    /// @param forward - Forward price or rate in the same quote convention as the strike.
-    ///
-    /// # Errors
-    ///
-    /// Throws a JavaScript exception if `expiry`, `strike`, or `forward` is not
-    /// finite and strictly positive, a quoted wing implies a non-positive
-    /// volatility, or the delta-space smile cannot be constructed.
-    #[wasm_bindgen(js_name = impliedVol)]
-    pub fn implied_vol(&self, expiry: f64, strike: f64, forward: f64) -> Result<f64, JsValue> {
-        self.inner
-            .implied_vol(expiry, strike, forward)
-            .map_err(to_js_err)
-    }
-
-    /// Convert a forward delta to a strike (Garman-Kohlhagen, premium-unadjusted).
-    /// @param delta - Option delta expressed under the surface's documented delta convention.
-    /// @param forward - Forward price or rate in the same quote convention as the strike.
-    /// @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-    /// @param expiry - Time to option expiry in years on the model's annual time basis.
-    #[wasm_bindgen(js_name = deltaToStrike)]
-    pub fn delta_to_strike(delta: f64, forward: f64, vol: f64, expiry: f64) -> f64 {
-        RustFxDeltaVolSurface::delta_to_strike(delta, forward, vol, expiry)
-    }
-
-    /// Convert a strike to forward delta (Garman-Kohlhagen call delta).
-    /// @param strike - Option strike price in the same price units as the underlying.
-    /// @param forward - Forward price or rate in the same quote convention as the strike.
-    /// @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-    /// @param expiry - Time to option expiry in years on the model's annual time basis.
-    #[wasm_bindgen(js_name = strikeToDelta)]
-    pub fn strike_to_delta(strike: f64, forward: f64, vol: f64, expiry: f64) -> f64 {
-        RustFxDeltaVolSurface::strike_to_delta(strike, forward, vol, expiry)
     }
 }
 

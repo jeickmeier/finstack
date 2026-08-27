@@ -5,8 +5,8 @@
 
 use crate::calibration::validation::ValidationConfig;
 use finstack_quant_core::market_data::surfaces::VolSurface;
-use finstack_quant_core::math::volatility::black_call;
 use finstack_quant_core::{Error, Result};
+use finstack_quant_models::closed_form::black_call;
 
 /// Validate all volatility-surface constraints.
 ///
@@ -115,8 +115,8 @@ pub fn validate_calendar_spread_with_forwards(
             if strike_prev < k_min || strike_prev > k_max {
                 continue;
             }
-            let v1 = surface.value_checked(t1, strike_prev)?;
-            let v2 = surface.value_checked(t2, strike)?;
+            let v1 = finstack_quant_models::volatility::get_surface_vol(surface, t1, strike_prev)?;
+            let v2 = finstack_quant_models::volatility::get_surface_vol(surface, t2, strike)?;
             let w1 = v1 * v1 * t1;
             let w2 = v2 * v2 * t2;
             if w2 < w1 - config.tolerance {
@@ -204,7 +204,7 @@ pub fn validate_butterfly_call_convexity(
                 Ok(black_call(
                     fwd,
                     k,
-                    surface.value_checked(expiry, k)?,
+                    finstack_quant_models::volatility::get_surface_vol(surface, expiry, k)?,
                     expiry,
                 ))
             })
@@ -294,7 +294,7 @@ pub fn validate_calendar_spread(surface: &VolSurface, config: &ValidationConfig)
         let mut prev_expiry = 0.0_f64;
 
         for &expiry in expiries {
-            let vol = surface.value_checked(expiry, *strike)?;
+            let vol = finstack_quant_models::volatility::get_surface_vol(surface, expiry, *strike)?;
             let total_var = vol * vol * expiry; // σ²T
 
             // Check monotonicity of total variance
@@ -385,9 +385,9 @@ pub fn validate_butterfly_spread(surface: &VolSurface, config: &ValidationConfig
             let k2 = strikes[i];
             let k3 = strikes[i + 1];
 
-            let v1 = surface.value_checked(expiry, k1)?;
-            let v2 = surface.value_checked(expiry, k2)?;
-            let v3 = surface.value_checked(expiry, k3)?;
+            let v1 = finstack_quant_models::volatility::get_surface_vol(surface, expiry, k1)?;
+            let v2 = finstack_quant_models::volatility::get_surface_vol(surface, expiry, k2)?;
+            let v3 = finstack_quant_models::volatility::get_surface_vol(surface, expiry, k3)?;
 
             // Convert to total variance for proper arbitrage check
             let w1 = v1 * v1 * expiry;
@@ -472,7 +472,7 @@ pub fn validate_vol_bounds(surface: &VolSurface, config: &ValidationConfig) -> R
 
     for &expiry in expiries {
         for strike in strikes {
-            let vol = surface.value_checked(expiry, *strike)?;
+            let vol = finstack_quant_models::volatility::get_surface_vol(surface, expiry, *strike)?;
 
             // Volatility should be positive
             if vol <= 0.0 {

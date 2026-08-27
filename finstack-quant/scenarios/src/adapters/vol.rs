@@ -152,7 +152,11 @@ fn surface_grid(surface: &VolSurface) -> Result<Vec<Vec<f64>>> {
             surface
                 .strikes()
                 .iter()
-                .map(|&strike| Ok(surface.value_checked(expiry, strike)?))
+                .map(|&strike| {
+                    Ok(finstack_quant_models::volatility::get_surface_vol(
+                        surface, expiry, strike,
+                    )?)
+                })
                 .collect()
         })
         .collect()
@@ -453,8 +457,8 @@ mod tests {
         }
 
         let bumped = market.get_surface("VOL")?;
-        let v_05 = bumped.value_checked(0.5, 100.0)?;
-        let v_10 = bumped.value_checked(1.0, 100.0)?;
+        let v_05 = finstack_quant_models::volatility::get_surface_vol(&bumped, 0.5, 100.0)?;
+        let v_10 = finstack_quant_models::volatility::get_surface_vol(&bumped, 1.0, 100.0)?;
         assert!((v_05 - 0.22).abs() < 1e-10);
         assert!((v_10 - 0.242).abs() < 1e-10);
         Ok(())

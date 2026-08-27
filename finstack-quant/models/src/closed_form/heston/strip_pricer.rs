@@ -1,7 +1,7 @@
 use super::characteristic_fn::{heston_pj_characteristic_function, HestonCfStatus};
 use super::params::HESTON_TAIL_DIAGNOSTIC_THRESHOLD;
 use super::quadrature::{composite_gauss_legendre_grid, HESTON_TAIL_WINDOW_FRACTION};
-use super::{HestonFourierSettings, HestonParams};
+use super::{HestonFourierSettings, HestonPricingParams};
 use finstack_quant_core::{Error, Result};
 use num_complex::Complex;
 use std::f64::consts::PI;
@@ -16,7 +16,7 @@ use tracing::warn;
 pub struct HestonStripPricer {
     spot: f64,
     time: f64,
-    params: HestonParams,
+    params: HestonPricingParams,
     /// Composite quadrature grid as `(phi, weight)` pairs.
     grid: Vec<(f64, f64)>,
     /// Start of the tail window `u_max * (1 - HESTON_TAIL_WINDOW_FRACTION)`,
@@ -51,7 +51,7 @@ impl HestonStripPricer {
     pub fn new(
         spot: f64,
         time: f64,
-        params: &HestonParams,
+        params: &HestonPricingParams,
         settings: &HestonFourierSettings,
     ) -> Option<Self> {
         let grid =

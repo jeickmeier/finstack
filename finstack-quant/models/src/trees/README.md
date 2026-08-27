@@ -174,7 +174,7 @@ id is recorded so bumped repricing can find the same curve.
 **Volatility conventions differ by model** and are not interchangeable:
 Ho-Lee σ is absolute (50-150 bp, i.e. 0.005-0.015); BDT σ is proportional
 (15-30%, i.e. 0.15-0.30). Convert with
-`finstack_quant_core::math::volatility::convert_atm_volatility`.
+`finstack_quant_models::volatility::convert_atm_volatility`.
 
 **Node ordering differs by model.** Ho-Lee: node 0 is the *lowest* rate.
 BDT (κ = 0, binomial): node 0 is the *highest* rate (`α·u^(n-1)`).

@@ -1,6 +1,6 @@
 //! Rough Heston semi-analytical pricer via Fourier inversion.
 //!
-//! Uses the fractional Riccati solver from `finstack_quant_core::math::volatility::rough_heston`
+//! Uses the fractional Riccati solver from `finstack_quant_models::volatility::rough_heston`
 //! to price European equity options under the rough Heston model (El Euch & Rosenbaum 2019).
 //! Model parameters are sourced from required market scalars.
 
@@ -137,7 +137,7 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonFourierPricer {
             .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
 
         let params =
-            finstack_quant_core::math::volatility::rough_heston::RoughHestonFourierParams::new(
+            finstack_quant_models::volatility::rough_heston::RoughHestonFourierParams::new(
                 s.v0, s.kappa, s.theta, s.sigma_v, s.rho, s.hurst,
             )
             .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx))?;

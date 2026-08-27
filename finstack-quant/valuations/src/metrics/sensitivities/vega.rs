@@ -42,7 +42,9 @@ fn min_grid_vol(surface: &finstack_quant_core::market_data::surfaces::VolSurface
     let mut min_vol: Option<f64> = None;
     for &expiry in surface.expiries() {
         for &strike in surface.strikes() {
-            if let Ok(vol) = surface.value_checked(expiry, strike) {
+            if let Ok(vol) =
+                finstack_quant_models::volatility::get_surface_vol(surface, expiry, strike)
+            {
                 min_vol = Some(min_vol.map_or(vol, |m: f64| m.min(vol)));
             }
         }
@@ -326,9 +328,9 @@ mod tests {
             self.surface_terms
                 .iter()
                 .try_fold(0.0, |total, (vol_surface_id, coefficient)| {
-                    let vol = market
-                        .get_surface(vol_surface_id.as_str())?
-                        .value_checked(1.0, 100.0)?;
+                    let surface = market.get_surface(vol_surface_id.as_str())?;
+                    let vol =
+                        finstack_quant_models::volatility::get_surface_vol(&surface, 1.0, 100.0)?;
                     Ok(total + coefficient * vol)
                 })
         }

@@ -711,7 +711,7 @@ impl PySwaptionBuilder {
         mut slf: PyRefMut<'py, Self>,
         value: &str,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let sabr_params: finstack_quant_valuations::instruments::rates::swaption::SABRParameters =
+        let sabr_params: finstack_quant_models::volatility::SabrParameters =
             json_field(value, "sabr_params")?;
         let b = take_swaption(&mut slf)?;
         slf.inner = Some(b.sabr_params(sabr_params));

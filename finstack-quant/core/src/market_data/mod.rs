@@ -74,7 +74,6 @@
 ///
 /// Model-free checks (butterfly, calendar spread, local vol density)
 /// and SVI-specific checks (moment bounds, density, cross-slice).
-pub mod arbitrage;
 /// Bump functionality for scenario analysis and stress testing.
 pub mod bumps;
 /// Market data context with enum-based storage.

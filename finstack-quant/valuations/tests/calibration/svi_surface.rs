@@ -28,9 +28,9 @@
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
-use finstack_quant_core::math::volatility::svi::SviParams;
 use finstack_quant_core::types::UnderlyingId;
 use finstack_quant_core::HashMap;
+use finstack_quant_models::volatility::svi::SviParams;
 use finstack_quant_valuations::calibration::api::engine;
 use finstack_quant_valuations::calibration::api::schema::{
     CalibrationEnvelope, CalibrationPlan, CalibrationStep, StepParams, SviSurfaceParams,
@@ -234,8 +234,7 @@ fn svi_surface_grid_is_calendar_monotone_under_nonflat_curve() {
         let mut prev_w = f64::NEG_INFINITY;
         let mut prev_t = 0.0_f64;
         for &t in &target_expiries {
-            let vol = surface
-                .value_checked(t, strike)
+            let vol = finstack_quant_models::volatility::get_surface_vol(&surface, t, strike)
                 .unwrap_or_else(|e| panic!("surface lookup at (T={t}, K={strike}) failed: {e}"));
             assert!(
                 vol.is_finite() && vol > 0.0,

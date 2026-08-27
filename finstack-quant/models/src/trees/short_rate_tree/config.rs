@@ -197,7 +197,7 @@ pub enum ShortRateModel {
 /// | [`ShortRateModel::BlackDermanToy`] | Lognormal (relative) | 0.20 = 20%/yr |
 ///
 /// Use the helper constructors ([`ShortRateTreeConfig::ho_lee`], [`ShortRateTreeConfig::bdt`])
-/// or `finstack_quant_core::math::volatility::convert_atm_volatility` to avoid convention errors.
+/// or `crate::volatility::convert_atm_volatility` to avoid convention errors.
 ///
 /// # Examples
 ///
@@ -442,10 +442,10 @@ impl ShortRateTreeConfig {
             Ok(Self::ho_lee(steps, normal_vol))
         } else {
             // Positive rate environment: use BDT with converted vol
-            let lognormal_vol = finstack_quant_core::math::volatility::convert_atm_volatility(
+            let lognormal_vol = crate::volatility::convert_atm_volatility(
                 normal_vol,
-                finstack_quant_core::math::volatility::VolatilityConvention::Normal,
-                finstack_quant_core::math::volatility::VolatilityConvention::Lognormal,
+                crate::volatility::VolatilityConvention::Normal,
+                crate::volatility::VolatilityConvention::Lognormal,
                 rate_level,
                 1.0,
             )?;

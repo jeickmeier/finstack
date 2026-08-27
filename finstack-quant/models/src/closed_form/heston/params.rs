@@ -1,4 +1,6 @@
-use tracing::warn;
+use std::ops::Deref;
+
+use crate::volatility::heston::HestonParams;
 
 /// Default Heston parameters used when no market scalar is supplied.
 ///
@@ -28,30 +30,34 @@ pub mod heston_defaults {
 pub(super) const HESTON_TAIL_DIAGNOSTIC_THRESHOLD: f64 = 1e-4;
 
 #[derive(Debug, Clone, Copy)]
-/// Heston stochastic volatility model parameters.
+/// Market inputs for closed-form Heston pricing.
+///
+/// The stochastic parameters are stored once in the canonical models-layer
+/// [`HestonParams`]; this wrapper adds only the continuous carry rates required
+/// by risk-neutral pricing.
 ///
 /// # References
 ///
 /// - Heston, S. L. (1993). "A Closed-Form Solution for Options with Stochastic Volatility
 ///   with Applications to Bond and Currency Options." *Review of Financial Studies*, 6(2), 327-343. `docs/REFERENCES.md#heston-1993`
-pub struct HestonParams {
-    /// Risk-free interest rate
+pub struct HestonPricingParams {
+    /// Continuously compounded risk-free rate as an annual decimal.
     pub r: f64,
-    /// Continuous dividend yield
+    /// Continuously compounded dividend or foreign yield as an annual decimal.
     pub q: f64,
-    /// Mean reversion speed of variance
-    pub kappa: f64,
-    /// Long-run variance level
-    pub theta: f64,
-    /// Volatility of variance (vol-of-vol)
-    pub sigma_v: f64,
-    /// Correlation between asset price and variance
-    pub rho: f64,
-    /// Initial variance level
-    pub v0: f64,
+    /// Canonical Heston stochastic parameters.
+    pub model: HestonParams,
 }
 
-impl HestonParams {
+impl Deref for HestonPricingParams {
+    type Target = HestonParams;
+
+    fn deref(&self) -> &Self::Target {
+        &self.model
+    }
+}
+
+impl HestonPricingParams {
     /// Create new Heston model parameters
     ///
     /// # Arguments
@@ -61,7 +67,7 @@ impl HestonParams {
     /// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
     /// * `theta` - Long-run mean level of the mean-reverting stochastic factor
     /// * `sigma_v` - Volatility-of-variance parameter for the Heston-style variance process
-    /// * `rho` - Instantaneous correlation between Brownian drivers, in `[-1, 1]`
+    /// * `rho` - Instantaneous correlation between Brownian drivers, in `(-1, 1)`
     /// * `v0` - Initial variance level for the stochastic volatility process at time zero
     pub fn new(
         r: f64,
@@ -82,102 +88,26 @@ impl HestonParams {
                 "Heston parameter q (dividend yield) must be finite, got {q}"
             )));
         }
-        if kappa <= 0.0 || !kappa.is_finite() {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Heston parameter kappa (mean reversion) must be positive, got {kappa}"
-            )));
-        }
-        if theta <= 0.0 || !theta.is_finite() {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Heston parameter theta (long-run variance) must be positive, got {theta}"
-            )));
-        }
-        if sigma_v <= 0.0 || !sigma_v.is_finite() {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Heston parameter sigma_v (vol-of-vol) must be positive, got {sigma_v}"
-            )));
-        }
-        if rho <= -1.0 || rho >= 1.0 || !rho.is_finite() {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Heston parameter rho (correlation) must be in (-1, 1), got {rho}"
-            )));
-        }
-        if v0 <= 0.0 || !v0.is_finite() {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Heston parameter v0 (initial variance) must be positive, got {v0}"
-            )));
-        }
-
-        let params = Self {
+        Ok(Self {
             r,
             q,
-            kappa,
-            theta,
-            sigma_v,
-            rho,
-            v0,
-        };
-
-        if 2.0 * params.kappa * params.theta <= params.sigma_v * params.sigma_v {
-            warn!(
-                r = params.r,
-                q = params.q,
-                kappa = params.kappa,
-                theta = params.theta,
-                sigma_v = params.sigma_v,
-                rho = params.rho,
-                v0 = params.v0,
-                "Heston Feller condition violated (2κθ ≤ σ²): informational only — the \
-                 Fourier pricer never simulates the variance path, so this poses no \
-                 zero-variance pricing risk; relevant only for Monte Carlo simulation \
-                 of the variance process"
-            );
-        }
-
-        Ok(params)
-    }
-
-    /// Deterministic average variance over `[0, t]`:
-    ///
-    /// ```text
-    /// v̄(t) = θ + (v₀ − θ)·(1 − e^{−κt}) / (κt)
-    /// ```
-    ///
-    /// the time-average of the variance ODE `E[v_s] = θ + (v₀−θ)e^{−κs}`.
-    /// This is the correct effective variance for a Black-Scholes proxy of a
-    /// maturity-`t` option: using `v₀` ignores the mean reversion toward `θ`
-    /// and badly mis-states long-dated fallback prices when `v₀ ≠ θ`.
-    ///
-    /// Uses a Taylor branch for `κt → 0` where the closed form is `0/0`
-    /// (`(1 − e^{−x})/x = 1 − x/2 + x²/6 − …`). For `t ≤ 0` it returns `v₀`.
-    #[must_use]
-    pub fn deterministic_avg_variance(&self, t: f64) -> f64 {
-        if t <= 0.0 {
-            return self.v0;
-        }
-        let kt = self.kappa * t;
-        let decay_avg = if kt.abs() < 1e-6 {
-            1.0 - 0.5 * kt + kt * kt / 6.0
-        } else {
-            (1.0 - (-kt).exp()) / kt
-        };
-        self.theta + (self.v0 - self.theta) * decay_avg
+            model: HestonParams::new(v0, kappa, theta, sigma_v, rho)?,
+        })
     }
 }
 
 /// Convert Monte Carlo Heston parameters into closed-form Fourier parameters.
 ///
 /// This is a [`TryFrom`] (not `From`) because the conversion must re-run
-/// [`HestonParams::new`] validation: the Monte Carlo `HestonParams` accepts a
-/// correlation `ρ ∈ [-1, 1]` (inclusive), whereas the closed-form Fourier
-/// pricer requires `ρ ∈ (-1, 1)` (exclusive). A plain `From` impl bypassed all
-/// validation and could fabricate a closed-form parameter set the Fourier
-/// pricer cannot handle.
-impl TryFrom<finstack_quant_models::monte_carlo::process::heston::HestonParams> for HestonParams {
+/// [`HestonPricingParams::new`] validation for the carry rates and canonical
+/// stochastic parameters.
+impl TryFrom<finstack_quant_models::monte_carlo::process::heston::HestonProcessParams>
+    for HestonPricingParams
+{
     type Error = finstack_quant_core::Error;
 
     fn try_from(
-        value: finstack_quant_models::monte_carlo::process::heston::HestonParams,
+        value: finstack_quant_models::monte_carlo::process::heston::HestonProcessParams,
     ) -> finstack_quant_core::Result<Self> {
         Self::new(
             value.r,

@@ -864,12 +864,12 @@ mod tests {
     pub(crate) fn cms_spread_market_context_json() -> String {
         use finstack_quant_core::dates::DayCount;
         use finstack_quant_core::market_data::context::MarketContext;
-        use finstack_quant_core::market_data::surfaces::VolCube;
+        use finstack_quant_core::market_data::surfaces::{SabrParameterData, VolCube};
         use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
-        use finstack_quant_core::math::volatility::sabr::SabrParams;
 
         fn sabr_cube(id: &str, alpha: f64, forward: f64) -> VolCube {
-            let params = SabrParams::new(alpha, 0.5, -0.20, 0.40).expect("valid SABR params");
+            let params =
+                SabrParameterData::new(alpha, 0.5, -0.20, 0.40).expect("valid SABR params");
             VolCube::builder(id)
                 .expiries(&[0.25, 1.0, 5.0])
                 .tenors(&[2.0, 10.0])

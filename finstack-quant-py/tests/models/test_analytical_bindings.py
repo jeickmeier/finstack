@@ -13,10 +13,6 @@ from __future__ import annotations
 import pytest
 
 from finstack_quant.models import (
-    SabrCalibrator,
-    SabrModel,
-    SabrParameters,
-    SabrSmile,
     asian_option_price,
     barrier_call,
     black76_implied_vol,
@@ -28,6 +24,7 @@ from finstack_quant.models import (
     vanilla_expiry_payoff,
 )
 from finstack_quant.models.correlation import nearest_correlation
+from finstack_quant.models.volatility import SabrCalibrator, SabrModel, SabrParameters, SabrSmile
 
 # B1 — Black-Scholes / Black-76 primitives
 

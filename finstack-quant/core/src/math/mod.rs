@@ -185,7 +185,6 @@ pub mod special_functions;
 pub mod stats;
 pub mod summation;
 pub mod time_grid;
-pub mod volatility;
 
 pub use compounding::Compounding;
 pub use consecutive::{count_consecutive, longest_positive_run};

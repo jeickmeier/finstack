@@ -7,6 +7,13 @@ import math
 import pytest
 
 from finstack_quant.core.market_data import FxDeltaVolSurface, MarketContext, VolSurface
+from finstack_quant.models.volatility import (
+    delta_to_strike,
+    get_fx_delta_pillar_vols,
+    get_fx_delta_vol,
+    materialize_fx_delta_surface,
+    strike_to_delta,
+)
 
 
 def _example_surface(*, with_10d: bool = False) -> FxDeltaVolSurface:
@@ -32,17 +39,17 @@ def test_construction_and_accessors() -> None:
     assert surface.id == "EURUSD-DELTA-VOL"
     assert surface.expiries == [0.25, 0.5, 1.0]
     assert surface.num_expiries == 3
-    atm, put_25, call_25 = surface.pillar_vols(0)
+    atm, put_25, call_25 = get_fx_delta_pillar_vols(surface, 0)
     assert math.isclose(atm, 0.08, abs_tol=1e-12)
     # 25D wings recovered from ATM + RR + BF — values should bracket ATM
     assert put_25 != call_25
     assert min(put_25, call_25) <= atm <= max(put_25, call_25)
 
 
-def test_pillar_vols_out_of_range_raises_index_error() -> None:
+def test_pillar_vols_out_of_range_raises_value_error() -> None:
     surface = _example_surface()
-    with pytest.raises(IndexError):
-        surface.pillar_vols(99)
+    with pytest.raises(ValueError, match="Invalid input data"):
+        get_fx_delta_pillar_vols(surface, 99)
 
 
 def test_rr_bf_10d_consistency_required() -> None:
@@ -66,13 +73,13 @@ def test_implied_vol_lookup_recovers_atm_at_atm_strike() -> None:
     atm_vol = 0.09  # pillar at expiry 1.0
     # ATM DNS strike: K_ATM = F * exp(0.5 * sigma^2 * T)
     k_atm = forward * math.exp(0.5 * atm_vol * atm_vol * 1.0)
-    vol = surface.implied_vol(1.0, k_atm, forward)
+    vol = get_fx_delta_vol(surface, 1.0, k_atm, forward)
     assert math.isclose(vol, atm_vol, abs_tol=1e-9)
 
 
 def test_to_vol_surface_conversion_roundtrip() -> None:
     surface = _example_surface()
-    strike_surface = surface.to_vol_surface(spot=1.20, r_d=0.05, r_f=0.03)
+    strike_surface = materialize_fx_delta_surface(surface, spot=1.20, domestic_rate=0.05, foreign_rate=0.03)
     assert isinstance(strike_surface, VolSurface)
     # The strike-axis surface must expose at least the same expiry count.
     assert len(strike_surface.expiries) >= surface.num_expiries
@@ -84,8 +91,8 @@ def test_static_delta_strike_roundtrip() -> None:
     expiry = 1.0
     # call delta 0.50 maps to a strike near the ATM DNS — converting back
     # should recover (approximately) the original delta.
-    strike = FxDeltaVolSurface.delta_to_strike(0.50, forward, vol, expiry)
-    delta = FxDeltaVolSurface.strike_to_delta(strike, forward, vol, expiry)
+    strike = delta_to_strike(0.50, forward, vol, expiry)
+    delta = strike_to_delta(strike, forward, vol, expiry)
     assert math.isclose(delta, 0.50, abs_tol=1e-9)
 
 
@@ -101,5 +108,5 @@ def test_with_10d_wings_smoke() -> None:
     surface = _example_surface(with_10d=True)
     assert surface.num_expiries == 3
     # 10D wings produce a 5-point smile in implied_vol; a sanity probe.
-    vol = surface.implied_vol(0.5, 1.30, forward=1.20)
+    vol = get_fx_delta_vol(surface, 0.5, 1.30, forward=1.20)
     assert vol > 0.0

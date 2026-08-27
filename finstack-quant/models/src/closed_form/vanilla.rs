@@ -588,7 +588,7 @@ pub fn bs_greeks_checked(
 #[must_use]
 #[inline]
 pub fn black76_call(forward: f64, strike: f64, sigma: f64, t: f64) -> f64 {
-    finstack_quant_core::math::volatility::black_call(forward, strike, sigma, t)
+    crate::closed_form::black_call(forward, strike, sigma, t)
 }
 
 /// Black-76 undiscounted put price (option on a forward).
@@ -610,7 +610,7 @@ pub fn black76_call(forward: f64, strike: f64, sigma: f64, t: f64) -> f64 {
 #[must_use]
 #[inline]
 pub fn black76_put(forward: f64, strike: f64, sigma: f64, t: f64) -> f64 {
-    finstack_quant_core::math::volatility::black_put(forward, strike, sigma, t)
+    crate::closed_form::black_put(forward, strike, sigma, t)
 }
 
 /// Black-Scholes vega (same for both calls and puts).

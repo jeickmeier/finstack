@@ -1,8 +1,9 @@
-//! Implied volatility surface with bilinear interpolation.
+//! Serializable implied-volatility surface artifact.
 //!
 //! Represents market-implied volatility as a function of option maturity and
-//! strike. Uses bilinear interpolation on a rectangular grid, providing smooth
-//! vega and volga calculations for options Greeks.
+//! strike. The artifact stores the observed grid, quote convention, axis
+//! meaning, interpolation metadata, and bump state. Computational evaluation,
+//! fitting, and extrapolation live in `finstack-quant-models`.
 //!
 //! # Financial Context
 //!
@@ -12,25 +13,11 @@
 //! - **Maturity dimension**: Term structure of volatility
 //! - **Surface dynamics**: Sticky strike vs sticky delta behavior
 //!
-//! # Interpolation
+//! # Interpolation Metadata
 //!
-//! Bilinear interpolation provides:
-//! - C⁰ continuity (smooth values, discontinuous first derivatives)
-//! - Fast evaluation for pricing and Greeks
-//! - No spurious oscillations (unlike higher-order methods)
-//!
-//! # Evaluation Methods
-//!
-//! Surface queries are often data-driven, so this type provides multiple
-//! evaluation methods with different out-of-bounds handling:
-//!
-//! - [`value_checked`](VolSurface::value_checked) — **Recommended primary API**.
-//!   Returns `Result<f64>` with explicit error for out-of-bounds coordinates.
-//! - [`value_clamped`](VolSurface::value_clamped) — Flat extrapolation: clamps
-//!   coordinates to grid bounds before interpolation. Safe, never panics.
-//!
-//! Prefer checked or clamped evaluation at API boundaries; there is no unchecked
-//! public evaluator.
+//! [`VolInterpolationMode`] records whether downstream model evaluation should
+//! interpolate volatility or total variance. Core validates and preserves the
+//! metadata but does not execute the interpolation.
 //!
 //! # Examples
 //! ```rust
@@ -46,13 +33,8 @@
 //!     .expect("VolSurface builder should succeed");
 //! assert_eq!(surface.id(), &CurveId::from("EQ-FLAT"));
 //!
-//! // Recommended: use value_checked for explicit error handling
-//! let v = surface.value_checked(1.5, 100.0).expect("Value lookup should succeed");
-//! assert!(v > 0.2);
-//!
-//! // Or use value_clamped for flat extrapolation (safe, never panics)
-//! let v_clamped = surface.value_clamped(0.5, 80.0); // clamped to grid bounds
-//! assert!(v_clamped > 0.0);
+//! assert_eq!(surface.grid_shape(), (2, 3));
+//! assert_eq!(surface.vols()[1], 0.21);
 //! ```
 
 // Box and Vec are available from the standard prelude; no explicit alloc import needed.
@@ -63,8 +45,6 @@ use crate::{
         bumps::{BumpSpec, Bumpable},
         traits::TermStructure,
     },
-    math::interp::utils::locate_segment,
-    math::volatility::svi,
     types::CurveId,
     Error,
 };
@@ -260,38 +240,12 @@ impl TryFrom<VolSurfaceWire> for VolSurface {
 }
 
 impl VolSurface {
-    #[inline]
-    fn validate_total_variance(&self, total_variance: f64, expiry: f64) -> crate::Result<f64> {
-        let variance = total_variance / expiry.max(f64::EPSILON);
-        if variance < 0.0 {
-            return Err(Error::Validation(format!(
-                "Vol surface '{}' produced negative total variance at expiry={} under {:?} interpolation",
-                self.id, expiry, self.interpolation_mode
-            )));
-        }
-        Ok(variance.sqrt())
-    }
-
-    /// Start building a new volatility surface with identifier `id`.
+    /// Start building a new observed volatility surface.
     ///
-    /// # Examples
-    /// ```rust
-    /// use finstack_quant_core::market_data::surfaces::VolSurface;
-    /// # fn main() -> finstack_quant_core::Result<()> {
+    /// # Arguments
     ///
-    /// let surface = VolSurface::builder("IR-SWAPTION")
-    ///     .expiries(&[1.0, 2.0])
-    ///     .strikes(&[0.01, 0.02])
-    ///     .row(&[0.25, 0.24])
-    ///     .row(&[0.23, 0.22])
-    ///     .build()
-    ///     ?;
-    /// // Use value_checked for safe evaluation with explicit error handling
-    /// assert!(surface.value_checked(1.5, 0.015)? > 0.22);
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[must_use]
+    /// * `id` - Stable identifier used for market-context lookup and
+    ///   serialization.
     pub fn builder(id: impl Into<CurveId>) -> VolSurfaceBuilder {
         VolSurfaceBuilder {
             id: id.into(),
@@ -302,122 +256,6 @@ impl VolSurface {
             interpolation_mode: VolInterpolationMode::Vol,
             vols: Vec::new(),
         }
-    }
-
-    #[inline]
-    fn bilinear(q11: f64, q21: f64, q12: f64, q22: f64, t: f64, u: f64) -> f64 {
-        (1.0 - t) * (1.0 - u) * q11 + t * (1.0 - u) * q21 + (1.0 - t) * u * q12 + t * u * q22
-    }
-
-    /// Safe evaluation: returns `Err` if either coordinate is out of bounds.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when `expiry` or `strike` lies outside the stored grid,
-    /// or when the surface cannot determine interpolation segments.
-    pub fn value_checked(&self, expiry: f64, strike: f64) -> crate::Result<f64> {
-        let (ie0, exact_e) = self.value_indices(self.expiries.as_ref(), expiry)?;
-        let (is0, exact_s) = self.value_indices(self.strikes.as_ref(), strike)?;
-        self.interpolate_from_segments(expiry, strike, ie0, is0, exact_e, exact_s)
-    }
-
-    /// Clamped evaluation: clamps to edge values when outside the grid.
-    ///
-    /// Provides flat extrapolation by clamping coordinates to the grid bounds
-    /// before interpolation. This method never panics and is suitable for
-    /// pricing scenarios where out-of-bounds coordinates should use edge values.
-    pub fn value_clamped(&self, expiry: f64, strike: f64) -> f64 {
-        if !expiry.is_finite() || !strike.is_finite() {
-            return f64::NAN;
-        }
-        let (Some(&exp_min), Some(&exp_max)) = (self.expiries.first(), self.expiries.last()) else {
-            return f64::NAN;
-        };
-        let (Some(&str_min), Some(&str_max)) = (self.strikes.first(), self.strikes.last()) else {
-            return f64::NAN;
-        };
-
-        let expiry = expiry.clamp(exp_min, exp_max);
-        let strike = strike.clamp(str_min, str_max);
-
-        self.value_in_bounds(expiry, strike).unwrap_or(f64::NAN)
-    }
-
-    /// Interpolate a vol at coordinates known to be within grid bounds.
-    ///
-    /// Skips bounds checks and error handling. Coordinates must satisfy
-    /// `expiries[0] <= expiry <= expiries[last]` and similarly for strike.
-    #[inline]
-    fn value_in_bounds(&self, expiry: f64, strike: f64) -> crate::Result<f64> {
-        use crate::math::interp::utils::locate_segment_unchecked;
-
-        let ie0 = locate_segment_unchecked(&self.expiries, expiry);
-        let is0 = locate_segment_unchecked(&self.strikes, strike);
-        #[allow(clippy::float_cmp)]
-        let exact_e = self.expiries[ie0] == expiry;
-        #[allow(clippy::float_cmp)]
-        let exact_s = self.strikes[is0] == strike;
-
-        self.interpolate_from_segments(expiry, strike, ie0, is0, exact_e, exact_s)
-    }
-
-    fn interpolate_from_segments(
-        &self,
-        expiry: f64,
-        strike: f64,
-        ie0: usize,
-        is0: usize,
-        exact_e: bool,
-        exact_s: bool,
-    ) -> crate::Result<f64> {
-        let n_strikes = self.strikes.len();
-        if exact_e && exact_s {
-            return Ok(self.vols[ie0 * n_strikes + is0]);
-        }
-
-        let ie1 = if exact_e { ie0 } else { ie0 + 1 };
-        let is1 = if exact_s { is0 } else { is0 + 1 };
-        let e0 = self.expiries[ie0];
-        let e1 = self.expiries[ie1];
-        let s0 = self.strikes[is0];
-        let s1 = self.strikes[is1];
-        let q11 = self.vols[ie0 * n_strikes + is0];
-        let q21 = self.vols[ie1 * n_strikes + is0];
-        let q12 = self.vols[ie0 * n_strikes + is1];
-        let q22 = self.vols[ie1 * n_strikes + is1];
-        let t = if exact_e {
-            0.0
-        } else {
-            (expiry - e0) / (e1 - e0)
-        };
-        let u = if exact_s {
-            0.0
-        } else {
-            (strike - s0) / (s1 - s0)
-        };
-        match self.interpolation_mode {
-            VolInterpolationMode::Vol => Ok(Self::bilinear(q11, q21, q12, q22, t, u)),
-            VolInterpolationMode::TotalVariance => {
-                let total_variance = Self::bilinear(
-                    e0 * q11 * q11,
-                    e1 * q21 * q21,
-                    e0 * q12 * q12,
-                    e1 * q22 * q22,
-                    t,
-                    u,
-                );
-                self.validate_total_variance(total_variance, expiry)
-            }
-        }
-    }
-
-    #[inline]
-    fn value_indices(&self, xs: &[f64], x: f64) -> Result<(usize, bool), Error> {
-        let i = locate_segment(xs, x)?;
-        // Exact comparison is intentional: checking for exact grid-point hit.
-        #[allow(clippy::float_cmp)]
-        let exact = xs[i] == x;
-        Ok((i, exact))
     }
 
     /// Unique identifier of the surface.
@@ -433,6 +271,11 @@ impl VolSurface {
     /// Returns the strikes axis.
     pub fn strikes(&self) -> &[f64] {
         &self.strikes
+    }
+
+    /// Return the observed volatility grid in expiry-major row order.
+    pub fn vols(&self) -> &[f64] {
+        &self.vols
     }
 
     /// Semantic meaning of the secondary axis.
@@ -559,7 +402,7 @@ impl VolSurface {
     ///
     /// // Bump vol at (1.5 years, 100.0 strike) by 1%
     /// let bumped = surface.bump_point(1.5, 100.0, 0.01)?;
-    /// assert!(bumped.value_checked(1.5, 100.0)? > surface.value_checked(1.5, 100.0)?);
+    /// assert!(bumped.vols()[1] > surface.vols()[1]);
     /// # Ok(())
     /// # }
     /// ```
@@ -851,153 +694,6 @@ impl VolSurface {
     }
 }
 
-impl VolSurface {
-    /// Evaluate implied vol with SVI-based wing extrapolation for out-of-bounds strikes.
-    ///
-    /// For strikes within the grid, this method uses the standard bilinear interpolation.
-    /// For strikes outside the grid bounds, it fits an SVI parameterization to the
-    /// nearest expiry slice and extrapolates the wings. For expiries outside the grid,
-    /// the nearest expiry slice is used (flat in the expiry dimension).
-    ///
-    /// This provides a theoretically consistent wing extrapolation that:
-    /// - Produces the correct asymptotic slope (linear in log-moneyness)
-    /// - Avoids flat extrapolation artifacts at extreme strikes
-    /// - Matches the smile shape at the boundary
-    ///
-    /// # Arguments
-    ///
-    /// * `expiry` — option expiry in years
-    /// * `strike` — option strike
-    /// * `forward` — forward price at this expiry (needed for log-moneyness)
-    ///
-    /// # Returns
-    ///
-    /// Implied volatility. Returns the SVI-extrapolated value for out-of-bounds strikes,
-    /// or bilinear interpolated value for in-bounds coordinates. Falls back to
-    /// `value_clamped` if SVI calibration fails (e.g., too few strikes).
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use finstack_quant_core::market_data::surfaces::VolSurface;
-    ///
-    /// let surface = VolSurface::builder("EQ-SMILE")
-    ///     .expiries(&[0.5, 1.0, 2.0])
-    ///     .strikes(&[80.0, 90.0, 95.0, 100.0, 105.0, 110.0, 120.0])
-    ///     .row(&[0.30, 0.25, 0.22, 0.20, 0.21, 0.23, 0.28])
-    ///     .row(&[0.28, 0.24, 0.21, 0.19, 0.20, 0.22, 0.26])
-    ///     .row(&[0.26, 0.22, 0.20, 0.18, 0.19, 0.21, 0.24])
-    ///     .build()
-    ///     .expect("surface should build");
-    ///
-    /// // In-bounds: uses bilinear interpolation
-    /// let v_in = surface.value_extrapolated(1.0, 100.0, 100.0);
-    /// assert!(v_in > 0.0);
-    ///
-    /// // Out-of-bounds strike: SVI wing extrapolation
-    /// let v_deep_otm = surface.value_extrapolated(1.0, 60.0, 100.0);
-    /// assert!(v_deep_otm > 0.0);
-    /// ```
-    pub fn value_extrapolated(&self, expiry: f64, strike: f64, forward: f64) -> f64 {
-        if !forward.is_finite() || forward <= 0.0 {
-            return f64::NAN;
-        }
-
-        // Try bilinear interpolation first
-        if let Ok(v) = self.value_checked(expiry, strike) {
-            return v;
-        }
-
-        // Determine the expiry slice to use
-        let Some(&exp_min) = self.expiries.first() else {
-            return f64::NAN;
-        };
-        let Some(&exp_max) = self.expiries.last() else {
-            return f64::NAN;
-        };
-
-        // Clamp expiry to grid range
-        let clamped_expiry = expiry.clamp(exp_min, exp_max);
-
-        // If the strike is in bounds, the issue is only expiry — clamp works fine
-        let Some(&str_min) = self.strikes.first() else {
-            return f64::NAN;
-        };
-        let Some(&str_max) = self.strikes.last() else {
-            return f64::NAN;
-        };
-
-        if strike >= str_min && strike <= str_max {
-            // Strike is in range, expiry was out of range — flat extrapolate in expiry
-            return self.value_clamped(clamped_expiry, strike);
-        }
-
-        if self.quote_type == VolQuoteType::Normal {
-            return self.value_clamped(clamped_expiry, strike);
-        }
-
-        // Strike is out of bounds — use SVI wing extrapolation
-        // Find the closest expiry index for the slice
-        let expiry_idx = find_closest_grid_index(&self.expiries, clamped_expiry);
-        let n_strikes = self.strikes.len();
-
-        // Need at least 5 strikes for SVI calibration
-        if n_strikes < 5 {
-            return self.value_clamped(clamped_expiry, strike);
-        }
-
-        // Extract the vol slice at this expiry
-        let slice_vols: Vec<f64> = (0..n_strikes)
-            .map(|si| self.vols[expiry_idx * n_strikes + si])
-            .collect();
-
-        let slice_expiry = self.expiries[expiry_idx];
-
-        // Calibrate SVI to this slice
-        match svi::calibrate_svi(&self.strikes, &slice_vols, forward, slice_expiry) {
-            Ok(params) => {
-                let k = (strike / forward).ln();
-                let vol = params.implied_vol(k, slice_expiry).unwrap_or(f64::NAN);
-                if vol.is_finite() && vol > 0.0 {
-                    vol
-                } else {
-                    self.value_clamped(clamped_expiry, strike)
-                }
-            }
-            Err(_) => {
-                // SVI calibration failed — fall back to flat extrapolation.
-                self.value_clamped(clamped_expiry, strike)
-            }
-        }
-    }
-}
-
-/// Helper to find the closest grid index for a target value.
-fn find_closest_grid_index(arr: &[f64], target: f64) -> usize {
-    if target <= arr[0] {
-        return 0;
-    }
-    if target >= arr[arr.len() - 1] {
-        return arr.len() - 1;
-    }
-
-    arr.windows(2)
-        .enumerate()
-        .find_map(|(i, w)| {
-            if target >= w[0] && target <= w[1] {
-                // Return the closer of the two
-                Some(if (target - w[0]).abs() < (target - w[1]).abs() {
-                    i
-                } else {
-                    i + 1
-                })
-            } else {
-                None
-            }
-        })
-        .unwrap_or(arr.len() - 1)
-}
-
 // Minimal trait implementation for polymorphism where needed
 
 impl TermStructure for VolSurface {
@@ -1007,24 +703,12 @@ impl TermStructure for VolSurface {
     }
 }
 
-impl crate::market_data::traits::VolProvider for VolSurface {
-    fn vol(&self, expiry: f64, tenor: f64, strike: f64) -> crate::Result<f64> {
-        let secondary = match self.secondary_axis {
-            VolSurfaceAxis::Strike => strike,
-            VolSurfaceAxis::Tenor => tenor,
-        };
-        self.value_checked(expiry, secondary)
-    }
-    fn vol_clamped(&self, expiry: f64, tenor: f64, strike: f64) -> f64 {
-        let secondary = match self.secondary_axis {
-            VolSurfaceAxis::Strike => strike,
-            VolSurfaceAxis::Tenor => tenor,
-        };
-        self.value_clamped(expiry, secondary)
-    }
-    fn vol_id(&self) -> &crate::types::CurveId {
-        self.id()
-    }
+fn find_closest_grid_index(values: &[f64], target: f64) -> usize {
+    values
+        .iter()
+        .enumerate()
+        .min_by(|(_, left), (_, right)| (*left - target).abs().total_cmp(&(*right - target).abs()))
+        .map_or(0, |(index, _)| index)
 }
 
 /// Fluent builder for [`VolSurface`].
@@ -1281,207 +965,4 @@ fn validate_axis(axis: &[f64]) -> crate::Result<()> {
         crate::math::interp::utils::validate_knots(axis)?;
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn flat_surface() -> VolSurface {
-        VolSurface::builder("EQ-FLAT")
-            .expiries(&[1.0, 2.0])
-            .strikes(&[90.0, 100.0, 110.0])
-            .row(&[0.2, 0.2, 0.2])
-            .row(&[0.2, 0.2, 0.2])
-            .build()
-            .expect("VolSurface builder should succeed in test")
-    }
-
-    #[test]
-    fn flat_returns_constant() {
-        let vs = flat_surface();
-        // Use value_checked (recommended primary API)
-        assert!(
-            (vs.value_checked(1.5, 95.0)
-                .expect("Value lookup should succeed in test")
-                - 0.2)
-                .abs()
-                < 1e-12
-        );
-        // clamped path (below min strike/expiry uses flat extrapolation)
-        assert!((vs.value_clamped(0.5, 80.0) - 0.2).abs() < 1e-12);
-    }
-
-    fn smile_surface() -> VolSurface {
-        VolSurface::builder("EQ-SMILE")
-            .expiries(&[0.5, 1.0, 2.0])
-            .strikes(&[80.0, 85.0, 90.0, 95.0, 100.0, 105.0, 110.0, 115.0, 120.0])
-            .row(&[0.32, 0.29, 0.26, 0.23, 0.20, 0.21, 0.23, 0.26, 0.30])
-            .row(&[0.30, 0.27, 0.24, 0.21, 0.19, 0.20, 0.22, 0.25, 0.28])
-            .row(&[0.28, 0.25, 0.22, 0.20, 0.18, 0.19, 0.21, 0.23, 0.26])
-            .build()
-            .expect("VolSurface builder should succeed in test")
-    }
-
-    #[test]
-    fn extrapolated_in_bounds_matches_checked() {
-        let vs = smile_surface();
-        let forward = 100.0;
-
-        // In-bounds query should match value_checked
-        let checked = vs
-            .value_checked(1.0, 100.0)
-            .expect("in-bounds should succeed");
-        let extrap = vs.value_extrapolated(1.0, 100.0, forward);
-        assert!(
-            (checked - extrap).abs() < 1e-12,
-            "In-bounds: checked={checked}, extrapolated={extrap}"
-        );
-    }
-
-    #[test]
-    fn extrapolated_deep_otm_returns_positive_vol() {
-        let vs = smile_surface();
-        let forward = 100.0;
-
-        // Deep OTM put (strike far below grid)
-        let vol_low = vs.value_extrapolated(1.0, 50.0, forward);
-        assert!(
-            vol_low > 0.0 && vol_low.is_finite(),
-            "Deep OTM low strike vol should be positive: {vol_low}"
-        );
-
-        // Deep OTM call (strike far above grid)
-        let vol_high = vs.value_extrapolated(1.0, 160.0, forward);
-        assert!(
-            vol_high > 0.0 && vol_high.is_finite(),
-            "Deep OTM high strike vol should be positive: {vol_high}"
-        );
-    }
-
-    #[test]
-    fn extrapolated_wings_higher_than_atm() {
-        let vs = smile_surface();
-        let forward = 100.0;
-
-        let atm_vol = vs.value_extrapolated(1.0, 100.0, forward);
-        let wing_low = vs.value_extrapolated(1.0, 50.0, forward);
-        let wing_high = vs.value_extrapolated(1.0, 160.0, forward);
-
-        // Wings should be higher than ATM for a typical smile
-        assert!(
-            wing_low > atm_vol,
-            "Low wing vol {wing_low:.4} should exceed ATM {atm_vol:.4}"
-        );
-        assert!(
-            wing_high > atm_vol,
-            "High wing vol {wing_high:.4} should exceed ATM {atm_vol:.4}"
-        );
-    }
-
-    #[test]
-    fn extrapolated_expiry_out_of_bounds() {
-        let vs = smile_surface();
-        let forward = 100.0;
-
-        // Expiry below grid (0.5 is min), strike in bounds
-        let vol = vs.value_extrapolated(0.1, 100.0, forward);
-        assert!(
-            vol > 0.0 && vol.is_finite(),
-            "Extrapolated for short expiry should be valid: {vol}"
-        );
-    }
-
-    #[test]
-    fn extrapolated_invalid_forward_surfaces_svi_failure() {
-        let vs = smile_surface();
-        let vol = vs.value_extrapolated(1.0, 50.0, 0.0);
-        assert!(
-            vol.is_nan(),
-            "invalid forward should not silently clamp a failed SVI fit"
-        );
-    }
-
-    #[test]
-    fn quote_type_serde_round_trips_and_is_required() {
-        // Round trip: an explicit Normal tag must survive serde.
-        let normal = flat_surface().with_quote_type(VolQuoteType::Normal);
-        let json = serde_json::to_string(&normal).expect("serialize");
-        let back: VolSurface = serde_json::from_str(&json).expect("deserialize");
-        assert_eq!(back.quote_type(), VolQuoteType::Normal);
-
-        let incomplete = r#"{
-            "id": "EQ-INCOMPLETE",
-            "expiries": [1.0, 2.0],
-            "strikes": [90.0, 100.0],
-            "vols_row_major": [0.2, 0.2, 0.2, 0.2]
-        }"#;
-        assert!(
-            serde_json::from_str::<VolSurface>(incomplete).is_err(),
-            "surface axis, quote convention, and interpolation mode are required"
-        );
-    }
-
-    #[test]
-    fn require_quote_type_enforces_convention() {
-        let vs = flat_surface();
-        assert!(vs.require_quote_type(VolQuoteType::BlackLognormal).is_ok());
-        let err = vs
-            .require_quote_type(VolQuoteType::Normal)
-            .expect_err("mismatched quote type must error");
-        assert!(format!("{err}").contains("quote"), "got: {err}");
-    }
-
-    #[test]
-    fn metadata_contracts_survive_bumps_and_scaling() {
-        let vs = flat_surface()
-            .with_quote_type(VolQuoteType::Normal)
-            .with_secondary_axis(VolSurfaceAxis::Tenor)
-            .with_interpolation_mode(VolInterpolationMode::TotalVariance);
-
-        let bumped = vs.bump_point(1.5, 100.0, 0.01).expect("bump");
-        assert_eq!(bumped.quote_type(), VolQuoteType::Normal);
-        assert_eq!(bumped.secondary_axis(), VolSurfaceAxis::Tenor);
-        assert_eq!(
-            bumped.interpolation_mode(),
-            VolInterpolationMode::TotalVariance
-        );
-
-        let scaled = vs.scaled(1.1);
-        assert_eq!(scaled.quote_type(), VolQuoteType::Normal);
-
-        let bucket = vs
-            .apply_bucket_bump(None, None, 1.0)
-            .expect("bucket bump should succeed");
-        assert_eq!(bucket.quote_type(), VolQuoteType::Normal);
-        assert_eq!(bucket.secondary_axis(), VolSurfaceAxis::Tenor);
-    }
-
-    #[test]
-    fn total_variance_interpolation_differs_from_direct_vol_interpolation() {
-        let surface = VolSurface::builder("EQ-TV")
-            .expiries(&[1.0, 2.0])
-            .strikes(&[100.0, 110.0])
-            .interpolation_mode(VolInterpolationMode::TotalVariance)
-            .row(&[0.20, 0.20])
-            .row(&[0.30, 0.30])
-            .build()
-            .expect("surface should build");
-
-        let interpolated = surface
-            .value_checked(1.5, 100.0)
-            .expect("interpolated lookup should succeed");
-        let expected = ((0.5 * (1.0 * 0.20_f64.powi(2) + 2.0 * 0.30_f64.powi(2))) / 1.5).sqrt();
-
-        assert!(
-            (interpolated - expected).abs() < 1e-12,
-            "total-variance interpolation should match expected value: expected {}, got {}",
-            expected,
-            interpolated
-        );
-        assert!(
-            (interpolated - 0.25).abs() > 1e-6,
-            "total-variance interpolation should not collapse to direct vol interpolation"
-        );
-    }
 }

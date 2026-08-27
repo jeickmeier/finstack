@@ -59,9 +59,9 @@ fn test_vol_bucket_filtering_by_tenor() {
     let shocked_surface = market.get_surface("SPX").unwrap();
 
     // 1Y expiry should be shocked (+10%)
-    let shocked_1y_100k = shocked_surface
-        .value_checked(1.0, 100.0)
-        .expect("grid point lookup should succeed");
+    let shocked_1y_100k =
+        finstack_quant_models::volatility::get_surface_vol(&shocked_surface, 1.0, 100.0)
+            .expect("grid point lookup should succeed");
     let expected_1y = 0.20 * 1.10;
     assert!(
         (shocked_1y_100k - expected_1y).abs() < 1e-6,
@@ -71,9 +71,9 @@ fn test_vol_bucket_filtering_by_tenor() {
     );
 
     // Other expiries should be unchanged
-    let unchanged_3m_100k = shocked_surface
-        .value_checked(0.25, 100.0)
-        .expect("grid point lookup should succeed");
+    let unchanged_3m_100k =
+        finstack_quant_models::volatility::get_surface_vol(&shocked_surface, 0.25, 100.0)
+            .expect("grid point lookup should succeed");
     assert!(
         (unchanged_3m_100k - 0.18).abs() < 1e-6,
         "3M should be unchanged: expected 0.18, got {}",
@@ -127,16 +127,16 @@ fn test_vol_bucket_filtering_by_strike() {
 
     // Verify 100 strike is shocked
     let shocked_surface = market.get_surface("SPX").unwrap();
-    let shocked_100 = shocked_surface
-        .value_checked(1.0, 100.0)
-        .expect("grid point lookup should succeed");
+    let shocked_100 =
+        finstack_quant_models::volatility::get_surface_vol(&shocked_surface, 1.0, 100.0)
+            .expect("grid point lookup should succeed");
     let expected = 0.20 * 1.20;
     assert!((shocked_100 - expected).abs() < 1e-6);
 
     // 90 and 110 should be unchanged
-    let unchanged_90 = shocked_surface
-        .value_checked(1.0, 90.0)
-        .expect("grid point lookup should succeed");
+    let unchanged_90 =
+        finstack_quant_models::volatility::get_surface_vol(&shocked_surface, 1.0, 90.0)
+            .expect("grid point lookup should succeed");
     assert!((unchanged_90 - 0.22).abs() < 1e-6);
 }
 
@@ -189,14 +189,17 @@ fn test_vol_bucket_unfiltered_is_multiplicative() {
 
     let shocked_surface = market.get_surface("SPX").unwrap();
     for &(expiry, strike, base) in &[(0.5, 90.0, 0.21), (0.5, 100.0, 0.19), (1.0, 110.0, 0.24)] {
-        let shocked = shocked_surface.value_checked(expiry, strike).unwrap();
+        let shocked =
+            finstack_quant_models::volatility::get_surface_vol(&shocked_surface, expiry, strike)
+                .unwrap();
         assert!(
             (shocked - base * 1.10).abs() < 1e-12,
             "expected multiplicative shock at ({expiry}, {strike}): {}, got {shocked}",
             base * 1.10
         );
         // Preview ≡ execution
-        let previewed = preview.value_checked(expiry, strike).unwrap();
+        let previewed =
+            finstack_quant_models::volatility::get_surface_vol(&preview, expiry, strike).unwrap();
         assert!((shocked - previewed).abs() < 1e-12);
     }
 }

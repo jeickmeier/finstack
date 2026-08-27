@@ -1,7 +1,5 @@
 //! Volatility model and volatility-parameter types shared across instruments.
 
-pub use finstack_quant_models::volatility::SABRParameters;
-
 /// Volatility model for option pricing.
 #[derive(
     Debug,

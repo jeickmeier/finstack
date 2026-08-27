@@ -41,7 +41,7 @@ fn test_npv_matches_garman_kohlhagen() {
         .expect("spot")
         .rate;
     let surf = market.get_surface(VOL_ID).expect("vol surface");
-    let sigma = surf.value_clamped(t, call.strike);
+    let sigma = finstack_quant_models::volatility::get_surface_vol_clamped(&surf, t, call.strike);
     assert_approx_eq(spot, params.spot, 1e-10, 1e-10, "Spot");
     assert_approx_eq(params.r_domestic, 0.03, 1e-3, 1e-3, "Domestic rate");
     assert_approx_eq(params.r_foreign, 0.01, 1e-3, 1e-3, "Foreign rate");
@@ -137,10 +137,9 @@ fn test_surface_vol_used_in_pricing() {
     let df_foreign = disc_foreign.df_between_dates(as_of, expiry).unwrap();
     let r_d = -df_domestic.ln() / t;
     let r_f = -df_foreign.ln() / t;
-    let sigma = market
-        .get_surface(VOL_ID)
-        .expect("vol surface")
-        .value_clamped(t, call.strike);
+    let surface = market.get_surface(VOL_ID).expect("vol surface");
+    let sigma =
+        finstack_quant_models::volatility::get_surface_vol_clamped(&surface, t, call.strike);
 
     // Assert
     assert_approx_eq(spot, params.spot, 1e-10, 1e-10, "Spot from FX matrix");

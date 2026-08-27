@@ -4,21 +4,21 @@
 //! gradients with respect to the model parameters (alpha, nu, rho), for the
 //! Levenberg-Marquardt calibrator.
 //!
-//! Volatilities are evaluated through [`SABRModel::implied_volatility`] — the
+//! Volatilities are evaluated through [`SabrModel::implied_volatility`] — the
 //! production Hagan (2002) implementation — and each parameter gradient is a
 //! central finite difference of that same function. Computing the gradient
 //! from the identical volatility routine the calibration objective uses keeps
 //! the two exactly consistent and avoids the accuracy pitfalls of
 //! hand-derived Hagan-expansion gradients.
 
-use super::sabr::{vega_weight, SABRModel, SABRParameters};
+use super::sabr::{vega_weight, SabrModel, SabrParameters};
 use finstack_quant_core::math::solver_multi::AnalyticalDerivatives;
 use finstack_quant_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 
 /// Market data for SABR calibration.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
-pub struct SABRMarketData {
+pub struct SabrMarketData {
     /// Forward price
     pub forward: f64,
     /// Time to expiry
@@ -34,7 +34,7 @@ pub struct SABRMarketData {
     pub shift: Option<f64>,
 }
 
-impl SABRMarketData {
+impl SabrMarketData {
     /// Construct market data for SABR calibration with validation.
     ///
     /// # Errors
@@ -49,31 +49,31 @@ impl SABRMarketData {
     ) -> Result<Self> {
         if forward <= 0.0 {
             return Err(Error::Validation(format!(
-                "SABRMarketData invalid: forward must be positive, got {}",
+                "SabrMarketData invalid: forward must be positive, got {}",
                 forward
             )));
         }
         if time_to_expiry <= 0.0 {
             return Err(Error::Validation(format!(
-                "SABRMarketData invalid: time_to_expiry must be positive, got {}",
+                "SabrMarketData invalid: time_to_expiry must be positive, got {}",
                 time_to_expiry
             )));
         }
         if strikes.is_empty() {
             return Err(Error::Validation(
-                "SABRMarketData invalid: strikes cannot be empty".to_string(),
+                "SabrMarketData invalid: strikes cannot be empty".to_string(),
             ));
         }
         if strikes.len() != market_vols.len() {
             return Err(Error::Validation(format!(
-                "SABRMarketData invalid: strikes length ({}) must match market_vols length ({})",
+                "SabrMarketData invalid: strikes length ({}) must match market_vols length ({})",
                 strikes.len(),
                 market_vols.len()
             )));
         }
         if !(0.0..=1.0).contains(&beta) {
             return Err(Error::Validation(format!(
-                "SABRMarketData invalid: beta must be in [0, 1], got {}",
+                "SabrMarketData invalid: beta must be in [0, 1], got {}",
                 beta
             )));
         }
@@ -103,7 +103,7 @@ impl SABRMarketData {
     ) -> Result<Self> {
         if shift <= 0.0 {
             return Err(Error::Validation(format!(
-                "SABRMarketData invalid: shift must be positive, got {}",
+                "SabrMarketData invalid: shift must be positive, got {}",
                 shift
             )));
         }
@@ -117,12 +117,12 @@ impl SABRMarketData {
 ///
 /// Supplies SABR implied volatility and its parameter gradient
 /// (∂σ/∂α, ∂σ/∂ν, ∂σ/∂ρ) to the Levenberg-Marquardt calibrator. Volatilities
-/// come from [`SABRModel::implied_volatility`]; each gradient component is a
+/// come from [`SabrModel::implied_volatility`]; each gradient component is a
 /// central finite difference of that same routine, and the gradient carries
 /// the same per-strike vega weights as the calibration objective, so the two
 /// are exactly consistent.
-pub struct SABRCalibrationDerivatives {
-    market_data: SABRMarketData,
+pub struct SabrCalibrationDerivatives {
+    market_data: SabrMarketData,
     /// Per-strike vega weights matching the calibration objective
     /// `Σ w·(σ_model − σ_market)²`. They depend only on the (fixed) market
     /// data, so they are computed once at construction. Any configured shift
@@ -130,9 +130,9 @@ pub struct SABRCalibrationDerivatives {
     weights: Vec<f64>,
 }
 
-impl SABRCalibrationDerivatives {
+impl SabrCalibrationDerivatives {
     /// Create a new SABR derivatives provider.
-    pub fn new(market_data: SABRMarketData) -> Self {
+    pub fn new(market_data: SabrMarketData) -> Self {
         let shift = market_data.shift.unwrap_or(0.0);
         let weights = market_data
             .strikes
@@ -157,7 +157,7 @@ impl SABRCalibrationDerivatives {
     /// Compute SABR implied volatility and its parameter derivatives.
     ///
     /// Returns `(vol, ∂vol/∂α, ∂vol/∂ν, ∂vol/∂ρ)`. The volatility is the
-    /// [`SABRModel`] Hagan value; the three derivatives are central finite
+    /// [`SabrModel`] Hagan value; the three derivatives are central finite
     /// differences of that volatility with a `1e-6` parameter step, so they
     /// are consistent with the calibration objective.
     fn sabr_vol_and_derivatives(
@@ -169,7 +169,7 @@ impl SABRCalibrationDerivatives {
     ) -> (f64, f64, f64, f64) {
         let base_vol = self.sabr_vol_fd(strike, alpha, nu, rho);
 
-        // Central finite differences of the SABRModel volatility.
+        // Central finite differences of the SabrModel volatility.
         let eps = 1e-6;
         let d_vol_d_alpha = (self.sabr_vol_fd(strike, alpha + eps, nu, rho)
             - self.sabr_vol_fd(strike, alpha - eps, nu, rho))
@@ -184,24 +184,24 @@ impl SABRCalibrationDerivatives {
         (base_vol, d_vol_d_alpha, d_vol_d_nu, d_vol_d_rho)
     }
 
-    /// Evaluate SABR implied volatility via [`SABRModel`].
+    /// Evaluate SABR implied volatility via [`SabrModel`].
     ///
     /// Honors any `shift` configured on the market data, so shifted
     /// (negative-rate) calibrations price with the same effective
     /// forward/strike the model uses. Returns `0.0` for parameter triples
-    /// [`SABRModel`] rejects; the least-squares objective then sees a large
+    /// [`SabrModel`] rejects; the least-squares objective then sees a large
     /// residual at that point.
     fn sabr_vol_fd(&self, strike: f64, alpha: f64, nu: f64, rho: f64) -> f64 {
         let beta = self.market_data.beta;
         let params_result = match self.market_data.shift {
-            Some(shift) => SABRParameters::new_with_shift(alpha, beta, nu, rho, shift),
-            None => SABRParameters::new(alpha, beta, nu, rho),
+            Some(shift) => SabrParameters::new_with_shift(alpha, beta, nu, rho, shift),
+            None => SabrParameters::new(alpha, beta, nu, rho),
         };
         let Ok(params) = params_result else {
             return 0.0; // Invalid parameter triple — large residual.
         };
 
-        SABRModel::new(params)
+        SabrModel::new(params)
             .implied_volatility(
                 self.market_data.forward,
                 strike,
@@ -211,7 +211,7 @@ impl SABRCalibrationDerivatives {
     }
 }
 
-impl AnalyticalDerivatives for SABRCalibrationDerivatives {
+impl AnalyticalDerivatives for SabrCalibrationDerivatives {
     fn gradient(&self, params: &[f64], gradient: &mut [f64]) {
         // params = [alpha, nu, rho]
         if params.len() != 3 || gradient.len() != 3 {
@@ -254,7 +254,7 @@ mod tests {
 
     #[test]
     fn test_sabr_derivatives_atm() {
-        let market_data = SABRMarketData {
+        let market_data = SabrMarketData {
             forward: 100.0,
             time_to_expiry: 1.0,
             strikes: vec![100.0], // ATM
@@ -263,7 +263,7 @@ mod tests {
             shift: None,
         };
 
-        let deriv_provider = SABRCalibrationDerivatives::new(market_data);
+        let deriv_provider = SabrCalibrationDerivatives::new(market_data);
 
         // Test at some reasonable parameter values
         let params = vec![0.15, 0.3, -0.1]; // alpha, nu, rho
@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn test_gradient_finite_differences() {
-        let market_data = SABRMarketData {
+        let market_data = SabrMarketData {
             forward: 100.0,
             time_to_expiry: 1.0,
             strikes: vec![90.0, 100.0, 110.0],
@@ -288,7 +288,7 @@ mod tests {
             shift: None,
         };
 
-        let deriv_provider = SABRCalibrationDerivatives::new(market_data.clone());
+        let deriv_provider = SabrCalibrationDerivatives::new(market_data.clone());
 
         // Provider gradient of the vega-weighted least-squares objective.
         let params = vec![0.15, 0.3, -0.1];
@@ -296,7 +296,7 @@ mod tests {
         deriv_provider.gradient(&params, &mut provider_grad);
 
         // Numerical gradient of the same vega-weighted objective, built
-        // directly from the SABRModel volatilities.
+        // directly from the SabrModel volatilities.
         let eps = 1e-6;
         let mut numerical_grad = [0.0; 3];
 
@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn test_gradient_otm_strikes() {
         // Test with out-of-the-money strikes
-        let market_data = SABRMarketData {
+        let market_data = SabrMarketData {
             forward: 100.0,
             time_to_expiry: 1.0,
             strikes: vec![80.0, 120.0],
@@ -354,7 +354,7 @@ mod tests {
             shift: None,
         };
 
-        let deriv_provider = SABRCalibrationDerivatives::new(market_data.clone());
+        let deriv_provider = SabrCalibrationDerivatives::new(market_data.clone());
 
         // Provider gradient.
         let params = vec![0.15, 0.3, -0.1];
@@ -408,11 +408,11 @@ mod tests {
     }
 
     /// Validate that the derivatives from `sabr_vol_and_derivatives` agree with
-    /// manual central-difference derivatives of `SABRModel::implied_volatility`.
+    /// manual central-difference derivatives of `SabrModel::implied_volatility`.
     ///
     /// Uses rates-scale parameters (small forward/strike) to exercise the
     /// regime where hand-derived Hagan-expansion gradients were historically
-    /// unreliable; the provider's `SABRModel`-backed FD gradients must match.
+    /// unreliable; the provider's `SabrModel`-backed FD gradients must match.
     #[test]
     fn test_sabr_fd_vs_manual_fd_single_strike_derivatives() {
         let alpha = 0.04;
@@ -423,7 +423,7 @@ mod tests {
         let strike = 0.035;
         let t = 1.0;
 
-        let market_data = SABRMarketData {
+        let market_data = SabrMarketData {
             forward,
             time_to_expiry: t,
             strikes: vec![strike],
@@ -432,15 +432,15 @@ mod tests {
             shift: None,
         };
 
-        let provider = SABRCalibrationDerivatives::new(market_data);
+        let provider = SabrCalibrationDerivatives::new(market_data);
 
         let (vol, d_alpha_provider, d_nu_provider, d_rho_provider) =
             provider.sabr_vol_and_derivatives(strike, alpha, nu, rho);
 
         let h = 1e-5;
         let sabr_vol = |a: f64, n: f64, r: f64| -> f64 {
-            let params = SABRParameters::new(a, beta, n, r).expect("valid SABR params");
-            SABRModel::new(params)
+            let params = SabrParameters::new(a, beta, n, r).expect("valid SABR params");
+            SabrModel::new(params)
                 .implied_volatility(forward, strike, t)
                 .expect("valid vol")
         };
@@ -471,11 +471,11 @@ mod tests {
         check("d_sigma/d_rho", d_rho_provider, d_rho_fd);
     }
 
-    /// A `SABRMarketData` carrying an explicit `shift` must evaluate volatility
-    /// through shifted SABR — i.e. [`SABRParameters::new_with_shift`] — so the
-    /// provider's vol matches a directly-constructed shifted [`SABRModel`].
+    /// A `SabrMarketData` carrying an explicit `shift` must evaluate volatility
+    /// through shifted SABR — i.e. [`SabrParameters::new_with_shift`] — so the
+    /// provider's vol matches a directly-constructed shifted [`SabrModel`].
     ///
-    /// Regression guard: an earlier implementation built `SABRParameters` with
+    /// Regression guard: an earlier implementation built `SabrParameters` with
     /// `new()` (shift = `None`) inside the FD path, silently ignoring the
     /// configured shift and pricing un-shifted SABR for a shifted calibration.
     #[test]
@@ -487,7 +487,7 @@ mod tests {
         let strikes = vec![0.005, 0.015, 0.025];
         let market_vols = vec![0.22, 0.20, 0.21];
 
-        let market_data = SABRMarketData::new_with_shift(
+        let market_data = SabrMarketData::new_with_shift(
             forward,
             t,
             strikes.clone(),
@@ -497,7 +497,7 @@ mod tests {
         )
         .expect("valid shifted market data");
 
-        let provider = SABRCalibrationDerivatives::new(market_data);
+        let provider = SabrCalibrationDerivatives::new(market_data);
 
         let alpha = 0.04;
         let nu = 0.3;
@@ -507,8 +507,8 @@ mod tests {
             let (vol, da, dnu, drho) = provider.sabr_vol_and_derivatives(strike, alpha, nu, rho);
 
             // Independently price the same point with shifted SABR.
-            let shifted_model = SABRModel::new(
-                SABRParameters::new_with_shift(alpha, beta, nu, rho, shift)
+            let shifted_model = SabrModel::new(
+                SabrParameters::new_with_shift(alpha, beta, nu, rho, shift)
                     .expect("valid shifted SABR params"),
             );
             let expected = shifted_model
@@ -525,8 +525,8 @@ mod tests {
         // The shift must actually change the answer: an un-shifted provider
         // over the same sub-shift-scale forward/strikes prices a different
         // smile, so dropping the shift would be observable.
-        let unshifted = SABRCalibrationDerivatives::new(
-            SABRMarketData::new(forward, t, strikes, market_vols, beta).expect("valid market data"),
+        let unshifted = SabrCalibrationDerivatives::new(
+            SabrMarketData::new(forward, t, strikes, market_vols, beta).expect("valid market data"),
         );
         let shifted_atm = provider.sabr_vol_and_derivatives(forward, alpha, nu, rho).0;
         let unshifted_atm = unshifted

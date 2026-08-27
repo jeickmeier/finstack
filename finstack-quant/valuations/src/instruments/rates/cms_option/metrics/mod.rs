@@ -205,7 +205,11 @@ impl MetricCalculator for VannaCalculator {
                 continue;
             }
 
-            let vol = vol_surface.value_clamped(time_to_fixing, strike);
+            let vol = finstack_quant_models::volatility::get_surface_vol_clamped(
+                &vol_surface,
+                time_to_fixing,
+                strike,
+            );
 
             // 3. Convexity Adjustment Derivative
             // Convexity = 0.5 * vol^2 * T * G(S)

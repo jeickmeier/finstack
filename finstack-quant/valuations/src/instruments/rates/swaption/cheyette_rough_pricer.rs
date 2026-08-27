@@ -418,7 +418,9 @@ impl BermudanSwaptionCheyetteRoughPricer {
                 })?;
                 let mid_t = exercise_times.first().copied().unwrap_or(1.0);
                 // Convert Black vol to short-rate vol (approximate: divide by sqrt(T))
-                let black_vol = surf.value_clamped(mid_t, strike);
+                let black_vol = finstack_quant_models::volatility::get_surface_vol_clamped(
+                    &surf, mid_t, strike,
+                );
                 // Short rate vol is roughly Black vol * forward rate
                 let fwd_rate = phi_points.last().map(|&(_, r)| r).unwrap_or(0.03);
                 (black_vol * fwd_rate).max(0.001)

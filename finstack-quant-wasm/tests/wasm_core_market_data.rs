@@ -7,6 +7,9 @@ use finstack_quant_wasm::api::core::market_data::{
     JsDiscountCurve, JsForwardCurve, JsFxConversionPolicy, JsFxDeltaVolSurface, JsFxMatrix,
     JsVolCube,
 };
+use finstack_quant_wasm::api::models::volatility::{
+    get_cube_normal_vol, get_cube_normal_vol_clamped, get_fx_delta_pillar_vols, get_fx_delta_vol,
+};
 use js_sys::Float64Array;
 use wasm_bindgen_test::*;
 
@@ -138,14 +141,14 @@ fn fx_delta_vol_surface_basic_accessors_and_implied_vol() {
     assert_eq!(surface.num_expiries(), 3);
     assert_eq!(surface.expiries().as_ref(), [0.25, 0.5, 1.0]);
 
-    let pillar = surface.pillar_vols(0).unwrap();
+    let pillar = get_fx_delta_pillar_vols(&surface, 0).unwrap();
     assert!((pillar[0] - 0.08).abs() < 1e-12);
 
     // ATM-DNS strike at expiry 1.0 should recover the 0.09 ATM vol.
     let forward: f64 = 1.20;
     let atm_vol: f64 = 0.09;
     let k_atm = forward * (0.5 * atm_vol * atm_vol * 1.0_f64).exp();
-    let vol = surface.implied_vol(1.0, k_atm, forward).unwrap();
+    let vol = get_fx_delta_vol(&surface, 1.0, k_atm, forward).unwrap();
     assert!((vol - atm_vol).abs() < 1e-9);
 }
 
@@ -189,8 +192,8 @@ fn normal_sabr_requires_positive_shifted_levels_when_beta_is_positive() {
         None,
     )
     .unwrap();
-    assert!(cev.vol_normal(1.0, 2.0, -0.01).is_err());
-    assert!(cev.vol_normal_clamped(1.0, 2.0, -0.01).is_nan());
+    assert!(get_cube_normal_vol(&cev, 1.0, 2.0, -0.01).is_err());
+    assert!(get_cube_normal_vol_clamped(&cev, 1.0, 2.0, -0.01).is_nan());
 
     let normal = JsVolCube::new(
         "NORMAL",
@@ -201,7 +204,9 @@ fn normal_sabr_requires_positive_shifted_levels_when_beta_is_positive() {
         None,
     )
     .unwrap();
-    assert!(normal.vol_normal(1.0, 2.0, -0.02).unwrap().is_finite());
+    assert!(get_cube_normal_vol(&normal, 1.0, 2.0, -0.02)
+        .unwrap()
+        .is_finite());
 }
 
 #[wasm_bindgen_test]

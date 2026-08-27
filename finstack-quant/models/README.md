@@ -58,7 +58,7 @@ in the engine loop and configured with `McEngineConfig::antithetic`.
 | `process::gbm` | `GbmParams`, `GbmProcess`, `MultiGbmProcess` |
 | `process::gbm_dividends` | `Dividend`, `GbmWithDividends` (requires its dedicated scheme) |
 | `process::brownian` | `BrownianParams`, `BrownianProcess`, `MultiBrownianProcess` |
-| `process::heston` | `HestonParams`, `HestonProcess` |
+| `process::heston` | `HestonProcessParams`, `HestonProcess`; stochastic factors use canonical `volatility::heston::HestonParams` |
 | `process::cir` | `CirParams`, `CirProcess`, `CirPlusPlusProcess` |
 | `process::ou` | `HullWhite1FParams`, `HullWhite1FProcess` (`HullWhite1FProcess::vasicek` for constant θ), `calibrate_theta_from_curve` |
 | `process::multi_ou` | `MultiOuParams`, `MultiOuProcess` |

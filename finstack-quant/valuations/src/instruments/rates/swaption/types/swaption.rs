@@ -9,6 +9,7 @@ use crate::instruments::pricing_overrides::VolSurfaceExtrapolation;
 use crate::instruments::rates::irs::{
     FixedLegSpec, FloatLegSpec, FloatingLegCompounding, InterestRateSwap, PayReceive,
 };
+use crate::market::resolve_vol_source;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -16,13 +17,14 @@ use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CalendarId, CurveId, InstrumentId};
 use finstack_quant_core::{Error, Result};
-use finstack_quant_models::SABRModel;
+use finstack_quant_models::SabrModel;
+use finstack_quant_models::SabrParameters;
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 
 use super::super::parameters::SwaptionParams;
 use super::definitions::{
-    CashSettlementMethod, SABRParameters, SwaptionExercise, SwaptionSettlement, VolatilityModel,
+    CashSettlementMethod, SwaptionExercise, SwaptionSettlement, VolatilityModel,
 };
 
 /// Swaption instrument
@@ -98,7 +100,7 @@ pub struct Swaption {
     )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Optional SABR volatility model parameters
-    pub sabr_params: Option<SABRParameters>,
+    pub sabr_params: Option<SabrParameters>,
     /// Attributes for scenario selection and grouping
     #[builder(default)]
     pub attributes: Attributes,
@@ -344,7 +346,7 @@ impl Swaption {
             instrument_pricing_overrides: Default::default(),
             metric_pricing_overrides: Default::default(),
             scenario_pricing_overrides: Default::default(),
-            sabr_params: Some(SABRParameters {
+            sabr_params: Some(SabrParameters {
                 alpha: 0.025,
                 beta: 0.5,
                 nu: 0.40,
@@ -446,7 +448,7 @@ impl Swaption {
     }
 
     /// Attach SABR parameters to enable SABR-implied volatility pricing.
-    pub fn with_sabr(mut self, params: SABRParameters) -> Self {
+    pub fn with_sabr(mut self, params: SabrParameters) -> Self {
         self.sabr_params = Some(params);
         self
     }
@@ -742,7 +744,7 @@ impl Swaption {
     /// shifted rates (F + shift, K + shift) which are guaranteed positive.
     /// Without a shift, non-positive rates fall back to a crude approximation.
     /// For negative-rate currencies (EUR, JPY, CHF), always use shifted SABR
-    /// via [`SABRParameters::new_with_shift`].
+    /// via [`SabrParameters::new_with_shift`].
     ///
     /// # References
     ///
@@ -759,7 +761,7 @@ impl Swaption {
             .sabr_params
             .as_ref()
             .ok_or_else(|| Error::internal("swaption SABR pricing requires sabr_params"))?;
-        let model = SABRModel::new(params.clone());
+        let model = SabrModel::new(params.clone());
         let time_to_expiry = self.time_to_expiry(as_of)?;
         let forward_rate = self.forward_swap_rate(curves, as_of)?;
         let strike = self.strike_f64()?;
@@ -1136,7 +1138,7 @@ impl Swaption {
     ) -> Result<f64> {
         // 1. SABR model (highest priority)
         if let Some(sabr) = &self.sabr_params {
-            let model = SABRModel::new(sabr.clone());
+            let model = SabrModel::new(sabr.clone());
             return model.implied_volatility(forward, self.strike_f64()?, time_to_expiry);
         }
 
@@ -1151,7 +1153,7 @@ impl Swaption {
 
         // 3. Volatility provider. Strike surfaces use the strike coordinate;
         // tenor surfaces and SABR cubes use the underlying swap tenor.
-        let vol_provider = curves.get_vol_provider(self.vol_surface_id.as_str())?;
+        let vol_source = resolve_vol_source(curves, self.vol_surface_id.as_str())?;
         let strike = self.strike_f64()?;
         let underlying_tenor = self.underlying_tenor_years()?;
         match self
@@ -1161,10 +1163,10 @@ impl Swaption {
         {
             VolSurfaceExtrapolation::Clamp | VolSurfaceExtrapolation::LinearInVariance => {
                 // LinearInVariance falls back to Clamp until surface impl is ready
-                Ok(vol_provider.vol_clamped(time_to_expiry, underlying_tenor, strike))
+                Ok(vol_source.get_vol_clamped(time_to_expiry, underlying_tenor, strike))
             }
             VolSurfaceExtrapolation::Error => {
-                Ok(vol_provider.vol(time_to_expiry, underlying_tenor, strike)?)
+                vol_source.get_vol(time_to_expiry, underlying_tenor, strike)
             }
         }
     }

@@ -1,21 +1,21 @@
 //! Thin adapter over the workspace-canonical Heston characteristic function.
 //!
 //! The "Little Heston Trap" algebra (Albrecher et al. 2007) lives once, in
-//! [`finstack_quant_core::math::volatility::heston`]. This module only maps
-//! this crate's [`HestonParams`] (which carries `r`/`q` alongside the model
-//! parameters) onto core's parameter type and re-exports the status enum, so
+//! [`crate::volatility::heston`]. This module only maps
+//! this crate's [`HestonPricingParams`] (which carries `r`/`q` alongside the model
+//! parameters) onto the canonical parameter type and re-exports the status enum, so
 //! the Fourier drivers here keep their own quadrature while sharing the
 //! algebra.
 
-use super::HestonParams;
+use super::HestonPricingParams;
 use num_complex::Complex;
 
-pub(super) use finstack_quant_core::math::volatility::heston::HestonCfStatus;
+pub(super) use crate::volatility::heston::HestonCfStatus;
 
 /// Heston probability characteristic function ψ_j(φ) for j ∈ {1, 2}.
 ///
 /// Forwards to
-/// [`finstack_quant_core::math::volatility::heston::heston_pj_characteristic_function`];
+/// [`crate::volatility::heston::heston_pj_characteristic_function`];
 /// see that function for the formulation and the meaning of the returned
 /// [`HestonCfStatus`].
 ///
@@ -37,28 +37,15 @@ pub(super) fn heston_pj_characteristic_function(
     phi: f64,
     time: f64,
     log_spot: f64,
-    params: &HestonParams,
+    params: &HestonPricingParams,
 ) -> (Complex<f64>, HestonCfStatus) {
-    // `HestonParams::new` in this crate already validates the model
-    // parameters, so the core constructor cannot fail here; report a corrupt
-    // node rather than panicking if that ever changes.
-    let Ok(core_params) = finstack_quant_core::math::volatility::heston::HestonParams::new(
-        params.v0,
-        params.kappa,
-        params.theta,
-        params.sigma_v,
-        params.rho,
-    ) else {
-        return (Complex::new(0.0, 0.0), HestonCfStatus::Overflow);
-    };
-
-    finstack_quant_core::math::volatility::heston::heston_pj_characteristic_function(
+    crate::volatility::heston::heston_pj_characteristic_function(
         j,
         phi,
         log_spot,
         params.r,
         params.q,
         time,
-        &core_params,
+        &params.model,
     )
 }

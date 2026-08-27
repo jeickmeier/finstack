@@ -19,10 +19,11 @@ Within the crate, `closed_form` reaches for
 call/put-selecting entry point, and `helpers::get_unitless_scalar_strict` in
 the Heston parameter validator. From core it uses `math::special_functions`
 (`norm_cdf`, `norm_pdf`), `math::NeumaierAccumulator`,
-`math::volatility::{black_call, black_put}`, and `types::BarrierType`.
+`math` special functions and neutral types such as `BarrierType`. Black and
+Bachelier pricing formulas are owned directly by this module.
 
 It reads no market data, no curves, and no `MarketContext`: apart from the
-payoff/barrier enums and the `BarrierParams`/`HestonParams` grouping structs,
+payoff/barrier enums and the `BarrierParams`/`HestonPricingParams` grouping structs,
 every argument is a flat `f64`.
 
 Consumed by `valuations::instruments` — `equity/equity_option`,
@@ -234,20 +235,19 @@ P_j = 0.5 + (1/π) ∫₀^∞ Re[e^(-iφ·ln K) · ψ_j(φ) / (iφ)] dφ
 
 | Item | Notes |
 |------|-------|
-| `heston_call_price_fourier` | `(spot, strike, time, &HestonParams, Option<&HestonFourierSettings>) -> f64` |
+| `heston_call_price_fourier` | `(spot, strike, time, &HestonPricingParams, Option<&HestonFourierSettings>) -> f64` |
 | `heston_put_price_fourier` | same, via put-call parity |
 | `heston_call_prices_fourier` / `heston_put_prices_fourier` | strike-strip variants |
 | `HestonStripPricer` | caches the strike-independent characteristic function on the quadrature grid |
-| `HestonParams` | `r, q, kappa, theta, sigma_v, rho, v0` — `new()` validates and returns `Result` |
+| `HestonPricingParams` | `r` and `q` plus canonical `volatility::heston::HestonParams` — `new()` validates and returns `Result` |
 | `HestonFourierSettings` | `u_max`, `panels`, `gl_order`, `phi_eps`; `new()` / `validate()` |
 | `heston_defaults` | module of `KAPPA`/`THETA`/`SIGMA_V`/`RHO`/`V0` constants — the single source of truth for Heston defaults across the Fourier, PDE, and Monte Carlo equity pricers |
 
 The "Little Heston Trap" algebra (Albrecher et al. 2007) lives once in
-`finstack_quant_core::math::volatility::heston`;
+`models::volatility::heston`;
 [`characteristic_fn.rs`](heston/characteristic_fn.rs) is a thin adapter that
-maps this module's `HestonParams` (which carries `r` and `q`) onto core's
-five-field `HestonParams` (which does not). **The two `HestonParams` types are
-distinct and must not be conflated.**
+maps this module's market-aware parameter grouping onto the volatility engine's
+five stochastic parameters.
 
 Passing `settings: None` selects
 `HestonFourierSettings::for_maturity_with_variance(time, v0)`, which widens the
@@ -323,7 +323,7 @@ use finstack_quant_models::OptionType;
 use finstack_quant_models::closed_form::{
     barrier::down_out_call,
     bs_greeks, bs_price,
-    heston::{heston_call_price_fourier, HestonParams},
+    heston::{heston_call_price_fourier, HestonPricingParams},
     implied_vol::bs_implied_vol,
 };
 
@@ -343,7 +343,7 @@ let ko = down_out_call(spot, strike, 90.0, t, r, q, vol);
 assert!(ko < price);
 
 // Heston with adaptive quadrature settings.
-let params = HestonParams::new(r, q, 2.0, 0.04, 0.3, -0.7, 0.04)?;
+let params = HestonPricingParams::new(r, q, 2.0, 0.04, 0.3, -0.7, 0.04)?;
 let heston = heston_call_price_fourier(spot, strike, t, &params, None)?;
 assert!(heston > 0.0 && heston < spot);
 # Ok::<(), finstack_quant_core::Error>(())

@@ -1,22 +1,16 @@
 # models::volatility
 
-Black-Scholes/Black-76 `d₁`/`d₂` helpers, the Bachelier (normal) model, and the
-SABR smile model with its Levenberg-Marquardt calibrator. These are the
-volatility primitives the valuations crate's own pricers reach for.
-
-Stochastic-volatility surfaces that are not SABR — Heston, Dupire local
-volatility, SVI, rough Heston, and a second (surface-oriented) SABR
-parameterisation — live one layer down in
-[`finstack_quant_core::math::volatility`](../../../../core/src/math/volatility/).
-This module is deliberately small.
+Product-independent volatility evaluation, fitting, convention conversion,
+arbitrage checks, and model parameterizations. The module owns SABR, SVI,
+Heston, rough Heston, Dupire local volatility, implied-volatility inversion,
+and concrete evaluation of the data-only volatility artifacts stored by core.
+Black and Bachelier pricing formulas live in [`models::closed_form`](../closed_form/).
 
 ## Position in the stack
 
-Depends on `finstack_quant_core::math` (`norm_cdf`, `norm_pdf`,
-`solver_multi::{LevenbergMarquardtSolver, AnalyticalDerivatives}`,
-`volatility::{black_vega, bachelier_vega}` for the calibration weights) and on
-`crate::instruments::common_impl::parameters::OptionType`. Nothing here reads
-market data or curves.
+Depends on neutral core math and market-data artifacts. It does not resolve
+artifacts from `MarketContext`; valuations owns lookup and override precedence,
+then supplies a concrete `VolSource` to pricing code.
 
 Consumed by [`models::closed_form`](../closed_form/) and
 [`models::trees`](../trees/) (both use `black::d1_d2`), by
@@ -36,8 +30,11 @@ d_bachelier}`, `black::{d1_d2, d1_black76, d2_black76, d1_d2_black76}`, and
 | [`mod.rs`](mod.rs) | Re-exports |
 | [`black.rs`](black.rs) | `d1`, `d2`, `d1_d2`, `d1_black76`, `d2_black76`, `d1_d2_black76` |
 | [`normal.rs`](normal.rs) | `d_bachelier`, `bachelier_price` |
-| [`sabr/`](sabr/) | `SABRParameters`, `SABRModel`, `SabrVolType`, `SABRCalibrator`, `SABRSmile` and its arbitrage diagnostics |
-| [`sabr_derivatives.rs`](sabr_derivatives.rs) | `SABRMarketData`, `SABRCalibrationDerivatives` — finite-difference gradients for the LM solver |
+| [`sabr/`](sabr/) | `SabrParameters`, `SabrModel`, `SabrVolType`, `SabrCalibrator`, `SabrSmile` |
+| [`sabr_derivatives.rs`](sabr_derivatives.rs) | `SabrMarketData`, `SabrCalibrationDerivatives` — finite-difference gradients for the LM solver |
+| [`source.rs`](source.rs) | `VolSource` plus surface, cube, and FX delta-volatility evaluation/materialization |
+| [`arbitrage/`](arbitrage/) | Model-dependent volatility arbitrage checks |
+| [`heston.rs`](heston.rs), [`rough_heston.rs`](rough_heston.rs), [`local_vol.rs`](local_vol.rs), [`svi.rs`](svi.rs) | Stochastic/local volatility engines and fitting |
 
 `norm_cdf` and `norm_pdf` are re-exported from `finstack_quant_core::math` for
 caller convenience; they are not defined here.
@@ -210,23 +207,18 @@ constructors.
 
 References: Hagan, Kumar, Lesniewski & Woodward (2002); Obloj (2008).
 
-## Where the other models went
+## Model ownership
 
 | Model | Home |
 |-------|------|
-| Heston (characteristic function, `HestonParams`) | `finstack_quant_core::math::volatility::heston` |
+| Heston parameters, characteristic function, and calibration | `models::volatility::heston` |
 | Heston Fourier *pricing* | [`models::closed_form::heston`](../closed_form/heston/) |
-| Dupire local volatility (`LocalVolSurface`) | `finstack_quant_core::math::volatility::local_vol` |
-| SVI surface | `finstack_quant_core::math::volatility::svi` |
-| Rough Heston | `finstack_quant_core::math::volatility::rough_heston` |
-| Surface-oriented SABR (`SabrParams`) | `finstack_quant_core::math::volatility::sabr` |
-| Black-76 / Bachelier pricing + vega, normal↔lognormal conversion | `finstack_quant_core::math::volatility` (`black_call`, `black_vega`, `bachelier_call`, `convert_atm_volatility`) |
-
-Two distinct types are named `HestonParams` and two are named for SABR
-parameters. Core's `HestonParams` carries `{v0, kappa, theta, sigma, rho}`;
-`closed_form::heston::HestonParams` adds `r` and `q` and renames `sigma` to
-`sigma_v`. Core's `SabrParams` is a separate surface type from this module's
-`SABRParameters`. Do not alias them together.
+| Dupire local volatility (`LocalVolSurface`) | `models::volatility::local_vol` |
+| SVI surface | `models::volatility::svi` |
+| Rough Heston | `models::volatility::rough_heston` |
+| SABR parameters, smile, and calibration | `models::volatility::sabr` |
+| Black-76 / Bachelier pricing and vega | `models::closed_form::volatility` |
+| Normal↔lognormal conversion and implied-volatility inversion | `models::volatility` |
 
 ## Model selection
 
@@ -360,10 +352,8 @@ touching either file.
 4. If the model's vol output convention is β- or regime-dependent, expose a tag
    type the way `SabrVolType` does — an untagged vol is a unit bug waiting to
    happen.
-5. Before adding here, check whether the model belongs in
-   `finstack_quant_core::math::volatility` instead: anything usable outside
-   option pricing (surfaces, conversions, generic numerics) goes to core. See
-   [`.agents/rules/rust/code-standards.md`](../../../../../.agents/rules/rust/code-standards.md).
+5. Keep observed surface/cube data and structural validation in core; keep all
+   evaluation, fitting, extrapolation, and pricing behavior in models.
 6. Tests: parameter validation, known analytical limits (convergence to
    Black-Scholes), literature reference values, and ATM / deep-OTM / zero-vol /
    zero-time edge cases.

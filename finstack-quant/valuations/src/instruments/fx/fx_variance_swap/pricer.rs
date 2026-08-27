@@ -429,7 +429,9 @@ pub(crate) fn remaining_forward_variance(
     let r_f = zero_rate_from_df(df_for, t, "FxVarianceSwap foreign discount")?;
     let fwd = spot * ((r_d - r_f) * t).exp();
     let strikes = surface.strikes();
-    let vol_fn = |t_exp: f64, k: f64| surface.value_clamped(t_exp, k);
+    let vol_fn = |t_exp: f64, k: f64| {
+        finstack_quant_models::volatility::get_surface_vol_clamped(&surface, t_exp, k)
+    };
     let bs_fn = |k: f64, v: f64, opt: OptionType| -> f64 {
         bs_price_unchecked(spot, k, r_d, r_f, v, t, opt)
     };
@@ -805,7 +807,9 @@ mod tests {
         // follows the date-based one.
         let surface_ref = market.get_surface("EURUSD-VOL").expect("surface");
         let strikes = surface_ref.strikes();
-        let vol_fn = |t_exp: f64, k: f64| surface_ref.value_clamped(t_exp, k);
+        let vol_fn = |t_exp: f64, k: f64| {
+            finstack_quant_models::volatility::get_surface_vol_clamped(&surface_ref, t_exp, k)
+        };
         let expected_variance =
             carr_madan_forward_variance(strikes, fwd_expected, r_d_date, t, vol_fn, |k, v, opt| {
                 bs_price_unchecked(spot, k, r_d_date, r_f_date, v, t, opt)

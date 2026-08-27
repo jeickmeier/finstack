@@ -3,7 +3,8 @@
 use crate::swaption::common::*;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_valuations::instruments::rates::swaption::{SABRParameters, SwaptionExercise};
+use finstack_quant_models::SabrParameters;
+use finstack_quant_valuations::instruments::rates::swaption::SwaptionExercise;
 use finstack_quant_valuations::instruments::{Instrument, PricingOptions};
 use finstack_quant_valuations::metrics::MetricId;
 use finstack_quant_valuations::pricer::ModelKey;
@@ -45,7 +46,7 @@ fn at_expiry_direct_sabr_and_registry_models_share_intrinsic_without_volatility(
     let expiry = time::macros::date!(2024 - 01 - 01);
     let swap_end = time::macros::date!(2029 - 01 - 01);
     let swaption =
-        create_standard_payer_swaption(expiry, expiry, swap_end, 0.03).with_sabr(SABRParameters {
+        create_standard_payer_swaption(expiry, expiry, swap_end, 0.03).with_sabr(SabrParameters {
             alpha: 0.20,
             beta: 0.5,
             rho: -0.3,

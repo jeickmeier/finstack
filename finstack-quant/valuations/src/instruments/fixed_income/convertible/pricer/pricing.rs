@@ -227,7 +227,11 @@ fn resolve_volatility_with_id(
 
         match ctx.get_surface(id) {
             Ok(surface) => {
-                let vol = surface.value_clamped(time_to_maturity, spot);
+                let vol = finstack_quant_models::volatility::get_surface_vol_clamped(
+                    &surface,
+                    time_to_maturity,
+                    spot,
+                );
                 return Ok((vol, id.clone()));
             }
             Err(err) => {
@@ -416,7 +420,8 @@ pub fn price_convertible_bond(
 /// # Volatility convention for delta/gamma
 ///
 /// When volatility resolves from a surface, each bumped spot reprice re-reads
-/// the surface at the bumped moneyness (`value_clamped(ttm, S ± h)`), so delta
+/// the surface at the bumped moneyness through models-layer clamped evaluation,
+/// so delta
 /// and gamma embed the smile slope along the spot move (**sticky-strike**
 /// finite differences), not a frozen-vol (sticky-vol) delta.
 ///

@@ -3,16 +3,14 @@ import { correlation } from './models/correlation.js';
 import { credit } from './models/credit.js';
 import { monteCarlo } from './models/monteCarlo.js';
 import { rates } from './models/rates.js';
+import { volatility } from './models/volatility.js';
 
 export const models = {
   correlation,
   credit,
   monteCarlo,
   rates,
-  SabrParameters: wasm.SabrParameters,
-  SabrModel: wasm.SabrModel,
-  SabrSmile: wasm.SabrSmile,
-  SabrCalibrator: wasm.SabrCalibrator,
+  volatility,
   bsPrice: wasm.bsPrice,
   vanillaExpiryPayoff: wasm.vanillaExpiryPayoff,
   bsGreeks: wasm.bsGreeks,

@@ -2,11 +2,11 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::diff::{
-    measure_credit_curve_shift, measure_fx_shift, measure_scalar_shift, measure_vol_surface_shift,
-    TenorSamplingMethod,
+    measure_credit_curve_shift, measure_fx_shift, measure_scalar_shift, TenorSamplingMethod,
 };
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::Result;
+use finstack_quant_models::volatility::measure_vol_surface_shift;
 use finstack_quant_valuations::instruments::{Instrument, MarketDependencies};
 use finstack_quant_valuations::results::ValuationResult;
 use std::sync::Arc;

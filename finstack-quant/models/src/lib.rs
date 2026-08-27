@@ -51,7 +51,7 @@ pub mod volatility;
 pub use closed_form::{
     black76_call, black76_implied_vol, black76_put, bs_greeks, bs_greeks_checked, bs_implied_vol,
     bs_price, bs_price_checked, heston_call_price_fourier, heston_put_price_fourier,
-    vanilla_expiry_payoff, BsGreeks, HestonParams, ONE_PERCENT,
+    vanilla_expiry_payoff, BsGreeks, HestonPricingParams, ONE_PERCENT,
 };
 pub use pde::{
     BlackScholesPde, BoundaryCondition, CraigSneydStepper, Grid1D, Grid2D, HestonPde, PdeProblem1D,
@@ -65,8 +65,8 @@ pub use trees::{
 };
 pub use types::{ExerciseStyle, OptionMarketParams, OptionType};
 pub use volatility::{
-    d1, d1_black76, d1_d2_black76, d2_black76, vega_weight, SABRCalibrator, SABRModel,
-    SABRParameters, SABRSmile, SabrCalibrationOutcome,
+    d1, d1_black76, d1_d2_black76, d2_black76, vega_weight, SabrCalibrationOutcome, SabrCalibrator,
+    SabrModel, SabrParameters, SabrSmile,
 };
 
 /// Compiles the crate `README.md` Rust samples as doctests.

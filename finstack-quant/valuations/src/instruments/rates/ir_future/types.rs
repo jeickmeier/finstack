@@ -767,7 +767,7 @@ impl InterestRateFuture {
             // convexity variance accumulates), NOT at the fixing date — the
             // latter mis-pairs the `(T_start, T_end)` formula for SOFR-style
             // futures whose fixing date is at the period end.
-            surface.value_checked(t1, forward_rate)?
+            finstack_quant_models::volatility::get_surface_vol(&surface, t1, forward_rate)?
         } else {
             return Err(finstack_quant_core::Error::Input(
                 finstack_quant_core::InputError::NotFound {

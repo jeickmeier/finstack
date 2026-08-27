@@ -615,11 +615,11 @@ mod tests {
             .apply_surface_bump_in_place("VOL", surface_spec(0.01))
             .expect("surface bump");
         let bumped = ctx.get_surface("VOL").expect("bumped surface");
-        assert!((bumped.value_checked(0.5, 90.0).expect("bumped value") - 0.21).abs() < 1e-12);
+        assert!((bumped.vols()[0] - 0.21).abs() < 1e-12);
 
         ctx.revert_scratch_bump(token).expect("revert");
         let restored = ctx.get_surface("VOL").expect("restored surface");
-        assert!((restored.value_checked(0.5, 90.0).expect("restored value") - 0.2).abs() < 1e-12);
+        assert!((restored.vols()[0] - 0.2).abs() < 1e-12);
     }
 
     #[test]
@@ -632,12 +632,12 @@ mod tests {
             .apply_surface_point_bump_in_place("VOL", 0.5, 90.0, 0.10)
             .expect("point bump");
         let bumped = ctx.get_surface("VOL").expect("bumped surface");
-        assert!((bumped.value_checked(0.5, 90.0).expect("bumped value") - 0.22).abs() < 1e-12);
-        assert!((bumped.value_checked(1.0, 100.0).expect("untouched value") - 0.2).abs() < 1e-12);
+        assert!((bumped.vols()[0] - 0.22).abs() < 1e-12);
+        assert!((bumped.vols()[3] - 0.2).abs() < 1e-12);
 
         ctx.revert_scratch_bump(token).expect("revert");
         let restored = ctx.get_surface("VOL").expect("restored surface");
-        assert!((restored.value_checked(0.5, 90.0).expect("restored value") - 0.2).abs() < 1e-12);
+        assert!((restored.vols()[0] - 0.2).abs() < 1e-12);
     }
 
     #[test]

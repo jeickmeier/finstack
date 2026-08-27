@@ -41,10 +41,6 @@ mod context;
 #[path = "market_data/bumps.rs"]
 mod bumps;
 
-// Diff measurements
-#[path = "market_data/diff_tests.rs"]
-mod diff_tests;
-
 // FX providers
 #[path = "market_data/fx.rs"]
 mod fx;

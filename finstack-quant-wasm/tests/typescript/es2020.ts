@@ -1,6 +1,7 @@
 import {
   analytics,
   core,
+  models,
   portfolio,
   type MaterializationPhases,
   type MaterializationReport,
@@ -75,7 +76,7 @@ const fxVolFromTyped = new core.FxDeltaVolSurface(
 
 const projectionGrid: Float64Array | null = forwardFromTyped.projectionGrid;
 const expiries: Float64Array = fxVolFromTyped.expiries;
-const pillarVols: Float64Array = fxVolFromArrays.pillarVols(0);
+const pillarVols: Float64Array = models.volatility.getFxDeltaPillarVols(fxVolFromArrays, 0);
 const factorReturns = analytics.constrainedLeastSquares([1], 1, [0.01], [1]);
 const factorAttribution: Record<string, unknown> = portfolio.factorBrinsonAttribution(
   '{}',

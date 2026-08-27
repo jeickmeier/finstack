@@ -1,6 +1,6 @@
 //! SABR model, smile, parameter, and calibration support.
 //!
-use super::parameters::SABRParameters;
+use super::parameters::SabrParameters;
 use finstack_quant_core::{Error, Result};
 
 /// Snap β to the exact endpoints 0 or 1 when it is within this tolerance.
@@ -29,13 +29,13 @@ pub enum SabrVolType {
 }
 
 /// SABR model for volatility smile dynamics
-pub struct SABRModel {
-    params: SABRParameters,
+pub struct SabrModel {
+    params: SabrParameters,
 }
 
-impl SABRModel {
+impl SabrModel {
     /// Create new SABR model
-    pub fn new(params: SABRParameters) -> Self {
+    pub fn new(params: SabrParameters) -> Self {
         Self { params }
     }
 
@@ -484,12 +484,12 @@ impl SABRModel {
     }
 
     /// Get model parameters
-    pub fn parameters(&self) -> &SABRParameters {
+    pub fn parameters(&self) -> &SabrParameters {
         &self.params
     }
 
     /// Update model parameters
-    pub fn set_parameters(&mut self, params: SABRParameters) {
+    pub fn set_parameters(&mut self, params: SabrParameters) {
         self.params = params;
     }
 

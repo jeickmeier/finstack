@@ -93,10 +93,10 @@ pub enum TreeModelChoice {
 ///
 /// ## Converting Between Conventions
 ///
-/// Use `finstack_quant_core::math::volatility::convert_atm_volatility`:
+/// Use `finstack_quant_models::volatility::convert_atm_volatility`:
 ///
 /// ```
-/// use finstack_quant_core::math::volatility::{convert_atm_volatility, VolatilityConvention};
+/// use finstack_quant_models::volatility::{convert_atm_volatility, VolatilityConvention};
 ///
 /// // Normal vol (100 bp) at 5% rate → lognormal vol (20%)
 /// let lognormal = convert_atm_volatility(

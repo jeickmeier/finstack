@@ -360,7 +360,11 @@ impl BermudanSwaptionLmmPricer {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;
 
-        let market_vol = surf.value_clamped(first_exercise_yf, atm_swap_rate);
+        let market_vol = finstack_quant_models::volatility::get_surface_vol_clamped(
+            &surf,
+            first_exercise_yf,
+            atm_swap_rate,
+        );
         if !market_vol.is_finite() || market_vol <= 0.0 {
             return Err(PricingError::model_failure_with_context(
                 format!(

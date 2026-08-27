@@ -2,7 +2,7 @@ use super::params::HESTON_TAIL_DIAGNOSTIC_THRESHOLD;
 use super::quadrature::{
     composite_gauss_legendre_grid, heston_pj_on_grid, heston_pj_with_diagnostics,
 };
-use super::{HestonFourierSettings, HestonParams, HestonStripPricer};
+use super::{HestonFourierSettings, HestonPricingParams, HestonStripPricer};
 use crate::closed_form::vanilla::bs_price_unchecked;
 use crate::types::OptionType;
 use finstack_quant_core::{Error, Result};
@@ -10,7 +10,7 @@ use tracing::warn;
 
 fn resolve_heston_settings(
     time: f64,
-    params: &HestonParams,
+    params: &HestonPricingParams,
     settings: Option<&HestonFourierSettings>,
 ) -> HestonFourierSettings {
     settings
@@ -45,10 +45,10 @@ fn resolve_heston_settings(
 ///
 /// ```text
 /// use finstack_quant_models::closed_form::heston::{
-///     heston_call_price_fourier, HestonParams,
+///     heston_call_price_fourier, HestonPricingParams,
 /// };
 ///
-/// let params = HestonParams::new(
+/// let params = HestonPricingParams::new(
 ///     0.05,  // risk-free rate
 ///     0.02,  // dividend yield
 ///     2.0,   // kappa (mean reversion)
@@ -66,7 +66,7 @@ pub fn heston_call_price_fourier(
     spot: f64,
     strike: f64,
     time: f64,
-    params: &HestonParams,
+    params: &HestonPricingParams,
     settings: Option<&HestonFourierSettings>,
 ) -> Result<f64> {
     if time <= 0.0 {
@@ -111,7 +111,7 @@ fn heston_call_attempt(
     spot: f64,
     strike: f64,
     time: f64,
-    params: &HestonParams,
+    params: &HestonPricingParams,
     settings: HestonFourierSettings,
 ) -> Option<f64> {
     let grid =
@@ -169,7 +169,7 @@ pub fn heston_call_prices_fourier(
     spot: f64,
     strikes: &[f64],
     time: f64,
-    params: &HestonParams,
+    params: &HestonPricingParams,
     settings: Option<&HestonFourierSettings>,
 ) -> Result<Vec<f64>> {
     if time <= 0.0 {
@@ -225,7 +225,7 @@ pub fn heston_put_prices_fourier(
     spot: f64,
     strikes: &[f64],
     time: f64,
-    params: &HestonParams,
+    params: &HestonPricingParams,
     settings: Option<&HestonFourierSettings>,
 ) -> Result<Vec<f64>> {
     if time <= 0.0 {
@@ -270,7 +270,7 @@ pub fn heston_put_price_fourier(
     spot: f64,
     strike: f64,
     time: f64,
-    params: &HestonParams,
+    params: &HestonPricingParams,
     settings: Option<&HestonFourierSettings>,
 ) -> Result<f64> {
     if time <= 0.0 {

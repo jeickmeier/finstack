@@ -1,12 +1,12 @@
 //! SABR model, smile, parameter, and calibration support.
 //!
-use super::model::SABRModel;
+use super::model::SabrModel;
 use crate::volatility::black::d1_d2_black76;
 use finstack_quant_core::{Error, Result};
 
 /// SABR smile generator for creating volatility surfaces
-pub struct SABRSmile {
-    model: SABRModel,
+pub struct SabrSmile {
+    model: SabrModel,
     forward: f64,
     time_to_expiry: f64,
 }
@@ -61,9 +61,9 @@ impl ArbitrageValidationResult {
     }
 }
 
-impl SABRSmile {
+impl SabrSmile {
     /// Create new smile generator
-    pub fn new(model: SABRModel, forward: f64, time_to_expiry: f64) -> Self {
+    pub fn new(model: SabrModel, forward: f64, time_to_expiry: f64) -> Self {
         Self {
             model,
             forward,
@@ -88,12 +88,12 @@ impl SABRSmile {
     ///
     /// ```
     /// use finstack_quant_models::volatility::sabr::{
-    ///     SABRParameters, SABRModel, SABRSmile,
+    ///     SabrParameters, SabrModel, SabrSmile,
     /// };
     ///
-    /// let params = SABRParameters::new(0.2, 0.5, 0.3, -0.1).unwrap();
-    /// let model = SABRModel::new(params);
-    /// let smile = SABRSmile::new(model, 100.0, 1.0);
+    /// let params = SabrParameters::new(0.2, 0.5, 0.3, -0.1).unwrap();
+    /// let model = SabrModel::new(params);
+    /// let smile = SabrSmile::new(model, 100.0, 1.0);
     ///
     /// let atm_vol = smile.atm_vol().unwrap();
     /// assert!(atm_vol > 0.0);
@@ -529,7 +529,7 @@ mod smile_tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
     use super::*;
-    use crate::volatility::sabr::{SABRModel, SABRParameters};
+    use crate::volatility::sabr::{SabrModel, SabrParameters};
 
     // ── W-05: bs_call_price must use Black-76, not double-drifted BS ─────────
 
@@ -592,10 +592,10 @@ mod smile_tests {
     #[test]
     fn test_repair_arbitrage_no_cascade_on_upper_wing() {
         // Well-behaved SABR smile; we use a non-zero r to exercise the Black-76 path.
-        let params = SABRParameters::new(0.20, 0.5, 0.30, -0.20).expect("valid SABR params");
-        let model = SABRModel::new(params);
+        let params = SabrParameters::new(0.20, 0.5, 0.30, -0.20).expect("valid SABR params");
+        let model = SabrModel::new(params);
         let forward = 100.0_f64;
-        let smile = SABRSmile::new(model, forward, 1.0);
+        let smile = SabrSmile::new(model, forward, 1.0);
         let r = 0.05;
         let q = 0.0;
 
@@ -653,10 +653,10 @@ mod smile_tests {
     /// silent Newton miss could hand back a still-arbitraged smile.
     #[test]
     fn test_repair_arbitrage_output_is_revalidated_arbitrage_free() {
-        let params = SABRParameters::new(0.22, 0.6, 0.45, -0.30).expect("valid SABR params");
-        let model = SABRModel::new(params);
+        let params = SabrParameters::new(0.22, 0.6, 0.45, -0.30).expect("valid SABR params");
+        let model = SabrModel::new(params);
         let forward = 100.0_f64;
-        let smile = SABRSmile::new(model, forward, 0.75);
+        let smile = SabrSmile::new(model, forward, 0.75);
         let r = 0.03;
         let q = 0.01;
 
@@ -707,8 +707,8 @@ mod smile_tests {
         // the smile's own price, so the inversion MUST converge (no false
         // non-convergence errors). This guards against the convergence check
         // being too strict and erroring on valid inputs.
-        let params = SABRParameters::new(0.20, 0.5, 0.30, -0.20).expect("valid SABR params");
-        let smile = SABRSmile::new(SABRModel::new(params), 100.0, 1.0);
+        let params = SabrParameters::new(0.20, 0.5, 0.30, -0.20).expect("valid SABR params");
+        let smile = SabrSmile::new(SabrModel::new(params), 100.0, 1.0);
         let strikes: Vec<f64> = (80..=120).step_by(5).map(f64::from).collect();
 
         let repaired = smile

@@ -737,7 +737,7 @@ pub(crate) fn lognormal_to_normal_vol(
         // should supply a SABR shift for negative-rate currencies instead.
         //
         // WARNING: This fallback is inherently unreliable. For negative-rate
-        // currencies (EUR, JPY, CHF), always configure `SABRParameters.shift`
+        // currencies (EUR, JPY, CHF), always configure `SabrParameters.shift`
         // so that F + shift and K + shift are positive.
         let effective_level = ((f.abs() + k.abs()) / 2.0).max(1e-6);
         return sigma_ln * effective_level;

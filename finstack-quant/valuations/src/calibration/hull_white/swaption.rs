@@ -311,9 +311,9 @@ pub fn calibrate_hull_white_to_swaptions_with_schedules(
 fn swaption_atm_vega(annuity: f64, fwd_rate: f64, expiry: f64, vol: f64, is_normal: bool) -> f64 {
     if is_normal {
         annuity
-            * finstack_quant_core::math::volatility::bachelier_vega(fwd_rate, fwd_rate, vol, expiry)
+            * finstack_quant_models::closed_form::bachelier_vega(fwd_rate, fwd_rate, vol, expiry)
     } else {
-        annuity * finstack_quant_core::math::volatility::black_vega(fwd_rate, fwd_rate, vol, expiry)
+        annuity * finstack_quant_models::closed_form::black_vega(fwd_rate, fwd_rate, vol, expiry)
     }
 }
 
@@ -458,10 +458,10 @@ pub(super) fn compute_swaption_market_price(
     if is_normal {
         // Bachelier: ATM payer price ≈ annuity × σ_n × √T × √(2/π) ≈ annuity × bachelier_call
         annuity
-            * finstack_quant_core::math::volatility::bachelier_call(fwd_rate, fwd_rate, vol, expiry)
+            * finstack_quant_models::closed_form::bachelier_call(fwd_rate, fwd_rate, vol, expiry)
     } else {
         // Black-76: annuity × black_call(F, F, σ, T)
-        annuity * finstack_quant_core::math::volatility::black_call(fwd_rate, fwd_rate, vol, expiry)
+        annuity * finstack_quant_models::closed_form::black_call(fwd_rate, fwd_rate, vol, expiry)
     }
 }
 

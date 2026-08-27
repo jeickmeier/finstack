@@ -80,7 +80,6 @@ public = [
     "VolCube",
     "VolSurface",
     "VolatilityIndexCurve",
-    "arbitrage",
     "context",
     "curves",
     "fx",
@@ -140,7 +139,7 @@ note = "Subset scope: the Rust dates::fx (FX spot-lag/settlement date logic) and
 [crates.core.module_symbols.market_data]
 python_package = "finstack_quant.core.market_data"
 public = [
-    "curves", "fx", "context", "scalars", "arbitrage",
+    "curves", "fx", "context", "scalars",
     "BaseCorrelationCurve", "CreditIndexData", "DiscountCurve", "ForwardCurve",
     "FxDeltaVolSurface", "HazardCurve", "InflationCurve", "PriceCurve", "VolSurface",
     "VolCube", "VolatilityIndexCurve", "FxConversionPolicy", "FxRateResult", "FxMatrix",
@@ -609,7 +608,7 @@ status = "exists"
 types        = { python = "finstack_quant.models", status = "flattened", note = "Option model types are exposed at Rust boundaries; host functions accept primitive values." }
 closed_form  = { python = "finstack_quant.models", status = "flattened", note = "Black-Scholes, Black-76, and closed-form exotic helpers are exposed at the models root." }
 fourier      = { python = "finstack_quant.models", status = "flattened", note = "COS pricing helpers are exposed at the models root." }
-volatility   = { python = "finstack_quant.models", status = "flattened", note = "SABR wrappers are exposed at the models root." }
+volatility   = { python = "finstack_quant.models.volatility", status = "exists", note = "Volatility models, fitting, evaluation, arbitrage checks, and convention conversion." }
 pde          = { python = "finstack_quant.models.pde", status = "missing", note = "Rust-only numerical engines consumed by valuation instruments." }
 trees        = { python = "finstack_quant.models.trees", status = "missing", note = "Rust-only tree engines consumed by valuation instruments." }
 credit       = { python = "finstack_quant.models.credit", status = "exists", note = "Structural-credit model wrappers." }
@@ -619,10 +618,6 @@ rates        = { python = "finstack_quant.models.rates", status = "exists", note
 
 [crates.models.symbols]
 public = [
-    "SabrCalibrator",
-    "SabrModel",
-    "SabrParameters",
-    "SabrSmile",
     "asian_option_price",
     "barrier_call",
     "black76_implied_vol",
@@ -663,6 +658,34 @@ public = [
 [crates.models.rates]
 python_package = "finstack_quant.models.rates"
 public = ["dtsm"]
+
+[crates.models.volatility]
+python_package = "finstack_quant.models.volatility"
+public = [
+    "SabrCalibrator",
+    "SabrModel",
+    "SabrParameters",
+    "SabrSmile",
+    "check_butterfly_grid",
+    "check_calendar_spread_grid",
+    "check_local_vol_density_grid",
+    "check_surface_grid",
+    "delta_to_strike",
+    "get_cube_normal_vol",
+    "get_cube_normal_vol_clamped",
+    "get_cube_vol",
+    "get_cube_vol_clamped",
+    "get_fx_delta_pillar_vols",
+    "get_fx_delta_vol",
+    "get_surface_vol",
+    "get_surface_vol_clamped",
+    "materialize_cube_expiry_slice",
+    "materialize_cube_expiry_slice_normal",
+    "materialize_cube_tenor_slice",
+    "materialize_cube_tenor_slice_normal",
+    "materialize_fx_delta_surface",
+    "strike_to_delta",
+]
 
 [crates.models.rates.dtsm]
 python_package = "finstack_quant.models.rates.dtsm"
@@ -2181,7 +2204,7 @@ forward_curve_members = ["id", "baseDate", "projectionGrid", "resetLag", "rate",
 forward_curve_optional_constructor_args = [
     "dayCount", "interp", "extrapolation", "projectionGrid", "resetLag",
 ]
-vol_cube_members = ["id", "interpolationMode", "vol", "volClamped", "volNormal", "volNormalClamped"]
+vol_cube_members = ["id", "interpolationMode"]
 excluded = [
     "cashflow",      # XIRR/NPV: deferred until concrete WASM use case
     "config",        # Configuration model is Rust-internal / Python-only
@@ -2262,7 +2285,6 @@ python_only_market_data = [
     "fx",
     "context",
     "scalars",
-    "arbitrage",
     "BaseCorrelationCurve",
     "CreditIndexData",
     "InflationCurve",
@@ -2435,10 +2457,17 @@ wasm_only = [
 "FxMatrix.methods" = "Rust FxMatrix exposes ~10 further methods beyond the bound quote/rate surface; Rust-only until a host workflow needs them."
 "VolSurface.methods" = "Rust VolSurface has ~11 methods unbound beyond the Python subset; VolSurface itself is python_only_market_data for WASM."
 "FxDeltaVolSurface.to_vol_surface" = "VolSurface is not on the WASM core facade; use impliedVol or calibrate JSON."
-"VolCube.materialize_tenor_slice" = "VolSurface is not on the WASM core facade; use vol/volClamped point queries."
-"VolCube.materialize_tenor_slice_normal" = "VolSurface is not on the WASM core facade; use volNormal/volNormalClamped point queries."
-"VolCube.materialize_expiry_slice" = "VolSurface is not on the WASM core facade; use vol/volClamped point queries."
-"VolCube.materialize_expiry_slice_normal" = "VolSurface is not on the WASM core facade; use volNormal/volNormalClamped point queries."
+"volatility.materialize_cube_tenor_slice" = "Python-only because VolSurface is outside the WASM core subset."
+"volatility.materialize_cube_tenor_slice_normal" = "Python-only because VolSurface is outside the WASM core subset."
+"volatility.materialize_cube_expiry_slice" = "Python-only because VolSurface is outside the WASM core subset."
+"volatility.materialize_cube_expiry_slice_normal" = "Python-only because VolSurface is outside the WASM core subset."
+"volatility.materialize_fx_delta_surface" = "Python-only because VolSurface is outside the WASM core subset."
+"volatility.get_surface_vol" = "Python-only because VolSurface is outside the WASM core subset."
+"volatility.get_surface_vol_clamped" = "Python-only because VolSurface is outside the WASM core subset."
+"volatility.check_butterfly_grid" = "Python-only retained host coverage."
+"volatility.check_calendar_spread_grid" = "Python-only retained host coverage."
+"volatility.check_local_vol_density_grid" = "Python-only retained host coverage."
+"volatility.check_surface_grid" = "Python-only retained host coverage."
 "MarketContext.get_fx_delta_vol_surface" = "MarketContext is Python-only; read fx_delta_vol_surfaces from MarketContextState JSON."
 "MarketContext.insert" = "MarketContext is Python-only; use calibrate JSON to materialize market state."
 
@@ -2448,12 +2477,8 @@ wasm_only = [
 [wasm_models_subset]
 rust_module_root = "../finstack-quant-wasm/src/api/models/"
 js_export_file   = "../finstack-quant-wasm/exports/models.js"
-nested = ["correlation", "credit", "monteCarlo", "rates"]
+nested = ["correlation", "credit", "monteCarlo", "rates", "volatility"]
 root_exports = [
-    "SabrCalibrator",
-    "SabrModel",
-    "SabrParameters",
-    "SabrSmile",
     "asianOptionPrice",
     "barrierCall",
     "black76ImpliedVol",
@@ -2481,11 +2506,6 @@ quanto_option_price = "quantoOptionPrice"
 bs_cos_price = "bsCosPrice"
 vg_cos_price = "vgCosPrice"
 merton_jump_cos_price = "mertonJumpCosPrice"
-SabrParameters = "SabrParameters"
-SabrModel = "SabrModel"
-SabrSmile = "SabrSmile"
-SabrCalibrator = "SabrCalibrator"
-
 [wasm_models_subset.nested_exports]
 correlation = [
     "Copula",
@@ -2497,6 +2517,20 @@ correlation = [
     "nearestCorrelation",
     "trancheLossStatistics",
     "validateCorrelationMatrix",
+]
+volatility = [
+    "SabrCalibrator",
+    "SabrModel",
+    "SabrParameters",
+    "SabrSmile",
+    "deltaToStrike",
+    "getCubeNormalVol",
+    "getCubeNormalVolClamped",
+    "getCubeVol",
+    "getCubeVolClamped",
+    "getFxDeltaPillarVols",
+    "getFxDeltaVol",
+    "strikeToDelta",
 ]
 credit = [
     "creditGradesModelJson",

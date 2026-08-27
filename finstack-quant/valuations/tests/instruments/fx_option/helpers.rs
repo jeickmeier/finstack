@@ -324,7 +324,11 @@ pub fn finite_diff_vega(
 ) -> finstack_quant_core::Result<f64> {
     // Bump volatility surface
     let vol_surface = market.get_surface(option.vol_surface_id.clone())?;
-    let base_vol = vol_surface.value_clamped(0.5, option.strike);
+    let base_vol = finstack_quant_models::volatility::get_surface_vol_clamped(
+        &vol_surface,
+        0.5,
+        option.strike,
+    );
 
     let vol_surface_up = build_flat_vol_surface(base_vol + bump, VOL_ID);
     let mut market_up = market.clone();

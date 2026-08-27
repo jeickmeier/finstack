@@ -3,8 +3,6 @@
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
 use finstack_quant_core::Result;
 
-pub use finstack_quant_models::SABRParameters;
-
 /// Volatility model for pricing
 #[derive(
     Debug,

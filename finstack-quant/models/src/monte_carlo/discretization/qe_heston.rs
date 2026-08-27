@@ -402,14 +402,15 @@ impl Discretization<HestonProcess> for QeHeston {
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::process::heston::HestonParams;
     use super::super::super::process::heston::HestonProcess;
+    use super::super::super::process::heston::HestonProcessParams;
     use super::*;
 
     #[test]
     fn test_qe_heston_variance_positive() {
         let qe = QeHeston::new();
-        let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+        let params =
+            HestonProcessParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
 
         // Test with various shocks
         for z in [-3.0, -1.0, 0.0, 1.0, 3.0] {
@@ -422,7 +423,8 @@ mod tests {
     #[test]
     fn test_qe_heston_mean_reversion() {
         let qe = QeHeston::new();
-        let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.1, -0.5, 0.04).expect("valid");
+        let params =
+            HestonProcessParams::new(0.05, 0.02, 2.0, 0.04, 0.1, -0.5, 0.04).expect("valid");
 
         // Starting above theta
         let v_high = qe.step_variance(0.08, params.kappa, params.theta, params.sigma_v, 0.1, 0.0);
@@ -607,7 +609,8 @@ mod tests {
             .with_integrated_variance(IntegratedVarianceMethod::MeanReversionAdjusted);
 
         // Verify it works without panics
-        let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+        let params =
+            HestonProcessParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
         let v = qe.step_variance(0.04, params.kappa, params.theta, params.sigma_v, 0.1, 0.0);
         assert!(v >= 0.0);
     }
@@ -616,7 +619,8 @@ mod tests {
     fn test_with_psi_c() {
         // Test custom psi_c threshold
         let qe = QeHeston::with_psi_c(2.0).expect("psi_c = 2.0 is the Andersen upper bound");
-        let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+        let params =
+            HestonProcessParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
 
         // Variance should remain positive
         for z in [-2.0, 0.0, 2.0] {
@@ -764,14 +768,16 @@ mod tests {
 
     #[test]
     fn test_qe_heston_clamps_rho_and_integrated_variance_before_sqrt() {
-        let heston = HestonProcess::new(HestonParams {
+        let heston = HestonProcess::new(HestonProcessParams {
             r: 0.03,
             q: 0.01,
-            kappa: 1.5,
-            theta: 0.04,
-            sigma_v: 1.0e-16,
-            rho: 1.0 + 1.0e-12,
-            v0: 0.04,
+            model: crate::volatility::heston::HestonParams {
+                kappa: 1.5,
+                theta: 0.04,
+                sigma_v: 1.0e-16,
+                rho: 1.0 + 1.0e-12,
+                v0: 0.04,
+            },
         });
         let qe = QeHeston::new();
         let mut x = vec![100.0, 0.04];

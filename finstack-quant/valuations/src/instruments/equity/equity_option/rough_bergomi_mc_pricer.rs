@@ -149,7 +149,8 @@ fn build_xi0_from_surface(
     let mut prev_w = 0.0;
     for &u in &strip {
         let atm_forward = spot * ((r - q) * u).exp();
-        let sigma_u = surface.value_clamped(u, atm_forward);
+        let sigma_u =
+            finstack_quant_models::volatility::get_surface_vol_clamped(&surface, u, atm_forward);
         let w = sigma_u * sigma_u * u;
         let xi = (w - prev_w) / (u - prev_u);
         if !xi.is_finite() || xi <= 0.0 {

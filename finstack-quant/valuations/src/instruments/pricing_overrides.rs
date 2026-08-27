@@ -1,9 +1,10 @@
 //! Pricing overrides for market-quoted instruments.
 
-use crate::instruments::common_impl::parameters::{SABRParameters, VolatilityModel};
+use crate::instruments::common_impl::parameters::VolatilityModel;
 use crate::instruments::fixed_income::term_loan::TermLoanOverrides;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
+use finstack_quant_models::volatility::SabrParameters;
 
 /// Policy for evaluating volatility surfaces outside their calibrated grid.
 ///
@@ -432,7 +433,7 @@ pub struct ModelConfig {
     pub vol_model: Option<VolatilityModel>,
     /// Optional SABR volatility model parameters.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sabr_params: Option<SABRParameters>,
+    pub sabr_params: Option<SabrParameters>,
     /// Number of time steps for tree-based pricing (e.g., 100)
     pub tree_steps: Option<usize>,
     /// Use Gobet-Miri discrete monitoring correction for barrier options.

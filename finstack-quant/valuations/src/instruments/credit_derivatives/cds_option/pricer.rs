@@ -181,8 +181,8 @@ pub(crate) fn implied_vol(
 /// 1. The instrument-level
 ///    `pricing_overrides.market_quotes.implied_volatility` override has
 ///    highest precedence and needs no surface.
-/// 2. Otherwise the `VolSurface` under `vol_surface_id` is queried with
-///    `value_checked(t_expiry, native_strike_coordinate)` — the decimal
+/// 2. Otherwise the `VolSurface` under `vol_surface_id` is evaluated with
+///    `models::volatility::get_surface_vol(t_expiry, native_strike_coordinate)` — the decimal
 ///    spread for spread strikes, the percentage clean price (e.g. `107.0`)
 ///    for clean-price strikes. No clamped fallback: expiry or strike
 ///    extrapolation is an error.
@@ -221,7 +221,7 @@ pub(crate) fn resolve_sigma(
             )));
         }
         surface.require_quote_type(VolQuoteType::BlackLognormal)?;
-        surface.value_checked(t, strike)?
+        finstack_quant_models::volatility::get_surface_vol(&surface, t, strike)?
     };
     if sigma > super::types::MAX_IMPLIED_VOL {
         return Err(finstack_quant_core::Error::Validation(format!(

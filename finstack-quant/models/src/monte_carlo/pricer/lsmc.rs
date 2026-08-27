@@ -1917,7 +1917,7 @@ mod tests {
         let dividend_yield = 0.0;
         let vol = 0.2;
         let expiry = 1.0;
-        let european = finstack_quant_core::math::volatility::black_scholes_spot_put(
+        let european = crate::closed_form::black_scholes_spot_put(
             spot,
             strike,
             rate,
@@ -1958,7 +1958,7 @@ mod tests {
         let dividend_yield = 0.0;
         let vol = 0.2;
         let expiry = 1.0;
-        let european = finstack_quant_core::math::volatility::black_scholes_spot_call(
+        let european = crate::closed_form::black_scholes_spot_call(
             spot,
             strike,
             rate,

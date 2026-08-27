@@ -66,7 +66,7 @@ impl MetricCalculator for ImpliedVolCalculator {
         {
             ov
         } else if let Some(sabr) = &option.sabr_params {
-            let model = finstack_quant_models::SABRModel::new(sabr.clone());
+            let model = finstack_quant_models::SabrModel::new(sabr.clone());
             model.implied_volatility(forward, strike, t).unwrap_or(0.2)
         } else {
             context
@@ -82,9 +82,13 @@ impl MetricCalculator for ImpliedVolCalculator {
                         VolSurfaceExtrapolation::Clamp
                         | VolSurfaceExtrapolation::LinearInVariance => {
                             // LinearInVariance falls back to Clamp until surface impl is ready
-                            Ok(s.value_clamped(t, strike))
+                            Ok(finstack_quant_models::volatility::get_surface_vol_clamped(
+                                &s, t, strike,
+                            ))
                         }
-                        VolSurfaceExtrapolation::Error => s.value_checked(t, strike),
+                        VolSurfaceExtrapolation::Error => {
+                            finstack_quant_models::volatility::get_surface_vol(&s, t, strike)
+                        }
                     }
                 })
                 .unwrap_or(0.2)

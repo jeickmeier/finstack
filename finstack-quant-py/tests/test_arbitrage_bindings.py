@@ -1,6 +1,6 @@
 """Behavioral contracts for volatility-surface arbitrage bindings."""
 
-from finstack_quant.core.market_data.arbitrage import check_surface_grid
+from finstack_quant.models.volatility import check_surface_grid
 
 
 def test_surface_report_keys_match_stub_contract() -> None:

@@ -93,10 +93,10 @@ fn kirk_price(
         )));
     }
     let surface1 = market.get_surface(inst.leg1_vol_surface_id.as_str())?;
-    let sigma1 = surface1.value_clamped(t, f1);
+    let sigma1 = finstack_quant_models::volatility::get_surface_vol_clamped(&surface1, t, f1);
 
     let surface2 = market.get_surface(inst.leg2_vol_surface_id.as_str())?;
-    let sigma2 = surface2.value_clamped(t, f2);
+    let sigma2 = finstack_quant_models::volatility::get_surface_vol_clamped(&surface2, t, f2);
 
     let rho = inst.correlation;
 

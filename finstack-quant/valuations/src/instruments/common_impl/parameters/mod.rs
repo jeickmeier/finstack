@@ -29,4 +29,4 @@ pub use quanto::QuantoSpec;
 pub use underlying::{
     CommodityUnderlyingParams, EquityUnderlyingParams, FxUnderlyingParams, IndexUnderlyingParams,
 };
-pub use volatility::{SABRParameters, VolatilityModel};
+pub use volatility::VolatilityModel;

@@ -1,7 +1,7 @@
 //! SABR model pricing tests
 
 use crate::swaption::common::*;
-use finstack_quant_valuations::instruments::rates::swaption::SABRParameters;
+use finstack_quant_models::volatility::SabrParameters;
 use finstack_quant_valuations::instruments::Instrument;
 
 #[test]
@@ -9,7 +9,7 @@ fn test_sabr_pricing_runs() {
     let (as_of, expiry, swap_start, swap_end) = standard_dates();
     let strike = 0.05;
 
-    let sabr_params = SABRParameters {
+    let sabr_params = SabrParameters {
         alpha: 0.20,
         beta: 0.5,
         rho: -0.3,
@@ -35,7 +35,7 @@ fn test_sabr_smile_effect() {
     let (as_of, expiry, swap_start, swap_end) = standard_dates();
 
     // SABR with negative rho creates volatility smile
-    let sabr_params = SABRParameters {
+    let sabr_params = SabrParameters {
         alpha: 0.25,
         beta: 0.5,
         rho: -0.4, // Negative correlation
@@ -75,7 +75,7 @@ fn test_sabr_beta_effect() {
     let market = create_flat_market(as_of, 0.05, 0.30);
 
     // Beta = 0.5 (CEV model) - more stable than pure normal
-    let sabr_normal = SABRParameters {
+    let sabr_normal = SabrParameters {
         alpha: 0.15,
         beta: 0.5, // Use 0.5 instead of 0.0 for better stability
         rho: 0.0,
@@ -84,7 +84,7 @@ fn test_sabr_beta_effect() {
     };
 
     // Beta = 1 (lognormal model)
-    let sabr_lognormal = SABRParameters {
+    let sabr_lognormal = SabrParameters {
         alpha: 0.25,
         beta: 1.0,
         rho: 0.0,

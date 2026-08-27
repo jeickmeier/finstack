@@ -596,8 +596,8 @@ mod tests {
     fn mc_atm_price_matches_fourier_pricer() {
         use super::super::super::rng::philox::PhiloxRng;
         use super::super::super::traits::RandomStream;
+        use crate::volatility::rough_heston::RoughHestonFourierParams;
         use finstack_quant_core::math::fractional::HurstExponent;
-        use finstack_quant_core::math::volatility::rough_heston::RoughHestonFourierParams;
 
         let h = 0.1_f64;
         let (r, q, kappa, theta, sigma_v, rho, v0) =

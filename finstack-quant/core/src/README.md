@@ -117,12 +117,9 @@ not duplication.
 | `fractional.rs` | `HurstExponent`, `RiemannLiouvilleKernel`, `fbm_covariance*`, `mittag_leffler` | Rough-volatility support |
 | `consecutive.rs` | `count_consecutive` | Longest win/loss streaks for return series |
 
-`math/volatility/` is itself split: `conventions.rs`, `convert.rs`, `implied.rs`
-and `pricing/` are private `mod`s whose items are re-exported from
-`volatility/mod.rs` (Black-76, Bachelier, shifted Black, spot Black-Scholes,
-geometric-Asian, the initial-guess approximations, and `implied_vol_black` /
-`implied_vol_bachelier`), while `heston`, `local_vol`, `rough_heston`, `sabr`
-and `svi` are `pub mod` and reached by their own path.
+Volatility pricing, fitting, evaluation, extrapolation, and convention
+conversion live in `finstack-quant-models`. Core retains only the neutral
+market-data artifacts and generic mathematical primitives they consume.
 
 <a name="market_data"></a>
 
@@ -131,7 +128,7 @@ and `svi` are `pub mod` and reached by their own path.
 | Path | Role | Visibility |
 |------|------|------------|
 | `mod.rs` | Module docs; re-exports `MarketContext`, `DiscountCurve`, and the dividend types | |
-| `traits.rs` | `TermStructure`, `Discounting`, `Forward`, `Survival`, `VolProvider` — the minimal polymorphic surface, all `Send + Sync` | `pub mod` |
+| `traits.rs` | `TermStructure`, `Discounting`, `Forward`, `Survival` — the minimal polymorphic curve surface, all `Send + Sync` | `pub mod` |
 | `context/` | `MarketContext` and its operations: `curve_storage.rs`, `getters.rs`, `insert.rs`, `ops_bump.rs`, `ops_roll.rs`, `state_serde.rs`, `stats.rs` | All seven are private `mod`s. Public: `CurveStorage`, `ContextStats`, and the `state_serde` set (`MarketContextState`, `CurveState`, `CreditIndexState`, `build_snapshot_fx_matrix`, `MARKET_CONTEXT_STATE_CONTRACT`, `MARKET_CONTEXT_STATE_VERSION`). `for_each_context_curve` is `pub(crate)` |
 | `term_structures/` | One file (or directory) per curve family: `base_correlation`, `basis_spread_curve`, `credit_index`, `discount_curve/`, `flat`, `forward_curve`, `forward_variance`, `hazard_curve`, `inflation`, `parametric_curve`, `price_curve`, `rate_calibration`, `vol_index_curve` | **Every leaf is a private `mod` except `forward_variance` (`pub mod`).** `common/` is `pub(crate) mod` (shared conventions, interp glue, knot ops — all `pub(crate) use`). Curve types are re-exported from `term_structures/mod.rs`; that file is the single canonical path |
 | `term_structures/discount_curve/` | `mod.rs` defines the `DiscountCurve` struct and `DEFAULT_MIN_FORWARD_TENOR`; `builder.rs`, `curve.rs`, `traits.rs`, `transform.rs`, `validation.rs` are private `mod`s | Only `DiscountCurveBuilder` and `ValidationMode` are re-exported here; the struct itself is declared in `mod.rs` |
@@ -142,7 +139,6 @@ and `svi` are `pub mod` and reached by their own path.
 | `dividends.rs` | `DividendEvent`, `DividendKind`, `DividendSchedule`, `DividendScheduleBuilder` | `pub mod`, also re-exported at `market_data::` |
 | `fixings.rs` | The `FIXING:{forward_curve_id}` lookup convention over `ScalarTimeSeries` in a `MarketContext` | `pub mod` |
 | `hierarchy/` | `builder.rs`, `completeness.rs`, `resolution.rs` — tagged tree over `CurveId`s for scenario targeting | All private `mod`s |
-| `arbitrage/` | `types.rs` plus `checks/` (`butterfly`, `calendar_spread`, `local_vol_density`, `svi`) | `checks` and `types` are `pub mod`, and each check file is `pub mod` |
 
 <a name="dates"></a>
 

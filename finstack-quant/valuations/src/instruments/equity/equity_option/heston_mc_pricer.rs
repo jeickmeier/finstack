@@ -19,7 +19,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_models::monte_carlo::discretization::qe_heston::QeHeston;
 use finstack_quant_models::monte_carlo::engine::McEngine;
 use finstack_quant_models::monte_carlo::payoff::vanilla::{EuropeanCall, EuropeanPut};
-use finstack_quant_models::monte_carlo::process::heston::{HestonParams, HestonProcess};
+use finstack_quant_models::monte_carlo::process::heston::{HestonProcess, HestonProcessParams};
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::seed;
 use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
@@ -91,10 +91,10 @@ impl EquityOptionHestonMcPricer {
         // missing or mistyped HESTON_* scalar fails loudly here rather than
         // silently selecting the representative SPX defaults. Validation
         // (positive κ/θ/σᵥ/v₀, ρ ∈ (−1, 1)) is still enforced inside
-        // `HestonParams::new`. We then convert to the MC engine's own
-        // `HestonParams` struct.
+        // `HestonProcessParams::new`. The MC wrapper shares the canonical
+        // five-factor Heston parameter type with the Fourier engine.
         let cf_params = crate::instruments::equity::equity_option::heston_market::heston_params_from_market_strict(market, r, q)?;
-        let heston_params = HestonParams::new(
+        let heston_params = HestonProcessParams::new(
             cf_params.r,
             cf_params.q,
             cf_params.kappa,

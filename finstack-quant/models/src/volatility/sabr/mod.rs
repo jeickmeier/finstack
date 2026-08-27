@@ -31,13 +31,14 @@
 //! | Output | Implied volatility — lognormal (Black) for β>0, **normal (Bachelier)** for β≈0; see `SabrVolType` | Decimal (0.20 = 20%) / absolute rate units |
 
 mod calibration;
+mod expansion;
 mod model;
 mod parameters;
 mod smile;
 #[cfg(test)]
 mod tests;
 
-pub use calibration::{vega_weight, SABRCalibrator, SabrCalibrationOutcome};
-pub use model::{SABRModel, SabrVolType};
-pub use parameters::SABRParameters;
-pub use smile::{ArbitrageValidationResult, ButterflyViolation, MonotonicityViolation, SABRSmile};
+pub use calibration::{vega_weight, SabrCalibrationOutcome, SabrCalibrator};
+pub use model::{SabrModel, SabrVolType};
+pub use parameters::SabrParameters;
+pub use smile::{ArbitrageValidationResult, ButterflyViolation, MonotonicityViolation, SabrSmile};

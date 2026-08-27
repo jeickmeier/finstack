@@ -218,7 +218,11 @@ fn resolve_capfloor_surface_params(
         let factor = point.normal_vol_per_unit_sigma.unwrap_or_else(|| {
             hw1f_caplet_forward_rate_normal_vol(kappa, 1.0, point.t_fix, point.accrual)
         });
-        let normal_vol = surface.value_clamped(point.t_fix, point.strike);
+        let normal_vol = finstack_quant_models::volatility::get_surface_vol_clamped(
+            &surface,
+            point.t_fix,
+            point.strike,
+        );
         if !factor.is_finite() || factor <= 0.0 {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "Cap/floor HW1F surface point {index} has invalid unit-sigma loading {factor}"
@@ -277,7 +281,8 @@ fn resolve_swaption_surface_params(
             if tenor <= 0.0 {
                 continue;
             }
-            let vol = surface.value_clamped(expiry, tenor);
+            let vol =
+                finstack_quant_models::volatility::get_surface_vol_clamped(&surface, expiry, tenor);
             if vol.is_finite() && vol > 0.0 {
                 quotes.push(SwaptionQuote {
                     expiry,

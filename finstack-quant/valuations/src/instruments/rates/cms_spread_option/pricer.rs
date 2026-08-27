@@ -2,7 +2,7 @@
 //!
 //! The model treats each CMS rate as a convexity-adjusted SABR marginal and
 //! couples the two terminal CMS rates with the instrument's Gaussian rank
-//! correlation. Volatility sources are resolved through `VolProvider`, so a
+//! correlation. Volatility sources are resolved as concrete `VolSource`s, so a
 //! market can provide full SABR `VolCube`s or simpler 2D volatility surfaces.
 
 use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
@@ -11,6 +11,7 @@ use crate::instruments::rates::cms_spread_option::{CmsSpreadOption, CmsSpreadOpt
 use crate::instruments::rates::hw1f::forward_swap_rate::{
     calculate_forward_swap_rate, ForwardSwapRateInputs,
 };
+use crate::market::resolve_vol_source;
 use crate::metrics::MetricId;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
@@ -18,10 +19,10 @@ use crate::pricer::{
 use crate::results::ValuationResult;
 use finstack_quant_core::dates::{Date, DateExt, DayCount, DayCountContext, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::market_data::traits::VolProvider;
 use finstack_quant_core::math::{norm_cdf, GaussHermiteQuadrature};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
+use finstack_quant_models::volatility::VolSource;
 
 const DEFAULT_QUADRATURE_ORDER: usize = 10;
 const MIN_POSITIVE_RATE: f64 = 1.0e-8;
@@ -97,15 +98,15 @@ impl CmsSpreadOptionPricer {
                 .max(0.0)
         };
 
-        let long_vol = market.get_vol_provider(inst.long_vol_surface_id.as_ref())?;
-        let short_vol = market.get_vol_provider(inst.short_vol_surface_id.as_ref())?;
+        let long_vol = resolve_vol_source(market, inst.long_vol_surface_id.as_ref())?;
+        let short_vol = resolve_vol_source(market, inst.short_vol_surface_id.as_ref())?;
         let long_leg = self.resolve_leg(
             inst,
             market,
             as_of,
             inst.long_cms_tenor,
             time_to_expiry,
-            long_vol.as_ref(),
+            &long_vol,
         )?;
         let short_leg = self.resolve_leg(
             inst,
@@ -113,7 +114,7 @@ impl CmsSpreadOptionPricer {
             as_of,
             inst.short_cms_tenor,
             time_to_expiry,
-            short_vol.as_ref(),
+            &short_vol,
         )?;
 
         let expected_payoff = if time_to_expiry <= 0.0 {
@@ -124,13 +125,7 @@ impl CmsSpreadOptionPricer {
                 inst.option_type,
             )
         } else {
-            self.expected_payoff(
-                inst,
-                &long_leg,
-                long_vol.as_ref(),
-                &short_leg,
-                short_vol.as_ref(),
-            )?
+            self.expected_payoff(inst, &long_leg, &long_vol, &short_leg, &short_vol)?
         };
 
         Ok(CmsSpreadPricingData {
@@ -148,7 +143,7 @@ impl CmsSpreadOptionPricer {
         as_of: Date,
         tenor: Tenor,
         time_to_expiry: f64,
-        vol_provider: &dyn VolProvider,
+        vol_provider: &VolSource,
     ) -> Result<CmsSpreadLeg> {
         let tenor_years = tenor.to_years_simple();
 
@@ -258,9 +253,9 @@ impl CmsSpreadOptionPricer {
         &self,
         inst: &CmsSpreadOption,
         long_leg: &CmsSpreadLeg,
-        long_vol: &dyn VolProvider,
+        long_vol: &VolSource,
         short_leg: &CmsSpreadLeg,
-        short_vol: &dyn VolProvider,
+        short_vol: &VolSource,
     ) -> Result<f64> {
         let quadrature = GaussHermiteQuadrature::new(self.quadrature_order)?;
         let rho = inst.spread_correlation.clamp(-0.999_999, 0.999_999);
@@ -417,12 +412,12 @@ fn cms_spread_payoff(
     }
 }
 
-fn quantile_from_gaussian(vol_provider: &dyn VolProvider, leg: &CmsSpreadLeg, z: f64) -> f64 {
+fn quantile_from_gaussian(vol_provider: &VolSource, leg: &CmsSpreadLeg, z: f64) -> f64 {
     let u = norm_cdf(z).clamp(TAIL_PROB_EPS, 1.0 - TAIL_PROB_EPS);
     sabr_marginal_quantile(vol_provider, leg, u)
 }
 
-fn sabr_marginal_quantile(vol_provider: &dyn VolProvider, leg: &CmsSpreadLeg, target: f64) -> f64 {
+fn sabr_marginal_quantile(vol_provider: &VolSource, leg: &CmsSpreadLeg, target: f64) -> f64 {
     if leg.time_to_expiry <= 0.0 || leg.atm_volatility <= MIN_VOL {
         return leg.adjusted_forward_rate;
     }
@@ -455,7 +450,7 @@ fn sabr_marginal_quantile(vol_provider: &dyn VolProvider, leg: &CmsSpreadLeg, ta
     0.5 * (low + high)
 }
 
-fn marginal_cdf(vol_provider: &dyn VolProvider, leg: &CmsSpreadLeg, strike: f64) -> f64 {
+fn marginal_cdf(vol_provider: &VolSource, leg: &CmsSpreadLeg, strike: f64) -> f64 {
     if strike <= MIN_POSITIVE_RATE {
         return 0.0;
     }
@@ -473,25 +468,20 @@ fn marginal_cdf(vol_provider: &dyn VolProvider, leg: &CmsSpreadLeg, strike: f64)
     norm_cdf(-d2)
 }
 
-fn clean_volatility(
-    vol_provider: &dyn VolProvider,
-    expiry: f64,
-    tenor: f64,
-    strike: f64,
-) -> Result<f64> {
-    let vol = vol_provider.vol_clamped(expiry.max(0.0), tenor, strike.max(MIN_POSITIVE_RATE));
+fn clean_volatility(vol_provider: &VolSource, expiry: f64, tenor: f64, strike: f64) -> Result<f64> {
+    let vol = vol_provider.get_vol_clamped(expiry.max(0.0), tenor, strike.max(MIN_POSITIVE_RATE));
     if vol <= 0.0 || !vol.is_finite() {
         return Err(finstack_quant_core::Error::Validation(format!(
             "CmsSpreadOption volatility source {} returned invalid vol {}",
-            vol_provider.vol_id(),
+            vol_provider.get_id(),
             vol
         )));
     }
     Ok(vol.max(MIN_VOL))
 }
 
-fn clean_volatility_or_atm(vol_provider: &dyn VolProvider, leg: &CmsSpreadLeg, strike: f64) -> f64 {
-    let vol = vol_provider.vol_clamped(
+fn clean_volatility_or_atm(vol_provider: &VolSource, leg: &CmsSpreadLeg, strike: f64) -> f64 {
+    let vol = vol_provider.get_vol_clamped(
         leg.time_to_expiry.max(0.0),
         leg.tenor_years,
         strike.max(MIN_POSITIVE_RATE),

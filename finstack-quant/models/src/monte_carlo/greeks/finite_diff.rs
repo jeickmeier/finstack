@@ -569,12 +569,12 @@ where
 mod tests {
     use super::super::super::engine::McEngineConfig;
     use super::*;
+    use crate::closed_form::black_scholes_spot_call;
     use crate::monte_carlo::discretization::exact::ExactGbm;
     use crate::monte_carlo::payoff::vanilla::EuropeanCall;
     use crate::monte_carlo::process::gbm::{GbmParams, GbmProcess};
     use crate::monte_carlo::rng::philox::PhiloxRng;
     use crate::monte_carlo::time_grid::TimeGrid;
-    use finstack_quant_core::math::volatility::black_scholes_spot_call;
     use finstack_quant_core::math::{norm_cdf, norm_pdf};
 
     const SPOT: f64 = 100.0;

@@ -144,7 +144,11 @@ pub fn resolve_hazard_volatility(
     let surface_coordinate = resolved_strike.native_surface_coordinate()?;
     // Checked lookup: extrapolating a credit-vol surface silently is how a
     // deep-OTM strike ends up priced off the nearest grid edge.
-    let model_spread_volatility = surface.value_checked(expiry_time, surface_coordinate)?;
+    let model_spread_volatility = finstack_quant_models::volatility::get_surface_vol(
+        &surface,
+        expiry_time,
+        surface_coordinate,
+    )?;
 
     let conversion = target_curve_conversion(request, market, as_of, model_spread_volatility)?;
 
@@ -296,7 +300,8 @@ fn solve_delta_strike(
         let mut probe = option.clone();
         probe.strike = strike;
         probe.option_type = option_type;
-        let sigma = surface.value_checked(expiry_time, native)?;
+        let sigma =
+            finstack_quant_models::volatility::get_surface_vol(&surface, expiry_time, native)?;
         probe
             .instrument_pricing_overrides
             .market_quotes

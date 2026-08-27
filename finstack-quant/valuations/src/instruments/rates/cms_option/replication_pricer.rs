@@ -191,11 +191,16 @@ pub(crate) fn replicated_cms_optionlet(
     }
 
     // ATM lognormal standard deviation for integration bounds
-    let atm_vol = inputs.vol_surface.value_clamped(ttf, forward_rate);
+    let atm_vol = finstack_quant_models::volatility::get_surface_vol_clamped(
+        inputs.vol_surface,
+        ttf,
+        forward_rate,
+    );
     let std_dev = atm_vol * forward_rate * ttf.sqrt();
 
     // Vol at the caplet/floorlet strike (for the boundary term)
-    let vol_at_strike = inputs.vol_surface.value_clamped(ttf, strike);
+    let vol_at_strike =
+        finstack_quant_models::volatility::get_surface_vol_clamped(inputs.vol_surface, ttf, strike);
 
     // Annuity consistency (item 12).
     //
@@ -233,7 +238,8 @@ pub(crate) fn replicated_cms_optionlet(
     // K_FLOOR; reverts to standard stencils when both spacings equal
     // G_PRIME_H).
     let corrected_integrand = |k: f64, is_call: bool| -> f64 {
-        let v = inputs.vol_surface.value_clamped(ttf, k);
+        let v =
+            finstack_quant_models::volatility::get_surface_vol_clamped(inputs.vol_surface, ttf, k);
         let o_sw = par_annuity(k.max(K_FLOOR), cms_tenor, m)
             * if is_call {
                 black76_call(forward_rate, k, v, ttf)

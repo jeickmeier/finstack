@@ -12,6 +12,7 @@ use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCur
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_core::Result;
+use finstack_quant_models::volatility::get_surface_vol;
 use finstack_quant_valuations::instruments::rates::deposit::Deposit;
 use finstack_quant_valuations::instruments::{Attributes, Instrument, MarketDependencies};
 use finstack_quant_valuations::metrics::MetricId;
@@ -171,7 +172,8 @@ impl Instrument for CreditVolInteractionInstrument {
 
     fn base_value(&self, market: &MarketContext, _as_of: Date) -> Result<Money> {
         let hazard = market.get_hazard("ACME-HAZ")?.hazard_rate(1.0);
-        let vol = market.get_surface("EQ-VOL")?.value_checked(1.0, 100.0)?;
+        let surface = market.get_surface("EQ-VOL")?;
+        let vol = get_surface_vol(&surface, 1.0, 100.0)?;
         Ok(Money::new(1_000_000.0 * hazard * vol, Currency::USD))
     }
 }

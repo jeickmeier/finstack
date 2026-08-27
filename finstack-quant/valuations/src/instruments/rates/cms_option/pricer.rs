@@ -143,7 +143,11 @@ impl CmsOptionPricer {
                         }
                     }
                 } else {
-                    let strike_vol = vol_surface.value_clamped(time_to_fixing, strike);
+                    let strike_vol = finstack_quant_models::volatility::get_surface_vol_clamped(
+                        &vol_surface,
+                        time_to_fixing,
+                        strike,
+                    );
                     let normal_vol =
                         crate::instruments::rates::swaption::types::lognormal_to_normal_vol(
                             strike_vol,
@@ -192,8 +196,16 @@ impl CmsOptionPricer {
             //    convexity-adjusted across strikes — and disagrees with the
             //    static-replication pricer, which already uses σ(F). See
             //    Hagan (2003) and `replication_pricer.rs`.
-            let strike_vol = vol_surface.value_clamped(time_to_fixing.max(0.0), strike);
-            let atm_vol = vol_surface.value_clamped(time_to_fixing.max(0.0), forward_swap_rate);
+            let strike_vol = finstack_quant_models::volatility::get_surface_vol_clamped(
+                &vol_surface,
+                time_to_fixing.max(0.0),
+                strike,
+            );
+            let atm_vol = finstack_quant_models::volatility::get_surface_vol_clamped(
+                &vol_surface,
+                time_to_fixing.max(0.0),
+                forward_swap_rate,
+            );
 
             // Convexity adjustment using Hagan (2003) formula with the ATM vol.
             let raw_convexity_adj = if time_to_fixing > 0.0 {

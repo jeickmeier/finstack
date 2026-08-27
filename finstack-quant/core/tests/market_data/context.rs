@@ -12,14 +12,28 @@ use finstack_quant_core::market_data::dividends::DividendSchedule;
 use finstack_quant_core::market_data::scalars::{
     InflationIndex, InflationInterpolation, MarketScalar, ScalarTimeSeries, SeriesInterpolation,
 };
+use finstack_quant_core::market_data::surfaces::SabrParameterData;
 use finstack_quant_core::market_data::surfaces::{FxDeltaVolSurface, VolCube, VolSurface};
 use finstack_quant_core::market_data::term_structures::CreditIndexData;
-use finstack_quant_core::math::volatility::sabr::SabrParams;
 use finstack_quant_core::money::fx::{FxConversionPolicy, FxMatrix, FxProvider};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use std::sync::Arc;
 use time::Month;
+
+fn surface_node(surface: &VolSurface, expiry: f64, strike: f64) -> f64 {
+    let row = surface
+        .expiries()
+        .iter()
+        .position(|value| value.to_bits() == expiry.to_bits())
+        .expect("expiry node");
+    let column = surface
+        .strikes()
+        .iter()
+        .position(|value| value.to_bits() == strike.to_bits())
+        .expect("strike node");
+    surface.vols()[row * surface.strikes().len() + column]
+}
 
 // Simple static FX provider for testing
 struct StaticFxProvider;
@@ -277,9 +291,7 @@ fn market_context_bumps_surfaces_and_scalars() {
         .insert_price("EQ-SPOT", price)
         .insert_series(series);
 
-    let original_vol = surface
-        .value_checked(0.5, 1.0)
-        .expect("vol lookup should succeed in test");
+    let original_vol = surface_node(&surface, 0.5, 1.0);
     let original_price = match ctx.get_price("EQ-SPOT").unwrap() {
         MarketScalar::Price(m) => m.amount(),
         MarketScalar::Unitless(_) => panic!("unexpected scalar variant"),
@@ -317,11 +329,8 @@ fn market_context_bumps_surfaces_and_scalars() {
         ])
         .expect("bump should succeed");
 
-    let bumped_vol = bumped
-        .get_surface("EQ-VOL")
-        .unwrap()
-        .value_checked(0.5, 1.0)
-        .unwrap();
+    let bumped_surface = bumped.get_surface("EQ-VOL").unwrap();
+    let bumped_vol = surface_node(&bumped_surface, 0.5, 1.0);
     assert!(bumped_vol > original_vol);
 
     let bumped_price = match bumped.get_price("EQ-SPOT").unwrap() {
@@ -668,7 +677,7 @@ fn market_context_snapshot_restore_mutators_drop_and_replace_owned_families() {
         "SWPT",
         &[1.0],
         &[5.0],
-        &[SabrParams::new(0.035, 0.5, -0.2, 0.4).unwrap()],
+        &[SabrParameterData::new(0.035, 0.5, -0.2, 0.4).unwrap()],
         &[0.03],
     )
     .unwrap();
@@ -713,7 +722,7 @@ fn market_context_snapshot_restore_mutators_drop_and_replace_owned_families() {
                     "NEW-SWPT",
                     &[1.0],
                     &[5.0],
-                    &[SabrParams::new(0.030, 0.5, -0.1, 0.3).unwrap()],
+                    &[SabrParameterData::new(0.030, 0.5, -0.1, 0.3).unwrap()],
                     &[0.025],
                 )
                 .unwrap(),
@@ -973,11 +982,8 @@ fn market_context_apply_bumps_exercises_all_variants() {
         .unwrap()
         .rate;
 
-    let vol_before = ctx
-        .get_surface("EQ-VOL")
-        .unwrap()
-        .value_checked(0.5, 1.0)
-        .unwrap();
+    let surface_before = ctx.get_surface("EQ-VOL").unwrap();
+    let vol_before = surface_node(&surface_before, 0.5, 1.0);
     let bc_before = ctx.get_base_correlation("CDX-BC").unwrap().correlations()[0];
 
     let bumps = vec![
@@ -1028,22 +1034,11 @@ fn market_context_apply_bumps_exercises_all_variants() {
     assert!((fx_after - fx_before * 1.10).abs() < 1e-12);
 
     // Vol bucket bumped at (0.5, 1.0); non-bucket cells should remain unchanged.
-    let vol_after = bumped
-        .get_surface("EQ-VOL")
-        .unwrap()
-        .value_checked(0.5, 1.0)
-        .unwrap();
+    let surface_after = bumped.get_surface("EQ-VOL").unwrap();
+    let vol_after = surface_node(&surface_after, 0.5, 1.0);
     assert!((vol_after - vol_before * 1.10).abs() < 1e-12);
-    let vol_other_before = ctx
-        .get_surface("EQ-VOL")
-        .unwrap()
-        .value_checked(0.25, 0.9)
-        .unwrap();
-    let vol_other_after = bumped
-        .get_surface("EQ-VOL")
-        .unwrap()
-        .value_checked(0.25, 0.9)
-        .unwrap();
+    let vol_other_before = surface_node(&surface_before, 0.25, 0.9);
+    let vol_other_after = surface_node(&surface_after, 0.25, 0.9);
     assert!((vol_other_after - vol_other_before).abs() < 1e-12);
 
     // Base correlation bumped (first point matches 3.0 detachment in test helper curve)
@@ -1288,7 +1283,7 @@ fn market_context_apply_bumps_additional_branches_and_errors() {
 
     // VolBucketPct with no filters ("all buckets") path
     let surface = sample_vol_surface();
-    let base_vol = surface.value_checked(0.5, 1.0).unwrap();
+    let base_vol = surface_node(&surface, 0.5, 1.0);
     let ctx = MarketContext::new().insert_surface(surface);
     let bumped = ctx
         .bump([MarketBump::VolBucketPct {
@@ -1298,11 +1293,8 @@ fn market_context_apply_bumps_additional_branches_and_errors() {
             pct: 10.0,
         }])
         .unwrap();
-    let bumped_vol = bumped
-        .get_surface("EQ-VOL")
-        .unwrap()
-        .value_checked(0.5, 1.0)
-        .unwrap();
+    let bumped_surface = bumped.get_surface("EQ-VOL").unwrap();
+    let bumped_vol = surface_node(&bumped_surface, 0.5, 1.0);
     // Canonical VolBucketPct semantics are MULTIPLICATIVE (vol × (1 + pct/100)),
     // matching the filtered path and the scenarios adapter preview
     // .

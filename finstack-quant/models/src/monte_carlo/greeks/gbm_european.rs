@@ -322,12 +322,11 @@ mod tests {
         let forward = spot * ((rate - dividend_yield) * expiry).exp();
         let df_q = (-dividend_yield * expiry).exp();
         let forward_delta = if is_call {
-            finstack_quant_core::math::volatility::black_delta_call(forward, strike, vol, expiry)
+            crate::closed_form::black_delta_call(forward, strike, vol, expiry)
         } else {
-            finstack_quant_core::math::volatility::black_delta_put(forward, strike, vol, expiry)
+            crate::closed_form::black_delta_put(forward, strike, vol, expiry)
         };
-        let forward_gamma =
-            finstack_quant_core::math::volatility::black_gamma(forward, strike, vol, expiry);
+        let forward_gamma = crate::closed_form::black_gamma(forward, strike, vol, expiry);
         (
             df_q * forward_delta,
             df_q * forward_gamma * (forward / spot),

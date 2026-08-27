@@ -8,7 +8,6 @@
 //! workflow.
 
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::market_data::traits::VolProvider;
 use finstack_quant_valuations::calibration::api::engine;
 use finstack_quant_valuations::calibration::api::schema::CalibrationEnvelope;
 use std::path::PathBuf;
@@ -227,8 +226,7 @@ fn example_06_cdx_index_vol_builds_queryable_surface() {
     // expiry (June 2026 from base 2026-05-08 ≈ 0.10959y on Act365F). With
     // fail_on_bad_fit relaxed the fit is approximate, but the queried vol
     // must still be a positive number in a sane lognormal range.
-    let vol = surface
-        .vol(0.10958904, 5.0, 0.00552848)
+    let vol = finstack_quant_models::volatility::get_surface_vol(&surface, 0.10958904, 0.00552848)
         .expect("vol query at ATM forward should succeed");
     assert!(
         vol > 0.0 && vol < 5.0,
@@ -249,17 +247,17 @@ fn example_07_swaption_vol_surface_builds_queryable_surface() {
         .expect("forward carried through from source_market");
 
     // swaption_vol calibration produces a VolCube (SABR params on expiry x tenor
-    // grid). Retrieve via get_vol_provider, which resolves cubes before surfaces.
-    let surface = market
-        .get_vol_provider("USD-SWAPTION-NORMAL-VOL")
-        .expect("swaption vol cube present after calibration");
+    // grid). Resolve through the valuations-owned volatility source resolver.
+    let surface =
+        finstack_quant_valuations::market::resolve_vol_source(&market, "USD-SWAPTION-NORMAL-VOL")
+            .expect("swaption vol cube present after calibration");
 
     // Sanity-query the produced surface at a representative (expiry, tenor, strike).
     // Use a 1y expiry × 5y swap × ATM-ish strike. With normal vols, ATM-ish for
     // a 5% rate environment is around 0.05; SABR will pin closely if non-flat,
     // approximately if flat (see 06_cdx_index_vol.json for the flat-grid issue).
     let vol = surface
-        .vol(1.0, 5.0, 0.05)
+        .get_vol(1.0, 5.0, 0.05)
         .expect("vol query at 1y × 5y × ATM should succeed");
     // The surface's output convention (lognormal-equivalent vs normal bp)
     // depends on the SABR target's internal model — both are positive and
@@ -295,13 +293,12 @@ fn example_08_equity_vol_surface_builds_queryable_surface() {
     // Equity vol surface produced by the calibration step. The vol_surface
     // step stores its output as a VolSurface (not a VolCube), so use
     // get_surface — which returns Arc<VolSurface>, already implementing
-    // VolProvider — rather than get_vol_provider (returns Arc<dyn VolProvider>).
+    // concrete VolSource rather than a trait-object provider.
     let surface = market
         .get_surface("AAPL-EQUITY-VOL")
         .expect("AAPL equity vol surface present after calibration");
 
-    let vol = surface
-        .vol(0.5, 0.0, 175.0)
+    let vol = finstack_quant_models::volatility::get_surface_vol(&surface, 0.5, 175.0)
         .expect("vol query at 6m × ATM should succeed");
     assert!(
         vol > 0.0 && vol < 5.0,

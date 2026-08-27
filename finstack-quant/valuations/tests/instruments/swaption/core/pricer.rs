@@ -5,11 +5,12 @@
 use crate::swaption::common::*;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
+use finstack_quant_models::SabrParameters;
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 use finstack_quant_valuations::instruments::rates::swaption::{BermudanSchedule, BermudanSwaption};
 use finstack_quant_valuations::instruments::rates::swaption::{
     BermudanSwaptionPricer, BermudanSwaptionPricerConfig, CalibratedHullWhiteModel,
-    HullWhiteParams, SABRParameters, SimpleSwaptionBlackPricer,
+    HullWhiteParams, SimpleSwaptionBlackPricer,
 };
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::pricer::{ModelKey, Pricer};
@@ -66,7 +67,7 @@ fn test_simple_swaption_pricer_fallback_uses_instrument_value() {
 #[test]
 fn test_simple_swaption_black_pricer_uses_sabr_dispatch_when_present() {
     let (as_of, expiry, swap_start, swap_end) = standard_dates();
-    let sabr_params = SABRParameters {
+    let sabr_params = SabrParameters {
         alpha: 0.20,
         beta: 0.5,
         rho: -0.3,
@@ -91,7 +92,7 @@ fn test_simple_swaption_black_pricer_uses_sabr_dispatch_when_present() {
 
 #[test]
 fn test_simple_swaption_black_pricer_prices_out_of_grid_strike_via_vol_provider() {
-    // The pricer now uses VolProvider::vol_clamped which handles all strikes
+    // The pricer uses VolSource::get_vol_clamped, which handles all strikes
     // (SABR cubes natively, surfaces via clamped extrapolation). The old
     // Error-extrapolation path is no longer relevant at the pricer level.
     let (as_of, expiry, swap_start, swap_end) = standard_dates();

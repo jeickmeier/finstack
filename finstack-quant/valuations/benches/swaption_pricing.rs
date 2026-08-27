@@ -16,8 +16,8 @@ use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
+use finstack_quant_models::volatility::SabrParameters;
 use finstack_quant_valuations::instruments::rates::irs::PayReceive;
-use finstack_quant_valuations::instruments::rates::swaption::SABRParameters;
 use finstack_quant_valuations::instruments::rates::swaption::Swaption;
 use finstack_quant_valuations::instruments::rates::swaption::SwaptionParams;
 use finstack_quant_valuations::instruments::Instrument;
@@ -57,7 +57,7 @@ fn create_swaption(expiry_months: i64, swap_tenor_years: i32) -> Swaption {
 
 fn create_swaption_with_sabr(expiry_months: i64, swap_tenor_years: i32) -> Swaption {
     let mut swaption = create_swaption(expiry_months, swap_tenor_years);
-    swaption.sabr_params = Some(SABRParameters {
+    swaption.sabr_params = Some(SabrParameters {
         alpha: 0.15,
         beta: 0.5,
         nu: 0.40,

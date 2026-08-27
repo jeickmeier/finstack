@@ -10,6 +10,7 @@
 //! blocks.
 
 use crate::instruments::pricing_overrides::MarketQuoteOverrides;
+use crate::market::resolve_vol_source;
 use finstack_quant_core::market_data::context::MarketContext;
 
 /// Resolve the volatility σ to use at `(t, strike)` for a surface-driven pricer.
@@ -18,10 +19,10 @@ use finstack_quant_core::market_data::context::MarketContext;
 ///
 /// 1. `overrides.implied_volatility` — when set, interpreted as a flat σ across
 ///    tenor and strike (standard revaluation convention).
-/// 2. Surface lookup via `curves.get_surface(vol_surface_id).value_clamped(t, strike)`.
+/// 2. Models-layer lookup via the valuations-owned volatility resolver.
 ///
 /// Use this in every pricer that previously wrote the inline
-/// `if let Some(iv) = overrides.implied_volatility { iv } else { surface.value_clamped(t, K) }`
+/// `if let Some(iv) = overrides.implied_volatility { iv } else { finstack_quant_models::volatility::get_surface_vol_clamped(&surface, t, K) }`
 /// pattern.
 #[inline]
 pub(crate) fn resolve_sigma_at(
@@ -34,7 +35,7 @@ pub(crate) fn resolve_sigma_at(
     if let Some(iv) = overrides.implied_volatility {
         return Ok(iv);
     }
-    Ok(curves.get_surface(vol_surface_id)?.value_clamped(t, strike))
+    Ok(resolve_vol_source(curves, vol_surface_id)?.get_vol_clamped(t, 0.0, strike))
 }
 
 #[cfg(test)]

@@ -128,10 +128,12 @@ test('coupon profile variants use separate explicit entrypoints', () => {
   assert.ok(Math.abs(inverse[1] - 0.01) < 1e-12);
 });
 
-test('VolCube canonical camelCase methods exist at runtime', () => {
+test('core VolCube is a data-only artifact', () => {
   const cube = new core.VolCube('NORMAL', [1], [2], [0.01, 0, -0.2, 0.4, Number.NaN], [0.02]);
-  for (const name of ['volClamped', 'volNormal', 'volNormalClamped']) {
-    assert.equal(typeof cube[name], 'function', `missing ${name}`);
+  assert.equal(cube.id, 'NORMAL');
+  assert.equal(cube.interpolationMode, 'vol');
+  for (const name of ['vol', 'volClamped', 'volNormal', 'volNormalClamped']) {
+    assert.equal(name in cube, false, `obsolete core evaluator ${name} remains`);
   }
 });
 

@@ -16,12 +16,9 @@ from finstack_quant.models import (
     credit as credit,
     monte_carlo as monte_carlo,
     rates as rates,
+    volatility as volatility,
 )
 
-SabrParameters = _models.SabrParameters
-SabrModel = _models.SabrModel
-SabrSmile = _models.SabrSmile
-SabrCalibrator = _models.SabrCalibrator
 asian_option_price = _models.asian_option_price
 barrier_call = _models.barrier_call
 black76_implied_vol = _models.black76_implied_vol
@@ -36,10 +33,6 @@ vanilla_expiry_payoff = _models.vanilla_expiry_payoff
 vg_cos_price = _models.vg_cos_price
 
 __all__: list[str] = [
-    "SabrCalibrator",
-    "SabrModel",
-    "SabrParameters",
-    "SabrSmile",
     "asian_option_price",
     "barrier_call",
     "black76_implied_vol",
@@ -56,4 +49,5 @@ __all__: list[str] = [
     "rates",
     "vanilla_expiry_payoff",
     "vg_cos_price",
+    "volatility",
 ]

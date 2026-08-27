@@ -19,7 +19,7 @@ use finstack_quant_models::monte_carlo::engine::McEngine;
 use finstack_quant_models::monte_carlo::payoff::barrier::{
     BarrierMonitoring, BarrierOptionPayoff, OptionKind,
 };
-use finstack_quant_models::monte_carlo::process::heston::{HestonParams, HestonProcess};
+use finstack_quant_models::monte_carlo::process::heston::{HestonProcess, HestonProcessParams};
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::seed;
 use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
@@ -100,7 +100,11 @@ impl BarrierOptionHestonMcPricer {
 
         // Get volatility (used for barrier bridge correction sigma)
         let vol_surface = market.get_surface(inst.vol_surface_id.as_str())?;
-        let sigma = vol_surface.value_clamped(t, inst.strike);
+        let sigma = finstack_quant_models::volatility::get_surface_vol_clamped(
+            &vol_surface,
+            t,
+            inst.strike,
+        );
 
         let kappa = Self::heston_scalar(market, "HESTON_KAPPA", 2.0);
         let theta = Self::heston_scalar(market, "HESTON_THETA", 0.04);
@@ -108,7 +112,7 @@ impl BarrierOptionHestonMcPricer {
         let rho = Self::heston_scalar(market, "HESTON_RHO", -0.7);
         let v0 = Self::heston_scalar(market, "HESTON_V0", 0.04);
 
-        let heston_params = HestonParams::new(r, q, kappa, theta, sigma_v, rho, v0)?;
+        let heston_params = HestonProcessParams::new(r, q, kappa, theta, sigma_v, rho, v0)?;
         let process = HestonProcess::new(heston_params);
         let discretization = QeHeston::new();
 

@@ -32,7 +32,7 @@
 //! # Volatility Surface Parameterization
 //!
 //! **Important**: The vol surface lookup in this implementation uses **absolute strike**
-//! as the moneyness dimension (via `vol_surface.value_clamped(t, strike)`). This is
+//! as the moneyness dimension (via `finstack_quant_models::volatility::get_surface_vol_clamped(&vol_surface, t, strike)`). This is
 //! a simpler parameterization than the delta-based quoting convention used in
 //! professional FX interbank markets, where the vol surface is typically quoted in
 //! terms of delta (e.g., 25Δ put, ATM DNS, 25Δ call) and interpolated in delta space.
@@ -702,7 +702,8 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxOption 
         // - bump a single surface point by ±1% (relative to the surface value at (t, K))
         // - divide by the corresponding absolute Δσ = sigma * bump_pct
         let surf = market.get_surface(self.vol_surface_id.as_str())?;
-        let sigma = surf.value_clamped(t, self.strike);
+        let sigma =
+            finstack_quant_models::volatility::get_surface_vol_clamped(&surf, t, self.strike);
         if sigma <= 0.0 {
             return Ok(Some(0.0));
         }
@@ -748,7 +749,8 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxOption 
         }
 
         let surf = market.get_surface(self.vol_surface_id.as_str())?;
-        let sigma = surf.value_clamped(t, self.strike);
+        let sigma =
+            finstack_quant_models::volatility::get_surface_vol_clamped(&surf, t, self.strike);
         if sigma <= 0.0 {
             return Ok(Some(0.0));
         }

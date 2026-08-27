@@ -13,8 +13,8 @@
 
 use super::helpers::*;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::math::volatility::black_scholes_spot_call;
 use finstack_quant_core::money::Money;
+use finstack_quant_models::closed_form::black_scholes_spot_call;
 use finstack_quant_valuations::instruments::PricingOptions;
 use finstack_quant_valuations::pricer::{standard_registry, ModelKey};
 use time::macros::date;

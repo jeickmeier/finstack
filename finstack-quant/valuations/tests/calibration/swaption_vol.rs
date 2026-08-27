@@ -219,12 +219,13 @@ fn swaption_vol_step_builds_and_inserts_surface() {
     let ctx = MarketContext::try_from(result.result.final_market).expect("restore context");
 
     // Calibration now produces a VolCube (SABR params on expiry x tenor grid).
-    // Retrieve via get_vol_provider, which returns the cube as a VolProvider.
-    let vol_provider = ctx.get_vol_provider("USD-SWPT").expect("vol cube inserted");
+    // Resolve the calibrated cube as a concrete VolSource.
+    let vol_provider = finstack_quant_valuations::market::resolve_vol_source(&ctx, "USD-SWPT")
+        .expect("vol cube inserted");
 
     // ATM strikes for each bucket (approximate).
-    let v_1y_1y = vol_provider.vol_clamped(1.0, 1.0, 0.043);
-    let v_1y_5y = vol_provider.vol_clamped(1.0, 5.0, 0.045);
+    let v_1y_1y = vol_provider.get_vol_clamped(1.0, 1.0, 0.043);
+    let v_1y_5y = vol_provider.get_vol_clamped(1.0, 5.0, 0.045);
     assert!(v_1y_1y.is_finite() && v_1y_1y > 0.0);
     assert!(v_1y_5y.is_finite() && v_1y_5y > 0.0);
 }
@@ -302,13 +303,15 @@ fn calibrated_swaption_surface_is_not_silently_reused_as_strike_surface() {
     let swaption = Swaption::new_payer("SWPT-1Yx5Y", &params, "USD-OIS", "USD-SOFR-3M", "USD-SWPT");
 
     // With VolCube calibration, the vol cube is stored separately from surfaces.
-    // The SimpleSwaptionBlackPricer uses get_vol_provider which resolves the cube,
+    // The SimpleSwaptionBlackPricer uses the valuations volatility resolver,
     // so pricing should succeed. The legacy Swaption::value() path still uses
     // get_surface(), so it won't find the cube.
-    let vol_provider = ctx
-        .get_vol_provider(swaption.vol_surface_id.as_str())
-        .expect("vol cube should be found via get_vol_provider");
-    let vol = vol_provider.vol_clamped(1.0, 5.0, 0.045);
+    let vol_provider = finstack_quant_valuations::market::resolve_vol_source(
+        &ctx,
+        swaption.vol_surface_id.as_str(),
+    )
+    .expect("vol cube should resolve as a volatility source");
+    let vol = vol_provider.get_vol_clamped(1.0, 5.0, 0.045);
     assert!(
         vol.is_finite() && vol > 0.0,
         "VolCube should produce a valid vol"
@@ -524,11 +527,10 @@ fn swaption_vol_settlement_lag_uses_canonical_tenor_axis() {
     let result = execute_for_tenor(contractual_tenor)
         .expect("the cube must use the contractual 1Y tenor after T+2 settlement");
     let context = MarketContext::try_from(result.result.final_market).expect("restore context");
-    let cube = context
-        .get_vol_provider("USD-SWPT-SETTLED")
+    let cube = finstack_quant_valuations::market::resolve_vol_source(&context, "USD-SWPT-SETTLED")
         .expect("contractual-coordinate cube");
     assert!(cube
-        .vol(expiry_time, contractual_tenor, 0.043)
+        .get_vol(expiry_time, contractual_tenor, 0.043)
         .expect("exact contractual cube node")
         .is_finite());
 

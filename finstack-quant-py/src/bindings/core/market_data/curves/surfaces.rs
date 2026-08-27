@@ -1,10 +1,9 @@
 //! Volatility surface bindings.
 
 use finstack_quant_core::market_data::surfaces::{
-    FxDeltaVolSurface, VolCube, VolGridOpts, VolInterpolationMode, VolSurface,
+    FxDeltaVolSurface, SabrParameterData, VolCube, VolGridOpts, VolInterpolationMode, VolSurface,
 };
 use finstack_quant_core::market_data::term_structures::VolatilityIndexCurve;
-use finstack_quant_core::math::volatility::sabr::SabrParams;
 use pyo3::types::PyDict;
 
 use std::sync::Arc;
@@ -73,18 +72,6 @@ impl PyVolSurface {
         Ok(Self {
             inner: Arc::new(surface),
         })
-    }
-
-    /// Interpolated surface value with explicit bounds checking.
-    #[pyo3(text_signature = "(self, expiry, strike)")]
-    fn value_checked(&self, expiry: f64, strike: f64) -> PyResult<f64> {
-        self.inner.value_checked(expiry, strike).map_err(core_to_py)
-    }
-
-    /// Interpolated surface value with flat extrapolation at the grid edges.
-    #[pyo3(text_signature = "(self, expiry, strike)")]
-    fn value_clamped(&self, expiry: f64, strike: f64) -> f64 {
-        self.inner.value_clamped(expiry, strike)
     }
 
     /// Surface identifier string.
@@ -230,58 +217,6 @@ impl PyFxDeltaVolSurface {
         self.inner.num_expiries()
     }
 
-    /// Pillar vols at the given expiry index as ``(atm, put_25d_vol, call_25d_vol)``.
-    ///
-    /// Raises ``IndexError`` if ``expiry_idx`` is out of range.
-    #[pyo3(text_signature = "(self, expiry_idx)")]
-    fn pillar_vols(&self, expiry_idx: usize) -> PyResult<(f64, f64, f64)> {
-        if expiry_idx >= self.inner.num_expiries() {
-            return Err(pyo3::exceptions::PyIndexError::new_err(format!(
-                "expiry_idx {} out of range (num_expiries={})",
-                expiry_idx,
-                self.inner.num_expiries()
-            )));
-        }
-        Ok(self.inner.pillar_vols(expiry_idx))
-    }
-
-    /// Interpolated implied vol at the given ``(expiry, strike)`` for the
-    /// supplied forward.
-    #[pyo3(text_signature = "(self, expiry, strike, forward)")]
-    fn implied_vol(&self, expiry: f64, strike: f64, forward: f64) -> PyResult<f64> {
-        self.inner
-            .implied_vol(expiry, strike, forward)
-            .map_err(core_to_py)
-    }
-
-    /// Materialize this delta-quoted surface as a strike-axis ``VolSurface``.
-    ///
-    /// The conversion uses Garman-Kohlhagen with the supplied ``spot``, ``r_d``
-    /// (domestic continuously-compounded rate), and ``r_f`` (foreign rate).
-    #[pyo3(text_signature = "(self, spot, r_d, r_f)")]
-    fn to_vol_surface(&self, spot: f64, r_d: f64, r_f: f64) -> PyResult<PyVolSurface> {
-        let surface = self
-            .inner
-            .to_vol_surface(spot, r_d, r_f)
-            .map_err(core_to_py)?;
-        Ok(PyVolSurface::from_inner(Arc::new(surface)))
-    }
-
-    /// Convert a forward delta to a strike using Garman-Kohlhagen
-    /// (premium-unadjusted forward delta).
-    #[staticmethod]
-    #[pyo3(text_signature = "(delta, forward, vol, expiry)")]
-    fn delta_to_strike(delta: f64, forward: f64, vol: f64, expiry: f64) -> f64 {
-        FxDeltaVolSurface::delta_to_strike(delta, forward, vol, expiry)
-    }
-
-    /// Convert a strike to forward delta (premium-unadjusted call delta).
-    #[staticmethod]
-    #[pyo3(text_signature = "(strike, forward, vol, expiry)")]
-    fn strike_to_delta(strike: f64, forward: f64, vol: f64, expiry: f64) -> f64 {
-        FxDeltaVolSurface::strike_to_delta(strike, forward, vol, expiry)
-    }
-
     fn __repr__(&self) -> String {
         format!(
             "FxDeltaVolSurface(id={:?}, num_expiries={})",
@@ -313,11 +248,11 @@ impl PyVolCube {
     }
 }
 
-/// Parse a Python dict to [`SabrParams`].
+/// Parse a Python dict to [`SabrParameterData`].
 ///
 /// Required keys: `"alpha"`, `"beta"`, `"rho"`, `"nu"`.
 /// Optional key: `"shift"`.
-fn parse_sabr_dict(dict: &Bound<'_, PyDict>, idx: usize) -> PyResult<SabrParams> {
+fn parse_sabr_dict(dict: &Bound<'_, PyDict>, idx: usize) -> PyResult<SabrParameterData> {
     let get = |key: &str| -> PyResult<f64> {
         dict.get_item(key)?
             .ok_or_else(|| {
@@ -337,7 +272,7 @@ fn parse_sabr_dict(dict: &Bound<'_, PyDict>, idx: usize) -> PyResult<SabrParams>
         .get_item("shift")?
         .map(|value| value.extract::<f64>())
         .transpose()?;
-    SabrParams::new_with_shift(alpha, beta, rho, nu, shift).map_err(core_to_py)
+    SabrParameterData::new_with_shift(alpha, beta, rho, nu, shift).map_err(core_to_py)
 }
 
 #[pymethods]
@@ -372,7 +307,7 @@ impl PyVolCube {
     ) -> PyResult<Self> {
         let mode = parse_vol_interpolation_mode(interpolation_mode)?;
 
-        let sabr_params: Vec<SabrParams> = params_row_major
+        let sabr_params: Vec<SabrParameterData> = params_row_major
             .iter()
             .enumerate()
             .map(|(i, d)| parse_sabr_dict(d, i))
@@ -385,112 +320,6 @@ impl PyVolCube {
         Ok(Self {
             inner: Arc::new(cube),
         })
-    }
-
-    /// Implied volatility with bounds checking.
-    #[pyo3(text_signature = "(self, expiry, tenor, strike)")]
-    fn vol(&self, expiry: f64, tenor: f64, strike: f64) -> PyResult<f64> {
-        self.inner.vol(expiry, tenor, strike).map_err(core_to_py)
-    }
-
-    /// Implied volatility with clamped extrapolation. Non-finite inputs return
-    /// ``NaN`` rather than being silently mapped to a grid edge.
-    #[pyo3(text_signature = "(self, expiry, tenor, strike)")]
-    fn vol_clamped(&self, expiry: f64, tenor: f64, strike: f64) -> f64 {
-        self.inner.vol_clamped(expiry, tenor, strike)
-    }
-
-    /// Normal (Bachelier) implied volatility with bounds checking.
-    ///
-    /// The returned vol is in absolute rate units (e.g. ``0.008`` = 80 bp/yr
-    /// normal vol), the swaption market quoting convention. For shifted SABR
-    /// the expansion is evaluated on the shifted forward/strike.
-    ///
-    /// Raises
-    /// ------
-    /// ValueError
-    ///     If ``expiry`` or ``tenor`` falls outside the grid, if the expansion
-    ///     yields a non-finite volatility, or for cross-zero quotes
-    ///     (``(F+s)(K+s) <= 0``) with ``beta > 0``, which require an explicit
-    ///     shift.
-    #[pyo3(text_signature = "(self, expiry, tenor, strike)")]
-    fn vol_normal(&self, expiry: f64, tenor: f64, strike: f64) -> PyResult<f64> {
-        self.inner
-            .vol_normal(expiry, tenor, strike)
-            .map_err(core_to_py)
-    }
-
-    /// Normal (Bachelier) implied volatility with clamped extrapolation.
-    ///
-    /// Expiry and tenor are clamped to the grid edges; a degenerate expansion
-    /// is floored to a small positive normal vol (absolute rate units).
-    /// Non-finite inputs return ``NaN`` rather than being silently mapped to a
-    /// grid edge.
-    #[pyo3(text_signature = "(self, expiry, tenor, strike)")]
-    fn vol_normal_clamped(&self, expiry: f64, tenor: f64, strike: f64) -> f64 {
-        self.inner.vol_normal_clamped(expiry, tenor, strike)
-    }
-
-    /// Materialize a tenor slice as a [`VolSurface`].
-    #[pyo3(text_signature = "(self, tenor, strikes)")]
-    fn materialize_tenor_slice(
-        &self,
-        py: Python<'_>,
-        tenor: f64,
-        strikes: Vec<f64>,
-    ) -> PyResult<PyVolSurface> {
-        let surface = py
-            .detach(|| self.inner.materialize_tenor_slice(tenor, &strikes))
-            .map_err(core_to_py)?;
-        Ok(PyVolSurface::from_inner(Arc::new(surface)))
-    }
-
-    /// Materialize a tenor slice as a normal-vol (Bachelier) [`VolSurface`].
-    ///
-    /// Vols are in absolute rate units and the resulting surface is tagged
-    /// with the normal quote type.
-    #[pyo3(text_signature = "(self, tenor, strikes)")]
-    fn materialize_tenor_slice_normal(
-        &self,
-        py: Python<'_>,
-        tenor: f64,
-        strikes: Vec<f64>,
-    ) -> PyResult<PyVolSurface> {
-        let surface = py
-            .detach(|| self.inner.materialize_tenor_slice_normal(tenor, &strikes))
-            .map_err(core_to_py)?;
-        Ok(PyVolSurface::from_inner(Arc::new(surface)))
-    }
-
-    /// Materialize an expiry slice as a [`VolSurface`].
-    #[pyo3(text_signature = "(self, expiry, strikes)")]
-    fn materialize_expiry_slice(
-        &self,
-        py: Python<'_>,
-        expiry: f64,
-        strikes: Vec<f64>,
-    ) -> PyResult<PyVolSurface> {
-        let surface = py
-            .detach(|| self.inner.materialize_expiry_slice(expiry, &strikes))
-            .map_err(core_to_py)?;
-        Ok(PyVolSurface::from_inner(Arc::new(surface)))
-    }
-
-    /// Materialize an expiry slice as a normal-vol (Bachelier) [`VolSurface`].
-    ///
-    /// Vols are in absolute rate units and the resulting surface is tagged
-    /// with the normal quote type.
-    #[pyo3(text_signature = "(self, expiry, strikes)")]
-    fn materialize_expiry_slice_normal(
-        &self,
-        py: Python<'_>,
-        expiry: f64,
-        strikes: Vec<f64>,
-    ) -> PyResult<PyVolSurface> {
-        let surface = py
-            .detach(|| self.inner.materialize_expiry_slice_normal(expiry, &strikes))
-            .map_err(core_to_py)?;
-        Ok(PyVolSurface::from_inner(Arc::new(surface)))
     }
 
     /// Cube identifier string.

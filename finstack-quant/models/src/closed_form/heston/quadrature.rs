@@ -1,6 +1,6 @@
 use super::characteristic_fn::{heston_pj_characteristic_function, HestonCfStatus};
 use super::strip_pricer::HESTON_STRIP_MAX_CORRUPT_FRACTION;
-use super::{HestonFourierSettings, HestonParams};
+use super::{HestonFourierSettings, HestonPricingParams};
 use finstack_quant_core::math::gauss_legendre_integrate_composite;
 use num_complex::Complex;
 use std::f64::consts::PI;
@@ -170,7 +170,7 @@ pub(super) fn heston_pj_with_diagnostics(
     spot: f64,
     strike: f64,
     time: f64,
-    params: &HestonParams,
+    params: &HestonPricingParams,
     settings: &HestonFourierSettings,
 ) -> HestonPjDiagnostics {
     let log_spot = spot.ln();
@@ -229,7 +229,7 @@ pub(super) fn heston_pj_on_grid(
     spot: f64,
     strike: f64,
     time: f64,
-    params: &HestonParams,
+    params: &HestonPricingParams,
     settings: &HestonFourierSettings,
     grid: &[(f64, f64)],
 ) -> HestonPjDiagnostics {

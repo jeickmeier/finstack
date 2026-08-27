@@ -1,11 +1,11 @@
 //! SABR model, smile, parameter, and calibration support.
 //!
-use super::model::{SABRModel, BETA_SNAP_TOL};
-use super::parameters::SABRParameters;
+use super::model::{SabrModel, BETA_SNAP_TOL};
+use super::parameters::SabrParameters;
+use crate::closed_form::{bachelier_vega, black_vega};
 use finstack_quant_core::math::solver_multi::{
     LevenbergMarquardtSolver, LmSolution, LmTerminationReason,
 };
-use finstack_quant_core::math::volatility::{bachelier_vega, black_vega};
 use finstack_quant_core::{Error, Result};
 
 /// Vega weight used by the SABR calibration objectives.
@@ -19,7 +19,7 @@ use finstack_quant_core::{Error, Result};
 ///
 /// The vega convention must match the vol convention of the quotes being
 /// fitted, which follows the model's own β classification
-/// ([`SABRModel::implied_volatility`] returns normal vols for β≈0):
+/// ([`SabrModel::implied_volatility`] returns normal vols for β≈0):
 ///
 /// - `beta ≈ 0` (within `BETA_SNAP_TOL`): the quotes are *normal*
 ///   (Bachelier) vols, so weight with Bachelier vega `√T·φ((F−K)/(σ_N√T))`.
@@ -81,7 +81,7 @@ fn initial_alpha_guess(atm_vol: f64, forward: f64, beta: f64) -> f64 {
 /// change convention. `calibrate_auto_shift` rounds the required minimum
 /// shift (`−min_rate + 10bp` headroom) *up* to the next rung. Callers that
 /// need an exact per-currency convention should pass an explicit shift to
-/// [`SABRCalibrator::calibrate_shifted`].
+/// [`SabrCalibrator::calibrate_shifted`].
 const STANDARD_SHIFTS: [f64; 5] = [0.005, 0.01, 0.02, 0.03, 0.04];
 
 /// Round the minimum required shift up to the standardized ladder.
@@ -133,7 +133,7 @@ fn standard_shift(min_rate: f64) -> Result<f64> {
 /// gradient is therefore exactly consistent with the calibration objective
 /// and robust across the full parameter range.
 #[derive(Clone)]
-pub struct SABRCalibrator {
+pub struct SabrCalibrator {
     /// Tolerance for calibration convergence.
     ///
     /// Lower values give more accurate calibration but take longer.
@@ -147,7 +147,7 @@ pub struct SABRCalibrator {
 #[derive(Clone, Debug)]
 pub struct SabrCalibrationOutcome {
     /// Calibrated model parameters.
-    pub parameters: SABRParameters,
+    pub parameters: SabrParameters,
     /// Total iterations consumed across all attempted starts.
     pub total_iterations: usize,
     /// Iterations consumed by the selected start.
@@ -335,7 +335,7 @@ where
 
     Ok(SabrMultiStartResult {
         outcome: SabrCalibrationOutcome {
-            parameters: SABRParameters::new(physical[0], beta, physical[1], physical[2])?,
+            parameters: SabrParameters::new(physical[0], beta, physical[1], physical[2])?,
             total_iterations,
             winning_iterations: solution.stats.iterations,
             residual_evaluations: solution.stats.residual_evals,
@@ -346,7 +346,7 @@ where
     })
 }
 
-impl SABRCalibrator {
+impl SabrCalibrator {
     /// Create new calibrator with production-ready defaults.
     ///
     /// Default settings:
@@ -367,11 +367,11 @@ impl SABRCalibrator {
     /// consider using tighter tolerance with a larger iteration budget:
     ///
     /// ```
-    /// use finstack_quant_models::volatility::sabr::SABRCalibrator;
+    /// use finstack_quant_models::volatility::sabr::SabrCalibrator;
     ///
-    /// let _calibrator = SABRCalibrator::new();
+    /// let _calibrator = SabrCalibrator::new();
     ///
-    /// let _precise_calibrator = SABRCalibrator::new()
+    /// let _precise_calibrator = SabrCalibrator::new()
     ///     .with_tolerance(1e-8)
     ///     .with_max_iterations(5000);
     /// ```
@@ -420,7 +420,7 @@ impl SABRCalibrator {
         market_vols: &[f64],
         time_to_expiry: f64,
         beta: f64,
-    ) -> Result<SABRParameters> {
+    ) -> Result<SabrParameters> {
         Ok(self
             .calibrate_auto_shift_with_diagnostics(
                 forward,
@@ -477,7 +477,7 @@ impl SABRCalibrator {
         market_vols: &[f64],
         time_to_expiry: f64,
         beta: f64,
-    ) -> Result<SABRParameters> {
+    ) -> Result<SabrParameters> {
         // Check if we need shift for negative rates
         let min_strike = strikes
             .iter()
@@ -511,7 +511,7 @@ impl SABRCalibrator {
         time_to_expiry: f64,
         beta: f64,
         shift: f64,
-    ) -> Result<SABRParameters> {
+    ) -> Result<SabrParameters> {
         Ok(self
             .calibrate_shifted_with_diagnostics(
                 forward,
@@ -564,7 +564,7 @@ impl SABRCalibrator {
             time_to_expiry,
             beta,
         )?;
-        outcome.parameters = SABRParameters::new_with_shift(
+        outcome.parameters = SabrParameters::new_with_shift(
             outcome.parameters.alpha,
             beta,
             outcome.parameters.nu,
@@ -590,7 +590,7 @@ impl SABRCalibrator {
         market_vols: &[f64],
         time_to_expiry: f64,
         beta: f64, // Beta is usually fixed
-    ) -> Result<SABRParameters> {
+    ) -> Result<SabrParameters> {
         Ok(self
             .calibrate_with_diagnostics(forward, strikes, market_vols, time_to_expiry, beta)?
             .parameters)
@@ -642,11 +642,11 @@ impl SABRCalibrator {
                     let alpha = unconstrained_to_bounded(unconstrained[0], 0.001, 5.0);
                     let nu = unconstrained_to_bounded(unconstrained[1], 0.001, 2.0);
                     let rho = unconstrained_to_bounded(unconstrained[2], -0.99, 0.99);
-                    let Ok(parameters) = SABRParameters::new(alpha, beta, nu, rho) else {
+                    let Ok(parameters) = SabrParameters::new(alpha, beta, nu, rho) else {
                         output.fill(1e6);
                         return;
                     };
-                    let model = SABRModel::new(parameters);
+                    let model = SabrModel::new(parameters);
                     for (index, (&strike, &market_vol)) in
                         strikes.iter().zip(market_vols).enumerate()
                     {
@@ -678,7 +678,7 @@ impl SABRCalibrator {
         market_vols: &[f64],
         time_to_expiry: f64,
         beta: f64,
-    ) -> Result<SABRParameters> {
+    ) -> Result<SabrParameters> {
         if strikes.len() != market_vols.len() {
             return Err(Error::Validation(format!(
                 "SABR calibration: strikes length ({}) must match market_vols length ({})",
@@ -688,10 +688,10 @@ impl SABRCalibrator {
         }
 
         // Use analytical derivatives from the parent module
-        use crate::volatility::sabr_derivatives::{SABRCalibrationDerivatives, SABRMarketData};
+        use crate::volatility::sabr_derivatives::{SabrCalibrationDerivatives, SabrMarketData};
         use finstack_quant_core::math::solver_multi::LevenbergMarquardtSolver;
 
-        let market_data = SABRMarketData {
+        let market_data = SabrMarketData {
             forward,
             time_to_expiry,
             strikes: strikes.to_vec(),
@@ -701,7 +701,7 @@ impl SABRCalibrator {
         };
 
         // Finite-difference derivatives provider for the LM solver.
-        let derivatives_provider = SABRCalibrationDerivatives::new(market_data.clone());
+        let derivatives_provider = SabrCalibrationDerivatives::new(market_data.clone());
 
         let solver = LevenbergMarquardtSolver::new()
             .with_tolerance(self.tolerance)
@@ -713,8 +713,8 @@ impl SABRCalibrator {
             let nu = params[1];
             let rho = params[2];
 
-            if let Ok(sabr_params) = SABRParameters::new(alpha, beta, nu, rho) {
-                let model = SABRModel::new(sabr_params);
+            if let Ok(sabr_params) = SabrParameters::new(alpha, beta, nu, rho) {
+                let model = SabrModel::new(sabr_params);
 
                 // Vega-weighted sum of squared errors (see `vega_weight`).
                 market_data
@@ -761,7 +761,7 @@ impl SABRCalibrator {
         let nu = solution[1];
         let rho = solution[2];
 
-        SABRParameters::new(alpha, beta, nu, rho)
+        SabrParameters::new(alpha, beta, nu, rho)
     }
 
     /// Calibrate shifted SABR with analytical derivatives
@@ -773,7 +773,7 @@ impl SABRCalibrator {
         time_to_expiry: f64,
         beta: f64,
         shift: f64,
-    ) -> Result<SABRParameters> {
+    ) -> Result<SabrParameters> {
         if strikes.len() != market_vols.len() {
             return Err(Error::Validation(format!(
                 "SABR calibration: strikes length ({}) must match market_vols length ({})",
@@ -807,7 +807,7 @@ impl SABRCalibrator {
             beta,
         )?;
 
-        SABRParameters::new_with_shift(
+        SabrParameters::new_with_shift(
             base_params.alpha,
             beta,
             base_params.nu,
@@ -914,7 +914,7 @@ impl SABRCalibrator {
         market_vols: &[f64],
         time_to_expiry: f64,
         beta: f64,
-    ) -> Result<SABRParameters> {
+    ) -> Result<SabrParameters> {
         Ok(self
             .calibrate_with_atm_pinning_diagnostics(
                 forward,
@@ -982,11 +982,11 @@ impl SABRCalibrator {
                         output.fill(1e6);
                         return;
                     };
-                    let Ok(parameters) = SABRParameters::new(alpha, beta, nu, rho) else {
+                    let Ok(parameters) = SabrParameters::new(alpha, beta, nu, rho) else {
                         output.fill(1e6);
                         return;
                     };
-                    let model = SABRModel::new(parameters);
+                    let model = SabrModel::new(parameters);
                     for (index, (&strike, &market_vol)) in
                         strikes.iter().zip(market_vols).enumerate()
                     {
@@ -1052,8 +1052,8 @@ pub(super) fn solve_alpha_for_atm(
     let mut last_error = f64::INFINITY;
     for _ in 0..MAX_ITER {
         // Compute model ATM vol with current alpha
-        let params = SABRParameters::new(alpha, beta, nu, rho)?;
-        let model = SABRModel::new(params);
+        let params = SabrParameters::new(alpha, beta, nu, rho)?;
+        let model = SabrModel::new(params);
         let model_vol = model.atm_volatility(forward, time_to_expiry)?;
 
         let error = model_vol - target_atm_vol;
@@ -1064,8 +1064,8 @@ pub(super) fn solve_alpha_for_atm(
 
         // Numerical derivative for Newton step
         let bump = alpha * 1e-6;
-        let params_bumped = SABRParameters::new(alpha + bump, beta, nu, rho)?;
-        let model_bumped = SABRModel::new(params_bumped);
+        let params_bumped = SabrParameters::new(alpha + bump, beta, nu, rho)?;
+        let model_bumped = SabrModel::new(params_bumped);
         let vol_bumped = model_bumped.atm_volatility(forward, time_to_expiry)?;
 
         let d_vol_d_alpha = (vol_bumped - model_vol) / bump;
@@ -1097,7 +1097,7 @@ pub(super) fn solve_alpha_for_atm(
     })
 }
 
-impl Default for SABRCalibrator {
+impl Default for SabrCalibrator {
     fn default() -> Self {
         Self::new()
     }
@@ -1218,8 +1218,8 @@ mod acceptance_tests {
         let time_to_expiry = 2.0;
         let beta = 0.5;
         let source_parameters =
-            SABRParameters::new(0.02, beta, 0.4, -0.3).expect("source parameters");
-        let source = SABRModel::new(source_parameters.clone());
+            SabrParameters::new(0.02, beta, 0.4, -0.3).expect("source parameters");
+        let source = SabrModel::new(source_parameters.clone());
         let market_vols: Vec<f64> = strikes
             .iter()
             .map(|&strike| {
@@ -1228,7 +1228,7 @@ mod acceptance_tests {
                     .expect("source volatility")
             })
             .collect();
-        let calibrator = SABRCalibrator::new()
+        let calibrator = SabrCalibrator::new()
             .with_tolerance(1.0e-8)
             .with_max_iterations(2_000);
 
@@ -1270,7 +1270,7 @@ mod acceptance_tests {
         assert_repeatable(&pinned_first, &pinned_second);
 
         let residual_norm = |outcome: &SabrCalibrationOutcome, pin_atm: bool| {
-            let model = SABRModel::new(outcome.parameters.clone());
+            let model = SabrModel::new(outcome.parameters.clone());
             strikes
                 .iter()
                 .zip(&market_vols)
@@ -1317,7 +1317,7 @@ mod acceptance_tests {
             assert!((outcome.parameters.rho - source_parameters.rho).abs() <= 2.0e-4);
         }
 
-        let pinned_atm = SABRModel::new(pinned_first.parameters)
+        let pinned_atm = SabrModel::new(pinned_first.parameters)
             .atm_volatility(forward, time_to_expiry)
             .expect("pinned ATM volatility");
         assert!((pinned_atm - atm_vol).abs() <= calibrator.tolerance);
@@ -1325,7 +1325,7 @@ mod acceptance_tests {
 
     #[test]
     fn free_alpha_path_reports_rejected_stalled_starts() {
-        let calibrator = SABRCalibrator::new()
+        let calibrator = SabrCalibrator::new()
             .with_tolerance(1.0e-12)
             .with_max_iterations(1);
         let error = calibrator
@@ -1346,7 +1346,7 @@ mod acceptance_tests {
 
     #[test]
     fn atm_pinned_path_reports_rejected_stalled_starts() {
-        let calibrator = SABRCalibrator::new()
+        let calibrator = SabrCalibrator::new()
             .with_tolerance(1.0e-12)
             .with_max_iterations(1);
         let error = calibrator

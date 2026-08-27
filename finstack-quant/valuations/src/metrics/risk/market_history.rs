@@ -577,9 +577,8 @@ mod tests {
         );
 
         let bumped = scenario.apply(&base_market)?;
-        let vol = bumped
-            .get_surface("EQ-VOL")?
-            .value_checked(0.5, 100.0)
+        let surface = bumped.get_surface("EQ-VOL")?;
+        let vol = finstack_quant_models::volatility::get_surface_vol(&surface, 0.5, 100.0)
             .expect("grid point lookup should succeed");
 
         // Mean of (+2, +4) vol points = +3 vol points, NOT the compounded +6.
@@ -631,13 +630,11 @@ mod tests {
         );
 
         let bumped = scenario.apply(&base_market)?;
-        let eq_vol = bumped
-            .get_surface("EQ-VOL")?
-            .value_checked(1.0, 100.0)
+        let eq_surface = bumped.get_surface("EQ-VOL")?;
+        let eq_vol = finstack_quant_models::volatility::get_surface_vol(&eq_surface, 1.0, 100.0)
             .expect("grid point");
-        let fx_vol = bumped
-            .get_surface("FX-VOL")?
-            .value_checked(1.0, 1.10)
+        let fx_surface = bumped.get_surface("FX-VOL")?;
+        let fx_vol = finstack_quant_models::volatility::get_surface_vol(&fx_surface, 1.0, 1.10)
             .expect("grid point");
         assert!((eq_vol - 0.22).abs() < 1e-9, "EQ surface: got {eq_vol}");
         assert!((fx_vol - 0.09).abs() < 1e-9, "FX surface: got {fx_vol}");
@@ -671,8 +668,7 @@ mod tests {
 
         let bumped = scenario.apply(&base_market)?;
         let bumped_surface = bumped.get_surface("EQ-VOL")?;
-        let vol = bumped_surface
-            .value_checked(1.0, 100.0)
+        let vol = finstack_quant_models::volatility::get_surface_vol(&bumped_surface, 1.0, 100.0)
             .expect("grid point lookup should succeed");
         assert!((vol - 0.23).abs() < 1e-9);
 

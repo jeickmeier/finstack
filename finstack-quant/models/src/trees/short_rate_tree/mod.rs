@@ -15,10 +15,10 @@
 //!
 //! ## Converting Between Conventions
 //!
-//! Use `finstack_quant_core::math::volatility::convert_atm_volatility` to convert:
+//! Use [`convert_atm_volatility`](crate::volatility::convert_atm_volatility) to convert:
 //!
 //! ```
-//! use finstack_quant_core::math::volatility::{convert_atm_volatility, VolatilityConvention};
+//! use finstack_quant_models::volatility::{convert_atm_volatility, VolatilityConvention};
 //!
 //! let normal_vol = 0.01;
 //! let rate_level = 0.05;

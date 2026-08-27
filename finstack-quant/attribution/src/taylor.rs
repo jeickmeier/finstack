@@ -33,12 +33,12 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::bumps::{BumpSpec, MarketBump};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::diff::{
-    measure_credit_curve_shift, measure_per_tenor_credit_curve_shift, measure_vol_surface_shift,
-    TenorSamplingMethod,
+    measure_credit_curve_shift, measure_per_tenor_credit_curve_shift, TenorSamplingMethod,
 };
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::Result;
+use finstack_quant_models::volatility::measure_vol_surface_shift;
 use finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::bump_surface_vol_absolute;
@@ -2160,7 +2160,7 @@ mod tests {
             tenor: f64,
             scale: f64,
         },
-        /// `scale × Σ surface.value_clamped(expiry, strike)` over `reads`.
+        /// `scale × Σ finstack_quant_models::volatility::get_surface_vol_clamped(&surface, expiry, strike)` over `reads`.
         VolSum {
             reads: Vec<(&'static str, f64, f64)>,
             scale: f64,
@@ -2373,9 +2373,10 @@ mod tests {
                 MockPayoff::VolSum { reads, scale } => {
                     let mut total = 0.0;
                     for (surface_id, expiry, strike) in reads {
-                        total += market
-                            .get_surface(surface_id)?
-                            .value_clamped(*expiry, *strike);
+                        let surface = market.get_surface(surface_id)?;
+                        total += finstack_quant_models::volatility::get_surface_vol_clamped(
+                            &surface, *expiry, *strike,
+                        );
                     }
                     Ok(Money::new(scale * total, Currency::USD))
                 }

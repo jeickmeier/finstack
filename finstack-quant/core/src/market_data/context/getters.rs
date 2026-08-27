@@ -233,6 +233,7 @@ impl MarketContext {
     /// ```rust
     /// # use finstack_quant_core::market_data::context::MarketContext;
     /// # use finstack_quant_core::market_data::surfaces::VolSurface;
+    /// # use finstack_quant_core::types::CurveId;
     /// # let surface = VolSurface::builder("IR-Swaption")
     /// #     .expiries(&[1.0, 2.0])
     /// #     .strikes(&[90.0, 100.0])
@@ -242,7 +243,8 @@ impl MarketContext {
     /// #     .expect("... builder should succeed");
     /// # let ctx = MarketContext::new().insert_surface(surface);
     /// let surface = ctx.get_surface("IR-Swaption").expect("Surface should exist");
-    /// assert!((surface.value_clamped(1.5, 95.0) - 0.2).abs() < 1e-12);
+    /// assert_eq!(surface.id(), &CurveId::from("IR-Swaption"));
+    /// assert_eq!(surface.grid_shape(), (2, 2));
     /// ```
     pub fn get_surface(&self, id: impl AsRef<str>) -> Result<Arc<VolSurface>> {
         self.get_cloned(&self.surfaces, id.as_ref())
@@ -412,30 +414,6 @@ impl MarketContext {
     /// Returns an error if the identifier is not present.
     pub fn get_vol_cube(&self, id: impl AsRef<str>) -> Result<Arc<VolCube>> {
         self.get_cloned(&self.vol_cubes, id.as_ref())
-    }
-
-    /// Look up a vol provider by identifier.
-    ///
-    /// Checks vol cubes first, then falls back to vol surfaces. This enables
-    /// pricing code to accept either a 3D cube or a 2D surface through the
-    /// [`VolProvider`](crate::market_data::traits::VolProvider) trait.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if neither a vol cube nor a vol surface exists under the
-    /// given identifier.
-    pub fn get_vol_provider(
-        &self,
-        id: impl AsRef<str>,
-    ) -> Result<Arc<dyn crate::market_data::traits::VolProvider>> {
-        let id_str = id.as_ref();
-        if let Some(cube) = self.vol_cubes.get(id_str) {
-            return Ok(Arc::clone(cube) as Arc<dyn crate::market_data::traits::VolProvider>);
-        }
-        if let Some(surface) = self.surfaces.get(id_str) {
-            return Ok(Arc::clone(surface) as Arc<dyn crate::market_data::traits::VolProvider>);
-        }
-        Err(Self::not_found_error(id_str))
     }
 
     /// Resolve a collateral discount curve for a CSA code.

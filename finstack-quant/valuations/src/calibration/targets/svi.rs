@@ -229,7 +229,7 @@ impl SviSurfaceTarget {
             let strikes: Vec<f64> = expiry_quotes.iter().map(|(strike, _)| *strike).collect();
             let vols: Vec<f64> = expiry_quotes.iter().map(|(_, vol)| *vol).collect();
 
-            let svi_params = finstack_quant_core::math::volatility::svi::calibrate_svi(
+            let svi_params = finstack_quant_models::volatility::svi::calibrate_svi(
                 &strikes, &vols, forward, expiry,
             )?;
 
@@ -348,7 +348,7 @@ impl SviSurfaceTarget {
 
 /// Evaluate one calibrated SVI slice without allowing NaN sentinel residuals.
 fn evaluate_svi_model_vol(
-    params: &finstack_quant_core::math::volatility::svi::SviParams,
+    params: &finstack_quant_models::volatility::svi::SviParams,
     expiry: f64,
     strike: f64,
     forward: f64,
@@ -374,7 +374,7 @@ fn interpolate_svi_vol(
     target_expiry: f64,
     target_strike: f64,
     forward_fn: &impl Fn(f64) -> Result<f64>,
-    params_by_expiry: &BTreeMap<OrderedF64, finstack_quant_core::math::volatility::svi::SviParams>,
+    params_by_expiry: &BTreeMap<OrderedF64, finstack_quant_models::volatility::svi::SviParams>,
 ) -> Result<f64> {
     if target_expiry <= 0.0 {
         return Err(finstack_quant_core::Error::Validation(format!(
@@ -484,7 +484,7 @@ mod tests {
 
     #[test]
     fn svi_evaluation_failure_retains_slice_context_without_nan() {
-        let params = finstack_quant_core::math::volatility::svi::SviParams {
+        let params = finstack_quant_models::volatility::svi::SviParams {
             a: -1.0,
             b: 0.0,
             rho: 0.0,
@@ -558,7 +558,7 @@ mod tests {
     /// or `σ` of the slices disagree.
     #[test]
     fn interpolate_svi_vol_matches_gatheral_total_variance() {
-        use finstack_quant_core::math::volatility::svi::SviParams;
+        use finstack_quant_models::volatility::svi::SviParams;
 
         // Two distinct SVI slices with w_ATM = 0.04 each:
         //   Slice A at T=0.5: σ_ATM = √(0.04 / 0.5) ≈ 0.2828
@@ -622,7 +622,7 @@ mod tests {
     /// `b > 0` and a non-flat curve are both required.
     #[test]
     fn interpolate_svi_vol_preserves_calendar_monotonicity() {
-        use finstack_quant_core::math::volatility::svi::SviParams;
+        use finstack_quant_models::volatility::svi::SviParams;
 
         // Three SVI slices, each calibrated in its own forward-moneyness.
         // b > 0 ⇒ total variance genuinely depends on k. Parameters are

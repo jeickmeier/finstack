@@ -821,14 +821,12 @@ fn most_specific_wins_deduplicates_per_operation_family_not_raw_identifier() {
         other @ MarketScalar::Unitless(_) => panic!("expected SPX price, got {other:?}"),
     };
 
-    let hierarchy_vol = hierarchy_market
-        .get_surface("SPX")
-        .unwrap()
-        .value_clamped(1.0, 100.0);
-    let direct_vol = direct_market
-        .get_surface("SPX")
-        .unwrap()
-        .value_clamped(1.0, 100.0);
+    let hierarchy_surface = hierarchy_market.get_surface("SPX").unwrap();
+    let hierarchy_vol =
+        finstack_quant_models::volatility::get_surface_vol_clamped(&hierarchy_surface, 1.0, 100.0);
+    let direct_surface = direct_market.get_surface("SPX").unwrap();
+    let direct_vol =
+        finstack_quant_models::volatility::get_surface_vol_clamped(&direct_surface, 1.0, 100.0);
 
     assert!((hierarchy_spot - direct_spot).abs() < 1e-12);
     assert!((hierarchy_vol - direct_vol).abs() < 1e-12);

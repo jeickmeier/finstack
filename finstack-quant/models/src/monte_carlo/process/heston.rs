@@ -95,11 +95,11 @@
 //!
 //! ```
 //! use finstack_quant_models::monte_carlo::process::heston::{
-//!     HestonProcess, HestonParams
+//!     HestonProcess, HestonProcessParams
 //! };
 //!
 //! // Typical calibrated parameters for equity index
-//! let params = HestonParams::new(
+//! let params = HestonProcessParams::new(
 //!     0.05,   // r = 5% risk-free rate
 //!     0.02,   // q = 2% dividend yield
 //!     2.0,    // κ = mean reversion speed
@@ -121,10 +121,12 @@
 use super::super::paths::ProcessParams;
 use super::super::traits::StochasticProcess;
 use super::metadata::ProcessMetadata;
+use crate::volatility::heston::HestonParams;
+use std::ops::Deref;
 
 /// Check the Feller condition `2κθ ≥ σ_v²` from raw variance-process parameters.
 ///
-/// This is the canonical predicate used by [`HestonParams::satisfies_feller`]
+/// This is the canonical predicate used by [`HestonProcessParams::satisfies_feller`]
 /// and by the host-language bindings, so all surfaces agree on the boundary
 /// case: it is **inclusive** — non-attainment of zero holds iff `2κθ ≥ σ_v²`
 /// (Feller 1951), matching `CirParams::satisfies_feller`.
@@ -151,26 +153,30 @@ pub fn feller_condition(kappa: f64, theta: f64, sigma_v: f64) -> bool {
     2.0 * kappa * theta >= sigma_v * sigma_v
 }
 
-/// Heston model parameters.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct HestonParams {
-    /// Risk-free rate
+/// Risk-neutral inputs for the Heston stochastic process.
+///
+/// The stochastic parameters are the canonical [`HestonParams`]; this wrapper
+/// adds only the continuous risk-free and dividend/foreign rates.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct HestonProcessParams {
+    /// Continuously compounded risk-free rate as an annual decimal.
     pub r: f64,
-    /// Dividend/foreign rate
+    /// Continuously compounded dividend or foreign rate as an annual decimal.
     pub q: f64,
-    /// Mean reversion speed
-    pub kappa: f64,
-    /// Long-term variance
-    pub theta: f64,
-    /// Volatility of variance
-    pub sigma_v: f64,
-    /// Correlation between asset and variance
-    pub rho: f64,
-    /// Initial variance
-    pub v0: f64,
+    /// Canonical Heston stochastic parameters, flattened on the wire.
+    #[serde(flatten)]
+    pub model: HestonParams,
 }
 
-impl HestonParams {
+impl Deref for HestonProcessParams {
+    type Target = HestonParams;
+
+    fn deref(&self) -> &Self::Target {
+        &self.model
+    }
+}
+
+impl HestonProcessParams {
     /// Create new Heston parameters.
     ///
     /// # Arguments
@@ -180,7 +186,7 @@ impl HestonParams {
     /// * `kappa` - Mean reversion speed of variance; must be strictly positive
     /// * `theta` - Long-term variance level; must be strictly positive
     /// * `sigma_v` - Volatility of variance (vol-of-vol); must be strictly positive
-    /// * `rho` - Instantaneous asset/variance correlation in the closed interval `[-1, 1]`
+    /// * `rho` - Instantaneous asset/variance correlation in the open interval `(-1, 1)`
     /// * `v0` - Initial variance at time zero; must be strictly positive
     ///
     /// Rates and variances are continuous annualized decimals; `theta` and
@@ -192,7 +198,7 @@ impl HestonParams {
     ///
     /// Returns an error if either rate is non-finite, any positive variance
     /// parameter is non-finite or non-positive, or `rho` is non-finite or
-    /// outside `[-1, 1]`.
+    /// outside `(-1, 1)`.
     pub fn new(
         r: f64,
         q: f64,
@@ -212,40 +218,10 @@ impl HestonParams {
                 "Heston parameter q must be finite, got {q}"
             )));
         }
-        if kappa <= 0.0 || !kappa.is_finite() {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Heston parameter kappa must be positive, got {kappa}"
-            )));
-        }
-        if theta <= 0.0 || !theta.is_finite() {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Heston parameter theta must be positive, got {theta}"
-            )));
-        }
-        if sigma_v <= 0.0 || !sigma_v.is_finite() {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Heston parameter sigma_v must be positive, got {sigma_v}"
-            )));
-        }
-        if !(-1.0..=1.0).contains(&rho) || !rho.is_finite() {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Heston parameter rho must be in [-1, 1], got {rho}"
-            )));
-        }
-        if v0 <= 0.0 || !v0.is_finite() {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Heston parameter v0 must be positive, got {v0}"
-            )));
-        }
-
         Ok(Self {
             r,
             q,
-            kappa,
-            theta,
-            sigma_v,
-            rho,
-            v0,
+            model: HestonParams::new(v0, kappa, theta, sigma_v, rho)?,
         })
     }
 
@@ -273,7 +249,7 @@ impl HestonParams {
 /// [`crate::monte_carlo::pricer::heston::price_heston_put`].
 #[derive(Debug, Clone)]
 pub struct HestonProcess {
-    params: HestonParams,
+    params: HestonProcessParams,
 }
 
 impl HestonProcess {
@@ -286,13 +262,13 @@ impl HestonProcess {
     /// though the QE scheme handles this gracefully via truncation.
     ///
     /// This constructor accepts already validated parameters and does not
-    /// enforce the Feller condition; use [`HestonParams::new`] or
+    /// enforce the Feller condition; use [`HestonProcessParams::new`] or
     /// [`Self::with_params`] when constructing raw numeric inputs.
     ///
     /// # Arguments
     ///
     /// * `params` - Params supplied by the caller for this operation
-    pub fn new(params: HestonParams) -> Self {
+    pub fn new(params: HestonProcessParams) -> Self {
         // Warn when Feller condition is violated (variance may hit zero)
         if !params.satisfies_feller() {
             let feller_ratio =
@@ -313,13 +289,13 @@ impl HestonProcess {
     /// Create with explicit parameters.
     ///
     /// This validates raw annualized Heston parameters through
-    /// [`HestonParams::new`], then constructs a process. A Feller-condition
+    /// [`HestonProcessParams::new`], then constructs a process. A Feller-condition
     /// violation is permitted and logged by [`Self::new`], because the QE
     /// discretization supports boundary truncation.
     ///
     /// # Errors
     ///
-    /// Returns the validation errors from [`HestonParams::new`] for non-finite
+    /// Returns the validation errors from [`HestonProcessParams::new`] for non-finite
     /// rates, invalid variance parameters, or an out-of-range correlation.
     ///
     /// # Arguments
@@ -340,13 +316,13 @@ impl HestonProcess {
         rho: f64,
         v0: f64,
     ) -> finstack_quant_core::Result<Self> {
-        Ok(Self::new(HestonParams::new(
+        Ok(Self::new(HestonProcessParams::new(
             r, q, kappa, theta, sigma_v, rho, v0,
         )?))
     }
 
     /// Get parameters.
-    pub fn params(&self) -> &HestonParams {
+    pub fn params(&self) -> &HestonProcessParams {
         &self.params
     }
 }
@@ -415,7 +391,7 @@ mod tests {
 
     #[test]
     fn test_heston_params() {
-        let params = HestonParams::new(
+        let params = HestonProcessParams::new(
             0.05, // r
             0.02, // q
             2.0,  // kappa
@@ -433,11 +409,11 @@ mod tests {
     #[test]
     fn test_feller_condition() {
         let params_feller =
-            HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.2, -0.5, 0.04).expect("valid");
+            HestonProcessParams::new(0.05, 0.02, 2.0, 0.04, 0.2, -0.5, 0.04).expect("valid");
         assert!(params_feller.satisfies_feller());
 
         let params_no_feller =
-            HestonParams::new(0.05, 0.02, 0.5, 0.04, 0.5, -0.5, 0.04).expect("valid");
+            HestonProcessParams::new(0.05, 0.02, 0.5, 0.04, 0.5, -0.5, 0.04).expect("valid");
         assert!(!params_no_feller.satisfies_feller());
     }
 
@@ -449,7 +425,8 @@ mod tests {
         // Just below the boundary it must fail.
         assert!(!feller_condition(1.0, 0.045 - 1e-12, 0.3));
         // The params method delegates to the same predicate.
-        let boundary = HestonParams::new(0.05, 0.02, 1.0, 0.045, 0.3, -0.5, 0.04).expect("valid");
+        let boundary =
+            HestonProcessParams::new(0.05, 0.02, 1.0, 0.045, 0.3, -0.5, 0.04).expect("valid");
         assert!(boundary.satisfies_feller());
     }
 
@@ -480,11 +457,11 @@ mod tests {
 
     #[test]
     fn test_invalid_params_negative_kappa() {
-        assert!(HestonParams::new(0.05, 0.02, -1.0, 0.04, 0.3, -0.5, 0.04).is_err());
+        assert!(HestonProcessParams::new(0.05, 0.02, -1.0, 0.04, 0.3, -0.5, 0.04).is_err());
     }
 
     #[test]
     fn test_invalid_params_rho_out_of_range() {
-        assert!(HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, 1.5, 0.04).is_err());
+        assert!(HestonProcessParams::new(0.05, 0.02, 2.0, 0.04, 0.3, 1.5, 0.04).is_err());
     }
 }

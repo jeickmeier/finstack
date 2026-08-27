@@ -1355,11 +1355,10 @@ export interface ForwardCurveOptions {
 }
 
 /**
- * SABR volatility cube for swaption pricing.
+ * Data-only SABR volatility cube for swaption pricing.
  *
- * Stores calibrated SABR parameters on an expiry × tenor grid and evaluates
- * implied volatilities via bilinear parameter interpolation followed by the
- * Hagan (2002) approximation.
+ * Stores parameter nodes, forward nodes, axes, and interpolation metadata.
+ * Use `models.volatility` for evaluation.
  */
 export interface VolCube extends WasmOwned {
   /**
@@ -1370,64 +1369,12 @@ export interface VolCube extends WasmOwned {
    * Interpolation contract used across the expiry axis.
    */
   readonly interpolationMode: string;
-  /**
-   * Implied volatility at `(expiry, tenor, strike)`.
-   *
-   * Returns `Err` if `expiry` or `tenor` falls outside the grid.
-   * @returns Black implied volatility as a decimal, such as `0.20` for 20%.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   * @param tenor - Underlying swap or index tenor measured in years for the quoted surface point.
-   * @param strike - Option strike price in the same price units as the underlying.
-   * @throws Error - Throws a JavaScript exception if `expiry` or `tenor` is outside the cube grid, `strike` is non-finite, the shifted-lognormal SABR domain is invalid, or the interpolated volatility or total variance is non-finite or non-positive.
-   */
-  vol(expiry: number, tenor: number, strike: number): number;
-  /**
-   * Implied volatility with clamped extrapolation.
-   *
-   * Clamps finite `expiry` and `tenor` values to the grid edges before
-   * interpolation. Non-finite inputs return `NaN`.
-   * @returns Black implied volatility as a decimal, or `NaN` for non-finite inputs.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   * @param tenor - Underlying swap or index tenor measured in years for the quoted surface point.
-   * @param strike - Option strike price in the same price units as the underlying.
-   */
-  volClamped(expiry: number, tenor: number, strike: number): number;
-  /**
-   * Normal (Bachelier) implied volatility at `(expiry, tenor, strike)`.
-   *
-   * The returned vol is in absolute rate units (e.g. `0.008` = 80 bp/yr
-   * normal vol), the swaption market quoting convention.
-   *
-   * Returns `Err` if `expiry` or `tenor` falls outside the grid, if the
-   * expansion yields a non-finite volatility, or for cross-zero quotes
-   * (`(F+s)(K+s) <= 0`) with `beta > 0`, which require an explicit shift.
-   * @returns Normal (Bachelier) volatility in absolute rate units, such as `0.008` for 80 bp/yr.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   * @param tenor - Underlying swap or index tenor measured in years for the quoted surface point.
-   * @param strike - Option strike price in the same price units as the underlying.
-   * @throws Error - Throws a JavaScript exception if `expiry` or `tenor` is outside the cube grid, `strike` is non-finite, the SABR expansion is non-finite, total variance is invalid, or an unshifted positive-beta quote crosses zero.
-   */
-  volNormal(expiry: number, tenor: number, strike: number): number;
-  /**
-   * Normal (Bachelier) implied volatility with clamped extrapolation.
-   *
-   * Clamps finite `expiry` and `tenor` values to the grid edges; a
-   * degenerate finite expansion is floored to a small positive normal vol
-   * (absolute rate units). Non-finite inputs return `NaN`.
-   * @returns Normal (Bachelier) volatility in absolute rate units, or `NaN` for non-finite inputs.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   * @param tenor - Underlying swap or index tenor measured in years for the quoted surface point.
-   * @param strike - Option strike price in the same price units as the underlying.
-   */
-  volNormalClamped(expiry: number, tenor: number, strike: number): number;
 }
 
 /**
- * SABR volatility cube for swaption pricing.
+ * Data-only SABR volatility cube for swaption pricing.
  *
- * Stores calibrated SABR parameters on an expiry × tenor grid and evaluates
- * implied volatilities via bilinear parameter interpolation followed by the
- * Hagan (2002) approximation.
+ * Stores calibrated parameter nodes and forwards on an expiry × tenor grid.
  * @example
  * ```typescript
  * import init, { core } from "finstack-quant-wasm";
@@ -1439,7 +1386,8 @@ export interface VolCube extends WasmOwned {
  *   [0.02, 0.5, -0.2, 0.4, Number.NaN],
  *   [0.03]
  * );
- * console.log(cube.vol(1, 5, 0.03));
+ * console.log(cube.id, cube.interpolationMode);
+ * cube.free();
  * ```
  */
 export interface VolCubeConstructor {
@@ -1727,9 +1675,9 @@ export interface FxPairConventionConstructor {
  * FX vol surface quoted in **delta space** (ATM, 25-delta RR/BF, optional
  * 10-delta wings).
  *
- * Stores market-standard FX delta quotes (Wystup 2006, Clark 2011) and
- * converts to a strike-axis volatility surface on demand via Garman-Kohlhagen.
- * The delta convention is **forward delta (premium-unadjusted)**.
+ * Stores market-standard FX delta quotes (Wystup 2006, Clark 2011). Use
+ * `models.volatility` for pillar recovery, conversion, and evaluation. The
+ * delta convention is **forward delta (premium-unadjusted)**.
  */
 export interface FxDeltaVolSurface extends WasmOwned {
   /**
@@ -1744,31 +1692,14 @@ export interface FxDeltaVolSurface extends WasmOwned {
    * Number of expiry pillars.
    */
   readonly numExpiries: number;
-  /**
-   * Pillar vols at the given expiry index as `[atm, put25d_vol, call25d_vol]`.
-   * @returns Three decimal implied vols: ATM, 25-delta put, and 25-delta call.
-   * @param expiryIdx - Zero-based index of the requested expiry pillar in the volatility surface.
-   * @throws Error - Throws a JavaScript exception if `expiryIdx` is outside the surface's expiry axis.
-   */
-  pillarVols(expiryIdx: number): Float64Array;
-  /**
-   * Implied vol at `(expiry, strike)` for the supplied forward.
-   * @returns Black implied volatility as a decimal at `(expiry, strike)`.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   * @param strike - Option strike price in the same price units as the underlying.
-   * @param forward - Forward price or rate in the same quote convention as the strike.
-   * @throws Error - Throws a JavaScript exception if `expiry`, `strike`, or `forward` is not finite and strictly positive, a quoted wing implies a non-positive volatility, or the delta-space smile cannot be constructed.
-   */
-  impliedVol(expiry: number, strike: number, forward: number): number;
 }
 
 /**
  * FX vol surface quoted in **delta space** (ATM, 25-delta RR/BF, optional
  * 10-delta wings).
  *
- * Stores market-standard FX delta quotes (Wystup 2006, Clark 2011) and
- * converts to a strike-axis volatility surface on demand via Garman-Kohlhagen.
- * The delta convention is **forward delta (premium-unadjusted)**.
+ * Stores market-standard FX delta quotes (Wystup 2006, Clark 2011). The delta
+ * convention is **forward delta (premium-unadjusted)**.
  * @example
  * ```typescript
  * import init, { core } from "finstack-quant-wasm";
@@ -1780,7 +1711,8 @@ export interface FxDeltaVolSurface extends WasmOwned {
  *   [0.01],
  *   [0.002]
  * );
- * console.log(surface.pillarVols(0));
+ * console.log(surface.id, surface.numExpiries);
+ * surface.free();
  * ```
  */
 export interface FxDeltaVolSurfaceConstructor {
@@ -1810,24 +1742,6 @@ export interface FxDeltaVolSurfaceConstructor {
     rr10d?: NumericArray,
     bf10d?: NumericArray
   ): FxDeltaVolSurface;
-  /**
-   * Convert a forward delta to a strike (Garman-Kohlhagen, premium-unadjusted).
-   * @returns Strike in the same quote units as `forward`.
-   * @param delta - Option delta expressed under the surface's documented delta convention.
-   * @param forward - Forward price or rate in the same quote convention as the strike.
-   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   */
-  deltaToStrike(delta: number, forward: number, vol: number, expiry: number): number;
-  /**
-   * Convert a strike to forward delta (Garman-Kohlhagen call delta).
-   * @returns Premium-unadjusted forward call delta, typically in `(-1, 1)`.
-   * @param strike - Option strike price in the same price units as the underlying.
-   * @param forward - Forward price or rate in the same quote convention as the strike.
-   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   */
-  strikeToDelta(strike: number, forward: number, vol: number, expiry: number): number;
 }
 
 /**
@@ -6500,7 +6414,7 @@ export interface SabrParameters extends WasmOwned {
  * ```typescript
  * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const params = new models.SabrParameters(0.2, 1.0, 0.3, -0.2);
+ * const params = new models.volatility.SabrParameters(0.2, 1.0, 0.3, -0.2);
  * console.log(params.alpha, params.rho);
  * params.free();
  * ```
@@ -6563,8 +6477,8 @@ export interface SabrModel extends WasmOwned {
  * ```typescript
  * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const params = models.SabrParameters.equityDefault();
- * const model = new models.SabrModel(params);
+ * const params = models.volatility.SabrParameters.equityDefault();
+ * const model = new models.volatility.SabrModel(params);
  * console.log(model.impliedVol(100, 105, 1));
  * model.free();
  * params.free();
@@ -6655,8 +6569,8 @@ export interface SabrSmile extends WasmOwned {
  * ```typescript
  * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const params = models.SabrParameters.ratesDefault();
- * const smile = new models.SabrSmile(params, 0.03, 2);
+ * const params = models.volatility.SabrParameters.ratesDefault();
+ * const smile = new models.volatility.SabrSmile(params, 0.03, 2);
  * console.log(smile.generateSmile([0.02, 0.03, 0.04]));
  * smile.free();
  * params.free();
@@ -6735,7 +6649,7 @@ export interface SabrCalibrator extends WasmOwned {
  * ```typescript
  * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const calibrator = models.SabrCalibrator.highPrecision();
+ * const calibrator = models.volatility.SabrCalibrator.highPrecision();
  * const tighter = calibrator.withTolerance(1e-10);
  * tighter.free();
  * calibrator.free();
@@ -7511,6 +7425,124 @@ export interface RatesNamespace {
 }
 
 /**
+ * Product-independent volatility models and evaluators.
+ *
+ * Core owns the serializable surface, cube, and FX-delta artifacts. This
+ * namespace owns SABR behavior and all currently bound artifact evaluation.
+ * @example
+ * ```typescript
+ * import init, { core, models } from "finstack-quant-wasm";
+ * await init();
+ * const cube = new core.VolCube(
+ *   "USD-SWAPTION", [1], [5], [0.03, 0.5, -0.2, 0.4, Number.NaN], [0.03]
+ * );
+ * console.log(models.volatility.getCubeVol(cube, 1, 5, 0.03));
+ * cube.free();
+ * ```
+ */
+export interface VolatilityNamespace {
+  /**
+   * Validated SABR parameters.
+   */
+  SabrParameters: SabrParametersConstructor;
+  /**
+   * Hagan-2002 SABR volatility model.
+   */
+  SabrModel: SabrModelConstructor;
+  /**
+   * SABR smile at a fixed forward and expiry.
+   */
+  SabrSmile: SabrSmileConstructor;
+  /**
+   * Levenberg-Marquardt SABR calibrator with fixed beta.
+   */
+  SabrCalibrator: SabrCalibratorConstructor;
+  /**
+   * Evaluate checked Black/lognormal volatility from a data-only SABR cube.
+   * @returns Annualized Black volatility as a decimal.
+   * @param cube - Structurally validated data-only volatility cube.
+   * @param expiry - Positive option expiry in years within the cube grid.
+   * @param tenor - Positive underlying tenor in years within the cube grid.
+   * @param strike - Finite strike in the same rate units as the stored forwards.
+   * @throws Error - Throws a JavaScript exception for out-of-grid coordinates or invalid SABR model inputs.
+   */
+  getCubeVol(cube: VolCube, expiry: number, tenor: number, strike: number): number;
+  /**
+   * Evaluate Black/lognormal cube volatility with flat coordinate clamping.
+   * @returns Annualized Black volatility, or `NaN` when undefined.
+   * @throws Never; invalid inputs are represented by `NaN`.
+   * @param cube - Structurally validated data-only volatility cube.
+   * @param expiry - Finite option expiry in years; clamped to the stored grid.
+   * @param tenor - Finite underlying tenor in years; clamped to the stored grid.
+   * @param strike - Finite strike in the same rate units as the stored forwards.
+   */
+  getCubeVolClamped(cube: VolCube, expiry: number, tenor: number, strike: number): number;
+  /**
+   * Evaluate checked normal/Bachelier volatility from a data-only SABR cube.
+   * @returns Annualized normal volatility in absolute rate units.
+   * @param cube - Structurally validated data-only volatility cube.
+   * @param expiry - Positive option expiry in years within the cube grid.
+   * @param tenor - Positive underlying tenor in years within the cube grid.
+   * @param strike - Finite strike in the same rate units as the stored forwards.
+   * @throws Error - Throws a JavaScript exception for out-of-grid coordinates, an invalid shifted-SABR domain, or a failed normal-volatility expansion.
+   */
+  getCubeNormalVol(cube: VolCube, expiry: number, tenor: number, strike: number): number;
+  /**
+   * Evaluate normal/Bachelier cube volatility with coordinate clamping.
+   * @returns Annualized normal volatility, or `NaN` when undefined.
+   * @throws Never; invalid inputs are represented by `NaN`.
+   * @param cube - Structurally validated data-only volatility cube.
+   * @param expiry - Finite option expiry in years; clamped to the stored grid.
+   * @param tenor - Finite underlying tenor in years; clamped to the stored grid.
+   * @param strike - Finite strike in the same rate units as the stored forwards.
+   */
+  getCubeNormalVolClamped(cube: VolCube, expiry: number, tenor: number, strike: number): number;
+  /**
+   * Return ATM, 25-delta put, and 25-delta call vols at a stored FX expiry.
+   * @returns Three annualized decimal volatilities in ATM, put, call order.
+   * @param surface - Structurally validated data-only FX delta surface.
+   * @param expiryIndex - Zero-based stored expiry index.
+   * @throws Error - Throws a JavaScript exception when `expiry_index` is outside the surface.
+   */
+  getFxDeltaPillarVols(surface: FxDeltaVolSurface, expiryIndex: number): Float64Array;
+  /**
+   * Evaluate an FX delta-quoted surface at an expiry, strike, and forward.
+   * @returns Annualized Black volatility as a decimal.
+   * @param surface - Structurally validated data-only FX delta surface.
+   * @param expiry - Positive option expiry in years.
+   * @param strike - Positive strike in the FX quote currency.
+   * @param forward - Positive FX forward in quote currency per base currency.
+   * @throws Error - Throws a JavaScript exception for invalid coordinates or a non-positive reconstructed wing volatility.
+   */
+  getFxDeltaVol(
+    surface: FxDeltaVolSurface,
+    expiry: number,
+    strike: number,
+    forward: number
+  ): number;
+  /**
+   * Convert premium-unadjusted forward call delta to strike.
+   * @returns Strike in the same units as `forward`.
+   * @throws Never; invalid inputs propagate IEEE non-finite results.
+   * @param delta - Forward call delta as a decimal probability in `(0, 1)`.
+   * @param forward - Positive forward in the same units as the returned strike.
+   * @param volatility - Positive annualized Black volatility as a decimal.
+   * @param expiry - Positive option expiry in years.
+   */
+  deltaToStrike(delta: number, forward: number, volatility: number, expiry: number): number;
+  /**
+   * Convert strike to premium-unadjusted forward call delta.
+   * @returns Forward call delta as a decimal probability.
+   * @throws Never; invalid inputs propagate IEEE non-finite results.
+   * @param strike - Positive strike in the same units as `forward`.
+   * @param forward - Positive forward in the same units as `strike`.
+   * @param volatility - Positive annualized Black volatility as a decimal.
+   * @param expiry - Positive option expiry in years.
+   */
+  strikeToDelta(strike: number, forward: number, volatility: number, expiry: number): number;
+}
+
+/**
  * Namespaced TypeScript entry points for reusable quantitative models.
  *
  * @example
@@ -7539,6 +7571,10 @@ export interface ModelsNamespace {
    * Product-independent interest-rate models.
    */
   rates: RatesNamespace;
+  /**
+   * Product-independent volatility models and evaluators.
+   */
+  volatility: VolatilityNamespace;
   /**
    * Per-unit Black-Scholes / Garman-Kohlhagen price of a European option.
    *
@@ -7811,30 +7847,6 @@ export interface ModelsNamespace {
     correlation: number,
     isCall?: boolean
   ): number;
-  /**
-   * SABR parameters `(alpha, beta, nu, rho)` with optional `shift`.
-   *
-   * Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr.
-   */
-  SabrParameters: SabrParametersConstructor;
-  /**
-   * Hagan-2002 SABR volatility model.
-   *
-   * Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr.
-   */
-  SabrModel: SabrModelConstructor;
-  /**
-   * SABR smile generator for a fixed `(forward, t)` pair.
-   *
-   * Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr.
-   */
-  SabrSmile: SabrSmileConstructor;
-  /**
-   * Levenberg-Marquardt SABR calibrator (beta fixed).
-   *
-   * Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr.
-   */
-  SabrCalibrator: SabrCalibratorConstructor;
   /**
    * Price a European option under the Black-Scholes model using the COS method.
    *

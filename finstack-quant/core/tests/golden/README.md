@@ -116,7 +116,7 @@ Convention mapping, because a mismatch here looks like a pricing bug:
 - BSM expected prices are discounted spot-based values, computed via
   `blackFormula` on `F = S·exp((r-q)T)` with `discount = exp(-rT)`.
 - QuantLib's `sabrVolatility(strike, forward, T, alpha, beta, nu, rho)` swaps
-  `(nu, rho)` relative to `SabrParams::new`.
+  `(nu, rho)` relative to `SabrParameters::new`.
 - SVI has no QuantLib analytic counterpart; it is adjudicated against mpmath at
   50-digit precision.
 

@@ -366,9 +366,9 @@ mod tests {
     use crate::instruments::PricingOptions;
     use crate::pricer::{standard_registry, ModelKey};
     use finstack_quant_core::market_data::context::MarketContext;
+    use finstack_quant_core::market_data::surfaces::SabrParameterData;
     use finstack_quant_core::market_data::surfaces::VolCube;
     use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
-    use finstack_quant_core::math::volatility::sabr::SabrParams;
     use time::Month;
 
     fn date(year: i32, month: Month, day: u8) -> Date {
@@ -376,7 +376,7 @@ mod tests {
     }
 
     fn sabr_cube(id: &str, alpha: f64, forward: f64) -> VolCube {
-        let params = SabrParams::new(alpha, 0.5, -0.20, 0.40).expect("valid SABR params");
+        let params = SabrParameterData::new(alpha, 0.5, -0.20, 0.40).expect("valid SABR params");
         VolCube::builder(id)
             .expiries(&[0.25, 1.0, 5.0])
             .tenors(&[2.0, 10.0])

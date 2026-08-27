@@ -273,7 +273,7 @@ fn fx_vanna_and_volga_match_reference_fd() -> finstack_quant_core::Result<()> {
         .day_count
         .year_fraction(as_of, expiry, DayCountContext::default())?;
     let surf = market.get_surface(opt.vol_surface_id.as_str())?;
-    let sigma = surf.value_clamped(t, opt.strike);
+    let sigma = finstack_quant_models::volatility::get_surface_vol_clamped(&surf, t, opt.strike);
     let vol_bump_pct = VOL_BUMP_PCT;
     let delta_sigma = (sigma * vol_bump_pct).abs().max(1e-12);
 

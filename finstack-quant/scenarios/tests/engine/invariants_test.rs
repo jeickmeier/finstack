@@ -466,8 +466,7 @@ fn test_vol_surface_non_negative_after_parallel_shock() {
 
     for &expiry in &expiries {
         for &strike in &strikes {
-            let vol = surface
-                .value_checked(expiry, strike)
+            let vol = finstack_quant_models::volatility::get_surface_vol(&surface, expiry, strike)
                 .expect("grid points are in bounds");
             assert!(
                 vol >= 0.0,
@@ -534,8 +533,7 @@ fn test_vol_surface_non_negative_after_bucket_shock() {
 
     for &expiry in &expiries {
         for &strike in &strikes {
-            let vol = surface
-                .value_checked(expiry, strike)
+            let vol = finstack_quant_models::volatility::get_surface_vol(&surface, expiry, strike)
                 .expect("grid points are in bounds");
             assert!(
                 vol >= 0.0,

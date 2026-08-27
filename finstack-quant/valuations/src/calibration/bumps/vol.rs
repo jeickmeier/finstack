@@ -70,11 +70,12 @@ pub fn bump_vol_surface(
     let mut vols: Vec<f64> = Vec::with_capacity(n_expiries * n_strikes);
     for &exp in expiries {
         for &strike in strikes {
-            let v = surface.value_checked(exp, strike).map_err(|e| {
-                finstack_quant_core::error::InputError::UnsupportedBump {
-                    reason: format!("Failed to read vol at ({exp}, {strike}) during bump: {e}"),
-                }
-            })?;
+            let v = finstack_quant_models::volatility::get_surface_vol(surface, exp, strike)
+                .map_err(
+                    |e| finstack_quant_core::error::InputError::UnsupportedBump {
+                        reason: format!("Failed to read vol at ({exp}, {strike}) during bump: {e}"),
+                    },
+                )?;
             vols.push(v);
         }
     }
@@ -148,8 +149,11 @@ mod tests {
         // Every vol should be shifted by +0.01
         for &exp in surface.expiries() {
             for &strike in surface.strikes() {
-                let orig = surface.value_checked(exp, strike).expect("original lookup");
-                let new = bumped.value_checked(exp, strike).expect("bumped lookup");
+                let orig =
+                    finstack_quant_models::volatility::get_surface_vol(&surface, exp, strike)
+                        .expect("original lookup");
+                let new = finstack_quant_models::volatility::get_surface_vol(&bumped, exp, strike)
+                    .expect("bumped lookup");
                 assert!(
                     (new - (orig + 0.01)).abs() < 1e-12,
                     "at ({exp}, {strike}): expected {}, got {new}",
@@ -168,7 +172,8 @@ mod tests {
 
         for &exp in surface.expiries() {
             for &strike in surface.strikes() {
-                let v = bumped.value_checked(exp, strike).expect("bumped lookup");
+                let v = finstack_quant_models::volatility::get_surface_vol(&bumped, exp, strike)
+                    .expect("bumped lookup");
                 assert!(v >= 0.0, "vol at ({exp}, {strike}) should be >= 0, got {v}");
             }
         }
@@ -183,8 +188,10 @@ mod tests {
 
         // 1Y row should be shifted
         for &strike in surface.strikes() {
-            let orig = surface.value_checked(1.0, strike).expect("original lookup");
-            let new = bumped.value_checked(1.0, strike).expect("bumped lookup");
+            let orig = finstack_quant_models::volatility::get_surface_vol(&surface, 1.0, strike)
+                .expect("original lookup");
+            let new = finstack_quant_models::volatility::get_surface_vol(&bumped, 1.0, strike)
+                .expect("bumped lookup");
             assert!(
                 (new - (orig + 0.05)).abs() < 1e-12,
                 "1Y row at strike {strike}: expected {}, got {new}",
@@ -194,8 +201,10 @@ mod tests {
 
         // 2Y row should be unchanged
         for &strike in surface.strikes() {
-            let orig = surface.value_checked(2.0, strike).expect("original lookup");
-            let new = bumped.value_checked(2.0, strike).expect("bumped lookup");
+            let orig = finstack_quant_models::volatility::get_surface_vol(&surface, 2.0, strike)
+                .expect("original lookup");
+            let new = finstack_quant_models::volatility::get_surface_vol(&bumped, 2.0, strike)
+                .expect("bumped lookup");
             assert!(
                 (new - orig).abs() < 1e-12,
                 "2Y row at strike {strike}: expected {orig}, got {new}"
@@ -210,15 +219,19 @@ mod tests {
         let request = VolBumpRequest::ByExpiry(vec![(1.3, 0.05)]);
         let bumped = bump_vol_surface(&surface, &request).expect("bump should work");
 
-        let orig_1y = surface.value_checked(1.0, 100.0).expect("orig 1Y");
-        let new_1y = bumped.value_checked(1.0, 100.0).expect("bumped 1Y");
+        let orig_1y = finstack_quant_models::volatility::get_surface_vol(&surface, 1.0, 100.0)
+            .expect("orig 1Y");
+        let new_1y = finstack_quant_models::volatility::get_surface_vol(&bumped, 1.0, 100.0)
+            .expect("bumped 1Y");
         assert!(
             (new_1y - (orig_1y + 0.05)).abs() < 1e-12,
             "1Y ATM should be bumped"
         );
 
-        let orig_2y = surface.value_checked(2.0, 100.0).expect("orig 2Y");
-        let new_2y = bumped.value_checked(2.0, 100.0).expect("bumped 2Y");
+        let orig_2y = finstack_quant_models::volatility::get_surface_vol(&surface, 2.0, 100.0)
+            .expect("orig 2Y");
+        let new_2y = finstack_quant_models::volatility::get_surface_vol(&bumped, 2.0, 100.0)
+            .expect("bumped 2Y");
         assert!(
             (new_2y - orig_2y).abs() < 1e-12,
             "2Y ATM should be unchanged"
@@ -233,8 +246,10 @@ mod tests {
         let bumped = bump_vol_surface(&surface, &request).expect("bump should work");
 
         // Target cell should be bumped
-        let orig = surface.value_checked(2.0, 100.0).expect("orig");
-        let new = bumped.value_checked(2.0, 100.0).expect("bumped");
+        let orig =
+            finstack_quant_models::volatility::get_surface_vol(&surface, 2.0, 100.0).expect("orig");
+        let new = finstack_quant_models::volatility::get_surface_vol(&bumped, 2.0, 100.0)
+            .expect("bumped");
         assert!(
             (new - (orig + 0.10)).abs() < 1e-12,
             "target cell: expected {}, got {new}",
@@ -247,8 +262,10 @@ mod tests {
                 if (exp - 2.0).abs() < 1e-12 && (strike - 100.0).abs() < 1e-12 {
                     continue; // skip the bumped cell
                 }
-                let o = surface.value_checked(exp, strike).expect("orig");
-                let n = bumped.value_checked(exp, strike).expect("bumped");
+                let o = finstack_quant_models::volatility::get_surface_vol(&surface, exp, strike)
+                    .expect("orig");
+                let n = finstack_quant_models::volatility::get_surface_vol(&bumped, exp, strike)
+                    .expect("bumped");
                 assert!(
                     (n - o).abs() < 1e-12,
                     "cell ({exp}, {strike}): expected {o}, got {n}"
@@ -265,8 +282,11 @@ mod tests {
 
         for &exp in surface.expiries() {
             for &strike in surface.strikes() {
-                let orig = surface.value_checked(exp, strike).expect("orig");
-                let new = bumped.value_checked(exp, strike).expect("bumped");
+                let orig =
+                    finstack_quant_models::volatility::get_surface_vol(&surface, exp, strike)
+                        .expect("orig");
+                let new = finstack_quant_models::volatility::get_surface_vol(&bumped, exp, strike)
+                    .expect("bumped");
                 assert!(
                     (new - orig).abs() < 1e-12,
                     "zero bump should be identity at ({exp}, {strike})"

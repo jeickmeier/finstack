@@ -13,11 +13,11 @@ use finstack_quant_core::dates::{
     adjust, BusinessDayConvention, DateExt, DayCount, DayCountContext, StubKind, Tenor,
 };
 use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_core::market_data::surfaces::SabrParameterData;
 use finstack_quant_core::market_data::surfaces::VolCube;
 use finstack_quant_core::market_data::surfaces::VolQuoteType;
-use finstack_quant_core::math::volatility::sabr::SabrParams;
 use finstack_quant_core::Result;
-use finstack_quant_models::{vega_weight, SABRCalibrator, SABRModel, SABRParameters};
+use finstack_quant_models::{vega_weight, SabrCalibrator, SabrModel, SabrParameters};
 use std::collections::BTreeMap;
 
 #[cfg(test)]
@@ -144,7 +144,7 @@ impl SwaptionVolTarget {
 
         let vol_fit_tolerance = params.vol_tolerance.unwrap_or(0.0015);
         let sabr_solver_tolerance = params.sabr_tolerance.unwrap_or(1e-6);
-        let sabr_calibrator = SABRCalibrator::new()
+        let sabr_calibrator = SabrCalibrator::new()
             .with_tolerance(sabr_solver_tolerance)
             .with_max_iterations(config.solver.max_iterations());
 
@@ -282,7 +282,7 @@ impl SwaptionVolTarget {
                     sabr_params.insert((*kb_exp, *kb_ten), p.clone());
                     calibration_forwards.insert((*kb_exp, *kb_ten), fwd_rate);
 
-                    let model = SABRModel::new(p);
+                    let model = SabrModel::new(p);
 
                     // Normalized vega weighting of the recorded residuals so the
                     // success gate is consistent with the vega-weighted SABR
@@ -391,7 +391,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
         let mut interpolated_points = 0usize;
         let mut extrapolated_points = 0usize;
 
-        let mut cube_params: Vec<SabrParams> = Vec::new();
+        let mut cube_params: Vec<SabrParameterData> = Vec::new();
         let mut cube_forwards: Vec<f64> = Vec::new();
         for &texp in &target_expiries {
             for &tten in &target_tenors {
@@ -447,7 +447,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
                         )?
                     };
 
-                    let core_params = SabrParams {
+                    let core_params = SabrParameterData {
                         alpha: p.alpha,
                         beta: p.beta,
                         rho: p.rho,
@@ -924,7 +924,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
         sabr_params: &SABRParamsByExpiryTenor,
         extrapolation: SurfaceExtrapolationPolicy,
         allow_missing_bucket_fallback: bool,
-    ) -> Option<SABRParameters> {
+    ) -> Option<SabrParameters> {
         if sabr_params.is_empty() {
             return None;
         }
@@ -942,7 +942,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
         let t_lo = tenors[ti_lo];
         let t_hi = tenors[ti_hi];
 
-        let fetch = |e: f64, t: f64| -> Option<&SABRParameters> {
+        let fetch = |e: f64, t: f64| -> Option<&SabrParameters> {
             let key = (to_basis_points(e), to_basis_points(t));
             sabr_params.get(&key)
         };
@@ -1017,7 +1017,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
         ))
     }
 
-    fn interpolate_sabr_linear(p0: &SABRParameters, p1: &SABRParameters, w: f64) -> SABRParameters {
+    fn interpolate_sabr_linear(p0: &SabrParameters, p1: &SabrParameters, w: f64) -> SabrParameters {
         let w = w.clamp(0.0, 1.0);
 
         // Preserve positivity with log-space interpolation.
@@ -1032,7 +1032,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
         let rho_raw = p0.rho * (1.0 - w) + p1.rho * w;
         let rho = rho_raw.clamp(-0.999, 0.999);
 
-        SABRParameters {
+        SabrParameters {
             alpha,
             beta: p0.beta,
             nu,
@@ -1042,13 +1042,13 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
     }
 
     fn interpolate_sabr_bilinear(
-        p_00: &SABRParameters,
-        p_10: &SABRParameters,
-        p_01: &SABRParameters,
-        p_11: &SABRParameters,
+        p_00: &SabrParameters,
+        p_10: &SabrParameters,
+        p_01: &SabrParameters,
+        p_11: &SabrParameters,
         wx: f64,
         wy: f64,
-    ) -> SABRParameters {
+    ) -> SabrParameters {
         let wx = wx.clamp(0.0, 1.0);
         let wy = wy.clamp(0.0, 1.0);
 
@@ -1059,7 +1059,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
 }
 
 type QuotesByExpiryTenor<'a> = BTreeMap<(u64, u64), Vec<&'a VolQuote>>;
-type SABRParamsByExpiryTenor = BTreeMap<(u64, u64), SABRParameters>;
+type SABRParamsByExpiryTenor = BTreeMap<(u64, u64), SabrParameters>;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct SwaptionLegConventions<'a> {
@@ -1217,14 +1217,14 @@ mod tests {
         .expect("forward");
 
         let true_alpha = 0.0050;
-        let sabr_true = SABRParameters {
+        let sabr_true = SabrParameters {
             alpha: true_alpha,
             beta: 0.0,
             nu: 0.60,
             rho: -0.20,
             shift: None,
         };
-        let model = SABRModel::new(sabr_true);
+        let model = SabrModel::new(sabr_true);
 
         let strikes = vec![fwd - 0.005, fwd, fwd + 0.005, fwd + 0.010, fwd - 0.010];
 
@@ -1304,14 +1304,14 @@ mod tests {
         )
         .expect("forward");
 
-        let sabr_true = SABRParameters {
+        let sabr_true = SabrParameters {
             alpha: 0.020,
             beta: p.sabr_beta,
             nu: 0.30,
             rho: -0.20,
             shift: None,
         };
-        let model = SABRModel::new(sabr_true);
+        let model = SabrModel::new(sabr_true);
 
         let strikes = vec![fwd - 0.010, fwd - 0.005, fwd, fwd + 0.005, fwd + 0.010];
 
@@ -1336,7 +1336,8 @@ mod tests {
         };
         let (cube, _report) = SwaptionVolTarget::solve(&p, &quotes, &ctx, &config).expect("solve");
 
-        let fitted_atm = cube.vol(t_exp, t_ten, fwd).expect("cube vol");
+        let fitted_atm = finstack_quant_models::volatility::get_cube_vol(&cube, t_exp, t_ten, fwd)
+            .expect("cube vol");
         let true_atm = model.implied_volatility(fwd, fwd, t_exp).expect("true atm");
 
         assert!(
@@ -1398,14 +1399,14 @@ mod tests {
             &ctx,
         )
         .expect("forward");
-        let sabr_true = SABRParameters {
+        let sabr_true = SabrParameters {
             alpha: 0.020,
             beta: p.sabr_beta,
             nu: 0.30,
             rho: -0.20,
             shift: None,
         };
-        let model = SABRModel::new(sabr_true);
+        let model = SabrModel::new(sabr_true);
 
         let mut quotes = Vec::new();
         for &k in &[
@@ -1727,28 +1728,28 @@ mod tests {
     #[test]
     fn sabr_param_bilinear_interpolation_interpolates_in_log_space_for_positive_params() {
         let mut grid: SABRParamsByExpiryTenor = BTreeMap::new();
-        let p00 = SABRParameters {
+        let p00 = SabrParameters {
             alpha: 0.01,
             beta: 0.5,
             nu: 0.20,
             rho: -0.20,
             shift: Some(0.0),
         };
-        let p10 = SABRParameters {
+        let p10 = SabrParameters {
             alpha: 0.02,
             beta: 0.5,
             nu: 0.40,
             rho: 0.00,
             shift: Some(0.0),
         };
-        let p01 = SABRParameters {
+        let p01 = SabrParameters {
             alpha: 0.02,
             beta: 0.5,
             nu: 0.40,
             rho: -0.40,
             shift: Some(0.0),
         };
-        let p11 = SABRParameters {
+        let p11 = SabrParameters {
             alpha: 0.04,
             beta: 0.5,
             nu: 0.80,

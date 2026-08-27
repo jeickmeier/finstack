@@ -64,7 +64,7 @@ fn get_fx_spot(inst: &RangeAccrual, curves: &MarketContext) -> Result<f64> {
 /// # Flat-volatility limitation (audit item 9)
 ///
 /// This pricer simulates the underlying with a **single, constant** GBM
-/// volatility — `σ = vol_surface.value_clamped(T, S₀)`, the ATM vol at the
+/// volatility — `σ = finstack_quant_models::volatility::get_surface_vol_clamped(&vol_surface, T, S₀)`, the ATM vol at the
 /// final maturity. Geometric Brownian motion is a constant-volatility process,
 /// so the Monte Carlo path-set cannot represent a volatility **skew** or
 /// **term structure**. On a non-flat surface this MC therefore diverges from
@@ -197,13 +197,21 @@ impl RangeAccrualMcPricer {
         // term structure; on a non-flat surface this MC diverges from the
         // static-replication pricer (which samples per-observation and
         // per-strike). Use `ModelKey::StaticReplication` for non-flat surfaces.
-        let sigma = vol_surface.value_clamped(t, initial_spot);
+        let sigma = finstack_quant_models::volatility::get_surface_vol_clamped(
+            &vol_surface,
+            t,
+            initial_spot,
+        );
 
         // Quanto Adjustment using FX spot for vol lookup
         if let Some(quanto) = &inst.quanto {
             let fx_vol_surface = curves.get_surface(quanto.fx_vol_surface_id.as_str())?;
             let fx_spot = get_fx_spot(inst, curves)?;
-            let sigma_fx = fx_vol_surface.value_clamped(t, fx_spot);
+            let sigma_fx = finstack_quant_models::volatility::get_surface_vol_clamped(
+                &fx_vol_surface,
+                t,
+                fx_spot,
+            );
 
             // Drift adjustment: q_param = q_real + rho * sigma_S * sigma_FX
             q += quanto.correlation * sigma * sigma_fx;
@@ -459,9 +467,17 @@ pub fn npv_analytic(inst: &RangeAccrual, curves: &MarketContext, as_of: Date) ->
         if let Some(quanto) = &inst.quanto {
             let fx_vol_surface = curves.get_surface(quanto.fx_vol_surface_id.as_str())?;
             // Vol of Asset (S) for drift adj: use ATM at current spot
-            let sig_s = vol_surface.value_clamped(t_obs, initial_spot);
+            let sig_s = finstack_quant_models::volatility::get_surface_vol_clamped(
+                &vol_surface,
+                t_obs,
+                initial_spot,
+            );
             // Vol of FX for drift adj: use ATM at FX spot
-            let sig_fx = fx_vol_surface.value_clamped(t_obs, fx_spot);
+            let sig_fx = finstack_quant_models::volatility::get_surface_vol_clamped(
+                &fx_vol_surface,
+                t_obs,
+                fx_spot,
+            );
             drift_adj = quanto.correlation * sig_s * sig_fx;
         }
 
@@ -491,7 +507,8 @@ pub fn npv_analytic(inst: &RangeAccrual, curves: &MarketContext, as_of: Date) ->
 
         // Undiscounted Black-76 call price: F·N(d1) - K·N(d2)
         let black_call = |k: f64| -> f64 {
-            let vol = vol_surface.value_clamped(t_obs, k);
+            let vol =
+                finstack_quant_models::volatility::get_surface_vol_clamped(&vol_surface, t_obs, k);
             let std_dev = vol * t_obs.sqrt();
             if std_dev < 1e-6 {
                 return (forward - k).max(0.0);

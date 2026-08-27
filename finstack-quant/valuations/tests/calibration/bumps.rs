@@ -823,7 +823,12 @@ fn vol_zero_shock_is_identity() {
     for &expiry in &[0.25, 0.5, 1.0, 2.0] {
         for &strike in &[80.0, 90.0, 100.0, 120.0] {
             assert!(
-                (bumped.value_clamped(expiry, strike) - base.value_clamped(expiry, strike)).abs()
+                (finstack_quant_models::volatility::get_surface_vol_clamped(
+                    &bumped, expiry, strike
+                ) - finstack_quant_models::volatility::get_surface_vol_clamped(
+                    &base, expiry, strike
+                ))
+                .abs()
                     < EXACT_TOL,
                 "0 vol bump must not move vol at ({expiry}, {strike})",
             );
@@ -840,7 +845,11 @@ fn vol_parallel_bump_is_faithful_and_additive() {
 
     for &expiry in &[0.25, 1.0, 2.0] {
         for &strike in &[80.0, 100.0, 120.0] {
-            let realized = up.value_clamped(expiry, strike) - base.value_clamped(expiry, strike);
+            let realized =
+                finstack_quant_models::volatility::get_surface_vol_clamped(&up, expiry, strike)
+                    - finstack_quant_models::volatility::get_surface_vol_clamped(
+                        &base, expiry, strike,
+                    );
             assert!(
                 (realized - shift).abs() < EXACT_TOL,
                 "requested {shift} vol at ({expiry}, {strike}), realized {realized}",
@@ -852,8 +861,14 @@ fn vol_parallel_bump_is_faithful_and_additive() {
     for &expiry in &[0.25, 1.0, 2.0] {
         for &strike in &[80.0, 100.0, 120.0] {
             assert!(
-                (round_trip.value_clamped(expiry, strike) - base.value_clamped(expiry, strike))
-                    .abs()
+                (finstack_quant_models::volatility::get_surface_vol_clamped(
+                    &round_trip,
+                    expiry,
+                    strike
+                ) - finstack_quant_models::volatility::get_surface_vol_clamped(
+                    &base, expiry, strike
+                ))
+                .abs()
                     < EXACT_TOL,
                 "vol bump must be additive at ({expiry}, {strike})",
             );

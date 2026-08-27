@@ -420,7 +420,7 @@ fn skewed_vol_market(as_of: Date, atm_vol: f64, wing_vol: f64) -> MarketContext 
 /// the ATM vol σ(F), not the strike vol σ(K).
 ///
 /// Failure mode being guarded: the Hagan convexity adjustment was previously
-/// evaluated at `vol_surface.value_clamped(t, strike)`. The convexity
+/// evaluated at `finstack_quant_models::volatility::get_surface_vol_clamped(&vol_surface, t, strike)`. The convexity
 /// adjustment is a property of the swap-rate *distribution* under the annuity
 /// measure (`Var^A[S] ≈ F²σ(F)²T`) and must use σ(F); using σ(K) makes the
 /// adjusted forward depend on the option strike and disagrees with the

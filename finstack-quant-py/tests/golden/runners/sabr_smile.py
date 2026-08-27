@@ -8,7 +8,7 @@ returns the implied vol per strike key.
 
 from __future__ import annotations
 
-from finstack_quant.models import SabrParameters, SabrSmile
+from finstack_quant.models.volatility import SabrParameters, SabrSmile
 from tests.golden.schema import GoldenFixture
 
 

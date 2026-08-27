@@ -1,10 +1,10 @@
 use super::*;
 use crate::trees::hull_white_tree::HullWhiteTree;
 use crate::trees::tree_framework::{NodeState, TreeBranching, TreeModel, TreeValuator};
+use crate::volatility::{convert_atm_volatility, VolatilityConvention};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::math::interp::InterpStyle;
-use finstack_quant_core::math::volatility::{convert_atm_volatility, VolatilityConvention};
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::{Error, HashMap, Result};
 use time::Month;

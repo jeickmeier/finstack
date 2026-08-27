@@ -8,23 +8,23 @@ use super::*;
 #[test]
 fn test_sabr_parameters_validation() {
     // Valid parameters
-    assert!(SABRParameters::new(0.2, 0.5, 0.3, 0.1).is_ok());
+    assert!(SabrParameters::new(0.2, 0.5, 0.3, 0.1).is_ok());
 
     // Invalid alpha
-    assert!(SABRParameters::new(-0.1, 0.5, 0.3, 0.1).is_err());
+    assert!(SabrParameters::new(-0.1, 0.5, 0.3, 0.1).is_err());
 
     // Invalid beta
-    assert!(SABRParameters::new(0.2, 1.5, 0.3, 0.1).is_err());
+    assert!(SabrParameters::new(0.2, 1.5, 0.3, 0.1).is_err());
 
     // Invalid rho
-    assert!(SABRParameters::new(0.2, 0.5, 0.3, 1.5).is_err());
+    assert!(SabrParameters::new(0.2, 0.5, 0.3, 1.5).is_err());
 }
 
 #[test]
 fn test_sabr_atm_volatility() {
     let params =
-        SABRParameters::new(0.2, 0.5, 0.3, -0.1).expect("SABR parameters should be valid in test");
-    let model = SABRModel::new(params);
+        SabrParameters::new(0.2, 0.5, 0.3, -0.1).expect("SABR parameters should be valid in test");
+    let model = SabrModel::new(params);
 
     let forward = 100.0;
     let time_to_expiry = 1.0;
@@ -46,8 +46,8 @@ fn test_sabr_atm_volatility() {
 #[test]
 fn test_sabr_smile_shape() {
     let params =
-        SABRParameters::new(0.2, 0.7, 0.4, -0.3).expect("SABR parameters should be valid in test");
-    let model = SABRModel::new(params);
+        SabrParameters::new(0.2, 0.7, 0.4, -0.3).expect("SABR parameters should be valid in test");
+    let model = SabrModel::new(params);
 
     let forward = 100.0;
     let time_to_expiry = 1.0;
@@ -82,8 +82,8 @@ fn test_sabr_smile_shape() {
 fn test_sabr_normal_model() {
     // Beta = 0 gives normal SABR
     let params =
-        SABRParameters::normal(20.0, 0.3, 0.0).expect("SABR parameters should be valid in test");
-    let model = SABRModel::new(params);
+        SabrParameters::normal(20.0, 0.3, 0.0).expect("SABR parameters should be valid in test");
+    let model = SabrModel::new(params);
 
     let forward = 0.05; // 5% rate
     let strike = 0.06; // 6% strike
@@ -102,8 +102,8 @@ fn test_sabr_normal_model() {
 fn test_sabr_lognormal_model() {
     // Beta = 1 gives lognormal SABR (like Black-Scholes)
     let params =
-        SABRParameters::lognormal(0.3, 0.4, 0.2).expect("SABR parameters should be valid in test");
-    let model = SABRModel::new(params);
+        SabrParameters::lognormal(0.3, 0.4, 0.2).expect("SABR parameters should be valid in test");
+    let model = SabrModel::new(params);
 
     let forward = 100.0;
     let strike = 105.0;
@@ -131,7 +131,7 @@ fn test_sabr_calibration() {
     // silently returning the best iterate on MaxIterations. This smile is not
     // SABR-exact (positive SSE minimum), so allow a realistic gradient
     // tolerance and iteration budget for formal convergence.
-    let calibrator = SABRCalibrator::new()
+    let calibrator = SabrCalibrator::new()
         .with_tolerance(1e-4)
         .with_max_iterations(2000);
     let params = calibrator
@@ -144,7 +144,7 @@ fn test_sabr_calibration() {
     assert!(params.rho >= -1.0 && params.rho <= 1.0);
 
     // Check fit quality
-    let model = SABRModel::new(params);
+    let model = SabrModel::new(params);
     for (i, &strike) in strikes.iter().enumerate() {
         let model_vol = model
             .implied_volatility(forward, strike, time_to_expiry)
@@ -156,10 +156,10 @@ fn test_sabr_calibration() {
 
 #[test]
 fn test_sabr_smile_generator() {
-    let params = SABRParameters::new(0.25, 0.6, 0.35, -0.25)
+    let params = SabrParameters::new(0.25, 0.6, 0.35, -0.25)
         .expect("SABR parameters should be valid in test");
-    let model = SABRModel::new(params);
-    let smile = SABRSmile::new(model, 100.0, 1.0);
+    let model = SabrModel::new(params);
+    let smile = SabrSmile::new(model, 100.0, 1.0);
 
     let strikes = vec![85.0, 90.0, 95.0, 100.0, 105.0, 110.0, 115.0];
     let vols = smile
@@ -183,9 +183,9 @@ fn test_sabr_negative_rates_shifted() {
     let strikes = vec![-0.01, -0.005, 0.0, 0.005, 0.01];
     let shift = 0.02; // 200bps shift
 
-    let params = SABRParameters::new_with_shift(0.2, 0.5, 0.3, -0.2, shift)
+    let params = SabrParameters::new_with_shift(0.2, 0.5, 0.3, -0.2, shift)
         .expect("SABR parameters should be valid in test"); // Higher alpha for more reasonable vols
-    let model = SABRModel::new(params);
+    let model = SabrModel::new(params);
 
     // Should handle negative rates correctly
     for &strike in &strikes {
@@ -211,8 +211,8 @@ fn test_sabr_negative_rates_shifted() {
 fn test_sabr_atm_stability() {
     // Test enhanced ATM stability with very close strikes
     let params =
-        SABRParameters::new(0.2, 0.5, 0.3, -0.1).expect("SABR parameters should be valid in test");
-    let model = SABRModel::new(params);
+        SabrParameters::new(0.2, 0.5, 0.3, -0.1).expect("SABR parameters should be valid in test");
+    let model = SabrModel::new(params);
 
     let forward = 0.025;
     let strikes = vec![
@@ -253,7 +253,7 @@ fn test_sabr_auto_shift_calibration() {
     let time_to_expiry = 0.5;
     let beta = 0.0; // Normal model for rates
 
-    let calibrator = SABRCalibrator::new().with_tolerance(1e-4); // Relaxed tolerance for difficult calibration
+    let calibrator = SabrCalibrator::new().with_tolerance(1e-4); // Relaxed tolerance for difficult calibration
     let params = calibrator
         .calibrate_auto_shift(forward, &strikes, &market_vols, time_to_expiry, beta)
         .expect("Volatility calculation should succeed in test");
@@ -263,7 +263,7 @@ fn test_sabr_auto_shift_calibration() {
     assert!(params.shift().expect("Shift should be Some") > 0.0);
 
     // Check model works with negative rates
-    let model = SABRModel::new(params);
+    let model = SabrModel::new(params);
     for &strike in &strikes {
         let vol = model.implied_volatility(forward, strike, time_to_expiry);
         assert!(vol.is_ok(), "Failed for strike {}: {:?}", strike, vol);
@@ -281,8 +281,8 @@ fn test_sabr_auto_shift_calibration() {
 fn test_sabr_numerical_stability_extreme_parameters() {
     // Test with extreme but valid parameters
     let params =
-        SABRParameters::new(0.01, 0.1, 0.1, 0.9).expect("SABR parameters should be valid in test");
-    let model = SABRModel::new(params);
+        SabrParameters::new(0.01, 0.1, 0.1, 0.9).expect("SABR parameters should be valid in test");
+    let model = SabrModel::new(params);
 
     let forward = 0.001; // Very low rate
     let strikes = vec![0.0005, 0.001, 0.002];
@@ -300,8 +300,8 @@ fn test_sabr_numerical_stability_extreme_parameters() {
 fn test_sabr_chi_function_stability() {
     // Test chi function with various extreme cases
     let params =
-        SABRParameters::new(0.2, 0.5, 0.3, 0.95).expect("SABR parameters should be valid in test"); // High rho
-    let model = SABRModel::new(params);
+        SabrParameters::new(0.2, 0.5, 0.3, 0.95).expect("SABR parameters should be valid in test"); // High rho
+    let model = SabrModel::new(params);
 
     // Test small z values
     let small_z_values = vec![1e-8, 1e-6, 1e-4];
@@ -313,15 +313,15 @@ fn test_sabr_chi_function_stability() {
 
     // Test rho ≈ 1 case
     let params_rho_one =
-        SABRParameters::new(0.2, 0.5, 0.3, 0.999).expect("SABR parameters should be valid in test");
-    let model_rho_one = SABRModel::new(params_rho_one);
+        SabrParameters::new(0.2, 0.5, 0.3, 0.999).expect("SABR parameters should be valid in test");
+    let model_rho_one = SabrModel::new(params_rho_one);
     let chi_rho_one = model_rho_one.calculate_chi_robust(0.1);
     assert!(chi_rho_one.is_ok());
 
     // Test rho ≈ -1 case
-    let params_rho_minus_one = SABRParameters::new(0.2, 0.5, 0.3, -0.999)
+    let params_rho_minus_one = SabrParameters::new(0.2, 0.5, 0.3, -0.999)
         .expect("SABR parameters should be valid in test");
-    let model_rho_minus_one = SABRModel::new(params_rho_minus_one);
+    let model_rho_minus_one = SabrModel::new(params_rho_minus_one);
     let chi_rho_minus_one = model_rho_minus_one.calculate_chi_robust(0.1);
     assert!(chi_rho_minus_one.is_ok());
 }
@@ -331,8 +331,8 @@ fn test_sabr_chi_function_stability() {
 /// `z/(1+z/2)` Padé guess; and it must reject z ≥ 1 where the limit diverges.
 #[test]
 fn test_sabr_chi_rho_one_uses_exact_log_limit() {
-    let params = SABRParameters::new(0.2, 0.5, 0.3, 1.0).expect("rho = 1 is a valid bound");
-    let model = SABRModel::new(params);
+    let params = SabrParameters::new(0.2, 0.5, 0.3, 1.0).expect("rho = 1 is a valid bound");
+    let model = SabrModel::new(params);
 
     for &z in &[0.05_f64, 0.3, 0.7, 0.95] {
         let chi = model.calculate_chi_robust(z).expect("chi at rho=1, z<1");
@@ -353,7 +353,7 @@ fn test_sabr_chi_rho_one_uses_exact_log_limit() {
 
     // Continuity with the near-limit generic formula.
     let near =
-        SABRModel::new(SABRParameters::new(0.2, 0.5, 0.3, 1.0 - 1e-9).expect("valid params"));
+        SabrModel::new(SabrParameters::new(0.2, 0.5, 0.3, 1.0 - 1e-9).expect("valid params"));
     let z = 0.4_f64;
     let chi_near = near.calculate_chi_robust(z).expect("chi near rho=1");
     let chi_limit = -(1.0 - z).ln();
@@ -377,7 +377,7 @@ fn test_sabr_chi_rho_one_uses_exact_log_limit() {
 #[test]
 fn test_sabr_z_over_chi_uses_series_not_fabricated_one() {
     let rho = -0.35_f64;
-    let model = SABRModel::new(SABRParameters::new(0.2, 0.5, 0.3, rho).expect("valid params"));
+    let model = SabrModel::new(SabrParameters::new(0.2, 0.5, 0.3, rho).expect("valid params"));
 
     // For a small but non-zero z, the ratio must follow the Taylor series,
     // i.e. it must be measurably different from a fabricated 1.0.
@@ -428,7 +428,7 @@ fn test_sabr_z_over_chi_uses_series_not_fabricated_one() {
 
 #[test]
 fn test_sabr_rejects_negative_alpha() {
-    let result = SABRParameters::new(-0.1, 0.5, 0.3, 0.1);
+    let result = SabrParameters::new(-0.1, 0.5, 0.3, 0.1);
     assert!(result.is_err(), "Negative alpha should be rejected");
 
     let err = result.expect_err("should fail");
@@ -444,7 +444,7 @@ fn test_sabr_rejects_negative_alpha() {
 
 #[test]
 fn test_sabr_rejects_zero_alpha() {
-    let result = SABRParameters::new(0.0, 0.5, 0.3, 0.1);
+    let result = SabrParameters::new(0.0, 0.5, 0.3, 0.1);
     assert!(result.is_err(), "Zero alpha should be rejected");
 
     let err = result.expect_err("should fail");
@@ -454,7 +454,7 @@ fn test_sabr_rejects_zero_alpha() {
 #[test]
 fn test_sabr_rejects_invalid_rho() {
     // Rho > 1
-    let result1 = SABRParameters::new(0.2, 0.5, 0.3, 1.5);
+    let result1 = SabrParameters::new(0.2, 0.5, 0.3, 1.5);
     assert!(result1.is_err(), "Rho > 1 should be rejected");
     assert!(matches!(
         result1.expect_err("should fail"),
@@ -462,7 +462,7 @@ fn test_sabr_rejects_invalid_rho() {
     ));
 
     // Rho < -1
-    let result2 = SABRParameters::new(0.2, 0.5, 0.3, -1.5);
+    let result2 = SabrParameters::new(0.2, 0.5, 0.3, -1.5);
     assert!(result2.is_err(), "Rho < -1 should be rejected");
     assert!(matches!(
         result2.expect_err("should fail"),
@@ -470,17 +470,17 @@ fn test_sabr_rejects_invalid_rho() {
     ));
 
     // Rho = exactly 1.0 should be OK
-    let result3 = SABRParameters::new(0.2, 0.5, 0.3, 1.0);
+    let result3 = SabrParameters::new(0.2, 0.5, 0.3, 1.0);
     assert!(result3.is_ok(), "Rho = 1.0 is valid");
 
     // Rho = exactly -1.0 should be OK
-    let result4 = SABRParameters::new(0.2, 0.5, 0.3, -1.0);
+    let result4 = SabrParameters::new(0.2, 0.5, 0.3, -1.0);
     assert!(result4.is_ok(), "Rho = -1.0 is valid");
 }
 
 #[test]
 fn test_sabr_rejects_negative_nu() {
-    let result = SABRParameters::new(0.2, 0.5, -0.1, 0.1);
+    let result = SabrParameters::new(0.2, 0.5, -0.1, 0.1);
     assert!(result.is_err(), "Negative nu should be rejected");
 
     let err = result.expect_err("should fail");
@@ -494,7 +494,7 @@ fn test_sabr_rejects_negative_nu() {
 #[test]
 fn test_sabr_rejects_invalid_beta() {
     // Beta > 1
-    let result1 = SABRParameters::new(0.2, 1.5, 0.3, 0.1);
+    let result1 = SabrParameters::new(0.2, 1.5, 0.3, 0.1);
     assert!(result1.is_err(), "Beta > 1 should be rejected");
     assert!(matches!(
         result1.expect_err("should fail"),
@@ -502,7 +502,7 @@ fn test_sabr_rejects_invalid_beta() {
     ));
 
     // Beta < 0
-    let result2 = SABRParameters::new(0.2, -0.1, 0.3, 0.1);
+    let result2 = SabrParameters::new(0.2, -0.1, 0.3, 0.1);
     assert!(result2.is_err(), "Beta < 0 should be rejected");
     assert!(matches!(
         result2.expect_err("should fail"),
@@ -510,20 +510,20 @@ fn test_sabr_rejects_invalid_beta() {
     ));
 
     // Beta = 0 should be OK (normal SABR)
-    let result3 = SABRParameters::new(0.2, 0.0, 0.3, 0.1);
+    let result3 = SabrParameters::new(0.2, 0.0, 0.3, 0.1);
     assert!(result3.is_ok(), "Beta = 0 is valid (normal SABR)");
 
     // Beta = 1 should be OK (lognormal SABR)
-    let result4 = SABRParameters::new(0.2, 1.0, 0.3, 0.1);
+    let result4 = SabrParameters::new(0.2, 1.0, 0.3, 0.1);
     assert!(result4.is_ok(), "Beta = 1 is valid (lognormal SABR)");
 }
 
 #[test]
 fn test_sabr_accepts_boundary_values() {
     // Test that exact boundary values are accepted
-    assert!(SABRParameters::new(1e-10, 0.0, 0.0, -1.0).is_ok());
-    assert!(SABRParameters::new(1e-10, 1.0, 0.0, 1.0).is_ok());
-    assert!(SABRParameters::new(0.001, 0.5, 0.0, 0.0).is_ok());
+    assert!(SabrParameters::new(1e-10, 0.0, 0.0, -1.0).is_ok());
+    assert!(SabrParameters::new(1e-10, 1.0, 0.0, 1.0).is_ok());
+    assert!(SabrParameters::new(0.001, 0.5, 0.0, 0.0).is_ok());
 }
 
 // Inverse Normal CDF Precision Tests
@@ -600,9 +600,9 @@ fn test_normal_inverse_cdf_boundary_behavior() {
 #[test]
 fn test_sabr_arbitrage_validation_clean_smile() {
     // Well-behaved SABR parameters should produce arbitrage-free smile
-    let params = SABRParameters::new(0.2, 0.5, 0.3, -0.2).expect("Valid SABR parameters");
-    let model = SABRModel::new(params);
-    let smile = SABRSmile::new(model, 100.0, 1.0);
+    let params = SabrParameters::new(0.2, 0.5, 0.3, -0.2).expect("Valid SABR parameters");
+    let model = SabrModel::new(params);
+    let smile = SabrSmile::new(model, 100.0, 1.0);
 
     let strikes: Vec<f64> = (70..=130).step_by(5).map(|k| k as f64).collect();
     let r = 0.05;
@@ -624,9 +624,9 @@ fn test_sabr_arbitrage_validation_clean_smile() {
 #[test]
 fn test_sabr_arbitrage_check_api() {
     // Test the simplified check API
-    let params = SABRParameters::new(0.2, 0.5, 0.3, -0.2).expect("Valid SABR parameters");
-    let model = SABRModel::new(params);
-    let smile = SABRSmile::new(model, 100.0, 1.0);
+    let params = SabrParameters::new(0.2, 0.5, 0.3, -0.2).expect("Valid SABR parameters");
+    let model = SabrModel::new(params);
+    let smile = SabrSmile::new(model, 100.0, 1.0);
 
     let strikes: Vec<f64> = (80..=120).step_by(5).map(|k| k as f64).collect();
 
@@ -668,9 +668,9 @@ fn test_sabr_arbitrage_validation_result_methods() {
 #[test]
 fn test_sabr_arbitrage_too_few_strikes() {
     // With fewer than 3 strikes, validation should return empty result
-    let params = SABRParameters::new(0.2, 0.5, 0.3, -0.2).expect("Valid SABR parameters");
-    let model = SABRModel::new(params);
-    let smile = SABRSmile::new(model, 100.0, 1.0);
+    let params = SabrParameters::new(0.2, 0.5, 0.3, -0.2).expect("Valid SABR parameters");
+    let model = SabrModel::new(params);
+    let smile = SabrSmile::new(model, 100.0, 1.0);
 
     let strikes = vec![95.0, 100.0]; // Only 2 strikes
 
@@ -688,9 +688,9 @@ fn test_sabr_arbitrage_too_few_strikes() {
 fn test_sabr_arbitrage_extreme_params_may_have_violations() {
     // Extreme parameters might produce arbitrage (this tests detection, not prevention)
     // High vol-of-vol with extreme rho can sometimes produce problematic smiles
-    let params = SABRParameters::new(0.5, 0.9, 1.5, 0.8).expect("Valid SABR parameters");
-    let model = SABRModel::new(params);
-    let smile = SABRSmile::new(model, 100.0, 0.1); // Short expiry
+    let params = SabrParameters::new(0.5, 0.9, 1.5, 0.8).expect("Valid SABR parameters");
+    let model = SabrModel::new(params);
+    let smile = SabrSmile::new(model, 100.0, 0.1); // Short expiry
 
     let strikes: Vec<f64> = (50..=150).step_by(5).map(|k| k as f64).collect();
 
@@ -702,8 +702,8 @@ fn test_sabr_arbitrage_extreme_params_may_have_violations() {
 
 #[test]
 fn test_sabr_new_with_shift_rejects_non_positive_shift() {
-    let zero_shift = SABRParameters::new_with_shift(0.2, 0.5, 0.3, -0.2, 0.0);
-    let negative_shift = SABRParameters::new_with_shift(0.2, 0.5, 0.3, -0.2, -0.01);
+    let zero_shift = SabrParameters::new_with_shift(0.2, 0.5, 0.3, -0.2, 0.0);
+    let negative_shift = SabrParameters::new_with_shift(0.2, 0.5, 0.3, -0.2, -0.01);
 
     for result in [zero_shift, negative_shift] {
         let err = result.expect_err("non-positive shifts should fail");
@@ -718,7 +718,7 @@ fn test_sabr_new_with_shift_rejects_non_positive_shift() {
 #[test]
 fn test_sabr_validate_inputs_covers_standard_and_shifted_branches() {
     let standard =
-        SABRModel::new(SABRParameters::new(0.2, 0.5, 0.3, -0.2).expect("valid standard params"));
+        SabrModel::new(SabrParameters::new(0.2, 0.5, 0.3, -0.2).expect("valid standard params"));
     assert!(standard.validate_inputs(100.0, 110.0, 1.0).is_ok());
 
     let time_err = standard
@@ -731,8 +731,8 @@ fn test_sabr_validate_inputs_covers_standard_and_shifted_branches() {
         .expect_err("unshifted SABR should reject non-positive rates");
     assert!(standard_rate_err.to_string().contains("positive rates"));
 
-    let shifted = SABRModel::new(
-        SABRParameters::new_with_shift(0.2, 0.5, 0.3, -0.2, 0.02).expect("valid shifted params"),
+    let shifted = SabrModel::new(
+        SabrParameters::new_with_shift(0.2, 0.5, 0.3, -0.2, 0.02).expect("valid shifted params"),
     );
     assert!(shifted.validate_inputs(-0.005, 0.0, 1.0).is_ok());
 
@@ -750,7 +750,7 @@ fn test_sabr_implied_volatility_rejects_nonpositive_time_to_expiry() {
     // `time_to_expiry` is rejected up front with a clear error rather than
     // flowing silently into the time-correction factor.
     let model =
-        SABRModel::new(SABRParameters::new(0.2, 0.5, 0.3, -0.2).expect("valid standard params"));
+        SabrModel::new(SabrParameters::new(0.2, 0.5, 0.3, -0.2).expect("valid standard params"));
 
     let forward = 100.0;
     let strike = 110.0;
@@ -782,8 +782,8 @@ fn test_sabr_implied_volatility_rejects_nonpositive_time_to_expiry() {
 #[test]
 fn test_sabr_nu_zero_smile_is_non_flat_for_beta_half() {
     // β = 0.5 (rates-standard CEV), ν exactly 0 → pure CEV smile.
-    let params = SABRParameters::new(0.24, 0.5, 0.0, -0.35).expect("valid params");
-    let model = SABRModel::new(params);
+    let params = SabrParameters::new(0.24, 0.5, 0.0, -0.35).expect("valid params");
+    let model = SabrModel::new(params);
 
     let forward = 100.0;
     let expiry = 1.5;
@@ -847,8 +847,8 @@ fn test_sabr_nu_zero_smile_is_non_flat_for_beta_half() {
 ///     vol_atm = α·(1+T·tc)             = 0.012117500000000
 #[test]
 fn test_sabr_beta_zero_time_correction_is_vol_of_vol_only() {
-    let params = SABRParameters::new(0.012, 0.0, 0.25, -0.20).expect("valid β=0 params");
-    let model = SABRModel::new(params);
+    let params = SabrParameters::new(0.012, 0.0, 0.25, -0.20).expect("valid β=0 params");
+    let model = SabrModel::new(params);
 
     let forward = 0.03_f64;
     let expiry = 2.0_f64;
@@ -895,8 +895,8 @@ fn test_sabr_beta_zero_time_correction_is_vol_of_vol_only() {
 #[test]
 fn test_sabr_beta_zero_nu_zero_is_flat_bachelier_alpha() {
     let alpha = 0.012_f64;
-    let model = SABRModel::new(
-        SABRParameters::new(alpha, 0.0, 0.0, 0.0).expect("β=0, ν=0 params are valid"),
+    let model = SabrModel::new(
+        SabrParameters::new(alpha, 0.0, 0.0, 0.0).expect("β=0, ν=0 params are valid"),
     );
 
     for &forward in &[0.02_f64, 0.03, 0.05] {
@@ -935,7 +935,7 @@ fn test_solve_alpha_for_atm_round_trips_target_vol() {
     let original_alpha = 0.28;
 
     let original =
-        SABRModel::new(SABRParameters::new(original_alpha, beta, nu, rho).expect("valid params"));
+        SabrModel::new(SabrParameters::new(original_alpha, beta, nu, rho).expect("valid params"));
     let target_atm = original
         .atm_volatility(forward, time_to_expiry)
         .expect("ATM vol should compute");
@@ -944,8 +944,8 @@ fn test_solve_alpha_for_atm_round_trips_target_vol() {
         solve_alpha_for_atm(forward, target_atm, time_to_expiry, beta, nu, rho, 1e-12)
             .expect("alpha solve should succeed");
 
-    let solved = SABRModel::new(
-        SABRParameters::new(solved_alpha, beta, nu, rho).expect("solved params should be valid"),
+    let solved = SabrModel::new(
+        SabrParameters::new(solved_alpha, beta, nu, rho).expect("solved params should be valid"),
     );
     let solved_atm = solved
         .atm_volatility(forward, time_to_expiry)
@@ -972,8 +972,8 @@ fn test_solve_alpha_for_atm_round_trips_target_vol() {
 /// interpolation delivers over the old nearest-strike rule.
 #[test]
 fn test_sabr_atm_pinning_interpolates_when_grid_lacks_forward() {
-    let true_params = SABRParameters::new(0.20, 0.5, 0.30, -0.25).expect("valid params");
-    let true_model = SABRModel::new(true_params);
+    let true_params = SabrParameters::new(0.20, 0.5, 0.30, -0.25).expect("valid params");
+    let true_model = SabrModel::new(true_params);
 
     let forward = 100.0_f64;
     let expiry = 1.0_f64;
@@ -1008,12 +1008,12 @@ fn test_sabr_atm_pinning_interpolates_when_grid_lacks_forward() {
     // a 1e-10 gradient tolerance is unattainable for the scalar LM
     // formulation (the vega-weighted SSE stagnates around 6e-7); use an
     // attainable tolerance with a larger budget.
-    let calibrated = SABRCalibrator::new()
+    let calibrated = SabrCalibrator::new()
         .with_tolerance(1e-5)
         .with_max_iterations(1000)
         .calibrate_with_atm_pinning(forward, &strikes, &market_vols, expiry, 0.5)
         .expect("ATM-pinned calibration should succeed");
-    let calibrated_model = SABRModel::new(calibrated);
+    let calibrated_model = SabrModel::new(calibrated);
 
     let calibrated_atm = calibrated_model
         .atm_volatility(forward, expiry)
@@ -1032,8 +1032,8 @@ fn test_sabr_atm_pinning_interpolates_when_grid_lacks_forward() {
 
 #[test]
 fn test_sabr_calibrate_with_atm_pinning_matches_synthetic_smile() {
-    let true_params = SABRParameters::new(0.22, 0.6, 0.35, -0.25).expect("valid params");
-    let true_model = SABRModel::new(true_params);
+    let true_params = SabrParameters::new(0.22, 0.6, 0.35, -0.25).expect("valid params");
+    let true_model = SabrModel::new(true_params);
 
     let forward = 100.0;
     let expiry = 1.25;
@@ -1048,12 +1048,12 @@ fn test_sabr_calibrate_with_atm_pinning_matches_synthetic_smile() {
         })
         .collect();
 
-    let calibrated = SABRCalibrator::new()
+    let calibrated = SabrCalibrator::new()
         .with_tolerance(1e-10)
         .with_max_iterations(200)
         .calibrate_with_atm_pinning(forward, &strikes, &market_vols, expiry, beta)
         .expect("ATM-pinned calibration should succeed");
-    let calibrated_model = SABRModel::new(calibrated);
+    let calibrated_model = SabrModel::new(calibrated);
 
     let atm_idx = strikes
         .iter()
@@ -1079,8 +1079,8 @@ fn test_sabr_calibrate_with_atm_pinning_matches_synthetic_smile() {
 /// Normal SABR calibrates a negative forward with strikes crossing zero.
 #[test]
 fn test_sabr_beta_zero_calibrates_negative_cross_zero_forward() {
-    let true_params = SABRParameters::new(0.0055, 0.0, 0.30, -0.20).expect("valid params");
-    let true_model = SABRModel::new(true_params);
+    let true_params = SabrParameters::new(0.0055, 0.0, 0.30, -0.20).expect("valid params");
+    let true_model = SabrModel::new(true_params);
 
     let forward = -0.0025;
     let expiry = 2.0;
@@ -1098,12 +1098,12 @@ fn test_sabr_beta_zero_calibrates_negative_cross_zero_forward() {
         "synthetic normal vols must be positive/finite: {market_vols:?}"
     );
 
-    let calibrated = SABRCalibrator::new()
+    let calibrated = SabrCalibrator::new()
         .with_tolerance(1e-10)
         .with_max_iterations(500)
         .calibrate_with_atm_pinning(forward, &strikes, &market_vols, expiry, 0.0)
         .expect("β=0 negative-forward calibration should succeed");
-    let calibrated_model = SABRModel::new(calibrated);
+    let calibrated_model = SabrModel::new(calibrated);
 
     let atm_market = market_vols[2];
     let calibrated_atm = calibrated_model
@@ -1127,8 +1127,8 @@ fn test_sabr_beta_zero_calibrates_negative_cross_zero_forward() {
 
 #[test]
 fn test_sabr_calibrate_with_derivatives_recovers_known_smile() {
-    let true_params = SABRParameters::new(0.25, 0.5, 0.45, -0.3).expect("valid params");
-    let true_model = SABRModel::new(true_params);
+    let true_params = SabrParameters::new(0.25, 0.5, 0.45, -0.3).expect("valid params");
+    let true_model = SabrModel::new(true_params);
 
     let forward = 100.0;
     let expiry = 0.75;
@@ -1147,13 +1147,13 @@ fn test_sabr_calibrate_with_derivatives_recovers_known_smile() {
     // 1e-9 within 200 evals previously "passed" via the silent best-guess
     // fallback (the vega-weighted SSE stagnates around 2e-6). Use an
     // attainable tolerance and budget.
-    let params = SABRCalibrator::new()
+    let params = SabrCalibrator::new()
         .with_tolerance(1e-5)
         .with_max_iterations(1000)
         .calibrate_with_derivatives(forward, &strikes, &market_vols, expiry, beta)
         .expect("derivative calibration should succeed");
 
-    let model = SABRModel::new(params);
+    let model = SabrModel::new(params);
     for (strike, market_vol) in strikes.into_iter().zip(market_vols) {
         let fitted = model
             .implied_volatility(forward, strike, expiry)
@@ -1170,14 +1170,14 @@ fn test_sabr_calibrate_with_derivatives_recovers_known_smile() {
 /// it (N⁻¹(0.5) = 0, leaving only the σ²T/2 convexity term).
 #[test]
 fn test_sabr_strike_from_delta_half_delta_is_delta_neutral_strike() {
-    let params = SABRParameters::new(0.2, 0.5, 0.3, -0.2).expect("valid params");
+    let params = SabrParameters::new(0.2, 0.5, 0.3, -0.2).expect("valid params");
     let forward = 100.0;
     let expiry = 1.0;
-    let model = SABRModel::new(params);
+    let model = SabrModel::new(params);
     let atm_vol = model
         .atm_volatility(forward, expiry)
         .expect("ATM vol should compute");
-    let smile = SABRSmile::new(model, forward, expiry);
+    let smile = SabrSmile::new(model, forward, expiry);
 
     let call_strike = smile
         .strike_from_delta(0.5, true)
@@ -1201,14 +1201,14 @@ fn test_sabr_strike_from_delta_half_delta_is_delta_neutral_strike() {
 fn test_sabr_strike_from_delta_round_trip_at_25_delta() {
     use finstack_quant_core::math::norm_cdf;
 
-    let params = SABRParameters::new(0.2, 0.5, 0.3, -0.2).expect("valid params");
+    let params = SabrParameters::new(0.2, 0.5, 0.3, -0.2).expect("valid params");
     let forward = 100.0;
     let expiry = 1.0;
-    let model = SABRModel::new(params);
+    let model = SabrModel::new(params);
     let atm_vol = model
         .atm_volatility(forward, expiry)
         .expect("ATM vol should compute");
-    let smile = SABRSmile::new(model, forward, expiry);
+    let smile = SabrSmile::new(model, forward, expiry);
 
     let sigma_sqrt_t = atm_vol * expiry.sqrt();
     let d1 =
@@ -1263,9 +1263,9 @@ fn sabr_beta_one_atm_recovers_alpha() {
     let nu = 0.0_f64; // no vol-of-vol: forces ATM path, pure GBM
     let rho = 0.0_f64;
 
-    let params = SABRParameters::new(alpha, beta, nu, rho)
+    let params = SabrParameters::new(alpha, beta, nu, rho)
         .expect("β=1 lognormal SABR params should be valid");
-    let model = SABRModel::new(params);
+    let model = SabrModel::new(params);
 
     for &fwd in &[0.01_f64, 1.0, 100.0, 4000.0] {
         let vol = model
@@ -1330,9 +1330,9 @@ fn sabr_beta_one_smile_matches_hagan_reference() {
     // Reference: 0.1945342213 (see derivation in doc-comment above)
     let reference_vol = 0.194_534_221_258_664_37_f64;
 
-    let params = SABRParameters::new(alpha, beta, nu, rho)
+    let params = SabrParameters::new(alpha, beta, nu, rho)
         .expect("β=1 lognormal SABR params should be valid");
-    let model = SABRModel::new(params);
+    let model = SabrModel::new(params);
 
     let vol = model
         .implied_volatility(forward, strike, expiry)
@@ -1355,8 +1355,8 @@ fn sabr_beta_one_smile_matches_hagan_reference() {
 fn test_sabr_calibrate_and_calibrate_with_derivatives_agree() {
     // ATM lognormal vol ≈ α/√F = 0.20, so the ±20% wings sit ~1σ out and
     // carry genuine vega weight.
-    let true_params = SABRParameters::new(2.0, 0.5, 0.5, -0.35).expect("valid params");
-    let true_model = SABRModel::new(true_params);
+    let true_params = SabrParameters::new(2.0, 0.5, 0.5, -0.35).expect("valid params");
+    let true_model = SabrModel::new(true_params);
 
     let forward = 100.0;
     let expiry = 1.0;
@@ -1374,7 +1374,7 @@ fn test_sabr_calibrate_and_calibrate_with_derivatives_agree() {
     // non-convergence is now a hard error;
     // 1e-10 previously "passed" via the silent best-guess fallback. Use an
     // attainable tolerance and budget.
-    let calibrator = SABRCalibrator::new()
+    let calibrator = SabrCalibrator::new()
         .with_tolerance(1e-7)
         .with_max_iterations(1000);
 
@@ -1405,7 +1405,7 @@ fn test_sabr_calibrate_and_calibrate_with_derivatives_agree() {
     );
 
     // Both must reprice the synthetic smile.
-    let model = SABRModel::new(with_derivs);
+    let model = SabrModel::new(with_derivs);
     for (strike, market_vol) in strikes.iter().zip(market_vols.iter()) {
         let fitted = model
             .implied_volatility(forward, *strike, expiry)
@@ -1429,8 +1429,8 @@ fn test_sabr_calibrate_and_calibrate_with_derivatives_agree() {
 fn test_sabr_normal_convention_calibration_reprices_wings_unweighted() {
     // Skewed normal smile generated from known β=0 parameters far from the
     // optimizer's initial guess (ν=0.3, ρ=0.0).
-    let true_params = SABRParameters::new(0.0085, 0.0, 0.55, -0.4).expect("valid β=0 params");
-    let true_model = SABRModel::new(true_params);
+    let true_params = SabrParameters::new(0.0085, 0.0, 0.55, -0.4).expect("valid β=0 params");
+    let true_model = SabrModel::new(true_params);
 
     let forward = 0.03_f64;
     let expiry = 1.0_f64;
@@ -1449,7 +1449,7 @@ fn test_sabr_normal_convention_calibration_reprices_wings_unweighted() {
     // Sanity: the smile is genuinely skewed — the initial guess can't fit it.
     assert!((market_vols[0] - market_vols[4]).abs() > 5e-4);
 
-    let calibrated = SABRCalibrator::new()
+    let calibrated = SabrCalibrator::new()
         .with_tolerance(1e-10)
         .with_max_iterations(300)
         .calibrate_with_atm_pinning(forward, &strikes, &market_vols, expiry, 0.0)
@@ -1464,7 +1464,7 @@ fn test_sabr_normal_convention_calibration_reprices_wings_unweighted() {
     );
 
     // Unweighted wing repricing: every strike within 0.5 normal bp.
-    let calibrated_model = SABRModel::new(calibrated);
+    let calibrated_model = SabrModel::new(calibrated);
     for (strike, market_vol) in strikes.iter().zip(market_vols.iter()) {
         let fitted = calibrated_model
             .implied_volatility(forward, *strike, expiry)
@@ -1483,8 +1483,8 @@ fn test_sabr_normal_convention_calibration_reprices_wings_unweighted() {
 fn test_chi_series_matches_exact_near_crossover() {
     for &rho in &[-0.9, -0.5, -0.1, 0.0, 0.1, 0.5, 0.9] {
         let params =
-            SABRParameters::new(0.2, 0.5, 0.3, rho).expect("SABR parameters should be valid");
-        let model = SABRModel::new(params);
+            SabrParameters::new(0.2, 0.5, 0.3, rho).expect("SABR parameters should be valid");
+        let model = SabrModel::new(params);
 
         for &z in &[-1e-3, -1e-4, -2e-5, -9e-6, 9e-6, 2e-5, 1e-4, 1e-3] {
             // Exact χ(z) = ln((√(1−2ρz+z²)+z−ρ)/(1−ρ)), well-conditioned here.
@@ -1519,8 +1519,8 @@ fn test_chi_series_matches_exact_near_crossover() {
 /// "produced invalid volatility" failure.
 #[test]
 fn chi_rho_minus_one_rejects_z_at_or_below_minus_one() {
-    let model = SABRModel::new(
-        SABRParameters::new(0.2, 0.5, 0.3, -1.0).expect("rho=-1 boundary should be accepted"),
+    let model = SabrModel::new(
+        SabrParameters::new(0.2, 0.5, 0.3, -1.0).expect("rho=-1 boundary should be accepted"),
     );
     assert!(
         model.calculate_chi_robust(-1.5).is_err(),
@@ -1551,8 +1551,8 @@ fn chi_rho_minus_one_rejects_z_at_or_below_minus_one() {
 ///   F=0.03, T=2, α=0.02, β=0.5, ν=0.4, ρ=−0.25.
 #[test]
 fn fractional_beta_smile_matches_independent_hagan_obloj_reference() {
-    let model = SABRModel::new(
-        SABRParameters::new(0.02, 0.5, 0.4, -0.25).expect("SABR parameters should be valid"),
+    let model = SabrModel::new(
+        SabrParameters::new(0.02, 0.5, 0.4, -0.25).expect("SABR parameters should be valid"),
     );
     let forward = 0.03;
     let expiry = 2.0;
@@ -1583,11 +1583,11 @@ fn atm_beta_snap_is_consistent_between_smile_and_atm_paths() {
     // discontinuity of ~F^(−(1−β)) (several bp of vol level at F=100).
     let forward = 100.0;
     let t = 2.0;
-    let snapped = SABRModel::new(
-        SABRParameters::new(0.2, 1.0 - 5e-5, 0.4, -0.3).expect("SABR parameters should be valid"),
+    let snapped = SabrModel::new(
+        SabrParameters::new(0.2, 1.0 - 5e-5, 0.4, -0.3).expect("SABR parameters should be valid"),
     );
-    let exact_one = SABRModel::new(
-        SABRParameters::new(0.2, 1.0, 0.4, -0.3).expect("SABR parameters should be valid"),
+    let exact_one = SabrModel::new(
+        SabrParameters::new(0.2, 1.0, 0.4, -0.3).expect("SABR parameters should be valid"),
     );
 
     let atm_snapped = snapped

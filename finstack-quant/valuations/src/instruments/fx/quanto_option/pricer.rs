@@ -72,7 +72,11 @@ fn collect_quanto_inputs(
                     "ATM forward FX must be positive finite, got {atm_fwd_fx} \
                      (spot={s_fx}, r_dom={r_dom}, r_for={r_for}, t={t})"
                 );
-                fx_vol_surface.value_clamped(t, atm_fwd_fx)
+                finstack_quant_models::volatility::get_surface_vol_clamped(
+                    &fx_vol_surface,
+                    t,
+                    atm_fwd_fx,
+                )
             }
             _ => {
                 return Err(finstack_quant_core::Error::Validation(format!(

@@ -1122,9 +1122,9 @@ mod tests {
             StepOutput::Surface(surface) => {
                 assert_eq!(surface.id(), &CurveId::from("SPX-SVI"));
                 assert_eq!(surface.grid_shape(), (2, 5));
-                let atm_vol = surface
-                    .value_checked(t1, 100.0)
-                    .expect("ATM point should exist");
+                let atm_vol =
+                    finstack_quant_models::volatility::get_surface_vol(&surface, t1, 100.0)
+                        .expect("ATM point should exist");
                 assert!(atm_vol.is_finite(), "ATM SVI vol should be finite");
                 assert!(
                     atm_vol > 0.0 && atm_vol < 1.0,

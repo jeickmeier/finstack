@@ -256,7 +256,10 @@ fn persisted_contract_fields_do_not_use_fx_hash_maps() {
     let checks = [
         ("core/src/market_data/hierarchy/mod.rs", "HierarchyNode"),
         ("core/src/types/ratings.rs", "RatingFactorTable"),
-        ("core/src/market_data/arbitrage/types.rs", "ArbitrageReport"),
+        (
+            "models/src/volatility/arbitrage/types.rs",
+            "ArbitrageReport",
+        ),
         (
             "core/src/market_data/term_structures/credit_index.rs",
             "CreditIndexData",

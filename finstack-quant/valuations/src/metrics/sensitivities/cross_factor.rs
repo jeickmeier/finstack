@@ -461,15 +461,11 @@ mod tests {
         let bumped = bumper
             .bump_market(&market, Date::MIN, 1.0)
             .expect("parallel bump");
-        let bumped_a = bumped
-            .get_surface("VOL-A")
-            .expect("VOL-A")
-            .value_checked(1.0, 100.0)
+        let surface_a = bumped.get_surface("VOL-A").expect("VOL-A");
+        let bumped_a = finstack_quant_models::volatility::get_surface_vol(&surface_a, 1.0, 100.0)
             .expect("VOL-A value");
-        let bumped_b = bumped
-            .get_surface("VOL-B")
-            .expect("VOL-B")
-            .value_checked(1.0, 100.0)
+        let surface_b = bumped.get_surface("VOL-B").expect("VOL-B");
+        let bumped_b = finstack_quant_models::volatility::get_surface_vol(&surface_b, 1.0, 100.0)
             .expect("VOL-B value");
         assert!((bumped_a - 0.21).abs() < 1e-12);
         assert!((bumped_b - 0.31).abs() < 1e-12);

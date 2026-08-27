@@ -290,9 +290,12 @@ impl EquityFuture {
         let Some(quanto) = &self.quanto else {
             return Ok(domestic_forward);
         };
-        let equity_vol = market
-            .get_surface(&quanto.equity_vol_surface_id)?
-            .value_clamped(t, domestic_forward);
+        let equity_surface = market.get_surface(&quanto.equity_vol_surface_id)?;
+        let equity_vol = finstack_quant_models::volatility::get_surface_vol_clamped(
+            &equity_surface,
+            t,
+            domestic_forward,
+        );
         let fx_spot = match market.get_price(&quanto.fx_spot_id)? {
             finstack_quant_core::market_data::scalars::MarketScalar::Unitless(value) => *value,
             finstack_quant_core::market_data::scalars::MarketScalar::Price(money) => {
@@ -320,9 +323,9 @@ impl EquityFuture {
             ));
         }
         let fx_forward = fx_spot * underlying_df / settlement_df;
-        let fx_vol = market
-            .get_surface(&quanto.fx_vol_surface_id)?
-            .value_clamped(t, fx_forward);
+        let fx_surface = market.get_surface(&quanto.fx_vol_surface_id)?;
+        let fx_vol =
+            finstack_quant_models::volatility::get_surface_vol_clamped(&fx_surface, t, fx_forward);
         if !equity_vol.is_finite() || equity_vol < 0.0 || !fx_vol.is_finite() || fx_vol < 0.0 {
             return Err(finstack_quant_core::Error::Validation(
                 "EquityFuture quanto volatilities must be finite and non-negative".to_string(),

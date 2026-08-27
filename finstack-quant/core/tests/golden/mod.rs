@@ -13,4 +13,3 @@
 
 mod daycount_quantlib_tests;
 mod variance_tests;
-mod vol_models_quantlib_tests;

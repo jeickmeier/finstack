@@ -1796,7 +1796,7 @@
     },
     "FxDeltaVolSurface": {
       "additionalProperties": false,
-      "description": "Delta-quoted FX volatility surface.\n\nStores market-standard FX vol quotes (ATM DNS, 25-delta risk-reversal,\n25-delta butterfly) across multiple expiries and provides implied-vol\nlookup by strike via Garman-Kohlhagen delta-to-strike conversion.\n\n# Examples\n\n```rust\nuse finstack_quant_core::market_data::surfaces::FxDeltaVolSurface;\n\nlet surface = FxDeltaVolSurface::new(\n    \"EURUSD-DELTA-VOL\",\n    vec![0.25, 0.5, 1.0],\n    vec![0.08, 0.085, 0.09],\n    vec![0.01, 0.012, 0.015],\n    vec![0.005, 0.006, 0.007],\n).expect(\"surface should build\");\n\n// Retrieve pillar vols for the first expiry\nlet (atm, put25, call25) = surface.pillar_vols(0);\nassert!((atm - 0.08).abs() < 1e-12);\n```",
+      "description": "Delta-quoted FX volatility surface.\n\nStores market-standard FX vol quotes (ATM DNS, 25-delta risk-reversal,\n25-delta butterfly) across multiple expiries. Models-layer functions\nperform delta conversion and volatility evaluation.\n\n# Examples\n\n```rust\nuse finstack_quant_core::market_data::surfaces::FxDeltaVolSurface;\n\nlet surface = FxDeltaVolSurface::new(\n    \"EURUSD-DELTA-VOL\",\n    vec![0.25, 0.5, 1.0],\n    vec![0.08, 0.085, 0.09],\n    vec![0.01, 0.012, 0.015],\n    vec![0.005, 0.006, 0.007],\n).expect(\"surface should build\");\n\nassert_eq!(surface.num_expiries(), 3);\nassert!((surface.atm_vols()[0] - 0.08).abs() < 1e-12);\n```",
       "properties": {
         "atm_vols": {
           "description": "ATM delta-neutral straddle vols per expiry.",
@@ -2776,33 +2776,28 @@
       ],
       "type": "object"
     },
-    "SabrParams": {
+    "SabrParameterData": {
       "additionalProperties": false,
-      "description": "SABR model parameters for a single expiry.\n\n# Examples\n\n```rust\nuse finstack_quant_core::math::volatility::sabr::SabrParams;\n\n// Typical USD swaption SABR parameters\nlet params = SabrParams::new(0.035, 0.5, -0.2, 0.4).unwrap();\nlet fwd = 0.05;\nlet strike = 0.05;\nlet expiry = 1.0;\nlet vol = params.implied_vol_lognormal(fwd, strike, expiry).expect(\"valid checked inputs\");\nassert!(vol > 0.0);\n```",
+      "description": "Data-only SABR parameters for one volatility-cube node.\n\nThis type records calibrated market data. SABR evaluation, interpolation,\ncalibration, and convention conversion are owned by\n`finstack-quant-models`.",
       "properties": {
         "alpha": {
-          "description": "Initial volatility level.",
           "format": "double",
           "type": "number"
         },
         "beta": {
-          "description": "CEV exponent.",
           "format": "double",
           "type": "number"
         },
         "nu": {
-          "description": "Vol-of-vol.",
           "format": "double",
           "type": "number"
         },
         "rho": {
-          "description": "Forward-vol correlation.",
           "format": "double",
           "type": "number"
         },
         "shift": {
           "default": null,
-          "description": "Optional shift for negative rate support.",
           "format": "double",
           "type": [
             "number",
@@ -2962,7 +2957,7 @@
     },
     "VolCube": {
       "additionalProperties": false,
-      "description": "SABR volatility cube on an expiry x tenor grid.\n\nEach grid node stores a [`SabrParams`] and a forward rate. Interpolation\nbetween nodes is bilinear in parameter space; the implied vol at an\narbitrary (expiry, tenor, strike) is obtained by interpolating parameters\nand then evaluating the Hagan approximation.",
+      "description": "SABR volatility cube on an expiry x tenor grid.\n\nEach grid node stores a [`SabrParameterData`] and a forward rate. The\ninterpolation mode records how a models-layer evaluator should combine\nnodes; core performs structural validation only.",
       "properties": {
         "expiries": {
           "description": "Option expiries in years, strictly increasing. Indexes the first axis.",
@@ -2991,7 +2986,7 @@
         "params": {
           "description": "Row-major: params[expiry_idx * n_tenors + tenor_idx]",
           "items": {
-            "$ref": "#/$defs/SabrParams"
+            "$ref": "#/$defs/SabrParameterData"
           },
           "type": "array"
         },

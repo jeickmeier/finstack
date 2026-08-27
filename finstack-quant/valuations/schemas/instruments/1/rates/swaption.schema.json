@@ -345,7 +345,7 @@
       "format": "double",
       "type": "number"
     },
-    "SABRParameters": {
+    "SabrParameters": {
       "additionalProperties": false,
       "description": "SABR model parameters",
       "properties": {
@@ -458,7 +458,7 @@
         "sabr_params": {
           "anyOf": [
             {
-              "$ref": "#/$defs/SABRParameters"
+              "$ref": "#/$defs/SabrParameters"
             },
             {
               "type": "null"

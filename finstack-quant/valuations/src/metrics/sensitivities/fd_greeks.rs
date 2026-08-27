@@ -114,7 +114,9 @@ fn min_surface_vol(
     for &expiry in surface.expiries() {
         for &strike in surface.strikes() {
             // Exact grid points evaluate to the stored vol with no interpolation.
-            if let Ok(vol) = surface.value_checked(expiry, strike) {
+            if let Ok(vol) =
+                finstack_quant_models::volatility::get_surface_vol(surface, expiry, strike)
+            {
                 min_vol = Some(min_vol.map_or(vol, |m: f64| m.min(vol)));
             }
         }
@@ -166,7 +168,9 @@ fn min_relevant_surface_vol(
     let mut min_vol: Option<f64> = None;
     for &expiry in surface.expiries() {
         for &col_strike in relevant_strikes {
-            if let Ok(vol) = surface.value_checked(expiry, col_strike) {
+            if let Ok(vol) =
+                finstack_quant_models::volatility::get_surface_vol(surface, expiry, col_strike)
+            {
                 min_vol = Some(min_vol.map_or(vol, |m: f64| m.min(vol)));
             }
         }
@@ -1419,7 +1423,8 @@ mod tests {
                 let strike = surface.strikes().first().copied().ok_or_else(|| {
                     finstack_quant_core::Error::Validation("empty strikes".into())
                 })?;
-                value += slope * surface.value_checked(expiry, strike)?;
+                value += slope
+                    * finstack_quant_models::volatility::get_surface_vol(&surface, expiry, strike)?;
             }
             if self.multiply_by_spot {
                 let spot = match market.get_price(self.spot_id.as_str())? {

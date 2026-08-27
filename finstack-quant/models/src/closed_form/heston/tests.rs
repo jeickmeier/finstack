@@ -3,7 +3,7 @@ use super::*;
 /// Test that ψ_j(0) ≈ 1 for both probability characteristic functions.
 #[test]
 fn test_pj_char_function_at_zero() {
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
     let log_spot = 100.0_f64.ln();
 
     // At φ=0, ψ_j(0) should equal 1 (or very close)
@@ -27,7 +27,7 @@ fn test_pj_char_function_at_zero() {
 /// Test that P1 and P2 are within valid probability range [0, 1].
 #[test]
 fn test_probabilities_in_valid_range() {
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
     let settings = HestonFourierSettings::default();
 
     // Test various moneyness levels
@@ -62,7 +62,7 @@ fn test_probabilities_in_valid_range() {
 /// Test that call price is positive and reasonable.
 #[test]
 fn test_heston_call_positive() {
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
 
     let price = heston_call_price_fourier(100.0, 100.0, 1.0, &params, None)
         .expect("Heston Fourier call price");
@@ -78,7 +78,7 @@ fn test_heston_call_positive() {
 /// Test put-call parity holds.
 #[test]
 fn test_heston_put_call_parity() {
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
 
     let call = heston_call_price_fourier(100.0, 100.0, 1.0, &params, None)
         .expect("Heston Fourier call price");
@@ -104,7 +104,7 @@ fn test_black_scholes_limit() {
     let variance = vol * vol;
 
     // Heston with very small sigma_v should match Black-Scholes
-    let params = HestonParams::new(
+    let params = HestonPricingParams::new(
         0.05,     // r
         0.0,      // q
         2.0,      // kappa (doesn't matter when sigma_v=0)
@@ -130,7 +130,7 @@ fn test_black_scholes_limit() {
 /// Test against the volatility/heston.rs implementation.
 ///
 /// Cross-validates this closed-form implementation against the canonical
-/// Heston pricer in `finstack_quant_core::math::volatility::heston`.
+/// Heston pricer in `crate::volatility::heston`.
 ///
 /// The two carry independent implementations of the same Gil-Pelaez /
 /// "Little Heston Trap" formulation with different quadrature (composite
@@ -151,15 +151,13 @@ fn test_cross_validation_with_core_heston() {
     let rho = -0.7;
 
     // Our implementation
-    let params = HestonParams::new(r, q, kappa, theta, sigma_v, rho, v0).expect("valid");
+    let params = HestonPricingParams::new(r, q, kappa, theta, sigma_v, rho, v0).expect("valid");
     let our_price = heston_call_price_fourier(spot, strike, time, &params, None)
         .expect("Heston Fourier call price");
 
     // Canonical core implementation
-    let core_params = finstack_quant_core::math::volatility::heston::HestonParams::new(
-        v0, kappa, theta, sigma_v, rho,
-    )
-    .expect("valid Heston params");
+    let core_params = crate::volatility::heston::HestonParams::new(v0, kappa, theta, sigma_v, rho)
+        .expect("valid Heston params");
     let vol_price = core_params.price_european(spot, strike, r, q, time, true);
 
     // These are two implementations of the *same* Gil-Pelaez / Little-Trap
@@ -198,14 +196,12 @@ fn test_cross_validation_deep_otm_wing_divergence_is_bounded() {
     let (spot, strike, time, r, q) = (100.0, 120.0, 0.25, 0.02, 0.0);
     let (v0, kappa, theta, sigma_v, rho) = (0.05, 3.0, 0.05, 0.5, -0.8);
 
-    let params = HestonParams::new(r, q, kappa, theta, sigma_v, rho, v0).expect("valid");
+    let params = HestonPricingParams::new(r, q, kappa, theta, sigma_v, rho, v0).expect("valid");
     let our_price = heston_call_price_fourier(spot, strike, time, &params, None)
         .expect("Heston Fourier call price");
 
-    let core_params = finstack_quant_core::math::volatility::heston::HestonParams::new(
-        v0, kappa, theta, sigma_v, rho,
-    )
-    .expect("valid Heston params");
+    let core_params = crate::volatility::heston::HestonParams::new(v0, kappa, theta, sigma_v, rho)
+        .expect("valid Heston params");
     let core_price = core_params.price_european(spot, strike, r, q, time, true);
 
     let abs_diff = (our_price - core_price).abs();
@@ -229,7 +225,7 @@ fn test_cross_validation_deep_otm_wing_divergence_is_bounded() {
 /// is within an expected range based on Black-Scholes bounds.
 #[test]
 fn test_reference_typical_params() {
-    let params = HestonParams::new(
+    let params = HestonPricingParams::new(
         0.05, // r
         0.0,  // q
         2.0,  // kappa
@@ -258,7 +254,7 @@ fn test_reference_typical_params() {
 /// v0=0.04, kappa=2.0, theta=0.04, sigma=0.3, rho=-0.7
 #[test]
 fn test_reference_typical_equity() {
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
 
     let call = heston_call_price_fourier(100.0, 100.0, 1.0, &params, None)
         .expect("Heston Fourier call price");
@@ -281,7 +277,7 @@ fn test_reference_typical_equity() {
 /// Test OTM and ITM options have correct ordering.
 #[test]
 fn test_moneyness_ordering() {
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
 
     let call_itm = heston_call_price_fourier(100.0, 90.0, 1.0, &params, None)
         .expect("Heston Fourier call price");
@@ -308,7 +304,7 @@ fn test_moneyness_ordering() {
 /// Test expired option returns intrinsic value.
 #[test]
 fn test_expired_option() {
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
 
     // ITM call
     let call_itm = heston_call_price_fourier(100.0, 90.0, 0.0, &params, None)
@@ -342,7 +338,8 @@ fn test_expired_option() {
 #[test]
 fn test_stability_extreme_params() {
     // High vol-of-vol
-    let params_high_vov = HestonParams::new(0.05, 0.0, 5.0, 0.09, 1.0, -0.9, 0.09).expect("valid");
+    let params_high_vov =
+        HestonPricingParams::new(0.05, 0.0, 5.0, 0.09, 1.0, -0.9, 0.09).expect("valid");
     let price = heston_call_price_fourier(100.0, 100.0, 1.0, &params_high_vov, None)
         .expect("Heston Fourier call price");
     assert!(
@@ -351,7 +348,7 @@ fn test_stability_extreme_params() {
     );
 
     // Very short maturity
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
     let price_short = heston_call_price_fourier(100.0, 100.0, 0.01, &params, None)
         .expect("Heston Fourier call price");
     assert!(
@@ -379,7 +376,7 @@ fn test_stability_extreme_params() {
 /// Test improved accuracy for very short-dated options.
 #[test]
 fn test_short_maturity_adaptive() {
-    let params = HestonParams::new(0.05, 0.0, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.0, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
 
     // Very short maturity: T = 1 week
     let time = 7.0 / 365.0;
@@ -402,7 +399,7 @@ fn test_short_maturity_adaptive() {
 /// Test that adaptive settings produce valid results across maturities.
 #[test]
 fn test_adaptive_settings_consistency() {
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
 
     for &time in &[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0] {
         let price = heston_call_price_fourier(100.0, 100.0, time, &params, None)
@@ -430,7 +427,7 @@ fn test_adaptive_settings_consistency() {
 /// Test multi-strike pricing matches the existing single-strike API.
 #[test]
 fn test_heston_call_strip_matches_single_strike_prices() {
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
     let strikes = [80.0, 90.0, 100.0, 110.0, 120.0];
 
     let strip_prices = heston_call_prices_fourier(100.0, &strikes, 0.5, &params, None)
@@ -453,7 +450,7 @@ fn test_heston_call_strip_matches_single_strike_prices() {
 /// Test multi-strike put pricing matches the existing single-strike API.
 #[test]
 fn test_heston_put_strip_matches_single_strike_prices() {
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
     let strikes = [80.0, 90.0, 100.0, 110.0, 120.0];
 
     let strip_prices = heston_put_prices_fourier(100.0, &strikes, 0.5, &params, None)
@@ -476,7 +473,7 @@ fn test_heston_put_strip_matches_single_strike_prices() {
 /// Test multi-strike pricing preserves expected call ordering across a strip.
 #[test]
 fn test_heston_call_strip_monotonic_in_strike() {
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
     let strikes: Vec<f64> = (75..=124).map(f64::from).collect();
 
     let strip_prices = heston_call_prices_fourier(100.0, &strikes, 1.0, &params, None)
@@ -495,7 +492,7 @@ fn test_heston_call_strip_monotonic_in_strike() {
 /// Test strip pricing remains positive and respects put-call parity.
 #[test]
 fn test_heston_call_strip_consistency_across_many_strikes() {
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
     let spot: f64 = 100.0;
     let time: f64 = 1.0;
     let strikes: Vec<f64> = (75..=124).map(f64::from).collect();
@@ -522,9 +519,9 @@ fn test_heston_call_strip_consistency_across_many_strikes() {
 
 #[test]
 fn test_validation_rejects_invalid_params() {
-    assert!(HestonParams::new(0.05, 0.02, -1.0, 0.04, 0.3, -0.7, 0.04).is_err());
-    assert!(HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, 1.1, 0.04).is_err());
-    assert!(HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.0).is_err());
+    assert!(HestonPricingParams::new(0.05, 0.02, -1.0, 0.04, 0.3, -0.7, 0.04).is_err());
+    assert!(HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, 1.1, 0.04).is_err());
+    assert!(HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.0).is_err());
 }
 
 /// W-02: unsupported `gl_order` must be rejected at the construction
@@ -562,7 +559,7 @@ fn fourier_settings_rejects_degenerate_grid() {
 /// substitute a Black-Scholes price under the Heston model key.
 #[test]
 fn strip_pricer_rejects_corrupted_nodes() {
-    let params = HestonParams::new(0.05, 0.0, 10.0, 100.0, 90.0, 0.99, 90.0).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.0, 10.0, 100.0, 90.0, 0.99, 90.0).expect("valid");
     let settings = HestonFourierSettings::default();
     let pricer = HestonStripPricer::new(100.0, 30.0, &params, &settings).expect("grid constructs");
     assert!(pricer.integrand_corrupted);
@@ -581,7 +578,7 @@ fn strip_pricer_rejects_corrupted_nodes() {
 /// — the strip price must still match the per-strike Fourier price.
 #[test]
 fn strip_pricer_no_false_corruption_on_normal_params() {
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
     let settings = HestonFourierSettings::default();
     let pricer = HestonStripPricer::new(100.0, 1.0, &params, &settings).expect("constructs");
     assert!(
@@ -599,7 +596,7 @@ fn strip_pricer_no_false_corruption_on_normal_params() {
 
 #[test]
 fn test_characteristic_function_handles_extreme_inputs() {
-    let params = HestonParams::new(0.05, 0.0, 0.1, 0.04, 1.0, 0.9, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.0, 0.1, 0.04, 1.0, 0.9, 0.04).expect("valid");
     let (psi, _status) = heston_pj_characteristic_function(1, 0.0, 1.0, 100.0_f64.ln(), &params);
     assert!(
         psi.is_finite(),
@@ -615,7 +612,7 @@ fn test_characteristic_function_handles_extreme_inputs() {
 #[test]
 fn long_dated_high_kappa_theta_does_not_fall_back_to_bs() {
     // κθ = 3.0 × 0.09 = 0.27.
-    let params = HestonParams::new(0.03, 0.0, 3.0, 0.09, 0.2, -0.6, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.03, 0.0, 3.0, 0.09, 0.2, -0.6, 0.04).expect("valid");
     let spot = 100.0;
     let strike = 100.0;
     let time = 15.0;
@@ -659,7 +656,7 @@ fn long_dated_high_kappa_theta_does_not_fall_back_to_bs() {
 /// reproduce BS at √v̄(T).
 #[test]
 fn bs_fallback_uses_deterministic_avg_variance_not_v0() {
-    let params = HestonParams::new(0.05, 0.0, 2.0, 0.09, 1e-12, -0.5, 0.01).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.0, 2.0, 0.09, 1e-12, -0.5, 0.01).expect("valid");
     let spot = 100.0;
     let strike = 100.0;
     let time = 1.0;
@@ -694,14 +691,9 @@ fn bs_fallback_uses_deterministic_avg_variance_not_v0() {
 #[test]
 fn deterministic_avg_variance_taylor_branch_is_continuous() {
     let t = 1.0;
-    let mk = |kappa: f64| HestonParams {
-        r: 0.0,
-        q: 0.0,
-        kappa,
-        theta: 0.09,
-        sigma_v: 0.3,
-        rho: -0.5,
-        v0: 0.01,
+    let mk = |kappa: f64| {
+        HestonPricingParams::new(0.0, 0.0, kappa, 0.09, 0.3, -0.5, 0.01)
+            .expect("positive kappa and valid Heston inputs")
     };
     // Just below and just above the 1e-6 κt switch. The two κ values
     // genuinely differ, so allow the O(κt·(v0−θ)) ≈ 1e-8 physical gap.
@@ -715,43 +707,28 @@ fn deterministic_avg_variance_taylor_branch_is_continuous() {
     assert!((below - 0.01).abs() < 1e-6);
 }
 
-/// Audit item 6: `From<monte_carlo::HestonParams>` bypassed
-/// `HestonParams::new` validation entirely.
-///
-/// Failure mode locked in: the Monte Carlo `HestonParams` accepts
-/// `ρ ∈ [-1, 1]` (inclusive), but the closed-form Fourier pricer requires
-/// `ρ ∈ (-1, 1)` (exclusive). A `ρ = ±1` Monte Carlo parameter set must NOT
-/// convert into a closed-form `HestonParams` silently — the conversion is
-/// now a `TryFrom` that re-runs the full validation.
+/// Monte Carlo and Fourier wrappers share the same canonical Heston validation.
 #[test]
-fn try_from_monte_carlo_params_revalidates_correlation_bound() {
-    // ρ = 1.0 is valid for the MC process but invalid for the closed-form
-    // Fourier pricer; the boundary value must be rejected on conversion.
-    let mc_rho_one = finstack_quant_models::monte_carlo::process::heston::HestonParams::new(
-        0.05, 0.02, 2.0, 0.04, 0.3, 1.0, 0.04,
-    )
-    .expect("rho=1 is accepted by the Monte Carlo constructor");
-    let converted: Result<HestonParams, _> = HestonParams::try_from(mc_rho_one);
+fn monte_carlo_and_fourier_share_correlation_validation() {
     assert!(
-        converted.is_err(),
-        "rho=1 MC params must fail conversion to closed-form HestonParams"
+        finstack_quant_models::monte_carlo::process::heston::HestonProcessParams::new(
+            0.05, 0.02, 2.0, 0.04, 0.3, 1.0, 0.04,
+        )
+        .is_err()
     );
-
-    let mc_rho_neg_one = finstack_quant_models::monte_carlo::process::heston::HestonParams::new(
-        0.05, 0.02, 2.0, 0.04, 0.3, -1.0, 0.04,
-    )
-    .expect("rho=-1 is accepted by the Monte Carlo constructor");
     assert!(
-        HestonParams::try_from(mc_rho_neg_one).is_err(),
-        "rho=-1 MC params must fail conversion to closed-form HestonParams"
+        finstack_quant_models::monte_carlo::process::heston::HestonProcessParams::new(
+            0.05, 0.02, 2.0, 0.04, 0.3, -1.0, 0.04,
+        )
+        .is_err()
     );
 
     // A well-formed MC parameter set still converts successfully.
-    let mc_ok = finstack_quant_models::monte_carlo::process::heston::HestonParams::new(
+    let mc_ok = finstack_quant_models::monte_carlo::process::heston::HestonProcessParams::new(
         0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04,
     )
     .expect("valid MC params");
-    let cf = HestonParams::try_from(mc_ok).expect("valid MC params must convert");
+    let cf = HestonPricingParams::try_from(mc_ok).expect("valid MC params must convert");
     assert_eq!(cf.rho, -0.7);
     assert_eq!(cf.kappa, 2.0);
 }
@@ -760,7 +737,7 @@ fn try_from_monte_carlo_params_revalidates_correlation_bound() {
 /// failure instead of substituting a Black-Scholes proxy.
 #[test]
 fn scalar_fourier_rejects_corrupted_nodes_after_retry() {
-    let params = HestonParams::new(0.05, 0.0, 10.0, 100.0, 90.0, 0.99, 90.0).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.0, 10.0, 100.0, 90.0, 0.99, 90.0).expect("valid");
     let settings = HestonFourierSettings::default();
     let error = heston_call_price_fourier(100.0, 100.0, 30.0, &params, Some(&settings))
         .expect_err("corrupted Heston integration must fail");
@@ -775,7 +752,7 @@ fn scalar_fourier_rejects_corrupted_nodes_after_retry() {
 /// fallback — the scalar Fourier price must still match the strip price.
 #[test]
 fn scalar_fourier_no_false_corruption_on_normal_params() {
-    let params = HestonParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
     let settings = HestonFourierSettings::default();
     let scalar = heston_call_price_fourier(100.0, 100.0, 1.0, &params, Some(&settings))
         .expect("Heston Fourier call price");
@@ -801,7 +778,7 @@ fn scalar_fourier_no_false_corruption_on_normal_params() {
 /// trusting a clamped value.
 #[test]
 fn gil_pelaez_exposes_truncation_tail_diagnostic() {
-    let params = HestonParams::new(0.05, 0.0, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+    let params = HestonPricingParams::new(0.05, 0.0, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
 
     // Short maturity with a deliberately too-small u_max: the integrand has
     // not decayed by u_max, so the truncation tail is non-negligible.
@@ -848,7 +825,7 @@ fn gil_pelaez_exposes_truncation_tail_diagnostic() {
 #[test]
 fn low_variance_settings_match_high_umax_reference() {
     let v0 = 0.0016; // 4% vol
-    let params = HestonParams::new(0.02, 0.0, 1.5, 0.0016, 0.2, -0.5, v0).expect("valid");
+    let params = HestonPricingParams::new(0.02, 0.0, 1.5, 0.0016, 0.2, -0.5, v0).expect("valid");
     let (spot, strike, time) = (100.0, 105.0, 2.0);
 
     let settings = HestonFourierSettings::for_maturity_with_variance(time, v0);

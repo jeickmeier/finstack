@@ -128,8 +128,8 @@ strike conventions. Resolution is strict, with no clamped fallback:
 
 1. An instrument implied-vol override has highest precedence and needs no
    surface.
-2. Otherwise the `VolSurface` under `vol_surface_id` is queried with
-   `value_checked(t_expiry, native_strike_coordinate)` — the decimal spread
+2. Otherwise the `VolSurface` under `vol_surface_id` is evaluated with
+   `models::volatility::get_surface_vol(t_expiry, native_strike_coordinate)` — the decimal spread
    (`0.0325`) for spread strikes, the percentage clean price (`107.0`) for price
    strikes. Expiry or strike extrapolation is an error.
 3. The surface must carry `VolSurfaceAxis::Strike` and

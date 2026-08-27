@@ -417,9 +417,9 @@ fn price_engine_gbm(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::closed_form::{black_scholes_spot_call, black_scholes_spot_put};
     use crate::monte_carlo::payoff::vanilla::EuropeanCall;
     use crate::monte_carlo::process::gbm::GbmParams;
-    use finstack_quant_core::math::volatility::{black_scholes_spot_call, black_scholes_spot_put};
 
     #[test]
     fn test_european_pricer_basic() {

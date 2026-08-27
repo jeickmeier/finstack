@@ -5,8 +5,8 @@
 use crate::swaption::common::*;
 use finstack_quant_core::dates::DayCountContext;
 use finstack_quant_core::dates::{Tenor, TenorUnit};
+use finstack_quant_models::volatility::SabrParameters;
 use finstack_quant_valuations::instruments::pricing_overrides::VolSurfaceExtrapolation;
-use finstack_quant_valuations::instruments::rates::swaption::SABRParameters;
 use finstack_quant_valuations::instruments::rates::swaption::{
     BermudanSchedule, BermudanSwaption, CashSettlementMethod, Swaption, SwaptionExercise,
     SwaptionSettlement, VolatilityModel,
@@ -144,7 +144,7 @@ fn test_resolve_volatility_priority_and_greek_inputs_expired() {
     let override_vol = swaption.resolve_volatility(&market, forward, t).unwrap();
     assert_approx_eq(override_vol, 0.35, 1e-12, "override vol");
 
-    let sabr_params = SABRParameters::rates_standard(0.2, 0.5, -0.25).unwrap();
+    let sabr_params = SabrParameters::rates_standard(0.2, 0.5, -0.25).unwrap();
     swaption = swaption.with_sabr(sabr_params);
     let sabr_vol = swaption.resolve_volatility(&market, forward, t).unwrap();
     assert!(sabr_vol.is_finite(), "sabr vol should be finite");
@@ -165,16 +165,16 @@ fn test_resolve_volatility_priority_and_greek_inputs_expired() {
 
 #[test]
 fn test_sabr_parameter_constructors_and_internal_conversion() {
-    let plain = SABRParameters::new(0.2, 0.7, 0.4, -0.2).unwrap();
+    let plain = SabrParameters::new(0.2, 0.7, 0.4, -0.2).unwrap();
     assert_eq!(plain.shift, None);
 
-    let shifted = SABRParameters::new_with_shift(0.2, 0.5, 0.4, -0.2, 0.01).unwrap();
+    let shifted = SabrParameters::new_with_shift(0.2, 0.5, 0.4, -0.2, 0.01).unwrap();
     assert_eq!(shifted.shift, Some(0.01));
 
-    let eq = SABRParameters::equity_standard(0.2, 0.5, -0.3).unwrap();
-    let rates = SABRParameters::rates_standard(0.2, 0.5, -0.3).unwrap();
-    let normal = SABRParameters::normal(0.2, 0.5, -0.3).unwrap();
-    let lognormal = SABRParameters::lognormal(0.2, 0.5, -0.3).unwrap();
+    let eq = SabrParameters::equity_standard(0.2, 0.5, -0.3).unwrap();
+    let rates = SabrParameters::rates_standard(0.2, 0.5, -0.3).unwrap();
+    let normal = SabrParameters::normal(0.2, 0.5, -0.3).unwrap();
+    let lognormal = SabrParameters::lognormal(0.2, 0.5, -0.3).unwrap();
     assert_eq!(eq.beta, 1.0);
     assert_eq!(rates.beta, 0.5);
     assert_eq!(normal.beta, 0.0);

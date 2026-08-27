@@ -256,7 +256,11 @@ fn test_remaining_forward_variance_uses_surface_when_available() {
         .year_fraction(as_of, swap.maturity, Default::default())
         .unwrap();
     let surface_check = sample_surface();
-    let _vol_atm = surface_check.value_clamped(t.max(1e-8), 5_000.0);
+    let _vol_atm = finstack_quant_models::volatility::get_surface_vol_clamped(
+        &surface_check,
+        t.max(1e-8),
+        5_000.0,
+    );
 
     // The actual result may be from VIX-style replication or ATM fallback
     assert!(forward > 0.0);

@@ -6,7 +6,7 @@ use finstack_quant_core::{Error, Result};
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(deny_unknown_fields)]
-pub struct SABRParameters {
+pub struct SabrParameters {
     /// Initial volatility (alpha)
     #[serde(
         serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
@@ -46,7 +46,7 @@ pub struct SABRParameters {
     pub shift: Option<f64>,
 }
 
-impl SABRParameters {
+impl SabrParameters {
     /// Create new SABR parameters with validation.
     ///
     /// Enforces market-standard parameter bounds:
@@ -225,25 +225,25 @@ mod tests {
     #[test]
     fn serde_and_validation_reject_the_same_invalid_parameters() {
         let invalid = [
-            SABRParameters {
+            SabrParameters {
                 alpha: -0.1,
-                ..SABRParameters::rates_default()
+                ..SabrParameters::rates_default()
             },
-            SABRParameters {
+            SabrParameters {
                 beta: 1.1,
-                ..SABRParameters::rates_default()
+                ..SabrParameters::rates_default()
             },
-            SABRParameters {
+            SabrParameters {
                 nu: -0.1,
-                ..SABRParameters::rates_default()
+                ..SabrParameters::rates_default()
             },
-            SABRParameters {
+            SabrParameters {
                 rho: 1.1,
-                ..SABRParameters::rates_default()
+                ..SabrParameters::rates_default()
             },
-            SABRParameters {
+            SabrParameters {
                 shift: Some(0.0),
-                ..SABRParameters::rates_default()
+                ..SabrParameters::rates_default()
             },
         ];
         for parameters in invalid {
@@ -259,14 +259,14 @@ mod tests {
             json!({"alpha": 0.02, "beta": 0.5, "nu": 0.3, "rho": 0.0, "shift": 0.0}),
             json!({"alpha": 0.02, "beta": 0.5, "nu": 0.3, "rho": 0.0, "extra": true}),
         ] {
-            assert!(serde_json::from_value::<SABRParameters>(value).is_err());
+            assert!(serde_json::from_value::<SabrParameters>(value).is_err());
         }
     }
 
     #[test]
     fn generated_schema_carries_all_sabr_bounds() {
         let schema =
-            serde_json::to_value(schemars::schema_for!(SABRParameters)).expect("SABR schema");
+            serde_json::to_value(schemars::schema_for!(SabrParameters)).expect("SABR schema");
         assert_eq!(schema["additionalProperties"], false);
         assert_eq!(schema["$defs"]["PositiveF64Wire"]["exclusiveMinimum"], 0.0);
         assert_eq!(schema["$defs"]["ClosedUnitIntervalF64Wire"]["minimum"], 0.0);

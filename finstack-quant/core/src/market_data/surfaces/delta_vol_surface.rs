@@ -62,13 +62,8 @@
 //!   are grid points, queries at pillar expiries reproduce the per-expiry
 //!   smile exactly (piecewise-linear interpolation is invariant under grid
 //!   refinement). Beyond an expiry's own quoted wings the smile is flat.
-//!   **Off-pillar expiry queries** on the materialized surface blend rows
-//!   linearly in vol at fixed strike, which flattens intermediate smiles when
-//!   forwards differ across pillars; for smile-faithful off-pillar lookups
-//!   use [`FxDeltaVolSurface::implied_vol`](super::FxDeltaVolSurface::implied_vol),
-//!   which interpolates the
-//!   delta-space quotes to the query expiry and rebuilds the smile at that
-//!   expiry's forward.
+//!   Models-layer evaluators can instead work directly from the delta-space
+//!   artifact when smile-faithful off-pillar evaluation is required.
 //!
 //! # References
 //!
@@ -113,8 +108,8 @@ use super::{fx_atm_dns_strike, fx_forward, fx_smile_pillars, interp_linear_clamp
 ///     .build()
 ///     .expect("FX delta vol surface should build");
 ///
-/// // Surface builds and can interpolate vol at expiry/strike
-/// assert!(surface.value_clamped(0.5, 1.10) > 0.0);
+/// assert_eq!(surface.grid_shape().0, 3);
+/// assert!(surface.vols().iter().all(|vol| *vol > 0.0));
 /// ```
 pub struct FxDeltaVolSurfaceBuilder {
     id: CurveId,

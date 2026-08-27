@@ -912,7 +912,7 @@ mod tests {
             "FutureContractSpecs",
             "PacCollar",
             "RevolvingCreditFees",
-            "SABRParameters",
+            "SabrParameters",
             "SoftCallTrigger",
             "TrancheStructure",
             "ValuationDiscounts",

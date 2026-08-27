@@ -16,8 +16,8 @@ mod tests;
 
 pub use bermudan::BermudanSwaption;
 pub use definitions::{
-    BermudanSchedule, BermudanType, CashSettlementMethod, SABRParameters, SwaptionExercise,
-    SwaptionSettlement, VolatilityModel,
+    BermudanSchedule, BermudanType, CashSettlementMethod, SwaptionExercise, SwaptionSettlement,
+    VolatilityModel,
 };
 pub use swaption::{GreekInputs, Swaption, SwaptionBuilder};
 

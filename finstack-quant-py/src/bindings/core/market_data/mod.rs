@@ -1,6 +1,5 @@
 //! Python bindings for `finstack_quant_core::market_data` term structures and context.
 
-pub mod arbitrage;
 pub mod context;
 pub mod curves;
 pub mod fx;
@@ -9,7 +8,7 @@ pub mod scalars;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 
-const ROOT_SUBMODULES: &[&str] = &["curves", "fx", "context", "scalars", "arbitrage"];
+const ROOT_SUBMODULES: &[&str] = &["curves", "fx", "context", "scalars"];
 
 /// Promote an explicit export list from a submodule onto the parent module.
 fn promote_exports(
@@ -44,8 +43,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     fx::register(py, &m)?;
     scalars::register(py, &m)?;
     context::register(py, &m)?;
-    arbitrage::register(py, &m)?;
-
     promote_exports(&m, "curves", curves::EXPORTS)?;
     promote_exports(&m, "fx", fx::EXPORTS)?;
     promote_exports(&m, "scalars", scalars::EXPORTS)?;

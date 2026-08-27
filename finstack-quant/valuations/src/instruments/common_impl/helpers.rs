@@ -1194,7 +1194,8 @@ pub fn collect_black_scholes_inputs_df(
 
     // Volatility (sigma) using vol surface's time basis
     let vol_surface = curves.get_surface(vol_surface_id)?;
-    let sigma = vol_surface.value_clamped(t_vol, strike);
+    let sigma =
+        finstack_quant_models::volatility::get_surface_vol_clamped(&vol_surface, t_vol, strike);
 
     Ok(BlackScholesInputsDf {
         spot,

@@ -12,7 +12,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::Result;
-use finstack_quant_models::{SABRCalibrator, SABRModel, SABRParameters};
+use finstack_quant_models::{SabrCalibrator, SabrModel, SabrParameters};
 use std::collections::BTreeMap;
 
 use crate::calibration::constants::OrderedF64;
@@ -150,9 +150,9 @@ impl VolSurfaceTarget {
         let forward_fn = |t: f64| forward_inputs.forward(discount.as_ref(), t);
 
         // The SABR calibrator owns tolerances for its vega-weighted SSE.
-        let sabr_calibrator = SABRCalibrator::new();
+        let sabr_calibrator = SabrCalibrator::new();
 
-        let mut sabr_params_by_expiry: BTreeMap<OrderedF64, SABRParameters> = BTreeMap::new();
+        let mut sabr_params_by_expiry: BTreeMap<OrderedF64, SabrParameters> = BTreeMap::new();
         let mut sabr_winning_starts = Vec::new();
         let mut sabr_winning_iterations = Vec::new();
         let mut sabr_residual_evaluations = Vec::new();
@@ -204,7 +204,7 @@ impl VolSurfaceTarget {
                 ));
             }
             let p = outcome.parameters;
-            let model = SABRModel::new(p.clone());
+            let model = SabrModel::new(p.clone());
             for (i, k) in strikes.iter().enumerate() {
                 let model_vol = model.implied_volatility(f, *k, t).map_err(|e| {
                     finstack_quant_core::Error::Calibration {
@@ -323,7 +323,7 @@ impl VolSurfaceTarget {
         target_expiry: f64,
         target_strike: f64,
         forward_fn: &impl Fn(f64) -> Result<f64>,
-        params: &BTreeMap<OrderedF64, SABRParameters>,
+        params: &BTreeMap<OrderedF64, SabrParameters>,
         extrapolation: SurfaceExtrapolationPolicy,
     ) -> Result<f64> {
         if target_expiry <= 0.0 {
@@ -358,10 +358,10 @@ total-variance extrapolation."
         }
 
         let slice_total_variance = |slice_expiry: f64,
-                                    slice_params: &SABRParameters|
+                                    slice_params: &SabrParameters|
          -> Result<f64> {
             let forward = forward_fn(slice_expiry)?;
-            let sigma = SABRModel::new(slice_params.clone())
+            let sigma = SabrModel::new(slice_params.clone())
                 .implied_volatility(forward, target_strike, slice_expiry)
                 .map_err(|e| finstack_quant_core::Error::Calibration {
                     message: format!(
@@ -426,11 +426,11 @@ mod tests {
     use finstack_quant_core::dates::{Date, DateExt};
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
-    use finstack_quant_models::SABRParameters;
+    use finstack_quant_models::SabrParameters;
     use time::Month;
 
-    fn params(alpha: f64, beta: f64, nu: f64, rho: f64, shift: f64) -> SABRParameters {
-        SABRParameters {
+    fn params(alpha: f64, beta: f64, nu: f64, rho: f64, shift: f64) -> SabrParameters {
+        SabrParameters {
             alpha,
             beta,
             nu,
@@ -439,13 +439,13 @@ mod tests {
         }
     }
 
-    fn slice_vol(p: &SABRParameters, forward: f64, strike: f64, expiry: f64) -> f64 {
-        SABRModel::new(p.clone())
+    fn slice_vol(p: &SabrParameters, forward: f64, strike: f64, expiry: f64) -> f64 {
+        SabrModel::new(p.clone())
             .implied_volatility(forward, strike, expiry)
             .expect("SABR vol")
     }
 
-    fn slice_total_variance(p: &SABRParameters, forward: f64, strike: f64, expiry: f64) -> f64 {
+    fn slice_total_variance(p: &SabrParameters, forward: f64, strike: f64, expiry: f64) -> f64 {
         let sigma = slice_vol(p, forward, strike, expiry);
         sigma * sigma * expiry
     }

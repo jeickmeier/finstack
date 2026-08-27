@@ -13,7 +13,7 @@
 #![allow(clippy::unwrap_used)]
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use finstack_quant_models::closed_form::{heston_call_price_fourier, HestonParams};
+use finstack_quant_models::closed_form::{heston_call_price_fourier, HestonPricingParams};
 use finstack_quant_models::fourier::characteristic_function::BlackScholesCf;
 use finstack_quant_models::fourier::cos::{CosConfig, CosPricer};
 use std::hint::black_box;
@@ -47,15 +47,8 @@ fn bench_heston_fourier_strip(c: &mut Criterion) {
     let mut group = c.benchmark_group("heston_fourier_strip");
     let spot = 100.0;
     let time = 1.0_f64;
-    let params = HestonParams {
-        r: 0.03,
-        q: 0.01,
-        kappa: 1.5,
-        theta: 0.04,
-        sigma_v: 0.3,
-        rho: -0.6,
-        v0: 0.04,
-    };
+    let params = HestonPricingParams::new(0.03, 0.01, 1.5, 0.04, 0.3, -0.6, 0.04)
+        .expect("valid benchmark Heston parameters");
 
     for &n in &[16_usize, 64, 256] {
         let strikes = make_strikes(spot, n);

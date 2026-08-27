@@ -36,7 +36,6 @@ import pandas as pd
 
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.money import Money
-from finstack_quant.core.market_data import arbitrage as arbitrage
 from finstack_quant.core.market_data import context as context
 from finstack_quant.core.market_data import curves as curves
 from finstack_quant.core.market_data import fx as fx
@@ -62,7 +61,6 @@ __all__ = [
     "VolCube",
     "VolSurface",
     "VolatilityIndexCurve",
-    "arbitrage",
     "context",
     "curves",
     "fx",
@@ -1328,8 +1326,8 @@ class VolSurface:
     --------
     >>> from finstack_quant.core.market_data import VolSurface
     >>> surface = VolSurface("EQ-VOL", [1.0, 2.0], [90.0, 100.0], [0.20, 0.21, 0.22, 0.23])
-    >>> (surface.grid_shape, surface.value_checked(1.0, 100.0))
-    ((2, 2), 0.21)
+    >>> (surface.grid_shape, surface.quote_type)
+    ((2, 2), 'black_lognormal')
 
     """
 
@@ -1375,56 +1373,6 @@ class VolSurface:
             If an option name is unknown; an axis is empty, non-finite, or not
             strictly increasing; the flat grid length does not match the axis
             dimensions; or a volatility is negative or non-finite.
-
-        """
-        ...
-
-    def value_checked(self, expiry: float, strike: float) -> float:
-        """
-        Return an interpolated volatility with explicit grid bounds checking.
-
-        Parameters
-        ----------
-        expiry : float
-            Option expiry in years, required to lie within the surface grid.
-        strike : float
-            Strike or configured secondary-axis coordinate to interpolate at.
-
-        Returns
-        -------
-        float
-            Interpolated annualized volatility in the stored quote convention:
-            relative Black decimal or normal absolute-rate units, without extrapolation.
-
-        Raises
-        ------
-        ValueError
-            If *expiry* or *strike* is non-finite or outside the stored grid,
-            or interpolation segments cannot be determined.
-
-        """
-        ...
-
-    def value_clamped(self, expiry: float, strike: float) -> float:
-        """
-        Return an interpolated volatility with flat edge extrapolation.
-
-        Parameters
-        ----------
-        expiry : float
-            Option expiry in years; values beyond the grid are clamped to an edge.
-        strike : float
-            Strike or configured secondary-axis coordinate, clamped at grid edges.
-
-        Returns
-        -------
-        float
-            Stored-convention volatility after clamping both coordinates to
-            grid edges, or ``NaN`` for non-finite inputs.
-
-        Notes
-        -----
-        This helper does not raise; out-of-grid coordinates are clamped and non-finite inputs return ``NaN``.
 
         """
         ...
@@ -1560,8 +1508,8 @@ class FxDeltaVolSurface:
     --------
     >>> from finstack_quant.core.market_data import FxDeltaVolSurface
     >>> surface = FxDeltaVolSurface("EURUSD", [1.0], [0.12], [0.01], [0.005])
-    >>> (surface.pillar_vols(0), surface.implied_vol(1.0, 1.0, 1.1))
-    ((0.12, 0.12, 0.13), 0.12)
+    >>> (surface.num_expiries, surface.expiries)
+    (1, [1.0])
 
     """
 
@@ -1649,159 +1597,6 @@ class FxDeltaVolSurface:
         """
         ...
 
-    def pillar_vols(self, expiry_idx: int) -> tuple[float, float, float]:
-        """
-        Pillar vols at ``expiry_idx`` as ``(atm, put_25d_vol, call_25d_vol)``.
-
-        Parameters
-        ----------
-        expiry_idx : int
-            Zero-based index into the surface's ordered expiry pillars.
-
-        Raises
-        ------
-        IndexError
-            If ``expiry_idx`` is out of range.
-
-        Returns
-        -------
-        tuple[float, float, float]
-            Annualized decimal ``(ATM, 25-delta put, 25-delta call)``
-            volatilities recovered from the expiry's ATM, RR, and BF quotes.
-        """
-        ...
-
-    def implied_vol(
-        self,
-        expiry: float,
-        strike: float,
-        forward: float,
-    ) -> float:
-        """
-        Return interpolated implied volatility at an FX strike.
-
-        Parameters
-        ----------
-        expiry : float
-            Option expiry in years, interpolated across the delta-surface pillars.
-        strike : float
-            FX strike quoted as units of quote currency per base currency.
-        forward : float
-            Positive FX forward for the same expiry and quotation direction.
-
-        Returns
-        -------
-        float
-            Annualized decimal volatility from expiry-interpolated delta quotes
-            and a linearly interpolated strike smile with flat wing extrapolation.
-
-        Raises
-        ------
-        ValueError
-            If *expiry*, *strike*, or *forward* is non-finite or not strictly
-            positive, or if the interpolated smile produces a non-positive
-            wing volatility.
-
-        """
-        ...
-
-    def to_vol_surface(self, spot: float, r_d: float, r_f: float) -> VolSurface:
-        """
-        Materialize this delta surface as a strike-axis :class:`VolSurface`.
-
-        Parameters
-        ----------
-        spot : float
-            Positive FX spot in the surface's base/quote convention.
-        r_d : float
-            Domestic continuously compounded annual rate as a decimal.
-        r_f : float
-            Foreign continuously compounded annual rate as a decimal.
-
-        Returns
-        -------
-        VolSurface
-            Black strike-grid compatibility surface whose axis is the union of
-            the per-expiry delta-derived strikes.
-
-        Raises
-        ------
-        ValueError
-            If *spot* is non-finite or not strictly positive, either rate is
-            non-finite, or the stored delta quotes cannot produce a valid
-            strike-grid surface.
-
-        """
-        ...
-
-    @staticmethod
-    def delta_to_strike(delta: float, forward: float, vol: float, expiry: float) -> float:
-        """
-        Convert a forward delta to a premium-unadjusted Garman-Kohlhagen strike.
-
-        Parameters
-        ----------
-        delta : float
-            Positive premium-unadjusted forward call delta, normally strictly
-            between zero and one; this helper does not select a put convention.
-        forward : float
-            Positive FX forward in the chosen base/quote quotation direction.
-        vol : float
-            Annualized implied volatility as a positive decimal.
-        expiry : float
-            Positive option expiry in years.
-
-        Returns
-        -------
-        float
-            FX strike ``F * exp(-N^-1(delta) * vol * sqrt(T) + 0.5 * vol**2 * T)``
-            in forward quotation units.
-
-        Notes
-        -----
-        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
-
-        Examples
-        --------
-        >>> from finstack_quant.core.market_data import FxDeltaVolSurface
-        >>> round(FxDeltaVolSurface.delta_to_strike(0.25, 1.1, 0.12, 1.0), 6)
-        1.201354
-        """
-        ...
-
-    @staticmethod
-    def strike_to_delta(strike: float, forward: float, vol: float, expiry: float) -> float:
-        """
-        Convert a strike to premium-unadjusted forward call delta.
-
-        Parameters
-        ----------
-        strike : float
-            Positive FX strike in the selected base/quote quotation direction.
-        forward : float
-            Positive FX forward for the option expiry.
-        vol : float
-            Annualized implied volatility as a positive decimal.
-        expiry : float
-            Positive option expiry in years.
-
-        Returns
-        -------
-        float
-            Unitless premium-unadjusted forward call delta ``N(d1)``.
-
-        Notes
-        -----
-        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
-
-        Examples
-        --------
-        >>> from finstack_quant.core.market_data import FxDeltaVolSurface
-        >>> round(FxDeltaVolSurface.strike_to_delta(1.2, 1.1, 0.12, 1.0), 6)
-        0.252995
-        """
-        ...
-
     def __repr__(self) -> str: ...
 
 class VolCube:
@@ -1845,8 +1640,8 @@ class VolCube:
     >>> from finstack_quant.core.market_data import VolCube
     >>> params = [{"alpha": 0.01, "beta": 0.5, "rho": -0.2, "nu": 0.3, "shift": 0.02}]
     >>> cube = VolCube("SWPT", [1.0], [5.0], params, [0.03])
-    >>> (cube.grid_shape, round(cube.vol(1.0, 5.0, 0.03), 6))
-    ((1, 1), 0.045023)
+    >>> (cube.grid_shape, cube.interpolation_mode)
+    ((1, 1), 'vol')
 
     """
 
@@ -1889,230 +1684,6 @@ class VolCube:
             non-finite, non-positive, or not strictly increasing; row-major
             lengths do not match the grid; a forward is non-finite; or any
             SABR parameter dictionary is incomplete or invalid.
-
-        """
-        ...
-
-    def vol(self, expiry: float, tenor: float, strike: float) -> float:
-        """
-        Implied volatility with bounds checking.
-
-        Parameters
-        ----------
-        expiry : float
-            Option expiry in years.
-        tenor : float
-            Underlying swap tenor in years.
-        strike : float
-            Strike rate.
-
-        Returns
-        -------
-        float
-            Black-76 implied volatility.
-
-        Raises
-        ------
-        ValueError
-            If expiry or tenor falls outside the grid.
-        """
-        ...
-
-    def vol_clamped(self, expiry: float, tenor: float, strike: float) -> float:
-        """
-        Return Black implied volatility with clamped extrapolation.
-
-        Parameters
-        ----------
-        expiry : float
-            Option expiry in years, clamped to the nearest cube expiry when outside.
-        tenor : float
-            Underlying swap tenor in years, clamped to the nearest cube tenor.
-        strike : float
-            Strike rate in decimal rate units; non-finite inputs return ``NaN``.
-
-        Returns
-        -------
-        float
-            Annualized Black decimal volatility with finite expiry and tenor
-            clamped to cube edges; finite degeneracies are floored and invalid
-            model inputs return ``NaN``.
-
-        Notes
-        -----
-        This helper does not raise; out-of-grid coordinates are clamped and non-finite inputs return ``NaN``.
-
-        """
-        ...
-
-    def vol_normal(self, expiry: float, tenor: float, strike: float) -> float:
-        """
-        Normal (Bachelier) implied volatility with bounds checking.
-
-        Parameters
-        ----------
-        expiry : float
-            Option expiry in years.
-        tenor : float
-            Underlying swap tenor in years.
-        strike : float
-            Strike rate.
-
-        Returns
-        -------
-        float
-            Normal (Bachelier) implied volatility in absolute rate units
-            (e.g. ``0.008`` = 80 bp/yr).
-
-        Raises
-        ------
-        ValueError
-            If expiry or tenor falls outside the grid, if the expansion
-            yields a non-finite volatility, or for cross-zero quotes
-            (``(F+s)(K+s) <= 0``) with ``beta > 0``, which require an
-            explicit shift.
-        """
-        ...
-
-    def vol_normal_clamped(self, expiry: float, tenor: float, strike: float) -> float:
-        """
-        Normal (Bachelier) implied volatility with clamped extrapolation.
-
-        Degenerate finite expansions are floored to a small positive normal
-        vol. Non-finite inputs return NaN.
-
-        Parameters
-        ----------
-        expiry : float
-            Option expiry in years, clamped to the nearest cube expiry when outside.
-        tenor : float
-            Underlying swap tenor in years, clamped to the nearest cube tenor.
-        strike : float
-            Strike rate in decimal rate units; non-finite inputs return ``NaN``.
-
-        Returns
-        -------
-        float
-            Bachelier volatility in absolute annual rate units after finite edge
-            clamping; finite degeneracies are floored and invalid model inputs
-            return ``NaN``.
-
-        Notes
-        -----
-        This helper does not raise; out-of-grid coordinates are clamped and non-finite inputs return ``NaN``.
-
-        """
-        ...
-
-    def materialize_tenor_slice(self, tenor: float, strikes: list[float]) -> VolSurface:
-        """
-        Materialize a tenor slice as a :class:`VolSurface`.
-
-        Parameters
-        ----------
-        tenor : float
-            Tenor to slice at (years).
-        strikes : list[float]
-            Strike axis for the resulting surface.
-
-        Returns
-        -------
-        VolSurface
-            Black-vol surface on the cube expiry axis and supplied strike axis;
-            a finite out-of-grid ``tenor`` is clamped to the nearest cube edge.
-
-        Raises
-        ------
-        ValueError
-            If *strikes* is empty or contains a non-finite value, *tenor* is
-            non-finite, or the materialized surface fails grid validation.
-
-        """
-        ...
-
-    def materialize_tenor_slice_normal(self, tenor: float, strikes: list[float]) -> VolSurface:
-        """
-        Materialize a tenor slice as a normal-vol (Bachelier) :class:`VolSurface`.
-
-        Vols are in absolute rate units and the resulting surface is tagged
-        with the normal quote type.
-
-        Parameters
-        ----------
-        tenor : float
-            Tenor to slice at (years).
-        strikes : list[float]
-            Strike axis for the resulting surface.
-
-        Returns
-        -------
-        VolSurface
-            Normal-quote surface in absolute-rate units on the cube expiry axis
-            and supplied strikes; a finite out-of-grid ``tenor`` is clamped.
-
-        Raises
-        ------
-        ValueError
-            If *strikes* is empty or contains a non-finite value, *tenor* is
-            non-finite, or the materialized normal-vol surface fails grid
-            validation.
-
-        """
-        ...
-
-    def materialize_expiry_slice(self, expiry: float, strikes: list[float]) -> VolSurface:
-        """
-        Materialize an expiry slice as a :class:`VolSurface`.
-
-        Parameters
-        ----------
-        expiry : float
-            Expiry to slice at (years).
-        strikes : list[float]
-            Strike axis for the resulting surface.
-
-        Returns
-        -------
-        VolSurface
-            Black-vol surface using cube tenors as its first axis and linear
-            volatility interpolation; a finite out-of-grid ``expiry`` is clamped.
-
-        Raises
-        ------
-        ValueError
-            If *strikes* is empty or contains a non-finite value, *expiry* is
-            non-finite, or the materialized surface fails grid validation.
-
-        """
-        ...
-
-    def materialize_expiry_slice_normal(self, expiry: float, strikes: list[float]) -> VolSurface:
-        """
-        Materialize an expiry slice as a normal-vol (Bachelier) :class:`VolSurface`.
-
-        Vols are in absolute rate units and the resulting surface is tagged
-        with the normal quote type.
-
-        Parameters
-        ----------
-        expiry : float
-            Expiry to slice at (years).
-        strikes : list[float]
-            Strike axis for the resulting surface.
-
-        Returns
-        -------
-        VolSurface
-            Normal-quote surface in absolute-rate units using cube tenors as its
-            first axis and linear volatility interpolation; a finite
-            out-of-grid ``expiry`` is clamped.
-
-        Raises
-        ------
-        ValueError
-            If *strikes* is empty or contains a non-finite value, *expiry* is
-            non-finite, or the materialized normal-vol surface contains an
-            invalid value or otherwise fails grid validation.
 
         """
         ...

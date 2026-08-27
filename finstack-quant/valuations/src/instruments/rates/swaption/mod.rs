@@ -136,9 +136,8 @@ pub use parameters::SwaptionParams;
 pub use pricer::SimpleSwaptionBlackPricer;
 pub use pricing::BermudanSwaptionTreeValuator;
 pub use types::{
-    BermudanSchedule, BermudanSwaption, BermudanType, CashSettlementMethod, GreekInputs,
-    SABRParameters, Swaption, SwaptionBuilder, SwaptionExercise, SwaptionSettlement,
-    VolatilityModel,
+    BermudanSchedule, BermudanSwaption, BermudanType, CashSettlementMethod, GreekInputs, Swaption,
+    SwaptionBuilder, SwaptionExercise, SwaptionSettlement, VolatilityModel,
 };
 
 /// Convert effective swap dates to the canonical market tenor coordinate.

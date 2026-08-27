@@ -538,7 +538,9 @@ fn spot_variance_to_date(
             let fwd = spot / df_mat * (-q * t).exp();
             let strikes = surface.strikes();
             if t > 0.0 {
-                let vol_fn = |t_exp: f64, k: f64| surface.value_clamped(t_exp, k);
+                let vol_fn = |t_exp: f64, k: f64| {
+                    finstack_quant_models::volatility::get_surface_vol_clamped(&surface, t_exp, k)
+                };
                 let bs_fn = |k: f64, v: f64, opt: OptionType| -> f64 {
                     bs_price_unchecked(spot, k, r, q, v, t, opt)
                 };

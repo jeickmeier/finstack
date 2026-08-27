@@ -6,7 +6,8 @@ pub(crate) mod credit;
 mod fourier;
 pub mod monte_carlo;
 pub mod rates;
-mod sabr;
+mod volatility;
+mod volatility_arbitrage;
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;
@@ -28,7 +29,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
 
     analytic::register(py, &module)?;
     fourier::register(py, &module)?;
-    sabr::register(py, &module)?;
+    volatility::register(py, &module)?;
     monte_carlo::register(py, &module)?;
     credit::register(py, &module)?;
     correlation::register(py, &module)?;
@@ -37,10 +38,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let all = PyList::new(
         py,
         [
-            "SabrCalibrator",
-            "SabrModel",
-            "SabrParameters",
-            "SabrSmile",
             "asian_option_price",
             "barrier_call",
             "black76_implied_vol",
@@ -57,6 +54,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "rates",
             "vanilla_expiry_payoff",
             "vg_cos_price",
+            "volatility",
         ],
     )?;
     module.setattr("__all__", all)?;

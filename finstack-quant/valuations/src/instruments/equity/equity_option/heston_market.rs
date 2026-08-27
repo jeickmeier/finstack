@@ -2,15 +2,15 @@
 
 use crate::instruments::common_impl::helpers::get_unitless_scalar_strict;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_models::closed_form::heston::HestonParams;
+use finstack_quant_models::closed_form::heston::HestonPricingParams;
 
 /// Resolve all required Heston scalars from a valuation market context.
 pub(crate) fn heston_params_from_market_strict(
     market: &MarketContext,
     rate: f64,
     dividend_yield: f64,
-) -> finstack_quant_core::Result<HestonParams> {
-    HestonParams::new(
+) -> finstack_quant_core::Result<HestonPricingParams> {
+    HestonPricingParams::new(
         rate,
         dividend_yield,
         get_unitless_scalar_strict(market, "HESTON_KAPPA", "Heston")?,

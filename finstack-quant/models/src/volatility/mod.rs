@@ -59,18 +59,38 @@
 //!
 //! # See Also
 //!
-//! - [`SABRModel`] for SABR smile interpolation
+//! - [`SabrModel`] for SABR smile interpolation
 //! - [`crate::closed_form`] for analytical formulas
 
+pub mod arbitrage;
 pub mod black;
+mod conventions;
+mod convert;
+pub mod heston;
+mod implied;
+pub mod local_vol;
 pub mod normal;
+pub mod rough_heston;
 pub mod sabr;
 pub mod sabr_derivatives;
+mod source;
+pub mod svi;
 
 pub use black::{d1, d1_black76, d1_d2, d1_d2_black76, d2, d2_black76};
+pub use conventions::VolatilityConvention;
+pub use convert::convert_atm_volatility;
 pub use finstack_quant_core::math::{norm_cdf, norm_pdf};
+pub use implied::{implied_vol_bachelier, implied_vol_black};
 pub use normal::{bachelier_price, d_bachelier};
 pub use sabr::{
-    vega_weight, SABRCalibrator, SABRModel, SABRParameters, SABRSmile, SabrCalibrationOutcome,
+    vega_weight, SabrCalibrationOutcome, SabrCalibrator, SabrModel, SabrParameters, SabrSmile,
 };
-pub use sabr_derivatives::{SABRCalibrationDerivatives, SABRMarketData};
+pub use sabr_derivatives::{SabrCalibrationDerivatives, SabrMarketData};
+pub use source::{
+    delta_to_strike, get_cube_normal_vol, get_cube_normal_vol_clamped, get_cube_vol,
+    get_cube_vol_clamped, get_fx_delta_pillar_vols, get_fx_delta_vol, get_surface_vol,
+    get_surface_vol_clamped, get_surface_vol_extrapolated, materialize_cube_expiry_slice,
+    materialize_cube_expiry_slice_normal, materialize_cube_grid, materialize_cube_tenor_slice,
+    materialize_cube_tenor_slice_normal, materialize_fx_delta_surface, measure_vol_surface_shift,
+    strike_to_delta, VolSource,
+};

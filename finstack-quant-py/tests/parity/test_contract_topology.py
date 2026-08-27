@@ -1030,7 +1030,7 @@ def test_core_market_data_public_matches_contract() -> None:
 
 @pytest.mark.parametrize(
     "submodule_name",
-    ["curves", "fx", "context", "scalars", "arbitrage"],
+    ["curves", "fx", "context", "scalars"],
 )
 def test_core_market_data_submodule_stubs_match_runtime(submodule_name: str) -> None:
     """Each runtime market-data submodule must have an exact stub ``__all__``."""
@@ -1092,6 +1092,7 @@ def test_valuations_instruments_public_matches_contract() -> None:
         ("models", "monte_carlo"),
         ("models", "rates"),
         ("models", "rates", "dtsm"),
+        ("models", "volatility"),
     ],
 )
 def test_models_nested_public_matches_contract(contract_path: tuple[str, ...]) -> None:
@@ -1116,6 +1117,27 @@ def test_dtsm_removed_from_core_market_data() -> None:
     assert not hasattr(core_market_data, "dtsm")
     with pytest.raises(ModuleNotFoundError):
         importlib.import_module("finstack_quant.core.market_data.dtsm")
+
+
+def test_volatility_models_have_one_canonical_host_namespace() -> None:
+    """Computational volatility APIs must live only under models.volatility."""
+    models = importlib.import_module("finstack_quant.models")
+    volatility = importlib.import_module("finstack_quant.models.volatility")
+    core_market_data = importlib.import_module("finstack_quant.core.market_data")
+
+    for name in ("SabrParameters", "SabrModel", "SabrSmile", "SabrCalibrator"):
+        assert hasattr(volatility, name)
+        assert not hasattr(models, name)
+    for artifact_name, removed_methods in {
+        "VolSurface": ("value_checked", "value_clamped"),
+        "VolCube": ("vol", "vol_clamped", "vol_normal", "vol_normal_clamped"),
+        "FxDeltaVolSurface": ("implied_vol", "pillar_vols", "to_vol_surface"),
+    }.items():
+        artifact = getattr(core_market_data, artifact_name)
+        assert not [name for name in removed_methods if hasattr(artifact, name)]
+    assert not hasattr(core_market_data, "arbitrage")
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("finstack_quant.core.market_data.arbitrage")
 
 
 def test_wasm_models_rates_dtsm_map_matches_leaf_facade() -> None:

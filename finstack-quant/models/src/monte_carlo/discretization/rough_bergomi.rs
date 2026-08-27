@@ -499,7 +499,7 @@ mod tests {
         use super::super::super::rng::philox::PhiloxRng;
         use super::super::super::rng::volterra::RiemannLiouvilleVolterra;
         use super::super::super::traits::RandomStream;
-        use finstack_quant_core::math::volatility::black_scholes_spot_call;
+        use crate::closed_form::black_scholes_spot_call;
 
         let h = 0.1_f64;
         let eta = 1e-3_f64; // near-zero vol-of-vol: rBergomi → Black-Scholes

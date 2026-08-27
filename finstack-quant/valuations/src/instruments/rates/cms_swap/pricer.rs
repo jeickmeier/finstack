@@ -429,7 +429,11 @@ pub(super) fn cms_coupon_rate(
         // coupon and let embedded cap/floor optionality use the Bachelier
         // fallback in `cms_embedded_option_value`.
         crate::instruments::rates::cms_option::pricer::convexity_adjustment_with_frequency(
-            vol_surface.value_clamped(time_to_fixing.max(0.0), forward_swap_rate),
+            finstack_quant_models::volatility::get_surface_vol_clamped(
+                &vol_surface,
+                time_to_fixing.max(0.0),
+                forward_swap_rate,
+            ),
             time_to_fixing,
             inst.cms_tenor,
             forward_swap_rate,
@@ -598,7 +602,11 @@ pub(super) fn cms_embedded_option_value(
     if time_to_fixing <= 0.0 {
         return intrinsic;
     }
-    let vol = vol_surface.value_clamped(time_to_fixing, strike);
+    let vol = finstack_quant_models::volatility::get_surface_vol_clamped(
+        vol_surface,
+        time_to_fixing,
+        strike,
+    );
     if vol <= 0.0 {
         return intrinsic;
     }

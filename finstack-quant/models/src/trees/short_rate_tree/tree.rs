@@ -123,7 +123,7 @@ impl ShortRateTree {
     ///
     /// ⚠️ The volatility parameter is **lognormal** (relative), not normal (absolute).
     /// A value of 0.20 means 20% annual rate volatility, not 20 bp.
-    /// Use `finstack_quant_core::math::volatility::convert_atm_volatility` to convert from normal if needed.
+    /// Use `crate::volatility::convert_atm_volatility` to convert from normal if needed.
     pub fn black_derman_toy(steps: usize, lognormal_vol: f64, mean_reversion: f64) -> Self {
         Self::new(ShortRateTreeConfig::bdt(
             steps,

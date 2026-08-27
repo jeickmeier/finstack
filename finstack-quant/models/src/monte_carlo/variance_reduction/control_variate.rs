@@ -33,8 +33,8 @@
 //! let control_mean = cov.mean_y();
 //! ```
 
+use crate::closed_form::{black_scholes_spot_call, black_scholes_spot_put};
 use crate::monte_carlo::estimate::Estimate;
-use finstack_quant_core::math::volatility::{black_scholes_spot_call, black_scholes_spot_put};
 
 /// Black-Scholes formula for European call option.
 ///
@@ -55,7 +55,7 @@ use finstack_quant_core::math::volatility::{black_scholes_spot_call, black_schol
 /// # Argument order
 ///
 /// This forwards to
-/// [`finstack_quant_core::math::volatility::black_scholes_spot_call`], which
+/// [`crate::closed_form::black_scholes_spot_call`], which
 /// is the canonical implementation, but takes `(spot, strike, t, r, q, vol)`
 /// where core takes `(spot, strike, r, q, vol, t)`. The permutation is kept
 /// because this signature is what `finstack_quant.models.monte_carlo` exposes to

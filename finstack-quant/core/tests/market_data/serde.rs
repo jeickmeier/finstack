@@ -18,13 +18,13 @@ use finstack_quant_core::market_data::scalars::{
     InflationIndex, InflationInterpolation, InflationLag,
 };
 use finstack_quant_core::market_data::scalars::{ScalarTimeSeries, SeriesInterpolation};
+use finstack_quant_core::market_data::surfaces::SabrParameterData;
 use finstack_quant_core::market_data::surfaces::{FxDeltaVolSurface, VolCube, VolSurface};
 use finstack_quant_core::market_data::term_structures::BaseCorrelationCurve;
 use finstack_quant_core::market_data::term_structures::CreditIndexData;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::market_data::term_structures::ForwardCurve;
 use finstack_quant_core::market_data::term_structures::HazardCurve;
-use finstack_quant_core::math::volatility::sabr::SabrParams;
 use finstack_quant_core::money::fx::FxQuery;
 use finstack_quant_core::money::fx::{FxConfig, FxMatrix, SimpleFxProvider};
 use finstack_quant_core::money::Money;
@@ -368,7 +368,7 @@ fn semantic_restore_fixture() -> MarketContextState {
         "USD-SWAPTION",
         &[1.0],
         &[5.0],
-        &[SabrParams::new(0.035, 0.5, -0.2, 0.4).expect("SABR parameters")],
+        &[SabrParameterData::new(0.035, 0.5, -0.2, 0.4).expect("SABR parameters")],
         &[0.03],
     )
     .expect("vol cube");

@@ -11,7 +11,7 @@
 //!
 //! # Architecture
 //!
-//! Both models operate on a [`YieldPanel`][crate::rates::dtsm::YieldPanel]
+//! Both models operate on a [`YieldPanel`]
 //! -- a matrix of yield observations across dates and tenors. The Diebold-Li
 //! model extracts interpretable Nelson-Siegel factors (level, slope, curvature)
 //! and models their dynamics. PCA provides a purely statistical decomposition of

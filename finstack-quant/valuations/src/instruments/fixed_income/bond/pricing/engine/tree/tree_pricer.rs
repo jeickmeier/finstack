@@ -773,7 +773,9 @@ impl TreePricer {
                 if tenor <= 0.0 {
                     continue;
                 }
-                let vol = surface.value_clamped(expiry, tenor);
+                let vol = finstack_quant_models::volatility::get_surface_vol_clamped(
+                    &surface, expiry, tenor,
+                );
                 if vol > 0.0 && vol.is_finite() {
                     quotes.push(SwaptionQuote {
                         expiry,

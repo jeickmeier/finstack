@@ -132,7 +132,7 @@ pub mod prelude {
     pub use super::process::brownian::{BrownianParams, BrownianProcess, MultiBrownianProcess};
     pub use super::process::cir::{CirParams, CirPlusPlusProcess, CirProcess};
     pub use super::process::gbm::{GbmParams, GbmProcess, MultiGbmProcess};
-    pub use super::process::heston::{HestonParams, HestonProcess};
+    pub use super::process::heston::{HestonProcess, HestonProcessParams};
     pub use super::process::multi_ou::MultiOuParams;
     pub use super::process::ou::{HullWhite1FParams, HullWhite1FProcess};
     pub use super::process::schwartz_smith::{SchwartzSmithParams, SchwartzSmithProcess};

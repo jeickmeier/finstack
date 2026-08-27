@@ -4,7 +4,7 @@
 //! monotonicity checking used across all interpolation implementations.
 
 use super::types::ExtrapolationPolicy;
-use crate::{error::InputError, Error};
+use crate::error::InputError;
 
 /// Helper to check and apply extrapolation if x is out of bounds.
 ///
@@ -101,28 +101,6 @@ pub(crate) fn validate_knot_spacing(knots: &[f64], min_relative_gap: f64) -> cra
         }
     }
     Ok(())
-}
-
-/// Locate segment index `i` such that `xs[i] <= x <= xs[i+1]`.
-///
-/// # Performance Note
-///
-/// This function assumes knots (`xs`) are already validated as finite at construction
-/// time via [`validate_knots`]. We only check that the input `x` is finite, avoiding
-/// an O(n) scan on every interpolation call.
-#[inline(always)]
-pub(crate) fn locate_segment(xs: &[f64], x: f64) -> Result<usize, Error> {
-    // Only validate input x - knots are guaranteed finite by construction
-    if !x.is_finite() {
-        return Err(InputError::Invalid.into());
-    }
-    let first = *xs.first().ok_or(InputError::TooFewPoints)?;
-    let last = *xs.last().ok_or(InputError::TooFewPoints)?;
-    if x < first || x > last {
-        return Err(Error::InterpOutOfBounds);
-    }
-    let idx = xs.partition_point(|k| *k < x);
-    Ok(if idx == 0 { 0 } else { idx - 1 })
 }
 
 /// Fast-path segment lookup for callers that already verified x is finite
