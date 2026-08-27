@@ -1,6 +1,6 @@
 # Python binding tree
 
-The PyO3 layer, ~65k lines across 14 domain directories plus a handful of shared
+The PyO3 layer, ~65k lines across 13 domain directories plus a handful of shared
 helpers. Every file here converts arguments, calls a workspace crate, and converts
 the result back. Nothing computes: no pricing, no aggregation, no currency
 arithmetic, no defaulting of financial parameters. When a Python caller gets a
@@ -23,16 +23,15 @@ for this crate.
 
 | Path | Visibility | Role |
 |------|-----------|------|
-| `mod.rs` | private (`mod bindings;` in `../lib.rs`) | Declares every submodule; `register_root` sets `__package__`, `__version__` (from `CARGO_PKG_VERSION`), calls the 14 domain `register` functions plus `schema::register` in a fixed order, and sets the root `__all__` |
+| `mod.rs` | private (`mod bindings;` in `../lib.rs`) | Declares every submodule; `register_root` sets `__package__`, `__version__` (from `CARGO_PKG_VERSION`), calls the 13 domain `register` functions plus `schema::register` in a fixed order, and sets the root `__all__` |
 | `analytics/` | `pub` | `Performance` and `constrained_least_squares` — `performance.rs`, `regression.rs`, `types.rs` |
 | `attribution/` | `pub` | `entry.rs` (spec pipeline), `pnl_attribution.rs`, `return_contribution.rs`, `schema.rs` |
 | `cashflows/` | `pub` | `builder/` (`orchestrator.rs`, `schedule.rs`, `specs.rs`), `accrual.rs`, `aggregation.rs`, `primitives.rs`, `schema.rs` |
 | `core/` | `pub` | Most files (45), though `valuations/` is larger by line count: `dates/`, `market_data/` (with `curves/`), `math/`, `credit/`, plus `config.rs`, `currency.rs`, `money.rs`, `types.rs`, `rating_scales.rs`, `table.rs`, `schema.rs` |
 | `covenants/` | `pub` | `report.rs` (`PyCovenantReport`) plus JSON spec/report validators in `mod.rs` |
-| `factor_model/` | `pub` | `credit.rs` (registered as `factor_model.credit`), `schema.rs` |
 | `features/` | `pub` | Single file; all transforms are free functions on `mod.rs` |
 | `margin/` | `pub` | `calculators.rs`, `im.rs`, `regulatory.rs`, `xva.rs`, `metrics.rs`, `types.rs`, `sensitivity_frame.rs`, `schema.rs` |
-| `models/` | `pub` | Analytical, Fourier, SABR, credit, and correlation bindings plus `monte_carlo/` (`engine.rs`, `pricers.rs`, `greeks.rs`, `analytical.rs`, `results.rs`, `time_grid.rs`) |
+| `models/` | `pub` | Analytical, Fourier, SABR, credit, correlation, and factor bindings plus `monte_carlo/` (`engine.rs`, `pricers.rs`, `greeks.rs`, `analytical.rs`, `results.rs`, `time_grid.rs`) |
 | `portfolio/` | `pub` | 34 files: `factor_model/` and `optimization_spec/` subtrees plus per-method attribution (`brinson.rs`, `factor_brinson.rs`, `fi_attribution.rs`, `grid_attribution.rs`, `excess_return.rs`), `materialization.rs`, `pipeline.rs`, `sensitivity.rs`, `liquidity.rs`, `replay.rs`, `types.rs` |
 | `scenarios/` | `pub` | `engine.rs`, `horizon.rs`, `operation_spec/` (typed authoring path), `schema.rs` |
 | `statements/` | `pub` | `builder.rs`, `evaluator.rs`, `types.rs`, `capital_structure.rs`, `checks.rs`, `adjustments.rs`, `monte_carlo.rs`, `dsl.rs`, `schema.rs` |

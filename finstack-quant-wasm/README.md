@@ -47,7 +47,7 @@ Its `README.md` and `.d.ts` are wasm-pack copies; treat nothing in `pkg/` or
 
 ## Namespaces
 
-`index.js` exports the initializer plus these 14 namespaces, assembled from
+`index.js` exports the initializer plus these 13 namespaces, assembled from
 `exports/*.js`:
 
 | Namespace              | Contents                                                                                                                                                                                                                                                        |
@@ -57,10 +57,9 @@ Its `README.md` and `.d.ts` are wasm-pack copies; treat nothing in `pkg/` or
 | `attribution`          | `attributePnl`, `attributePnlFromSpec`, waterfall/metric defaults, schema validation                                                                                                                                                                            |
 | `cashflows`            | schedule build/validate, `accruedInterest`, dated flows, CPR↔SMM and CDR↔MDR conversions                                                                                                                                                                        |
 | `covenants`            | spec/report/engine validation, `evaluateEngine`, preset covenant packages                                                                                                                                                                                       |
-| `factor_model`         | nested `credit`: `CreditFactorModel`, `CreditCalibrator`, level/period decomposition, covariance forecast                                                                                                                                                       |
 | `features`             | signal cleaning, neutralization, weighting, and timeseries / cross-sectional / panel transforms                                                                                                                                                                 |
 | `margin`               | CSA presets and validation, `calculateVm`, `computeBilateralXva`                                                                                                                                                                                                |
-| `models`               | analytical/Fourier/SABR exports plus nested `monteCarlo`, `credit`, and `correlation` model engines                                                                                                                                                             |
+| `models`               | analytical/Fourier/SABR exports plus nested `monteCarlo`, `credit`, `correlation`, and `factor.credit` model engines                                                                                                                                            |
 | `portfolio`            | `Portfolio` and `InstrumentArtifactCache`, materialization, Brinson / Campisi / grid attribution, TWRR and MWR, valuation and scenario revaluation, VaR and ES decomposition, factor sensitivities, liquidity metrics                                           |
 | `scenarios`            | spec parse/compose/validate, builtin templates and components, `applyScenario`, `computeHorizonReturn`                                                                                                                                                          |
 | `statements`           | model and check-suite validation, `evaluateModel`, `runMonteCarlo`, formula parsing                                                                                                                                                                             |

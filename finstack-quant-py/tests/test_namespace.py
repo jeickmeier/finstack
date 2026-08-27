@@ -1,5 +1,6 @@
 """Test that domain subpackages are importable with expected exports."""
 
+import importlib
 import json
 from pathlib import Path
 import tomllib
@@ -222,11 +223,11 @@ class TestCorrelationNamespace:
 
 
 class TestFactorModelNamespace:
-    """Verify the factor_model subpackage mirrors the Rust crate boundary."""
+    """Verify the models.factor subpackage mirrors the Rust module boundary."""
 
     def test_factor_model_credit_exports(self) -> None:
-        """Credit factor APIs should be available under finstack_quant.factor_model.credit."""
-        from finstack_quant.factor_model.credit import (  # noqa: F401
+        """Credit factor APIs should be available under finstack_quant.models.factor.credit."""
+        from finstack_quant.models.factor.credit import (  # noqa: F401
             CreditCalibrator,
             CreditFactorModel,
             FactorCovarianceForecast,
@@ -236,12 +237,20 @@ class TestFactorModelNamespace:
             decompose_period,
         )
 
-    def test_valuations_credit_factor_aliases_are_removed(self) -> None:
-        """Credit factor APIs should live only under the factor_model namespace."""
-        from finstack_quant import factor_model, valuations
+    def test_removed_top_level_factor_model_namespace_is_not_importable(self) -> None:
+        """The deleted compatibility-free top-level path must stay absent."""
+        import finstack_quant
 
-        assert not hasattr(factor_model, "CreditFactorModel")
-        assert not hasattr(factor_model, "CreditCalibrator")
+        assert not hasattr(finstack_quant, "factor_model")
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module("finstack_quant.factor_model")
+
+    def test_valuations_credit_factor_aliases_are_removed(self) -> None:
+        """Credit factor APIs should live only under models.factor."""
+        from finstack_quant import models, valuations
+
+        assert not hasattr(models, "CreditFactorModel")
+        assert not hasattr(models, "CreditCalibrator")
         assert not hasattr(valuations, "CreditFactorModel")
         assert not hasattr(valuations, "CreditCalibrator")
 
@@ -491,7 +500,7 @@ class TestValuationsNamespace:
         ):
             assert hasattr(credit, name)
 
-        import finstack_quant.core as core
+        from finstack_quant import core
 
         assert not hasattr(core, "credit")
 

@@ -10,7 +10,7 @@ use super::spec::AttributionSpec;
 use super::types::PnlAttribution;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
-use finstack_quant_factor_model::credit::hierarchy::CreditFactorModel;
+use finstack_quant_models::factor::credit::hierarchy::CreditFactorModel;
 use finstack_quant_valuations::instruments::Instrument;
 
 impl AttributionSpec {
@@ -53,7 +53,7 @@ impl AttributionSpec {
         // 1. Resolve issuer id from instrument attributes.
         let issuer_id_str = match instrument
             .attributes()
-            .get_meta(finstack_quant_factor_model::matching::ISSUER_ID_META_KEY)
+            .get_meta(finstack_quant_models::factor::matching::ISSUER_ID_META_KEY)
         {
             Some(s) => s.to_string(),
             None => return Ok(None),
@@ -230,7 +230,7 @@ impl AttributionSpec {
         // 1. Resolve issuer.
         let issuer_id_str = match instrument
             .attributes()
-            .get_meta(finstack_quant_factor_model::matching::ISSUER_ID_META_KEY)
+            .get_meta(finstack_quant_models::factor::matching::ISSUER_ID_META_KEY)
         {
             Some(s) => s.to_string(),
             None => return Ok(()),
@@ -537,14 +537,14 @@ mod tests {
     use finstack_quant_core::math::interp::InterpStyle;
     use finstack_quant_core::money::Money;
     use finstack_quant_core::types::{CurveId, IssuerId};
-    use finstack_quant_factor_model::credit::hierarchy::{
+    use finstack_quant_models::factor::credit::hierarchy::{
         AdderVolSource, CalibrationDiagnostics, CreditFactorModel, CreditFactorModelSchema,
         CreditHierarchySpec, DateRange, FactorCorrelationMatrix, GenericFactorSpec,
         HierarchyDimension, IssuerBetaMode, IssuerBetaPolicy, IssuerBetaRow, IssuerBetas,
         IssuerTags, LevelsAtAnchor, VolState,
     };
-    use finstack_quant_factor_model::matching::ISSUER_ID_META_KEY;
-    use finstack_quant_factor_model::{
+    use finstack_quant_models::factor::matching::ISSUER_ID_META_KEY;
+    use finstack_quant_models::factor::{
         FactorCovarianceMatrix, FactorModelConfig, MatchingConfig, PricingMode,
     };
     use finstack_quant_valuations::instruments::{Attributes, Bond, Instrument, InstrumentJson};
@@ -586,11 +586,11 @@ mod tests {
                 levels: vec![HierarchyDimension::Rating, HierarchyDimension::Region],
             },
             panel_frequency:
-                finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
+                finstack_quant_models::factor::credit::calibration::PanelFrequency::Monthly,
             use_returns_or_levels:
-                finstack_quant_factor_model::credit::calibration::PanelSpace::Returns,
+                finstack_quant_models::factor::credit::calibration::PanelSpace::Returns,
             bucket_weighting:
-                finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
+                finstack_quant_models::factor::credit::calibration::BucketWeighting::Equal,
             config: empty_factor_config(),
             issuer_betas: vec![IssuerBetaRow {
                 issuer_id: IssuerId::new("ISSUER-B"),

@@ -41,12 +41,11 @@ Add `--all-features` to `rust-lint-crate` / `rust-fmt-crate` when touching featu
 | `finstack-quant/attribution/` | `finstack-quant-attribution` |
 | `finstack-quant/cashflows/` | `finstack-quant-cashflows` |
 | `finstack-quant/covenants/` | `finstack-quant-covenants` |
-| `finstack-quant/monte_carlo/` | `finstack-quant-monte-carlo` |
+| `finstack-quant/models/` | `finstack-quant-models` |
 | `finstack-quant/margin/` | `finstack-quant-margin` |
 | `finstack-quant/statements/` | `finstack-quant-statements` |
 | `finstack-quant/statements-analytics/` | `finstack-quant-statements-analytics` |
 | `finstack-quant/valuations/` | `finstack-quant-valuations` |
-| `finstack-quant/factor-model/` | `finstack-quant-factor-model` |
 | `finstack-quant/features/` | `finstack-quant-features` |
 | `finstack-quant/portfolio/` | `finstack-quant-portfolio` |
 | `finstack-quant/scenarios/` | `finstack-quant-scenarios` |

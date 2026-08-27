@@ -34,8 +34,8 @@ use crate::sensitivity::{
 use crate::{MarketFactorKey, Portfolio};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_factor_model::matching::ISSUER_ID_META_KEY;
-use finstack_quant_factor_model::{
+use finstack_quant_models::factor::matching::ISSUER_ID_META_KEY;
+use finstack_quant_models::factor::{
     BumpSizeConfig, CurveType, FactorCovarianceMatrix, FactorDefinition, FactorModelConfig,
     FactorType, MarketDependency, MatchingConfig, PricingMode, RiskMeasure, UnmatchedPolicy,
 };
@@ -181,7 +181,7 @@ impl Default for FactorModelBuilder {
     }
 }
 
-fn build_matcher(config: &MatchingConfig) -> Box<dyn finstack_quant_factor_model::FactorMatcher> {
+fn build_matcher(config: &MatchingConfig) -> Box<dyn finstack_quant_models::factor::FactorMatcher> {
     config.build_matcher()
 }
 
@@ -204,7 +204,7 @@ pub struct FactorModel {
     credit_idiosyncratic_variance: BTreeMap<finstack_quant_core::types::IssuerId, f64>,
     factors: Vec<FactorDefinition>,
     covariance: FactorCovarianceMatrix,
-    matcher: Box<dyn finstack_quant_factor_model::FactorMatcher>,
+    matcher: Box<dyn finstack_quant_models::factor::FactorMatcher>,
     sensitivity_engine: Box<dyn FactorSensitivityEngine>,
     decomposer: Box<dyn RiskDecomposer>,
     risk_measure: RiskMeasure,
@@ -698,7 +698,7 @@ impl FactorModel {
         portfolio: &Portfolio,
         market: &MarketContext,
         as_of: Date,
-        stresses: &[(finstack_quant_factor_model::FactorId, f64)],
+        stresses: &[(finstack_quant_models::factor::FactorId, f64)],
     ) -> Result<StressPnl> {
         super::whatif::factor_stress_pnl(self, portfolio, market, as_of, stresses)
             .map(|(pnl, _)| pnl)
@@ -736,7 +736,7 @@ impl FactorModel {
         portfolio: &Portfolio,
         market: &MarketContext,
         as_of: Date,
-        stresses: &[(finstack_quant_factor_model::FactorId, f64)],
+        stresses: &[(finstack_quant_models::factor::FactorId, f64)],
     ) -> Result<StressResult> {
         super::whatif::factor_stress(self, portfolio, market, as_of, stresses)
     }
@@ -762,10 +762,10 @@ impl FactorModel {
         portfolio: &Portfolio,
         market: &MarketContext,
         as_of: Date,
-        stresses: &[(finstack_quant_factor_model::FactorId, f64)],
+        stresses: &[(finstack_quant_models::factor::FactorId, f64)],
     ) -> Result<(MarketContext, Option<Vec<MarketFactorKey>>)> {
         use crate::sensitivity::mapping_to_market_bumps;
-        use finstack_quant_factor_model::FactorBumpUnit;
+        use finstack_quant_models::factor::FactorBumpUnit;
 
         let stress_by_id: HashMap<_, _> = stresses.iter().map(|(id, shift)| (id, *shift)).collect();
         for (factor_id, _) in stresses {
@@ -832,7 +832,7 @@ impl FactorModel {
         &self,
         portfolio: &Portfolio,
         market: &MarketContext,
-        factor_id: &finstack_quant_factor_model::FactorId,
+        factor_id: &finstack_quant_models::factor::FactorId,
     ) -> Result<Vec<(finstack_quant_core::types::CurveId, f64)>> {
         let mut curve_betas: BTreeMap<finstack_quant_core::types::CurveId, f64> = BTreeMap::new();
         for position in &portfolio.positions {
@@ -1031,7 +1031,7 @@ fn uses_assignment_driven_credit_shock(factor: &FactorDefinition) -> bool {
     matches!(factor.factor_type, FactorType::Credit)
         && matches!(
             factor.market_mapping,
-            finstack_quant_factor_model::MarketMapping::CurveParallel { ref curve_ids, .. }
+            finstack_quant_models::factor::MarketMapping::CurveParallel { ref curve_ids, .. }
                 if curve_ids.is_empty()
         )
 }
@@ -1200,8 +1200,8 @@ mod tests {
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::money::Money;
     use finstack_quant_core::types::{Attributes, CurveId};
-    use finstack_quant_factor_model::matching::{DependencyFilter, MappingRule};
-    use finstack_quant_factor_model::{
+    use finstack_quant_models::factor::matching::{DependencyFilter, MappingRule};
+    use finstack_quant_models::factor::{
         BumpSizeConfig, CurveType, DependencyType, FactorCovarianceMatrix, FactorDefinition,
         FactorId, FactorModelConfig, FactorType, MarketMapping, PricingMode, RiskMeasure,
         UnmatchedPolicy,
@@ -1241,7 +1241,7 @@ mod tests {
                     curve_type: Some(CurveType::Discount),
                     id: None,
                 },
-                attribute_filter: finstack_quant_factor_model::AttributeFilter::default(),
+                attribute_filter: finstack_quant_models::factor::AttributeFilter::default(),
                 factor_id: FactorId::new("Rates"),
             }]),
             pricing_mode: PricingMode::DeltaBased,
@@ -1332,7 +1332,7 @@ mod tests {
         let mut config = simple_config();
         config.matching = MatchingConfig::MappingTable(vec![MappingRule {
             dependency_filter: DependencyFilter::default(),
-            attribute_filter: finstack_quant_factor_model::AttributeFilter::default(),
+            attribute_filter: finstack_quant_models::factor::AttributeFilter::default(),
             factor_id: FactorId::new("MissingFactor"),
         }]);
 
@@ -1937,7 +1937,7 @@ mod tests {
     }
 
     fn canonical_credit_bond(curve_id: CurveId) -> finstack_quant_valuations::instruments::Bond {
-        use finstack_quant_factor_model::matching::ISSUER_ID_META_KEY;
+        use finstack_quant_models::factor::matching::ISSUER_ID_META_KEY;
         let mut bond = finstack_quant_valuations::instruments::Bond::fixed(
             "BOND-ISSUER-B",
             Money::new(1_000_000.0, Currency::USD),
@@ -2035,11 +2035,11 @@ mod tests {
 
     #[test]
     fn credit_hierarchy_sensitivities_scale_cs01_by_calibrated_betas() {
-        use finstack_quant_factor_model::credit::hierarchy::{
+        use finstack_quant_models::factor::credit::hierarchy::{
             AdderVolSource, CreditHierarchySpec, HierarchyDimension, IssuerBetaMode, IssuerBetaRow,
             IssuerBetas, IssuerTags,
         };
-        use finstack_quant_factor_model::matching::CreditHierarchicalConfig;
+        use finstack_quant_models::factor::matching::CreditHierarchicalConfig;
         use std::collections::BTreeMap;
 
         let as_of = date!(2024 - 01 - 01);
@@ -2147,11 +2147,13 @@ mod tests {
     #[test]
     fn strict_policy_rejects_dropped_credit_factor_ids() {
         use finstack_quant_core::types::Attributes;
-        use finstack_quant_factor_model::credit::hierarchy::{
+        use finstack_quant_models::factor::credit::hierarchy::{
             AdderVolSource, CreditHierarchySpec, HierarchyDimension, IssuerBetaMode, IssuerBetaRow,
             IssuerBetas, IssuerTags,
         };
-        use finstack_quant_factor_model::matching::{CreditHierarchicalConfig, ISSUER_ID_META_KEY};
+        use finstack_quant_models::factor::matching::{
+            CreditHierarchicalConfig, ISSUER_ID_META_KEY,
+        };
         use std::collections::BTreeMap;
 
         let as_of = date!(2024 - 01 - 01);
@@ -2227,7 +2229,7 @@ mod tests {
                             require_issuer_id: false,
                         }),
                         MatchingConfig::MappingTable(vec![
-                            finstack_quant_factor_model::matching::MappingRule {
+                            finstack_quant_models::factor::matching::MappingRule {
                                 dependency_filter: Default::default(),
                                 attribute_filter: Default::default(),
                                 factor_id: FactorId::new("rates::usd"),
@@ -2283,11 +2285,11 @@ mod tests {
 
     #[test]
     fn credit_factor_stress_scales_curve_shift_by_calibrated_beta() {
-        use finstack_quant_factor_model::credit::hierarchy::{
+        use finstack_quant_models::factor::credit::hierarchy::{
             AdderVolSource, CreditHierarchySpec, HierarchyDimension, IssuerBetaMode, IssuerBetaRow,
             IssuerBetas, IssuerTags,
         };
-        use finstack_quant_factor_model::matching::CreditHierarchicalConfig;
+        use finstack_quant_models::factor::matching::CreditHierarchicalConfig;
         use std::collections::BTreeMap;
 
         let as_of = date!(2024 - 01 - 01);
@@ -2403,11 +2405,11 @@ mod tests {
     /// betas, `adder_vol_annualized = 3.0`) used by the idiosyncratic
     /// residual-variance tests.
     fn credit_hierarchy_model() -> FactorModel {
-        use finstack_quant_factor_model::credit::hierarchy::{
+        use finstack_quant_models::factor::credit::hierarchy::{
             AdderVolSource, CreditHierarchySpec, HierarchyDimension, IssuerBetaMode, IssuerBetaRow,
             IssuerBetas, IssuerTags,
         };
-        use finstack_quant_factor_model::matching::CreditHierarchicalConfig;
+        use finstack_quant_models::factor::matching::CreditHierarchicalConfig;
         use std::collections::BTreeMap;
 
         let mut tags = BTreeMap::new();

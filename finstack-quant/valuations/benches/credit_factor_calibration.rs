@@ -12,11 +12,11 @@
 #![allow(clippy::unwrap_used)]
 
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
-use finstack_quant_factor_model::credit::calibration::{
+use finstack_quant_models::factor::credit::calibration::{
     BetaShrinkage, BucketSizeThresholds, CovarianceStrategy, CreditCalibrationConfig,
     CreditCalibrationInputs, CreditCalibrator, PanelSpace, VolModelChoice,
 };
-use finstack_quant_factor_model::credit::hierarchy::{
+use finstack_quant_models::factor::credit::hierarchy::{
     CreditHierarchySpec, HierarchyDimension, IssuerBetaPolicy,
 };
 use serde_json::{json, Value};
@@ -138,8 +138,10 @@ fn build_config(n_levels: usize) -> CreditCalibrationConfig {
         covariance_strategy: CovarianceStrategy::Diagonal,
         beta_shrinkage: BetaShrinkage::None,
         use_returns_or_levels: PanelSpace::Returns,
-        panel_frequency: finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
-        bucket_weighting: finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
+        panel_frequency:
+            finstack_quant_models::factor::credit::calibration::PanelFrequency::Monthly,
+        bucket_weighting:
+            finstack_quant_models::factor::credit::calibration::BucketWeighting::Equal,
     }
 }
 

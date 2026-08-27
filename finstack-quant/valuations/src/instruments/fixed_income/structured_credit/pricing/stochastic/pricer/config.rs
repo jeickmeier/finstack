@@ -36,7 +36,7 @@ use std::sync::Arc;
 )]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
-// Distinct from `finstack_quant_factor_model::config::PricingMode`
+// Distinct from `finstack_quant_models::factor::config::PricingMode`
 // (`delta_based` / `full_repricing`).
 #[schemars(rename = "StructuredCreditPricingMode")]
 pub enum PricingMode {

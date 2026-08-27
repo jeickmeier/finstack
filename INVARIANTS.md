@@ -429,12 +429,12 @@ finstack_quant.credit_factor_model/1
 **Enforced:**
 
 - `CreditFactorModel::SCHEMA_VERSION` lives in
-  `finstack_quant_factor_model::credit::hierarchy`.
+  `finstack_quant_models::factor::credit::hierarchy`.
 - The v1 root Rust type uses `#[serde(deny_unknown_fields)]`.
 - The v1 root JSON schema uses `"additionalProperties": false` and a
   `"const"` schema-version value.
 - The schema file is
-  `finstack-quant/factor-model/schemas/factor_model/1/credit_factor_model.schema.json`.
+  `finstack-quant/models/schemas/factor_model/1/credit_factor_model.schema.json`.
 - The published schema URI remains under
   `https://finstack_quant.dev/schemas/factor_model/1/`; moving Rust ownership
   must not change that stable identifier.

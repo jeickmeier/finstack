@@ -572,7 +572,6 @@ def test_cashflows_has_no_cross_crate_symbols() -> None:
 WASM_NAMESPACE_SUBSETS = [
     ("wasm_analytics_subset", "analytics", "finstack_quant.analytics"),
     ("wasm_covenants_subset", "covenants", "finstack_quant.covenants"),
-    ("wasm_factor_model_subset", "factor_model", "finstack_quant.factor_model"),
     ("wasm_features_subset", "features", "finstack_quant.features"),
     ("wasm_margin_subset", "margin", "finstack_quant.margin"),
     ("wasm_scenarios_subset", "scenarios", "finstack_quant.scenarios"),
@@ -1088,6 +1087,7 @@ def test_valuations_instruments_public_matches_contract() -> None:
     "contract_path",
     [
         ("models", "credit"),
+        ("models", "factor"),
         ("models", "correlation"),
         ("models", "monte_carlo"),
         ("models", "rates"),

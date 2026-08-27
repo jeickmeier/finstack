@@ -307,7 +307,7 @@ fn mo25_26_decompose_factor_risk_accepts_zero_factors_with_canonical_measure() {
     })
     .to_string();
     let covariance =
-        finstack_quant_factor_model::FactorCovarianceMatrix::new(Vec::new(), Vec::new())
+        finstack_quant_models::factor::FactorCovarianceMatrix::new(Vec::new(), Vec::new())
             .expect("empty covariance should build");
     let covariance_json = serde_json::to_string(&covariance).expect("serialize covariance");
 

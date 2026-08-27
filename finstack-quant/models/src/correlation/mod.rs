@@ -9,7 +9,7 @@
 //!
 //! - [`crate::correlation::copula`]: Copula models for default correlation (Gaussian, Student-t, RFL, Multi-factor)
 //! - [`crate::correlation::recovery`]: Recovery rate models (constant, market-correlated)
-//! - [`crate::correlation::factor_model`]: Factor models for correlated behavior
+//! - [`crate::correlation::latent_factor`]: Factor models for correlated behavior
 //!
 //! Joint probability utilities ([`crate::correlation::CorrelatedBernoulli`],
 //! [`crate::correlation::correlation_bounds`],
@@ -19,7 +19,7 @@
 //! Matrix-validation helpers (`Error`, `Result`, `validate_correlation_matrix`,
 //! `nearest_correlation_matrix`, `NearestCorrelationOpts`) are re-exported from
 //! [`finstack_quant_analytics::correlation`], which is the canonical home for those
-//! types so downstream crates (e.g. `finstack-quant-factor-model`) can consume them
+//! types so model engines can consume them
 //! without depending on `finstack-quant-valuations`.
 //!
 //! # Utilities
@@ -45,7 +45,7 @@
 //!
 
 pub mod copula;
-pub mod factor_model;
+pub mod latent_factor;
 pub mod portfolio_loss;
 pub mod recovery;
 
@@ -53,15 +53,15 @@ pub use copula::{
     Copula, CopulaSpec, GaussianCopula, MultiFactorCopula, RandomFactorLoadingCopula,
     StudentTCopula,
 };
-pub use factor_model::{
-    cholesky_decompose, LatentFactorKind, LatentFactorSpec, LatentMultiFactor, LatentSingleFactor,
-    LatentTwoFactor,
-};
 pub use finstack_quant_analytics::correlation::{
     nearest_correlation_matrix, validate_correlation_matrix, Error, NearestCorrelationOpts, Result,
 };
 pub use finstack_quant_core::math::probability::{
     correlation_bounds, joint_probabilities, CorrelatedBernoulli,
+};
+pub use latent_factor::{
+    cholesky_decompose, LatentFactorKind, LatentFactorSpec, LatentMultiFactor, LatentSingleFactor,
+    LatentTwoFactor,
 };
 pub use portfolio_loss::{
     simulate_portfolio_loss, simulate_portfolio_loss_with_recovery, CreditExposure,

@@ -721,6 +721,7 @@ from typing import Any, Optional
 
 from finstack_quant.models import correlation as correlation
 from finstack_quant.models import credit as credit
+from finstack_quant.models import factor as factor
 from finstack_quant.models import monte_carlo as monte_carlo
 from finstack_quant.models import rates as rates
 from finstack_quant.models import volatility as volatility
@@ -735,6 +736,7 @@ __all__ = [
     "bs_price",
     "correlation",
     "credit",
+    "factor",
     "lookback_option_price",
     "merton_jump_cos_price",
     "monte_carlo",

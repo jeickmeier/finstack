@@ -14,6 +14,7 @@ from finstack_quant.finstack_quant import models as _models
 from finstack_quant.models import (
     correlation as correlation,
     credit as credit,
+    factor as factor,
     monte_carlo as monte_carlo,
     rates as rates,
     volatility as volatility,
@@ -42,6 +43,7 @@ __all__: list[str] = [
     "bs_price",
     "correlation",
     "credit",
+    "factor",
     "lookback_option_price",
     "merton_jump_cos_price",
     "monte_carlo",

@@ -2,7 +2,7 @@
 //!
 use crate::types::PositionId;
 use finstack_quant_core::types::IssuerId;
-use finstack_quant_factor_model::{FactorId, RiskMeasure};
+use finstack_quant_models::factor::{FactorId, RiskMeasure};
 use serde::{Deserialize, Serialize};
 
 /// Portfolio-level decomposition of total risk across common factors and residuals.
@@ -112,7 +112,7 @@ pub struct PositionFactorContribution {
 #[cfg(test)]
 mod tests {
     use super::{FactorContribution, RiskDecomposition};
-    use finstack_quant_factor_model::{FactorId, RiskMeasure};
+    use finstack_quant_models::factor::{FactorId, RiskMeasure};
 
     #[test]
     fn test_risk_decomposition_total_matches_sum() {

@@ -3409,7 +3409,7 @@ export interface AnalyticsNamespace {
  */
 export declare const analytics: AnalyticsNamespace;
 
-// --- factor_model.credit ------------------------------------------------------
+// --- models.factor.credit ----------------------------------------------------
 
 /**
  * Calibrated credit factor hierarchy artifact.
@@ -3745,7 +3745,7 @@ export declare function decomposePeriod(
  * Namespaced TypeScript entry points for factor model credit calculations and types.
  * @example
  * ```typescript
- * import init, { factor_model } from "finstack-quant-wasm";
+ * import init, { models } from "finstack-quant-wasm";
  * await init();
  * const config = JSON.stringify({
  *   policy: "globally_off",
@@ -3758,7 +3758,7 @@ export declare function decomposePeriod(
  *   panel_frequency: "monthly",
  *   bucket_weighting: "equal"
  * });
- * const calibrator = new factor_model.credit.CreditCalibrator(config);
+ * const calibrator = new models.factor.credit.CreditCalibrator(config);
  * calibrator.free();
  * ```
  */
@@ -3832,9 +3832,9 @@ export interface FactorModelCreditNamespace {
  * Namespaced TypeScript entry points for factor model calculations and types.
  * @example
  * ```typescript
- * import init, { factor_model } from "finstack-quant-wasm";
+ * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const credit = factor_model.credit;
+ * const credit = models.factor.credit;
  * const config = JSON.stringify({
  *   policy: "globally_off",
  *   hierarchy: { levels: [] },
@@ -3850,17 +3850,12 @@ export interface FactorModelCreditNamespace {
  * calibrator.free();
  * ```
  */
-export interface FactorModelNamespace {
+export interface FactorNamespace {
   /**
    * Credit factor hierarchy artifacts, calibration, and decomposition.
    */
   credit: FactorModelCreditNamespace;
 }
-
-/**
- * Namespaced TypeScript entry point for factor model APIs.
- */
-export declare const factor_model: FactorModelNamespace;
 
 // --- features ---------------------------------------------------------------
 
@@ -7553,6 +7548,10 @@ export interface VolatilityNamespace {
  * ```
  */
 export interface ModelsNamespace {
+  /**
+   * Factor definitions, covariance, matching, and credit-factor calibration.
+   */
+  factor: FactorNamespace;
   /**
    * Monte Carlo pricing engines.
    */

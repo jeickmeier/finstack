@@ -11,7 +11,6 @@ export { analytics } from './exports/analytics.js';
 export { attribution } from './exports/attribution.js';
 export { cashflows } from './exports/cashflows.js';
 export { covenants } from './exports/covenants.js';
-export { factor_model } from './exports/factor_model.js';
 export { features } from './exports/features.js';
 export { models } from './exports/models.js';
 export { margin } from './exports/margin.js';

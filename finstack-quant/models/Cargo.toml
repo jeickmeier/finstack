@@ -38,6 +38,7 @@ ts_export = ["dep:ts-rs"]
 [dev-dependencies]
 criterion = { workspace = true }
 finstack-quant-test-utils = { path = "../test-utils", version = "0.7.0" }
+jsonschema = { version = "0.28", default-features = false }
 proptest = "1.11.0"
 time = { workspace = true, features = ["macros"] }
 toml = "1.1.4"
@@ -53,6 +54,20 @@ harness = false
 [[bench]]
 name = "migration_matrix"
 harness = false
+
+[[bench]]
+name = "factor_model"
+path = "benches/factor/factor_model.rs"
+harness = false
+
+[[bench]]
+name = "factor_model_scale"
+path = "benches/factor/factor_model_scale.rs"
+harness = false
+
+[[bin]]
+name = "gen_factor_model_schemas"
+path = "src/bin/gen_factor_model_schemas.rs"
 
 [lints]
 workspace = true

@@ -532,7 +532,7 @@ pub(super) fn position_what_if(
     let market = extract_market_ref(py, market)?;
     let as_of = crate::bindings::date_utils::extract_date(as_of)?;
     let config_json = factor_model_config_json.to_owned();
-    let config: finstack_quant_factor_model::FactorModelConfig = py
+    let config: finstack_quant_models::factor::FactorModelConfig = py
         .detach(move || serde_json::from_str(&config_json))
         .map_err(crate::errors::display_to_py)?;
     let changes = parse_position_changes(py, changes)?;

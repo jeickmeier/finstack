@@ -10,7 +10,7 @@ DEFAULT_PATHS = (
     Path("finstack-quant/core/schemas"),
     Path("finstack-quant/attribution/schemas"),
     Path("finstack-quant/cashflows/schemas"),
-    Path("finstack-quant/factor-model/schemas"),
+    Path("finstack-quant/models/schemas"),
     Path("finstack-quant/margin/schemas"),
     Path("finstack-quant/scenarios/schemas"),
     Path("finstack-quant/statements/schemas"),

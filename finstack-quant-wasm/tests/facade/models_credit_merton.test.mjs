@@ -36,7 +36,9 @@ test('models owns all reusable model namespaces exclusively', () => {
   assert.ok(models.monteCarlo);
   assert.ok(models.credit);
   assert.ok(models.correlation);
+  assert.ok(models.factor.credit);
   assert.equal('monte_carlo' in facade, false);
+  assert.equal('factor_model' in facade, false);
   assert.equal('credit' in valuations, false);
   assert.equal('correlation' in valuations, false);
   assert.equal('bsPrice' in valuations, false);

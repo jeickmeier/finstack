@@ -91,7 +91,7 @@ attribution/src/
 ## Position in the stack
 
 Depends on `finstack-quant-core`, `finstack-quant-cashflows`,
-`finstack-quant-factor-model`, and `finstack-quant-valuations`. Consumed by
+`finstack-quant-models`, and `finstack-quant-valuations`. Consumed by
 `finstack-quant-portfolio`, which rolls per-instrument `PnlAttribution` values
 into book-level views, and by `finstack-quant-scenarios`. Re-exported by the
 umbrella crate as `finstack_quant::attribution`.
@@ -165,7 +165,7 @@ Two schema artifacts are checked in under
 | `compute_pnl`, `compute_pnl_with_fx`                                              | `helpers`        | Money/FX arithmetic for P&L computation     |
 | `translate_to_target_currency`                                                         | `target_currency`     | Post-hoc translation of a native-currency `PnlAttribution` into a reporting currency, adding `fx_translation_pnl` |
 | `extract_model_params`, `with_model_params`, `measure_prepayment_shift`, `measure_default_shift`, `measure_recovery_shift`, `measure_conversion_shift` | `model_params` | Model-parameter snapshotting and shift attribution; use `finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot` for the snapshot type |
-| `compute_credit_factor_attribution`, `CreditAttributionInput`, `CreditFactorDetailOptions`, `credit_factor_model_id` | `credit_factor` | Calibrated credit-factor decomposition of `credit_curves_pnl`; the model type is `finstack_quant_factor_model::credit::hierarchy::CreditFactorModel` |
+| `compute_credit_factor_attribution`, `CreditAttributionInput`, `CreditFactorDetailOptions`, `credit_factor_model_id` | `credit_factor` | Calibrated credit-factor decomposition of `credit_curves_pnl`; the model type is `finstack_quant_models::factor::credit::hierarchy::CreditFactorModel` |
 | `AttributionEnvelope`, `AttributionSpec`, `AttributionSchema`, `AttributionConfig`, `AttributionResult`, `AttributionResultEnvelope`, `ATTRIBUTION_SCHEMA`, `default_attribution_metrics`, `validate_attribution_json` | `spec` | JSON contract |
 | `attribute_return_contribution`, `attribute_return_contribution_json`, `validate_return_contribution_json`, `ReturnContributionSpec`, `ReturnContributionResult`, `ReturnContributionPosition`, `ReturnContributionFactor`, `ReturnContributionWeighting`, `InstrumentContribution`, `GroupContribution`, `FactorContribution`, `BenchmarkRelativeContribution` | `return_contribution` | Single-period weight × return contribution |
 | `pnl_attribution_long_rows`, `pnl_attribution_carry_rows`, `pnl_attribution_credit_factor_rows`, `LongDetailRow` | `long_rows` | Long-format projection of a `PnlAttribution`, consumed by the Python DataFrame exports |
@@ -243,7 +243,7 @@ The authoritative contract, including the full Rust-only inventory, is
 
 - [`finstack-quant-valuations`](../valuations/README.md) — instrument repricing used at T₀ and T₁.
 - [`finstack-quant-cashflows`](../cashflows/README.md) — accrual and carry inputs.
-- [`finstack-quant-factor-model`](../factor-model/README.md) — calibrated credit-factor models consumed via `CreditFactorModel`.
+- [`finstack-quant-models`](../models/README.md) — calibrated credit-factor models consumed via `models::factor::CreditFactorModel`.
 - [`finstack-quant-portfolio`](../portfolio/README.md) — aggregates per-instrument `PnlAttribution`s into book-level views.
 
 ## Tests and benchmarks

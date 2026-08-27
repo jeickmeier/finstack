@@ -1,4 +1,4 @@
-//! Integration tests for [`finstack_quant_factor_model::credit::calibration`].
+//! Integration tests for [`finstack_quant_models::factor::credit::calibration`].
 //!
 //! Implements the seven required PR-4 tests from the design.
 
@@ -6,12 +6,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use finstack_quant_core::dates::{create_date, Date, DateExt};
 use finstack_quant_core::types::IssuerId;
-use finstack_quant_factor_model::credit::calibration::{
+use finstack_quant_models::factor::credit::calibration::{
     BetaShrinkage, BucketSizeThresholds, BucketWeighting, CovarianceStrategy,
     CreditCalibrationConfig, CreditCalibrationInputs, CreditCalibrator, GenericFactorSeries,
     HistoryPanel, IssuerTagPanel, PanelFrequency, PanelSpace, VolModelChoice,
 };
-use finstack_quant_factor_model::credit::hierarchy::{
+use finstack_quant_models::factor::credit::hierarchy::{
     AdderVolSource, CreditFactorModel, CreditHierarchySpec, FactorVolModel, GenericFactorSpec,
     HierarchyDimension, IdiosyncraticVolModel, IssuerBetaMode, IssuerBetaOverride,
     IssuerBetaPolicy, IssuerTags,
@@ -451,7 +451,7 @@ fn all_bucket_only_calibration_succeeds() {
     let fh = model.factor_histories.as_ref().unwrap();
     assert!(fh
         .values
-        .contains_key(&finstack_quant_factor_model::FactorId::new(
+        .contains_key(&finstack_quant_models::factor::FactorId::new(
             "credit::generic"
         )));
     assert!(!model.vol_state.factors.is_empty());
@@ -1877,11 +1877,11 @@ fn generate_golden_artifact() {
 
     let golden_path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../factor-model/tests/data/canonical/credit_factor_model.json"
+        "/../models/tests/data/canonical/credit_factor_model.json"
     );
     let hash_path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../factor-model/tests/data/canonical/credit_factor_model.sha256"
+        "/../models/tests/data/canonical/credit_factor_model.sha256"
     );
 
     let model = calibrate_canonical_credit_model();
@@ -1902,7 +1902,7 @@ fn generate_golden_artifact() {
 /// Calibrate with the canonical fixture (Diagonal + Sample), serialize to
 /// pretty-printed JSON, and compare byte-for-byte against the checked-in
 /// factor-model fixture at
-/// `../factor-model/tests/data/canonical/credit_factor_model.json`.
+/// `../models/tests/data/canonical/credit_factor_model.json`.
 ///
 /// On first run after generating the golden file, this test confirms the
 /// file matches a fresh calibration. On subsequent runs it catches any
@@ -1911,7 +1911,7 @@ fn generate_golden_artifact() {
 fn golden_credit_factor_model_matches_checked_in_json() {
     let golden_path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../factor-model/tests/data/canonical/credit_factor_model.json"
+        "/../models/tests/data/canonical/credit_factor_model.json"
     );
 
     let model = calibrate_canonical_credit_model();
@@ -1921,8 +1921,8 @@ fn golden_credit_factor_model_matches_checked_in_json() {
         panic!(
             "Golden file not found at {golden_path}: {e}\n\
              Bootstrap it by running:\n  \
-             {REGEN_CREDIT_FACTOR_MODEL_GOLDEN_ENV}=1 cargo nextest run -p finstack-quant-factor-model \
-             --test canonical_contract credit_factor_model_has_exact_canonical_bytes_and_hash"
+             {REGEN_CREDIT_FACTOR_MODEL_GOLDEN_ENV}=1 cargo nextest run -p finstack-quant-models \
+             --test factor_canonical_contract credit_factor_model_has_exact_canonical_bytes_and_hash"
         )
     });
 
@@ -1994,7 +1994,7 @@ fn calibration_config_round_trips_through_json() {
 /// `credit_calibration_config.schema.json`.
 #[test]
 fn calibration_config_serialization_matches_schema() {
-    let schema = finstack_quant_factor_model::schema::credit_calibration_config_schema()
+    let schema = finstack_quant_models::factor::schema::credit_calibration_config_schema()
         .expect("embedded schema must be valid JSON");
 
     // Use a non-trivial config so validation exercises required fields.

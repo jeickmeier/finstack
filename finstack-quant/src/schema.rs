@@ -50,7 +50,7 @@ fn domain_registries() -> Vec<(&'static str, &'static [SchemaArtifact])> {
         ("cashflows", finstack_quant_cashflows::schema::ARTIFACTS),
         (
             "factor_model",
-            finstack_quant_factor_model::schema::ARTIFACTS,
+            finstack_quant_models::factor::schema::ARTIFACTS,
         ),
         ("margin", finstack_quant_margin::schema::ARTIFACTS),
         ("portfolio", finstack_quant_portfolio::schema::ARTIFACTS),

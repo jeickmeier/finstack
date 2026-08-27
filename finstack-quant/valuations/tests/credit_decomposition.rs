@@ -1,4 +1,4 @@
-//! Integration tests for [`finstack_quant_factor_model::credit::decomposition`].
+//! Integration tests for [`finstack_quant_models::factor::credit::decomposition`].
 //!
 //! Covers the six PR-3 acceptance tests plus structural error handling.
 
@@ -6,15 +6,15 @@ use std::collections::BTreeMap;
 
 use finstack_quant_core::dates::create_date;
 use finstack_quant_core::types::IssuerId;
-use finstack_quant_factor_model::credit::decomposition::{
+use finstack_quant_models::factor::credit::decomposition::{
     decompose_levels, decompose_period, DecompositionError, LevelsAtDate,
 };
-use finstack_quant_factor_model::credit::hierarchy::{
+use finstack_quant_models::factor::credit::hierarchy::{
     AdderVolSource, CalibrationDiagnostics, CreditFactorModel, CreditHierarchySpec, DateRange,
     FactorCorrelationMatrix, FoldUpRecord, GenericFactorSpec, HierarchyDimension, IssuerBetaMode,
     IssuerBetaPolicy, IssuerBetaRow, IssuerBetas, IssuerTags, LevelsAtAnchor, VolState,
 };
-use finstack_quant_factor_model::{
+use finstack_quant_models::factor::{
     FactorCovarianceMatrix, FactorModelConfig, MatchingConfig, PricingMode,
 };
 use time::Month;
@@ -37,7 +37,7 @@ fn empty_factor_model_config() -> FactorModelConfig {
 
 fn base_model(levels: Vec<HierarchyDimension>) -> CreditFactorModel {
     CreditFactorModel {
-        schema: finstack_quant_factor_model::credit::hierarchy::CreditFactorModelSchema::CURRENT,
+        schema: finstack_quant_models::factor::credit::hierarchy::CreditFactorModelSchema::CURRENT,
         as_of: create_date(2024, Month::March, 29).unwrap(),
         calibration_window: DateRange {
             start: create_date(2022, Month::March, 29).unwrap(),
@@ -49,10 +49,12 @@ fn base_model(levels: Vec<HierarchyDimension>) -> CreditFactorModel {
             series_id: "cdx.ig.5y".to_owned(),
         },
         hierarchy: CreditHierarchySpec { levels },
-        panel_frequency: finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
+        panel_frequency:
+            finstack_quant_models::factor::credit::calibration::PanelFrequency::Monthly,
         use_returns_or_levels:
-            finstack_quant_factor_model::credit::calibration::PanelSpace::Returns,
-        bucket_weighting: finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
+            finstack_quant_models::factor::credit::calibration::PanelSpace::Returns,
+        bucket_weighting:
+            finstack_quant_models::factor::credit::calibration::BucketWeighting::Equal,
         config: empty_factor_model_config(),
         issuer_betas: vec![],
         anchor_state: LevelsAtAnchor {

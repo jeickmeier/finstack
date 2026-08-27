@@ -10,7 +10,7 @@ use finstack_quant_core::money::fx::{FxMatrix, SimpleFxProvider};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::{InputError, Result};
-use finstack_quant_factor_model::{
+use finstack_quant_models::factor::{
     BumpSizeConfig, FactorCovarianceMatrix, FactorDefinition, FactorId, FactorModelConfig,
     FactorType, MarketMapping, PricingMode, RiskMeasure, UnmatchedPolicy,
 };
@@ -288,7 +288,7 @@ fn portfolio_wrap_uses_scale_factor_weight_for_eur_fx_factor() -> Result<()> {
         .config(FactorModelConfig {
             factors: vec![factor],
             covariance,
-            matching: finstack_quant_factor_model::MatchingConfig::MappingTable(vec![]),
+            matching: finstack_quant_models::factor::MatchingConfig::MappingTable(vec![]),
             pricing_mode: PricingMode::DeltaBased,
             risk_measure: RiskMeasure::Variance,
             bump_size: None,

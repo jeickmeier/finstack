@@ -6,7 +6,7 @@
 ![WASM](https://img.shields.io/badge/wasm-ready-purple)
 ![Status](https://img.shields.io/badge/status-alpha-yellow)
 
-A deterministic financial computation workspace. Fourteen Rust domain crates
+A deterministic financial computation workspace. Thirteen Rust domain crates
 cover market data, cashflows, instrument pricing, risk, factor models,
 financial-statement modeling, scenarios, margin/XVA, and portfolio aggregation.
 PyO3 and wasm-bindgen binding crates expose the same APIs to Python and
@@ -48,10 +48,9 @@ finstack-quant/
 │   ├── attribution/              # multi-period P&L attribution
 │   ├── cashflows/                # schedule construction, accrual, dated flows
 │   ├── covenants/                # covenant specs, evaluation, forecasting
-│   ├── factor-model/             # factor primitives, matching, credit calibration
 │   ├── features/                 # vectorized panel feature transforms
 │   ├── margin/                   # CSA/VM/IM, SIMM, FRTB-SBA, SA-CCR, XVA
-│   ├── models/                   # analytical, numerical, credit, correlation, stochastic models
+│   ├── models/                   # analytical, numerical, factor, credit, correlation, stochastic models
 │   ├── valuations/               # instruments, pricing, calibration, metrics, results
 │   │   └── macros/               # `FinancialBuilder` derive used by valuations
 │   ├── statements/               # statement model graph and period evaluation
@@ -74,7 +73,7 @@ finstack-quant/
 ## Crate map
 
 `finstack-quant` is the umbrella crate. It has no cargo features and
-unconditionally re-exports all fourteen domain crates, so one dependency
+unconditionally re-exports all thirteen domain crates, so one dependency
 reaches the whole API.
 
 | Crate | Umbrella path | Provides |
@@ -84,10 +83,9 @@ reaches the whole API.
 | [`finstack-quant-attribution`](finstack-quant/attribution/README.md) | `finstack_quant::attribution` | Multi-period P&L attribution: simple bridge, metrics-based, parallel, waterfall, Taylor |
 | [`finstack-quant-cashflows`](finstack-quant/cashflows/README.md) | `finstack_quant::cashflows` | Schedule construction, accrual, currency-preserving aggregation |
 | [`finstack-quant-covenants`](finstack-quant/covenants/README.md) | `finstack_quant::covenants` | Covenant specs, evaluation engine, threshold schedules, forecasting, standard packages |
-| [`finstack-quant-factor-model`](finstack-quant/factor-model/README.md) | `finstack_quant::factor_model` | Factor definitions and matching, covariance, sensitivity matrix, credit hierarchy calibration |
 | [`finstack-quant-features`](finstack-quant/features/README.md) | `finstack_quant::features` | Time-series, cross-sectional, and panel feature transforms over `Option<f64>` columns |
 | [`finstack-quant-margin`](finstack-quant/margin/README.md) | `finstack_quant::margin` | CSA/repo terms, VM and IM engines (SIMM, schedule, haircut, CCP), collateral metrics, XVA config, regulatory capital |
-| [`finstack-quant-models`](finstack-quant/models/README.md) | `finstack_quant::models` | Closed-form/Fourier formulas, SABR, PDE/tree engines, structural credit, copulas/portfolio loss, and Monte Carlo |
+| [`finstack-quant-models`](finstack-quant/models/README.md) | `finstack_quant::models` | Closed-form/Fourier formulas, SABR, PDE/tree engines, factor models, structural credit, copulas/portfolio loss, and Monte Carlo |
 | [`finstack-quant-valuations`](finstack-quant/valuations/README.md) | `finstack_quant::valuations` | Instruments, market resolution, pricing registries, calibration, metrics, and result envelopes |
 | [`finstack-quant-statements`](finstack-quant/statements/README.md) | `finstack_quant::statements` | Statement model graph, DSL formulas, forecasting, corkscrews, deterministic period evaluation |
 | [`finstack-quant-statements-analytics`](finstack-quant/statements-analytics/README.md) | `finstack_quant::statements_analytics` | Sensitivity, scenario sets, variance, DCF, goal seek, covenant forecasting, backtesting, templates |
@@ -114,13 +112,12 @@ edges, read off the manifests:
 |---|---|
 | `analytics`, `cashflows`, `covenants`, `features`, `margin` | nothing else in-workspace |
 | `models` | `analytics`, `cashflows` |
-| `factor-model` | `analytics` |
-| `valuations` | `analytics`, `cashflows`, `covenants`, `margin`, `models`, `factor-model`, `valuations-macros` |
-| `attribution` | `cashflows`, `factor-model`, `valuations` |
+| `valuations` | `analytics`, `cashflows`, `covenants`, `margin`, `models`, `valuations-macros` |
+| `attribution` | `cashflows`, `models`, `valuations` |
 | `statements` | `cashflows`, `valuations` |
 | `statements-analytics` | `covenants`, `statements`, `valuations` |
 | `scenarios` | `attribution`, `statements`, `valuations` |
-| `portfolio` | `attribution`, `cashflows`, `factor-model`, `margin`, `scenarios`, `valuations` |
+| `portfolio` | `attribution`, `cashflows`, `margin`, `models`, `scenarios`, `valuations` |
 
 `valuations` is the mid-stack hub and `portfolio` is the top. No Rust crate
 depends on a binding crate.
@@ -189,8 +186,8 @@ print(settle)           # 2025-01-06
 ```
 
 `finstack-quant-py` builds the Python package `finstack_quant`. It exposes the
-same fourteen domains — `analytics`, `attribution`, `cashflows`, `core`,
-`covenants`, `factor_model`, `features`, `margin`, `models`, `portfolio`,
+same thirteen domains — `analytics`, `attribution`, `cashflows`, `core`,
+`covenants`, `features`, `margin`, `models`, `portfolio`,
 `scenarios`, `statements`, `statements_analytics`, `valuations` — plus
 `reporting` (a pure-Python presentation layer with no Rust crate) and `schema`
 (a compiled submodule). Submodules load lazily, and `finstack_quant.__version__`
@@ -215,7 +212,7 @@ console.log(amount.toString());
 
 The published entry point is
 [`finstack-quant-wasm/index.js`](finstack-quant-wasm/index.js), which re-exports
-the fourteen namespaces assembled in `finstack-quant-wasm/exports/`. TypeScript
+the thirteen namespaces assembled in `finstack-quant-wasm/exports/`. TypeScript
 declarations live in
 [`finstack-quant-wasm/index.d.ts`](finstack-quant-wasm/index.d.ts). The
 `wasm-pack` output under `pkg/` and `pkg-node/` is generated build output, not
@@ -287,10 +284,11 @@ The same registry is reachable from Python as `finstack_quant.schema`, with
 and `domains()`. These are the schema wire surface: `index`, `get`, and
 `validate` return JSON strings, and `validate` takes `payload` as a JSON string
 too — pass `json.dumps(payload)`, not a `dict`. Only `domains()` returns a
-Python list. Nine domains publish schemas today (`attribution`, `cashflows`,
+Python list. Nine registry domains publish schemas today (`attribution`, `cashflows`,
 `core`, `factor_model`, `margin`, `portfolio`, `scenarios`, `statements`,
-`valuations`); each is also a `finstack_quant.<domain>.schema` namespace. There
-is no WASM schema namespace.
+`valuations`). Their Python schema namespaces mirror domain ownership, with the
+factor registry at `finstack_quant.models.factor.schema`; there is no WASM
+schema namespace.
 
 Regenerate with `mise run rust-gen-schemas`; check for drift with
 `mise run rust-check-schemas`.

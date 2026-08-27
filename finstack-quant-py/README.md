@@ -32,10 +32,9 @@ pay for every domain's registration.
 | `finstack_quant.cashflows` | `finstack-quant-cashflows` |
 | `finstack_quant.core` | `finstack-quant-core` |
 | `finstack_quant.covenants` | `finstack-quant-covenants` |
-| `finstack_quant.factor_model` | `finstack-quant-factor-model` |
 | `finstack_quant.features` | `finstack-quant-features` |
 | `finstack_quant.margin` | `finstack-quant-margin` |
-| `finstack_quant.models` | `finstack-quant-models` |
+| `finstack_quant.models` (including `.factor`) | `finstack-quant-models` |
 | `finstack_quant.portfolio` | `finstack-quant-portfolio` |
 | `finstack_quant.scenarios` | `finstack-quant-scenarios` |
 | `finstack_quant.statements` | `finstack-quant-statements` |
@@ -66,20 +65,20 @@ Domains that mirror a nested Rust module tree expose it as nested packages:
   `core.market_data.{arbitrage, context, curves, fx, scalars}`,
   and `core.math.{linalg, special_functions, stats,
   summation}`.
-- `finstack_quant.models.{credit, correlation, monte_carlo, rates,
+- `finstack_quant.models.{credit, correlation, factor, monte_carlo, rates,
   volatility}`, with `models.credit.{scoring, pd, lgd, migration,
   recovery_waterfall, liability_management}` and `models.rates.dtsm`.
 - `finstack_quant.valuations.{instruments, credit_derivatives, composite,
   market, envelope, schema}`.
 - `finstack_quant.cashflows.{accrual, aggregation, builder, primitives,
   schema}`.
-- `finstack_quant.factor_model.{credit, schema}`,
+- `finstack_quant.models.factor.{credit, schema}`,
   `finstack_quant.features.dataframe`.
 
-Each of the nine schema-publishing domains also carries its own `.schema`
-submodule — `attribution`, `cashflows`, `core`, `factor_model`, `margin`,
-`portfolio`, `scenarios`, `statements`, `valuations` — holding that domain's
-registry. `finstack_quant.schema` is the merged view over all nine.
+Each of the nine schema-publishing registry domains also has a Python schema
+namespace. The factor registry lives at `finstack_quant.models.factor.schema`;
+the others use the corresponding domain's `.schema` module.
+`finstack_quant.schema` is the merged view over all nine.
 
 ## Build and install
 

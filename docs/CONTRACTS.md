@@ -45,8 +45,8 @@ contract. The pre-release policy is documented in
 | Market context state | numeric `schema_version: 1` | `MarketContext::from_state_slice` | derived wherever the state is embedded |
 | Financial model | numeric `schema_version: 1` | `FinancialModelSpec::from_slice_strict` | [financial model](../finstack-quant/statements/schemas/statements/1/financial_model_spec.schema.json) |
 | Scenario | `finstack_quant.scenario/1` | `ScenarioEnvelope::from_slice_strict` | [scenario](../finstack-quant/scenarios/schemas/scenarios/1/scenario.schema.json) |
-| Factor-model configuration | `finstack_quant.factor_model_config/1` | `FactorModelConfigEnvelope::from_slice_strict` | [factor-model configuration](../finstack-quant/factor-model/schemas/factor_model/1/factor_model_config.schema.json) |
-| Credit factor model | `finstack_quant.credit_factor_model/1` | `CreditFactorModel::from_slice_strict` | [credit factor model](../finstack-quant/factor-model/schemas/factor_model/1/credit_factor_model.schema.json) |
+| Factor-model configuration | `finstack_quant.factor_model_config/1` | `FactorModelConfigEnvelope::from_slice_strict` | [factor-model configuration](../finstack-quant/models/schemas/factor_model/1/factor_model_config.schema.json) |
+| Credit factor model | `finstack_quant.credit_factor_model/1` | `CreditFactorModel::from_slice_strict` | [credit factor model](../finstack-quant/models/schemas/factor_model/1/credit_factor_model.schema.json) |
 | Attribution request | `finstack_quant.attribution/1` | `AttributionEnvelope` serde | [attribution request](../finstack-quant/attribution/schemas/attribution/1/attribution.schema.json) |
 | Attribution result | `finstack_quant.attribution/1` | `AttributionResultEnvelope` serde | [attribution result](../finstack-quant/attribution/schemas/attribution/1/attribution_result.schema.json) |
 | Margin | `finstack_quant.margin/1` | `MarginEnvelope::from_slice` | [margin](../finstack-quant/margin/schemas/margin/1/margin.schema.json) |
@@ -74,7 +74,7 @@ The registries also publish reusable, runtime-backed components:
   conventions, diagnostics, and closed pricing-override maps under
   [`common/1`](../finstack-quant/valuations/schemas/common/1/);
 - credit calibration inputs and configuration under
-  [`factor_model/1`](../finstack-quant/factor-model/schemas/factor_model/1/);
+  [`factor_model/1`](../finstack-quant/models/schemas/factor_model/1/);
 - the financial-statement normalization sidecar/configuration contract
   (add-back and deduction adjustments, caps, and self-referential cap base
   mode) — not a root envelope — in
@@ -133,8 +133,8 @@ content hash, and an owning test:
 - [market context state](../finstack-quant/core/tests/data/canonical/market_context_state.json)
 - [financial model](../finstack-quant/statements/tests/data/canonical/financial_model.json)
 - [scenario](../finstack-quant/scenarios/tests/data/canonical/scenario.json)
-- [factor-model configuration](../finstack-quant/factor-model/tests/data/canonical/factor_model_config.json)
-- [credit factor model](../finstack-quant/factor-model/tests/data/canonical/credit_factor_model.json)
+- [factor-model configuration](../finstack-quant/models/tests/data/canonical/factor_model_config.json)
+- [credit factor model](../finstack-quant/models/tests/data/canonical/credit_factor_model.json)
 - [portfolio materialization](../finstack-quant/portfolio/tests/data/canonical/portfolio_materialization.json)
 
 The adjacent `.sha256` files contain the domain-separated identity, not a raw

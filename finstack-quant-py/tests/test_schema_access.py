@@ -21,7 +21,7 @@ from typing import Any
 import pytest
 
 from finstack_quant.cashflows import schema as cashflows_schema
-from finstack_quant.factor_model import schema as factor_model_schema
+from finstack_quant.models.factor import schema as factor_model_schema
 from finstack_quant.statements import schema as statements_schema
 from finstack_quant.valuations import schema as valuations_schema
 
@@ -32,17 +32,17 @@ INSTRUMENT_SCHEMA_DIR = REPO_ROOT / "finstack-quant" / "valuations" / "schemas" 
 
 SCHEMA_MODULES: dict[str, ModuleType] = {
     "finstack_quant.cashflows.schema": cashflows_schema,
-    "finstack_quant.factor_model.schema": factor_model_schema,
+    "finstack_quant.models.factor.schema": factor_model_schema,
     "finstack_quant.statements.schema": statements_schema,
     "finstack_quant.valuations.schema": valuations_schema,
 }
 
 # Zero-argument accessors that return a single JSON Schema document as text.
 DOCUMENT_ACCESSORS: list[tuple[str, str]] = [
-    ("finstack_quant.factor_model.schema", "credit_calibration_config_schema"),
-    ("finstack_quant.factor_model.schema", "credit_calibration_inputs_schema"),
-    ("finstack_quant.factor_model.schema", "credit_factor_model_schema"),
-    ("finstack_quant.factor_model.schema", "factor_model_config_schema"),
+    ("finstack_quant.models.factor.schema", "credit_calibration_config_schema"),
+    ("finstack_quant.models.factor.schema", "credit_calibration_inputs_schema"),
+    ("finstack_quant.models.factor.schema", "credit_factor_model_schema"),
+    ("finstack_quant.models.factor.schema", "factor_model_config_schema"),
     ("finstack_quant.statements.schema", "financial_model_spec_schema"),
     ("finstack_quant.statements.schema", "normalization_config_schema"),
     ("finstack_quant.statements.schema", "statement_result_schema"),
@@ -53,24 +53,24 @@ DOCUMENT_ACCESSORS: list[tuple[str, str]] = [
 # (module, accessor, repo-relative path of the generated schema artifact).
 COMPILED_VS_CHECKED_IN: list[tuple[str, str, str]] = [
     (
-        "finstack_quant.factor_model.schema",
+        "finstack_quant.models.factor.schema",
         "credit_calibration_config_schema",
-        "finstack-quant/factor-model/schemas/factor_model/1/credit_calibration_config.schema.json",
+        "finstack-quant/models/schemas/factor_model/1/credit_calibration_config.schema.json",
     ),
     (
-        "finstack_quant.factor_model.schema",
+        "finstack_quant.models.factor.schema",
         "credit_calibration_inputs_schema",
-        "finstack-quant/factor-model/schemas/factor_model/1/credit_calibration_inputs.schema.json",
+        "finstack-quant/models/schemas/factor_model/1/credit_calibration_inputs.schema.json",
     ),
     (
-        "finstack_quant.factor_model.schema",
+        "finstack_quant.models.factor.schema",
         "credit_factor_model_schema",
-        "finstack-quant/factor-model/schemas/factor_model/1/credit_factor_model.schema.json",
+        "finstack-quant/models/schemas/factor_model/1/credit_factor_model.schema.json",
     ),
     (
-        "finstack_quant.factor_model.schema",
+        "finstack_quant.models.factor.schema",
         "factor_model_config_schema",
-        "finstack-quant/factor-model/schemas/factor_model/1/factor_model_config.schema.json",
+        "finstack-quant/models/schemas/factor_model/1/factor_model_config.schema.json",
     ),
     (
         "finstack_quant.statements.schema",
@@ -108,7 +108,7 @@ EXPECTED_EXPORTS: dict[str, list[str]] = {
         "resources",
         "validate",
     ],
-    "finstack_quant.factor_model.schema": [
+    "finstack_quant.models.factor.schema": [
         "credit_calibration_config_schema",
         "credit_calibration_inputs_schema",
         "credit_factor_model_schema",

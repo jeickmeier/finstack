@@ -37,7 +37,6 @@ time = { workspace = true, features = ["macros"] }
 proptest = "1.11.0"
 criterion = { workspace = true }
 rust_decimal_macros = { workspace = true }
-finstack-quant-factor-model = { path = "../factor-model", version = "0.7.0" }
 toml = "1.1.4"
 
 

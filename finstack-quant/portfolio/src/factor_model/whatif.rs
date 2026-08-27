@@ -13,7 +13,7 @@ use crate::Portfolio;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::summation::NeumaierAccumulator;
-use finstack_quant_factor_model::FactorId;
+use finstack_quant_models::factor::FactorId;
 
 /// Base/after delta for a single factor contribution.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -436,8 +436,8 @@ mod tests {
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::money::Money;
     use finstack_quant_core::types::{Attributes, CurveId};
-    use finstack_quant_factor_model::matching::{DependencyFilter, MappingRule, MatchingConfig};
-    use finstack_quant_factor_model::{
+    use finstack_quant_models::factor::matching::{DependencyFilter, MappingRule, MatchingConfig};
+    use finstack_quant_models::factor::{
         CurveType, DependencyType, FactorCovarianceMatrix, FactorDefinition, FactorId,
         FactorModelConfig, FactorType, MarketMapping, PricingMode, RiskMeasure, UnmatchedPolicy,
     };
@@ -885,11 +885,13 @@ mod tests {
     #[test]
     fn factor_stress_matches_manually_stressed_market_for_credit_hierarchy() {
         use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
-        use finstack_quant_factor_model::credit::hierarchy::{
+        use finstack_quant_models::factor::credit::hierarchy::{
             AdderVolSource, CreditHierarchySpec, HierarchyDimension, IssuerBetaMode, IssuerBetaRow,
             IssuerBetas, IssuerTags,
         };
-        use finstack_quant_factor_model::matching::{CreditHierarchicalConfig, ISSUER_ID_META_KEY};
+        use finstack_quant_models::factor::matching::{
+            CreditHierarchicalConfig, ISSUER_ID_META_KEY,
+        };
         use std::collections::BTreeMap;
 
         let as_of = date!(2024 - 01 - 01);
@@ -1129,7 +1131,7 @@ mod tests {
                         curve_type: Some(CurveType::Discount),
                         id: None,
                     },
-                    attribute_filter: finstack_quant_factor_model::AttributeFilter::default(),
+                    attribute_filter: finstack_quant_models::factor::AttributeFilter::default(),
                     factor_id: FactorId::new("Rates"),
                 }]),
                 pricing_mode: PricingMode::DeltaBased,

@@ -414,7 +414,7 @@ fn package_dts_documents_hand_facade_over_raw_wasm_bindgen_types() {
     assert!(dts.contains("not the package root contract"));
     assert!(dts.contains("export declare const core: CoreNamespace;"));
     assert!(dts.contains("export declare const analytics: AnalyticsNamespace;"));
-    assert!(dts.contains("export declare const factor_model: FactorModelNamespace;"));
+    assert!(!dts.contains("export declare const factor_model:"));
     assert!(dts.contains("export declare const features: FeaturesNamespace;"));
     assert!(dts.contains("export declare const valuations: ValuationsNamespace;"));
     assert!(dts.contains("export declare const portfolio: PortfolioNamespace;"));
@@ -791,16 +791,18 @@ fn models_and_valuations_dts_expose_owned_credit_namespaces() {
 }
 
 #[test]
-fn factor_model_dts_exposes_credit_namespace() {
+fn models_factor_dts_exposes_credit_namespace() {
     let dts = index_dts();
-    let factor_model = interface_block(&dts, "FactorModelNamespace");
+    let factor = interface_block(&dts, "FactorNamespace");
+    let models = interface_block(&dts, "ModelsNamespace");
 
-    assert!(dts.contains("export interface FactorModelNamespace"));
+    assert!(dts.contains("export interface FactorNamespace"));
     assert!(dts.contains("export interface FactorModelCreditNamespace"));
     assert!(dts.contains("credit: FactorModelCreditNamespace;"));
-    assert!(!factor_model.contains("CreditFactorModel"));
-    assert!(!factor_model.contains("decomposeLevels"));
-    assert!(dts.contains("export declare const factor_model: FactorModelNamespace;"));
+    assert!(models.contains("factor: FactorNamespace;"));
+    assert!(!factor.contains("CreditFactorModel"));
+    assert!(!factor.contains("decomposeLevels"));
+    assert!(!dts.contains("export declare const factor_model:"));
 }
 
 #[test]

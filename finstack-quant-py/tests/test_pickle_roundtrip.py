@@ -27,7 +27,6 @@ DOMAINS = [
     "cashflows",
     "core",
     "covenants",
-    "factor_model",
     "features",
     "margin",
     "models",

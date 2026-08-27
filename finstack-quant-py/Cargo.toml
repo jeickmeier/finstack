@@ -31,7 +31,6 @@ finstack-quant-margin = { path = "../finstack-quant/margin", version = "0.7.0" }
 finstack-quant-models = { path = "../finstack-quant/models", version = "0.7.0" }
 finstack-quant-valuations = { path = "../finstack-quant/valuations", version = "0.7.0" }
 finstack_quant = { package = "finstack-quant", path = "../finstack-quant", version = "0.7.0" }
-finstack-quant-factor-model = { path = "../finstack-quant/factor-model", version = "0.7.0" }
 finstack-quant-features = { path = "../finstack-quant/features", version = "0.7.0" }
 finstack-quant-statements = { path = "../finstack-quant/statements", version = "0.7.0" }
 finstack-quant-statements-analytics = { path = "../finstack-quant/statements-analytics", version = "0.7.0" }

@@ -13,7 +13,6 @@ pub mod core;
 pub mod covenants;
 pub(crate) mod date_utils;
 pub(crate) mod extract;
-pub mod factor_model;
 pub mod features;
 pub mod margin;
 pub mod models;
@@ -41,7 +40,6 @@ pub fn register_root(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     attribution::register(py, m)?;
     cashflows::register(py, m)?;
     covenants::register(py, m)?;
-    factor_model::register(py, m)?;
     features::register(py, m)?;
     models::register(py, m)?;
     margin::register(py, m)?;
@@ -60,7 +58,6 @@ pub fn register_root(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
             "attribution",
             "cashflows",
             "covenants",
-            "factor_model",
             "features",
             "models",
             "margin",

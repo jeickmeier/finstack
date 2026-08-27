@@ -390,8 +390,8 @@ struct PyFactorRiskDecomposition {
 /// Bare snake_case serde tag of a [`RiskMeasure`], without JSON quoting or
 /// variant payload (`"variance"`, `"volatility"`, `"var"`,
 /// `"expected_shortfall"`). Matches the tag the WASM binding reports.
-fn risk_measure_tag(measure: &finstack_quant_factor_model::RiskMeasure) -> String {
-    use finstack_quant_factor_model::RiskMeasure as M;
+fn risk_measure_tag(measure: &finstack_quant_models::factor::RiskMeasure) -> String {
+    use finstack_quant_models::factor::RiskMeasure as M;
     match measure {
         M::Variance => "variance".to_owned(),
         M::Volatility => "volatility".to_owned(),
@@ -618,16 +618,16 @@ fn decompose_factor_risk(
     covariance_json: &str,
     risk_measure: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyFactorRiskDecomposition> {
-    let measure: finstack_quant_factor_model::RiskMeasure = match risk_measure {
+    let measure: finstack_quant_models::factor::RiskMeasure = match risk_measure {
         Some(obj) => py_to_serde(py, obj, "risk_measure")?,
-        None => finstack_quant_factor_model::RiskMeasure::Variance,
+        None => finstack_quant_models::factor::RiskMeasure::Variance,
     };
 
     py.detach(|| {
         let factor_ids = sensitivities
             .factor_ids
             .iter()
-            .map(finstack_quant_factor_model::FactorId::new)
+            .map(finstack_quant_models::factor::FactorId::new)
             .collect();
         let mut matrix = finstack_quant_portfolio::sensitivity::SensitivityMatrix::zeros(
             sensitivities.position_ids.clone(),
@@ -644,7 +644,7 @@ fn decompose_factor_risk(
                 }
             }
         }
-        let covariance: finstack_quant_factor_model::FactorCovarianceMatrix =
+        let covariance: finstack_quant_models::factor::FactorCovarianceMatrix =
             serde_json::from_str(covariance_json).map_err(display_to_py)?;
         let decomposer = finstack_quant_portfolio::factor_model::ParametricDecomposer;
         let result = finstack_quant_portfolio::factor_model::RiskDecomposer::decompose(

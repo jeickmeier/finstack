@@ -12,6 +12,7 @@
 pub mod analytic;
 pub mod correlation;
 pub mod credit;
+pub mod factor;
 pub mod fourier;
 pub mod liability_management;
 pub mod monte_carlo;

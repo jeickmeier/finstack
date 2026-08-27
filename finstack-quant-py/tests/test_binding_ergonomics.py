@@ -326,7 +326,7 @@ class TestDateAcceptanceIsUniform:
         ``date`` catches an off-by-one in the conversion, which comparing only
         the numeric output would not.
         """
-        from finstack_quant.factor_model.credit import CreditCalibrator, decompose_levels
+        from finstack_quant.models.factor.credit import CreditCalibrator, decompose_levels
 
         config_json = json.dumps({
             "policy": "globally_off",

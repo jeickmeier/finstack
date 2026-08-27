@@ -5,7 +5,7 @@ use finstack_quant_portfolio::factor_model::{
     self as fm, CreditVolReport, LevelVolContribution, PositionVolContribution,
 };
 
-use crate::bindings::factor_model::credit::PyCreditFactorModel;
+use crate::bindings::models::factor::credit::PyCreditFactorModel;
 use crate::bindings::pandas_utils::dict_to_dataframe;
 
 use super::super::json_bridge::serialize_json;

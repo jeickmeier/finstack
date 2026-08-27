@@ -11,12 +11,12 @@ use finstack_quant_core::market_data::context::{CurveState, MarketContextState};
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, IssuerId};
-use finstack_quant_factor_model::credit::hierarchy::{
+use finstack_quant_models::factor::credit::hierarchy::{
     AdderVolSource, CalibrationDiagnostics, CreditFactorModel, CreditHierarchySpec, DateRange,
     FactorCorrelationMatrix, GenericFactorSpec, HierarchyDimension, IssuerBetaMode,
     IssuerBetaPolicy, IssuerBetaRow, IssuerBetas, IssuerTags, LevelsAtAnchor, VolState,
 };
-use finstack_quant_factor_model::{
+use finstack_quant_models::factor::{
     FactorCovarianceMatrix, FactorModelConfig, MatchingConfig, PricingMode,
 };
 use finstack_quant_valuations::instruments::json_loader::InstrumentJson;
@@ -67,7 +67,7 @@ fn issuer_row(id: &str, rating: &str, region: &str, pc: f64, lv: Vec<f64>) -> Is
 fn make_model(levels: Vec<HierarchyDimension>) -> CreditFactorModel {
     let n = levels.len();
     CreditFactorModel {
-        schema: finstack_quant_factor_model::credit::hierarchy::CreditFactorModelSchema::CURRENT,
+        schema: finstack_quant_models::factor::credit::hierarchy::CreditFactorModelSchema::CURRENT,
         as_of: create_date(2024, Month::March, 29).unwrap(),
         calibration_window: DateRange {
             start: create_date(2022, Month::March, 29).unwrap(),
@@ -79,10 +79,12 @@ fn make_model(levels: Vec<HierarchyDimension>) -> CreditFactorModel {
             series_id: "cdx.ig.5y".into(),
         },
         hierarchy: CreditHierarchySpec { levels },
-        panel_frequency: finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
+        panel_frequency:
+            finstack_quant_models::factor::credit::calibration::PanelFrequency::Monthly,
         use_returns_or_levels:
-            finstack_quant_factor_model::credit::calibration::PanelSpace::Returns,
-        bucket_weighting: finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
+            finstack_quant_models::factor::credit::calibration::PanelSpace::Returns,
+        bucket_weighting:
+            finstack_quant_models::factor::credit::calibration::BucketWeighting::Equal,
         config: empty_factor_config(),
         issuer_betas: vec![issuer_row(
             "ISSUER-A",

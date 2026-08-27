@@ -1,6 +1,6 @@
 # finstack-quant integration tests
 
-Integration tests for the umbrella crate. The umbrella re-exports the fourteen
+Integration tests for the umbrella crate. The umbrella re-exports the thirteen
 domain crates and owns exactly one piece of behaviour of its own — the
 workspace-wide JSON Schema registry in [`../src/schema.rs`](../src/schema.rs) —
 so this directory holds the tests that need every crate's schema registry
@@ -15,8 +15,8 @@ visible at once.
 Per-pass projection behaviour (single-document rewriting, budget arithmetic,
 handle substitution) is unit-tested inside `finstack_quant_core::schema`. These
 tests assert only the properties that emerge once every domain registry is
-merged. Nine of the fourteen domain crates publish schema artifacts — `core`,
-`attribution`, `cashflows`, `factor_model`, `margin`, `portfolio`, `scenarios`,
+merged. Nine registry domains publish schema artifacts — `core`,
+`attribution`, `cashflows`, `factor_model` (owned by `models`), `margin`, `portfolio`, `scenarios`,
 `statements` and `valuations` — and `domain_registries()` in `../src/schema.rs`
 is the list.
 

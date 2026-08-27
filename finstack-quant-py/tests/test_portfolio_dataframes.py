@@ -19,7 +19,7 @@ import pandas as pd
 import pytest
 
 from finstack_quant.core.market_data import DiscountCurve, FxMatrix, MarketContext
-from finstack_quant.factor_model.credit import CreditFactorModel
+from finstack_quant.models.factor.credit import CreditFactorModel
 from finstack_quant.portfolio import (
     Constraint,
     FactorAssignmentReport,

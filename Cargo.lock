@@ -717,7 +717,6 @@ dependencies = [
  "finstack-quant-cashflows",
  "finstack-quant-core",
  "finstack-quant-covenants",
- "finstack-quant-factor-model",
  "finstack-quant-features",
  "finstack-quant-margin",
  "finstack-quant-models",
@@ -760,7 +759,6 @@ dependencies = [
  "criterion",
  "finstack-quant-cashflows",
  "finstack-quant-core",
- "finstack-quant-factor-model",
  "finstack-quant-models",
  "finstack-quant-valuations",
  "indexmap",
@@ -840,22 +838,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "finstack-quant-factor-model"
-version = "0.7.0"
-dependencies = [
- "criterion",
- "finstack-quant-analytics",
- "finstack-quant-core",
- "jsonschema",
- "proptest",
- "schemars",
- "serde",
- "serde_json",
- "thiserror",
- "time",
-]
-
-[[package]]
 name = "finstack-quant-features"
 version = "0.7.0"
 dependencies = [
@@ -889,6 +871,7 @@ dependencies = [
  "finstack-quant-core",
  "finstack-quant-test-utils",
  "indexmap",
+ "jsonschema",
  "nalgebra",
  "num-complex",
  "proptest",
@@ -917,8 +900,8 @@ dependencies = [
  "finstack-quant-attribution",
  "finstack-quant-cashflows",
  "finstack-quant-core",
- "finstack-quant-factor-model",
  "finstack-quant-margin",
+ "finstack-quant-models",
  "finstack-quant-scenarios",
  "finstack-quant-valuations",
  "good_lp",
@@ -950,7 +933,6 @@ dependencies = [
  "finstack-quant-cashflows",
  "finstack-quant-core",
  "finstack-quant-covenants",
- "finstack-quant-factor-model",
  "finstack-quant-features",
  "finstack-quant-margin",
  "finstack-quant-models",
@@ -1051,7 +1033,6 @@ dependencies = [
  "finstack-quant-cashflows",
  "finstack-quant-core",
  "finstack-quant-covenants",
- "finstack-quant-factor-model",
  "finstack-quant-margin",
  "finstack-quant-models",
  "finstack-quant-valuations-macros",
@@ -1093,7 +1074,6 @@ dependencies = [
  "finstack-quant-cashflows",
  "finstack-quant-core",
  "finstack-quant-covenants",
- "finstack-quant-factor-model",
  "finstack-quant-features",
  "finstack-quant-margin",
  "finstack-quant-models",

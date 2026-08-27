@@ -1,0 +1,243 @@
+{
+  "$defs": {
+    "DateWire": {
+      "description": "ISO 8601 calendar date encoded as a `YYYY-MM-DD` JSON string.",
+      "format": "date",
+      "type": "string"
+    },
+    "GenericFactorSeries": {
+      "additionalProperties": false,
+      "description": "Generic (PC) factor reference and aligned values.",
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/GenericFactorSpec",
+          "description": "Reference (name + series_id) embedded into the artifact."
+        },
+        "values": {
+          "description": "Generic factor values aligned with [`HistoryPanel::dates`].\n\nDecimal units (`0.01` = 100 bp), same convention as issuer spreads.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "spec",
+        "values"
+      ],
+      "type": "object"
+    },
+    "GenericFactorSpec": {
+      "additionalProperties": false,
+      "description": "Reference to the generic (PC) time series used as the first factor.\n\nValues are not stored here; they live in\n[`FactorHistories`] under the key `\"credit::generic\"`.",
+      "properties": {
+        "name": {
+          "description": "Human-readable name for the generic factor (e.g. `\"CDX IG 5Y\"`).",
+          "type": "string"
+        },
+        "series_id": {
+          "description": "Caller's time-series identifier, used to look up the input data.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "series_id"
+      ],
+      "type": "object"
+    },
+    "HistoryPanel": {
+      "additionalProperties": false,
+      "description": "Issuer-spread history aligned to a complete regular date grid.\n\n`dates` is the sorted observation grid. `spreads[issuer]` has length\n`dates.len()`. Every entry must be `Some(decimal_spread)` — gaps and\n`None` are rejected at calibration. Callers pass **decimal** spreads\n(`0.01` = 100 bp).\n\nEvery spread must lie in the open decimal band `(-0.5, 2.0)` — i.e.\nbelow 20,000 bp. Deeply distressed quotes at or above 200% running-spread\nequivalents are rejected as looking like basis points; such names must be\nexcluded from the calibration universe.",
+      "properties": {
+        "dates": {
+          "description": "Observation dates (sorted ascending).",
+          "items": {
+            "$ref": "#/$defs/DateWire"
+          },
+          "type": "array"
+        },
+        "spreads": {
+          "additionalProperties": {
+            "items": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": "array"
+          },
+          "description": "Per-issuer decimal spread series aligned with [`dates`][Self::dates].\n\nEach vector must be fully observed (`Some` at every date). Values are\ndecimal (`0.01` = 100 bp), converted to bp at calibrate entry.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "dates",
+        "spreads"
+      ],
+      "type": "object"
+    },
+    "IssuerTagPanel": {
+      "additionalProperties": false,
+      "description": "Point-in-time issuer tags at the calibration `as_of`.",
+      "properties": {
+        "tags": {
+          "additionalProperties": {
+            "$ref": "#/$defs/IssuerTags"
+          },
+          "description": "Tag map keyed by issuer.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "tags"
+      ],
+      "type": "object"
+    },
+    "IssuerTags": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Flat key-value taxonomy tags for an issuer.\n\nUses `BTreeMap` so that serialization is deterministic and two artifacts\nbuilt from identical inputs produce byte-identical JSON.",
+      "type": "object"
+    }
+  },
+  "$id": "https://finstack_quant.dev/schemas/factor_model/1/credit_calibration_inputs.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Typed issuer histories, tags, generic factor series, anchor date, and overrides for one credit calibration run.",
+  "examples": [
+    {
+      "as_of": "2024-06-01",
+      "as_of_spreads": {
+        "ACME": 0.0122,
+        "BOREAS": 0.0097,
+        "CYGNUS": 0.0349
+      },
+      "generic_factor": {
+        "spec": {
+          "name": "credit_pc1",
+          "series_id": "CREDIT-PC1"
+        },
+        "values": [
+          0.01,
+          0.0104,
+          0.0098,
+          0.0109,
+          0.0106,
+          0.0102
+        ]
+      },
+      "history_panel": {
+        "dates": [
+          "2024-01-01",
+          "2024-02-01",
+          "2024-03-01",
+          "2024-04-01",
+          "2024-05-01",
+          "2024-06-01"
+        ],
+        "spreads": {
+          "ACME": [
+            0.012,
+            0.0125,
+            0.0118,
+            0.013,
+            0.0127,
+            0.0122
+          ],
+          "BOREAS": [
+            0.0095,
+            0.0099,
+            0.0092,
+            0.0104,
+            0.0101,
+            0.0097
+          ],
+          "CYGNUS": [
+            0.034,
+            0.0355,
+            0.0331,
+            0.0372,
+            0.0364,
+            0.0349
+          ]
+        }
+      },
+      "idiosyncratic_overrides": {},
+      "issuer_tags": {
+        "tags": {
+          "ACME": {
+            "rating": "ig"
+          },
+          "BOREAS": {
+            "rating": "ig"
+          },
+          "CYGNUS": {
+            "rating": "hy"
+          }
+        }
+      },
+      "spread_durations": {
+        "ACME": 5.0,
+        "BOREAS": 5.0,
+        "CYGNUS": 4.0
+      }
+    }
+  ],
+  "properties": {
+    "as_of": {
+      "$ref": "#/$defs/DateWire",
+      "description": "Calibration anchor date (must appear in `history_panel.dates`)."
+    },
+    "as_of_spreads": {
+      "additionalProperties": {
+        "format": "double",
+        "type": "number"
+      },
+      "description": "Issuer spreads at `as_of` in decimal units (level space).",
+      "type": "object"
+    },
+    "generic_factor": {
+      "$ref": "#/$defs/GenericFactorSeries",
+      "description": "Generic factor series + spec."
+    },
+    "history_panel": {
+      "$ref": "#/$defs/HistoryPanel",
+      "description": "Complete regular issuer-spread history in decimal units."
+    },
+    "idiosyncratic_overrides": {
+      "additionalProperties": {
+        "format": "double",
+        "type": "number"
+      },
+      "description": "Optional caller-supplied idiosyncratic vol overrides.\n\nCaller-supplied values take precedence over history, peer-proxy, and\nglobal-default adder-vol estimates.",
+      "type": "object"
+    },
+    "issuer_tags": {
+      "$ref": "#/$defs/IssuerTagPanel",
+      "description": "Per-issuer hierarchy tags (point-in-time)."
+    },
+    "spread_durations": {
+      "additionalProperties": {
+        "format": "double",
+        "type": "number"
+      },
+      "default": {},
+      "description": "Option-adjusted spread duration in **years** (`> 0`) per issuer.\n\nRequired when\n[`CreditCalibrationConfig::bucket_weighting`][super::config::CreditCalibrationConfig::bucket_weighting]\nis [`BucketWeighting::Dts`][super::config::BucketWeighting::Dts].\nThe historical peel weights each date by contemporaneous DTS\n(`SD × panel spread_bp` at that date); the anchor uses as-of DTS.\nPersisted on each\n[`IssuerBetaRow`][crate::factor::credit::hierarchy::IssuerBetaRow] so\ndecompose can rebuild DTS from the current spread. The duration is a\nsingle value across the calibration window (no per-date duration\nseries).",
+      "type": "object"
+    }
+  },
+  "required": [
+    "history_panel",
+    "issuer_tags",
+    "generic_factor",
+    "as_of",
+    "as_of_spreads",
+    "idiosyncratic_overrides"
+  ],
+  "title": "CreditCalibrationInputs",
+  "type": "object"
+}

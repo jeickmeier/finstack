@@ -10,7 +10,7 @@ Covers the newly added exports across five namespaces:
   ``LmeAnalysis.to_dataframe``.
 - ``core.market_data``: ``fx.FxRateResult.to_dataframe``,
   ``scalars.ScalarTimeSeries.to_dataframe``.
-- ``factor_model.credit``: ``PeriodDecomposition.to_level_dataframe`` and
+- ``models.factor.credit``: ``PeriodDecomposition.to_level_dataframe`` and
   ``to_adder_dataframe``.
 
 Everything is built through public constructors and calculators, so the tests
@@ -29,9 +29,9 @@ import pandas as pd
 import pytest
 
 from finstack_quant.analytics import MultiFactorResult, Performance
-from finstack_quant.models.credit import liability_management, pd as credit_pd, recovery_waterfall
 from finstack_quant.core.market_data import FxMatrix, ScalarTimeSeries
-from finstack_quant.factor_model.credit import (
+from finstack_quant.models.credit import liability_management, pd as credit_pd, recovery_waterfall
+from finstack_quant.models.factor.credit import (
     CreditCalibrator,
     PeriodDecomposition,
     decompose_levels,
@@ -378,7 +378,7 @@ def test_scalar_time_series_ordering_ignores_the_insertion_order() -> None:
     assert list(chronological["value"]) == pytest.approx([0.03, 0.035, 0.04])
 
 
-# factor_model.credit
+# models.factor.credit
 
 _LEVEL_DELTA_COLUMNS = [
     "from_date",

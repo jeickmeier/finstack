@@ -21,7 +21,7 @@ import pandas as pd
 from finstack_quant.core.market_data import DiscountCurve, MarketContext
 from finstack_quant.core.money import Money
 from finstack_quant.core.table import ArrowTable
-from finstack_quant.factor_model.credit import CreditFactorModel
+from finstack_quant.models.factor.credit import CreditFactorModel
 from finstack_quant.portfolio import schema as schema
 from finstack_quant.scenarios import ApplicationReport
 
@@ -10872,7 +10872,7 @@ def factor_stress(
         MarketContext instance or JSON market context accepted by the
         compiled market extractor.
     factor_model_config_json : str
-        JSON-encoded ``finstack_quant_factor_model::FactorModelConfig``.
+        JSON-encoded ``finstack_quant_models::factor::FactorModelConfig``.
     as_of : datetime.date | str
         Calculation date, either a date-like object or an ISO 8601 string.
     stresses : list[tuple[str, float]]
@@ -10931,7 +10931,7 @@ def position_what_if(
         MarketContext instance or JSON market context accepted by the
         compiled market extractor.
     factor_model_config_json : str
-        JSON-encoded ``finstack_quant_factor_model::FactorModelConfig``.
+        JSON-encoded ``finstack_quant_models::factor::FactorModelConfig``.
     as_of : datetime.date | str
         Calculation date, either a date-like object or an ISO 8601 string.
     changes : list[dict[str, Any]]

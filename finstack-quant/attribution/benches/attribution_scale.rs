@@ -32,12 +32,12 @@ use finstack_quant_attribution::{
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::IssuerId;
-use finstack_quant_factor_model::credit::hierarchy::{
+use finstack_quant_models::factor::credit::hierarchy::{
     AdderVolSource, CalibrationDiagnostics, CreditFactorModel, CreditHierarchySpec, DateRange,
     FactorCorrelationMatrix, GenericFactorSpec, HierarchyDimension, IssuerBetaMode,
     IssuerBetaPolicy, IssuerBetaRow, IssuerBetas, IssuerTags, LevelsAtAnchor, VolState,
 };
-use finstack_quant_factor_model::{
+use finstack_quant_models::factor::{
     FactorCovarianceMatrix, FactorModelConfig, MatchingConfig, PricingMode,
 };
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
@@ -331,7 +331,7 @@ fn build_credit_model_for_n(n: usize) -> CreditFactorModel {
     };
 
     CreditFactorModel {
-        schema: finstack_quant_factor_model::credit::hierarchy::CreditFactorModelSchema::CURRENT,
+        schema: finstack_quant_models::factor::credit::hierarchy::CreditFactorModelSchema::CURRENT,
         as_of,
         calibration_window,
         policy: IssuerBetaPolicy::GloballyOff,
@@ -342,10 +342,12 @@ fn build_credit_model_for_n(n: usize) -> CreditFactorModel {
         hierarchy: CreditHierarchySpec {
             levels: vec![HierarchyDimension::Rating],
         },
-        panel_frequency: finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
+        panel_frequency:
+            finstack_quant_models::factor::credit::calibration::PanelFrequency::Monthly,
         use_returns_or_levels:
-            finstack_quant_factor_model::credit::calibration::PanelSpace::Returns,
-        bucket_weighting: finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
+            finstack_quant_models::factor::credit::calibration::PanelSpace::Returns,
+        bucket_weighting:
+            finstack_quant_models::factor::credit::calibration::BucketWeighting::Equal,
         config,
         issuer_betas,
         anchor_state: LevelsAtAnchor {

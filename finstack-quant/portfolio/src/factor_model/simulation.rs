@@ -3,7 +3,7 @@
 use super::traits::RiskDecomposer;
 use super::types::{FactorContribution, RiskDecomposition};
 use crate::sensitivity::SensitivityMatrix;
-use finstack_quant_factor_model::{FactorCovarianceMatrix, RiskMeasure};
+use finstack_quant_models::factor::{FactorCovarianceMatrix, RiskMeasure};
 
 /// Relative tolerance for symmetry, semi-definiteness, and rank detection.
 ///
@@ -686,7 +686,7 @@ mod tests {
     use super::{cholesky, SimulationDecomposer};
     use crate::factor_model::RiskDecomposer;
     use crate::sensitivity::SensitivityMatrix;
-    use finstack_quant_factor_model::{FactorCovarianceMatrix, FactorId, RiskMeasure};
+    use finstack_quant_models::factor::{FactorCovarianceMatrix, FactorId, RiskMeasure};
 
     type TestResult = finstack_quant_core::Result<()>;
 

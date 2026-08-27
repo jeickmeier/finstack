@@ -163,31 +163,32 @@ public = [
 note = "Subset scope: the canonical Rust core::table columnar envelope types (TableEnvelope and its schema/column companions) are not bound in any host — `ArrowTable` is the Python-side Arrow interop wrapper, not a binding of those types. The Rust envelope crosses host boundaries only as serialized JSON inside result payloads. No WASM parity (arrow-rs not built for wasm32)."
 
 # ---------------------------------------------------------------------------
-# finstack-quant-factor-model  →  finstack_quant.factor_model
+# finstack-quant-models::factor  →  finstack_quant.models.factor
 # ---------------------------------------------------------------------------
-[crates.factor_model]
-rust_crate = "finstack-quant-factor-model"
-rust_lib   = "finstack-quant/factor-model/src/lib.rs"
-python_package = "finstack_quant.factor_model"
+[crates.models.factor]
+rust_crate = "finstack-quant-models"
+rust_lib   = "finstack-quant/models/src/factor/mod.rs"
+python_package = "finstack_quant.models.factor"
 visibility = "pub"
 status = "exists"
-note = "Generic factor-model types are exported at the Rust crate root. FactorCovarianceMatrix and FactorModelConfig are typed output wrappers under finstack_quant.factor_model.credit; WASM returns equivalent plain objects. Remaining generic configuration primitives cross host boundaries through explicit JSON inputs. Credit hierarchy APIs are exposed under finstack_quant.factor_model.credit."
+note = "Generic factor-model types are exported at the Rust crate root. FactorCovarianceMatrix and FactorModelConfig are typed output wrappers under finstack_quant.models.factor.credit; WASM returns equivalent plain objects. Remaining generic configuration primitives cross host boundaries through explicit JSON inputs. Credit hierarchy APIs are exposed under finstack_quant.models.factor.credit."
+public = ["credit", "schema"]
 
-[crates.factor_model.modules]
-matching           = { python = "finstack_quant.factor_model.matching", status = "missing", note = "MatchingConfig typed host-language constructors deferred; JSON contracts remain Rust-owned. The crate-root matching re-exports (CascadeMatcher, HierarchicalMatcher, MappingTableMatcher, FactorMatcher trait family, MappingRule, AttributeFilter, DependencyFilter) are Rust-only." }
-credit             = { python = "finstack_quant.factor_model.credit", status = "exists", note = "Credit hierarchy artifacts plus typed FactorCovarianceMatrix/FactorModelConfig forecast outputs are flattened into this namespace. FactorCovarianceForecast is bound here but its canonical Rust home is finstack-quant-portfolio::factor_model::credit_vol_forecast; WASM returns equivalent forecast outputs as plain objects." }
-schema             = { python = "finstack_quant.factor_model.schema", status = "exists", note = "Compiled-in JSON Schema accessors; no WASM twin." }
+[crates.models.factor.modules]
+matching           = { python = "finstack_quant.models.factor.matching", status = "missing", note = "MatchingConfig typed host-language constructors deferred; JSON contracts remain Rust-owned. The crate-root matching re-exports (CascadeMatcher, HierarchicalMatcher, MappingTableMatcher, FactorMatcher trait family, MappingRule, AttributeFilter, DependencyFilter) are Rust-only." }
+credit             = { python = "finstack_quant.models.factor.credit", status = "exists", note = "Credit hierarchy artifacts plus typed FactorCovarianceMatrix/FactorModelConfig forecast outputs are flattened into this namespace. FactorCovarianceForecast is bound here but its canonical Rust home is finstack-quant-portfolio::factor_model::credit_vol_forecast; WASM returns equivalent forecast outputs as plain objects." }
+schema             = { python = "finstack_quant.models.factor.schema", status = "exists", note = "Compiled-in JSON Schema accessors; no WASM twin." }
 
 # The remaining crate-root `pub use` surface (BumpSizeConfig, FactorBumpUnit,
 # PricingMode, RiskMeasure, UnmatchedPolicy, SensitivityMatrix, envelope types,
 # and primitive factor/dependency types) remains Rust-owned. Hosts consume these
 # inside FactorModelConfig or through explicit JSON inputs rather than parallel
 # constructor APIs.
-[crates.factor_model.symbols]
+[crates.models.factor.symbols]
 public = []
 
-[crates.factor_model.module_symbols.credit]
-python_package = "finstack_quant.factor_model.credit"
+[crates.models.factor.module_symbols.credit]
+python_package = "finstack_quant.models.factor.credit"
 public = [
     "CreditCalibrator",
     "CreditFactorModel",
@@ -200,8 +201,8 @@ public = [
     "decompose_period",
 ]
 
-[crates.factor_model.module_symbols.schema]
-python_package = "finstack_quant.factor_model.schema"
+[crates.models.factor.module_symbols.schema]
+python_package = "finstack_quant.models.factor.schema"
 public = [
     "credit_calibration_config_schema",
     "credit_calibration_inputs_schema",
@@ -211,20 +212,6 @@ public = [
     "index",
     "validate",
 ]
-
-[wasm_factor_model_subset]
-status = "explicit_subset"
-note = "WASM factor_model exposes a single nested `credit` namespace mirroring finstack_quant.factor_model.credit. Artifact handles retain toJson methods; covariance/config forecasts return plain structured objects matching the Python wrappers' serde shape. `schema` has no WASM twin."
-js_export_file = "../finstack-quant-wasm/exports/factor_model.js"
-root_exports = [
-  "credit",
-]
-python_only = [
-  "schema",
-]
-
-[wasm_factor_model_subset.python_js_map]
-credit = "credit"
 
 # ---------------------------------------------------------------------------
 # finstack-quant-analytics  →  finstack_quant.analytics
@@ -602,6 +589,7 @@ volatility   = { python = "finstack_quant.models.volatility", status = "exists",
 pde          = { python = "finstack_quant.models.pde", status = "missing", note = "Rust-only numerical engines consumed by valuation instruments." }
 trees        = { python = "finstack_quant.models.trees", status = "missing", note = "Rust-only tree engines consumed by valuation instruments." }
 credit       = { python = "finstack_quant.models.credit", status = "exists", note = "Structural credit, rating factors, scoring, PD, LGD, migration, recovery-waterfall, and liability-management models." }
+factor       = { python = "finstack_quant.models.factor", status = "exists", note = "Factor definitions, matching, covariance, sensitivity matrices, and credit hierarchy calibration." }
 correlation  = { python = "finstack_quant.models.correlation", status = "exists", note = "Copula, recovery, and portfolio-loss infrastructure." }
 monte_carlo  = { python = "finstack_quant.models.monte_carlo", status = "exists", note = "Productized subset of the reusable stochastic engine." }
 rates        = { python = "finstack_quant.models.rates", status = "exists", note = "Product-independent interest-rate models." }
@@ -894,6 +882,8 @@ public = [
     "DynamicRecoverySpec",
     "EndogenousHazardSpec",
     "MertonModel",
+    "SimulatedPaths",
+    "ToggleExerciseModel",
     "lgd",
     "liability_management",
     "migration",
@@ -901,8 +891,6 @@ public = [
     "pd",
     "recovery_waterfall",
     "scoring",
-    "SimulatedPaths",
-    "ToggleExerciseModel",
 ]
 
 [crates.models.credit_migration_members]
@@ -2121,7 +2109,6 @@ names = [
     "cashflows",
     "core",
     "covenants",
-    "factor_model",
     "features",
     "margin",
     "models",
@@ -2151,7 +2138,6 @@ namespaces = [
     "cashflows",
     "core",
     "covenants",
-    "factor_model",
     "features",
     "margin",
     "models",
@@ -2169,9 +2155,8 @@ namespaces = [
 # Rust `finstack-quant-core` public surface — only the host-language-friendly
 # primitives that browser callers actually need. Modules outside this list
 # are deliberately not bound for WASM (e.g. `cashflow`, `config`, `credit`,
-# `expr`, `explain`, `prelude`, `validation`). The standalone
-# `finstack-quant-factor-model` crate is exposed through the separate top-level
-# `factor_model` WASM namespace.
+# `expr`, `explain`, `prelude`, `validation`). Reusable factor engines are
+# exposed through the nested `models.factor` WASM namespace.
 #
 # Python tracks the full `finstack-quant-core` surface (see `[crates.core.modules]`
 # above) because it is the canonical consumer; WASM is opt-in per module.
@@ -2470,7 +2455,7 @@ wasm_only = [
 [wasm_models_subset]
 rust_module_root = "../finstack-quant-wasm/src/api/models/"
 js_export_file   = "../finstack-quant-wasm/exports/models.js"
-nested = ["correlation", "credit", "monteCarlo", "rates", "volatility"]
+nested = ["correlation", "credit", "factor", "monteCarlo", "rates", "volatility"]
 root_exports = [
     "asianOptionPrice",
     "barrierCall",
@@ -2554,6 +2539,9 @@ credit = [
     "toggleExerciseOptimalJson",
     "toggleExerciseThresholdJson",
 ]
+factor = [
+    "credit",
+]
 monteCarlo = [
     "blackScholesCall",
     "blackScholesPut",
@@ -2574,6 +2562,9 @@ rates = ["dtsm"]
 nelson_siegel_yields = "nelsonSiegelYields"
 
 [wasm_models_subset.nested_python_only]
+factor = [
+    "schema",
+]
 monteCarlo = [
     "Estimate",
     "EuropeanPricer",

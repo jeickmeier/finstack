@@ -9,7 +9,7 @@ use finstack_quant_core::market_data::bumps::{BumpMode, BumpSpec, BumpType, Mark
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::{Error, InputError, Result};
-use finstack_quant_factor_model::{
+use finstack_quant_models::factor::{
     BumpSizeConfig, FactorBumpUnit, FactorDefinition, MarketMapping, SensitivityMatrix,
 };
 use finstack_quant_valuations::instruments::Instrument;
@@ -667,8 +667,8 @@ mod tests {
         let instrument = MockInstrument::curve_zero("curve-inst", "USD-OIS", 5.0, 10_000.0);
         let positions = vec![("curve-pos".to_string(), &instrument as &dyn Instrument, 1.0)];
         let factors = vec![FactorDefinition {
-            id: finstack_quant_factor_model::FactorId::new("rates"),
-            factor_type: finstack_quant_factor_model::FactorType::Rates,
+            id: finstack_quant_models::factor::FactorId::new("rates"),
+            factor_type: finstack_quant_models::factor::FactorType::Rates,
             market_mapping: MarketMapping::CurveParallel {
                 curve_ids: vec![CurveId::new("USD-OIS")],
                 units: BumpUnits::RateBp,
@@ -697,8 +697,8 @@ mod tests {
         let instrument = MockInstrument::non_finite_raw("bad-inst");
         let positions = vec![("bad-pos".to_string(), &instrument as &dyn Instrument, 1.0)];
         let factors = vec![FactorDefinition {
-            id: finstack_quant_factor_model::FactorId::new("rates"),
-            factor_type: finstack_quant_factor_model::FactorType::Rates,
+            id: finstack_quant_models::factor::FactorId::new("rates"),
+            factor_type: finstack_quant_models::factor::FactorType::Rates,
             market_mapping: MarketMapping::CurveParallel {
                 curve_ids: vec![CurveId::new("USD-OIS")],
                 units: BumpUnits::RateBp,
@@ -724,8 +724,8 @@ mod tests {
         let positions = vec![("curve-pos".to_string(), &instrument as &dyn Instrument, 1.0)];
         let factors = vec![
             FactorDefinition {
-                id: finstack_quant_factor_model::FactorId::new("first-factor"),
-                factor_type: finstack_quant_factor_model::FactorType::Rates,
+                id: finstack_quant_models::factor::FactorId::new("first-factor"),
+                factor_type: finstack_quant_models::factor::FactorType::Rates,
                 market_mapping: MarketMapping::CurveParallel {
                     curve_ids: vec![CurveId::new("MISSING-FIRST")],
                     units: BumpUnits::RateBp,
@@ -733,8 +733,8 @@ mod tests {
                 description: None,
             },
             FactorDefinition {
-                id: finstack_quant_factor_model::FactorId::new("second-factor"),
-                factor_type: finstack_quant_factor_model::FactorType::Rates,
+                id: finstack_quant_models::factor::FactorId::new("second-factor"),
+                factor_type: finstack_quant_models::factor::FactorType::Rates,
                 market_mapping: MarketMapping::CurveParallel {
                     curve_ids: vec![CurveId::new("MISSING-SECOND")],
                     units: BumpUnits::RateBp,
@@ -765,8 +765,8 @@ mod tests {
         let instrument = MockInstrument::spot("spot-inst", "SPOT", 1.0);
         let positions = vec![("spot-pos".to_string(), &instrument as &dyn Instrument, 1.0)];
         let factors = vec![FactorDefinition {
-            id: finstack_quant_factor_model::FactorId::new("equity"),
-            factor_type: finstack_quant_factor_model::FactorType::Equity,
+            id: finstack_quant_models::factor::FactorId::new("equity"),
+            factor_type: finstack_quant_models::factor::FactorType::Equity,
             market_mapping: MarketMapping::EquitySpot {
                 tickers: vec!["SPOT".to_string()],
             },
@@ -792,8 +792,8 @@ mod tests {
         let instrument = MockInstrument::fx_cross("eur-jpy", Currency::EUR, Currency::JPY, 1.0);
         let positions = vec![("eur-jpy".to_string(), &instrument as &dyn Instrument, 1.0)];
         let factors = vec![FactorDefinition {
-            id: finstack_quant_factor_model::FactorId::new("usd-eur"),
-            factor_type: finstack_quant_factor_model::FactorType::Fx,
+            id: finstack_quant_models::factor::FactorId::new("usd-eur"),
+            factor_type: finstack_quant_models::factor::FactorType::Fx,
             market_mapping: MarketMapping::FxRate {
                 pair: (Currency::USD, Currency::EUR),
             },
@@ -834,8 +834,8 @@ mod tests {
             ),
         ];
         let factors = vec![FactorDefinition {
-            id: finstack_quant_factor_model::FactorId::new("rates"),
-            factor_type: finstack_quant_factor_model::FactorType::Rates,
+            id: finstack_quant_models::factor::FactorId::new("rates"),
+            factor_type: finstack_quant_models::factor::FactorType::Rates,
             market_mapping: MarketMapping::CurveParallel {
                 curve_ids: vec![CurveId::new("USD-OIS")],
                 units: BumpUnits::RateBp,
@@ -887,8 +887,8 @@ mod tests {
             1.0,
         )];
         let factors = vec![FactorDefinition {
-            id: finstack_quant_factor_model::FactorId::new("rates"),
-            factor_type: finstack_quant_factor_model::FactorType::Rates,
+            id: finstack_quant_models::factor::FactorId::new("rates"),
+            factor_type: finstack_quant_models::factor::FactorType::Rates,
             market_mapping: MarketMapping::CurveParallel {
                 curve_ids: vec![CurveId::new("USD-OIS")],
                 units: BumpUnits::RateBp,
@@ -922,8 +922,8 @@ mod tests {
             .with_raw_value_calls(Arc::clone(&calls));
         let positions = vec![("custom".to_string(), &instrument as &dyn Instrument, 1.0)];
         let factors = vec![FactorDefinition {
-            id: finstack_quant_factor_model::FactorId::new("custom"),
-            factor_type: finstack_quant_factor_model::FactorType::Custom("curve".to_string()),
+            id: finstack_quant_models::factor::FactorId::new("custom"),
+            factor_type: finstack_quant_models::factor::FactorType::Custom("curve".to_string()),
             market_mapping: MarketMapping::CurveParallel {
                 curve_ids: vec![CurveId::new("USD-OIS")],
                 units: BumpUnits::RateBp,

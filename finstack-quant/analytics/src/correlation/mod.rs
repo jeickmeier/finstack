@@ -2,7 +2,7 @@
 //! analytics.
 //!
 //! These helpers were originally in `finstack-quant-valuations::correlation` but were
-//! relocated so that downstream crates (e.g. `finstack-quant-factor-model`) can
+//! relocated so that downstream modules (e.g. `finstack-quant-models::factor`) can
 //! consume them without taking a dependency on `finstack-quant-valuations`.
 //!
 //! # Components

@@ -14,7 +14,6 @@ pub mod attribution;
 pub mod cashflows;
 pub mod core;
 pub mod covenants;
-pub mod factor_model;
 pub mod features;
 pub mod margin;
 pub mod models;

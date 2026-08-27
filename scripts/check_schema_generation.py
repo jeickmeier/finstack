@@ -29,7 +29,7 @@ GENERATORS = (
     Generator(Path("finstack-quant/core"), "finstack-quant-core", "gen_core_schemas"),
     Generator(Path("finstack-quant/attribution"), "finstack-quant-attribution", "gen_attribution_schemas"),
     Generator(Path("finstack-quant/cashflows"), "finstack-quant-cashflows", "gen_cashflow_schemas"),
-    Generator(Path("finstack-quant/factor-model"), "finstack-quant-factor-model", "gen_factor_model_schemas"),
+    Generator(Path("finstack-quant/models"), "finstack-quant-models", "gen_factor_model_schemas"),
     Generator(Path("finstack-quant/margin"), "finstack-quant-margin", "gen_margin_schema"),
     Generator(Path("finstack-quant/scenarios"), "finstack-quant-scenarios", "gen_scenario_schemas"),
     Generator(Path("finstack-quant/statements"), "finstack-quant-statements", "gen_statement_schemas"),

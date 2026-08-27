@@ -28,6 +28,8 @@
 //! - `closed_form`: Closed-form and semi-analytical pricing formulas (Black-Scholes Greeks,
 //!   Asian, Barrier, Lookback, Quanto, Heston)
 //! - `fourier`: Characteristic functions and COS-method pricing engines
+//! - `factor`: Factor definitions, matching, covariance, sensitivity matrices,
+//!   and hierarchical credit-factor calibration
 //! - `rates`: Interest-rate models and dynamic term-structure engines
 //! - `volatility`: Volatility models (SABR) and Black-Scholes helper functions
 //! - `trees`: Tree-based methods (Binomial, Trinomial, Multi-factor, Short-rate)
@@ -40,6 +42,7 @@ extern crate self as finstack_quant_models;
 pub mod closed_form;
 pub mod correlation;
 pub mod credit;
+pub mod factor;
 pub mod fourier;
 pub mod monte_carlo;
 pub mod pde;

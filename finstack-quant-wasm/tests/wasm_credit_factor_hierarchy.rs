@@ -5,7 +5,7 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use finstack_quant_wasm::api::factor_model::{
+use finstack_quant_wasm::api::models::factor::{
     JsCreditCalibrator, JsCreditFactorModel, JsFactorCovarianceForecast,
 };
 use wasm_bindgen_test::*;
@@ -97,9 +97,8 @@ fn minimal_inputs_json() -> String {
 /// the namespaced `schema` marker is preserved.
 #[wasm_bindgen_test]
 fn credit_factor_model_round_trips_through_json() {
-    let json = include_str!(
-        "../../finstack-quant/factor-model/tests/data/canonical/credit_factor_model.json"
-    );
+    let json =
+        include_str!("../../finstack-quant/models/tests/data/canonical/credit_factor_model.json");
     let model =
         JsCreditFactorModel::from_json(json).expect("from_json must succeed on golden artifact");
     let out = model.to_json().expect("to_json must succeed");

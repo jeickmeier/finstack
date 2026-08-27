@@ -4,7 +4,7 @@
 //! portfolio-level factor analytics. Typical usage is:
 //!
 //! 1. Build a [`crate::factor_model::FactorModel`] from a declarative
-//!    [`finstack_quant_factor_model::FactorModelConfig`].
+//!    [`finstack_quant_models::factor::FactorModelConfig`].
 //! 2. Use [`crate::factor_model::FactorModel::assign_factors`] to inspect how
 //!    portfolio positions map to configured factors.
 //! 3. Use [`crate::factor_model::FactorModel::compute_sensitivities`] to produce
@@ -22,7 +22,7 @@
 //!
 //! - Factor IDs and covariance axes must match exactly in content and order.
 //! - Risk outputs are reported in the units implied by the configured
-//!   [`finstack_quant_factor_model::RiskMeasure`].
+//!   [`finstack_quant_models::factor::RiskMeasure`].
 //! - Strict unmatched-dependency handling should be used when factor coverage is
 //!   treated as part of the model contract rather than a best-effort mapping.
 //!

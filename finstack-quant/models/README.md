@@ -2,8 +2,8 @@
 
 Reusable product-independent model engines for quantitative finance. The crate
 owns closed-form and Fourier pricing formulas, volatility models, PDE and tree
-solvers, dynamic term-structure models, structural-credit and correlation
-models, and Monte Carlo simulation.
+solvers, dynamic term-structure models, factor and factor-risk primitives,
+structural-credit and correlation models, and Monte Carlo simulation.
 Instrument definitions, market resolution, calibration orchestration, pricing
 registries, metrics, and valuation results remain in `finstack-quant-valuations`.
 
@@ -38,6 +38,7 @@ unconditional dependency. A few convenience entry points (`EuropeanPricer`,
 | `fourier` | Characteristic-function models and the product-independent COS pricing engine |
 | `rates` | Interest-rate models, including Diebold-Li and PCA dynamic term structures |
 | `volatility` | SABR parameters, model, smile, and calibration |
+| `factor` | Factor definitions and matching, covariance matrices, sensitivity storage, and hierarchical credit-factor calibration and decomposition |
 | `pde` | One- and two-dimensional grids, steppers, and solvers |
 | `trees` | Equity, short-rate, and multi-factor tree engines |
 | `credit` | Structural credit, rating-factor tables, migration, PD calibration, scoring, LGD/EAD, recovery waterfalls, liability-management analytics, dynamic recovery, endogenous hazard, and toggle exercise. Defaults are loaded from `data/credit/credit_assumptions.v1.json` under `models.credit_assumptions.v1`. |

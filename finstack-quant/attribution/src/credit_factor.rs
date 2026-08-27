@@ -2,7 +2,7 @@
 //!
 //! Given a calibrated [`CreditFactorModel`], a per-position list of CS01s and
 //! issuer ids, and the per-period factor moves produced by
-//! [`finstack_quant_factor_model::credit::decomposition::decompose_period`],
+//! [`finstack_quant_models::factor::credit::decomposition::decompose_period`],
 //! [`compute_credit_factor_attribution`]
 //! returns a [`CreditFactorAttribution`] that obeys
 //!
@@ -43,14 +43,14 @@ use std::collections::BTreeMap;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::IssuerId;
 use finstack_quant_core::Error;
-use finstack_quant_factor_model::credit::hierarchy::{CreditFactorModel, IssuerBetaRow};
+use finstack_quant_models::factor::credit::hierarchy::{CreditFactorModel, IssuerBetaRow};
 use serde::{Deserialize, Serialize};
 
 use super::credit_cascade::{
     bucket_amounts_to_money, hierarchy_level_name, optional_adder_amounts_by_issuer,
 };
 use super::types::{CreditFactorAttribution, LevelPnl};
-use finstack_quant_factor_model::credit::decomposition::PeriodDecomposition;
+use finstack_quant_models::factor::credit::decomposition::PeriodDecomposition;
 
 /// Options controlling the level of detail emitted by
 /// [`compute_credit_factor_attribution`].
@@ -357,13 +357,15 @@ mod tests {
     use super::*;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::create_date;
-    use finstack_quant_factor_model::credit::decomposition::{decompose_levels, decompose_period};
-    use finstack_quant_factor_model::credit::hierarchy::{
+    use finstack_quant_models::factor::credit::decomposition::{
+        decompose_levels, decompose_period,
+    };
+    use finstack_quant_models::factor::credit::hierarchy::{
         AdderVolSource, CalibrationDiagnostics, CreditFactorModel, CreditHierarchySpec, DateRange,
         FactorCorrelationMatrix, GenericFactorSpec, HierarchyDimension, IssuerBetaMode,
         IssuerBetaPolicy, IssuerBetaRow, IssuerBetas, IssuerTags, LevelsAtAnchor, VolState,
     };
-    use finstack_quant_factor_model::{
+    use finstack_quant_models::factor::{
         FactorCovarianceMatrix, FactorModelConfig, MatchingConfig, PricingMode,
     };
     use std::collections::BTreeMap;
@@ -406,7 +408,7 @@ mod tests {
     fn model_two_levels() -> CreditFactorModel {
         CreditFactorModel {
             schema:
-                finstack_quant_factor_model::credit::hierarchy::CreditFactorModelSchema::CURRENT,
+                finstack_quant_models::factor::credit::hierarchy::CreditFactorModelSchema::CURRENT,
             as_of: create_date(2024, Month::March, 29).unwrap(),
             calibration_window: DateRange {
                 start: create_date(2022, Month::March, 29).unwrap(),
@@ -421,11 +423,11 @@ mod tests {
                 levels: vec![HierarchyDimension::Rating, HierarchyDimension::Region],
             },
             panel_frequency:
-                finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
+                finstack_quant_models::factor::credit::calibration::PanelFrequency::Monthly,
             use_returns_or_levels:
-                finstack_quant_factor_model::credit::calibration::PanelSpace::Returns,
+                finstack_quant_models::factor::credit::calibration::PanelSpace::Returns,
             bucket_weighting:
-                finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
+                finstack_quant_models::factor::credit::calibration::BucketWeighting::Equal,
             config: empty_factor_model_config(),
             issuer_betas: vec![
                 issuer_row("ISSUER-A", "IG", "EU", 1.1, vec![0.9, 1.05]),

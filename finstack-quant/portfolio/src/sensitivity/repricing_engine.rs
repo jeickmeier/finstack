@@ -8,7 +8,9 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::{Error, Result};
-use finstack_quant_factor_model::{BumpSizeConfig, FactorDefinition, FactorId, SensitivityMatrix};
+use finstack_quant_models::factor::{
+    BumpSizeConfig, FactorDefinition, FactorId, SensitivityMatrix,
+};
 use finstack_quant_valuations::instruments::Instrument;
 
 /// P&L profile for one factor across a scenario grid.
@@ -306,7 +308,7 @@ mod tests {
     use finstack_quant_core::money::fx::{FxMatrix, FxQuery, SimpleFxProvider};
     use finstack_quant_core::money::Money;
     use finstack_quant_core::types::CurveId;
-    use finstack_quant_factor_model::{FactorType, MarketMapping};
+    use finstack_quant_models::factor::{FactorType, MarketMapping};
     use finstack_quant_valuations::instruments::{Attributes, MarketDependencies};
     use finstack_quant_valuations::pricer::InstrumentType;
     use std::any::Any;
@@ -580,7 +582,7 @@ mod tests {
         let factors = vec![FactorDefinition {
             id: FactorId::new("usd-eur"),
             factor_type: FactorType::Fx,
-            market_mapping: finstack_quant_factor_model::MarketMapping::FxRate {
+            market_mapping: finstack_quant_models::factor::MarketMapping::FxRate {
                 pair: (Currency::USD, Currency::EUR),
             },
             description: None,

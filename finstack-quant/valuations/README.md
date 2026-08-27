@@ -18,7 +18,6 @@ Depends on (see [`Cargo.toml`](Cargo.toml)):
 | [`finstack-quant-covenants`](../covenants/README.md) | `CovenantReport` attached to `ValuationResult::covenants` |
 | [`finstack-quant-margin`](../margin/README.md) | `Marginable` bridge (`Instrument::as_marginable`) for VM/IM and XVA |
 | [`finstack-quant-models`](../models/README.md) | closed-form/Fourier formulas, SABR, PDE/tree engines, structural credit, correlation, and Monte Carlo |
-| [`finstack-quant-factor-model`](../factor-model/README.md) | factor primitives used by credit/portfolio risk paths |
 | `finstack-quant-valuations-macros` | `FinancialBuilder` derive, which generates `Type::builder()` (`macros/`) |
 
 Consumed by [`attribution`](../attribution/README.md),

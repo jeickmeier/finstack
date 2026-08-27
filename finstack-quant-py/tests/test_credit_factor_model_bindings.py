@@ -17,7 +17,7 @@ import math
 
 import pytest
 
-from finstack_quant.factor_model.credit import (
+from finstack_quant.models.factor.credit import (
     CreditCalibrator,
     CreditFactorModel,
     FactorCovarianceForecast,

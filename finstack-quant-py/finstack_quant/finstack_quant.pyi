@@ -22,7 +22,6 @@ attribution: Any
 cashflows: Any
 core: Any
 covenants: Any
-factor_model: Any
 features: Any
 margin: Any
 models: Any

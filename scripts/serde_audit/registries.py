@@ -47,8 +47,8 @@ ONE_WAY_EXCEPTIONS = (
         frozenset({"JsonSchema"}),
     ),
     *_exception(
-        "factor-model",
-        "src/credit/decomposition.rs",
+        "models",
+        "src/factor/credit/decomposition.rs",
         ("LevelValuesAtDate", "LevelsAtDate", "LevelValuesDelta", "PeriodDecomposition"),
         "decomposition-output",
         "Computed credit decomposition output; reconstructed by rerunning decomposition.",
@@ -164,16 +164,16 @@ NON_MAINTAINED_SERDE_EXCEPTIONS = (
         "src/return_contribution.rs",
         ("ReturnContributionSpec",),
     ),
-    *_computed_output("core", "src/credit/pd/master_scale.rs", ("MasterScaleResult",)),
+    *_computed_output("models", "src/credit/pd/master_scale.rs", ("MasterScaleResult",)),
     *_classification(
-        "core",
+        "models",
         "src/credit/registry.rs",
         ("CreditAssumptionRegistry",),
         "internal-registry-document",
         "Embedded credit-assumption registry is loaded through component-specific validation "
         "and is outside the maintained public persistence catalog.",
     ),
-    *_computed_output("core", "src/credit/scoring/types.rs", ("ScoringResult",)),
+    *_computed_output("models", "src/credit/scoring/types.rs", ("ScoringResult",)),
     *_computed_output("core", "src/expr/ast.rs", ("EvaluationResult",)),
     *_in_process_spec("core", "src/market_data/bumps.rs", ("BumpSpec",)),
     *_computed_output(

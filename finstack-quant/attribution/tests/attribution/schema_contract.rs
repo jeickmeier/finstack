@@ -268,7 +268,7 @@ fn attribution_schema_and_serde_accept_credit_factor_model_payload() {
     ))
     .expect("canonical attribution fixture parses");
     let credit_factor_model: Value = serde_json::from_str(include_str!(
-        "../../../factor-model/tests/data/canonical/credit_factor_model.json"
+        "../../../models/tests/data/canonical/credit_factor_model.json"
     ))
     .expect("canonical credit-factor model fixture parses");
     fixture["attribution"]["credit_factor_model"] = credit_factor_model;

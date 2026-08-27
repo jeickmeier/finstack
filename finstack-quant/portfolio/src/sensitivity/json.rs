@@ -8,7 +8,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::{Error, Result};
-use finstack_quant_factor_model::{BumpSizeConfig, FactorDefinition};
+use finstack_quant_models::factor::{BumpSizeConfig, FactorDefinition};
 use finstack_quant_valuations::instruments::Instrument;
 use serde::Serialize;
 

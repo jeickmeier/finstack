@@ -11,7 +11,7 @@ use finstack_quant_core::{
     market_data::context::MarketContextState,
     Result,
 };
-use finstack_quant_factor_model::credit::hierarchy::CreditFactorModel;
+use finstack_quant_models::factor::credit::hierarchy::CreditFactorModel;
 use finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot;
 use finstack_quant_valuations::instruments::{InstrumentEnvelope, InstrumentJson};
 use finstack_quant_valuations::metrics::MetricId;

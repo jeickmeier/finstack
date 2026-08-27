@@ -8,7 +8,7 @@ loaders are authoritative.
 Cashflow schemas are owned under [`../../cashflows/schemas/`](../../cashflows/schemas/);
 portfolio materialization schemas under [`../../portfolio/schemas/`](../../portfolio/schemas/);
 credit factor-model schemas under
-[`../../factor-model/schemas/factor_model/`](../../factor-model/schemas/factor_model/).
+[`../../models/schemas/factor_model/`](../../models/schemas/factor_model/).
 Valuations schemas may reference those separately generated artifacts by `$id`,
 but must not regenerate them.
 

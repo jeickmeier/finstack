@@ -6,7 +6,7 @@ are `Vec<Vec<f64>>` panels and `Vec<Date>` grids, outputs are `Vec<f64>` or
 small serde-derived result structs.
 
 The crate also owns the shared correlation-matrix validation and PSD-repair
-helpers used by `finstack-quant-factor-model` and `finstack-quant-valuations`.
+helpers used by `finstack-quant-models` and `finstack-quant-valuations`.
 
 ## Position in the stack
 
@@ -16,7 +16,7 @@ regression and the constrained least-squares solver. Consumed by:
 
 | Consumer | What it uses |
 |----------|--------------|
-| `finstack-quant-factor-model` | `beta` (OLS slope in the credit peel), `correlation::{nearest_correlation_matrix, validate_correlation_matrix, NearestCorrelationOpts}` |
+| `finstack-quant-models` | `beta` (OLS slope in the credit peel), `correlation::{nearest_correlation_matrix, validate_correlation_matrix, NearestCorrelationOpts}` |
 | `finstack-quant-valuations` | `correlation::*`, re-exported verbatim through `finstack_quant_models::correlation` |
 | `finstack-quant` (umbrella) | re-exported as `finstack_quant::analytics` |
 | `finstack-quant-py`, `finstack-quant-wasm` | `Performance`, `regression::constrained_least_squares` |
@@ -78,7 +78,7 @@ returns them.
 | `BetaResult`, `GreeksResult`, `RollingGreeks`, `MultiFactorResult`, `ReturnKind` | `benchmark` | Returned / consumed by benchmark methods |
 | `CagrDayCount` | `risk_metrics` | Act/365.25 default or a wrapped core `DayCount` |
 | `DatedSeries` | `risk_metrics` | Returned by `Performance::rolling_*` |
-| `beta` | `benchmark` | Freestanding OLS slope; consumed by `finstack-quant-factor-model` |
+| `beta` | `benchmark` | Freestanding OLS slope; consumed by `finstack-quant-models::factor` |
 | `correlation` | `correlation` | Public module: shared row-major correlation validation and repair |
 | `regression` | `regression` | Public module: `constrained_least_squares` |
 

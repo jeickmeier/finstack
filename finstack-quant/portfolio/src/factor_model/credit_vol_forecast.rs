@@ -40,11 +40,11 @@
 use std::collections::BTreeMap;
 
 use finstack_quant_core::types::IssuerId;
-use finstack_quant_factor_model::credit::hierarchy::{
+use finstack_quant_models::factor::credit::hierarchy::{
     CreditFactorModel, FactorVolModel, IdiosyncraticVolModel,
 };
-use finstack_quant_factor_model::matching::CREDIT_GENERIC_FACTOR_ID;
-use finstack_quant_factor_model::{FactorCovarianceMatrix, FactorModelConfig, RiskMeasure};
+use finstack_quant_models::factor::matching::CREDIT_GENERIC_FACTOR_ID;
+use finstack_quant_models::factor::{FactorCovarianceMatrix, FactorModelConfig, RiskMeasure};
 
 use crate::factor_model::model::{FactorModel, FactorModelBuilder};
 use crate::factor_model::types::RiskDecomposition;
@@ -452,7 +452,7 @@ pub fn build_credit_vol_report(
     model: &CreditFactorModel,
     by_position: bool,
 ) -> CreditVolReport {
-    use finstack_quant_factor_model::credit::hierarchy::HierarchyDimension;
+    use finstack_quant_models::factor::credit::hierarchy::HierarchyDimension;
 
     let n_levels = model.hierarchy.levels.len();
     let mut by_level: Vec<LevelVolContribution> = (0..n_levels)
@@ -595,12 +595,12 @@ mod tests {
     use finstack_quant_core::dates::create_date;
     use finstack_quant_core::market_data::bumps::BumpUnits;
     use finstack_quant_core::types::{CurveId, IssuerId};
-    use finstack_quant_factor_model::credit::hierarchy::{
+    use finstack_quant_models::factor::credit::hierarchy::{
         CalibrationDiagnostics, CreditFactorModel, CreditHierarchySpec, DateRange,
         FactorCorrelationMatrix, FactorVolModel, GenericFactorSpec, HierarchyDimension,
         IdiosyncraticVolModel, IssuerBetaPolicy, LevelsAtAnchor, VolState,
     };
-    use finstack_quant_factor_model::{
+    use finstack_quant_models::factor::{
         FactorCovarianceMatrix, FactorDefinition, FactorId, FactorModelConfig, FactorType,
         MarketMapping, MatchingConfig, PricingMode, RiskMeasure,
     };
@@ -689,7 +689,7 @@ mod tests {
 
         CreditFactorModel {
             schema:
-                finstack_quant_factor_model::credit::hierarchy::CreditFactorModelSchema::CURRENT,
+                finstack_quant_models::factor::credit::hierarchy::CreditFactorModelSchema::CURRENT,
             as_of: create_date(2024, Month::March, 29).unwrap(),
             calibration_window: DateRange {
                 start: create_date(2022, Month::March, 29).unwrap(),
@@ -704,11 +704,11 @@ mod tests {
                 levels: vec![HierarchyDimension::Rating, HierarchyDimension::Sector],
             },
             panel_frequency:
-                finstack_quant_factor_model::credit::calibration::PanelFrequency::Monthly,
+                finstack_quant_models::factor::credit::calibration::PanelFrequency::Monthly,
             use_returns_or_levels:
-                finstack_quant_factor_model::credit::calibration::PanelSpace::Returns,
+                finstack_quant_models::factor::credit::calibration::PanelSpace::Returns,
             bucket_weighting:
-                finstack_quant_factor_model::credit::calibration::BucketWeighting::Equal,
+                finstack_quant_models::factor::credit::calibration::BucketWeighting::Equal,
             config: minimal_config(factors, cov),
             issuer_betas: vec![],
             anchor_state: LevelsAtAnchor {

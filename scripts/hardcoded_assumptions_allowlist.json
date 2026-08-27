@@ -566,175 +566,175 @@
       "reason": "Credit-model formula, validation, or API text; mutable PD/recovery/LGD defaults live in credit registries."
     },
     {
-      "path": "finstack-quant/core/src/credit/lgd/downturn.rs",
+      "path": "finstack-quant/models/src/credit/lgd/downturn.rs",
       "category": "credit_assumption",
       "contains": "\"unsupported downturn LGD preset method '{}'\",",
       "reason": "Validation or diagnostic text; underlying defaults are supplied by typed inputs or registries."
     },
     {
-      "path": "finstack-quant/core/src/credit/lgd/mod.rs",
+      "path": "finstack-quant/models/src/credit/lgd/mod.rs",
       "category": "rating_agency",
       "contains": "SeniorityCalibration::from_agency(rating_agency)",
       "reason": "Explicit agency lookup path; default LGD calibration is registry-backed separately."
     },
     {
-      "path": "finstack-quant/core/src/credit/lgd/mod.rs",
+      "path": "finstack-quant/models/src/credit/lgd/mod.rs",
       "category": "rating_agency",
       "contains": "rating_agency: &str",
       "reason": "Explicit Rust API parameter, not a hardcoded rating-agency default."
     },
     {
-      "path": "finstack-quant/core/src/credit/lgd/seniority.rs",
+      "path": "finstack-quant/models/src/credit/lgd/seniority.rs",
       "category": "credit_assumption",
       "contains": "Seniority-Based Beta Recovery",
       "reason": "Model label string, not a recovery assumption."
     },
     {
-      "path": "finstack-quant/core/src/credit/lgd/seniority.rs",
+      "path": "finstack-quant/models/src/credit/lgd/seniority.rs",
       "category": "rating_agency",
       "contains": "\"moodys\" | \"moody\"",
       "reason": "Accepted registry id aliases for explicit lookup; default seniority calibration id lives in credit_assumptions.v1.json."
     },
     {
-      "path": "finstack-quant/core/src/credit/lgd/seniority.rs",
+      "path": "finstack-quant/models/src/credit/lgd/seniority.rs",
       "category": "rating_agency",
       "contains": "\"sp\" | \"s_p\"",
       "reason": "Accepted registry id aliases for explicit lookup; default seniority calibration id lives in credit_assumptions.v1.json."
     },
     {
-      "path": "finstack-quant/core/src/credit/lgd/seniority.rs",
+      "path": "finstack-quant/models/src/credit/lgd/seniority.rs",
       "category": "rating_agency",
       "contains": "unknown rating agency",
       "reason": "Validation error text for explicit agency lookup, not a default rating-agency assumption."
     },
     {
-      "path": "finstack-quant/core/src/credit/lgd/workout.rs",
+      "path": "finstack-quant/models/src/credit/lgd/workout.rs",
       "category": "credit_assumption",
       "contains": "Ok(1.0 - self.lgd(ead)?)",
       "reason": "Financial formula or unit conversion, not an external default to configure."
     },
     {
-      "path": "finstack-quant/core/src/credit/lgd/workout.rs",
+      "path": "finstack-quant/models/src/credit/lgd/workout.rs",
       "category": "margin_regulatory",
       "contains": "\"unknown collateral type: '{s}' (expected cash, securities, receivables, inventory, equipment, real_estate, intellectual_property, other)\"",
       "reason": "Validation or diagnostic text; underlying defaults are supplied by typed inputs or registries."
     },
     {
-      "path": "finstack-quant/core/src/credit/lgd/workout.rs",
+      "path": "finstack-quant/models/src/credit/lgd/workout.rs",
       "category": "margin_regulatory",
       "contains": "if !(0.0..=1.0).contains(&haircut) {",
       "reason": "Margin/collateral API plumbing, display text, or sensitivity bump; regulatory schedules live in margin registries."
     },
     {
-      "path": "finstack-quant/core/src/credit/lgd/workout.rs",
+      "path": "finstack-quant/models/src/credit/lgd/workout.rs",
       "category": "margin_regulatory",
       "contains": "self.book_value * (1.0 - self.haircut)",
       "reason": "Financial formula or unit conversion, not an external default to configure."
     },
     {
-      "path": "finstack-quant/core/src/credit/migration/error.rs",
+      "path": "finstack-quant/models/src/credit/migration/error.rs",
       "category": "rating_agency",
       "contains": "#[error(\"no WARF factor for label '{label}'\")]",
       "reason": "Rating scale or WARF API plumbing; rating factors and scales are sourced from the rating-scale registry."
     },
     {
-      "path": "finstack-quant/core/src/credit/migration/error.rs",
+      "path": "finstack-quant/models/src/credit/migration/error.rs",
       "category": "rating_agency",
       "contains": "#[error(\"scale contains no labels with known WARF factors\")]",
       "reason": "Rating scale or WARF API plumbing; rating factors and scales are sourced from the rating-scale registry."
     },
     {
-      "path": "finstack-quant/core/src/credit/migration/scale.rs",
+      "path": "finstack-quant/models/src/credit/migration/scale.rs",
       "category": "rating_agency",
       "contains": "let dist = (factor - warf).abs();",
       "reason": "Financial formula or unit conversion, not an external default to configure."
     },
     {
-      "path": "finstack-quant/core/src/credit/migration/scale.rs",
+      "path": "finstack-quant/models/src/credit/migration/scale.rs",
       "category": "rating_agency",
       "contains": "pub fn rating_from_warf(&self, warf: f64) -> Result<&str, MigrationError> {",
       "reason": "Rating scale or WARF API plumbing; rating factors and scales are sourced from the rating-scale registry."
     },
     {
-      "path": "finstack-quant/core/src/credit/migration/scale.rs",
+      "path": "finstack-quant/models/src/credit/migration/scale.rs",
       "category": "rating_agency",
       "contains": "pub fn warf(&self, label: &str) -> Result<f64, MigrationError> {",
       "reason": "Rating scale or WARF API plumbing; rating factors and scales are sourced from the rating-scale registry."
     },
     {
-      "path": "finstack-quant/core/src/credit/pd/calibration.rs",
+      "path": "finstack-quant/models/src/credit/pd/calibration.rs",
       "category": "credit_assumption",
       "contains": "if pd <= 0.0 || pd >= 1.0 || !pd.is_finite() {",
       "reason": "Credit-model formula, validation, or API text; mutable PD/recovery/LGD defaults live in credit registries."
     },
     {
-      "path": "finstack-quant/core/src/credit/pd/error.rs",
+      "path": "finstack-quant/models/src/credit/pd/error.rs",
       "category": "credit_assumption",
       "contains": "#[error(\"PD value {value} is outside (0, 1)\")]",
       "reason": "Credit-model formula, validation, or API text; mutable PD/recovery/LGD defaults live in credit registries."
     },
     {
-      "path": "finstack-quant/core/src/credit/pd/error.rs",
+      "path": "finstack-quant/models/src/credit/pd/error.rs",
       "category": "rating_agency",
       "contains": "#[error(\"master scale grades must have ascending upper_pd values\")]",
       "reason": "Rating scale or WARF API plumbing; rating factors and scales are sourced from the rating-scale registry."
     },
     {
-      "path": "finstack-quant/core/src/credit/pd/master_scale.rs",
+      "path": "finstack-quant/models/src/credit/pd/master_scale.rs",
       "category": "credit_assumption",
       "contains": "crate::Error::Validation(format!(\"invalid PD master scale '{id}': {err}\"))",
       "reason": "Binding metadata, repr text, or module/export label; not a mutable financial assumption."
     },
     {
-      "path": "finstack-quant/core/src/credit/pd/master_scale.rs",
+      "path": "finstack-quant/models/src/credit/pd/master_scale.rs",
       "category": "rating_agency",
       "contains": "crate::Error::Validation(format!(\"invalid PD master scale '{id}': {err}\"))",
       "reason": "Binding metadata, repr text, or module/export label; not a mutable financial assumption."
     },
     {
-      "path": "finstack-quant/core/src/credit/pd/master_scale.rs",
+      "path": "finstack-quant/models/src/credit/pd/master_scale.rs",
       "category": "rating_agency",
       "contains": "impl MasterScale {",
       "reason": "Rating scale or WARF API plumbing; rating factors and scales are sourced from the rating-scale registry."
     },
     {
-      "path": "finstack-quant/core/src/credit/pd/master_scale.rs",
+      "path": "finstack-quant/models/src/credit/pd/master_scale.rs",
       "category": "rating_agency",
       "contains": "pub struct MasterScale {",
       "reason": "Rating scale or WARF API plumbing; rating factors and scales are sourced from the rating-scale registry."
     },
     {
-      "path": "finstack-quant/core/src/credit/pd/mod.rs",
+      "path": "finstack-quant/models/src/credit/pd/mod.rs",
       "category": "rating_agency",
       "contains": "pub mod master_scale;",
       "reason": "Rating scale or WARF API plumbing; rating factors and scales are sourced from the rating-scale registry."
     },
     {
-      "path": "finstack-quant/core/src/credit/pd/mod.rs",
+      "path": "finstack-quant/models/src/credit/pd/mod.rs",
       "category": "rating_agency",
       "contains": "pub use master_scale::{MasterScale, MasterScaleGrade, MasterScaleResult};",
       "reason": "Rating scale or WARF API plumbing; rating factors and scales are sourced from the rating-scale registry."
     },
     {
-      "path": "finstack-quant/core/src/credit/pd/term_structure.rs",
+      "path": "finstack-quant/models/src/credit/pd/term_structure.rs",
       "category": "credit_assumption",
       "contains": "self.points.push((tenor, pd.clamp(0.0, 1.0)));",
       "reason": "Financial formula or unit conversion, not an external default to configure."
     },
     {
-      "path": "finstack-quant/core/src/credit/scoring/altman.rs",
+      "path": "finstack-quant/models/src/credit/scoring/altman.rs",
       "category": "published_scoring_model",
       "contains": "Altman Z",
       "reason": "Published scoring model definition. Anonymous numeric coefficients should become named constants or model registry entries if governance requires runtime versioning."
     },
     {
-      "path": "finstack-quant/core/src/credit/scoring/ohlson.rs",
+      "path": "finstack-quant/models/src/credit/scoring/ohlson.rs",
       "category": "published_scoring_model",
       "contains": "Ohlson",
       "reason": "Published scoring model definition. Keep code-side unless model-governance versioning is required."
     },
     {
-      "path": "finstack-quant/core/src/credit/scoring/zmijewski.rs",
+      "path": "finstack-quant/models/src/credit/scoring/zmijewski.rs",
       "category": "published_scoring_model",
       "contains": "Zmijewski",
       "reason": "Published scoring model definition. Keep code-side unless model-governance versioning is required."

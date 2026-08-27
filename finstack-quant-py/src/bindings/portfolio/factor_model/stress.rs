@@ -524,7 +524,7 @@ pub(super) fn factor_stress(
     let market = extract_market_ref(py, market)?;
     let as_of = crate::bindings::date_utils::extract_date(as_of)?;
     let config_json = factor_model_config_json.to_owned();
-    let config: finstack_quant_factor_model::FactorModelConfig = py
+    let config: finstack_quant_models::factor::FactorModelConfig = py
         .detach(move || serde_json::from_str(&config_json))
         .map_err(display_to_py)?;
 
@@ -535,7 +535,10 @@ pub(super) fn factor_stress(
             let stresses = stresses
                 .into_iter()
                 .map(|(factor_id, shift)| {
-                    (finstack_quant_factor_model::FactorId::new(factor_id), shift)
+                    (
+                        finstack_quant_models::factor::FactorId::new(factor_id),
+                        shift,
+                    )
                 })
                 .collect::<Vec<_>>();
             let model = fm::FactorModelBuilder::new().config(config).build()?;

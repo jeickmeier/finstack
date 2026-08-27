@@ -29,7 +29,6 @@
 //! | `attribution`      | [`finstack_quant_attribution`]          |
 //! | `cashflows`        | [`finstack_quant_cashflows`]            |
 //! | `covenants`        | [`finstack_quant_covenants`]            |
-//! | `factor_model`     | [`finstack_quant_factor_model`]         |
 //! | `features`         | [`finstack_quant_features`]             |
 //! | `margin`           | [`finstack_quant_margin`]               |
 //! | `models`           | [`finstack_quant_models`]                |
@@ -65,7 +64,6 @@ pub use finstack_quant_attribution as attribution;
 pub use finstack_quant_cashflows as cashflows;
 pub use finstack_quant_core as core;
 pub use finstack_quant_covenants as covenants;
-pub use finstack_quant_factor_model as factor_model;
 pub use finstack_quant_features as features;
 pub use finstack_quant_margin as margin;
 pub use finstack_quant_models as models;

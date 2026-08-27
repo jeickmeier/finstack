@@ -1,0 +1,2710 @@
+{
+  "$defs": {
+    "AdderVolSource": {
+      "description": "Source provenance of an issuer's idiosyncratic vol estimate.",
+      "oneOf": [
+        {
+          "const": "from_history",
+          "description": "Estimated from the issuer's own residual history.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Proxied from the peer-bucket distribution.",
+          "properties": {
+            "bucket_peer_proxy": {
+              "properties": {
+                "peer_bucket": {
+                  "description": "Dotted bucket path used as proxy (e.g. `\"IG.EU.FIN\"`).",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "peer_bucket"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "bucket_peer_proxy"
+          ],
+          "type": "object"
+        },
+        {
+          "const": "caller_supplied",
+          "description": "Supplied directly by the caller at calibration time.",
+          "type": "string"
+        },
+        {
+          "const": "default",
+          "description": "Hard-coded fallback default.",
+          "type": "string"
+        }
+      ]
+    },
+    "AttributeFilter": {
+      "additionalProperties": false,
+      "description": "Filters on instrument metadata.\n\nAll configured conditions are combined with logical AND.",
+      "properties": {
+        "meta": {
+          "description": "Metadata key/value pairs that must all match exactly.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "tags": {
+          "description": "Tags that must all be present on the instrument.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "BucketWeighting": {
+      "description": "How bucket factor means are weighted across issuers in the bucket.\n\nDTS (duration-times-spread) is the desk-standard credit-factor weight\n(Ben Dor / Barclays): it avoids overweighting tight or short-duration\nnames. Position risk exposure remains `β × CS01`; DTS does not replace\nCS01. [`BucketWeighting::Equal`] is the opt-out for tests and simple\nequally-weighted books.\n\nThe historical peel weights each date by **contemporaneous** DTS\n(`SD × begin-of-period spread` in Returns space, `SD × same-date spread`\nin Levels space), so no as-of information enters historical factor\nconstruction. The anchor peel and decomposition use the as-of / current\ncross-section DTS. Spread durations are a single per-issuer value across\nthe window; duration drift within the window is a documented\nsimplification.",
+      "oneOf": [
+        {
+          "const": "equal",
+          "description": "Equal weight on every non-folded issuer in the bucket.",
+          "type": "string"
+        },
+        {
+          "const": "dts",
+          "description": "Weight `i` by `SD_i (years) × s_i (bp)`, normalized within the bucket.",
+          "type": "string"
+        }
+      ]
+    },
+    "BumpSizeConfig": {
+      "additionalProperties": false,
+      "description": "Per-factor-type bump magnitudes for finite-difference sensitivity engines.\n\nUnknown fields are rejected on deserialization: every field here has a\nserde default, so a typo'd key (e.g. `\"credit_bp\"`) would otherwise be\nsilently dropped and the bump would silently revert to 1.0.",
+      "properties": {
+        "credit_bp": {
+          "default": 1.0,
+          "description": "Default credit bump in basis points.",
+          "format": "double",
+          "type": "number"
+        },
+        "equity_pct": {
+          "default": 1.0,
+          "description": "Default equity spot bump in percent.",
+          "format": "double",
+          "type": "number"
+        },
+        "fx_pct": {
+          "default": 1.0,
+          "description": "Default FX spot bump in percent.",
+          "format": "double",
+          "type": "number"
+        },
+        "overrides": {
+          "additionalProperties": {
+            "format": "double",
+            "type": "number"
+          },
+          "default": {},
+          "description": "Per-factor overrides that take precedence over factor-type defaults.",
+          "type": "object"
+        },
+        "rates_bp": {
+          "default": 1.0,
+          "description": "Default rates bump in basis points.",
+          "format": "double",
+          "type": "number"
+        },
+        "vol_points": {
+          "default": 1.0,
+          "description": "Default volatility bump in vol points (`1.0` = one vol point =\n`0.01` absolute vol).",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "BumpUnits": {
+      "description": "Units for the bump magnitude. These control normalization to fraction or factor.",
+      "oneOf": [
+        {
+          "const": "rate_bp",
+          "description": "Basis points for rates/spreads (100bp = 0.01).",
+          "type": "string"
+        },
+        {
+          "const": "percent",
+          "description": "Percent units (2.0 = 2%).",
+          "type": "string"
+        },
+        {
+          "const": "fraction",
+          "description": "Direct fraction (0.02 = 2%).",
+          "type": "string"
+        },
+        {
+          "const": "factor",
+          "description": "Direct factor (1.10 = +10%). Only valid for Multiplicative mode.",
+          "type": "string"
+        }
+      ]
+    },
+    "CalibrationDiagnostics": {
+      "description": "Structured diagnostics attached to every calibrated artifact.\n\nConsumers can programmatically check coverage (e.g. \"≥ 95 % of buckets\nhad ≥ 5 issuers\") without parsing free-form log messages.\n\nThis struct omits `#[serde(deny_unknown_fields)]` to allow additive\ndiagnostic fields in future calibration versions.",
+      "properties": {
+        "bucket_sizes_per_level": {
+          "description": "One entry per hierarchy level: `BTreeMap<bucket_path, member_count>`.\nCounts every issuer assigned to the bucket regardless of\n[`IssuerBetaMode`]; the same full-membership count gates fold-up.",
+          "items": {
+            "additionalProperties": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "fold_ups": {
+          "description": "Log of all fold-up events triggered by insufficient bucket coverage.\n\n**Load-bearing, not purely diagnostic:**\n[`decompose_levels`][crate::factor::credit::decomposition::decompose_levels]\nreads these records to reconstruct which `(issuer, level)` pairs were\nfolded during calibration. Stripping or editing them changes\ndecomposition results.",
+          "items": {
+            "$ref": "#/$defs/FoldUpRecord"
+          },
+          "type": "array"
+        },
+        "mode_counts": {
+          "additionalProperties": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "Count of resolved [`IssuerBetaMode`] values.\n\nKeys are `\"issuer_beta\"` and `\"bucket_only\"`.",
+          "type": "object"
+        },
+        "r_squared_histogram": {
+          "additionalProperties": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "Optional histogram of per-issuer R² values (bucketed as string ranges).",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "tag_taxonomy": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "description": "Canonical tag taxonomy observed during calibration.\n\nKeys are dimension names (e.g. `\"rating\"`, `\"region\"`, `\"sector\"`);\nvalues are the set of distinct observed tag values.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "mode_counts",
+        "bucket_sizes_per_level",
+        "fold_ups",
+        "tag_taxonomy"
+      ],
+      "type": "object"
+    },
+    "CreditFactorModelSchema": {
+      "const": "finstack_quant.credit_factor_model/1",
+      "description": "Sole supported credit-factor-model contract marker.",
+      "type": "string"
+    },
+    "CreditHierarchicalConfig": {
+      "additionalProperties": false,
+      "description": "Declarative configuration for a calibrated credit-hierarchy matcher.\n\nThe matcher emits PC + per-level credit factors with calibrated betas\nlooked up from `issuer_betas`. `issuer_betas` must be sorted by\n`issuer_id` (binary search is used). `hierarchy` defines the level\nordering and dimension keys used to build factor IDs.",
+      "properties": {
+        "dependency_filter": {
+          "$ref": "#/$defs/DependencyFilter",
+          "default": {},
+          "description": "Dependency filter; defaults to \"any credit-curve dependency\"."
+        },
+        "hierarchy": {
+          "$ref": "#/$defs/CreditHierarchySpec",
+          "description": "Hierarchy specification (level ordering and dimension keys)."
+        },
+        "issuer_betas": {
+          "default": [],
+          "description": "Issuer beta rows, sorted by `issuer_id`.",
+          "items": {
+            "$ref": "#/$defs/IssuerBetaRow"
+          },
+          "type": "array"
+        },
+        "require_issuer_id": {
+          "description": "Require the [`ISSUER_ID_META_KEY`] meta key on every credit dependency.\n\nWhen `true`, a credit dependency whose attributes omit the issuer id\nis rejected with [`FactorMatchError::MissingRequiredTag`] instead of\nbeing silently downgraded to the PC-only proxy — an absent key is\nusually a data-plumbing failure, and the proxy fallback drops both\nhierarchy exposure and idiosyncratic risk. Calibrated artifacts set\nthis to `true`; hand-built configs default to `false` (`serde`\ndefault) so index-proxy workflows without issuer identities keep\nworking.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "hierarchy"
+      ],
+      "type": "object"
+    },
+    "CreditHierarchySpec": {
+      "additionalProperties": false,
+      "description": "Ordered list of hierarchy dimensions, broadest → narrowest.\n\nThe ordering is significant: factor IDs and beta vectors are indexed\npositionally from level 0 (broadest) to `levels.len()-1` (narrowest).",
+      "properties": {
+        "levels": {
+          "description": "Ordered hierarchy levels, broadest first.",
+          "items": {
+            "$ref": "#/$defs/HierarchyDimension"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "levels"
+      ],
+      "type": "object"
+    },
+    "Currency": {
+      "description": "ISO 4217 currency enumeration",
+      "oneOf": [
+        {
+          "const": "AED",
+          "description": "UAE Dirham (784)",
+          "type": "string"
+        },
+        {
+          "const": "AFN",
+          "description": "Afghani (971)",
+          "type": "string"
+        },
+        {
+          "const": "ALL",
+          "description": "Lek (8)",
+          "type": "string"
+        },
+        {
+          "const": "AMD",
+          "description": "Armenian Dram (51)",
+          "type": "string"
+        },
+        {
+          "const": "ANG",
+          "description": "Netherlands Antillean Guilder (532)",
+          "type": "string"
+        },
+        {
+          "const": "AOA",
+          "description": "Kwanza (973)",
+          "type": "string"
+        },
+        {
+          "const": "ARS",
+          "description": "Argentine Peso (32)",
+          "type": "string"
+        },
+        {
+          "const": "AUD",
+          "description": "Australian Dollar (36)",
+          "type": "string"
+        },
+        {
+          "const": "AWG",
+          "description": "Aruban Florin (533)",
+          "type": "string"
+        },
+        {
+          "const": "AZN",
+          "description": "Azerbaijan Manat (944)",
+          "type": "string"
+        },
+        {
+          "const": "BAM",
+          "description": "Convertible Mark (977)",
+          "type": "string"
+        },
+        {
+          "const": "BBD",
+          "description": "Barbados Dollar (52)",
+          "type": "string"
+        },
+        {
+          "const": "BDT",
+          "description": "Taka (50)",
+          "type": "string"
+        },
+        {
+          "const": "BGN",
+          "description": "Bulgarian Lev (975)",
+          "type": "string"
+        },
+        {
+          "const": "BHD",
+          "description": "Bahraini Dinar (48)",
+          "type": "string"
+        },
+        {
+          "const": "BIF",
+          "description": "Burundi Franc (108)",
+          "type": "string"
+        },
+        {
+          "const": "BMD",
+          "description": "Bermudian Dollar (60)",
+          "type": "string"
+        },
+        {
+          "const": "BND",
+          "description": "Brunei Dollar (96)",
+          "type": "string"
+        },
+        {
+          "const": "BOB",
+          "description": "Boliviano (68)",
+          "type": "string"
+        },
+        {
+          "const": "BRL",
+          "description": "Brazilian Real (986)",
+          "type": "string"
+        },
+        {
+          "const": "BSD",
+          "description": "Bahamian Dollar (44)",
+          "type": "string"
+        },
+        {
+          "const": "BTN",
+          "description": "Ngultrum (64)",
+          "type": "string"
+        },
+        {
+          "const": "BWP",
+          "description": "Pula (72)",
+          "type": "string"
+        },
+        {
+          "const": "BYN",
+          "description": "Belarusian Ruble (933)",
+          "type": "string"
+        },
+        {
+          "const": "BZD",
+          "description": "Belize Dollar (84)",
+          "type": "string"
+        },
+        {
+          "const": "CAD",
+          "description": "Canadian Dollar (124)",
+          "type": "string"
+        },
+        {
+          "const": "CDF",
+          "description": "Congolese Franc (976)",
+          "type": "string"
+        },
+        {
+          "const": "CHF",
+          "description": "Swiss Franc (756)",
+          "type": "string"
+        },
+        {
+          "const": "CLF",
+          "description": "Unidad de Fomento (990)",
+          "type": "string"
+        },
+        {
+          "const": "CLP",
+          "description": "Chilean Peso (152)",
+          "type": "string"
+        },
+        {
+          "const": "CNY",
+          "description": "Yuan Renminbi (156)",
+          "type": "string"
+        },
+        {
+          "const": "COP",
+          "description": "Colombian Peso (170)",
+          "type": "string"
+        },
+        {
+          "const": "CRC",
+          "description": "Costa Rican Colon (188)",
+          "type": "string"
+        },
+        {
+          "const": "CUC",
+          "description": "Peso Convertible (931)",
+          "type": "string"
+        },
+        {
+          "const": "CUP",
+          "description": "Cuban Peso (192)",
+          "type": "string"
+        },
+        {
+          "const": "CVE",
+          "description": "Cabo Verde Escudo (132)",
+          "type": "string"
+        },
+        {
+          "const": "CZK",
+          "description": "Czech Koruna (203)",
+          "type": "string"
+        },
+        {
+          "const": "DJF",
+          "description": "Djibouti Franc (262)",
+          "type": "string"
+        },
+        {
+          "const": "DKK",
+          "description": "Danish Krone (208)",
+          "type": "string"
+        },
+        {
+          "const": "DOP",
+          "description": "Dominican Peso (214)",
+          "type": "string"
+        },
+        {
+          "const": "DZD",
+          "description": "Algerian Dinar (12)",
+          "type": "string"
+        },
+        {
+          "const": "EGP",
+          "description": "Egyptian Pound (818)",
+          "type": "string"
+        },
+        {
+          "const": "ERN",
+          "description": "Nakfa (232)",
+          "type": "string"
+        },
+        {
+          "const": "ETB",
+          "description": "Ethiopian Birr (230)",
+          "type": "string"
+        },
+        {
+          "const": "EUR",
+          "description": "Euro (978)",
+          "type": "string"
+        },
+        {
+          "const": "FJD",
+          "description": "Fiji Dollar (242)",
+          "type": "string"
+        },
+        {
+          "const": "FKP",
+          "description": "Falkland Islands Pound (238)",
+          "type": "string"
+        },
+        {
+          "const": "GBP",
+          "description": "Pound Sterling (826)",
+          "type": "string"
+        },
+        {
+          "const": "GEL",
+          "description": "Lari (981)",
+          "type": "string"
+        },
+        {
+          "const": "GHS",
+          "description": "Ghana Cedi (936)",
+          "type": "string"
+        },
+        {
+          "const": "GIP",
+          "description": "Gibraltar Pound (292)",
+          "type": "string"
+        },
+        {
+          "const": "GMD",
+          "description": "Dalasi (270)",
+          "type": "string"
+        },
+        {
+          "const": "GNF",
+          "description": "Guinean Franc (324)",
+          "type": "string"
+        },
+        {
+          "const": "GTQ",
+          "description": "Quetzal (320)",
+          "type": "string"
+        },
+        {
+          "const": "GYD",
+          "description": "Guyana Dollar (328)",
+          "type": "string"
+        },
+        {
+          "const": "HKD",
+          "description": "Hong Kong Dollar (344)",
+          "type": "string"
+        },
+        {
+          "const": "HNL",
+          "description": "Lempira (340)",
+          "type": "string"
+        },
+        {
+          "const": "HRK",
+          "description": "Kuna (191)",
+          "type": "string"
+        },
+        {
+          "const": "HTG",
+          "description": "Gourde (332)",
+          "type": "string"
+        },
+        {
+          "const": "HUF",
+          "description": "Forint (348)",
+          "type": "string"
+        },
+        {
+          "const": "IDR",
+          "description": "Rupiah (360)",
+          "type": "string"
+        },
+        {
+          "const": "ILS",
+          "description": "New Israeli Sheqel (376)",
+          "type": "string"
+        },
+        {
+          "const": "INR",
+          "description": "Indian Rupee (356)",
+          "type": "string"
+        },
+        {
+          "const": "IQD",
+          "description": "Iraqi Dinar (368)",
+          "type": "string"
+        },
+        {
+          "const": "IRR",
+          "description": "Iranian Rial (364)",
+          "type": "string"
+        },
+        {
+          "const": "ISK",
+          "description": "Iceland Krona (352)",
+          "type": "string"
+        },
+        {
+          "const": "JMD",
+          "description": "Jamaican Dollar (388)",
+          "type": "string"
+        },
+        {
+          "const": "JOD",
+          "description": "Jordanian Dinar (400)",
+          "type": "string"
+        },
+        {
+          "const": "JPY",
+          "description": "Yen (392)",
+          "type": "string"
+        },
+        {
+          "const": "KES",
+          "description": "Kenyan Shilling (404)",
+          "type": "string"
+        },
+        {
+          "const": "KGS",
+          "description": "Som (417)",
+          "type": "string"
+        },
+        {
+          "const": "KHR",
+          "description": "Riel (116)",
+          "type": "string"
+        },
+        {
+          "const": "KMF",
+          "description": "Comorian Franc (174)",
+          "type": "string"
+        },
+        {
+          "const": "KPW",
+          "description": "North Korean Won (408)",
+          "type": "string"
+        },
+        {
+          "const": "KRW",
+          "description": "Won (410)",
+          "type": "string"
+        },
+        {
+          "const": "KWD",
+          "description": "Kuwaiti Dinar (414)",
+          "type": "string"
+        },
+        {
+          "const": "KYD",
+          "description": "Cayman Islands Dollar (136)",
+          "type": "string"
+        },
+        {
+          "const": "KZT",
+          "description": "Tenge (398)",
+          "type": "string"
+        },
+        {
+          "const": "LAK",
+          "description": "Lao Kip (418)",
+          "type": "string"
+        },
+        {
+          "const": "LBP",
+          "description": "Lebanese Pound (422)",
+          "type": "string"
+        },
+        {
+          "const": "LKR",
+          "description": "Sri Lanka Rupee (144)",
+          "type": "string"
+        },
+        {
+          "const": "LRD",
+          "description": "Liberian Dollar (430)",
+          "type": "string"
+        },
+        {
+          "const": "LSL",
+          "description": "Loti (426)",
+          "type": "string"
+        },
+        {
+          "const": "LYD",
+          "description": "Libyan Dinar (434)",
+          "type": "string"
+        },
+        {
+          "const": "MAD",
+          "description": "Moroccan Dirham (504)",
+          "type": "string"
+        },
+        {
+          "const": "MDL",
+          "description": "Moldovan Leu (498)",
+          "type": "string"
+        },
+        {
+          "const": "MGA",
+          "description": "Malagasy Ariary (969)",
+          "type": "string"
+        },
+        {
+          "const": "MKD",
+          "description": "Denar (807)",
+          "type": "string"
+        },
+        {
+          "const": "MMK",
+          "description": "Kyat (104)",
+          "type": "string"
+        },
+        {
+          "const": "MNT",
+          "description": "Tugrik (496)",
+          "type": "string"
+        },
+        {
+          "const": "MOP",
+          "description": "Pataca (446)",
+          "type": "string"
+        },
+        {
+          "const": "MRU",
+          "description": "Ouguiya (929)",
+          "type": "string"
+        },
+        {
+          "const": "MUR",
+          "description": "Mauritius Rupee (480)",
+          "type": "string"
+        },
+        {
+          "const": "MVR",
+          "description": "Rufiyaa (462)",
+          "type": "string"
+        },
+        {
+          "const": "MWK",
+          "description": "Malawi Kwacha (454)",
+          "type": "string"
+        },
+        {
+          "const": "MXN",
+          "description": "Mexican Peso (484)",
+          "type": "string"
+        },
+        {
+          "const": "MYR",
+          "description": "Malaysian Ringgit (458)",
+          "type": "string"
+        },
+        {
+          "const": "MZN",
+          "description": "Mozambique Metical (943)",
+          "type": "string"
+        },
+        {
+          "const": "NAD",
+          "description": "Namibia Dollar (516)",
+          "type": "string"
+        },
+        {
+          "const": "NGN",
+          "description": "Naira (566)",
+          "type": "string"
+        },
+        {
+          "const": "NIO",
+          "description": "Cordoba Oro (558)",
+          "type": "string"
+        },
+        {
+          "const": "NOK",
+          "description": "Norwegian Krone (578)",
+          "type": "string"
+        },
+        {
+          "const": "NPR",
+          "description": "Nepalese Rupee (524)",
+          "type": "string"
+        },
+        {
+          "const": "NZD",
+          "description": "New Zealand Dollar (554)",
+          "type": "string"
+        },
+        {
+          "const": "OMR",
+          "description": "Rial Omani (512)",
+          "type": "string"
+        },
+        {
+          "const": "PAB",
+          "description": "Balboa (590)",
+          "type": "string"
+        },
+        {
+          "const": "PEN",
+          "description": "Sol (604)",
+          "type": "string"
+        },
+        {
+          "const": "PGK",
+          "description": "Kina (598)",
+          "type": "string"
+        },
+        {
+          "const": "PHP",
+          "description": "Philippine Peso (608)",
+          "type": "string"
+        },
+        {
+          "const": "PKR",
+          "description": "Pakistan Rupee (586)",
+          "type": "string"
+        },
+        {
+          "const": "PLN",
+          "description": "Zloty (985)",
+          "type": "string"
+        },
+        {
+          "const": "PYG",
+          "description": "Guarani (600)",
+          "type": "string"
+        },
+        {
+          "const": "QAR",
+          "description": "Qatari Rial (634)",
+          "type": "string"
+        },
+        {
+          "const": "RON",
+          "description": "Romanian Leu (946)",
+          "type": "string"
+        },
+        {
+          "const": "RSD",
+          "description": "Serbian Dinar (941)",
+          "type": "string"
+        },
+        {
+          "const": "RUB",
+          "description": "Russian Ruble (643)",
+          "type": "string"
+        },
+        {
+          "const": "RWF",
+          "description": "Rwanda Franc (646)",
+          "type": "string"
+        },
+        {
+          "const": "SAR",
+          "description": "Saudi Riyal (682)",
+          "type": "string"
+        },
+        {
+          "const": "SBD",
+          "description": "Solomon Islands Dollar (90)",
+          "type": "string"
+        },
+        {
+          "const": "SCR",
+          "description": "Seychelles Rupee (690)",
+          "type": "string"
+        },
+        {
+          "const": "SDG",
+          "description": "Sudanese Pound (938)",
+          "type": "string"
+        },
+        {
+          "const": "SEK",
+          "description": "Swedish Krona (752)",
+          "type": "string"
+        },
+        {
+          "const": "SGD",
+          "description": "Singapore Dollar (702)",
+          "type": "string"
+        },
+        {
+          "const": "SHP",
+          "description": "Saint Helena Pound (654)",
+          "type": "string"
+        },
+        {
+          "const": "SLE",
+          "description": "Leone (925)",
+          "type": "string"
+        },
+        {
+          "const": "SLL",
+          "description": "Leone (694)",
+          "type": "string"
+        },
+        {
+          "const": "SOS",
+          "description": "Somali Shilling (706)",
+          "type": "string"
+        },
+        {
+          "const": "SRD",
+          "description": "Surinam Dollar (968)",
+          "type": "string"
+        },
+        {
+          "const": "SSP",
+          "description": "South Sudanese Pound (728)",
+          "type": "string"
+        },
+        {
+          "const": "STN",
+          "description": "Dobra (930)",
+          "type": "string"
+        },
+        {
+          "const": "SYP",
+          "description": "Syrian Pound (760)",
+          "type": "string"
+        },
+        {
+          "const": "SZL",
+          "description": "Lilangeni (748)",
+          "type": "string"
+        },
+        {
+          "const": "THB",
+          "description": "Baht (764)",
+          "type": "string"
+        },
+        {
+          "const": "TJS",
+          "description": "Somoni (972)",
+          "type": "string"
+        },
+        {
+          "const": "TMT",
+          "description": "Turkmenistan New Manat (934)",
+          "type": "string"
+        },
+        {
+          "const": "TND",
+          "description": "Tunisian Dinar (788)",
+          "type": "string"
+        },
+        {
+          "const": "TOP",
+          "description": "Pa'anga (776)",
+          "type": "string"
+        },
+        {
+          "const": "TRY",
+          "description": "Turkish Lira (949)",
+          "type": "string"
+        },
+        {
+          "const": "TTD",
+          "description": "Trinidad and Tobago Dollar (780)",
+          "type": "string"
+        },
+        {
+          "const": "TWD",
+          "description": "New Taiwan Dollar (901)",
+          "type": "string"
+        },
+        {
+          "const": "TZS",
+          "description": "Tanzanian Shilling (834)",
+          "type": "string"
+        },
+        {
+          "const": "UAH",
+          "description": "Hryvnia (980)",
+          "type": "string"
+        },
+        {
+          "const": "UGX",
+          "description": "Uganda Shilling (800)",
+          "type": "string"
+        },
+        {
+          "const": "USD",
+          "description": "US Dollar (840)",
+          "type": "string"
+        },
+        {
+          "const": "UYU",
+          "description": "Peso Uruguayo (858)",
+          "type": "string"
+        },
+        {
+          "const": "UZS",
+          "description": "Uzbekistan Sum (860)",
+          "type": "string"
+        },
+        {
+          "const": "VED",
+          "description": "Bolívar Soberano (926)",
+          "type": "string"
+        },
+        {
+          "const": "VES",
+          "description": "Bolívar Soberano (928)",
+          "type": "string"
+        },
+        {
+          "const": "VND",
+          "description": "Dong (704)",
+          "type": "string"
+        },
+        {
+          "const": "VUV",
+          "description": "Vatu (548)",
+          "type": "string"
+        },
+        {
+          "const": "WST",
+          "description": "Tala (882)",
+          "type": "string"
+        },
+        {
+          "const": "XAF",
+          "description": "CFA Franc BEAC (950)",
+          "type": "string"
+        },
+        {
+          "const": "XCD",
+          "description": "East Caribbean Dollar (951)",
+          "type": "string"
+        },
+        {
+          "const": "XOF",
+          "description": "CFA Franc BCEAO (952)",
+          "type": "string"
+        },
+        {
+          "const": "XPF",
+          "description": "CFP Franc (953)",
+          "type": "string"
+        },
+        {
+          "const": "YER",
+          "description": "Yemeni Rial (886)",
+          "type": "string"
+        },
+        {
+          "const": "ZAR",
+          "description": "Rand (710)",
+          "type": "string"
+        },
+        {
+          "const": "ZMW",
+          "description": "Zambian Kwacha (967)",
+          "type": "string"
+        },
+        {
+          "const": "ZWL",
+          "description": "Zimbabwe Dollar (932)",
+          "type": "string"
+        }
+      ]
+    },
+    "CurveType": {
+      "description": "Classification of a curve dependency's role.",
+      "oneOf": [
+        {
+          "const": "discount",
+          "description": "Discounting curve.",
+          "type": "string"
+        },
+        {
+          "const": "forward",
+          "description": "Forward projection curve.",
+          "type": "string"
+        },
+        {
+          "const": "hazard",
+          "description": "Credit or hazard curve.",
+          "type": "string"
+        },
+        {
+          "const": "inflation",
+          "description": "Inflation curve.",
+          "type": "string"
+        },
+        {
+          "const": "base_correlation",
+          "description": "Base-correlation surface-backed curve.",
+          "type": "string"
+        }
+      ]
+    },
+    "DateRange": {
+      "additionalProperties": false,
+      "description": "A closed calendar-date interval `[start, end]`.\n\nUsed to record the history window consumed by calibration.",
+      "properties": {
+        "end": {
+          "$ref": "#/$defs/DateWire",
+          "description": "Last date of the window (inclusive)."
+        },
+        "start": {
+          "$ref": "#/$defs/DateWire",
+          "description": "First date of the window (inclusive)."
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "type": "object"
+    },
+    "DateWire": {
+      "description": "ISO 8601 calendar date encoded as a `YYYY-MM-DD` JSON string.",
+      "format": "date",
+      "type": "string"
+    },
+    "DependencyFilter": {
+      "additionalProperties": false,
+      "description": "Filters on an individual market dependency.",
+      "properties": {
+        "curve_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CurveType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Specific curve role that the dependency must match, when present.\n\nThis is only evaluated for curve-like dependencies."
+        },
+        "dependency_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DependencyType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Dependency classification that the dependency must match, when present."
+        },
+        "id": {
+          "description": "Exact dependency identifier that must match, when present.\n\nFX pairs use the canonical `BASE/QUOTE` form, for example `USD/EUR`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "DependencyType": {
+      "description": "Classification used by dependency filters and declarative matching config.",
+      "oneOf": [
+        {
+          "const": "discount",
+          "description": "Discounting curve dependency.",
+          "type": "string"
+        },
+        {
+          "const": "forward",
+          "description": "Forward projection curve dependency.",
+          "type": "string"
+        },
+        {
+          "const": "credit",
+          "description": "Credit or hazard curve dependency.",
+          "type": "string"
+        },
+        {
+          "const": "spot",
+          "description": "Equity or commodity spot dependency.",
+          "type": "string"
+        },
+        {
+          "const": "vol",
+          "description": "Volatility surface dependency.",
+          "type": "string"
+        },
+        {
+          "const": "fx",
+          "description": "FX pair dependency.",
+          "type": "string"
+        },
+        {
+          "const": "series",
+          "description": "Time-series dependency.",
+          "type": "string"
+        }
+      ]
+    },
+    "FactorCorrelationMatrix": {
+      "additionalProperties": false,
+      "description": "Static factor correlation matrix `ρ` for the covariance decomposition\n`Σ(t) = D(t) · ρ · D(t)` where `D(t)` is the diagonal vol matrix.\n\n`factor_ids` defines the row/column ordering; `data[i][j]` is\n`ρ_{factor_ids[i], factor_ids[j]}`. The matrix must be square, symmetric,\nand have unit diagonal.",
+      "properties": {
+        "data": {
+          "description": "Row-major correlation data. `data[i]` is row `i`.",
+          "items": {
+            "items": {
+              "format": "double",
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "factor_ids": {
+          "description": "Factor IDs in row/column order.",
+          "items": {
+            "$ref": "#/$defs/FactorId"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "factor_ids",
+        "data"
+      ],
+      "type": "object"
+    },
+    "FactorCovarianceMatrix": {
+      "additionalProperties": false,
+      "description": "User-supplied factor covariance matrix with row-major storage.\n\nThe factor ID order is part of the contract: row `i`, column `j`\ncorresponds to `factor_ids[i]` and `factor_ids[j]`.\n\n# Units contract\n\nEntries are **annualized (co)variances of factor moves expressed in each\nfactor's canonical bump unit** — the same unit the sensitivity engines use\nfor deltas (see [`crate::factor::BumpSizeConfig`] / [`crate::factor::FactorBumpUnit`]):\nbasis points for rates/credit/inflation, percent for equity/commodity/FX,\nvol points for volatility. With sensitivities `s` in P&L-per-canonical-unit\nand `Σ` in canonical-unit², `sᵀΣs` is directly an annual P&L variance.\nMixing conventions — e.g. a covariance in decimal² (`0.0001²` per bp²)\nagainst per-bp sensitivities — mis-scales portfolio variance by `1e8`.\nThe credit calibrator produces matrices in this convention from the spread\npanel's native units; hand-built matrices must match it.",
+      "properties": {
+        "data": {
+          "description": "Annualized (co)variances in row-major order, `n * n` entries, each in\nits factors' canonical bump units squared. The matrix is symmetric, so\n`data[i * n + j]` equals `data[j * n + i]`.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "factor_ids": {
+          "description": "Factor identifiers, in the row and column order of `data`.",
+          "items": {
+            "$ref": "#/$defs/FactorId"
+          },
+          "type": "array"
+        },
+        "n": {
+          "description": "Matrix dimension. Equals `factor_ids.len()`.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "factor_ids",
+        "n",
+        "data"
+      ],
+      "type": "object"
+    },
+    "FactorDefinition": {
+      "additionalProperties": false,
+      "description": "Complete definition of a risk factor.",
+      "properties": {
+        "description": {
+          "description": "Optional free-form description.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "factor_type": {
+          "$ref": "#/$defs/FactorType",
+          "description": "Broad factor classification."
+        },
+        "id": {
+          "$ref": "#/$defs/FactorId",
+          "description": "Unique factor identifier."
+        },
+        "market_mapping": {
+          "$ref": "#/$defs/MarketMapping",
+          "description": "Mapping from factor move to market-data perturbation."
+        }
+      },
+      "required": [
+        "id",
+        "factor_type",
+        "market_mapping"
+      ],
+      "type": "object"
+    },
+    "FactorHistories": {
+      "description": "Embedded time-series of factor **moves in bp**.\n\nThese are the official series for rebuilding vol/correlation and for\nhistorical-simulation factor P&L. Every date is a real observation\n(no `None → 0.0` holes). Under [`PanelSpace::Returns`]\nthe stored values are already period moves; under\n[`PanelSpace::Levels`]\nthey are peeled levels and must be first-differenced before vol or P&L.\n\n`BTreeMap<FactorId, Vec<f64>>` for deterministic serialization. All value\nvectors must have the same length as `dates`.",
+      "properties": {
+        "dates": {
+          "description": "Ordered sequence of observation dates (aligned with value vectors).",
+          "items": {
+            "$ref": "#/$defs/DateWire"
+          },
+          "type": "array"
+        },
+        "values": {
+          "additionalProperties": {
+            "items": {
+              "format": "double",
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "description": "Factor return series keyed by factor ID.\n\nEach vector must have `dates.len()` entries.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "dates",
+        "values"
+      ],
+      "type": "object"
+    },
+    "FactorId": {
+      "description": "Unique identifier for a risk factor.",
+      "type": "string"
+    },
+    "FactorModelConfig": {
+      "additionalProperties": false,
+      "description": "Serializable configuration bundle for constructing a factor-model workflow.\n\nThe `factors` vector defines the canonical factor ordering. The covariance\nmatrix must use the same factor IDs and ordering, and the matching\nconfiguration is expected to emit exposures against that same universe.",
+      "properties": {
+        "bump_size": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BumpSizeConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional finite-difference bump overrides for sensitivity engines."
+        },
+        "covariance": {
+          "$ref": "#/$defs/FactorCovarianceMatrix",
+          "description": "Covariance matrix aligned to `factors`."
+        },
+        "factors": {
+          "description": "Factor definitions spanning the model universe.",
+          "items": {
+            "$ref": "#/$defs/FactorDefinition"
+          },
+          "type": "array"
+        },
+        "matching": {
+          "$ref": "#/$defs/MatchingConfig",
+          "description": "Declarative dependency-to-factor matching configuration."
+        },
+        "pricing_mode": {
+          "$ref": "#/$defs/PricingMode",
+          "description": "Sensitivity extraction strategy used by the analysis pipeline."
+        },
+        "risk_measure": {
+          "$ref": "#/$defs/RiskMeasure",
+          "default": "variance",
+          "description": "Risk measure used when aggregating factor sensitivities."
+        },
+        "unmatched_policy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UnmatchedPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Policy used when a dependency does not map to a configured factor."
+        }
+      },
+      "required": [
+        "factors",
+        "covariance",
+        "matching",
+        "pricing_mode"
+      ],
+      "type": "object"
+    },
+    "FactorNode": {
+      "additionalProperties": false,
+      "description": "A node in a hierarchical factor classification tree.",
+      "properties": {
+        "children": {
+          "description": "Child nodes representing more specific classifications.",
+          "items": {
+            "$ref": "#/$defs/FactorNode"
+          },
+          "type": "array"
+        },
+        "factor_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FactorId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Factor assigned at this node when it is a valid classification level."
+        },
+        "filter": {
+          "$ref": "#/$defs/AttributeFilter",
+          "description": "Filter that must match for this node to participate in traversal."
+        }
+      },
+      "required": [
+        "filter"
+      ],
+      "type": "object"
+    },
+    "FactorType": {
+      "description": "Broad classification of a risk factor.",
+      "oneOf": [
+        {
+          "const": "rates",
+          "description": "Interest-rate factor.",
+          "type": "string"
+        },
+        {
+          "const": "credit",
+          "description": "Credit-spread or hazard factor.",
+          "type": "string"
+        },
+        {
+          "const": "equity",
+          "description": "Equity price factor.",
+          "type": "string"
+        },
+        {
+          "const": "fx",
+          "description": "Foreign-exchange factor.",
+          "type": "string"
+        },
+        {
+          "const": "volatility",
+          "description": "Volatility factor.",
+          "type": "string"
+        },
+        {
+          "const": "commodity",
+          "description": "Commodity factor.",
+          "type": "string"
+        },
+        {
+          "const": "inflation",
+          "description": "Inflation factor.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "User-defined factor bucket.",
+          "properties": {
+            "custom": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "custom"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "FactorVolModel": {
+      "description": "Volatility model for a single factor.\n\nThe `Sample` variant stores a single variance estimate; `Ewma` additionally\npersists the smoothing parameter used at calibration time.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Simple sample-variance estimate.",
+          "properties": {
+            "sample": {
+              "additionalProperties": false,
+              "properties": {
+                "variance": {
+                  "description": "Annualized variance estimate for this factor.",
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "variance"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "sample"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "RiskMetrics exponentially weighted moving-average estimate.\n\nPersists both the smoothing parameter and the calibrated annualized\nvariance. `lambda` is retained as calibration provenance: no consumer\nreads it back today (the martingale forecast in\n`FactorCovarianceForecast` matches on the `Ewma { variance, .. }`\nshape and ignores λ, since horizon scaling doesn't depend on it), but\nkeeping it on the wire preserves the option for a future\nterm-structure-aware forecaster to recompute or extend the estimate\nwithout re-reading the calibration config.\n\n# References\n\n- Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical\n  Document* (4th ed.). J.P. Morgan/Reuters. §5.2. `docs/REFERENCES.md#jpmorgan1996RiskMetrics`",
+          "properties": {
+            "ewma": {
+              "additionalProperties": false,
+              "properties": {
+                "lambda": {
+                  "description": "Smoothing parameter λ ∈ (0, 1) used at calibration time.",
+                  "format": "double",
+                  "type": "number"
+                },
+                "variance": {
+                  "description": "Annualized one-step-ahead variance forecast.",
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "lambda",
+                "variance"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "ewma"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "FitQuality": {
+      "additionalProperties": false,
+      "description": "Regression quality statistics for a single issuer.\n\nOnly present for `IssuerBeta` mode; `None` for `BucketOnly`.",
+      "properties": {
+        "n_obs": {
+          "description": "Number of monthly observations used in the regression.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "r_squared": {
+          "description": "In-sample coefficient of determination (R²).",
+          "format": "double",
+          "type": "number"
+        },
+        "residual_std": {
+          "description": "Residual standard deviation of the through-origin peel residual\n`y − β x` in basis points of spread move.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "r_squared",
+        "residual_std",
+        "n_obs"
+      ],
+      "type": "object"
+    },
+    "FoldUpRecord": {
+      "additionalProperties": false,
+      "description": "Record of a single fold-up event during calibration.\n\nFold-up means **omit the sparse child factor** and set `β_k = 0` at that\nlevel. The issuer already sits in the parent bucket, so its residual\ncontinues to contribute to the parent mean. This is not a re-tagging of\nthe issuer into a different leaf.\n\n# Where the folded risk lands\n\nNo factor is re-assigned: the variation the sparse bucket's factor would\nhave carried stays in each member's residual and flows into the\nper-issuer **adder** (idiosyncratic) vol. Members of the same folded\nbucket therefore share a common component that Σ represents as\n*uncorrelated* idiosyncratic risk — holding several names from one folded\nbucket overstates diversification for that component. Lower the level's\n[`BucketSizeThresholds`][crate::factor::credit::calibration::BucketSizeThresholds]\nentry if that correlation materially matters for a thin bucket.",
+      "properties": {
+        "folded_to": {
+          "description": "Deepest surviving ancestor bucket path (e.g. `\"IG.EU\"`), recorded for\ndiagnostics only. The member's risk is **not** re-assigned to this\nbucket's factor — the parent level was already peeled at `k − 1`; the\nsparse bucket's own variation moves into the issuer adder instead.",
+          "type": "string"
+        },
+        "issuer_id": {
+          "$ref": "#/$defs/Id",
+          "description": "Issuer that was folded up."
+        },
+        "level_index": {
+          "description": "Hierarchy level at which the fold-up occurred.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "original_bucket": {
+          "description": "Bucket path before the fold-up (e.g. `\"IG.EU.FIN\"`).",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Human-readable reason for the fold-up (e.g. `\"fewer than 5 issuers\"`).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "issuer_id",
+        "level_index",
+        "original_bucket",
+        "folded_to",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "GenericFactorSpec": {
+      "additionalProperties": false,
+      "description": "Reference to the generic (PC) time series used as the first factor.\n\nValues are not stored here; they live in\n[`FactorHistories`] under the key `\"credit::generic\"`.",
+      "properties": {
+        "name": {
+          "description": "Human-readable name for the generic factor (e.g. `\"CDX IG 5Y\"`).",
+          "type": "string"
+        },
+        "series_id": {
+          "description": "Caller's time-series identifier, used to look up the input data.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "series_id"
+      ],
+      "type": "object"
+    },
+    "HierarchicalConfig": {
+      "additionalProperties": false,
+      "description": "Declarative configuration for a dependency-scoped hierarchical matcher.",
+      "properties": {
+        "dependency_filter": {
+          "$ref": "#/$defs/DependencyFilter",
+          "default": {},
+          "description": "Dependency filter applied before any tree traversal."
+        },
+        "root": {
+          "$ref": "#/$defs/FactorNode",
+          "description": "Root of the attribute classification tree."
+        }
+      },
+      "required": [
+        "root"
+      ],
+      "type": "object"
+    },
+    "HierarchyDimension": {
+      "description": "A single level in the credit factor hierarchy.\n\nBuilt-in variants (`Rating`, `Region`, `Sector`) have canonical tag keys.\n`Custom(key)` reads `issuer_tags[key]` for arbitrary user-defined dimensions\nsuch as `\"Currency\"` or `\"AssetType\"`.",
+      "oneOf": [
+        {
+          "const": "rating",
+          "description": "Credit rating bucket (e.g. `\"IG\"`, `\"HY\"`, `\"NR\"`).",
+          "type": "string"
+        },
+        {
+          "const": "region",
+          "description": "Geographic region (e.g. `\"EU\"`, `\"NA\"`, `\"APAC\"`).",
+          "type": "string"
+        },
+        {
+          "const": "sector",
+          "description": "Industry sector (e.g. `\"FIN\"`, `\"ENERGY\"`, `\"TECH\"`).",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "User-defined dimension reading `issuer_tags[key]`.",
+          "properties": {
+            "custom": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "custom"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Id": {
+      "description": "A phantom-typed identifier that prevents mixing different kinds of IDs.\n\nThis type wraps a string identifier with a phantom type parameter to ensure\ntype safety at compile time. Different `Id<T>` types with different `T`\ncannot be compared or mixed accidentally, preventing entire classes of bugs.\n\n# Type Parameters\n\n* `T` - Phantom type tag that distinguishes this ID from IDs with different tags\n\n# Invariants\n\n- Storage uses `Arc<str>` for efficient cloning\n- The phantom marker has zero size and runtime cost\n- Two `Id<T>` values are equal if their string values are equal\n- IDs with different type tags (`Id<A>` vs `Id<B>`) cannot be compared\n\n# Examples\n\n```rust\nuse finstack_quant_core::types::{CurveId, InstrumentId};\n\n// Create IDs with different type tags\nlet curve = CurveId::from(\"USD-SOFR\");\nlet bond = InstrumentId::from(\"ISIN:US912828XG60\");\n\n// Can compare IDs of the same type\nassert_eq!(curve, CurveId::from(\"USD-SOFR\"));\nassert_ne!(curve, CurveId::from(\"EUR-ESTR\"));\n\n// Cannot compare IDs of different types (compile error):\n// let _ = curve == bond;  // Error: mismatched types\n```\n\n# Thread Safety\n\n`Id<T>` is `Send + Sync` as it wraps an `Arc<str>`. Multiple threads can\nsafely share and clone IDs with minimal synchronization overhead.",
+      "type": "string"
+    },
+    "IdiosyncraticVolModel": {
+      "description": "Volatility model for an issuer's idiosyncratic adder.\n\nMirrors [`FactorVolModel`] in structure; kept separate so per-issuer and\nper-factor models can diverge independently in later PRs.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Simple sample-variance estimate for the idiosyncratic adder.",
+          "properties": {
+            "sample": {
+              "properties": {
+                "variance": {
+                  "description": "Annualized variance of the issuer's idiosyncratic adder.",
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "variance"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "sample"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "RiskMetrics exponentially weighted moving-average estimate.\n\nPersists both the smoothing parameter and the calibrated annualized\nvariance. `lambda` is retained as calibration provenance: no consumer\nreads it back today (the martingale forecast in\n`FactorCovarianceForecast` matches on the `Ewma { variance, .. }`\nshape and ignores λ, since horizon scaling doesn't depend on it), but\nkeeping it on the wire preserves the option for a future\nterm-structure-aware forecaster to recompute or extend the estimate\nwithout re-reading the calibration config.\n\n# References\n\n- Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical\n  Document* (4th ed.). J.P. Morgan/Reuters. §5.2. `docs/REFERENCES.md#jpmorgan1996RiskMetrics`",
+          "properties": {
+            "ewma": {
+              "properties": {
+                "lambda": {
+                  "description": "Smoothing parameter λ ∈ (0, 1) used at calibration time.",
+                  "format": "double",
+                  "type": "number"
+                },
+                "variance": {
+                  "description": "Annualized one-step-ahead variance forecast for the idiosyncratic\nadder.",
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "lambda",
+                "variance"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "ewma"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "IssuerBetaMode": {
+      "description": "Resolved regression mode stored in the calibrated artifact.\n\nA `BucketOnly` issuer's betas are all 1.0 and carry no fit statistics.",
+      "oneOf": [
+        {
+          "const": "issuer_beta",
+          "description": "Per-issuer OLS beta was estimated.",
+          "type": "string"
+        },
+        {
+          "const": "bucket_only",
+          "description": "Issuer uses the bucket-average beta (all β = 1.0).",
+          "type": "string"
+        }
+      ]
+    },
+    "IssuerBetaOverride": {
+      "description": "Per-issuer regression behavior override supplied by the user before calibration.\n\nThis is the *input* override; the *resolved* outcome is [`IssuerBetaMode`].\n\n- `Auto` — let the calibration decide based on `min_history`.\n- `ForceIssuerBeta` — always run per-issuer regression regardless of history.\n- `ForceBucketOnly` — never run per-issuer regression for this issuer.",
+      "oneOf": [
+        {
+          "const": "auto",
+          "description": "Let calibration decide based on available history.",
+          "type": "string"
+        },
+        {
+          "const": "force_issuer_beta",
+          "description": "Force per-issuer OLS regression even with limited history.",
+          "type": "string"
+        },
+        {
+          "const": "force_bucket_only",
+          "description": "Suppress per-issuer regression; use bucket average only.",
+          "type": "string"
+        }
+      ]
+    },
+    "IssuerBetaPolicy": {
+      "description": "Calibration policy governing which issuers receive a per-issuer regression.\n\n- `Dynamic` — apply a minimum-history threshold and honour per-issuer overrides.\n- `GloballyOff` — every issuer is treated as `BucketOnly`; no per-issuer\n  regression is run.  Useful for simpler factor models or data-sparse periods.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Regression is gated on a minimum history threshold with per-issuer overrides.",
+          "properties": {
+            "dynamic": {
+              "properties": {
+                "min_history": {
+                  "description": "Minimum number of monthly return observations needed to attempt OLS.\n\nDefault is 24 months.",
+                  "format": "uint",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "overrides": {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/IssuerBetaOverride"
+                  },
+                  "description": "Per-issuer overrides that can force or suppress per-issuer regression.\n\nKeys without an entry default to [`IssuerBetaOverride::Auto`].",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "min_history",
+                "overrides"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "dynamic"
+          ],
+          "type": "object"
+        },
+        {
+          "const": "globally_off",
+          "description": "Every issuer treated as `BucketOnly`; no per-issuer regression is run.",
+          "type": "string"
+        }
+      ]
+    },
+    "IssuerBetaRow": {
+      "additionalProperties": false,
+      "description": "Per-issuer beta row in the calibrated artifact.\n\nRows are stored sorted by `issuer_id` for wire stability: two calibrations\non identical inputs serialize to byte-identical JSON regardless of\niteration order inside the calibration loop.",
+      "properties": {
+        "adder_at_anchor": {
+          "description": "Value of the issuer's idiosyncratic adder at `as_of` (carry component).",
+          "format": "double",
+          "type": "number"
+        },
+        "adder_vol_annualized": {
+          "description": "Annualized idiosyncratic adder volatility (for vol forecasting).",
+          "format": "double",
+          "type": "number"
+        },
+        "adder_vol_source": {
+          "$ref": "#/$defs/AdderVolSource",
+          "description": "Provenance of `adder_vol_annualized`."
+        },
+        "betas": {
+          "$ref": "#/$defs/IssuerBetas",
+          "description": "Factor beta loadings (all `1.0` for `BucketOnly` issuers).\n\nFor `IssuerBeta` mode, each level loading is the with-intercept OLS\nslope of the issuer residual on the **leave-one-out** bucket mean.\nPeel and stored factor histories use the **full-bucket** mean, so\nthe level identity `S_i = β g + Σ β_k L_k + adder` has no drift term."
+        },
+        "fit_quality": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FitQuality"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "PC-regression fit statistics; `None` when `mode == BucketOnly`."
+        },
+        "issuer_id": {
+          "$ref": "#/$defs/Id",
+          "description": "Unique issuer identifier (e.g. LEI or internal code)."
+        },
+        "level_fit_quality": {
+          "description": "Per-level regression fit statistics, aligned with `betas.levels`.\n\n`Some` where a per-level OLS fit ran (`IssuerBeta` mode, level not\nfolded, regressor not degenerate); `None` otherwise. Empty for\n`BucketOnly` rows.",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FitQuality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": "array"
+        },
+        "mode": {
+          "$ref": "#/$defs/IssuerBetaMode",
+          "description": "Resolved regression mode for this issuer."
+        },
+        "spread_duration": {
+          "description": "Option-adjusted spread duration in **years** used for DTS weights.\n\nCalibration persists the caller-supplied duration. Decompose rebuilds\n`DTS = spread_duration × current_spread_bp` when the artifact was\ncalibrated with [`BucketWeighting::Dts`].\nEqual-weighted artifacts still store the supplied duration (or `1.0`\nwhen none was given); it is not used at peel time.",
+          "format": "double",
+          "type": "number"
+        },
+        "tags": {
+          "$ref": "#/$defs/IssuerTags",
+          "description": "Taxonomy tags used to assign the issuer to hierarchy buckets."
+        }
+      },
+      "required": [
+        "issuer_id",
+        "tags",
+        "mode",
+        "betas",
+        "adder_at_anchor",
+        "adder_vol_annualized",
+        "adder_vol_source",
+        "level_fit_quality",
+        "spread_duration"
+      ],
+      "type": "object"
+    },
+    "IssuerBetas": {
+      "additionalProperties": false,
+      "description": "Factor beta loadings for a single issuer.\n\n`pc` is the loading on the generic (PC) factor.\n`levels[i]` is the loading on the bucket factor at hierarchy level `i`.\n\nFor `BucketOnly` issuers every component is `1.0` by convention.\n\n# The `0.0` level-beta sentinel\n\n`levels[i] == 0.0` marks a level that was **folded** during calibration\n(the issuer's bucket was below the size threshold). The matcher and\n`enumerate_factor_ids` skip such levels. A *fitted* beta of exactly `0.0`\nis indistinguishable from the sentinel, and that is deliberate: every\nconsumer scales by the beta (exposure `= β·CS01`, stress shift `= β·shock`,\nattribution `= β·ΔL`), so skipping the level and emitting a zero-beta\nentry produce identical numbers. The degenerate-regressor guard in\ncalibration additionally maps near-zero-information fits to the unit-beta\nfallback rather than to `0.0`.",
+      "properties": {
+        "levels": {
+          "description": "Betas on each hierarchy-level factor, in spec order.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "pc": {
+          "description": "Beta on the generic credit PC factor.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "pc",
+        "levels"
+      ],
+      "type": "object"
+    },
+    "IssuerTags": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Flat key-value taxonomy tags for an issuer.\n\nUses `BTreeMap` so that serialization is deterministic and two artifacts\nbuilt from identical inputs produce byte-identical JSON.",
+      "type": "object"
+    },
+    "LevelAnchor": {
+      "additionalProperties": false,
+      "description": "Factor level values for a single hierarchy level at the calibration anchor date.",
+      "properties": {
+        "dimension": {
+          "$ref": "#/$defs/HierarchyDimension",
+          "description": "Dimension identifier for this level."
+        },
+        "level_index": {
+          "description": "Zero-based index of this level in [`CreditHierarchySpec::levels`].",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "values": {
+          "additionalProperties": {
+            "format": "double",
+            "type": "number"
+          },
+          "description": "Factor level values keyed by dotted bucket path (e.g. `\"IG.EU.FIN\"`).\n\n`BTreeMap` for deterministic serialization order.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "level_index",
+        "dimension",
+        "values"
+      ],
+      "type": "object"
+    },
+    "LevelsAtAnchor": {
+      "additionalProperties": false,
+      "description": "Snapshot of all factor levels at the calibration anchor date.\n\nUsed as the carry term in attribution: `L(t) = L_anchor + ΔL(t)`.",
+      "properties": {
+        "by_level": {
+          "description": "Per-level anchor values in hierarchy spec order.",
+          "items": {
+            "$ref": "#/$defs/LevelAnchor"
+          },
+          "type": "array"
+        },
+        "pc": {
+          "description": "Value of the generic PC factor at `as_of`.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "pc",
+        "by_level"
+      ],
+      "type": "object"
+    },
+    "MappingRule": {
+      "additionalProperties": false,
+      "description": "A single matching rule from dependency and attribute filters to a factor.",
+      "properties": {
+        "attribute_filter": {
+          "$ref": "#/$defs/AttributeFilter",
+          "description": "Instrument metadata filter."
+        },
+        "dependency_filter": {
+          "$ref": "#/$defs/DependencyFilter",
+          "description": "Dependency-side filter."
+        },
+        "factor_id": {
+          "$ref": "#/$defs/FactorId",
+          "description": "Factor assigned when both filters match."
+        }
+      },
+      "required": [
+        "dependency_filter",
+        "attribute_filter",
+        "factor_id"
+      ],
+      "type": "object"
+    },
+    "MarketMapping": {
+      "description": "How a factor movement translates to market-data perturbations.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Parallel shift to one or more curves.",
+          "properties": {
+            "curve_parallel": {
+              "properties": {
+                "curve_ids": {
+                  "description": "Curves bumped by the factor.",
+                  "items": {
+                    "$ref": "#/$defs/Id"
+                  },
+                  "type": "array"
+                },
+                "units": {
+                  "$ref": "#/$defs/BumpUnits",
+                  "description": "Units used for the bump magnitude."
+                }
+              },
+              "required": [
+                "curve_ids",
+                "units"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "curve_parallel"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Bucketed curve shift with tenor weights.",
+          "properties": {
+            "curve_bucketed": {
+              "properties": {
+                "curve_id": {
+                  "$ref": "#/$defs/Id",
+                  "description": "Curve receiving the bucketed bump."
+                },
+                "tenor_weights": {
+                  "description": "`(tenor_years, weight)` pairs describing the bucketed shift.\n\nWeights are typically chosen to sum to `1.0` across the buckets used\nby the factor so that the factor move preserves the intended overall\nshock size while localizing it along the tenor axis.",
+                  "items": {
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "prefixItems": [
+                      {
+                        "format": "double",
+                        "type": "number"
+                      },
+                      {
+                        "format": "double",
+                        "type": "number"
+                      }
+                    ],
+                    "type": "array"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "curve_id",
+                "tenor_weights"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "curve_bucketed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Equity spot move.",
+          "properties": {
+            "equity_spot": {
+              "properties": {
+                "tickers": {
+                  "description": "Tickers moved by the factor.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "tickers"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "equity_spot"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "FX rate move.",
+          "properties": {
+            "fx_rate": {
+              "properties": {
+                "pair": {
+                  "description": "Currency pair moved by the factor.",
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "$ref": "#/$defs/Currency"
+                    },
+                    {
+                      "$ref": "#/$defs/Currency"
+                    }
+                  ],
+                  "type": "array"
+                }
+              },
+              "required": [
+                "pair"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "fx_rate"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Volatility shift.",
+          "properties": {
+            "vol_shift": {
+              "properties": {
+                "units": {
+                  "$ref": "#/$defs/BumpUnits",
+                  "description": "Units used for the bump magnitude."
+                },
+                "vol_surface_ids": {
+                  "description": "Volatility surfaces moved by the factor.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "vol_surface_ids",
+                "units"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "vol_shift"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "MatchingConfig": {
+      "description": "Declarative matcher configuration that can be serialized and rebuilt.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Flat mapping table with first-match-wins semantics.",
+          "properties": {
+            "mapping_table": {
+              "items": {
+                "$ref": "#/$defs/MappingRule"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "mapping_table"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Ordered matcher cascade.",
+          "properties": {
+            "cascade": {
+              "items": {
+                "$ref": "#/$defs/MatchingConfig"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "cascade"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Hierarchical attribute-based tree matcher.",
+          "properties": {
+            "hierarchical": {
+              "$ref": "#/$defs/HierarchicalConfig"
+            }
+          },
+          "required": [
+            "hierarchical"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Calibrated credit hierarchy matcher.\n\nEmits `(credit::generic, β_pc)` plus\n`(credit::level{idx}::{dim_path}::{val_path}, β_level{idx})` entries\nusing calibrated betas from\n[`crate::factor::credit::hierarchy::CreditFactorModel`].",
+          "properties": {
+            "credit_hierarchical": {
+              "$ref": "#/$defs/CreditHierarchicalConfig"
+            }
+          },
+          "required": [
+            "credit_hierarchical"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PanelFrequency": {
+      "description": "Observation frequency of a complete, regular credit history panel.\n\nAnnualization used for sample/EWMA variance and Ledoit-Wolf covariance\nis derived from this enum (`252` / `12` / `4`). There is no free\nannualization float.",
+      "oneOf": [
+        {
+          "const": "daily",
+          "description": "One observation per business day (Monday–Friday; market holidays may\nbe absent). Annualizes with the market-standard 252.\n\nThe grid check accepts any strictly increasing weekday series whose\nconsecutive gaps are at most 7 calendar days, tolerating weekends and\nholiday closures up to a full week. It does not attempt to distinguish\na weekly weekday series from a daily one — the frequency label is a\ncaller contract, and mislabeling it mis-scales every annualized\nvariance by the ratio of true to declared periods per year.",
+          "type": "string"
+        },
+        {
+          "const": "monthly",
+          "description": "One observation per month. Annualizes with 12.\n\nThe regular grid is generated from `dates[0]` with [`DateExt::add_months`].\nWhen the first date is a month-end, subsequent dates stay on month-end\n(Jan 31 → Feb 28/29 → Mar 31).",
+          "type": "string"
+        },
+        {
+          "const": "quarterly",
+          "description": "One observation per quarter (three calendar months). Annualizes with 4.\n\nSame month-end-preserving step as [`PanelFrequency::Monthly`], advancing\nthree months at a time.",
+          "type": "string"
+        }
+      ]
+    },
+    "PanelSpace": {
+      "description": "Whether the calibrator works in price-difference (return) or raw-level space.\n\n`Returns` (the default) matches the spec's reference math: `r_i(t) =\nS_i(t) - S_i(t-1)` and the generic factor is differenced the same way.",
+      "oneOf": [
+        {
+          "const": "returns",
+          "description": "Difference consecutive observations into a return panel before peeling.",
+          "type": "string"
+        },
+        {
+          "const": "levels",
+          "description": "Use the raw level panel as-is.",
+          "type": "string"
+        }
+      ]
+    },
+    "PricingMode": {
+      "description": "Strategy used when extracting factor sensitivities.",
+      "oneOf": [
+        {
+          "const": "delta_based",
+          "description": "Use central finite differences to approximate linear deltas.\n\nThis is the lightweight choice when a downstream engine can reprice under\nsmall symmetric bumps and the risk report only needs first-order factor\nsensitivities.",
+          "type": "string"
+        },
+        {
+          "const": "full_repricing",
+          "description": "Reprice across a scenario grid and derive deltas from the P&L profile.\n\nUse this when the portfolio workflow needs richer scenario behavior than\na single small bump can capture, at the cost of more repricing work.",
+          "type": "string"
+        }
+      ]
+    },
+    "RiskMeasure": {
+      "description": "Risk measure used when aggregating factor exposures.",
+      "oneOf": [
+        {
+          "const": "variance",
+          "description": "Aggregate exposures using factor covariance and portfolio variance.",
+          "type": "string"
+        },
+        {
+          "const": "volatility",
+          "description": "Aggregate exposures using portfolio volatility.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Aggregate exposures using Value at Risk at a fixed one-sided loss confidence level.\n\nThis assumes the downstream aggregation engine is interpreting the factor\nmodel as a parametric, one-period loss distribution rather than a full\nhistorical or Monte Carlo simulation.\n\n# Sign convention\n\nVaR is reported as a **negative** number on the P&L axis: for a long-risk\nportfolio, `total_risk` at 99% is approximately `-sigma * z_{0.99}`.\nFactor contributions carry the same sign as the total. Downstream\naggregators and visualizations rely on this convention.",
+          "properties": {
+            "var": {
+              "properties": {
+                "confidence": {
+                  "description": "Confidence level in the open interval `(0.5, 1)`.",
+                  "exclusiveMaximum": 1.0,
+                  "exclusiveMinimum": 0.5,
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "confidence"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "var"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Aggregate exposures using expected shortfall at a fixed one-sided loss confidence level.\n\nAs with [`Self::VaR`], this is intended for parametric factor-model\naggregation rather than full-path simulation, and ES is reported as a\n**negative** number using the P&L sign convention.",
+          "properties": {
+            "expected_shortfall": {
+              "properties": {
+                "confidence": {
+                  "description": "Confidence level in the open interval `(0.5, 1)`.",
+                  "exclusiveMaximum": 1.0,
+                  "exclusiveMinimum": 0.5,
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "confidence"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "expected_shortfall"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "UnmatchedPolicy": {
+      "description": "Policy for handling dependencies that do not match any factor.\n\nSerializes in `snake_case`, matching the crate-wide wire convention and\nthis type's own `Display`/`FromStr` representation.",
+      "oneOf": [
+        {
+          "const": "strict",
+          "description": "Fail immediately when any dependency is unmatched.\n\nUse this in production risk runs where dropping unmapped risk would be a\ncontrol failure.",
+          "type": "string"
+        },
+        {
+          "const": "residual",
+          "description": "Roll unmatched risk into a residual bucket.\n\nUse this when the engine should preserve total exposure while making the\nunmatched component explicit as residual risk.",
+          "type": "string"
+        },
+        {
+          "const": "warn",
+          "description": "Continue but surface a warning to the caller.\n\nSuitable for exploratory workflows where visibility matters but a hard\nfailure would be too disruptive.",
+          "type": "string"
+        }
+      ]
+    },
+    "VolState": {
+      "description": "Complete vol state for all factors and all issuers at the calibration date.\n\nFeeds `Σ(t) = D(t) · ρ · D(t)` and per-issuer idiosyncratic vol forecasts.",
+      "properties": {
+        "factors": {
+          "additionalProperties": {
+            "$ref": "#/$defs/FactorVolModel"
+          },
+          "description": "EWMA or sample vol model for each systematic factor.\n\nKeys are factor IDs from [`crate::factor::FactorModelConfig`].\n`BTreeMap` for deterministic serialization order.",
+          "type": "object"
+        },
+        "idiosyncratic": {
+          "additionalProperties": {
+            "$ref": "#/$defs/IdiosyncraticVolModel"
+          },
+          "description": "Idiosyncratic vol model for each issuer.\n\n`BTreeMap` for deterministic serialization order.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "factors",
+        "idiosyncratic"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://finstack_quant.dev/schemas/factor_model/1/credit_factor_model.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Fully self-contained credit factor hierarchy model artifact.",
+  "examples": [
+    {
+      "anchor_state": {
+        "by_level": [],
+        "pc": 102.0
+      },
+      "as_of": "2024-06-01",
+      "bucket_weighting": "dts",
+      "calibration_window": {
+        "end": "2024-06-01",
+        "start": "2024-01-01"
+      },
+      "config": {
+        "covariance": {
+          "data": [
+            591.5999999999997
+          ],
+          "factor_ids": [
+            "credit::generic"
+          ],
+          "n": 1
+        },
+        "factors": [
+          {
+            "factor_type": "credit",
+            "id": "credit::generic",
+            "market_mapping": {
+              "curve_parallel": {
+                "curve_ids": [],
+                "units": "rate_bp"
+              }
+            }
+          }
+        ],
+        "matching": {
+          "credit_hierarchical": {
+            "dependency_filter": {},
+            "hierarchy": {
+              "levels": []
+            },
+            "issuer_betas": [
+              {
+                "adder_at_anchor": 20.0,
+                "adder_vol_annualized": 3.4641016151377544,
+                "adder_vol_source": "from_history",
+                "betas": {
+                  "levels": [],
+                  "pc": 1.0
+                },
+                "fit_quality": null,
+                "issuer_id": "ACME",
+                "level_fit_quality": [],
+                "mode": "bucket_only",
+                "spread_duration": 5.0,
+                "tags": {
+                  "rating": "ig"
+                }
+              },
+              {
+                "adder_at_anchor": -5.000000000000014,
+                "adder_vol_annualized": 2.4494897427831956,
+                "adder_vol_source": "from_history",
+                "betas": {
+                  "levels": [],
+                  "pc": 1.0
+                },
+                "fit_quality": null,
+                "issuer_id": "BOREAS",
+                "level_fit_quality": [],
+                "mode": "bucket_only",
+                "spread_duration": 5.0,
+                "tags": {
+                  "rating": "ig"
+                }
+              },
+              {
+                "adder_at_anchor": 247.0,
+                "adder_vol_annualized": 66.66033303247126,
+                "adder_vol_source": "from_history",
+                "betas": {
+                  "levels": [],
+                  "pc": 1.0
+                },
+                "fit_quality": null,
+                "issuer_id": "CYGNUS",
+                "level_fit_quality": [],
+                "mode": "bucket_only",
+                "spread_duration": 4.0,
+                "tags": {
+                  "rating": "hy"
+                }
+              }
+            ],
+            "require_issuer_id": true
+          }
+        },
+        "pricing_mode": "delta_based",
+        "risk_measure": "variance",
+        "unmatched_policy": "warn"
+      },
+      "diagnostics": {
+        "bucket_sizes_per_level": [],
+        "fold_ups": [],
+        "mode_counts": {
+          "bucket_only": 3,
+          "issuer_beta": 0
+        },
+        "tag_taxonomy": {}
+      },
+      "factor_histories": {
+        "dates": [
+          "2024-02-01",
+          "2024-03-01",
+          "2024-04-01",
+          "2024-05-01",
+          "2024-06-01"
+        ],
+        "values": {
+          "credit::generic": [
+            4.0,
+            -6.0,
+            11.0,
+            -3.0,
+            -3.999999999999986
+          ]
+        }
+      },
+      "generic_factor": {
+        "name": "credit_pc1",
+        "series_id": "CREDIT-PC1"
+      },
+      "hierarchy": {
+        "levels": []
+      },
+      "issuer_betas": [
+        {
+          "adder_at_anchor": 20.0,
+          "adder_vol_annualized": 3.4641016151377544,
+          "adder_vol_source": "from_history",
+          "betas": {
+            "levels": [],
+            "pc": 1.0
+          },
+          "fit_quality": null,
+          "issuer_id": "ACME",
+          "level_fit_quality": [],
+          "mode": "bucket_only",
+          "spread_duration": 5.0,
+          "tags": {
+            "rating": "ig"
+          }
+        },
+        {
+          "adder_at_anchor": -5.000000000000014,
+          "adder_vol_annualized": 2.4494897427831956,
+          "adder_vol_source": "from_history",
+          "betas": {
+            "levels": [],
+            "pc": 1.0
+          },
+          "fit_quality": null,
+          "issuer_id": "BOREAS",
+          "level_fit_quality": [],
+          "mode": "bucket_only",
+          "spread_duration": 5.0,
+          "tags": {
+            "rating": "ig"
+          }
+        },
+        {
+          "adder_at_anchor": 247.0,
+          "adder_vol_annualized": 66.66033303247126,
+          "adder_vol_source": "from_history",
+          "betas": {
+            "levels": [],
+            "pc": 1.0
+          },
+          "fit_quality": null,
+          "issuer_id": "CYGNUS",
+          "level_fit_quality": [],
+          "mode": "bucket_only",
+          "spread_duration": 4.0,
+          "tags": {
+            "rating": "hy"
+          }
+        }
+      ],
+      "panel_frequency": "monthly",
+      "policy": "globally_off",
+      "schema": "finstack_quant.credit_factor_model/1",
+      "static_correlation": {
+        "data": [
+          [
+            1.0
+          ]
+        ],
+        "factor_ids": [
+          "credit::generic"
+        ]
+      },
+      "use_returns_or_levels": "returns",
+      "vol_state": {
+        "factors": {
+          "credit::generic": {
+            "sample": {
+              "variance": 591.5999999999997
+            }
+          }
+        },
+        "idiosyncratic": {
+          "ACME": {
+            "sample": {
+              "variance": 11.999999999999998
+            }
+          },
+          "BOREAS": {
+            "sample": {
+              "variance": 6.000000000000086
+            }
+          },
+          "CYGNUS": {
+            "sample": {
+              "variance": 4443.5999999999785
+            }
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "anchor_state": {
+      "$ref": "#/$defs/LevelsAtAnchor",
+      "description": "Factor level values at the calibration anchor date."
+    },
+    "as_of": {
+      "$ref": "#/$defs/DateWire",
+      "description": "Calibration anchor date (`as_of`)."
+    },
+    "bucket_weighting": {
+      "$ref": "#/$defs/BucketWeighting",
+      "description": "Bucket-mean weighting used at calibration and required at decompose.\n\n[`BucketWeighting::Equal`] artifacts must not be DTS-weighted at\ndecompose; [`BucketWeighting::Dts`] artifacts rebuild weights from\npersisted [`IssuerBetaRow::spread_duration`] × current spread (bp)."
+    },
+    "calibration_window": {
+      "$ref": "#/$defs/DateRange",
+      "description": "History window consumed by calibration."
+    },
+    "config": {
+      "$ref": "#/$defs/FactorModelConfig",
+      "description": "Existing factor-model config (factors, covariance, matching)."
+    },
+    "diagnostics": {
+      "$ref": "#/$defs/CalibrationDiagnostics",
+      "description": "Structured calibration diagnostics for programmatic coverage checks."
+    },
+    "factor_histories": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FactorHistories"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Embedded factor histories (recommended for self-contained artifacts).\n\n`None` indicates an externally-referenced history store."
+    },
+    "generic_factor": {
+      "$ref": "#/$defs/GenericFactorSpec",
+      "description": "Reference to the generic PC factor series."
+    },
+    "hierarchy": {
+      "$ref": "#/$defs/CreditHierarchySpec",
+      "description": "Ordered hierarchy specification (broadest → narrowest)."
+    },
+    "issuer_betas": {
+      "description": "Per-issuer beta rows, sorted by `issuer_id` for wire stability.",
+      "items": {
+        "$ref": "#/$defs/IssuerBetaRow"
+      },
+      "type": "array"
+    },
+    "panel_frequency": {
+      "$ref": "#/$defs/PanelFrequency",
+      "description": "Regular observation frequency used to annualize variance (`252`/`12`/`4`)."
+    },
+    "policy": {
+      "$ref": "#/$defs/IssuerBetaPolicy",
+      "description": "Beta regression policy used during calibration."
+    },
+    "schema": {
+      "$ref": "#/$defs/CreditFactorModelSchema",
+      "description": "Exact namespaced v1 schema marker."
+    },
+    "static_correlation": {
+      "$ref": "#/$defs/FactorCorrelationMatrix",
+      "description": "Static factor correlation matrix `ρ` for `Σ(t) = D(t)·ρ·D(t)`.\n\n**Which matrix is authoritative:** vol forecasting rebuilds\n`Σ(t, h) = D·ρ·D` from this matrix plus `vol_state`; point-in-time\nrisk uses `config.covariance` directly. Under\n[`CovarianceStrategy::Ridge`][crate::factor::credit::calibration::CovarianceStrategy::Ridge]\nthe two deliberately differ —\n`config.covariance = D·ρ·D + α·I`, so its implied correlations are\nshrunk relative to `ρ` by `σᵢσⱼ/√((σᵢ²+α)(σⱼ²+α))`.\n\nUnder\n[`CovarianceStrategy::LedoitWolf`][crate::factor::credit::calibration::CovarianceStrategy::LedoitWolf]\nthe divergence is larger still, and affects both the diagonal and the\noff-diagonal: `config.covariance` is the shrinkage estimator's own\n`periods_per_year · (δ*·μ·I + (1 − δ*)·S)`, computed once over the\ncomplete-case rows (dates where every factor is observed), and is\nauthoritative for point-in-time risk. The rebuilt `D·ρ·D` instead\ncombines this same `ρ` with `vol_state` variances — which are\nestimated per-factor over all available observations (not just the\ncomplete-case subset) via whichever\n[`VolModelChoice`][crate::factor::credit::calibration::VolModelChoice] was\nconfigured (`Sample` or `Ewma`). Because the diagonals come from two\ndifferent estimators over two different observation sets, `D·ρ·D`\ndeliberately differs from `config.covariance` on **both** the\ndiagonal and the off-diagonal; treat it as an approximation for\nhorizon scaling, not as a substitute for `config.covariance`."
+    },
+    "use_returns_or_levels": {
+      "$ref": "#/$defs/PanelSpace",
+      "description": "Whether calibration peeled a return panel or a raw level panel."
+    },
+    "vol_state": {
+      "$ref": "#/$defs/VolState",
+      "description": "EWMA or sample vol state at the anchor date."
+    }
+  },
+  "required": [
+    "schema",
+    "as_of",
+    "calibration_window",
+    "policy",
+    "generic_factor",
+    "hierarchy",
+    "panel_frequency",
+    "use_returns_or_levels",
+    "bucket_weighting",
+    "config",
+    "issuer_betas",
+    "anchor_state",
+    "static_correlation",
+    "vol_state",
+    "diagnostics"
+  ],
+  "title": "CreditFactorModel",
+  "type": "object"
+}

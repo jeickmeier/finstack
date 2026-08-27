@@ -19,7 +19,6 @@ PACKAGE_RENAMES = {
     "finstack-cashflows": "finstack-quant-cashflows",
     "finstack-core": "finstack-quant-core",
     "finstack-covenants": "finstack-quant-covenants",
-    "finstack-factor-model": "finstack-quant-factor-model",
     "finstack-margin": "finstack-quant-margin",
     "finstack-monte-carlo": "finstack-quant-models",
     "finstack-portfolio": "finstack-quant-portfolio",
