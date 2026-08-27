@@ -35,7 +35,6 @@
 //! - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit
 //!   Derivatives*. John Wiley & Sons. `docs/REFERENCES.md#o-kane-2008`
 
-use crate::calibration::hull_white::HullWhiteParams;
 use crate::instruments::fixed_income::mbs_passthrough::pricer::first_unpaid_accrual_start;
 use crate::instruments::fixed_income::mbs_passthrough::AgencyMbsPassthrough;
 use crate::instruments::rates::hw1f::{calibrate_hw1f_params, initial_short_rate_from_curve};
@@ -46,6 +45,7 @@ use finstack_quant_core::{Error as CoreError, Result};
 use finstack_quant_models::monte_carlo::process::ou::HullWhite1FParams;
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::traits::RandomStream;
+use finstack_quant_models::rates::hull_white::HullWhiteParams;
 use rayon::prelude::*;
 
 /// Configuration for Monte Carlo OAS calculation.

@@ -13,7 +13,8 @@
 //! # Usage
 //!
 //! ```text
-//! use finstack_quant_valuations::instruments::rates::swaption::{BermudanSwaption, CalibratedHullWhiteModel, HullWhiteParams, pricing::BermudanSwaptionTreeValuator};
+//! use finstack_quant_models::rates::hull_white::HullWhiteParams;
+//! use finstack_quant_valuations::instruments::rates::swaption::{BermudanSwaption, CalibratedHullWhiteModel, pricing::BermudanSwaptionTreeValuator};
 //!
 //! let swaption = BermudanSwaption::example();
 //! # let discount_curve: &dyn finstack_quant_core::market_data::traits::Discounting = todo!();
@@ -387,13 +388,14 @@ impl<'a> BermudanSwaptionTreeValuator<'a> {
 mod tests {
     use super::*;
     use crate::instruments::rates::swaption::{
-        BermudanSchedule, BermudanSwaption, CalibratedHullWhiteModel, HullWhiteParams,
+        BermudanSchedule, BermudanSwaption, CalibratedHullWhiteModel,
     };
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::Tenor;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::math::interp::InterpStyle;
     use finstack_quant_core::money::Money;
+    use finstack_quant_models::rates::hull_white::HullWhiteParams;
     use time::Month;
 
     fn test_discount_curve() -> DiscountCurve {

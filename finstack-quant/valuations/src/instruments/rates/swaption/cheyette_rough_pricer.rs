@@ -172,7 +172,7 @@ impl BermudanSwaptionCheyetteRoughPricer {
         // 1e-12 used here previously; the two agree to floating-point noise
         // across that band (at kappa = 1e-11 the series and the limit differ
         // by ~1e-11 relative).
-        crate::calibration::hull_white::hw_b(kappa, 0.0, tau)
+        finstack_quant_models::rates::hull_white::hw_b(kappa, 0.0, tau)
     }
 
     /// Reconstruct the time-`t` zero-coupon bond `P(t, T; x, y)` from the

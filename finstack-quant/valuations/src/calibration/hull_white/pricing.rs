@@ -1,4 +1,3 @@
-use super::bond_vol::hw_bond_vol;
 use super::*;
 
 /// Price a full cap/floor with a flat normal volatility quote.
@@ -89,21 +88,15 @@ pub(crate) fn hw1f_cap_floor_price(
     forward_df: &dyn Fn(f64) -> f64,
     spec: CapFloorPriceSpec,
 ) -> f64 {
-    cap_floor_periods(spec.maturity, spec.frequency)
-        .map(|(t_start, t_end, accrual)| {
-            hw1f_caplet_price_zcb_option(
-                kappa,
-                sigma,
-                discount_df,
-                forward_df,
-                t_start,
-                t_end,
-                accrual,
-                spec.strike,
-                spec.is_cap,
-            )
-        })
-        .sum()
+    let periods: Vec<_> = cap_floor_periods(spec.maturity, spec.frequency).collect();
+    finstack_quant_models::rates::hull_white::hw1f_cap_floor_price(
+        HullWhiteParams { kappa, sigma },
+        discount_df,
+        forward_df,
+        &periods,
+        spec.strike,
+        spec.is_cap,
+    )
 }
 
 /// Price a full cap/floor under a scheduled HW1F short-rate volatility.
@@ -113,166 +106,17 @@ pub(crate) fn hw1f_cap_floor_price_with_model(
     forward_df: &dyn Fn(f64) -> f64,
     spec: CapFloorPriceSpec,
 ) -> finstack_quant_core::Result<f64> {
-    cap_floor_periods(spec.maturity, spec.frequency)
-        .map(|(t_start, t_end, accrual)| {
-            hw1f_term_caplet_price_from_dfs_with_model(
-                params,
-                forward_df(t_start),
-                forward_df(t_end),
-                discount_df(t_end),
-                t_start,
-                t_start,
-                t_end,
-                accrual,
-                spec.strike,
-                spec.is_cap,
-            )
-        })
-        .sum()
-}
-
-/// Exact HW1F caplet/floorlet price via the ZCB-option equivalence.
-///
-/// Returns NaN on pathological curve inputs (non-finite or non-positive
-/// discount factors) so the calibration objective's non-finite-price error
-/// contract keeps working.
-#[allow(clippy::too_many_arguments)]
-fn hw1f_caplet_price_zcb_option(
-    kappa: f64,
-    sigma: f64,
-    discount_df: &dyn Fn(f64) -> f64,
-    forward_df: &dyn Fn(f64) -> f64,
-    t_fix: f64,
-    t_pay: f64,
-    accrual: f64,
-    strike: f64,
-    is_cap: bool,
-) -> f64 {
-    let pf_fix = forward_df(t_fix);
-    let pf_pay = forward_df(t_pay);
-    let pd_pay = discount_df(t_pay);
-    hw1f_caplet_price_zcb_option_from_dfs(
-        kappa, sigma, pf_fix, pf_pay, pd_pay, t_fix, t_pay, accrual, strike, is_cap,
+    let periods: Vec<_> = cap_floor_periods(spec.maturity, spec.frequency)
+        .map(|(t_start, t_end, accrual)| (t_start, t_start, t_end, accrual))
+        .collect();
+    finstack_quant_models::rates::hull_white::hw1f_cap_floor_price_with_model(
+        params,
+        discount_df,
+        forward_df,
+        &periods,
+        spec.strike,
+        spec.is_cap,
     )
-}
-
-/// Exact HW1F term-index caplet/floorlet price from curve discount factors.
-///
-/// The returned value is per unit notional. `pf_fix` and `pf_pay` are
-/// projection-curve discount factors relative to the valuation date; `pd_pay`
-/// is the discount-curve factor to the contractual payment date.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn hw1f_caplet_price_zcb_option_from_dfs(
-    kappa: f64,
-    sigma: f64,
-    pf_fix: f64,
-    pf_pay: f64,
-    pd_pay: f64,
-    t_fix: f64,
-    t_pay: f64,
-    accrual: f64,
-    strike: f64,
-    is_cap: bool,
-) -> f64 {
-    let valid_df = |p: f64| p.is_finite() && p > 0.0;
-    if !valid_df(pf_fix) || !valid_df(pf_pay) || !valid_df(pd_pay) {
-        return f64::NAN;
-    }
-    // Deterministic multiplicative discount/projection basis; 1.0 when the
-    // two curves coincide (single-curve calibration).
-    let basis = pd_pay / pf_pay;
-
-    let gearing = 1.0 + accrual * strike;
-    if gearing <= 0.0 {
-        // Strike below −1/τ: a cap is always in the money (intrinsic), a
-        // floor is worthless (assuming P(T,S) > 0 ⇔ 1 + τL > 0).
-        if is_cap {
-            let forward = (pf_fix / pf_pay - 1.0) / accrual;
-            return basis * pf_pay * accrual * (forward - strike);
-        }
-        return 0.0;
-    }
-    let x_strike = 1.0 / gearing;
-
-    let sigma_p = hw_bond_vol(kappa, sigma, 0.0, t_fix, t_pay);
-    if sigma_p < 1e-15 {
-        // Degenerate (zero vol or zero time to fixing): intrinsic value.
-        let zcb_intrinsic = if is_cap {
-            (x_strike * pf_fix - pf_pay).max(0.0)
-        } else {
-            (pf_pay - x_strike * pf_fix).max(0.0)
-        };
-        return basis * gearing * zcb_intrinsic;
-    }
-
-    let d1 = (pf_pay / (x_strike * pf_fix)).ln() / sigma_p + 0.5 * sigma_p;
-    let d2 = d1 - sigma_p;
-    // Caplet = (1+τK) × ZBP(0, T, S, X); floorlet = (1+τK) × ZBC(0, T, S, X).
-    let zcb_option = if is_cap {
-        x_strike * pf_fix * norm_cdf(-d2) - pf_pay * norm_cdf(-d1)
-    } else {
-        pf_pay * norm_cdf(d1) - x_strike * pf_fix * norm_cdf(d2)
-    };
-    let zcb_option_clamped = if zcb_option < 0.0 { 0.0 } else { zcb_option };
-    basis * gearing * zcb_option_clamped
-}
-
-/// Exact HW1F term-index caplet/floorlet price under a scheduled volatility.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn hw1f_term_caplet_price_from_dfs_with_model(
-    params: &HullWhiteModelParams,
-    pf_start: f64,
-    pf_end: f64,
-    pd_pay: f64,
-    t_fix: f64,
-    t_start: f64,
-    t_end: f64,
-    accrual: f64,
-    strike: f64,
-    is_cap: bool,
-) -> finstack_quant_core::Result<f64> {
-    let valid_df = |value: f64| value.is_finite() && value > 0.0;
-    if !valid_df(pf_start)
-        || !valid_df(pf_end)
-        || !valid_df(pd_pay)
-        || accrual <= 0.0
-        || t_end <= t_start
-        || t_start < t_fix
-    {
-        return Err(finstack_quant_core::Error::Validation(
-            "invalid term caplet discount factors or times".into(),
-        ));
-    }
-    let ratio_forward = pf_start / pf_end;
-    let ratio_strike = 1.0 + accrual * strike;
-    if ratio_strike <= 0.0 {
-        return if is_cap {
-            Ok(pd_pay * (ratio_forward - ratio_strike))
-        } else {
-            Ok(0.0)
-        };
-    }
-
-    let ratio_vol = (hw_bond_vol_with_model(params, 0.0, t_fix, t_end)?
-        - hw_bond_vol_with_model(params, 0.0, t_fix, t_start)?)
-    .abs();
-    if ratio_vol < 1.0e-15 {
-        let intrinsic = if is_cap {
-            (ratio_forward - ratio_strike).max(0.0)
-        } else {
-            (ratio_strike - ratio_forward).max(0.0)
-        };
-        return Ok(pd_pay * intrinsic);
-    }
-
-    let d1 = (ratio_forward / ratio_strike).ln() / ratio_vol + 0.5 * ratio_vol;
-    let d2 = d1 - ratio_vol;
-    let option = if is_cap {
-        ratio_forward * norm_cdf(d1) - ratio_strike * norm_cdf(d2)
-    } else {
-        ratio_strike * norm_cdf(-d2) - ratio_forward * norm_cdf(-d1)
-    };
-    Ok(pd_pay * option.max(0.0))
 }
 
 /// Return the flat normal vol that reproduces the HW1F cap/floor model price.
@@ -305,29 +149,6 @@ pub(crate) fn hw1f_cap_floor_implied_normal_vol(
         .bracket_bounds(1e-10, hi)
         .solve(residual, hi * 0.5)
         .unwrap_or(hi)
-}
-
-pub(crate) fn hw1f_caplet_forward_rate_normal_vol(
-    kappa: f64,
-    sigma: f64,
-    t_fix: f64,
-    accrual: f64,
-) -> f64 {
-    if sigma <= 0.0 || t_fix <= 0.0 || accrual <= 0.0 {
-        return 0.0;
-    }
-    const SMALL_KAPPA: f64 = 1e-8;
-    let accrual_factor = if kappa.abs() < SMALL_KAPPA {
-        1.0
-    } else {
-        (1.0 - (-kappa * accrual).exp()) / (kappa * accrual)
-    };
-    let integrated_variance_time = if kappa.abs() < SMALL_KAPPA {
-        t_fix
-    } else {
-        (1.0 - (-2.0 * kappa * t_fix).exp()) / (2.0 * kappa)
-    };
-    sigma * accrual_factor * (integrated_variance_time / t_fix).sqrt()
 }
 
 /// Caplet periods `(t_start, t_end, accrual)` for a spot-start cap quote.

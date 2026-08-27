@@ -1,9 +1,12 @@
-use super::bond_vol::{hw_b, hw_bond_vol};
 use super::cap_floor::solve_cap_floor_sigma_for_fixed_kappa;
 use super::pricing::{cap_floor_periods, forward_rate_from_df, normal_caplet_price};
 use super::swaption::infer_hw_initial_guess;
 use super::targets::{HullWhiteSwaptionTarget, PreparedSwaption, KAPPA_MAX, KAPPA_MIN};
 use super::*;
+use finstack_quant_models::rates::hull_white::{
+    hw1f_caplet_forward_rate_normal_vol, hw1f_convexity_adjustment, hw_b, hw_bond_vol,
+    hw_bond_vol_with_model,
+};
 
 #[test]
 fn swap_frequency_display_matches_serde_contract() {

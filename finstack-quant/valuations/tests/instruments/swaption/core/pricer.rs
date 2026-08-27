@@ -5,12 +5,13 @@
 use crate::swaption::common::*;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
+use finstack_quant_models::rates::hull_white::HullWhiteParams;
 use finstack_quant_models::SabrParameters;
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 use finstack_quant_valuations::instruments::rates::swaption::{BermudanSchedule, BermudanSwaption};
 use finstack_quant_valuations::instruments::rates::swaption::{
     BermudanSwaptionPricer, BermudanSwaptionPricerConfig, CalibratedHullWhiteModel,
-    HullWhiteParams, SimpleSwaptionBlackPricer,
+    SimpleSwaptionBlackPricer,
 };
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::pricer::{ModelKey, Pricer};

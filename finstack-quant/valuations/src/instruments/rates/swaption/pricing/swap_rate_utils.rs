@@ -21,7 +21,7 @@ impl HullWhiteBondPrice {
     /// B factor represents the sensitivity of bond price to short rate.
     #[allow(non_snake_case)]
     pub fn b_factor(kappa: f64, t: f64, maturity_time: f64) -> f64 {
-        crate::calibration::hull_white::hw_b(kappa, t, maturity_time)
+        finstack_quant_models::rates::hull_white::hw_b(kappa, t, maturity_time)
     }
 
     /// Compute the exact curve-calibrated HW1F `A(t, T)` factor.

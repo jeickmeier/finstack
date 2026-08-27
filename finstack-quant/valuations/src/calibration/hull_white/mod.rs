@@ -51,10 +51,9 @@ use crate::calibration::solver::multi_start::MultiStartConfig;
 use crate::calibration::solver::traits::GlobalSolveTarget;
 use crate::calibration::CalibrationReport;
 use crate::instruments::common_impl::parameters::OptionType;
-use finstack_quant_models::trees::HullWhiteTreeConfig;
+use finstack_quant_models::rates::hull_white::{HullWhiteModelParams, HullWhiteParams};
 use finstack_quant_models::volatility::normal::bachelier_price;
 
-mod bond_vol;
 mod cap_floor;
 mod params;
 mod pricing;
@@ -62,16 +61,11 @@ mod quotes;
 mod swaption;
 mod targets;
 
-pub use bond_vol::hw1f_convexity_adjustment;
-pub(crate) use bond_vol::hw_b;
 pub use cap_floor::{
     bootstrap_hull_white_sigma_schedule_to_cap_floors, calibrate_hull_white_to_cap_floors,
     PiecewiseSigmaCalibrationConfig,
 };
-pub use params::{
-    capfloor_hw1f_scalar_keys, capfloor_hw1f_sigma_schedule_key, hw1f_scalar_keys,
-    HullWhiteModelParams, HullWhiteParams,
-};
+pub use params::{capfloor_hw1f_scalar_keys, capfloor_hw1f_sigma_schedule_key, hw1f_scalar_keys};
 pub use quotes::{
     CapFloorCalibrationConfig, CapFloorQuote, SwapFrequency, SwaptionQuote, SwaptionSchedule,
 };
@@ -79,13 +73,11 @@ pub use swaption::{
     calibrate_hull_white_to_swaptions, calibrate_hull_white_to_swaptions_with_schedules,
 };
 
-pub(crate) use bond_vol::hw_bond_vol_with_model;
 pub(crate) use params::{calibrate_fixed_kappa_sigma_to_caplet_prices, FixedKappaCapletPricePoint};
 #[cfg(test)]
 pub(crate) use pricing::hw1f_cap_floor_implied_normal_vol;
 pub(crate) use pricing::{
     bachelier_cap_floor_price, hw1f_cap_floor_price, hw1f_cap_floor_price_with_model,
-    hw1f_caplet_forward_rate_normal_vol, hw1f_term_caplet_price_from_dfs_with_model,
     CapFloorPriceSpec,
 };
 #[cfg(test)]

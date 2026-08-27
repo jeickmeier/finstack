@@ -1,6 +1,5 @@
 //! Bermudan swaption pricer implementations.
 
-use crate::calibration::hull_white::HullWhiteParams;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::rates::hw1f::{
     resolve_hw1f_params, Hw1fCalibrationFlavor, Hw1fParamSource, Hw1fResolveRequest,
@@ -14,7 +13,9 @@ use crate::results::ValuationResult;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::money::Money;
+use finstack_quant_models::rates::hull_white::HullWhiteParams;
 use finstack_quant_models::trees::HullWhiteTree;
+use finstack_quant_models::trees::HullWhiteTreeConfig;
 use std::sync::Arc;
 
 fn hw1f_overrides_json(swaption: &BermudanSwaption) -> Option<serde_json::Value> {
@@ -110,7 +111,7 @@ impl CalibratedHullWhiteModel {
                 PricingErrorContext::default(),
             ));
         }
-        let config = params.tree_config(steps);
+        let config = HullWhiteTreeConfig::new(params.kappa, params.sigma, steps);
         let tree = HullWhiteTree::calibrate_with_times(config, disc, ttm, mandatory_times)
             .map_err(|e| {
                 PricingError::model_failure_with_context(
@@ -137,8 +138,9 @@ impl CalibratedHullWhiteModel {
 /// [`BermudanSwaptionPricerConfig`]:
 ///
 /// ```text
+/// use finstack_quant_models::rates::hull_white::HullWhiteParams;
 /// use finstack_quant_valuations::instruments::rates::swaption::{
-///     BermudanSwaptionPricer, BermudanSwaptionPricerConfig, HullWhiteParams,
+///     BermudanSwaptionPricer, BermudanSwaptionPricerConfig,
 /// };
 /// use finstack_quant_valuations::instruments::rates::swaption::CalibratedHullWhiteModel;
 /// use finstack_quant_core::market_data::traits::Discounting;

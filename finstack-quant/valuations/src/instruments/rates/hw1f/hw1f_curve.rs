@@ -35,12 +35,14 @@
 //! Brigo & Mercurio (2006) *Interest Rate Models — Theory and Practice*
 //! §3.3.1 (HW1F affine bond price, eqs. 3.39–3.40); Hull & White (1990). `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models` `docs/REFERENCES.md#hull-white-1990-pricing-ird`
 
-use crate::calibration::hull_white::{hw_b, HullWhiteModelParams, HullWhiteParams};
 use finstack_quant_core::dates::{Date, DayCountContext};
 use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::process::ou::{
     calibrate_theta_from_curve, calibrate_theta_from_curve_with_piecewise_sigma, HullWhite1FParams,
+};
+use finstack_quant_models::rates::hull_white::{
+    hw_b, hw_ln_a, HullWhiteModelParams, HullWhiteParams,
 };
 
 /// Spacing (years) of the piecewise-constant θ(t) bootstrap grid.
@@ -349,44 +351,6 @@ impl<'a> Hw1fTermForward<'a> {
             tau,
             spread: 0.0,
         }
-    }
-}
-
-/// `B(t₁, t₂) = (1 − e^{−κ(t₂−t₁)}) / κ`, with the κ→0 Taylor limit.
-///
-/// Mirrors `calibration::hull_white::hw_b`; duplicated (a few lines) to keep
-/// that calibration helper private to its module.
-#[inline]
-/// `ln A(t, T)` for the HW1F affine zero-coupon bond price.
-///
-/// ```text
-/// ln A(t,T) = ln(P(0,T)/P(0,t)) + B(t,T)·f(0,t) − (σ²/4κ)·(1−e^{−2κt})·B(t,T)²
-/// ```
-///
-/// `f(0,t) = −∂/∂t ln P(0,t)` is the market instantaneous forward, taken by
-/// central finite difference — the same approximation
-/// `calibrate_theta_from_curve` uses for the θ(t) bootstrap, so the
-/// reconstructed bond is consistent with the simulated dynamics.
-fn hw_ln_a(kappa: f64, sigma: f64, t: f64, big_t: f64, df: &dyn Fn(f64) -> f64) -> f64 {
-    let p0t = df(t);
-    let p0_big_t = df(big_t);
-    let b = hw_b(kappa, t, big_t);
-    let f0t = fd_instantaneous_forward(df, t);
-
-    let var_term = if kappa.abs() < 1e-10 {
-        sigma * sigma * t * b * b / 2.0
-    } else {
-        sigma * sigma / (4.0 * kappa) * (1.0 - (-2.0 * kappa * t).exp()) * b * b
-    };
-
-    // P(0,t) / P(0,T) are both positive on a well-formed curve; the rebased
-    // closure already floors degenerate extrapolation to 0.0, guarded here.
-    if p0t > 0.0 && p0_big_t > 0.0 {
-        (p0_big_t / p0t).ln() + b * f0t - var_term
-    } else {
-        // Degenerate curve: ln A → 0 ⇒ reconstruction collapses to the
-        // driftless P = exp(−B·r). Better than a non-finite forward.
-        b * f0t - var_term
     }
 }
 

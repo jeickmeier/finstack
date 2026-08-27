@@ -59,11 +59,13 @@ actually reach for: the builders (`CapFloorBuilder`,
 `irs::FloatingLegCompounding`, `swaption::{SwaptionExercise, SwaptionSettlement,
 VolatilityModel, SABRParameters, BermudanSchedule, BermudanType,
 CashSettlementMethod, BermudanPricingMethod, BermudanSwaptionPricer,
-BermudanSwaptionTreeValuator, SimpleSwaptionBlackPricer, SwaptionParams,
-HullWhiteParams}`, `xccy_swap::{LegSide, NotionalExchange, ResettingSide,
+BermudanSwaptionTreeValuator, SimpleSwaptionBlackPricer, SwaptionParams}`,
+`xccy_swap::{LegSide, NotionalExchange, ResettingSide,
 XccySwapLeg}`, `cms_swap::{FundingLeg, FundingLegSpec}`,
 `deposit::ConventionDepositParams`, `fra::ConventionFraParams`,
 `ir_future::FutureContractSpecs`, `cap_floor::CapFloorParams`, and `hw1f`.
+Reusable `HullWhiteParams` and Hull-White equations live at
+`finstack_quant_models::rates::hull_white`.
 
 `swaption::VolatilityModel` (`Black` / `Normal`, schema name
 `SwaptionVolatilityModel`) is deliberately a different type from the shared

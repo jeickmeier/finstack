@@ -241,7 +241,7 @@ fn calibrated_theta_reprices_sloped_curve() {
 
     // --- Production M6 entry points (hw1f::hw1f_curve) -------------
     let curve = sloped_discount_curve(as_of);
-    let hw = finstack_quant_valuations::calibration::hull_white::HullWhiteParams::new(kappa, sigma)
+    let hw = finstack_quant_models::rates::hull_white::HullWhiteParams::new(kappa, sigma)
         .expect("valid HW params");
     let calibrated = calibrate_hw1f_params(hw, &curve, as_of, 5.0).expect("θ(t) bootstrap");
     let r0 = initial_short_rate_from_curve(&curve, as_of).expect("r0 = f(0,0)");

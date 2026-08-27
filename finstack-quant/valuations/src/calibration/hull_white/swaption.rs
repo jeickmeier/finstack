@@ -1,9 +1,9 @@
-use super::bond_vol::{hw_b, hw_bond_vol, hw_ln_a};
 use super::targets::{
     reject_at_bound_params, require_quote_vega, HullWhiteSwaptionTarget, PreparedSwaption,
     HW_NUM_RESTARTS, HW_PERTURB_SCALE, HW_VALIDATION_TOLERANCE, SWAPTION_VEGA_FLOOR,
 };
 use super::*;
+use finstack_quant_models::rates::hull_white::{hw_b, hw_bond_vol, hw_ln_a};
 
 /// Calibrate Hull-White 1-factor parameters to European swaption market data.
 ///

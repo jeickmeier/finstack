@@ -60,6 +60,12 @@ impl FactorCovarianceMatrix {
     /// [`FactorCovarianceMatrix`]; this constructor validates structure and
     /// numerical matrix properties, not market-unit consistency.
     ///
+    /// # Arguments
+    ///
+    /// * `factor_ids` - Ordered, unique factor identifiers defining both matrix axes.
+    /// * `data` - Row-major annualized covariance entries in the exact
+    ///   `factor_ids` order; length must equal the squared identifier count.
+    ///
     /// # Errors
     ///
     /// Returns an error if the data is not square for the supplied identifiers,

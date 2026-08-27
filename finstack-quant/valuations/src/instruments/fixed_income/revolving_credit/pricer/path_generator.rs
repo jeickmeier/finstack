@@ -20,7 +20,6 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
 use rayon::prelude::*;
 
-use crate::calibration::hull_white::HullWhiteParams;
 use crate::instruments::fixed_income::revolving_credit::pricer::monte_carlo_discretization::RevolvingCreditDiscretization;
 use crate::instruments::fixed_income::revolving_credit::pricer::monte_carlo_process::{
     CreditSpreadParams, InterestRateSpec, RevolvingCreditProcess, RevolvingCreditProcessParams,
@@ -32,6 +31,7 @@ use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::rng::sobol::SobolRng;
 use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
 use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream, StochasticProcess};
+use finstack_quant_models::rates::hull_white::HullWhiteParams;
 
 use super::super::cashflow_engine::ThreeFactorPathData;
 use super::super::types::{

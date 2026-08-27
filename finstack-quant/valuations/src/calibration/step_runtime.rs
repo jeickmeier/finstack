@@ -6,7 +6,7 @@ use crate::calibration::hull_white::{
     bootstrap_hull_white_sigma_schedule_to_cap_floors, calibrate_hull_white_to_cap_floors,
     calibrate_hull_white_to_swaptions_with_schedules, capfloor_hw1f_scalar_keys,
     capfloor_hw1f_sigma_schedule_key, hw1f_scalar_keys, CapFloorCalibrationConfig, CapFloorQuote,
-    HullWhiteParams, PiecewiseSigmaCalibrationConfig, SwaptionQuote, SwaptionSchedule,
+    PiecewiseSigmaCalibrationConfig, SwaptionQuote, SwaptionSchedule,
 };
 use crate::calibration::targets::base_correlation::BaseCorrelationTarget;
 use crate::calibration::targets::discount::DiscountCurveTarget;
@@ -33,6 +33,7 @@ use finstack_quant_core::market_data::surfaces::{VolCube, VolQuoteType, VolSurfa
 use finstack_quant_core::market_data::term_structures::{CreditIndexData, DiscountCurve};
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::Result;
+use finstack_quant_models::rates::hull_white::HullWhiteParams;
 use std::sync::Arc;
 
 /// Normalized output payload for a step.

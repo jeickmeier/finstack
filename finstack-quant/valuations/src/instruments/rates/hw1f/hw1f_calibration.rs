@@ -22,12 +22,15 @@
 
 use crate::calibration::hull_white::{
     calibrate_fixed_kappa_sigma_to_caplet_prices, calibrate_hull_white_to_swaptions,
-    capfloor_hw1f_scalar_keys, hw1f_caplet_forward_rate_normal_vol, hw1f_scalar_keys,
-    FixedKappaCapletPricePoint, HullWhiteParams, SwapFrequency, SwaptionQuote,
+    capfloor_hw1f_scalar_keys, hw1f_scalar_keys, FixedKappaCapletPricePoint, SwapFrequency,
+    SwaptionQuote,
 };
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::Result;
+use finstack_quant_models::rates::hull_white::{
+    hw1f_caplet_forward_rate_normal_vol, HullWhiteParams,
+};
 
 /// Where the resolved HW1F parameters came from.
 ///

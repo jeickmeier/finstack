@@ -1,6 +1,5 @@
 //! Pricers for snowball and inverse-floater structured notes.
 
-use crate::calibration::hull_white::HullWhiteParams;
 use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::exotics::snowball::{Snowball, SnowballVariant};
@@ -26,6 +25,7 @@ use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::results::MoneyEstimate;
 use finstack_quant_models::monte_carlo::seed;
 use finstack_quant_models::monte_carlo::traits::{PathState, Payoff, StateKey};
+use finstack_quant_models::rates::hull_white::HullWhiteParams;
 
 /// Path-local snowball coupon accumulator.
 #[derive(Debug, Clone)]

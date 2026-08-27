@@ -1,6 +1,5 @@
 //! Hull-White 1F Monte Carlo pricer for TARNs.
 
-use crate::calibration::hull_white::HullWhiteParams;
 use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::exotics::tarn::Tarn;
@@ -26,6 +25,7 @@ use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::results::MoneyEstimate;
 use finstack_quant_models::monte_carlo::seed;
 use finstack_quant_models::monte_carlo::traits::{PathState, Payoff, StateKey};
+use finstack_quant_models::rates::hull_white::HullWhiteParams;
 use std::sync::Arc;
 
 /// Path-local TARN payoff accumulator.

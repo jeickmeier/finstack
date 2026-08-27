@@ -21,7 +21,6 @@
 //! Vega = (V(σ+dσ) - V(σ-dσ)) / (2*dσ)
 //! ```
 
-use crate::calibration::hull_white::HullWhiteParams;
 use crate::instruments::rates::swaption::pricing::BermudanSwaptionTreeValuator;
 use crate::instruments::rates::swaption::{BermudanSwaption, CalibratedHullWhiteModel};
 use crate::metrics::{MetricCalculator, MetricContext};
@@ -29,6 +28,7 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::bumps::{BumpSpec, MarketBump};
 use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::Result;
+use finstack_quant_models::rates::hull_white::HullWhiteParams;
 
 /// Default bump size for parallel rate shift (1 basis point).
 pub(crate) const DEFAULT_RATE_BUMP_BP: f64 = 1.0;
@@ -577,13 +577,14 @@ mod tests {
     fn test_exercise_probability_profile_from_valuator() {
         // Integration test: verify from_valuator uses actual tree probabilities
         use crate::instruments::rates::swaption::{
-            BermudanSchedule, BermudanSwaption, CalibratedHullWhiteModel, HullWhiteParams,
+            BermudanSchedule, BermudanSwaption, CalibratedHullWhiteModel,
         };
         use finstack_quant_core::currency::Currency;
         use finstack_quant_core::dates::Tenor;
         use finstack_quant_core::market_data::term_structures::DiscountCurve;
         use finstack_quant_core::math::interp::InterpStyle;
         use finstack_quant_core::money::Money;
+        use finstack_quant_models::rates::hull_white::HullWhiteParams;
         use time::Month;
 
         // Create test discount curve

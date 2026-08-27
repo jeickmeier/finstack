@@ -24,10 +24,7 @@
 //!   Chapter 3: One-factor Short-Rate Models, Section 3.3.2 (Gaussian forward-rate
 //!   dynamics underpinning the closed-form caplet normal volatility). `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 
-use crate::calibration::hull_white::{
-    capfloor_hw1f_scalar_keys, capfloor_hw1f_sigma_schedule_key,
-    hw1f_term_caplet_price_from_dfs_with_model, HullWhiteModelParams, HullWhiteParams,
-};
+use crate::calibration::hull_white::{capfloor_hw1f_scalar_keys, capfloor_hw1f_sigma_schedule_key};
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::rates::cap_floor::pricing::payoff::CapletFloorletInputs;
 use crate::instruments::rates::cap_floor::pricing::projection::{
@@ -46,6 +43,9 @@ use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::money::Money;
+use finstack_quant_models::rates::hull_white::{
+    hw1f_term_caplet_price_from_dfs_with_model, HullWhiteModelParams, HullWhiteParams,
+};
 
 /// Hull-White 1-factor closed-form pricer for caps and floors.
 ///
@@ -545,7 +545,7 @@ pub(crate) fn resolve_capfloor_hw1f_params(
     cap_floor: &CapFloor,
     market: &MarketContext,
     as_of: finstack_quant_core::dates::Date,
-) -> finstack_quant_core::Result<crate::calibration::hull_white::HullWhiteParams> {
+) -> finstack_quant_core::Result<HullWhiteParams> {
     let context_label = format!("CapFloor {}", cap_floor.id);
     let overrides = hw1f_overrides_json(cap_floor);
     let kappa_hint = capfloor_kappa_hint(cap_floor, market);

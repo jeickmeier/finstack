@@ -127,7 +127,6 @@ pub(crate) mod pricer;
 pub(crate) mod pricing;
 pub(crate) mod types;
 
-pub use crate::calibration::hull_white::HullWhiteParams;
 pub use bermudan::{
     BermudanPricingMethod, BermudanSwaptionPricer, BermudanSwaptionPricerConfig,
     CalibratedHullWhiteModel,
