@@ -1,6 +1,5 @@
 //! WASM bindings for the `finstack-quant-core` crate.
 
-pub mod credit;
 pub mod currency;
 pub mod dates;
 pub mod market_data;

@@ -50,7 +50,8 @@ Roughly one module per binding area. The recurring groups:
 
 | Prefix | What it covers |
 |--------|----------------|
-| `test_core_*`, `test_dates_*`, `test_money_decimal` | primitives, calendars/schedules, Decimal money, config validation, the `ArrowTable` envelope, and the core credit scales (master scale, migration, scoring) |
+| `test_core_*`, `test_dates_*`, `test_money_decimal` | primitives, calendars/schedules, Decimal money, config validation, and the `ArrowTable` envelope |
+| `test_models_credit_*` | credit master-scale, migration, and scoring engines owned by models |
 | `test_analytics*`, `models/test_correlation` | the `Performance` panel facade and the `models.correlation` namespace |
 | `test_cashflows*` | the cashflow JSON bridge and the typed `finstack_quant.cashflows` surface |
 | `test_typed_*` | typed instrument constructors, keyword fidelity, JSON round-trips |

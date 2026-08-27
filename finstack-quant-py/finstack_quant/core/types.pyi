@@ -548,22 +548,6 @@ class CreditRating:
         """
         ...
 
-    @property
-    def warf(self) -> float:
-        """
-        Moody's weighted-average rating factor for this exact notch.
-
-        Returns
-        -------
-        float
-            Moody's weighted-average rating factor for this exact notch.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored or derived value.
-        """
-        ...
-
     def __repr__(self) -> str: ...
     def __str__(self) -> str: ...
     def __hash__(self) -> int: ...

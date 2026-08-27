@@ -12,8 +12,9 @@ mod tests {
         currency::Currency,
         dates::{Date, Tenor},
         money::Money,
-        types::{moodys_warf_factor, CreditRating},
+        types::CreditRating,
     };
+    use finstack_quant_models::credit::moodys_warf_factor;
     use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
         AssetPool, DealConfig, DealDates, DealType, DefaultAssumptions, PoolAsset,
     };

@@ -15,7 +15,6 @@ Examples
 """
 
 from finstack_quant.core import config as config
-from finstack_quant.core import credit as credit
 from finstack_quant.core import currency as currency
 from finstack_quant.core import dates as dates
 from finstack_quant.core import market_data as market_data
@@ -51,7 +50,6 @@ class FinstackError(ValueError):
 __all__ = [
     "FinstackError",
     "config",
-    "credit",
     "currency",
     "dates",
     "market_data",

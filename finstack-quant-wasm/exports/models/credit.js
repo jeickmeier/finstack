@@ -1,6 +1,8 @@
 import * as wasm from '../../pkg/finstack_quant_wasm.js';
 
 export const credit = {
+  analyzeExchangeOffer: wasm.analyzeExchangeOffer,
+  analyzeLme: wasm.analyzeLme,
   mertonModelJson: wasm.mertonModelJson,
   creditGradesModelJson: wasm.creditGradesModelJson,
   mertonDefaultProbability: wasm.mertonDefaultProbability,

@@ -2694,7 +2694,7 @@ def compute_ecl(
     ead : float
         Priced exposure at default (``drawn + undrawn × ccf``). Term loans
         pass the drawn balance; revolvers should pre-apply
-        ``finstack_quant.core.credit.ead_revolver``.
+        ``finstack_quant.models.credit.lgd.ead_revolver``.
     pd_schedule : list[tuple[float, float]]
         ``[(time_years, cumulative_pd), ...]`` knots. A
         ``(0.0, 0.0)`` knot is inserted automatically if not present.
@@ -2753,7 +2753,7 @@ def compute_ecl_weighted(
     ead : float
         Priced exposure at default (``drawn + undrawn × ccf``). Term loans
         pass the drawn balance; revolvers should pre-apply
-        ``finstack_quant.core.credit.ead_revolver``.
+        ``finstack_quant.models.credit.lgd.ead_revolver``.
     scenarios : list[tuple[float, list[tuple[float, float]]]]
         List of ``(weight, pd_schedule)``. Weights must sum to 1.0.
         A ``(0.0, 0.0)`` knot is inserted automatically into each schedule

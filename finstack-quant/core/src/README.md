@@ -43,7 +43,6 @@ call site that remains lives under `dates/` (in `imm.rs`, `calendar/algo.rs` and
 | `canonical/` | `value_serializer.rs` — a bespoke `serde::Serializer` into `serde_json::Value` that rejects non-finite `f32`/`f64` at serialization time instead of emitting `null` | private `mod` of `canonical.rs`; items are `pub(super)` |
 | `cashflow/` | `discounting.rs` (`npv` and friends over a `Discounting` curve), `primitives.rs` (`CashFlow`, `CFKind`, `CashFlowAccrual`), `xirr.rs` (`irr`, `xirr`, day-count-aware variants) | all three are private `mod`s; the whole surface is re-exported from `cashflow/mod.rs` |
 | `contract/` | Vocabulary for loading persisted artifacts under resource limits: `descriptor.rs`, `diagnostics.rs`, `limits.rs`, `load.rs` | all private `mod`s; re-exported from `contract/mod.rs` *and* again at the crate root |
-| `credit/` | Credit-risk primitives, seven public subtrees — see [below](#credit) | every child is `pub mod` |
 | `dates/` | Dates, calendars, day-count, schedules, tenors, IMM/CDS rolls, periods — see [below](#dates) | `calendar` and `fx` are `pub mod`; everything else is private with re-exports at `dates::` |
 | `error/` | `inputs.rs` (`InputError`, `NonFiniteKind`), `suggestions.rs` (fuzzy "did you mean" matching for unknown ids) | `inputs` re-exported publicly; `suggestions`' `format_suggestions`/`fuzzy_suggestions` are `pub(crate)` |
 | `expr/` | Scalar DAG expression engine over `&[f64]` columns: `ast.rs`, `ast_walk.rs`, `context.rs`, `dag.rs`, `eval.rs`, `eval_functions.rs` | **all six are private `mod`s**; the public surface is only `Expr`, `ExprNode`, `BinOp`, `UnaryOp`, `Function`, `EvaluationResult`, `SimpleContext`, `CompiledExpr`, `EvalOpts` |
@@ -64,7 +63,7 @@ call site that remains lives under `dates/` (in `imm.rs`, `calendar/algo.rs` and
 | `config.rs` | `FinstackConfig`, rounding/scale policy, `RoundingContext`, `ResultsMeta`, `NumericMode`, `results_meta*` | There is no global state; every helper takes a caller-supplied `&FinstackConfig` |
 | `currency.rs` | `Currency` behavior, parsing, metadata | The enum itself is `include!`d from `OUT_DIR/currency_generated.rs` |
 | `decimal.rs` | `f64_to_decimal`, `decimal_to_f64` | The only sanctioned bridge; both return `Result` rather than collapsing non-finite input |
-| `embedded_registry.rs` | `EmbeddedJsonRegistry<T>` — `OnceLock`-cached parse+validate of a compile-time JSON asset, with a `FinstackConfig` extension-key override path | **`pub(crate) mod`**. Its methods are written `pub`, but the module gate makes the whole type crate-internal. Used by `credit::registry` and `rating_scales` |
+| `embedded_registry.rs` | `EmbeddedJsonRegistry<T>` — `OnceLock`-cached parse+validate of a compile-time JSON asset, with a `FinstackConfig` extension-key override path | **`pub(crate) mod`**. Its methods are written `pub`, but the module gate makes the whole type crate-internal. Used by `rating_scales` |
 | `explain.rs` | `ExplainOpts`, `ExplanationTrace`, `TraceEntry` | Opt-in tracing; off by default |
 | `prelude.rs` | Curated re-export list | A convenience layer over canonical paths, not a second source of truth |
 | `rating_scales.rs` | `RatingScaleRegistry`, `ScorecardScale`, `RatingLevel`, `UnknownScalePolicy`, `embedded_registry()`, `registry_from_config()` | Backed by `data/rating_scales/` through `EmbeddedJsonRegistry` |
@@ -160,25 +159,6 @@ them, and pulls almost every child module's surface up to `dates::`.
 | `periods.rs` | `Period`, `PeriodId`, `PeriodKind`, `PeriodPlan`, `FiscalConfig`, `build_periods`, `build_fiscal_periods` | Private `mod` |
 | `date_extensions.rs` | `DateExt` | Private `mod` |
 | `fx.rs` | Joint two-calendar FX settlement: `resolve_calendar`, `adjust_joint_calendar`, `add_joint_business_days`, `fx_spot_date`, `fx_standard_spot_lag_days`, `ResolvedCalendarPair` | **`pub mod fx`** — one of only two public child modules under `dates`. Consumed by `finstack-quant-valuations`' FX instruments |
-
-<a name="credit"></a>
-
-## `credit/` (~8.9k LOC)
-
-All seven children are `pub mod`, so every path here is public API.
-
-| Path | Contents |
-|------|----------|
-| `migration/` | `matrix.rs` (`TransitionMatrix`), `generator.rs` (`GeneratorMatrix`), `scale.rs` (`RatingScale`), `simulation.rs` (`MigrationSimulator`, `RatingPath`), `projection.rs`, `error.rs` (`MigrationError`) |
-| `pd/` | `calibration.rs` (PIT/TTC cycle adjustment, Basel IRB floor), `master_scale.rs` (`MasterScale`, `MasterScaleGrade`, `MasterScaleResult`), `error.rs` |
-| `lgd/` | `seniority.rs` (`SeniorityRecovery`, `SeniorityClass`, `BetaRecovery`), `workout.rs` (`WorkoutLgd` + collateral), `downturn.rs`, `ead.rs` (`EadCalculator`, `CreditConversionFactor`) |
-| `scoring/` | `altman.rs`, `ohlson.rs`, `zmijewski.rs`, `types.rs` (`ScoringResult`, `ScoringZone`, `CreditScoringError`) |
-| `recovery_waterfall.rs` | Absolute-priority allocation of a distributable estate |
-| `liability_management.rs` | Hold-versus-tender economics for distressed exchanges |
-| `registry.rs` | `CreditAssumptionRegistry` over `data/credit/credit_assumptions.v1.json`, via `EmbeddedJsonRegistry` |
-
-`migration/`, `pd/` and `scoring/` each carry a `#[cfg(test)] mod tests;` in a
-separate `tests.rs` file rather than an inline `mod tests` block.
 
 <a name="generated-code"></a>
 

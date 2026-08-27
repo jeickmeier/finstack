@@ -32,7 +32,6 @@ canonical     = { python = "finstack_quant.core.canonical",     status = "missin
 cashflow      = { python = "finstack_quant.core.cashflow",      status = "missing", note = "Core cashflow APIs are not yet materialized as a dedicated Python submodule" }
 config        = { python = "finstack_quant.core.config",        status = "exists" }
 contract      = { python = "finstack_quant.core.contract",      status = "missing", note = "Rust-only API-contract helper infrastructure; no host-language surface planned." }
-credit        = { python = "finstack_quant.core.credit",        status = "exists", note = "Includes scoring, pd, lgd, migration, recovery_waterfall, and liability_management submodules." }
 currency      = { python = "finstack_quant.core.currency",      status = "exists" }
 dates         = { python = "finstack_quant.core.dates",         status = "exists" }
 decimal       = { python = "finstack_quant.core.decimal",       status = "missing", note = "Rust-only Decimal representation internals; hosts read amounts via Money / amount_decimal." }
@@ -100,7 +99,7 @@ note = "Subset scope: the Rust config module also exposes ConfigExtensions, Curr
 [crates.core.module_symbols.types]
 python_package = "finstack_quant.core.types"
 public = ["Rate", "Bps", "Percentage", "CreditRating", "CurveId", "InstrumentId", "Attributes"]
-note = "Subset scope: Rust-only extras are BarrierType, RatingFactorTable, RatingLabel, moodys_warf_factor, and the remaining id newtypes (CalendarId, DealId, Id, IndexId, IssuerId, PoolId, PriceId, UnderlyingId) — hosts pass those ids as plain strings on JSON/typed surfaces."
+note = "Subset scope: Rust-only extras are BarrierType, RatingLabel, and the remaining id newtypes (CalendarId, DealId, Id, IndexId, IssuerId, PoolId, PriceId, UnderlyingId) — hosts pass those ids as plain strings on JSON/typed surfaces. Rating-factor behavior is owned by models.credit."
 
 [crates.core.module_symbols.currency]
 python_package = "finstack_quant.core.currency"
@@ -148,15 +147,6 @@ public = [
     "ScalarTimeSeries", "InflationIndex", "MarketContext",
 ]
 note = "Subset scope: Rust-only market_data extras — the dividends, fixings, hierarchy, bumps and diff submodules, curve/surface builders (DiscountCurveBuilder etc.), ValidationMode, and the BasisSpreadCurve / ParametricCurve term structures — are deliberately unbound. Hosts construct curves through the bound constructors and apply bumps/diffs through the scenarios crate."
-
-[crates.core.module_symbols.credit]
-python_package = "finstack_quant.core.credit"
-public = ["scoring", "pd", "lgd", "migration", "recovery_waterfall", "liability_management"]
-note = "Subset scope: the Rust credit::registry submodule is Rust-only. Recovery-dependent host calculations require an explicit finite decimal recovery rate in [0, 1]; bindings do not expose registry defaults."
-
-[crates.core.credit_migration_members]
-"GeneratorMatrix.regularization_l1" = "regularization_l1"
-"GeneratorMatrix.round_trip_error" = "round_trip_error"
 
 [crates.core.module_symbols.rating_scales]
 python_package = "finstack_quant.core.rating_scales"
@@ -611,7 +601,7 @@ fourier      = { python = "finstack_quant.models", status = "flattened", note = 
 volatility   = { python = "finstack_quant.models.volatility", status = "exists", note = "Volatility models, fitting, evaluation, arbitrage checks, and convention conversion." }
 pde          = { python = "finstack_quant.models.pde", status = "missing", note = "Rust-only numerical engines consumed by valuation instruments." }
 trees        = { python = "finstack_quant.models.trees", status = "missing", note = "Rust-only tree engines consumed by valuation instruments." }
-credit       = { python = "finstack_quant.models.credit", status = "exists", note = "Structural-credit model wrappers." }
+credit       = { python = "finstack_quant.models.credit", status = "exists", note = "Structural credit, rating factors, scoring, PD, LGD, migration, recovery-waterfall, and liability-management models." }
 correlation  = { python = "finstack_quant.models.correlation", status = "exists", note = "Copula, recovery, and portfolio-loss infrastructure." }
 monte_carlo  = { python = "finstack_quant.models.monte_carlo", status = "exists", note = "Productized subset of the reusable stochastic engine." }
 rates        = { python = "finstack_quant.models.rates", status = "exists", note = "Product-independent interest-rate models." }
@@ -904,9 +894,20 @@ public = [
     "DynamicRecoverySpec",
     "EndogenousHazardSpec",
     "MertonModel",
+    "lgd",
+    "liability_management",
+    "migration",
+    "moodys_warf_factor",
+    "pd",
+    "recovery_waterfall",
+    "scoring",
     "SimulatedPaths",
     "ToggleExerciseModel",
 ]
+
+[crates.models.credit_migration_members]
+"GeneratorMatrix.regularization_l1" = "regularization_l1"
+"GeneratorMatrix.round_trip_error" = "round_trip_error"
 
 
 # ---------------------------------------------------------------------------
@@ -2181,10 +2182,6 @@ namespaces = [
 rust_module_root = "finstack-quant-wasm/src/api/core/"
 js_export_file   = "../finstack-quant-wasm/exports/core.js"
 modules = [
-    # Partial: only the `liability_management` analytics are bound
-    # (`analyzeExchangeOffer`, `analyzeLme`). The credit registry, scoring, PD,
-    # LGD, migration, and recovery-waterfall submodules remain Python-only.
-    "credit",
     "currency",
     "dates",
     "market_data",
@@ -2273,8 +2270,6 @@ root_exports = [
     "neumaierSumArray",
     "countConsecutive",
     "countConsecutiveArray",
-    "analyzeExchangeOffer",
-    "analyzeLme",
 ]
 
 # finstack_quant.core.market_data symbols intentionally absent from the WASM core
@@ -2442,8 +2437,6 @@ wasm_only = [
 "math.summation.kahan_sum" = "kahanSum"
 "math.summation.neumaier_sum" = "neumaierSum"
 "math.count_consecutive" = "countConsecutive"
-"credit.liability_management.analyze_exchange_offer" = "analyzeExchangeOffer"
-"credit.liability_management.analyze_lme" = "analyzeLme"
 
 # Method-level gaps on types that *are* partially exposed in WASM.
 [wasm_core_subset.method_gaps]
@@ -2533,6 +2526,8 @@ volatility = [
     "strikeToDelta",
 ]
 credit = [
+    "analyzeExchangeOffer",
+    "analyzeLme",
     "creditGradesModelJson",
     "creditStateJson",
     "dynamicRecoveryAtNotional",

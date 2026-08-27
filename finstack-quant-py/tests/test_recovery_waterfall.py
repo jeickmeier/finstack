@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from finstack_quant.core.credit.recovery_waterfall import (
+from finstack_quant.models.credit.recovery_waterfall import (
     RecoveryAllocation,
     RecoveryClaim,
     RecoveryWaterfallResult,

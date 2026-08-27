@@ -63,7 +63,6 @@
 //! - [`cashflow`]: Cashflow primitives and discounting
 //! - [`canonical`]: Deterministic JSON bytes and content hashes
 //! - [`contract`]: Persisted-contract descriptors, limits, and diagnostics
-//! - [`credit`]: Credit risk primitives (migration models, generator extraction, CTMC simulation)
 //! - [`math`]: Numerical utilities and interpolation
 //! - [`expr`]: Expression engine for formula evaluation
 //! - [`explain`]: Computation tracing and debugging
@@ -108,8 +107,6 @@ pub(crate) mod collections;
 pub mod config;
 /// Persisted-contract descriptors, loading limits, and diagnostics.
 pub mod contract;
-/// Credit risk modeling primitives (migration models, generator extraction, CTMC simulation).
-pub mod credit;
 /// Currency types and ISO-4217 definitions.
 pub mod currency;
 /// Date & calendar helpers (facade over the `time` crate)

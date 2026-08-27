@@ -4,9 +4,9 @@
 //! the CPR↔SMM / CDR↔MDR conversion identities are checked against the
 //! published formulas directly. The WARF portfolio tests weight the rating
 //! factors from the library's embedded Moody's table
-//! (`finstack_quant_core::types::moodys_warf_factor`); they validate the
+//! (`finstack_quant_models::credit::moodys_warf_factor`); they validate the
 //! weighting methodology, not the table itself, which is asserted against
-//! published Moody's factor values in `finstack-quant/core` tests.
+//! published Moody's factor values in `finstack-quant-models` tests.
 //!
 //! # References
 //!
@@ -17,7 +17,8 @@
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{moodys_warf_factor, CreditRating};
+use finstack_quant_core::types::CreditRating;
+use finstack_quant_models::credit::moodys_warf_factor;
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
     clamped_cdr_to_mdr, clamped_cpr_to_smm, clamped_mdr_to_cdr, psa_to_cpr, AssetPool, DealType,
     PoolAsset,

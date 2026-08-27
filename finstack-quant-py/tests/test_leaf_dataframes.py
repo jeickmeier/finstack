@@ -4,7 +4,7 @@ Covers the newly added exports across five namespaces:
 
 - ``analytics``: ``BetaResult.to_dataframe``, ``GreeksResult.to_dataframe``,
   ``MultiFactorResult.to_dataframe``.
-- ``core.credit``: ``pd.MasterScaleResult.to_dataframe``,
+- ``models.credit``: ``pd.MasterScaleResult.to_dataframe``,
   ``recovery_waterfall.RecoveryWaterfallResult.to_dataframe``,
   ``liability_management.ExchangeOfferAnalysis.to_dataframe`` and
   ``LmeAnalysis.to_dataframe``.
@@ -29,7 +29,7 @@ import pandas as pd
 import pytest
 
 from finstack_quant.analytics import MultiFactorResult, Performance
-from finstack_quant.core.credit import liability_management, pd as credit_pd, recovery_waterfall
+from finstack_quant.models.credit import liability_management, pd as credit_pd, recovery_waterfall
 from finstack_quant.core.market_data import FxMatrix, ScalarTimeSeries
 from finstack_quant.factor_model.credit import (
     CreditCalibrator,
@@ -165,7 +165,7 @@ def test_multi_factor_result_rows_follow_the_supplied_factor_order() -> None:
     assert forward["alpha"].iloc[0] == pytest.approx(swapped["alpha"].iloc[0])
 
 
-# core.credit.pd
+# models.credit.pd
 
 
 def test_master_scale_result_to_dataframe_is_one_row() -> None:
@@ -188,7 +188,7 @@ def test_master_scale_results_concat_into_a_grading_table() -> None:
     assert list(table["input_pd"]) == pytest.approx(pds)
 
 
-# core.credit.recovery_waterfall
+# models.credit.recovery_waterfall
 
 _ALLOCATION_COLUMNS = [
     "id",
@@ -257,7 +257,7 @@ def test_recovery_waterfall_ordering_ignores_the_input_order() -> None:
     assert list(forward["id"]) == ["SEN", "MEZZ", "SUB"]
 
 
-# core.credit.liability_management
+# models.credit.liability_management
 
 
 def test_exchange_offer_analysis_to_dataframe_is_one_row() -> None:

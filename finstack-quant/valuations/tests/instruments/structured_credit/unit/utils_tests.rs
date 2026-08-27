@@ -9,7 +9,8 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::types::{moodys_warf_factor, CreditRating, RatingFactorTable};
+use finstack_quant_core::types::CreditRating;
+use finstack_quant_models::credit::{moodys_warf_factor, RatingFactorTable};
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
     AssetPool, AssetType, DealType, PoolAsset, ReinvestmentManager,
 };

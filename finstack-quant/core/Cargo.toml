@@ -103,10 +103,6 @@ name = "expr_eval"
 harness = false
 
 [[bench]]
-name = "migration_matrix"
-harness = false
-
-[[bench]]
 name = "context_bump"
 harness = false
 

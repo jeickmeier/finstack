@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from finstack_quant.core import credit
+from finstack_quant.models import credit
 
 
 @pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -float("inf")])

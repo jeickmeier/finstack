@@ -755,6 +755,8 @@ fn statements_analytics_dts_matches_runtime_exports() {
 #[test]
 fn models_and_valuations_dts_expose_owned_credit_namespaces() {
     let dts = index_dts();
+    let core = interface_block(&dts, "CoreNamespace");
+    let model_credit = interface_block(&dts, "ModelCreditNamespace");
     let models = interface_block(&dts, "ModelsNamespace");
     let valuations = interface_block(&dts, "ValuationsNamespace");
 
@@ -771,6 +773,10 @@ fn models_and_valuations_dts_expose_owned_credit_namespaces() {
     ));
     assert!(dts.contains("creditGradesModelJson("));
     assert!(dts.contains("toggleExerciseOptimalJson("));
+    assert!(model_credit.contains("analyzeExchangeOffer("));
+    assert!(model_credit.contains("analyzeLme("));
+    assert!(!core.contains("analyzeExchangeOffer("));
+    assert!(!core.contains("analyzeLme("));
     assert!(dts.contains("export interface CreditDerivativesNamespace"));
     assert!(dts.contains("creditDefaultSwapExampleJson(): string;"));
     assert!(dts.contains("cdsOptionExampleJson(): string;"));

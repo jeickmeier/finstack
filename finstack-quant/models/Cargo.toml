@@ -17,8 +17,11 @@ indexmap = { workspace = true, features = ["serde"] }
 smallvec = { version = "1.15", default-features = false, features = ["serde"] }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["raw_value"] }
+statrs = { version = "0.18", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 rayon = "1.11"
+rand = { version = "0.9.3", default-features = false, features = ["std"] }
+rand_pcg = { version = "0.9", features = ["serde"] }
 nalgebra = { version = "0.34", default-features = false, features = ["std"] }
 time = { workspace = true }
 rust_decimal = { workspace = true }
@@ -45,6 +48,10 @@ harness = false
 
 [[bench]]
 name = "fourier_pricing"
+harness = false
+
+[[bench]]
+name = "migration_matrix"
 harness = false
 
 [lints]

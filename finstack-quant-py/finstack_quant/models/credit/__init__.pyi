@@ -1,25 +1,36 @@
 """
-Structural credit models and path-dependent credit specifications.
+Product-independent credit models, scoring, migration, PD, LGD, recovery, and
+liability-management analytics.
 
-Bindings for Merton-style structural models, dynamic recovery, endogenous hazard
-rates, credit-state snapshots, and toggle exercise rules used by PIK/toggle
-bonds and similar instruments.
+Bindings for ``finstack_quant_models::credit``. Each submodule mirrors the Rust
+module of the same name and is registered at runtime in ``sys.modules``
+so that ``from finstack_quant.models.credit import scoring`` (or ``pd``, ``lgd``,
+``migration``, ``recovery_waterfall``, ``liability_management``) works
+transparently.
 
 Examples
 --------
->>> from finstack_quant.models.credit import MertonModel
->>> round(MertonModel(100.0, 0.25, 80.0, 0.05).default_probability(1.0), 6)
-0.166629
+>>> from finstack_quant.models.credit import pd
+>>> pd.central_tendency([0.01, 0.02, 0.03])
+0.02
 
 """
 
 from __future__ import annotations
 
-import datetime
-import pandas as pd
+import pandas
 
-from finstack_quant.core.market_data.curves import HazardCurve
-from typing import Any
+from finstack_quant.core.types import CreditRating
+from finstack_quant.models.credit._structural import (
+    AssetDynamics as AssetDynamics,
+    BarrierType as BarrierType,
+    CreditState as CreditState,
+    DynamicRecoverySpec as DynamicRecoverySpec,
+    EndogenousHazardSpec as EndogenousHazardSpec,
+    MertonModel as MertonModel,
+    SimulatedPaths as SimulatedPaths,
+    ToggleExerciseModel as ToggleExerciseModel,
+)
 
 __all__ = [
     "AssetDynamics",
@@ -30,2110 +41,3143 @@ __all__ = [
     "MertonModel",
     "SimulatedPaths",
     "ToggleExerciseModel",
+    "lgd",
+    "liability_management",
+    "migration",
+    "moodys_warf_factor",
+    "pd",
+    "recovery_waterfall",
+    "scoring",
 ]
 
-class BarrierType:
+def moodys_warf_factor(rating: CreditRating) -> float:
     """
-    Default barrier monitoring convention for structural credit models.
+    Return the Moody's WARF factor for an exact canonical credit-rating notch.
+
+    Parameters
+    ----------
+    rating : CreditRating
+        Canonical rating from :mod:`finstack_quant.core.types`.
+
+    Returns
+    -------
+    float
+        Moody's ordinal weighted-average rating factor.
+
+    Raises
+    ------
+    ValueError
+        If the embedded credit-assumptions registry is invalid or the rating
+        has no factor in the configured Moody's table.
 
     Examples
     --------
-    >>> from finstack_quant.models.credit import BarrierType
-    >>> BarrierType.terminal() is not None
-    True
+    >>> from finstack_quant.core.types import CreditRating
+    >>> from finstack_quant.models.credit import moodys_warf_factor
+    >>> moodys_warf_factor(CreditRating.B)
+    2720.0
+    """
+    ...
+
+class liability_management:
+    """
+    Distressed-exchange hold-versus-tender economics and issuer LME analytics.
+
+    Examples
+    --------
+    >>> from finstack_quant.models.credit import liability_management
+    >>> analysis = liability_management.analyze_exchange_offer(60.0, 75.0, consent_fee=2.0)
+    >>> (analysis.delta_npv, analysis.tender_recommended)
+    (17.0, True)
 
     """
 
-    @staticmethod
-    def terminal() -> BarrierType:
+    class ExchangeOfferAnalysis:
         """
-        Classic Merton barrier tested only at maturity.
-
-        Returns
-        -------
-        BarrierType
-            Terminal-barrier specification.
-
-        Notes
-        -----
-        This method does not raise; it returns a fixed instance.
+        Hold-versus-tender economics of a distressed exchange offer.
 
         Examples
         --------
-        >>> from finstack_quant.models.credit import BarrierType
-        >>> bt = BarrierType.terminal()
-        >>> bt.to_json()
-        '"terminal"'
+        >>> from finstack_quant.models.credit import liability_management
+        >>> analysis = liability_management.analyze_exchange_offer(60.0, 75.0, consent_fee=2.0)
+        >>> (analysis.delta_npv, analysis.tender_recommended)
+        (17.0, True)
+
+        """
+
+        @property
+        def exchange_type(self) -> str:
+            """
+            Return the canonical exchange structure for this analysis.
+
+            Returns
+            -------
+            str
+                One of ``par_for_par``, ``discount``, ``uptier``, ``downtier``.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def old_npv(self) -> float:
+            """
+            Return the hold-out present value used in the comparison.
+
+            Returns
+            -------
+            float
+                Present value of the existing claim if it is not tendered.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def new_npv(self) -> float:
+            """
+            Return the present value of the new instrument offered.
+
+            Returns
+            -------
+            float
+                Present value received on tendering, excluding fees.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def consent_fee(self) -> float:
+            """
+            Return the cash consent or early-tender fee.
+
+            Returns
+            -------
+            float
+                Fee paid to participating holders, in the input unit.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def equity_sweetener_value(self) -> float:
+            """
+            Return the value of equity or warrants attached to the offer.
+
+            Returns
+            -------
+            float
+                Estimated sweetener value, in the input unit.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def tender_total(self) -> float:
+            """
+            Return the total tender consideration.
+
+            Returns
+            -------
+            float
+                ``new_npv + consent_fee + equity_sweetener_value``.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def delta_npv(self) -> float:
+            """
+            Return the NPV pickup from tendering.
+
+            Returns
+            -------
+            float
+                ``tender_total - old_npv``; negative when holding out wins.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def breakeven_recovery(self) -> float:
+            """
+            Return the hold-out recovery that matches the tender.
+
+            Returns
+            -------
+            float
+                Fraction of the hold-out present value, capped at ``1.0``.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def tender_recommended(self) -> bool:
+            """
+            Return whether the offer clears the 2% tender hurdle.
+
+            Returns
+            -------
+            bool
+                True when ``tender_total > old_npv * 1.02``.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        def to_dataframe(self) -> pandas.DataFrame:
+            """
+            Export as a single-row pandas DataFrame.
+
+            Columns: ``exchange_type``, ``old_npv``, ``new_npv``,
+            ``consent_fee``, ``equity_sweetener_value``, ``tender_total``,
+            ``delta_npv``, ``breakeven_recovery``, ``tender_recommended``.
+
+            One offer is one flat record, so a one-row frame is the right
+            shape: ``pd.concat`` over several candidate offers gives a
+            hold-versus-tender comparison table directly.
+
+            Returns
+            -------
+            pandas.DataFrame
+                Single-row frame of the offer's hold-versus-tender economics.
+
+            Raises
+            ------
+            ValueError
+                If the result cannot be serialized into a pandas object.
+            """
+            ...
+
+    class LeverageImpact:
+        """
+        Gross-leverage impact of a liability management exercise.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import liability_management
+        >>> impact = liability_management.analyze_lme("open_market_repurchase", 100.0, 0.70, 0.50, 20.0).leverage_impact
+        >>> (impact.pre_leverage, impact.post_leverage)
+        (5.0, 2.5)
+
+        """
+
+        @property
+        def pre_total_debt(self) -> float:
+            """
+            Return gross debt of the target instrument before the exercise.
+
+            Returns
+            -------
+            float
+                Outstanding face amount, in the input unit.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def post_total_debt(self) -> float:
+            """
+            Return gross debt of the target instrument after the exercise.
+
+            Returns
+            -------
+            float
+                Face amount remaining once retired par is removed.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def pre_leverage(self) -> float:
+            """
+            Return gross debt over EBITDA before the exercise.
+
+            Returns
+            -------
+            float
+                Leverage as a multiple, so ``8.0`` reads as 8.0x.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def post_leverage(self) -> float:
+            """
+            Return gross debt over EBITDA after the exercise.
+
+            Returns
+            -------
+            float
+                Leverage as a multiple, so ``4.8`` reads as 4.8x.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def leverage_reduction(self) -> float:
+            """
+            Return the turns of leverage removed by the exercise.
+
+            Returns
+            -------
+            float
+                ``pre_leverage - post_leverage``, in turns.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+    class LmeAnalysis:
+        """
+        Issuer-side economics of a liability management exercise.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import liability_management
+        >>> analysis = liability_management.analyze_lme("open_market_repurchase", 100.0, 0.70, 0.50)
+        >>> (analysis.notional_reduction, analysis.discount_capture)
+        (50.0, 15.0)
+
+        """
+
+        @property
+        def lme_type(self) -> str:
+            """
+            Return the canonical LME structure for this analysis.
+
+            Returns
+            -------
+            str
+                One of ``open_market_repurchase``, ``tender_offer``,
+                ``amend_and_extend``, ``dropdown``.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def cost(self) -> float:
+            """
+            Return the cash paid by the issuer.
+
+            Returns
+            -------
+            float
+                Repurchase consideration or consent fees, in the input unit.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def notional_reduction(self) -> float:
+            """
+            Return the face amount retired by the exercise.
+
+            Returns
+            -------
+            float
+                Par extinguished; zero for amend-and-extend and dropdowns.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def discount_capture(self) -> float:
+            """
+            Return the discount captured by the issuer.
+
+            Returns
+            -------
+            float
+                ``notional_reduction - cost``, in the input unit.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def discount_capture_pct(self) -> float:
+            """
+            Return the discount captured as a fraction of par retired.
+
+            Returns
+            -------
+            float
+                Fraction in ``[0, 1]``; zero when no par is retired.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def remaining_holder_impact_pct(self) -> float:
+            """
+            Return the value fraction diverted from non-participating holders.
+
+            Returns
+            -------
+            float
+                Nonzero only for a dropdown transaction.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def leverage_impact(self) -> liability_management.LeverageImpact | None:
+            """
+            Return the gross-leverage block, when EBITDA was supplied.
+
+            Returns
+            -------
+            LeverageImpact or None
+                None when no positive EBITDA was provided.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        def to_dataframe(self) -> pandas.DataFrame:
+            """
+            Export as a single-row pandas DataFrame.
+
+            Columns: ``lme_type``, ``cost``, ``notional_reduction``,
+            ``discount_capture``, ``discount_capture_pct``,
+            ``remaining_holder_impact_pct``, ``pre_total_debt``,
+            ``post_total_debt``, ``pre_leverage``, ``post_leverage``,
+            ``leverage_reduction``.
+
+            One exercise is one flat record, so a one-row frame is the right
+            shape: ``pd.concat`` over several structures gives a
+            discount-capture comparison table directly.
+
+            The five leverage columns come from :attr:`leverage_impact` and are
+            flattened onto the same row rather than nested. They are ``None``
+            (and therefore ``object`` dtype) when no positive EBITDA was
+            supplied; coerce with ``pd.to_numeric`` before aggregating a mixed
+            set.
+
+            Returns
+            -------
+            pandas.DataFrame
+                Single-row frame of the exercise's issuer-side economics.
+
+            Raises
+            ------
+            ValueError
+                If the result cannot be serialized into a pandas object.
+            """
+            ...
+
+    @staticmethod
+    def analyze_exchange_offer(
+        old_pv: float,
+        new_pv: float,
+        consent_fee: float = 0.0,
+        equity_sweetener_value: float = 0.0,
+        exchange_type: str = "par_for_par",
+    ) -> liability_management.ExchangeOfferAnalysis:
+        """
+        Compare hold-versus-tender economics for a distressed exchange offer.
+
+        Parameters
+        ----------
+        old_pv : float
+            Present value of the existing claim if it is not tendered, in the
+            caller's monetary unit. Must be finite and non-negative.
+        new_pv : float
+            Present value of the new instrument received on tendering,
+            expressed in the same unit as ``old_pv``.
+        consent_fee : float, optional
+            Cash consent or early-tender fee paid to participating holders, in
+            the same unit as ``old_pv``.
+        equity_sweetener_value : float, optional
+            Estimated value of equity or warrants attached to the new
+            instrument, in the same unit as ``old_pv``.
+        exchange_type : str, optional
+            Offer structure: ``par_for_par`` (alias ``par``), ``discount``,
+            ``uptier``, or ``downtier``. Case-insensitive; ``-`` is normalised
+            to ``_``.
+
+        Returns
+        -------
+        ExchangeOfferAnalysis
+            Tender total, NPV pickup, breakeven recovery, and the tender
+            recommendation against the 2% hurdle.
+
+        Raises
+        ------
+        ValueError
+            If an amount is negative or non-finite, or ``exchange_type`` is not
+            a recognised structure.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import liability_management
+        >>> liability_management.analyze_exchange_offer(60.0, 75.0, consent_fee=2.0).tender_total
+        77.0
+
         """
         ...
 
     @staticmethod
-    def first_passage(barrier_growth_rate: float) -> BarrierType:
+    def analyze_lme(
+        lme_type: str,
+        notional: float,
+        repurchase_price_pct: float,
+        opt_acceptance_pct: float = 1.0,
+        ebitda: float | None = None,
+    ) -> liability_management.LmeAnalysis:
         """
-        Black-Cox first-passage barrier with optional growth rate.
+        Compute discount capture and leverage impact for an LME transaction.
 
         Parameters
         ----------
-        barrier_growth_rate : float
-            Continuous growth rate of the default barrier over time, as a
-            decimal (e.g. ``0.02`` for 2% annual growth).
+        lme_type : str
+            Structure of the exercise: ``open_market`` (aliases
+            ``open_market_repurchase``, ``omr``), ``tender_offer`` (alias
+            ``tender``), ``amend_and_extend`` (aliases ``ae``, ``a&e``), or
+            ``dropdown``. Case-insensitive; ``-`` and ``&`` normalise to ``_``.
+        notional : float
+            Outstanding face amount of the target instrument, in the caller's
+            monetary unit. Must be finite and strictly positive.
+        repurchase_price_pct : float
+            Price as a fraction of par for repurchases and tenders (``(0, 1.5]``),
+            the extension fee for amend-and-extend (``[0, 0.10]``), or the
+            transferred-asset fraction for a dropdown (``[0, 1]``).
+        opt_acceptance_pct : float, optional
+            Fraction of holders participating, in ``[0, 1]``. Defaults to full
+            participation.
+        ebitda : float or None, optional
+            EBITDA in the same unit as ``notional``. A positive value adds the
+            ``leverage_impact`` block; None or a non-positive value omits it.
 
         Returns
         -------
-        BarrierType
-            First-passage barrier specification.
+        LmeAnalysis
+            Cash cost, par retired, discount captured, impact on remaining
+            holders, and the optional gross-leverage block.
 
-        Notes
-        -----
-        This method does not raise; it returns a fixed instance.
+        Raises
+        ------
+        ValueError
+            If ``notional`` is not positive, ``opt_acceptance_pct`` is outside
+            ``[0, 1]``, ``repurchase_price_pct`` is outside the range admitted
+            by ``lme_type``, or ``lme_type`` is not recognised.
 
         Examples
         --------
-        >>> from finstack_quant.models.credit import BarrierType
-        >>> bt = BarrierType.first_passage(0.02)
-        >>> "first_passage" in bt.to_json()
-        True
+        >>> from finstack_quant.models.credit import liability_management
+        >>> liability_management.analyze_lme("open_market_repurchase", 100.0, 0.70, 0.50).discount_capture
+        15.0
+
+        """
+        ...
+
+class recovery_waterfall:
+    """
+    Absolute-priority recovery allocation with estate-inclusive collateral.
+
+    Examples
+    --------
+    >>> from finstack_quant.models.credit import recovery_waterfall
+    >>> claim = recovery_waterfall.RecoveryClaim("SEN", "secured", 1, 100.0)
+    >>> result = recovery_waterfall.allocate_recovery(40.0, [claim])
+    >>> (result.total_distributed, result.undistributed_estate, result.apr_satisfied)
+    (40.0, 0.0, True)
+
+    """
+
+    class RecoveryClaim:
+        """
+        A claim participating in an absolute-priority recovery waterfall.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import recovery_waterfall
+        >>> claim = recovery_waterfall.RecoveryClaim("SEN", "secured", 1, 100.0, accrued=5.0)
+        >>> (claim.id, claim.total_claim)
+        ('SEN', 105.0)
+        """
+
+        def __init__(
+            self,
+            id: str,
+            seniority: str,
+            priority: int,
+            principal: float,
+            accrued: float = 0.0,
+            penalties: float = 0.0,
+            collateral: tuple[float, float] | None = None,
+        ) -> None:
+            """
+            Create a claim for absolute-priority recovery allocation.
+
+            Parameters
+            ----------
+            id : str
+                Stable claim identifier retained on the resulting allocation.
+            seniority : str
+                Human-readable seniority label used in recovery reporting.
+            priority : int
+                Absolute-priority rank; lower values receive estate proceeds
+                before higher values.
+            principal : float
+                Outstanding principal claim in the estate's monetary units.
+            accrued : float, default 0.0
+                Unpaid accrued interest added to the claim amount.
+            penalties : float, default 0.0
+                Contractual penalty or default-interest claim added to the total.
+            collateral : tuple[float, float] or None, default None
+                Optional ``(market_value, haircut)`` collateral tuple. The
+                haircut is a decimal fraction deducted before estate allocation.
+
+            Notes
+            -----
+            Construction does not raise; arguments are stored as supplied.
+            """
+            ...
+        @property
+        def id(self) -> str:
+            """
+            Stable identifier for this claim.
+
+            Returns
+            -------
+            str
+                Stable identifier retained on the resulting allocation.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def seniority(self) -> str:
+            """
+            Seniority class the claim sits in.
+
+            Returns
+            -------
+            str
+                Human-readable seniority label used in recovery reporting.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def priority(self) -> int:
+            """
+            Absolute-priority rank; lower ranks are paid first.
+
+            Returns
+            -------
+            int
+                Absolute-priority rank; lower values receive estate proceeds first.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def principal(self) -> float:
+            """
+            Principal outstanding, before accrued interest and penalties.
+
+            Returns
+            -------
+            float
+                Outstanding principal claim in the estate's monetary units.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def accrued(self) -> float:
+            """
+            Accrued but unpaid interest included in the claim.
+
+            Returns
+            -------
+            float
+                Unpaid accrued interest added to the claim amount.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def penalties(self) -> float:
+            """
+            Penalties and fees included in the claim.
+
+            Returns
+            -------
+            float
+                Contractual penalty or default-interest claim added to the total.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def collateral_value(self) -> float | None:
+            """
+            Gross value of collateral pledged to this claim.
+
+            Returns
+            -------
+            float | None
+                Pledged collateral market value, or ``None`` when the claim is unsecured.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def collateral_haircut(self) -> float:
+            """
+            Haircut applied to pledged collateral, as a fraction in ``[0, 1]``.
+
+            Returns
+            -------
+            float
+                Decimal haircut deducted from collateral value before estate allocation.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def total_claim(self) -> float:
+            """
+            Principal plus accrued interest and penalties.
+
+            Returns
+            -------
+            float
+                Sum of principal, accrued interest, and penalties in estate units.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+    class RecoveryAllocation:
+        """
+        Recovery allocated to one claim under absolute priority.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import recovery_waterfall
+        >>> claim = recovery_waterfall.RecoveryClaim("SEN", "secured", 1, 100.0)
+        >>> allocation = recovery_waterfall.allocate_recovery(40.0, [claim]).allocations[0]
+        >>> (allocation.id, allocation.total_recovery, allocation.recovery_rate)
+        ('SEN', 40.0, 0.4)
+        """
+
+        @property
+        def id(self) -> str:
+            """
+            Stable identifier for this claim.
+
+            Returns
+            -------
+            str
+                Claim identifier copied from the source ``RecoveryClaim``.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def seniority(self) -> str:
+            """
+            Seniority class the claim sits in.
+
+            Returns
+            -------
+            str
+                Human-readable seniority label copied from the source claim.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def priority(self) -> int:
+            """
+            Absolute-priority rank; lower ranks are paid first.
+
+            Returns
+            -------
+            int
+                Absolute-priority rank copied from the source claim.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def total_claim(self) -> float:
+            """
+            Principal plus accrued interest and penalties.
+
+            Returns
+            -------
+            float
+                Total admitted claim amount in estate units.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def collateral_recovery(self) -> float:
+            """
+            Amount recovered from pledged collateral.
+
+            Returns
+            -------
+            float
+                Recovery attributed to pledged collateral, in estate units.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def general_recovery(self) -> float:
+            """
+            Amount recovered from the general estate.
+
+            Returns
+            -------
+            float
+                Recovery attributed to the unsecured estate, in estate units.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def total_recovery(self) -> float:
+            """
+            Collateral plus general recovery.
+
+            Returns
+            -------
+            float
+                Sum of collateral and general recovery, in estate units.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def recovery_rate(self) -> float:
+            """
+            Total recovery divided by total claim, as a fraction in ``[0, 1]``.
+
+            Returns
+            -------
+            float
+                ``total_recovery / total_claim``, floored at zero when the claim is zero.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def deficiency(self) -> float:
+            """
+            Unrecovered claim after collateral and general recovery.
+
+            Returns
+            -------
+            float
+                ``total_claim - total_recovery``, floored at zero.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+    class RecoveryWaterfallResult:
+        """
+        Result of allocating a distributable estate across claims.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import recovery_waterfall
+        >>> claim = recovery_waterfall.RecoveryClaim("SEN", "secured", 1, 100.0)
+        >>> result = recovery_waterfall.allocate_recovery(40.0, [claim])
+        >>> (result.total_distributed, result.undistributed_estate, result.apr_satisfied)
+        (40.0, 0.0, True)
+        """
+
+        @property
+        def total_distributed(self) -> float:
+            """
+            Sum of every claim's total recovery.
+
+            Returns
+            -------
+            float
+                Aggregate recovery paid across all claims, in estate units.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def undistributed_estate(self) -> float:
+            """
+            Estate value left after all claims are satisfied.
+
+            Returns
+            -------
+            float
+                Residual estate after absolute-priority allocation, in estate units.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def apr_satisfied(self) -> bool:
+            """
+            Whether the run respected absolute priority end to end.
+
+            Returns
+            -------
+            bool
+                ``True`` when every senior claim was paid before any junior claim.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def allocations(self) -> list[recovery_waterfall.RecoveryAllocation]:
+            """
+            Per-claim allocations, in absolute-priority order.
+
+            Returns
+            -------
+            list[recovery_waterfall.RecoveryAllocation]
+                One ``RecoveryAllocation`` per claim, ordered by increasing priority.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        def to_dataframe(self) -> pandas.DataFrame:
+            """
+            Export the per-claim allocations as a pandas DataFrame.
+
+            Columns: ``id``, ``seniority``, ``priority``, ``total_claim``,
+            ``collateral_recovery``, ``general_recovery``, ``total_recovery``,
+            ``recovery_rate``, ``deficiency``.
+
+            One row per claim — the natural grain of a waterfall. Rows keep the
+            Rust ordering (ascending ``priority``, then original claim order),
+            so repeated exports of the same result are byte-identical. The
+            estate-level fields (:attr:`total_distributed`,
+            :attr:`undistributed_estate`, :attr:`apr_satisfied`) are
+            deliberately not repeated on every row; read them from the result
+            object.
+
+            A waterfall with no claims yields a zero-row frame that still
+            carries the columns above.
+
+            Returns
+            -------
+            pandas.DataFrame
+                One row per claim, in absolute-priority order.
+
+            Raises
+            ------
+            ValueError
+                If the result cannot be serialized into a pandas object.
+            """
+            ...
+
+    @staticmethod
+    def allocate_recovery(
+        estate_value: float,
+        claims: list[recovery_waterfall.RecoveryClaim],
+    ) -> recovery_waterfall.RecoveryWaterfallResult:
+        """
+        Allocate an insolvent estate under absolute priority.
+
+        Parameters
+        ----------
+        estate_value : float
+            Cash estate available for distribution after any external costs,
+            expressed in the same monetary units as each claim.
+        claims : list[RecoveryClaim]
+            Claims to rank by ``priority``. Collateral recovery is applied to
+            each claim before general estate proceeds are distributed.
+
+        Returns
+        -------
+        RecoveryWaterfallResult
+            Per-claim recoveries, undistributed estate, and APR satisfaction.
+
+        Raises
+        ------
+        ValueError
+            If the estate or claim amounts are negative or non-finite, a claim
+            identifier or seniority is blank, identifiers are duplicated,
+            a haircut is outside ``[0, 1]``, a claim total overflows, or net
+            collateral exceeds the estate.
+        RuntimeError
+            If the allocator cannot reserve its claim-index storage or a
+            recovery-conservation invariant fails.
+
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import recovery_waterfall
+        >>> claims = [recovery_waterfall.RecoveryClaim("SEN", "secured", 1, 100.0)]
+        >>> recovery_waterfall.allocate_recovery(40.0, claims).allocations[0].recovery_rate
+        0.4
+
+        """
+        ...
+
+class scoring:
+    """
+    Academic credit scoring: Altman Z-Score family, Ohlson O-Score, Zmijewski.
+
+    Examples
+    --------
+    >>> from finstack_quant.models.credit import scoring
+    >>> round(scoring.altman_z_score(0.2, 0.3, 0.15, 1.5, 1.0)[0], 3)
+    3.055
+
+    """
+
+    @staticmethod
+    def altman_z_score(
+        working_capital_to_total_assets: float,
+        retained_earnings_to_total_assets: float,
+        ebit_to_total_assets: float,
+        market_equity_to_total_liabilities: float,
+        sales_to_total_assets: float,
+        with_implied_pd: bool = False,
+    ) -> tuple[float, str, float | None]:
+        """
+        Original Altman Z-Score (1968) for publicly traded manufacturers.
+
+        Parameters
+        ----------
+        working_capital_to_total_assets : float
+            Working capital / total assets (X1).
+        retained_earnings_to_total_assets : float
+            Retained earnings / total assets (X2).
+        ebit_to_total_assets : float
+            EBIT / total assets (X3).
+        market_equity_to_total_liabilities : float
+            Market equity / total liabilities (X4).
+        sales_to_total_assets : float
+            Sales / total assets (X5).
+        with_implied_pd : bool, default False
+            When True, populate ``implied_pd`` from the score-to-PD heuristic.
+
+        Returns
+        -------
+        tuple[float, str, float | None]
+            ``(score, zone, implied_pd)`` where ``zone`` is one of
+            ``"safe"``, ``"grey"``, or ``"distress"``. ``implied_pd`` is
+            ``None`` unless ``with_implied_pd`` is True.
+
+        Raises
+        ------
+        ValueError
+            If any ratio is non-finite.
 
         Sources
         -------
-        - Merton (1974): see docs/REFERENCES.md#merton-1974
+        See ``docs/REFERENCES.md#altman-1968``.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import scoring
+        >>> score, zone, pd = scoring.altman_z_score(0.2, 0.3, 0.15, 1.5, 1.0)
+        >>> zone
+        'safe'
         """
         ...
 
     @staticmethod
-    def from_json(json: str) -> BarrierType:
+    def altman_z_prime(
+        working_capital_to_total_assets: float,
+        retained_earnings_to_total_assets: float,
+        ebit_to_total_assets: float,
+        book_equity_to_total_liabilities: float,
+        sales_to_total_assets: float,
+        with_implied_pd: bool = False,
+    ) -> tuple[float, str, float | None]:
         """
-        Deserialize a barrier type from canonical JSON.
+        Altman Z'-Score (1983) for private firms.
 
         Parameters
         ----------
-        json : str
-            Canonical JSON payload.
+        working_capital_to_total_assets : float
+            Working capital divided by total assets (Altman X1).
+        retained_earnings_to_total_assets : float
+            Cumulative retained earnings divided by total assets (X2).
+        ebit_to_total_assets : float
+            Earnings before interest and tax divided by total assets (X3).
+        book_equity_to_total_liabilities : float
+            Book value of equity divided by total liabilities, replacing the
+            original public-company market-equity ratio (X4).
+        sales_to_total_assets : float
+            Sales divided by total assets, the private-firm turnover ratio (X5).
+        with_implied_pd : bool, default False
+            When True, populate ``implied_pd`` from the score-to-PD heuristic.
 
         Returns
         -------
-        BarrierType
-            Parsed barrier type.
+        tuple[float, str, float | None]
+            ``(score, zone, implied_pd)`` where ``zone`` is ``"safe"``,
+            ``"grey"``, or ``"distress"``. PD is absent unless an explicit
+            versioned heuristic is supplied.
 
         Raises
         ------
         ValueError
-            If JSON is malformed or fails validation.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import BarrierType
-        >>> restored = BarrierType.from_json(BarrierType.terminal().to_json())
-        >>> restored.to_json()
-        '"terminal"'
-
-        """
-        ...
-
-    def to_json(self) -> str:
-        """
-        Serialize this barrier type to compact JSON.
-
-        Returns
-        -------
-        str
-            JSON string.
-
-        Raises
-        ------
-        ValueError
-            If the value cannot be serialized to JSON.
-        """
-        ...
-
-class AssetDynamics:
-    """
-    Asset return dynamics specification for structural credit models.
-
-    Examples
-    --------
-    >>> from finstack_quant.models.credit import AssetDynamics
-    >>> AssetDynamics.geometric_brownian() is not None
-    True
-
-    """
-
-    @staticmethod
-    def geometric_brownian() -> AssetDynamics:
-        """
-        Standard geometric Brownian motion (lognormal diffusion).
-
-        Returns
-        -------
-        AssetDynamics
-            GBM dynamics specification.
-
-        Notes
-        -----
-        This method does not raise; it returns a fixed instance.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import AssetDynamics
-        >>> dyn = AssetDynamics.geometric_brownian()
-        >>> dyn.to_json()
-        '"geometric_brownian"'
-        """
-        ...
-
-    @staticmethod
-    def jump_diffusion(
-        jump_intensity: float,
-        jump_mean: float,
-        jump_vol: float,
-    ) -> AssetDynamics:
-        """
-        Merton jump-diffusion asset dynamics.
-
-        Parameters
-        ----------
-        jump_intensity : float
-            Poisson jump arrival intensity (jumps per year).
-        jump_mean : float
-            Mean log-jump size.
-        jump_vol : float
-            Volatility of log-jump size.
-
-        Returns
-        -------
-        AssetDynamics
-            Jump-diffusion specification.
-
-        Notes
-        -----
-        This method does not raise; it returns a fixed instance.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import AssetDynamics
-        >>> dyn = AssetDynamics.jump_diffusion(0.5, -0.1, 0.2)
-        >>> "jump_diffusion" in dyn.to_json()
-        True
-        """
-        ...
-
-    @staticmethod
-    def credit_grades(
-        barrier_uncertainty: float,
-        mean_recovery: float,
-    ) -> AssetDynamics:
-        """
-        CreditGrades stochastic-barrier dynamics.
-
-        Parameters
-        ----------
-        barrier_uncertainty : float
-            Log-barrier volatility ``lambda`` (lognormal standard deviation of
-            the default barrier).
-        mean_recovery : float
-            Mean recovery rate at default, as a decimal in ``[0, 1]``.
-
-        Returns
-        -------
-        AssetDynamics
-            CreditGrades dynamics specification.
-
-        Notes
-        -----
-        This method does not raise; it returns a fixed instance.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import AssetDynamics
-        >>> dyn = AssetDynamics.credit_grades(0.3, 0.4)
-        >>> "credit_grades" in dyn.to_json()
-        True
-        """
-        ...
-
-    @staticmethod
-    def from_json(json: str) -> AssetDynamics:
-        """
-        Deserialize asset dynamics from canonical JSON.
-
-        Parameters
-        ----------
-        json : str
-            Canonical JSON payload.
-
-        Returns
-        -------
-        AssetDynamics
-            Parsed dynamics specification.
-
-        Raises
-        ------
-        ValueError
-            If JSON is malformed or fails validation.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import AssetDynamics
-        >>> restored = AssetDynamics.from_json(AssetDynamics.geometric_brownian().to_json())
-        >>> restored.to_json()
-        '"geometric_brownian"'
-
-        """
-        ...
-
-    def to_json(self) -> str:
-        """
-        Serialize these asset dynamics to compact JSON.
-
-        Returns
-        -------
-        str
-            JSON string.
-
-        Raises
-        ------
-        ValueError
-            If the value cannot be serialized to JSON.
-        """
-        ...
-
-class SimulatedPaths:
-    """
-    Monte Carlo asset path simulation results from a Merton model.
-
-    Examples
-    --------
-    >>> from finstack_quant.models.credit import MertonModel
-    >>> model = MertonModel(100.0, 0.25, 80.0, 0.05)
-    >>> paths = model.simulate_paths(4, 10, 1.0, seed=42)
-    >>> (paths.num_paths, paths.num_steps, len(paths.times))
-    (4, 10, 11)
-
-    """
-
-    @property
-    def times(self) -> list[float]:
-        """
-        Time grid from 0 to the simulation horizon.
-
-        Returns
-        -------
-        list[float]
-            Time points in years.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def asset_values(self) -> list[float]:
-        """
-        Asset values in row-major order.
-
-        Returns
-        -------
-        list[float]
-            Flattened path values.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def num_paths(self) -> int:
-        """
-        Number of simulated paths.
-
-        Returns
-        -------
-        int
-            Exactly the count requested from ``simulate_paths``. Antithetic
-            mirrors are included in this total rather than doubling it, so the
-            row count of :attr:`asset_values` is always
-            ``num_paths * (num_steps + 1)``.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def num_steps(self) -> int:
-        """
-        Number of time steps between grid points.
-
-        Returns
-        -------
-        int
-            Count of simulation increments, at least ``1``. The grid in
-            :attr:`times` holds one more point than this because it includes
-            ``t = 0``, and each step spans ``horizon / num_steps`` years.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    def get(self, path_idx: int, time_idx: int) -> float | None:
-        """
-        Return one asset value by path and time-grid index.
-
-        Parameters
-        ----------
-        path_idx : int
-            Zero-based path index.
-        time_idx : int
-            Zero-based time-grid index (includes ``t = 0``).
-
-        Returns
-        -------
-        float or None
-            Asset value at the requested coordinate, or ``None`` when indices
-            are out of range.
-
-        Notes
-        -----
-        This method does not raise; a missing result is ``None`` rather than an exception.
-        """
-        ...
-
-    def path(self, path_idx: int) -> list[float] | None:
-        """
-        Return the contiguous asset-value row for one path.
-
-        Parameters
-        ----------
-        path_idx : int
-            Zero-based path index.
-
-        Returns
-        -------
-        list[float] or None
-            Asset values along the path, or ``None`` when ``path_idx`` is out
-            of range.
-
-        Notes
-        -----
-        This method does not raise; a missing result is ``None`` rather than an exception.
-        """
-        ...
-
-    def to_nested(self) -> list[list[float]]:
-        """
-        Materialize nested path storage as a list of path rows.
-
-        Returns
-        -------
-        list[list[float]]
-            One inner list per simulated path.
-
-        Notes
-        -----
-        This method does not raise; it returns the stored or derived value.
-        """
-        ...
-
-class MertonModel:
-    """
-    Merton (1974) structural credit model with optional CreditGrades calibration.
-
-    Firm value follows geometric Brownian motion under the risk-neutral measure;
-    default occurs when asset value crosses a debt barrier at horizon. Spreads
-    and default probabilities are risk-neutral.
-
-    Examples
-    --------
-    >>> from finstack_quant.models.credit import MertonModel
-    >>> model = MertonModel(100.0, 0.25, 80.0, 0.05)
-    >>> (round(model.distance_to_default(1.0), 6), round(model.default_probability(1.0), 6))
-    (0.967574, 0.166629)
-
-    """
-
-    def __init__(
-        self,
-        asset_value: float,
-        asset_vol: float,
-        debt_barrier: float,
-        risk_free_rate: float,
-    ) -> None:
-        """
-        Construct a Merton structural model from firm asset inputs.
-
-        Parameters
-        ----------
-        asset_value : float
-            Firm asset value (positive, finite).
-        asset_vol : float
-            Annualized asset volatility as a decimal (e.g. ``0.30`` for 30%).
-        debt_barrier : float
-            Default barrier, typically total debt face value.
-        risk_free_rate : float
-            Continuously compounded risk-free rate as a decimal.
-
-        Raises
-        ------
-        ValueError
-            If inputs are non-finite or out of range.
+            If any accounting ratio is non-finite.
 
         Sources
         -------
-        See ``docs/REFERENCES.md#merton-1974``.
-        """
-        ...
-
-    @staticmethod
-    def from_equity(
-        equity_value: float,
-        equity_vol: float,
-        total_debt: float,
-        risk_free_rate: float,
-        payout_rate: float,
-        maturity: float,
-    ) -> MertonModel:
-        """
-        KMV calibration from observed equity value and volatility.
-
-        Parameters
-        ----------
-        equity_value : float
-            Observed market equity value (positive, finite).
-        equity_vol : float
-            Equity volatility as a decimal.
-        total_debt : float
-            Face value of debt used as the default barrier.
-        risk_free_rate : float
-            Continuously compounded risk-free rate as a decimal.
-        payout_rate : float
-            Continuous dividend / payout yield on assets as a decimal.
-        maturity : float
-            Calibration horizon in years.
-
-        Returns
-        -------
-        MertonModel
-            Calibrated structural model.
-
-        Raises
-        ------
-        ValueError
-            If inputs are invalid or calibration fails to converge.
+        - Altman (1968/1983): see docs/REFERENCES.md#altman-1968
 
         Examples
         --------
-        >>> from finstack_quant.models.credit import MertonModel
-        >>> model = MertonModel.from_equity(25.0, 0.30, 80.0, 0.05, 0.0, 1.0)
-        >>> model.asset_value > 0
+        >>> from finstack_quant.models.credit import scoring
+        >>> score, zone, pd = scoring.altman_z_prime(0.2, 0.3, 0.15, 1.5, 1.0)
+        >>> zone in ("safe", "grey", "distress")
         True
 
         """
         ...
 
     @staticmethod
-    def from_cds_spread(
-        cds_spread_bp: float,
-        recovery: float,
-        total_debt: float,
-        risk_free_rate: float,
-        maturity: float,
-        asset_value: float,
-        payout_rate: float,
-    ) -> MertonModel:
+    def altman_z_double_prime(
+        working_capital_to_total_assets: float,
+        retained_earnings_to_total_assets: float,
+        ebit_to_total_assets: float,
+        book_equity_to_total_liabilities: float,
+        with_implied_pd: bool = False,
+    ) -> tuple[float, str, float | None]:
         """
-        Calibrate asset volatility to match a quoted CDS par spread.
-
-        The objective is :meth:`cds_par_spread`, a full ISDA-style par spread
-        built from the model's survival curve, not the zero-coupon
-        approximation of :meth:`implied_spread`. Because the par spread is not
-        monotonic in asset volatility, the objective is scanned across
-        ``[0.01, 2.0]`` and a quote that no volatility reproduces, or one
-        consistent with several, is rejected rather than resolved arbitrarily.
+        Altman Z''-Score for non-manufacturing firms (non-EM model, no constant).
 
         Parameters
         ----------
-        cds_spread_bp : float
-            Quoted CDS par spread in basis points; must be finite and positive.
-        recovery : float
-            Assumed recovery rate as a decimal in ``[0, 1)``.
-        total_debt : float
-            Face value of debt acting as the default barrier, strictly
-            positive and in the same currency as ``asset_value``.
-        risk_free_rate : float
-            Continuously compounded discount rate as a decimal, used for both
-            CDS legs.
-        maturity : float
-            CDS maturity in years, strictly positive.
-        asset_value : float
-            Assumed initial firm asset value, held fixed during the solve.
-        payout_rate : float
-            Continuous payout rate on assets as a decimal.
+        working_capital_to_total_assets : float
+            Working capital divided by total assets (Altman X1).
+        retained_earnings_to_total_assets : float
+            Cumulative retained earnings divided by total assets (X2).
+        ebit_to_total_assets : float
+            Earnings before interest and tax divided by total assets (X3).
+        book_equity_to_total_liabilities : float
+            Book value of equity divided by total liabilities (X4).
+        with_implied_pd : bool, default False
+            When True, populate ``implied_pd`` from the score-to-PD heuristic.
 
-        Returns
-        -------
-        MertonModel
-            Calibrated structural model with terminal barrier and GBM dynamics.
-
-        Raises
-        ------
-        ValueError
-            If inputs are out of range, if no volatility in ``[0.01, 2.0]``
-            reproduces the quote, or if the quote is consistent with more than
-            one volatility.
+        Returns ``(score, zone, implied_pd)``; PD is ``None`` unless an
+        explicit versioned heuristic is supplied.
 
         Examples
         --------
-        >>> from finstack_quant.models.credit import MertonModel
-        >>> model = MertonModel.from_cds_spread(150.0, 0.40, 80.0, 0.04, 5.0, 100.0, 0.0)
-        >>> model.asset_vol > 0
+        >>> from finstack_quant.models.credit import scoring
+        >>> score, zone, pd = scoring.altman_z_double_prime(0.2, 0.3, 0.15, 1.5)
+        >>> zone in ("safe", "grey", "distress")
         True
 
-        """
-        ...
-
-    @staticmethod
-    def from_target_pd(
-        asset_value: float,
-        asset_vol: float,
-        risk_free_rate: float,
-        payout_rate: float,
-        target_pd: float,
-        maturity: float,
-    ) -> MertonModel:
-        """
-        Calibrate the debt barrier to match a target cumulative default probability.
-
-        ``target_pd`` is interpreted under the risk-neutral measure. To
-        calibrate against a physical default rate, pass the firm's expected
-        physical asset return as ``risk_free_rate``; the resulting barrier then
-        reproduces that probability through
-        :meth:`default_probability_with_drift`.
-
-        Parameters
-        ----------
-        asset_value : float
-            Current firm asset value, strictly positive.
-        asset_vol : float
-            Annualized asset volatility as a decimal, strictly positive. A
-            zero-volatility firm has a degenerate step-function default
-            probability that cannot hit an interior target.
-        risk_free_rate : float
-            Continuously compounded risk-free rate as a decimal.
-        payout_rate : float
-            Continuous payout rate on assets as a decimal. It enters the
-            calibration drift and is carried on the returned model, so omitting
-            it shifts the barrier whenever the model is later evaluated with a
-            non-zero payout.
-        target_pd : float
-            Target cumulative default probability in ``(0, 1)``.
-        maturity : float
-            Calibration horizon in years, strictly positive.
-
         Returns
         -------
-        MertonModel
-            Calibrated structural model.
+        tuple[float, str, float | None]
+            Unitless ``(Z'' score, lowercase zone, implied_pd)``; PD is
+            ``None`` without calibration and otherwise a decimal probability.
 
         Raises
         ------
         ValueError
-            If inputs are invalid or no barrier attains the target.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import MertonModel
-        >>> model = MertonModel.from_target_pd(100.0, 0.25, 0.05, 0.0, 0.05, 1.0)
-        >>> round(model.default_probability(1.0), 6)
-        0.05
+            If any accounting ratio is non-finite.
 
         """
         ...
 
     @staticmethod
-    def kmv_default_point(short_term_debt: float, long_term_debt: float) -> float:
+    def altman_em_score(
+        working_capital_to_total_assets: float,
+        retained_earnings_to_total_assets: float,
+        ebit_to_total_assets: float,
+        book_equity_to_total_liabilities: float,
+    ) -> tuple[float, str, float | None]:
         """
-        Compute the Moody's KMV default point.
+        Compute the Altman EM-Score for emerging-market corporates.
 
-        The KMV framework does not use total liabilities as the default
-        barrier. Firms empirically default when asset value falls to roughly
-        current liabilities plus half of long-term liabilities, because
-        long-dated debt does not have to be repaid immediately. Feed the result
-        in as the debt barrier when building a model for KMV/EDF work.
+        EM = 3.25 + Z''. Zone cutoffs: EM > 5.85 Safe, 4.35 <= EM <= 5.85 Grey,
+        EM < 4.35 Distress (Altman, Hartzell & Peck 1995).
 
         Parameters
         ----------
-        short_term_debt : float
-            Book value of debt and other liabilities due within one year, in
-            the issuer's reporting currency. Must be finite and non-negative.
-        long_term_debt : float
-            Book value of debt maturing beyond one year, in the same currency.
-            Must be finite and non-negative; exactly half of it enters the
-            default point.
+        working_capital_to_total_assets : float
+            Working capital divided by total assets (Altman X1).
+        retained_earnings_to_total_assets : float
+            Cumulative retained earnings divided by total assets (X2).
+        ebit_to_total_assets : float
+            Earnings before interest and tax divided by total assets (X3).
+        book_equity_to_total_liabilities : float
+            Book value of equity divided by total liabilities (X4).
+
+        Returns
+        -------
+        tuple[float, str, float | None]
+            ``(score, zone, implied_pd)``; ``implied_pd`` is always ``None``.
+
+        Raises
+        ------
+        ValueError
+            If any ratio is non-finite.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import scoring
+        >>> score, zone, pd = scoring.altman_em_score(0.2, 0.3, 0.15, 1.2)
+        >>> round(score, 3), zone
+        (7.808, 'safe')
+        """
+        ...
+
+    @staticmethod
+    def ohlson_o_score(
+        log_total_assets_adjusted: float,
+        total_liabilities_to_total_assets: float,
+        working_capital_to_total_assets: float,
+        current_liabilities_to_current_assets: float,
+        liabilities_exceed_assets: float,
+        net_income_to_total_assets: float,
+        funds_from_operations_to_total_liabilities: float,
+        negative_net_income_two_years: float,
+        net_income_change: float,
+    ) -> tuple[float, str, float]:
+        """
+        Ohlson O-Score (1980) logistic bankruptcy model.
+
+        Parameters
+        ----------
+        log_total_assets_adjusted : float
+            Natural log of inflation-adjusted total assets, the Ohlson size
+            variable.
+        total_liabilities_to_total_assets : float
+            Total liabilities divided by total assets.
+        working_capital_to_total_assets : float
+            Working capital divided by total assets.
+        current_liabilities_to_current_assets : float
+            Current liabilities divided by current assets.
+        liabilities_exceed_assets : float
+            Indicator equal to ``1.0`` when liabilities exceed assets and
+            ``0.0`` otherwise.
+        net_income_to_total_assets : float
+            Net income divided by total assets.
+        funds_from_operations_to_total_liabilities : float
+            Funds from operations divided by total liabilities.
+        negative_net_income_two_years : float
+            Indicator equal to ``1.0`` when net income was negative in both
+            the current and prior year, otherwise ``0.0``.
+        net_income_change : float
+            Ohlson CHIN variable describing the scaled change in net income
+            between the current and prior year.
+
+        Returns ``(score, zone, implied_pd)``.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import scoring
+        >>> score, zone, pd = scoring.ohlson_o_score(-0.5, 0.5, 0.1, 0.8, 0.0, 0.05, 0.2, 1.0, -0.01)
+        >>> zone in ("safe", "grey", "distress")
+        True
+
+        Returns
+        -------
+        tuple[float, str, float]
+            Unitless ``(O logit, lowercase zone, implied_pd)`` with decimal PD
+            ``1 / (1 + exp(-O))``.
+
+        Raises
+        ------
+        ValueError
+            If any accounting input is non-finite, or if either binary
+            indicator is not exactly ``0.0`` or ``1.0``.
+
+        """
+        ...
+
+    @staticmethod
+    def zmijewski_score(
+        net_income_to_total_assets: float,
+        total_liabilities_to_total_assets: float,
+        current_assets_to_current_liabilities: float,
+    ) -> tuple[float, str, float]:
+        """
+        Zmijewski (1984) probit bankruptcy score.
+
+        Parameters
+        ----------
+        net_income_to_total_assets : float
+            Net income divided by total assets, the profitability predictor.
+        total_liabilities_to_total_assets : float
+            Total liabilities divided by total assets, the leverage predictor.
+        current_assets_to_current_liabilities : float
+            Current assets divided by current liabilities, the liquidity ratio.
+
+        Returns ``(score, zone, implied_pd)``.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import scoring
+        >>> score, zone, pd = scoring.zmijewski_score(0.05, 0.4, 1.5)
+        >>> zone in ("safe", "grey", "distress")
+        True
+
+        Returns
+        -------
+        tuple[float, str, float]
+            Unitless ``(Y probit, lowercase zone, implied_pd)`` with decimal PD
+            equal to ``Phi(Y)``.
+
+        Raises
+        ------
+        ValueError
+            If any accounting ratio is non-finite.
+
+        """
+        ...
+
+class pd:
+    """
+    Probability of default: PiT/TtC conversion, central-tendency calibration,
+    and rating master scales.
+
+    Examples
+    --------
+    >>> from finstack_quant.models.credit import pd
+    >>> pd.central_tendency([0.01, 0.02, 0.03])
+    0.02
+
+    """
+
+    class MasterScaleGrade:
+        """
+        One PD band in a rating master scale.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import pd
+        >>> pd.MasterScaleGrade("BBB", 0.005, 0.002).label
+        'BBB'
+
+        """
+
+        def __init__(self, label: str, upper_pd: float, central_pd: float) -> None:
+            """
+            Construct one probability-of-default band on a master scale.
+
+            Parameters
+            ----------
+            label:
+                Grade label, e.g. ``"BBB"``.
+            upper_pd:
+                Inclusive upper PD bound of the band.
+            central_pd:
+                Representative PD assigned to anything in the band. Must fall
+                inside the band.
+
+            Notes
+            -----
+            Construction does not raise; arguments are stored as supplied.
+            """
+            ...
+
+        @property
+        def label(self) -> str:
+            """
+            Return the rating label this band is reported under.
+
+            Returns
+            -------
+            str
+                The grade's label, e.g. ``"BBB"``.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def upper_pd(self) -> float:
+            """
+            Inclusive upper PD bound of the band.
+
+            Returns
+            -------
+            float
+                Upper PD bound.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def central_pd(self) -> float:
+            """
+            Representative PD for the band.
+
+            Returns
+            -------
+            float
+                Central PD assigned to anything falling in this band.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+    class MasterScaleResult:
+        """
+        Result of mapping a PD onto a master scale.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import pd
+        >>> pd.MasterScale.sp_assumptions().map_pd(0.003).grade
+        'BBB'
+
+        """
+
+        @property
+        def grade(self) -> str:
+            """
+            Label of the assigned grade.
+
+            Returns
+            -------
+            str
+                Label of the grade the PD mapped into.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def central_pd(self) -> float:
+            """
+            Central PD of the assigned grade.
+
+            Returns
+            -------
+            float
+                The notched PD for the assigned grade.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def input_pd(self) -> float:
+            """
+            Input probability of default that was mapped onto the scale.
+
+            Returns
+            -------
+            float
+                The input PD, before notching.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def grade_index(self) -> int:
+            """
+            Position of the assigned grade in the scale.
+
+            Returns
+            -------
+            int
+                Zero-based index of the assigned grade.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        def to_dataframe(self) -> pandas.DataFrame:
+            """
+            Export as a single-row pandas DataFrame.
+
+            Columns: ``grade``, ``grade_index``, ``input_pd``, ``central_pd``.
+
+            One mapping is one flat record, so a one-row frame is the right
+            shape: ``pd.concat([scale.map_pd(p).to_dataframe() for p in pds])``
+            builds a whole obligor-level grading table without reshaping.
+
+            Returns
+            -------
+            pandas.DataFrame
+                Single-row frame of the mapped grade and its central PD.
+
+            Raises
+            ------
+            ValueError
+                If the result cannot be serialized into a pandas object.
+            """
+            ...
+
+    class MasterScale:
+        """
+        Ordered PD bands mapping a continuous PD onto discrete rating grades.
+
+        Bands must be strictly increasing in ``upper_pd``, and each grade's
+        ``central_pd`` must fall inside its own band.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import pd
+        >>> pd.MasterScale.sp_assumptions().map_pd(0.003).grade
+        'BBB'
+
+        """
+
+        def __init__(self, grades: list[pd.MasterScaleGrade]) -> None:
+            """
+            Construct a master scale from ordered PD bands.
+
+            Parameters
+            ----------
+            grades:
+                Bands in ascending PD order. ``upper_pd`` must be strictly
+                increasing, and each ``central_pd`` must lie inside its band.
+
+            Raises
+            ------
+            ValueError
+                If *grades* is empty, a PD is non-finite or outside ``(0, 1]``
+                (central PD must be in ``(0, 1)``), or ``upper_pd`` is not
+                strictly increasing.
+            """
+            ...
+
+        @staticmethod
+        def sp_assumptions() -> pd.MasterScale:
+            """
+            Library PD-band assumptions using S&P-style labels.
+
+            The labels resemble S&P notation as a reporting convention only;
+            neither the boundaries nor the central PDs are agency-published
+            statistics.
+
+            Returns
+            -------
+            pd.MasterScale
+                The library's S&P-labelled master scale.
+
+            Raises
+            ------
+            RuntimeError
+                If the embedded credit registry cannot be loaded.
+
+            Examples
+            --------
+            >>> from finstack_quant.models.credit import pd
+            >>> pd.MasterScale.sp_assumptions().n_grades
+            8
+
+            """
+            ...
+
+        @staticmethod
+        def moodys_assumptions() -> pd.MasterScale:
+            """
+            Library PD-band assumptions using Moody's-style labels.
+
+            As with :meth:`sp_assumptions`, the labels are a reporting
+            convention rather than an agency calibration.
+
+            Returns
+            -------
+            pd.MasterScale
+                The library's Moody's-labelled master scale.
+
+            Raises
+            ------
+            RuntimeError
+                If the embedded credit registry cannot be loaded.
+
+            Examples
+            --------
+            >>> from finstack_quant.models.credit import pd
+            >>> pd.MasterScale.moodys_assumptions().n_grades > 0
+            True
+
+            """
+            ...
+
+        @staticmethod
+        def from_registry_id(scale_id: str) -> pd.MasterScale:
+            """
+            Load a master scale by ID from the embedded credit registry.
+
+            Parameters
+            ----------
+            scale_id:
+                Registry identifier of the master scale.
+
+            Returns
+            -------
+            pd.MasterScale
+                The requested master scale.
+
+            Raises
+            ------
+            KeyError
+                If no scale with that ID exists in the registry.
+
+            Examples
+            --------
+            >>> from finstack_quant.models.credit import pd
+            >>> isinstance(pd.MasterScale.sp_assumptions(), pd.MasterScale)
+            True
+
+            """
+            ...
+
+        def map_pd(self, pd_value: float) -> pd.MasterScaleResult:
+            """
+            Map a PD onto its rating grade.
+
+            Parameters
+            ----------
+            pd_value:
+                Probability of default in ``[0, 1]``.
+
+            Returns
+            -------
+            pd.MasterScaleResult
+                Assigned grade, its central PD, and the input PD.
+
+            Raises
+            ------
+            ValueError
+                If *pd_value* is non-finite or outside ``[0, 1]``.
+
+            Examples
+            --------
+            >>> from finstack_quant.models.credit import pd
+            >>> pd.MasterScale.sp_assumptions().map_pd(0.003).central_pd
+            0.002
+
+            """
+            ...
+
+        @property
+        def n_grades(self) -> int:
+            """
+            Number of grades in the scale.
+
+            Returns
+            -------
+            int
+                Count of PD bands.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def grades(self) -> list[pd.MasterScaleGrade]:
+            """
+            Ordered PD bands that make up this master scale.
+
+            Returns
+            -------
+            list[pd.MasterScaleGrade]
+                Grades in ascending PD order.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        def __len__(self) -> int: ...
+
+    @staticmethod
+    def pit_to_ttc(pit_pd: float, asset_correlation: float, cycle_index: float) -> float:
+        """
+        Convert a Point-in-Time PD to Through-the-Cycle via Merton-Vasicek.
+
+        ``PD_TtC = Phi( Phi^{-1}(PD_PiT) * sqrt(1 - rho) + sqrt(rho) * z )``.
+
+        Parameters
+        ----------
+        pit_pd:
+            Point-in-time probability of default in ``(0, 1)``.
+        asset_correlation:
+            Asset correlation ``rho`` in ``[0, 1)``.
+        cycle_index:
+            Standardized credit cycle index ``z`` (negative = downturn,
+            positive = benign).
 
         Returns
         -------
         float
-            ``short_term_debt + 0.5 * long_term_debt``, in the same currency as
-            the inputs.
+            Through-the-cycle PD in ``(0, 1)``.
 
         Raises
         ------
         ValueError
-            If either input is negative or non-finite, or if the resulting
-            default point is zero.
+            If *pit_pd* or *asset_correlation* is not strictly between zero
+            and one, or if *cycle_index* is non-finite.
 
         Examples
         --------
-        >>> from finstack_quant.models.credit import MertonModel
-        >>> MertonModel.kmv_default_point(40.0, 120.0)
+        >>> from finstack_quant.models.credit import pd
+        >>> round(pd.pit_to_ttc(0.02, 0.12, 0.0), 6)
+        0.027016
+
+        """
+        ...
+
+    @staticmethod
+    def ttc_to_pit(ttc_pd: float, asset_correlation: float, cycle_index: float) -> float:
+        """
+        Convert a Through-the-Cycle PD to Point-in-Time via Merton-Vasicek.
+
+        ``PD_PiT = Phi( (Phi^{-1}(PD_TtC) - sqrt(rho) * z) / sqrt(1 - rho) )``.
+
+        Parameters
+        ----------
+        ttc_pd:
+            Through-the-cycle probability of default in ``(0, 1)``.
+        asset_correlation:
+            Asset correlation ``rho`` in ``[0, 1)``.
+        cycle_index:
+            Standardized credit cycle index ``z`` (negative = downturn,
+            positive = benign).
+
+        Returns
+        -------
+        float
+            Point-in-time PD in ``(0, 1)``.
+
+        Raises
+        ------
+        ValueError
+            If *ttc_pd* or *asset_correlation* is not strictly between zero
+            and one, or if *cycle_index* is non-finite.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import pd
+        >>> round(pd.ttc_to_pit(0.02, 0.12, 0.0), 6)
+        0.014287
+
+        """
+        ...
+
+    @staticmethod
+    def central_tendency(annual_default_rates: list[float]) -> float:
+        """
+        Arithmetic-mean long-run PD from annual default rates (regulatory TtC).
+
+        Parameters
+        ----------
+        annual_default_rates:
+            Observed annual default rates as decimals.
+
+        Returns
+        -------
+        float
+            Long-run average PD.
+
+        Raises
+        ------
+        ValueError
+            If *annual_default_rates* is empty or contains a non-finite value
+            or a rate outside ``[0, 1]``.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import pd
+        >>> pd.central_tendency([0.01, 0.02, 0.03])
+        0.02
+
+        """
+        ...
+
+class lgd:
+    """
+    Loss-given-default: seniority recovery, workout LGD, downturn adjustments, EAD.
+
+    Examples
+    --------
+    >>> from finstack_quant.models.credit import lgd
+    >>> lgd.ead_revolver(60.0, 40.0, 0.5)
+    80.0
+
+    """
+
+    @staticmethod
+    def seniority_recovery_stats(
+        seniority: str,
+        rating_agency: str | None = None,
+    ) -> dict[str, float]:
+        """
+        Historical recovery moments for a seniority class.
+
+        If ``rating_agency`` is omitted, the Rust credit-assumptions registry
+        default seniority calibration is used.
+
+        Parameters
+        ----------
+        seniority:
+            Seniority label (e.g. ``"senior_secured"``, ``"senior_unsecured"``,
+            ``"subordinated"``).
+        rating_agency:
+            Optional agency source (e.g. ``"Moody"``, ``"S&P"``).
+
+        Returns
+        -------
+        dict[str, float]
+            Dict with keys ``{"mean", "std", "alpha", "beta"}``.
+
+        Raises
+        ------
+        ValueError
+            If *seniority* is unknown, *rating_agency* is unsupported, or the
+            selected calibration does not contain the seniority class.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import lgd
+        >>> lgd.seniority_recovery_stats("senior_secured")["mean"]
+        0.52
+
+        """
+        ...
+
+    @staticmethod
+    def beta_recovery_sample(
+        mean: float,
+        std: float,
+        n_samples: int,
+        seed: int,
+    ) -> list[float]:
+        """
+        Sample ``n_samples`` recoveries from Beta(alpha, beta) via PCG64.
+
+        Parameters
+        ----------
+        mean:
+            Target mean recovery rate in ``(0, 1)``.
+        std:
+            Target standard deviation of recovery rate.
+        n_samples:
+            Number of samples to draw.
+        seed:
+            Random seed for reproducibility.
+
+        Returns
+        -------
+        list[float]
+            Sampled recovery rates in ``(0, 1)``.
+
+        Raises
+        ------
+        ValueError
+            If *mean* is not strictly between zero and one, or if *std* is not
+            positive and compatible with a Beta distribution having that mean.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import lgd
+        >>> [round(value, 6) for value in lgd.beta_recovery_sample(0.4, 0.2, 3, 42)]
+        [0.217125, 0.329273, 0.244662]
+
+        """
+        ...
+
+    @staticmethod
+    def beta_recovery_quantile(mean: float, std: float, q: float) -> float:
+        """
+        Quantile ``q`` of a Beta recovery distribution parameterized by (mean, std).
+
+        Parameters
+        ----------
+        mean:
+            Mean recovery rate in ``(0, 1)``.
+        std:
+            Standard deviation of recovery rate.
+        q:
+            Quantile in ``[0, 1]``.
+
+        Returns
+        -------
+        float
+            Recovery rate at the given quantile.
+
+        Raises
+        ------
+        ValueError
+            If *mean* and *std* cannot parameterize a Beta distribution, or if
+            *q* is non-finite or outside ``[0, 1]``.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import lgd
+        >>> round(lgd.beta_recovery_quantile(0.4, 0.2, 0.5), 6)
+        0.385728
+
+        """
+        ...
+
+    @staticmethod
+    def workout_lgd(
+        ead: float,
+        collateral: list[tuple[str, float, float]],
+        direct_cost_pct: float,
+        indirect_cost_pct: float,
+        time_to_resolution_years: float,
+        discount_rate: float,
+    ) -> tuple[float, float]:
+        """
+        Workout LGD from collateral waterfall, costs, and discounting.
+
+        Parameters
+        ----------
+        ead:
+            Exposure at default.
+        collateral:
+            List of ``(collateral_id, recovery_value, recovery_rate)`` tuples
+            in priority order.
+        direct_cost_pct:
+            Direct workout costs as a fraction of EAD.
+        indirect_cost_pct:
+            Indirect workout costs as a fraction of EAD.
+        time_to_resolution_years:
+            Time from default to workout resolution.
+        discount_rate:
+            Annual discount rate for time-value adjustment.
+
+        Returns
+        -------
+        tuple[float, float]
+            ``(net_recovery, lgd)`` with ``lgd`` clamped to ``[0, 1]``.
+
+        Raises
+        ------
+        ValueError
+            If *ead* is not finite and strictly positive; a collateral type is
+            unknown; a collateral value, haircut, cost rate, workout horizon,
+            or discount rate is non-finite or outside its documented range.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import lgd
+        >>> recovery, loss = lgd.workout_lgd(100.0, [("cash", 40.0, 1.0)], 0.02, 0.01, 1.5, 0.05)
+        >>> 0.0 <= loss <= 1.0
+        True
+
+        """
+        ...
+
+    @staticmethod
+    def downturn_lgd_stressed(
+        base_lgd: float,
+        asset_correlation: float,
+        lgd_sensitivity: float,
+        stress_quantile: float,
+    ) -> float:
+        """
+        Stressed downturn LGD adjustment, clamped to ``[0, 1]``.
+
+        Proprietary mean-plus-multiple-of-Bernoulli-stdev approximation
+        (not the Frye-Jacobs 2012 model). Typical ``lgd_sensitivity``:
+        0.3-0.5.
+
+        Parameters
+        ----------
+        base_lgd:
+            Baseline LGD in ``[0, 1]``.
+        asset_correlation:
+            Asset correlation ``rho`` in ``[0, 1)``.
+        lgd_sensitivity:
+            Sensitivity of LGD to systematic risk (typical: 0.3-0.5).
+        stress_quantile:
+            Quantile of the systematic factor for stress (e.g. ``0.999``).
+
+        Returns
+        -------
+        float
+            Stressed LGD in ``[0, 1]``.
+
+        Raises
+        ------
+        ValueError
+            If *base_lgd* is outside ``[0, 1]``, *asset_correlation* or
+            *stress_quantile* is not strictly between zero and one, or
+            *lgd_sensitivity* is negative or non-finite.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import lgd
+        >>> round(lgd.downturn_lgd_stressed(0.4, 0.12, 0.3, 0.999), 6)
+        0.557329
+
+        """
+        ...
+
+    @staticmethod
+    def downturn_lgd_regulatory_floor(
+        base_lgd: float,
+        add_on: float,
+        floor: float,
+    ) -> float:
+        """
+        Regulatory-floor downturn LGD: ``max(base + add_on, floor)`` clamped to ``[0, 1]``.
+
+        Parameters
+        ----------
+        base_lgd:
+            Baseline LGD in ``[0, 1]``.
+        add_on:
+            Downturn add-on.
+        floor:
+            Regulatory floor LGD.
+
+        Returns
+        -------
+        float
+            Floored downturn LGD in ``[0, 1]``.
+
+        Raises
+        ------
+        ValueError
+            If *base_lgd* or *floor* is non-finite or outside ``[0, 1]``, or
+            if *add_on* is negative or non-finite.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import lgd
+        >>> lgd.downturn_lgd_regulatory_floor(0.4, 0.05, 0.45)
+        0.45
+
+        """
+        ...
+
+    @staticmethod
+    def ead_term_loan(principal: float) -> float:
+        """
+        Exposure at default for a fully drawn term loan (equal to principal).
+
+        Parameters
+        ----------
+        principal:
+            Outstanding principal amount.
+
+        Returns
+        -------
+        float
+            EAD equal to ``principal``.
+
+        Raises
+        ------
+        ValueError
+            If *principal* is negative or non-finite.
+
+        Examples
+        --------
+        >>> from finstack_quant.models.credit import lgd
+        >>> lgd.ead_term_loan(100.0)
         100.0
 
         """
         ...
 
     @staticmethod
-    def new_with_dynamics(
-        asset_value: float,
-        asset_vol: float,
-        debt_barrier: float,
-        risk_free_rate: float,
-        payout_rate: float,
-        barrier_type: BarrierType,
-        dynamics: AssetDynamics,
-    ) -> MertonModel:
+    def ead_revolver(drawn: float, undrawn: float, ccf: float) -> float:
         """
-        Construct a Merton model with explicit barrier and dynamics specifications.
+        Exposure at default for a revolver: ``drawn + undrawn * ccf``.
 
         Parameters
         ----------
-        asset_value : float
-            Current firm asset value.
-        asset_vol : float
-            Asset volatility as a decimal.
-        debt_barrier : float
-            Default barrier level.
-        risk_free_rate : float
-            Continuously compounded risk-free rate as a decimal.
-        payout_rate : float
-            Continuous payout rate on assets as a decimal.
-        barrier_type : BarrierType
-            Terminal or first-passage barrier monitoring.
-        dynamics : AssetDynamics
-            Asset return dynamics specification.
+        drawn:
+            Current funded balance in the facility's monetary units.
+        undrawn:
+            Undrawn commitment.
+        ccf:
+            Credit conversion factor in ``[0, 1]``.
 
         Returns
         -------
-        MertonModel
-            Fully specified structural model.
+        float
+            EAD for the revolver facility.
 
         Raises
         ------
         ValueError
-            If inputs are non-finite or out of range.
+            If *drawn* or *undrawn* is negative or non-finite, or if *ccf* is
+            non-finite or outside ``[0, 1]``.
 
         Examples
         --------
-        >>> from finstack_quant.models.credit import (
-        ...     AssetDynamics,
-        ...     BarrierType,
-        ...     MertonModel,
-        ... )
-        >>> model = MertonModel.new_with_dynamics(
-        ...     100.0,
-        ...     0.25,
-        ...     80.0,
-        ...     0.05,
-        ...     0.0,
-        ...     BarrierType.first_passage(0.02),
-        ...     AssetDynamics.geometric_brownian(),
-        ... )
-        >>> round(model.default_probability(1.0), 6)
-        0.373747
+        >>> from finstack_quant.models.credit import lgd
+        >>> lgd.ead_revolver(60.0, 40.0, 0.5)
+        80.0
 
         """
         ...
 
-    @staticmethod
-    def credit_grades(
-        equity_value: float,
-        equity_vol: float,
-        total_debt: float,
-        risk_free_rate: float,
-        barrier_uncertainty: float,
-        mean_recovery: float,
-    ) -> MertonModel:
-        """
-        Build a CreditGrades-style model calibrated from equity inputs.
-
-        Inverts the structural mapping from observable equity value and volatility
-        to implied firm asset value and asset volatility, with barrier uncertainty
-        and mean recovery governing the default boundary.
-
-        Parameters
-        ----------
-        equity_value : float
-            Market equity value (positive, finite).
-        equity_vol : float
-            Equity volatility as a decimal.
-        total_debt : float
-            Total debt face used as the reference barrier scale.
-        risk_free_rate : float
-            Continuously compounded risk-free rate as a decimal.
-        barrier_uncertainty : float
-            Barrier uncertainty parameter (CreditGrades ``alpha`` scale).
-        mean_recovery : float
-            Expected recovery rate as a decimal in ``[0, 1]``.
-
-        Returns
-        -------
-        MertonModel
-            Calibrated structural model.
-
-        Raises
-        ------
-        ValueError
-            If inputs are non-finite or violate model constraints.
-
-        Sources
-        -------
-        See ``docs/REFERENCES.md#merton-1974`` and ``docs/REFERENCES.md#o-kane-2008``.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import MertonModel
-        >>> model = MertonModel.credit_grades(100.0, 0.3, 80.0, 0.05, 0.3, 0.4)
-        >>> round(model.default_probability(1.0), 6)
-        0.00013
-
-        """
-        ...
-
-    @staticmethod
-    def from_json(json: str) -> MertonModel:
-        """
-        Deserialize a structural credit model from JSON.
-
-        Parameters
-        ----------
-        json : str
-            Canonical JSON payload for ``MertonModel``.
-
-        Returns
-        -------
-        MertonModel
-            Parsed model instance.
-
-        Raises
-        ------
-        ValueError
-            If JSON is malformed or fails validation.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import MertonModel
-        >>> model = MertonModel(100.0, 0.25, 80.0, 0.05)
-        >>> round(MertonModel.from_json(model.to_json()).default_probability(1.0), 6)
-        0.166629
-
-        """
-        ...
-
-    def to_json(self) -> str:
-        """
-        Serialize this model to pretty-printed canonical JSON.
-
-        Returns
-        -------
-        str
-            JSON string.
-
-        Raises
-        ------
-        ValueError
-            If the value cannot be serialized to JSON.
-        """
-        ...
-
-    @property
-    def asset_value(self) -> float:
-        """
-        Current firm asset value ``V_0``.
-
-        Returns
-        -------
-        float
-            Asset value in the issuer's reporting currency.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def asset_vol(self) -> float:
-        """
-        Annualized asset volatility ``sigma_V``.
-
-        Returns
-        -------
-        float
-            Volatility as a decimal (``0.25`` is 25%).
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def debt_barrier(self) -> float:
-        """
-        Asset-value default barrier ``B`` in the Merton model.
-
-        Returns
-        -------
-        float
-            Barrier level, in the same currency as ``asset_value``.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def risk_free_rate(self) -> float:
-        """
-        Continuously compounded risk-free rate ``r``.
-
-        Returns
-        -------
-        float
-            Rate as a decimal.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def payout_rate(self) -> float:
-        """
-        Continuous payout (dividend) rate ``q`` on assets.
-
-        Returns
-        -------
-        float
-            Payout rate as a decimal.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def barrier_type(self) -> BarrierType:
-        """
-        Barrier monitoring convention.
-
-        Returns
-        -------
-        BarrierType
-            Terminal or first-passage barrier specification.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def dynamics(self) -> AssetDynamics:
-        """
-        Asset return dynamics specification.
-
-        Returns
-        -------
-        AssetDynamics
-            GBM, jump-diffusion, or CreditGrades dynamics.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    def to_dataframe(self) -> pd.DataFrame:
-        """
-        Export the model parameters as a single-row pandas ``DataFrame``.
-
-        Returns
-        -------
-        pandas.DataFrame
-            One row with the canonical model fields as columns.
-
-        Raises
-        ------
-        ValueError
-            If the result cannot be serialized into a pandas object.
-        """
-        ...
-
-    def distance_to_default(self, horizon: float) -> float:
-        """
-        Return risk-neutral distance to default at ``horizon`` years.
-
-        This is the risk-neutral ``d2``, driven by the risk-free rate. It is
-        not the Moody's KMV distance-to-default; use
-        :meth:`distance_to_default_with_drift` with
-        :meth:`kmv_default_point` for that. Under jump-diffusion or
-        CreditGrades dynamics ``N(-dd)`` differs from
-        :meth:`default_probability`, which remains the authoritative
-        probability.
-
-        Parameters
-        ----------
-        horizon : float
-            Horizon in years (positive, finite). A non-positive horizon
-            returns ``inf``.
-
-        Returns
-        -------
-        float
-            Distance-to-default statistic (standard-deviation units).
-
-        Notes
-        -----
-        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import MertonModel
-        >>> MertonModel(100.0, 0.25, 80.0, 0.04).distance_to_default(1.0) > 0
-        True
-
-        """
-        ...
-
-    def distance_to_default_with_drift(self, asset_drift: float, horizon: float) -> float:
-        """
-        Return physical-measure (Moody's KMV) distance to default.
-
-        Replaces the risk-free rate with the firm's expected physical asset
-        return, giving the KMV/EDF construction. Pair it with
-        :meth:`kmv_default_point` to reproduce the KMV default-point
-        convention when building the model.
-
-        Parameters
-        ----------
-        asset_drift : float
-            Expected physical total return on the firm's assets, continuously
-            compounded and expressed as a decimal (``0.09`` is 9% per annum).
-            The model's ``payout_rate`` is still subtracted.
-        horizon : float
-            Horizon in years (positive, finite). A non-positive horizon
-            returns ``inf``.
-
-        Returns
-        -------
-        float
-            Physical-measure distance-to-default (standard-deviation units).
-
-        Raises
-        ------
-        ValueError
-            If ``asset_drift`` is not finite, or the model uses CreditGrades
-            dynamics, which are driftless by construction.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import MertonModel
-        >>> model = MertonModel(100.0, 0.25, 80.0, 0.04)
-        >>> model.distance_to_default_with_drift(0.09, 1.0) > model.distance_to_default(1.0)
-        True
-
-        """
-        ...
-
-    def default_probability(self, horizon: float) -> float:
-        """
-        Return risk-neutral default probability over ``horizon`` years.
-
-        This is the pricing (Q-measure) probability and materially overstates
-        the real-world default rate whenever the market price of asset risk is
-        positive. Use :meth:`default_probability_with_drift` for
-        expected-loss, capital, or rating analytics.
-
-        Parameters
-        ----------
-        horizon : float
-            Horizon in years (positive, finite). A non-positive horizon
-            returns ``0.0``.
-
-        Returns
-        -------
-        float
-            Default probability in ``[0, 1]``.
-
-        Notes
-        -----
-        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import MertonModel
-        >>> 0.0 <= MertonModel(100.0, 0.25, 80.0, 0.04).default_probability(1.0) <= 1.0
-        True
-
-        """
-        ...
-
-    def default_probability_with_drift(self, asset_drift: float, horizon: float) -> float:
-        """
-        Return physical-measure default probability (theoretical EDF).
-
-        Identical dispatch to :meth:`default_probability`, with the firm's
-        expected physical asset return substituted for the risk-free rate.
-        Moody's published EDF applies a further proprietary empirical mapping
-        from distance-to-default to observed default frequency, which is not
-        reproduced here.
-
-        Parameters
-        ----------
-        asset_drift : float
-            Expected physical total return on the firm's assets, continuously
-            compounded and expressed as a decimal (``0.09`` is 9% per annum).
-        horizon : float
-            Horizon in years (positive, finite). A non-positive horizon
-            returns ``0.0``.
-
-        Returns
-        -------
-        float
-            Physical-measure default probability in ``[0, 1]``.
-
-        Raises
-        ------
-        ValueError
-            If ``asset_drift`` is not finite, or the model uses CreditGrades
-            dynamics, which are driftless by construction.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import MertonModel
-        >>> model = MertonModel(100.0, 0.25, 80.0, 0.04)
-        >>> model.default_probability_with_drift(0.11, 5.0) < model.default_probability(5.0)
-        True
-
-        """
-        ...
-
-    def implied_spread(self, horizon: float, recovery: float) -> float:
-        """
-        Return the zero-coupon bond credit spread with exogenous recovery.
-
-        This is the continuously compounded spread of a risky discount bond
-        whose recovery is a fixed fraction of face value paid at maturity. It
-        is neither the Merton endogenous spread (:meth:`debt_spread`) nor a CDS
-        par spread (:meth:`cds_par_spread`); the three differ materially at
-        distressed levels.
-
-        Parameters
-        ----------
-        horizon : float
-            Bond maturity in years; must be finite and positive.
-        recovery : float
-            Assumed recovery rate as a decimal in ``[0, 1]`` (not basis
-            points), treated as paid at maturity.
-
-        Returns
-        -------
-        float
-            Zero-coupon spread as a decimal (e.g. ``0.012`` for 120 bp).
-
-        Raises
-        ------
-        ValueError
-            If ``horizon`` or ``recovery`` are invalid.
-
-        Sources
-        -------
-        See ``docs/REFERENCES.md#o-kane-2008`` for CDS spread conventions.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import MertonModel
-        >>> MertonModel(100.0, 0.25, 80.0, 0.04).implied_spread(5.0, 0.40) > 0
-        True
-
-        """
-        ...
-
-    def debt_spread(self, horizon: float) -> float:
-        """
-        Return the Merton (1974) endogenous credit spread on the firm's debt.
-
-        Recovery is endogenous: debt holders receive ``min(V_T, B)``, so the
-        recovery rate is the firm's own terminal asset value rather than an
-        assumed constant. This is typically well below
-        :meth:`implied_spread` at a 40% exogenous recovery.
-
-        Parameters
-        ----------
-        horizon : float
-            Maturity of the firm's debt in years; must be finite and positive.
-
-        Returns
-        -------
-        float
-            Endogenous debt spread as a decimal (e.g. ``0.004`` for 40 bp).
-
-        Raises
-        ------
-        ValueError
-            If ``horizon`` is not positive, the barrier type is not terminal,
-            or the implied debt value is non-positive.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import MertonModel
-        >>> model = MertonModel(100.0, 0.25, 80.0, 0.04)
-        >>> model.debt_spread(5.0) < model.implied_spread(5.0, 0.40)
-        True
-
-        """
-        ...
-
-    def cds_par_spread(self, maturity: float, recovery: float) -> float:
-        """
-        Return the ISDA-style CDS par spread implied by the model.
-
-        The model's survival probabilities are exported to a hazard curve on
-        the quarterly premium grid and both CDS legs are priced against it,
-        including accrual on default and discounting. Prefer this over
-        :meth:`implied_spread` whenever the target is a quoted CDS level.
-
-        Parameters
-        ----------
-        maturity : float
-            CDS maturity in years; must be finite and positive.
-        recovery : float
-            Recovery rate as a decimal in ``[0, 1]``. Under CreditGrades
-            dynamics it must equal the model's own ``mean_recovery``.
-
-        Returns
-        -------
-        float
-            Par spread as a decimal per annum (multiply by 10,000 for basis
-            points).
-
-        Raises
-        ------
-        ValueError
-            If ``maturity`` is not positive, if ``recovery`` is out of range or
-            contradicts the model's ``mean_recovery``, or if the implied
-            survival curve cannot be bootstrapped.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.credit import MertonModel
-        >>> model = MertonModel(100.0, 0.25, 80.0, 0.04)
-        >>> model.cds_par_spread(5.0, 0.40) > model.implied_spread(5.0, 0.40)
-        True
-
-        """
-        ...
-
-    def try_implied_equity(self, horizon: float) -> tuple[float, float]:
-        """
-        Return implied equity value and equity volatility at ``horizon`` years.
-
-        Diffusion-only. Jump-diffusion dynamics are rejected, because the
-        delta-scaled volatility would be the diffusive component alone and
-        would misstate observed equity volatility.
-
-        Parameters
-        ----------
-        horizon : float
-            Time horizon in years (positive, finite).
-
-        Returns
-        -------
-        tuple[float, float]
-            ``(equity_value, equity_vol)`` implied by the structural model.
-
-        Raises
-        ------
-        ValueError
-            When ``horizon`` is not positive, the model uses jump-diffusion
-            dynamics, or the firm is economically in default and the inversion
-            is numerically ill-conditioned.
-        """
-        ...
-
-    def to_hazard_curve(
-        self,
-        id: str,
-        base_date: datetime.date,
-        tenors: list[float],
-        recovery: float,
-        day_count: str = "act_365f",
-    ) -> HazardCurve:
-        """
-        Bootstrap a piecewise-constant hazard curve from structural default probabilities.
-
-        The curve carries risk-neutral hazard rates, since it is built from
-        :meth:`default_probability`.
-
-        Parameters
-        ----------
-        id : str
-            Curve identifier, used as the lookup key in a market context.
-        base_date : datetime.date
-            Valuation date the curve's year fractions are measured from.
-        tenors : list[float]
-            Tenor grid in years (non-empty, strictly positive, distinct). Need
-            not be sorted.
-        recovery : float
-            Recovery rate assumption as a decimal in ``[0, 1]``. Under
-            CreditGrades dynamics it must equal the model's own
-            ``mean_recovery``, since that value already sets the barrier.
-        day_count : str, optional
-            Day-count convention the curve uses to turn dates into year
-            fractions. Pass the convention of the discount curve the hazard
-            curve will be paired with. Default ``"act_365f"``, which matches
-            the year-fraction axis the model's horizons use.
-
-        Returns
-        -------
-        HazardCurve
-            Bootstrapped hazard curve compatible with pricing engines.
-
-        Raises
-        ------
-        ValueError
-            If ``tenors`` is empty, contains non-positive or duplicate values,
-            if ``recovery`` is out of range or contradicts ``mean_recovery``,
-            if ``day_count`` is not a recognized convention, if survival
-            reaches zero at some tenor, or if the bootstrap otherwise fails.
-        """
-        ...
-
-    def simulate_paths(
-        self,
-        num_paths: int,
-        num_steps: int,
-        horizon: float,
-        seed: int,
-        antithetic: bool = False,
-    ) -> SimulatedPaths:
-        """
-        Simulate asset value paths using Monte Carlo.
-
-        Parameters
-        ----------
-        num_paths : int
-            Number of paths to simulate.
-        num_steps : int
-            Number of time steps per path (must be >= 1).
-        horizon : float
-            Simulation horizon in years (must be > 0).
-        seed : int
-            RNG seed for reproducible draws.
-        antithetic : bool, optional
-            When ``True``, use antithetic variates for variance reduction.
-            Default ``False``.
-
-        Returns
-        -------
-        SimulatedPaths
-            Time grid and simulated asset paths.
-
-        Raises
-        ------
-        ValueError
-            If ``num_steps`` is zero or ``horizon`` is non-positive.
-        """
-        ...
-
-class DynamicRecoverySpec:
+class migration:
     """
-    Recovery specification with optional notional dependence.
+    Credit migration: rating scales, transition matrices, generators, and CTMC simulation.
 
     Examples
     --------
-    >>> from finstack_quant.models.credit import DynamicRecoverySpec
-    >>> spec = DynamicRecoverySpec.constant(0.4)
-    >>> spec.recovery_at_notional(100.0)
-    0.4
+    >>> from finstack_quant.models.credit import migration
+    >>> migration.RatingScale.custom_with_default(["A", "D"], "D").labels()
+    ['A', 'D']
 
     """
 
-    @staticmethod
-    def constant(recovery: float) -> DynamicRecoverySpec:
+    class RatingScale:
         """
-        Create a constant recovery-rate specification.
+        Ordinal rating scale for credit migration modelling.
 
-        Parameters
-        ----------
-        recovery : float
-            Recovery rate as a decimal in ``[0, 1]``.
-
-        Returns
-        -------
-        DynamicRecoverySpec
-            Constant recovery spec.
-
-        Raises
-        ------
-        ValueError
-            If ``recovery`` is out of range or non-finite.
+        Provides standard agency scales (S&P/Moody's/Fitch) or custom scales
+        with an optional default absorbing state.
 
         Examples
         --------
-        >>> from finstack_quant.models.credit import DynamicRecoverySpec
-        >>> spec = DynamicRecoverySpec.constant(0.4)
-        >>> spec.recovery_at_notional(100.0)
-        0.4
+        >>> from finstack_quant.models.credit import migration
+        >>> scale = migration.RatingScale.custom_with_default(["A", "D"], "D")
+        >>> (scale.n_states(), scale.index_of("A"), scale.default_state(), scale.labels())
+        (2, 0, 1, ['A', 'D'])
+        >>> (scale.warf("A"), scale.rating_from_warf(120.0))
+        (120.0, 'A')
 
         """
-        ...
 
-    @staticmethod
-    def from_json(json: str) -> DynamicRecoverySpec:
+        @staticmethod
+        def standard() -> migration.RatingScale:
+            """
+            Standard 8-state agency scale (AAA through D).
+
+            Returns
+            -------
+            migration.RatingScale
+                Scale with labels ``AAA, AA, A, BBB, BB, B, CCC, D``.
+
+            Notes
+            -----
+            This method does not raise; it returns a fixed instance.
+
+            Examples
+            --------
+            >>> from finstack_quant.models.credit import migration
+            >>> migration.RatingScale.standard().n_states()
+            10
+            """
+            ...
+
+        @staticmethod
+        def standard_with_nr() -> migration.RatingScale:
+            """
+            Standard scale with an explicit ``NR`` (not rated) state.
+
+            Returns
+            -------
+            migration.RatingScale
+                Scale with labels ``AAA, AA, A, BBB, BB, B, CCC, D, NR``.
+
+            Notes
+            -----
+            This method does not raise; it returns a fixed instance.
+
+            Examples
+            --------
+            >>> from finstack_quant.models.credit import migration
+            >>> migration.RatingScale.standard_with_nr().n_states()
+            11
+            """
+            ...
+
+        @staticmethod
+        def notched() -> migration.RatingScale:
+            """
+            Notched 18-state scale (AAA through CCC- and D).
+
+            Returns
+            -------
+            migration.RatingScale
+                Scale with notched sub-grades.
+
+            Notes
+            -----
+            This method does not raise; it returns a fixed instance.
+
+            Examples
+            --------
+            >>> from finstack_quant.models.credit import migration
+            >>> migration.RatingScale.notched().n_states()
+            22
+            """
+            ...
+
+        @staticmethod
+        def custom(labels: list[str]) -> migration.RatingScale:
+            """
+            Build a custom rating scale from an ordered label list.
+
+            Parameters
+            ----------
+            labels:
+                Rating labels from best to worst.  The last label is the
+                default absorbing state.
+
+            Returns
+            -------
+            migration.RatingScale
+                Custom scale.
+
+            Raises
+            ------
+            ValueError
+                If fewer than two labels are supplied or any label is duplicated.
+
+            Examples
+            --------
+            >>> from finstack_quant.models.credit import migration
+            >>> migration.RatingScale.custom(["A", "B"]).labels()
+            ['A', 'B']
+
+            """
+            ...
+
+        @staticmethod
+        def custom_with_default(labels: list[str], default_label: str) -> migration.RatingScale:
+            """
+            Build a custom rating scale with an explicit default label.
+
+            Parameters
+            ----------
+            labels:
+                Non-default rating labels from best to worst.
+            default_label:
+                Label for the default absorbing state.
+
+            Returns
+            -------
+            migration.RatingScale
+                Custom scale with the default state appended.
+
+            Raises
+            ------
+            ValueError
+                If fewer than two labels are supplied or any label is duplicated.
+            KeyError
+                If *default_label* is not present in *labels*.
+
+            Examples
+            --------
+            >>> from finstack_quant.models.credit import migration
+            >>> migration.RatingScale.custom_with_default(["A", "D"], "D").default_state()
+            1
+
+            """
+            ...
+
+        def n_states(self) -> int:
+            """
+            Number of states on this scale (including default if present).
+
+            Returns
+            -------
+            int
+                State count.
+
+            Notes
+            -----
+            This method does not raise; it returns the stored or derived value.
+            """
+            ...
+
+        def index_of(self, label: str) -> int | None:
+            """
+            Return the 0-based index of ``label``, or ``None`` if not found.
+
+            Parameters
+            ----------
+            label:
+                Rating label to look up.
+
+            Returns
+            -------
+            int or None
+                State index, or ``None`` when the label is not on this scale.
+
+            Notes
+            -----
+            This method does not raise; a missing result is ``None`` rather than an exception.
+            """
+            ...
+
+        def default_state(self) -> int | None:
+            """
+            Return the index of the default absorbing state, or ``None``.
+
+            Returns
+            -------
+            int or None
+                Default state index, or ``None`` if no default state exists.
+
+            Notes
+            -----
+            This method does not raise; a missing result is ``None`` rather than an exception.
+            """
+            ...
+
+        def labels(self) -> list[str]:
+            """
+            Return all rating labels in ordinal order.
+
+            Returns
+            -------
+            list[str]
+                Ordered label list.
+
+            Notes
+            -----
+            This method does not raise; it returns the stored or derived value.
+            """
+            ...
+
+        def warf(self, label: str) -> float:
+            """
+            Weighted average rating factor (WARF) for a rating label.
+
+            Parameters
+            ----------
+            label:
+                Rating label on this scale.
+
+            Returns
+            -------
+            float
+                WARF value (higher = riskier).
+
+            Raises
+            ------
+            ValueError
+                If ``label`` is not on this scale.
+
+            """
+            ...
+
+        def rating_from_warf(self, warf: float) -> str:
+            """
+            Map a WARF value back to the closest rating label.
+
+            Parameters
+            ----------
+            warf:
+                Weighted average rating factor.
+
+            Returns
+            -------
+            str
+                Rating label whose WARF bucket contains the given value.
+
+            Raises
+            ------
+            ValueError
+                If *warf* is non-finite or the scale contains no label with a
+                known Moody's WARF factor.
+
+            """
+            ...
+
+    class TransitionMatrix:
         """
-        Deserialize a recovery specification from JSON.
+        Discrete-horizon rating transition probability matrix.
 
         Parameters
         ----------
-        json : str
-            Canonical JSON payload.
-
-        Returns
-        -------
-        DynamicRecoverySpec
-            Parsed specification.
+        scale:
+            Rating scale defining the row/column ordering.
+        data:
+            Row-major transition probabilities (length ``n_states * n_states``).
+        horizon:
+            Time horizon in years (e.g. ``1.0`` for a 1-year matrix).
 
         Raises
         ------
         ValueError
-            If JSON is invalid.
+            If ``data`` length does not match ``scale.n_states() ** 2`` or rows
+            do not sum to 1.
 
         Examples
         --------
-        >>> from finstack_quant.models.credit import DynamicRecoverySpec
-        >>> spec = DynamicRecoverySpec.constant(0.4)
-        >>> DynamicRecoverySpec.from_json(spec.to_json()).recovery_at_notional(100.0)
-        0.4
+        >>> from finstack_quant.models.credit import migration
+        >>> scale = migration.RatingScale.custom_with_default(["A", "D"], "D")
+        >>> matrix = migration.TransitionMatrix(scale, [0.9, 0.1, 0.0, 1.0], 1.0)
+        >>> (matrix.probability("A", "D"), matrix.row("A"), matrix.horizon(), matrix.n_states())
+        (0.1, [0.9, 0.1], 1.0, 2)
+        >>> (matrix.to_matrix(), matrix.default_probabilities())
+        ([[0.9, 0.1], [0.0, 1.0]], [0.1, 1.0])
 
         """
-        ...
 
-    def to_json(self) -> str:
+        def __init__(self, scale: migration.RatingScale, data: list[float], horizon: float) -> None:
+            """
+            Construct a validated discrete-horizon transition matrix.
+
+            Parameters
+            ----------
+            scale : migration.RatingScale
+                Ordered rating states defining the row and column labels and,
+                when configured, the absorbing default state.
+            data : list[float]
+                Row-major ``n * n`` transition probabilities for the ``n``
+                states in ``scale``. Entries must lie in ``[0, 1]``, every row
+                must sum to one, and a configured default row must be absorbing.
+            horizon : float
+                Finite, strictly positive transition horizon in years.
+
+            Raises
+            ------
+            ValueError
+                If *horizon* is not finite and strictly positive; *data* is not
+                an ``n x n`` row-major matrix; an entry is non-finite or outside
+                ``[0, 1]``; a row does not sum to one; or the default row is not
+                absorbing.
+
+            """
+            ...
+
+        def probability(self, from_: str, to: str) -> float:
+            """
+            Transition probability from one rating to another.
+
+            Parameters
+            ----------
+            from_:
+                Origin rating label.
+            to:
+                Destination rating label.
+
+            Returns
+            -------
+            float
+                Transition probability in ``[0, 1]``.
+
+            Raises
+            ------
+            KeyError
+                If *from_* or *to* is not a label on the matrix's rating scale.
+
+            """
+            ...
+
+        def row(self, from_: str) -> list[float]:
+            """
+            Return the full transition row for a given origin rating.
+
+            Parameters
+            ----------
+            from_:
+                Origin rating label.
+
+            Returns
+            -------
+            list[float]
+                Transition probabilities to every state on the scale.
+
+            Raises
+            ------
+            KeyError
+                If *from_* is not a label on the matrix's rating scale.
+
+            """
+            ...
+
+        def to_matrix(self) -> list[list[float]]:
+            """
+            Return the full transition matrix as nested lists.
+
+            Returns
+            -------
+            list[list[float]]
+                Row-major matrix of transition probabilities.
+
+            Notes
+            -----
+            This method does not raise; it returns the stored or derived value.
+            """
+            ...
+
+        def horizon(self) -> float:
+            """
+            Return the time horizon in years.
+
+            Returns
+            -------
+            float
+                Horizon (e.g. ``1.0``).
+
+            Notes
+            -----
+            This method does not raise; it returns the stored or derived value.
+            """
+            ...
+
+        def n_states(self) -> int:
+            """
+            Return the number of states on the underlying scale.
+
+            Returns
+            -------
+            int
+                State count.
+
+            Notes
+            -----
+            This method does not raise; it returns the stored or derived value.
+            """
+            ...
+
+        def default_probabilities(self) -> list[float] | None:
+            """
+            Return per-state default probabilities, or ``None`` if no default state.
+
+            Returns
+            -------
+            list[float] or None
+                Probability of default from each state, or ``None`` when the
+                scale has no default absorbing state.
+
+            Notes
+            -----
+            This method does not raise; a missing result is ``None`` rather than an exception.
+            """
+            ...
+
+    class GeneratorMatrix:
         """
-        Serialize this recovery specification to canonical JSON.
-
-        Returns
-        -------
-        str
-            JSON string.
-
-        Raises
-        ------
-        ValueError
-            If the value cannot be serialized to JSON.
-        """
-        ...
-
-    def recovery_at_notional(self, notional: float) -> float:
-        """
-        Return recovery rate for the supplied notional.
+        Continuous-time generator matrix (Q) for CTMC credit migration.
 
         Parameters
         ----------
-        notional : float
-            Outstanding notional (positive, finite).
-
-        Returns
-        -------
-        float
-            Recovery rate as a decimal.
-
-        Notes
-        -----
-        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
-        """
-        ...
-
-    @property
-    def base_recovery(self) -> float:
-        """
-        Base (reference) recovery rate ``R_0``.
-
-        Returns
-        -------
-        float
-            Recovery rate as a decimal in ``[0, 1]``.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def base_notional(self) -> float:
-        """
-        Base (reference) notional ``N_0`` the recovery mapping is anchored to.
-
-        Returns
-        -------
-        float
-            Reference notional (positive).
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def model(self) -> Any:
-        """
-        Notional-to-recovery mapping, in canonical JSON form.
-
-        Returns
-        -------
-        Any
-            ``"constant"`` / ``"inverse_linear"`` for the parameterless models,
-            or a single-key mapping (``inverse_power``, ``floored_inverse``,
-            ``linear_decline``) carrying that model's parameters.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored or derived value.
-        """
-        ...
-
-    def to_dataframe(self) -> pd.DataFrame:
-        """
-        Export the recovery specification as a single-row pandas ``DataFrame``.
-
-        Returns
-        -------
-        pandas.DataFrame
-            One row with the canonical specification fields as columns.
+        scale:
+            Rating scale defining the row/column ordering.
+        data:
+            Row-major generator intensities (length ``n_states * n_states``).
 
         Raises
         ------
         ValueError
-            If the result cannot be serialized into a pandas object.
-        """
-        ...
-
-class EndogenousHazardSpec:
-    """
-    Hazard-rate model driven by leverage or PIK-accreted notional.
-
-    Examples
-    --------
-    >>> from finstack_quant.models.credit import EndogenousHazardSpec
-    >>> spec = EndogenousHazardSpec.power_law(0.02, 4.0, 2.0)
-    >>> (spec.hazard_at_leverage(4.0), spec.hazard_at_leverage(8.0))
-    (0.02, 0.08)
-
-    """
-
-    @staticmethod
-    def power_law(
-        base_hazard: float,
-        base_leverage: float,
-        exponent: float,
-    ) -> EndogenousHazardSpec:
-        """
-        Create a power-law hazard model around a base leverage point.
-
-        Parameters
-        ----------
-        base_hazard : float
-            Hazard rate at ``base_leverage`` (decimal annualized intensity).
-        base_leverage : float
-            Reference leverage ratio (e.g. debt / EBITDA).
-        exponent : float
-            Power-law sensitivity of hazard to leverage.
-
-        Returns
-        -------
-        EndogenousHazardSpec
-            Endogenous hazard specification.
-
-        Raises
-        ------
-        ValueError
-            If parameters are non-finite or violate constraints.
+            If ``data`` length does not match ``scale.n_states() ** 2`` or rows
+            do not sum to zero.
 
         Examples
         --------
-        >>> from finstack_quant.models.credit import EndogenousHazardSpec
-        >>> spec = EndogenousHazardSpec.power_law(0.02, 4.0, 2.0)
-        >>> spec.hazard_at_leverage(8.0)
-        0.08
+        >>> from finstack_quant.models.credit import migration
+        >>> scale = migration.RatingScale.custom_with_default(["A", "D"], "D")
+        >>> generator = migration.GeneratorMatrix(scale, [-0.1, 0.1, 0.0, 0.0])
+        >>> (generator.intensity("A", "D"), generator.exit_rate("A"), generator.n_states())
+        (0.1, 0.1, 2)
+        >>> (generator.to_matrix(), generator.regularization_l1, generator.round_trip_error)
+        ([[-0.1, 0.1], [0.0, 0.0]], 0.0, 0.0)
 
         """
-        ...
 
-    @staticmethod
-    def from_json(json: str) -> EndogenousHazardSpec:
+        def __init__(self, scale: migration.RatingScale, data: list[float]) -> None:
+            """
+            Construct a validated continuous-time generator matrix.
+
+            Parameters
+            ----------
+            scale : migration.RatingScale
+                Ordered rating states defining the row and column labels and,
+                when configured, the absorbing default state.
+            data : list[float]
+                Row-major ``n * n`` generator entries for the ``n`` states in
+                ``scale``. Off-diagonals must be non-negative, every row must
+                sum to zero, and a configured default row must be absorbing.
+
+            Raises
+            ------
+            ValueError
+                If *data* is not an ``n x n`` row-major matrix; an off-diagonal
+                entry is negative or non-finite; a row does not sum to zero; or
+                the default row is not absorbing.
+
+            """
+            ...
+
+        @staticmethod
+        def from_transition_matrix(p: migration.TransitionMatrix) -> migration.GeneratorMatrix:
+            """
+            Estimate a generator matrix from a discrete transition matrix.
+
+            Uses the eigendecomposition method (Israel, Rosenthal, Wei 2001).
+
+            Parameters
+            ----------
+            p:
+                A :class:`migration.TransitionMatrix` to invert.
+
+            Returns
+            -------
+            migration.GeneratorMatrix
+                Estimated generator matrix.
+
+            Raises
+            ------
+            RuntimeError
+                If the transition matrix has complex or non-positive
+                eigenvalues, its matrix logarithm is singular, or the
+                reconstructed transition matrix exceeds the round-trip
+                tolerance.
+
+            Examples
+            --------
+            >>> from finstack_quant.models.credit import migration
+            >>> scale = migration.RatingScale.custom_with_default(["A", "D"], "D")
+            >>> matrix = migration.TransitionMatrix(scale, [0.9, 0.1, 0.0, 1.0], 1.0)
+            >>> migration.GeneratorMatrix.from_transition_matrix(matrix).round_trip_error < 1e-12
+            True
+
+            """
+            ...
+
+        def intensity(self, from_: str, to: str) -> float:
+            """
+            Generator intensity (migration rate) from one state to another.
+
+            Parameters
+            ----------
+            from_:
+                Origin rating label.
+            to:
+                Destination rating label.
+
+            Returns
+            -------
+            float
+                Generator intensity.  Diagonal entries are negative (exit rates).
+
+            Raises
+            ------
+            KeyError
+                If *from_* or *to* is not a label on the generator's rating scale.
+
+            """
+            ...
+
+        def exit_rate(self, state: str) -> float:
+            """
+            Total exit rate (sum of off-diagonal intensities) for a state.
+
+            Parameters
+            ----------
+            state:
+                Rating-scale label whose total off-diagonal migration intensity
+                is returned; the default absorbing state has zero exit rate.
+
+            Returns
+            -------
+            float
+                Non-negative exit rate.  The default absorbing state has rate 0.
+
+            Raises
+            ------
+            KeyError
+                If *state* is not a label on the generator's rating scale.
+
+            """
+            ...
+
+        def to_matrix(self) -> list[list[float]]:
+            """
+            Return the full generator matrix as nested lists.
+
+            Returns
+            -------
+            list[list[float]]
+                Row-major generator matrix.
+
+            Notes
+            -----
+            This method does not raise; it returns the stored or derived value.
+            """
+            ...
+
+        def n_states(self) -> int:
+            """
+            Return the number of states on the underlying scale.
+
+            Returns
+            -------
+            int
+                State count.
+
+            Notes
+            -----
+            This method does not raise; it returns the stored or derived value.
+            """
+            ...
+
+        @property
+        def regularization_l1(self) -> float:
+            """
+            L1 mass clamped by Kreinin-Sidenius regularization.
+            Returns ``0.0`` for directly constructed generators.
+
+            Returns
+            -------
+            float
+                L1 mass clamped by Kreinin-Sidenius regularization.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+        @property
+        def round_trip_error(self) -> float:
+            """
+            Infinity-norm reconstruction error against the source matrix.
+            Returns ``0.0`` for directly constructed generators.
+
+            Returns
+            -------
+            float
+                Infinity-norm reconstruction error against the source matrix.
+
+            Notes
+            -----
+            This accessor does not raise; it returns the stored value.
+            """
+            ...
+
+    class RatingPath:
         """
-        Deserialize an endogenous hazard specification from JSON.
+        Simulated rating migration path over a time horizon.
 
-        Parameters
-        ----------
-        json : str
-            Canonical JSON payload.
-
-        Returns
-        -------
-        EndogenousHazardSpec
-            Parsed specification.
-
-        Raises
-        ------
-        ValueError
-            If JSON is invalid.
+        Produced by :meth:`migration.MigrationSimulator.simulate`.
 
         Examples
         --------
-        >>> from finstack_quant.models.credit import EndogenousHazardSpec
-        >>> spec = EndogenousHazardSpec.power_law(0.02, 4.0, 2.0)
-        >>> EndogenousHazardSpec.from_json(spec.to_json()).hazard_at_leverage(8.0)
-        0.08
+        >>> from finstack_quant.models.credit import migration
+        >>> scale = migration.RatingScale.custom_with_default(["A", "D"], "D")
+        >>> generator = migration.GeneratorMatrix(scale, [0.0, 0.0, 0.0, 0.0])
+        >>> path = migration.MigrationSimulator(generator, 1.0).simulate(0, 1, 42)[0]
+        >>> (path.state_at(0.5), path.label_at(0.5), path.defaulted(), path.default_time())
+        (0, 'A', False, None)
+        >>> (path.n_transitions(), path.transitions(), path.horizon())
+        (0, [(0.0, 0)], 1.0)
 
         """
-        ...
 
-    def to_json(self) -> str:
+        def state_at(self, t: float) -> int:
+            """
+            Return the state index occupied at time ``t``.
+
+            Parameters
+            ----------
+            t:
+                Time in years within ``[0, horizon]``.
+
+            Returns
+            -------
+            int
+                State index at time ``t``.
+
+            Notes
+            -----
+            This method does not raise; it returns the stored or derived value.
+            """
+            ...
+
+        def label_at(self, t: float) -> str:
+            """
+            Return the rating label occupied at time ``t``.
+
+            Parameters
+            ----------
+            t:
+                Time in years within ``[0, horizon]``.
+
+            Returns
+            -------
+            str
+                Rating label at time ``t``.
+
+            Notes
+            -----
+            This method does not raise; it returns the stored or derived value.
+            """
+            ...
+
+        def defaulted(self) -> bool:
+            """
+            Return whether this path entered the default state.
+
+            Returns
+            -------
+            bool
+                ``True`` if the path defaulted at any point.
+
+            Notes
+            -----
+            This method does not raise; it returns ``True`` or ``False``.
+            """
+            ...
+
+        def default_time(self) -> float | None:
+            """
+            Return the time of default, or ``None`` if not defaulted.
+
+            Returns
+            -------
+            float or None
+                Default time in years, or ``None``.
+
+            Notes
+            -----
+            This method does not raise; a missing result is ``None`` rather than an exception.
+            """
+            ...
+
+        def n_transitions(self) -> int:
+            """
+            Return the number of rating transitions in this path.
+
+            Returns
+            -------
+            int
+                Transition count (excluding the initial state).
+
+            Notes
+            -----
+            This method does not raise; it returns the stored or derived value.
+            """
+            ...
+
+        def transitions(self) -> list[tuple[float, int]]:
+            """
+            Return all transitions as ``(time, new_state)`` pairs.
+
+            Returns
+            -------
+            list[tuple[float, int]]
+                Ordered list of transition events.
+
+            Notes
+            -----
+            This method does not raise; it returns the stored or derived value.
+            """
+            ...
+
+        def horizon(self) -> float:
+            """
+            Return the simulation horizon in years.
+
+            Returns
+            -------
+            float
+                Simulation horizon in years over which this rating path is
+                defined.
+
+            Notes
+            -----
+            This method does not raise; it returns the stored or derived value.
+            """
+            ...
+
+    class MigrationSimulator:
         """
-        Serialize this hazard specification to canonical JSON.
-
-        Returns
-        -------
-        str
-            JSON string.
-
-        Raises
-        ------
-        ValueError
-            If the value cannot be serialized to JSON.
-        """
-        ...
-
-    def hazard_at_leverage(self, leverage: float) -> float:
-        """
-        Return hazard rate at the supplied leverage.
+        CTMC simulator for credit rating migration paths.
 
         Parameters
         ----------
-        leverage : float
-            Leverage ratio (positive, finite).
-
-        Returns
-        -------
-        float
-            Annualized hazard rate as a decimal.
-
-        Notes
-        -----
-        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
-        """
-        ...
-
-    def hazard_after_pik_accrual(
-        self,
-        accreted_notional: float,
-        asset_value: float,
-    ) -> float:
-        """
-        Return hazard rate after PIK accrual changes leverage.
-
-        Parameters
-        ----------
-        accreted_notional : float
-            PIK-accreted notional outstanding.
-        asset_value : float
-            Firm asset value used in the leverage mapping.
-
-        Returns
-        -------
-        float
-            Updated annualized hazard rate as a decimal.
-
-        Notes
-        -----
-        This method does not raise; out-of-domain or non-finite inputs yield ``NaN`` or ``inf`` rather than an exception.
-        """
-        ...
-
-    @property
-    def base_hazard_rate(self) -> float:
-        """
-        Base (reference) hazard rate ``lambda_0``.
-
-        Returns
-        -------
-        float
-            Annualized hazard rate as a decimal.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def base_leverage(self) -> float:
-        """
-        Base (reference) leverage level ``L_0`` the hazard mapping is anchored to.
-
-        Returns
-        -------
-        float
-            Reference leverage ratio (positive).
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def leverage_hazard_map(self) -> Any:
-        """
-        Leverage-to-hazard mapping, in canonical JSON form.
-
-        Returns
-        -------
-        Any
-            A single-key mapping (``power_law``, ``exponential``, ``tabular``)
-            carrying that model's parameters.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored or derived value.
-        """
-        ...
-
-    def to_dataframe(self) -> pd.DataFrame:
-        """
-        Export the hazard specification as a single-row pandas ``DataFrame``.
-
-        Returns
-        -------
-        pandas.DataFrame
-            One row with the canonical specification fields as columns.
-
-        Raises
-        ------
-        ValueError
-            If the result cannot be serialized into a pandas object.
-        """
-        ...
-
-class CreditState:
-    """
-    Point-in-time credit state for toggle and path-dependent credit logic.
-
-    Examples
-    --------
-    >>> import json
-    >>> from finstack_quant.models.credit import CreditState
-    >>> state = CreditState(hazard_rate=0.02, leverage=4.0)
-    >>> (json.loads(state.to_json())["hazard_rate"], json.loads(state.to_json())["leverage"])
-    (0.02, 4.0)
-
-    """
-
-    def __init__(
-        self,
-        hazard_rate: float = 0.0,
-        distance_to_default: float | None = None,
-        leverage: float = 0.0,
-        accreted_notional: float = 0.0,
-        coupon_due: float = 0.0,
-        asset_value: float | None = None,
-    ) -> None:
-        """
-        Create a credit-state snapshot.
-
-        Parameters
-        ----------
-        hazard_rate : float, optional
-            Instantaneous hazard rate as a decimal. Default ``0.0``.
-        distance_to_default : float, optional
-            Structural distance-to-default if available.
-        leverage : float, optional
-            Leverage ratio for endogenous hazard models. Default ``0.0``.
-        accreted_notional : float, optional
-            PIK-accreted notional. Default ``0.0``.
-        coupon_due : float, optional
-            Coupon amount due at the decision date. Default ``0.0``.
-        asset_value : float, optional
-            Firm asset value for structural/toggle models.
-
-        Notes
-        -----
-        Construction does not raise; arguments are stored as supplied.
-        """
-        ...
-
-    def to_json(self) -> str:
-        """
-        Serialize this state to canonical JSON.
-
-        Returns
-        -------
-        str
-            JSON string.
-
-        Raises
-        ------
-        ValueError
-            If the value cannot be serialized to JSON.
-        """
-        ...
-
-    @staticmethod
-    def from_json(json: str) -> CreditState:
-        """
-        Deserialize a `CreditState` from JSON produced by :meth:`to_json`.
-
-        Completes the wire round-trip, which is also what makes this type
-        picklable.
-
-        Parameters
-        ----------
-        json : str
-            Canonical JSON produced by :meth:`to_json`.
-
-        Returns
-        -------
-        CreditState
-            Validated state reconstructed from the canonical JSON payload.
+        generator:
+            Generator matrix defining migration intensities.
+        horizon:
+            Simulation horizon in years.
 
         Examples
         --------
-        >>> from finstack_quant.models.credit import CreditState
-        >>> state = CreditState(hazard_rate=0.02, leverage=4.0)
-        >>> restored = CreditState.from_json(state.to_json())
-        >>> (restored.hazard_rate, restored.leverage)
-        (0.02, 4.0)
+        >>> from finstack_quant.models.credit import migration
+        >>> scale = migration.RatingScale.custom_with_default(["A", "D"], "D")
+        >>> generator = migration.GeneratorMatrix(scale, [0.0, 0.0, 0.0, 0.0])
+        >>> simulator = migration.MigrationSimulator(generator, 1.0)
+        >>> (len(simulator.simulate(0, 2, 42)), simulator.horizon())
+        (2, 1.0)
+        >>> simulator.empirical_matrix(2, 42).to_matrix()
+        [[1.0, 0.0], [0.0, 1.0]]
 
-        Raises
-        ------
-        ValueError
-            If ``json`` is malformed or does not match the serialized schema.
         """
-        ...
 
-    @property
-    def hazard_rate(self) -> float:
-        """
-        Instantaneous default intensity at this observation.
+        def __init__(self, generator: migration.GeneratorMatrix, horizon: float) -> None:
+            """
+            Construct a continuous-time rating-migration simulator.
 
-        Returns
-        -------
-        float
-            Annualized hazard rate as a decimal.
+            Parameters
+            ----------
+            generator : migration.GeneratorMatrix
+                Continuous-time transition intensities and rating-state order
+                used to generate each path.
+            horizon : float
+                Finite, strictly positive simulation horizon in years.
 
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
+            Raises
+            ------
+            ValueError
+                If *horizon* is non-finite or not strictly positive.
 
-    @property
-    def distance_to_default(self) -> float | None:
-        """
-        Structural distance-to-default.
+            """
+            ...
 
-        Returns
-        -------
-        float or None
-            Distance in standard deviations, or ``None`` when unavailable.
+        def simulate(
+            self,
+            initial_state: int,
+            n_paths: int,
+            seed: int,
+        ) -> list[migration.RatingPath]:
+            """
+            Simulate rating migration paths from a single starting state.
 
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
+            Parameters
+            ----------
+            initial_state:
+                0-based index of the starting rating.
+            n_paths:
+                Number of independent paths to simulate.
+            seed:
+                Random seed for reproducibility.
 
-    @property
-    def leverage(self) -> float:
-        """
-        Leverage ratio (debt / assets).
+            Returns
+            -------
+            list[migration.RatingPath]
+                Simulated paths.
 
-        Returns
-        -------
-        float
-            Leverage ratio.
+            Raises
+            ------
+            ValueError
+                If *initial_state* is outside the generator's state range.
 
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
+            """
+            ...
 
-    @property
-    def accreted_notional(self) -> float:
-        """
-        Accreted (PIK-augmented) notional outstanding.
+        def empirical_matrix(self, n_paths_per_state: int, seed: int) -> migration.TransitionMatrix:
+            """
+            Estimate a transition matrix by Monte Carlo simulation.
 
-        Returns
-        -------
-        float
-            Outstanding notional.
+            Simulates ``n_paths_per_state`` paths from every non-default state
+            and computes the empirical transition probabilities.
 
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
+            Parameters
+            ----------
+            n_paths_per_state:
+                Number of paths to simulate per starting state.
+            seed:
+                Random seed for reproducibility.
 
-    @property
-    def coupon_due(self) -> float:
-        """
-        Cash coupon amount due at this decision date.
+            Returns
+            -------
+            migration.TransitionMatrix
+                Empirically estimated transition matrix.
 
-        Returns
-        -------
-        float
-            Coupon amount.
+            Raises
+            ------
+            ValueError
+                If *n_paths_per_state* is zero.
 
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
+            """
+            ...
 
-    @property
-    def asset_value(self) -> float | None:
-        """
-        Fair value of the firm's assets.
+        def horizon(self) -> float:
+            """
+            Return the simulation horizon in years.
 
-        Returns
-        -------
-        float or None
-            Asset value, or ``None`` when unavailable.
+            Returns
+            -------
+            float
+                Configured simulation horizon in years.
 
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    def to_dataframe(self) -> pd.DataFrame:
-        """
-        Export the observed credit state as a single-row pandas ``DataFrame``.
-
-        Returns
-        -------
-        pandas.DataFrame
-            One row with the canonical state fields as columns.
-
-        Raises
-        ------
-        ValueError
-            If the result cannot be serialized into a pandas object.
-        """
-        ...
-
-class ToggleExerciseModel:
-    """
-    Exercise model for PIK/cash toggle and similar embedded options.
-
-    Examples
-    --------
-    >>> import json
-    >>> from finstack_quant.models.credit import ToggleExerciseModel
-    >>> model = ToggleExerciseModel.threshold("leverage", 5.0, "above")
-    >>> json.loads(model.to_json())["threshold"]["state_variable"]
-    'leverage'
-
-    """
+            Notes
+            -----
+            This method does not raise; it returns the stored or derived value.
+            """
+            ...
 
     @staticmethod
-    def threshold(
-        variable: str,
-        threshold: float,
-        direction: str,
-    ) -> ToggleExerciseModel:
+    def project(generator: migration.GeneratorMatrix, t: float) -> migration.TransitionMatrix:
         """
-        Create a threshold exercise rule on a credit-state variable.
+        Compute the transition matrix at time ``t`` via matrix exponential.
+
+        Computes ``P(t) = exp(Q * t)`` where ``Q`` is the generator matrix.
 
         Parameters
         ----------
-        variable : str
-            State variable name (e.g. ``"leverage"``, ``"distance_to_default"``).
-        threshold : float
-            Threshold value triggering exercise.
-        direction : str
-            ``"above"`` or ``"below"`` — exercise when the variable is above or
-            below the threshold.
+        generator:
+            Generator matrix to project.
+        t:
+            Time horizon in years.
 
         Returns
         -------
-        ToggleExerciseModel
-            Threshold exercise specification.
+        migration.TransitionMatrix
+            Transition matrix at time ``t``.
 
         Raises
         ------
         ValueError
-            If ``variable`` or ``direction`` is not recognized.
+            If *t* is non-finite or not strictly positive, or the projected
+            matrix fails transition-matrix validation.
+        RuntimeError
+            If the matrix exponential encounters a singular or numerically
+            degenerate system.
 
         Examples
         --------
-        >>> import json
-        >>> from finstack_quant.models.credit import ToggleExerciseModel
-        >>> model = ToggleExerciseModel.threshold("leverage", 5.0, "above")
-        >>> json.loads(model.to_json())["threshold"]["direction"]
-        'above'
+        >>> from finstack_quant.models.credit import migration
+        >>> scale = migration.RatingScale.custom_with_default(["A", "D"], "D")
+        >>> generator = migration.GeneratorMatrix(scale, [-0.1, 0.1, 0.0, 0.0])
+        >>> round(migration.project(generator, 1.0).probability("A", "D"), 6)
+        0.095163
 
-        """
-        ...
-
-    @staticmethod
-    def optimal(
-        nested_paths: int,
-        equity_discount_rate: float,
-        asset_vol: float,
-        risk_free_rate: float,
-        horizon: float,
-    ) -> ToggleExerciseModel:
-        """
-        Create an optimal exercise model from nested-path parameters.
-
-        Parameters
-        ----------
-        nested_paths : int
-            Number of nested Monte Carlo paths for the inner optimization.
-        equity_discount_rate : float
-            Equity-holder discount rate as a decimal.
-        asset_vol : float
-            Asset volatility as a decimal.
-        risk_free_rate : float
-            Risk-free rate as a decimal.
-        horizon : float
-            Exercise horizon in years.
-
-        Returns
-        -------
-        ToggleExerciseModel
-            Optimal exercise specification.
-
-        Notes
-        -----
-        This method does not raise; it returns a fixed instance.
-
-        Examples
-        --------
-        >>> import json
-        >>> from finstack_quant.models.credit import ToggleExerciseModel
-        >>> model = ToggleExerciseModel.optimal(100, 0.12, 0.3, 0.05, 1.0)
-        >>> json.loads(model.to_json())["optimal_exercise"]["nested_paths"]
-        100
-        """
-        ...
-
-    @staticmethod
-    def from_json(json: str) -> ToggleExerciseModel:
-        """
-        Deserialize a toggle exercise model from JSON.
-
-        Parameters
-        ----------
-        json : str
-            Canonical JSON payload.
-
-        Returns
-        -------
-        ToggleExerciseModel
-            Parsed model.
-
-        Raises
-        ------
-        ValueError
-            If JSON is invalid.
-
-        Examples
-        --------
-        >>> import json
-        >>> from finstack_quant.models.credit import ToggleExerciseModel
-        >>> model = ToggleExerciseModel.threshold("leverage", 5.0, "above")
-        >>> restored = ToggleExerciseModel.from_json(model.to_json())
-        >>> json.loads(restored.to_json())["threshold"]["threshold"]
-        5.0
-
-        """
-        ...
-
-    def to_json(self) -> str:
-        """
-        Serialize this exercise model to canonical JSON.
-
-        Returns
-        -------
-        str
-            JSON string.
-
-        Raises
-        ------
-        ValueError
-            If the value cannot be serialized to JSON.
-        """
-        ...
-
-    @property
-    def kind(self) -> str:
-        """
-        Which exercise rule this model carries.
-
-        Returns
-        -------
-        str
-            One of ``"threshold"``, ``"stochastic"`` or ``"optimal_exercise"`` —
-            the canonical serde tag, so it also names the single key in the
-            ``to_json`` payload.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-        """
-        ...
-
-    @property
-    def params(self) -> Any:
-        """
-        Parameters of the active rule, in canonical JSON form.
-
-        Returns
-        -------
-        Any
-            Mapping whose keys depend on ``kind``: ``state_variable`` /
-            ``threshold`` / ``direction`` for a threshold rule,
-            ``state_variable`` / ``intercept`` / ``sensitivity`` for a
-            stochastic one, and the nested-Monte-Carlo settings for optimal
-            exercise.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored or derived value.
         """
         ...

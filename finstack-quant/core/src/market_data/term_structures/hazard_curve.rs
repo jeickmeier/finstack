@@ -1583,7 +1583,7 @@ mod tests {
 /// Used to tag a hazard curve with the seniority of the issuer's debt
 /// observed by the curve. Drives the recovery-rate prior in default
 /// modelling and selects the right LGD prior in
-/// [`crate::credit::lgd::seniority`].
+/// `finstack_quant_models::credit::lgd::seniority`.
 ///
 /// Order is **not** total — `SeniorSecured` is strictly senior to `Senior`,
 /// `Subordinated`, and `Junior`, but the relative ordering of `Subordinated`

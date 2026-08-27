@@ -206,8 +206,8 @@ pub fn core_to_py(e: finstack_quant_core::Error) -> PyErr {
 ///
 /// Mirrors [`core_to_py`]: unknown-rating lookups raise `KeyError`, all other
 /// (validation) failures raise `ValueError`.
-pub fn pd_calibration_to_py(e: finstack_quant_core::credit::pd::PdCalibrationError) -> PyErr {
-    use finstack_quant_core::credit::pd::PdCalibrationError as E;
+pub fn pd_calibration_to_py(e: finstack_quant_models::credit::pd::PdCalibrationError) -> PyErr {
+    use finstack_quant_models::credit::pd::PdCalibrationError as E;
     let message = format_chain(&e);
     match &e {
         E::UnknownRating { .. } => PyKeyError::new_err(message),
@@ -220,8 +220,8 @@ pub fn pd_calibration_to_py(e: finstack_quant_core::credit::pd::PdCalibrationErr
 /// Mirrors [`core_to_py`]: label/state lookup misses raise `KeyError`,
 /// numerical/operational failures raise `RuntimeError`, validation failures
 /// raise `ValueError`.
-pub fn migration_to_py(e: finstack_quant_core::credit::migration::MigrationError) -> PyErr {
-    use finstack_quant_core::credit::migration::MigrationError as E;
+pub fn migration_to_py(e: finstack_quant_models::credit::migration::MigrationError) -> PyErr {
+    use finstack_quant_models::credit::migration::MigrationError as E;
     let message = format_chain(&e);
     match &e {
         E::UnknownState { .. } | E::NoWarfFactor { .. } => PyKeyError::new_err(message),

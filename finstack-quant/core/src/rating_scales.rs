@@ -31,8 +31,8 @@ pub struct RatingLevel {
 /// thresholds used by scorecards.
 ///
 /// Named `ScorecardScale` (rather than just `RatingScale`) to disambiguate
-/// from [`crate::credit::migration::RatingScale`], which models the ordered
-/// state set of a credit-migration / transition matrix.
+/// from `finstack_quant_models::credit::migration::RatingScale`, which models
+/// the ordered state set of a credit-migration / transition matrix.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ScorecardScale {

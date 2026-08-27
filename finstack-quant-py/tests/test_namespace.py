@@ -73,9 +73,9 @@ class TestCoreNamespace:
         assert not hasattr(market_data, "diebold_li_fit_factors")
         assert not hasattr(market_data, "check_butterfly")
 
-    def test_core_credit_exports_do_not_leak_binding_suffixes(self) -> None:
+    def test_models_credit_exports_do_not_leak_binding_suffixes(self) -> None:
         """Credit scoring and PD bindings should expose canonical public names only."""
-        from finstack_quant.core.credit import pd, scoring
+        from finstack_quant.models.credit import pd, scoring
 
         for module, public_names, private_names in [
             (
@@ -478,11 +478,22 @@ class TestValuationsNamespace:
             "CreditState",
             "DynamicRecoverySpec",
             "EndogenousHazardSpec",
+            "lgd",
+            "liability_management",
             "MertonModel",
+            "migration",
+            "moodys_warf_factor",
+            "pd",
+            "recovery_waterfall",
+            "scoring",
             "SimulatedPaths",
             "ToggleExerciseModel",
         ):
             assert hasattr(credit, name)
+
+        import finstack_quant.core as core
+
+        assert not hasattr(core, "credit")
 
         from finstack_quant.valuations import instruments
 

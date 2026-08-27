@@ -1,7 +1,8 @@
 //! Weighted Average Rating Factor calculator for CLO
 
 use crate::metrics::MetricContext;
-use finstack_quant_core::types::{moodys_warf_factor, CreditRating};
+use finstack_quant_core::types::CreditRating;
+use finstack_quant_models::credit::moodys_warf_factor;
 
 /// CLO WARF calculator - Moody's methodology
 pub struct CloWarfCalculator;

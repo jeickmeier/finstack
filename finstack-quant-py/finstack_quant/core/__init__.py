@@ -20,7 +20,6 @@ types = _core.types
 dates = _core.dates
 math = _core.math
 market_data = _core.market_data
-credit = _core.credit
 rating_scales = _core.rating_scales
 table = _core.table
 
@@ -40,13 +39,6 @@ _submodules = {
     "dates": dates,
     "math": math,
     "market_data": market_data,
-    "credit": credit,
-    "credit.scoring": credit.scoring,
-    "credit.pd": credit.pd,
-    "credit.lgd": credit.lgd,
-    "credit.migration": credit.migration,
-    "credit.recovery_waterfall": credit.recovery_waterfall,
-    "credit.liability_management": credit.liability_management,
     "rating_scales": rating_scales,
     "schema": schema,
     "table": table,
@@ -60,7 +52,6 @@ for _name, _mod in _submodules.items():
 __all__: list[str] = [
     "FinstackError",
     "config",
-    "credit",
     "currency",
     "dates",
     "market_data",

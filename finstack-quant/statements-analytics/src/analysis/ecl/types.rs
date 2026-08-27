@@ -10,9 +10,9 @@
 //! - [`RawPdCurve`] -- user-supplied PD term structure with linear interpolation
 //! - [`RatingPdMap`] -- rating-keyed map of [`RawPdCurve`] values
 
-use finstack_quant_core::credit::lgd::ead_revolver;
 use finstack_quant_core::math::interp::interp_knots_flat;
 use finstack_quant_core::{Error, InputError, Result};
+use finstack_quant_models::credit::lgd::ead_revolver;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 

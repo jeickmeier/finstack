@@ -1,17 +1,10 @@
-//! Credit rating types and rating factor tables.
+//! Neutral credit-rating types, parsing, ordering, and labels.
 //!
 //! This module provides fundamental credit rating types used throughout the
 //! financial system, including:
 //!
 //! - [`CreditRating`]: A unified credit rating scale with notch-level precision
-//! - [`RatingFactorTable`]: Rating-to-factor mappings (e.g., Moody's WARF)
 //! - [`RatingLabel`]: Stable, display-ready labels sourced from `CreditRating`
-//!
-//! # Rating Factors
-//!
-//! Rating factors are numerical values that correspond to expected default
-//! probabilities for each rating category. The most commonly used is the
-//! Moody's Weighted Average Rating Factor (WARF) system used in CLO analysis.
 //!
 //! # Examples
 //!
@@ -22,14 +15,7 @@
 //! assert!(CreditRating::BBB.is_investment_grade());
 //! assert!(!CreditRating::BB.is_investment_grade());
 //!
-//! // Get WARF factor for a rating
-//! assert_eq!(CreditRating::B.warf().unwrap(), 2720.0);
-//! assert_eq!(CreditRating::BPlus.warf().unwrap(), 2220.0);
 //! ```
-
-use crate::credit::registry::{embedded_registry, RatingFactorTableParts};
-use std::collections::BTreeMap;
-use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
@@ -248,24 +234,6 @@ impl CreditRating {
     /// ```
     pub fn is_default(&self) -> bool {
         matches!(self, Self::D)
-    }
-
-    /// Returns the Moody's WARF (Weighted Average Rating Factor) for this rating.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if no WARF factor is defined for this rating.
-    ///
-    /// # Example
-    /// ```rust
-    /// use finstack_quant_core::types::CreditRating;
-    ///
-    /// assert_eq!(CreditRating::AAA.warf().unwrap(), 1.0);
-    /// assert_eq!(CreditRating::B.warf().unwrap(), 2720.0);
-    /// assert_eq!(CreditRating::BPlus.warf().unwrap(), 2220.0);
-    /// ```
-    pub fn warf(self) -> crate::Result<f64> {
-        moodys_warf_factor(self)
     }
 
     /// S&P/Fitch-style string representation.
@@ -498,184 +466,6 @@ fn parse_credit_rating(value: &str) -> Result<CreditRating, crate::Error> {
     Ok(rating)
 }
 
-/// Rating factor table for a specific rating agency methodology.
-///
-/// Rating factors are numerical values that correspond to expected cumulative
-/// default rates over the life of an asset. They are used extensively in
-/// structured credit analysis, particularly for CLO WARF calculations.
-///
-/// # Example
-///
-/// ```rust
-/// use finstack_quant_core::types::{CreditRating, RatingFactorTable};
-///
-/// let table = RatingFactorTable::moodys_standard().unwrap();
-/// let factor = table.get_factor(CreditRating::B).unwrap();
-/// assert_eq!(factor, 2720.0);
-/// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RatingFactorTable {
-    /// Factors by rating
-    factors: BTreeMap<CreditRating, f64>,
-    /// Agency name
-    agency: String,
-    /// Methodology description
-    methodology: String,
-    /// Default factor when a rating is missing
-    default_factor: f64,
-}
-
-impl RatingFactorTable {
-    /// Create Moody's standard WARF table.
-    ///
-    /// Based on Moody's IDEALIZED DEFAULT RATES table used in CLO analysis.
-    /// The table includes every notch published by Moody's as of September
-    /// 2024.
-    ///
-    /// Source: Moody's "Approach to Rating Collateralized Loan Obligations"
-    ///
-    /// The table is loaded from the versioned embedded credit-assumptions
-    /// registry, rather than being hard-coded at the call site. WARF factors
-    /// are ordinal credit-quality inputs to CLO tests and analytics; they are
-    /// not probabilities and must not be averaged or annualized as if they
-    /// were PDs.
-    ///
-    /// # Example
-    /// ```rust
-    /// use finstack_quant_core::types::{CreditRating, RatingFactorTable};
-    ///
-    /// let table = RatingFactorTable::moodys_standard().unwrap();
-    /// assert_eq!(table.get_factor(CreditRating::AAA).unwrap(), 1.0);
-    /// assert_eq!(table.get_factor(CreditRating::B).unwrap(), 2720.0);
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the embedded credit registry cannot be loaded, its
-    /// configured default rating-factor-table ID is absent, or the stored table
-    /// fails registry validation. It does not fail merely because a particular
-    /// rating might be absent; use [`get_factor`](Self::get_factor) for that
-    /// per-rating lookup.
-    pub fn moodys_standard() -> crate::Result<Self> {
-        Self::from_registry_id(embedded_registry()?.default_rating_factor_table_id())
-    }
-
-    /// Load a named rating-factor table from the embedded credit-assumptions registry.
-    ///
-    /// `id` identifies a versioned registry entry, allowing applications to
-    /// choose a methodology without coupling their code to a concrete map. The
-    /// returned table preserves the registry's agency, methodology description,
-    /// default factor, and rating-factor entries.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the embedded registry cannot load or `id` is
-    /// unknown. It never falls back to the default table for an unknown
-    /// explicit ID, avoiding a silent methodology change in a credit
-    /// calculation.
-    pub fn from_registry_id(id: &str) -> crate::Result<Self> {
-        Ok(Self::from_registry_parts(
-            embedded_registry()?.rating_factor_table(id)?,
-        ))
-    }
-
-    fn from_registry_parts(parts: RatingFactorTableParts) -> Self {
-        Self {
-            factors: parts.factors.into_iter().collect(),
-            agency: parts.agency,
-            methodology: parts.methodology,
-            default_factor: parts.default_factor,
-        }
-    }
-
-    /// Get factor for a specific rating.
-    ///
-    /// If no entry exists, returns an error instead of silently substituting
-    /// the table default. This is the safe choice for a mandated rating-factor
-    /// test because it makes an incomplete table or unsupported rating visible;
-    /// use [`get_factor_or_default`](Self::get_factor_or_default) only when the
-    /// governing methodology explicitly permits its fallback.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`crate::error::InputError::NotFound`] if this table contains no
-    /// factor for `rating`. The error identifies the requested generic rating
-    /// label; it does not apply `default_factor` implicitly.
-    ///
-    /// # Arguments
-    ///
-    /// * `rating` - Rating supplied by the caller for this operation
-    pub fn get_factor(&self, rating: CreditRating) -> crate::Result<f64> {
-        self.factors.get(&rating).copied().ok_or_else(|| {
-            crate::Error::Input(crate::error::InputError::NotFound {
-                id: format!("rating factor for {}", rating),
-            })
-        })
-    }
-
-    /// Get factor for a specific rating, falling back to the table default when missing.
-    ///
-    /// # Arguments
-    ///
-    /// * `rating` - Rating supplied by the caller for this operation
-    pub fn get_factor_or_default(&self, rating: CreditRating) -> f64 {
-        self.get_factor(rating).unwrap_or(self.default_factor)
-    }
-
-    /// Get agency name.
-    pub fn agency(&self) -> &str {
-        &self.agency
-    }
-
-    /// Get methodology description.
-    pub fn methodology(&self) -> &str {
-        &self.methodology
-    }
-
-    /// Get the table default factor used for missing entries.
-    pub fn default_factor(&self) -> f64 {
-        self.default_factor
-    }
-}
-
-/// Lazily initialized Moody's WARF rating factor table
-static MOODYS_WARF_TABLE: OnceLock<crate::Result<RatingFactorTable>> = OnceLock::new();
-
-/// Get Moody's WARF factor for a rating (convenience function).
-///
-/// This is the standard function that should be used throughout the codebase
-/// for consistent WARF calculations. The table is lazily initialized on first
-/// call and cached for subsequent calls. The cached initialization result is
-/// shared: an embedded-registry failure remains visible on later calls rather
-/// than repeatedly attempting to parse potentially corrupt package data.
-///
-/// # Example
-/// ```rust
-/// use finstack_quant_core::types::{CreditRating, moodys_warf_factor};
-///
-/// assert_eq!(moodys_warf_factor(CreditRating::AAA).unwrap(), 1.0);
-/// assert_eq!(moodys_warf_factor(CreditRating::B).unwrap(), 2720.0);
-/// assert_eq!(moodys_warf_factor(CreditRating::BBBPlus).unwrap(), 260.0);
-/// ```
-///
-/// # Errors
-///
-/// Returns an error if the default Moody's table cannot be loaded from the
-/// embedded registry or if it has no factor for `rating`. It does not substitute
-/// the table's default factor; use [`RatingFactorTable::get_factor_or_default`]
-/// when a fallback is explicitly authorized by the relevant methodology.
-///
-/// # Arguments
-///
-/// * `rating` - Canonical credit rating for which to retrieve the Moody's WARF
-///   factor without applying a fallback rating.
-pub fn moodys_warf_factor(rating: CreditRating) -> crate::Result<f64> {
-    match MOODYS_WARF_TABLE.get_or_init(RatingFactorTable::moodys_standard) {
-        Ok(table) => table.get_factor(rating),
-        Err(err) => Err(err.clone()),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -803,79 +593,6 @@ mod tests {
     }
 
     #[test]
-    fn test_moodys_warf_factors() {
-        let table = RatingFactorTable::moodys_standard().expect("registry table");
-
-        assert_eq!(table.get_factor(CreditRating::AAA).expect("AAA"), 1.0);
-        assert_eq!(table.get_factor(CreditRating::AAPlus).expect("AA+"), 10.0);
-        assert_eq!(table.get_factor(CreditRating::A).expect("A"), 120.0);
-        assert_eq!(table.get_factor(CreditRating::BMinus).expect("B-"), 3490.0);
-        assert_eq!(table.get_factor(CreditRating::CCC).expect("CCC"), 6500.0);
-
-        //  pin published
-        // Moody's values — Ba3 (BB-) = 1766 (was 1760) and CC = 10000
-        // (Ca/C bucket; the previous 9550 was unpublished).
-        assert_eq!(
-            table.get_factor(CreditRating::BBMinus).expect("BB-"),
-            1766.0
-        );
-        assert_eq!(table.get_factor(CreditRating::CC).expect("CC"), 10000.0);
-        assert_eq!(table.get_factor(CreditRating::C).expect("C"), 10000.0);
-        assert_eq!(table.get_factor(CreditRating::D).expect("D"), 10000.0);
-    }
-
-    #[test]
-    fn test_rating_factor_table_errors_when_missing() {
-        let table = RatingFactorTable {
-            factors: BTreeMap::new(),
-            agency: "Test".to_string(),
-            methodology: "Test".to_string(),
-            default_factor: 42.0,
-        };
-
-        assert!(table.get_factor(CreditRating::AA).is_err());
-        assert_eq!(table.get_factor_or_default(CreditRating::AA), 42.0);
-    }
-
-    #[test]
-    fn test_convenience_function_matches_table() {
-        let table = RatingFactorTable::moodys_standard().expect("registry table");
-
-        assert_eq!(
-            moodys_warf_factor(CreditRating::AAA).expect("AAA convenience"),
-            table.get_factor(CreditRating::AAA).expect("AAA table")
-        );
-        assert_eq!(
-            moodys_warf_factor(CreditRating::AAMinus).expect("AA- convenience"),
-            table.get_factor(CreditRating::AAMinus).expect("AA- table")
-        );
-        assert_eq!(
-            moodys_warf_factor(CreditRating::BBB).expect("BBB convenience"),
-            table.get_factor(CreditRating::BBB).expect("BBB table")
-        );
-        assert_eq!(
-            moodys_warf_factor(CreditRating::BPlus).expect("B+ convenience"),
-            table.get_factor(CreditRating::BPlus).expect("B+ table")
-        );
-    }
-
-    #[test]
-    fn test_rating_factor_table_metadata() {
-        let table = RatingFactorTable::moodys_standard().expect("registry table");
-        assert_eq!(table.agency(), "Moody's");
-        assert_eq!(table.methodology(), "IDEALIZED DEFAULT RATES");
-        assert_eq!(table.default_factor(), 3650.0);
-    }
-
-    #[test]
-    fn test_warf_on_rating() {
-        assert_eq!(CreditRating::AAA.warf().expect("AAA"), 1.0);
-        assert_eq!(CreditRating::B.warf().expect("B"), 2720.0);
-        assert_eq!(CreditRating::BPlus.warf().expect("B+"), 2220.0);
-        assert_eq!(CreditRating::BBBMinus.warf().expect("BBB-"), 610.0);
-    }
-
-    #[test]
     fn credit_rating_serde_wire_name_is_stable() {
         let json = serde_json::to_string(&CreditRating::BBBMinus).expect("rating serializes");
 
@@ -889,17 +606,5 @@ mod tests {
                 "noncanonical persisted rating {noncanonical} must be rejected"
             );
         }
-    }
-
-    #[test]
-    fn rating_factor_table_round_trips_through_json() {
-        let table = RatingFactorTable::moodys_standard().expect("registry table");
-        let json = serde_json::to_string(&table).expect("table serializes");
-        let restored: RatingFactorTable = serde_json::from_str(&json).expect("table deserializes");
-
-        assert_eq!(restored.agency(), table.agency());
-        assert_eq!(restored.methodology(), table.methodology());
-        assert_eq!(restored.default_factor(), table.default_factor());
-        assert_eq!(restored.get_factor(CreditRating::B).expect("B"), 2720.0);
     }
 }

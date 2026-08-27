@@ -37,8 +37,8 @@
 //! - IFRS 9 B5.5.44 -- Discount rate (effective interest rate) `docs/REFERENCES.md#ifrs-9-impairment`
 //! - IFRS 9 B5.5.42 -- Probability-weighted scenarios `docs/REFERENCES.md#ifrs-9-impairment`
 
-use finstack_quant_core::credit::lgd::DownturnLgd;
 use finstack_quant_core::{Error, Result};
+use finstack_quant_models::credit::lgd::DownturnLgd;
 use serde::{Deserialize, Serialize};
 
 use super::staging::{classify_stage, StageResult, StagingConfig};
@@ -1282,7 +1282,7 @@ mod tests {
         //   LGD_eff = max(0.45 + 0.08, 0.25) = 0.53
         //   ECL = 0.02 × 0.53 × 100,000 = 1,060.
         let adjuster =
-            finstack_quant_core::credit::lgd::DownturnLgd::regulatory_floor(0.08, 0.25).unwrap();
+            finstack_quant_models::credit::lgd::DownturnLgd::regulatory_floor(0.08, 0.25).unwrap();
         let config = EclConfigBuilder::new()
             .lgd_type(LgdType::Downturn)
             .downturn_lgd(adjuster)
@@ -1307,7 +1307,7 @@ mod tests {
         //          = 0.4 × 0.3872983 × 3.090232 × 0.4974937 ≈ 0.238164
         //   LGD_eff ≈ 0.688164 → ECL ≈ 0.02 × 0.688164 × 100,000 ≈ 1,376.33
         let adjuster =
-            finstack_quant_core::credit::lgd::DownturnLgd::stressed(0.15, 0.4, 0.999).unwrap();
+            finstack_quant_models::credit::lgd::DownturnLgd::stressed(0.15, 0.4, 0.999).unwrap();
         let expected_lgd = adjuster.adjust(0.45).unwrap();
         assert!(
             (expected_lgd - 0.688164).abs() < 1e-3,
@@ -1335,7 +1335,7 @@ mod tests {
     fn downturn_applies_to_stage3_shortcut() {
         // Stage 3, eir 0: ECL = LGD_eff × EAD = 0.53 × 100,000 = 53,000.
         let adjuster =
-            finstack_quant_core::credit::lgd::DownturnLgd::regulatory_floor(0.08, 0.25).unwrap();
+            finstack_quant_models::credit::lgd::DownturnLgd::regulatory_floor(0.08, 0.25).unwrap();
         let config = EclConfigBuilder::new()
             .lgd_type(LgdType::Downturn)
             .downturn_lgd(adjuster)
@@ -1368,7 +1368,7 @@ mod tests {
         // and ECL = 1,060 (see downturn_regulatory_floor_golden) -- a
         // different number, so this assertion also pins the precedence.
         let adjuster =
-            finstack_quant_core::credit::lgd::DownturnLgd::regulatory_floor(0.08, 0.10).unwrap();
+            finstack_quant_models::credit::lgd::DownturnLgd::regulatory_floor(0.08, 0.10).unwrap();
         let config = EclConfigBuilder::new()
             .lgd_type(LgdType::Downturn)
             .downturn_lgd(adjuster)
@@ -1408,7 +1408,7 @@ mod tests {
         // Symmetric inert-config guard: PIT with a set-but-unused knob is rejected.
         assert!(EclConfigBuilder::new().ttc_lgd(0.4).build().is_err());
         let adj =
-            finstack_quant_core::credit::lgd::DownturnLgd::regulatory_floor(0.05, 0.25).unwrap();
+            finstack_quant_models::credit::lgd::DownturnLgd::regulatory_floor(0.05, 0.25).unwrap();
         assert!(EclConfigBuilder::new().downturn_lgd(adj).build().is_err());
     }
 
@@ -1427,7 +1427,7 @@ mod tests {
         let base = EclConfigBuilder::new()
             .lgd_type(LgdType::Downturn)
             .downturn_lgd(
-                finstack_quant_core::credit::lgd::DownturnLgd::regulatory_floor(0.08, 0.25)
+                finstack_quant_models::credit::lgd::DownturnLgd::regulatory_floor(0.08, 0.25)
                     .unwrap(),
             )
             .build()

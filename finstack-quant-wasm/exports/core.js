@@ -56,6 +56,4 @@ export const core = {
   neumaierSumArray: wasm.neumaierSumArray,
   countConsecutive: wasm.countConsecutive,
   countConsecutiveArray: wasm.countConsecutiveArray,
-  analyzeExchangeOffer: wasm.analyzeExchangeOffer,
-  analyzeLme: wasm.analyzeLme,
 };

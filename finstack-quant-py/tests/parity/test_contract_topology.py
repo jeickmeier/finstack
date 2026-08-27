@@ -1000,10 +1000,10 @@ def test_python_curve_phase4_members_are_live() -> None:
             assert hasattr(cls, member), f"{class_name} missing {member}"
 
 
-def test_core_credit_migration_member_pins_resolve() -> None:
+def test_models_credit_migration_member_pins_resolve() -> None:
     """Pinned GeneratorMatrix diagnostics must remain live Python members."""
-    members = CONTRACT["crates"]["core"]["credit_migration_members"]
-    module = importlib.import_module("finstack_quant.core.credit.migration")
+    members = CONTRACT["crates"]["models"]["credit_migration_members"]
+    module = importlib.import_module("finstack_quant.models.credit.migration")
 
     for key, python_name in members.items():
         class_name, _, canonical_member = key.partition(".")

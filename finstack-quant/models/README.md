@@ -40,7 +40,7 @@ unconditional dependency. A few convenience entry points (`EuropeanPricer`,
 | `volatility` | SABR parameters, model, smile, and calibration |
 | `pde` | One- and two-dimensional grids, steppers, and solvers |
 | `trees` | Equity, short-rate, and multi-factor tree engines |
-| `credit` | Structural-credit models, dynamic recovery, endogenous hazard, and toggle exercise |
+| `credit` | Structural credit, rating-factor tables, migration, PD calibration, scoring, LGD/EAD, recovery waterfalls, liability-management analytics, dynamic recovery, endogenous hazard, and toggle exercise. Defaults are loaded from `data/credit/credit_assumptions.v1.json` under `models.credit_assumptions.v1`. |
 | `correlation` | Copulas, recovery models, latent-factor models, and portfolio-loss simulation |
 | `monte_carlo` | Random streams, stochastic processes, discretizations, payoffs, execution engines, pricers, Greeks, results, and embedded defaults |
 

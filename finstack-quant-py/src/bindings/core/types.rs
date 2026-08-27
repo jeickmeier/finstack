@@ -479,12 +479,6 @@ impl PyCreditRating {
         self.inner.to_string()
     }
 
-    /// Moody's WARF factor for this rating.
-    #[getter]
-    fn warf(&self) -> PyResult<f64> {
-        self.inner.warf().map_err(core_to_py)
-    }
-
     /// Return ``repr(self)``.
     fn __repr__(&self) -> String {
         format!("CreditRating({})", self.inner)

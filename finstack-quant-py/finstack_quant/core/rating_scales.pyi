@@ -4,7 +4,7 @@ Type stubs for ``finstack_quant.core.rating_scales``.
 Bindings for the shared credit rating-scale registry (scorecard scales such as
 S&P, Moody's, and Fitch) from the ``finstack-quant-core`` Rust crate.
 
-Distinct from ``finstack_quant.core.credit.migration.RatingScale``, which models
+Distinct from ``finstack_quant.models.credit.migration.RatingScale``, which models
 the ordered state set of a credit-migration transition matrix.
 
 Examples
@@ -295,7 +295,7 @@ class ScorecardScale:
     """
     A named, ordered list of scorecard rating thresholds.
 
-    Distinct from ``finstack_quant.core.credit.migration.RatingScale`` (which models
+    Distinct from ``finstack_quant.models.credit.migration.RatingScale`` (which models
     the ordered state set of a credit-migration / transition matrix).
 
     Examples

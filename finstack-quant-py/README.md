@@ -61,14 +61,14 @@ results so a notebook stays reproducible.
 
 Domains that mirror a nested Rust module tree expose it as nested packages:
 
-- `finstack_quant.core.{config, credit, currency, dates, market_data, math,
+- `finstack_quant.core.{config, currency, dates, market_data, math,
   money, rating_scales, schema, table, types}`, with
   `core.market_data.{arbitrage, context, curves, fx, scalars}`,
-  `core.credit.{scoring, pd, lgd, migration, recovery_waterfall,
-  liability_management}` and `core.math.{linalg, special_functions, stats,
+  and `core.math.{linalg, special_functions, stats,
   summation}`.
-- `finstack_quant.models.{credit, correlation, monte_carlo, rates}`, with
-  `models.rates.dtsm` for dynamic term-structure models.
+- `finstack_quant.models.{credit, correlation, monte_carlo, rates,
+  volatility}`, with `models.credit.{scoring, pd, lgd, migration,
+  recovery_waterfall, liability_management}` and `models.rates.dtsm`.
 - `finstack_quant.valuations.{instruments, credit_derivatives, composite,
   market, envelope, schema}`.
 - `finstack_quant.cashflows.{accrual, aggregation, builder, primitives,
@@ -324,7 +324,7 @@ primary IntelliSense surface; `py.typed` marks the package as typed. Runtime
 | Dates | `core.dates` | `Tenor`, `DayCount`, `PeriodId`, `Schedule`, `ScheduleBuilder`, `HolidayCalendar`, `BusinessDayConvention`, `StubKind`, `adjust` |
 | Config | `core.config` | `FinstackConfig`, `RoundingMode`, `ToleranceConfig` |
 | Curves / context | `core.market_data` | `DiscountCurve`, `ForwardCurve`, `HazardCurve`, `FxMatrix`, `ScalarTimeSeries`, `MarketContext` |
-| Credit scoring | `core.credit.scoring` | `altman_z_score`, `altman_z_prime`, `altman_z_double_prime`, `altman_em_score`, `ohlson_o_score`, `zmijewski_score` (tuple results) |
+| Credit models | `models.credit` | Structural-credit models, `moodys_warf_factor`, and nested `scoring`, `pd`, `lgd`, `migration`, `recovery_waterfall`, and `liability_management` modules |
 | Arrow interchange | `core.table` | `ArrowTable` (the module's only export). Instances come from result wrappers elsewhere — `StatementResult.to_arrow_long` / `.to_arrow_wide`, `PortfolioValuation.to_arrow_positions`; consume with `pyarrow.table(...)`, `polars.DataFrame(...)` via the `__arrow_c_stream__` PyCapsule protocol |
 | Cashflow schedules | `cashflows.builder` | `CashFlowBuilder`, `ScheduleParams`, `FixedCouponSpec`, `FloatingCouponSpec`, `AmortizationSpec`, … |
 | Pricing | `valuations.instruments` | `price_instrument`, `Bond`, `TermLoan`, `InterestRateSwap`, `Swaption`, `CapFloor`, `CreditDefaultSwap`, `FxForward`, `FxOption`, `EquityOption`, `StructuredCredit`, … |

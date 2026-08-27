@@ -104,7 +104,7 @@ want it; domain-specific numerics (stochastic processes, payoffs) belong in
 |------|------------|
 | `types::{Rate, Bps, Percentage}` | Rate wrappers. See "Rate units" below. |
 | `types::{Id, CurveId, InstrumentId, IssuerId, IndexId, DealId, PoolId, PriceId, CalendarId, UnderlyingId}` | Phantom-typed identifiers; `#[serde(transparent)]`, so they stay plain strings on the wire. |
-| `types::{CreditRating, RatingLabel, RatingFactorTable, moodys_warf_factor}` | Rating enums and WARF lookup. |
+| `types::{CreditRating, RatingLabel}` | Neutral rating enum, parsing, ordering, and stable labels. Rating-factor calculations live in `finstack-quant-models`. |
 | `types::{Attributes, BarrierType}` | Attribute bags for matching/metadata; barrier taxonomy. |
 | `error::{Error, InputError, NonFiniteKind, Result}` | The unified error type, re-exported at the crate root. `Error` and `InputError` are `#[non_exhaustive]`; match with a wildcard arm. |
 | `config::{FinstackConfig, RoundingMode, RoundingPolicy, CurrencyScalePolicy, ToleranceConfig, ConfigExtensions}` | Explicit, caller-supplied configuration — there is no global state. |
@@ -113,19 +113,9 @@ want it; domain-specific numerics (stochastic processes, payoffs) belong in
 | `explain::{ExplainOpts, ExplanationTrace, TraceEntry}` | Opt-in computation tracing, off and zero-cost by default. |
 | `prelude` | `Currency`, `Money`, FX traits, common date types, the main curve types, `FinstackConfig`, rate types, `Error`/`Result`. |
 
-### Credit
-
-`credit::migration` (`TransitionMatrix`, `GeneratorMatrix`, `RatingScale`,
-`MigrationSimulator`, `RatingPath`, plus `projection`), `credit::lgd`
-(`SeniorityRecovery`, `WorkoutLgd`, `DownturnLgd`, `EadCalculator`),
-`credit::pd` (`pit_to_ttc`/`ttc_to_pit` cycle adjustment,
-`apply_basel_irb_pd_floor`, `MasterScale`),
-`credit::scoring` (Altman Z, Ohlson O, Zmijewski), `credit::recovery_waterfall`
-(absolute-priority allocation of a distributable estate),
-`credit::liability_management` (hold-versus-tender economics for distressed
-exchanges), and `credit::registry` (`CreditAssumptionRegistry`, backed by
-`data/credit/credit_assumptions.v1.json` with config override support).
-`rating_scales` holds the shared scale registry (`data/rating_scales/`).
+`rating_scales` holds the neutral shared scorecard-scale registry
+(`data/rating_scales/`). Product-independent credit engines and assumptions
+live in `finstack-quant-models::credit`.
 
 ### Expression engine
 
@@ -288,8 +278,8 @@ live in `finstack-quant-test-utils`, not behind a feature here.
 
 ## Bindings
 
-- **Python**: `finstack_quant.core`, with submodules `config`, `credit`,
-  `currency`, `dates`, `market_data`, `math`, `money`, `rating_scales`,
+- **Python**: `finstack_quant.core`, with submodules `config`, `currency`,
+  `dates`, `market_data`, `math`, `money`, `rating_scales`,
   `schema`, `table`, `types`, plus the `FinstackError` exception class. Binding
   source is `finstack-quant-py/src/bindings/core/`.
 - **WASM**: the `core` namespace exported from `finstack-quant-wasm/index.js`

@@ -31,8 +31,8 @@
 //! - IFRS 9 B5.5.19 -- 30 days past due rebuttable presumption `docs/REFERENCES.md#ifrs-9-impairment`
 //! - IFRS 9 B5.5.37 -- 90 days past due default presumption `docs/REFERENCES.md#ifrs-9-impairment`
 
-use finstack_quant_core::credit::migration::RatingScale;
 use finstack_quant_core::Result;
+use finstack_quant_models::credit::migration::RatingScale;
 use serde::{Deserialize, Serialize};
 
 use super::types::{Exposure, PdTermStructure, Stage};

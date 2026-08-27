@@ -8,7 +8,7 @@
 //!
 //! - `id`: strongly typed identifiers used to avoid mixing unrelated IDs.
 //! - `rates`: wrappers for decimal rates, percentages, and basis points.
-//! - `ratings`: credit-rating enums and lookup helpers.
+//! - `ratings`: neutral credit-rating enums, parsing, and labels.
 //! - `attributes`: lightweight attribute bags used by matching and metadata flows.
 //!
 //! # Conventions
@@ -43,4 +43,4 @@ pub use id::{
     CalendarId, CurveId, DealId, Id, IndexId, InstrumentId, IssuerId, PoolId, PriceId, UnderlyingId,
 };
 pub use rates::{Bps, Percentage, Rate};
-pub use ratings::{moodys_warf_factor, CreditRating, RatingFactorTable, RatingLabel};
+pub use ratings::{CreditRating, RatingLabel};

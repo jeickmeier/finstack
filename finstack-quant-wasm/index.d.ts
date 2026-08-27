@@ -2388,42 +2388,6 @@ export interface CoreNamespace {
    * @returns Length of the longest run of strictly positive observations.
    */
   countConsecutiveArray(values: NumericArray): number;
-  /**
-   * Compare hold-versus-tender economics for a distressed exchange offer.
-   * Tendering is recommended only when the total consideration exceeds the
-   * hold-out present value by more than 2%.
-   * @returns Returns the tender total, NPV pickup, breakeven recovery, and tender recommendation.
-   * @param oldPv - Present value of the existing claim if it is not tendered, in the caller's monetary unit.
-   * @param newPv - Present value of the new instrument received on tendering, in the same unit as oldPv.
-   * @param consentFee - Cash consent or early-tender fee paid to participating holders, in the same unit as oldPv.
-   * @param equitySweetenerValue - Estimated value of equity or warrants attached to the new instrument, in the same unit as oldPv.
-   * @param exchangeType - Offer structure: par_for_par (alias par), discount, uptier, or downtier.
-   * @throws Error - Throws a JavaScript exception if `exchangeType` is unrecognized, any monetary input is negative or non-finite, or the result cannot be converted to a JavaScript object.
-   */
-  analyzeExchangeOffer(
-    oldPv: number,
-    newPv: number,
-    consentFee: number,
-    equitySweetenerValue: number,
-    exchangeType: string
-  ): ExchangeOfferAnalysis;
-  /**
-   * Compute discount capture and leverage impact for an LME transaction.
-   * @returns Returns cash cost, par retired, discount captured, remaining-holder impact, and the optional leverage block.
-   * @param lmeType - Structure of the exercise: open_market (aliases open_market_repurchase, omr), tender_offer (alias tender), amend_and_extend (aliases ae, a&e), or dropdown.
-   * @param notional - Outstanding face amount of the target instrument, in the caller's monetary unit; must be positive.
-   * @param repurchasePricePct - Price as a fraction of par for repurchases and tenders, the extension fee for amend-and-extend, or the transferred-asset fraction for a dropdown.
-   * @param optAcceptancePct - Fraction of holders participating, in [0, 1].
-   * @param ebitda - EBITDA in the same unit as notional; a positive value adds the leverage_impact block, null or non-positive omits it.
-   * @throws Error - Throws a JavaScript exception if `lmeType` is unrecognized, `notional` is non-positive or non-finite, `optAcceptancePct` is outside `[0, 1]`, or `repurchasePricePct` is outside the range accepted for the selected LME type: `(0, 1.5]` for repurchases and tenders, `[0, 0.1]` for amend-and-extend, and `[0, 1]` for dropdowns. It also throws if the result cannot be converted to a JavaScript object.
-   */
-  analyzeLme(
-    lmeType: string,
-    notional: number,
-    repurchasePricePct: number,
-    optAcceptancePct: number,
-    ebitda?: number | null
-  ): LmeAnalysis;
 }
 
 /**
@@ -6679,6 +6643,42 @@ export interface SabrCalibratorConstructor {
  * ```
  */
 export interface ModelCreditNamespace {
+  /**
+   * Compare hold-versus-tender economics for a distressed exchange offer.
+   * Tendering is recommended only when total consideration exceeds the
+   * hold-out present value by more than 2%.
+   * @returns Tender total, NPV pickup, breakeven recovery, and recommendation.
+   * @param oldPv - Present value of the existing claim if it is not tendered, in the caller's monetary unit.
+   * @param newPv - Present value of the new instrument received on tendering, in the same unit as oldPv.
+   * @param consentFee - Cash consent or early-tender fee paid to participating holders, in the same unit as oldPv.
+   * @param equitySweetenerValue - Estimated value of equity or warrants attached to the new instrument, in the same unit as oldPv.
+   * @param exchangeType - Canonical offer structure: par_for_par, discount, uptier, or downtier.
+   * @throws Error - Throws a JavaScript exception if `exchangeType` is unrecognized, any monetary input is negative or non-finite, or the result cannot be converted to a JavaScript object.
+   */
+  analyzeExchangeOffer(
+    oldPv: number,
+    newPv: number,
+    consentFee: number,
+    equitySweetenerValue: number,
+    exchangeType: string
+  ): ExchangeOfferAnalysis;
+  /**
+   * Compute discount capture and leverage impact for an LME transaction.
+   * @returns Cash cost, par retired, discount captured, holder impact, and optional leverage analysis.
+   * @param lmeType - Canonical structure: open_market_repurchase, tender_offer, amend_and_extend, or dropdown.
+   * @param notional - Outstanding face amount of the target instrument, in the caller's monetary unit; must be positive.
+   * @param repurchasePricePct - Price as a fraction of par for repurchases and tenders, the extension fee for amend-and-extend, or the transferred-asset fraction for a dropdown.
+   * @param optAcceptancePct - Fraction of holders participating, in [0, 1].
+   * @param ebitda - EBITDA in the same unit as notional; a positive value adds the leverage_impact block, null or non-positive omits it.
+   * @throws Error - Throws a JavaScript exception if `lmeType` is unrecognized, `notional` is non-positive or non-finite, `optAcceptancePct` is outside `[0, 1]`, or `repurchasePricePct` is outside the range accepted for the selected LME type: `(0, 1.5]` for repurchases and tenders, `[0, 0.1]` for amend-and-extend, and `[0, 1]` for dropdowns. It also throws if the result cannot be converted to a JavaScript object.
+   */
+  analyzeLme(
+    lmeType: string,
+    notional: number,
+    repurchasePricePct: number,
+    optAcceptancePct: number,
+    ebitda?: number | null
+  ): LmeAnalysis;
   /**
    * Build a structural Merton model JSON payload.
    * @returns Canonical Merton structural-model JSON.

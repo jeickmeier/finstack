@@ -10,6 +10,8 @@ Examples:
 
 """
 
+import sys as _sys
+
 from finstack_quant.finstack_quant import models as _models
 
 MertonModel = _models.credit.MertonModel
@@ -20,6 +22,23 @@ DynamicRecoverySpec = _models.credit.DynamicRecoverySpec
 EndogenousHazardSpec = _models.credit.EndogenousHazardSpec
 CreditState = _models.credit.CreditState
 ToggleExerciseModel = _models.credit.ToggleExerciseModel
+moodys_warf_factor = _models.credit.moodys_warf_factor
+lgd = _models.credit.lgd
+liability_management = _models.credit.liability_management
+migration = _models.credit.migration
+pd = _models.credit.pd
+recovery_waterfall = _models.credit.recovery_waterfall
+scoring = _models.credit.scoring
+
+for _name, _module in {
+    "lgd": lgd,
+    "liability_management": liability_management,
+    "migration": migration,
+    "pd": pd,
+    "recovery_waterfall": recovery_waterfall,
+    "scoring": scoring,
+}.items():
+    _sys.modules.setdefault(f"finstack_quant.models.credit.{_name}", _module)
 
 __all__ = [
     "AssetDynamics",
@@ -28,6 +47,13 @@ __all__ = [
     "DynamicRecoverySpec",
     "EndogenousHazardSpec",
     "MertonModel",
+    "lgd",
+    "liability_management",
+    "migration",
+    "moodys_warf_factor",
+    "pd",
+    "recovery_waterfall",
+    "scoring",
     "SimulatedPaths",
     "ToggleExerciseModel",
 ]

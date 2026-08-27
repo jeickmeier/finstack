@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Changed — reusable model ownership (BREAKING)
+
+- Credit migration, PD calibration, scoring, LGD/EAD, rating-factor, recovery
+  waterfall, liability-management, and assumptions-registry engines now live
+  under `finstack_quant_models::credit` and `finstack_quant.models.credit`.
+  `CreditRating` remains a neutral core type, but rating-factor lookup is now a
+  models-owned function.
+- WASM liability-management analytics moved from `core` to `models.credit`.
+  The former Rust, Python, and WASM credit-model paths were removed rather than
+  retained as compatibility exports.
+- The credit-assumptions contract remains
+  `finstack_quant.credit_assumptions/1`; its registry key is
+  `models.credit_assumptions.v1`.
+
 ### Changed — credit derivative architecture (BREAKING)
 
 - `CDSTranchePricer::with_params` now returns `Result` and rejects invalid
