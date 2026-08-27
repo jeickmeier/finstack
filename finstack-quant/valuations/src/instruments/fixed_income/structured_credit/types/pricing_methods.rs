@@ -1,13 +1,14 @@
-use super::{
-    CorrelationStructure, DealType, StochasticDefaultSpec, StochasticPrepaySpec, StructuredCredit,
-    TrancheCashflows, TrancheValuation,
-};
+use super::{DealType, StructuredCredit, TrancheCashflows, TrancheValuation};
 use crate::cashflow::traits::CashflowProvider;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::fixed_income::structured_credit::assumptions::embedded_registry_or_panic;
 use crate::instruments::fixed_income::structured_credit::metrics::{
     calculate_tranche_cs01, calculate_tranche_duration, calculate_tranche_wal,
     calculate_tranche_z_spread,
+};
+use crate::instruments::fixed_income::structured_credit::pricing::stochastic::calibrations::{
+    abs_auto_correlation_structure, clo_correlation_structure, cmbs_correlation_structure,
+    rmbs_correlation_structure,
 };
 use crate::instruments::fixed_income::structured_credit::pricing::stochastic::pricer::{
     PricingMode, StochasticPricer, StochasticPricerConfig, StochasticPricingResult,
@@ -22,6 +23,9 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::solver::{BrentSolver, Solver};
 use finstack_quant_core::money::Money;
 use finstack_quant_models::correlation::RecoverySpec as StochasticRecoverySpec;
+use finstack_quant_models::credit::pool::{
+    CorrelationStructure, StochasticDefaultSpec, StochasticPrepaySpec,
+};
 
 impl StructuredCredit {
     /// Calculate prepayment rate (SMM) for a given period.
@@ -204,7 +208,7 @@ impl StructuredCredit {
             .credit_model
             .correlation_structure
             .as_ref()
-            .map(super::super::pricing::CorrelationStructure::asset_correlation);
+            .map(CorrelationStructure::asset_correlation);
         // Market refi rate for Richard-Roll; 4.5% fallback matches RMBS defaults.
         // The intensity model's κ drives the systematic OU factor in
         // `dX = κ(θ − X)dt + σdW`, making
@@ -331,10 +335,10 @@ impl StructuredCredit {
             .correlation_structure
             .clone()
             .unwrap_or_else(|| match self.deal_type {
-                DealType::Rmbs => CorrelationStructure::rmbs_standard(),
-                DealType::Clo | DealType::Cbo => CorrelationStructure::clo_standard(),
-                DealType::Cmbs => CorrelationStructure::cmbs_standard(),
-                _ => CorrelationStructure::abs_auto_standard(),
+                DealType::Rmbs => rmbs_correlation_structure(),
+                DealType::Clo | DealType::Cbo => clo_correlation_structure(),
+                DealType::Cmbs => cmbs_correlation_structure(),
+                _ => abs_auto_correlation_structure(),
             });
 
         (prepay, default, correlation)

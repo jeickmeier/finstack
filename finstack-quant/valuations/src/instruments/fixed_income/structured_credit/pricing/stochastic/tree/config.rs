@@ -1,8 +1,8 @@
 //! Scenario-tree configuration for stochastic structured-credit pricing.
 
-use super::super::{default::StochasticDefaultSpec, prepayment::StochasticPrepaySpec};
 use finstack_quant_models::correlation::latent_factor::LatentFactorSpec;
 use finstack_quant_models::correlation::recovery::RecoverySpec;
+use finstack_quant_models::credit::pool::{StochasticDefaultSpec, StochasticPrepaySpec};
 
 const MAX_TERMINAL_PATHS: usize = 50_000_000;
 
@@ -36,7 +36,7 @@ pub(crate) struct ScenarioTreeConfig {
     pub initial_seasoning: u32,
 
     /// Asset correlation from an explicit deal
-    /// [`CorrelationStructure`](super::super::correlation::CorrelationStructure).
+    /// [`CorrelationStructure`](finstack_quant_models::credit::pool::CorrelationStructure).
     ///
     /// When `Some`, takes precedence over the copula spec's scalar. `None`
     /// keeps the correlation on `StochasticDefaultSpec::Copula`.

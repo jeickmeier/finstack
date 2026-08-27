@@ -23,9 +23,9 @@
 //! - Factor loading (β): 0.3-0.5
 //! - CPR volatility (σ): 0.15-0.30
 
+use super::super::clamped_cpr_to_smm;
 use super::traits::StochasticPrepayment;
-use crate::cashflow::builder::specs::{PrepaymentCurve, PrepaymentModelSpec};
-use crate::instruments::fixed_income::structured_credit::utils::rates::clamped_cpr_to_smm;
+use finstack_quant_cashflows::builder::specs::{PrepaymentCurve, PrepaymentModelSpec};
 
 /// Factor-correlated prepayment model.
 ///

@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "$id": "https://finstack_quant.dev/schemas/attribution/1/attribution.schema.json",
-      "bytes": 1141720,
+      "bytes": 1141650,
       "kind": "input",
       "path": "schemas/attribution/1/attribution.schema.json",
       "summary": "One multi-period P&L attribution run: positions, markets and method.",

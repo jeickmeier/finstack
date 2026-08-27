@@ -1,16 +1,19 @@
 //! Tests covering structured credit instrument-level stochastic helpers and loss math.
 
+use finstack_quant_cashflows::builder::PrepaymentModelSpec;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
 use finstack_quant_core::money::Money;
+use finstack_quant_models::credit::pool::{
+    CorrelationStructure, StochasticDefaultSpec, StochasticPrepaySpec,
+};
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
     calculate_tranche_breakeven_cdr, calculate_tranche_discount_margin, calculate_tranche_metrics,
     calculate_tranche_oas, generate_cashflows, generate_tranche_cashflows, run_simulation,
-    scenario_table, AssetPool, CorrelationStructure, DealType, OasConfig, PoolAsset, PricingMode,
-    ScenarioGrid, StochasticDefaultSpec, StochasticPrepaySpec, StructuredCredit, Tranche,
-    TrancheCoupon, TrancheSeniority, TrancheStructure,
+    scenario_table, AssetPool, DealType, OasConfig, PoolAsset, PricingMode, ScenarioGrid,
+    StructuredCredit, Tranche, TrancheCoupon, TrancheSeniority, TrancheStructure,
 };
 use finstack_quant_valuations::instruments::{
     Instrument, PricingOptions, ScenarioPricingOverrides,
@@ -210,10 +213,7 @@ fn stochastic_helper_methods_toggle_flags_and_preserve_chainability() {
     let mut sc = build_sc("ABS-STOCHASTIC", 1_000_000.0);
     assert!(!sc.is_stochastic());
 
-    let chained = sc
-        .with_stochastic_prepay(StochasticPrepaySpec::clo_standard())
-        .with_stochastic_default(StochasticDefaultSpec::clo_standard())
-        .with_correlation(CorrelationStructure::clo_standard());
+    let chained = sc.enable_stochastic_defaults();
 
     assert!(std::ptr::eq(chained, &sc));
     assert!(sc.is_stochastic());
@@ -1048,9 +1048,13 @@ fn stochastic_pricing_result_bit_hash_is_stable() {
         // path cap; tree/hybrid cases price the one-year-horizon deal.
         let mut sc = build_sc(case.label, 1_000_000.0);
         if case.stochastic {
-            sc.with_stochastic_prepay(StochasticPrepaySpec::clo_standard());
-            sc.with_stochastic_default(StochasticDefaultSpec::clo_standard());
-            sc.with_correlation(CorrelationStructure::clo_standard());
+            sc.with_stochastic_prepay(StochasticPrepaySpec::factor_correlated(
+                PrepaymentModelSpec::constant_cpr(0.15),
+                0.25,
+                0.15,
+            ));
+            sc.with_stochastic_default(StochasticDefaultSpec::gaussian_copula(0.03, 0.20));
+            sc.with_correlation(CorrelationStructure::sectored(0.30, 0.10, -0.20));
         } else if case.label == "factor_correlated_mc" {
             use finstack_quant_cashflows::builder::DefaultModelSpec;
             sc.credit_model.default_spec = DefaultModelSpec::constant_cdr(0.05);

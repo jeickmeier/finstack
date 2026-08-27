@@ -20,10 +20,6 @@
 //! - Asset correlation: 15-25% (concentrated property types)
 //! - Prepay-default correlation: -10% to -20%
 
-use crate::instruments::fixed_income::structured_credit::pricing::stochastic::calibrations::{
-    clo_standard, cmbs_standard, rmbs_standard,
-};
-
 /// Correlation structure specification.
 ///
 /// Captures the various correlation parameters needed for
@@ -152,49 +148,6 @@ impl CorrelationStructure {
         let structure = Self::matrix(correlations, labels);
         structure.validate()?;
         Ok(structure)
-    }
-
-    /// RMBS standard correlation structure.
-    ///
-    /// Low asset correlation (diversified pool), moderate negative
-    /// prepay-default correlation (refi vs credit).
-    pub fn rmbs_standard() -> Self {
-        let calibration = rmbs_standard();
-        CorrelationStructure::Flat {
-            asset_correlation: calibration.default_correlation,
-            prepay_default_correlation: -0.30,
-        }
-    }
-
-    /// CLO standard correlation structure.
-    ///
-    /// Sectored structure with higher intra-sector correlation.
-    pub fn clo_standard() -> Self {
-        let calibration = clo_standard();
-        CorrelationStructure::Sectored {
-            intra_sector: calibration.default_correlation + 0.10,
-            inter_sector: 0.10,
-            prepay_default: -0.20,
-        }
-    }
-
-    /// CMBS standard correlation structure.
-    ///
-    /// Moderate correlation (concentrated property types).
-    pub fn cmbs_standard() -> Self {
-        let calibration = cmbs_standard();
-        CorrelationStructure::Flat {
-            asset_correlation: calibration.default_correlation + 0.05,
-            prepay_default_correlation: -0.15,
-        }
-    }
-
-    /// ABS auto loan standard correlation structure.
-    pub fn abs_auto_standard() -> Self {
-        CorrelationStructure::Flat {
-            asset_correlation: 0.08,
-            prepay_default_correlation: -0.10,
-        }
     }
 
     /// Get the asset (default) correlation.
@@ -662,26 +615,6 @@ mod tests {
         assert!((sectored.pairwise_correlation(0, 1, false) - 0.10).abs() < 1e-10);
         // Same asset
         assert!((sectored.pairwise_correlation(0, 0, true) - 1.0).abs() < 1e-10);
-    }
-
-    #[test]
-    fn test_standard_calibrations() {
-        let rmbs = CorrelationStructure::rmbs_standard();
-        assert!((rmbs.asset_correlation() - 0.05).abs() < 1e-10);
-        assert!(rmbs.prepay_default_correlation() < 0.0);
-
-        let clo = CorrelationStructure::clo_standard();
-        assert!(clo.is_sectored());
-        let intra = clo
-            .intra_sector_correlation()
-            .expect("CLO should have intra-sector correlation");
-        let inter = clo
-            .inter_sector_correlation()
-            .expect("CLO should have inter-sector correlation");
-        assert!(intra > inter);
-
-        let cmbs = CorrelationStructure::cmbs_standard();
-        assert!(cmbs.asset_correlation() > rmbs.asset_correlation());
     }
 
     #[test]

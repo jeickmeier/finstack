@@ -55,7 +55,7 @@ pub use waterfall::{
 
 pub use results::{TrancheCashflows, TrancheValuation};
 
-pub use crate::instruments::fixed_income::structured_credit::pricing::{
+use finstack_quant_models::credit::pool::{
     CorrelationStructure, StochasticDefaultSpec, StochasticPrepaySpec,
 };
 

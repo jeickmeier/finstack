@@ -6,11 +6,13 @@
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
+use finstack_quant_models::credit::pool::{
+    CorrelationStructure, StochasticDefaultSpec, StochasticPrepaySpec,
+};
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::RepLine;
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
-    AssetPool, CorrelationStructure, CoverageTrigger, DealType, DefaultAssumptions,
-    DefaultModelSpec, Overrides, PoolAsset, PrepaymentModelSpec, RecoveryModelSpec,
-    ReinvestmentCriteria, ReinvestmentPeriod, StochasticDefaultSpec, StochasticPrepaySpec,
+    AssetPool, CoverageTrigger, DealType, DefaultAssumptions, DefaultModelSpec, Overrides,
+    PoolAsset, PrepaymentModelSpec, RecoveryModelSpec, ReinvestmentCriteria, ReinvestmentPeriod,
     StructuredCredit, Tranche, TrancheCoupon, TrancheSeniority, TrancheStructure,
     TriggerConsequence,
 };

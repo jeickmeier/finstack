@@ -25,7 +25,8 @@ There is **no `prelude` module** — import the names you need directly.
 | `CoverageTrigger` (tranche-level), `waterfall::CoverageTrigger` (waterfall-level), `CoverageTestConfig`, `CoverageTestType`, `TriggerConsequence` | OC/IC triggers — see [Coverage triggers](#coverage-triggers), the two types are different. |
 | `DealConfig`, `DealDates`, `DealFees`, `DefaultAssumptions` | Deal setup and behavioral defaults. |
 | `PrepaymentModelSpec`, `DefaultModelSpec`, `RecoveryModelSpec`, `PrepaymentCurve`, `DefaultCurve` | Deterministic behavioral models. |
-| `StochasticPrepaySpec`, `StochasticDefaultSpec`, `CorrelationStructure`, `PricingMode`, `PoolGranularity` | Stochastic modeling — see [`pricing/stochastic/README.md`](pricing/stochastic/README.md). |
+| `PricingMode` | Valuation-owned stochastic pricing mode — see [`pricing/stochastic/README.md`](pricing/stochastic/README.md). |
+| `StochasticPrepaySpec`, `StochasticDefaultSpec`, `CorrelationStructure`, `PoolGranularity` | Models-owned stochastic inputs; import from `finstack_quant_models::credit::pool`. |
 | `StochasticPricingResult`, `TranchePricingResult` | Stochastic output. |
 | `ReinvestmentPeriod`, `ReinvestmentCriteria`, `ReinvestmentManager` | CLO reinvestment. |
 | `EarlyAmortizationSpec`, `ControlledAccumulationSpec`, `ExcessSpreadSpec`, `CreditEnhancement` | ABS/credit-card structural features. |
@@ -57,7 +58,7 @@ structured_credit/
 │   ├── waterfall.rs       # execute_waterfall(_with_explanation), WaterfallContext
 │   ├── resolve.rs         # resolve_waterfall: layer WaterfallRules onto the base waterfall
 │   ├── coverage_tests.rs  # OC/IC test evaluation
-│   └── stochastic/        # prepayment, default, correlation, tree, MC pricer
+│   └── stochastic/        # calibration presets, tree and Monte Carlo orchestration
 ├── metrics/
 │   ├── pricing/       # clean/dirty price, accrued, WAL
 │   ├── risk/          # duration, convexity, YTM, z-spread, OAS, CS01, breakeven CDR, *01 sensitivities

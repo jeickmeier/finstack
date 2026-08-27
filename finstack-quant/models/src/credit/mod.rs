@@ -29,6 +29,7 @@ pub mod market_anchored;
 pub mod merton;
 pub mod migration;
 pub mod pd;
+pub mod pool;
 pub mod rating_factors;
 pub mod recovery_waterfall;
 pub mod registry;

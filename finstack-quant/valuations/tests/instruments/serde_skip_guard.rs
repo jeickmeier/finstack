@@ -4,10 +4,6 @@ use std::path::{Path, PathBuf};
 const ALLOWED: &[(&str, usize)] = &[
     ("src/instruments/composite/types.rs", 2),
     ("src/instruments/exotics/basket/types.rs", 1),
-    (
-        "src/instruments/fixed_income/structured_credit/pricing/stochastic/default/spec.rs",
-        1,
-    ),
 ];
 
 fn rust_sources(root: &Path, files: &mut Vec<PathBuf>) {

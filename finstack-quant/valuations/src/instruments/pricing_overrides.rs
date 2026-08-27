@@ -4,6 +4,7 @@ use crate::instruments::common_impl::parameters::VolatilityModel;
 use crate::instruments::fixed_income::term_loan::TermLoanOverrides;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
+use finstack_quant_models::credit::pool::PoolGranularity;
 use finstack_quant_models::volatility::SabrParameters;
 
 /// Policy for evaluating volatility surfaces outside their calibrated grid.
@@ -616,14 +617,13 @@ pub struct ModelConfig {
     /// Pool-granularity policy for structured-credit copula default models.
     ///
     /// When set, overrides the default
-    /// [`PoolGranularity::PerName`](crate::instruments::fixed_income::structured_credit::PoolGranularity)
+    /// [`PoolGranularity::PerName`]
     /// finite-pool simulation. Pass
     /// `PoolGranularity::LargeHomogeneous` to opt into the closed-form LHP
     /// fast-path for genuinely granular pools. Ignored by non-copula default
     /// models and by non-structured-credit instruments.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub structured_credit_pool_granularity:
-        Option<crate::instruments::fixed_income::structured_credit::PoolGranularity>,
+    pub structured_credit_pool_granularity: Option<PoolGranularity>,
 }
 
 impl ModelConfig {

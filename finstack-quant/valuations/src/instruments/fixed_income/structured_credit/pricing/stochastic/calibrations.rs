@@ -19,7 +19,11 @@
 use crate::instruments::fixed_income::structured_credit::assumptions::{
     embedded_registry_or_panic, StructuredCreditAssumptionRegistry,
 };
+use finstack_quant_cashflows::builder::PrepaymentModelSpec;
 use finstack_quant_core::Result;
+use finstack_quant_models::credit::pool::{
+    CorrelationStructure, StochasticDefaultSpec, StochasticPrepaySpec,
+};
 
 /// RMBS standard calibration parameters.
 ///
@@ -130,6 +134,56 @@ pub(crate) fn cmbs_standard() -> CmbsCalibration {
 
 fn assumptions_registry() -> &'static StructuredCreditAssumptionRegistry {
     embedded_registry_or_panic()
+}
+
+pub(crate) fn rmbs_default_spec() -> StochasticDefaultSpec {
+    let calibration = rmbs_standard();
+    StochasticDefaultSpec::gaussian_copula(calibration.base_cdr, calibration.default_correlation)
+}
+
+pub(crate) fn clo_default_spec() -> StochasticDefaultSpec {
+    let calibration = clo_standard();
+    StochasticDefaultSpec::gaussian_copula(calibration.base_cdr, calibration.default_correlation)
+}
+
+pub(crate) fn rmbs_prepay_spec(pool_coupon: f64) -> StochasticPrepaySpec {
+    let calibration = rmbs_standard();
+    StochasticPrepaySpec::RichardRoll {
+        base_cpr: calibration.base_cpr,
+        refi_sensitivity: calibration.refi_sensitivity,
+        pool_coupon,
+        burnout_rate: calibration.burnout_rate,
+        factor_loading: calibration.prepay_factor_loading,
+        cpr_volatility: calibration.cpr_volatility,
+    }
+}
+
+pub(crate) fn clo_prepay_spec() -> StochasticPrepaySpec {
+    let calibration = clo_standard();
+    StochasticPrepaySpec::factor_correlated(
+        PrepaymentModelSpec::constant_cpr(calibration.base_cpr),
+        calibration.prepay_factor_loading,
+        calibration.cpr_volatility,
+    )
+}
+
+pub(crate) fn rmbs_correlation_structure() -> CorrelationStructure {
+    let calibration = rmbs_standard();
+    CorrelationStructure::flat(calibration.default_correlation, -0.30)
+}
+
+pub(crate) fn clo_correlation_structure() -> CorrelationStructure {
+    let calibration = clo_standard();
+    CorrelationStructure::sectored(calibration.default_correlation + 0.10, 0.10, -0.20)
+}
+
+pub(crate) fn cmbs_correlation_structure() -> CorrelationStructure {
+    let calibration = cmbs_standard();
+    CorrelationStructure::flat(calibration.default_correlation + 0.05, -0.15)
+}
+
+pub(crate) fn abs_auto_correlation_structure() -> CorrelationStructure {
+    CorrelationStructure::flat(0.08, -0.10)
 }
 
 #[allow(clippy::expect_used)]

@@ -28,11 +28,11 @@
 //! [`PoolGranularity`] for pools granular enough that the limit is an
 //! acceptable, faster approximation.
 
+use crate::correlation::copula::{Copula, CopulaSpec};
+use crate::monte_carlo::rng::philox::PhiloxRng;
+use crate::monte_carlo::traits::RandomStream;
 use finstack_quant_core::math::{standard_normal_inv_cdf, student_t_inv_cdf};
 use finstack_quant_core::Result;
-use finstack_quant_models::correlation::copula::{Copula, CopulaSpec};
-use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_models::monte_carlo::traits::RandomStream;
 
 /// AssetPool-granularity policy for the structured-credit default engine.
 ///
@@ -108,7 +108,7 @@ impl ThresholdKind {
 /// Holds the copula kernel and asset correlation. One instance is shared
 /// (via clone of the cheap `Arc`-backed copula) across all scenario paths;
 /// each path drives it with its own [`PhiloxRng`] substream.
-pub(crate) struct PerNameCopulaDefault {
+pub struct PerNameCopulaDefault {
     /// Copula kernel — provides `latent_variable` / `sample_mixing` /
     /// `conditional_default_prob`. Never reimplemented here.
     copula: Box<dyn Copula>,
@@ -132,7 +132,12 @@ impl PerNameCopulaDefault {
     /// factor realizations, so a multi-factor copula cannot be simulated
     /// name-by-name here — the trait-level latent construction would silently
     /// collapse it to a one-factor Gaussian.
-    pub(crate) fn new(copula_spec: &CopulaSpec, correlation: f64) -> Result<Self> {
+    ///
+    /// # Arguments
+    ///
+    /// * `copula_spec` - Copula family and parameters used for latent-variable draws.
+    /// * `correlation` - Asset correlation as a finite decimal in `[0.0, 0.99]`.
+    pub fn new(copula_spec: &CopulaSpec, correlation: f64) -> Result<Self> {
         if matches!(copula_spec, CopulaSpec::MultiFactor { .. }) {
             return Err(finstack_quant_core::Error::Validation(
                 "per-name default simulation does not support multi-factor copulas: the \
@@ -181,7 +186,7 @@ impl PerNameCopulaDefault {
     ///
     /// The shared Student-t mixing variable `W` is drawn once here (one
     /// uniform), then reused for every name so tail dependence is preserved.
-    pub(crate) fn simulate_period(
+    pub fn simulate_period(
         &self,
         systematic: f64,
         marginal_pd: &[f64],
@@ -200,7 +205,14 @@ impl PerNameCopulaDefault {
     /// underlying uniforms (and hence the εᵢ before negation, and the shared
     /// mixing `W`) match. The Student-t mixing `W` is *not* negated — only the
     /// Gaussian components are, per standard antithetic treatment.
-    pub(crate) fn simulate_period_antithetic(
+    ///
+    /// # Arguments
+    ///
+    /// * `systematic` - Period systematic factor shared by every pool name.
+    /// * `marginal_pd` - Unconditional period default probability for each live name.
+    /// * `rng` - Path-local Philox stream shared with the paired base path.
+    /// * `out` - Reused output buffer populated with one default flag per name.
+    pub fn simulate_period_antithetic(
         &self,
         systematic: f64,
         marginal_pd: &[f64],
@@ -258,7 +270,13 @@ impl PerNameCopulaDefault {
     /// The `W` draw mirrors [`Self::simulate_period`] exactly (one
     /// [`RandomStream::next_u01`] per period, before any other consumption),
     /// so the LHP and per-name RNG streams stay consistent for a fixed seed.
-    pub(crate) fn conditional_default_prob(
+    ///
+    /// # Arguments
+    ///
+    /// * `systematic` - Period systematic factor shared by the homogeneous pool.
+    /// * `marginal_pd` - Unconditional period default probability as a decimal.
+    /// * `rng` - Path-local Philox stream used for the shared copula mixing draw.
+    pub fn conditional_default_prob(
         &self,
         systematic: f64,
         marginal_pd: f64,

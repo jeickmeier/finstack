@@ -33,16 +33,15 @@
 //! - Richard, S.F., & Roll, R. (1989). "Prepayments on Fixed-Rate Mortgage-Backed Securities."
 //!   *Journal of Portfolio Management*, 15(3), 9-14. `docs/REFERENCES.md#richard-roll-1989`
 
-use super::super::calibrations::rmbs_standard;
+use super::super::clamped_cpr_to_smm;
 use super::traits::StochasticPrepayment;
-use crate::instruments::fixed_income::structured_credit::utils::rates::clamped_cpr_to_smm;
 
 /// Richard-Roll prepayment model for RMBS.
 ///
 /// Full stochastic prepayment model with refinancing incentive,
 /// seasoning, burnout, and optional seasonality.
 #[derive(Debug, Clone)]
-pub(crate) struct RichardRollPrepay {
+pub struct RichardRollPrepay {
     /// Base CPR at full seasoning (post-ramp)
     base_cpr: f64,
     /// Refinancing sensitivity parameter (gamma)
@@ -71,12 +70,7 @@ impl RichardRollPrepay {
     /// * `refi_sensitivity` - Sensitivity to refinancing incentive (gamma)
     /// * `pool_coupon` - AssetPool weighted average coupon
     /// * `burnout_rate` - Burnout decay rate
-    pub(crate) fn new(
-        base_cpr: f64,
-        refi_sensitivity: f64,
-        pool_coupon: f64,
-        burnout_rate: f64,
-    ) -> Self {
+    pub fn new(base_cpr: f64, refi_sensitivity: f64, pool_coupon: f64, burnout_rate: f64) -> Self {
         Self {
             base_cpr: base_cpr.clamp(0.0, 1.0),
             refi_sensitivity: refi_sensitivity.clamp(0.0, 10.0),
@@ -114,27 +108,6 @@ impl RichardRollPrepay {
             cpr_volatility: cpr_volatility.clamp(0.0, 1.0),
             ramp_months: ramp_months.max(1),
         }
-    }
-
-    /// RMBS agency standard calibration.
-    ///
-    /// Typical parameters for conforming agency MBS:
-    /// - Base CPR: 6%
-    /// - Refi sensitivity: 2.0
-    /// - Burnout rate: 0.10
-    pub(crate) fn agency_standard(pool_coupon: f64) -> Self {
-        let calibration = rmbs_standard();
-        Self::with_all_params(
-            calibration.base_cpr,
-            calibration.refi_sensitivity,
-            20.0,
-            pool_coupon,
-            calibration.burnout_rate,
-            0.0,
-            calibration.prepay_factor_loading,
-            calibration.cpr_volatility,
-            30,
-        )
     }
 
     /// Calculate the refinancing incentive multiplier.
@@ -373,11 +346,5 @@ mod tests {
 
         assert!(smm_pos > smm_zero);
         assert!(smm_neg < smm_zero);
-    }
-
-    #[test]
-    fn test_agency_standard_calibration() {
-        let agency = RichardRollPrepay::agency_standard(0.045);
-        assert!((agency.base_cpr - 0.06).abs() < 1e-10);
     }
 }

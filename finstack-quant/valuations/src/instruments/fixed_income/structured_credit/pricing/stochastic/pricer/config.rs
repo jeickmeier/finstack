@@ -3,8 +3,8 @@
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 
-use crate::instruments::fixed_income::structured_credit::pricing::stochastic::default::PoolGranularity;
 use crate::instruments::fixed_income::structured_credit::pricing::stochastic::tree::ScenarioTreeConfig;
+use finstack_quant_models::credit::pool::PoolGranularity;
 use std::sync::Arc;
 
 /// Pricing mode selection.

@@ -48,7 +48,7 @@ use finstack_quant_core::market_data::term_structures::HazardCurve;
 /// # Example
 ///
 /// ```text
-/// use finstack_quant_valuations::instruments::fixed_income::structured_credit::pricing::stochastic::default::HazardCurveDefault;
+/// use finstack_quant_models::credit::pool::StochasticDefaultSpec;
 /// use finstack_quant_core::market_data::term_structures::HazardCurve;
 /// use finstack_quant_core::dates::Date;
 /// use time::Month;
@@ -64,7 +64,7 @@ use finstack_quant_core::market_data::term_structures::HazardCurve;
 ///     .build()?;
 ///
 /// // Wrap in stochastic adapter with factor sensitivity
-/// let stochastic_default = HazardCurveDefault::new(hazard_curve, 0.5);
+/// let stochastic_default = StochasticDefaultSpec::from_hazard_curve(hazard_curve, 0.5);
 /// # let _ = stochastic_default;
 /// # Ok(())
 /// # }

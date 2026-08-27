@@ -7,9 +7,6 @@
 
 use crate::cashflow::traits::DatedFlows;
 use crate::instruments::fixed_income::structured_credit::assumptions::embedded_registry;
-use crate::instruments::fixed_income::structured_credit::pricing::stochastic::default::{
-    PerNameCopulaDefault, PoolGranularity,
-};
 use crate::instruments::fixed_income::structured_credit::types::{
     AssetPool, PoolState, RecipientType, StructuredCredit, Tranche, TrancheCashflows,
     TrancheSeniority, TrancheStructure, Waterfall, WaterfallDistribution,
@@ -27,6 +24,7 @@ use finstack_quant_core::market_data::term_structures::ForwardCurve;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::HashMap;
 use finstack_quant_core::Result;
+use finstack_quant_models::credit::pool::{PerNameCopulaDefault, PoolGranularity};
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::traits::RandomStream;
 use std::sync::Arc;

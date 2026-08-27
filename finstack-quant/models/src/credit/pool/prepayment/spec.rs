@@ -3,12 +3,11 @@
 //! Provides a serializable specification enum for stochastic prepayment models,
 //! enabling configuration and deferred construction.
 
-use super::super::calibrations::{clo_standard, rmbs_standard};
+use super::super::clamped_cpr_to_smm;
 use super::{
     FactorCorrelatedPrepay, RegimeSwitchingPrepay, RichardRollPrepay, StochasticPrepayment,
 };
-use crate::cashflow::builder::specs::PrepaymentModelSpec;
-use crate::instruments::fixed_income::structured_credit::utils::rates::clamped_cpr_to_smm;
+use finstack_quant_cashflows::builder::specs::PrepaymentModelSpec;
 
 /// Stochastic prepayment model specification.
 ///
@@ -140,33 +139,6 @@ impl StochasticPrepaySpec {
             transition_down: transition_down.clamp(0.0, 1.0),
             factor_loading: default_factor_loading(),
             cpr_volatility: default_cpr_volatility(),
-        }
-    }
-
-    /// RMBS agency standard calibration.
-    ///
-    /// Uses the registry-backed `rmbs_standard` calibration profile.
-    pub fn rmbs_agency(pool_coupon: f64) -> Self {
-        let calibration = rmbs_standard();
-        StochasticPrepaySpec::RichardRoll {
-            base_cpr: calibration.base_cpr,
-            refi_sensitivity: calibration.refi_sensitivity,
-            pool_coupon,
-            burnout_rate: calibration.burnout_rate,
-            factor_loading: calibration.prepay_factor_loading,
-            cpr_volatility: calibration.cpr_volatility,
-        }
-    }
-
-    /// CLO standard calibration.
-    ///
-    /// Uses the registry-backed `clo_standard` calibration profile.
-    pub fn clo_standard() -> Self {
-        let calibration = clo_standard();
-        StochasticPrepaySpec::FactorCorrelated {
-            base_spec: PrepaymentModelSpec::constant_cpr(calibration.base_cpr),
-            factor_loading: calibration.prepay_factor_loading,
-            cpr_volatility: calibration.cpr_volatility,
         }
     }
 
@@ -318,15 +290,6 @@ mod tests {
 
         assert!(!spec.is_stochastic());
         assert!(spec.build().is_none());
-    }
-
-    #[test]
-    fn test_standard_calibrations() {
-        let rmbs = StochasticPrepaySpec::rmbs_agency(0.045);
-        assert!(rmbs.is_stochastic());
-
-        let clo = StochasticPrepaySpec::clo_standard();
-        assert!(clo.is_stochastic());
     }
 
     #[test]

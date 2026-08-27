@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use finstack_quant_core::market_data::term_structures::HazardCurve;
-use finstack_quant_valuations::instruments::fixed_income::structured_credit::StochasticDefaultSpec;
+use finstack_quant_models::credit::pool::StochasticDefaultSpec;
 use finstack_quant_valuations::instruments::json_loader::{instrument_registry, registry_tags};
 use finstack_quant_valuations::instruments::json_loader::{InstrumentEnvelope, InstrumentJson};
 use serde::Deserialize;

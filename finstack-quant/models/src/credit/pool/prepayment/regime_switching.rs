@@ -1,7 +1,7 @@
 //! Regime-switching prepayment model.
 
+use super::super::clamped_cpr_to_smm;
 use super::traits::StochasticPrepayment;
-use crate::instruments::fixed_income::structured_credit::utils::rates::clamped_cpr_to_smm;
 
 /// Two-state Markov prepayment model with factor-shocked CPR.
 #[derive(Debug, Clone)]

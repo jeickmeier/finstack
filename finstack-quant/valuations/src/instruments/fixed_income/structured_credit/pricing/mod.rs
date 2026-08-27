@@ -85,7 +85,3 @@ pub fn generate_tranche_cashflows(
     let mut full_results = run_simulation(instrument, context, as_of)?;
     simulation_engine::take_tranche_cashflows(&mut full_results, tranche_id)
 }
-
-pub use stochastic::CorrelationStructure;
-pub use stochastic::StochasticDefaultSpec;
-pub use stochastic::StochasticPrepaySpec;

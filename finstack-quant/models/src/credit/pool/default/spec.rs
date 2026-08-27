@@ -3,17 +3,14 @@
 //! Provides a serializable specification enum for stochastic default models,
 //! enabling configuration and deferred construction.
 
+use super::super::clamped_cdr_to_mdr;
 use super::{
     CopulaBasedDefault, FactorCorrelatedDefault, HazardCurveDefault, IntensityProcessDefault,
     StochasticDefault,
 };
-use crate::cashflow::builder::specs::DefaultModelSpec;
-use crate::instruments::fixed_income::structured_credit::pricing::stochastic::calibrations::{
-    clo_standard, rmbs_standard,
-};
-use crate::instruments::fixed_income::structured_credit::utils::rates::clamped_cdr_to_mdr;
+use crate::correlation::copula::CopulaSpec;
+use finstack_quant_cashflows::builder::specs::DefaultModelSpec;
 use finstack_quant_core::market_data::term_structures::HazardCurve;
-use finstack_quant_models::correlation::copula::CopulaSpec;
 
 /// Stochastic default model specification.
 ///
@@ -321,26 +318,6 @@ impl StochasticDefaultSpec {
         }
     }
 
-    /// RMBS standard calibration.
-    pub fn rmbs_standard() -> Self {
-        let calibration = rmbs_standard();
-        StochasticDefaultSpec::Copula {
-            base_cdr: calibration.base_cdr,
-            copula_spec: CopulaSpec::Gaussian,
-            correlation: calibration.default_correlation,
-        }
-    }
-
-    /// CLO standard calibration.
-    pub fn clo_standard() -> Self {
-        let calibration = clo_standard();
-        StochasticDefaultSpec::Copula {
-            base_cdr: calibration.base_cdr,
-            copula_spec: CopulaSpec::Gaussian,
-            correlation: calibration.default_correlation,
-        }
-    }
-
     /// Build the stochastic default model from this specification.
     ///
     /// Returns `Ok(None)` for deterministic specs.
@@ -553,18 +530,6 @@ mod tests {
         // Canonical convention: low factor = stress, so a negative factor
         // realization must raise the conditional MDR above its expectation.
         assert!(model.conditional_mdr(12, &[-2.0], &Default::default()) > model.expected_mdr(12));
-    }
-
-    #[test]
-    fn test_standard_calibrations() {
-        let rmbs = StochasticDefaultSpec::rmbs_standard();
-        assert!(rmbs.is_stochastic());
-        assert!((rmbs.base_rate() - 0.02).abs() < 1e-10);
-
-        let clo = StochasticDefaultSpec::clo_standard();
-        let clo_corr = clo.correlation().expect("CLO should have correlation");
-        let rmbs_corr = rmbs.correlation().expect("RMBS should have correlation");
-        assert!(clo_corr > rmbs_corr);
     }
 
     #[test]

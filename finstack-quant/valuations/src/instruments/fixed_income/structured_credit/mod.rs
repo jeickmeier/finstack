@@ -36,17 +36,16 @@ pub mod waterfall {
 
 pub use types::{
     calculate_pool_stats, AfcSpec, AllocationMode, AssetPool, AssetType, ConcentrationCheckResult,
-    ConcentrationViolation, ControlledAccumulationSpec, CorrelationStructure, CoverageTestConfig,
-    CoverageTestType, CoverageTrigger, CreditEnhancement, CreditModelConfig, DealConfig, DealDates,
-    DealFees, DealType, DefaultAssumptions, EarlyAmortizationSpec, ExcessSpreadSpec,
-    ManagementFeeType, Metadata, Overrides, PaymentCalculation, PaymentMode, PaymentRecord,
-    PaymentType, PoolAsset, PoolStats, Recipient, RecipientType, ReinvestmentCriteria,
-    ReinvestmentManager, ReinvestmentPeriod, RepLine, RoundingConvention, ShiftingInterestSpec,
-    ShiftingInterestStep, StepDownSpec, StepDownTrigger, StochasticDefaultSpec,
-    StochasticPrepaySpec, StructuredCredit, StructuredCreditBuilder, Tranche, TrancheBehaviorType,
-    TrancheBuilder, TrancheCashflows, TrancheCoupon, TrancheSeniority, TrancheStructure,
-    TrancheValuation, TriggerConsequence, Waterfall, WaterfallBuilder, WaterfallDistribution,
-    WaterfallRules, WaterfallTier, WaterfallWorkspace,
+    ConcentrationViolation, ControlledAccumulationSpec, CoverageTestConfig, CoverageTestType,
+    CoverageTrigger, CreditEnhancement, CreditModelConfig, DealConfig, DealDates, DealFees,
+    DealType, DefaultAssumptions, EarlyAmortizationSpec, ExcessSpreadSpec, ManagementFeeType,
+    Metadata, Overrides, PaymentCalculation, PaymentMode, PaymentRecord, PaymentType, PoolAsset,
+    PoolStats, Recipient, RecipientType, ReinvestmentCriteria, ReinvestmentManager,
+    ReinvestmentPeriod, RepLine, RoundingConvention, ShiftingInterestSpec, ShiftingInterestStep,
+    StepDownSpec, StepDownTrigger, StructuredCredit, StructuredCreditBuilder, Tranche,
+    TrancheBehaviorType, TrancheBuilder, TrancheCashflows, TrancheCoupon, TrancheSeniority,
+    TrancheStructure, TrancheValuation, TriggerConsequence, Waterfall, WaterfallBuilder,
+    WaterfallDistribution, WaterfallRules, WaterfallTier, WaterfallWorkspace,
 };
 
 pub use crate::cashflow::builder::{DefaultCurve, PrepaymentCurve};
@@ -65,7 +64,7 @@ pub use pricing::{
 };
 
 pub use pricing::coverage_tests::{CoverageTest, TestContext, TestResult};
-pub use pricing::stochastic::{PoolGranularity, PricingMode};
+pub use pricing::stochastic::PricingMode;
 pub use pricing::stochastic::{StochasticPricingResult, TranchePricingResult};
 pub use pricing::waterfall::execute_waterfall_with_explanation;
 pub use pricing::waterfall::WaterfallContext;

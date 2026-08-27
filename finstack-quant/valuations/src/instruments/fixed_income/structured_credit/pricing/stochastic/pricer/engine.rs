@@ -7,13 +7,6 @@ use crate::instruments::fixed_income::structured_credit::pricing::simulation_eng
     prepare_deal_simulation, run_prepared_simulation_with_source, PerNameDefaultEngine,
     PerNamePeriodInput, PeriodPoolShock, PreparedDealSimulation, StochasticPathFlowSource,
 };
-use crate::instruments::fixed_income::structured_credit::pricing::stochastic::default::{
-    MacroCreditFactors, PerNameCopulaDefault, StochasticDefault,
-};
-use crate::instruments::fixed_income::structured_credit::pricing::stochastic::prepayment::StochasticPrepayment;
-use crate::instruments::fixed_income::structured_credit::pricing::{
-    StochasticDefaultSpec, StochasticPrepaySpec,
-};
 use crate::instruments::fixed_income::structured_credit::types::{
     StructuredCredit, Tranche, TrancheSeniority,
 };
@@ -23,10 +16,19 @@ use finstack_quant_core::math::stats::OnlineStats;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
 use finstack_quant_models::correlation::{CopulaSpec, LatentFactorSpec, RecoverySpec};
+use finstack_quant_models::credit::pool::{
+    MacroCreditFactors, PerNameCopulaDefault, StochasticDefault, StochasticDefaultSpec,
+    StochasticPrepaySpec, StochasticPrepayment,
+};
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::traits::RandomStream;
 use rayon::prelude::*;
 use std::sync::Arc;
+
+#[cfg(test)]
+use crate::instruments::fixed_income::structured_credit::pricing::stochastic::calibrations::{
+    clo_default_spec, rmbs_default_spec, rmbs_prepay_spec,
+};
 
 /// Seed salt for the per-name idiosyncratic-draw RNG.
 ///
@@ -1789,8 +1791,6 @@ mod tests {
     /// Configured `mean_reversion` must change Monte Carlo path statistics.
     #[test]
     fn mean_reversion_changes_path_statistics() {
-        use crate::instruments::fixed_income::structured_credit::pricing::stochastic::default::StochasticDefaultSpec;
-
         let instrument = test_instrument();
         let market = MarketContext::new().insert((*test_discount_curve()).clone());
         let price_with_kappa = |kappa: f64| {
@@ -1831,11 +1831,11 @@ mod tests {
     #[test]
     fn mc_engine_defaults_and_recoveries_co_move_negatively() {
         let mut rmbs = ScenarioTreeConfig::new(24, 3);
-        rmbs.default_spec = StochasticDefaultSpec::rmbs_standard();
+        rmbs.default_spec = rmbs_default_spec();
         rmbs.recovery_spec = RecoverySpec::market_standard_stochastic();
 
         let mut clo = ScenarioTreeConfig::new(24, 3);
-        clo.default_spec = StochasticDefaultSpec::clo_standard();
+        clo.default_spec = clo_default_spec();
         clo.recovery_spec = RecoverySpec::MarketCorrelated {
             mean_recovery: 0.40,
             recovery_volatility: 0.30,
@@ -1927,7 +1927,6 @@ mod per_name_copula_tests {
     }
 
     use super::*;
-    use crate::instruments::fixed_income::structured_credit::pricing::stochastic::default::PoolGranularity;
     use crate::instruments::fixed_income::structured_credit::pricing::stochastic::tree::ScenarioTreeConfig;
     use crate::instruments::fixed_income::structured_credit::{
         AssetPool, DealType, DefaultModelSpec, PoolAsset, RecoveryModelSpec, Tranche,
@@ -1938,6 +1937,7 @@ mod per_name_copula_tests {
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::money::Money;
+    use finstack_quant_models::credit::pool::PoolGranularity;
     use time::Month;
 
     fn close() -> Date {
@@ -2551,7 +2551,7 @@ mod per_name_copula_tests {
             cfg.tree_config.factor_spec = spec;
             // A STOCHASTIC prepay model, or the factor is ignored entirely and
             // the comparison is vacuous.
-            cfg.tree_config.prepay_spec = StochasticPrepaySpec::rmbs_agency(0.06);
+            cfg.tree_config.prepay_spec = rmbs_prepay_spec(0.06);
             let pricer = StochasticPricer::new(cfg);
             let prepared = pricer.prepare_run(&deal).expect("prepared run");
             let factors: Vec<f64> = (0..24).map(|m| ((m as f64) * 0.37).sin()).collect();
@@ -2592,7 +2592,7 @@ mod per_name_copula_tests {
         let deal = clo_deal(60);
         let mut cfg = copula_config(0.06, 0.20, 36, PoolGranularity::PerName, 16);
         // Richard-Roll with a live burnout rate.
-        cfg.tree_config.prepay_spec = StochasticPrepaySpec::rmbs_agency(0.06);
+        cfg.tree_config.prepay_spec = rmbs_prepay_spec(0.06);
         let pricer = StochasticPricer::new(cfg);
 
         // Drive a strongly-prepaying path so realized runs above expected.

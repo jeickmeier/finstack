@@ -25,6 +25,6 @@ mod traits;
 
 pub(crate) use factor_correlated::FactorCorrelatedPrepay;
 pub(crate) use regime_switching::RegimeSwitchingPrepay;
-pub(crate) use richard_roll::RichardRollPrepay;
+pub use richard_roll::RichardRollPrepay;
 pub use spec::StochasticPrepaySpec;
-pub(crate) use traits::StochasticPrepayment;
+pub use traits::StochasticPrepayment;

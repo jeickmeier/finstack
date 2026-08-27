@@ -5,7 +5,11 @@
 
 use super::{DealType, StructuredCredit};
 use crate::cashflow::builder::PrepaymentModelSpec;
-use crate::instruments::fixed_income::structured_credit::pricing::{
+use crate::instruments::fixed_income::structured_credit::pricing::stochastic::calibrations::{
+    abs_auto_correlation_structure, clo_correlation_structure, clo_default_spec, clo_prepay_spec,
+    cmbs_correlation_structure, rmbs_correlation_structure, rmbs_default_spec, rmbs_prepay_spec,
+};
+use finstack_quant_models::credit::pool::{
     CorrelationStructure, StochasticDefaultSpec, StochasticPrepaySpec,
 };
 
@@ -29,10 +33,14 @@ impl StructuredCredit {
     /// # Example
     /// ```text
     /// use finstack_quant_valuations::instruments::fixed_income::structured_credit::StructuredCredit;
-    /// use finstack_quant_valuations::instruments::fixed_income::structured_credit::pricing::StochasticPrepaySpec;
+    /// use finstack_quant_models::credit::pool::StochasticPrepaySpec;
     ///
     /// let mut clo = StructuredCredit::example();
-    /// clo.with_stochastic_prepay(StochasticPrepaySpec::clo_standard());
+    /// clo.with_stochastic_prepay(StochasticPrepaySpec::factor_correlated(
+    ///     finstack_quant_cashflows::builder::PrepaymentModelSpec::constant_cpr(0.15),
+    ///     0.35,
+    ///     0.25,
+    /// ));
     /// ```
     pub fn with_stochastic_prepay(&mut self, spec: StochasticPrepaySpec) -> &mut Self {
         self.credit_model.stochastic_prepay_spec = Some(spec);
@@ -69,20 +77,20 @@ impl StructuredCredit {
             DealType::Rmbs => (
                 // Pool WAC is the coupon side of the Richard-Roll incentive;
                 // market rate arrives via `tree_config.market_refi_rate`.
-                StochasticPrepaySpec::rmbs_agency(self.pool.weighted_avg_coupon()),
-                StochasticDefaultSpec::rmbs_standard(),
-                CorrelationStructure::rmbs_standard(),
+                rmbs_prepay_spec(self.pool.weighted_avg_coupon()),
+                rmbs_default_spec(),
+                rmbs_correlation_structure(),
             ),
             DealType::Clo | DealType::Cbo => (
-                StochasticPrepaySpec::clo_standard(),
-                StochasticDefaultSpec::clo_standard(),
-                CorrelationStructure::clo_standard(),
+                clo_prepay_spec(),
+                clo_default_spec(),
+                clo_correlation_structure(),
             ),
             DealType::Cmbs => (
                 // CMBS has minimal prepayment due to lockout/defeasance
                 StochasticPrepaySpec::deterministic(PrepaymentModelSpec::constant_cpr(0.02)),
                 StochasticDefaultSpec::gaussian_copula(0.02, 0.20),
-                CorrelationStructure::cmbs_standard(),
+                cmbs_correlation_structure(),
             ),
             DealType::Abs | DealType::Auto | DealType::Card => (
                 StochasticPrepaySpec::factor_correlated(
@@ -91,7 +99,7 @@ impl StructuredCredit {
                     0.15,
                 ),
                 StochasticDefaultSpec::gaussian_copula(self.credit_model.default_spec.cdr, 0.10),
-                CorrelationStructure::abs_auto_standard(),
+                abs_auto_correlation_structure(),
             ),
         };
 

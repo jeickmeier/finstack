@@ -6,9 +6,8 @@
 
 use crate::cashflow::builder::specs::PrepaymentModelSpec;
 use crate::instruments::fixed_income::structured_credit::assumptions::embedded_registry;
-use crate::instruments::fixed_income::structured_credit::pricing::stochastic::prepayment::{
-    RichardRollPrepay, StochasticPrepayment,
-};
+use crate::instruments::fixed_income::structured_credit::pricing::stochastic::calibrations::rmbs_standard;
+use finstack_quant_models::credit::pool::{RichardRollPrepay, StochasticPrepayment};
 
 /// Agency MBS prepayment model wrapper.
 ///
@@ -124,7 +123,13 @@ impl AgencyPrepaymentModel {
     ///
     /// Uses calibrated parameters typical for conforming agency MBS.
     pub fn agency_standard(pool_coupon: f64) -> Self {
-        let rr = RichardRollPrepay::agency_standard(pool_coupon);
+        let calibration = rmbs_standard();
+        let rr = RichardRollPrepay::new(
+            calibration.base_cpr,
+            calibration.refi_sensitivity,
+            pool_coupon,
+            calibration.burnout_rate,
+        );
         Self {
             base_spec: PrepaymentModelSpec::psa(1.0),
             stochastic: Some(Box::new(rr)),

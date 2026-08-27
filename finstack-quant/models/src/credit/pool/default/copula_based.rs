@@ -20,10 +20,10 @@
 //!
 //! - Li, D. X. (2000). "On Default Correlation: A Copula Function Approach." `docs/REFERENCES.md#li-2000-gaussian-copula`
 
+use super::super::clamped_cdr_to_mdr;
 use super::traits::{MacroCreditFactors, StochasticDefault};
-use crate::instruments::fixed_income::structured_credit::utils::rates::clamped_cdr_to_mdr;
+use crate::correlation::copula::{Copula, CopulaSpec};
 use finstack_quant_core::math::{standard_normal_inv_cdf, student_t_inv_cdf};
-use finstack_quant_models::correlation::copula::{Copula, CopulaSpec};
 
 /// Copula-based stochastic default model.
 ///

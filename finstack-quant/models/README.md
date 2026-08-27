@@ -44,7 +44,7 @@ unconditional dependency. A few convenience entry points (`EuropeanPricer`,
 | `liquidity` | Roll and Amihud estimators, days-to-liquidate tiering, Bangia LVaR, Almgren-Chriss execution impact, Kyle lambda, and the embedded `models.liquidity_defaults.v1` registry |
 | `pde` | One- and two-dimensional grids, steppers, and solvers |
 | `trees` | Equity, short-rate, and multi-factor tree engines |
-| `credit` | Structural credit, rating-factor tables, migration, PD calibration, scoring, LGD/EAD, recovery waterfalls, liability-management analytics, dynamic recovery, endogenous hazard, and toggle exercise. Defaults are loaded from `data/credit/credit_assumptions.v1.json` under `models.credit_assumptions.v1`. |
+| `credit` | Structural credit, rating-factor tables, migration, PD calibration, scoring, LGD/EAD, recovery waterfalls, liability-management analytics, structured-credit pool default/prepayment/correlation engines, dynamic recovery, endogenous hazard, and toggle exercise. Defaults are loaded from `data/credit/credit_assumptions.v1.json` under `models.credit_assumptions.v1`. |
 | `correlation` | Copulas, recovery models, latent-factor models, and portfolio-loss simulation |
 | `monte_carlo` | Random streams, stochastic processes, discretizations, payoffs, execution engines, pricers, Greeks, results, and embedded defaults |
 
