@@ -51,15 +51,12 @@ test('models.volatility evaluates core data artifacts', () => {
   assert.ok(Number.isFinite(vol));
   assert.ok(vol > 0);
 
-  const surface = new facade.core.FxDeltaVolSurface(
-    'EURUSD-VOL',
-    [1],
-    [0.12],
-    [0.01],
-    [0.002]
-  );
+  const surface = new facade.core.FxDeltaVolSurface('EURUSD-VOL', [1], [0.12], [0.01], [0.002]);
   const pillars = facade.models.volatility.getFxDeltaPillarVols(surface, 0);
-  assert.deepEqual(Array.from(pillars).map((value) => Number(value.toFixed(6))), [0.12, 0.117, 0.127]);
+  assert.deepEqual(
+    Array.from(pillars).map((value) => Number(value.toFixed(6))),
+    [0.12, 0.117, 0.127]
+  );
 
   surface.free();
   cube.free();
