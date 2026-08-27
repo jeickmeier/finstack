@@ -21,8 +21,24 @@ fn test_merton() -> MertonModel {
 }
 
 #[test]
+fn config_accepts_recovery_boundaries_and_rejects_invalid_values() {
+    for recovery in [0.0, 1.0] {
+        let config = MertonMcConfig::new(test_merton(), recovery)
+            .expect("boundary recovery should be valid");
+        assert_eq!(config.default_recovery_rate, recovery);
+    }
+
+    for recovery in [-f64::EPSILON, 1.0 + f64::EPSILON, f64::NAN] {
+        assert!(MertonMcConfig::new(test_merton(), recovery).is_err());
+    }
+}
+
+#[test]
 fn cash_bond_produces_positive_price() {
-    let config = MertonMcConfig::new(test_merton()).num_paths(5000).seed(42);
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(5000)
+        .seed(42);
     let result = MertonMcEngine::price(100.0, 0.08, 5.0, 2, &config, 0.04).expect("ok");
     assert!(
         result.clean_price_pct > 50.0 && result.clean_price_pct < 150.0,
@@ -33,7 +49,8 @@ fn cash_bond_produces_positive_price() {
 
 #[test]
 fn pik_bond_produces_positive_price() {
-    let config = MertonMcConfig::new(test_merton())
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(5000)
         .seed(42);
@@ -48,11 +65,13 @@ fn pik_bond_produces_positive_price() {
 #[test]
 fn endogenous_hazard_lowers_pik_price() {
     let endo = EndogenousHazardSpec::power_law(0.06, 0.5, 2.5).expect("valid");
-    let config_no = MertonMcConfig::new(test_merton())
+    let config_no = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(10_000)
         .seed(42);
-    let config_yes = MertonMcConfig::new(test_merton())
+    let config_yes = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(10_000)
         .seed(42)
@@ -70,11 +89,13 @@ fn endogenous_hazard_lowers_pik_price() {
 #[test]
 fn dynamic_recovery_lowers_pik_price() {
     let dyn_rec = DynamicRecoverySpec::floored_inverse(0.40, 100.0, 0.10).expect("valid");
-    let config_no = MertonMcConfig::new(test_merton())
+    let config_no = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(10_000)
         .seed(42);
-    let config_yes = MertonMcConfig::new(test_merton())
+    let config_yes = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(10_000)
         .seed(42)
@@ -96,14 +117,17 @@ fn toggle_price_between_cash_and_pik() {
         0.10,
         ThresholdDirection::Above,
     );
-    let config_cash = MertonMcConfig::new(test_merton())
+    let config_cash = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(10_000)
         .seed(42);
-    let config_pik = MertonMcConfig::new(test_merton())
+    let config_pik = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(10_000)
         .seed(42);
-    let config_toggle = MertonMcConfig::new(test_merton())
+    let config_toggle = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Toggle))
         .num_paths(10_000)
         .seed(42)
@@ -174,7 +198,10 @@ fn stub_maturity_mc_matches_risk_free_pv_without_default_risk() {
         AssetDynamics::GeometricBrownian,
     )
     .expect("valid merton");
-    let config = MertonMcConfig::new(merton).num_paths(64).seed(42);
+    let config = MertonMcConfig::new(merton, 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(64)
+        .seed(42);
 
     for maturity in [4.6, 4.8, 5.0] {
         let result =
@@ -197,7 +224,8 @@ fn stub_maturity_mc_matches_risk_free_pv_without_default_risk() {
 
 #[test]
 fn mc_is_deterministic_with_seed() {
-    let config = MertonMcConfig::new(test_merton())
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(1000)
         .seed(42);
@@ -211,7 +239,8 @@ fn mc_is_deterministic_with_seed() {
 
 #[test]
 fn path_statistics_reasonable() {
-    let config = MertonMcConfig::new(test_merton())
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(5000)
         .seed(42);
@@ -255,12 +284,17 @@ fn pik_schedule_stepped_toggle_then_cash() {
 
 #[test]
 fn split_schedule_prices_between_cash_and_pik() {
-    let config_cash = MertonMcConfig::new(test_merton()).num_paths(5000).seed(42);
-    let config_pik = MertonMcConfig::new(test_merton())
+    let config_cash = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(5000)
+        .seed(42);
+    let config_pik = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(5000)
         .seed(42);
-    let config_split = MertonMcConfig::new(test_merton())
+    let config_split = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Split {
             cash_fraction: 0.5,
             pik_fraction: 0.5,
@@ -287,12 +321,17 @@ fn split_schedule_prices_between_cash_and_pik() {
 fn stepped_schedule_pik_then_cash() {
     // PIK for first 2 years, then cash for remaining 3 years.
     // Should be between full cash and full PIK.
-    let config_cash = MertonMcConfig::new(test_merton()).num_paths(5000).seed(42);
-    let config_pik = MertonMcConfig::new(test_merton())
+    let config_cash = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(5000)
+        .seed(42);
+    let config_pik = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(5000)
         .seed(42);
-    let config_step = MertonMcConfig::new(test_merton())
+    let config_step = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Stepped(vec![
             (0.0, PikMode::Pik),
             (2.0, PikMode::Cash),
@@ -328,7 +367,8 @@ fn toggle_window_then_cash() {
         0.10,
         ThresholdDirection::Above,
     );
-    let config = MertonMcConfig::new(test_merton())
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Stepped(vec![
             (0.0, PikMode::Toggle),
             (3.0, PikMode::Cash),
@@ -348,11 +388,15 @@ fn toggle_window_then_cash() {
 #[test]
 fn toggle_without_model_falls_back_to_cash() {
     // PikMode::Toggle but no toggle_model → should behave like cash
-    let config_toggle_no_model = MertonMcConfig::new(test_merton())
+    let config_toggle_no_model = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Toggle))
         .num_paths(5000)
         .seed(42);
-    let config_cash = MertonMcConfig::new(test_merton()).num_paths(5000).seed(42);
+    let config_cash = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(5000)
+        .seed(42);
 
     let toggle_result =
         MertonMcEngine::price(100.0, 0.08, 5.0, 2, &config_toggle_no_model, 0.04).expect("ok");
@@ -368,7 +412,7 @@ fn toggle_without_model_falls_back_to_cash() {
 
 #[test]
 fn default_pik_schedule_is_cash() {
-    let config = MertonMcConfig::new(test_merton());
+    let config = MertonMcConfig::new(test_merton(), 0.40).expect("0.40 recovery should be valid");
     assert!(
         matches!(config.pik_schedule, PikSchedule::Uniform(PikMode::Cash)),
         "Default pik_schedule should be Uniform(Cash)"
@@ -379,11 +423,13 @@ fn default_pik_schedule_is_cash() {
 
 #[test]
 fn brownian_bridge_increases_default_rate() {
-    let config_discrete = MertonMcConfig::new(test_merton())
+    let config_discrete = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(10_000)
         .seed(42)
         .barrier_crossing(BarrierCrossing::Discrete);
-    let config_bridge = MertonMcConfig::new(test_merton())
+    let config_bridge = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(10_000)
         .seed(42)
         .barrier_crossing(BarrierCrossing::BrownianBridge);
@@ -403,7 +449,8 @@ fn brownian_bridge_increases_default_rate() {
 
 #[test]
 fn brownian_bridge_is_deterministic() {
-    let config = MertonMcConfig::new(test_merton())
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(2000)
         .seed(99)
         .barrier_crossing(BarrierCrossing::BrownianBridge);
@@ -418,7 +465,8 @@ fn brownian_bridge_is_deterministic() {
 #[test]
 fn terminal_barrier_only_defaults_at_maturity() {
     let merton_terminal = MertonModel::new(200.0, 0.25, 100.0, 0.04).expect("valid");
-    let config = MertonMcConfig::new(merton_terminal)
+    let config = MertonMcConfig::new(merton_terminal, 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(5000)
         .seed(42);
     assert_eq!(config.barrier_crossing, BarrierCrossing::Discrete);
@@ -436,7 +484,7 @@ fn terminal_barrier_only_defaults_at_maturity() {
 
 #[test]
 fn first_passage_default_config_uses_brownian_bridge() {
-    let config = MertonMcConfig::new(test_merton());
+    let config = MertonMcConfig::new(test_merton(), 0.40).expect("0.40 recovery should be valid");
     assert_eq!(
         config.barrier_crossing,
         BarrierCrossing::BrownianBridge,
@@ -462,14 +510,18 @@ fn non_gbm_dynamics_rejected() {
         },
     )
     .expect("valid");
-    let config = MertonMcConfig::new(merton_jd).num_paths(100).seed(42);
+    let config = MertonMcConfig::new(merton_jd, 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(100)
+        .seed(42);
     let result = MertonMcEngine::price(100.0, 0.08, 5.0, 2, &config, 0.04);
     assert!(result.is_err(), "JumpDiffusion should be rejected");
 }
 
 #[test]
 fn invalid_split_fractions_rejected() {
-    let config = MertonMcConfig::new(test_merton())
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Split {
             cash_fraction: 0.6,
             pik_fraction: 0.6,
@@ -482,7 +534,8 @@ fn invalid_split_fractions_rejected() {
 
 #[test]
 fn negative_split_fractions_rejected() {
-    let config = MertonMcConfig::new(test_merton())
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Split {
             cash_fraction: -0.1,
             pik_fraction: 1.1,
@@ -498,7 +551,8 @@ fn negative_split_fractions_rejected() {
 
 #[test]
 fn unsorted_stepped_schedule_rejected() {
-    let config = MertonMcConfig::new(test_merton())
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Stepped(vec![
             (2.0, PikMode::Cash),
             (0.0, PikMode::Pik),
@@ -511,7 +565,8 @@ fn unsorted_stepped_schedule_rejected() {
         "Out-of-order Stepped times must be rejected"
     );
 
-    let dup = MertonMcConfig::new(test_merton())
+    let dup = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Stepped(vec![
             (1.0, PikMode::Pik),
             (1.0, PikMode::Cash),
@@ -526,7 +581,10 @@ fn unsorted_stepped_schedule_rejected() {
 
 #[test]
 fn single_path_rejected() {
-    let config = MertonMcConfig::new(test_merton()).num_paths(1).seed(42);
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(1)
+        .seed(42);
     assert!(
         MertonMcEngine::price(100.0, 0.08, 5.0, 2, &config, 0.04).is_err(),
         "num_paths < 2 must be rejected"
@@ -538,7 +596,8 @@ fn single_path_rejected() {
 /// from the naive 2N-independent-legs SE (and is typically smaller).
 #[test]
 fn antithetic_se_uses_pair_averages() {
-    let config = MertonMcConfig::new(test_merton())
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(10_000)
         .antithetic(true)
         .seed(7);
@@ -577,7 +636,8 @@ fn effective_spread_zero_for_default_free_bond_on_term_structure_basis() {
             (t, (-r * t).exp())
         })
         .collect();
-    let config = MertonMcConfig::new(merton)
+    let config = MertonMcConfig::new(merton, 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(64)
         .seed(42)
         .cashflow_dfs(steep_dfs);
@@ -591,7 +651,8 @@ fn effective_spread_zero_for_default_free_bond_on_term_structure_basis() {
 
 #[test]
 fn valid_split_fractions_accepted() {
-    let config = MertonMcConfig::new(test_merton())
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Split {
             cash_fraction: 0.3,
             pik_fraction: 0.7,
@@ -606,7 +667,10 @@ fn valid_split_fractions_accepted() {
 
 #[test]
 fn cashflow_dfs_overrides_flat_rate() {
-    let flat_config = MertonMcConfig::new(test_merton()).num_paths(2000).seed(42);
+    let flat_config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(2000)
+        .seed(42);
     let flat = MertonMcEngine::price(100.0, 0.08, 5.0, 2, &flat_config, 0.04).expect("ok");
 
     // Build steeper curve DFs (higher short rates, lower long rates)
@@ -617,7 +681,8 @@ fn cashflow_dfs_overrides_flat_rate() {
             (t, (-r * t).exp())
         })
         .collect();
-    let ts_config = MertonMcConfig::new(test_merton())
+    let ts_config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(2000)
         .seed(42)
         .cashflow_dfs(steep_dfs);
@@ -635,7 +700,10 @@ fn cashflow_dfs_overrides_flat_rate() {
 
 #[test]
 fn effective_spread_positive_for_risky_bond() {
-    let config = MertonMcConfig::new(test_merton()).num_paths(5000).seed(42);
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(5000)
+        .seed(42);
     let result = MertonMcEngine::price(100.0, 0.08, 5.0, 2, &config, 0.04).expect("ok");
     assert!(
         result.effective_spread_bp > 0.0,
@@ -646,7 +714,10 @@ fn effective_spread_positive_for_risky_bond() {
 
 #[test]
 fn standard_error_in_pct_of_par() {
-    let config = MertonMcConfig::new(test_merton()).num_paths(5000).seed(42);
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(5000)
+        .seed(42);
     let result = MertonMcEngine::price(100.0, 0.08, 5.0, 2, &config, 0.04).expect("ok");
     assert!(
         result.standard_error > 0.001 && result.standard_error < 10.0,
@@ -670,7 +741,8 @@ fn standard_error_in_pct_of_par() {
 // and this test will fail.
 #[test]
 fn antithetic_bridge_uses_complementary_uniform() {
-    let config = MertonMcConfig::new(test_merton())
+    let config = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(10_000)
         .antithetic(true)
         .seed(777)
@@ -707,7 +779,8 @@ fn antithetic_bridge_uses_complementary_uniform() {
 fn merton_mc_config_roundtrips_via_pricing_overrides_json() {
     // Ensures the canonical nested model configuration can deserialize.
     use crate::instruments::InstrumentPricingOverrides;
-    let cfg = MertonMcConfig::new(test_merton())
+    let cfg = MertonMcConfig::new(test_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(64)
         .seed(7)
         .pik_schedule(PikSchedule::Uniform(PikMode::Cash));

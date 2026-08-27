@@ -212,9 +212,6 @@ pub(super) struct XvaDefaultsRecord {
 pub(super) struct XvaDeterministicExposureRecord {
     pub(super) time_grid_points: usize,
     pub(super) time_grid_step_years: f64,
-    pub(super) recovery_rate: f64,
-    #[serde(default)]
-    pub(super) own_recovery_rate: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -92,6 +92,7 @@ fn create_market_single_curve() -> MarketContext {
             (5.0, 0.03),
             (10.0, 0.035),
         ])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
 
@@ -115,6 +116,7 @@ fn create_market_constituents(num_names: usize) -> MarketContext {
                 (5.0, 0.03 * scale),
                 (10.0, 0.035 * scale),
             ])
+            .recovery_rate(0.40)
             .build()
             .unwrap();
         market = market.insert(hazard);

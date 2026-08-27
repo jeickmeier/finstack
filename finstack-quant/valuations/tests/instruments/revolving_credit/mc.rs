@@ -231,6 +231,7 @@ fn test_mc_pricer_deterministic_reproducibility() {
             },
         )))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -289,6 +290,7 @@ fn test_mc_pricer_convergence() {
                 },
             )))
             .discount_curve_id("USD-OIS".into())
+            .recovery_rate(0.0)
             .build()
             .unwrap();
 
@@ -343,6 +345,7 @@ fn test_mc_utilization_mean_reversion() {
             },
         )))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -381,6 +384,7 @@ fn test_mc_utilization_mean_reversion() {
             },
         )))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -487,6 +491,7 @@ fn test_mc_stochastic_floating_rate_index_cap() {
                 },
             )))
             .discount_curve_id("USD-OIS".into())
+            .recovery_rate(0.0)
             .build()
             .unwrap()
     };

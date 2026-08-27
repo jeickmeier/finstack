@@ -588,9 +588,8 @@ class HazardCurve:
         Valuation date.
     knots : list[tuple[float, float]]
         ``(time_years, hazard_rate)`` pairs.
-    recovery_rate : float | None
-        Recovery rate. When omitted, the Rust builder default (the credit
-        assumptions registry value) applies.
+    recovery_rate : float
+        Required recovery rate as a decimal fraction in ``[0.0, 1.0]``.
     day_count : str | None
         Day-count convention. When omitted, the Rust builder default
         (``"act_365f"``) applies.
@@ -606,7 +605,7 @@ class HazardCurve:
     --------
     >>> import datetime
     >>> from finstack_quant.core.market_data import HazardCurve
-    >>> curve = HazardCurve("ACME", datetime.date(2025, 1, 1), [(0.0, 0.02), (5.0, 0.03)])
+    >>> curve = HazardCurve("ACME", datetime.date(2025, 1, 1), [(0.0, 0.02), (5.0, 0.03)], 0.40)
     >>> curve.hazard_rate(0.0)
     0.02
 
@@ -617,7 +616,7 @@ class HazardCurve:
         id: str,
         base_date: datetime.date,
         knots: list[tuple[float, float]],
-        recovery_rate: float | None = None,
+        recovery_rate: float,
         day_count: str | None = None,
         par_spreads: list[tuple[float, float]] | None = None,
     ) -> None:
@@ -632,9 +631,8 @@ class HazardCurve:
             Valuation date.
         knots : list[tuple[float, float]]
             ``(time_years, hazard_rate)`` pairs.
-        recovery_rate : float | None
-            Recovery rate. When omitted, the Rust builder default (the
-            credit assumptions registry value) applies.
+        recovery_rate : float
+            Required recovery rate as a decimal fraction in ``[0.0, 1.0]``.
         day_count : str | None
             Day-count convention. When omitted, the Rust builder default
             (``"act_365f"``) applies.

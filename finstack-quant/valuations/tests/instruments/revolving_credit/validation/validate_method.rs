@@ -85,22 +85,14 @@ fn test_validate_recovery_rate_negative() {
 fn test_validate_recovery_rate_one() {
     let mut facility = valid_facility();
     facility.recovery_rate = 1.0;
-
-    let result = facility.validate();
-    assert!(result.is_err());
-    let err_msg = result.unwrap_err().to_string();
-    assert!(
-        err_msg.contains("recovery_rate"),
-        "Expected recovery_rate error, got: {}",
-        err_msg
-    );
+    assert!(facility.validate().is_ok());
 }
 
 #[test]
 fn test_validate_recovery_rate_valid_boundary() {
     let mut facility = valid_facility();
-    // Just below the max
-    facility.recovery_rate = 0.999;
+    // Upper bound is valid
+    facility.recovery_rate = 1.0;
     assert!(facility.validate().is_ok());
 
     // Zero is valid

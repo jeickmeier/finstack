@@ -47,6 +47,7 @@ fn test_builder_fixed_rate_facility() {
         .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build();
 
     // Assert
@@ -77,6 +78,7 @@ fn test_builder_floating_rate_facility() {
         .fees(RevolvingCreditFees::flat(30.0, 15.0, 8.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build();
 
     // Assert
@@ -124,6 +126,7 @@ fn test_builder_with_tiered_fees() {
         })
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build();
 
     // Assert
@@ -145,6 +148,7 @@ fn test_validation_maturity_after_commitment() {
         .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build();
 
     // Assert - builder currently does not validate date ordering
@@ -166,6 +170,7 @@ fn test_validation_drawn_within_commitment() {
         .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build();
 
     // Assert - builder currently does not validate drawn vs commitment

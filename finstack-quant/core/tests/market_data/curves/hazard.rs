@@ -18,8 +18,19 @@ fn base_date() -> Date {
 // Builder Validation Tests
 
 #[test]
+fn builder_requires_explicit_recovery_rate() {
+    let err = HazardCurve::builder("MISSING-RECOVERY")
+        .base_date(base_date())
+        .knots([(1.0, 0.01)])
+        .build()
+        .expect_err("missing recovery rate must fail");
+    assert!(err.to_string().contains("explicit recovery_rate"));
+}
+
+#[test]
 fn builder_rejects_empty_knots() {
     let err = HazardCurve::builder("BAD")
+        .recovery_rate(0.40)
         .build()
         .expect_err("no points should fail");
     assert!(matches!(err, finstack_quant_core::Error::Input(_)));
@@ -29,6 +40,7 @@ fn builder_rejects_empty_knots() {
 fn builder_rejects_negative_hazard_rate() {
     let err = HazardCurve::builder("NEG")
         .knots([(1.0, -0.01), (2.0, 0.02)])
+        .recovery_rate(0.40)
         .build()
         .expect_err("negative lambda should fail");
     assert!(matches!(err, finstack_quant_core::Error::Input(_)));
@@ -42,6 +54,7 @@ fn survival_and_default_probabilities() {
         .base_date(base_date())
         .knots([(1.0, 0.01), (2.0, 0.015), (5.0, 0.02)])
         .par_spreads([(1.0, 100.0), (3.0, 150.0)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
 
@@ -59,6 +72,7 @@ fn hazard_shift_rejects_negative_rates() {
     let curve = HazardCurve::builder("HC")
         .base_date(base_date())
         .knots([(1.0, 0.01), (5.0, 0.02)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
 
@@ -102,6 +116,7 @@ fn sp_analytical_verification_constant_hazard() {
     let curve = HazardCurve::builder("SP-VERIFY")
         .base_date(base_date())
         .knots([(1.0, 0.02), (5.0, 0.02), (10.0, 0.02)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
 
@@ -126,6 +141,7 @@ fn sp_piecewise_verification() {
     let curve = HazardCurve::builder("SP-PIECEWISE")
         .base_date(base_date())
         .knots([(1.0, 0.01), (2.0, 0.015), (5.0, 0.02)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
 
@@ -164,6 +180,7 @@ fn explicit_zero_time_knot_is_ignored_for_survival() {
     let curve = HazardCurve::builder("SP-ZERO-KNOT")
         .base_date(base_date())
         .knots([(0.0, 0.01), (5.0, 0.02)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
 

@@ -5,7 +5,6 @@
   "default_pd_master_scale_id": "sp_assumptions",
   "default_downturn_lgd_id": "basel_secured",
   "default_workout_lgd_id": "standard_workout",
-  "default_market_recovery_rate": 0.40,
   "rating_factor_tables": [
     {
       "ids": ["moodys_standard", "moodys_idealized_default_rates_2024_09"],

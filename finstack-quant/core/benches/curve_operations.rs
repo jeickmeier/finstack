@@ -63,6 +63,7 @@ fn create_hazard_curve(num_points: usize) -> HazardCurve {
     HazardCurve::builder("CORP-AA")
         .base_date(base_date())
         .knots(knots)
+        .recovery_rate(0.40)
         .build()
         .unwrap()
 }

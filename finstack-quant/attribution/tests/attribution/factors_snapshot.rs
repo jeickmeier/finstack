@@ -56,6 +56,7 @@ fn create_test_hazard_curve(id: &str, base_date: Date) -> HazardCurve {
     HazardCurve::builder(id)
         .base_date(base_date)
         .knots(vec![(0.0, 0.0050), (1.0, 0.0055), (5.0, 0.0060)])
+        .recovery_rate(0.40)
         .build()
         .expect("HazardCurve builder should succeed with valid test data")
 }

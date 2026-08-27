@@ -130,24 +130,23 @@ pub struct PyXvaConfig {
 
 #[pymethods]
 impl PyXvaConfig {
-    /// Create a default XVA configuration (quarterly grid to 30Y, 40% recovery).
+    /// Create an XVA configuration with explicit counterparty and own recovery.
     #[new]
-    #[pyo3(signature = (time_grid=None, recovery_rate=None, own_recovery_rate=None, funding=None))]
+    #[pyo3(signature = (recovery_rate, own_recovery_rate, time_grid=None, funding=None))]
     fn new(
+        recovery_rate: f64,
+        own_recovery_rate: f64,
         time_grid: Option<Vec<f64>>,
-        recovery_rate: Option<f64>,
-        own_recovery_rate: Option<f64>,
         funding: Option<&PyFundingConfig>,
-    ) -> Self {
-        let default = xva::XvaConfig::default();
-        Self {
-            inner: xva::XvaConfig {
-                time_grid: time_grid.unwrap_or(default.time_grid),
-                recovery_rate: recovery_rate.unwrap_or(default.recovery_rate),
-                own_recovery_rate,
-                funding: funding.map(|f| f.inner.clone()),
-            },
+    ) -> PyResult<Self> {
+        let mut inner =
+            xva::XvaConfig::new(recovery_rate, own_recovery_rate).map_err(core_to_py)?;
+        if let Some(time_grid) = time_grid {
+            inner.time_grid = time_grid;
         }
+        inner.funding = funding.map(|f| f.inner.clone());
+        inner.validate().map_err(core_to_py)?;
+        Ok(Self { inner })
     }
 
     /// Support `pickle` (and therefore `multiprocessing`, `joblib`, `dask`).
@@ -164,6 +163,7 @@ impl PyXvaConfig {
     #[staticmethod]
     fn from_json(json: &str) -> PyResult<Self> {
         let inner: xva::XvaConfig = serde_json::from_str(json).map_err(display_to_py)?;
+        inner.validate().map_err(core_to_py)?;
         Ok(Self { inner })
     }
 
@@ -189,9 +189,9 @@ impl PyXvaConfig {
         self.inner.recovery_rate
     }
 
-    /// Recovery rate for own default (or None).
+    /// Recovery rate for own default.
     #[getter]
-    fn own_recovery_rate(&self) -> Option<f64> {
+    fn own_recovery_rate(&self) -> f64 {
         self.inner.own_recovery_rate
     }
 

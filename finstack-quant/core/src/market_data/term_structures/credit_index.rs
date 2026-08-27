@@ -135,6 +135,7 @@ impl CreditIndexData {
 /// let hazard = Arc::new(
 ///     HazardCurve::builder("CDX")
 ///         .base_date(base)
+///         .recovery_rate(0.40)
 ///         .knots([(0.0, 0.01), (5.0, 0.015)])
 ///         .build()
 ///         .expect("HazardCurve builder should succeed"),
@@ -271,10 +272,11 @@ impl CreditIndexDataBuilder {
             .num_constituents
             .ok_or_else(|| crate::Error::from(crate::error::InputError::Invalid))?;
 
-        let recovery_rate = match self.recovery_rate {
-            Some(r) => r,
-            None => crate::credit::registry::default_market_recovery_rate()?,
-        };
+        let recovery_rate = self.recovery_rate.ok_or_else(|| {
+            crate::Error::Validation(
+                "CreditIndexData requires an explicit recovery_rate in [0, 1]".to_string(),
+            )
+        })?;
 
         let index_credit_curve = self
             .index_credit_curve

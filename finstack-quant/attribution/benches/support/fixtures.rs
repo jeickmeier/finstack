@@ -124,11 +124,13 @@ pub fn rich_markets(shift_bp: f64) -> BondMarkets {
     let hazard_t0 = HazardCurve::builder("ACME-HAZ")
         .base_date(lean.as_of_t0)
         .knots([(0.0, 0.0050), (1.0, 0.0055), (5.0, 0.0060)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
     let hazard_t1 = HazardCurve::builder("ACME-HAZ")
         .base_date(lean.as_of_t1)
         .knots([(0.0, 0.0055), (1.0, 0.0060), (5.0, 0.0068)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
     let cpi_t0 = InflationCurve::builder("USD-CPI")

@@ -154,7 +154,7 @@ note = "Subset scope: Rust-only market_data extras — the dividends, fixings, h
 [crates.core.module_symbols.credit]
 python_package = "finstack_quant.core.credit"
 public = ["scoring", "pd", "lgd", "migration", "recovery_waterfall", "liability_management"]
-note = "Subset scope: the Rust credit::registry submodule (market default assumptions, e.g. default_market_recovery_rate) is Rust-only; hosts inherit its values as builder defaults (e.g. HazardCurve recovery_rate) instead of querying the registry directly."
+note = "Subset scope: the Rust credit::registry submodule is Rust-only. Recovery-dependent host calculations require an explicit finite decimal recovery rate in [0, 1]; bindings do not expose registry defaults."
 
 [crates.core.credit_migration_members]
 "GeneratorMatrix.regularization_l1" = "regularization_l1"

@@ -238,18 +238,18 @@ impl JsHazardCurve {
     /// values are year fractions from this date under `dayCount`.
     /// @param knots - Flat `[t0, lambda0, t1, lambda1, …]` array. `t` in
     /// years, `lambda` a non-negative intensity. Length must be even.
-    /// @param recoveryRate - Recovery on default in `[0, 1]`. Defaults to the
-    /// credit assumptions registry value.
+    /// @param recoveryRate - Required recovery on default as a decimal fraction in `[0, 1]`.
     /// @param dayCount - Day-count convention (default `"act_365f"`).
     /// @returns The constructed `HazardCurve`.
-    /// @throws If `knots` length is odd, the date is malformed, the
-    /// day-count is unknown, or the curve fails validation.
+    /// @throws If `recoveryRate` is missing, non-finite, or outside `[0, 1]`,
+    /// `knots` length is odd, the date is malformed, the day-count is unknown,
+    /// or the curve otherwise fails validation.
     #[wasm_bindgen(constructor)]
     pub fn new(
         id: &str,
         base_date: &str,
         knots: &[f64],
-        recovery_rate: Option<f64>,
+        recovery_rate: f64,
         day_count: Option<String>,
     ) -> Result<JsHazardCurve, JsValue> {
         let base = parse_iso_date(base_date)?;
@@ -258,11 +258,16 @@ impl JsHazardCurve {
                 "knots array must have even length (t, hazardRate pairs)",
             ));
         }
-        let pairs: Vec<(f64, f64)> = knots.chunks_exact(2).map(|c| (c[0], c[1])).collect();
-        let mut builder = RustHazardCurve::builder(id).base_date(base).knots(pairs);
-        if let Some(recovery) = recovery_rate {
-            builder = builder.recovery_rate(recovery);
+        if !recovery_rate.is_finite() || !(0.0..=1.0).contains(&recovery_rate) {
+            return Err(to_js_err(
+                "recoveryRate is required and must be a finite decimal in [0, 1]",
+            ));
         }
+        let pairs: Vec<(f64, f64)> = knots.chunks_exact(2).map(|c| (c[0], c[1])).collect();
+        let mut builder = RustHazardCurve::builder(id)
+            .base_date(base)
+            .knots(pairs)
+            .recovery_rate(recovery_rate);
         if let Some(ref day_count) = day_count {
             builder = builder.day_count(parse_day_count(day_count)?);
         }

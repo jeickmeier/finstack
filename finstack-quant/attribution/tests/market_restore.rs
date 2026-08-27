@@ -228,6 +228,7 @@ fn hazard_curve(hazard: f64) -> HazardCurve {
     HazardCurve::builder("ACME-HAZ")
         .base_date(AS_OF_T0)
         .knots([(0.0, hazard), (5.0, hazard)])
+        .recovery_rate(0.40)
         .build()
         .expect("hazard curve should build")
 }

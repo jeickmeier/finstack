@@ -68,6 +68,7 @@ fn test_upfront_fee_sign() {
         })
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -131,6 +132,7 @@ fn test_mid_period_draw_accrual() {
             is_draw: true,
         }]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -219,6 +221,7 @@ fn test_floating_vs_margin_only() {
         .fees(RevolvingCreditFees::default())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -309,6 +312,7 @@ fn test_reset_frequency_mismatch() {
         .fees(RevolvingCreditFees::default())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -395,6 +399,7 @@ fn test_utilization_tier() {
         })
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -414,6 +419,7 @@ fn test_utilization_tier() {
         })
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -477,6 +483,7 @@ fn test_as_of_filtering() {
         .fees(RevolvingCreditFees::default())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 

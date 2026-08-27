@@ -28,6 +28,7 @@ fn test_very_short_commitment_period() {
         .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -57,6 +58,7 @@ fn test_very_long_commitment_period() {
         .fees(RevolvingCreditFees::flat(30.0, 12.0, 8.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 

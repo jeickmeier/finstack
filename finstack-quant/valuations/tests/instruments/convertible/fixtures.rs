@@ -504,6 +504,7 @@ pub fn create_market_context_with_credit(credit_spread_bp: f64) -> MarketContext
 pub fn create_convertible_with_credit() -> ConvertibleBond {
     let mut bond = create_standard_convertible();
     bond.credit_curve_id = Some("USD-CREDIT".into());
+    bond.recovery_rate = Some(0.0);
     bond
 }
 

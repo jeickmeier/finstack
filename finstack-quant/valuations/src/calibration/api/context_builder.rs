@@ -275,6 +275,7 @@ mod tests {
         let hazard = HazardCurve::builder("CDX-HAZARD")
             .base_date(base)
             .knots([(1.0, 0.01), (5.0, 0.02)])
+            .recovery_rate(0.40)
             .build()
             .expect("hazard");
         let correlation = BaseCorrelationCurve::builder("CDX-CORRELATION")

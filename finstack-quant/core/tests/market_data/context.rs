@@ -181,6 +181,7 @@ fn market_context_manages_fx_and_scalars() {
         .add_cash(sample_base_date(), Money::new(1.0, Currency::USD));
     let credit_index = CreditIndexData::builder()
         .num_constituents(1)
+        .recovery_rate(0.4)
         .index_credit_curve(Arc::new(sample_hazard_curve("CDX")))
         .base_correlation_curve(Arc::new(sample_base_correlation_curve("CDX-BC")))
         .build()
@@ -411,6 +412,7 @@ fn generic_curve_replace_rebinds_credit_index_dependencies() {
         finstack_quant_core::market_data::term_structures::HazardCurve::builder("CDX")
             .base_date(sample_base_date() + time::Duration::days(30))
             .knots([(1.0, 0.02), (3.0, 0.025), (5.0, 0.03)])
+            .recovery_rate(0.40)
             .build()
             .unwrap();
 
@@ -542,6 +544,7 @@ fn market_context_update_and_bump_failures() {
     let hazard = Arc::new(sample_hazard_curve("CDX"));
     let credit_index = CreditIndexData::builder()
         .num_constituents(1)
+        .recovery_rate(0.4)
         .index_credit_curve(Arc::clone(&hazard))
         .base_correlation_curve(Arc::clone(&base_corr))
         .build()
@@ -1077,6 +1080,7 @@ fn market_context_insert_and_stats_setters_cover_remaining_paths() {
     let base_corr = Arc::new(sample_base_correlation_curve("CDX-BC"));
     let credit_index = CreditIndexData::builder()
         .num_constituents(2)
+        .recovery_rate(0.4)
         .index_credit_curve(hazard)
         .base_correlation_curve(base_corr)
         .build()

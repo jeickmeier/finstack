@@ -566,6 +566,7 @@
         "maturity": "2029-04-30",
         "discount_curve_id": "USD-OIS",
         "credit_curve_id": "USD-CORP",
+        "recovery_rate": 0.0,
         "conversion": {
           "ratio": 10.0,
           "policy": "voluntary",

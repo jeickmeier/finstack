@@ -3031,12 +3031,12 @@ class XvaConfig:
 
     Parameters
     ----------
+    recovery_rate : float
+        Required counterparty recovery as a decimal fraction in ``[0, 1]``.
+    own_recovery_rate : float
+        Required own recovery as a decimal fraction in ``[0, 1]``.
     time_grid : list[float] | None, optional
-        Time grid in years; defaults to library default.
-    recovery_rate : float | None, optional
-        Counterparty recovery; defaults to library default.
-    own_recovery_rate : float | None, optional
-        Own recovery; optional.
+        Time grid in years; defaults to the registry-backed grid.
     funding : FundingConfig | None, optional
         FVA funding configuration.
 
@@ -3047,16 +3047,16 @@ class XvaConfig:
 
     Examples
     --------
-    >>> cfg = XvaConfig()
-    >>> cfg.recovery_rate > 0
-    True
+    >>> cfg = XvaConfig(0.40, 0.40)
+    >>> cfg.recovery_rate
+    0.4
     """
 
     def __init__(
         self,
+        recovery_rate: float,
+        own_recovery_rate: float,
         time_grid: list[float] | None = None,
-        recovery_rate: float | None = None,
-        own_recovery_rate: float | None = None,
         funding: FundingConfig | None = None,
     ) -> None:
         """
@@ -3064,21 +3064,21 @@ class XvaConfig:
 
         Parameters
         ----------
+        recovery_rate : float
+            Counterparty recovery as a decimal fraction in ``[0, 1]``.
+        own_recovery_rate : float
+            Own recovery as a decimal fraction in ``[0, 1]``.
         time_grid : list[float] or None, default None
-            Exposure times in years; ``None`` uses the library's standard XVA grid.
-        recovery_rate : float or None, default None
-            Counterparty recovery as a decimal fraction; ``None`` uses the
-            library default.
-        own_recovery_rate : float or None, default None
-            Own recovery as a decimal fraction for DVA; ``None`` uses the
-            library default.
+            Exposure times in years; ``None`` uses the registry-backed grid.
         funding : FundingConfig or None, default None
             Funding and collateral spread assumptions for FVA; ``None``
             disables explicit funding configuration.
 
-        Notes
-        -----
-        Construction does not raise; arguments are stored as supplied.
+        Raises
+        ------
+        ValueError
+            If either recovery is non-finite or outside ``[0, 1]``, or the
+            time grid or funding configuration is invalid.
         """
         ...
 
@@ -3104,7 +3104,7 @@ class XvaConfig:
 
         Examples
         --------
-        >>> config = XvaConfig.from_json(XvaConfig(recovery_rate=0.35).to_json())
+        >>> config = XvaConfig.from_json(XvaConfig(0.35, 0.30).to_json())
         >>> config.recovery_rate
         0.35
         """
@@ -3126,7 +3126,7 @@ class XvaConfig:
 
         Examples
         --------
-        >>> isinstance(XvaConfig().to_json(), str)
+        >>> isinstance(XvaConfig(0.40, 0.40).to_json(), str)
         True
         """
         ...
@@ -3141,12 +3141,12 @@ class XvaConfig:
 
         Raises
         ------
-        Exception
+        ValueError
             If parameters are invalid.
 
         Examples
         --------
-        >>> XvaConfig().validate()
+        >>> XvaConfig(0.40, 0.40).validate()
         """
         ...
 
@@ -3166,7 +3166,7 @@ class XvaConfig:
 
         Examples
         --------
-        >>> len(XvaConfig().time_grid) > 0
+        >>> len(XvaConfig(0.40, 0.40).time_grid) > 0
         True
         """
         ...
@@ -3187,20 +3187,20 @@ class XvaConfig:
 
         Examples
         --------
-        >>> 0 <= XvaConfig().recovery_rate <= 1
+        >>> 0 <= XvaConfig(0.40, 0.40).recovery_rate <= 1
         True
         """
         ...
 
     @property
-    def own_recovery_rate(self) -> float | None:
+    def own_recovery_rate(self) -> float:
         """
-        Recovery rate for own default (or None).
+        Recovery rate for own default.
 
         Returns
         -------
-        float or None
-            Own recovery if set.
+        float
+            Required own recovery fraction.
 
         Notes
         -----
@@ -3208,7 +3208,7 @@ class XvaConfig:
 
         Examples
         --------
-        >>> XvaConfig(own_recovery_rate=0.4).own_recovery_rate
+        >>> XvaConfig(0.35, 0.40).own_recovery_rate
         0.4
         """
         ...

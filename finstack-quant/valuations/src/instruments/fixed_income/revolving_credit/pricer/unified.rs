@@ -976,6 +976,7 @@ mod tests {
         let hz = HazardCurve::builder("USD-HZ")
             .base_date(start)
             .knots([(1.0, 0.20), (5.0, 0.20)])
+            .recovery_rate(0.40)
             .build()
             .expect("hazard");
         let market = MarketContext::new().insert(disc).insert(hz);
@@ -1044,6 +1045,7 @@ mod tests {
         let hz = HazardCurve::builder("USD-HZ")
             .base_date(start)
             .knots([(1.0, 0.20), (5.0, 0.20)])
+            .recovery_rate(0.40)
             .build()
             .expect("hazard");
         let market = MarketContext::new().insert(disc).insert(hz);

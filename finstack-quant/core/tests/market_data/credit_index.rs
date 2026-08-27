@@ -95,20 +95,18 @@ fn test_credit_index_recovery_rate_scenarios() {
 }
 
 #[test]
-fn test_credit_index_default_recovery_rate() {
-    // Test that default recovery rate is 0.40 (40%)
+fn test_credit_index_requires_explicit_recovery_rate() {
     let hazard = Arc::new(sample_hazard_curve("CDX"));
     let base_corr = Arc::new(sample_base_correlation_curve("CDX-BC"));
 
-    let data = CreditIndexData::builder()
+    let err = CreditIndexData::builder()
         .num_constituents(125)
-        // No recovery_rate specified, should default to 0.40
         .index_credit_curve(hazard)
         .base_correlation_curve(base_corr)
         .build()
-        .expect("valid credit index with default recovery");
+        .expect_err("missing recovery rate must fail");
 
-    assert_eq!(data.recovery_rate, 0.40);
+    assert!(err.to_string().contains("explicit recovery_rate"));
 }
 
 #[test]

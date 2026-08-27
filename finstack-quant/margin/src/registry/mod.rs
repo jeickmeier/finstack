@@ -216,10 +216,6 @@ pub struct XvaDeterministicExposureDefaults {
     pub time_grid_points: usize,
     /// Step between default exposure time-grid points, in years.
     pub time_grid_step_years: f64,
-    /// Counterparty recovery rate as a decimal probability.
-    pub recovery_rate: f64,
-    /// Optional own recovery rate as a decimal probability.
-    pub own_recovery_rate: Option<f64>,
 }
 
 /// Registry-backed SIMM parameter set.
@@ -642,6 +638,14 @@ fn parse_xva_defaults(value: Option<&Value>) -> Result<XvaDefaults> {
         ));
     };
     let file: wire::XvaDefaultsFile = serde_json::from_value(val.clone()).map_err(to_validation)?;
+    if file.schema.as_deref() != Some("finstack_quant.margin.xva_defaults.v1")
+        || file.version != Some(1)
+    {
+        return Err(Error::Validation(
+            "xva_defaults requires schema finstack_quant.margin.xva_defaults.v1 and version 1"
+                .to_string(),
+        ));
+    }
     let deterministic = file.defaults.deterministic_exposure;
 
     if deterministic.time_grid_points == 0 {
@@ -658,22 +662,10 @@ fn parse_xva_defaults(value: Option<&Value>) -> Result<XvaDefaults> {
             "xva_defaults deterministic_exposure.time_grid_step_years must be positive".to_string(),
         ));
     }
-    validate_probability(
-        "xva_defaults.deterministic_exposure.recovery_rate",
-        deterministic.recovery_rate,
-    )?;
-    if let Some(own_recovery_rate) = deterministic.own_recovery_rate {
-        validate_probability(
-            "xva_defaults.deterministic_exposure.own_recovery_rate",
-            own_recovery_rate,
-        )?;
-    }
     Ok(XvaDefaults {
         deterministic_exposure: XvaDeterministicExposureDefaults {
             time_grid_points: deterministic.time_grid_points,
             time_grid_step_years: deterministic.time_grid_step_years,
-            recovery_rate: deterministic.recovery_rate,
-            own_recovery_rate: deterministic.own_recovery_rate,
         },
     })
 }

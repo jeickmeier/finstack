@@ -65,9 +65,9 @@ fn zspread_fallback_setup(
     let market = market.clone().insert(synthetic);
     let mut shocked = bond.clone();
     shocked.credit_curve_id = Some(synthetic_id.clone());
-    // Pure z-spread bump: no recovery blending, the full shock hits the cash
-    // component (`recovery_rate` is only meaningful with a real credit curve).
-    shocked.recovery_rate = None;
+    // Pure z-spread bump: explicit zero recovery makes the full shock hit the
+    // cash component without introducing an implicit recovery assumption.
+    shocked.recovery_rate = Some(0.0);
     Ok((shocked, market, synthetic_id))
 }
 

@@ -59,6 +59,7 @@ use finstack_quant_core::market_data::term_structures::HazardCurve;
 /// // Build hazard curve from CDS spreads
 /// let hazard_curve = HazardCurve::builder("CORP-CREDIT")
 ///     .base_date(as_of)
+///     .recovery_rate(0.40)
 ///     .knots([(1.0, 0.02), (3.0, 0.025), (5.0, 0.03)])
 ///     .build()?;
 ///
@@ -197,6 +198,7 @@ mod tests {
         HazardCurve::builder("TEST-CREDIT")
             .base_date(base)
             .knots([(0.0, 0.02), (5.0, 0.03), (10.0, 0.04)])
+            .recovery_rate(0.40)
             .build()
             .expect("Valid hazard curve")
     }

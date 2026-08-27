@@ -806,8 +806,7 @@ pub struct HazardCurveParams {
     /// Identifier for the discount curve to use.
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub discount_curve_id: CurveId,
-    /// Recovery rate assumption (defaults to 0.4).
-    #[serde(default = "default_recovery_04")]
+    /// Required recovery-rate assumption as a decimal fraction in `[0, 1]`.
     pub recovery_rate: f64,
     /// Notional used to price synthetic CDS instruments during calibration.
     ///
@@ -1384,10 +1383,6 @@ fn default_par_interp_linear() -> ParInterp {
 
 fn default_extrap_flat() -> ExtrapolationPolicy {
     ExtrapolationPolicy::FlatForward
-}
-
-fn default_recovery_04() -> f64 {
-    0.4
 }
 
 fn default_unit_notional() -> f64 {

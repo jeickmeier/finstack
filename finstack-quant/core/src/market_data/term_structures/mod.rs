@@ -91,6 +91,7 @@
 //!     ?;
 //! let hazard = HazardCurve::builder("USD-CRED")
 //!     .base_date(base)
+//!     .recovery_rate(0.40)
 //!     .knots([(1.0, 0.01), (10.0, 0.015)])
 //!     .build()
 //!     ?;

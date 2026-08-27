@@ -30,7 +30,7 @@ base_date: string,
  */
 discount_curve_id: string,
 /**
- * Recovery rate assumption (defaults to 0.4).
+ * Required recovery-rate assumption as a decimal fraction in `[0, 1]`.
  */
 recovery_rate: number,
 /**

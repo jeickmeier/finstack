@@ -461,6 +461,7 @@ mod tests {
         HazardCurve::builder("BANK-SELF")
             .base_date(base)
             .knots([(0.0, lambda), (30.0, lambda)])
+            .recovery_rate(0.40)
             .build()
             .expect("HazardCurve should build")
     }

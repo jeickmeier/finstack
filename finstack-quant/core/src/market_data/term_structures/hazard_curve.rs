@@ -47,6 +47,7 @@
 //! let base = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
 //! let hc = HazardCurve::builder("USD-CREDIT")
 //!     .base_date(base)
+//!     .recovery_rate(0.40)
 //!     .knots([(1.0, 0.01), (10.0, 0.015)])
 //!     .build()
 //!     .expect("HazardCurve builder should succeed");
@@ -253,7 +254,7 @@ impl HazardCurve {
             id: id.into(),
             base,
             points: Vec::new(),
-            recovery_rate: crate::credit::registry::default_market_recovery_rate_or_panic(),
+            recovery_rate: None,
             issuer: None,
             seniority: None,
             currency: None,
@@ -850,7 +851,7 @@ pub struct HazardCurveBuilder {
     id: CurveId,
     base: Date,
     points: Vec<(f64, f64)>, // (t, lambda)
-    recovery_rate: f64,
+    recovery_rate: Option<f64>,
     issuer: Option<String>,
     seniority: Option<Seniority>,
     currency: Option<Currency>,
@@ -894,7 +895,7 @@ impl HazardCurveBuilder {
     }
     /// Set recovery rate metadata.
     pub fn recovery_rate(mut self, r: f64) -> Self {
-        self.recovery_rate = r;
+        self.recovery_rate = Some(r);
         self
     }
     /// Supply knot points `(t, λ)` where λ is the hazard rate.
@@ -1001,7 +1002,7 @@ impl HazardCurveBuilder {
     /// - At least one knot point required
     /// - All hazard rates must be non-negative and finite
     /// - Hazard rates > `max_hazard_rate` (default 10.0) trigger an error
-    /// - Recovery rate must be in [0, 1]
+    /// - Recovery rate must be supplied explicitly and lie in [0, 1]
     /// - Knot times must be strictly increasing after sorting by time
     /// - Stored par-spread tenors must be finite and non-negative, and spreads
     ///   must be finite; they are retained for reporting rather than used to
@@ -1029,6 +1030,12 @@ impl HazardCurveBuilder {
             return Err(InputError::TooFewPoints.into());
         }
 
+        let recovery_rate = self.recovery_rate.ok_or_else(|| {
+            crate::Error::Validation(
+                "HazardCurve requires an explicit recovery_rate in [0, 1]".to_string(),
+            )
+        })?;
+
         // Validate knot times and hazard rates: times must be finite/non-negative;
         // rates non-negative and finite; a zero-time anchor is allowed, but all
         // subsequent knots must increase strictly.
@@ -1055,7 +1062,7 @@ impl HazardCurveBuilder {
         }
 
         // Validate recovery rate bounds
-        super::common::validate_unit_range(self.recovery_rate, "recovery_rate")?;
+        super::common::validate_unit_range(recovery_rate, "recovery_rate")?;
 
         let mut points = self.points;
         points.sort_by(|a, b| a.0.total_cmp(&b.0));
@@ -1099,7 +1106,7 @@ impl HazardCurveBuilder {
             base: self.base,
             knots: kvec.into_boxed_slice(),
             lambdas: lvec.into_boxed_slice(),
-            recovery_rate: self.recovery_rate,
+            recovery_rate,
             issuer: self.issuer,
             seniority: self.seniority,
             currency: self.currency,
@@ -1221,12 +1228,14 @@ mod tests {
         let log_linear = HazardCurve::builder("LL")
             .base_date(base)
             .knots(knots)
+            .recovery_rate(0.40)
             .build()
             .expect("log-linear build");
         let linear = HazardCurve::builder("LIN")
             .base_date(base)
             .knots(knots)
             .interp(crate::math::interp::InterpStyle::Linear)
+            .recovery_rate(0.40)
             .build()
             .expect("linear build");
 
@@ -1254,6 +1263,7 @@ mod tests {
         let hc = HazardCurve::builder("USD-CREDIT")
             .base_date(base)
             .knots([(1.0, 0.01), (5.0, 0.02)])
+            .recovery_rate(0.40)
             .build()
             .expect("HazardCurve builder should succeed with valid test data");
         assert!(hc.sp(1.0) < 1.0);
@@ -1266,6 +1276,7 @@ mod tests {
         let hc = HazardCurve::builder("USD")
             .base_date(base)
             .knots([(1.0, 0.01), (10.0, 0.015)])
+            .recovery_rate(0.40)
             .build()
             .expect("HazardCurve builder should succeed with valid test data");
         let dp = hc
@@ -1281,6 +1292,7 @@ mod tests {
             .base_date(base)
             .day_count(DayCount::Act365F)
             .knots([(0.0, 0.01), (5.0, 0.02), (10.0, 0.03)])
+            .recovery_rate(0.40)
             .build()
             .expect("valid hazard curve");
 
@@ -1296,6 +1308,7 @@ mod tests {
             .base_date(base)
             .day_count(DayCount::Act365F)
             .knots([(1.0, 0.01), (2.0, 0.02), (3.0, 0.03)])
+            .recovery_rate(0.40)
             .build()
             .expect("valid hazard curve");
 
@@ -1310,6 +1323,7 @@ mod tests {
             .base_date(base)
             .day_count(DayCount::Act365F)
             .knots([(0.0, 0.01), (5.0, 0.02), (10.0, 0.03)])
+            .recovery_rate(0.40)
             .build()
             .expect("valid hazard curve");
 
@@ -1333,6 +1347,7 @@ mod tests {
             .base_date(base)
             .knots([(1.0, 0.02)])
             .par_spreads([(1.0, 100.0), (3.0, 200.0)])
+            .recovery_rate(0.40)
             .build()
             .expect("HazardCurve builder should succeed with valid test data");
         assert!((hc.cds_quote_bp(2.0, ParInterp::Linear) - 150.0).abs() < 1e-9);
@@ -1345,6 +1360,7 @@ mod tests {
             .base_date(base)
             .day_count(DayCount::Act365F) // Use Act365F for simple math
             .knots([(0.5, 0.01), (1.5, 0.02)])
+            .recovery_rate(0.40)
             .build()
             .expect("Builder works");
 
@@ -1363,6 +1379,7 @@ mod tests {
             .base_date(base)
             .day_count(DayCount::Act365F)
             .knots([(0.5, 0.01), (1.5, 0.02), (2.5, 0.03)])
+            .recovery_rate(0.40)
             .build()
             .expect("Builder works");
 
@@ -1389,6 +1406,7 @@ mod tests {
         let result = HazardCurve::builder("USD-CREDIT")
             .base_date(base)
             .knots([(0.0, 0.01), (5.0, 0.02)])
+            .recovery_rate(0.40)
             .build();
 
         assert!(result.is_ok(), "t=0 hazard knots should be accepted");
@@ -1400,6 +1418,7 @@ mod tests {
         let hc = HazardCurve::builder("USD-CREDIT")
             .base_date(base)
             .knots([(0.0, 0.01), (5.0, 0.02)])
+            .recovery_rate(0.40)
             .build()
             .expect("HazardCurve builder should succeed with valid test data");
 
@@ -1544,6 +1563,7 @@ mod tests {
         let curve = HazardCurve::builder("HY")
             .base_date(base)
             .knots([(1.0, 0.001), (5.0, 0.002)])
+            .recovery_rate(0.40)
             .build()
             .expect("valid hazard curve");
 

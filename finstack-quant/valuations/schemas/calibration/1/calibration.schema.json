@@ -582,8 +582,7 @@
               "description": "Interpolation method for par spreads reported by the calibrated curve.\n\nNote: this is used for *quoting/interpolation of stored par spreads* and does not affect\nsurvival no-arbitrage, which is enforced via non-negative hazards together with the\nsurvival interpolation selected by `interpolation` (log-linear by default)."
             },
             "recovery_rate": {
-              "default": 0.4,
-              "description": "Recovery rate assumption (defaults to 0.4).",
+              "description": "Required recovery-rate assumption as a decimal fraction in `[0, 1]`.",
               "format": "double",
               "type": "number"
             },
@@ -599,7 +598,8 @@
             "seniority",
             "currency",
             "base_date",
-            "discount_curve_id"
+            "discount_curve_id",
+            "recovery_rate"
           ],
           "type": "object"
         },

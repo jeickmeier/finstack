@@ -4,8 +4,7 @@
   "defaults": {
     "deterministic_exposure": {
       "time_grid_points": 120,
-      "time_grid_step_years": 0.25,
-      "recovery_rate": 0.40
+      "time_grid_step_years": 0.25
     }
   }
 }

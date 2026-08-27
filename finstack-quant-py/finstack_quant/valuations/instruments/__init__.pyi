@@ -406,7 +406,9 @@ class Bond:
         ...     "USD-OIS",
         ... )
         >>> merton = MertonModel(100.0, 0.25, 80.0, 0.04)
-        >>> config = MertonMcConfig(merton).pik_schedule(PikSchedule.uniform(PikMode.pik())).num_paths(256).seed(42)
+        >>> config = (
+        ...     MertonMcConfig(merton, 0.40).pik_schedule(PikSchedule.uniform(PikMode.pik())).num_paths(256).seed(42)
+        ... )
         >>> result = bond.price_merton_mc(config, 0.04, datetime.date(2024, 1, 1))
         >>> result.num_paths
         256
@@ -527,12 +529,12 @@ class MertonMcConfig:
     --------
     >>> from finstack_quant.valuations.instruments import MertonMcConfig, PikMode, PikSchedule
     >>> from finstack_quant.models.credit import MertonModel
-    >>> config = MertonMcConfig(MertonModel(100.0, 0.25, 80.0, 0.04)).num_paths(1000)
+    >>> config = MertonMcConfig(MertonModel(100.0, 0.25, 80.0, 0.04), 0.40).num_paths(1000)
     >>> isinstance(config.seed(1).pik_schedule(PikSchedule.uniform(PikMode.cash())), MertonMcConfig)
     True
     """
 
-    def __init__(self, merton: MertonModel) -> None:
+    def __init__(self, merton: MertonModel, recovery_rate: float) -> None:
         """
         Create a configuration with registry-sourced simulation defaults.
 
@@ -540,10 +542,13 @@ class MertonMcConfig:
         ----------
         merton : MertonModel
             Structural credit model driving asset dynamics and default.
+        recovery_rate : float
+            Required recovery on default as a decimal fraction in ``[0, 1]``.
 
-        Notes
-        -----
-        Construction does not raise; arguments are stored as supplied.
+        Raises
+        ------
+        ValueError
+            If ``recovery_rate`` is non-finite or outside ``[0, 1]``.
         """
         ...
 
@@ -561,9 +566,10 @@ class MertonMcConfig:
         MertonMcConfig
             Updated configuration (fluent).
 
-        Notes
-        -----
-        This method does not raise; it returns the same instance for chaining.
+        Raises
+        ------
+        ValueError
+            If ``r`` is non-finite or outside ``[0, 1]``.
         """
         ...
 
@@ -773,7 +779,7 @@ class MertonMcConfig:
         --------
         >>> from finstack_quant.valuations.instruments import MertonMcConfig
         >>> from finstack_quant.models.credit import MertonModel
-        >>> config = MertonMcConfig(MertonModel(100.0, 0.25, 80.0, 0.04)).num_paths(256).seed(42)
+        >>> config = MertonMcConfig(MertonModel(100.0, 0.25, 80.0, 0.04), 0.40).num_paths(256).seed(42)
         >>> MertonMcConfig.from_json(config.to_json()).to_json() == config.to_json()
         True
         """
@@ -815,7 +821,7 @@ class MertonMcResult:
     ... )
     >>> from finstack_quant.models.credit import MertonModel
     >>> config = (
-    ...     MertonMcConfig(MertonModel(100.0, 0.25, 60.0, 0.04))
+    ...     MertonMcConfig(MertonModel(100.0, 0.25, 60.0, 0.04), 0.40)
     ...     .num_paths(64)
     ...     .seed(7)
     ...     .pik_schedule(PikSchedule.uniform(PikMode.pik()))
@@ -1038,7 +1044,7 @@ class PathStatistics:
     ... )
     >>> from finstack_quant.models.credit import MertonModel
     >>> config = (
-    ...     MertonMcConfig(MertonModel(100.0, 0.25, 60.0, 0.04))
+    ...     MertonMcConfig(MertonModel(100.0, 0.25, 60.0, 0.04), 0.40)
     ...     .num_paths(64)
     ...     .seed(7)
     ...     .pik_schedule(PikSchedule.uniform(PikMode.pik()))

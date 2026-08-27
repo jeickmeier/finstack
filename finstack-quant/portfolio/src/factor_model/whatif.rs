@@ -906,6 +906,7 @@ mod tests {
         let hazard = HazardCurve::builder(curve_id.clone())
             .base_date(as_of)
             .knots([(1.0, 0.01), (5.0, 0.01)])
+            .recovery_rate(0.40)
             .build()
             .expect("hazard");
         let market = MarketContext::new().insert(discount).insert(hazard);

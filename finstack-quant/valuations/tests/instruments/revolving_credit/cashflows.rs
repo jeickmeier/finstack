@@ -31,6 +31,7 @@ fn test_interest_on_drawn_amounts() {
         .fees(RevolvingCreditFees::flat(25.0, 10.0, 0.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -61,6 +62,7 @@ fn test_commitment_fee_on_undrawn() {
         .fees(RevolvingCreditFees::flat(50.0, 10.0, 0.0).unwrap()) // High commitment fee
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -91,6 +93,7 @@ fn test_utilization_fee_at_threshold() {
         .fees(RevolvingCreditFees::flat(25.0, 10.0, 15.0).unwrap()) // Utilization fee above threshold
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 

@@ -72,15 +72,18 @@ fn mc_converges_as_paths_increase() {
     // Standard error should decrease roughly as 1/sqrt(N).
     let merton = base_merton();
 
-    let config_1k = MertonMcConfig::new(merton.clone())
+    let config_1k = MertonMcConfig::new(merton.clone(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(1_000)
         .seed(42)
         .antithetic(false);
-    let config_5k = MertonMcConfig::new(merton.clone())
+    let config_5k = MertonMcConfig::new(merton.clone(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(5_000)
         .seed(42)
         .antithetic(false);
-    let config_25k = MertonMcConfig::new(merton)
+    let config_25k = MertonMcConfig::new(merton, 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(25_000)
         .seed(42)
         .antithetic(false);
@@ -129,17 +132,21 @@ fn higher_asset_vol_increases_spread_differential() {
     let merton_low = merton_with_vol(0.15);
     let merton_high = merton_with_vol(0.40);
 
-    let config_low_cash = MertonMcConfig::new(merton_low.clone())
+    let config_low_cash = MertonMcConfig::new(merton_low.clone(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(10_000)
         .seed(42);
-    let config_low_pik = MertonMcConfig::new(merton_low)
+    let config_low_pik = MertonMcConfig::new(merton_low, 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(10_000)
         .seed(42);
-    let config_high_cash = MertonMcConfig::new(merton_high.clone())
+    let config_high_cash = MertonMcConfig::new(merton_high.clone(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(10_000)
         .seed(42);
-    let config_high_pik = MertonMcConfig::new(merton_high)
+    let config_high_pik = MertonMcConfig::new(merton_high, 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(10_000)
         .seed(42);
@@ -168,10 +175,14 @@ fn zero_pik_coupon_matches_zero_coupon_bond() {
     // A full-PIK bond with 0% coupon should behave identically to a
     // cash bond with 0% coupon, because there is nothing to accrete.
     let merton = base_merton();
-    let config = MertonMcConfig::new(merton).num_paths(10_000).seed(42);
+    let config = MertonMcConfig::new(merton, 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(10_000)
+        .seed(42);
 
     let cash_zero = MertonMcEngine::price(100.0, 0.0, 5.0, 2, &config, 0.04).expect("cash zero ok");
-    let config_pik = MertonMcConfig::new(base_merton())
+    let config_pik = MertonMcConfig::new(base_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(10_000)
         .seed(42);
@@ -210,14 +221,16 @@ fn no_endogenous_no_dynamic_recovery_matches_standard() {
     // adding then removing the optional models gives consistent results.
     let merton = base_merton();
 
-    let config_plain = MertonMcConfig::new(merton.clone())
+    let config_plain = MertonMcConfig::new(merton.clone(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(10_000)
         .seed(42);
 
     // Config with endogenous hazard and dynamic recovery
     let endo = EndogenousHazardSpec::power_law(0.06, 0.5, 2.5).expect("valid");
     let dyn_rec = DynamicRecoverySpec::floored_inverse(0.40, 100.0, 0.10).expect("valid");
-    let config_with_extras = MertonMcConfig::new(merton)
+    let config_with_extras = MertonMcConfig::new(merton, 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(10_000)
         .seed(42)
         .endogenous_hazard(endo)
@@ -272,11 +285,13 @@ fn antithetic_and_plain_prices_are_consistent() {
     //    (they should converge to the same true price)
     let merton = base_merton();
 
-    let config_no_anti = MertonMcConfig::new(merton.clone())
+    let config_no_anti = MertonMcConfig::new(merton.clone(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(10_000)
         .seed(42)
         .antithetic(false);
-    let config_anti = MertonMcConfig::new(merton)
+    let config_anti = MertonMcConfig::new(merton, 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(10_000)
         .seed(42)
         .antithetic(true);
@@ -317,10 +332,12 @@ fn default_rate_increases_with_leverage() {
     let merton_low_leverage = merton_with_asset_value(300.0); // V/B = 3.0
     let merton_high_leverage = merton_with_asset_value(120.0); // V/B = 1.2
 
-    let config_low = MertonMcConfig::new(merton_low_leverage)
+    let config_low = MertonMcConfig::new(merton_low_leverage, 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(10_000)
         .seed(42);
-    let config_high = MertonMcConfig::new(merton_high_leverage)
+    let config_high = MertonMcConfig::new(merton_high_leverage, 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(10_000)
         .seed(42);
 
@@ -351,10 +368,14 @@ fn pik_accrual_increases_terminal_notional() {
     // Full PIK bonds should have higher average terminal notional
     // than cash bonds, because coupons accrete to the notional.
     let merton = base_merton();
-    let config = MertonMcConfig::new(merton).num_paths(10_000).seed(42);
+    let config = MertonMcConfig::new(merton, 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(10_000)
+        .seed(42);
 
     let cash = MertonMcEngine::price(100.0, 0.08, 5.0, 2, &config, 0.04).expect("cash ok");
-    let config_pik = MertonMcConfig::new(base_merton())
+    let config_pik = MertonMcConfig::new(base_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(10_000)
         .seed(42);
@@ -400,8 +421,14 @@ fn higher_default_rate_implies_higher_expected_loss() {
     let merton_safe = merton_with_asset_value(300.0);
     let merton_risky = merton_with_asset_value(120.0);
 
-    let config_safe = MertonMcConfig::new(merton_safe).num_paths(10_000).seed(42);
-    let config_risky = MertonMcConfig::new(merton_risky).num_paths(10_000).seed(42);
+    let config_safe = MertonMcConfig::new(merton_safe, 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(10_000)
+        .seed(42);
+    let config_risky = MertonMcConfig::new(merton_risky, 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(10_000)
+        .seed(42);
 
     let result_safe =
         MertonMcEngine::price(100.0, 0.08, 5.0, 2, &config_safe, 0.04).expect("safe ok");
@@ -435,7 +462,10 @@ fn price_bounded_between_zero_and_risk_free() {
     //   ~ 4 * (sum of DFs) + 100 * 0.8187
     //   ~ 35.1 + 81.9 = 117.0 (approx)
     let merton = base_merton();
-    let config = MertonMcConfig::new(merton).num_paths(10_000).seed(42);
+    let config = MertonMcConfig::new(merton, 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(10_000)
+        .seed(42);
 
     let result = MertonMcEngine::price(100.0, 0.08, 5.0, 2, &config, 0.04).expect("ok");
 
@@ -460,7 +490,10 @@ fn longer_maturity_increases_expected_loss() {
     // so expected loss should increase.
     let merton = merton_with_asset_value(150.0); // moderate leverage
 
-    let config = MertonMcConfig::new(merton).num_paths(10_000).seed(42);
+    let config = MertonMcConfig::new(merton, 0.40)
+        .expect("0.40 recovery should be valid")
+        .num_paths(10_000)
+        .seed(42);
 
     let result_2y = MertonMcEngine::price(100.0, 0.08, 2.0, 2, &config, 0.04).expect("2y ok");
     let result_10y = MertonMcEngine::price(100.0, 0.08, 10.0, 2, &config, 0.04).expect("10y ok");

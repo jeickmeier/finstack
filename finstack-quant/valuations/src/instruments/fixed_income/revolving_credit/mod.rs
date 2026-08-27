@@ -93,10 +93,8 @@ pub const INTERPOLATION_TOLERANCE: f64 = 1e-10;
 /// Ensures spreads don't go to exactly zero, which would cause numerical issues.
 pub const MIN_CIR_SPREAD: f64 = 1e-8;
 
-/// Maximum allowed recovery rate (exclusive).
-/// Recovery rate must be strictly less than 1.0 to avoid division by zero
-/// in hazard-to-spread mapping: λ = s / (1 - R).
-pub const MAX_RECOVERY_RATE: f64 = 1.0 - 1e-6;
+/// Maximum allowed recovery rate (inclusive).
+pub const MAX_RECOVERY_RATE: f64 = 1.0;
 
 pub use cashflow_engine::{PathAwareCashflowSchedule, ThreeFactorPathData};
 pub use pricer::unified::EnhancedMonteCarloResult;

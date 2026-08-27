@@ -71,6 +71,25 @@ test('core namespace exports HazardCurve as a live constructor', () => {
   assert.ok(Math.abs(hz.hazardRate(1.0) - 0.02) < 1e-9);
 });
 
+test('HazardCurve rejects missing recovery', () => {
+  assert.throws(
+    () => new core.HazardCurve('HZ', '2025-01-01', [0.0, 0.02, 30.0, 0.02]),
+    /recovery/i
+  );
+});
+
+test('HazardCurve recovery boundaries round-trip', () => {
+  for (const recovery of [0.0, 1.0]) {
+    const hz = new core.HazardCurve(
+      `HZ-${recovery}`,
+      '2025-01-01',
+      [0.0, 0.02, 30.0, 0.02],
+      recovery
+    );
+    assert.equal(hz.recoveryRate, recovery);
+  }
+});
+
 test('computeBilateralXva folds MVA into total_xva', () => {
   const noDefault = flatHazard(0.0);
   const result = margin.computeBilateralXva(

@@ -39,6 +39,7 @@ pub(crate) fn sample_hazard_curve(id: &str) -> HazardCurve {
     HazardCurve::builder(id)
         .base_date(sample_base_date())
         .knots([(1.0, 0.01), (3.0, 0.015), (5.0, 0.02)])
+        .recovery_rate(0.40)
         .build()
         .unwrap()
 }

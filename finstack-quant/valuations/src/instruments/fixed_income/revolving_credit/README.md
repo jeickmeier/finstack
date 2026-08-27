@@ -85,7 +85,7 @@ let facility = RevolvingCredit::builder()
     .discount_curve_id("USD-OIS".into())
     // Optional credit inputs:
     // .credit_curve_id("BORROWER-HZ".into())
-    // .recovery_rate(0.4)
+    .recovery_rate(0.4)
     .build()?;
 ```
 
@@ -98,8 +98,7 @@ Notes that bite:
   with `index_id` / `margin_bp` fields.
 - `RevolvingCreditFees::flat` returns `Result` (non-finite bp are rejected);
   `flat_bp` takes typed `Bps` and does not.
-- `recovery_rate` must be in `[0, MAX_RECOVERY_RATE)`; a recovery of exactly 1
-  divides by zero in the hazard mapping `λ = s / (1 − R)`.
+- `recovery_rate` is required and must be a finite decimal in `[0, 1]`.
 - `antithetic` and `use_sobol_qmc` are mutually exclusive; `validate()` rejects
   the combination.
 

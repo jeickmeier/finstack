@@ -434,6 +434,7 @@ fn compute_fva_internal(
 /// // Flat 2% hazard and 4% discounting out to five years.
 /// let hazard_curve = HazardCurve::builder("ACME")
 ///     .base_date(as_of)
+///     .recovery_rate(0.40)
 ///     .knots([(1.0, 0.02), (5.0, 0.02)])
 ///     .build()?;
 /// let discount_curve = DiscountCurve::builder("USD-OIS")
@@ -734,6 +735,7 @@ mod tests {
         HazardCurve::builder("COUNTERPARTY")
             .base_date(base)
             .knots([(0.0, lambda), (30.0, lambda)])
+            .recovery_rate(0.40)
             .build()
             .expect("HazardCurve should build")
     }

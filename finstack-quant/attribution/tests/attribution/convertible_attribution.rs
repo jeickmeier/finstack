@@ -75,7 +75,7 @@ fn convertible_with_credit() -> Arc<dyn Instrument> {
         discount_curve_id: "USD-OIS".into(),
         credit_curve_id: Some("USD-CREDIT".into()),
         settlement_days: None,
-        recovery_rate: None,
+        recovery_rate: Some(0.0),
         conversion,
         underlying_equity_id: Some("AAPL".to_string()),
         call_put: None,

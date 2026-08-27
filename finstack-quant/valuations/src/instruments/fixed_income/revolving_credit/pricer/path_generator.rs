@@ -795,6 +795,7 @@ mod tests {
             HazardCurve::builder("RC-HZ")
                 .base_date(date!(2024 - 01 - 01))
                 .knots([(0.5, 0.01), (5.0, 0.05)])
+                .recovery_rate(0.40)
                 .build()
                 .expect("hazard curve"),
         );
@@ -840,6 +841,7 @@ mod tests {
         let hazard = HazardCurve::builder("RC-HZ")
             .base_date(date!(2024 - 01 - 01))
             .knots([(0.5, 0.01), (5.0, 0.05)])
+            .recovery_rate(0.40)
             .build()
             .expect("hazard curve");
         let market = MarketContext::new().insert(hazard.clone());

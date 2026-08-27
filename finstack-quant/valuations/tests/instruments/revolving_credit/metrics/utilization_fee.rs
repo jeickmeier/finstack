@@ -28,6 +28,7 @@ fn test_utilization_fee_above_threshold() {
         .fees(RevolvingCreditFees::flat(25.0, 0.0, 20.0).unwrap()) // Utilization fee
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 

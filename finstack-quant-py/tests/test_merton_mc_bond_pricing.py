@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import datetime
 
+import pytest
+
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.dates import StubKind
 from finstack_quant.core.money import Money
@@ -18,10 +20,22 @@ from finstack_quant.valuations.instruments import (
 )
 
 
+def test_merton_mc_config_requires_explicit_recovery() -> None:
+    merton = MertonModel(100.0, 0.25, 60.0, 0.04)
+    with pytest.raises(TypeError):
+        MertonMcConfig(merton)  # type: ignore[call-arg]
+
+
+@pytest.mark.parametrize("recovery", [0.0, 1.0])
+def test_merton_mc_config_accepts_recovery_boundaries(recovery: float) -> None:
+    merton = MertonModel(100.0, 0.25, 60.0, 0.04)
+    MertonMcConfig(merton, recovery)
+
+
 def test_merton_mc_bond_price_smoke() -> None:
     merton = MertonModel(100.0, 0.25, 60.0, 0.04)
     config = (
-        MertonMcConfig(merton)
+        MertonMcConfig(merton, 0.40)
         .num_paths(64)
         .seed(7)
         .pik_schedule(PikSchedule.uniform(PikMode.pik()))

@@ -1971,6 +1971,7 @@ mod tests {
             .base_date(as_of)
             .day_count(DayCount::Act365F)
             .knots([(1.0, 0.01), (5.0, 0.01), (10.0, 0.01)])
+            .recovery_rate(0.40)
             .build()
             .expect("hazard curve");
         MarketContext::new().insert(discount).insert(hazard)

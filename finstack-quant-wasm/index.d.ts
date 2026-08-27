@@ -1211,16 +1211,16 @@ export interface HazardCurveConstructor {
    * @param id - Curve identifier (e.g. `"ACME-HZD"`).
    * @param baseDate - ISO-8601 date string (`"YYYY-MM-DD"`). All `time` values are year fractions from this date under `dayCount`.
    * @param knots - Flat `[t0, lambda0, t1, lambda1, …]` array. `t` in years, `lambda` a non-negative intensity. Length must be even.
-   * @param recoveryRate - Recovery on default in `[0, 1]`. Defaults to the credit assumptions registry value.
+   * @param recoveryRate - Required recovery on default as a decimal fraction in `[0, 1]`.
    * @param dayCount - Day-count convention (default `"act_365f"`).
    * @returns The constructed `HazardCurve`.
-   * @throws If `knots` length is odd, the date is malformed, the day-count is unknown, or the curve fails validation.
+   * @throws If `recoveryRate` is missing, non-finite, or outside `[0, 1]`, `knots` length is odd, the date is malformed, the day-count is unknown, or the curve otherwise fails validation.
    */
   new (
     id: string,
     baseDate: string,
     knots: NumericArray,
-    recoveryRate?: number | null,
+    recoveryRate: number,
     dayCount?: string
   ): HazardCurve;
 }

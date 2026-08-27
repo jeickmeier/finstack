@@ -479,6 +479,7 @@ mod tests {
         let curve = HazardCurve::builder("ACME-HAZARD")
             .base_date(date!(2026 - 01 - 01))
             .knots([(1.0, 0.01), (5.0, 0.02)])
+            .recovery_rate(0.40)
             .build()
             .expect("valid hazard curve");
         let spec = StochasticDefaultSpec::from_hazard_curve(curve, 0.5);

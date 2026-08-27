@@ -1723,6 +1723,7 @@ mod tests {
                 HazardCurve::builder("ACME-HAZ")
                     .base_date(as_of_t0)
                     .knots(vec![(1.0, 0.01)])
+                    .recovery_rate(0.40)
                     .build()
                     .expect("hazard curve should build"),
             );
@@ -1740,6 +1741,7 @@ mod tests {
                 HazardCurve::builder("ACME-HAZ")
                     .base_date(as_of_t1)
                     .knots(vec![(1.0, 0.02)])
+                    .recovery_rate(0.40)
                     .build()
                     .expect("hazard curve should build"),
             );

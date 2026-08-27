@@ -50,7 +50,8 @@ fn bench_merton_mc_path_count(c: &mut Criterion) {
     let mut group = c.benchmark_group("merton_mc_paths");
 
     let n_paths = 10_000;
-    let config = MertonMcConfig::new(reference_merton())
+    let config = MertonMcConfig::new(reference_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(n_paths)
         .seed(42)
@@ -83,7 +84,8 @@ fn bench_merton_mc_tenor(c: &mut Criterion) {
 
     let label = "5Y";
     let maturity_years = 5.0;
-    let config = MertonMcConfig::new(reference_merton())
+    let config = MertonMcConfig::new(reference_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(PATHS)
         .seed(42);
@@ -115,13 +117,15 @@ fn bench_merton_mc_tenor(c: &mut Criterion) {
 fn bench_merton_mc_antithetic(c: &mut Criterion) {
     let mut group = c.benchmark_group("merton_mc_antithetic");
 
-    let config_on = MertonMcConfig::new(reference_merton())
+    let config_on = MertonMcConfig::new(reference_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(10_000)
         .seed(42)
         .antithetic(true);
 
-    let config_off = MertonMcConfig::new(reference_merton())
+    let config_off = MertonMcConfig::new(reference_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(10_000)
         .seed(42)
@@ -165,16 +169,19 @@ fn bench_merton_mc_antithetic(c: &mut Criterion) {
 fn bench_merton_mc_pik_mode(c: &mut Criterion) {
     let mut group = c.benchmark_group("merton_mc_pik_mode");
 
-    let config_cash = MertonMcConfig::new(reference_merton())
+    let config_cash = MertonMcConfig::new(reference_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .num_paths(10_000)
         .seed(42);
 
-    let config_pik = MertonMcConfig::new(reference_merton())
+    let config_pik = MertonMcConfig::new(reference_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(10_000)
         .seed(42);
 
-    let config_toggle = MertonMcConfig::new(reference_merton())
+    let config_toggle = MertonMcConfig::new(reference_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Toggle))
         .num_paths(10_000)
         .seed(42);
@@ -208,13 +215,15 @@ fn bench_merton_mc_pik_mode(c: &mut Criterion) {
 fn bench_merton_mc_barrier_type(c: &mut Criterion) {
     let mut group = c.benchmark_group("merton_mc_barrier");
 
-    let config_terminal = MertonMcConfig::new(reference_merton())
+    let config_terminal = MertonMcConfig::new(reference_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(10_000)
         .seed(42)
         .barrier_crossing(BarrierCrossing::Discrete);
 
-    let config_fp = MertonMcConfig::new(first_passage_merton())
+    let config_fp = MertonMcConfig::new(first_passage_merton(), 0.40)
+        .expect("0.40 recovery should be valid")
         .pik_schedule(PikSchedule::Uniform(PikMode::Pik))
         .num_paths(10_000)
         .seed(42)

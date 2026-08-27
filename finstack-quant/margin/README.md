@@ -257,7 +257,7 @@ Registry JSON is embedded at build time from `data/margin/`:
 | [`data/margin/collateral_schedules.v1.json`](data/margin/collateral_schedules.v1.json) | Eligible collateral and haircuts |
 | [`data/margin/ccp_methodologies.v1.json`](data/margin/ccp_methodologies.v1.json) | CCP proxy rates and MPOR |
 | [`data/margin/simm.v1.json`](data/margin/simm.v1.json) | SIMM weights, correlations, concentration thresholds |
-| [`data/margin/xva_defaults.v1.json`](data/margin/xva_defaults.v1.json) | XVA exposure-grid and recovery defaults |
+| [`data/margin/xva_defaults.v1.json`](data/margin/xva_defaults.v1.json) | XVA exposure-grid defaults; recovery is caller-supplied |
 
 Overlays go in the `FinstackConfig` extension key `margin.registry.v1`. The
 overlay is a deep object merge over a root whose sections are `defaults`,

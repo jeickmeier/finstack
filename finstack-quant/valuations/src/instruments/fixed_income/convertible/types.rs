@@ -170,13 +170,14 @@ pub struct ConvertibleBond {
     /// Assumed recovery rate on default, as a fraction (e.g., 0.40 = 40%).
     ///
     /// Used in the Tsiveriotis-Zhang credit model to blend risky and risk-free
-    /// discounting on the cash component. A recovery rate of 0 (the default)
-    /// reduces to the standard zero-recovery TZ model. Typical values:
+    /// discounting on the cash component. A recovery rate of 0 reduces to the
+    /// standard zero-recovery TZ model. Typical values:
     /// - **Investment grade**: 0.40 (ISDA standard assumption)
     /// - **High yield**: 0.25-0.35
     /// - **Distressed**: 0.10-0.20
     ///
-    /// Only relevant when `credit_curve_id` is set.
+    /// Required when `credit_curve_id` is set; otherwise absence means that no
+    /// credit adjustment is requested.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recovery_rate: Option<f64>,
@@ -617,6 +618,12 @@ impl ConvertibleBond {
                 )));
             }
         }
+        if self.credit_curve_id.is_some() && self.recovery_rate.is_none() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "convertible bond '{}' requires an explicit recovery_rate when credit_curve_id is set",
+                self.id.as_str()
+            )));
+        }
         if let Some(trigger) = &self.soft_call_trigger {
             trigger.validate()?;
         }
@@ -737,6 +744,7 @@ impl ConvertibleBond {
             .maturity(date!(2029 - 01 - 15))
             .discount_curve_id(CurveId::new("USD-IG"))
             .credit_curve_id_opt(Some(CurveId::new("USD-CREDIT-BBB")))
+            .recovery_rate_opt(Some(0.0))
             .conversion(ConversionSpec {
                 ratio: Some(25.0),
                 price: None,
@@ -805,6 +813,7 @@ impl ConvertibleBond {
             .maturity(maturity)
             .discount_curve_id(CurveId::new("USD-IG"))
             .credit_curve_id_opt(Some(CurveId::new("USD-CREDIT-BBB")))
+            .recovery_rate_opt(Some(0.0))
             .conversion(ConversionSpec {
                 ratio: None,
                 price: Some(50.0), // reference price for base conversion ratio

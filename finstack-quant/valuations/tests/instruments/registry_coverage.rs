@@ -512,6 +512,7 @@ fn declared_non_persistable_cases_are_exercised() {
                 let curve = HazardCurve::builder("REGISTRY-COVERAGE-HAZARD")
                     .base_date(date!(2026 - 01 - 01))
                     .knots([(1.0, 0.01), (5.0, 0.02)])
+                    .recovery_rate(0.40)
                     .build()
                     .expect("valid hazard curve for persistence-policy coverage");
                 let spec = StochasticDefaultSpec::from_hazard_curve(curve, 0.5);

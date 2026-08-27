@@ -28,6 +28,7 @@ fn test_pricing_fixed_utilization() {
         .fees(RevolvingCreditFees::flat(25.0, 10.0, 0.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -60,6 +61,7 @@ fn test_pricing_zero_utilization() {
         .fees(RevolvingCreditFees::flat(25.0, 10.0, 0.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -90,6 +92,7 @@ fn test_pricing_full_utilization() {
         .fees(RevolvingCreditFees::flat(30.0, 15.0, 10.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 

@@ -80,6 +80,7 @@ fn build_seasoned_floating_facility(
         .fees(RevolvingCreditFees::default())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap()
 }
@@ -239,6 +240,7 @@ fn test_fixings_respect_floor() {
         .fees(RevolvingCreditFees::default())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 

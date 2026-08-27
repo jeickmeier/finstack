@@ -50,6 +50,7 @@ fn test_revolving_credit_basic_pricing() {
         })
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -105,6 +106,7 @@ fn test_revolving_credit_with_draws_and_repayments() {
             },
         ]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -141,6 +143,7 @@ fn test_revolving_credit_utilization_metrics() {
         .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -303,6 +306,7 @@ fn test_revolving_credit_cs01_z_spread_fallback_without_credit_curve() {
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         // No credit_curve_id → z-spread fallback path.
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -370,6 +374,7 @@ fn test_revolving_credit_cs01_stochastic_without_credit_curve_errors() {
         )))
         .discount_curve_id("USD-OIS".into())
         // No credit_curve_id → CS01 must error, not read 0.0.
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -408,6 +413,7 @@ fn test_revolving_credit_bucketed_dv01() {
         .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -450,6 +456,7 @@ fn test_revolving_credit_helpers() {
         .fees(RevolvingCreditFees::default())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -529,6 +536,7 @@ fn test_term_forward_with_floor() {
         .fees(RevolvingCreditFees::default())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -564,6 +572,7 @@ fn test_term_forward_with_floor() {
         .fees(RevolvingCreditFees::default())
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -604,6 +613,7 @@ fn test_overdraw_validation() {
             is_draw: true,
         }]))
         .discount_curve_id("USD-OIS".into())
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 
@@ -661,6 +671,7 @@ fn test_deterministic_with_credit_risk() {
         .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
         .discount_curve_id("USD-OIS".into())
         // No hazard curve - risk-free pricing
+        .recovery_rate(0.0)
         .build()
         .unwrap();
 

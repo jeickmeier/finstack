@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 /// Configuration extension key for replacing the embedded credit assumptions registry.
-pub const CREDIT_ASSUMPTIONS_EXTENSION_KEY: &str = "core.credit_assumptions.v1";
+pub const CREDIT_ASSUMPTIONS_EXTENSION_KEY: &str = "models.credit_assumptions.v1";
 
 static EMBEDDED_REGISTRY: EmbeddedJsonRegistry<CreditAssumptionRegistry> =
     EmbeddedJsonRegistry::new(
@@ -29,7 +29,6 @@ pub struct CreditAssumptionRegistry {
     default_pd_master_scale_id: String,
     default_downturn_lgd_id: String,
     default_workout_lgd_id: String,
-    default_market_recovery_rate: f64,
     rating_factor_tables: Vec<RatingFactorTableRecord>,
     seniority_calibrations: Vec<SeniorityCalibrationRecord>,
     pd_master_scales: Vec<PdMasterScaleRecord>,
@@ -61,12 +60,6 @@ impl CreditAssumptionRegistry {
     /// Returns the default workout LGD preset id.
     pub fn default_workout_lgd_id(&self) -> &str {
         &self.default_workout_lgd_id
-    }
-
-    /// Returns the default market recovery-rate assumption.
-    #[must_use]
-    pub fn default_market_recovery_rate(&self) -> f64 {
-        self.default_market_recovery_rate
     }
 
     pub(crate) fn rating_factor_table(&self, id: &str) -> Result<RatingFactorTableParts> {
@@ -188,11 +181,6 @@ impl CreditAssumptionRegistry {
         self.pd_master_scale_grades(&self.default_pd_master_scale_id)?;
         self.downturn_lgd_preset(&self.default_downturn_lgd_id)?;
         self.workout_lgd_defaults(&self.default_workout_lgd_id)?;
-        validate_unit_interval(
-            self.default_market_recovery_rate,
-            "default market recovery rate",
-        )?;
-
         for record in &self.rating_factor_tables {
             if record.default_factor < 0.0 || !record.default_factor.is_finite() {
                 return Err(Error::Validation(format!(
@@ -262,8 +250,8 @@ impl CreditAssumptionRegistry {
 /// Load the embedded versioned registry of credit assumptions.
 ///
 /// The registry supplies the library defaults for WARF tables, recovery
-/// calibrations, PD master scales, downturn/workout LGD presets, and market
-/// recovery. It is parsed and validated lazily, then cached for subsequent
+/// calibrations, PD master scales, and downturn/workout LGD presets. It is
+/// parsed and validated lazily, then cached for subsequent
 /// callers; consumers should select an explicit named entry when a governing
 /// policy requires a methodology other than the embedded default.
 ///
@@ -275,48 +263,6 @@ impl CreditAssumptionRegistry {
 /// not missing market data that can safely be projected at runtime.
 pub fn embedded_registry() -> Result<&'static CreditAssumptionRegistry> {
     EMBEDDED_REGISTRY.load(validate_registry)
-}
-
-/// Return the embedded default market recovery rate.
-///
-/// Returns `Err` if the embedded credit-assumptions JSON fails to parse or
-/// validate. This is the preferred entry point for fallible call sites and
-/// for any new code; existing infallible builders use
-/// `default_market_recovery_rate_or_panic`. The value is a unit-interval
-/// recovery assumption (for example, `0.40` means 40% recovery), not LGD; a
-/// caller calculates LGD as `1 - recovery` only when that is the relevant
-/// modeling convention.
-///
-/// # Errors
-///
-/// Propagates registry-loading and validation errors from
-/// [`embedded_registry`]. A successful result is guaranteed finite and inside
-/// `[0, 1]` by registry validation.
-pub fn default_market_recovery_rate() -> Result<f64> {
-    Ok(embedded_registry()?.default_market_recovery_rate())
-}
-
-/// Return the embedded default market recovery rate for infallible builders.
-///
-/// # Safety invariant
-///
-/// The embedded credit-assumptions JSON is shipped as a compile-time asset
-/// and validated lazily on first access. The unit-test
-/// `embedded_registry_loads_expected_defaults` (see below) and the integration
-/// test `default_market_recovery_rate_or_panic_succeeds_for_embedded_asset`
-/// both load the embedded registry through the same code path used here, so
-/// a malformed or missing asset is guaranteed to fail in CI before this
-/// function can panic at runtime.
-///
-/// Prefer [`default_market_recovery_rate`] in any code that already returns
-/// `Result`; this variant exists solely for builder constructors whose
-/// public signatures must remain infallible.
-#[must_use]
-#[allow(clippy::expect_used)]
-pub(crate) fn default_market_recovery_rate_or_panic() -> f64 {
-    embedded_registry()
-        .expect("embedded credit assumptions registry is a compile-time asset")
-        .default_market_recovery_rate()
 }
 
 /// Load a credit-assumptions registry from configuration or the embedded fallback.

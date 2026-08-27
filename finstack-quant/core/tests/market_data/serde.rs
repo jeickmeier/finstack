@@ -337,6 +337,7 @@ fn semantic_restore_fixture() -> MarketContextState {
     let hazard = HazardCurve::builder("CDX-HAZARD")
         .base_date(test_date())
         .knots([(1.0, 0.01), (5.0, 0.02)])
+        .recovery_rate(0.40)
         .build()
         .expect("hazard curve");
     let base_correlation = BaseCorrelationCurve::builder("CDX-CORRELATION")
@@ -557,6 +558,7 @@ fn market_context_state_is_deterministically_sorted_and_roundtrips_full_snapshot
     let hazard = HazardCurve::builder("CDX-HAZ")
         .base_date(d)
         .knots([(1.0, 0.01), (5.0, 0.02)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
     let base_corr = BaseCorrelationCurve::builder("CDX-BC")
@@ -570,6 +572,7 @@ fn market_context_state_is_deterministically_sorted_and_roundtrips_full_snapshot
     let issuer2_haz = HazardCurve::builder("ISSUER2-HAZ")
         .base_date(d)
         .knots([(1.0, 0.02), (5.0, 0.03)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
     issuer_curves.insert(
@@ -753,6 +756,7 @@ fn curve_state_and_storage_roundtrip_all_variants() {
     let haz = HazardCurve::builder("HAZ")
         .base_date(d)
         .knots([(1.0, 0.01), (5.0, 0.02)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
     let inf = InflationCurve::builder("INF")
@@ -813,11 +817,13 @@ fn market_context_state_roundtrip_hits_more_state_serde_lines() {
     let haz = HazardCurve::builder("CDX-HAZ")
         .base_date(d)
         .knots([(1.0, 0.01), (5.0, 0.02)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
     let issuer_haz = HazardCurve::builder("ISSUER-HAZ")
         .base_date(d)
         .knots([(1.0, 0.02), (5.0, 0.03)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
     let inf = InflationCurve::builder("US-CPI-CURVE")
@@ -947,6 +953,7 @@ fn hazard_curve_rejects_unknown_fields() {
     let curve = HazardCurve::builder("CDX-HAZ")
         .base_date(test_date())
         .knots([(1.0, 0.01), (5.0, 0.02)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
     assert_strict_inbound(&curve);

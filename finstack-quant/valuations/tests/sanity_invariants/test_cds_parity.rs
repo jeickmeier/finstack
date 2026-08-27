@@ -56,6 +56,7 @@ fn flat_hazard_curve(as_of: Date, hazard_rate: f64) -> HazardCurve {
             (5.0, hazard_rate),
             (10.0, hazard_rate),
         ])
+        .recovery_rate(0.40)
         .build()
         .expect("hazard curve should build")
 }

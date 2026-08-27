@@ -715,10 +715,15 @@ fn convertible_recovery_rate_out_of_bounds_errors() {
     let _ = price_convertible_bond(&bond, &market, tree_type, as_of)
         .expect_err("NaN recovery_rate must be rejected");
 
-    // None — backwards-compat: still treated as 0.0 (no recovery).
+    // None is valid when no credit adjustment is requested.
     bond.recovery_rate = None;
     let _ = price_convertible_bond(&bond, &market, tree_type, as_of)
-        .expect("None recovery_rate must remain valid (defaults to 0.0)");
+        .expect("None recovery_rate is valid without a credit curve");
+
+    bond.credit_curve_id = Some("USD-CREDIT".into());
+    let err = price_convertible_bond(&bond, &market, tree_type, as_of)
+        .expect_err("a credit curve requires explicit recovery");
+    assert!(format!("{err}").contains("explicit recovery_rate"));
 }
 
 /// Regression: a put exercisable exactly at maturity must be honored by the

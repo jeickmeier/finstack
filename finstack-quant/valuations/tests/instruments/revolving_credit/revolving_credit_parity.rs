@@ -67,6 +67,7 @@ mod tests {
                 (2.0, 0.015), // 150 bp
                 (5.0, 0.02),  // 200 bp
             ])
+            .recovery_rate(0.40)
             .build()
             .unwrap();
 
@@ -121,6 +122,7 @@ mod tests {
             .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
             .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
             .discount_curve_id("USD-OIS".into())
+            .recovery_rate(0.0)
             .build()
             .unwrap();
 
@@ -139,6 +141,7 @@ mod tests {
                 create_zero_vol_stochastic(0.5), // 50% utilization
             ))
             .discount_curve_id("USD-OIS".into())
+            .recovery_rate(0.0)
             .build()
             .unwrap();
 
@@ -201,6 +204,7 @@ mod tests {
             .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
             .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
             .discount_curve_id("USD-OIS".into())
+            .recovery_rate(0.0)
             .build()
             .unwrap();
 
@@ -236,6 +240,7 @@ mod tests {
             .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
             .draw_repay_spec(DrawRepaySpec::Stochastic(create_zero_vol_stochastic(0.5)))
             .discount_curve_id("USD-OIS".into())
+            .recovery_rate(0.0)
             .build()
             .unwrap();
 
@@ -388,6 +393,7 @@ mod tests {
                 .fees(fees.clone())
                 .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
                 .discount_curve_id("USD-OIS".into())
+                .recovery_rate(0.0)
                 .build()
                 .unwrap();
 
@@ -405,6 +411,7 @@ mod tests {
                     utilization,
                 )))
                 .discount_curve_id("USD-OIS".into())
+                .recovery_rate(0.0)
                 .build()
                 .unwrap();
 
@@ -468,6 +475,7 @@ mod tests {
             .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
             .draw_repay_spec(DrawRepaySpec::Deterministic(events))
             .discount_curve_id("USD-OIS".into())
+            .recovery_rate(0.0)
             .build()
             .unwrap();
 
@@ -486,6 +494,7 @@ mod tests {
             .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
             .draw_repay_spec(DrawRepaySpec::Stochastic(create_zero_vol_stochastic(0.45)))
             .discount_curve_id("USD-OIS".into())
+            .recovery_rate(0.0)
             .build()
             .unwrap();
 
@@ -541,6 +550,7 @@ mod tests {
                 .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
                 .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
                 .discount_curve_id("USD-OIS".into())
+                .recovery_rate(0.0)
                 .build()
                 .unwrap();
 
@@ -556,6 +566,7 @@ mod tests {
                 .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0).unwrap())
                 .draw_repay_spec(DrawRepaySpec::Stochastic(create_zero_vol_stochastic(0.5)))
                 .discount_curve_id("USD-OIS".into())
+                .recovery_rate(0.0)
                 .build()
                 .unwrap();
 

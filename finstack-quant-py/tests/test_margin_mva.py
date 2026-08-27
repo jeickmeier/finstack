@@ -17,11 +17,26 @@ from finstack_quant.margin import (
     MvaResult,
     SimmCalculator,
     SimmSensitivities,
+    XvaConfig,
     XvaResult,
     compute_bilateral_xva,
     compute_mva,
     im_profile_from_simm,
 )
+
+
+def test_xva_config_requires_both_recovery_rates() -> None:
+    with pytest.raises(TypeError):
+        XvaConfig()  # type: ignore[call-arg]
+    with pytest.raises(TypeError):
+        XvaConfig(0.40)  # type: ignore[call-arg]
+
+
+@pytest.mark.parametrize("recovery", [0.0, 1.0])
+def test_xva_config_recovery_boundaries_round_trip(recovery: float) -> None:
+    config = XvaConfig(recovery, recovery)
+    assert config.recovery_rate == recovery
+    assert config.own_recovery_rate == recovery
 
 
 def flat_discount_curve() -> DiscountCurve:
@@ -191,7 +206,7 @@ def test_xva_result_funding_legs_are_optional_but_total_is_required() -> None:
 
 
 def flat_hazard_curve(lam: float) -> HazardCurve:
-    return HazardCurve("HZ", dt.date(2025, 1, 1), [(0.0, lam), (30.0, lam)])
+    return HazardCurve("HZ", dt.date(2025, 1, 1), [(0.0, lam), (30.0, lam)], 0.40)
 
 
 def uniform_exposure() -> ExposureProfile:

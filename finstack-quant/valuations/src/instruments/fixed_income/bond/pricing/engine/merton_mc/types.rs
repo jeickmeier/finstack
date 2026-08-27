@@ -1,4 +1,3 @@
-use finstack_quant_core::credit::registry::default_market_recovery_rate;
 use finstack_quant_models::credit::{
     BarrierType, DynamicRecoverySpec, EndogenousHazardSpec, MertonModel, ToggleExerciseModel,
 };
@@ -206,25 +205,25 @@ pub struct MertonMcConfig {
     pub cashflow_dfs: Option<Vec<(f64, f64)>>,
 }
 
-fn default_market_recovery_rate_for_mc() -> f64 {
-    match default_market_recovery_rate() {
-        Ok(rate) => rate,
-        Err(err) => {
-            tracing::warn!(
-                error = %err,
-                "falling back to 40% market recovery rate for Merton MC defaults"
-            );
-            0.40
-        }
-    }
-}
-
 impl MertonMcConfig {
     /// Create a new configuration with default simulation parameters.
     ///
-    /// Defaults are sourced from the embedded Monte Carlo and credit assumptions registries.
-    #[must_use]
-    pub fn new(merton: MertonModel) -> Self {
+    /// Simulation defaults are sourced from the embedded Monte Carlo registry;
+    /// recovery is always supplied explicitly by the caller.
+    ///
+    /// # Arguments
+    ///
+    /// * `merton` - Structural credit model driving the simulated asset value
+    ///   and default boundary.
+    /// * `recovery_rate` - Recovery on default as a decimal fraction in the
+    ///   inclusive range `[0, 1]`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error when `recovery_rate` is non-finite or lies
+    /// outside `[0, 1]`.
+    pub fn new(merton: MertonModel, recovery_rate: f64) -> finstack_quant_core::Result<Self> {
+        validate_recovery_rate(recovery_rate)?;
         let defaults = &finstack_quant_models::monte_carlo::registry::embedded_defaults_or_panic()
             .rust
             .merton_pik_bond;
@@ -232,7 +231,7 @@ impl MertonMcConfig {
             BarrierType::FirstPassage { .. } => BarrierCrossing::BrownianBridge,
             BarrierType::Terminal => BarrierCrossing::Discrete,
         };
-        Self {
+        Ok(Self {
             merton,
             pik_schedule: PikSchedule::default(),
             endogenous_hazard: None,
@@ -243,10 +242,10 @@ impl MertonMcConfig {
             antithetic: defaults.antithetic,
             time_steps_per_year: defaults.time_steps_per_year,
             barrier_crossing,
-            default_recovery_rate: default_market_recovery_rate_for_mc(),
+            default_recovery_rate: recovery_rate,
             calibration: None,
             cashflow_dfs: None,
-        }
+        })
     }
 
     /// Set the PIK schedule.
@@ -323,12 +322,43 @@ impl MertonMcConfig {
         self
     }
 
+    /// Set the flat recovery used when no dynamic recovery model is configured.
+    ///
+    /// # Arguments
+    ///
+    /// * `recovery_rate` - Recovery on default as a decimal fraction in the
+    ///   inclusive range `[0, 1]`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error when `recovery_rate` is non-finite or lies
+    /// outside `[0, 1]`.
+    pub fn default_recovery_rate(
+        mut self,
+        recovery_rate: f64,
+    ) -> finstack_quant_core::Result<Self> {
+        validate_recovery_rate(recovery_rate)?;
+        self.default_recovery_rate = recovery_rate;
+        Ok(self)
+    }
+
     /// Set the toggle exercise model.
     #[must_use]
     pub fn toggle_model(mut self, t: ToggleExerciseModel) -> Self {
         self.toggle_model = Some(t);
         self
     }
+}
+
+fn validate_recovery_rate(recovery_rate: f64) -> finstack_quant_core::Result<()> {
+    finstack_quant_core::validation::require_with(
+        recovery_rate.is_finite() && (0.0..=1.0).contains(&recovery_rate),
+        || {
+            format!(
+                "MertonMcConfig recovery_rate must be finite and in [0, 1], got {recovery_rate}"
+            )
+        },
+    )
 }
 
 /// Result from Monte Carlo PIK pricing.

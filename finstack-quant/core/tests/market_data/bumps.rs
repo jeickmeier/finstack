@@ -297,6 +297,7 @@ fn hazard_curve_roll_forward_preserves_metadata() {
         .currency(Currency::USD)
         .fx_policy("triangulate_via_usd")
         .knots([(1.0, 0.01), (3.0, 0.015), (5.0, 0.02)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
 

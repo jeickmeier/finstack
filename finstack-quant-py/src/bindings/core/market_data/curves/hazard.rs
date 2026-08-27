@@ -44,30 +44,29 @@ impl PyHazardCurve {
     ///     Valuation date.
     /// knots : list[tuple[float, float]]
     ///     ``(time_years, hazard_rate)`` pairs.
-    /// recovery_rate : float, optional
-    ///     Recovery rate. When omitted, the Rust builder default (the credit
-    ///     assumptions registry value) applies.
+    /// recovery_rate : float
+    ///     Recovery rate as a decimal fraction in ``[0.0, 1.0]``.
     /// day_count : str, optional
     ///     Day-count convention. When omitted, the Rust builder default
     ///     (``"act_365f"``) applies.
     /// par_spreads : list[tuple[float, float]], optional
     ///     Market par-spread quotes in basis points used for rebootstrap risks.
     #[new]
-    #[pyo3(signature = (id, base_date, knots, recovery_rate=None, day_count=None, par_spreads=None))]
+    #[pyo3(signature = (id, base_date, knots, recovery_rate, day_count=None, par_spreads=None))]
     fn new(
         id: &str,
         base_date: &Bound<'_, PyAny>,
         knots: Vec<(f64, f64)>,
-        recovery_rate: Option<f64>,
+        recovery_rate: f64,
         day_count: Option<&str>,
         par_spreads: Option<Vec<(f64, f64)>>,
     ) -> PyResult<Self> {
         let base = py_to_date(base_date)?;
 
-        let mut builder = HazardCurve::builder(id).base_date(base).knots(knots);
-        if let Some(recovery_rate) = recovery_rate {
-            builder = builder.recovery_rate(recovery_rate);
-        }
+        let mut builder = HazardCurve::builder(id)
+            .base_date(base)
+            .knots(knots)
+            .recovery_rate(recovery_rate);
         if let Some(day_count) = day_count {
             builder = builder.day_count(parse_day_count(day_count)?);
         }

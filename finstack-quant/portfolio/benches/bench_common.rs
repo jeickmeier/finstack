@@ -214,6 +214,7 @@ fn build_market_context(base: Date, rate_shift: f64) -> MarketContext {
         .base_date(base)
         .knots(hazard_knots)
         .par_spreads([(1.0, 100.0), (5.0, 200.0), (10.0, 250.0)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
 
@@ -231,6 +232,7 @@ fn build_market_context(base: Date, rate_shift: f64) -> MarketContext {
         .base_date(base)
         .knots(hazard_knots)
         .par_spreads([(1.0, 100.0), (5.0, 200.0), (10.0, 250.0)])
+        .recovery_rate(0.40)
         .build()
         .unwrap();
     let base_corr_for_index = BaseCorrelationCurve::builder("CDX-CORR")

@@ -735,6 +735,7 @@ class TestMarketContextParity:
             "CDX-IG-HAZARD",
             date(2024, 1, 1),
             [(0.0, 0.01), (5.0, 0.015)],
+            0.40,
         )
         correlation = BaseCorrelationCurve("CDX-IG-CORR", [(3.0, 0.20), (10.0, 0.45)])
         index = CreditIndexData(125, 0.40, hazard, correlation)
@@ -745,6 +746,24 @@ class TestMarketContextParity:
         retrieved = mc.get_credit_index("CDX-IG")
         assert retrieved.num_constituents == 125
         assert retrieved.recovery_rate == pytest.approx(0.40)
+
+    def test_hazard_curve_requires_explicit_recovery(self) -> None:
+        with pytest.raises(TypeError):
+            HazardCurve(  # type: ignore[call-arg]
+                "MISSING-RECOVERY",
+                date(2024, 1, 1),
+                [(0.0, 0.01), (5.0, 0.015)],
+            )
+
+    @pytest.mark.parametrize("recovery", [0.0, 1.0])
+    def test_hazard_curve_recovery_boundaries_round_trip(self, recovery: float) -> None:
+        curve = HazardCurve(
+            "BOUNDARY-RECOVERY",
+            date(2024, 1, 1),
+            [(0.0, 0.01), (5.0, 0.015)],
+            recovery,
+        )
+        assert curve.recovery_rate == recovery
 
     def test_insert_and_get_price_returns_value_and_optional_currency(self) -> None:
         mc = MarketContext()

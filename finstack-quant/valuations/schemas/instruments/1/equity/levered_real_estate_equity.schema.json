@@ -3000,8 +3000,7 @@
           "description": "Metric-time pricing configuration."
         },
         "recovery_rate": {
-          "default": 0.0,
-          "description": "Recovery rate on default (used when credit_curve_id is present).\n\nRepresents the fraction of exposure recovered in the event of default.\nTypical values: 0.30-0.50 for senior secured facilities.\nDefaults to 0.0 if not specified.",
+          "description": "Recovery rate on default (used when credit_curve_id is present).\n\nRepresents the fraction of exposure recovered in the event of default.\nTypical values: 0.30-0.50 for senior secured facilities.\nCallers must provide the value explicitly; zero recovery remains valid.",
           "format": "double",
           "type": "number"
         },
@@ -3027,6 +3026,7 @@
         "fees",
         "draw_repay_spec",
         "discount_curve_id",
+        "recovery_rate",
         "attributes"
       ],
       "type": "object"

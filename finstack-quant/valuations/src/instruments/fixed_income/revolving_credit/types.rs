@@ -80,9 +80,7 @@ pub struct RevolvingCredit {
     ///
     /// Represents the fraction of exposure recovered in the event of default.
     /// Typical values: 0.30-0.50 for senior secured facilities.
-    /// Defaults to 0.0 if not specified.
-    #[builder(default)]
-    #[serde(default)]
+    /// Callers must provide the value explicitly; zero recovery remains valid.
     pub recovery_rate: f64,
 
     /// Stub rule for schedule generation when dates don't align with frequency.
@@ -542,13 +540,14 @@ impl McConfig {
         use super::MAX_RECOVERY_RATE;
         use finstack_quant_core::InputError;
 
-        // Validate recovery rate: must be in [0, 1) to avoid division by zero
-        // in hazard-to-spread mapping: λ = s / (1 - R)
+        // Validate the explicit decimal recovery input, including both bounds.
         validation::require_with(
-            self.recovery_rate >= 0.0 && self.recovery_rate < MAX_RECOVERY_RATE,
+            self.recovery_rate.is_finite()
+                && self.recovery_rate >= 0.0
+                && self.recovery_rate <= MAX_RECOVERY_RATE,
             || {
                 format!(
-                    "Recovery rate must be in [0, {:.6}), got {}",
+                    "Recovery rate must be a finite decimal in [0, {}], got {}",
                     MAX_RECOVERY_RATE, self.recovery_rate
                 )
             },
@@ -730,8 +729,7 @@ impl RevolvingCredit {
     /// - Drawn amount does not exceed commitment
     /// - Currency consistency between drawn and commitment amounts
     /// - Commitment date is before maturity date
-    /// - Recovery rate is in [0, 1) (must be strictly less than 1 to avoid
-    ///   division by zero in hazard-to-spread mapping: λ = s / (1 - R))
+    /// - Recovery rate is finite and in [0, 1]
     /// - Fee tiers are sorted by threshold ascending
     /// - Base rate fixed rate is finite
     ///
@@ -745,6 +743,7 @@ impl RevolvingCredit {
     /// let facility = RevolvingCredit::builder()
     ///     .id("RCF-001".into())
     ///     // ... other fields ...
+    ///     .recovery_rate(0.40)
     ///     .build()?;
     /// facility.validate()?; // Validates all parameters
     /// ```
@@ -799,13 +798,15 @@ impl RevolvingCredit {
             },
         )?;
 
-        // Recovery rate bounds: must be in [0, MAX_RECOVERY_RATE) to avoid
-        // division by zero in hazard-to-spread mapping: λ = s / (1 - R)
+        // Recovery is an explicit decimal fraction. Downstream hazard mappings
+        // handle the full-recovery boundary without changing the stored input.
         validation::require_with(
-            self.recovery_rate >= 0.0 && self.recovery_rate < MAX_RECOVERY_RATE,
+            self.recovery_rate.is_finite()
+                && self.recovery_rate >= 0.0
+                && self.recovery_rate <= MAX_RECOVERY_RATE,
             || {
                 format!(
-                    "RevolvingCredit recovery_rate must be in [0, {:.6}), got {}",
+                    "RevolvingCredit recovery_rate must be a finite decimal in [0, {}], got {}",
                     MAX_RECOVERY_RATE, self.recovery_rate
                 )
             },

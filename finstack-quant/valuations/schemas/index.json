@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "$id": "https://finstack_quant.dev/schemas/calibration/1/calibration.schema.json",
-      "bytes": 224860,
+      "bytes": 224884,
       "kind": "input",
       "path": "schemas/calibration/1/calibration.schema.json",
       "summary": "Build a market from quotes: a calibration plan, flat market data, and any pre-built curves or surfaces.",
@@ -186,7 +186,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/composite/composite.schema.json",
-      "bytes": 904427,
+      "bytes": 904510,
       "kind": "input",
       "path": "schemas/instruments/1/composite/composite.schema.json",
       "summary": "Resolved cross-asset synthetic instrument with immutable leg quantities.",
@@ -290,7 +290,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/levered_real_estate_equity.schema.json",
-      "bytes": 173176,
+      "bytes": 173213,
       "kind": "input",
       "path": "schemas/instruments/1/equity/levered_real_estate_equity.schema.json",
       "summary": "Property equity net of its financing stack.",
@@ -362,7 +362,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/basket.schema.json",
-      "bytes": 903394,
+      "bytes": 903477,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/basket.schema.json",
       "summary": "Weighted basket of constituents priced as one position.",
@@ -450,7 +450,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/convertible_bond.schema.json",
-      "bytes": 54157,
+      "bytes": 54235,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/convertible_bond.schema.json",
       "summary": "Corporate bond convertible into a fixed number of shares.",
@@ -474,7 +474,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/revolving_credit.schema.json",
-      "bytes": 45633,
+      "bytes": 45670,
       "kind": "input",
       "path": "schemas/instruments/1/fixed_income/revolving_credit.schema.json",
       "summary": "Committed revolver with drawn/undrawn balances and commitment fees.",
@@ -602,7 +602,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json",
-      "bytes": 990549,
+      "bytes": 990664,
       "kind": "input",
       "path": "schemas/instruments/1/instrument.schema.json",
       "summary": "The seventy-branch union of every instrument type. Prefer the per-type schema beside it: this document is too large to hand to a model.",

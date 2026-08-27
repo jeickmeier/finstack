@@ -153,11 +153,6 @@ impl FundingConfig {
 /// Controls the time grid, recovery assumptions, and optional modeling
 /// features for exposure simulation and CVA computation.
 ///
-/// # Defaults
-///
-/// The default configuration provides a quarterly time grid out to 30 years
-/// with a 40% recovery rate (ISDA standard for senior unsecured).
-///
 /// # References
 ///
 /// - Gregory XVA Challenge: `docs/REFERENCES.md#gregory-xva-challenge`
@@ -170,19 +165,11 @@ pub struct XvaConfig {
     /// improve accuracy but increase computation cost.
     pub time_grid: Vec<f64>,
 
-    /// Recovery rate for counterparty default (typically 0.40).
-    ///
-    /// Market standard for senior unsecured is 40%, per ISDA conventions
-    /// and CDS pricing practices.
+    /// Required recovery rate for counterparty default as a decimal fraction.
     pub recovery_rate: f64,
 
-    /// Recovery rate for own default (used in DVA calculation).
-    ///
-    /// If `None`, defaults to the counterparty `recovery_rate`.
-    /// May differ from counterparty recovery if the institution's
-    /// seniority or credit quality warrants a different assumption.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub own_recovery_rate: Option<f64>,
+    /// Required recovery rate for own default, used in DVA calculation.
+    pub own_recovery_rate: f64,
 
     /// Funding configuration for FVA calculation.
     ///
@@ -192,23 +179,34 @@ pub struct XvaConfig {
     pub funding: Option<FundingConfig>,
 }
 
-impl Default for XvaConfig {
-    /// Creates the registry-backed default XVA configuration.
-    fn default() -> Self {
+impl XvaConfig {
+    /// Create an XVA configuration with the registry-backed time grid and
+    /// caller-supplied recovery assumptions.
+    ///
+    /// # Arguments
+    ///
+    /// * `recovery_rate` - Counterparty recovery as a decimal fraction in
+    ///   `[0, 1]`.
+    /// * `own_recovery_rate` - Own recovery as a decimal fraction in `[0, 1]`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error when either recovery is non-finite or lies
+    /// outside `[0, 1]`.
+    pub fn new(recovery_rate: f64, own_recovery_rate: f64) -> finstack_quant_core::Result<Self> {
         let defaults = &embedded_registry_or_panic().xva.deterministic_exposure;
         let time_grid: Vec<f64> = (1..=defaults.time_grid_points)
             .map(|i| i as f64 * defaults.time_grid_step_years)
             .collect();
-        Self {
+        let config = Self {
             time_grid,
-            recovery_rate: defaults.recovery_rate,
-            own_recovery_rate: defaults.own_recovery_rate,
+            recovery_rate,
+            own_recovery_rate,
             funding: None,
-        }
+        };
+        config.validate()?;
+        Ok(config)
     }
-}
-
-impl XvaConfig {
     /// Validate configuration parameters.
     ///
     /// # Returns
@@ -243,19 +241,18 @@ impl XvaConfig {
             }
         }
 
-        if !(0.0..=1.0).contains(&self.recovery_rate) {
+        if !self.recovery_rate.is_finite() || !(0.0..=1.0).contains(&self.recovery_rate) {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "XvaConfig: recovery_rate {} must be in [0, 1]",
+                "XvaConfig: recovery_rate {} must be finite and in [0, 1]",
                 self.recovery_rate
             )));
         }
 
-        if let Some(own_r) = self.own_recovery_rate {
-            if !(0.0..=1.0).contains(&own_r) {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "XvaConfig: own_recovery_rate {own_r} must be in [0, 1]"
-                )));
-            }
+        if !self.own_recovery_rate.is_finite() || !(0.0..=1.0).contains(&self.own_recovery_rate) {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "XvaConfig: own_recovery_rate {} must be finite and in [0, 1]",
+                self.own_recovery_rate
+            )));
         }
 
         if let Some(ref funding) = self.funding {
@@ -615,6 +612,10 @@ pub struct CsaTerms {
 mod tests {
     use super::*;
 
+    fn xva_config() -> XvaConfig {
+        XvaConfig::new(0.40, 0.40).expect("explicit recovery rates should be valid")
+    }
+
     #[test]
     fn funding_config_defaults_leave_mva_off() {
         let fva_only = FundingConfig {
@@ -674,7 +675,7 @@ mod tests {
                 margin_funding_spread_bp: Some(-1.0),
                 ..Default::default()
             }),
-            ..XvaConfig::default()
+            ..xva_config()
         };
         assert!(config.validate().is_err());
     }
@@ -690,7 +691,7 @@ mod tests {
                 }),
                 ..Default::default()
             }),
-            ..XvaConfig::default()
+            ..xva_config()
         };
         assert!(config.validate().is_err());
     }
@@ -707,17 +708,27 @@ mod tests {
                 }),
                 margin_funding_spread_bp: Some(20.0),
             }),
-            ..XvaConfig::default()
+            ..xva_config()
         };
         config.validate().expect("valid MVA funding config");
     }
 
     #[test]
-    fn default_config_is_valid() {
-        let config = XvaConfig::default();
-        config.validate().expect("Default config should be valid");
+    fn explicit_config_is_valid() {
+        let config = xva_config();
+        config.validate().expect("explicit config should be valid");
         assert_eq!(config.time_grid.len(), 120); // quarterly to 30Y
         assert!((config.recovery_rate - 0.40).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn config_accepts_recovery_boundaries() {
+        for recovery in [0.0, 1.0] {
+            let config = XvaConfig::new(recovery, recovery)
+                .expect("boundary recovery rates should be valid");
+            assert_eq!(config.recovery_rate, recovery);
+            assert_eq!(config.own_recovery_rate, recovery);
+        }
     }
 
     #[test]
@@ -725,7 +736,7 @@ mod tests {
         let config = XvaConfig {
             time_grid: vec![],
             recovery_rate: 0.40,
-            own_recovery_rate: None,
+            own_recovery_rate: 0.40,
             funding: None,
         };
         assert!(config.validate().is_err());
@@ -736,7 +747,7 @@ mod tests {
         let config = XvaConfig {
             time_grid: vec![1.0, 0.5, 2.0],
             recovery_rate: 0.40,
-            own_recovery_rate: None,
+            own_recovery_rate: 0.40,
             funding: None,
         };
         assert!(config.validate().is_err());
@@ -747,7 +758,7 @@ mod tests {
         let config = XvaConfig {
             time_grid: vec![1.0, 2.0],
             recovery_rate: 1.5,
-            own_recovery_rate: None,
+            own_recovery_rate: 0.40,
             funding: None,
         };
         assert!(config.validate().is_err());
@@ -755,7 +766,7 @@ mod tests {
         let config_neg = XvaConfig {
             time_grid: vec![1.0, 2.0],
             recovery_rate: -0.1,
-            own_recovery_rate: None,
+            own_recovery_rate: 0.40,
             funding: None,
         };
         assert!(config_neg.validate().is_err());
@@ -766,7 +777,7 @@ mod tests {
         let config = XvaConfig {
             time_grid: vec![0.0, 1.0],
             recovery_rate: 0.40,
-            own_recovery_rate: None,
+            own_recovery_rate: 0.40,
             funding: None,
         };
         assert!(config.validate().is_err());
@@ -777,7 +788,7 @@ mod tests {
         let config = XvaConfig {
             time_grid: vec![0.5, 1.0],
             recovery_rate: 0.40,
-            own_recovery_rate: None,
+            own_recovery_rate: 0.40,
             funding: Some(FundingConfig {
                 funding_spread_bp: 35.0,
                 funding_benefit_bp: Some(40.0),

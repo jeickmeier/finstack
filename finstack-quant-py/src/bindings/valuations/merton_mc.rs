@@ -382,16 +382,19 @@ pub(crate) struct PyMertonMcConfig {
 
 #[pymethods]
 impl PyMertonMcConfig {
-    /// Create a Merton MC configuration with registry-sourced simulation defaults.
+    /// Create a Merton MC configuration with explicit recovery.
     ///
     /// # Arguments
     ///
     /// * `merton` - Structural credit model driving asset dynamics and default.
+    /// * `recovery_rate` - Recovery on default as a decimal fraction in
+    ///   ``[0.0, 1.0]``.
     #[new]
-    fn new(merton: PyRef<'_, PyMertonModel>) -> Self {
-        Self {
-            inner: MertonMcConfig::new(merton.inner.clone()),
-        }
+    fn new(merton: PyRef<'_, PyMertonModel>, recovery_rate: f64) -> PyResult<Self> {
+        Ok(Self {
+            inner: MertonMcConfig::new(merton.inner.clone(), recovery_rate)
+                .map_err(display_to_py)?,
+        })
     }
 
     /// Set the PIK schedule controlling per-coupon cash/PIK/toggle behavior.
@@ -465,10 +468,14 @@ impl PyMertonMcConfig {
     /// # Arguments
     ///
     /// * `r` - Recovery rate as a decimal in ``[0, 1]``.
-    fn default_recovery_rate(&self, r: f64) -> Self {
-        let mut inner = self.inner.clone();
-        inner.default_recovery_rate = r;
-        Self { inner }
+    fn default_recovery_rate(&self, r: f64) -> PyResult<Self> {
+        Ok(Self {
+            inner: self
+                .inner
+                .clone()
+                .default_recovery_rate(r)
+                .map_err(display_to_py)?,
+        })
     }
 
     /// Set an endogenous (leverage-dependent) hazard rate model.

@@ -249,16 +249,22 @@ impl ConvertibleBondValuator {
             None
         };
 
-        let recovery = match bond.recovery_rate {
-            Some(r) if !r.is_finite() || !(0.0..=1.0).contains(&r) => {
+        let recovery = match (bond.recovery_rate, bond.credit_curve_id.as_ref()) {
+            (Some(r), _) if !r.is_finite() || !(0.0..=1.0).contains(&r) => {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "Convertible bond {} has recovery_rate={r}; expected finite value in \
                      [0.0, 1.0] (was previously clamped silently, which masked invalid input)",
                     bond.id.as_str()
                 )));
             }
-            Some(r) => r,
-            None => 0.0,
+            (Some(r), _) => r,
+            (None, Some(_)) => {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "Convertible bond {} requires an explicit recovery_rate when credit_curve_id is set",
+                    bond.id.as_str()
+                )));
+            }
+            (None, None) => 0.0,
         };
 
         let mut rf_step_dfs = Vec::with_capacity(steps);

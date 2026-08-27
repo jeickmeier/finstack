@@ -46,6 +46,7 @@ fn build_hazard_curve(id: &str, hazard_rate: f64) -> HazardCurve {
             (5.0, (-hazard_rate * 5.0).exp()),
             (10.0, (-hazard_rate * 10.0).exp()),
         ])
+        .recovery_rate(0.40)
         .build()
         .expect("Hazard curve construction should succeed")
 }

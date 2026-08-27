@@ -266,6 +266,7 @@ impl MarketContext {
     ///
     /// let hazard = Arc::new(HazardCurve::builder("CDX")
     ///     .base_date(Date::from_calendar_date(2024, Month::January, 1).expect("Valid date"))
+    ///     .recovery_rate(0.40)
     ///     .knots([(0.0, 0.01), (5.0, 0.015)])
     ///     .build()
     ///     .expect("HazardCurve builder should succeed"));
