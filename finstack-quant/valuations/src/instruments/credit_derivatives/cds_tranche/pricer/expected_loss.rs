@@ -4,12 +4,12 @@ use super::config::{
     CDSTranchePricer, ElWdPoint, PoolExposure, ADAPTIVE_INTEGRATION_HIGH, ADAPTIVE_INTEGRATION_LOW,
     NUMERICAL_TOLERANCE, PROBABILITY_CLIP,
 };
-use crate::correlation::recovery::RecoveryModel;
 use crate::instruments::credit_derivatives::cds_tranche::CDSTranche;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::term_structures::CreditIndexData;
 use finstack_quant_core::math::standard_normal_inv_cdf;
 use finstack_quant_core::{Error, Result};
+use finstack_quant_models::correlation::recovery::RecoveryModel;
 
 /// Magnitude below which a negative base-correlation tranchelet difference is
 /// treated as benign numerical noise (quadrature / interpolation rounding)

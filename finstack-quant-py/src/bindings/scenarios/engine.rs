@@ -27,8 +27,8 @@ pub struct PyApplicationReport {
 impl PyApplicationReport {
     /// Number of effects successfully applied to the execution context.
     ///
-    /// One user-level operation can expand into several effects, so this is
-    /// always ``>=`` :attr:`user_operations`.
+    /// One user-level operation can produce zero, one, or many effects. Inspect
+    /// ``changes`` and ``warnings`` rather than treating this as coverage.
     #[getter]
     fn operations_applied(&self) -> usize {
         self.inner.operations_applied

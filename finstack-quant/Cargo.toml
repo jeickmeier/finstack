@@ -22,7 +22,7 @@ finstack_quant_statements_analytics = { package = "finstack-quant-statements-ana
 finstack_quant_valuations = { package = "finstack-quant-valuations", path = "valuations", version = "0.7.0" }
 finstack_quant_portfolio = { package = "finstack-quant-portfolio", path = "portfolio", version = "0.7.0" }
 finstack_quant_scenarios = { package = "finstack-quant-scenarios", path = "scenarios", version = "0.7.0" }
-finstack_quant_monte_carlo = { package = "finstack-quant-monte-carlo", path = "monte_carlo", version = "0.7.0" }
+finstack_quant_models = { package = "finstack-quant-models", path = "models", version = "0.7.0" }
 serde_json = { workspace = true }
 jsonschema = { version = "0.28", default-features = false }
 

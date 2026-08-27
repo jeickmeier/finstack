@@ -32,7 +32,7 @@
 //! | `factor_model`     | [`finstack_quant_factor_model`]         |
 //! | `features`         | [`finstack_quant_features`]             |
 //! | `margin`           | [`finstack_quant_margin`]               |
-//! | `monte_carlo`      | [`finstack_quant_monte_carlo`]          |
+//! | `models`           | [`finstack_quant_models`]                |
 //! | `valuations`       | [`finstack_quant_valuations`]           |
 //! | `statements`       | [`finstack_quant_statements`]           |
 //! | `statements_analytics` | [`finstack_quant_statements_analytics`] |
@@ -68,7 +68,7 @@ pub use finstack_quant_covenants as covenants;
 pub use finstack_quant_factor_model as factor_model;
 pub use finstack_quant_features as features;
 pub use finstack_quant_margin as margin;
-pub use finstack_quant_monte_carlo as monte_carlo;
+pub use finstack_quant_models as models;
 pub use finstack_quant_portfolio as portfolio;
 pub use finstack_quant_scenarios as scenarios;
 pub use finstack_quant_statements as statements;

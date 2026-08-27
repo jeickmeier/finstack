@@ -15,7 +15,7 @@ use crate::instruments::fixed_income::convertible::{
     ConversionEvent, ConversionPolicy, ConvertibleBond,
 };
 use crate::metrics::bump_discount_curve_parallel;
-use crate::models::{single_factor_equity_state, TreeGreeks};
+use finstack_quant_models::{single_factor_equity_state, TreeGreeks};
 
 use super::tsiveriotis_zhang::TsiveriotisZhangEngine;
 use super::valuator::ConvertibleBondValuator;

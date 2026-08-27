@@ -12,14 +12,14 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 
 // MC-specific imports
-use finstack_quant_monte_carlo::engine::PathCaptureConfig;
-use finstack_quant_monte_carlo::payoff::asian::{AsianCall, AsianPut};
-use finstack_quant_monte_carlo::pricer::path_dependent::{
+use finstack_quant_models::monte_carlo::engine::PathCaptureConfig;
+use finstack_quant_models::monte_carlo::payoff::asian::{AsianCall, AsianPut};
+use finstack_quant_models::monte_carlo::pricer::path_dependent::{
     PathDependentPricer, PathDependentPricerConfig,
 };
-use finstack_quant_monte_carlo::process::gbm::{GbmParams, GbmProcess};
-use finstack_quant_monte_carlo::results::MoneyEstimate;
-use finstack_quant_monte_carlo::variance_reduction::control_variate::apply_control_variate;
+use finstack_quant_models::monte_carlo::process::gbm::{GbmParams, GbmProcess};
+use finstack_quant_models::monte_carlo::results::MoneyEstimate;
+use finstack_quant_models::monte_carlo::variance_reduction::control_variate::apply_control_variate;
 
 /// Result of mapping an Asian option's fixing dates onto a uniform MC time
 /// grid.
@@ -226,7 +226,7 @@ fn seasoned_geometric_asian_control(
     hist_count: usize,
     future_times: &[f64],
     is_call: bool,
-    drift_schedule: Option<&finstack_quant_monte_carlo::process::gbm::DriftSchedule>,
+    drift_schedule: Option<&finstack_quant_models::monte_carlo::process::gbm::DriftSchedule>,
 ) -> f64 {
     let k = future_times.len();
     let n_total = hist_count + k;
@@ -426,15 +426,15 @@ impl AsianOptionMcPricer {
 
         let averaging = match inst.averaging_method {
             crate::instruments::exotics::asian_option::types::AveragingMethod::Arithmetic => {
-                finstack_quant_monte_carlo::payoff::asian::AveragingMethod::Arithmetic
+                finstack_quant_models::monte_carlo::payoff::asian::AveragingMethod::Arithmetic
             }
             crate::instruments::exotics::asian_option::types::AveragingMethod::Geometric => {
-                finstack_quant_monte_carlo::payoff::asian::AveragingMethod::Geometric
+                finstack_quant_models::monte_carlo::payoff::asian::AveragingMethod::Geometric
             }
         };
 
         // Derive deterministic seed from instrument ID and scenario
-        use finstack_quant_monte_carlo::seed;
+        use finstack_quant_models::monte_carlo::seed;
 
         let seed = if let Some(ref scenario) = inst.metric_pricing_overrides.mc_seed_scenario {
             seed::derive_seed(&inst.id, scenario)
@@ -460,7 +460,7 @@ impl AsianOptionMcPricer {
                 let arith_payoff = AsianCall::with_history(
                     inst.strike,
                     inst.notional.amount(),
-                    finstack_quant_monte_carlo::payoff::asian::AveragingMethod::Arithmetic,
+                    finstack_quant_models::monte_carlo::payoff::asian::AveragingMethod::Arithmetic,
                     fixing_steps.clone(),
                     hist_sum,
                     hist_prod_log,
@@ -480,7 +480,7 @@ impl AsianOptionMcPricer {
                 let geom_payoff = AsianCall::with_history(
                     inst.strike,
                     inst.notional.amount(),
-                    finstack_quant_monte_carlo::payoff::asian::AveragingMethod::Geometric,
+                    finstack_quant_models::monte_carlo::payoff::asian::AveragingMethod::Geometric,
                     fixing_steps,
                     hist_sum,
                     hist_prod_log,
@@ -586,7 +586,7 @@ impl AsianOptionMcPricer {
                 let arith_payoff = AsianPut::with_history(
                     inst.strike,
                     inst.notional.amount(),
-                    finstack_quant_monte_carlo::payoff::asian::AveragingMethod::Arithmetic,
+                    finstack_quant_models::monte_carlo::payoff::asian::AveragingMethod::Arithmetic,
                     fixing_steps.clone(),
                     hist_sum,
                     hist_prod_log,
@@ -605,7 +605,7 @@ impl AsianOptionMcPricer {
                 let geom_payoff = AsianPut::with_history(
                     inst.strike,
                     inst.notional.amount(),
-                    finstack_quant_monte_carlo::payoff::asian::AveragingMethod::Geometric,
+                    finstack_quant_models::monte_carlo::payoff::asian::AveragingMethod::Geometric,
                     fixing_steps,
                     hist_sum,
                     hist_prod_log,
@@ -782,7 +782,7 @@ pub(crate) fn compute_pv(
 }
 
 use crate::instruments::common_impl::helpers::collect_black_scholes_inputs;
-use crate::models::closed_form::asian::{
+use finstack_quant_models::closed_form::asian::{
     arithmetic_asian_tw_price_times, geometric_asian_price_times,
 };
 
@@ -1167,7 +1167,6 @@ mod tests {
     use super::*;
     use crate::instruments::exotics::asian_option::{AsianOption, AveragingMethod};
     use crate::instruments::OptionType;
-    use crate::models::closed_form::asian::{geometric_asian_call, geometric_asian_put};
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
     use finstack_quant_core::market_data::scalars::MarketScalar;
@@ -1175,6 +1174,7 @@ mod tests {
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::math::interp::InterpStyle;
     use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
+    use finstack_quant_models::closed_form::asian::{geometric_asian_call, geometric_asian_put};
     use time::Month;
 
     fn date(year: i32, month: u8, day: u8) -> Date {
@@ -1293,7 +1293,7 @@ mod tests {
                     .expect("year fraction")
             })
             .collect();
-        let expected = crate::models::closed_form::asian::geometric_asian_price_times(
+        let expected = finstack_quant_models::closed_form::asian::geometric_asian_price_times(
             spot,
             strike,
             t,
@@ -1348,7 +1348,7 @@ mod tests {
                     .expect("year fraction")
             })
             .collect();
-        let expected = crate::models::closed_form::asian::geometric_asian_price_times(
+        let expected = finstack_quant_models::closed_form::asian::geometric_asian_price_times(
             spot,
             strike,
             t,

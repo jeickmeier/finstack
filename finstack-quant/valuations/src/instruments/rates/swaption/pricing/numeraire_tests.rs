@@ -29,22 +29,22 @@
 //!    mis-prices the European. The multi-exercise Bermudan must likewise
 //!    match a correct-numéraire backward-induction reference.
 //!
-//! The reference simulations replay the *same* `finstack-quant-monte-carlo`
+//! The reference simulations replay the *same* `finstack-quant-models`
 //! process + discretization + Philox RNG the engines use, so any
 //! discrepancy is attributable to the discounting convention, not to a
 //! different model or different random numbers.
 
 use finstack_quant_core::currency::Currency;
-use finstack_quant_monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
-use finstack_quant_monte_carlo::discretization::lmm_predictor_corrector::LmmPredictorCorrector;
-use finstack_quant_monte_carlo::online_stats::OnlineStats;
-use finstack_quant_monte_carlo::pricer::basis::{BasisFunctions, PolynomialBasis};
-use finstack_quant_monte_carlo::pricer::lsq::solve_least_squares;
-use finstack_quant_monte_carlo::process::lmm::{LmmParams, LmmProcess};
-use finstack_quant_monte_carlo::process::ou::{HullWhite1FParams, HullWhite1FProcess};
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::time_grid::TimeGrid;
-use finstack_quant_monte_carlo::traits::{Discretization, RandomStream};
+use finstack_quant_models::monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
+use finstack_quant_models::monte_carlo::discretization::lmm_predictor_corrector::LmmPredictorCorrector;
+use finstack_quant_models::monte_carlo::online_stats::OnlineStats;
+use finstack_quant_models::monte_carlo::pricer::basis::{BasisFunctions, PolynomialBasis};
+use finstack_quant_models::monte_carlo::pricer::lsq::solve_least_squares;
+use finstack_quant_models::monte_carlo::process::lmm::{LmmParams, LmmProcess};
+use finstack_quant_models::monte_carlo::process::ou::{HullWhite1FParams, HullWhite1FProcess};
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream};
 
 use super::lmm_bermudan::{build_exercise_aligned_grid, price_bermudan_lmm, LmmBermudanConfig};
 use super::monte_carlo_lsmc::{SwaptionLsmcConfig, SwaptionLsmcPricer};

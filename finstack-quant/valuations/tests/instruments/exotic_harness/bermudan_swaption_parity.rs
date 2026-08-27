@@ -25,8 +25,8 @@
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
-use finstack_quant_monte_carlo::process::ou::HullWhite1FParams;
-use finstack_quant_monte_carlo::traits::{PathState, Payoff};
+use finstack_quant_models::monte_carlo::process::ou::HullWhite1FParams;
+use finstack_quant_models::monte_carlo::traits::{PathState, Payoff};
 use finstack_quant_valuations::instruments::rates::hw1f::exercise::{
     standard_basis, ExerciseBoundaryPayoff,
 };

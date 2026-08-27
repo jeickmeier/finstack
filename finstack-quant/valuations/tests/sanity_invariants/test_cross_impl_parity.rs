@@ -43,10 +43,10 @@
 /// # The two code paths
 ///
 /// * `BarrierOptionMcPricer` (`ModelKey::MonteCarloGBM`) — simulates a
-///   [`finstack_quant_monte_carlo::process::gbm::GbmProcess`] with the
+///   [`finstack_quant_models::monte_carlo::process::gbm::GbmProcess`] with the
 ///   exact-lognormal discretization and a [`BarrierOptionPayoff`].
 /// * `BarrierOptionHestonMcPricer` (`ModelKey::MonteCarloHeston`) — simulates a
-///   two-factor [`finstack_quant_monte_carlo::process::heston::HestonProcess`] with
+///   two-factor [`finstack_quant_models::monte_carlo::process::heston::HestonProcess`] with
 ///   the QE discretization, and the *same* `BarrierOptionPayoff`.
 ///
 /// These are genuinely different engines: a one-factor exact-GBM stepper vs a
@@ -298,7 +298,7 @@ mod gbm_barrier {
 /// The genuine `SABRModel` (the production pricer type) is exercised — not a
 /// re-implementation.
 mod sabr_beta {
-    use finstack_quant_valuations::models::{SABRModel, SABRParameters};
+    use finstack_quant_models::{SABRModel, SABRParameters};
 
     /// **β=1 ATM, ν=0 ⇒ vol = α, for any forward.**
     ///

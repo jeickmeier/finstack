@@ -17,7 +17,7 @@ use crate::results::ValuationResult;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::money::Money;
-use finstack_quant_monte_carlo::process::lmm::LmmParams;
+use finstack_quant_models::monte_carlo::process::lmm::LmmParams;
 
 /// Bermudan swaption pricer using LMM/BGM Monte Carlo with LSMC exercise.
 ///

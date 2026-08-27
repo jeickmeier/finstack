@@ -3,7 +3,6 @@ use super::{
     TrancheCashflows, TrancheValuation,
 };
 use crate::cashflow::traits::CashflowProvider;
-use crate::correlation::RecoverySpec as StochasticRecoverySpec;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::fixed_income::structured_credit::assumptions::embedded_registry_or_panic;
 use crate::instruments::fixed_income::structured_credit::metrics::{
@@ -22,6 +21,7 @@ use finstack_quant_core::dates::{Date, DateExt, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::solver::{BrentSolver, Solver};
 use finstack_quant_core::money::Money;
+use finstack_quant_models::correlation::RecoverySpec as StochasticRecoverySpec;
 
 impl StructuredCredit {
     /// Calculate prepayment rate (SMM) for a given period.
@@ -215,10 +215,11 @@ impl StructuredCredit {
             &tree_config.default_spec
         {
             if *mean_reversion > 0.0 {
-                tree_config.factor_spec = crate::correlation::LatentFactorSpec::SingleFactor {
-                    volatility: 1.0,
-                    mean_reversion: *mean_reversion,
-                };
+                tree_config.factor_spec =
+                    finstack_quant_models::correlation::LatentFactorSpec::SingleFactor {
+                        volatility: 1.0,
+                        mean_reversion: *mean_reversion,
+                    };
             }
         }
 

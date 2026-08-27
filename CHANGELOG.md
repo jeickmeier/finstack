@@ -47,6 +47,19 @@
 - TreasuryActual long-first-coupon pricing follows 31 CFR Part 356,
   Appendix B, and its one-cashflow yield conversion now round-trips.
 
+### Changed — scenario P&L and stress validation
+
+- Equity and instrument price shocks reject percentages below −100%; an exact
+  −100% wipeout remains valid, but scenarios can no longer create negative
+  post-shock prices.
+- Scenario P&L requires canonical PV pricing on both base and stressed legs
+  instead of independently falling back to `Instrument::value`.
+- FX scenarios conservatively reprice the full portfolio so triangulated
+  native-PV dependencies cannot reuse stale base values.
+- Portfolio scenario reports carry the caller's active `FinstackConfig`.
+  `operations_applied` is documented as a low-level effect count, not an
+  operation-coverage ratio.
+
 ## [0.7.0] - 2026-08-17
 
 ### Removed — legacy pathways, waves 1-6 (BREAKING)

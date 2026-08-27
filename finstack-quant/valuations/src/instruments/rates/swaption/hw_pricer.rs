@@ -32,7 +32,6 @@ use crate::instruments::rates::hw1f::{
     resolve_hw1f_params, Hw1fCalibrationFlavor, Hw1fResolveRequest,
 };
 use crate::instruments::rates::swaption::types::Swaption;
-use crate::models::trees::{HullWhiteTree, HullWhiteTreeConfig};
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
@@ -40,6 +39,7 @@ use crate::results::ValuationResult;
 use finstack_quant_core::dates::DayCountContext;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
+use finstack_quant_models::trees::{HullWhiteTree, HullWhiteTreeConfig};
 
 /// Number of tree steps used for the HW tree pricing.
 const DEFAULT_TREE_STEPS: usize = 100;

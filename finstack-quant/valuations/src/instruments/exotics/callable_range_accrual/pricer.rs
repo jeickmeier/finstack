@@ -20,9 +20,9 @@ use finstack_quant_core::dates::{Date, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
-use finstack_quant_monte_carlo::results::MoneyEstimate;
-use finstack_quant_monte_carlo::seed;
-use finstack_quant_monte_carlo::traits::{PathState, Payoff, StateKey};
+use finstack_quant_models::monte_carlo::results::MoneyEstimate;
+use finstack_quant_models::monte_carlo::seed;
+use finstack_quant_models::monte_carlo::traits::{PathState, Payoff, StateKey};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy)]

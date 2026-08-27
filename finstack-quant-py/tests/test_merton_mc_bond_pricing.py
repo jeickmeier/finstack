@@ -1,0 +1,42 @@
+"""Downstream valuation coverage for Merton Monte Carlo bond pricing."""
+
+from __future__ import annotations
+
+import datetime
+
+from finstack_quant.core.currency import Currency
+from finstack_quant.core.dates import StubKind
+from finstack_quant.core.money import Money
+from finstack_quant.core.types import Rate
+from finstack_quant.models.credit import MertonModel
+from finstack_quant.valuations.instruments import (
+    BarrierCrossing,
+    Bond,
+    MertonMcConfig,
+    PikMode,
+    PikSchedule,
+)
+
+
+def test_merton_mc_bond_price_smoke() -> None:
+    merton = MertonModel(100.0, 0.25, 60.0, 0.04)
+    config = (
+        MertonMcConfig(merton)
+        .num_paths(64)
+        .seed(7)
+        .pik_schedule(PikSchedule.uniform(PikMode.pik()))
+        .barrier_crossing(BarrierCrossing.discrete())
+    )
+    bond = Bond.fixed(
+        "PIK-1",
+        Money(100.0, Currency("USD")),
+        Rate(0.08),
+        datetime.date(2024, 1, 15),
+        datetime.date(2029, 1, 15),
+        StubKind.SHORT_FRONT,
+        "USD-OIS",
+    )
+    result = bond.price_merton_mc(config, 0.04, datetime.date(2024, 1, 15))
+    assert result.num_paths == 64
+    assert result.clean_price_pct > 0.0
+    assert 0.0 <= result.path_statistics.default_rate <= 1.0

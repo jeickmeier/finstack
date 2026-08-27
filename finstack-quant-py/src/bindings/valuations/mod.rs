@@ -3,18 +3,13 @@
 //! Exposes the [`PyValuationResult`] envelope for pricing output,
 //! JSON-based instrument loading and the standard pricer pipeline.
 
-mod analytic;
 mod calibration;
 pub(crate) mod composite;
-pub mod correlation;
-mod credit;
 mod credit_derivatives;
 mod exotic_rates;
-mod fourier;
 pub(crate) mod instruments;
 mod merton_mc;
 mod pricing;
-mod sabr;
 mod schema;
 mod structured_credit;
 pub(crate) mod typed_credit;
@@ -317,18 +312,13 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
 
     m.add_class::<PyValuationResult>()?;
-    analytic::register(py, &m)?;
-    sabr::register(py, &m)?;
     calibration::register(py, &m)?;
     composite::register(py, &m)?;
-    fourier::register(py, &m)?;
     exotic_rates::register(py, &m)?;
-    correlation::register(py, &m)?;
     credit_derivatives::register(py, &m)?;
     schema::register(py, &m)?;
     register_instruments(py, &m)?;
     register_market(py, &m)?;
-    register_models(py, &m)?;
 
     let all = PyList::new(
         py,
@@ -340,33 +330,15 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "calibrate",
             "dry_run",
             "dependency_graph_json",
-            "bs_cos_price",
-            "vg_cos_price",
-            "merton_jump_cos_price",
             "tarn_coupon_profile",
             "snowball_coupon_profile",
             "inverse_floater_coupon_profile",
             "cms_spread_option_intrinsic",
             "callable_range_accrual_accrued",
-            "bs_price",
-            "vanilla_expiry_payoff",
-            "bs_greeks",
-            "bs_implied_vol",
-            "black76_implied_vol",
-            "barrier_call",
-            "asian_option_price",
-            "lookback_option_price",
-            "quanto_option_price",
-            "SabrParameters",
-            "SabrModel",
-            "SabrSmile",
-            "SabrCalibrator",
-            "correlation",
             "composite",
             "credit_derivatives",
             "instruments",
             "market",
-            "models",
             "schema",
         ],
     )?;
@@ -482,24 +454,6 @@ fn register_market(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()>
 
     pricing::register_market(py, &m)?;
     let all = PyList::new(py, ["listed_product_catalog"])?;
-    m.setattr("__all__", all)?;
-    crate::bindings::module_utils::register_submodule_at(py, parent, &m, &qual)?;
-    Ok(())
-}
-
-fn register_models(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
-    let m = PyModule::new(py, "models")?;
-    let qual = crate::bindings::module_utils::set_submodule_package_by_package(
-        parent,
-        &m,
-        "models",
-        "finstack_quant.valuations",
-    )?;
-    m.setattr("__doc__", "Pricing model wrappers for valuation workflows.")?;
-
-    credit::register(py, &m)?;
-
-    let all = PyList::new(py, ["credit"])?;
     m.setattr("__all__", all)?;
     crate::bindings::module_utils::register_submodule_at(py, parent, &m, &qual)?;
     Ok(())

@@ -7,12 +7,12 @@ use super::config::{
 };
 use super::saddlepoint::conditional_min_loss_normal;
 use crate::constants::credit;
-use crate::correlation::copula::Copula;
-use crate::correlation::recovery::RecoveryModel;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::term_structures::CreditIndexData;
 use finstack_quant_core::math::norm_cdf;
 use finstack_quant_core::{Error, Result};
+use finstack_quant_models::correlation::copula::Copula;
+use finstack_quant_models::correlation::recovery::RecoveryModel;
 use std::cell::RefCell;
 use tracing::warn;
 

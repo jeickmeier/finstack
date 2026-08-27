@@ -17,7 +17,7 @@ pub mod covenants;
 pub mod factor_model;
 pub mod features;
 pub mod margin;
-pub mod monte_carlo;
+pub mod models;
 pub mod portfolio;
 pub mod scenarios;
 pub mod statements;

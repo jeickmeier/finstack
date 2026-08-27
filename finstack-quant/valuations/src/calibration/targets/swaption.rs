@@ -9,7 +9,6 @@ use crate::instruments::rates::swaption::contractual_swap_tenor_years;
 use crate::market::conventions::registry::ConventionRegistry;
 use crate::market::quotes::market_quote::MarketQuote;
 use crate::market::quotes::vol::VolQuote;
-use crate::models::{vega_weight, SABRCalibrator, SABRModel, SABRParameters};
 use finstack_quant_core::dates::{
     adjust, BusinessDayConvention, DateExt, DayCount, DayCountContext, StubKind, Tenor,
 };
@@ -18,6 +17,7 @@ use finstack_quant_core::market_data::surfaces::VolCube;
 use finstack_quant_core::market_data::surfaces::VolQuoteType;
 use finstack_quant_core::math::volatility::sabr::SabrParams;
 use finstack_quant_core::Result;
+use finstack_quant_models::{vega_weight, SABRCalibrator, SABRModel, SABRParameters};
 use std::collections::BTreeMap;
 
 #[cfg(test)]

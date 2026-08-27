@@ -27,7 +27,7 @@ from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.money import Money
 from finstack_quant.core.types import Bps, Rate
 from finstack_quant.valuations import ValuationResult
-from finstack_quant.valuations.models.credit import (
+from finstack_quant.models.credit import (
     DynamicRecoverySpec,
     EndogenousHazardSpec,
     MertonModel,
@@ -395,7 +395,7 @@ class Bond:
         ...     PikMode,
         ...     PikSchedule,
         ... )
-        >>> from finstack_quant.valuations.models.credit import MertonModel
+        >>> from finstack_quant.models.credit import MertonModel
         >>> bond = Bond.fixed(
         ...     "BOND-MC",
         ...     Money(1_000_000.0, Currency("USD")),
@@ -526,7 +526,7 @@ class MertonMcConfig:
     Examples
     --------
     >>> from finstack_quant.valuations.instruments import MertonMcConfig, PikMode, PikSchedule
-    >>> from finstack_quant.valuations.models.credit import MertonModel
+    >>> from finstack_quant.models.credit import MertonModel
     >>> config = MertonMcConfig(MertonModel(100.0, 0.25, 80.0, 0.04)).num_paths(1000)
     >>> isinstance(config.seed(1).pik_schedule(PikSchedule.uniform(PikMode.cash())), MertonMcConfig)
     True
@@ -772,7 +772,7 @@ class MertonMcConfig:
         Examples
         --------
         >>> from finstack_quant.valuations.instruments import MertonMcConfig
-        >>> from finstack_quant.valuations.models.credit import MertonModel
+        >>> from finstack_quant.models.credit import MertonModel
         >>> config = MertonMcConfig(MertonModel(100.0, 0.25, 80.0, 0.04)).num_paths(256).seed(42)
         >>> MertonMcConfig.from_json(config.to_json()).to_json() == config.to_json()
         True
@@ -813,7 +813,7 @@ class MertonMcResult:
     ...     PikMode,
     ...     PikSchedule,
     ... )
-    >>> from finstack_quant.valuations.models.credit import MertonModel
+    >>> from finstack_quant.models.credit import MertonModel
     >>> config = (
     ...     MertonMcConfig(MertonModel(100.0, 0.25, 60.0, 0.04))
     ...     .num_paths(64)
@@ -1036,7 +1036,7 @@ class PathStatistics:
     ...     PikMode,
     ...     PikSchedule,
     ... )
-    >>> from finstack_quant.valuations.models.credit import MertonModel
+    >>> from finstack_quant.models.credit import MertonModel
     >>> config = (
     ...     MertonMcConfig(MertonModel(100.0, 0.25, 60.0, 0.04))
     ...     .num_paths(64)

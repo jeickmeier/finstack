@@ -664,8 +664,8 @@ fn mc_variance_no_catastrophic_cancellation_on_large_pv_deal() {
 #[test]
 fn philox_rng_discipline_determinism_and_stream_identity() {
     use finstack_quant_cashflows::builder::DefaultModelSpec;
-    use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-    use finstack_quant_monte_carlo::traits::RandomStream;
+    use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+    use finstack_quant_models::monte_carlo::traits::RandomStream;
 
     let close = Date::from_calendar_date(2024, Month::January, 1).unwrap();
     let maturity = Date::from_calendar_date(2026, Month::January, 1).unwrap();

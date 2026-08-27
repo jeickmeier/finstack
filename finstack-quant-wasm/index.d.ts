@@ -4220,7 +4220,7 @@ export interface FeaturesNamespace {
  */
 export declare const features: FeaturesNamespace;
 
-// --- valuations.correlation -------------------------------------------------
+// --- models.correlation -------------------------------------------------
 
 /**
  * Concrete copula model for portfolio default correlation.
@@ -4307,9 +4307,9 @@ export interface CopulaSpec extends WasmOwned {
  * Copula model specification for configuration and deferred construction.
  * @example
  * ```typescript
- * import init, { valuations } from "finstack-quant-wasm";
+ * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const copula = valuations.correlation.CopulaSpec.gaussian().build();
+ * const copula = models.correlation.CopulaSpec.gaussian().build();
  * console.log(copula.modelName, copula.numFactors);
  * ```
  */
@@ -4404,9 +4404,9 @@ export interface RecoverySpec extends WasmOwned {
  * Recovery model specification for configuration and deferred construction.
  * @example
  * ```typescript
- * import init, { valuations } from "finstack-quant-wasm";
+ * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const recovery = valuations.correlation.RecoverySpec.constant(0.4).build();
+ * const recovery = models.correlation.RecoverySpec.constant(0.4).build();
  * console.log(recovery.expectedRecovery, recovery.lgd);
  * ```
  */
@@ -4519,9 +4519,9 @@ export interface TrancheLossStatisticsJson {
  * Namespaced TypeScript entry points for correlation calculations and types.
  * @example
  * ```typescript
- * import init, { valuations } from "finstack-quant-wasm";
+ * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const [lower, upper] = valuations.correlation.correlationBounds(0.1, 0.2);
+ * const [lower, upper] = models.correlation.correlationBounds(0.1, 0.2);
  * console.log(lower, upper);
  * ```
  */
@@ -4623,17 +4623,17 @@ export interface CorrelationNamespace {
   ): TrancheLossStatisticsJson;
 }
 
-// --- monte_carlo ----------------------------------------------------------
-// Convenience subset of finstack-quant-monte-carlo. Advanced Rust process,
+// --- models.monteCarlo ----------------------------------------------------------
+// Convenience subset of finstack-quant-models::monte_carlo. Advanced Rust process,
 // discretization, RNG, payoff, and Greeks types are not standalone WASM types.
 
 /**
  * Namespaced TypeScript entry points for monte carlo calculations and types.
  * @example
  * ```typescript
- * import init, { monte_carlo } from "finstack-quant-wasm";
+ * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const estimate = monte_carlo.priceEuropeanCall(
+ * const estimate = models.monteCarlo.priceEuropeanCall(
  *   100,
  *   100,
  *   0.03,
@@ -5027,7 +5027,6 @@ export interface MonteCarloNamespace {
 /**
  * Namespaced TypeScript entry point for monte carlo APIs.
  */
-export declare const monte_carlo: MonteCarloNamespace;
 
 // --- margin ----------------------------------------------------------------
 
@@ -6521,9 +6520,9 @@ export interface SabrParameters extends WasmOwned {
  * Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr.
  * @example
  * ```typescript
- * import init, { valuations } from "finstack-quant-wasm";
+ * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const params = new valuations.SabrParameters(0.2, 1.0, 0.3, -0.2);
+ * const params = new models.SabrParameters(0.2, 1.0, 0.3, -0.2);
  * console.log(params.alpha, params.rho);
  * params.free();
  * ```
@@ -6584,10 +6583,10 @@ export interface SabrModel extends WasmOwned {
  * Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr.
  * @example
  * ```typescript
- * import init, { valuations } from "finstack-quant-wasm";
+ * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const params = valuations.SabrParameters.equityDefault();
- * const model = new valuations.SabrModel(params);
+ * const params = models.SabrParameters.equityDefault();
+ * const model = new models.SabrModel(params);
  * console.log(model.impliedVol(100, 105, 1));
  * model.free();
  * params.free();
@@ -6676,10 +6675,10 @@ export interface SabrSmile extends WasmOwned {
  * Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr.
  * @example
  * ```typescript
- * import init, { valuations } from "finstack-quant-wasm";
+ * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const params = valuations.SabrParameters.ratesDefault();
- * const smile = new valuations.SabrSmile(params, 0.03, 2);
+ * const params = models.SabrParameters.ratesDefault();
+ * const smile = new models.SabrSmile(params, 0.03, 2);
  * console.log(smile.generateSmile([0.02, 0.03, 0.04]));
  * smile.free();
  * params.free();
@@ -6756,9 +6755,9 @@ export interface SabrCalibrator extends WasmOwned {
  * Hagan SABR (2002): see docs/REFERENCES.md#hagan-2002-sabr.
  * @example
  * ```typescript
- * import init, { valuations } from "finstack-quant-wasm";
+ * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const calibrator = valuations.SabrCalibrator.highPrecision();
+ * const calibrator = models.SabrCalibrator.highPrecision();
  * const tighter = calibrator.withTolerance(1e-10);
  * tighter.free();
  * calibrator.free();
@@ -6778,16 +6777,16 @@ export interface SabrCalibratorConstructor {
 }
 
 /**
- * Namespaced TypeScript entry points for valuation credit calculations and types.
+ * Namespaced TypeScript entry points for structural-credit model calculations.
  * @example
  * ```typescript
- * import init, { valuations } from "finstack-quant-wasm";
+ * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const model = valuations.credit.mertonModelJson(100, 0.25, 60, 0.03);
- * console.log(valuations.credit.mertonDefaultProbability(model, 1));
+ * const model = models.credit.mertonModelJson(100, 0.25, 60, 0.03);
+ * console.log(models.credit.mertonDefaultProbability(model, 1));
  * ```
  */
-export interface ValuationCreditNamespace {
+export interface ModelCreditNamespace {
   /**
    * Build a structural Merton model JSON payload.
    * @returns Canonical Merton structural-model JSON.
@@ -7474,101 +7473,29 @@ export interface CompositeNamespace {
 }
 
 /**
- * Namespaced TypeScript entry points for valuations calculations and types.
+ * Namespaced TypeScript entry points for reusable quantitative models.
  * @example
  * ```typescript
- * import init, { valuations } from "finstack-quant-wasm";
+ * import init, { models } from "finstack-quant-wasm";
  * await init();
- * console.log(valuations.instruments.listStandardMetrics());
+ * console.log(models.bsPrice(100, 100, 0.03, 0, 0.2, 1, true));
  * ```
  */
-export interface ValuationsNamespace {
+export interface ModelsNamespace {
   /**
-   * Generic cross-asset composite instruments, primitive exposures, and dated history.
-   *
-   * Frozen quantities are used for pricing. Host bindings expose `initialize`
-   * for both fixed and dynamic weighting; there is no `initializeFixed` export.
+   * Monte Carlo pricing engines.
    */
-  composite: CompositeNamespace;
+  monteCarlo: MonteCarloNamespace;
   /**
-   * Copula/correlation toolkit for credit portfolio modelling: copula and
-   * recovery specs, correlation-matrix helpers, and portfolio-loss
-   * simulation. Mirrors Python's `finstack_quant.valuations.correlation`
-   * namespace (the analytics Pearson `correlation` function is a separate
-   * export on the `analytics` namespace).
+   * Structural-credit models and toggle-exercise helpers.
+   */
+  credit: ModelCreditNamespace;
+  /**
+   * Copula, recovery, and credit-correlation model infrastructure.
    * @returns Sample correlation in `[-1, 1]`, or NaN when a series has fewer than two points.
    * @throws Error - Throws a JavaScript exception if `x` or `y` cannot be decoded as a numeric array.
    */
   correlation: CorrelationNamespace;
-  /**
-   * Structural credit models and toggle-exercise helpers.
-   */
-  credit: ValuationCreditNamespace;
-  /**
-   * CDS-family JSON wrappers and pricing helpers.
-   */
-  creditDerivatives: CreditDerivativesNamespace;
-  /**
-   * Direct FX instrument wrappers.
-   */
-  fx: FxNamespace;
-  /**
-   * Instrument JSON validation and pricing helpers.
-   */
-  instruments: ValuationInstrumentsNamespace;
-  /**
-   * Listed-market coverage metadata and canonical instrument routing.
-   */
-  market: ValuationMarketNamespace;
-  /**
-   * Deserialize a `ValuationResult` from JSON and return the canonical JSON.
-   *
-   * Validates the input conforms to the `ValuationResult` schema.
-   * @returns Canonical `ValuationResult` JSON after deserialization.
-   * @param json - Canonical valuation-result JSON to validate and reserialize.
-   * @throws Error - Throws a JavaScript exception if `json` is malformed or does not match the `ValuationResult` schema, or the canonical result cannot be serialized.
-   */
-  validateValuationResultJson(json: string): string;
-  /**
-   * Validate a calibration plan JSON and return the canonical (pretty-printed) form.
-   * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
-   * @returns Canonical calibration-plan JSON after validation.
-   * @throws Error - Throws a JavaScript exception if `json` is malformed, its calibration schema marker is missing, malformed, or unsupported, static envelope validation fails, or the canonical envelope cannot be serialized.
-   */
-  validateCalibrationJson(envelope: CalibrationEnvelope | string): string;
-  /**
-   * Execute a `CalibrationEnvelope` and return the full `CalibrationResultEnvelope`.
-   * Accepts either a typed object or a pre-serialized JSON string.
-   * The canonical path for building a `MarketContext` from quotes — the resulting
-   * `result.final_market` is a materialized state ready for `MarketContext::try_from`
-   * (Rust) or `result.market` (Python).
-   *
-   * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
-   * @returns Calibration result including the fitted market and step reports.
-   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed or violates the calibration schema or static plan contract, market context construction or a calibration step fails, a solver does not converge, or the result envelope cannot be converted to a JavaScript value.
-   */
-  calibrate(envelope: CalibrationEnvelope | string): CalibrationResultEnvelope;
-  /**
-   * Pre-flight envelope validation without invoking the solver.
-   *
-   * Returns a JSON-serialized `CalibrationValidationReport` listing every error found
-   * plus the dependency graph. Microseconds.
-   * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
-   * @returns Canonical calibration envelope JSON without running the solver.
-   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed, its schema marker is missing, malformed, or unsupported, the envelope structure is invalid, or the validation report cannot be serialized. Semantic findings are returned in the report rather than thrown.
-   */
-  dryRun(envelope: CalibrationEnvelope | string): string;
-  /**
-   * Returns the static dependency graph of a calibration plan as JSON.
-   * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
-   * @returns Static calibration-plan dependency graph as JSON.
-   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed, its schema marker is missing, malformed, or unsupported, the envelope structure is invalid, or the dependency graph cannot be serialized.
-   */
-  dependencyGraphJson(envelope: CalibrationEnvelope | string): string;
-  /**
-   * Parsed `MarketContext` handle for reuse across pricing calls.
-   */
-  Market: typeof Market;
   /**
    * Per-unit Black-Scholes / Garman-Kohlhagen price of a European option.
    *
@@ -7578,9 +7505,9 @@ export interface ValuationsNamespace {
    *
    * @example
    * ```javascript
-   * import init, { valuations } from "finstack-quant-wasm";
+   * import init, { models } from "finstack-quant-wasm";
    * await init();
-   * const price = valuations.bsPrice(
+   * const price = models.bsPrice(
    *   100,    // spot
    *   100,    // strike (ATM)
    *   0.05,   // r = 5%
@@ -7616,9 +7543,9 @@ export interface ValuationsNamespace {
    *
    * @example
    * ```javascript
-   * import init, { valuations } from "finstack-quant-wasm";
+   * import init, { models } from "finstack-quant-wasm";
    * await init();
-   * const payoff = valuations.vanillaExpiryPayoff(110, 100, true);
+   * const payoff = models.vanillaExpiryPayoff(110, 100, true);
    * // payoff === 10
    * ```
    *
@@ -7642,7 +7569,7 @@ export interface ValuationsNamespace {
    *
    * @example
    * ```javascript
-   * const g = valuations.bsGreeks(100, 100, 0.05, 0.0, 0.20, 1.0, true);
+   * const g = models.bsGreeks(100, 100, 0.05, 0.0, 0.20, 1.0, true);
    * // g.delta ≈ 0.64, g.gamma ≈ 0.019, g.vega ≈ 0.38 (per 1% vol)
    * ```
    * @param spot - Spot price of the underlying.
@@ -7682,7 +7609,7 @@ export interface ValuationsNamespace {
    *
    * @example
    * ```javascript
-   * const iv = valuations.bsImpliedVol(100, 100, 0.05, 0.0, 1.0, 10.45, true);
+   * const iv = models.bsImpliedVol(100, 100, 0.05, 0.0, 1.0, 10.45, true);
    * // iv ≈ 0.20
    * ```
    * @param spot - Spot price of the underlying.
@@ -7953,6 +7880,95 @@ export interface ValuationsNamespace {
     isCall: boolean,
     nTerms?: number
   ): number;
+}
+
+/**
+ * Namespaced TypeScript entry point for models APIs.
+ */
+export declare const models: ModelsNamespace;
+
+/**
+ * Namespaced TypeScript entry points for valuations calculations and types.
+ * @example
+ * ```typescript
+ * import init, { valuations } from "finstack-quant-wasm";
+ * await init();
+ * console.log(valuations.instruments.listStandardMetrics());
+ * ```
+ */
+export interface ValuationsNamespace {
+  /**
+   * Generic cross-asset composite instruments, primitive exposures, and dated history.
+   *
+   * Frozen quantities are used for pricing. Host bindings expose `initialize`
+   * for both fixed and dynamic weighting; there is no `initializeFixed` export.
+   */
+  composite: CompositeNamespace;
+  /**
+   * CDS-family JSON wrappers and pricing helpers.
+   */
+  creditDerivatives: CreditDerivativesNamespace;
+  /**
+   * Direct FX instrument wrappers.
+   */
+  fx: FxNamespace;
+  /**
+   * Instrument JSON validation and pricing helpers.
+   */
+  instruments: ValuationInstrumentsNamespace;
+  /**
+   * Listed-market coverage metadata and canonical instrument routing.
+   */
+  market: ValuationMarketNamespace;
+  /**
+   * Deserialize a `ValuationResult` from JSON and return the canonical JSON.
+   *
+   * Validates the input conforms to the `ValuationResult` schema.
+   * @returns Canonical `ValuationResult` JSON after deserialization.
+   * @param json - Canonical valuation-result JSON to validate and reserialize.
+   * @throws Error - Throws a JavaScript exception if `json` is malformed or does not match the `ValuationResult` schema, or the canonical result cannot be serialized.
+   */
+  validateValuationResultJson(json: string): string;
+  /**
+   * Validate a calibration plan JSON and return the canonical (pretty-printed) form.
+   * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
+   * @returns Canonical calibration-plan JSON after validation.
+   * @throws Error - Throws a JavaScript exception if `json` is malformed, its calibration schema marker is missing, malformed, or unsupported, static envelope validation fails, or the canonical envelope cannot be serialized.
+   */
+  validateCalibrationJson(envelope: CalibrationEnvelope | string): string;
+  /**
+   * Execute a `CalibrationEnvelope` and return the full `CalibrationResultEnvelope`.
+   * Accepts either a typed object or a pre-serialized JSON string.
+   * The canonical path for building a `MarketContext` from quotes — the resulting
+   * `result.final_market` is a materialized state ready for `MarketContext::try_from`
+   * (Rust) or `result.market` (Python).
+   *
+   * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
+   * @returns Calibration result including the fitted market and step reports.
+   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed or violates the calibration schema or static plan contract, market context construction or a calibration step fails, a solver does not converge, or the result envelope cannot be converted to a JavaScript value.
+   */
+  calibrate(envelope: CalibrationEnvelope | string): CalibrationResultEnvelope;
+  /**
+   * Pre-flight envelope validation without invoking the solver.
+   *
+   * Returns a JSON-serialized `CalibrationValidationReport` listing every error found
+   * plus the dependency graph. Microseconds.
+   * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
+   * @returns Canonical calibration envelope JSON without running the solver.
+   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed, its schema marker is missing, malformed, or unsupported, the envelope structure is invalid, or the validation report cannot be serialized. Semantic findings are returned in the report rather than thrown.
+   */
+  dryRun(envelope: CalibrationEnvelope | string): string;
+  /**
+   * Returns the static dependency graph of a calibration plan as JSON.
+   * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
+   * @returns Static calibration-plan dependency graph as JSON.
+   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed, its schema marker is missing, malformed, or unsupported, the envelope structure is invalid, or the dependency graph cannot be serialized.
+   */
+  dependencyGraphJson(envelope: CalibrationEnvelope | string): string;
+  /**
+   * Parsed `MarketContext` handle for reuse across pricing calls.
+   */
+  Market: typeof Market;
   /**
    * Simulated TARN coupon profile along a deterministic floating-rate path.
    *
@@ -9121,7 +9137,7 @@ export interface ScenarioRevalueResult {
    */
   valuation: Record<string, unknown>;
   /**
-   * Scenario application report describing operations applied and any warnings.
+   * Scenario application report describing effects applied and any warnings.
    */
   report: Record<string, unknown>;
 }
@@ -9139,7 +9155,7 @@ export interface ScenarioPnlResult {
    */
   pnl: Record<string, unknown>;
   /**
-   * Scenario application report describing operations applied and any warnings.
+   * Scenario application report describing effects applied and any warnings.
    */
   report: Record<string, unknown>;
 }
@@ -10473,7 +10489,8 @@ export interface ScenarioApplyResult {
    */
   model?: Record<string, unknown>;
   /**
-   * Count of scenario operations that mutated market or model state.
+   * Count of effects successfully applied. One operation can produce zero,
+   * one, or many effects; inspect `changes` and `warnings` for coverage.
    */
   operations_applied: number;
   /**
@@ -10514,7 +10531,8 @@ export interface ScenarioApplyMarketResult {
    */
   market: Record<string, unknown>;
   /**
-   * Count of scenario operations that mutated market state.
+   * Count of effects successfully applied. One operation can produce zero,
+   * one, or many effects; inspect `changes` and `warnings` for coverage.
    */
   operations_applied: number;
   /**

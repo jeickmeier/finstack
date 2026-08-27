@@ -30,7 +30,7 @@ DOMAINS = [
     "factor_model",
     "features",
     "margin",
-    "monte_carlo",
+    "models",
     "portfolio",
     "scenarios",
     "statements",

@@ -278,61 +278,61 @@
       "reason": "Margin/collateral API plumbing, display text, or sensitivity bump; regulatory schedules live in margin registries."
     },
     {
-      "path": "finstack-quant-py/src/bindings/monte_carlo/engine.rs",
+      "path": "finstack-quant-py/src/bindings/models/monte_carlo/engine.rs",
       "category": "binding_default",
       "contains": "#[pyo3(signature = (num_paths, time_grid, seed=42, use_parallel=false, antithetic=false))]",
       "reason": "Binding metadata, repr text, or module/export label; not a mutable financial assumption."
     },
     {
-      "path": "finstack-quant-py/src/bindings/monte_carlo/engine.rs",
+      "path": "finstack-quant-py/src/bindings/models/monte_carlo/engine.rs",
       "category": "binding_default",
       "contains": ".map_err(|e| PyValueError::new_err(format!(\"Failed to resolve default currency: {e}\"))),",
       "reason": "Binding metadata, repr text, or module/export label; not a mutable financial assumption."
     },
     {
-      "path": "finstack-quant-py/src/bindings/monte_carlo/engine.rs",
+      "path": "finstack-quant-py/src/bindings/models/monte_carlo/engine.rs",
       "category": "binding_default",
       "contains": "Failed to resolve default currency",
       "reason": "Diagnostic text for registry-backed default currency resolution; currency code is sourced from the Monte Carlo defaults registry."
     },
     {
-      "path": "finstack-quant-py/src/bindings/monte_carlo/pricers.rs",
+      "path": "finstack-quant-py/src/bindings/models/monte_carlo/pricers.rs",
       "category": "binding_default",
       "contains": "\"laguerre\" => Ok(Self::Laguerre)",
       "reason": "Accepted LSMC basis identifier mapping; default basis is sourced from the Monte Carlo defaults registry."
     },
     {
-      "path": "finstack-quant-py/src/bindings/monte_carlo/pricers.rs",
+      "path": "finstack-quant-py/src/bindings/models/monte_carlo/pricers.rs",
       "category": "binding_default",
       "contains": "EuropeanPricer(num_paths={}, seed={}, use_parallel={})",
       "reason": "Representation formatting string; constructor defaults are sourced from the Monte Carlo defaults registry."
     },
     {
-      "path": "finstack-quant-py/src/bindings/monte_carlo/pricers.rs",
+      "path": "finstack-quant-py/src/bindings/models/monte_carlo/pricers.rs",
       "category": "binding_default",
       "contains": "LsmcPricer(paths={}, seed={}, use_parallel={}, basis={}, basis_degree={})",
       "reason": "Representation formatting string; constructor defaults are sourced from the Monte Carlo defaults registry."
     },
     {
-      "path": "finstack-quant-py/src/bindings/monte_carlo/pricers.rs",
+      "path": "finstack-quant-py/src/bindings/models/monte_carlo/pricers.rs",
       "category": "binding_default",
       "contains": "Self::Laguerre => \"laguerre\"",
       "reason": "Display identifier mapping for the selected basis, not the default basis value."
     },
     {
-      "path": "finstack-quant-py/src/bindings/monte_carlo/pricers.rs",
+      "path": "finstack-quant-py/src/bindings/models/monte_carlo/pricers.rs",
       "category": "binding_default",
       "contains": "basis_degree must be a positive integer",
       "reason": "Validation error text; default basis degree is sourced from the Monte Carlo defaults registry."
     },
     {
-      "path": "finstack-quant-py/src/bindings/monte_carlo/pricers.rs",
+      "path": "finstack-quant-py/src/bindings/models/monte_carlo/pricers.rs",
       "category": "binding_default",
       "contains": "if basis_degree == 0",
       "reason": "Validation bound for an explicit or registry-sourced basis degree; default degree is registry-backed."
     },
     {
-      "path": "finstack-quant-py/src/bindings/monte_carlo/pricers.rs",
+      "path": "finstack-quant-py/src/bindings/models/monte_carlo/pricers.rs",
       "category": "binding_default",
       "contains": "unknown basis '{other}'",
       "reason": "Validation error text listing accepted basis identifiers; default basis is sourced from the Monte Carlo defaults registry."
@@ -416,13 +416,13 @@
       "reason": "Structured-credit formula, named standard factory, or diagnostic; mutable assumptions live in structured-credit/TBA registries."
     },
     {
-      "path": "finstack-quant-wasm/src/api/monte_carlo/mod.rs",
+      "path": "finstack-quant-wasm/src/api/models/monte_carlo.rs",
       "category": "binding_default",
       "contains": "\"laguerre\" => Box::new(LaguerreBasis::try_new(degree, strike).map_err(to_js_err)?),",
       "reason": "Binding metadata or validation around registry-backed defaults; not a separate mutable assumption."
     },
     {
-      "path": "finstack-quant-wasm/src/api/monte_carlo/mod.rs",
+      "path": "finstack-quant-wasm/src/api/models/monte_carlo.rs",
       "category": "binding_default",
       "contains": "\"unknown basis '{other}'; expected 'laguerre', 'polynomial', \\",
       "reason": "Validation or diagnostic text; underlying defaults are supplied by typed inputs or registries."
@@ -1298,7 +1298,7 @@
       "reason": "Recovery-rate validation bound; XVA default recovery is sourced from the margin XVA defaults registry."
     },
     {
-      "path": "finstack-quant/monte_carlo/src/engine/pricing.rs",
+      "path": "finstack-quant/models/src/monte_carlo/engine/pricing.rs",
       "category": "binding_default",
       "contains": "\"target_ci_half_width is currently unsupported with use_parallel=true\"",
       "reason": "Validation or diagnostic text; underlying defaults are supplied by typed inputs or registries."
@@ -1712,31 +1712,31 @@
       "reason": "Generic missing-object label for validation, not a market-convention default."
     },
     {
-      "path": "finstack-quant/valuations/src/correlation/copula/gaussian.rs",
+      "path": "finstack-quant/models/src/correlation/copula/gaussian.rs",
       "category": "credit_assumption",
       "contains": "\"GaussianCopula: factor length mismatch; returning unconditional PD\"",
       "reason": "Credit-model formula, validation, or API text; mutable PD/recovery/LGD defaults live in credit registries."
     },
     {
-      "path": "finstack-quant/valuations/src/correlation/copula/multi_factor.rs",
+      "path": "finstack-quant/models/src/correlation/copula/multi_factor.rs",
       "category": "credit_assumption",
       "contains": "\"MultiFactorCopula: factor length mismatch; returning unconditional PD\"",
       "reason": "Credit-model formula, validation, or API text; mutable PD/recovery/LGD defaults live in credit registries."
     },
     {
-      "path": "finstack-quant/valuations/src/correlation/copula/student_t.rs",
+      "path": "finstack-quant/models/src/correlation/copula/student_t.rs",
       "category": "credit_assumption",
       "contains": "\"StudentTCopula: factor length mismatch; returning unconditional PD\"",
       "reason": "Credit-model formula, validation, or API text; mutable PD/recovery/LGD defaults live in credit registries."
     },
     {
-      "path": "finstack-quant/valuations/src/correlation/recovery/constant.rs",
+      "path": "finstack-quant/models/src/correlation/recovery/constant.rs",
       "category": "credit_assumption",
       "contains": "\"Constant Recovery\"",
       "reason": "Credit-model formula, validation, or API text; mutable PD/recovery/LGD defaults live in credit registries."
     },
     {
-      "path": "finstack-quant/valuations/src/correlation/recovery/correlated.rs",
+      "path": "finstack-quant/models/src/correlation/recovery/correlated.rs",
       "category": "credit_assumption",
       "contains": "\"Market-Correlated Stochastic Recovery\"",
       "reason": "Credit-model formula, validation, or API text; mutable PD/recovery/LGD defaults live in credit registries."

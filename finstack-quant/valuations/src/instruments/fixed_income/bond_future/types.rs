@@ -111,8 +111,8 @@ pub struct DeliverableBond {
     pub bond_id: InstrumentId,
     /// Positive conversion factor consumed by invoice, basis, and pricing calculations.
     #[serde(
-        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
-        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+        serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
+        deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub conversion_factor: f64,
@@ -464,8 +464,8 @@ pub struct BondFuture {
     /// `base_value` returns model-minus-contract value for a long position.
     /// Current-settlement variation margin is a separate cash-P&L workflow.
     #[serde(
-        serialize_with = "crate::instruments::common_impl::numeric::serialize_non_negative_f64",
-        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_non_negative_f64"
+        serialize_with = "finstack_quant_core::wire::serialize_non_negative_f64",
+        deserialize_with = "finstack_quant_core::wire::deserialize_non_negative_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::NonNegativeF64Wire")]
     pub quoted_price: f64,

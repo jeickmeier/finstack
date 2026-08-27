@@ -4,9 +4,9 @@ Bindings for the ``finstack-quant-valuations`` Rust crate.
 
 Examples:
 --------
->>> from finstack_quant.valuations import bs_price
->>> round(bs_price(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, True), 4)
-10.4506
+>>> from finstack_quant.valuations import instruments
+>>> hasattr(instruments, "price_instrument")
+True
 
 """
 
@@ -17,11 +17,9 @@ from typing import TYPE_CHECKING as _TYPE_CHECKING, Any as _Any
 from finstack_quant.finstack_quant import valuations as _valuations
 from finstack_quant.valuations import (
     composite as composite,
-    correlation as correlation,
     credit_derivatives as credit_derivatives,
     instruments as instruments,
     market as market,
-    models as models,
 )
 from finstack_quant.valuations.envelope import CalibrationEnvelope as CalibrationEnvelope
 
@@ -40,23 +38,6 @@ snowball_coupon_profile = _valuations.snowball_coupon_profile
 inverse_floater_coupon_profile = _valuations.inverse_floater_coupon_profile
 cms_spread_option_intrinsic = _valuations.cms_spread_option_intrinsic
 callable_range_accrual_accrued = _valuations.callable_range_accrual_accrued
-bs_cos_price = _valuations.bs_cos_price
-vg_cos_price = _valuations.vg_cos_price
-merton_jump_cos_price = _valuations.merton_jump_cos_price
-bs_price = _valuations.bs_price
-vanilla_expiry_payoff = _valuations.vanilla_expiry_payoff
-bs_greeks = _valuations.bs_greeks
-bs_implied_vol = _valuations.bs_implied_vol
-black76_implied_vol = _valuations.black76_implied_vol
-barrier_call = _valuations.barrier_call
-asian_option_price = _valuations.asian_option_price
-lookback_option_price = _valuations.lookback_option_price
-quanto_option_price = _valuations.quanto_option_price
-SabrParameters = _valuations.SabrParameters
-SabrModel = _valuations.SabrModel
-SabrSmile = _valuations.SabrSmile
-SabrCalibrator = _valuations.SabrCalibrator
-
 # `schema` is a compiled submodule with no pure-Python shim package, so alias it
 # onto the public dotted path that `import finstack_quant.valuations.schema` uses.
 schema = _valuations.schema
@@ -129,23 +110,11 @@ __all__: list[str] = [
     "CalibrationEnvelope",
     "CalibrationEnvelopeError",
     "CalibrationResult",
-    "SabrCalibrator",
-    "SabrModel",
-    "SabrParameters",
-    "SabrSmile",
     "ValuationResult",
-    "asian_option_price",
-    "barrier_call",
-    "black76_implied_vol",
-    "bs_cos_price",
-    "bs_greeks",
-    "bs_implied_vol",
-    "bs_price",
     "calibrate",
     "callable_range_accrual_accrued",
     "cms_spread_option_intrinsic",
     "composite",
-    "correlation",
     "credit_derivatives",
     "dependency_graph_json",
     "dry_run",
@@ -153,15 +122,9 @@ __all__: list[str] = [
     "instrument_cashflows",
     "instruments",
     "inverse_floater_coupon_profile",
-    "lookback_option_price",
     "market",
-    "merton_jump_cos_price",
-    "models",
-    "quanto_option_price",
     "schema",
     "snowball_coupon_profile",
     "tarn_coupon_profile",
     "validate_calibration_json",
-    "vanilla_expiry_payoff",
-    "vg_cos_price",
 ]

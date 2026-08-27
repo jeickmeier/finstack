@@ -1,6 +1,6 @@
 use super::*;
-use crate::models::credit::toggle_exercise::ThresholdDirection;
-use crate::models::credit::{
+use finstack_quant_models::credit::toggle_exercise::ThresholdDirection;
+use finstack_quant_models::credit::{
     AssetDynamics, BarrierType, CreditStateVariable, DynamicRecoverySpec, EndogenousHazardSpec,
     MertonModel, ToggleExerciseModel,
 };

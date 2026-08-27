@@ -44,7 +44,7 @@ REPORT_LOCK_POLL_SECONDS = 0.01
 
 DATA_ROOTS = {
     "pricing": WORKSPACE_ROOT / "finstack-quant/valuations/tests/golden/data",
-    "market_data": WORKSPACE_ROOT / "finstack-quant/valuations/tests/golden/data",
+    "market_data": WORKSPACE_ROOT / "finstack-quant/models/tests/data",
 }
 KNOWN_NON_EXECUTABLE_PATH = WORKSPACE_ROOT / "finstack-quant/valuations/tests/golden/known_non_executable.json"
 VALID_SOURCES = {

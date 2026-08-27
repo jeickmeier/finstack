@@ -63,7 +63,6 @@ fn selective_invalidation(
     }
 
     let mut changed_factors = Vec::with_capacity(changes.market_targets.len());
-    let mut refresh_base_currency = false;
     for target in &changes.market_targets {
         let key = match target {
             ScenarioMarketTarget::Curve {
@@ -84,11 +83,12 @@ fn selective_invalidation(
             ScenarioMarketTarget::EquityPrice { price_id } => {
                 MarketFactorKey::spot(price_id.as_str())
             }
-            ScenarioMarketTarget::Fx { base, quote } => {
-                refresh_base_currency = true;
-                MarketFactorKey::fx(*base, *quote)
-            }
-            ScenarioMarketTarget::VolatilityIndex { .. }
+            // A direct FX quote can feed triangulated crosses used inside an
+            // instrument's native PV, while volatility-index and base-correlation
+            // targets have no exact normalized dependency key. Selective reuse
+            // cannot conservatively express those changes, so reprice the full book.
+            ScenarioMarketTarget::Fx { .. }
+            | ScenarioMarketTarget::VolatilityIndex { .. }
             | ScenarioMarketTarget::BaseCorrelation { .. } => return None,
         };
         changed_factors.push(key);
@@ -103,7 +103,7 @@ fn selective_invalidation(
     };
     reprice_indices.extend(changes.changed_instrument_indices.iter().copied());
 
-    let invalidation = PositionInvalidation::new(reprice_indices, refresh_base_currency);
+    let invalidation = PositionInvalidation::new(reprice_indices, false);
     Some(if changes.changed_instrument_indices.is_empty() {
         invalidation
     } else {
@@ -154,7 +154,7 @@ fn selective_invalidation(
 /// # let market: MarketContext = unimplemented!("Provide market data");
 /// # let scenario: ScenarioSpec = unimplemented!("Provide a scenario");
 /// let (_valuation, report) = apply_and_revalue(&portfolio, &scenario, &market, &Default::default())?;
-/// println!("Applied {} operations", report.operations_applied);
+/// println!("Applied {} effects", report.operations_applied);
 /// # Ok(())
 /// # }
 /// ```
@@ -162,14 +162,16 @@ fn apply_scenario<'a>(
     portfolio: &'a Portfolio,
     scenario: &ScenarioSpec,
     market: &MarketContext,
+    config: &finstack_quant_core::config::FinstackConfig,
 ) -> Result<AppliedScenarioState<'a>> {
-    apply_scenario_with_cache(portfolio, scenario, market, None)
+    apply_scenario_with_cache(portfolio, scenario, market, config, None)
 }
 
 fn apply_scenario_with_cache<'a>(
     portfolio: &'a Portfolio,
     scenario: &ScenarioSpec,
     market: &MarketContext,
+    config: &finstack_quant_core::config::FinstackConfig,
     hazard_cache: Option<Arc<HazardRecalibrationCache>>,
 ) -> Result<AppliedScenarioState<'a>> {
     let mut market_copy = market.clone();
@@ -191,8 +193,8 @@ fn apply_scenario_with_cache<'a>(
     };
 
     let engine = match hazard_cache {
-        Some(cache) => ScenarioEngine::new().with_hazard_cache(cache),
-        None => ScenarioEngine::default(),
+        Some(cache) => ScenarioEngine::with_config(config.clone()).with_hazard_cache(cache),
+        None => ScenarioEngine::with_config(config.clone()),
     };
     let report = engine
         .apply(scenario, &mut ctx)
@@ -255,7 +257,8 @@ fn replace_portfolio_instruments(
 /// * `portfolio` - Original portfolio used as the base case.
 /// * `scenario` - Scenario specification to apply.
 /// * `market` - Market data context to mutate.
-/// * `config` - Configuration forwarded to [`value_portfolio`](crate::valuation::value_portfolio).
+/// * `config` - Active configuration used for scenario-report provenance and
+///   stressed valuation.
 ///
 /// # Returns
 ///
@@ -298,7 +301,7 @@ pub fn apply_and_revalue(
         market,
         as_of,
         report,
-    } = apply_scenario(portfolio, scenario, market)?;
+    } = apply_scenario(portfolio, scenario, market, config)?;
     let mut plan = crate::evaluation::PortfolioEvaluationPlan::new(config);
     let market_state = plan.register_owned_market(market, as_of);
     let portfolio_state = match portfolio {
@@ -330,8 +333,8 @@ pub fn apply_and_revalue(
 /// * `scenario` - Ordered shock and transformation specification to apply.
 /// * `market` - Unshocked market snapshot used as the scenario-application
 ///   source and subsequent valuation context.
-/// * `config` - Library valuation configuration, including market-data and
-///   convention resolution policy.
+/// * `config` - Active configuration used for scenario-report provenance,
+///   market-data and convention resolution, and stressed valuation.
 pub fn apply_and_revalue_view(
     portfolio: &Portfolio,
     scenario: &ScenarioSpec,
@@ -447,10 +450,10 @@ fn diff_valuations(
 ///
 /// Registers an unstressed state and the scenario-applied state with the
 /// request-scoped portfolio evaluation engine, requests PV only for both, and
-/// reports the difference per position and in total. This is the standard
-/// "what does this shock cost me" measure a risk desk runs before sizing a
-/// hedge. Unlike [`apply_and_revalue`], this function deliberately does not
-/// compute the standard risk set.
+/// reports the difference per position and in total. Both legs require the
+/// canonical PV pricing path; a pricing failure aborts rather than switching
+/// either leg independently to `Instrument::value`. Unlike
+/// [`apply_and_revalue`], this function does not compute the standard risk set.
 ///
 /// The arithmetic stays in [`Money`] end to end (Decimal-backed): position
 /// deltas are currency-checked subtractions of the base-currency position
@@ -476,9 +479,10 @@ fn diff_valuations(
 /// * `scenario` - Scenario specification describing the shocks to apply.
 /// * `market` - Unstressed market snapshot; used as the base leg and as the
 ///   source the scenario operations are applied to.
-/// * `config` - Configuration used by both registered PV-only jobs, so the
-///   base and stressed legs share one rounding and convention policy while
-///   retaining separate immutable market states and calibration caches.
+/// * `config` - Active configuration used by scenario-report provenance and
+///   both registered PV-only jobs, so the base and stressed legs share one
+///   rounding and convention policy while retaining separate immutable market
+///   states and calibration caches.
 ///
 /// # Returns
 ///
@@ -488,9 +492,9 @@ fn diff_valuations(
 /// # Errors
 ///
 /// Returns [`Error::ScenarioError`] when the scenario engine fails, any
-/// valuation error raised by the shared evaluation executor on either leg,
-/// and [`Error::Core`] when a position's stressed and base values carry
-/// different currencies.
+/// canonical valuation error raised by the shared evaluation executor on
+/// either leg, and [`Error::Core`] when a position's stressed and base values
+/// carry different currencies. No best-effort PV fallback is used.
 ///
 /// # Examples
 ///
@@ -537,7 +541,8 @@ pub fn scenario_pnl(
 ///   empty vector without performing valuation.
 /// * `market` - Unstressed market snapshot used for the shared base and as the
 ///   source for each independently applied scenario.
-/// * `config` - Valuation configuration used by every executor state.
+/// * `config` - Active configuration used for every scenario report and
+///   executor state.
 ///
 /// # Returns
 ///
@@ -559,7 +564,7 @@ pub fn scenario_pnl_batch(
     }
 
     let options = crate::valuation::PortfolioValuationOptions {
-        strict_risk: false,
+        strict_risk: true,
         metrics: crate::valuation::RequestedMetrics::Only(Vec::new()),
     };
     let base = crate::valuation::value_portfolio(portfolio, market, config, &options)?;
@@ -575,6 +580,7 @@ pub fn scenario_pnl_batch(
                 portfolio,
                 scenario,
                 market,
+                config,
                 Some(Arc::clone(&hazard_cache)),
             ) {
                 Ok(state) => applied.push((scenario.id.clone(), state)),
@@ -643,8 +649,8 @@ pub fn scenario_pnl_batch(
 /// * `scenario` - Ordered shock and transformation specification to apply.
 /// * `market` - Unshocked market snapshot used for the base leg and as the
 ///   scenario-application source.
-/// * `config` - Library valuation configuration, including market-data and
-///   convention resolution policy.
+/// * `config` - Active configuration used for scenario-report provenance,
+///   market-data and convention resolution, and both valuation legs.
 ///
 /// # Errors
 ///
@@ -742,6 +748,24 @@ mod tests {
             self.calls.fetch_add(1, Ordering::SeqCst);
             Ok(Money::new(100.0, Currency::USD))
         }
+
+        fn price_with_metrics(
+            &self,
+            market: &MarketContext,
+            as_of: finstack_quant_core::dates::Date,
+            metrics: &[finstack_quant_valuations::metrics::MetricId],
+            _options: finstack_quant_valuations::instruments::PricingOptions,
+        ) -> finstack_quant_valuations::Result<finstack_quant_valuations::results::ValuationResult>
+        {
+            assert!(metrics.is_empty(), "counting fixture is PV-only");
+            Ok(
+                finstack_quant_valuations::results::ValuationResult::stamped(
+                    self.id(),
+                    as_of,
+                    self.base_value(market, as_of)?,
+                ),
+            )
+        }
     }
 
     #[test]
@@ -796,12 +820,28 @@ mod tests {
             hazard_bump_mode: Default::default(),
         };
 
-        let result = apply_scenario(&portfolio, &scenario, &market);
+        let mut config = FinstackConfig::default();
+        config
+            .rounding
+            .output_scale
+            .overrides
+            .insert(Currency::USD, 4);
+        let result = apply_scenario(&portfolio, &scenario, &market, &config);
         assert!(result.is_ok());
 
         let applied = result.expect("test should succeed");
         assert!(applied.report.operations_applied > 0);
         assert!(matches!(applied.portfolio, Cow::Borrowed(_)));
+        assert_eq!(
+            applied
+                .report
+                .meta
+                .as_ref()
+                .and_then(|meta| meta.rounding.output_scale_by_currency.get(&Currency::USD))
+                .copied(),
+            Some(4),
+            "scenario provenance must use the caller's active configuration"
+        );
     }
 
     #[test]
@@ -1139,6 +1179,23 @@ mod tests {
         // Reconciliation still holds across a composition change.
         assert_eq!(pnl.total.amount(), -70.0);
         assert_eq!(deltas.iter().map(|(_, v)| v).sum::<f64>(), -70.0);
+    }
+
+    #[test]
+    fn fx_changes_disable_selective_scenario_reuse() {
+        let portfolio = single_position_portfolio();
+        let changes = ScenarioChangeManifest {
+            market_targets: vec![ScenarioMarketTarget::Fx {
+                base: Currency::EUR,
+                quote: Currency::USD,
+            }],
+            ..Default::default()
+        };
+
+        assert!(
+            selective_invalidation(&portfolio, &changes).is_none(),
+            "an FX quote can feed triangulated native-PV crosses, so the full book must reprice"
+        );
     }
 
     #[test]

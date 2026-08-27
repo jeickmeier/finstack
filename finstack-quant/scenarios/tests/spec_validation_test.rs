@@ -97,14 +97,30 @@ fn operation_validate_rejects_invalid_inputs() {
         quote: Currency::USD,
         pct: 5.0,
     };
-    // FX still rejects -100% — driving spot to zero would NaN-propagate.
-    // Equity / instrument / vol shocks at -100% are now accepted as legitimate
-    // tail-risk stress.
+    // FX rejects -100% because spot must remain positive. Equity and instrument
+    // price shocks accept an exact wipeout but reject negative post-shock prices.
     let pct_floor = OperationSpec::MarketFxPct {
         base: Currency::EUR,
         quote: Currency::USD,
         pct: -100.0,
     };
+    let invalid_price_shocks = [
+        OperationSpec::EquityPricePct {
+            ids: vec!["SPY".into()],
+            pct: -100.01,
+        },
+        OperationSpec::InstrumentPricePctByType {
+            instrument_types: vec![InstrumentType::EquityOption],
+            pct: -125.0,
+        },
+        OperationSpec::HierarchyEquityPricePct {
+            target: HierarchyTarget {
+                path: vec!["equities".into()],
+                tag_filter: None,
+            },
+            pct: -150.0,
+        },
+    ];
     let empty_hierarchy = OperationSpec::HierarchyCurveParallelBp {
         curve_kind: CurveKind::Discount,
         target: HierarchyTarget {
@@ -125,6 +141,13 @@ fn operation_validate_rejects_invalid_inputs() {
         .expect_err("percent floor should fail")
         .to_string()
         .contains("greater than -100%"));
+    for shock in invalid_price_shocks {
+        assert!(shock
+            .validate()
+            .expect_err("negative post-shock prices should fail")
+            .to_string()
+            .contains("must be at least -100%"));
+    }
     assert!(empty_hierarchy
         .validate()
         .expect_err("empty hierarchy target should fail")
@@ -232,17 +255,16 @@ fn operation_validate_rejects_non_finite_and_fx_floor_violation() {
         pct: -100.0,
     };
 
-    // Vol surfaces and instrument-by-type shocks now accept any finite pct,
-    // including <= -100, because driving vol to zero or below is meaningful in
-    // tail-risk stress (and `check_arbitrage` flags downstream issues). Only
-    // FX retains the strict floor.
+    // Vol surfaces accept any finite percentage and enforce positivity when
+    // previewing the stressed surface. Instrument price shocks reject values
+    // below -100% during spec validation so they cannot create negative prices.
     let vol_floor_relaxed = OperationSpec::VolSurfaceBucketPct {
         vol_surface_id: "SPX".into(),
         tenors: None,
         strikes: Some(vec![100.0]),
         pct: -100.0,
     };
-    let type_floor_relaxed = OperationSpec::InstrumentPricePctByType {
+    let type_floor_rejected = OperationSpec::InstrumentPricePctByType {
         instrument_types: vec![InstrumentType::Bond],
         pct: -125.0,
     };
@@ -260,9 +282,11 @@ fn operation_validate_rejects_non_finite_and_fx_floor_violation() {
     vol_floor_relaxed
         .validate()
         .expect("vol surface -100% bucket shock should now validate");
-    type_floor_relaxed
+    assert!(type_floor_rejected
         .validate()
-        .expect("instrument-type -125% shock should now validate");
+        .expect_err("instrument price shocks below -100% should fail")
+        .to_string()
+        .contains("must be at least -100%"));
 }
 
 #[test]

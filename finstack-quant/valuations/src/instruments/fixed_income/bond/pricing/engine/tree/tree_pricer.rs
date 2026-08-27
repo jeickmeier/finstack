@@ -3,16 +3,16 @@
 use super::super::super::super::types::Bond;
 use super::bond_valuator::BondValuator;
 use super::config::{TreeModelChoice, TreePricerConfig};
-use crate::instruments::pricing_overrides::OasPriceBasis;
-use crate::models::trees::hull_white_tree::{HullWhiteTree, HullWhiteTreeConfig};
-use crate::models::trees::short_rate_tree::TreeCalibrationResult;
-use crate::models::trees::two_factor_rates_credit::{resolve_rates_credit_config, RatesCreditTree};
-use crate::models::{short_rate_keys, ShortRateTree, ShortRateTreeConfig, TreeModel};
+use crate::instruments::pricing_overrides::{resolve_rates_credit_config, OasPriceBasis};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::solver::{BrentSolver, Solver};
 use finstack_quant_core::HashMap;
 use finstack_quant_core::{Error, Result};
+use finstack_quant_models::trees::hull_white_tree::{HullWhiteTree, HullWhiteTreeConfig};
+use finstack_quant_models::trees::short_rate_tree::TreeCalibrationResult;
+use finstack_quant_models::trees::two_factor_rates_credit::RatesCreditTree;
+use finstack_quant_models::{short_rate_keys, ShortRateTree, ShortRateTreeConfig, TreeModel};
 
 /// Tree-based pricer for bonds with embedded options and OAS calculations.
 ///
@@ -27,7 +27,7 @@ use finstack_quant_core::{Error, Result};
 /// are never used to infer the routing.
 ///
 /// On the rates-credit path all model inputs come from
-/// [`resolve_rates_credit_config`], so the four volatility regimes are
+/// `resolve_rates_credit_config`, so the four volatility regimes are
 /// selected purely by `ModelConfig` (`hw1f_sigma`, `hazard_volatility`, the
 /// two mean reversions, and `rate_credit_correlation`), and an unset
 /// volatility means a deterministic factor rather than an engine default.
@@ -855,7 +855,7 @@ fn validate_bdt_calibration_quality(quality: Option<&TreeCalibrationResult>) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::trees::short_rate_tree::TreeCalibrationResult;
+    use finstack_quant_models::trees::short_rate_tree::TreeCalibrationResult;
 
     #[test]
     fn bdt_calibration_quality_rejects_fallbacks_and_large_error() {

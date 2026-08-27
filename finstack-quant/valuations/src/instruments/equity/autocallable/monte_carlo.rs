@@ -7,8 +7,8 @@
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Error as CoreError;
-use finstack_quant_monte_carlo::traits::PathState;
-use finstack_quant_monte_carlo::traits::Payoff;
+use finstack_quant_models::monte_carlo::traits::PathState;
+use finstack_quant_models::monte_carlo::traits::Payoff;
 
 use super::types::FinalPayoffType;
 
@@ -354,7 +354,7 @@ impl Payoff for AutocallablePayoff {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use finstack_quant_monte_carlo::traits::state_keys;
+    use finstack_quant_models::monte_carlo::traits::state_keys;
 
     #[test]
     fn test_autocallable_creation() {

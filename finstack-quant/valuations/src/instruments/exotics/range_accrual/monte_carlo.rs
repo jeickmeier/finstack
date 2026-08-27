@@ -5,8 +5,8 @@
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
-use finstack_quant_monte_carlo::traits::PathState;
-use finstack_quant_monte_carlo::traits::Payoff;
+use finstack_quant_models::monte_carlo::traits::PathState;
+use finstack_quant_models::monte_carlo::traits::Payoff;
 
 /// Range accrual payoff.
 ///
@@ -231,7 +231,7 @@ impl Payoff for RangeAccrualPayoff {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use finstack_quant_monte_carlo::traits::state_keys;
+    use finstack_quant_models::monte_carlo::traits::state_keys;
 
     #[test]
     fn test_range_accrual_creation() {

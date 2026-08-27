@@ -9,7 +9,6 @@ use crate::instruments::pricing_overrides::VolSurfaceExtrapolation;
 use crate::instruments::rates::irs::{
     FixedLegSpec, FloatLegSpec, FloatingLegCompounding, InterestRateSwap, PayReceive,
 };
-use crate::models::SABRModel;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -17,6 +16,7 @@ use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CalendarId, CurveId, InstrumentId};
 use finstack_quant_core::{Error, Result};
+use finstack_quant_models::SABRModel;
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 
@@ -690,7 +690,7 @@ impl Swaption {
                 return val * annuity;
             }
 
-            use crate::models::{d1_black76, d2_black76};
+            use finstack_quant_models::{d1_black76, d2_black76};
             let d1 = d1_black76(fwd, strike, vol, t);
             let d2 = d2_black76(fwd, strike, vol, t);
 
@@ -717,7 +717,7 @@ impl Swaption {
         as_of: Date,
     ) -> Result<Money> {
         self.price_model_base(curves, volatility, as_of, |fwd, strike, vol, t, annuity| {
-            use crate::models::volatility::normal::bachelier_price;
+            use finstack_quant_models::volatility::normal::bachelier_price;
             bachelier_price(self.option_type, fwd, strike, vol, t, annuity)
         })
     }
@@ -771,7 +771,7 @@ impl Swaption {
         let (sabr_vol, sabr_vol_type) =
             model.implied_volatility_with_type(forward_rate, strike, time_to_expiry)?;
 
-        use crate::models::volatility::sabr::SabrVolType;
+        use finstack_quant_models::volatility::sabr::SabrVolType;
         match (self.vol_model, sabr_vol_type) {
             (VolatilityModel::Black, SabrVolType::Black) => {
                 self.price_black(curves, sabr_vol, as_of)

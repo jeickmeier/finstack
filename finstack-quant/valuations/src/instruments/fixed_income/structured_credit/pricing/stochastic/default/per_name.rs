@@ -28,11 +28,11 @@
 //! [`PoolGranularity`] for pools granular enough that the limit is an
 //! acceptable, faster approximation.
 
-use crate::correlation::copula::{Copula, CopulaSpec};
 use finstack_quant_core::math::{standard_normal_inv_cdf, student_t_inv_cdf};
 use finstack_quant_core::Result;
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::traits::RandomStream;
+use finstack_quant_models::correlation::copula::{Copula, CopulaSpec};
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::traits::RandomStream;
 
 /// AssetPool-granularity policy for the structured-credit default engine.
 ///

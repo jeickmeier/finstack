@@ -34,7 +34,6 @@
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::rates::cms_option::types::CmsOption;
-use crate::models::d1_d2_black76;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
@@ -43,6 +42,7 @@ use finstack_quant_core::dates::{Date, DateExt, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
+use finstack_quant_models::d1_d2_black76;
 
 /// Convexity-adjusted Black pricer for CMS options.
 pub struct CmsOptionPricer;
@@ -152,7 +152,7 @@ impl CmsOptionPricer {
                             time_to_fixing,
                             None,
                         );
-                    crate::models::volatility::normal::bachelier_price(
+                    finstack_quant_models::volatility::normal::bachelier_price(
                         inst.option_type,
                         forward_swap_rate,
                         strike,

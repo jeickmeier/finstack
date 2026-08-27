@@ -66,7 +66,7 @@ impl MetricCalculator for ImpliedVolCalculator {
         {
             ov
         } else if let Some(sabr) = &option.sabr_params {
-            let model = crate::models::SABRModel::new(sabr.clone());
+            let model = finstack_quant_models::SABRModel::new(sabr.clone());
             model.implied_volatility(forward, strike, t).unwrap_or(0.2)
         } else {
             context

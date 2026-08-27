@@ -9,14 +9,14 @@
 
 use crate::instruments::common_impl::parameters::{ExerciseStyle, OptionMarketParams, OptionType};
 use crate::instruments::{Position, SettlementType};
-use crate::models::trees::binomial_tree::BinomialTree;
-use crate::models::volatility::black::d1_d2_black76;
-use crate::models::volatility::normal::bachelier_price;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::norm_cdf;
 use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_models::trees::binomial_tree::BinomialTree;
+use finstack_quant_models::volatility::black::d1_d2_black76;
+use finstack_quant_models::volatility::normal::bachelier_price;
 
 /// Official American lattice size when `tree_steps` is omitted on PV.
 const OFFICIAL_TREE_STEPS: usize = 401;

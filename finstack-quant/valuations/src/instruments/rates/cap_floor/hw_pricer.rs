@@ -762,9 +762,9 @@ mod tests {
     use finstack_quant_core::dates::{calendar_by_id, DateExt, DayCount, DayCountContext};
     use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
     use finstack_quant_core::money::Money;
-    use finstack_quant_monte_carlo::process::ou::HullWhite1FParams;
-    use finstack_quant_monte_carlo::results::MoneyEstimate;
-    use finstack_quant_monte_carlo::traits::{PathState, Payoff, StateKey};
+    use finstack_quant_models::monte_carlo::process::ou::HullWhite1FParams;
+    use finstack_quant_models::monte_carlo::results::MoneyEstimate;
+    use finstack_quant_models::monte_carlo::traits::{PathState, Payoff, StateKey};
     use std::collections::BTreeMap;
 
     /// Test-only affine reconstruction of one contractual overnight factor.

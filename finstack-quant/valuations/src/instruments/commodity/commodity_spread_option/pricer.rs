@@ -27,10 +27,10 @@
 
 use crate::instruments::commodity::commodity_spread_option::CommoditySpreadOption;
 use crate::instruments::OptionType;
-use crate::models::{black76_call, black76_put};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
+use finstack_quant_models::{black76_call, black76_put};
 
 /// Minimum denominator for Kirk's approximation (F2 + K).
 /// When `k_adj = F2 + K <= KIRK_DENOM_EPSILON` (zero or negative), the

@@ -587,8 +587,8 @@ pub(super) fn cms_embedded_option_value(
 ) -> f64 {
     use crate::instruments::rates::swaption::types::lognormal_to_normal_vol;
     use crate::instruments::OptionType;
-    use crate::models::d1_d2_black76;
-    use crate::models::volatility::normal::bachelier_price;
+    use finstack_quant_models::d1_d2_black76;
+    use finstack_quant_models::volatility::normal::bachelier_price;
 
     let intrinsic = match option_type {
         OptionType::Call => (adjusted_forward - strike).max(0.0),

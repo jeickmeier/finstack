@@ -12,10 +12,10 @@ use finstack_quant_core::dates::{Date, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
-use finstack_quant_monte_carlo::engine::{McEngine, McEngineConfig};
-use finstack_quant_monte_carlo::pricer::path_dependent::PathDependentPricerConfig;
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig};
+use finstack_quant_models::monte_carlo::pricer::path_dependent::PathDependentPricerConfig;
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
 
 /// Autocallable Monte Carlo pricer.
 pub struct AutocallableMcPricer {
@@ -38,7 +38,7 @@ impl AutocallableMcPricer {
         as_of: Date,
     ) -> Result<(
         finstack_quant_core::money::Money,
-        Option<finstack_quant_monte_carlo::results::MoneyEstimate>,
+        Option<finstack_quant_models::monte_carlo::results::MoneyEstimate>,
     )> {
         inst.validate()?;
         if as_of > inst.expiry {
@@ -261,7 +261,7 @@ impl AutocallableMcPricer {
         );
 
         // Derive deterministic seed from instrument ID and scenario.
-        use finstack_quant_monte_carlo::seed;
+        use finstack_quant_models::monte_carlo::seed;
         let seed = if let Some(ref scenario) = inst.metric_pricing_overrides.mc_seed_scenario {
             seed::derive_seed(&inst.id, scenario)
         } else {

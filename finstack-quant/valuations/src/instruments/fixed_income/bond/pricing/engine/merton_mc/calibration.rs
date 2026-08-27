@@ -8,10 +8,10 @@ use crate::instruments::fixed_income::bond::pricing::quote_conversions::{
 use crate::instruments::fixed_income::bond::pricing::settlement::QuoteDateContext;
 use crate::instruments::fixed_income::bond::types::Bond;
 use crate::instruments::fixed_income::bond::CashflowSpec;
-use crate::models::credit::{AssetDynamics, BarrierType, MertonModel};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::{InputError, Result};
+use finstack_quant_models::credit::{AssetDynamics, BarrierType, MertonModel};
 
 /// Output from MC calibration.
 #[derive(Debug, Clone)]

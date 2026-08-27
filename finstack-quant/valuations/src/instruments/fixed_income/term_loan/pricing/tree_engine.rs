@@ -25,7 +25,7 @@
 //!
 //! `hazard_volatility` is an **absolute** hazard-rate volatility, not a
 //! relative credit-spread volatility; see
-//! [`models::credit::market_anchored`](crate::models::credit::market_anchored)
+//! [`models::credit::market_anchored`](finstack_quant_models::credit::market_anchored)
 //! for the conversion from a market-quoted fractional spread vol.
 //!
 //! With a positive `hw1f_sigma`, future floating resets re-fix off the rate
@@ -38,10 +38,7 @@
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::fixed_income::term_loan::TermLoan;
-use crate::models::trees::two_factor_rates_credit::{resolve_rates_credit_config, RatesCreditTree};
-use crate::models::{
-    short_rate_keys, NodeState, ShortRateTree, ShortRateTreeConfig, TreeModel, TreeValuator,
-};
+use crate::instruments::pricing_overrides::resolve_rates_credit_config;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
@@ -52,6 +49,10 @@ use finstack_quant_core::math::solver::{BrentSolver, Solver};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::HashMap;
 use finstack_quant_core::Result;
+use finstack_quant_models::trees::two_factor_rates_credit::RatesCreditTree;
+use finstack_quant_models::{
+    short_rate_keys, NodeState, ShortRateTree, ShortRateTreeConfig, TreeModel, TreeValuator,
+};
 
 /// Reject hazard-model inputs on a loan that never reaches the rates-credit
 /// lattice.
@@ -432,7 +433,7 @@ impl TermLoanValuator {
     fn stochastic_node_coupons(
         &self,
         market: &MarketContext,
-    ) -> Result<Vec<crate::models::trees::two_factor_rates_credit::NodeCoupon>> {
+    ) -> Result<Vec<finstack_quant_models::trees::two_factor_rates_credit::NodeCoupon>> {
         use crate::instruments::common_impl::pricing::floating_reset_descriptors::{
             build_node_coupons, has_future_pik, params_from_spec, strips_index_constraints,
             NodeCouponBuildInputs, SliceSnap,
@@ -493,7 +494,7 @@ impl TermLoanValuator {
     /// exercise, matching the deterministic engine.
     fn restrict_exercise_to_reset_boundaries(
         &mut self,
-        coupons: &[crate::models::trees::two_factor_rates_credit::NodeCoupon],
+        coupons: &[finstack_quant_models::trees::two_factor_rates_credit::NodeCoupon],
     ) {
         if coupons.is_empty() {
             return;

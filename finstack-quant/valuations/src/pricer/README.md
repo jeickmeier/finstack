@@ -13,9 +13,8 @@ The ordering rules documented below — validate, resolve `as_of`, price unshock
 stamp metadata, apply the scenario shock exactly once, enrich with metrics — are
 therefore the whole pricing contract for anything reached by a `ModelKey`.
 
-Two public pricing surfaces sit outside that contract and must not be assumed to
-follow it: `pricer::cos` (a standalone Fourier numeric surface, never registered)
-and `StructuredCredit::price_stochastic`, which runs its own
+One public pricing surface sits outside that contract and must not be assumed to
+follow it: `StructuredCredit::price_stochastic`, which runs its own
 `ValidatedPricingLifecycle` and returns a `StochasticPricingResult` without a
 registry lookup. The `pub(crate)` `PricerRegistry::price_raw` is a third
 exception: it shares the dispatch table and the validate / resolve-`as_of` /
@@ -32,7 +31,7 @@ Consumes `crate::instruments` (the `Instrument` trait, `PricingOptions`,
 the key types and `PricingError`, so the two are mutually recursive by design;
 the split is by role, not by dependency layer.
 
-Not to be confused with `finstack_quant_monte_carlo::pricer`
+Not to be confused with `finstack_quant_models::monte_carlo::pricer`
 (`EuropeanPricer`, `LsmcPricer`, `basis`, `path_dependent`) — a different module
 in a different crate, reached by the MC instrument pricers.
 
@@ -331,21 +330,6 @@ Two further conventions:
 `Instrument::default_model()`. The comparison in `resolve_model_key` is exact
 (`model == "default"`), so the "case-insensitive" wording in the rustdoc on
 `price_instrument_json` and `parse_model_key` is wrong — `"Default"` is rejected.
-
-## COS Fourier pricer
-
-`cos.rs` implements the Fang-Oosterlee (2008) cosine-series method against the
-characteristic functions in `finstack_quant_core::math::characteristic_function`:
-Black-Scholes, Variance Gamma, and Merton jump-diffusion. `CosPricer` amortizes
-the strike-independent coefficients across a strike strip.
-
-It lives directly under `pricer::cos` rather than in a `pricer::fourier`
-namespace because it is the only Fourier method the crate exposes — an earlier
-Lewis (2001) pricer was removed after it was found to diverge off-ATM and to
-clamp non-finite integrand panels to zero. It is not reachable through the
-registry; it is a standalone numeric surface bound directly in Python
-(`finstack_quant.valuations`) and WASM, and benched by
-[`../../benches/fourier_var_pricing.rs`](../../benches/fourier_var_pricing.rs).
 
 ## Verification
 

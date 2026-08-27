@@ -170,22 +170,24 @@ fn build_xi0_from_surface(
 
 /// Run the fractional MC simulation loop for a concrete payoff type.
 #[allow(clippy::too_many_arguments)]
-fn simulate_rbergomi<F: finstack_quant_monte_carlo::traits::Payoff>(
+fn simulate_rbergomi<F: finstack_quant_models::monte_carlo::traits::Payoff>(
     num_paths: usize,
-    rng: &mut finstack_quant_monte_carlo::rng::philox::PhiloxRng,
-    time_grid: &finstack_quant_monte_carlo::time_grid::TimeGrid,
-    process: &finstack_quant_monte_carlo::process::rough_bergomi::RoughBergomiProcess,
-    disc: &finstack_quant_monte_carlo::discretization::rough_bergomi::RoughBergomiEuler,
+    rng: &mut finstack_quant_models::monte_carlo::rng::philox::PhiloxRng,
+    time_grid: &finstack_quant_models::monte_carlo::time_grid::TimeGrid,
+    process: &finstack_quant_models::monte_carlo::process::rough_bergomi::RoughBergomiProcess,
+    disc: &finstack_quant_models::monte_carlo::discretization::rough_bergomi::RoughBergomiEuler,
     initial_state: &[f64],
     payoff_template: &F,
     ccy: finstack_quant_core::currency::Currency,
-    fbm_gen: &finstack_quant_monte_carlo::rng::volterra::RiemannLiouvilleVolterra,
+    fbm_gen: &finstack_quant_models::monte_carlo::rng::volterra::RiemannLiouvilleVolterra,
     num_steps: usize,
     err_ctx: crate::pricer::PricingErrorContext,
 ) -> std::result::Result<(f64, f64), PricingError> {
-    use finstack_quant_monte_carlo::online_stats::OnlineStats;
-    use finstack_quant_monte_carlo::rng::fbm::FractionalNoiseGenerator;
-    use finstack_quant_monte_carlo::traits::{Discretization, RandomStream, StochasticProcess};
+    use finstack_quant_models::monte_carlo::online_stats::OnlineStats;
+    use finstack_quant_models::monte_carlo::rng::fbm::FractionalNoiseGenerator;
+    use finstack_quant_models::monte_carlo::traits::{
+        Discretization, RandomStream, StochasticProcess,
+    };
 
     let num_factors = process.num_factors();
     let work_size = disc.work_size(process);
@@ -215,7 +217,7 @@ fn simulate_rbergomi<F: finstack_quant_monte_carlo::traits::Payoff>(
         let mut payoff = payoff_template.clone();
         payoff.reset();
 
-        let pv = finstack_quant_monte_carlo::engine_fractional::simulate_path_fractional(
+        let pv = finstack_quant_models::monte_carlo::engine_fractional::simulate_path_fractional(
             rng,
             time_grid,
             process,
@@ -358,30 +360,35 @@ impl crate::pricer::Pricer for EquityOptionRoughBergomiMcPricer {
 
         let hurst_exp = finstack_quant_core::math::fractional::HurstExponent::new(hurst)
             .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
-        let params = finstack_quant_monte_carlo::process::rough_bergomi::RoughBergomiParams::new(
-            r, q, hurst_exp, eta, rho, xi,
-        )
-        .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
-        let process =
-            finstack_quant_monte_carlo::process::rough_bergomi::RoughBergomiProcess::new(params);
-
-        let time_grid = finstack_quant_monte_carlo::time_grid::TimeGrid::uniform(t, self.num_steps)
+        let params =
+            finstack_quant_models::monte_carlo::process::rough_bergomi::RoughBergomiParams::new(
+                r, q, hurst_exp, eta, rho, xi,
+            )
             .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
+        let process =
+            finstack_quant_models::monte_carlo::process::rough_bergomi::RoughBergomiProcess::new(
+                params,
+            );
+
+        let time_grid =
+            finstack_quant_models::monte_carlo::time_grid::TimeGrid::uniform(t, self.num_steps)
+                .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
 
         // Build discretization and the Riemann-Liouville Volterra generator.
         // rBergomi requires the RL Volterra process Ỹ_t = √(2H)∫₀ᵗ(t−s)^{H−½}dW_s
         // (Bayer-Friz-Gatheral 2016) — not true fBM — so the noise driver is the
         // Bennedsen-Lunde-Pakkanen hybrid-scheme generator.
         let disc =
-            finstack_quant_monte_carlo::discretization::rough_bergomi::RoughBergomiEuler::new(
+            finstack_quant_models::monte_carlo::discretization::rough_bergomi::RoughBergomiEuler::new(
                 hurst_exp,
             );
-        let fbm_gen = finstack_quant_monte_carlo::rng::volterra::RiemannLiouvilleVolterra::new(
-            t,
-            self.num_steps,
-            hurst,
-        )
-        .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
+        let fbm_gen =
+            finstack_quant_models::monte_carlo::rng::volterra::RiemannLiouvilleVolterra::new(
+                t,
+                self.num_steps,
+                hurst,
+            )
+            .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
 
         let ccy = option_currency(equity_option);
         let initial_state = [spot];
@@ -389,11 +396,11 @@ impl crate::pricer::Pricer for EquityOptionRoughBergomiMcPricer {
         // Derive deterministic seed from instrument id
         let seed_val =
             if let Some(ref scenario) = equity_option.metric_pricing_overrides.mc_seed_scenario {
-                finstack_quant_monte_carlo::seed::derive_seed(&equity_option.id, scenario)
+                finstack_quant_models::monte_carlo::seed::derive_seed(&equity_option.id, scenario)
             } else {
-                finstack_quant_monte_carlo::seed::derive_seed(&equity_option.id, "base")
+                finstack_quant_models::monte_carlo::seed::derive_seed(&equity_option.id, "base")
             };
-        let mut rng = finstack_quant_monte_carlo::rng::philox::PhiloxRng::new(seed_val);
+        let mut rng = finstack_quant_models::monte_carlo::rng::philox::PhiloxRng::new(seed_val);
 
         // Resolve and cap the path count via the workspace helper before
         // allocating, so a malicious or typo'd `mc_paths` override can't OOM
@@ -409,7 +416,7 @@ impl crate::pricer::Pricer for EquityOptionRoughBergomiMcPricer {
 
         let (mean_pv, stderr_undisc) = match equity_option.option_type {
             OptionType::Call => {
-                let payoff = finstack_quant_monte_carlo::payoff::vanilla::EuropeanCall::new(
+                let payoff = finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanCall::new(
                     equity_option.strike,
                     equity_option.notional.amount(),
                     self.num_steps,
@@ -429,7 +436,7 @@ impl crate::pricer::Pricer for EquityOptionRoughBergomiMcPricer {
                 )?
             }
             OptionType::Put => {
-                let payoff = finstack_quant_monte_carlo::payoff::vanilla::EuropeanPut::new(
+                let payoff = finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanPut::new(
                     equity_option.strike,
                     equity_option.notional.amount(),
                     self.num_steps,

@@ -5,8 +5,8 @@
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
-use finstack_quant_monte_carlo::traits::PathState;
-use finstack_quant_monte_carlo::traits::Payoff;
+use finstack_quant_models::monte_carlo::traits::PathState;
+use finstack_quant_models::monte_carlo::traits::Payoff;
 
 /// Swaption type (payer or receiver).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -245,7 +245,7 @@ impl BermudanSwaptionPayoff {
     ///
     /// [`value`]: Self::value
     //
-    // Integration point for the generic `finstack_quant_monte_carlo` `Payoff`-driven
+    // Integration point for the generic `finstack_quant_models` `Payoff`-driven
     // engine. The production Bermudan-swaption path uses the dedicated
     // Longstaff-Schwartz induction in `monte_carlo_lsmc.rs`, which annuitises
     // and discounts directly, so this setter is currently exercised only by

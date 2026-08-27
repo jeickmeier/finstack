@@ -123,16 +123,6 @@ def test_pricing_validation_rejects_inconsistent_swaption_underlying_tenor() -> 
         validate_fixture(path, fixture)
 
 
-def test_sabr_strike_keys_must_match_expected() -> None:
-    path = DATA_ROOTS["market_data"] / "market_data/sabr/beta_half_smile.json"
-    fixture = GoldenFixture.from_path(path)
-    fixture.body = deepcopy(fixture.body)
-    fixture.body["strikes"].pop()
-
-    with pytest.raises(AssertionError, match="strike keys"):
-        validate_fixture(path, fixture)
-
-
 def test_allowlisted_metric_mismatch_is_reported_not_fatal(monkeypatch: pytest.MonkeyPatch) -> None:
     relative, _fixture, actuals = _deposit_actuals()
     actuals["npv"] += 100.0

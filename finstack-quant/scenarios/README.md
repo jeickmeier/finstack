@@ -136,9 +136,10 @@ repricing (`finstack_quant_portfolio::valuation::revalue_affected`) reads this
 manifest rather than guessing.
 
 Counters distinguish `user_operations` (what the caller wrote),
-`expanded_operations` (what the engine tried after hierarchy expansion and
-resolution-mode dedup), and `operations_applied` (effects that landed). Compare
-the last two to assess coverage.
+`expanded_operations` (direct operations remaining after hierarchy expansion
+and resolution-mode dedup), and `operations_applied` (low-level effects that
+landed). These counts are not directly comparable: one operation may produce
+zero, one, or many effects. Inspect `changes` and `warnings` for coverage.
 
 ## Templates
 

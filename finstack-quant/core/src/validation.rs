@@ -79,6 +79,58 @@ pub fn require_with(condition: bool, message: impl FnOnce() -> String) -> crate:
     }
 }
 
+/// Validate that a floating-point value is finite.
+///
+/// # Arguments
+///
+/// * `value` - Floating-point input that must not be NaN or infinite.
+/// * `context` - Field or calculation label included in validation diagnostics.
+///
+/// # Errors
+///
+/// Returns [`crate::Error::Validation`] when `value` is not finite.
+#[inline]
+pub fn validate_f64_finite(value: f64, context: &str) -> crate::Result<()> {
+    require_with(value.is_finite(), || {
+        format!("Invalid {context}: must be finite.")
+    })
+}
+
+/// Validate that a floating-point value is finite and strictly positive.
+///
+/// # Arguments
+///
+/// * `value` - Floating-point input that must be greater than zero.
+/// * `context` - Field or calculation label included in validation diagnostics.
+///
+/// # Errors
+///
+/// Returns [`crate::Error::Validation`] when `value` is non-finite or not
+/// strictly positive.
+#[inline]
+pub fn validate_f64_positive(value: f64, context: &str) -> crate::Result<()> {
+    require_with(value.is_finite() && value > 0.0, || {
+        format!("Invalid {context}: must be positive, got {value}")
+    })
+}
+
+/// Validate that a floating-point value is finite and non-negative.
+///
+/// # Arguments
+///
+/// * `value` - Floating-point input that must be greater than or equal to zero.
+/// * `context` - Field or calculation label included in validation diagnostics.
+///
+/// # Errors
+///
+/// Returns [`crate::Error::Validation`] when `value` is non-finite or negative.
+#[inline]
+pub fn validate_f64_non_negative(value: f64, context: &str) -> crate::Result<()> {
+    require_with(value.is_finite() && value >= 0.0, || {
+        format!("Invalid {context}: must be non-negative, got {value}")
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

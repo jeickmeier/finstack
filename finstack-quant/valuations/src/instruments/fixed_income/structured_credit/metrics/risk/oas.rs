@@ -33,8 +33,8 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::math::solver::{BrentSolver, Solver};
 use finstack_quant_core::Result;
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::RandomStream;
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::RandomStream;
 use serde::{Deserialize, Serialize};
 
 /// Configuration for the structured-credit OAS calculation.

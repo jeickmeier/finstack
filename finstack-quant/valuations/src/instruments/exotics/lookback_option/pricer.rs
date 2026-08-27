@@ -12,13 +12,13 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 
 // MC-specific imports
-use finstack_quant_monte_carlo::payoff::lookback::{
+use finstack_quant_models::monte_carlo::payoff::lookback::{
     FloatingStrikeLookbackCall, FloatingStrikeLookbackPut, Lookback, LookbackDirection,
 };
-use finstack_quant_monte_carlo::pricer::path_dependent::{
+use finstack_quant_models::monte_carlo::pricer::path_dependent::{
     PathDependentPricer, PathDependentPricerConfig,
 };
-use finstack_quant_monte_carlo::process::gbm::{GbmParams, GbmProcess};
+use finstack_quant_models::monte_carlo::process::gbm::{GbmParams, GbmProcess};
 
 /// Lookback option Monte Carlo pricer.
 pub struct LookbackOptionMcPricer {
@@ -136,7 +136,7 @@ impl LookbackOptionMcPricer {
 
         // Derive deterministic seed from instrument ID and scenario
 
-        use finstack_quant_monte_carlo::seed;
+        use finstack_quant_models::monte_carlo::seed;
 
         let seed = if let Some(ref scenario) = inst.metric_pricing_overrides.mc_seed_scenario {
             seed::derive_seed(&inst.id, scenario)
@@ -302,7 +302,7 @@ pub(crate) fn compute_pv(
     pricer.price_internal(inst, curves, as_of)
 }
 
-use crate::models::closed_form::lookback::{
+use finstack_quant_models::closed_form::lookback::{
     fixed_strike_lookback_call, fixed_strike_lookback_put, floating_strike_lookback_call,
     floating_strike_lookback_put,
 };
@@ -589,7 +589,7 @@ impl Pricer for LookbackOptionAnalyticalPricer {
         let currency = lookback.notional.currency();
         // Closed-form leaves signal out-of-domain input with a NaN sentinel;
         // convert to an error before `Money::new` panics on non-finite.
-        let price = crate::models::closed_form::checked_closed_form_value(
+        let price = finstack_quant_models::closed_form::checked_closed_form_value(
             price,
             "lookback closed-form price",
         )
@@ -606,16 +606,16 @@ mod tests {
     use super::*;
     use crate::instruments::exotics::lookback_option::{LookbackOption, LookbackType};
     use crate::instruments::{Attributes, OptionType};
-    use crate::models::closed_form::lookback::{
-        fixed_strike_lookback_call, fixed_strike_lookback_put, floating_strike_lookback_call,
-        floating_strike_lookback_put,
-    };
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::DayCount;
     use finstack_quant_core::market_data::scalars::MarketScalar;
     use finstack_quant_core::market_data::surfaces::VolSurface;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
+    use finstack_quant_models::closed_form::lookback::{
+        fixed_strike_lookback_call, fixed_strike_lookback_put, floating_strike_lookback_call,
+        floating_strike_lookback_put,
+    };
     use time::Month;
 
     fn date(year: i32, month: u8, day: u8) -> Date {
@@ -905,7 +905,7 @@ mod tests {
     /// are calibrated to the discrete-monitoring regime, not the continuous formula.
     #[test]
     fn lookback_mc_includes_terminal_step_in_extremum() {
-        use finstack_quant_monte_carlo::pricer::path_dependent::PathDependentPricerConfig;
+        use finstack_quant_models::monte_carlo::pricer::path_dependent::PathDependentPricerConfig;
 
         let as_of = date(2024, 1, 1);
         let expiry = date(2025, 1, 1); // 1-year

@@ -8,12 +8,12 @@ use super::{
     StochasticDefault,
 };
 use crate::cashflow::builder::specs::DefaultModelSpec;
-use crate::correlation::copula::CopulaSpec;
 use crate::instruments::fixed_income::structured_credit::pricing::stochastic::calibrations::{
     clo_standard, rmbs_standard,
 };
 use crate::instruments::fixed_income::structured_credit::utils::rates::clamped_cdr_to_mdr;
 use finstack_quant_core::market_data::term_structures::HazardCurve;
+use finstack_quant_models::correlation::copula::CopulaSpec;
 
 /// Stochastic default model specification.
 ///

@@ -35,7 +35,7 @@ pay for every domain's registration.
 | `finstack_quant.factor_model` | `finstack-quant-factor-model` |
 | `finstack_quant.features` | `finstack-quant-features` |
 | `finstack_quant.margin` | `finstack-quant-margin` |
-| `finstack_quant.monte_carlo` | `finstack-quant-monte-carlo` |
+| `finstack_quant.models` | `finstack-quant-models` |
 | `finstack_quant.portfolio` | `finstack-quant-portfolio` |
 | `finstack_quant.scenarios` | `finstack-quant-scenarios` |
 | `finstack_quant.statements` | `finstack-quant-statements` |
@@ -67,8 +67,9 @@ Domains that mirror a nested Rust module tree expose it as nested packages:
   `core.credit.{scoring, pd, lgd, migration, recovery_waterfall,
   liability_management}` and `core.math.{linalg, special_functions, stats,
   summation}`.
-- `finstack_quant.valuations.{instruments, correlation, credit_derivatives,
-  models, envelope, schema}`, with `valuations.models.credit`.
+- `finstack_quant.models.{credit, correlation, monte_carlo}`.
+- `finstack_quant.valuations.{instruments, credit_derivatives, composite,
+  market, envelope, schema}`.
 - `finstack_quant.cashflows.{accrual, aggregation, builder, primitives,
   schema}`.
 - `finstack_quant.factor_model.{credit, schema}`,
@@ -290,13 +291,12 @@ each `missing` entry with a reason), symbol-level pins, the exact top-level
 names the compiled stub may declare, and the WASM namespace subsets. Three
 documented deviations from strict crate mirroring live there:
 
-- `finstack_quant.valuations.correlation` is a **merged** namespace. Most of it
-  mirrors `finstack_quant_valuations::correlation` (copulas, `CreditExposure`,
+- `finstack_quant.models.correlation` is a **merged** namespace. Most of it
+  mirrors `finstack_quant_models::correlation` (copulas, `CreditExposure`,
   portfolio-loss simulation); the shared correlation-matrix helpers
   (`validate_correlation_matrix`, `nearest_correlation`) are canonically owned
   by `finstack_quant_analytics::correlation` and re-exported through
-  `finstack_quant_valuations::correlation`. Python and WASM keep the historical
-  `valuations.correlation` location, and `nearest_correlation` is the one
+  `finstack_quant_models::correlation`. `nearest_correlation` is the one
   documented rename (Rust: `nearest_correlation_matrix`).
 - `reporting` is pure Python with no Rust crate and no WASM parity.
 - `core.table` is a binding-level host-interop surface backed by

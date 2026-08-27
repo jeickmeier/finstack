@@ -279,7 +279,7 @@ def test_contract_symbols_match_live_surface(crate_name: str, crate: dict[str, A
     expected = set(crate["symbols"]["public"])
     # Only count module entries that live inside this crate's own package;
     # cross-package homes (e.g. analytics' correlation module surfacing under
-    # finstack_quant.valuations.correlation) are not part of this surface.
+    # finstack_quant.models.correlation) are not part of this surface.
     expected_all = expected | {
         spec["python"].rsplit(".", 1)[-1]
         for spec in crate.get("modules", {}).values()
@@ -455,6 +455,44 @@ def test_wasm_valuations_exports_match_contract() -> None:
     )
 
 
+def test_wasm_models_exports_match_contract() -> None:
+    """`exports/models.js` root and nested keys must match the models subset."""
+    block = CONTRACT["wasm_models_subset"]
+    js_path = (CONTRACT_PATH.parent / block["js_export_file"]).resolve()
+    expected = set(block["root_exports"]) | set(block["nested"])
+    actual = _parse_exported_const_object_keys(js_path, "models")
+    assert actual == expected, (
+        "models.js exports diverged from contract.\n"
+        f"  missing from JS: {sorted(expected - actual)}\n"
+        f"  unlisted in contract: {sorted(actual - expected)}"
+    )
+
+
+def test_wasm_models_nested_exports_match_contract() -> None:
+    """Nested `exports/models/*.js` facade keys must match the contract."""
+    block = CONTRACT["wasm_models_subset"]
+    models_js_path = (CONTRACT_PATH.parent / block["js_export_file"]).resolve()
+    nested_dir = models_js_path.parent / "models"
+    for namespace, expected_names in block["nested_exports"].items():
+        js_path = nested_dir / f"{namespace}.js"
+        assert js_path.exists(), f"nested models facade missing: {js_path}"
+        actual = _parse_exported_const_object_keys(js_path, namespace)
+        expected = set(expected_names)
+        assert actual == expected, (
+            f"models.{namespace} facade exports diverged from contract.\n"
+            f"  missing from JS: {sorted(expected - actual)}\n"
+            f"  unlisted in contract: {sorted(actual - expected)}"
+        )
+
+
+def test_wasm_models_root_surface_is_triplet_accounted_for() -> None:
+    """Every models root export must map to a live Python root symbol."""
+    block = CONTRACT["wasm_models_subset"]
+    assert set(block["python_js_map"].values()) == set(block["root_exports"])
+    module = importlib.import_module("finstack_quant.models")
+    assert not [name for name in block["python_js_map"] if not hasattr(module, name)]
+
+
 def test_wasm_attribution_exports_match_contract() -> None:
     """`exports/attribution.js` root keys must match [wasm_attribution_subset]."""
     block = CONTRACT["wasm_attribution_subset"]
@@ -537,7 +575,6 @@ WASM_NAMESPACE_SUBSETS = [
     ("wasm_factor_model_subset", "factor_model", "finstack_quant.factor_model"),
     ("wasm_features_subset", "features", "finstack_quant.features"),
     ("wasm_margin_subset", "margin", "finstack_quant.margin"),
-    ("wasm_monte_carlo_subset", "monte_carlo", "finstack_quant.monte_carlo"),
     ("wasm_scenarios_subset", "scenarios", "finstack_quant.scenarios"),
     ("wasm_statements_subset", "statements", "finstack_quant.statements"),
     ("wasm_statements_analytics_subset", "statements_analytics", "finstack_quant.statements_analytics"),
@@ -1014,14 +1051,14 @@ def test_core_market_data_scalars_exports_are_explicit() -> None:
     assert root.InflationIndex is scalars.InflationIndex
 
 
-def test_valuations_correlation_public_matches_contract() -> None:
-    """``finstack_quant.valuations.correlation.__all__`` must match [crates.valuations.correlation].
+def test_models_correlation_public_matches_contract() -> None:
+    """``finstack_quant.models.correlation.__all__`` must match [crates.models.correlation].
 
     Pins the correlation symbol surface so a binding rename (e.g. the
     Rust-canonical ``LatentFactorKind``) cannot drift from the contract, the
     package ``__all__``, or the importable surface without failing parity.
     """
-    block = CONTRACT["crates"]["valuations"]["correlation"]
+    block = CONTRACT["crates"]["models"]["correlation"]
     expected = block["public"]
     module = importlib.import_module(block["python_package"])
     assert module.__all__ == expected, (
@@ -1050,12 +1087,13 @@ def test_valuations_instruments_public_matches_contract() -> None:
 @pytest.mark.parametrize(
     "contract_path",
     [
-        ("valuations", "models"),
-        ("valuations", "models", "credit"),
+        ("models", "credit"),
+        ("models", "correlation"),
+        ("models", "monte_carlo"),
     ],
 )
-def test_valuations_nested_public_matches_contract(contract_path: tuple[str, ...]) -> None:
-    """Rust-shaped nested valuation modules must keep their pinned Python surface."""
+def test_models_nested_public_matches_contract(contract_path: tuple[str, ...]) -> None:
+    """Rust-shaped nested model modules must keep their pinned Python surface."""
     block: dict[str, Any] = CONTRACT["crates"]
     for key in contract_path:
         block = block[key]
@@ -1070,38 +1108,38 @@ def test_valuations_nested_public_matches_contract(contract_path: tuple[str, ...
         assert hasattr(module, name), f"{block['python_package']} does not expose `{name}`"
 
 
-def test_valuations_correlation_member_pins_resolve_in_both_hosts() -> None:
-    """[wasm_valuations_subset.correlation_members] pins shared class members.
+def test_models_correlation_member_pins_resolve_in_both_hosts() -> None:
+    """[wasm_models_subset.correlation_members] pins shared class members.
 
     Export-name pins cannot see method drift on classes exposed in both
     hosts, so each pinned member is checked against (a) the live Python
     class attribute and (b) the WASM binding source (`js_name = "..."` on
     the wasm-bindgen attribute, or a plain `pub fn` for identical names).
     """
-    members = CONTRACT["wasm_valuations_subset"]["correlation_members"]
-    module = importlib.import_module("finstack_quant.valuations.correlation")
+    members = CONTRACT["wasm_models_subset"]["correlation_members"]
+    module = importlib.import_module("finstack_quant.models.correlation")
     wasm_src = (
-        CONTRACT_PATH.parent.parent / "finstack-quant-wasm" / "src" / "api" / "valuations" / "correlation" / "mod.rs"
+        CONTRACT_PATH.parent.parent / "finstack-quant-wasm" / "src" / "api" / "models" / "correlation" / "mod.rs"
     ).read_text()
 
     for key, js_name in members.items():
         class_name, _, python_member = key.partition(".")
         cls = getattr(module, class_name, None)
-        assert cls is not None, f"finstack_quant.valuations.correlation missing class {class_name}"
+        assert cls is not None, f"finstack_quant.models.correlation missing class {class_name}"
         assert hasattr(cls, python_member), f"{class_name} missing Python member `{python_member}`"
         wasm_pin = f"js_name = {js_name}"
         assert wasm_pin in wasm_src or f"pub fn {js_name}(" in wasm_src, (
             f"WASM correlation binding missing `{js_name}` (pinned as {key}); "
-            f"expected `{wasm_pin}` in finstack-quant-wasm/src/api/valuations/correlation/mod.rs"
+            f"expected `{wasm_pin}` in finstack-quant-wasm/src/api/models/correlation/mod.rs"
         )
 
 
 def test_correlated_bernoulli_requested_correlation_matches_rust_and_stub() -> None:
     """Python exposes the canonical Rust requested-correlation diagnostic."""
-    module = importlib.import_module("finstack_quant.valuations.correlation")
+    module = importlib.import_module("finstack_quant.models.correlation")
     assert hasattr(module.CorrelatedBernoulli, "requested_correlation")
 
-    stub = (CONTRACT_PATH.parent / "finstack_quant" / "valuations" / "correlation" / "__init__.pyi").read_text()
+    stub = (CONTRACT_PATH.parent / "finstack_quant" / "models" / "correlation" / "__init__.pyi").read_text()
     assert "def requested_correlation(self) -> float:" in stub
 
     rust = (CONTRACT_PATH.parent.parent / "finstack-quant" / "core" / "src" / "math" / "probability.rs").read_text()

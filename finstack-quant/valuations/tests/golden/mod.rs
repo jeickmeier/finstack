@@ -7,7 +7,6 @@
 mod pricing;
 mod pricing_common;
 mod runner;
-mod sabr;
 mod schema;
 mod tolerance;
 mod walk;

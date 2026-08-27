@@ -5,9 +5,9 @@
 
 use super::payoff::CapletFloorletInputs;
 use crate::instruments::common_impl::parameters::OptionType;
-use crate::models::volatility::normal::{bachelier_price, d_bachelier};
 use finstack_quant_core::math::{norm_cdf, norm_pdf};
 use finstack_quant_core::money::Money;
+use finstack_quant_models::volatility::normal::{bachelier_price, d_bachelier};
 
 /// Price a caplet/floorlet using Bachelier's normal model.
 pub(crate) fn price_caplet_floorlet(

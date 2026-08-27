@@ -2,7 +2,7 @@
 //!
 //! A fixture is a strict envelope with five sections, in order:
 //! `metadata` (identity, provenance, valuation date), a `kind`-tagged body
-//! (`pricing` or `sabr_smile`), `expected` (raw source values), and
+//! (`pricing`), `expected` (raw source values), and
 //! `tolerances` (one entry per expected metric).
 //!
 //! Unknown-field rejection at the top level and inside each body is enforced
@@ -36,15 +36,6 @@ impl GoldenFixture {
     pub fn pricing(&self) -> Option<&PricingBody> {
         match &self.body {
             Body::Pricing(body) => Some(body),
-            Body::SabrSmile(_) => None,
-        }
-    }
-
-    /// SABR-smile body, when this fixture has `kind = "sabr_smile"`.
-    pub fn sabr(&self) -> Option<&SabrBody> {
-        match &self.body {
-            Body::SabrSmile(body) => Some(body),
-            Body::Pricing(_) => None,
         }
     }
 }
@@ -55,7 +46,7 @@ impl GoldenFixture {
 pub struct Metadata {
     /// Snake-case unique name within the domain.
     pub name: String,
-    /// Dotted domain path: `rates.irs`, `fixed_income.bond`, `volatility.sabr`.
+    /// Dotted instrument domain path, such as `rates.irs` or `fixed_income.bond`.
     pub domain: String,
     /// One-sentence description.
     pub description: String,
@@ -102,8 +93,6 @@ pub struct Screenshot {
 pub enum Body {
     /// Instrument pricing fixture: model, market context, and instrument.
     Pricing(PricingBody),
-    /// SABR smile fixture: parameters, forward, expiry, and strikes.
-    SabrSmile(SabrBody),
 }
 
 /// Body of a `kind = "pricing"` fixture.
@@ -131,38 +120,6 @@ pub enum Market {
         /// `CalibrationEnvelope` JSON.
         envelope: serde_json::Value,
     },
-}
-
-/// Body of a `kind = "sabr_smile"` fixture.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SabrBody {
-    /// SABR alpha (initial volatility).
-    pub alpha: f64,
-    /// SABR beta (CEV exponent).
-    pub beta: f64,
-    /// SABR nu (vol-of-vol).
-    pub nu: f64,
-    /// SABR rho (forward/vol correlation).
-    pub rho: f64,
-    /// Optional shift for the shifted-SABR (negative-rates) branch.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub shift: Option<f64>,
-    /// Forward rate.
-    pub forward: f64,
-    /// Time to expiry in years.
-    pub time_to_expiry: f64,
-    /// Strikes with per-strike expected-output keys.
-    pub strikes: Vec<StrikeEntry>,
-}
-
-/// A single strike entry in a SABR-smile fixture.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct StrikeEntry {
-    /// Expected-output key this strike's implied vol is recorded under.
-    pub key: String,
-    /// Strike value.
-    pub strike: f64,
 }
 
 /// Per-metric tolerance. A comparison passes if either `abs` or `rel` is satisfied.
@@ -208,34 +165,6 @@ mod tests {
       "tolerances": {"npv": {"abs": 0.01}}
     }"#;
 
-    const SABR_JSON: &str = r#"{
-      "schema": "finstack_quant.golden/1",
-      "metadata": {
-        "name": "smile",
-        "domain": "volatility.sabr",
-        "description": "Minimal SABR smile",
-        "valuation_date": "2026-04-30",
-        "source": "formula",
-        "source_detail": "Hagan 2002",
-        "captured_by": "test",
-        "captured_on": "2026-04-30",
-        "last_reviewed_by": "test",
-        "last_reviewed_on": "2026-04-30",
-        "review_interval_months": 6,
-        "regen_command": ""
-      },
-      "kind": "sabr_smile",
-      "alpha": 0.05,
-      "beta": 0.5,
-      "nu": 0.4,
-      "rho": -0.1,
-      "forward": 0.05,
-      "time_to_expiry": 2.0,
-      "strikes": [{"key": "vol_k0050", "strike": 0.05}],
-      "expected": {"vol_k0050": 0.2292},
-      "tolerances": {"vol_k0050": {"abs": 1e-9}}
-    }"#;
-
     #[test]
     fn deserialize_pricing_fixture() {
         let fixture: GoldenFixture = serde_json::from_str(PRICING_JSON).expect("fixture parses");
@@ -249,18 +178,6 @@ mod tests {
         let pricing = fixture.pricing().expect("pricing body");
         assert_eq!(pricing.model, "discounting");
         assert!(matches!(pricing.market, Market::Envelope { .. }));
-        assert!(fixture.sabr().is_none());
-    }
-
-    #[test]
-    fn deserialize_sabr_fixture() {
-        let fixture: GoldenFixture = serde_json::from_str(SABR_JSON).expect("fixture parses");
-
-        let sabr = fixture.sabr().expect("sabr body");
-        assert_eq!(sabr.strikes.len(), 1);
-        assert_eq!(sabr.strikes[0].key, "vol_k0050");
-        assert!(sabr.shift.is_none());
-        assert!(fixture.pricing().is_none());
     }
 
     #[test]

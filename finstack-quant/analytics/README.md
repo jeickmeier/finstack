@@ -17,7 +17,7 @@ regression and the constrained least-squares solver. Consumed by:
 | Consumer | What it uses |
 |----------|--------------|
 | `finstack-quant-factor-model` | `beta` (OLS slope in the credit peel), `correlation::{nearest_correlation_matrix, validate_correlation_matrix, NearestCorrelationOpts}` |
-| `finstack-quant-valuations` | `correlation::*`, re-exported verbatim through `finstack_quant_valuations::correlation` |
+| `finstack-quant-valuations` | `correlation::*`, re-exported verbatim through `finstack_quant_models::correlation` |
 | `finstack-quant` (umbrella) | re-exported as `finstack_quant::analytics` |
 | `finstack-quant-py`, `finstack-quant-wasm` | `Performance`, `regression::constrained_least_squares` |
 
@@ -97,7 +97,7 @@ Canonical home for the shared correlation-matrix helpers. Exports:
   enum the crate defines; everything else returns
   `finstack_quant_core::Result`.
 
-`finstack_quant_valuations::correlation` re-exports all of these unchanged, so
+`finstack_quant_models::correlation` re-exports all of these unchanged, so
 `valuations` callers do not need an analytics dependency. That merged namespace
 is a documented deviation from strict crate-mirroring, recorded in
 [`finstack-quant-py/parity_contract.toml`](../../finstack-quant-py/parity_contract.toml).
@@ -188,7 +188,7 @@ can legitimately be `±∞` (`payoff_ratio`, `profit_factor`, `cpc_ratio`,
   only (see [`exports/analytics.js`](../../finstack-quant-wasm/exports/analytics.js)).
   WASM `Performance` methods return plain JS values instead of typed wrappers.
 - Shared correlation helpers are bound under
-  `finstack_quant.valuations.correlation` in both hosts, with
+  `finstack_quant.models.correlation` in both hosts, with
   `nearest_correlation_matrix` exposed as `nearest_correlation`.
 
 The authoritative contract, including every known gap, is

@@ -15,7 +15,7 @@ finstack-quant-analytics = { path = "../analytics", version = "0.7.0" }
 finstack-quant-cashflows = { path = "../cashflows", version = "0.7.0" }
 finstack-quant-covenants = { path = "../covenants", version = "0.7.0" }
 finstack-quant-margin = { path = "../margin", version = "0.7.0" }
-finstack-quant-monte-carlo = { path = "../monte_carlo", version = "0.7.0", default-features = false }
+finstack-quant-models = { path = "../models", version = "0.7.0", default-features = false }
 finstack-quant-valuations-macros = { path = "macros", version = "0.7.0" }
 indexmap = { workspace = true, features = ["serde"] }
 smallvec = { version = "1.15", default-features = false, features = ["serde"] }
@@ -44,7 +44,7 @@ toml = "1.1.4"
 
 [features]
 default = []
-ts_export = ["dep:ts-rs"]
+ts_export = ["dep:ts-rs", "finstack-quant-models/ts_export"]
 
 [[bench]]
 name = "bond_pricing"

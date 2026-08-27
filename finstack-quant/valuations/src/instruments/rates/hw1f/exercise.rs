@@ -2,7 +2,7 @@
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
-use finstack_quant_monte_carlo::traits::Payoff;
+use finstack_quant_models::monte_carlo::traits::Payoff;
 
 /// Additional contract a `Payoff` must implement to be priced via LSMC
 /// in [`crate::instruments::rates::hw1f::hw1f_lsmc::RateExoticHw1fLsmcPricer`].

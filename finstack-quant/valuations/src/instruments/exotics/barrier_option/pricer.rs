@@ -13,13 +13,13 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 
 // MC-specific imports
-use finstack_quant_monte_carlo::payoff::barrier::{
+use finstack_quant_models::monte_carlo::payoff::barrier::{
     BarrierMonitoring, BarrierOptionPayoff, OptionKind,
 };
-use finstack_quant_monte_carlo::pricer::path_dependent::{
+use finstack_quant_models::monte_carlo::pricer::path_dependent::{
     PathDependentPricer, PathDependentPricerConfig,
 };
-use finstack_quant_monte_carlo::process::gbm::{GbmParams, GbmProcess};
+use finstack_quant_models::monte_carlo::process::gbm::{GbmParams, GbmProcess};
 
 /// Whether the instrument's rebate should be paid at the hit time.
 ///
@@ -27,10 +27,10 @@ use finstack_quant_monte_carlo::process::gbm::{GbmParams, GbmProcess};
 /// [`BarrierOptionPayoff::with_rebate_at_hit`] so the rebate compounds
 /// forward from the hit time τ at the flat rate and the engine's maturity
 /// discount factor nets to `DF(τ)` — exact at-hit discounting, matching the
-/// analytical [`crate::models::closed_form::barrier::barrier_rebate`] with
-/// [`RebateTiming::AtHit`](crate::models::closed_form::barrier::RebateTiming::AtHit).
+/// analytical [`finstack_quant_models::closed_form::barrier::barrier_rebate`] with
+/// [`RebateTiming::AtHit`](finstack_quant_models::closed_form::barrier::RebateTiming::AtHit).
 pub(crate) fn wants_at_hit_rebate(inst: &BarrierOption) -> bool {
-    use crate::models::closed_form::barrier::RebateTiming;
+    use finstack_quant_models::closed_form::barrier::RebateTiming;
     inst.rebate.is_some() && inst.rebate_timing == RebateTiming::AtHit
 }
 
@@ -113,7 +113,7 @@ impl BarrierOptionMcPricer {
             use finstack_quant_core::types::BarrierType;
             let unit = match inst.barrier_type {
                 BarrierType::UpAndIn | BarrierType::DownAndIn => {
-                    crate::models::closed_form::vanilla::bs_price_unchecked(
+                    finstack_quant_models::closed_form::vanilla::bs_price_unchecked(
                         spot,
                         inst.strike,
                         r,
@@ -124,13 +124,13 @@ impl BarrierOptionMcPricer {
                     )
                 }
                 BarrierType::UpAndOut | BarrierType::DownAndOut => match inst.rebate_timing {
-                    crate::models::closed_form::barrier::RebateTiming::AtHit => 0.0,
-                    crate::models::closed_form::barrier::RebateTiming::AtExpiry => inst
+                    finstack_quant_models::closed_form::barrier::RebateTiming::AtHit => 0.0,
+                    finstack_quant_models::closed_form::barrier::RebateTiming::AtExpiry => inst
                         .rebate
                         .map_or(0.0, |rebate| rebate.amount() * discount_factor),
                 },
             };
-            let unit = crate::models::closed_form::checked_closed_form_value(
+            let unit = finstack_quant_models::closed_form::checked_closed_form_value(
                 unit,
                 "barrier knocked-in vanilla price",
             )
@@ -153,7 +153,8 @@ impl BarrierOptionMcPricer {
         // barrier monitoring - this ensures time steps align with volatility assumptions)
         let steps_per_year = self.config.steps_per_year;
         let num_steps = ((t_vol * steps_per_year).round() as usize).max(self.config.min_steps);
-        let time_grid = finstack_quant_monte_carlo::time_grid::TimeGrid::uniform(t_vol, num_steps)?;
+        let time_grid =
+            finstack_quant_models::monte_carlo::time_grid::TimeGrid::uniform(t_vol, num_steps)?;
         // `maturity_step` must equal `time_grid.num_steps()` (= num_steps): the engine
         // calls `on_event` with `state.step = num_steps` on the last iteration, so the
         // terminal-spot capture guard `state.step == maturity_step` must fire there.
@@ -178,7 +179,7 @@ impl BarrierOptionMcPricer {
 
         // Derive deterministic seed from instrument ID and scenario
 
-        use finstack_quant_monte_carlo::seed;
+        use finstack_quant_models::monte_carlo::seed;
 
         let seed = if let Some(ref scenario) = inst.metric_pricing_overrides.mc_seed_scenario {
             seed::derive_seed(&inst.id, scenario)
@@ -309,15 +310,15 @@ fn price_expired_barrier(
     Ok(Money::new(pv, ccy))
 }
 
-use crate::models::closed_form::barrier::{
+use finstack_quant_models::closed_form::barrier::{
     barrier_call_continuous, barrier_put_continuous, barrier_rebate, BarrierParams,
 };
 /// Broadie-Glasserman-Kou / Gobet-Miri discrete barrier adjustment constant.
 ///
 /// β = -ζ(1/2) / √(2π) ≈ 0.5825971579390106. Re-exported from the canonical
-/// definition in `finstack_quant_monte_carlo::barriers::corrections` so the
+/// definition in `finstack_quant_models::monte_carlo::barriers::corrections` so the
 /// analytical and MC stacks can never drift apart.
-const BG_BETA: f64 = finstack_quant_monte_carlo::barriers::corrections::GOBET_MIRI_BETA;
+const BG_BETA: f64 = finstack_quant_models::monte_carlo::barriers::corrections::GOBET_MIRI_BETA;
 
 /// Barrier option analytical pricer (continuous monitoring).
 ///
@@ -422,7 +423,7 @@ impl Pricer for BarrierOptionAnalyticalPricer {
             })?;
             let unit = match barrier_opt.barrier_type {
                 BarrierType::UpAndIn | BarrierType::DownAndIn => {
-                    crate::models::closed_form::vanilla::bs_price_unchecked(
+                    finstack_quant_models::closed_form::vanilla::bs_price_unchecked(
                         spot,
                         barrier_opt.strike,
                         r,
@@ -434,14 +435,16 @@ impl Pricer for BarrierOptionAnalyticalPricer {
                 }
                 BarrierType::UpAndOut | BarrierType::DownAndOut => {
                     match barrier_opt.rebate_timing {
-                        crate::models::closed_form::barrier::RebateTiming::AtHit => 0.0,
-                        crate::models::closed_form::barrier::RebateTiming::AtExpiry => barrier_opt
-                            .rebate
-                            .map_or(0.0, |rebate| rebate.amount() * df),
+                        finstack_quant_models::closed_form::barrier::RebateTiming::AtHit => 0.0,
+                        finstack_quant_models::closed_form::barrier::RebateTiming::AtExpiry => {
+                            barrier_opt
+                                .rebate
+                                .map_or(0.0, |rebate| rebate.amount() * df)
+                        }
                     }
                 }
             };
-            let unit = crate::models::closed_form::checked_closed_form_value(
+            let unit = finstack_quant_models::closed_form::checked_closed_form_value(
                 unit,
                 "barrier observed-breach vanilla price",
             )
@@ -524,7 +527,7 @@ impl Pricer for BarrierOptionAnalyticalPricer {
         };
         // The closed-form leaves return NaN sentinels for out-of-domain input;
         // convert that to an error before `Money::new` panics on non-finite.
-        let price = crate::models::closed_form::checked_closed_form_value(
+        let price = finstack_quant_models::closed_form::checked_closed_form_value(
             price + rebate_val,
             "barrier closed-form price",
         )
@@ -545,10 +548,6 @@ mod tests {
     use super::*;
     use crate::instruments::exotics::barrier_option::types::BarrierOption;
     use crate::instruments::{Attributes, OptionType};
-    use crate::models::closed_form::barrier::{
-        barrier_call_continuous, barrier_put_continuous, barrier_rebate_continuous, down_out_call,
-        BarrierParams,
-    };
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{DayCount, DayCountContext};
     use finstack_quant_core::market_data::scalars::MarketScalar;
@@ -557,6 +556,10 @@ mod tests {
     use finstack_quant_core::types::BarrierType;
     use finstack_quant_core::types::BarrierType as AnalyticalBarrierType;
     use finstack_quant_core::types::InstrumentId;
+    use finstack_quant_models::closed_form::barrier::{
+        barrier_call_continuous, barrier_put_continuous, barrier_rebate_continuous, down_out_call,
+        BarrierParams,
+    };
     use time::Month;
 
     fn date(year: i32, month: u8, day: u8) -> Date {
@@ -664,7 +667,7 @@ mod tests {
             ..base.clone()
         };
         let with_rebate_at_expiry = BarrierOption {
-            rebate_timing: crate::models::closed_form::barrier::RebateTiming::AtExpiry,
+            rebate_timing: finstack_quant_models::closed_form::barrier::RebateTiming::AtExpiry,
             ..with_rebate.clone()
         };
 
@@ -685,11 +688,11 @@ mod tests {
         let p = BarrierParams::new(spot, barrier, barrier, t, rate, div_yield, vol);
 
         // Default timing is at-hit (market standard).
-        let expected_at_hit = crate::models::closed_form::barrier::barrier_rebate(
+        let expected_at_hit = finstack_quant_models::closed_form::barrier::barrier_rebate(
             &p,
             rebate,
             AnalyticalBarrierType::UpAndOut,
-            crate::models::closed_form::barrier::RebateTiming::AtHit,
+            finstack_quant_models::closed_form::barrier::RebateTiming::AtHit,
         );
         assert!(((rebate_pv - base_pv) - expected_at_hit).abs() < 1e-12);
 
@@ -844,7 +847,7 @@ mod tests {
 
     #[test]
     fn model_clock_drift_is_invariant_to_curve_day_count_for_same_df() {
-        use finstack_quant_monte_carlo::pricer::path_dependent::PathDependentPricerConfig;
+        use finstack_quant_models::monte_carlo::pricer::path_dependent::PathDependentPricerConfig;
 
         let as_of = date(2024, 1, 1);
         let expiry = date(2025, 1, 1); // 1 calendar year
@@ -1033,7 +1036,7 @@ mod tests {
     /// wrong way, compounding the error.
     #[test]
     fn mc_bridge_barrier_matches_analytical_continuous() {
-        use finstack_quant_monte_carlo::pricer::path_dependent::PathDependentPricerConfig;
+        use finstack_quant_models::monte_carlo::pricer::path_dependent::PathDependentPricerConfig;
 
         let as_of = date(2024, 1, 1);
         let expiry = date(2025, 1, 1); // 1 year
@@ -1088,7 +1091,7 @@ mod tests {
 
     #[test]
     fn barrier_uao_degenerate_matches_bs() {
-        use finstack_quant_monte_carlo::pricer::path_dependent::PathDependentPricerConfig;
+        use finstack_quant_models::monte_carlo::pricer::path_dependent::PathDependentPricerConfig;
 
         let as_of = date(2024, 1, 1);
         let expiry = date(2025, 1, 1); // 1-year

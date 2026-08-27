@@ -490,7 +490,7 @@ pub struct ModelConfig {
     /// only `hw1f_sigma`/`hw1f_mean_reversion` and rejects the legacy
     /// `implied_volatility`/`mean_reversion` channel rather than silently
     /// reinterpreting it. Its mean reversion is additionally capped by
-    /// [`KAPPA_MAX`](crate::models::trees::two_factor_rates_credit::KAPPA_MAX);
+    /// [`KAPPA_MAX`](finstack_quant_models::trees::two_factor_rates_credit::KAPPA_MAX);
     /// Hull-White trees on other paths keep their own wider range.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hw1f_sigma: Option<f64>,
@@ -518,7 +518,7 @@ pub struct ModelConfig {
     /// or lognormal credit-spread volatility — inserting a CDS-option quote
     /// such as `0.35` here would be roughly an order of magnitude too large.
     /// Convert a fractional spread vol first (see
-    /// [`models::credit::market_anchored`](crate::models::credit::market_anchored)):
+    /// [`models::credit::market_anchored`](finstack_quant_models::credit::market_anchored)):
     /// `σ_λ = σ_fractional · λ_ref`.
     ///
     /// `None` and `0.0` are equivalent and both mean a **deterministic** credit
@@ -532,7 +532,7 @@ pub struct ModelConfig {
     /// lattice, annualised.
     ///
     /// `None` and `0.0` both mean no reversion. Capped by
-    /// [`KAPPA_MAX`](crate::models::trees::two_factor_rates_credit::KAPPA_MAX),
+    /// [`KAPPA_MAX`](finstack_quant_models::trees::two_factor_rates_credit::KAPPA_MAX),
     /// above which the binomial lattice's conditional variance collapses far
     /// enough to distort option values. Requires `credit_curve_id`.
     ///
@@ -543,7 +543,7 @@ pub struct ModelConfig {
     /// feasible `|ρ|` can fall to around `0.12`. Calibration rejects an
     /// unattainable correlation and reports the lattice-wide maximum, which is
     /// also available up front from
-    /// [`RatesCreditTree::max_feasible_correlation`](crate::models::trees::two_factor_rates_credit::RatesCreditTree::max_feasible_correlation).
+    /// [`RatesCreditTree::max_feasible_correlation`](finstack_quant_models::trees::two_factor_rates_credit::RatesCreditTree::max_feasible_correlation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hazard_mean_reversion: Option<f64>,
     /// Instantaneous correlation between the short-rate and hazard-rate
@@ -900,6 +900,94 @@ impl InstrumentPricingOverrides {
     }
 }
 
+/// Resolve explicit rates-credit lattice inputs from valuation pricing overrides.
+pub(crate) fn resolve_rates_credit_config(
+    overrides: &InstrumentPricingOverrides,
+    steps: usize,
+) -> finstack_quant_core::Result<
+    finstack_quant_models::trees::two_factor_rates_credit::RatesCreditConfig,
+> {
+    use finstack_quant_models::trees::two_factor_rates_credit::{RatesCreditConfig, KAPPA_MAX};
+
+    let model = &overrides.model_config;
+    let quotes = &overrides.market_quotes;
+    if model.hw1f_sigma_schedule.is_some() {
+        return Err(finstack_quant_core::Error::Validation(
+            "hw1f_sigma_schedule is not supported on the rates-credit callable path: the \
+             two-factor lattice carries a single scalar short-rate volatility. Set \
+             hw1f_sigma instead, or price without a credit curve to use a term-structure \
+             Hull-White tree."
+                .to_string(),
+        ));
+    }
+    if model.hw1f_sigma.is_none() && quotes.implied_volatility.is_some() {
+        return Err(finstack_quant_core::Error::Validation(
+            "the rates-credit callable path reads short-rate volatility from \
+             model_config.hw1f_sigma, not market_quotes.implied_volatility"
+                .to_string(),
+        ));
+    }
+    if model.hw1f_mean_reversion.is_none() && model.mean_reversion.is_some_and(|value| value != 0.0)
+    {
+        return Err(finstack_quant_core::Error::Validation(
+            "the rates-credit callable path reads mean reversion from \
+             model_config.hw1f_mean_reversion, not model_config.mean_reversion"
+                .to_string(),
+        ));
+    }
+
+    let rate_vol = model.hw1f_sigma.unwrap_or(0.0);
+    let hazard_vol = model.hazard_volatility.unwrap_or(0.0);
+    let rate_mean_reversion = model.hw1f_mean_reversion.unwrap_or(0.0);
+    let hazard_mean_reversion = model.hazard_mean_reversion.unwrap_or(0.0);
+    let correlation = model.rate_credit_correlation.unwrap_or(0.0);
+
+    for (label, value) in [
+        ("hw1f_sigma", rate_vol),
+        ("hazard_volatility", hazard_vol),
+        ("hw1f_mean_reversion", rate_mean_reversion),
+        ("hazard_mean_reversion", hazard_mean_reversion),
+    ] {
+        if !value.is_finite() || value < 0.0 {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "{label} must be finite and non-negative on the rates-credit path, got {value}"
+            )));
+        }
+    }
+    for (label, value) in [
+        ("hw1f_mean_reversion", rate_mean_reversion),
+        ("hazard_mean_reversion", hazard_mean_reversion),
+    ] {
+        if value > KAPPA_MAX {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "{label} = {value:.4} exceeds the rates-credit binomial-lattice limit \
+                 (KAPPA_MAX = {KAPPA_MAX}); reduce it or use HullWhiteTree"
+            )));
+        }
+    }
+    if !correlation.is_finite() || !(-1.0..=1.0).contains(&correlation) {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "rate_credit_correlation must be finite and in [-1, 1], got {correlation}"
+        )));
+    }
+    if correlation != 0.0 && (rate_vol <= 0.0 || hazard_vol <= 0.0) {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "rate_credit_correlation = {correlation} is inert because hw1f_sigma = \
+             {rate_vol} and hazard_volatility = {hazard_vol}; set both volatilities \
+             positive or leave correlation unset"
+        )));
+    }
+
+    Ok(RatesCreditConfig {
+        steps,
+        rate_vol,
+        hazard_vol,
+        correlation,
+        rate_mean_reversion,
+        hazard_mean_reversion,
+    })
+}
+
 // Sub-struct: Metric configuration
 
 use super::breakeven::BreakevenConfig;
@@ -1152,6 +1240,101 @@ impl ScenarioPricingOverrides {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn rates_credit_overrides(
+        rate_vol: Option<f64>,
+        hazard_vol: Option<f64>,
+        correlation: Option<f64>,
+    ) -> InstrumentPricingOverrides {
+        let mut overrides = InstrumentPricingOverrides::default();
+        overrides.model_config.hw1f_sigma = rate_vol;
+        overrides.model_config.hazard_volatility = hazard_vol;
+        overrides.model_config.rate_credit_correlation = correlation;
+        overrides
+    }
+
+    #[test]
+    fn resolver_maps_all_four_volatility_regimes() {
+        for (rate, hazard, expected_rate, expected_hazard) in [
+            (None, None, 0.0, 0.0),
+            (Some(0.012), None, 0.012, 0.0),
+            (None, Some(0.02), 0.0, 0.02),
+            (Some(0.012), Some(0.02), 0.012, 0.02),
+        ] {
+            let config =
+                resolve_rates_credit_config(&rates_credit_overrides(rate, hazard, None), 64)
+                    .expect("valid rates-credit regime");
+            assert_eq!(config.steps, 64);
+            assert_eq!(config.rate_vol, expected_rate);
+            assert_eq!(config.hazard_vol, expected_hazard);
+        }
+    }
+
+    #[test]
+    fn resolver_rejects_invalid_and_inert_inputs() {
+        for (overrides, expected) in [
+            (
+                rates_credit_overrides(Some(-0.01), None, None),
+                "hw1f_sigma",
+            ),
+            (
+                rates_credit_overrides(Some(0.01), Some(f64::NAN), None),
+                "hazard_volatility",
+            ),
+            (
+                rates_credit_overrides(Some(0.01), Some(0.02), Some(1.5)),
+                "rate_credit_correlation",
+            ),
+            (rates_credit_overrides(None, Some(0.02), Some(0.5)), "inert"),
+        ] {
+            let error = resolve_rates_credit_config(&overrides, 32)
+                .expect_err("invalid rates-credit configuration must fail");
+            assert!(error.to_string().contains(expected));
+        }
+
+        let mut scheduled = rates_credit_overrides(Some(0.01), None, None);
+        scheduled.model_config.hw1f_sigma_schedule = Some(
+            finstack_quant_core::math::piecewise::PiecewiseConstantCurve::new(
+                vec![0.0, 5.0],
+                vec![0.01, 0.012],
+            )
+            .expect("valid schedule fixture"),
+        );
+        assert!(resolve_rates_credit_config(&scheduled, 32)
+            .expect_err("unsupported schedule must fail")
+            .to_string()
+            .contains("hw1f_sigma_schedule"));
+    }
+
+    #[test]
+    fn resolver_rejects_legacy_channels_without_canonical_counterpart() {
+        let mut legacy_vol = InstrumentPricingOverrides::default();
+        legacy_vol.market_quotes.implied_volatility = Some(0.01);
+        assert!(resolve_rates_credit_config(&legacy_vol, 32)
+            .expect_err("legacy vol must fail")
+            .to_string()
+            .contains("implied_volatility"));
+
+        let mut legacy_reversion = InstrumentPricingOverrides::default();
+        legacy_reversion.model_config.mean_reversion = Some(0.03);
+        assert!(resolve_rates_credit_config(&legacy_reversion, 32)
+            .expect_err("legacy reversion must fail")
+            .to_string()
+            .contains("hw1f_mean_reversion"));
+    }
+
+    #[test]
+    fn canonical_fields_win_when_both_channels_are_set() {
+        let mut overrides = InstrumentPricingOverrides::default();
+        overrides.market_quotes.implied_volatility = Some(0.35);
+        overrides.model_config.mean_reversion = Some(0.09);
+        overrides.model_config.hw1f_sigma = Some(0.011);
+        overrides.model_config.hw1f_mean_reversion = Some(0.05);
+        let config = resolve_rates_credit_config(&overrides, 48)
+            .expect("canonical channels must take precedence");
+        assert_eq!(config.rate_vol, 0.011);
+        assert_eq!(config.rate_mean_reversion, 0.05);
+    }
 
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
     #[serde(deny_unknown_fields)]

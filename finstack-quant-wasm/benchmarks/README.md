@@ -25,7 +25,7 @@ wasm-bindgen output, not the `index.js` facade — and exits 1 with a build hint
 either `pkg-node/finstack_quant_wasm.js` or `pkg-node/finstack_quant_wasm_bg.wasm`
 is missing. Every symbol in the file is therefore a flat bindgen name
 (`w.priceEuropeanCall`, `w.csaUsdRegulatoryJson`), not a namespaced facade name
-(`monte_carlo.priceEuropeanCall`). That deliberately bypasses the facade layer so
+(`models.monteCarlo.priceEuropeanCall`). That deliberately bypasses the facade layer so
 the numbers are boundary cost only; it also means the benchmark does not exercise
 the wrappers `exports/*.js` installs.
 
@@ -49,7 +49,7 @@ Rows are grouped by a `domain` string, printed as the first column.
 | `core`                      | `Currency`, `Money` add/sub, `DayCount.yearFraction`, `DiscountCurve.df`, `ForwardCurve`, `FxMatrix`, `Tenor`, `Rate`/`Bps`/`Percentage`, `choleskyDecomposition`/`choleskySolve`, `mean`/`variance`/`quantile`/`kahanSum`, `normCdf`, `countConsecutive`, `availableCalendars`, `adjust`                                 |
 | `analytics`                 | `Performance` built from both prices and returns: `sharpe`, `volatility`, `sortino`, `meanReturn`, `downsideDeviation`, VaR/ES/parametric VaR, moments, `geometricMean`, `cumulativeReturns`, `excessReturns`, drawdown series and details, rolling sharpe/vol, `trackingError`, `informationRatio`, `rSquared`, `calmar` |
 | `correlation`               | `correlationBounds`, `jointProbabilities`, Gaussian copula `conditionalDefaultProb`, `RecoverySpec.constant().conditionalRecovery`                                                                                                                                                                                        |
-| `monte_carlo`               | `blackScholesCall`/`Put` closed forms, and European/Asian/American MC at **50,000 paths** per call (3–5 iterations each)                                                                                                                                                                                                  |
+| `models.monteCarlo`         | `blackScholesCall`/`Put` closed forms, and European/Asian/American MC at **50,000 paths** per call (3–5 iterations each)                                                                                                                                                                                                  |
 | `margin`                    | `csaUsdRegulatoryJson`, `csaEurRegulatoryJson`, `validateCsaJson`, `calculateVm`                                                                                                                                                                                                                                          |
 | `statements`                | `validateFinancialModelJson`, `modelNodeIds`                                                                                                                                                                                                                                                                              |
 | `statements_analytics`      | `runSensitivity`, `backtestForecast`, `runVariance`, `evaluateScenarioSet`, `generateTornadoEntries`, `runMonteCarlo`, `goalSeek`, `traceDependencies`, `explainFormula`                                                                                                                                                  |

@@ -2,11 +2,11 @@
 //!
 use super::super::super::super::types::Bond;
 use super::TreePricer;
-use crate::models::trees::hull_white_tree::HullWhiteTree;
-use crate::models::{NodeState, TreeValuator};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
+use finstack_quant_models::trees::hull_white_tree::HullWhiteTree;
+use finstack_quant_models::{NodeState, TreeValuator};
 
 /// Bond valuator for tree-based pricing of callable/putable bonds.
 ///
@@ -570,7 +570,7 @@ impl BondValuator {
     /// The deterministic projection of every coupon stays in
     /// `cashflow_vec`; the descriptors carry only the node-dependent
     /// increment (see
-    /// [`NodeCoupon`](crate::models::trees::two_factor_rates_credit::NodeCoupon)).
+    /// [`NodeCoupon`](finstack_quant_models::trees::two_factor_rates_credit::NodeCoupon)).
     ///
     /// # Errors
     ///
@@ -584,7 +584,7 @@ impl BondValuator {
     pub(crate) fn stochastic_node_coupons(
         &self,
         market_context: &MarketContext,
-    ) -> Result<Vec<crate::models::trees::two_factor_rates_credit::NodeCoupon>> {
+    ) -> Result<Vec<finstack_quant_models::trees::two_factor_rates_credit::NodeCoupon>> {
         use crate::instruments::common_impl::pricing::floating_reset_descriptors::{
             build_node_coupons, has_future_pik, params_from_spec, strips_index_constraints,
             validate_exercise_alignment, NodeCouponBuildInputs, SliceSnap,
@@ -787,14 +787,16 @@ impl BondValuator {
 impl TreeValuator for BondValuator {
     fn value_at_maturity(&self, state: &NodeState) -> Result<f64> {
         let final_step = self.time_steps.len() - 1;
-        let oas_rate = state.get_var_or(crate::models::short_rate_keys::OAS, 0.0) / 10_000.0;
+        let oas_rate =
+            state.get_var_or(finstack_quant_models::short_rate_keys::OAS, 0.0) / 10_000.0;
         let cashflow = self.cashflow_at_oas(final_step, oas_rate);
         Ok(cashflow)
     }
 
     fn value_at_node(&self, state: &NodeState, continuation_value: f64, dt: f64) -> Result<f64> {
         let step = state.step;
-        let oas_rate = state.get_var_or(crate::models::short_rate_keys::OAS, 0.0) / 10_000.0;
+        let oas_rate =
+            state.get_var_or(finstack_quant_models::short_rate_keys::OAS, 0.0) / 10_000.0;
         let coupon = self.cashflow_at_oas(step, oas_rate);
 
         // Call/put exercise logic:
@@ -875,12 +877,12 @@ const _: () = {
 mod tests {
     use super::*;
     use crate::instruments::fixed_income::bond::{Bond, CallPut, CallPutSchedule, CashflowSpec};
-    use crate::models::trees::tree_framework::map_date_to_step;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{DayCount, DayCountContext, Tenor};
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::money::Money;
+    use finstack_quant_models::trees::tree_framework::map_date_to_step;
     use time::macros::date;
 
     /// Item 8 regression: off-grid coupons on the **non-exercise** path are

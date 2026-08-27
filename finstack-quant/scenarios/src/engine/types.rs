@@ -240,20 +240,19 @@ pub struct RollForwardReport {
 pub struct ApplicationReport {
     /// Number of effects successfully applied to the execution context.
     ///
-    /// One user-level `OperationSpec` can produce multiple effects after
-    /// hierarchy expansion (e.g. a single `CurveParallelBp` targeting the
-    /// `USD` group may expand to one effect per USD-denominated discount or
-    /// forward curve). Prefer `user_operations` for scenario-level reporting
-    /// and this field for low-level audit.
+    /// One user-level operation can produce zero, one, or many effects after
+    /// hierarchy expansion and target resolution. This low-level effect count
+    /// is therefore not an operation-coverage ratio; inspect `changes` and
+    /// `warnings` to determine which targets changed or were skipped.
     pub operations_applied: usize,
     /// Number of user-provided `OperationSpec` entries in the scenario
     /// (before hierarchy expansion and deduplication).
     pub user_operations: usize,
     /// Number of direct (non-hierarchy) operations produced after hierarchy
-    /// expansion and resolution-mode deduplication. This is the count of
-    /// operations that the engine actually tried to execute; it is always
-    /// `>= user_operations` and is what should be compared to
-    /// `operations_applied` when assessing scenario coverage.
+    /// expansion and resolution-mode deduplication. No-match expansion and
+    /// deduplication can make this smaller than `user_operations`. Because
+    /// `operations_applied` counts effects rather than operations, the two
+    /// counters are not directly comparable.
     pub expanded_operations: usize,
 
     /// Authoritative metadata describing the state changed by applied effects.

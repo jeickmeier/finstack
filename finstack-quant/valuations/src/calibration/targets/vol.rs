@@ -8,11 +8,11 @@ use crate::calibration::validation::ValidationConfig;
 use crate::calibration::CalibrationReport;
 use crate::market::quotes::market_quote::MarketQuote;
 use crate::market::quotes::vol::VolQuote;
-use crate::models::{SABRCalibrator, SABRModel, SABRParameters};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::Result;
+use finstack_quant_models::{SABRCalibrator, SABRModel, SABRParameters};
 use std::collections::BTreeMap;
 
 use crate::calibration::constants::OrderedF64;
@@ -423,10 +423,10 @@ mod tests {
     use crate::instruments::OptionType;
     use crate::market::conventions::ids::OptionConventionId;
     use crate::market::quotes::ids::QuoteId;
-    use crate::models::SABRParameters;
     use finstack_quant_core::dates::{Date, DateExt};
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
+    use finstack_quant_models::SABRParameters;
     use time::Month;
 
     fn params(alpha: f64, beta: f64, nu: f64, rho: f64, shift: f64) -> SABRParameters {

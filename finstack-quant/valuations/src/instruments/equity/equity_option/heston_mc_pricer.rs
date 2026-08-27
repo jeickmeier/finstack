@@ -9,7 +9,6 @@ use crate::instruments::equity::equity_option::pricer::{
     collect_inputs_extended, require_european, resolve_lifecycle_value,
 };
 use crate::instruments::equity::equity_option::types::EquityOption;
-use crate::models::closed_form::heston::HestonParams as ClosedFormHestonParams;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
@@ -17,14 +16,13 @@ use crate::results::ValuationResult;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
-
-use finstack_quant_monte_carlo::discretization::qe_heston::QeHeston;
-use finstack_quant_monte_carlo::engine::McEngine;
-use finstack_quant_monte_carlo::payoff::vanilla::{EuropeanCall, EuropeanPut};
-use finstack_quant_monte_carlo::process::heston::{HestonParams, HestonProcess};
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::seed;
-use finstack_quant_monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::discretization::qe_heston::QeHeston;
+use finstack_quant_models::monte_carlo::engine::McEngine;
+use finstack_quant_models::monte_carlo::payoff::vanilla::{EuropeanCall, EuropeanPut};
+use finstack_quant_models::monte_carlo::process::heston::{HestonParams, HestonProcess};
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::seed;
+use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
 
 /// Equity option Heston Monte Carlo pricer.
 ///
@@ -95,7 +93,7 @@ impl EquityOptionHestonMcPricer {
         // (positive κ/θ/σᵥ/v₀, ρ ∈ (−1, 1)) is still enforced inside
         // `HestonParams::new`. We then convert to the MC engine's own
         // `HestonParams` struct.
-        let cf_params = ClosedFormHestonParams::from_market_strict(market, r, q)?;
+        let cf_params = crate::instruments::equity::equity_option::heston_market::heston_params_from_market_strict(market, r, q)?;
         let heston_params = HestonParams::new(
             cf_params.r,
             cf_params.q,

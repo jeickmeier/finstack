@@ -256,7 +256,7 @@ status = "exists"
 [crates.analytics.modules]
 aggregation  = { python = "finstack_quant.analytics", status = "flattened", note = "Reachable via Performance.period_stats; freestanding bindings removed in paredown" }
 benchmark    = { python = "finstack_quant.analytics", status = "flattened", note = "Reachable via Performance.beta / .greeks / .rolling_greeks; freestanding bindings removed" }
-correlation  = { python = "finstack_quant.valuations.correlation", status = "exists", note = "Rust-owned shared correlation infrastructure lives in finstack-quant-analytics; Python/WASM keep the historical valuations.correlation namespace" }
+correlation  = { python = "finstack_quant.models.correlation", status = "exists", note = "Matrix/statistical correlation remains analytics-owned; reusable copula and credit-correlation models are exposed through finstack_quant.models.correlation." }
 drawdown     = { python = "finstack_quant.analytics", status = "flattened", note = "Reachable via Performance.max_drawdown / .mean_drawdown / .drawdown_series / .drawdown_details" }
 lookback     = { python = "finstack_quant.analytics", status = "flattened", note = "Reachable via Performance.lookback_returns" }
 performance  = { python = "finstack_quant.analytics", status = "flattened", note = "Performance class is the sole entry point on finstack_quant.analytics. Known gap: Rust Performance::periodic_returns (the raw per-ticker (Date, f64) panel) is unbound in BOTH hosts — Python exposes only its DataFrame derivative periodic_returns_to_dataframe; WASM has no equivalent." }
@@ -597,44 +597,48 @@ symbols = [
 ]
 
 # ---------------------------------------------------------------------------
-# finstack-quant-monte-carlo  →  finstack_quant.monte_carlo
+# finstack-quant-models  ->  finstack_quant.models
 # ---------------------------------------------------------------------------
-[crates.monte_carlo]
-rust_crate = "finstack-quant-monte-carlo"
-rust_lib   = "finstack-quant/monte_carlo/src/lib.rs"
-python_package = "finstack_quant.monte_carlo"
+[crates.models]
+rust_crate = "finstack-quant-models"
+rust_lib   = "finstack-quant/models/src/lib.rs"
+python_package = "finstack_quant.models"
 visibility = "pub"
 status = "exists"
-# NOTE: the Python and WASM binding surfaces intentionally expose a compact,
-# productized subset of the Monte Carlo engine rather than every internal
-# payoff/process module.
 
-[crates.monte_carlo.modules]
-engine             = { python = "finstack_quant.monte_carlo", status = "flattened", note = "McEngine and process helpers exposed flat on finstack_quant.monte_carlo. McEngineConfig/McEngineBuilder/PathCaptureConfig/PathCaptureMode are Rust-only; hosts configure through the McEngine constructor." }
-estimate           = { python = "finstack_quant.monte_carlo", status = "flattened", note = "Estimate exposed flat on finstack_quant.monte_carlo" }
-gbm_paths          = { python = "finstack_quant.monte_carlo", status = "flattened", note = "Compact GbmPathSummary and simulate_gbm_paths exposed flat; generic process/path graph remains Rust-only" }
-greeks             = { python = "finstack_quant.monte_carlo", status = "flattened", note = "finite_diff_delta/_crn and finite_diff_gamma/_crn exposed flat on finstack_quant.monte_carlo. The LRM and pathwise Greeks estimators are Rust-only." }
-pricer             = { python = "finstack_quant.monte_carlo", status = "flattened", note = "European, path-dependent, LSMC, and canonical Heston pricing (price_heston_call/put from pricer::heston) exposed flat on finstack_quant.monte_carlo. LSMC basis types (LaguerreBasis, PolynomialBasis, LsmcBasis) and ExercisePolicy are Rust-only; hosts select bases by name." }
-results            = { python = "finstack_quant.monte_carlo", status = "flattened", note = "MoneyEstimate exposed flat on finstack_quant.monte_carlo. MonteCarloResult and RunMetadata are Rust-only." }
-time_grid          = { python = "finstack_quant.monte_carlo", status = "flattened", note = "TimeGrid exposed flat on finstack_quant.monte_carlo (uniform constructor, from_times, uniform_with_required_times). The date-to-step mapping helpers (map_date_to_step, map_dates_to_steps, map_exercise_dates_to_steps) are Rust-only." }
-variance_reduction = { python = "finstack_quant.monte_carlo", status = "flattened", note = "Black-Scholes analytical helpers exposed flat on finstack_quant.monte_carlo. Control-variate/antithetic strategy types are Rust-only." }
-# Rust-only, uncontracted-by-design modules: hosts consume these through the
-# productized pricer/engine entry points above, not as standalone bindings.
-barriers           = { python = "finstack_quant.monte_carlo.barriers", status = "missing", note = "Rust-only: barrier-crossing bridge adjustments (consumed by pricers)." }
-discretization     = { python = "finstack_quant.monte_carlo.discretization", status = "missing", note = "Rust-only: all discretization schemes (ExactGbm, EulerMaruyama, Milstein, QeHeston, QeCir, rough-vol schemes, ...)." }
-engine_fractional  = { python = "finstack_quant.monte_carlo.engine_fractional", status = "missing", note = "Rust-only: fractional-noise path simulation." }
-online_stats       = { python = "finstack_quant.monte_carlo.online_stats", status = "missing", note = "Rust-only: streaming estimator internals (OnlineStats, OnlineCovariance, required_samples)." }
-paths              = { python = "finstack_quant.monte_carlo.paths", status = "missing", note = "Rust-only: path capture dataset types (PathDataset, SimulatedPath, ProcessParams, ...); hosts see the compact GbmPathSummary." }
-payoff             = { python = "finstack_quant.monte_carlo.payoff", status = "missing", note = "Rust-only: payoff types (EuropeanCall/Put, Digital, Forward, Asian, barrier) incl. geometric_asian_call_closed_form; hosts select payoffs via pricer entry points." }
-process            = { python = "finstack_quant.monte_carlo.process", status = "missing", note = "Rust-only: stochastic process types (GBM, Heston, CIR, Hull-White, Brownian, Schwartz-Smith, ...); hosts pass raw parameters. The inclusive Feller predicate process::heston::feller_condition backs heston_satisfies_feller." }
-registry           = { python = "finstack_quant.monte_carlo.registry", status = "missing", note = "Rust-only: embedded runtime defaults. The shared defaults struct is named PythonBindingDefaults for historical reasons but feeds both host bindings and the canonical Rust convenience pricers." }
-rng                = { python = "finstack_quant.monte_carlo.rng", status = "missing", note = "Rust-only: PhiloxRng, SobolRng, and fractional-Brownian generators; hosts pass integer seeds." }
-seed               = { python = "finstack_quant.monte_carlo.seed", status = "missing", note = "Rust-only: seed-derivation helpers for deterministic stream splitting." }
-# `traits` (RandomStream/StochasticProcess/Discretization/Payoff) is excluded:
-# Rust trait contracts are not bindable surfaces.
-# `prelude` is excluded as a re-export convenience module.
+[crates.models.modules]
+types        = { python = "finstack_quant.models", status = "flattened", note = "Option model types are exposed at Rust boundaries; host functions accept primitive values." }
+closed_form  = { python = "finstack_quant.models", status = "flattened", note = "Black-Scholes, Black-76, and closed-form exotic helpers are exposed at the models root." }
+fourier      = { python = "finstack_quant.models", status = "flattened", note = "COS pricing helpers are exposed at the models root." }
+volatility   = { python = "finstack_quant.models", status = "flattened", note = "SABR wrappers are exposed at the models root." }
+pde          = { python = "finstack_quant.models.pde", status = "missing", note = "Rust-only numerical engines consumed by valuation instruments." }
+trees        = { python = "finstack_quant.models.trees", status = "missing", note = "Rust-only tree engines consumed by valuation instruments." }
+credit       = { python = "finstack_quant.models.credit", status = "exists", note = "Structural-credit model wrappers." }
+correlation  = { python = "finstack_quant.models.correlation", status = "exists", note = "Copula, recovery, and portfolio-loss infrastructure." }
+monte_carlo  = { python = "finstack_quant.models.monte_carlo", status = "exists", note = "Productized subset of the reusable stochastic engine." }
 
-[crates.monte_carlo.symbols]
+[crates.models.symbols]
+public = [
+    "SabrCalibrator",
+    "SabrModel",
+    "SabrParameters",
+    "SabrSmile",
+    "asian_option_price",
+    "barrier_call",
+    "black76_implied_vol",
+    "bs_cos_price",
+    "bs_greeks",
+    "bs_implied_vol",
+    "bs_price",
+    "lookback_option_price",
+    "merton_jump_cos_price",
+    "quanto_option_price",
+    "vanilla_expiry_payoff",
+    "vg_cos_price",
+]
+
+[crates.models.monte_carlo]
+python_package = "finstack_quant.models.monte_carlo"
 public = [
     "Estimate",
     "EuropeanPricer",
@@ -656,66 +660,6 @@ public = [
     "simulate_gbm_paths",
 ]
 
-# WASM intentionally retains `priceEuropeanCall` and `priceEuropeanPut` as
-# function-oriented browser entry points. Python exposes canonical European
-# GBM pricing through `EuropeanPricer` and `McEngine` methods instead.
-
-[wasm_monte_carlo_subset]
-status = "explicit_subset"
-note = "WASM monte_carlo is a function-oriented browser subset. The GBM European/Asian/American free functions have no Python free-function twins (Python uses the EuropeanPricer/PathDependentPricer/LsmcPricer/McEngine classes); the Heston pair delegates to the same canonical Rust pricer::heston entry points as Python."
-js_export_file = "../finstack-quant-wasm/exports/monte_carlo.js"
-root_exports = [
-  "priceEuropeanCall",
-  "priceEuropeanPut",
-  "priceHestonCall",
-  "priceHestonPut",
-  "priceAsianCall",
-  "priceAsianPut",
-  "priceAmericanPut",
-  "priceAmericanCall",
-  "priceAmericanPutUnbiased",
-  "priceAmericanCallUnbiased",
-  "blackScholesCall",
-  "blackScholesPut",
-]
-python_only = [
-  "Estimate",
-  "EuropeanPricer",
-  "GbmPathSummary",
-  "LsmcPricer",
-  "McEngine",
-  "MoneyEstimate",
-  "PathDependentPricer",
-  "TimeGrid",
-  "finite_diff_delta",
-  "finite_diff_delta_crn",
-  "finite_diff_gamma",
-  "finite_diff_gamma_crn",
-  "heston_satisfies_feller",
-  "simulate_gbm_paths",
-]
-
-[wasm_monte_carlo_subset.python_js_map]
-black_scholes_call = "blackScholesCall"
-black_scholes_put = "blackScholesPut"
-price_heston_call = "priceHestonCall"
-price_heston_put = "priceHestonPut"
-
-[wasm_monte_carlo_subset.wasm_only]
-symbols = [
-  "priceEuropeanCall",
-  "priceEuropeanPut",
-  "priceAsianCall",
-  "priceAsianPut",
-  "priceAmericanPut",
-  "priceAmericanCall",
-  "priceAmericanPutUnbiased",
-  "priceAmericanCallUnbiased",
-]
-
-# ---------------------------------------------------------------------------
-# finstack-quant-valuations  →  finstack_quant.valuations
-# ---------------------------------------------------------------------------
 [crates.valuations]
 rust_crate = "finstack-quant-valuations"
 rust_lib   = "finstack-quant/valuations/src/lib.rs"
@@ -728,10 +672,8 @@ status = "exists"
 # Top-level public modules. Symbol-level pinning for non-submodule public names
 # lives in [crates.valuations.symbols] below.
 instruments  = { python = "finstack_quant.valuations.instruments",  status = "exists", note = "Instrument JSON validation and pricing helpers live under finstack_quant.valuations.instruments" }
-models       = { python = "finstack_quant.valuations.models",       status = "exists", note = "Pricing model wrappers; structural credit lives under finstack_quant.valuations.models.credit" }
 calibration  = { python = "finstack_quant.valuations",              status = "flattened", note = "calibrate, dry_run, validate_calibration_json, dependency_graph_json exported from finstack_quant.valuations root" }
 composite    = { python = "finstack_quant.valuations.composite",    status = "exists", note = "Resolved generic composite instruments, primitive exposure reports, explicit rebalancing, and dated history." }
-correlation  = { python = "finstack_quant.valuations.correlation",  status = "exists", note = "Former standalone finstack-correlation crate; nested under valuations" }
 credit_derivatives = { python = "finstack_quant.valuations.credit_derivatives", status = "exists", note = "CDS-family example-payload factories; mirrors WASM valuations.creditDerivatives" }
 schema       = { python = "finstack_quant.valuations.schema",       status = "exists", note = "Compiled-in JSON Schema accessors and envelope/type validators; no WASM twin" }
 envelope     = { python = "finstack_quant.valuations.envelope",     status = "exists", note = "Pure-Python typing aid: the CalibrationEnvelope alias. Rust owns envelope validation and the versioned schema, so there is no Rust or WASM twin" }
@@ -752,27 +694,11 @@ results      = { python = "finstack_quant.valuations.results",      status = "mi
 # Existing PyO3/Python classes plus the broad JSON-native CalibrationEnvelope
 # alias from finstack-quant-py/finstack_quant/valuations/envelope.py.
 #
-# Documented rename: the `Sabr*` classes wrap the Rust `SABR*` types
-# (SABRParameters/SABRModel/SABRSmile/SABRCalibrator in
-# finstack_quant_valuations::models::volatility::sabr). Hosts use the
-# host-conventional acronym casing `Sabr*`, mirroring the documented
-# `CDS*` -> `Cds*` precedent.
 public = [
     "CalibrationEnvelope",
     "CalibrationEnvelopeError",
     "CalibrationResult",
-    "SabrCalibrator",
-    "SabrModel",
-    "SabrParameters",
-    "SabrSmile",
     "ValuationResult",
-    "asian_option_price",
-    "barrier_call",
-    "black76_implied_vol",
-    "bs_cos_price",
-    "bs_greeks",
-    "bs_implied_vol",
-    "bs_price",
     "calibrate",
     "callable_range_accrual_accrued",
     "cms_spread_option_intrinsic",
@@ -780,14 +706,9 @@ public = [
     "dry_run",
     "instrument_cashflows",
     "inverse_floater_coupon_profile",
-    "lookback_option_price",
-    "merton_jump_cos_price",
-    "quanto_option_price",
     "snowball_coupon_profile",
     "tarn_coupon_profile",
     "validate_calibration_json",
-    "vanilla_expiry_payoff",
-    "vg_cos_price",
 ]
 
 [crates.valuations.composite]
@@ -827,16 +748,16 @@ public = [
     "listed_product_catalog",
 ]
 
-# Symbol-level pinning for finstack_quant.valuations.correlation — every name in
-# `finstack_quant.valuations.correlation.__all__` must appear here (alphabetical,
+# Symbol-level pinning for finstack_quant.models.correlation — every name in
+# `finstack_quant.models.correlation.__all__` must appear here (alphabetical,
 # matching the package __all__ ordering). Python names mirror the canonical
-# Rust names in finstack_quant_valuations::correlation (LatentFactorKind, not
+# Rust names in finstack_quant_models::correlation (LatentFactorKind, not
 # LatentFactor) with one documented rename: hosts expose `nearest_correlation`
 # for the Rust `nearest_correlation_matrix` (canonical home
 # finstack_quant_analytics::correlation, re-exported through
-# finstack_quant_valuations::correlation).
-[crates.valuations.correlation]
-python_package = "finstack_quant.valuations.correlation"
+# finstack_quant_models::correlation).
+[crates.models.correlation]
+python_package = "finstack_quant.models.correlation"
 public = [
     "MAX_PORTFOLIO_LOSS_PATHS",
     "Copula",
@@ -937,14 +858,8 @@ public = [
     "validate_typed_instrument_json",
 ]
 
-[crates.valuations.models]
-python_package = "finstack_quant.valuations.models"
-public = [
-    "credit",
-]
-
-[crates.valuations.models.credit]
-python_package = "finstack_quant.valuations.models.credit"
+[crates.models.credit]
+python_package = "finstack_quant.models.credit"
 public = [
     "AssetDynamics",
     "BarrierType",
@@ -2171,7 +2086,7 @@ names = [
     "factor_model",
     "features",
     "margin",
-    "monte_carlo",
+    "models",
     "portfolio",
     "scenarios",
     # `finstack_quant.schema` binds the umbrella crate's own `schema` module
@@ -2201,7 +2116,7 @@ namespaces = [
     "factor_model",
     "features",
     "margin",
-    "monte_carlo",
+    "models",
     "portfolio",
     "scenarios",
     "statements",
@@ -2517,6 +2432,167 @@ wasm_only = [
 "MarketContext.insert" = "MarketContext is Python-only; use calibrate JSON to materialize market state."
 
 # ---------------------------------------------------------------------------
+# WASM models subset
+# ---------------------------------------------------------------------------
+[wasm_models_subset]
+rust_module_root = "../finstack-quant-wasm/src/api/models/"
+js_export_file   = "../finstack-quant-wasm/exports/models.js"
+nested = ["correlation", "credit", "monteCarlo"]
+root_exports = [
+    "SabrCalibrator",
+    "SabrModel",
+    "SabrParameters",
+    "SabrSmile",
+    "asianOptionPrice",
+    "barrierCall",
+    "black76ImpliedVol",
+    "bsCosPrice",
+    "bsGreeks",
+    "bsImpliedVol",
+    "bsPrice",
+    "lookbackOptionPrice",
+    "mertonJumpCosPrice",
+    "quantoOptionPrice",
+    "vanillaExpiryPayoff",
+    "vgCosPrice",
+]
+
+[wasm_models_subset.python_js_map]
+bs_price = "bsPrice"
+vanilla_expiry_payoff = "vanillaExpiryPayoff"
+bs_greeks = "bsGreeks"
+bs_implied_vol = "bsImpliedVol"
+black76_implied_vol = "black76ImpliedVol"
+barrier_call = "barrierCall"
+asian_option_price = "asianOptionPrice"
+lookback_option_price = "lookbackOptionPrice"
+quanto_option_price = "quantoOptionPrice"
+bs_cos_price = "bsCosPrice"
+vg_cos_price = "vgCosPrice"
+merton_jump_cos_price = "mertonJumpCosPrice"
+SabrParameters = "SabrParameters"
+SabrModel = "SabrModel"
+SabrSmile = "SabrSmile"
+SabrCalibrator = "SabrCalibrator"
+
+[wasm_models_subset.nested_exports]
+correlation = [
+    "Copula",
+    "CopulaSpec",
+    "RecoveryModel",
+    "RecoverySpec",
+    "correlationBounds",
+    "jointProbabilities",
+    "nearestCorrelation",
+    "trancheLossStatistics",
+    "validateCorrelationMatrix",
+]
+credit = [
+    "creditGradesModelJson",
+    "creditStateJson",
+    "dynamicRecoveryAtNotional",
+    "dynamicRecoveryConstantJson",
+    "endogenousHazardAfterPikAccrual",
+    "endogenousHazardAtLeverage",
+    "endogenousHazardPowerLawJson",
+    "mertonCdsParSpread",
+    "mertonDebtSpread",
+    "mertonDefaultProbability",
+    "mertonDefaultProbabilityWithDrift",
+    "mertonDistanceToDefault",
+    "mertonDistanceToDefaultWithDrift",
+    "mertonFromCdsSpreadJson",
+    "mertonFromEquityJson",
+    "mertonFromTargetPdJson",
+    "mertonImpliedSpread",
+    "mertonKmvDefaultPoint",
+    "mertonModelJson",
+    "mertonModelWithDynamicsJson",
+    "mertonSimulatePathsJson",
+    "mertonToHazardCurveJson",
+    "mertonTryImpliedEquity",
+    "toggleExerciseOptimalJson",
+    "toggleExerciseThresholdJson",
+]
+monteCarlo = [
+    "blackScholesCall",
+    "blackScholesPut",
+    "priceAmericanCall",
+    "priceAmericanCallUnbiased",
+    "priceAmericanPut",
+    "priceAmericanPutUnbiased",
+    "priceAsianCall",
+    "priceAsianPut",
+    "priceEuropeanCall",
+    "priceEuropeanPut",
+    "priceHestonCall",
+    "priceHestonPut",
+]
+
+[wasm_models_subset.nested_python_only]
+monteCarlo = [
+    "Estimate",
+    "EuropeanPricer",
+    "GbmPathSummary",
+    "LsmcPricer",
+    "McEngine",
+    "MoneyEstimate",
+    "PathDependentPricer",
+    "TimeGrid",
+    "finite_diff_delta",
+    "finite_diff_delta_crn",
+    "finite_diff_gamma",
+    "finite_diff_gamma_crn",
+    "heston_satisfies_feller",
+    "simulate_gbm_paths",
+]
+
+[wasm_models_subset.nested_wasm_only]
+monteCarlo = [
+    "priceAmericanCall",
+    "priceAmericanCallUnbiased",
+    "priceAmericanPut",
+    "priceAmericanPutUnbiased",
+    "priceAsianCall",
+    "priceAsianPut",
+    "priceEuropeanCall",
+    "priceEuropeanPut",
+]
+
+[wasm_models_subset.monte_carlo_python_js_map]
+black_scholes_call = "blackScholesCall"
+black_scholes_put = "blackScholesPut"
+price_heston_call = "priceHestonCall"
+price_heston_put = "priceHestonPut"
+
+[wasm_models_subset.correlation_members]
+"CopulaSpec.gaussian" = "gaussian"
+"CopulaSpec.student_t" = "studentT"
+"CopulaSpec.random_factor_loading" = "randomFactorLoading"
+"CopulaSpec.multi_factor" = "multiFactor"
+"CopulaSpec.build" = "build"
+"CopulaSpec.is_gaussian" = "isGaussian"
+"CopulaSpec.is_student_t" = "isStudentT"
+"CopulaSpec.is_rfl" = "isRfl"
+"CopulaSpec.is_multi_factor" = "isMultiFactor"
+"Copula.conditional_default_prob" = "conditionalDefaultProb"
+"Copula.num_factors" = "numFactors"
+"Copula.model_name" = "modelName"
+"Copula.tail_dependence" = "tailDependence"
+"Copula.stress_correlation_proxy" = "stressCorrelationProxy"
+"RecoverySpec.constant" = "constant"
+"RecoverySpec.market_correlated" = "marketCorrelated"
+"RecoverySpec.market_standard_stochastic" = "marketStandardStochastic"
+"RecoverySpec.expected_recovery" = "expectedRecovery"
+"RecoverySpec.build" = "build"
+"RecoveryModel.expected_recovery" = "expectedRecovery"
+"RecoveryModel.conditional_recovery" = "conditionalRecovery"
+"RecoveryModel.lgd" = "lgd"
+"RecoveryModel.conditional_lgd" = "conditionalLgd"
+"RecoveryModel.recovery_volatility" = "recoveryVolatility"
+"RecoveryModel.is_stochastic" = "isStochastic"
+"RecoveryModel.model_name" = "modelName"
+
 # WASM valuations subset
 #
 # Python tracks the full valuations surface via [crates.valuations.symbols].
@@ -2528,38 +2604,22 @@ rust_module_root = "../finstack-quant-wasm/src/api/valuations/"
 js_export_file   = "../finstack-quant-wasm/exports/valuations.js"
 
 # Nested facade keys on `valuations` (camelCase).
-nested = ["composite", "correlation", "credit", "creditDerivatives", "fx", "instruments", "market"]
+nested = ["composite", "creditDerivatives", "fx", "instruments", "market"]
 
 # Root-level `valuations.<name>` exports (camelCase / PascalCase as in JS).
 # Instrument pricing helpers live under `valuations.instruments`.
 root_exports = [
-    "SabrCalibrator",
-    "SabrModel",
-    "SabrParameters",
-    "SabrSmile",
     "Market",
-    "asianOptionPrice",
-    "barrierCall",
-    "black76ImpliedVol",
-    "bsCosPrice",
-    "bsGreeks",
-    "bsImpliedVol",
-    "bsPrice",
     "calibrate",
     "callableRangeAccrualAccrued",
     "cmsSpreadOptionIntrinsic",
     "dependencyGraphJson",
     "dryRun",
     "inverseFloaterCouponProfile",
-    "lookbackOptionPrice",
-    "mertonJumpCosPrice",
-    "quantoOptionPrice",
     "snowballCouponProfile",
     "tarnCouponProfile",
     "validateCalibrationJson",
     "validateValuationResultJson",
-    "vanillaExpiryPayoff",
-    "vgCosPrice",
 ]
 
 # Python-only valuations symbols (not on WASM valuations facade).
@@ -2580,18 +2640,6 @@ wasm_only = [
 # Explicit python_snake_case -> js_name for root exports (triplet pinning).
 # Omitted entries follow default camelCase from snake_case.
 [wasm_valuations_subset.python_js_map]
-bs_price = "bsPrice"
-vanilla_expiry_payoff = "vanillaExpiryPayoff"
-bs_greeks = "bsGreeks"
-bs_implied_vol = "bsImpliedVol"
-black76_implied_vol = "black76ImpliedVol"
-barrier_call = "barrierCall"
-asian_option_price = "asianOptionPrice"
-lookback_option_price = "lookbackOptionPrice"
-quanto_option_price = "quantoOptionPrice"
-bs_cos_price = "bsCosPrice"
-vg_cos_price = "vgCosPrice"
-merton_jump_cos_price = "mertonJumpCosPrice"
 tarn_coupon_profile = "tarnCouponProfile"
 snowball_coupon_profile = "snowballCouponProfile"
 inverse_floater_coupon_profile = "inverseFloaterCouponProfile"
@@ -2599,10 +2647,6 @@ cms_spread_option_intrinsic = "cmsSpreadOptionIntrinsic"
 callable_range_accrual_accrued = "callableRangeAccrualAccrued"
 validate_calibration_json = "validateCalibrationJson"
 dependency_graph_json = "dependencyGraphJson"
-SabrParameters = "SabrParameters"
-SabrModel = "SabrModel"
-SabrSmile = "SabrSmile"
-SabrCalibrator = "SabrCalibrator"
 calibrate = "calibrate"
 dry_run = "dryRun"
 
@@ -2655,48 +2699,6 @@ composite = [
     "initialize",
     "primitiveExposures",
     "rebalance",
-]
-# Known kind mismatch: `trancheLossStatistics` is a free FUNCTION on the WASM
-# facade, while Python's `TrancheLossStatistics` is a result CLASS (pinned in
-# [crates.valuations.correlation]). The WASM function returns the same
-# statistics as a plain object; a WASM class wrapper has not been built.
-correlation = [
-    "Copula",
-    "CopulaSpec",
-    "RecoveryModel",
-    "RecoverySpec",
-    "correlationBounds",
-    "jointProbabilities",
-    "nearestCorrelation",
-    "trancheLossStatistics",
-    "validateCorrelationMatrix",
-]
-credit = [
-    "creditGradesModelJson",
-    "creditStateJson",
-    "dynamicRecoveryAtNotional",
-    "dynamicRecoveryConstantJson",
-    "endogenousHazardAfterPikAccrual",
-    "endogenousHazardAtLeverage",
-    "endogenousHazardPowerLawJson",
-    "mertonCdsParSpread",
-    "mertonDebtSpread",
-    "mertonDefaultProbability",
-    "mertonDefaultProbabilityWithDrift",
-    "mertonDistanceToDefault",
-    "mertonDistanceToDefaultWithDrift",
-    "mertonFromCdsSpreadJson",
-    "mertonFromEquityJson",
-    "mertonFromTargetPdJson",
-    "mertonImpliedSpread",
-    "mertonKmvDefaultPoint",
-    "mertonModelJson",
-    "mertonModelWithDynamicsJson",
-    "mertonSimulatePathsJson",
-    "mertonToHazardCurveJson",
-    "mertonTryImpliedEquity",
-    "toggleExerciseOptimalJson",
-    "toggleExerciseThresholdJson",
 ]
 creditDerivatives = [
     "cdsIndexExampleJson",
@@ -2881,52 +2883,6 @@ FxOption = [
 python_only = ["builder", "__reduce__"]
 wasm_only = ["new"]
 
-# Member-level pinning for the shared valuations.correlation classes.
-#
-# Export-name pins alone cannot detect method drift on classes exposed in
-# both hosts, so every member shared by Python and WASM is pinned here as
-# python_snake_case = "wasmCamelCase" (keys are "ClassName.python_member").
-# Host-managed members (`free`, `__repr__`) are not listed.
-#
-# Intentional exclusions (Rust-only, by design):
-# - Concrete copulas (`GaussianCopula`, `StudentTCopula`,
-#   `RandomFactorLoadingCopula`, `MultiFactorCopula`) and concrete
-#   recoveries (`ConstantRecovery`, `CorrelatedRecovery`): hosts construct
-#   via the spec types only. The RFL-only `stress_correlation_proxy`
-#   diagnostic is surfaced through `Copula.stress_correlation_proxy`
-#   (throws for non-RFL models).
-# - Simulation-oriented `Copula` trait methods
-#   (`conditional_default_prob_with_sector`,
-#   `conditional_default_prob_given_systematic_and_mixing`, `integrate_fn`,
-#   `latent_variable`, `sample_mixing`): MC-engine internals, not part of
-#   the host-facing surface.
-[wasm_valuations_subset.correlation_members]
-"CopulaSpec.gaussian" = "gaussian"
-"CopulaSpec.student_t" = "studentT"
-"CopulaSpec.random_factor_loading" = "randomFactorLoading"
-"CopulaSpec.multi_factor" = "multiFactor"
-"CopulaSpec.build" = "build"
-"CopulaSpec.is_gaussian" = "isGaussian"
-"CopulaSpec.is_student_t" = "isStudentT"
-"CopulaSpec.is_rfl" = "isRfl"
-"CopulaSpec.is_multi_factor" = "isMultiFactor"
-"Copula.conditional_default_prob" = "conditionalDefaultProb"
-"Copula.num_factors" = "numFactors"
-"Copula.model_name" = "modelName"
-"Copula.tail_dependence" = "tailDependence"
-"Copula.stress_correlation_proxy" = "stressCorrelationProxy"
-"RecoverySpec.constant" = "constant"
-"RecoverySpec.market_correlated" = "marketCorrelated"
-"RecoverySpec.market_standard_stochastic" = "marketStandardStochastic"
-"RecoverySpec.expected_recovery" = "expectedRecovery"
-"RecoverySpec.build" = "build"
-"RecoveryModel.expected_recovery" = "expectedRecovery"
-"RecoveryModel.conditional_recovery" = "conditionalRecovery"
-"RecoveryModel.lgd" = "lgd"
-"RecoveryModel.conditional_lgd" = "conditionalLgd"
-"RecoveryModel.recovery_volatility" = "recoveryVolatility"
-"RecoveryModel.is_stochastic" = "isStochastic"
-"RecoveryModel.model_name" = "modelName"
 
 # ---------------------------------------------------------------------------
 # Intentionally NOT covered by parity tests

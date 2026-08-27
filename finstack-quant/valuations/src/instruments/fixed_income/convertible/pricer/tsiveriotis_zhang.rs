@@ -4,7 +4,7 @@ use finstack_quant_core::HashMap;
 use finstack_quant_core::InputError;
 use finstack_quant_core::{Error, Result};
 
-use crate::models::EvolutionParams;
+use finstack_quant_models::EvolutionParams;
 
 use super::pricing::ConvertibleTreeType;
 use super::valuator::ConvertibleBondValuator;

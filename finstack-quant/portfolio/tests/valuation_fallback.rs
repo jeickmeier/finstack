@@ -399,3 +399,46 @@ fn empty_metric_request_preserves_canonical_valuation_result() {
         }))
     ));
 }
+
+#[test]
+fn scenario_pnl_rejects_noncanonical_pv_fallback() {
+    let position = Position::new(
+        "P_SCENARIO_STRICT",
+        "E_SCENARIO_STRICT",
+        "SCENARIO_STRICT",
+        Arc::new(ValueOnlyInstrument::new(
+            "SCENARIO_STRICT",
+            Currency::USD,
+            321.0,
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .expect("position");
+    let portfolio = PortfolioBuilder::new("PF_SCENARIO_STRICT")
+        .base_currency(Currency::USD)
+        .as_of(base_date())
+        .entity(Entity::new("E_SCENARIO_STRICT"))
+        .position(position)
+        .build()
+        .expect("portfolio");
+    let scenario = finstack_quant_scenarios::ScenarioSpec {
+        id: "strict_pv".into(),
+        name: None,
+        description: None,
+        operations: Vec::new(),
+        priority: 0,
+        resolution_mode: Default::default(),
+        hazard_bump_mode: Default::default(),
+    };
+
+    let error = finstack_quant_portfolio::scenarios::scenario_pnl(
+        &portfolio,
+        &scenario,
+        &market_with_usd(),
+        &FinstackConfig::default(),
+    )
+    .expect_err("scenario P&L must not switch to Instrument::value");
+
+    assert!(error.to_string().contains("P_SCENARIO_STRICT"));
+}

@@ -51,9 +51,7 @@ fn is_pricing_domain(domain: &str) -> bool {
 /// Run a fixture end-to-end and return one comparison result per expected metric.
 pub fn run_fixture(fixture: &GoldenFixture) -> Result<Vec<ComparisonResult>, String> {
     let domain = fixture.metadata.domain.as_str();
-    let actuals = if domain == "volatility.sabr" {
-        crate::golden::sabr::run_sabr_fixture(fixture)?
-    } else if is_pricing_domain(domain) {
+    let actuals = if is_pricing_domain(domain) {
         crate::golden::pricing_common::run_pricing_fixture(fixture)?
     } else {
         return Err(format!("no runner registered for domain '{domain}'"));

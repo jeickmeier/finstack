@@ -33,7 +33,7 @@ pub(crate) fn scalar_price_amount(
 
 pub(crate) fn attach_mc_diagnostics(
     result: &mut crate::results::ValuationResult,
-    estimate: &finstack_quant_monte_carlo::results::MoneyEstimate,
+    estimate: &finstack_quant_models::monte_carlo::results::MoneyEstimate,
 ) {
     for (id, value) in [
         ("mc_stderr", estimate.stderr),
@@ -291,7 +291,7 @@ pub fn resolve_optional_dividend_yield(
 /// matches the maturity-effective rate `r` exactly at `t` (terminal
 /// forward/discount consistency). The dividend leg uses the scalar yield `q`.
 ///
-/// Attaching the result to a [`GbmProcess`](finstack_quant_monte_carlo::process::gbm::GbmProcess)
+/// Attaching the result to a [`GbmProcess`](finstack_quant_models::monte_carlo::process::gbm::GbmProcess)
 /// removes the per-fixing forward bias the constant maturity-averaged drift
 /// introduces for path-dependent (Asian, lookback) Monte Carlo pricing on a
 /// non-flat curve. On a flat curve `M(t) = (r − q)·t`, so the schedule is
@@ -308,8 +308,8 @@ pub fn build_gbm_drift_schedule(
     q: f64,
     t: f64,
     num_steps: usize,
-) -> finstack_quant_core::Result<finstack_quant_monte_carlo::process::gbm::DriftSchedule> {
-    use finstack_quant_monte_carlo::process::gbm::DriftSchedule;
+) -> finstack_quant_core::Result<finstack_quant_models::monte_carlo::process::gbm::DriftSchedule> {
+    use finstack_quant_models::monte_carlo::process::gbm::DriftSchedule;
 
     let knots = num_steps.max(1);
     // `DiscountCurve::df(t)` is measured from the curve base date.  The
@@ -425,10 +425,10 @@ pub fn resolve_mc_paths(
 /// Returns `Validation` when the override exceeds `MAX_MC_PATHS`.
 #[inline]
 pub fn merged_path_config(
-    base: &finstack_quant_monte_carlo::pricer::path_dependent::PathDependentPricerConfig,
+    base: &finstack_quant_models::monte_carlo::pricer::path_dependent::PathDependentPricerConfig,
     overrides: &crate::instruments::InstrumentPricingOverrides,
 ) -> finstack_quant_core::Result<
-    finstack_quant_monte_carlo::pricer::path_dependent::PathDependentPricerConfig,
+    finstack_quant_models::monte_carlo::pricer::path_dependent::PathDependentPricerConfig,
 > {
     let mut c = base.clone();
     c.num_paths = resolve_mc_paths(overrides.model_config.mc_paths, c.num_paths)?;

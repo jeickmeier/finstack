@@ -9,7 +9,9 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
 
-pub(crate) use finstack_quant_core::validation::{require_or, require_with};
+pub(crate) use finstack_quant_core::validation::{
+    require_or, require_with, validate_f64_finite, validate_f64_non_negative, validate_f64_positive,
+};
 
 /// Validate `end > start` for a date range.
 #[inline]
@@ -112,33 +114,6 @@ pub(crate) fn validate_distinct_currencies(
         format!(
             "{instrument_name} base_currency ({base}) must differ from quote_currency ({quote})"
         )
-    })
-}
-
-/// Validate that a floating-point value is finite.
-#[inline]
-pub(crate) fn validate_f64_finite(value: f64, context: &str) -> finstack_quant_core::Result<()> {
-    require_with(value.is_finite(), || {
-        format!("Invalid {}: must be finite.", context)
-    })
-}
-
-/// Validate that a floating-point value is positive (> 0).
-#[inline]
-pub(crate) fn validate_f64_positive(value: f64, context: &str) -> finstack_quant_core::Result<()> {
-    require_with(value.is_finite() && value > 0.0, || {
-        format!("Invalid {}: must be positive, got {}", context, value)
-    })
-}
-
-/// Validate that a floating-point value is non-negative (>= 0).
-#[inline]
-pub(crate) fn validate_f64_non_negative(
-    value: f64,
-    context: &str,
-) -> finstack_quant_core::Result<()> {
-    require_with(value.is_finite() && value >= 0.0, || {
-        format!("Invalid {}: must be non-negative, got {}", context, value)
     })
 }
 

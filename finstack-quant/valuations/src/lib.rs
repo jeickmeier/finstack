@@ -48,8 +48,8 @@
 //! ## Models and Calibration
 //!
 //! - [`crate::calibration`]: curve and surface calibration.
-//! - [`crate::models`]: pricing models and numerical methods.
-//! - [`crate::correlation`]: credit correlation models.
+//!
+//! Product-independent model engines are provided by [`finstack_quant_models`].
 //!
 //! ## Supporting APIs
 //!
@@ -104,17 +104,10 @@ pub(crate) use finstack_quant_cashflows as cashflow;
 /// Shared numerical constants and basis point helpers.
 pub mod constants;
 pub(crate) mod contract_specs;
-/// Copula, factor, and recovery models for credit correlation.
-///
-/// Provides reusable correlation infrastructure used across credit instruments
-/// (CDS tranche pricing, structured credit engines, portfolio credit risk).
-pub mod correlation;
 /// Error types for pricing and valuation workflows.
 pub mod error;
 /// Market quotes and conventions
 pub mod market;
-/// Pricing models and numerical methods.
-pub mod models;
 /// Convenient re-exports for pricing and risk calculations.
 pub mod prelude;
 /// Pricing dispatch and registry infrastructure.

@@ -635,11 +635,11 @@ async function main() {
     w.jointProbabilities(0.05, 0.08, 0.2);
   });
 
-  bench('monte_carlo', 'priceEuropeanCall (50k paths)', 5, () => {
+  bench('models.monteCarlo', 'priceEuropeanCall (50k paths)', 5, () => {
     w.priceEuropeanCall(100, 100, 0.05, 0.0, 0.2, 1.0, 50000, 42n, 64, 'USD');
   });
 
-  bench('monte_carlo', 'blackScholesCall', 20000, () => {
+  bench('models.monteCarlo', 'blackScholesCall', 20000, () => {
     w.blackScholesCall(100, 100, 0.05, 0.0, 0.2, 1.0);
   });
 
@@ -872,19 +872,19 @@ async function main() {
     recoveryBuilt.conditionalRecovery(-0.15);
   });
 
-  bench('monte_carlo', 'priceEuropeanPut (50k paths)', 5, () => {
+  bench('models.monteCarlo', 'priceEuropeanPut (50k paths)', 5, () => {
     w.priceEuropeanPut(100, 100, 0.05, 0.0, 0.2, 1.0, 50000, 42n, 64, 'USD');
   });
 
-  bench('monte_carlo', 'blackScholesPut', 20000, () => {
+  bench('models.monteCarlo', 'blackScholesPut', 20000, () => {
     w.blackScholesPut(100, 100, 0.05, 0.0, 0.2, 1.0);
   });
 
-  benchTry('monte_carlo', 'priceAsianCall (50k paths)', 4, () => {
+  benchTry('models.monteCarlo', 'priceAsianCall (50k paths)', 4, () => {
     w.priceAsianCall(100, 100, 0.05, 0.0, 0.2, 1.0, 50000, 42n, 64, 'USD');
   });
 
-  benchTry('monte_carlo', 'priceAmericanPut (50k paths)', 3, () => {
+  benchTry('models.monteCarlo', 'priceAmericanPut (50k paths)', 3, () => {
     w.priceAmericanPut(100, 100, 0.05, 0.0, 0.2, 1.0, 50000, 42n, 50, 'USD');
   });
 

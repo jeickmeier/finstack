@@ -15,10 +15,10 @@
 #![allow(clippy::unwrap_used)]
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use finstack_quant_models::credit::{BarrierType, MertonModel};
 use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::merton_mc::{
     BarrierCrossing, MertonMcConfig, MertonMcEngine, PikMode, PikSchedule,
 };
-use finstack_quant_valuations::models::credit::{BarrierType, MertonModel};
 use std::hint::black_box;
 
 // Shared fixtures
@@ -39,7 +39,7 @@ fn first_passage_merton() -> MertonModel {
         BarrierType::FirstPassage {
             barrier_growth_rate: 0.02,
         },
-        finstack_quant_valuations::models::credit::AssetDynamics::GeometricBrownian,
+        finstack_quant_models::credit::AssetDynamics::GeometricBrownian,
     )
     .unwrap()
 }

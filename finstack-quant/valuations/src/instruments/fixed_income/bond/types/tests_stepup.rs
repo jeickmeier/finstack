@@ -256,7 +256,7 @@ fn test_bond_serde_roundtrip_preserves_funding_curve_id() {
 #[test]
 fn bond_price_merton_mc_api() {
     use crate::instruments::fixed_income::bond::pricing::engine::merton_mc::MertonMcConfig;
-    use crate::models::credit::MertonModel;
+    use finstack_quant_models::credit::MertonModel;
 
     // Use Corporate convention (30/360) to avoid ActActIsma frequency requirement
     let bond = Bond::with_convention(
@@ -291,8 +291,8 @@ fn bond_price_merton_mc_api() {
 fn bond_price_merton_mc_rejects_amortizing() {
     use crate::cashflow::builder::AmortizationSpec;
     use crate::instruments::fixed_income::bond::pricing::engine::merton_mc::MertonMcConfig;
-    use crate::models::credit::MertonModel;
     use finstack_quant_core::types::CurveId;
+    use finstack_quant_models::credit::MertonModel;
 
     let issue = Date::from_calendar_date(2025, Month::January, 1).expect("valid");
     let maturity = Date::from_calendar_date(2028, Month::January, 1).expect("valid");

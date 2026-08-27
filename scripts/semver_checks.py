@@ -21,7 +21,7 @@ PACKAGE_RENAMES = {
     "finstack-covenants": "finstack-quant-covenants",
     "finstack-factor-model": "finstack-quant-factor-model",
     "finstack-margin": "finstack-quant-margin",
-    "finstack-monte-carlo": "finstack-quant-monte-carlo",
+    "finstack-monte-carlo": "finstack-quant-models",
     "finstack-portfolio": "finstack-quant-portfolio",
     "finstack-py": "finstack-quant-py",
     "finstack-scenarios": "finstack-quant-scenarios",

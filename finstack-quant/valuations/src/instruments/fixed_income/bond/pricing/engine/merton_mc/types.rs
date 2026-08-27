@@ -1,7 +1,7 @@
-use crate::models::credit::{
+use finstack_quant_core::credit::registry::default_market_recovery_rate;
+use finstack_quant_models::credit::{
     BarrierType, DynamicRecoverySpec, EndogenousHazardSpec, MertonModel, ToggleExerciseModel,
 };
-use finstack_quant_core::credit::registry::default_market_recovery_rate;
 
 // PIK schedule types
 
@@ -225,7 +225,7 @@ impl MertonMcConfig {
     /// Defaults are sourced from the embedded Monte Carlo and credit assumptions registries.
     #[must_use]
     pub fn new(merton: MertonModel) -> Self {
-        let defaults = &finstack_quant_monte_carlo::registry::embedded_defaults_or_panic()
+        let defaults = &finstack_quant_models::monte_carlo::registry::embedded_defaults_or_panic()
             .rust
             .merton_pik_bond;
         let barrier_crossing = match merton.barrier_type() {

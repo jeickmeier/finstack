@@ -36,7 +36,7 @@ pub struct RateExoticMcConfig {
 
 impl Default for RateExoticMcConfig {
     fn default() -> Self {
-        let defaults = &finstack_quant_monte_carlo::registry::embedded_defaults_or_panic()
+        let defaults = &finstack_quant_models::monte_carlo::registry::embedded_defaults_or_panic()
             .rust
             .rate_exotics;
         Self {

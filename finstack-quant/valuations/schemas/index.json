@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "$id": "https://finstack_quant.dev/schemas/calibration/1/calibration.schema.json",
-      "bytes": 224810,
+      "bytes": 224860,
       "kind": "input",
       "path": "schemas/calibration/1/calibration.schema.json",
       "summary": "Build a market from quotes: a calibration plan, flat market data, and any pre-built curves or surfaces.",
@@ -74,7 +74,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
-      "bytes": 85932,
+      "bytes": 85964,
       "kind": "component",
       "path": "schemas/common/1/instrument_pricing_overrides.schema.json",
       "summary": "Instrument-owned market quote and model configuration overrides.",
@@ -122,7 +122,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_asian_option.schema.json",
-      "bytes": 8495,
+      "bytes": 8545,
       "kind": "input",
       "path": "schemas/instruments/1/commodity/commodity_asian_option.schema.json",
       "summary": "Commodity option on an average settlement price.",
@@ -146,7 +146,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_future_option.schema.json",
-      "bytes": 13056,
+      "bytes": 13117,
       "kind": "input",
       "path": "schemas/instruments/1/commodity/commodity_future_option.schema.json",
       "summary": "Exchange-listed option on a commodity future.",
@@ -154,7 +154,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_option.schema.json",
-      "bytes": 12395,
+      "bytes": 12456,
       "kind": "input",
       "path": "schemas/instruments/1/commodity/commodity_option.schema.json",
       "summary": "Option on a commodity forward or future.",
@@ -162,7 +162,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_spread_option.schema.json",
-      "bytes": 8158,
+      "bytes": 8208,
       "kind": "input",
       "path": "schemas/instruments/1/commodity/commodity_spread_option.schema.json",
       "summary": "Option on the spread between two commodity legs.",
@@ -178,7 +178,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_swaption.schema.json",
-      "bytes": 8975,
+      "bytes": 9025,
       "kind": "input",
       "path": "schemas/instruments/1/commodity/commodity_swaption.schema.json",
       "summary": "Option to enter a commodity swap.",
@@ -186,7 +186,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/composite/composite.schema.json",
-      "bytes": 904366,
+      "bytes": 904427,
       "kind": "input",
       "path": "schemas/instruments/1/composite/composite.schema.json",
       "summary": "Resolved cross-asset synthetic instrument with immutable leg quantities.",
@@ -202,7 +202,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/credit_derivatives/cds_option.schema.json",
-      "bytes": 15695,
+      "bytes": 15756,
       "kind": "input",
       "path": "schemas/instruments/1/credit_derivatives/cds_option.schema.json",
       "summary": "Payer or receiver option on a CDS or CDS index.",
@@ -266,7 +266,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/equity_future_option.schema.json",
-      "bytes": 13039,
+      "bytes": 13100,
       "kind": "input",
       "path": "schemas/instruments/1/equity/equity_future_option.schema.json",
       "summary": "Exchange-listed option on an equity future.",
@@ -274,7 +274,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/equity_option.schema.json",
-      "bytes": 11758,
+      "bytes": 11819,
       "kind": "input",
       "path": "schemas/instruments/1/equity/equity_option.schema.json",
       "summary": "European or American option on a single equity.",
@@ -338,7 +338,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/volatility_index_future_option.schema.json",
-      "bytes": 13206,
+      "bytes": 13267,
       "kind": "input",
       "path": "schemas/instruments/1/equity/volatility_index_future_option.schema.json",
       "summary": "Exchange-listed option on a volatility-index future.",
@@ -346,7 +346,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/asian_option.schema.json",
-      "bytes": 8909,
+      "bytes": 8959,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/asian_option.schema.json",
       "summary": "Option on an average of observed fixings.",
@@ -354,7 +354,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/barrier_option.schema.json",
-      "bytes": 11839,
+      "bytes": 11889,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/barrier_option.schema.json",
       "summary": "Knock-in or knock-out option on a monitored barrier.",
@@ -362,7 +362,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/basket.schema.json",
-      "bytes": 903333,
+      "bytes": 903394,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/basket.schema.json",
       "summary": "Weighted basket of constituents priced as one position.",
@@ -378,7 +378,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/lookback_option.schema.json",
-      "bytes": 8478,
+      "bytes": 8528,
       "kind": "input",
       "path": "schemas/instruments/1/exotics/lookback_option.schema.json",
       "summary": "Option struck on the path maximum or minimum.",
@@ -506,7 +506,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_barrier_option.schema.json",
-      "bytes": 11353,
+      "bytes": 11403,
       "kind": "input",
       "path": "schemas/instruments/1/fx/fx_barrier_option.schema.json",
       "summary": "FX option with a knock-in or knock-out barrier.",
@@ -514,7 +514,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_digital_option.schema.json",
-      "bytes": 7337,
+      "bytes": 7387,
       "kind": "input",
       "path": "schemas/instruments/1/fx/fx_digital_option.schema.json",
       "summary": "FX option paying a fixed amount if in the money.",
@@ -538,7 +538,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_future_option.schema.json",
-      "bytes": 12979,
+      "bytes": 13040,
       "kind": "input",
       "path": "schemas/instruments/1/fx/fx_future_option.schema.json",
       "summary": "Exchange-listed option on an FX future.",
@@ -546,7 +546,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_option.schema.json",
-      "bytes": 7595,
+      "bytes": 7645,
       "kind": "input",
       "path": "schemas/instruments/1/fx/fx_option.schema.json",
       "summary": "Vanilla European FX option.",
@@ -594,7 +594,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/quanto_option.schema.json",
-      "bytes": 7978,
+      "bytes": 8028,
       "kind": "input",
       "path": "schemas/instruments/1/fx/quanto_option.schema.json",
       "summary": "Option on a foreign asset settled in the domestic currency at a fixed rate.",
@@ -602,7 +602,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json",
-      "bytes": 990488,
+      "bytes": 990549,
       "kind": "input",
       "path": "schemas/instruments/1/instrument.schema.json",
       "summary": "The seventy-branch union of every instrument type. Prefer the per-type schema beside it: this document is too large to hand to a model.",
@@ -618,7 +618,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/bermudan_swaption.schema.json",
-      "bytes": 27857,
+      "bytes": 27907,
       "kind": "input",
       "path": "schemas/instruments/1/rates/bermudan_swaption.schema.json",
       "summary": "Bermudan-exercise swaption valued on a short-rate lattice.",
@@ -626,7 +626,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/cap_floor.schema.json",
-      "bytes": 25733,
+      "bytes": 25744,
       "kind": "input",
       "path": "schemas/instruments/1/rates/cap_floor.schema.json",
       "summary": "Strip of caplets or floorlets on a floating index.",
@@ -634,7 +634,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/cms_option.schema.json",
-      "bytes": 10498,
+      "bytes": 10548,
       "kind": "input",
       "path": "schemas/instruments/1/rates/cms_option.schema.json",
       "summary": "Option on a constant-maturity swap rate.",
@@ -698,7 +698,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/interest_rate_future_option.schema.json",
-      "bytes": 13295,
+      "bytes": 13356,
       "kind": "input",
       "path": "schemas/instruments/1/rates/interest_rate_future_option.schema.json",
       "summary": "Listed or bilateral option on an interest-rate futures price.",
@@ -722,7 +722,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/swaption.schema.json",
-      "bytes": 30379,
+      "bytes": 30429,
       "kind": "input",
       "path": "schemas/instruments/1/rates/swaption.schema.json",
       "summary": "European option to enter an interest-rate swap.",
@@ -746,7 +746,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/market/1/market_quote.schema.json",
-      "bytes": 43309,
+      "bytes": 43359,
       "kind": "component",
       "path": "schemas/market/1/market_quote.schema.json",
       "summary": "One market observation, tagged by asset class.",

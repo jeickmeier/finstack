@@ -193,11 +193,11 @@ class TestCashflowsNamespace:
 
 
 class TestCorrelationNamespace:
-    """Verify the correlation subpackage nested under valuations."""
+    """Verify the correlation subpackage nested under models."""
 
     def test_correlation_exports(self) -> None:
         """Correlation should export copula, recovery, factor, and Bernoulli types."""
-        from finstack_quant.valuations.correlation import (  # noqa: F401
+        from finstack_quant.models.correlation import (  # noqa: F401
             Copula,
             CopulaSpec,
             CorrelatedBernoulli,
@@ -214,11 +214,11 @@ class TestCorrelationNamespace:
             validate_correlation_matrix,
         )
 
-    def test_correlation_accessible_via_valuations(self) -> None:
-        """``finstack_quant.valuations.correlation`` is importable as a submodule attribute."""
-        from finstack_quant import valuations
+    def test_correlation_accessible_via_models(self) -> None:
+        """``finstack_quant.models.correlation`` is importable as a submodule attribute."""
+        from finstack_quant import models
 
-        assert valuations.correlation.CopulaSpec is not None
+        assert models.correlation.CopulaSpec is not None
 
 
 class TestFactorModelNamespace:
@@ -247,12 +247,12 @@ class TestFactorModelNamespace:
 
 
 class TestMonteCarloNamespace:
-    """Verify the monte_carlo subpackage."""
+    """Verify the models.monte_carlo subpackage."""
 
     def test_monte_carlo_exports(self) -> None:
         """Monte Carlo should export engine, pricer, and result types."""
-        from finstack_quant import monte_carlo
-        from finstack_quant.monte_carlo import (  # noqa: F401
+        from finstack_quant import models
+        from finstack_quant.models.monte_carlo import (  # noqa: F401
             EuropeanPricer,
             LsmcPricer,
             McEngine,
@@ -260,10 +260,17 @@ class TestMonteCarloNamespace:
             PathDependentPricer,
         )
 
+        monte_carlo = models.monte_carlo
         assert "price_european_call" not in monte_carlo.__all__
         assert "price_european_put" not in monte_carlo.__all__
         assert not hasattr(monte_carlo, "price_european_call")
         assert not hasattr(monte_carlo, "price_european_put")
+
+    def test_removed_root_namespace_is_absent(self) -> None:
+        import finstack_quant
+
+        assert "monte_carlo" not in finstack_quant.__all__
+        assert not hasattr(finstack_quant, "monte_carlo")
 
 
 class TestMarginNamespace:
@@ -435,16 +442,18 @@ class TestValuationsNamespace:
 
     def test_valuations_exports(self) -> None:
         """Valuations should export ValuationResult and validation function."""
-        from finstack_quant.valuations import (  # noqa: F401
-            ValuationResult,
-            bs_cos_price,
-            merton_jump_cos_price,
-            vg_cos_price,
-        )
+        from finstack_quant.valuations import ValuationResult  # noqa: F401
 
-    def test_valuations_stub_exports_fourier_pricers(self) -> None:
-        """Valuations stubs should declare the runtime Fourier pricing exports."""
-        stub_path = Path(__file__).parents[1] / "finstack_quant" / "valuations" / "__init__.pyi"
+    def test_valuations_do_not_export_model_engines(self) -> None:
+        from finstack_quant import valuations
+
+        for name in ("bs_price", "bs_cos_price", "SabrModel", "correlation", "models"):
+            assert name not in valuations.__all__
+            assert not hasattr(valuations, name)
+
+    def test_models_stub_exports_fourier_pricers(self) -> None:
+        """Models stubs should declare the runtime Fourier pricing exports."""
+        stub_path = Path(__file__).parents[1] / "finstack_quant" / "models" / "__init__.pyi"
         stub = stub_path.read_text()
         for name in ("bs_cos_price", "vg_cos_price", "merton_jump_cos_price"):
             assert f'"{name}"' in stub
@@ -459,9 +468,9 @@ class TestValuationsNamespace:
         assert hasattr(instruments, "price_instrument")
         assert hasattr(instruments, "list_standard_metrics")
 
-    def test_valuations_models_credit_namespace_exports(self) -> None:
-        """Structural credit models should mirror valuations.models.credit."""
-        from finstack_quant.valuations.models import credit
+    def test_models_credit_namespace_exports(self) -> None:
+        """Structural credit models should live under models.credit."""
+        from finstack_quant.models import credit
 
         for name in (
             "AssetDynamics",
@@ -487,21 +496,16 @@ class TestValuationsNamespace:
         ):
             assert hasattr(instruments, name)
 
-    def test_valuations_extension_submodules_are_registered(self) -> None:
-        """PyO3 valuation submodules should have stable extension-qualified names."""
+    def test_models_extension_submodules_are_registered(self) -> None:
+        """PyO3 model submodules should have stable extension-qualified names."""
         import sys
 
-        from finstack_quant.finstack_quant import valuations as ext_valuations
+        from finstack_quant.finstack_quant import models as ext_models
 
-        root_package = ext_valuations.__package__
-        assert root_package == "finstack_quant.finstack_quant.valuations"
-        for name in ("correlation", "instruments", "models"):
-            module = getattr(ext_valuations, name)
+        root_package = ext_models.__package__
+        assert root_package == "finstack_quant.finstack_quant.models"
+        for name in ("correlation", "credit", "monte_carlo"):
+            module = getattr(ext_models, name)
             qualified = f"{root_package}.{name}"
             assert module.__package__ == qualified
             assert sys.modules[qualified] is module
-
-        credit = ext_valuations.models.credit
-        qualified = f"{root_package}.models.credit"
-        assert credit.__package__ == qualified
-        assert sys.modules[qualified] is credit

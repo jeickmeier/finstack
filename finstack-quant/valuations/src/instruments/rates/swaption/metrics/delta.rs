@@ -73,7 +73,7 @@ impl MetricCalculator for DeltaCalculator {
         let normal_by_negative_rate = inputs.forward <= 0.0 || strike <= 0.0;
         let use_normal = normal_by_model || normal_by_negative_rate;
         let delta = if use_normal {
-            use crate::models::volatility::normal::d_bachelier;
+            use finstack_quant_models::volatility::normal::d_bachelier;
             // When the Normal model is the configured vol model, `inputs.sigma`
             // is already a normal vol. When the fallback is triggered purely by
             // a non-positive forward/strike, `inputs.sigma` is a LOGNORMAL vol
@@ -96,7 +96,7 @@ impl MetricCalculator for DeltaCalculator {
                 OptionType::Put => -finstack_quant_core::math::norm_cdf(-d),
             }
         } else {
-            use crate::models::d1_black76;
+            use finstack_quant_models::d1_black76;
             let d1 = d1_black76(inputs.forward, strike, inputs.sigma, inputs.time_to_expiry);
             match option.option_type {
                 OptionType::Call => finstack_quant_core::math::norm_cdf(d1),

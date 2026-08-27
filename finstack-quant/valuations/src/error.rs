@@ -78,7 +78,7 @@ pub enum Error {
 
     /// Correlation matrix validation error (factor model).
     #[error(transparent)]
-    Correlation(#[from] crate::correlation::Error),
+    Correlation(#[from] finstack_quant_models::correlation::Error),
 }
 
 /// Convenience result type used throughout the valuations crate.
@@ -154,14 +154,14 @@ mod tests {
 
     #[test]
     fn correlation_error_wraps_into_unified() {
-        let corr = crate::correlation::Error::InvalidSize {
+        let corr = finstack_quant_models::correlation::Error::InvalidSize {
             expected: 3,
             actual: 5,
         };
         let unified: Error = corr.into();
         assert!(matches!(
             unified,
-            Error::Correlation(crate::correlation::Error::InvalidSize { .. })
+            Error::Correlation(finstack_quant_models::correlation::Error::InvalidSize { .. })
         ));
     }
 
@@ -179,7 +179,7 @@ mod tests {
         ));
 
         // Correlation -> core
-        let corr = crate::correlation::Error::NotSymmetric {
+        let corr = finstack_quant_models::correlation::Error::NotSymmetric {
             i: 0,
             j: 1,
             diff: 0.01,

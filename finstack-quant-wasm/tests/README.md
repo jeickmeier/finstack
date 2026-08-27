@@ -38,7 +38,7 @@ contract can be exercised at all.
 | `wasm_fixed_income.rs`            | the typed `Bond` / `TermLoan` classes                                        |
 | `wasm_margin.rs`                  | `calculate_vm`                                                               |
 | `wasm_math.rs`                    | linear algebra, statistics, summation wrappers                               |
-| `wasm_monte_carlo.rs`             | MC pricing entry points                                                      |
+| `wasm_models.rs`                  | Consolidated model and Monte Carlo entry points                              |
 | `wasm_portfolio.rs`               | every portfolio computation result, asserted to be a plain structured object |
 | `wasm_scenarios.rs`               | template listing and `apply_scenario` / `apply_scenario_to_market`           |
 | `wasm_statements.rs`              | node enumeration, evaluator, validator, DSL                                  |

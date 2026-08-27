@@ -95,7 +95,7 @@ impl HurstExponent {
 /// involves an incomplete-beta/hypergeometric correction term. Rough
 /// volatility models that require the Riemann-Liouville Volterra process
 /// (e.g. rough Bergomi) use the dedicated
-/// `finstack_quant_monte_carlo::rng::volterra` generator rather than this kernel.
+/// `finstack_quant_models::monte_carlo::rng::volterra` generator rather than this kernel.
 #[derive(Debug, Clone, Copy)]
 pub struct RiemannLiouvilleKernel {
     /// The Hurst exponent.

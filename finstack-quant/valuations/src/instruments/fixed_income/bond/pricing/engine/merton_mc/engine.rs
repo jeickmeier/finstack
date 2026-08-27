@@ -1,9 +1,9 @@
 use super::{
     BarrierCrossing, MertonMcConfig, MertonMcResult, PathStatistics, PikMode, PikSchedule,
 };
-use crate::models::credit::{AssetDynamics, BarrierType, CreditState};
 use finstack_quant_core::math::random::{Pcg64Rng, RandomNumberGenerator};
 use finstack_quant_core::{InputError, Result};
+use finstack_quant_models::credit::{AssetDynamics, BarrierType, CreditState};
 use rayon::prelude::*;
 use smallvec::SmallVec;
 

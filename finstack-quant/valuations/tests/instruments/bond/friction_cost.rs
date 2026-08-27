@@ -8,12 +8,10 @@ use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::HashMap;
+use finstack_quant_models::{short_rate_keys, ShortRateTree, ShortRateTreeConfig, TreeModel};
 use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::BondValuator;
 use finstack_quant_valuations::instruments::fixed_income::bond::{Bond, CallPut, CallPutSchedule};
 use finstack_quant_valuations::instruments::pricing_overrides::InstrumentPricingOverrides;
-use finstack_quant_valuations::models::{
-    short_rate_keys, ShortRateTree, ShortRateTreeConfig, TreeModel,
-};
 use time::macros::date;
 
 fn market(as_of: Date) -> MarketContext {

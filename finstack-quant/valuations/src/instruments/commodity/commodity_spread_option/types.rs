@@ -98,8 +98,8 @@ pub struct CommoditySpreadOption {
     pub strike: f64,
     /// Notional quantity (number of units).
     #[serde(
-        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
-        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+        serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
+        deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub notional: f64,
@@ -115,8 +115,8 @@ pub struct CommoditySpreadOption {
     pub discount_curve_id: CurveId,
     /// Correlation between the two commodity prices, in [-1, 1].
     #[serde(
-        serialize_with = "crate::instruments::common_impl::numeric::serialize_correlation",
-        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_correlation"
+        serialize_with = "finstack_quant_core::wire::serialize_correlation",
+        deserialize_with = "finstack_quant_core::wire::deserialize_correlation"
     )]
     #[schemars(with = "finstack_quant_core::wire::CorrelationWire")]
     pub correlation: f64,

@@ -1,81 +1,8 @@
 //! Market parameter types for instrument pricing.
 
 use finstack_quant_core::types::{CurveId, Percentage};
-#[cfg(feature = "ts_export")]
-use ts_rs::TS;
-
+pub use finstack_quant_models::types::{ExerciseStyle, OptionType};
 use serde::{Deserialize, Serialize};
-
-/// Option type for pricing
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "ts_export", derive(TS))]
-#[cfg_attr(feature = "ts_export", ts(export))]
-pub enum OptionType {
-    /// Call option
-    Call,
-    /// Put option
-    Put,
-}
-
-impl std::fmt::Display for OptionType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OptionType::Call => write!(f, "call"),
-            OptionType::Put => write!(f, "put"),
-        }
-    }
-}
-
-impl std::str::FromStr for OptionType {
-    type Err = String;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s {
-            "call" => Ok(OptionType::Call),
-            "put" => Ok(OptionType::Put),
-            _ => Err(format!("Unknown option type: {s}")),
-        }
-    }
-}
-
-/// Exercise style for options
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum ExerciseStyle {
-    /// European exercise (only at expiry)
-    #[default]
-    European,
-    /// American exercise (any time before/at expiry)
-    American,
-    /// Bermudan exercise (specific dates before expiry)
-    Bermudan,
-}
-
-impl std::fmt::Display for ExerciseStyle {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ExerciseStyle::European => write!(f, "european"),
-            ExerciseStyle::American => write!(f, "american"),
-            ExerciseStyle::Bermudan => write!(f, "bermudan"),
-        }
-    }
-}
-
-impl std::str::FromStr for ExerciseStyle {
-    type Err = String;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s {
-            "european" => Ok(ExerciseStyle::European),
-            "american" => Ok(ExerciseStyle::American),
-            "bermudan" => Ok(ExerciseStyle::Bermudan),
-            _ => Err(format!("Unknown exercise style: {s}")),
-        }
-    }
-}
 
 /// Settlement type for options
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]

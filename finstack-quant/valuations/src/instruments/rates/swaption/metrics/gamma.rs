@@ -52,7 +52,7 @@ impl MetricCalculator for GammaCalculator {
         let normal_by_negative_rate = inputs.forward <= 0.0 || strike <= 0.0;
         let use_normal = normal_by_model || normal_by_negative_rate;
         let gamma = if use_normal {
-            use crate::models::volatility::normal::d_bachelier;
+            use finstack_quant_models::volatility::normal::d_bachelier;
             // `inputs.sigma` is a normal vol only when the Normal model is
             // configured; for the negative-rate fallback it is a lognormal vol
             // and must be converted before the Bachelier gamma (which also
@@ -72,7 +72,7 @@ impl MetricCalculator for GammaCalculator {
             let d = d_bachelier(inputs.forward, strike, normal_sigma, inputs.time_to_expiry);
             finstack_quant_core::math::norm_pdf(d) / (normal_sigma * inputs.time_to_expiry.sqrt())
         } else {
-            use crate::models::d1_black76;
+            use finstack_quant_models::d1_black76;
             let d1 = d1_black76(inputs.forward, strike, inputs.sigma, inputs.time_to_expiry);
             finstack_quant_core::math::norm_pdf(d1)
                 / (inputs.forward * inputs.sigma * inputs.time_to_expiry.sqrt())

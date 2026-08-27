@@ -9,7 +9,7 @@ use crate::cashflow::builder::CashFlowSchedule;
 use crate::instruments::fixed_income::convertible::{
     ConversionEvent, ConversionPolicy, ConvertibleBond, SoftCallTrigger,
 };
-use crate::models::trees::tree_framework::map_date_to_step;
+use finstack_quant_models::trees::tree_framework::map_date_to_step;
 
 /// Convertible bond valuator implementing the TZ logic
 pub(super) struct ConvertibleBondValuator {
@@ -533,7 +533,7 @@ impl ConvertibleBondValuator {
                 // Scaled by `required_fraction` (k/n) for the sustained
                 // "k-of-n days above" requirement (heuristic extension).
                 const BGK_BETA: f64 =
-                    finstack_quant_monte_carlo::barriers::corrections::GOBET_MIRI_BETA;
+                    finstack_quant_models::monte_carlo::barriers::corrections::GOBET_MIRI_BETA;
                 const MONITORING_DT: f64 = 1.0 / 252.0;
                 let adj = BGK_BETA * required_fraction * self.volatility * MONITORING_DT.sqrt();
                 let effective_trigger = nominal_trigger * (1.0 + adj);

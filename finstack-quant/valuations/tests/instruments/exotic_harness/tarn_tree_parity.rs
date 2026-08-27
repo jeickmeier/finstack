@@ -54,11 +54,11 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_models::{HullWhiteTree, HullWhiteTreeConfig};
 use finstack_quant_valuations::calibration::hull_white::HullWhiteParams;
 use finstack_quant_valuations::instruments::exotics::tarn::{Tarn, TarnPricer};
 use finstack_quant_valuations::instruments::rates::hw1f::RateExoticMcConfig;
 use finstack_quant_valuations::metrics::MetricId;
-use finstack_quant_valuations::models::{HullWhiteTree, HullWhiteTreeConfig};
 use finstack_quant_valuations::pricer::Pricer;
 use time::Month;
 

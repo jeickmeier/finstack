@@ -142,9 +142,8 @@ fn test_very_large_shock() {
 
 #[test]
 fn test_negative_100_percent_shock_on_equity_is_accepted() {
-    // Equity shocks at or below -100% are legitimate tail-risk stress (default
-    // events, fair-value floors). The engine accepts them; only FX shocks are
-    // rejected at -100% to prevent NaN propagation through triangulation.
+    // An exact -100% equity shock models a full wipeout without producing an
+    // economically impossible negative post-shock price.
     let base_date = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let mut market = MarketContext::new()
         .insert_price("SPY", MarketScalar::Price(Money::new(100.0, Currency::USD)));
@@ -175,14 +174,12 @@ fn test_negative_100_percent_shock_on_equity_is_accepted() {
 
     let report = engine
         .apply(&scenario, &mut ctx)
-        .expect("equity -100% shock must be accepted (relaxed pct floor)");
+        .expect("equity -100% shock must be accepted as an exact wipeout");
     assert_eq!(report.operations_applied, 1);
 }
 
 #[test]
-fn test_shock_beyond_negative_100_percent_on_equity_is_accepted() {
-    // Equity stress can model a "wipeout to negative" (write-down beyond zero)
-    // for risk-system testing; downstream pricers handle negative prices.
+fn test_shock_beyond_negative_100_percent_on_equity_is_rejected() {
     let base_date = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let mut market = MarketContext::new()
         .insert_price("SPY", MarketScalar::Price(Money::new(100.0, Currency::USD)));
@@ -211,10 +208,17 @@ fn test_shock_beyond_negative_100_percent_on_equity_is_accepted() {
         as_of: base_date,
     };
 
-    let report = engine
+    let error = engine
         .apply(&scenario, &mut ctx)
-        .expect("equity -150% shock must be accepted (relaxed pct floor)");
-    assert_eq!(report.operations_applied, 1);
+        .expect_err("equity shocks below -100% must be rejected");
+    assert!(error.to_string().contains("must be at least -100%"));
+    let price = market
+        .get_price("SPY")
+        .expect("base price remains available");
+    match price {
+        MarketScalar::Price(money) => assert_eq!(money.amount(), 100.0),
+        MarketScalar::Unitless(_) => panic!("Expected Price"),
+    }
 }
 
 #[test]

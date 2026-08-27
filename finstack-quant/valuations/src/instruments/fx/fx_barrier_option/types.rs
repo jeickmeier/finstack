@@ -63,7 +63,7 @@ pub struct FxBarrierOption {
     /// defaults to at-expiry.
     #[builder(default)]
     #[serde(default)]
-    pub rebate_timing: crate::models::closed_form::barrier::RebateTiming,
+    pub rebate_timing: finstack_quant_models::closed_form::barrier::RebateTiming,
     /// Option type (call or put on foreign currency)
     pub option_type: OptionType,
     /// Barrier type (up/down, in/out)

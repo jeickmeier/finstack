@@ -51,8 +51,8 @@ finstack-quant/
 │   ├── factor-model/             # factor primitives, matching, credit calibration
 │   ├── features/                 # vectorized panel feature transforms
 │   ├── margin/                   # CSA/VM/IM, SIMM, FRTB-SBA, SA-CCR, XVA
-│   ├── monte_carlo/              # processes, discretization, RNG, payoffs, engine
-│   ├── valuations/               # instruments, pricing, models, calibration, metrics
+│   ├── models/                   # analytical, numerical, credit, correlation, stochastic models
+│   ├── valuations/               # instruments, pricing, calibration, metrics, results
 │   │   └── macros/               # `FinancialBuilder` derive used by valuations
 │   ├── statements/               # statement model graph and period evaluation
 │   ├── statements-analytics/     # DCF, scenario sets, sensitivity, ECL, backtesting
@@ -87,8 +87,8 @@ reaches the whole API.
 | [`finstack-quant-factor-model`](finstack-quant/factor-model/README.md) | `finstack_quant::factor_model` | Factor definitions and matching, covariance, sensitivity matrix, credit hierarchy calibration |
 | [`finstack-quant-features`](finstack-quant/features/README.md) | `finstack_quant::features` | Time-series, cross-sectional, and panel feature transforms over `Option<f64>` columns |
 | [`finstack-quant-margin`](finstack-quant/margin/README.md) | `finstack_quant::margin` | CSA/repo terms, VM and IM engines (SIMM, schedule, haircut, CCP), collateral metrics, XVA config, regulatory capital |
-| [`finstack-quant-monte-carlo`](finstack-quant/monte_carlo/README.md) | `finstack_quant::monte_carlo` | `McEngine`, stochastic processes, discretizations, Philox RNG, payoffs, European/path-dependent/LSMC pricers |
-| [`finstack-quant-valuations`](finstack-quant/valuations/README.md) | `finstack_quant::valuations` | Instruments, pricers, models (closed-form, trees, PDE, Fourier, MC), calibration, metrics, result envelopes |
+| [`finstack-quant-models`](finstack-quant/models/README.md) | `finstack_quant::models` | Closed-form/Fourier formulas, SABR, PDE/tree engines, structural credit, copulas/portfolio loss, and Monte Carlo |
+| [`finstack-quant-valuations`](finstack-quant/valuations/README.md) | `finstack_quant::valuations` | Instruments, market resolution, pricing registries, calibration, metrics, and result envelopes |
 | [`finstack-quant-statements`](finstack-quant/statements/README.md) | `finstack_quant::statements` | Statement model graph, DSL formulas, forecasting, corkscrews, deterministic period evaluation |
 | [`finstack-quant-statements-analytics`](finstack-quant/statements-analytics/README.md) | `finstack_quant::statements_analytics` | Sensitivity, scenario sets, variance, DCF, goal seek, covenant forecasting, backtesting, templates |
 | [`finstack-quant-portfolio`](finstack-quant/portfolio/README.md) | `finstack_quant::portfolio` | Entities and positions, valuation and metric aggregation, grouping, optimization, risk decomposition, materialization |
@@ -112,9 +112,10 @@ edges, read off the manifests:
 
 | Crate | Also depends on |
 |---|---|
-| `analytics`, `cashflows`, `covenants`, `features`, `margin`, `monte_carlo` | nothing else in-workspace |
+| `analytics`, `cashflows`, `covenants`, `features`, `margin` | nothing else in-workspace |
+| `models` | `analytics`, `cashflows` |
 | `factor-model` | `analytics` |
-| `valuations` | `analytics`, `cashflows`, `covenants`, `margin`, `monte_carlo`, `factor-model`, `valuations-macros` |
+| `valuations` | `analytics`, `cashflows`, `covenants`, `margin`, `models`, `factor-model`, `valuations-macros` |
 | `attribution` | `cashflows`, `factor-model`, `valuations` |
 | `statements` | `cashflows`, `valuations` |
 | `statements-analytics` | `covenants`, `statements`, `valuations` |
@@ -189,7 +190,7 @@ print(settle)           # 2025-01-06
 
 `finstack-quant-py` builds the Python package `finstack_quant`. It exposes the
 same fourteen domains — `analytics`, `attribution`, `cashflows`, `core`,
-`covenants`, `factor_model`, `features`, `margin`, `monte_carlo`, `portfolio`,
+`covenants`, `factor_model`, `features`, `margin`, `models`, `portfolio`,
 `scenarios`, `statements`, `statements_analytics`, `valuations` — plus
 `reporting` (a pure-Python presentation layer with no Rust crate) and `schema`
 (a compiled submodule). Submodules load lazily, and `finstack_quant.__version__`

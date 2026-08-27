@@ -4,7 +4,7 @@
 //! from Hull-White short rate simulations. Used by both swaption and CMS pricing.
 
 use super::monte_carlo_payoff::SwapSchedule;
-use finstack_quant_monte_carlo::process::ou::HullWhite1FParams;
+use finstack_quant_models::monte_carlo::process::ou::HullWhite1FParams;
 
 /// Hull-White bond price calculation utilities.
 ///

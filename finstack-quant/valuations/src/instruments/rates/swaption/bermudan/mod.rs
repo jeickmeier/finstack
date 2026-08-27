@@ -7,7 +7,6 @@ use crate::instruments::rates::hw1f::{
 };
 use crate::instruments::rates::swaption::pricing::BermudanSwaptionTreeValuator;
 use crate::instruments::rates::swaption::BermudanSwaption;
-use crate::models::trees::HullWhiteTree;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
@@ -15,6 +14,7 @@ use crate::results::ValuationResult;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::money::Money;
+use finstack_quant_models::trees::HullWhiteTree;
 use std::sync::Arc;
 
 fn hw1f_overrides_json(swaption: &BermudanSwaption) -> Option<serde_json::Value> {
@@ -37,8 +37,10 @@ use crate::instruments::rates::swaption::pricing::monte_carlo_lsmc::{
 use crate::instruments::rates::swaption::pricing::monte_carlo_payoff::{
     BermudanSwaptionPayoff, SwapSchedule, SwaptionType,
 };
-use finstack_quant_monte_carlo::pricer::basis::PolynomialBasis;
-use finstack_quant_monte_carlo::process::ou::{calibrate_theta_from_curve, HullWhite1FProcess};
+use finstack_quant_models::monte_carlo::pricer::basis::PolynomialBasis;
+use finstack_quant_models::monte_carlo::process::ou::{
+    calibrate_theta_from_curve, HullWhite1FProcess,
+};
 
 /// Pricing method for Bermudan swaptions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

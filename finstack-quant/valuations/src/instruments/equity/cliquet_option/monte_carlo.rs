@@ -6,8 +6,8 @@
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Error as CoreError;
-use finstack_quant_monte_carlo::traits::PathState;
-use finstack_quant_monte_carlo::traits::Payoff;
+use finstack_quant_models::monte_carlo::traits::PathState;
+use finstack_quant_models::monte_carlo::traits::Payoff;
 
 use super::types::CliquetPayoffType;
 
@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     fn coarse_step_spanning_multiple_reset_dates_captures_all() {
-        use finstack_quant_monte_carlo::traits::state_keys;
+        use finstack_quant_models::monte_carlo::traits::state_keys;
 
         // A coarse MC grid has steps that each span several reset dates. Every
         // due reset must record a spot so reset_spots has one entry per reset.

@@ -3,7 +3,6 @@
 use super::config::{DiscountAt, DEFAULT_QUADRATURE_ORDER};
 use super::*;
 use crate::cashflow::primitives::CFKind;
-use crate::correlation::copula::CopulaSpec;
 use crate::instruments::credit_derivatives::cds_tranche::parameters::CDSTrancheParams;
 use crate::instruments::credit_derivatives::cds_tranche::{CDSTranche, TrancheSide};
 use finstack_quant_core::currency::Currency;
@@ -14,6 +13,7 @@ use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::market_data::term_structures::{BaseCorrelationCurve, HazardCurve};
 use finstack_quant_core::math::{binomial_probability, log_factorial, standard_normal_inv_cdf};
 use finstack_quant_core::money::Money;
+use finstack_quant_models::correlation::copula::CopulaSpec;
 use std::sync::Arc;
 use time::Month;
 

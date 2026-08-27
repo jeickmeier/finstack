@@ -13,7 +13,7 @@
 //!    volatilities in every case, including on a price-quoted strike axis. A
 //!    "price-quoted" surface does not hold price-point volatilities, and a
 //!    fractional spread vol is not an additive hazard vol — see
-//!    [`models::credit::market_anchored`](crate::models::credit::market_anchored).
+//!    [`models::credit::market_anchored`](finstack_quant_models::credit::market_anchored).
 //!
 //! This module makes both explicit: it resolves a typed strike (directly, by
 //! moneyness, or by delta), queries the surface strictly at the native
@@ -40,7 +40,7 @@ use crate::instruments::credit_derivatives::cds_option::{
     CDSOption, CDSOptionStrike, CDSOptionStrikeKind,
 };
 use crate::instruments::OptionType;
-use crate::models::credit::market_anchored::CreditVolatilityConversion;
+use finstack_quant_models::credit::market_anchored::CreditVolatilityConversion;
 
 /// How to pick the point on the option-volatility surface.
 #[derive(Debug, Clone, Copy)]

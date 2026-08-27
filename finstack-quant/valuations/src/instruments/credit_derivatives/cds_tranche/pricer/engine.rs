@@ -7,10 +7,6 @@ use super::config::{
 use crate::cashflow::builder::{CashFlowMeta, CashFlowSchedule};
 use crate::cashflow::primitives::{CFKind, CashFlow};
 use crate::constants::BASIS_POINTS_PER_UNIT;
-use crate::correlation::copula::{
-    Copula, CopulaSpec, GaussianCopula, MultiFactorCopula, RandomFactorLoadingCopula,
-    StudentTCopula,
-};
 use crate::instruments::credit_derivatives::cds_tranche::{CDSTranche, TrancheSide};
 use finstack_quant_core::dates::{calendar_by_id, Date, DateExt, HolidayCalendar};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -20,12 +16,18 @@ use finstack_quant_core::math::{
 };
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
+use finstack_quant_models::correlation::copula::{
+    Copula, CopulaSpec, GaussianCopula, MultiFactorCopula, RandomFactorLoadingCopula,
+    StudentTCopula,
+};
 
 impl CDSTranchePricer {
     #[inline]
     pub(super) fn select_quadrature(&self) -> Result<&GaussHermiteQuadrature> {
         Ok(self.quadrature_cache.get_or_init(|| {
-            crate::correlation::copula::select_quadrature(self.params.quadrature_order)
+            finstack_quant_models::correlation::copula::select_quadrature(
+                self.params.quadrature_order,
+            )
         }))
     }
 

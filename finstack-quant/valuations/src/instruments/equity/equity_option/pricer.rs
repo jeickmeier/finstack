@@ -10,14 +10,14 @@ use crate::instruments::common_impl::helpers::year_fraction;
 use crate::instruments::common_impl::parameters::{OptionMarketParams, OptionType};
 use crate::instruments::equity::equity_option::types::EquityOption;
 use crate::instruments::{ExerciseStyle, SettlementType};
-use crate::models::closed_form::vanilla::{bs_greeks_unchecked, bs_price_unchecked};
-use crate::models::trees::binomial_tree::BinomialTree;
 use crate::pricer::{ModelKey, PricingError, PricingErrorContext};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
+use finstack_quant_models::closed_form::vanilla::{bs_greeks_unchecked, bs_price_unchecked};
+use finstack_quant_models::trees::binomial_tree::BinomialTree;
 
 /// Reject exercise styles that a selected model does not actually model.
 pub(crate) fn require_european(inst: &EquityOption, model: &str) -> Result<()> {
@@ -96,7 +96,7 @@ pub(crate) fn compute_pv(
         }
     };
 
-    let unit_price = crate::models::closed_form::checked_closed_form_value(
+    let unit_price = finstack_quant_models::closed_form::checked_closed_form_value(
         unit_price,
         "equity option unit price",
     )?;
@@ -894,8 +894,8 @@ impl crate::pricer::Pricer for SimpleEquityOptionBlackPricer {
 }
 
 use crate::instruments::common_impl::traits::Instrument;
-use crate::models::closed_form::heston::{
-    heston_call_price_fourier, heston_put_price_fourier, HestonParams,
+use finstack_quant_models::closed_form::heston::{
+    heston_call_price_fourier, heston_put_price_fourier,
 };
 
 /// Equity option Heston semi-analytical pricer (Fourier inversion).
@@ -1003,7 +1003,7 @@ impl crate::pricer::Pricer for EquityOptionHestonFourierPricer {
         // Validation is still enforced inside `HestonParams::new`.
         let err_ctx = crate::pricer::PricingErrorContext::from_instrument(equity_option)
             .model(crate::pricer::ModelKey::HestonFourier);
-        let params = HestonParams::from_market_strict(market, r, q)
+        let params = crate::instruments::equity::equity_option::heston_market::heston_params_from_market_strict(market, r, q)
             .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
 
         let price = match equity_option.option_type {

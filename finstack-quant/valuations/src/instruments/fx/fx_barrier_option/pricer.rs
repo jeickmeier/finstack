@@ -16,13 +16,13 @@ use finstack_quant_core::money::Money;
 
 // MC-specific imports
 use crate::instruments::fx::fx_barrier_option::monte_carlo::FxBarrierPayoff;
-use finstack_quant_monte_carlo::payoff::barrier::BarrierMonitoring as McBarrierMonitoring;
-use finstack_quant_monte_carlo::payoff::barrier::OptionKind as McOptionKind;
-use finstack_quant_monte_carlo::pricer::path_dependent::{
+use finstack_quant_models::monte_carlo::payoff::barrier::BarrierMonitoring as McBarrierMonitoring;
+use finstack_quant_models::monte_carlo::payoff::barrier::OptionKind as McOptionKind;
+use finstack_quant_models::monte_carlo::pricer::path_dependent::{
     PathDependentPricer, PathDependentPricerConfig,
 };
-use finstack_quant_monte_carlo::process::gbm::{GbmParams, GbmProcess};
-use finstack_quant_monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::process::gbm::{GbmParams, GbmProcess};
+use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
 
 struct FxBarrierPricingOutcome {
     value: Money,
@@ -127,7 +127,7 @@ impl FxBarrierOptionMcPricer {
             crate::instruments::OptionType::Call => McOptionKind::Call,
             crate::instruments::OptionType::Put => McOptionKind::Put,
         };
-        use finstack_quant_monte_carlo::seed;
+        use finstack_quant_models::monte_carlo::seed;
 
         let seed = if let Some(scenario) = &inst.metric_pricing_overrides.mc_seed_scenario {
             seed::derive_seed(&inst.id, scenario)
@@ -152,7 +152,7 @@ impl FxBarrierOptionMcPricer {
         // Exact at-hit rebate timing: compound the rebate forward from the
         // hit time at the domestic rate so DF(T) nets to DF(τ).
         {
-            use crate::models::closed_form::barrier::RebateTiming;
+            use finstack_quant_models::closed_form::barrier::RebateTiming;
             if inst.rebate.is_some() && inst.rebate_timing == RebateTiming::AtHit {
                 payoff = payoff.with_rebate_at_hit(r_dom);
             }
@@ -328,10 +328,10 @@ fn validate_monitoring_state(
     Ok(())
 }
 
-use crate::models::closed_form::barrier::{
+use finstack_quant_core::types::BarrierType as AnalyticalBarrierType;
+use finstack_quant_models::closed_form::barrier::{
     barrier_call_continuous, barrier_put_continuous, barrier_rebate, BarrierParams,
 };
-use finstack_quant_core::types::BarrierType as AnalyticalBarrierType;
 
 fn expired_barrier_value_per_unit(
     inst: &FxBarrierOption,
@@ -385,7 +385,7 @@ fn seasoned_breached_value_per_unit(
     discount_factor: f64,
 ) -> f64 {
     if inst.barrier_type.is_knock_in() {
-        crate::models::closed_form::vanilla::bs_price_unchecked(
+        finstack_quant_models::closed_form::vanilla::bs_price_unchecked(
             spot,
             inst.strike,
             r_dom,
@@ -396,8 +396,8 @@ fn seasoned_breached_value_per_unit(
         )
     } else {
         match inst.rebate_timing {
-            crate::models::closed_form::barrier::RebateTiming::AtHit => 0.0,
-            crate::models::closed_form::barrier::RebateTiming::AtExpiry => {
+            finstack_quant_models::closed_form::barrier::RebateTiming::AtHit => 0.0,
+            finstack_quant_models::closed_form::barrier::RebateTiming::AtExpiry => {
                 inst.rebate.unwrap_or(0.0) * discount_factor
             }
         }
@@ -647,7 +647,6 @@ mod tests {
     use super::*;
     use crate::instruments::Instrument;
     use crate::instruments::OptionType;
-    use crate::models::closed_form::barrier::{barrier_rebate_continuous, RebateTiming};
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
     use finstack_quant_core::market_data::context::MarketContext;
@@ -658,6 +657,7 @@ mod tests {
     use finstack_quant_core::money::fx::{FxMatrix, SimpleFxProvider};
     use finstack_quant_core::money::Money;
     use finstack_quant_core::types::BarrierType;
+    use finstack_quant_models::closed_form::barrier::{barrier_rebate_continuous, RebateTiming};
     use std::sync::Arc;
     use time::Month;
 

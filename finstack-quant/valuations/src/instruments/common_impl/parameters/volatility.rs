@@ -1,6 +1,6 @@
 //! Volatility model and volatility-parameter types shared across instruments.
 
-pub use crate::models::volatility::SABRParameters;
+pub use finstack_quant_models::volatility::SABRParameters;
 
 /// Volatility model for option pricing.
 #[derive(

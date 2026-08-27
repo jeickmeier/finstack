@@ -27,11 +27,11 @@ use crate::instruments::fixed_income::revolving_credit::pricer::monte_carlo_proc
     UtilizationParams,
 };
 use crate::instruments::rates::hw1f::{calibrate_hw1f_params, initial_short_rate_from_curve};
-use finstack_quant_monte_carlo::process::ou::HullWhite1FParams;
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::rng::sobol::SobolRng;
-use finstack_quant_monte_carlo::time_grid::TimeGrid;
-use finstack_quant_monte_carlo::traits::{Discretization, RandomStream, StochasticProcess};
+use finstack_quant_models::monte_carlo::process::ou::HullWhite1FParams;
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::rng::sobol::SobolRng;
+use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream, StochasticProcess};
 
 use super::super::cashflow_engine::ThreeFactorPathData;
 use super::super::types::{
@@ -619,7 +619,9 @@ fn build_credit_spread_params(
             let sp_0 = hazard.sp(t_anchor).max(f64::MIN_POSITIVE);
             let sp_t = hazard.sp(t_anchor + t).max(f64::MIN_POSITIVE);
             let avg_lambda =
-                crate::models::credit::market_anchored::conditional_average_hazard(sp_0, sp_t, t)?;
+                finstack_quant_models::credit::market_anchored::conditional_average_hazard(
+                    sp_0, sp_t, t,
+                )?;
             let lambda0 = hazard.hazard_rate(t_anchor).max(0.0);
 
             // Credit triangle: s ≈ (1 − R) · λ, using the facility recovery
@@ -644,7 +646,7 @@ fn build_credit_spread_params(
 
             // CIR diffusion coefficient matching the local fractional vol at
             // the anchored spread: σ_CIR·√s_ref = σ_fractional·s_ref.
-            let sigma = crate::models::credit::market_anchored::cir_diffusion_coefficient(
+            let sigma = finstack_quant_models::credit::market_anchored::cir_diffusion_coefficient(
                 *implied_vol,
                 s_bar.max(CIR_MIN_SPREAD),
             )?;

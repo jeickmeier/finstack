@@ -1,6 +1,6 @@
 //! Python bindings for Merton Monte Carlo PIK bond pricing types.
 
-use crate::bindings::valuations::credit::{
+use crate::bindings::models::credit::{
     PyDynamicRecoverySpec, PyEndogenousHazardSpec, PyMertonModel, PyToggleExerciseModel,
 };
 use crate::errors::display_to_py;

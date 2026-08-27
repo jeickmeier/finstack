@@ -10,7 +10,7 @@
 
 use super::monte_carlo_process::{InterestRateSpec, RevolvingCreditProcess};
 use finstack_quant_core::math::linalg::{cholesky_correlation, CholeskyError};
-use finstack_quant_monte_carlo::traits::Discretization;
+use finstack_quant_models::monte_carlo::traits::Discretization;
 
 /// Discretization scheme for revolving credit process.
 ///
@@ -241,7 +241,7 @@ mod tests {
         UtilizationParams,
     };
     use super::*;
-    use finstack_quant_monte_carlo::process::ou::HullWhite1FParams;
+    use finstack_quant_models::monte_carlo::process::ou::HullWhite1FParams;
 
     #[test]
     fn test_discretization_creation() {
@@ -336,8 +336,8 @@ mod tests {
     /// so the clamp essentially never fires) must recover the exact mean.
     #[test]
     fn utilization_step_unbiased_mean_across_shocks() {
-        use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-        use finstack_quant_monte_carlo::traits::RandomStream;
+        use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+        use finstack_quant_models::monte_carlo::traits::RandomStream;
 
         let utilization = UtilizationParams::new(1.0, 0.5, 0.05).expect("valid utilization params");
         let interest_rate = InterestRateSpec::Fixed { rate: 0.05 };

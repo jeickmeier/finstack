@@ -23,16 +23,6 @@ const VALID_SOURCES: &[&str] = &[
 ];
 const COMMON_TOP_LEVEL_KEYS: &[&str] = &["schema", "metadata", "kind", "expected", "tolerances"];
 const PRICING_BODY_KEYS: &[&str] = &["model", "market", "instrument"];
-const SABR_BODY_KEYS: &[&str] = &[
-    "alpha",
-    "beta",
-    "nu",
-    "rho",
-    "shift",
-    "forward",
-    "time_to_expiry",
-    "strikes",
-];
 const ZERO_RISK_METRICS_REQUIRING_REASON: &[&str] = &[
     "bucketed_dv01",
     "convexity",
@@ -169,10 +159,7 @@ pub(crate) fn validate_fixture(path: &Path) -> Result<(), String> {
 
     validate_zero_risk_metric_reasons(&fixture)?;
 
-    match &fixture.body {
-        Body::Pricing(_) => validate_pricing_body(&fixture)?,
-        Body::SabrSmile(_) => validate_sabr_body(&fixture)?,
-    }
+    validate_pricing_body(&fixture)?;
 
     if MANUAL_SCREENSHOT_SOURCES.contains(&fixture.metadata.source.as_str())
         && fixture.metadata.screenshots.is_empty()
@@ -189,10 +176,6 @@ pub(crate) fn validate_fixture(path: &Path) -> Result<(), String> {
 }
 
 fn validate_pricing_golden_type(path: &Path, fixture: &GoldenFixture) -> Result<(), String> {
-    if !matches!(fixture.body, Body::Pricing(_)) {
-        return Ok(());
-    }
-
     let relative = path
         .strip_prefix(data_root().join("pricing"))
         .map_err(|_| "pricing fixture must live under data/pricing".to_string())?;
@@ -231,7 +214,6 @@ fn validate_top_level_keys(raw: &str, fixture: &GoldenFixture) -> Result<(), Str
         .collect::<BTreeSet<_>>();
     let body_keys: &[&str] = match &fixture.body {
         Body::Pricing(_) => PRICING_BODY_KEYS,
-        Body::SabrSmile(_) => SABR_BODY_KEYS,
     };
     allowed.extend(body_keys.iter().copied());
 
@@ -271,33 +253,6 @@ fn validate_pricing_body(fixture: &GoldenFixture) -> Result<(), String> {
     }
 
     validate_required_pricing_risk_metrics(fixture)
-}
-
-fn validate_sabr_body(fixture: &GoldenFixture) -> Result<(), String> {
-    let sabr = fixture.sabr().ok_or("sabr_smile body expected")?;
-    if sabr.strikes.is_empty() {
-        return Err("sabr_smile fixture must define at least one strike".to_string());
-    }
-
-    let strike_keys = sabr
-        .strikes
-        .iter()
-        .map(|entry| entry.key.as_str())
-        .collect::<BTreeSet<_>>();
-    if strike_keys.len() != sabr.strikes.len() {
-        return Err("sabr_smile strike keys must be unique".to_string());
-    }
-    let expected_keys = fixture
-        .expected
-        .keys()
-        .map(String::as_str)
-        .collect::<BTreeSet<_>>();
-    if strike_keys != expected_keys {
-        return Err(
-            "sabr_smile strike keys must match the expected metric keys exactly".to_string(),
-        );
-    }
-    Ok(())
 }
 
 fn strip_default_instrument_inputs(value: &mut serde_json::Value) {
@@ -599,9 +554,7 @@ mod tests {
     #[test]
     fn pricing_body_rejects_invalid_instrument() {
         let mut fixture = load_fixture(DEPOSIT_FIXTURE);
-        let Body::Pricing(pricing) = &mut fixture.body else {
-            panic!("deposit fixture must be a pricing fixture");
-        };
+        let Body::Pricing(pricing) = &mut fixture.body;
         pricing.instrument = serde_json::json!({
             "schema": "finstack_quant.instrument/1",
             "instrument": {"type": "deposit", "spec": {}}
@@ -667,9 +620,7 @@ mod tests {
     #[test]
     fn pricing_body_rejects_inconsistent_swaption_leg_tenors() {
         let mut fixture = load_fixture(SWAPTION_FIXTURE);
-        let Body::Pricing(pricing) = &mut fixture.body else {
-            panic!("swaption fixture must be a pricing fixture");
-        };
+        let Body::Pricing(pricing) = &mut fixture.body;
         pricing.instrument["instrument"]["spec"]["underlying_fixed_leg"]["end"] =
             serde_json::json!("2031-05-05");
         pricing.instrument["instrument"]["spec"]["underlying_float_leg"]["end"] =

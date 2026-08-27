@@ -23,7 +23,7 @@ import re
 from typing import Any
 
 from finstack_quant.cashflows.aggregation import calendar_year_ladder
-from finstack_quant.valuations import vanilla_expiry_payoff
+from finstack_quant.models import vanilla_expiry_payoff
 
 from . import charts, format as fmt, tables
 from .document import KPI, Section, TearSheet, _resolve_sections

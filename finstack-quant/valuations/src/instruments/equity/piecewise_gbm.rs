@@ -14,16 +14,16 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::Result;
-use finstack_quant_monte_carlo::paths::ProcessParams;
-use finstack_quant_monte_carlo::process::metadata::ProcessMetadata;
-use finstack_quant_monte_carlo::traits::{Discretization, StochasticProcess};
+use finstack_quant_models::monte_carlo::paths::ProcessParams;
+use finstack_quant_models::monte_carlo::process::metadata::ProcessMetadata;
+use finstack_quant_models::monte_carlo::traits::{Discretization, StochasticProcess};
 
 /// Piecewise-constant GBM process.
 ///
 /// The forward rate, dividend yield, and volatility are constant within each
 /// interval `[times[i-1], times[i])` (with `times[-1] = 0`). This captures a
 /// term structure of rates and volatility between observation/reset dates that
-/// a single-parameter [`finstack_quant_monte_carlo`] GBM cannot.
+/// a single-parameter [`finstack_quant_models`] GBM cannot.
 #[derive(Debug, Clone)]
 pub(crate) struct PiecewiseGbmProcess {
     /// Interval end times (years from valuation), sorted ascending.

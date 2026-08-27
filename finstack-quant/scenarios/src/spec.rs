@@ -1099,10 +1099,10 @@ impl OperationSpec {
     ///
     /// Returns [`crate::error::Error::Validation`] if any identifier is empty,
     /// any numeric field is non-finite, or the variant violates its own
-    /// structural rules. FX shocks additionally reject `pct <= -100` because
-    /// driving a spot rate to zero would propagate NaNs through triangulation;
-    /// other percent shocks (equity, instrument price, vol) accept any finite
-    /// `pct` value.
+    /// structural rules. FX shocks reject `pct <= -100` because driving a spot
+    /// rate to zero would propagate NaNs through triangulation. Equity and
+    /// instrument price shocks reject `pct < -100`; an exact -100% wipeout is
+    /// allowed, but a negative post-shock price is not.
     pub fn validate(&self) -> crate::error::Result<()> {
         match self {
             OperationSpec::MarketFxPct { base, quote, pct } => {
@@ -1124,6 +1124,7 @@ impl OperationSpec {
                     ));
                 }
                 check_finite(*pct, "pct")?;
+                check_price_pct_floor(*pct, "pct")?;
             }
             OperationSpec::InstrumentPricePctByAttr { attrs, pct } => {
                 if attrs.is_empty() {
@@ -1135,6 +1136,7 @@ impl OperationSpec {
                     ));
                 }
                 check_finite(*pct, "pct")?;
+                check_price_pct_floor(*pct, "pct")?;
             }
             OperationSpec::CurveParallelBp {
                 curve_id,
@@ -1214,6 +1216,7 @@ impl OperationSpec {
             }
             OperationSpec::InstrumentPricePctByType { pct, .. } => {
                 check_finite(*pct, "pct")?;
+                check_price_pct_floor(*pct, "pct")?;
             }
             OperationSpec::InstrumentSpreadBpByType { bp, .. } => {
                 check_finite(*bp, "bp")?;
@@ -1238,14 +1241,22 @@ impl OperationSpec {
                     check_id(dcid.as_str(), "discount_curve_id")?;
                 }
             }
-            OperationSpec::HierarchyVolSurfaceParallelPct { target, pct, .. }
-            | OperationSpec::HierarchyEquityPricePct { target, pct } => {
+            OperationSpec::HierarchyVolSurfaceParallelPct { target, pct, .. } => {
                 if target.path.is_empty() {
                     return Err(crate::error::Error::Validation(
                         "Hierarchy target path cannot be empty".into(),
                     ));
                 }
                 check_finite(*pct, "pct")?;
+            }
+            OperationSpec::HierarchyEquityPricePct { target, pct } => {
+                if target.path.is_empty() {
+                    return Err(crate::error::Error::Validation(
+                        "Hierarchy target path cannot be empty".into(),
+                    ));
+                }
+                check_finite(*pct, "pct")?;
+                check_price_pct_floor(*pct, "pct")?;
             }
             OperationSpec::HierarchyBaseCorrParallelPts { target, points } => {
                 if target.path.is_empty() {
@@ -1291,6 +1302,16 @@ fn check_pct_floor(val: f64, name: &str) -> crate::error::Result<()> {
     if val <= -100.0 {
         Err(crate::error::Error::Validation(format!(
             "Percentage '{name}' must be greater than -100% (got {val:.1}%)"
+        )))
+    } else {
+        Ok(())
+    }
+}
+
+fn check_price_pct_floor(val: f64, name: &str) -> crate::error::Result<()> {
+    if val < -100.0 {
+        Err(crate::error::Error::Validation(format!(
+            "Price percentage '{name}' must be at least -100% (got {val:.1}%)"
         )))
     } else {
         Ok(())

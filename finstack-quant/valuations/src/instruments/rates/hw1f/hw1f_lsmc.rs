@@ -7,7 +7,7 @@
 //! 1. **Forward pass.** For each path the harness runs the full simulation
 //!    (accumulating the pathwise money-market numeraire `B(t)`, exposed to
 //!    payoffs via `StateKey::BankAccount`) and records per-path the time-0
-//!    PV reported by [`finstack_quant_monte_carlo::traits::Payoff::value`], as well
+//!    PV reported by [`finstack_quant_models::monte_carlo::traits::Payoff::value`], as well
 //!    as the short rate, undiscounted exercise value, bank factor, and
 //!    inactive flag at each exercise date.
 //! 2. **Backward pass.** Starting from maturity, the harness decomposes each
@@ -15,7 +15,7 @@
 //!    exercise date, via [`ExerciseBoundaryPayoff::value_after`]) and a
 //!    post-exercise component. It regresses the at-exercise continuation of
 //!    the *post-exercise* component (`(cashflow[p] − pre[p]) · B_p(t_ex)`) via
-//!    [`finstack_quant_monte_carlo::pricer::lsq::solve_least_squares`] against the
+//!    [`finstack_quant_models::monte_carlo::pricer::lsq::solve_least_squares`] against the
 //!    [`standard_basis`] (ITM + active paths only) and rolls the per-path
 //!    cashflow vector back, overwriting only the post-exercise portion with
 //!    the pathwise-discounted call value (`cashflow[p] = pre[p] +
@@ -28,7 +28,7 @@
 //!    as the LSMC PV estimate together with a 95% confidence interval.
 //!
 //! Product payoffs implement [`ExerciseBoundaryPayoff`] (a supertrait of
-//! [`finstack_quant_monte_carlo::traits::Payoff`]); the harness is entirely agnostic to the product-specific
+//! [`finstack_quant_models::monte_carlo::traits::Payoff`]); the harness is entirely agnostic to the product-specific
 //! cashflow logic.
 //!
 //! # In-sample upward bias and split-sample option
@@ -59,14 +59,16 @@ use crate::instruments::rates::hw1f::exercise::ExerciseBoundaryPayoff;
 use crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
-use finstack_quant_monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
-use finstack_quant_monte_carlo::online_stats::OnlineStats;
-use finstack_quant_monte_carlo::pricer::lsq::solve_least_squares;
-use finstack_quant_monte_carlo::process::ou::{HullWhite1FParams, HullWhite1FProcess};
-use finstack_quant_monte_carlo::results::MoneyEstimate;
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::time_grid::TimeGrid;
-use finstack_quant_monte_carlo::traits::{Discretization, PathState, RandomStream, StateKey};
+use finstack_quant_models::monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
+use finstack_quant_models::monte_carlo::online_stats::OnlineStats;
+use finstack_quant_models::monte_carlo::pricer::lsq::solve_least_squares;
+use finstack_quant_models::monte_carlo::process::ou::{HullWhite1FParams, HullWhite1FProcess};
+use finstack_quant_models::monte_carlo::results::MoneyEstimate;
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::traits::{
+    Discretization, PathState, RandomStream, StateKey,
+};
 
 /// Generic HW1F LSMC pricer for callable rate exotics.
 pub struct RateExoticHw1fLsmcPricer {
@@ -104,7 +106,7 @@ impl RateExoticHw1fLsmcPricer {
     /// Returns a validation error if `event_times` is empty or not strictly
     /// increasing, if `exercise_times` are not a subset of `event_times`,
     /// or if the time-grid construction fails. Propagates errors from
-    /// [`finstack_quant_monte_carlo::pricer::lsq::solve_least_squares`].
+    /// [`finstack_quant_models::monte_carlo::pricer::lsq::solve_least_squares`].
     pub fn price<F, P>(&self, payoff_factory: F) -> Result<MoneyEstimate>
     where
         F: Fn() -> P + Sync,
@@ -446,9 +448,9 @@ mod tests {
     use super::*;
     use crate::instruments::rates::hw1f::standard_basis;
     use finstack_quant_core::money::Money;
-    use finstack_quant_monte_carlo::traits::Payoff;
+    use finstack_quant_models::monte_carlo::traits::Payoff;
 
-    use finstack_quant_monte_carlo::traits::StateKey;
+    use finstack_quant_models::monte_carlo::traits::StateKey;
 
     /// Zero-coupon-bond payoff: pays `notional` at maturity (the last event),
     /// discounted pathwise via the bank-account numeraire exposed by the

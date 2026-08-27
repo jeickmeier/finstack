@@ -1,8 +1,8 @@
 //! Scenario-tree configuration for stochastic structured-credit pricing.
 
 use super::super::{default::StochasticDefaultSpec, prepayment::StochasticPrepaySpec};
-use crate::correlation::factor_model::LatentFactorSpec;
-use crate::correlation::recovery::RecoverySpec;
+use finstack_quant_models::correlation::factor_model::LatentFactorSpec;
+use finstack_quant_models::correlation::recovery::RecoverySpec;
 
 const MAX_TERMINAL_PATHS: usize = 50_000_000;
 

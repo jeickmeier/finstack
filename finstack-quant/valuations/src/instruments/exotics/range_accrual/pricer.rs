@@ -25,10 +25,10 @@ use finstack_quant_core::dates::{Date, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
-use finstack_quant_monte_carlo::pricer::path_dependent::{
+use finstack_quant_models::monte_carlo::pricer::path_dependent::{
     PathDependentPricer, PathDependentPricerConfig,
 };
-use finstack_quant_monte_carlo::process::gbm::{GbmParams, GbmProcess};
+use finstack_quant_models::monte_carlo::process::gbm::{GbmParams, GbmProcess};
 
 /// Resolve the FX spot required for a quanto range-accrual payoff.
 ///
@@ -234,7 +234,7 @@ impl RangeAccrualMcPricer {
         )?;
 
         // Derive deterministic seed from instrument ID and scenario
-        use finstack_quant_monte_carlo::seed;
+        use finstack_quant_models::monte_carlo::seed;
 
         let seed = if let Some(ref scenario) = inst.metric_pricing_overrides.mc_seed_scenario {
             seed::derive_seed(&inst.id, scenario)
@@ -379,8 +379,8 @@ pub(crate) fn compute_pv(
 /// - Applies quanto drift adjustment using FX spot for vol lookup when available
 /// - Includes historical fixings in the accrual calculation for mid-life valuations
 pub fn npv_analytic(inst: &RangeAccrual, curves: &MarketContext, as_of: Date) -> Result<Money> {
-    use crate::models::volatility::black::d1_d2_black76;
     use finstack_quant_core::math::special_functions::norm_cdf;
+    use finstack_quant_models::volatility::black::d1_d2_black76;
 
     let final_date = inst
         .payment_date

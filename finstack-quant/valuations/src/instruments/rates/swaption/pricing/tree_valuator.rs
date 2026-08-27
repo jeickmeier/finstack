@@ -151,7 +151,7 @@ impl<'a> BermudanSwaptionTreeValuator<'a> {
         })
     }
 
-    fn tree(&self) -> &crate::models::trees::HullWhiteTree {
+    fn tree(&self) -> &finstack_quant_models::trees::HullWhiteTree {
         self.model.tree().as_ref()
     }
 

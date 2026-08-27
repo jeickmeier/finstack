@@ -16,8 +16,8 @@
 //! use finstack_quant_valuations::instruments::rates::swaption::pricing::monte_carlo_lsmc::{
 //!     SwaptionLsmcPricer, SwaptionLsmcConfig,
 //! };
-//! use finstack_quant_monte_carlo::pricer::basis::PolynomialBasis;
-//! use finstack_quant_monte_carlo::process::ou::{HullWhite1FProcess, HullWhite1FParams};
+//! use finstack_quant_models::monte_carlo::pricer::basis::PolynomialBasis;
+//! use finstack_quant_models::monte_carlo::process::ou::{HullWhite1FProcess, HullWhite1FParams};
 //!
 //! let hw_params = HullWhite1FParams::new(0.03, 0.01, 0.03);
 //! let hw_process = HullWhite1FProcess::new(hw_params);
@@ -30,17 +30,17 @@ use super::monte_carlo_payoff::{BermudanSwaptionPayoff, SwaptionType};
 use super::swap_rate_utils::{ForwardSwapRate, HullWhiteBondPrice};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
-use finstack_quant_monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
-use finstack_quant_monte_carlo::estimate::Estimate;
-use finstack_quant_monte_carlo::online_stats::OnlineStats;
-use finstack_quant_monte_carlo::pricer::basis::BasisFunctions;
-use finstack_quant_monte_carlo::pricer::lsmc::LsmcConfig;
-use finstack_quant_monte_carlo::pricer::lsq::solve_least_squares;
-use finstack_quant_monte_carlo::process::ou::HullWhite1FProcess;
-use finstack_quant_monte_carlo::results::MoneyEstimate;
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::time_grid::TimeGrid;
-use finstack_quant_monte_carlo::traits::{Discretization, RandomStream};
+use finstack_quant_models::monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
+use finstack_quant_models::monte_carlo::estimate::Estimate;
+use finstack_quant_models::monte_carlo::online_stats::OnlineStats;
+use finstack_quant_models::monte_carlo::pricer::basis::BasisFunctions;
+use finstack_quant_models::monte_carlo::pricer::lsmc::LsmcConfig;
+use finstack_quant_models::monte_carlo::pricer::lsq::solve_least_squares;
+use finstack_quant_models::monte_carlo::process::ou::HullWhite1FProcess;
+use finstack_quant_models::monte_carlo::results::MoneyEstimate;
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream};
 
 /// Configuration for Bermudan swaption LSMC pricing.
 ///
@@ -81,7 +81,7 @@ pub struct SwaptionLsmcConfig {
 
 impl Default for SwaptionLsmcConfig {
     fn default() -> Self {
-        let defaults = &finstack_quant_monte_carlo::registry::embedded_defaults_or_panic()
+        let defaults = &finstack_quant_models::monte_carlo::registry::embedded_defaults_or_panic()
             .rust
             .swaption_lsmc;
         Self {
@@ -767,7 +767,7 @@ mod tests {
     // This module focuses on testing the LSMC swaption pricer itself
 
     use super::ExtendedSwaptionBasis;
-    use finstack_quant_monte_carlo::pricer::basis::BasisFunctions;
+    use finstack_quant_models::monte_carlo::pricer::basis::BasisFunctions;
 
     #[test]
     fn extended_basis_uses_real_annuity_terms() {

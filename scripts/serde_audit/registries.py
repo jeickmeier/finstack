@@ -197,7 +197,7 @@ NON_MAINTAINED_SERDE_EXCEPTIONS = (
     ),
     *_computed_output("margin", "src/regulatory/frtb/types.rs", ("FrtbSbaResult",)),
     *_computed_output("margin", "src/regulatory/sa_ccr/types.rs", ("EadResult",)),
-    *_computed_output("monte_carlo", "src/results.rs", ("MonteCarloResult",)),
+    *_computed_output("models", "src/monte_carlo/results.rs", ("MonteCarloResult",)),
     *_computed_output("portfolio", "src/brinson.rs", ("BrinsonPeriodResult",)),
     *_computed_output("portfolio", "src/excess_return.rs", ("ExcessReturnResult",)),
     *_computed_output("portfolio", "src/factor_brinson.rs", ("FactorBrinsonResult",)),
@@ -352,8 +352,8 @@ def _runtime_exception(
 # distinguish persisted DTOs from in-memory solver or algorithm state.
 RUNTIME_RESULT_EXCEPTIONS = (
     *_runtime_exception(
-        "monte_carlo",
-        "src/greeks/gbm_european.rs",
+        "models",
+        "src/monte_carlo/greeks/gbm_european.rs",
         ("GbmEuropeanFdSpec",),
         "runtime-spec",
     ),
@@ -423,15 +423,15 @@ RUNTIME_RESULT_EXCEPTIONS = (
         "runtime-spec",
     ),
     *_runtime_exception("valuations", "src/metrics/risk/var_calculator.rs", ("VarResult",)),
-    *_runtime_exception("valuations", "src/models/closed_form/asian.rs", ("AsianPriceResult",)),
+    *_runtime_exception("models", "src/closed_form/asian.rs", ("AsianPriceResult",)),
     *_runtime_exception(
-        "valuations",
-        "src/models/trees/short_rate_tree/tree.rs",
+        "models",
+        "src/trees/short_rate_tree/tree.rs",
         ("TreeCalibrationResult",),
     ),
     *_runtime_exception(
-        "valuations",
-        "src/models/trees/tree_framework/evolution.rs",
+        "models",
+        "src/trees/tree_framework/evolution.rs",
         ("BarrierSpec",),
         "runtime-spec",
     ),

@@ -61,7 +61,7 @@ impl MetricCalculator for VegaCalculator {
         let normal_by_negative_rate = inputs.forward <= 0.0 || strike <= 0.0;
         let use_normal = normal_by_model || normal_by_negative_rate;
         let (vega_raw, quote_axis_jacobian) = if use_normal {
-            use crate::models::volatility::normal::d_bachelier;
+            use finstack_quant_models::volatility::normal::d_bachelier;
             // For the negative-rate fallback `inputs.sigma` is a lognormal vol;
             // convert it to a normal vol so the Bachelier d-value — and hence
             // the vega — is correctly scaled. (Vega here measures sensitivity
@@ -106,7 +106,7 @@ impl MetricCalculator for VegaCalculator {
                 jacobian,
             )
         } else {
-            use crate::models::d1_black76;
+            use finstack_quant_models::d1_black76;
             let d1 = d1_black76(inputs.forward, strike, inputs.sigma, inputs.time_to_expiry);
             (
                 inputs.forward

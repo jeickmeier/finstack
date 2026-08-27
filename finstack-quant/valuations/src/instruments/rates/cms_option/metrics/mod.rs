@@ -15,11 +15,11 @@ use crate::metrics::bump_sizes;
 use crate::metrics::bump_surface_vol_absolute;
 use crate::metrics::VOL_POINTS_PER_ABSOLUTE_VOL;
 use crate::metrics::{MetricCalculator, MetricContext, MetricId, MetricRegistry};
-use crate::models::d1_d2_black76;
 use finstack_quant_core::dates::{DateExt, DayCountContext};
 use finstack_quant_core::market_data::bumps::{BumpSpec, MarketBump};
 use finstack_quant_core::math::norm_pdf;
 use finstack_quant_core::Result;
+use finstack_quant_models::d1_d2_black76;
 use std::sync::Arc;
 
 /// Register CMS option metrics with the registry.

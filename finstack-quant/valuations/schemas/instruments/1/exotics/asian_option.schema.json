@@ -141,16 +141,16 @@
       "type": "string"
     },
     "OptionType": {
-      "description": "Option type for pricing",
+      "description": "Option payoff direction used by analytical and numerical model engines.",
       "oneOf": [
         {
           "const": "call",
-          "description": "Call option",
+          "description": "Call option.",
           "type": "string"
         },
         {
           "const": "put",
-          "description": "Put option",
+          "description": "Put option.",
           "type": "string"
         }
       ]

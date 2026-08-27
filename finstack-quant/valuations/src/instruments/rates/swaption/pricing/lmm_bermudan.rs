@@ -29,15 +29,15 @@
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
-use finstack_quant_monte_carlo::discretization::lmm_predictor_corrector::LmmPredictorCorrector;
-use finstack_quant_monte_carlo::engine::MAX_NUM_PATHS;
-use finstack_quant_monte_carlo::online_stats::OnlineStats;
-use finstack_quant_monte_carlo::pricer::lsq::solve_least_squares;
-use finstack_quant_monte_carlo::process::lmm::{LmmParams, LmmProcess};
-use finstack_quant_monte_carlo::results::MoneyEstimate;
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::time_grid::TimeGrid;
-use finstack_quant_monte_carlo::traits::{Discretization, RandomStream};
+use finstack_quant_models::monte_carlo::discretization::lmm_predictor_corrector::LmmPredictorCorrector;
+use finstack_quant_models::monte_carlo::engine::MAX_NUM_PATHS;
+use finstack_quant_models::monte_carlo::online_stats::OnlineStats;
+use finstack_quant_models::monte_carlo::pricer::lsq::solve_least_squares;
+use finstack_quant_models::monte_carlo::process::lmm::{LmmParams, LmmProcess};
+use finstack_quant_models::monte_carlo::results::MoneyEstimate;
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream};
 
 const EXERCISE_TIME_TOLERANCE: f64 = 1e-10;
 
@@ -87,7 +87,7 @@ pub struct LmmBermudanConfig {
 
 impl Default for LmmBermudanConfig {
     fn default() -> Self {
-        let defaults = &finstack_quant_monte_carlo::registry::embedded_defaults_or_panic()
+        let defaults = &finstack_quant_models::monte_carlo::registry::embedded_defaults_or_panic()
             .rust
             .lmm_bermudan;
         Self {

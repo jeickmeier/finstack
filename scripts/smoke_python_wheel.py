@@ -56,7 +56,7 @@ def main() -> None:
     volatility = 0.20
     expiry = 1.0
 
-    valuations_price = packages["valuations"].bs_price(
+    closed_form_price = packages["models"].bs_price(
         spot,
         strike,
         rate,
@@ -65,7 +65,7 @@ def main() -> None:
         expiry,
         True,
     )
-    monte_carlo_price = packages["monte_carlo"].black_scholes_call(
+    monte_carlo_price = packages["models"].monte_carlo.black_scholes_call(
         spot,
         strike,
         rate,
@@ -75,20 +75,20 @@ def main() -> None:
     )
 
     for label, price in (
-        ("valuations.bs_price", valuations_price),
-        ("monte_carlo.black_scholes_call", monte_carlo_price),
+        ("models.bs_price", closed_form_price),
+        ("models.monte_carlo.black_scholes_call", monte_carlo_price),
     ):
         _require(math.isfinite(price), f"{label} returned a non-finite price: {price}")
         _require(price > 0.0, f"{label} returned a non-positive price: {price}")
 
     _require(
-        math.isclose(valuations_price, monte_carlo_price, rel_tol=1e-12, abs_tol=1e-12),
-        f"Black-Scholes implementations disagree: valuations={valuations_price}, monte_carlo={monte_carlo_price}",
+        math.isclose(closed_form_price, monte_carlo_price, rel_tol=1e-12, abs_tol=1e-12),
+        f"Black-Scholes implementations disagree: closed_form={closed_form_price}, monte_carlo={monte_carlo_price}",
     )
 
     print(
         f"Packaged wheel smoke passed: imported {len(packages)} public packages; "
-        f"Black-Scholes call={valuations_price:.12g}"
+        f"Black-Scholes call={closed_form_price:.12g}"
     )
 
 

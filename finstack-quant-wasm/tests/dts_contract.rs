@@ -232,7 +232,7 @@ fn discount_curve_dts_exposes_canonical_validation_and_forward_names() {
 /// M2.21 — the correlation namespace's `Vec<f64>` returns cross the WASM
 /// boundary as `Float64Array`, and the hand-written d.ts must say so.
 #[test]
-fn valuations_correlation_dts_uses_float64array_returns() {
+fn models_correlation_dts_uses_float64array_returns() {
     let dts = index_dts();
 
     assert!(dts.contains("export interface CorrelationNamespace"));
@@ -753,11 +753,12 @@ fn statements_analytics_dts_matches_runtime_exports() {
 }
 
 #[test]
-fn valuations_dts_exposes_credit_namespaces() {
+fn models_and_valuations_dts_expose_owned_credit_namespaces() {
     let dts = index_dts();
+    let models = interface_block(&dts, "ModelsNamespace");
     let valuations = interface_block(&dts, "ValuationsNamespace");
 
-    assert!(dts.contains("export interface ValuationCreditNamespace"));
+    assert!(dts.contains("export interface ModelCreditNamespace"));
     assert!(dts.contains("mertonModelJson("));
     assert!(dts.contains("mertonDefaultProbabilityWithDrift("));
     assert!(dts.contains("mertonDistanceToDefaultWithDrift("));
@@ -773,8 +774,11 @@ fn valuations_dts_exposes_credit_namespaces() {
     assert!(dts.contains("export interface CreditDerivativesNamespace"));
     assert!(dts.contains("creditDefaultSwapExampleJson(): string;"));
     assert!(dts.contains("cdsOptionExampleJson(): string;"));
-    assert!(dts.contains("credit: ValuationCreditNamespace;"));
+    assert!(models.contains("credit: ModelCreditNamespace;"));
+    assert!(models.contains("correlation: CorrelationNamespace;"));
     assert!(dts.contains("creditDerivatives: CreditDerivativesNamespace;"));
+    assert!(!valuations.contains("credit: ModelCreditNamespace;"));
+    assert!(!valuations.contains("correlation: CorrelationNamespace;"));
     assert!(!valuations.contains("CreditFactorModel"));
     assert!(!valuations.contains("CreditCalibrator"));
     assert!(!valuations.contains("decomposeLevels"));
@@ -794,12 +798,12 @@ fn factor_model_dts_exposes_credit_namespace() {
 }
 
 #[test]
-fn monte_carlo_dts_matches_pricing_surface() {
+fn models_monte_carlo_dts_matches_pricing_surface() {
     let dts = index_dts();
     let monte_carlo = interface_block(&dts, "MonteCarloNamespace");
 
     assert!(dts.contains("export interface MonteCarloNamespace"));
-    // The 12 facade root exports pinned by [wasm_monte_carlo_subset].
+    // The 12 facade exports pinned under [wasm_models_subset].
     for name in [
         "priceEuropeanCall(",
         "priceEuropeanPut(",
@@ -819,7 +823,10 @@ fn monte_carlo_dts_matches_pricing_surface() {
             "MonteCarloNamespace is missing `{name}`"
         );
     }
-    assert!(dts.contains("export declare const monte_carlo: MonteCarloNamespace;"));
+    let models = interface_block(&dts, "ModelsNamespace");
+    assert!(models.contains("monteCarlo: MonteCarloNamespace;"));
+    assert!(dts.contains("export declare const models: ModelsNamespace;"));
+    assert!(!dts.contains("export declare const monte_carlo: MonteCarloNamespace;"));
 }
 
 #[test]

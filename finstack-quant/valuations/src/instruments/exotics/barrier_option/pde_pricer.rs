@@ -31,7 +31,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::BarrierType;
 
-use crate::models::pde::{BoundaryCondition, Grid1D, PdeProblem1D, Solver1D};
+use finstack_quant_models::pde::{BoundaryCondition, Grid1D, PdeProblem1D, Solver1D};
 
 /// Black-Scholes PDE with barrier enforcement via boundary conditions.
 ///
@@ -206,7 +206,7 @@ impl BarrierOptionPdePricer {
         if inst.observed_barrier_breached == Some(true) {
             let unit = match inst.barrier_type {
                 BarrierType::UpAndIn | BarrierType::DownAndIn => {
-                    crate::models::closed_form::vanilla::bs_price_unchecked(
+                    finstack_quant_models::closed_form::vanilla::bs_price_unchecked(
                         spot,
                         inst.strike,
                         r,
@@ -217,8 +217,8 @@ impl BarrierOptionPdePricer {
                     )
                 }
                 BarrierType::UpAndOut | BarrierType::DownAndOut => match inst.rebate_timing {
-                    crate::models::closed_form::barrier::RebateTiming::AtHit => 0.0,
-                    crate::models::closed_form::barrier::RebateTiming::AtExpiry => {
+                    finstack_quant_models::closed_form::barrier::RebateTiming::AtHit => 0.0,
+                    finstack_quant_models::closed_form::barrier::RebateTiming::AtExpiry => {
                         inst.rebate.map_or(0.0, |rebate| rebate.amount() * df)
                     }
                 },
@@ -431,7 +431,7 @@ impl BarrierOptionPdePricer {
         grid: &Grid1D,
         inputs: VanillaPdeInputs,
     ) -> std::result::Result<f64, PricingError> {
-        use crate::models::pde::BlackScholesPde;
+        use finstack_quant_models::pde::BlackScholesPde;
 
         let pde = BlackScholesPde {
             sigma: inputs.sigma,
@@ -573,7 +573,7 @@ mod tests {
     /// met by the Rannacher solve but breached by an oscillating CN solve.
     #[test]
     fn w01_rannacher_knock_out_matches_analytical_continuous() {
-        use crate::models::closed_form::barrier::down_out_call;
+        use finstack_quant_models::closed_form::barrier::down_out_call;
 
         let as_of = date(2024, 1, 1);
         let expiry = date(2025, 1, 1);
@@ -709,7 +709,7 @@ mod tests {
     /// the leading-order error so the parity is tight.
     #[test]
     fn w08_knock_in_parity_consistent_with_shared_grid() {
-        use crate::models::closed_form::barrier::down_out_call;
+        use finstack_quant_models::closed_form::barrier::down_out_call;
 
         let as_of = date(2024, 1, 1);
         let expiry = date(2025, 1, 1);

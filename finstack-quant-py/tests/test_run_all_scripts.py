@@ -73,7 +73,7 @@ def test_example_modules_export_symbols_used_by_scripts(
     package_root = RUNNER_PATH.parents[1]
     monkeypatch.syspath_prepend(str(package_root))
 
-    from finstack_quant import analytics, portfolio, statements_analytics, valuations
+    from finstack_quant import analytics, models, portfolio, statements_analytics
 
     analytics_exports = {
         "Performance",
@@ -93,7 +93,7 @@ def test_example_modules_export_symbols_used_by_scripts(
         "score_relative_value",
         "z_score",
     }
-    valuation_exports = {
+    model_exports = {
         "bs_cos_price",
         "merton_jump_cos_price",
         "vg_cos_price",
@@ -110,5 +110,5 @@ def test_example_modules_export_symbols_used_by_scripts(
 
     assert analytics_exports.issubset(set(analytics.__all__))
     assert statements_analytics_exports.issubset(set(statements_analytics.__all__))
-    assert valuation_exports.issubset(set(valuations.__all__))
+    assert model_exports.issubset(set(models.__all__))
     assert portfolio_exports.issubset(set(portfolio.__all__))

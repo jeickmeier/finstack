@@ -13,7 +13,7 @@ the Rust crate — not here.
 
 The crate depends on the 14 domain crates under [`../finstack-quant/`](../finstack-quant)
 (`core`, `analytics`, `attribution`, `cashflows`, `covenants`, `factor-model`,
-`features`, `margin`, `monte_carlo`, `valuations`, `statements`,
+`features`, `margin`, `models`, `valuations`, `statements`,
 `statements-analytics`, `portfolio`, `scenarios`). No Rust crate depends on this one.
 
 [`finstack-quant-py`](../finstack-quant-py/README.md) is the sibling binding layer;
@@ -60,12 +60,12 @@ Its `README.md` and `.d.ts` are wasm-pack copies; treat nothing in `pkg/` or
 | `factor_model`         | nested `credit`: `CreditFactorModel`, `CreditCalibrator`, level/period decomposition, covariance forecast                                                                                                                                                       |
 | `features`             | signal cleaning, neutralization, weighting, and timeseries / cross-sectional / panel transforms                                                                                                                                                                 |
 | `margin`               | CSA presets and validation, `calculateVm`, `computeBilateralXva`                                                                                                                                                                                                |
-| `monte_carlo`          | European / Asian / American / Heston MC pricers plus the Black-Scholes closed forms                                                                                                                                                                             |
+| `models`               | analytical/Fourier/SABR exports plus nested `monteCarlo`, `credit`, and `correlation` model engines                                                                                                                                                             |
 | `portfolio`            | `Portfolio` and `InstrumentArtifactCache`, materialization, Brinson / Campisi / grid attribution, TWRR and MWR, valuation and scenario revaluation, VaR and ES decomposition, factor sensitivities, liquidity metrics                                           |
 | `scenarios`            | spec parse/compose/validate, builtin templates and components, `applyScenario`, `computeHorizonReturn`                                                                                                                                                          |
 | `statements`           | model and check-suite validation, `evaluateModel`, `runMonteCarlo`, formula parsing                                                                                                                                                                             |
 | `statements_analytics` | sensitivity, variance, scenario sets, backtesting, goal seek, DCF, LBO, WACC, check reports, comps                                                                                                                                                              |
-| `valuations`           | nested `instruments`, `fx`, `credit`, `creditDerivatives`, `correlation`; plus calibration (`calibrate`, `dryRun`, …), the reusable `Market` handle, SABR, COS Fourier pricers, and analytic option primitives                                                  |
+| `valuations`           | nested `instruments`, `fx`, `creditDerivatives`, `composite`, and `market`; plus calibration (`calibrate`, `dryRun`, …), product-specific coupon helpers, and the reusable `Market` handle                                                                      |
 
 Hover any namespace member in a TypeScript IDE for its arguments, result shape,
 error behavior, and conventions. `index.d.ts` is the authoritative surface; use its
@@ -74,7 +74,7 @@ camelCase parameter names.
 ## Quick start
 
 ```javascript
-import init, { analytics, core, monte_carlo, valuations } from 'finstack-quant-wasm';
+import init, { analytics, core, models, valuations } from 'finstack-quant-wasm';
 
 await init();
 
@@ -99,7 +99,18 @@ perf.sharpe(0.0); // Float64Array [ 0.917662935482247 ]
 perf.free();
 
 // Monte Carlo. The seed is a u64, so pass a BigInt.
-const estimate = monte_carlo.priceEuropeanCall(100, 100, 0.03, 0, 0.2, 1, 10_000, 42n, 64, 'USD');
+const estimate = models.monteCarlo.priceEuropeanCall(
+  100,
+  100,
+  0.03,
+  0,
+  0.2,
+  1,
+  10_000,
+  42n,
+  64,
+  'USD'
+);
 estimate.mean; // 9.16530187202297
 estimate.currency; // 'USD'
 

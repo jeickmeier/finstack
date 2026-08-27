@@ -6,13 +6,13 @@ use crate::instruments::common_impl::parameters::{
 };
 use crate::instruments::common_impl::traits::{Attributes, Instrument};
 use crate::instruments::{ExerciseStyle, OptionType, SettlementType};
-use crate::models::trees::binomial_tree::BinomialTree;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_core::Result;
+use finstack_quant_models::trees::binomial_tree::BinomialTree;
 
 // Monte Carlo types (feature-gated)
 
@@ -109,8 +109,8 @@ pub struct CommodityOption {
     pub underlying: CommodityUnderlyingParams,
     /// Strike price per unit.
     #[serde(
-        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
-        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+        serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
+        deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub strike: f64,
@@ -134,15 +134,15 @@ pub struct CommodityOption {
     pub expiry: Date,
     /// Contract quantity in units.
     #[serde(
-        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
-        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+        serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
+        deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub quantity: f64,
     /// Contract multiplier (typically 1.0 for OTC options).
     #[serde(
-        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
-        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+        serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
+        deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub multiplier: f64,
@@ -442,7 +442,7 @@ impl CommodityOption {
         market: &MarketContext,
         as_of: Date,
     ) -> Result<Money> {
-        use finstack_quant_monte_carlo::prelude::*;
+        use finstack_quant_models::monte_carlo::prelude::*;
 
         if as_of > self.expiry {
             return Ok(Money::new(0.0, self.underlying.currency));
@@ -642,8 +642,8 @@ fn black76_unit_price(
         return intrinsic * df;
     }
 
-    let d1 = crate::models::d1_black76(forward, strike, sigma, t);
-    let d2 = crate::models::d2_black76(forward, strike, sigma, t);
+    let d1 = finstack_quant_models::d1_black76(forward, strike, sigma, t);
+    let d2 = finstack_quant_models::d2_black76(forward, strike, sigma, t);
 
     let price = match option_type {
         OptionType::Call => {
@@ -866,7 +866,7 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for Commodity
         let forward = self.forward_price(market, as_of)?;
         let disc = market.get_discount(self.discount_curve_id.as_str())?;
         let df = disc.df_between_dates(as_of, self.expiry)?;
-        let d1 = crate::models::d1_black76(forward, self.strike, sigma, t);
+        let d1 = finstack_quant_models::d1_black76(forward, self.strike, sigma, t);
         let nd1 = norm_cdf(d1);
 
         let delta_unit = match self.option_type {
@@ -914,7 +914,7 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for Commodity
         let forward = self.forward_price(market, as_of)?;
         let disc = market.get_discount(self.discount_curve_id.as_str())?;
         let df = disc.df_between_dates(as_of, self.expiry)?;
-        let d1 = crate::models::d1_black76(forward, self.strike, sigma, t);
+        let d1 = finstack_quant_models::d1_black76(forward, self.strike, sigma, t);
         let vega_abs = df * forward * norm_pdf(d1) * t.sqrt();
         Ok(Some(vega_abs * 0.01 * self.quantity * self.multiplier))
     }

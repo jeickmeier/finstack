@@ -86,7 +86,7 @@ Organization": **mathematics belongs in `core::math` unless it is exclusively
 useful to one domain.** A Cholesky factorization, a streaming variance
 accumulator, or a Sobol sequence is general and lives here; a GBM path simulator
 or a European-call payoff is Monte-Carlo-specific and lives in
-`finstack-quant-monte-carlo`. Before adding a numerical helper anywhere else,
+`finstack-quant-models`. Before adding a numerical helper anywhere else,
 check whether `core::math` already has it, and if you are putting it in a domain
 crate be ready to say in the PR why it cannot be generalized.
 

@@ -67,8 +67,8 @@ pub struct CommodityAsianOption {
     pub underlying: CommodityUnderlyingParams,
     /// Strike price per unit.
     #[serde(
-        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
-        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+        serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
+        deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub strike: f64,
@@ -90,8 +90,8 @@ pub struct CommodityAsianOption {
     pub realized_fixings: Vec<(Date, f64)>,
     /// Contract quantity in commodity units.
     #[serde(
-        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
-        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+        serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
+        deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub quantity: f64,

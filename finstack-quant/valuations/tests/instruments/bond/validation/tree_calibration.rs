@@ -10,11 +10,11 @@ use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::HashMap;
-use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-use finstack_quant_valuations::instruments::Instrument;
-use finstack_quant_valuations::models::{
+use finstack_quant_models::{
     NodeState, ShortRateTree, ShortRateTreeConfig, TreeModel, TreeValuator,
 };
+use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
+use finstack_quant_valuations::instruments::Instrument;
 use time::macros::date;
 
 /// Helper: Create a flat discount curve
@@ -378,8 +378,8 @@ fn test_mean_reversion_none_matches_ho_lee() {
 
 #[test]
 fn test_mean_reversion_reduces_rate_dispersion() {
-    use finstack_quant_valuations::models::HullWhiteTree;
-    use finstack_quant_valuations::models::HullWhiteTreeConfig;
+    use finstack_quant_models::HullWhiteTree;
+    use finstack_quant_models::HullWhiteTreeConfig;
 
     let as_of = date!(2020 - 01 - 01);
     let rate = 0.05;

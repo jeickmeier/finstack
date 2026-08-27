@@ -1,0 +1,50 @@
+[package]
+name = "finstack-quant-models"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Reusable analytical, numerical, credit, correlation, and stochastic models for quantitative finance"
+autobenches = false
+
+[dependencies]
+finstack-quant-core = { path = "../core", version = "0.7.0" }
+finstack-quant-analytics = { path = "../analytics", version = "0.7.0" }
+finstack-quant-cashflows = { path = "../cashflows", version = "0.7.0" }
+indexmap = { workspace = true, features = ["serde"] }
+smallvec = { version = "1.15", default-features = false, features = ["serde"] }
+serde = { workspace = true }
+serde_json = { workspace = true, features = ["raw_value"] }
+tracing = { version = "0.1", default-features = false, features = ["attributes"] }
+rayon = "1.11"
+nalgebra = { version = "0.34", default-features = false, features = ["std"] }
+time = { workspace = true }
+rust_decimal = { workspace = true }
+schemars = { workspace = true }
+thiserror = { workspace = true }
+num-complex = "0.4"
+strum = { workspace = true, features = ["derive"] }
+ts-rs = { version = "12", optional = true, features = ["serde-compat", "no-serde-warnings"] }
+
+[features]
+default = []
+ts_export = ["dep:ts-rs"]
+
+[dev-dependencies]
+criterion = { workspace = true }
+proptest = "1.11.0"
+time = { workspace = true, features = ["macros"] }
+toml = "1.1.4"
+
+[[bench]]
+name = "mc_hot_paths"
+harness = false
+
+[[bench]]
+name = "fourier_pricing"
+harness = false
+
+[lints]
+workspace = true

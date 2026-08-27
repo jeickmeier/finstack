@@ -17,7 +17,7 @@ Depends on (see [`Cargo.toml`](Cargo.toml)):
 | [`finstack-quant-analytics`](../analytics/README.md) | shared statistics and the canonical correlation-matrix helpers |
 | [`finstack-quant-covenants`](../covenants/README.md) | `CovenantReport` attached to `ValuationResult::covenants` |
 | [`finstack-quant-margin`](../margin/README.md) | `Marginable` bridge (`Instrument::as_marginable`) for VM/IM and XVA |
-| [`finstack-quant-monte-carlo`](../monte_carlo/README.md) | processes, time grids, Philox RNG behind MC pricers |
+| [`finstack-quant-models`](../models/README.md) | closed-form/Fourier formulas, SABR, PDE/tree engines, structural credit, correlation, and Monte Carlo |
 | [`finstack-quant-factor-model`](../factor-model/README.md) | factor primitives used by credit/portfolio risk paths |
 | `finstack-quant-valuations-macros` | `FinancialBuilder` derive, which generates `Type::builder()` (`macros/`) |
 
@@ -31,13 +31,11 @@ No crate that valuations depends on may depend back on it.
 | Path | Role |
 |------|------|
 | [`src/instruments/`](src/instruments/README.md) | Instrument types by asset class, the `Instrument` trait, JSON loading |
-| `src/pricer/` | `InstrumentType`/`ModelKey`/`PricerKey` dispatch, `PricerRegistry`, JSON pricing entry points, COS Fourier pricer |
-| `src/models/` | Numerical methods: `closed_form/`, `credit/`, `pde/`, `trees/`, `volatility/` |
+| `src/pricer/` | `InstrumentType`/`ModelKey`/`PricerKey` dispatch, `PricerRegistry`, and JSON pricing entry points |
 | [`src/metrics/`](src/metrics/README.md) | `MetricId`, `MetricCalculator`, `MetricRegistry`, sensitivities, historical VaR |
 | [`src/calibration/`](src/calibration/README.md) | Plan-driven calibration engine, solvers, targets, validation, bumps |
 | [`src/market/`](src/market/README.md) | Market quotes, convention registries, quote-to-instrument builders |
 | [`src/results/`](src/results/README.md) | `ValuationResult`, `ResultsMeta`, `ValuationRow` export |
-| `src/correlation/` | Copulas, recovery models, latent factor models, portfolio-loss simulation |
 | `src/contract_specs.rs` | Embedded exchange contract specs (bond/equity-index/vol-index futures, repo defaults); crate-private, surfaced through the instruments that use them |
 | `src/constants.rs` | Basis-point and percent conversion constants for hot paths |
 | `src/schema.rs` | Accessors and validators for the checked-in JSON Schema artifacts |
@@ -178,16 +176,16 @@ their sources in rustdoc `# References` sections pointing at
 Reachable from both host languages under the `valuations` namespace:
 
 - Python: `finstack_quant.valuations` — `ValuationResult`, `calibrate`,
-  `CalibrationResult`, closed-form and Fourier pricers, SABR, plus the
-  `valuations.instruments`, `valuations.models`, `valuations.correlation`,
-  `valuations.credit_derivatives`, and `valuations.schema` submodules.
+  `CalibrationResult`, product-specific helpers, plus the
+  `valuations.instruments`, `valuations.credit_derivatives`,
+  `valuations.composite`, `valuations.market`, and `valuations.schema`
+  submodules. Reusable engines live under `finstack_quant.models`.
 - WASM/JS: `valuations` from `finstack-quant-wasm` — `calibrate`,
   `validateCalibrationJson`, `validateValuationResultJson`, and the
-  `instruments`, `correlation`, `credit`, `creditDerivatives`, `fx` namespaces.
+  `instruments`, `creditDerivatives`, `composite`, `market`, and `fx`
+  namespaces. Reusable engines live under the sibling `models` namespace.
 
-`valuations.correlation` is a documented merged namespace: the correlation-matrix
-helpers are canonically owned by `finstack_quant_analytics::correlation` and
-re-exported here. Bindings are thin wrappers — no pricing logic lives in them.
+Bindings are thin wrappers — no pricing logic lives in them.
 
 ## Usage
 

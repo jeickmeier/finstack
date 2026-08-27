@@ -29,9 +29,9 @@
 //!   *Journal of Financial Economics*, 3(1-2), 167-179. `docs/REFERENCES.md#black-1976`
 
 use super::payoff::CapletFloorletInputs;
-use crate::models::{d1_black76, d1_d2_black76};
 use finstack_quant_core::math::{norm_cdf, norm_pdf};
 use finstack_quant_core::money::Money;
+use finstack_quant_models::{d1_black76, d1_d2_black76};
 
 /// Compute intrinsic value of a caplet/floorlet.
 ///

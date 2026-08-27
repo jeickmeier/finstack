@@ -7,11 +7,11 @@ use crate::instruments::fx::shared::{
     collect_fx_option_inputs_no_vol as collect_shared_fx_option_inputs_no_vol,
     FxOptionInputRequest, FxSpotSource,
 };
-use crate::models::closed_form::vanilla::{bs_greeks_unchecked, bs_price_unchecked};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
+use finstack_quant_models::closed_form::vanilla::{bs_greeks_unchecked, bs_price_unchecked};
 
 const STRIKE_ZERO_TOL: f64 = 1e-12;
 const THETA_DAYS_PER_YEAR: f64 = 365.0;
@@ -137,7 +137,7 @@ pub(crate) fn implied_vol(
 
     let target_unit = target_price / inst.notional.amount();
 
-    crate::models::bs_implied_vol(
+    finstack_quant_models::bs_implied_vol(
         spot,
         inst.strike,
         r_d,
@@ -220,7 +220,7 @@ pub(crate) fn compute_greeks(
         inst.option_type,
         THETA_DAYS_PER_YEAR,
     );
-    let d1 = crate::models::d1(spot, inst.strike, r_d, sigma, t, r_f);
+    let d1 = finstack_quant_models::d1(spot, inst.strike, r_d, sigma, t, r_f);
     let d2 = d1 - sigma * t.sqrt();
     let cdf_d1 = finstack_quant_core::math::norm_cdf(d1);
     let cdf_d2 = finstack_quant_core::math::norm_cdf(d2);

@@ -43,9 +43,9 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::solver::{BrentSolver, Solver};
 use finstack_quant_core::{Error as CoreError, Result};
-use finstack_quant_monte_carlo::process::ou::HullWhite1FParams;
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::traits::RandomStream;
+use finstack_quant_models::monte_carlo::process::ou::HullWhite1FParams;
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::traits::RandomStream;
 use rayon::prelude::*;
 
 /// Configuration for Monte Carlo OAS calculation.

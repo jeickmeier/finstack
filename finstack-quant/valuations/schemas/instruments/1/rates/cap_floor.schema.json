@@ -181,21 +181,21 @@
       ]
     },
     "ExerciseStyle": {
-      "description": "Exercise style for options",
+      "description": "Exercise schedule convention for option models.",
       "oneOf": [
         {
           "const": "european",
-          "description": "European exercise (only at expiry)",
+          "description": "Exercise only at expiry.",
           "type": "string"
         },
         {
           "const": "american",
-          "description": "American exercise (any time before/at expiry)",
+          "description": "Exercise at any eligible time through expiry.",
           "type": "string"
         },
         {
           "const": "bermudan",
-          "description": "Bermudan exercise (specific dates before expiry)",
+          "description": "Exercise on a finite schedule of eligible dates.",
           "type": "string"
         }
       ]

@@ -720,7 +720,7 @@ dependencies = [
  "finstack-quant-factor-model",
  "finstack-quant-features",
  "finstack-quant-margin",
- "finstack-quant-monte-carlo",
+ "finstack-quant-models",
  "finstack-quant-portfolio",
  "finstack-quant-scenarios",
  "finstack-quant-statements",
@@ -879,17 +879,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "finstack-quant-monte-carlo"
+name = "finstack-quant-models"
 version = "0.7.0"
 dependencies = [
  "criterion",
+ "finstack-quant-analytics",
+ "finstack-quant-cashflows",
  "finstack-quant-core",
+ "indexmap",
  "nalgebra",
+ "num-complex",
+ "proptest",
  "rayon",
+ "rust_decimal",
+ "schemars",
  "serde",
  "serde_json",
  "smallvec",
+ "strum",
+ "thiserror",
+ "time",
+ "toml",
  "tracing",
+ "ts-rs",
 ]
 
 [[package]]
@@ -936,7 +948,7 @@ dependencies = [
  "finstack-quant-factor-model",
  "finstack-quant-features",
  "finstack-quant-margin",
- "finstack-quant-monte-carlo",
+ "finstack-quant-models",
  "finstack-quant-portfolio",
  "finstack-quant-scenarios",
  "finstack-quant-statements",
@@ -1034,7 +1046,7 @@ dependencies = [
  "finstack-quant-covenants",
  "finstack-quant-factor-model",
  "finstack-quant-margin",
- "finstack-quant-monte-carlo",
+ "finstack-quant-models",
  "finstack-quant-valuations-macros",
  "indexmap",
  "jsonschema",
@@ -1077,7 +1089,7 @@ dependencies = [
  "finstack-quant-factor-model",
  "finstack-quant-features",
  "finstack-quant-margin",
- "finstack-quant-monte-carlo",
+ "finstack-quant-models",
  "finstack-quant-portfolio",
  "finstack-quant-scenarios",
  "finstack-quant-statements",

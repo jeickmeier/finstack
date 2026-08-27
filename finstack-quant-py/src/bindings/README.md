@@ -32,12 +32,12 @@ for this crate.
 | `factor_model/` | `pub` | `credit.rs` (registered as `factor_model.credit`), `schema.rs` |
 | `features/` | `pub` | Single file; all transforms are free functions on `mod.rs` |
 | `margin/` | `pub` | `calculators.rs`, `im.rs`, `regulatory.rs`, `xva.rs`, `metrics.rs`, `types.rs`, `sensitivity_frame.rs`, `schema.rs` |
-| `monte_carlo/` | `pub` | `engine.rs`, `pricers.rs`, `greeks.rs`, `analytical.rs`, `results.rs`, `time_grid.rs` |
+| `models/` | `pub` | Analytical, Fourier, SABR, credit, and correlation bindings plus `monte_carlo/` (`engine.rs`, `pricers.rs`, `greeks.rs`, `analytical.rs`, `results.rs`, `time_grid.rs`) |
 | `portfolio/` | `pub` | 34 files: `factor_model/` and `optimization_spec/` subtrees plus per-method attribution (`brinson.rs`, `factor_brinson.rs`, `fi_attribution.rs`, `grid_attribution.rs`, `excess_return.rs`), `materialization.rs`, `pipeline.rs`, `sensitivity.rs`, `liquidity.rs`, `replay.rs`, `types.rs` |
 | `scenarios/` | `pub` | `engine.rs`, `horizon.rs`, `operation_spec/` (typed authoring path), `schema.rs` |
 | `statements/` | `pub` | `builder.rs`, `evaluator.rs`, `types.rs`, `capital_structure.rs`, `checks.rs`, `adjustments.rs`, `monte_carlo.rs`, `dsl.rs`, `schema.rs` |
 | `statements_analytics/` | `pub` | `analysis.rs`, `typed.rs`, `corkscrew.rs`, `ecl.rs`, `scorecards.rs`, `comps.rs`, and the `templates_*.rs` family |
-| `valuations/` | `pub` | 29 files: `typed_rates.rs`, `typed_fx.rs`, `typed_equity.rs`, `typed_legs.rs`, `typed_credit/`, `typed_structured_credit/`, plus `pricing.rs`, `instruments.rs`, `calibration.rs`, `correlation/`, `credit.rs`, `merton_mc.rs`, `sabr.rs`, `fourier.rs`, `analytic.rs`, `exotic_rates.rs`, `schema.rs` |
+| `valuations/` | `pub` | Instrument, market, calibration, and product-pricing bindings: `typed_rates.rs`, `typed_fx.rs`, `typed_equity.rs`, `typed_legs.rs`, `typed_credit/`, `typed_structured_credit/`, plus `pricing.rs`, `instruments.rs`, `calibration.rs`, `exotic_rates.rs`, and `schema.rs` |
 | `schema.rs` | `pub` | The workspace-wide `finstack_quant.schema` namespace: merges all nine per-domain registries and labels each row with its owning domain |
 | `schema_registry.rs` | `pub(crate)` | `registry_index` / `find_artifact` / `render_profile` / `validate_against`, and the `schema_registry_functions!` macro that generates the identical `index` / `get` / `validate` trio for each `finstack_quant.<domain>.schema` |
 | `module_utils.rs` | `pub(crate)` | Submodule registration; also `py_to_json_value`, `py_to_json_string`, `py_to_serde`, `parse_currency`, `parse_date` |

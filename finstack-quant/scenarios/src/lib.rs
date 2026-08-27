@@ -89,7 +89,7 @@
 //! };
 //!
 //! let report = engine.apply(&scenario, &mut ctx)?;
-//! println!("Applied {} operations", report.operations_applied);
+//! println!("Applied {} effects", report.operations_applied);
 //! # Ok(())
 //! # }
 //! ```

@@ -298,9 +298,11 @@ fn test_bond_valuator_street_call_redemption_includes_accrued_interest() {
 
 #[test]
 fn test_rates_credit_default_lowers_price() {
-    use crate::models::trees::two_factor_rates_credit::{RatesCreditConfig, RatesCreditTree};
     use finstack_quant_core::market_data::term_structures::HazardCurve;
     use finstack_quant_core::HashMap;
+    use finstack_quant_models::trees::two_factor_rates_credit::{
+        RatesCreditConfig, RatesCreditTree,
+    };
 
     let bond = create_test_bond();
     let base_date = Date::from_calendar_date(2025, Month::January, 1).expect("Valid test date");
@@ -364,7 +366,7 @@ fn test_rates_credit_default_lowers_price() {
     let valuator_high =
         BondValuator::new(bond, &ctx_high, as_of, time_to_maturity, steps).expect("valuator");
 
-    use crate::models::TreeModel;
+    use finstack_quant_models::TreeModel;
     let disc_low = ctx_low
         .get_discount("USD-OIS")
         .expect("Discount curve should exist");

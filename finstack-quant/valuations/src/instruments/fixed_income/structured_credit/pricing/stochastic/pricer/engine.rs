@@ -3,7 +3,6 @@
 use super::config::{PricingMode, StochasticPricerConfig};
 use super::result::{StochasticPricingResult, TranchePricingResult};
 use crate::cashflow::builder::schedule::weighted_average_life_from_principal;
-use crate::correlation::{CopulaSpec, LatentFactorSpec, RecoverySpec};
 use crate::instruments::fixed_income::structured_credit::pricing::simulation_engine::{
     prepare_deal_simulation, run_prepared_simulation_with_source, PerNameDefaultEngine,
     PerNamePeriodInput, PeriodPoolShock, PreparedDealSimulation, StochasticPathFlowSource,
@@ -23,8 +22,9 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::stats::OnlineStats;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::traits::RandomStream;
+use finstack_quant_models::correlation::{CopulaSpec, LatentFactorSpec, RecoverySpec};
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::traits::RandomStream;
 use rayon::prelude::*;
 use std::sync::Arc;
 

@@ -654,7 +654,7 @@ impl EquityOption {
         };
         let k = self.strike;
         let target_unit = market_price / self.notional.amount();
-        crate::models::bs_implied_vol(spot, k, r, q, t, self.option_type, target_unit)
+        finstack_quant_models::bs_implied_vol(spot, k, r, q, t, self.option_type, target_unit)
     }
 }
 
@@ -907,7 +907,6 @@ mod tests {
     use crate::instruments::{
         Attributes, ExerciseStyle, InstrumentPricingOverrides, OptionType, SettlementType,
     };
-    use crate::models::closed_form::vanilla::bs_price_unchecked;
     use finstack_quant_core::{
         currency::Currency,
         dates::{Date, DayCount},
@@ -917,6 +916,7 @@ mod tests {
         money::Money,
         types::{CurveId, InstrumentId},
     };
+    use finstack_quant_models::closed_form::vanilla::bs_price_unchecked;
 
     #[test]
     fn canonical_dependencies_preserve_equity_surface_context() {

@@ -1086,7 +1086,7 @@ where
 ///
 /// Runtime Golub-Welsch replaces a previously hard-coded 10-node
 /// Laguerre table in
-/// `finstack_quant_valuations::correlation::copula::student_t::StudentTCopula`,
+/// `finstack_quant_models::correlation::copula::student_t::StudentTCopula`,
 /// which silently capped `with_quadrature_order(n > 10)` at `n = 10`. `docs/REFERENCES.md#golub-van-loan-matrix-computations`
 #[derive(Debug, Clone)]
 pub struct GaussLaguerreQuadrature {

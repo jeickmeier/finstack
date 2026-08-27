@@ -20,8 +20,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 
 use crate::instruments::common_impl::parameters::OptionType;
-use crate::models::closed_form::heston::HestonParams as ClosedFormHestonParams;
-use crate::models::pde::{CraigSneydStepper, Grid1D, Grid2D, HestonPde, Solver2D};
+use finstack_quant_models::pde::{CraigSneydStepper, Grid1D, Grid2D, HestonPde, Solver2D};
 
 /// Equity option pricer using 2D ADI PDE (Modified Craig-Sneyd) with Heston
 /// stochastic volatility dynamics.
@@ -102,7 +101,7 @@ impl EquityOptionHestonPdePricer {
 
         // Source production Heston parameters from explicit market scalars.
         // Validation is still enforced inside `HestonParams::new`.
-        let cf_params = ClosedFormHestonParams::from_market_strict(market, r, q).map_err(|e| {
+        let cf_params = crate::instruments::equity::equity_option::heston_market::heston_params_from_market_strict(market, r, q).map_err(|e| {
             PricingError::model_failure_with_context(
                 e.to_string(),
                 PricingErrorContext::from_instrument(inst).model(ModelKey::PdeAdi2D),

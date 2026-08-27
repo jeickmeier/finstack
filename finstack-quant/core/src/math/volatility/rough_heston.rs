@@ -284,7 +284,7 @@ pub struct RoughHestonFourierParams {
     /// Strict inequality is required for the Fourier pricer because ρ = ±1
     /// makes the correlation matrix singular, causing numerical instability
     /// in the characteristic function. The MC process `RoughHestonParams` in
-    /// `finstack_quant_monte_carlo::process::rough_heston` allows ρ ∈ \[−1, 1\]
+    /// `finstack_quant_models::monte_carlo::process::rough_heston` allows ρ ∈ \[−1, 1\]
     /// because QE-style schemes can handle degenerate correlation.
     pub rho: f64,
     /// Hurst exponent (0 < H < 0.5 for rough regime).

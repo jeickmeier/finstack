@@ -104,15 +104,15 @@ pub struct CommoditySwaption {
     pub swap_frequency: Tenor,
     /// Fixed price (strike) of the underlying swap.
     #[serde(
-        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
-        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+        serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
+        deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub fixed_price: f64,
     /// Notional quantity per period.
     #[serde(
-        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
-        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+        serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
+        deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub notional: f64,
@@ -583,8 +583,12 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for Commodity
             return Ok(Some(0.0));
         }
 
-        let d1 =
-            crate::models::d1_black76(inputs.forward, self.fixed_price, inputs.sigma, inputs.time);
+        let d1 = finstack_quant_models::d1_black76(
+            inputs.forward,
+            self.fixed_price,
+            inputs.sigma,
+            inputs.time,
+        );
         let nd1 = norm_cdf(d1);
 
         let delta_unit = match self.option_type {
@@ -665,8 +669,12 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for Commodity
             return Ok(Some(0.0));
         }
 
-        let d1 =
-            crate::models::d1_black76(inputs.forward, self.fixed_price, inputs.sigma, inputs.time);
+        let d1 = finstack_quant_models::d1_black76(
+            inputs.forward,
+            self.fixed_price,
+            inputs.sigma,
+            inputs.time,
+        );
         // Vega = annuity * F * N'(d1) * sqrt(T) * 0.01 (per vol point)
         let vega_abs = inputs.annuity * inputs.forward * norm_pdf(d1) * inputs.time.sqrt();
         Ok(Some(vega_abs * 0.01 * self.notional))
@@ -695,8 +703,8 @@ fn black76_swaption_price(
         return intrinsic * annuity;
     }
 
-    let d1 = crate::models::d1_black76(forward, strike, sigma, t);
-    let d2 = crate::models::d2_black76(forward, strike, sigma, t);
+    let d1 = finstack_quant_models::d1_black76(forward, strike, sigma, t);
+    let d2 = finstack_quant_models::d2_black76(forward, strike, sigma, t);
 
     let price = match option_type {
         OptionType::Call => {

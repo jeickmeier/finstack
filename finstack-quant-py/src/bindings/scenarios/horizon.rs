@@ -159,7 +159,7 @@ impl PyHorizonResult {
         self.inner.annualized_return()
     }
 
-    /// Number of scenario operations applied.
+    /// Number of scenario effects successfully applied.
     #[getter]
     fn operations_applied(&self) -> usize {
         self.inner.scenario_report.operations_applied

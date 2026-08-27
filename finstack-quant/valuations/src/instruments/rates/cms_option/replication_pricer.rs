@@ -67,7 +67,6 @@ use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::rates::cms_option::types::CmsOption;
 use crate::instruments::OptionType;
-use crate::models::{black76_call, black76_put};
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
@@ -77,6 +76,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::gauss_legendre_integrate;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
+use finstack_quant_models::{black76_call, black76_put};
 
 /// Step size for central-difference approximation of g'(k).
 ///

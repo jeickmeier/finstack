@@ -6,7 +6,7 @@
 //! 1. **θ(t) calibration (defect M6).** The Hull-White 1-factor model fits the
 //!    initial discount curve only when its mean-reversion *level* θ is
 //!    time-dependent (Brigo–Mercurio §3.3.1). [`calibrate_hw1f_params`] wraps
-//!    the canonical `finstack_quant_monte_carlo::process::ou::calibrate_theta_from_curve`
+//!    the canonical `finstack_quant_models::monte_carlo::process::ou::calibrate_theta_from_curve`
 //!    bootstrap, presenting the discount curve as the `P(as_of, as_of+t)`
 //!    closure the calibrator expects.
 //!
@@ -39,7 +39,7 @@ use crate::calibration::hull_white::{hw_b, HullWhiteModelParams, HullWhiteParams
 use finstack_quant_core::dates::{Date, DayCountContext};
 use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::Result;
-use finstack_quant_monte_carlo::process::ou::{
+use finstack_quant_models::monte_carlo::process::ou::{
     calibrate_theta_from_curve, calibrate_theta_from_curve_with_piecewise_sigma, HullWhite1FParams,
 };
 
@@ -102,7 +102,7 @@ fn rebased_discount_fn<'a>(
 ///
 /// Bootstraps a piecewise-constant θ(t) (defect M6 fix) so the simulated short
 /// rate reprices the initial curve. The θ(t) formula itself is the canonical
-/// `finstack_quant_monte_carlo::process::ou::calibrate_theta_from_curve` bootstrap —
+/// `finstack_quant_models::monte_carlo::process::ou::calibrate_theta_from_curve` bootstrap —
 /// this does **not** reinvent it.
 ///
 /// # Midpoint rule

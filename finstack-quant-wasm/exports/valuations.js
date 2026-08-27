@@ -1,16 +1,12 @@
 import * as wasm from '../pkg/finstack_quant_wasm.js';
-import { correlation } from './valuations/correlation.js';
 import { composite } from './valuations/composite.js';
-import { credit } from './valuations/credit.js';
 import { creditDerivatives } from './valuations/creditDerivatives.js';
 import { fx } from './valuations/fx.js';
 import { instruments } from './valuations/instruments.js';
 import { market } from './valuations/market.js';
 
 export const valuations = {
-  correlation,
   composite,
-  credit,
   creditDerivatives,
   fx,
   instruments,
@@ -36,22 +32,6 @@ export const valuations = {
     return wasm.dependencyGraphJson(json);
   },
   Market: wasm.Market,
-  bsPrice: wasm.bsPrice,
-  vanillaExpiryPayoff: wasm.vanillaExpiryPayoff,
-  bsGreeks: wasm.bsGreeks,
-  bsImpliedVol: wasm.bsImpliedVol,
-  black76ImpliedVol: wasm.black76ImpliedVol,
-  barrierCall: wasm.barrierCall,
-  asianOptionPrice: wasm.asianOptionPrice,
-  lookbackOptionPrice: wasm.lookbackOptionPrice,
-  quantoOptionPrice: wasm.quantoOptionPrice,
-  SabrParameters: wasm.SabrParameters,
-  SabrModel: wasm.SabrModel,
-  SabrSmile: wasm.SabrSmile,
-  SabrCalibrator: wasm.SabrCalibrator,
-  bsCosPrice: wasm.bsCosPrice,
-  vgCosPrice: wasm.vgCosPrice,
-  mertonJumpCosPrice: wasm.mertonJumpCosPrice,
   tarnCouponProfile: wasm.tarnCouponProfile,
   snowballCouponProfile: wasm.snowballCouponProfile,
   inverseFloaterCouponProfile: wasm.inverseFloaterCouponProfile,

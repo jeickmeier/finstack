@@ -21,8 +21,8 @@ use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
 use crate::results::ValuationResult;
-use finstack_quant_monte_carlo::estimate::Estimate;
-use finstack_quant_monte_carlo::results::{MoneyEstimate, MonteCarloResult};
+use finstack_quant_models::monte_carlo::estimate::Estimate;
+use finstack_quant_models::monte_carlo::results::{MoneyEstimate, MonteCarloResult};
 
 use super::super::cashflow_engine::{
     CashflowEngine, PathAwareCashflowSchedule, ThreeFactorPathData,

@@ -52,7 +52,16 @@ from finstack_quant.margin import (
     VmCalculator,
     XvaConfig,
 )
-from finstack_quant.monte_carlo import (
+from finstack_quant.models.correlation import (
+    CopulaSpec,
+    CorrelatedBernoulli,
+    LatentFactorSpec,
+    LatentSingleFactor,
+    RecoverySpec,
+    correlation_bounds,
+    validate_correlation_matrix,
+)
+from finstack_quant.models.monte_carlo import (
     EuropeanPricer,
     LsmcPricer,
     McEngine,
@@ -106,15 +115,6 @@ from finstack_quant.statements_analytics import (
     goal_seek,
     run_sensitivity,
     run_variance,
-)
-from finstack_quant.valuations.correlation import (
-    CopulaSpec,
-    CorrelatedBernoulli,
-    LatentFactorSpec,
-    LatentSingleFactor,
-    RecoverySpec,
-    correlation_bounds,
-    validate_correlation_matrix,
 )
 from finstack_quant.valuations.instruments import list_standard_metrics, validate_instrument_json
 

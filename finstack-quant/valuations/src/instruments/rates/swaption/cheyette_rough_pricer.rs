@@ -25,16 +25,16 @@ use finstack_quant_core::market_data::term_structures::ForwardVarianceCurve;
 use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::math::fractional::HurstExponent;
 use finstack_quant_core::money::Money;
-use finstack_quant_monte_carlo::discretization::cheyette_rough::CheyetteRoughEuler;
-use finstack_quant_monte_carlo::online_stats::OnlineStats;
-use finstack_quant_monte_carlo::pricer::lsq::solve_least_squares;
-use finstack_quant_monte_carlo::process::cheyette_rough::{
+use finstack_quant_models::monte_carlo::discretization::cheyette_rough::CheyetteRoughEuler;
+use finstack_quant_models::monte_carlo::online_stats::OnlineStats;
+use finstack_quant_models::monte_carlo::pricer::lsq::solve_least_squares;
+use finstack_quant_models::monte_carlo::process::cheyette_rough::{
     CheyetteRoughVolParams, CheyetteRoughVolProcess,
 };
-use finstack_quant_monte_carlo::rng::fbm::FractionalNoiseGenerator;
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::rng::volterra::RiemannLiouvilleVolterra;
-use finstack_quant_monte_carlo::traits::{Discretization, RandomStream};
+use finstack_quant_models::monte_carlo::rng::fbm::FractionalNoiseGenerator;
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::rng::volterra::RiemannLiouvilleVolterra;
+use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream};
 
 /// Configuration for the Cheyette rough vol Bermudan swaption pricer.
 #[derive(Debug, Clone)]
@@ -70,7 +70,7 @@ pub struct CheyetteRoughConfig {
 
 impl Default for CheyetteRoughConfig {
     fn default() -> Self {
-        let defaults = &finstack_quant_monte_carlo::registry::embedded_defaults_or_panic()
+        let defaults = &finstack_quant_models::monte_carlo::registry::embedded_defaults_or_panic()
             .rust
             .cheyette_rough;
         Self {
@@ -526,7 +526,7 @@ impl BermudanSwaptionCheyetteRoughPricer {
         let work_size = euler.work_size(&process);
         // Derive deterministic seed from instrument id for reproducible but
         // instrument-specific MC noise (consistent with equity MC pricers).
-        let seed_val = finstack_quant_monte_carlo::seed::derive_seed(&swaption.id, "base");
+        let seed_val = finstack_quant_models::monte_carlo::seed::derive_seed(&swaption.id, "base");
         let base_rng = PhiloxRng::new(seed_val);
 
         // --- Phase 1: Simulate paths ---

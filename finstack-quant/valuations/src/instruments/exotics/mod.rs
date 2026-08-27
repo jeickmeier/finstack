@@ -92,7 +92,7 @@
 //! - [`BarrierOption`] for knock-in/knock-out options
 //! - [`LookbackOption`] for path extremum options
 //! - [`Basket`] for multi-asset options
-//! - [`crate::models::closed_form`] for analytical formulas
+//! - [`finstack_quant_models::closed_form`] for analytical formulas
 
 /// Asian option module - Average price/strike options.
 pub mod asian_option;

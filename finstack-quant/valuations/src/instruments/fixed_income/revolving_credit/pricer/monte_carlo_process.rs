@@ -19,11 +19,11 @@
 //!
 //! Where W_1, W_2, W_3 are correlated Brownian motions.
 
-use finstack_quant_monte_carlo::paths::ProcessParams;
-use finstack_quant_monte_carlo::process::cir::CirParams;
-use finstack_quant_monte_carlo::process::metadata::ProcessMetadata;
-use finstack_quant_monte_carlo::process::ou::HullWhite1FParams;
-use finstack_quant_monte_carlo::traits::StochasticProcess;
+use finstack_quant_models::monte_carlo::paths::ProcessParams;
+use finstack_quant_models::monte_carlo::process::cir::CirParams;
+use finstack_quant_models::monte_carlo::process::metadata::ProcessMetadata;
+use finstack_quant_models::monte_carlo::process::ou::HullWhite1FParams;
+use finstack_quant_models::monte_carlo::traits::StochasticProcess;
 
 /// Parameters for utilization process (mean-reverting OU).
 #[derive(Debug, Clone)]
@@ -429,9 +429,9 @@ impl StochasticProcess for RevolvingCreditProcess {
     fn populate_path_state(
         &self,
         x: &[f64],
-        state: &mut finstack_quant_monte_carlo::traits::PathState,
+        state: &mut finstack_quant_models::monte_carlo::traits::PathState,
     ) {
-        use finstack_quant_monte_carlo::traits::state_keys;
+        use finstack_quant_models::monte_carlo::traits::state_keys;
         if !x.is_empty() {
             state.set(state_keys::SPOT, x[0]);
         }

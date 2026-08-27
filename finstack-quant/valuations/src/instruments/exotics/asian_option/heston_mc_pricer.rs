@@ -14,13 +14,13 @@ use finstack_quant_core::dates::{Date, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 
-use finstack_quant_monte_carlo::discretization::qe_heston::QeHeston;
-use finstack_quant_monte_carlo::engine::McEngine;
-use finstack_quant_monte_carlo::payoff::asian::{AsianCall, AsianPut, AveragingMethod};
-use finstack_quant_monte_carlo::process::heston::{HestonParams, HestonProcess};
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::seed;
-use finstack_quant_monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::discretization::qe_heston::QeHeston;
+use finstack_quant_models::monte_carlo::engine::McEngine;
+use finstack_quant_models::monte_carlo::payoff::asian::{AsianCall, AsianPut, AveragingMethod};
+use finstack_quant_models::monte_carlo::process::heston::{HestonParams, HestonProcess};
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::seed;
+use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
 
 /// Asian option Heston Monte Carlo pricer.
 ///

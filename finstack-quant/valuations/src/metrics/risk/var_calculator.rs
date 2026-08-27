@@ -64,8 +64,8 @@ pub enum VarMethod {
 pub struct VarConfig {
     /// Confidence level (e.g., 0.95 for 95% VaR, 0.99 for 99% VaR)
     #[serde(
-        serialize_with = "crate::instruments::common_impl::numeric::serialize_open_unit_interval_f64",
-        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_open_unit_interval_f64"
+        serialize_with = "finstack_quant_core::wire::serialize_open_unit_interval_f64",
+        deserialize_with = "finstack_quant_core::wire::deserialize_open_unit_interval_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::OpenUnitIntervalF64Wire")]
     pub confidence_level: f64,

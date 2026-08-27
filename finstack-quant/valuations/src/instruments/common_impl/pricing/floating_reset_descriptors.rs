@@ -27,10 +27,10 @@ use crate::cashflow::builder::rate_helpers::FloatingRateParams;
 use crate::cashflow::builder::schedule::CashFlowSchedule;
 use crate::cashflow::builder::specs::{FloatingRateSpec, OvernightIndexConstraintApplication};
 use crate::cashflow::primitives::CFKind;
-use crate::models::trees::two_factor_rates_credit::NodeCoupon;
 use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::{Error, Result};
+use finstack_quant_models::trees::two_factor_rates_credit::NodeCoupon;
 use rust_decimal::prelude::ToPrimitive;
 
 /// Convert a [`FloatingRateSpec`] into the f64 composition parameters the

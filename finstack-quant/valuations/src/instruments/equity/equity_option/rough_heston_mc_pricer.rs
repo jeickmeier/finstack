@@ -162,21 +162,25 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonMcPricer {
 
         let hurst_exp = finstack_quant_core::math::fractional::HurstExponent::new(s.hurst)
             .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
-        let params = finstack_quant_monte_carlo::process::rough_heston::RoughHestonParams::new(
-            r, q, hurst_exp, s.kappa, s.theta, s.sigma_v, s.rho, s.v0,
-        )
-        .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
+        let params =
+            finstack_quant_models::monte_carlo::process::rough_heston::RoughHestonParams::new(
+                r, q, hurst_exp, s.kappa, s.theta, s.sigma_v, s.rho, s.v0,
+            )
+            .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
         let process =
-            finstack_quant_monte_carlo::process::rough_heston::RoughHestonProcess::new(params);
+            finstack_quant_models::monte_carlo::process::rough_heston::RoughHestonProcess::new(
+                params,
+            );
 
         // Build time grid and discretization
-        let time_grid = finstack_quant_monte_carlo::time_grid::TimeGrid::uniform(t, self.num_steps)
-            .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
+        let time_grid =
+            finstack_quant_models::monte_carlo::time_grid::TimeGrid::uniform(t, self.num_steps)
+                .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
         let times: Vec<f64> = (0..=self.num_steps)
             .map(|i| t * i as f64 / self.num_steps as f64)
             .collect();
         let disc =
-            finstack_quant_monte_carlo::discretization::rough_heston::RoughHestonHybrid::new(
+            finstack_quant_models::monte_carlo::discretization::rough_heston::RoughHestonHybrid::new(
                 &times, s.hurst,
             )
             .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
@@ -184,9 +188,9 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonMcPricer {
         // Derive deterministic seed from instrument id
         let seed_val =
             if let Some(ref scenario) = equity_option.metric_pricing_overrides.mc_seed_scenario {
-                finstack_quant_monte_carlo::seed::derive_seed(&equity_option.id, scenario)
+                finstack_quant_models::monte_carlo::seed::derive_seed(&equity_option.id, scenario)
             } else {
-                finstack_quant_monte_carlo::seed::derive_seed(&equity_option.id, "base")
+                finstack_quant_models::monte_carlo::seed::derive_seed(&equity_option.id, "base")
             };
 
         // Resolve and cap the path count via the workspace helper before
@@ -201,7 +205,7 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonMcPricer {
         )
         .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
 
-        let engine = finstack_quant_monte_carlo::engine::McEngine::builder()
+        let engine = finstack_quant_models::monte_carlo::engine::McEngine::builder()
             .num_paths(num_paths)
             .time_grid(time_grid)
             .parallel(false)
@@ -211,11 +215,11 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonMcPricer {
         let ccy = option_currency(equity_option);
         let discount_factor = (-r * t).exp();
         let initial_state = [spot, s.v0];
-        let rng = finstack_quant_monte_carlo::rng::philox::PhiloxRng::new(seed_val);
+        let rng = finstack_quant_models::monte_carlo::rng::philox::PhiloxRng::new(seed_val);
 
         let result = match equity_option.option_type {
             OptionType::Call => {
-                let payoff = finstack_quant_monte_carlo::payoff::vanilla::EuropeanCall::new(
+                let payoff = finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanCall::new(
                     equity_option.strike,
                     equity_option.notional.amount(),
                     self.num_steps,
@@ -233,7 +237,7 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonMcPricer {
                     .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?
             }
             OptionType::Put => {
-                let payoff = finstack_quant_monte_carlo::payoff::vanilla::EuropeanPut::new(
+                let payoff = finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanPut::new(
                     equity_option.strike,
                     equity_option.notional.amount(),
                     self.num_steps,

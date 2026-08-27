@@ -50,15 +50,6 @@ pub use structured_credit_json::{
     structured_credit_tranche_scenario_table_json,
 };
 
-// Fourier pricing via the Fang-Oosterlee (2008) COS method.
-//
-// A Lewis (2001) pricer was previously exposed alongside COS but was known-
-// divergent off-ATM and silently dropped non-finite integrand panels behind a
-// `max(0.0)` clamp. It was removed; COS is the only Fourier method finstack
-// exposes, so the implementation lives directly in `pricer::cos` rather than
-// inside a single-member `pricer::fourier` namespace.
-pub mod cos;
-
 // Asset-class registration submodules
 mod commodity;
 mod credit;

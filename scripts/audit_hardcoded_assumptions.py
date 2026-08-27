@@ -55,7 +55,7 @@ REGISTRY_CODE_PATH_PARTS = (
     "finstack-quant/valuations/src/calibration/defaults.rs",
     "finstack-quant/valuations/src/market/conventions/loaders/",
     "src/analysis/ecl/policy.rs",
-    "finstack-quant/monte_carlo/src/registry.rs",
+    "finstack-quant/models/src/monte_carlo/registry.rs",
     "finstack-quant/margin/src/registry/",
     "finstack-quant/margin/src/regulatory/frtb/params/registry.rs",
     "structured_credit/assumptions.rs",

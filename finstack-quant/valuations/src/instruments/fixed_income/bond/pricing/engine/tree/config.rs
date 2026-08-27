@@ -2,9 +2,9 @@
 //!
 use super::super::super::super::types::Bond;
 use crate::instruments::pricing_overrides::{OasPriceBasis, OasQuoteCompounding};
-use crate::models::trees::TreeCompounding;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::types::Percentage;
+use finstack_quant_models::trees::TreeCompounding;
 
 /// Choice of short-rate model for the bond pricing tree.
 ///

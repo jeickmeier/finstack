@@ -14,15 +14,15 @@ use finstack_quant_core::dates::{Date, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 
-use finstack_quant_monte_carlo::discretization::qe_heston::QeHeston;
-use finstack_quant_monte_carlo::engine::McEngine;
-use finstack_quant_monte_carlo::payoff::barrier::{
+use finstack_quant_models::monte_carlo::discretization::qe_heston::QeHeston;
+use finstack_quant_models::monte_carlo::engine::McEngine;
+use finstack_quant_models::monte_carlo::payoff::barrier::{
     BarrierMonitoring, BarrierOptionPayoff, OptionKind,
 };
-use finstack_quant_monte_carlo::process::heston::{HestonParams, HestonProcess};
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::seed;
-use finstack_quant_monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::process::heston::{HestonParams, HestonProcess};
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::seed;
+use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
 
 /// Barrier option Heston Monte Carlo pricer.
 ///
@@ -81,7 +81,8 @@ impl BarrierOptionHestonMcPricer {
         )?;
         if inst.observed_barrier_breached == Some(true)
             && inst.barrier_type.is_knock_out()
-            && inst.rebate_timing == crate::models::closed_form::barrier::RebateTiming::AtHit
+            && inst.rebate_timing
+                == finstack_quant_models::closed_form::barrier::RebateTiming::AtHit
         {
             return Ok((Money::new(0.0, inst.notional.currency()), 0.0));
         }

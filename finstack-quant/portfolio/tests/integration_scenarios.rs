@@ -315,7 +315,7 @@ impl ScenarioFailureInstrument {
             MarketScalar::Unitless(value) => *value,
             MarketScalar::Price(value) => value.amount(),
         };
-        if flag < 0.0 {
+        if flag <= 0.0 {
             return Err(finstack_quant_core::Error::Validation(
                 "earlier scenario valuation failure".to_string(),
             ));
@@ -418,7 +418,7 @@ fn scenario_batch_reports_earliest_error_across_application_and_valuation_phases
             description: None,
             operations: vec![OperationSpec::EquityPricePct {
                 ids: vec!["SCENARIO_FAILURE_FLAG".to_string()],
-                pct: -200.0,
+                pct: -100.0,
             }],
             priority: 0,
             resolution_mode: Default::default(),

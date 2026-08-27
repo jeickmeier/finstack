@@ -721,8 +721,9 @@ class ApplicationReport:
         Returns
         -------
         int
-            Count of applied effects. One user-level operation can expand into
-            several effects, so this is always ``>=`` :attr:`user_operations`.
+            Low-level effect count. One user-level operation can produce zero,
+            one, or many effects; inspect ``changes`` and ``warnings`` for
+            coverage.
 
         Notes
         -----
@@ -1242,12 +1243,12 @@ class HorizonResult:
     @property
     def operations_applied(self) -> int:
         """
-        Number of scenario operations applied.
+        Number of scenario effects successfully applied.
 
         Returns
         -------
         int
-            Count of operations executed after hierarchy expansion.
+            Low-level applied-effect count, not an operation-coverage ratio.
 
         Notes
         -----

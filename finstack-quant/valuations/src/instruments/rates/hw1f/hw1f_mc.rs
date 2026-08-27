@@ -1,10 +1,10 @@
 //! Generic HW1F Monte Carlo orchestrator for rate exotic products.
 //!
-//! The pricer is generic over a user-supplied [`finstack_quant_monte_carlo::traits::Payoff`] that:
+//! The pricer is generic over a user-supplied [`finstack_quant_models::monte_carlo::traits::Payoff`] that:
 //! 1. Exposes event-times (year fractions from valuation date) via construction.
-//! 2. Consumes [`finstack_quant_monte_carlo::traits::PathState`] updates at each simulation step, reading the
+//! 2. Consumes [`finstack_quant_models::monte_carlo::traits::PathState`] updates at each simulation step, reading the
 //!    short rate and recording on-path discounted cashflows.
-//! 3. Returns the accumulated PV via [`finstack_quant_monte_carlo::traits::Payoff::value`] in the requested currency.
+//! 3. Returns the accumulated PV via [`finstack_quant_models::monte_carlo::traits::Payoff::value`] in the requested currency.
 //!
 //! The pricer handles: time-grid construction aligned to event dates,
 //! HW1F process + exact discretization, RNG streams with antithetic
@@ -21,19 +21,19 @@ use crate::instruments::rates::hw1f::bank_account::bank_step_factor;
 use crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
-use finstack_quant_monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
-use finstack_quant_monte_carlo::online_stats::OnlineStats;
-use finstack_quant_monte_carlo::process::ou::{HullWhite1FParams, HullWhite1FProcess};
-use finstack_quant_monte_carlo::results::MoneyEstimate;
-use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_monte_carlo::time_grid::TimeGrid;
-use finstack_quant_monte_carlo::traits::{
+use finstack_quant_models::monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
+use finstack_quant_models::monte_carlo::online_stats::OnlineStats;
+use finstack_quant_models::monte_carlo::process::ou::{HullWhite1FParams, HullWhite1FProcess};
+use finstack_quant_models::monte_carlo::results::MoneyEstimate;
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::traits::{
     Discretization, PathState, Payoff, RandomStream, StateKey,
 };
 
 /// HW1F Monte Carlo pricer for path-dependent rate exotics without exercise.
 ///
-/// The pricer drives a user-supplied [`finstack_quant_monte_carlo::traits::Payoff`] along simulated short-rate paths
+/// The pricer drives a user-supplied [`finstack_quant_models::monte_carlo::traits::Payoff`] along simulated short-rate paths
 /// produced by an exact HW1F discretization. The payoff is responsible for all
 /// product-specific cashflow accumulation (including discounting); the pricer
 /// only aggregates the per-path PVs into a [`MoneyEstimate`].

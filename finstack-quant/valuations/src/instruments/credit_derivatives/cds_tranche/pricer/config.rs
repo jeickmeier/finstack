@@ -1,14 +1,14 @@
 //! Numerical pricing, expected-loss, and sensitivity helpers for CDS tranches.
 //!
 use crate::cashflow::primitives::CashFlow;
-use crate::correlation::copula::{Copula, CopulaSpec};
-use crate::correlation::recovery::RecoverySpec;
-use crate::correlation::Result as CorrelationResult;
 use finstack_quant_core::dates::{Date, StubKind};
 use finstack_quant_core::market_data::term_structures::CreditIndexData;
 use finstack_quant_core::math::GaussHermiteQuadrature;
 use finstack_quant_core::types::Percentage;
 use finstack_quant_core::{Error as CoreError, Result as CoreResult};
+use finstack_quant_models::correlation::copula::{Copula, CopulaSpec};
+use finstack_quant_models::correlation::recovery::RecoverySpec;
+use finstack_quant_models::correlation::Result as CorrelationResult;
 use std::sync::OnceLock;
 
 // Default Configuration Constants

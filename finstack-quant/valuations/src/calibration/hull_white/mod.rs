@@ -51,8 +51,8 @@ use crate::calibration::solver::multi_start::MultiStartConfig;
 use crate::calibration::solver::traits::GlobalSolveTarget;
 use crate::calibration::CalibrationReport;
 use crate::instruments::common_impl::parameters::OptionType;
-use crate::models::trees::HullWhiteTreeConfig;
-use crate::models::volatility::normal::bachelier_price;
+use finstack_quant_models::trees::HullWhiteTreeConfig;
+use finstack_quant_models::volatility::normal::bachelier_price;
 
 mod bond_vol;
 mod cap_floor;

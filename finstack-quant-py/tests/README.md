@@ -29,7 +29,7 @@ instance exactly once, reused by the per-family modules and by
 ## Fast vs slow
 
 `conftest.py` applies `pytest.mark.slow` to everything under `golden/` and to
-`test_monte_carlo.py`. That drives the four task variants:
+`models/test_monte_carlo.py`. That drives the four task variants:
 
 | Task | Runs |
 |------|------|
@@ -51,14 +51,14 @@ Roughly one module per binding area. The recurring groups:
 | Prefix | What it covers |
 |--------|----------------|
 | `test_core_*`, `test_dates_*`, `test_money_decimal` | primitives, calendars/schedules, Decimal money, config validation, the `ArrowTable` envelope, and the core credit scales (master scale, migration, scoring) |
-| `test_analytics*`, `test_correlation` | the `Performance` panel facade and the `valuations.correlation` namespace |
+| `test_analytics*`, `models/test_correlation` | the `Performance` panel facade and the `models.correlation` namespace |
 | `test_cashflows*` | the cashflow JSON bridge and the typed `finstack_quant.cashflows` surface |
 | `test_typed_*` | typed instrument constructors, keyword fidelity, JSON round-trips |
 | `test_valuations_*`, `test_fx_delta_vol_surface`, `test_vol_cube_normal`, `test_arbitrage_bindings` | pricing entry points, their result wrappers, and the vol-surface inputs they consume |
 | `test_attribution_entry`, `test_portfolio_*` | attribution entry points, positions, materialization, GIL release, liquidity |
 | `test_factor_model_*`, `test_credit_factor_model_bindings`, `test_merton_model`, `test_credit_validation` | factor primitives and risk, the credit factor hierarchy, Merton structural credit, non-finite input rejection |
 | `test_statements*`, `test_statements_analytics_*` | model graph, DCF/ECL, capital structure |
-| `test_margin_*`, `test_monte_carlo`, `test_features_*`, `test_scenario_resolution_mode` | margin/IM/MVA, Monte Carlo, panel feature transforms, scenario resolution mode |
+| `test_margin_*`, `models/test_monte_carlo`, `test_features_*`, `test_scenario_resolution_mode` | margin/IM/MVA, Monte Carlo, panel feature transforms, scenario resolution mode |
 | `test_structured_credit_bindings`, `test_recovery_waterfall`, `test_envelope_diagnostics` | tranche analytics, recovery waterfalls, calibration-envelope diagnostics |
 | `test_reporting_*` | the pure-Python `finstack_quant.reporting` presentation layer |
 | `test_*_dataframes`, `test_leaf_dataframes`, `test_to_arrow_producers`, `test_arrow_interchange` | pandas/Arrow exits from result wrappers |
