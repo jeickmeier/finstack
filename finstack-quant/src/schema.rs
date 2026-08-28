@@ -49,7 +49,7 @@ fn domain_registries() -> Vec<(&'static str, &'static [SchemaArtifact])> {
         ("attribution", finstack_quant_attribution::schema::ARTIFACTS),
         (
             "calibration",
-            finstack_quant_calibration::schema_artifacts_slice(),
+            finstack_quant_calibration::schema::artifacts_slice(),
         ),
         ("cashflows", finstack_quant_cashflows::schema::ARTIFACTS),
         (

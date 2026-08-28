@@ -22,8 +22,8 @@
 //! - Kahan, W. (1965). "Further Remarks on Reducing Truncation Errors." `docs/REFERENCES.md#kahan-1965`
 
 use crate::instruments::common_impl::numeric::decimal_to_f64;
-pub(crate) use crate::instruments::common_impl::pricing::swap_legs::robust_relative_df;
 use crate::instruments::common_impl::pricing::swap_legs::LegPeriod;
+use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 
 use crate::instruments::rates::irs::{InterestRateSwap, PayReceive};
 use finstack_quant_core::dates::Date;
@@ -84,7 +84,7 @@ impl InterestRateSwap {
             )?;
         let mut acc = NeumaierAccumulator::new();
         for flow in schedule.get_flows() {
-            let df = robust_relative_df(disc, as_of, flow.date)?;
+            let df = relative_df_discount_curve(disc, as_of, flow.date)?;
             acc.add(flow.amount.amount() * df);
         }
         Ok(acc.total())
@@ -227,7 +227,7 @@ impl InterestRateSwap {
             if payment_date <= as_of {
                 continue;
             }
-            let df = robust_relative_df(disc.as_ref(), as_of, payment_date)?;
+            let df = relative_df_discount_curve(disc.as_ref(), as_of, payment_date)?;
             acc.add(flow.amount.amount() * df);
         }
         Ok(acc.total())
@@ -489,7 +489,7 @@ mod tests {
         }
 
         let payment_date = add_payment_delay(end, 0, None).expect("payment delay");
-        let df = robust_relative_df(&disc, as_of, payment_date).expect("df");
+        let df = relative_df_discount_curve(&disc, as_of, payment_date).expect("df");
         let expected = 1_000_000.0 * (acc - 1.0) * df;
 
         let diff = (pv.amount() - expected).abs();

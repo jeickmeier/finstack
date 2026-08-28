@@ -611,10 +611,6 @@ pub(crate) fn instrument_json_from_any(value: &dyn std::any::Any) -> Option<Inst
     with_instrument_json_registry!(instrument_json_from_any_match, value)
 }
 
-fn validate_loaded_instrument(instrument: &dyn Instrument) -> Result<()> {
-    instrument.validate_for_pricing()
-}
-
 macro_rules! instrument_json_type_tag_match {
     (
         [$value:expr]
@@ -638,7 +634,7 @@ impl InstrumentJson {
     /// Validate this payload without cloning or consuming its concrete instrument.
     pub(crate) fn validate_for_pricing(&self) -> Result<()> {
         let instrument = with_instrument_json_registry!(instrument_json_as_instrument_match, self);
-        validate_loaded_instrument(instrument)
+        instrument.validate_for_pricing()
     }
 
     /// Convert this JSON representation into a boxed instrument trait object.
@@ -653,7 +649,7 @@ impl InstrumentJson {
     pub fn into_boxed(self) -> Result<Box<dyn Instrument>> {
         let instrument: Box<dyn Instrument> =
             with_instrument_json_registry!(instrument_json_into_boxed_match, self)?;
-        validate_loaded_instrument(instrument.as_ref())?;
+        instrument.as_ref().validate_for_pricing()?;
         Ok(instrument)
     }
 

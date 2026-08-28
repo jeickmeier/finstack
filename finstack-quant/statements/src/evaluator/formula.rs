@@ -123,7 +123,7 @@ pub(crate) fn evaluate_non_negative_integer_arg(
     context: &mut EvaluationContext,
     node_id: Option<&str>,
 ) -> Result<i32> {
-    let value = evaluate_expr(expr, context, node_id)?;
+    let value = evaluate_formula(expr, context, node_id)?;
     if !value.is_finite() {
         return Err(eval_error(
             node_id,
@@ -153,7 +153,7 @@ pub(crate) fn evaluate_integer_arg(
     context: &mut EvaluationContext,
     node_id: Option<&str>,
 ) -> Result<i32> {
-    let value = evaluate_expr(expr, context, node_id)?;
+    let value = evaluate_formula(expr, context, node_id)?;
     if !value.is_finite() {
         return Err(eval_error(
             node_id,
@@ -173,39 +173,6 @@ pub(crate) fn evaluate_integer_arg(
         ));
     }
     Ok(value as i32)
-}
-
-/// Evaluate a compiled expression.
-///
-/// Handles both basic arithmetic operations (evaluated directly) and
-/// advanced financial/statistical functions (delegated to specialized handlers).
-/// Evaluation reads the current period and historical values from `context`;
-/// `node_id`, when supplied, is incorporated into diagnostics so formula
-/// failures can be traced back to the owning statement node.
-///
-/// # Arguments
-///
-/// * `expr` - Compiled DSL expression to evaluate for the context's current
-///   model period.
-/// * `context` - Mutable evaluation context providing current, historical, and
-///   capital-structure values; diagnostics may be recorded while evaluating.
-/// * `node_id` - Optional owning statement-node identifier included in
-///   diagnostics; `None` is appropriate for standalone expressions.
-///
-/// # Errors
-///
-/// Returns an evaluation error when an expression needs a missing node or
-/// capital-structure value, a function receives invalid arguments (for
-/// example, a non-integral lag window), a historical lookup is unavailable, or
-/// a delegated function cannot evaluate. IEEE non-finite arithmetic may still
-/// return `NaN` with a warning rather than an error where the DSL defines that
-/// as a propagating numerical result.
-pub fn evaluate_formula(
-    expr: &Expr,
-    context: &mut EvaluationContext,
-    node_id: Option<&str>,
-) -> Result<f64> {
-    evaluate_expr(expr, context, node_id)
 }
 
 /// Build a period-specific evaluation context so an expression can be
@@ -287,7 +254,7 @@ pub(crate) fn collect_expression_values_sorted(
     let mut values = BTreeMap::new();
     for period in periods {
         let mut period_context = build_context_for_period(period, context)?;
-        let value = evaluate_expr(expr, &mut period_context, node_id)?;
+        let value = evaluate_formula(expr, &mut period_context, node_id)?;
         values.insert(period, value);
     }
 
@@ -389,7 +356,7 @@ pub(crate) fn collect_expression_window_values(
         let mut values = Vec::with_capacity(window_size);
         for period in periods.iter().rev().take(window_size) {
             let mut period_context = build_context_for_period(*period, context)?;
-            let value = evaluate_expr(expr, &mut period_context, node_id)?;
+            let value = evaluate_formula(expr, &mut period_context, node_id)?;
             values.push(value);
         }
         values.reverse();
@@ -401,8 +368,33 @@ pub(crate) fn collect_expression_window_values(
     Ok(sorted.values().skip(skip_count).copied().collect())
 }
 
+/// Evaluate a compiled expression.
+///
+/// Handles both basic arithmetic operations (evaluated directly) and
+/// advanced financial/statistical functions (delegated to specialized handlers).
+/// Evaluation reads the current period and historical values from `context`;
+/// `node_id`, when supplied, is incorporated into diagnostics so formula
+/// failures can be traced back to the owning statement node.
+///
+/// # Arguments
+///
+/// * `expr` - Compiled DSL expression to evaluate for the context's current
+///   model period.
+/// * `context` - Mutable evaluation context providing current, historical, and
+///   capital-structure values; diagnostics may be recorded while evaluating.
+/// * `node_id` - Optional owning statement-node identifier included in
+///   diagnostics; `None` is appropriate for standalone expressions.
+///
+/// # Errors
+///
+/// Returns an evaluation error when an expression needs a missing node or
+/// capital-structure value, a function receives invalid arguments (for
+/// example, a non-integral lag window), a historical lookup is unavailable, or
+/// a delegated function cannot evaluate. IEEE non-finite arithmetic may still
+/// return `NaN` with a warning rather than an error where the DSL defines that
+/// as a propagating numerical result.
 /// Recursively evaluate an expression.
-pub(crate) fn evaluate_expr(
+pub fn evaluate_formula(
     expr: &Expr,
     context: &mut EvaluationContext,
     node_id: Option<&str>,
@@ -425,7 +417,7 @@ pub(crate) fn evaluate_expr(
         ExprNode::BinOp { op, left, right } => {
             // Note: Binary operations are evaluated directly here rather than
             // through the Function enum. This is intentional - see module docs.
-            let left_val = evaluate_expr(left, context, node_id)?;
+            let left_val = evaluate_formula(left, context, node_id)?;
 
             // Short-circuit logical operators before touching the right-hand
             // side. DSL boolean semantics (`is_truthy`) treat non-finite and
@@ -441,7 +433,7 @@ pub(crate) fn evaluate_expr(
                 return Ok(bool_to_f64(true));
             }
 
-            let right_val = evaluate_expr(right, context, node_id)?;
+            let right_val = evaluate_formula(right, context, node_id)?;
 
             let result = match op {
                 // Arithmetic operations - evaluated directly for performance
@@ -506,7 +498,7 @@ pub(crate) fn evaluate_expr(
             Ok(result)
         }
         ExprNode::UnaryOp { op, operand } => {
-            let val = evaluate_expr(operand, context, node_id)?;
+            let val = evaluate_formula(operand, context, node_id)?;
             let result = match op {
                 UnaryOp::Neg => -val,
                 UnaryOp::Not => bool_to_f64(!is_truthy(val)),
@@ -518,11 +510,11 @@ pub(crate) fn evaluate_expr(
             then_expr,
             else_expr,
         } => {
-            let cond_val = evaluate_expr(condition, context, node_id)?;
+            let cond_val = evaluate_formula(condition, context, node_id)?;
             if is_truthy(cond_val) {
-                evaluate_expr(then_expr, context, node_id)
+                evaluate_formula(then_expr, context, node_id)
             } else {
-                evaluate_expr(else_expr, context, node_id)
+                evaluate_formula(else_expr, context, node_id)
             }
         }
     }
@@ -530,7 +522,7 @@ pub(crate) fn evaluate_expr(
 
 // `evaluate_function` lives in [`crate::evaluator::formula_dispatch`].
 // Local tests below use the dispatch module's re-export to keep call sites
-// concise while still exercising the same code path used by `evaluate_expr`.
+// concise while still exercising the same code path used by `evaluate_formula`.
 #[cfg(test)]
 use crate::evaluator::formula_dispatch::evaluate_function;
 

@@ -1,6 +1,6 @@
 //! FX digital (binary) option instrument definition.
 
-use super::pricer::{self, FxDigitalOptionGreeks};
+use super::pricer;
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::traits::Attributes;
 use crate::instruments::MarketDependencies;
@@ -201,22 +201,6 @@ impl FxDigitalOption {
             .attributes(Attributes::new())
             .build()
     }
-
-    fn price_internal(
-        &self,
-        market: &finstack_quant_core::market_data::context::MarketContext,
-        as_of: Date,
-    ) -> finstack_quant_core::Result<Money> {
-        pricer::compute_pv(self, market, as_of)
-    }
-
-    fn greeks_internal(
-        &self,
-        market: &finstack_quant_core::market_data::context::MarketContext,
-        as_of: Date,
-    ) -> finstack_quant_core::Result<FxDigitalOptionGreeks> {
-        pricer::compute_greeks(self, market, as_of)
-    }
 }
 
 impl crate::instruments::common_impl::traits::Instrument for FxDigitalOption {
@@ -235,7 +219,7 @@ impl crate::instruments::common_impl::traits::Instrument for FxDigitalOption {
         curves: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
-        self.price_internal(curves, as_of)
+        pricer::compute_pv(self, curves, as_of)
     }
 
     fn expiry(&self) -> Option<finstack_quant_core::dates::Date> {
@@ -270,7 +254,7 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxDigital
         market: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<Option<f64>> {
-        Ok(Some(self.greeks_internal(market, as_of)?.delta))
+        Ok(Some(pricer::compute_greeks(self, market, as_of)?.delta))
     }
 
     fn option_gamma(
@@ -278,7 +262,7 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxDigital
         market: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<Option<f64>> {
-        Ok(Some(self.greeks_internal(market, as_of)?.gamma))
+        Ok(Some(pricer::compute_greeks(self, market, as_of)?.gamma))
     }
 
     fn option_vega(
@@ -286,7 +270,7 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxDigital
         market: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<Option<f64>> {
-        Ok(Some(self.greeks_internal(market, as_of)?.vega))
+        Ok(Some(pricer::compute_greeks(self, market, as_of)?.vega))
     }
 
     fn option_theta(
@@ -294,7 +278,7 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxDigital
         market: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<Option<f64>> {
-        Ok(Some(self.greeks_internal(market, as_of)?.theta))
+        Ok(Some(pricer::compute_greeks(self, market, as_of)?.theta))
     }
 
     fn option_rho_bp(
@@ -304,7 +288,7 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxDigital
     ) -> finstack_quant_core::Result<Option<f64>> {
         // Rho domestic per 1bp
         Ok(Some(
-            self.greeks_internal(market, as_of)?.rho_domestic / 100.0,
+            pricer::compute_greeks(self, market, as_of)?.rho_domestic / 100.0,
         ))
     }
 }

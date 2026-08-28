@@ -37,7 +37,7 @@ pub enum Error {
     NodeNotFound(String),
 
     /// Circular dependency detected
-    #[error("Circular dependency detected: {}", format_path(.0))]
+    #[error("Circular dependency detected: {}", .0.join(" → "))]
     CircularDependency(Vec<String>),
 
     /// Currency mismatch error
@@ -102,10 +102,6 @@ impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
         Self::Io(err.to_string())
     }
-}
-
-fn format_path(path: &[String]) -> String {
-    path.join(" → ")
 }
 
 impl Error {

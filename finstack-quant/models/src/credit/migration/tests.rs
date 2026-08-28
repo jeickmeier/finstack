@@ -487,20 +487,6 @@ mod projection_tests {
             }
         }
     }
-
-    #[test]
-    fn pade_equals_standard() {
-        let (_, gen) = two_state_gen();
-        let p1 = projection::project(&gen, 3.0).unwrap();
-        let p2 = projection::project_pade(&gen, 3.0).unwrap();
-        for i in 0..2 {
-            for j in 0..2 {
-                assert!(
-                    (p1.probability_by_index(i, j) - p2.probability_by_index(i, j)).abs() < 1e-12
-                );
-            }
-        }
-    }
 }
 
 #[cfg(test)]

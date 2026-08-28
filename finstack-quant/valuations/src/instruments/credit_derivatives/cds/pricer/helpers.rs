@@ -58,11 +58,12 @@ pub(super) fn haz_t(surv: &HazardCurve, date: Date) -> Result<f64> {
 /// `30/360`, `30E/360`, `Bus/252`, `ActAct*` — where the previous fixed
 /// `days_per_year` inverse drifted by tens of days at multi-year horizons.
 ///
-/// Why it matters: the returned date is then used by `df_asof_to(disc, ...)`
-/// on the *discount* curve. When `surv.day_count() != disc.day_count()`, an
-/// off-by-N-days inverse mis-attributes the discount lookup, shifting CDS
-/// protection-leg PV by tens of dollars per million on cross-currency or
-/// mixed-convention setups. See C2 in the calibration code review.
+/// Why it matters: the returned date is then used with
+/// [`DiscountCurve::df_between_dates`] on the *discount* curve. When
+/// `surv.day_count() != disc.day_count()`, an off-by-N-days inverse
+/// mis-attributes the discount lookup, shifting CDS protection-leg PV by tens
+/// of dollars per million on cross-currency or mixed-convention setups. See C2
+/// in the calibration code review.
 ///
 /// Convergence: starts from a `365.25`-days-per-year estimate and refines
 /// using forward differences on the supplied day-count. Almost always
@@ -230,13 +231,6 @@ pub(super) fn isda_standard_model_boundaries(
     boundaries.sort_by(f64::total_cmp);
     boundaries.dedup_by(|a, b| (*a - *b).abs() <= numerical::ZERO_TOLERANCE);
     Ok(boundaries)
-}
-
-/// Compute discount factor from as_of to date using curve's time axis.
-/// This returns df(date) / df(as_of) = exp(-r*(t_date - t_asof))
-#[inline]
-pub(super) fn df_asof_to(disc: &DiscountCurve, as_of: Date, date: Date) -> Result<f64> {
-    disc.df_between_dates(as_of, date)
 }
 
 /// Compute conditional survival probability: S(date | survived to as_of).

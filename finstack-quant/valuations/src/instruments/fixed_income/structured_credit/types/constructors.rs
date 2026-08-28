@@ -8,9 +8,7 @@ use super::{
     Metadata, Overrides, PoolAsset, PrepaymentModelSpec, RecoveryModelSpec, StructuredCredit,
     Tranche, TrancheCoupon, TrancheSeniority, TrancheStructure,
 };
-use crate::instruments::fixed_income::structured_credit::assumptions::{
-    embedded_registry_or_panic, StructuredCreditAssumptionRegistry,
-};
+use crate::instruments::fixed_income::structured_credit::assumptions::embedded_registry_or_panic;
 use crate::instruments::fixed_income::structured_credit::types::setup::DefaultAssumptions;
 use finstack_quant_core::dates::{Date, DayCount, Tenor};
 use finstack_quant_core::money::Money;
@@ -324,7 +322,7 @@ impl StructuredCredit {
 #[allow(clippy::expect_used)]
 fn deal_config_from_registry(profile_id: &str) -> DealConfig {
     let defaults = required_assumption(
-        assumptions_registry().constructor_defaults(profile_id),
+        embedded_registry_or_panic().constructor_defaults(profile_id),
         "constructor defaults",
     );
     let month =
@@ -340,10 +338,6 @@ fn deal_config_from_registry(profile_id: &str) -> DealConfig {
         deal_metadata: Metadata::default(),
         behavior_overrides: Overrides::default(),
     }
-}
-
-fn assumptions_registry() -> &'static StructuredCreditAssumptionRegistry {
-    embedded_registry_or_panic()
 }
 
 #[allow(clippy::expect_used)]

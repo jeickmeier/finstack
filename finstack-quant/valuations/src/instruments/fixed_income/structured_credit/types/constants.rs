@@ -4,9 +4,7 @@
 //! and fee structures used across structured credit modeling.
 
 use super::{DealFees, DefaultAssumptions};
-use crate::instruments::fixed_income::structured_credit::assumptions::{
-    embedded_registry_or_panic, StructuredCreditAssumptionRegistry,
-};
+use crate::instruments::fixed_income::structured_credit::assumptions::embedded_registry_or_panic;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 
@@ -54,34 +52,34 @@ pub const MIN_PREPAYMENT_RATE: f64 = 0.0;
 
 /// Mortgage prepayment seasonality adjustments by month (Jan=index 0).
 pub fn mortgage_seasonality() -> [f64; 12] {
-    assumptions_registry().mortgage_seasonality()
+    embedded_registry_or_panic().mortgage_seasonality()
 }
 
 /// Credit card payment seasonality adjustments by month (Jan=index 0).
 pub fn credit_card_seasonality() -> [f64; 12] {
-    assumptions_registry().credit_card_seasonality()
+    embedded_registry_or_panic().credit_card_seasonality()
 }
 
 /// Baseline unemployment rate for default models.
 pub fn baseline_unemployment_rate() -> f64 {
-    assumptions_registry()
+    embedded_registry_or_panic()
         .simulation_defaults()
         .baseline_unemployment_rate
 }
 
 /// Standard PSA speeds for scenario analysis.
 pub fn standard_psa_speeds() -> &'static [f64] {
-    assumptions_registry().standard_psa_speeds()
+    embedded_registry_or_panic().standard_psa_speeds()
 }
 
 /// Standard CDR rates for scenario analysis.
 pub fn standard_cdr_rates() -> &'static [f64] {
-    assumptions_registry().standard_cdr_rates()
+    embedded_registry_or_panic().standard_cdr_rates()
 }
 
 /// Standard severity rates for scenario analysis.
 pub fn standard_severity_rates() -> &'static [f64] {
-    assumptions_registry().standard_severity_rates()
+    embedded_registry_or_panic().standard_severity_rates()
 }
 
 /// Standard CLO senior management fee (bp).
@@ -145,96 +143,102 @@ pub fn rmbs_trustee_fee_annual() -> f64 {
 /// For example, for a USD-denominated pool, this means stop when balance < $100.
 /// This prevents unnecessary computation for immaterial remaining balances.
 pub fn pool_balance_cleanup_threshold() -> f64 {
-    assumptions_registry()
+    embedded_registry_or_panic()
         .simulation_defaults()
         .pool_balance_cleanup_threshold
 }
 
 /// Default resolution lag in months for cashflow generation.
 pub fn default_resolution_lag_months() -> u32 {
-    assumptions_registry()
+    embedded_registry_or_panic()
         .simulation_defaults()
         .resolution_lag_months
 }
 
 /// Standard PSA ramp-up period (months).
 pub fn psa_ramp_months() -> u32 {
-    assumptions_registry().psa_curve().ramp_months
+    embedded_registry_or_panic().psa_curve().ramp_months
 }
 
 /// Standard PSA terminal CPR.
 pub fn psa_terminal_cpr() -> f64 {
-    assumptions_registry().psa_curve().terminal_cpr
+    embedded_registry_or_panic().psa_curve().terminal_cpr
 }
 
 /// Default auto loan ABS speed (monthly).
 pub fn default_auto_abs_speed() -> f64 {
-    assumptions_registry().auto_abs_prepayment().monthly_speed
+    embedded_registry_or_panic()
+        .auto_abs_prepayment()
+        .monthly_speed
 }
 
 /// Default auto loan ramp period (months).
 pub fn default_auto_ramp_months() -> u32 {
-    assumptions_registry().auto_abs_prepayment().ramp_months
+    embedded_registry_or_panic()
+        .auto_abs_prepayment()
+        .ramp_months
 }
 
 /// Standard SDA peak month for mortgages.
 pub fn sda_peak_month() -> u32 {
-    assumptions_registry().sda_curve().peak_month
+    embedded_registry_or_panic().sda_curve().peak_month
 }
 
 /// Standard SDA peak CDR.
 pub fn sda_peak_cdr() -> f64 {
-    assumptions_registry().sda_curve().peak_cdr
+    embedded_registry_or_panic().sda_curve().peak_cdr
 }
 
 /// Standard SDA terminal CDR.
 pub fn sda_terminal_cdr() -> f64 {
-    assumptions_registry().sda_curve().terminal_cdr
+    embedded_registry_or_panic().sda_curve().terminal_cdr
 }
 
 /// Default burnout threshold (months).
 pub fn default_burnout_threshold_months() -> u32 {
-    assumptions_registry()
+    embedded_registry_or_panic()
         .simulation_defaults()
         .burnout_threshold_months
 }
 
 /// Default maximum single obligor concentration.
 pub fn default_max_obligor_concentration() -> f64 {
-    assumptions_registry()
+    embedded_registry_or_panic()
         .concentration_limits()
         .max_obligor_concentration
 }
 
 /// Default maximum top 5 obligor concentration.
 pub fn default_max_top5_concentration() -> f64 {
-    assumptions_registry()
+    embedded_registry_or_panic()
         .concentration_limits()
         .max_top5_concentration
 }
 
 /// Default maximum top 10 obligor concentration.
 pub fn default_max_top10_concentration() -> f64 {
-    assumptions_registry()
+    embedded_registry_or_panic()
         .concentration_limits()
         .max_top10_concentration
 }
 
 /// Default maximum second lien concentration.
 pub fn default_max_second_lien() -> f64 {
-    assumptions_registry()
+    embedded_registry_or_panic()
         .concentration_limits()
         .max_second_lien
 }
 
 /// Default maximum covenant-lite concentration.
 pub fn default_max_cov_lite() -> f64 {
-    assumptions_registry().concentration_limits().max_cov_lite
+    embedded_registry_or_panic()
+        .concentration_limits()
+        .max_cov_lite
 }
 
 /// Default maximum DIP concentration.
 pub fn default_max_dip() -> f64 {
-    assumptions_registry().concentration_limits().max_dip
+    embedded_registry_or_panic().concentration_limits().max_dip
 }
 
 /// Standard CLO CDR (annual).
@@ -310,10 +314,6 @@ pub fn cmbs_standard_cpr() -> f64 {
     cmbs_assumptions().base_cpr_annual
 }
 
-fn assumptions_registry() -> &'static StructuredCreditAssumptionRegistry {
-    embedded_registry_or_panic()
-}
-
 #[allow(clippy::expect_used)]
 fn required_assumption<T>(result: Result<T>) -> T {
     result.expect("embedded structured-credit assumptions registry value should exist")
@@ -341,17 +341,17 @@ fn rmbs_fees() -> DealFees {
 }
 
 fn clo_assumptions() -> DefaultAssumptions {
-    required_assumption(assumptions_registry().default_assumptions("clo_standard"))
+    required_assumption(embedded_registry_or_panic().default_assumptions("clo_standard"))
 }
 
 fn rmbs_assumptions() -> DefaultAssumptions {
-    required_assumption(assumptions_registry().default_assumptions("rmbs_standard"))
+    required_assumption(embedded_registry_or_panic().default_assumptions("rmbs_standard"))
 }
 
 fn abs_assumptions() -> DefaultAssumptions {
-    required_assumption(assumptions_registry().default_assumptions("abs_auto_standard"))
+    required_assumption(embedded_registry_or_panic().default_assumptions("abs_auto_standard"))
 }
 
 fn cmbs_assumptions() -> DefaultAssumptions {
-    required_assumption(assumptions_registry().default_assumptions("cmbs_standard"))
+    required_assumption(embedded_registry_or_panic().default_assumptions("cmbs_standard"))
 }

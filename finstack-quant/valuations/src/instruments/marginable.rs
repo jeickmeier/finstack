@@ -82,15 +82,6 @@ fn repriced_bucketed_dv01(
     out
 }
 
-/// Assign a years-to-maturity value to the appropriate SIMM IR tenor bucket.
-///
-/// Standalone variant of [`assign_ir_tenor_bucket`] used when mapping the
-/// crate's DV01 bucket grid onto SIMM's IR tenor buckets.
-#[must_use]
-fn ir_bucket_for_tenor(years: f64) -> &'static str {
-    assign_ir_tenor_bucket(years)
-}
-
 /// Assign a years-to-maturity value to the appropriate SIMM credit tenor bucket.
 #[must_use]
 fn assign_credit_tenor_bucket(years_to_maturity: f64) -> &'static str {
@@ -260,7 +251,7 @@ impl Marginable for InterestRateSwap {
             for (tenor, dv01) in repriced_bucketed_dv01(self, market, as_of, curve_id.as_str()) {
                 any_repriced = true;
                 *bucket_totals
-                    .entry(ir_bucket_for_tenor(tenor))
+                    .entry(assign_ir_tenor_bucket(tenor))
                     .or_insert(0.0) += dv01;
             }
         }

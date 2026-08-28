@@ -6,7 +6,7 @@
 //! is required.
 
 use super::pricer::{
-    collect_inputs_extended, has_future_discrete_dividends, option_currency, require_european,
+    collect_inputs_extended, has_future_discrete_dividends, require_european,
     resolve_lifecycle_value,
 };
 use super::types::EquityOption;
@@ -148,7 +148,7 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonMcPricer {
                 as_of,
                 Money::new(
                     intrinsic * equity_option.notional.amount(),
-                    option_currency(equity_option),
+                    equity_option.notional.currency(),
                 ),
             ));
         }
@@ -211,7 +211,7 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonMcPricer {
             .build()
             .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
 
-        let ccy = option_currency(equity_option);
+        let ccy = equity_option.notional.currency();
         let discount_factor = (-r * t).exp();
         let initial_state = [spot, s.v0];
         let rng = finstack_quant_models::monte_carlo::rng::philox::PhiloxRng::new(seed_val);

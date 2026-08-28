@@ -5,8 +5,8 @@
 //! Model parameters are sourced from required market scalars.
 
 use super::pricer::{
-    collect_inputs_extended, option_currency, reject_future_discrete_dividends_for_stochastic_vol,
-    require_european, resolve_lifecycle_value,
+    collect_inputs_extended, reject_future_discrete_dividends_for_stochastic_vol, require_european,
+    resolve_lifecycle_value,
 };
 use super::types::EquityOption;
 use crate::instruments::common_impl::parameters::OptionType;
@@ -124,7 +124,7 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonFourierPricer {
                 as_of,
                 Money::new(
                     intrinsic * equity_option.notional.amount(),
-                    option_currency(equity_option),
+                    equity_option.notional.currency(),
                 ),
             ));
         }
@@ -147,7 +147,7 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonFourierPricer {
 
         let pv = Money::new(
             price * equity_option.notional.amount(),
-            option_currency(equity_option),
+            equity_option.notional.currency(),
         );
         Ok(crate::results::ValuationResult::stamped(
             equity_option.id(),

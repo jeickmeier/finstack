@@ -131,10 +131,11 @@ fn build_swap(notional_exchange: NotionalExchange, spread_bp: Decimal) -> XccySw
 
 /// CIP invariance with `as_of` STRICTLY AFTER the curve base date.
 ///
-/// Regression test for the bug where `pv_mtm_reset` used absolute `df_on_date_curve(t)`
-/// instead of `robust_relative_df(curve, as_of, t)` — producing identical results only
-/// when `as_of == curve.base_date` (i.e., the calibration date itself) and silently
-/// biasing every intraday revaluation against the calibrated curves.
+/// Regression test for the bug where `pv_mtm_reset` used absolute
+/// `df_on_date_curve(t)` instead of
+/// `relative_df_discount_curve(curve, as_of, t)` — producing identical results
+/// only when `as_of == curve.base_date` (i.e., the calibration date itself) and
+/// silently biasing every intraday revaluation against the calibrated curves.
 ///
 /// Using a base_date *earlier* than `as_of` (3 months earlier) tests that the relative
 /// DFs from `as_of` are correctly used in both the initial / final principal exchanges
@@ -199,8 +200,8 @@ fn cip_invariance_holds_when_as_of_after_curve_base_date() {
         (pv_fixed - pv_mtm).abs() < tol,
         "CIP invariance failed with as_of != curve.base_date: pv_fixed={pv_fixed:.4}, \
          pv_mtm={pv_mtm:.4}, diff={:.4e}, tol={tol:.4e}. This indicates a DF discounting \
-         bug — pricing_mtm.rs must use robust_relative_df(curve, as_of, t), not absolute \
-         df_on_date_curve(t).",
+         bug — pricing_mtm.rs must use relative_df_discount_curve(curve, as_of, t), not \
+         absolute df_on_date_curve(t).",
         pv_fixed - pv_mtm
     );
 }

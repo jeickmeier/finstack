@@ -480,11 +480,12 @@ impl BasisSwap {
                 if flow.date <= valuation_date {
                     continue;
                 }
-                let df = crate::instruments::common_impl::pricing::swap_legs::robust_relative_df(
-                    disc.as_ref(),
-                    valuation_date,
-                    flow.date,
-                )?;
+                let df =
+                    crate::instruments::common_impl::pricing::time::relative_df_discount_curve(
+                        disc.as_ref(),
+                        valuation_date,
+                        flow.date,
+                    )?;
                 acc.add(flow.amount.amount() * df);
             }
             return Ok(Money::new(acc.total(), currency));
@@ -627,7 +628,7 @@ impl BasisSwap {
             if period.payment_date <= as_of {
                 continue;
             }
-            let df = crate::instruments::common_impl::pricing::swap_legs::robust_relative_df(
+            let df = crate::instruments::common_impl::pricing::time::relative_df_discount_curve(
                 disc.as_ref(),
                 as_of,
                 period.payment_date,
@@ -1810,7 +1811,7 @@ mod tests {
             if period.payment_date <= start {
                 continue;
             }
-            let df = crate::instruments::common_impl::pricing::swap_legs::robust_relative_df(
+            let df = crate::instruments::common_impl::pricing::time::relative_df_discount_curve(
                 disc.as_ref(),
                 start,
                 period.payment_date,

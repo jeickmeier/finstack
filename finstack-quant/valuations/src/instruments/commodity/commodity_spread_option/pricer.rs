@@ -30,7 +30,7 @@ use crate::instruments::OptionType;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
-use finstack_quant_models::{black76_call, black76_put};
+use finstack_quant_models::closed_form::{black_call, black_put};
 
 /// Minimum denominator for Kirk's approximation (F2 + K).
 /// When `k_adj = F2 + K <= KIRK_DENOM_EPSILON` (zero or negative), the
@@ -143,12 +143,12 @@ fn kirk_price(
 
     // Black-76 on F1 vs K_adj with sigma_kirk
     match inst.option_type {
-        OptionType::Call => Ok(df * black76_call(f1, k_adj, sigma_kirk, t)),
+        OptionType::Call => Ok(df * black_call(f1, k_adj, sigma_kirk, t)),
         OptionType::Put => {
             // Price the put DIRECTLY with the Black-76 put formula.
             // P = df * (K_adj * N(-d2) - F1 * N(-d1))
             // This avoids injecting Kirk approximation error via put-call parity.
-            Ok(df * black76_put(f1, k_adj, sigma_kirk, t))
+            Ok(df * black_put(f1, k_adj, sigma_kirk, t))
         }
     }
 }

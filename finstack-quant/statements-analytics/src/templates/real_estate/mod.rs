@@ -741,14 +741,6 @@ fn apply_free_window(is_free: &mut [bool], start_idx: usize, len: u32) -> Result
 /// # }
 /// ```
 pub fn add_rent_roll(
-    builder: ModelBuilder<Ready>,
-    leases: &[LeaseSpec],
-    nodes: &RentRollOutputNodes,
-) -> Result<ModelBuilder<Ready>> {
-    add_rent_roll_impl(builder, leases, nodes)
-}
-
-fn add_rent_roll_impl(
     mut builder: ModelBuilder<Ready>,
     leases: &[LeaseSpec],
     nodes: &RentRollOutputNodes,

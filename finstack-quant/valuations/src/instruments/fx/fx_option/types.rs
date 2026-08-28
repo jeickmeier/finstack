@@ -51,7 +51,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_core::Result;
 
-use super::pricer::{self, FxOptionGreeks};
+use super::pricer;
 use crate::impl_instrument_base;
 
 fn default_fx_underlying(base_currency: Currency, quote_currency: Currency) -> FxUnderlyingParams {
@@ -278,31 +278,6 @@ impl FxOption {
         Ok(())
     }
 
-    fn price_internal(
-        &self,
-        market: &finstack_quant_core::market_data::context::MarketContext,
-        as_of: Date,
-    ) -> Result<Money> {
-        pricer::compute_pv(self, market, as_of)
-    }
-
-    fn greeks_internal(
-        &self,
-        market: &finstack_quant_core::market_data::context::MarketContext,
-        as_of: Date,
-    ) -> Result<FxOptionGreeks> {
-        pricer::compute_greeks(self, market, as_of)
-    }
-
-    fn implied_vol_internal(
-        &self,
-        curves: &finstack_quant_core::market_data::context::MarketContext,
-        as_of: Date,
-        target_price: f64,
-    ) -> Result<f64> {
-        pricer::implied_vol(self, curves, as_of, target_price)
-    }
-
     /// Create a canonical example FX option for testing and documentation.
     ///
     /// Returns an EUR/USD call expiring on the project-wide stable example
@@ -445,7 +420,7 @@ impl FxOption {
         market: &finstack_quant_core::market_data::context::MarketContext,
         as_of: Date,
     ) -> Result<Money> {
-        self.price_internal(market, as_of)
+        pricer::compute_pv(self, market, as_of)
     }
 
     /// Solve for implied volatility.
@@ -455,7 +430,7 @@ impl FxOption {
         as_of: Date,
         target_price: f64,
     ) -> Result<f64> {
-        self.implied_vol_internal(curves, as_of, target_price)
+        pricer::implied_vol(self, curves, as_of, target_price)
     }
 
     /// Calculate the at-the-money forward (ATMF) strike.
@@ -604,7 +579,7 @@ impl crate::instruments::common_impl::traits::Instrument for FxOption {
         curves: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
-        self.price_internal(curves, as_of)
+        pricer::compute_pv(self, curves, as_of)
     }
 
     fn expiry(&self) -> Option<finstack_quant_core::dates::Date> {
@@ -641,9 +616,8 @@ impl crate::instruments::common_impl::traits::Instrument for FxOption {
 }
 
 impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxOption {
-    // Override `option_greeks` to batch the 6 standard greeks via a single
-    // `greeks_internal` call; the metric layer's caching then makes follow-up
-    // greek requests free.
+    // Batch the six standard greeks through one canonical pricer call; the
+    // metric layer's caching then makes follow-up greek requests free.
     fn option_greeks(
         &self,
         market: &finstack_quant_core::market_data::context::MarketContext,
@@ -659,7 +633,7 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxOption 
             | OptionGreekKind::Theta
             | OptionGreekKind::Rho
             | OptionGreekKind::ForeignRho => {
-                let greeks = self.greeks_internal(market, as_of)?;
+                let greeks = pricer::compute_greeks(self, market, as_of)?;
                 Ok(OptionGreeks {
                     delta: Some(greeks.delta),
                     gamma: Some(greeks.gamma),
@@ -720,8 +694,8 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxOption 
             market.clone().insert_surface(bumped)
         };
 
-        let delta_up = self.greeks_internal(&curves_up, as_of)?.delta;
-        let delta_dn = self.greeks_internal(&curves_dn, as_of)?.delta;
+        let delta_up = pricer::compute_greeks(self, &curves_up, as_of)?.delta;
+        let delta_dn = pricer::compute_greeks(self, &curves_dn, as_of)?.delta;
 
         // Report vanna per **vol point** on the σ axis (consistent with vega
         // and `MetricId::Vanna`): normalize by the bump width expressed in
@@ -772,8 +746,8 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxOption 
         // multiplied by 0.01 to express the result per 1 vol-point (1%) change,
         // consistent with the vega convention used across the library (see
         // closed_form::greeks::bs_vega which also scales by 0.01).
-        let vega_up = self.greeks_internal(&curves_up, as_of)?.vega;
-        let vega_dn = self.greeks_internal(&curves_dn, as_of)?.vega;
+        let vega_up = pricer::compute_greeks(self, &curves_up, as_of)?.vega;
+        let vega_dn = pricer::compute_greeks(self, &curves_dn, as_of)?.vega;
         Ok(Some((vega_up - vega_dn) / (2.0 * delta_sigma) * 0.01))
     }
 }

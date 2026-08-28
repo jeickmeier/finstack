@@ -35,15 +35,10 @@ fn next_roll_index(i: i32) -> crate::Result<i32> {
     i.checked_add(1).ok_or_else(schedule_too_large_error)
 }
 
-/// Apply End-of-Month (EOM) convention to a date.
-fn apply_eom(date: Date) -> Date {
-    date.end_of_month()
-}
-
 #[inline]
 fn maybe_eom(eom: bool, d: Date) -> Date {
     if eom {
-        apply_eom(d)
+        d.end_of_month()
     } else {
         d
     }

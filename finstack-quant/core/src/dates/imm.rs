@@ -503,8 +503,27 @@ const fn estimated_sifma_business_day_index(class: SifmaSettlementClass) -> u8 {
     }
 }
 
+/// Estimate a SIFMA settlement date when no published calendar entry exists.
+///
+/// This is deliberately separate from [`sifma_settlement_date_for_class`],
+/// which fails closed outside published coverage. The estimate targets the
+/// SIFMA business-day-of-month that each settlement class normally uses,
+/// accounting for the embedded SIFMA holiday calendar when available. It is
+/// suitable for long-dated cash-flow projections, but not for trade settlement
+/// or operational instructions.
+///
+/// # Arguments
+///
+/// * `month` - Settlement month to estimate.
+/// * `year` - Settlement year to estimate using the embedded SIFMA calendar.
+/// * `class` - Agency-MBS settlement class whose business-day anchor is used.
 #[allow(clippy::unreachable)] // Gregorian month construction and weekday counts are invariant.
-fn estimated_sifma_base_date(month: Month, year: i32, class: SifmaSettlementClass) -> Date {
+#[must_use]
+pub fn estimated_sifma_settlement_date_for_class(
+    month: Month,
+    year: i32,
+    class: SifmaSettlementClass,
+) -> Date {
     let calendar = super::calendar_by_id("sifma");
     let target = estimated_sifma_business_day_index(class);
     let mut date = Date::from_calendar_date(year, month, 1)
@@ -527,29 +546,6 @@ fn estimated_sifma_base_date(month: Month, year: i32, class: SifmaSettlementClas
         date += Duration::days(1);
     }
     unreachable!("every Gregorian month has at least 16 weekdays")
-}
-
-/// Estimate a SIFMA settlement date when no published calendar entry exists.
-///
-/// This is deliberately separate from [`sifma_settlement_date_for_class`],
-/// which fails closed outside published coverage. The estimate targets the
-/// SIFMA business-day-of-month that each settlement class normally uses,
-/// accounting for the embedded SIFMA holiday calendar when available. It is
-/// suitable for long-dated cash-flow projections, but not for trade settlement
-/// or operational instructions.
-///
-/// # Arguments
-///
-/// * `month` - Settlement month to estimate.
-/// * `year` - Settlement year to estimate using the embedded SIFMA calendar.
-/// * `class` - Agency-MBS settlement class whose business-day anchor is used.
-#[must_use]
-pub fn estimated_sifma_settlement_date_for_class(
-    month: Month,
-    year: i32,
-    class: SifmaSettlementClass,
-) -> Date {
-    estimated_sifma_base_date(month, year, class)
 }
 
 // Generated from `data/sifma_settlements.csv`. Rows may contain a subset of

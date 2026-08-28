@@ -89,8 +89,8 @@ is `pub(crate)`.
 - **Clocks.** Year fractions for discounting come from the *curve's* day count
   measured from the *curve's* base date, not from the instrument's. Use
   `instruments::pricing::time` (`relative_df_discount_curve`, `curve_time`,
-  `rate_period_on_dates`) or `swap_legs::robust_relative_df`; do not call
-  `disc.df(t)` with an instrument-derived `t`.
+  `rate_period_on_dates`); do not call `disc.df(t)` with an
+  instrument-derived `t`.
 - **Leg pricing is shared.** `instruments::pricing::swap_legs` owns
   `pv_fixed_leg`, `pv_floating_leg`, `leg_annuity` and `schedule_to_periods`;
   `common_impl::pricing::overnight` owns compounded-RFR projection (lookback,

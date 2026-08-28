@@ -76,7 +76,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::gauss_legendre_integrate;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
-use finstack_quant_models::{black76_call, black76_put};
+use finstack_quant_models::closed_form::{black_call, black_put};
 
 /// Step size for central-difference approximation of g'(k).
 ///
@@ -225,9 +225,9 @@ pub(crate) fn replicated_cms_optionlet(
     // the forward swap rate `F` and the payment discount factor `DF_pay`.
     let g_times_c = |k: f64, v: f64, is_call: bool| -> f64 {
         let black = if is_call {
-            black76_call(forward_rate, k, v, ttf)
+            black_call(forward_rate, k, v, ttf)
         } else {
-            black76_put(forward_rate, k, v, ttf)
+            black_put(forward_rate, k, v, ttf)
         };
         // g(k) · C_sw(k) = (DF_pay / A_par(k)) · (A_par(k) · Black) = DF_pay · Black
         df_pay * black
@@ -242,9 +242,9 @@ pub(crate) fn replicated_cms_optionlet(
             finstack_quant_models::volatility::get_surface_vol_clamped(inputs.vol_surface, ttf, k);
         let o_sw = par_annuity(k.max(K_FLOOR), cms_tenor, m)
             * if is_call {
-                black76_call(forward_rate, k, v, ttf)
+                black_call(forward_rate, k, v, ttf)
             } else {
-                black76_put(forward_rate, k, v, ttf)
+                black_put(forward_rate, k, v, ttf)
             };
         // Nodes for finite differences.
         let k_lo = (k - G_PRIME_H).max(K_FLOOR);

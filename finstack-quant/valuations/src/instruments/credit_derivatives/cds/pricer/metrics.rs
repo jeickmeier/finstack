@@ -1,7 +1,7 @@
 //! Configuration, integration, and metric helpers for CDS pricing.
 //!
 use super::engine::{AodInputs, CDSPricer, CouponPeriod};
-use super::helpers::{df_asof_to, sp_cond_to};
+use super::helpers::sp_cond_to;
 use crate::constants::{credit, numerical, BASIS_POINTS_PER_UNIT, ONE_BASIS_POINT};
 use crate::instruments::common_impl::helpers::year_fraction;
 use crate::instruments::credit_derivatives::cds::{
@@ -341,7 +341,7 @@ impl CDSPricer {
                     continue;
                 }
                 let accrual = self.coupon_accrual(cds, &period)?;
-                let df = df_asof_to(disc, as_of, payment_date)?;
+                let df = disc.df_between_dates(as_of, payment_date)?;
                 let sp = sp_cond_to(surv, as_of, end_date)?;
                 let unit_spread = 1.0;
                 ann += unit_spread * accrual * sp * df;
@@ -607,7 +607,9 @@ impl CDSPricer {
         // Dated upfront PV: positive = paid by Buyer. Past upfronts (dt < as_of)
         // are dropped — they are not part of the forward-looking NPV.
         let upfront_pv = match cds.upfront {
-            Some((dt, amount)) if dt >= as_of => amount.amount() * df_asof_to(disc, as_of, dt)?,
+            Some((dt, amount)) if dt >= as_of => {
+                amount.amount() * disc.df_between_dates(as_of, dt)?
+            }
             _ => 0.0,
         };
 

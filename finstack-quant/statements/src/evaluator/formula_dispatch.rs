@@ -10,7 +10,7 @@
 
 use crate::error::Result;
 use crate::evaluator::context::EvaluationContext;
-use crate::evaluator::formula::{eval_error, evaluate_expr, require_args, require_min_args};
+use crate::evaluator::formula::{eval_error, evaluate_formula, require_args, require_min_args};
 use crate::evaluator::formula_aggregates::evaluate_historical_function;
 use crate::evaluator::formula_helpers::collect_all_historical_values;
 use finstack_quant_core::expr::{Expr, ExprNode, Function};
@@ -73,13 +73,13 @@ pub(crate) fn evaluate_function(
 
         Function::Abs => {
             require_args("abs", args, 1, node_id)?;
-            let value = evaluate_expr(&args[0], context, node_id)?;
+            let value = evaluate_formula(&args[0], context, node_id)?;
             Ok(value.abs())
         }
 
         Function::Sign => {
             require_args("sign", args, 1, node_id)?;
-            let value = evaluate_expr(&args[0], context, node_id)?;
+            let value = evaluate_formula(&args[0], context, node_id)?;
             if value.is_nan() {
                 Ok(f64::NAN)
             } else if value > 0.0 {
@@ -121,9 +121,9 @@ pub(crate) fn evaluate_function(
         // trailing NaN propagates.
         Function::Min => {
             require_min_args("min", args, 1, node_id)?;
-            let mut acc = evaluate_expr(&args[0], context, node_id)?;
+            let mut acc = evaluate_formula(&args[0], context, node_id)?;
             for arg in &args[1..] {
-                let v = evaluate_expr(arg, context, node_id)?;
+                let v = evaluate_formula(arg, context, node_id)?;
                 acc = if acc < v { acc } else { v };
             }
             Ok(acc)
@@ -131,9 +131,9 @@ pub(crate) fn evaluate_function(
 
         Function::Max => {
             require_min_args("max", args, 1, node_id)?;
-            let mut acc = evaluate_expr(&args[0], context, node_id)?;
+            let mut acc = evaluate_formula(&args[0], context, node_id)?;
             for arg in &args[1..] {
-                let v = evaluate_expr(arg, context, node_id)?;
+                let v = evaluate_formula(arg, context, node_id)?;
                 acc = if acc > v { acc } else { v };
             }
             Ok(acc)
@@ -145,8 +145,8 @@ pub(crate) fn evaluate_function(
         // `f64` operations, so the two layers cannot drift.
         Function::Pow => {
             require_args("pow", args, 2, node_id)?;
-            let base = evaluate_expr(&args[0], context, node_id)?;
-            let exponent = evaluate_expr(&args[1], context, node_id)?;
+            let base = evaluate_formula(&args[0], context, node_id)?;
+            let exponent = evaluate_formula(&args[1], context, node_id)?;
             Ok(base.powf(exponent))
         }
 
@@ -157,7 +157,7 @@ pub(crate) fn evaluate_function(
                     "round() requires 1 or 2 arguments (value, [digits])",
                 ));
             }
-            let value = evaluate_expr(&args[0], context, node_id)?;
+            let value = evaluate_formula(&args[0], context, node_id)?;
             let digits = if args.len() == 2 {
                 crate::evaluator::formula::evaluate_integer_arg(
                     "round", &args[1], context, node_id,
@@ -170,45 +170,45 @@ pub(crate) fn evaluate_function(
 
         Function::Floor => {
             require_args("floor", args, 1, node_id)?;
-            Ok(evaluate_expr(&args[0], context, node_id)?.floor())
+            Ok(evaluate_formula(&args[0], context, node_id)?.floor())
         }
 
         Function::Ceil => {
             require_args("ceil", args, 1, node_id)?;
-            Ok(evaluate_expr(&args[0], context, node_id)?.ceil())
+            Ok(evaluate_formula(&args[0], context, node_id)?.ceil())
         }
 
         Function::Ln => {
             require_args("ln", args, 1, node_id)?;
-            Ok(evaluate_expr(&args[0], context, node_id)?.ln())
+            Ok(evaluate_formula(&args[0], context, node_id)?.ln())
         }
 
         Function::Exp => {
             require_args("exp", args, 1, node_id)?;
-            Ok(evaluate_expr(&args[0], context, node_id)?.exp())
+            Ok(evaluate_formula(&args[0], context, node_id)?.exp())
         }
 
         Function::Log10 => {
             require_args("log10", args, 1, node_id)?;
-            Ok(evaluate_expr(&args[0], context, node_id)?.log10())
+            Ok(evaluate_formula(&args[0], context, node_id)?.log10())
         }
 
         Function::Sqrt => {
             require_args("sqrt", args, 1, node_id)?;
-            Ok(evaluate_expr(&args[0], context, node_id)?.sqrt())
+            Ok(evaluate_formula(&args[0], context, node_id)?.sqrt())
         }
 
         Function::Clamp => {
             require_args("clamp", args, 3, node_id)?;
-            let value = evaluate_expr(&args[0], context, node_id)?;
-            let lo = evaluate_expr(&args[1], context, node_id)?;
-            let hi = evaluate_expr(&args[2], context, node_id)?;
+            let value = evaluate_formula(&args[0], context, node_id)?;
+            let lo = evaluate_formula(&args[1], context, node_id)?;
+            let hi = evaluate_formula(&args[2], context, node_id)?;
             Ok(finstack_quant_core::math::clamp_or_nan(value, lo, hi))
         }
 
         Function::IsMissing => {
             require_args("is_missing", args, 1, node_id)?;
-            let value = evaluate_expr(&args[0], context, node_id)?;
+            let value = evaluate_formula(&args[0], context, node_id)?;
             Ok(if value.is_finite() { 0.0 } else { 1.0 })
         }
 
@@ -220,7 +220,7 @@ pub(crate) fn evaluate_function(
 
             let mut last_value = f64::NAN;
             for arg in args {
-                let value = evaluate_expr(arg, context, node_id)?;
+                let value = evaluate_formula(arg, context, node_id)?;
                 last_value = value;
                 if !value.is_nan() {
                     return Ok(value);
@@ -242,7 +242,7 @@ fn finite_arg_values(
     let mut values = Vec::with_capacity(args.len());
     let mut dropped = 0usize;
     for arg in args {
-        let value = evaluate_expr(arg, context, node_id)?;
+        let value = evaluate_formula(arg, context, node_id)?;
         if value.is_finite() {
             values.push(value);
         } else {
@@ -273,7 +273,7 @@ fn finite_arg_values(
 fn eval_rank(args: &[Expr], context: &mut EvaluationContext, node_id: Option<&str>) -> Result<f64> {
     require_min_args("rank", args, 1, node_id)?;
 
-    let current_value = evaluate_expr(&args[0], context, node_id)?;
+    let current_value = evaluate_formula(&args[0], context, node_id)?;
 
     let ExprNode::Column(node_name) = &args[0].node else {
         return Err(eval_error(
@@ -307,7 +307,7 @@ fn eval_quantile(
 ) -> Result<f64> {
     require_args("quantile", args, 2, node_id)?;
 
-    let quantile = evaluate_expr(&args[1], context, node_id)?;
+    let quantile = evaluate_formula(&args[1], context, node_id)?;
     if !(0.0..=1.0).contains(&quantile) {
         return Err(eval_error(node_id, "quantile must be between 0 and 1"));
     }
@@ -341,9 +341,9 @@ fn eval_annualize(
         ));
     }
 
-    let value = evaluate_expr(&args[0], context, node_id)?;
+    let value = evaluate_formula(&args[0], context, node_id)?;
     let periods_per_year = if args.len() == 2 {
-        evaluate_expr(&args[1], context, node_id)?
+        evaluate_formula(&args[1], context, node_id)?
     } else {
         context.period_kind.periods_per_year() as f64
     };
@@ -373,9 +373,9 @@ fn eval_annualize_rate(
 ) -> Result<f64> {
     require_args("annualize_rate", args, 3, node_id)?;
 
-    let rate = evaluate_expr(&args[0], context, node_id)?;
-    let periods_per_year = evaluate_expr(&args[1], context, node_id)?;
-    let compounding = evaluate_expr(&args[2], context, node_id)?;
+    let rate = evaluate_formula(&args[0], context, node_id)?;
+    let periods_per_year = evaluate_formula(&args[1], context, node_id)?;
+    let compounding = evaluate_formula(&args[2], context, node_id)?;
 
     if rate.is_nan() || periods_per_year.is_nan() || compounding.is_nan() {
         return Ok(f64::NAN);

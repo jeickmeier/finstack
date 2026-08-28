@@ -9,7 +9,7 @@
 use crate::error::Result;
 use crate::evaluator::context::EvaluationContext;
 use crate::evaluator::formula::{
-    build_context_for_period, eval_error, evaluate_expr, evaluate_integer_arg,
+    build_context_for_period, eval_error, evaluate_formula, evaluate_integer_arg,
     evaluate_non_negative_integer_arg, map_err_with_node, require_args,
 };
 use crate::evaluator::formula_helpers::get_historical_column_value;
@@ -59,7 +59,7 @@ pub(crate) fn eval_lag(
     let lag_periods = evaluate_non_negative_integer_arg("lag", &args[1], context, node_id)?;
 
     if lag_periods == 0 {
-        return evaluate_expr(&args[0], context, node_id);
+        return evaluate_formula(&args[0], context, node_id);
     }
 
     let target_period = offset_period(
@@ -81,7 +81,7 @@ pub(crate) fn eval_lag(
         Ok(f64::NAN)
     } else {
         let mut hist_ctx = build_context_for_period(target_period, context)?;
-        evaluate_expr(&args[0], &mut hist_ctx, node_id)
+        evaluate_formula(&args[0], &mut hist_ctx, node_id)
     }
 }
 
@@ -115,7 +115,7 @@ pub(crate) fn eval_diff(
     if lag_periods == 0 {
         // diff(x, 0) == x - x. Propagate NaN from the inner expression rather
         // than collapsing to 0.0 so missing data is not silently masked.
-        let v = evaluate_expr(&args[0], context, node_id)?;
+        let v = evaluate_formula(&args[0], context, node_id)?;
         return Ok(if v.is_finite() { 0.0 } else { f64::NAN });
     }
 
@@ -138,7 +138,7 @@ pub(crate) fn eval_diff(
             Ok(f64::NAN)
         }
     } else {
-        let current_value = evaluate_expr(&args[0], context, node_id)?;
+        let current_value = evaluate_formula(&args[0], context, node_id)?;
         if current_value.is_nan() {
             return Ok(f64::NAN);
         }
@@ -147,7 +147,7 @@ pub(crate) fn eval_diff(
             return Ok(f64::NAN);
         }
         let mut hist_ctx = build_context_for_period(target_period, context)?;
-        let lagged_value = evaluate_expr(&args[0], &mut hist_ctx, node_id)?;
+        let lagged_value = evaluate_formula(&args[0], &mut hist_ctx, node_id)?;
         Ok(current_value - lagged_value)
     }
 }
@@ -174,7 +174,7 @@ pub(crate) fn eval_pct_change(
         // pct_change(x, 0) == (x - x) / x. Propagate NaN from the inner
         // expression rather than collapsing to 0.0 so missing data is not
         // silently masked (mirrors the diff(x, 0) guard).
-        let v = evaluate_expr(&args[0], context, node_id)?;
+        let v = evaluate_formula(&args[0], context, node_id)?;
         return Ok(if v.is_finite() { 0.0 } else { f64::NAN });
     }
 
@@ -191,13 +191,13 @@ pub(crate) fn eval_pct_change(
             get_historical_column_value(context, node_name, &target_period).unwrap_or(f64::NAN);
         (current, lagged)
     } else {
-        let current = evaluate_expr(&args[0], context, node_id)?;
+        let current = evaluate_formula(&args[0], context, node_id)?;
         if !context.history.contains_key(&target_period) {
             // Mirror the column path: missing history yields NaN, not an error.
             return Ok(f64::NAN);
         }
         let mut hist_ctx = build_context_for_period(target_period, context)?;
-        let lagged = evaluate_expr(&args[0], &mut hist_ctx, node_id)?;
+        let lagged = evaluate_formula(&args[0], &mut hist_ctx, node_id)?;
         (current, lagged)
     };
 
@@ -235,7 +235,7 @@ pub(crate) fn eval_growth_rate(
     }
 
     let periods_raw = if args.len() == 2 {
-        evaluate_expr(&args[1], context, node_id)?
+        evaluate_formula(&args[1], context, node_id)?
     } else {
         context.period_kind.periods_per_year() as f64
     };
@@ -327,7 +327,7 @@ pub(crate) fn eval_shift(
     let shift_periods = evaluate_integer_arg("shift", &args[1], context, node_id)?;
 
     if shift_periods == 0 {
-        return evaluate_expr(&args[0], context, node_id);
+        return evaluate_formula(&args[0], context, node_id);
     }
 
     // Positive shift == backward (lag-like); negative shift is forward-looking

@@ -52,7 +52,7 @@ fn rates_examples() -> finstack_quant_core::Result<(CompositeSpec, CompositeSpec
             CompositeLegSpec::new("FV", five_year, 1.0),
             CompositeLegSpec::new("TY", ten_year, -1.0),
         ],
-        WeightingMethod::curve_neutral("FV", 1.0),
+        WeightingMethod::dv01_neutral("FV", 1.0),
         RebalanceRule::Manual,
     );
 

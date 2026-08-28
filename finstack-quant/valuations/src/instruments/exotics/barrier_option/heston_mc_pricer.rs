@@ -45,11 +45,6 @@ impl BarrierOptionHestonMcPricer {
         }
     }
 
-    /// Extract a Heston parameter from market scalars with a fallback default.
-    fn heston_scalar(market: &MarketContext, key: &str, default: f64) -> f64 {
-        crate::instruments::common_impl::helpers::get_unitless_scalar(market, key, default)
-    }
-
     fn convert_option_kind(option_type: crate::instruments::OptionType) -> OptionKind {
         match option_type {
             crate::instruments::OptionType::Call => OptionKind::Call,
@@ -107,11 +102,31 @@ impl BarrierOptionHestonMcPricer {
             inst.strike,
         );
 
-        let kappa = Self::heston_scalar(market, "HESTON_KAPPA", 2.0);
-        let theta = Self::heston_scalar(market, "HESTON_THETA", 0.04);
-        let sigma_v = Self::heston_scalar(market, "HESTON_SIGMA_V", 0.3);
-        let rho = Self::heston_scalar(market, "HESTON_RHO", -0.7);
-        let v0 = Self::heston_scalar(market, "HESTON_V0", 0.04);
+        let kappa = crate::instruments::common_impl::helpers::get_unitless_scalar(
+            market,
+            "HESTON_KAPPA",
+            2.0,
+        );
+        let theta = crate::instruments::common_impl::helpers::get_unitless_scalar(
+            market,
+            "HESTON_THETA",
+            0.04,
+        );
+        let sigma_v = crate::instruments::common_impl::helpers::get_unitless_scalar(
+            market,
+            "HESTON_SIGMA_V",
+            0.3,
+        );
+        let rho = crate::instruments::common_impl::helpers::get_unitless_scalar(
+            market,
+            "HESTON_RHO",
+            -0.7,
+        );
+        let v0 = crate::instruments::common_impl::helpers::get_unitless_scalar(
+            market,
+            "HESTON_V0",
+            0.04,
+        );
 
         let heston_params = HestonPricingParams::new(r, q, kappa, theta, sigma_v, rho, v0)?;
         let process = HestonProcess::new(heston_params);

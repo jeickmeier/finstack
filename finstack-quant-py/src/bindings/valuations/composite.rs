@@ -303,30 +303,6 @@ impl PyWeightingMethod {
         }
     }
 
-    /// Construct parallel-DV01-neutral curve weighting for spreads or flies.
-    ///
-    /// Parameters
-    /// ----------
-    /// anchor_leg_id : str
-    ///     Existing curve leg that fixes quantity scale.
-    /// anchor_quantity : float
-    ///     Signed non-zero quantity assigned to the anchor.
-    ///
-    /// Returns
-    /// -------
-    /// WeightingMethod
-    ///     Curve-neutral policy whose wing split follows signed scores.
-    ///
-    /// Notes
-    /// -----
-    /// This factory does not raise; the anchor is validated by ``CompositeSpec``.
-    #[staticmethod]
-    fn curve_neutral(anchor_leg_id: &str, anchor_quantity: f64) -> Self {
-        Self {
-            inner: WeightingMethod::curve_neutral(anchor_leg_id, anchor_quantity),
-        }
-    }
-
     /// Construct delta-neutral weighting for cross-asset hedges.
     ///
     /// Parameters

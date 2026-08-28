@@ -65,10 +65,6 @@ macro_rules! define_curve_state {
             }
         }
 
-        fn curve_state_id(state: &CurveState) -> &CurveId {
-            state.id()
-        }
-
         impl CurveStorage {
             /// Convert to serializable state.
             ///
@@ -497,7 +493,7 @@ impl From<&MarketContext> for MarketContextState {
             .values()
             .map(|storage| storage.to_state())
             .collect();
-        curves.sort_by(|a, b| curve_state_id(a).cmp(curve_state_id(b)));
+        curves.sort_by(|a, b| a.id().cmp(b.id()));
 
         // Convert FX (if present)
         let fx = ctx.fx.as_ref().map(|fx| fx.get_serializable_state());

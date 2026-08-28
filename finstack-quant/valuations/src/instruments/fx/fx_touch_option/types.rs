@@ -308,14 +308,6 @@ impl FxTouchOption {
             .attributes(Attributes::new())
             .build()
     }
-
-    fn price_internal(
-        &self,
-        market: &finstack_quant_core::market_data::context::MarketContext,
-        as_of: Date,
-    ) -> finstack_quant_core::Result<Money> {
-        pricer::compute_pv(self, market, as_of)
-    }
 }
 
 impl crate::instruments::common_impl::traits::Instrument for FxTouchOption {
@@ -353,7 +345,7 @@ impl crate::instruments::common_impl::traits::Instrument for FxTouchOption {
         curves: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
-        self.price_internal(curves, as_of)
+        pricer::compute_pv(self, curves, as_of)
     }
 
     fn expiry(&self) -> Option<finstack_quant_core::dates::Date> {

@@ -388,12 +388,12 @@ fn validate_file(file: &DefaultsFile) -> Result<()> {
         },
     )?;
     validate_engine("rust.engine", &file.rust.engine)?;
-    validate_chunk_size("rust.engine.chunk_size", file.rust.engine.chunk_size)?;
-    validate_chunk_size(
+    validate_positive_usize("rust.engine.chunk_size", file.rust.engine.chunk_size)?;
+    validate_positive_usize(
         "rust.engine_builder.chunk_size",
         file.rust.engine_builder.chunk_size,
     )?;
-    validate_chunk_size(
+    validate_positive_usize(
         "rust.path_dependent_pricer.chunk_size",
         file.rust.path_dependent_pricer.chunk_size,
     )?;
@@ -438,7 +438,7 @@ fn validate_runtime(label: &str, defaults: &PricerRuntimeDefaults) -> Result<()>
 fn validate_engine(label: &str, defaults: &EngineDefaults) -> Result<()> {
     let _parallel = defaults.use_parallel;
     let _antithetic = defaults.antithetic;
-    validate_chunk_size(&format!("{label}.chunk_size"), defaults.chunk_size)
+    validate_positive_usize(&format!("{label}.chunk_size"), defaults.chunk_size)
 }
 
 fn validate_convenience_pricer(label: &str, defaults: &ConveniencePricerDefaults) -> Result<()> {
@@ -474,7 +474,7 @@ fn validate_python_greeks(label: &str, defaults: &ConvenienceGreekDefaults) -> R
     validate_positive_usize(&format!("{label}.num_paths"), defaults.num_paths)?;
     validate_positive_usize(&format!("{label}.num_steps"), defaults.num_steps)?;
     validate_positive_f64(&format!("{label}.bump_size"), defaults.bump_size)?;
-    validate_chunk_size(&format!("{label}.chunk_size"), defaults.chunk_size)?;
+    validate_positive_usize(&format!("{label}.chunk_size"), defaults.chunk_size)?;
     let _seed = defaults.seed;
     let _parallel = defaults.use_parallel;
     let _antithetic = defaults.antithetic;
@@ -528,10 +528,6 @@ fn validate_merton_pik_bond(label: &str, defaults: &MertonPikBondDefaults) -> Re
     let _seed = defaults.seed;
     let _antithetic = defaults.antithetic;
     Ok(())
-}
-
-fn validate_chunk_size(label: &str, value: usize) -> Result<()> {
-    validate_positive_usize(label, value)
 }
 
 fn validate_positive_usize(label: &str, value: usize) -> Result<()> {

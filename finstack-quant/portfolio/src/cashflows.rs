@@ -25,7 +25,6 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
-use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::pricer::InstrumentType;
 use indexmap::IndexMap;
 use std::collections::HashMap;
@@ -145,15 +144,6 @@ pub struct PortfolioCashflows {
     /// [`finstack_quant_core::money::fx::FxConversionPolicy::CashflowDate`].
     #[serde(default)]
     pub fx_collapse_policy: CashflowFxPolicy,
-}
-
-/// Build the canonical signed schedule for a single instrument.
-fn instrument_cashflow_schedule(
-    instrument: &dyn Instrument,
-    market: &MarketContext,
-    as_of: Date,
-) -> std::result::Result<CashFlowSchedule, finstack_quant_core::Error> {
-    instrument.cashflow_schedule(market, as_of)
 }
 
 impl PortfolioCashflows {
@@ -367,9 +357,9 @@ pub fn aggregate_full_cashflows(
     market: &MarketContext,
     options: &CashflowAggregationOptions,
 ) -> Result<PortfolioCashflows> {
-    // Phase A: build per-position cashflow schedules. Each call to
-    // `instrument_cashflow_schedule` is an independent, read-only function of
-    // the shared `MarketContext` and the per-position instrument, so scheduling
+    // Phase A: build each position's cashflow schedule. Every call is an
+    // independent, read-only function of the shared `MarketContext` and the
+    // per-position instrument, so scheduling
     // it in parallel yields near-linear speedup for portfolios with many
     // instruments. Small books stay serial to dodge Rayon overhead. Results
     // are collected in positional order either way, preserving the
@@ -386,7 +376,11 @@ pub fn aggregate_full_cashflows(
     let schedule_position = |position: &crate::position::Position| -> PositionCashflowResult {
         let instrument_id = position.instrument.id().to_string();
         let instrument_type = position.instrument.key();
-        match instrument_cashflow_schedule(position.instrument.as_ref(), market, portfolio.as_of) {
+        match position
+            .instrument
+            .as_ref()
+            .cashflow_schedule(market, portfolio.as_of)
+        {
             Ok(schedule) => {
                 let scaled_flows: Vec<_> = schedule
                     .get_flows()

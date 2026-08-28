@@ -11,7 +11,6 @@ use crate::instruments::common_impl::parameters::{OptionMarketParams, OptionType
 use crate::instruments::equity::equity_option::types::EquityOption;
 use crate::instruments::{ExerciseStyle, SettlementType};
 use crate::pricer::{ModelKey, PricingError, PricingErrorContext};
-use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
@@ -39,7 +38,7 @@ pub(crate) fn compute_pv(
     if let Some(value) = resolve_lifecycle_value(inst, curves, as_of)? {
         return Ok(value);
     }
-    let ccy = option_currency(inst);
+    let ccy = inst.notional.currency();
     let unit_price = match inst.exercise_style {
         ExerciseStyle::European => {
             let (spot, r, q, sigma, t) = collect_inputs(inst, curves, as_of)?;
@@ -103,10 +102,6 @@ pub(crate) fn compute_pv(
     Ok(Money::new(unit_price * inst.notional.amount(), ccy))
 }
 
-pub(crate) fn option_currency(inst: &EquityOption) -> Currency {
-    inst.notional.currency()
-}
-
 /// Resolve a fixed exercise/expiry state before running a live option model.
 ///
 /// Returns `None` while the option is live. From an observed exercise date
@@ -131,7 +126,7 @@ pub(crate) fn resolve_lifecycle_value(
     if as_of < exercise.date {
         return Ok(None);
     }
-    let currency = option_currency(inst);
+    let currency = inst.notional.currency();
     if !exercise.exercised || as_of > exercise.settlement_date {
         return Ok(Some(Money::new(0.0, currency)));
     }
@@ -988,7 +983,7 @@ impl crate::pricer::Pricer for EquityOptionHestonFourierPricer {
                 as_of,
                 Money::new(
                     intrinsic * equity_option.notional.amount(),
-                    option_currency(equity_option),
+                    equity_option.notional.currency(),
                 ),
             ));
         }
@@ -1012,7 +1007,7 @@ impl crate::pricer::Pricer for EquityOptionHestonFourierPricer {
 
         let pv = Money::new(
             price * equity_option.notional.amount(),
-            option_currency(equity_option),
+            equity_option.notional.currency(),
         );
         Ok(crate::results::ValuationResult::stamped(
             equity_option.id(),
@@ -1030,6 +1025,7 @@ mod tests {
     };
     use crate::instruments::{Attributes, SettlementType};
     use crate::pricer::Pricer;
+    use finstack_quant_core::currency::Currency;
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::scalars::MarketScalar;
     use finstack_quant_core::market_data::surfaces::VolSurface;

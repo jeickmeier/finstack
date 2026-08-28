@@ -2,8 +2,8 @@
 //!
 use super::config::CDSPricerConfig;
 use super::helpers::{
-    date_from_hazard_time, df_asof_to, haz_t, isda_standard_model_boundaries, settlement_date,
-    sp_cond_to, validate_recovery_consistency,
+    date_from_hazard_time, haz_t, isda_standard_model_boundaries, settlement_date, sp_cond_to,
+    validate_recovery_consistency,
 };
 use crate::constants::{credit, numerical, BASIS_POINTS_PER_UNIT};
 use crate::instruments::common_impl::helpers::year_fraction;
@@ -242,7 +242,7 @@ impl CDSPricer {
             }
 
             // Discounting uses discount curve's day-count and relative DF from as_of
-            let df = df_asof_to(disc, as_of, payment_date)?;
+            let df = disc.df_between_dates(as_of, payment_date)?;
 
             // Survival uses hazard curve's day-count and conditional probability
             let sp = sp_cond_to(surv, as_of, end_date)?;
@@ -385,8 +385,8 @@ impl CDSPricer {
                 inp.calendar,
                 self.config.business_days_per_year,
             )?;
-            let df1 = df_asof_to(inp.disc, inp.as_of, settle1)?;
-            let df2 = df_asof_to(inp.disc, inp.as_of, settle2)?;
+            let df1 = inp.disc.df_between_dates(inp.as_of, settle1)?;
+            let df2 = inp.disc.df_between_dates(inp.as_of, settle2)?;
 
             // Piecewise-constant interest rate (may be negative if df2 > df1).
             let interest_rate = if df1 > 0.0 && df2 > 0.0 {
@@ -482,7 +482,6 @@ impl CdsHazardRepriceCache {
         market: &finstack_quant_core::market_data::context::MarketContext,
         as_of: Date,
     ) -> Result<Self> {
-        use super::helpers::df_asof_to;
         use rust_decimal::prelude::ToPrimitive;
 
         let pricer = CDSPricer::with_config(CDSPricerConfig::from_cds(cds));
@@ -494,7 +493,7 @@ impl CdsHazardRepriceCache {
                 continue;
             }
             let accrual = pricer.coupon_accrual(cds, &period)?;
-            let df = df_asof_to(disc.as_ref(), as_of, period.payment_date)?;
+            let df = disc.as_ref().df_between_dates(as_of, period.payment_date)?;
             periods.push((period, accrual, df));
         }
         let spread = cds.premium.spread_bp.to_f64().ok_or_else(|| {
@@ -502,7 +501,7 @@ impl CdsHazardRepriceCache {
         })? / BASIS_POINTS_PER_UNIT;
         let upfront_pv = match cds.upfront {
             Some((dt, amount)) if dt >= as_of => {
-                amount.amount() * df_asof_to(disc.as_ref(), as_of, dt)?
+                amount.amount() * disc.as_ref().df_between_dates(as_of, dt)?
             }
             _ => 0.0,
         };

@@ -76,26 +76,6 @@ pub fn project(generator: &GeneratorMatrix, t: f64) -> Result<TransitionMatrix, 
     Ok(tm)
 }
 
-/// Compute P(t) = exp(Q · t) using the \[13/13\] Padé scaling-and-squaring method.
-///
-/// Explicit algorithm selection; equivalent to [`project`].
-///
-/// # Arguments
-///
-/// * `generator` - Valid continuous-time rating-transition generator whose
-///   scale determines the output state ordering.
-/// * `t` - Positive projection horizon in years used in `exp(Q * t)`.
-///
-/// # Errors
-///
-/// Returns [`MigrationError::InvalidHorizon`] if `t <= 0`.
-pub fn project_pade(
-    generator: &GeneratorMatrix,
-    t: f64,
-) -> Result<TransitionMatrix, MigrationError> {
-    project(generator, t)
-}
-
 // Padé [13/13] scaling-and-squaring
 
 /// Pade [13/13] threshold from Higham (2005), Table 1.

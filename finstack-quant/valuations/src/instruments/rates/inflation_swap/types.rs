@@ -757,10 +757,6 @@ impl YoYInflationSwap {
         )
     }
 
-    fn apply_lag(date: Date, lag: InflationLag) -> Date {
-        crate::instruments::common_impl::helpers::apply_inflation_lag(date, lag)
-    }
-
     fn cpi_value(
         &self,
         curves: &MarketContext,
@@ -768,7 +764,7 @@ impl YoYInflationSwap {
         date: Date,
     ) -> finstack_quant_core::Result<f64> {
         let lag = self.effective_lag(curves);
-        let lagged_date = Self::apply_lag(date, lag);
+        let lagged_date = crate::instruments::common_impl::helpers::apply_inflation_lag(date, lag);
 
         // Only consult realized fixings for observations whose (lagged) fixing
         // date is on or before the valuation date. Reading later entries from a

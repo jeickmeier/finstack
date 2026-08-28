@@ -338,22 +338,6 @@ impl WeightingMethod {
         }
     }
 
-    /// Construct curve-neutral weighting, defined as parallel-DV01 neutrality.
-    ///
-    /// Alias of [`Self::dv01_neutral`]. Use for 2s10s, butterflies, and other
-    /// curve packages whose wing split follows signed scores.
-    ///
-    /// # Arguments
-    ///
-    /// * `anchor_leg_id` - Existing curve leg whose signed quantity fixes
-    ///   overall scale.
-    /// * `anchor_quantity` - Finite non-zero signed quantity assigned to the
-    ///   anchor; sign must match the anchor score.
-    #[must_use]
-    pub fn curve_neutral(anchor_leg_id: impl Into<InstrumentId>, anchor_quantity: f64) -> Self {
-        Self::dv01_neutral(anchor_leg_id, anchor_quantity)
-    }
-
     /// Construct delta-neutral weighting.
     ///
     /// Equivalent to [`Self::MetricWeighted`] with `metric = delta` and

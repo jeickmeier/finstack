@@ -55,7 +55,7 @@ numeric-serde helpers that keep instrument invariants uniform.
 
 | File | Visibility | Contents |
 |------|-----------|----------|
-| `swap_legs.rs` | `pub` (reachable as `instruments::pricing::swap_legs`) | `pv_floating_leg`, `pv_fixed_leg`, `leg_annuity`, `schedule_to_periods`, `robust_relative_df`, `add_payment_delay`, `FloatingLegParams`, `FixedLegParams`, `LegPeriod`, `CompoundingMethod` |
+| `swap_legs.rs` | `pub` (reachable as `instruments::pricing::swap_legs`) | `pv_floating_leg`, `pv_fixed_leg`, `leg_annuity`, `schedule_to_periods`, `add_payment_delay`, `FloatingLegParams`, `FixedLegParams`, `LegPeriod`, `CompoundingMethod` |
 | `time.rs` | `pub` | Curve-consistent time mapping: `relative_df_discount_curve`, `relative_df_discounting`, `curve_time`, `rate_between_on_dates`, `rate_period_on_dates` |
 | `variance_replication.rs` | `pub` | `carr_madan_forward_variance` — shared by equity and FX variance swaps |
 | `generic.rs` | private module, `GenericInstrumentPricer` re-exported `#[doc(hidden)]` | Downcasts and calls `Instrument::base_value`; the registry applies scenario shocks around it |

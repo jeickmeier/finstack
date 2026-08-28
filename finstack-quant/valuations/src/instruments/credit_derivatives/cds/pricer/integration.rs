@@ -1,9 +1,7 @@
 //! Configuration, integration, and metric helpers for CDS pricing.
 //!
 use super::engine::CDSPricer;
-use super::helpers::{
-    date_from_hazard_time, df_asof_to, isda_standard_model_boundaries, settlement_date,
-};
+use super::helpers::{date_from_hazard_time, isda_standard_model_boundaries, settlement_date};
 use crate::constants::{credit, numerical};
 use finstack_quant_core::dates::{Date, HolidayCalendar};
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
@@ -102,8 +100,8 @@ impl CDSPricer {
                     calendar,
                     self.config.business_days_per_year,
                 )?;
-                let df1 = df_asof_to(disc, as_of, d1)?;
-                let df2 = df_asof_to(disc, as_of, d2)?;
+                let df1 = disc.df_between_dates(as_of, d1)?;
+                let df2 = disc.df_between_dates(as_of, d2)?;
 
                 // Piecewise constant interest rate (allow negative rates)
                 let interest_rate = if df1 > 0.0 && df2 > 0.0 {

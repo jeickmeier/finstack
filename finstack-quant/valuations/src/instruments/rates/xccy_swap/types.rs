@@ -16,7 +16,7 @@ use crate::cashflow::builder::{schedule::merge_cashflow_schedules, CashFlowSched
 use crate::cashflow::primitives::CFKind;
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::numeric::decimal_to_f64;
-use crate::instruments::common_impl::pricing::swap_legs::robust_relative_df;
+use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -889,14 +889,14 @@ impl XccySwap {
         };
 
         // Notional exchanges (principal)
-        // Use robust_relative_df for numerical stability (validated against Bloomberg SWPM)
+        // Use relative date-based discounting (validated against Bloomberg SWPM).
         // MtmResetting also requires initial AND final exchange; this arm makes the helper non-panicky if accidentally called on an MtM swap. `base_value` dispatches MtmResetting to `pricing_mtm::pv_mtm_reset` before this method is reached.
         if matches!(
             self.notional_exchange,
             NotionalExchange::InitialAndFinal | NotionalExchange::MtmResetting { .. }
         ) && leg.start > as_of
         {
-            let df = robust_relative_df(disc.as_ref(), as_of, leg.start)?;
+            let df = relative_df_discount_curve(disc.as_ref(), as_of, leg.start)?;
             let cf_leg_currency = leg.side.initial_principal_sign() * leg.notional.amount() * df;
             let cf_rep = convert_pv(cf_leg_currency)?;
             pv.add(cf_rep);
@@ -910,7 +910,7 @@ impl XccySwap {
                 | NotionalExchange::MtmResetting { .. }
         ) && leg.end > as_of
         {
-            let df = robust_relative_df(disc.as_ref(), as_of, leg.end)?;
+            let df = relative_df_discount_curve(disc.as_ref(), as_of, leg.end)?;
             let cf_leg_currency = leg.side.final_principal_sign() * leg.notional.amount() * df;
             let cf_rep = convert_pv(cf_leg_currency)?;
             pv.add(cf_rep);
@@ -940,8 +940,8 @@ impl XccySwap {
             let coupon =
                 leg.side.coupon_sign() * projected.unsigned_coupon(leg.notional.amount(), spread);
 
-            // Use robust_relative_df for numerical stability
-            let df = robust_relative_df(disc.as_ref(), as_of, period.payment_date)?;
+            // Use relative date-based discounting for numerical stability.
+            let df = relative_df_discount_curve(disc.as_ref(), as_of, period.payment_date)?;
             let cf_leg_currency = coupon * df;
 
             let cf_rep = convert_pv(cf_leg_currency)?;

@@ -308,7 +308,7 @@ fn evaluate_period_aggregate_function(
                 ));
             }
 
-            let start_month_raw = super::formula::evaluate_expr(&args[1], context, node_id)?;
+            let start_month_raw = super::formula::evaluate_formula(&args[1], context, node_id)?;
             if !start_month_raw.is_finite()
                 || start_month_raw.fract() != 0.0
                 || !(1.0..=12.0).contains(&start_month_raw)

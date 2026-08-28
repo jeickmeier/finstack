@@ -4,9 +4,7 @@
 //! fees, coverage tests, and default assumptions.
 
 use super::enums::DealType;
-use crate::instruments::fixed_income::structured_credit::assumptions::{
-    embedded_registry_or_panic, StructuredCreditAssumptionRegistry,
-};
+use crate::instruments::fixed_income::structured_credit::assumptions::embedded_registry_or_panic;
 use crate::instruments::rates::irs::InterestRateSwap;
 use finstack_quant_core::dates::{Date, Tenor};
 use finstack_quant_core::money::Money;
@@ -104,7 +102,7 @@ impl DealFees {
     /// Create CLO-style fee structure
     pub fn clo_standard(base_currency: finstack_quant_core::currency::Currency) -> Self {
         required_assumption(
-            assumptions_registry().deal_fees("clo_standard", base_currency),
+            embedded_registry_or_panic().deal_fees("clo_standard", base_currency),
             "standard CLO fees",
         )
     }
@@ -112,7 +110,7 @@ impl DealFees {
     /// Create ABS-style fee structure
     pub fn abs_standard(base_currency: finstack_quant_core::currency::Currency) -> Self {
         required_assumption(
-            assumptions_registry().deal_fees("abs_auto_standard", base_currency),
+            embedded_registry_or_panic().deal_fees("abs_auto_standard", base_currency),
             "standard ABS fees",
         )
     }
@@ -120,7 +118,7 @@ impl DealFees {
     /// Create CMBS-style fee structure
     pub fn cmbs_standard(base_currency: finstack_quant_core::currency::Currency) -> Self {
         required_assumption(
-            assumptions_registry().deal_fees("cmbs_standard", base_currency),
+            embedded_registry_or_panic().deal_fees("cmbs_standard", base_currency),
             "standard CMBS fees",
         )
     }
@@ -128,7 +126,7 @@ impl DealFees {
     /// Create RMBS-style fee structure
     pub fn rmbs_standard(base_currency: finstack_quant_core::currency::Currency) -> Self {
         required_assumption(
-            assumptions_registry().deal_fees("rmbs_standard", base_currency),
+            embedded_registry_or_panic().deal_fees("rmbs_standard", base_currency),
             "standard RMBS fees",
         )
     }
@@ -161,7 +159,7 @@ impl CoverageTestConfig {
 
     /// Standard CLO haircuts (conservative)
     pub fn default_haircuts() -> BTreeMap<CreditRating, f64> {
-        assumptions_registry()
+        embedded_registry_or_panic()
             .coverage_haircuts()
             .into_iter()
             .collect()
@@ -244,7 +242,7 @@ impl DefaultAssumptions {
     /// CLO default assumptions
     pub fn clo_standard() -> Self {
         required_assumption(
-            assumptions_registry().default_assumptions("clo_standard"),
+            embedded_registry_or_panic().default_assumptions("clo_standard"),
             "standard CLO default assumptions",
         )
     }
@@ -252,7 +250,7 @@ impl DefaultAssumptions {
     /// RMBS default assumptions
     pub fn rmbs_standard() -> Self {
         required_assumption(
-            assumptions_registry().default_assumptions("rmbs_standard"),
+            embedded_registry_or_panic().default_assumptions("rmbs_standard"),
             "standard RMBS default assumptions",
         )
     }
@@ -260,7 +258,7 @@ impl DefaultAssumptions {
     /// Auto ABS default assumptions
     pub fn abs_auto_standard() -> Self {
         required_assumption(
-            assumptions_registry().default_assumptions("abs_auto_standard"),
+            embedded_registry_or_panic().default_assumptions("abs_auto_standard"),
             "standard Auto ABS default assumptions",
         )
     }
@@ -268,7 +266,7 @@ impl DefaultAssumptions {
     /// CMBS default assumptions
     pub fn cmbs_standard() -> Self {
         required_assumption(
-            assumptions_registry().default_assumptions("cmbs_standard"),
+            embedded_registry_or_panic().default_assumptions("cmbs_standard"),
             "standard CMBS default assumptions",
         )
     }
@@ -276,7 +274,7 @@ impl DefaultAssumptions {
 
 impl Default for DefaultAssumptions {
     fn default() -> Self {
-        assumptions_registry().generic_default_assumptions()
+        embedded_registry_or_panic().generic_default_assumptions()
     }
 }
 
@@ -287,13 +285,13 @@ impl DealConfig {
         dates: DealDates,
         base_currency: finstack_quant_core::currency::Currency,
     ) -> Self {
-        let profile_id = assumptions_registry().profile_id_for_deal_type(deal_type);
+        let profile_id = embedded_registry_or_panic().profile_id_for_deal_type(deal_type);
         let fees = required_assumption(
-            assumptions_registry().deal_fees(profile_id, base_currency),
+            embedded_registry_or_panic().deal_fees(profile_id, base_currency),
             "standard deal fees",
         );
         let default_assumptions = required_assumption(
-            assumptions_registry().default_assumptions(profile_id),
+            embedded_registry_or_panic().default_assumptions(profile_id),
             "standard deal default assumptions",
         );
 
@@ -350,10 +348,6 @@ impl DealConfig {
         self.hedge_swaps.extend(swaps);
         self
     }
-}
-
-fn assumptions_registry() -> &'static StructuredCreditAssumptionRegistry {
-    embedded_registry_or_panic()
 }
 
 #[allow(clippy::expect_used)]

@@ -569,50 +569,6 @@ pub fn bs_greeks(
     Ok(greeks)
 }
 
-/// Black-76 undiscounted call price (option on a forward).
-///
-/// Returns `(forward - strike).max(0.0)` for degenerate inputs
-/// (`t <= 0`, `sigma <= 0`, `forward <= 0`, or `strike <= 0`).
-///
-/// # Arguments
-///
-/// * `forward` - Forward price or rate F at option expiry.
-/// * `strike`  - Exercise price or rate K in the same units as `forward`.
-/// * `sigma`   - Implied volatility σ (annualized)
-/// * `t`       - Time to expiration T (in years)
-///
-/// # Returns
-///
-/// Undiscounted call price: `F·N(d1) - K·N(d2)`.
-/// Multiply by a discount factor at the call site to obtain a present value.
-#[must_use]
-#[inline]
-pub fn black76_call(forward: f64, strike: f64, sigma: f64, t: f64) -> f64 {
-    crate::closed_form::black_call(forward, strike, sigma, t)
-}
-
-/// Black-76 undiscounted put price (option on a forward).
-///
-/// Returns `(strike - forward).max(0.0)` for degenerate inputs
-/// (`t <= 0`, `sigma <= 0`, `forward <= 0`, or `strike <= 0`).
-///
-/// # Arguments
-///
-/// * `forward` - Forward price or rate F at option expiry.
-/// * `strike`  - Exercise price or rate K in the same units as `forward`.
-/// * `sigma`   - Implied volatility σ (annualized)
-/// * `t`       - Time to expiration T (in years)
-///
-/// # Returns
-///
-/// Undiscounted put price: `K·N(-d2) - F·N(-d1)`.
-/// Multiply by a discount factor at the call site to obtain a present value.
-#[must_use]
-#[inline]
-pub fn black76_put(forward: f64, strike: f64, sigma: f64, t: f64) -> f64 {
-    crate::closed_form::black_put(forward, strike, sigma, t)
-}
-
 /// Black-Scholes vega (same for both calls and puts).
 ///
 /// Vega measures the sensitivity of the option price to changes in implied

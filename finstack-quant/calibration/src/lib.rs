@@ -105,7 +105,7 @@ pub use lmm::calibrate_bermudan_lmm_base_vol;
 pub(crate) mod prepared;
 /// Raw market quote data-transfer objects.
 pub mod quotes;
-mod schema;
+pub mod schema;
 /// Solver utilities and implementations used by calibration.
 pub(crate) mod solver;
 /// Calibration targets mapping API steps to domain execution.
@@ -127,38 +127,6 @@ pub use defaults::{
     defaults_from_config, embedded_defaults, CalibrationDefaults, CalibrationValidationDefaults,
     CALIBRATION_DEFAULTS_EXTENSION_KEY,
 };
-
-/// Return the embedded calibration-envelope JSON schema.
-///
-/// # Errors
-///
-/// Returns an error if the checked-in schema cannot be decoded.
-pub fn calibration_schema() -> finstack_quant_core::Result<&'static serde_json::Value> {
-    schema::calibration_schema()
-}
-
-/// Return the embedded raw market-quote JSON schema.
-///
-/// # Errors
-///
-/// Returns an error if the checked-in schema cannot be decoded.
-pub fn market_quote_schema() -> finstack_quant_core::Result<&'static serde_json::Value> {
-    schema::market_quote_schema()
-}
-
-/// Return the shared calibration schema registry for workspace tooling.
-#[doc(hidden)]
-#[must_use]
-pub fn schema_artifacts_slice() -> &'static [finstack_quant_core::schema::SchemaArtifact] {
-    schema::artifacts_slice()
-}
-
-/// Build calibration-owned schema-generation artifacts.
-#[doc(hidden)]
-#[must_use]
-pub fn schema_artifacts() -> Vec<finstack_quant_core::schema::SchemaArtifact> {
-    schema::artifacts()
-}
 
 /// Shared constants (tolerances, magic numbers).
 pub(crate) mod constants;

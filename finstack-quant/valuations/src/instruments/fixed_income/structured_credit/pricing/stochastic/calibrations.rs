@@ -16,9 +16,7 @@
 //! - PSA Standard Prepayment Model assumptions `docs/REFERENCES.md#richard-roll-1989`
 //! - Basel IRB correlation formulas `docs/REFERENCES.md#basel-ii-2006`
 
-use crate::instruments::fixed_income::structured_credit::assumptions::{
-    embedded_registry_or_panic, StructuredCreditAssumptionRegistry,
-};
+use crate::instruments::fixed_income::structured_credit::assumptions::embedded_registry_or_panic;
 use finstack_quant_cashflows::builder::PrepaymentModelSpec;
 use finstack_quant_core::Result;
 use finstack_quant_models::credit::pool::{
@@ -61,7 +59,7 @@ pub(crate) struct RmbsCalibration {
 /// - Standard PSA-style seasoning
 pub(crate) fn rmbs_standard() -> RmbsCalibration {
     required_assumption(
-        assumptions_registry().rmbs_stochastic_calibration("rmbs_standard"),
+        embedded_registry_or_panic().rmbs_stochastic_calibration("rmbs_standard"),
         "standard RMBS stochastic calibration",
     )
 }
@@ -97,7 +95,7 @@ pub(crate) struct CloCalibration {
 /// - Higher prepayment (15% CPR) due to refinancing
 pub(crate) fn clo_standard() -> CloCalibration {
     required_assumption(
-        assumptions_registry().clo_stochastic_calibration("clo_standard"),
+        embedded_registry_or_panic().clo_stochastic_calibration("clo_standard"),
         "standard CLO stochastic calibration",
     )
 }
@@ -127,13 +125,9 @@ pub(crate) struct CmbsCalibration {
 /// - Low prepayment due to lockouts/defeasance (3% CPR)
 pub(crate) fn cmbs_standard() -> CmbsCalibration {
     required_assumption(
-        assumptions_registry().cmbs_stochastic_calibration("cmbs_standard"),
+        embedded_registry_or_panic().cmbs_stochastic_calibration("cmbs_standard"),
         "standard CMBS stochastic calibration",
     )
-}
-
-fn assumptions_registry() -> &'static StructuredCreditAssumptionRegistry {
-    embedded_registry_or_panic()
 }
 
 pub(crate) fn rmbs_default_spec() -> StochasticDefaultSpec {

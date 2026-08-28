@@ -311,11 +311,6 @@ impl StructuredCredit {
     /// deal-level [`Self::coverage_triggers`] are appended for the coverage-test
     /// loop.
     pub fn create_waterfall(&self) -> Waterfall {
-        self.create_waterfall_internal()
-    }
-
-    /// Internal waterfall creation (called by constructors).
-    fn create_waterfall_internal(&self) -> Waterfall {
         let mut waterfall = match self.waterfall.as_ref() {
             Some(custom) => custom.clone(),
             // Senior transaction fees, paid ahead of every note.

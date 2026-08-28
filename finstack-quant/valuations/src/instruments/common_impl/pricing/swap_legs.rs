@@ -5,14 +5,15 @@
 //!
 //! # Capabilities
 //!
-//! - Numerical stability via relative discount factor calculation
-//!   ([`robust_relative_df`])
+//! - Numerically stable relative discount factors via
+//!   [`super::time::relative_df_discount_curve`]
 //! - Neumaier compensated summation for long-dated swaps
 //! - Holiday-aware payment delay handling
 //! - Compounded-in-arrears support for RFR swaps (SOFR, SONIA, etc.)
 //! - Forward rate projection with floor/cap/gearing
 
 use crate::cashflow::builder::rate_helpers::FloatingRateParams;
+use crate::instruments::common_impl::pricing::time::relative_df_discount_curve;
 use finstack_quant_core::dates::{calendar_by_id, HolidayCalendar};
 use finstack_quant_core::dates::{Date, DateExt, DayCount, DayCountContext, Schedule};
 use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
@@ -139,72 +140,6 @@ pub enum CompoundingMethod {
 /// Failing on near-zero annuity is preferable to returning NaN/Inf which would
 /// propagate through downstream calculations.
 pub const ANNUITY_EPSILON: f64 = 1e-12;
-
-/// Compute discount factor at `target` relative to `as_of`, with numerical stability guard.
-///
-/// This helper centralizes the pattern of computing the discount factor from `as_of` to `target`
-/// using date-based DF calculation (no year-fraction ambiguity).
-///
-/// This is the Bloomberg-validated implementation used in IRS pricing.
-///
-/// # Arguments
-///
-/// * `disc` - Discount curve for pricing
-/// * `as_of` - Valuation date (start of discounting interval)
-/// * `target` - Target payment date (end of discounting interval)
-///
-/// # Returns
-///
-/// Discount factor from `as_of` to `target`. For seasoned instruments this represents the
-/// proper discount factor for cashflows occurring after the valuation date.
-///
-/// # Validation Policy
-///
-/// This function validates that the resulting DF is:
-/// - Finite (not NaN or infinity)
-/// - Positive (non-negative DFs are non-physical under standard assumptions)
-///
-/// It does **not** validate the absolute DF at `as_of` against a hard threshold (like 1e-10),
-/// because what matters for pricing is the relative DF between dates. Long-horizon instruments
-/// or stress scenarios may have tiny absolute DFs at `as_of` but still-usable relative DFs.
-///
-/// # Errors
-///
-/// Returns a validation error if:
-/// - Year fraction calculation fails
-/// - The resulting discount factor is non-finite (NaN/inf)
-/// - The resulting discount factor is non-positive (non-physical)
-///
-/// # Examples
-///
-/// ```text
-/// use finstack_quant_core::dates::Date;
-/// use finstack_quant_core::market_data::term_structures::DiscountCurve;
-/// use finstack_quant_valuations::instruments::common_impl::pricing::swap_legs::robust_relative_df;
-/// use time::Month;
-///
-/// # fn main() -> finstack_quant_core::Result<()> {
-/// let curve = DiscountCurve::builder("USD-OIS")
-///     .base_date(Date::from_calendar_date(2024, Month::January, 1).expect("valid date"))
-///     .knots([(0.0, 1.0), (1.0, 0.95), (5.0, 0.80)])
-///     .build()
-///     .expect("curve should build");
-///
-/// let as_of = Date::from_calendar_date(2024, Month::January, 1).unwrap();
-/// let target = Date::from_calendar_date(2025, Month::January, 1).unwrap();
-///
-/// let df = robust_relative_df(&curve, as_of, target)?;
-/// assert!(df > 0.0 && df <= 1.0);
-/// # Ok(())
-/// # }
-/// ```
-#[inline]
-pub fn robust_relative_df(disc: &DiscountCurve, as_of: Date, target: Date) -> Result<f64> {
-    // Single source of truth lives in `pricing::time::relative_df_discount_curve`;
-    // this name is retained for the swap-leg call sites and docstrings that
-    // pre-date the consolidation.
-    crate::instruments::common_impl::pricing::time::relative_df_discount_curve(disc, as_of, target)
-}
 
 /// Apply a payment-delay in business days using an optional holiday calendar.
 ///
@@ -1049,7 +984,7 @@ where
         let coupon_amount = notional * all_in_rate * period.year_fraction;
 
         // Discount from as_of for correct theta
-        let df = robust_relative_df(disc, as_of, payment_date)?;
+        let df = relative_df_discount_curve(disc, as_of, payment_date)?;
         acc.add(coupon_amount * df);
     }
 
@@ -1148,7 +1083,7 @@ where
         let coupon_amount = notional * params.rate * period.year_fraction;
 
         // Discount from as_of for correct theta
-        let df = robust_relative_df(disc, as_of, payment_date)?;
+        let df = relative_df_discount_curve(disc, as_of, payment_date)?;
         acc.add(coupon_amount * df);
     }
 
@@ -1198,7 +1133,7 @@ where
 
         // Only include future payments
         if payment_date > as_of {
-            let df = robust_relative_df(disc, as_of, payment_date)?;
+            let df = relative_df_discount_curve(disc, as_of, payment_date)?;
             acc.add(period.year_fraction * df);
         }
     }
@@ -1395,16 +1330,17 @@ mod tests {
     }
 
     #[test]
-    fn robust_relative_df_positive() {
+    fn relative_df_discount_curve_positive() {
         let base_date = date(2024, 1, 1);
         let disc = test_discount_curve(base_date);
 
-        let df = robust_relative_df(&disc, base_date, date(2025, 1, 1)).expect("should succeed");
+        let df =
+            relative_df_discount_curve(&disc, base_date, date(2025, 1, 1)).expect("should succeed");
         assert!(df > 0.0 && df <= 1.0, "DF should be in (0, 1]: {}", df);
     }
 
     #[test]
-    fn robust_relative_df_accepts_small_absolute_df() {
+    fn relative_df_discount_curve_accepts_small_absolute_df() {
         // Create a curve with very small absolute DFs (stress scenario).
         // The new policy accepts these as long as the RELATIVE DF between dates is valid.
         let base_date = date(2024, 1, 1);
@@ -1416,7 +1352,7 @@ mod tests {
 
         // Under the new policy, df_between_dates computes df(target) / df(as_of)
         // = 1e-15 / 1e-12 = 0.001, which is a valid positive relative DF.
-        let result = robust_relative_df(&disc, base_date, date(2025, 1, 1));
+        let result = relative_df_discount_curve(&disc, base_date, date(2025, 1, 1));
         assert!(
             result.is_ok(),
             "Small absolute DFs should be accepted if relative DF is valid: {:?}",
@@ -1905,7 +1841,7 @@ mod tests {
 
         // Recover the implied projected rate: pv = notional * rate * yf * df.
         let payment_date = accrual_end; // no payment lag
-        let df = robust_relative_df(&disc, base_date, payment_date).expect("df");
+        let df = relative_df_discount_curve(&disc, base_date, payment_date).expect("df");
         let implied_rate = pv / (1_000_000.0 * year_fraction * df);
 
         // Expected: fixing-date-anchored forward.
@@ -1987,7 +1923,7 @@ mod tests {
         )
         .expect("should price");
 
-        let df = robust_relative_df(&disc, base_date, accrual_end).expect("df");
+        let df = relative_df_discount_curve(&disc, base_date, accrual_end).expect("df");
         let implied_rate = pv / (1_000_000.0 * year_fraction * df);
 
         let fwd_day_count = fwd.day_count();
@@ -2053,21 +1989,21 @@ mod tests {
         );
     }
 
-    // ==================== robust_relative_df EDGE CASE TESTS ====================
+    // ==================== relative_df_discount_curve EDGE CASE TESTS ====================
 
     #[test]
-    fn robust_relative_df_as_of_equals_base_date() {
+    fn relative_df_discount_curve_as_of_equals_base_date() {
         let base_date = date(2024, 1, 1);
         let disc = test_discount_curve(base_date);
 
         // When as_of == base_date, DF(as_of to target) is just DF(target)
         let target = date(2025, 1, 1);
-        let df = robust_relative_df(&disc, base_date, target).expect("should succeed");
+        let df = relative_df_discount_curve(&disc, base_date, target).expect("should succeed");
         assert!(df > 0.0 && df < 1.0, "DF should be in (0,1): {}", df);
     }
 
     #[test]
-    fn robust_relative_df_as_of_after_base_date() {
+    fn relative_df_discount_curve_as_of_after_base_date() {
         let base_date = date(2024, 1, 1);
         let disc = test_discount_curve(base_date);
 
@@ -2075,13 +2011,13 @@ mod tests {
         let as_of = date(2024, 7, 1);
         let target = date(2025, 1, 1);
 
-        let df = robust_relative_df(&disc, as_of, target).expect("should succeed");
+        let df = relative_df_discount_curve(&disc, as_of, target).expect("should succeed");
         // Should be the relative DF from as_of to target, which is valid and positive
         assert!(df > 0.0, "Relative DF should be positive: {}", df);
     }
 
     #[test]
-    fn robust_relative_df_long_horizon() {
+    fn relative_df_discount_curve_long_horizon() {
         use finstack_quant_core::market_data::term_structures::DiscountCurve;
 
         // Create a curve that extends far into the future
@@ -2100,12 +2036,12 @@ mod tests {
 
         // 30Y forward date - long horizon but should still work
         let target = date(2054, 1, 1);
-        let df = robust_relative_df(&curve, base_date, target).expect("should succeed");
+        let df = relative_df_discount_curve(&curve, base_date, target).expect("should succeed");
         assert!(df > 0.0, "Long-horizon DF should be positive: {}", df);
     }
 
     #[test]
-    fn robust_relative_df_rejects_non_positive() {
+    fn relative_df_discount_curve_rejects_non_positive() {
         // This test verifies that truly invalid DFs are rejected
         // In practice this shouldn't happen with well-constructed curves,
         // but the guard protects against misconfigured curves.
@@ -2116,7 +2052,7 @@ mod tests {
         let disc = test_discount_curve(base_date);
 
         let target = date(2025, 1, 1);
-        let df = robust_relative_df(&disc, base_date, target).expect("should succeed");
+        let df = relative_df_discount_curve(&disc, base_date, target).expect("should succeed");
         assert!(df > 0.0, "DF must be positive: {}", df);
     }
 
@@ -2166,7 +2102,7 @@ mod tests {
         )
         .expect("should price");
 
-        let df = robust_relative_df(&disc, base_date, accrual_end).expect("df");
+        let df = relative_df_discount_curve(&disc, base_date, accrual_end).expect("df");
         let implied_rate = pv / (1_000_000.0 * year_fraction * df);
 
         // The simple arithmetic-average forward (the OLD, buggy projection).
@@ -2382,7 +2318,7 @@ mod tests {
         )
         .expect("should price");
 
-        let df = robust_relative_df(&disc, base_date, accrual_end).expect("df");
+        let df = relative_df_discount_curve(&disc, base_date, accrual_end).expect("df");
         let implied_rate = pv / (1_000_000.0 * year_fraction * df);
 
         // With every daily fixing floored to 10%, the compounded period rate is
@@ -2480,7 +2416,7 @@ mod tests {
         .expect("should price seasoned OIS swap");
 
         let payment_date = accrual_end; // no payment lag
-        let df = robust_relative_df(&disc, as_of, payment_date).expect("df");
+        let df = relative_df_discount_curve(&disc, as_of, payment_date).expect("df");
         let implied_rate = pv / (1_000_000.0 * year_fraction * df);
 
         // Independent reference: splice realized fixings with projected forwards.
@@ -2629,7 +2565,7 @@ mod tests {
 
         // The payment is in the future (Apr 3), so we discount to as_of.
         let payment_date = accrual_end.add_weekdays(2); // 2 BD lag
-        let df = robust_relative_df(&disc, as_of, payment_date).expect("df");
+        let df = relative_df_discount_curve(&disc, as_of, payment_date).expect("df");
         let implied_rate = pv / (1_000_000.0 * year_fraction * df);
 
         assert!(

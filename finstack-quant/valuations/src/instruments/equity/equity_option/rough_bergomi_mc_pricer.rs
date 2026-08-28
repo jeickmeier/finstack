@@ -9,9 +9,7 @@
 //! hybrid scheme (`RiemannLiouvilleVolterra`). This differs from the rough
 //! Heston model, which uses standard Brownian motion with a singular kernel.
 
-use super::pricer::{
-    collect_inputs_extended, option_currency, require_european, resolve_lifecycle_value,
-};
+use super::pricer::{collect_inputs_extended, require_european, resolve_lifecycle_value};
 use super::types::EquityOption;
 use crate::instruments::common_impl::parameters::OptionType;
 use crate::instruments::common_impl::traits::Instrument;
@@ -342,7 +340,7 @@ impl crate::pricer::Pricer for EquityOptionRoughBergomiMcPricer {
                 as_of,
                 Money::new(
                     intrinsic * equity_option.notional.amount(),
-                    option_currency(equity_option),
+                    equity_option.notional.currency(),
                 ),
             ));
         }
@@ -390,7 +388,7 @@ impl crate::pricer::Pricer for EquityOptionRoughBergomiMcPricer {
             )
             .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
 
-        let ccy = option_currency(equity_option);
+        let ccy = equity_option.notional.currency();
         let initial_state = [spot];
 
         // Derive deterministic seed from instrument id

@@ -515,7 +515,7 @@ pub fn run_schema_generator(
                 artifact.id
             )));
         }
-        let rendered = render_schema(&artifact.generate()?)?;
+        let rendered = deterministic_json_bytes(&artifact.generate()?)?;
         if expected
             .insert(relative_path.to_path_buf(), rendered)
             .is_some()
@@ -1520,7 +1520,7 @@ pub const SCHEMA_INDEX_VERSION: u64 = 1;
 fn build_schema_index(artifacts: &[SchemaArtifact]) -> Result<Value> {
     let mut rows = BTreeMap::new();
     for artifact in artifacts {
-        let rendered = render_schema(&artifact.generate()?)?;
+        let rendered = deterministic_json_bytes(&artifact.generate()?)?;
         let mut row = Map::new();
         row.insert("$id".to_string(), Value::String(artifact.id.to_string()));
         row.insert(
@@ -1603,7 +1603,7 @@ pub fn run_schema_index_generator(
         return Ok(());
     }
 
-    let rendered = render_schema(&build_schema_index(artifacts)?)?;
+    let rendered = deterministic_json_bytes(&build_schema_index(artifacts)?)?;
     let base = command.output_root.as_deref().unwrap_or(manifest_dir);
     let path = base.join(index_relative_path);
 
@@ -1658,13 +1658,9 @@ pub fn run_schema_index_generator(
 ///
 /// Returns [`Error::Internal`] if serialization fails.
 pub fn deterministic_json_bytes(value: &Value) -> Result<Vec<u8>> {
-    render_schema(value)
-}
-
-fn render_schema(schema: &Value) -> Result<Vec<u8>> {
-    let mut schema = schema.clone();
-    sort_json(&mut schema);
-    let mut json = serde_json::to_vec_pretty(&schema)
+    let mut value = value.clone();
+    sort_json(&mut value);
+    let mut json = serde_json::to_vec_pretty(&value)
         .map_err(|error| Error::Internal(format!("serialize schema: {error}")))?;
     json.push(b'\n');
     Ok(json)

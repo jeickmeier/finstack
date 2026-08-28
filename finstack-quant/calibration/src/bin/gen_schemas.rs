@@ -8,7 +8,7 @@ use std::path::Path;
 fn main() -> finstack_quant_core::Result<()> {
     let command = SchemaGenerationCommand::from_env()?;
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let artifacts = finstack_quant_calibration::schema_artifacts();
+    let artifacts = finstack_quant_calibration::schema::artifacts();
     run_schema_index_generator(
         manifest_dir,
         Path::new("schemas/index.json"),

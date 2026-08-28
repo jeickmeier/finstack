@@ -167,8 +167,8 @@ pub use lookback::{
 };
 pub use quanto::{quanto_call, quanto_drift_adjustment, quanto_put};
 pub use vanilla::{
-    black76_call, black76_put, bs_greeks, bs_price, checked_closed_form_value,
-    option_type_from_bool, vanilla_expiry_payoff, BsGreeks, ONE_PERCENT,
+    bs_greeks, bs_price, checked_closed_form_value, option_type_from_bool, vanilla_expiry_payoff,
+    BsGreeks, ONE_PERCENT,
 };
 pub use volatility::{
     bachelier_call, bachelier_delta_call, bachelier_delta_put, bachelier_gamma, bachelier_put,

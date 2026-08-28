@@ -10,7 +10,7 @@
 use crate::error::Result;
 use crate::evaluator::context::EvaluationContext;
 use crate::evaluator::formula::{
-    collect_expression_values_sorted, eval_error, evaluate_expr, require_args,
+    collect_expression_values_sorted, eval_error, evaluate_formula, require_args,
 };
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_core::expr::{Expr, ExprNode, Function};
@@ -146,7 +146,7 @@ pub(crate) fn eval_ewm_mean(
 ) -> Result<f64> {
     require_args("ewm_mean", args, 2, node_id)?;
 
-    let alpha = evaluate_expr(&args[1], context, node_id)?;
+    let alpha = evaluate_formula(&args[1], context, node_id)?;
     validate_alpha(alpha, "ewm_mean", node_id)?;
 
     let values = collect_series(&args[0], context, node_id)?;
@@ -184,12 +184,12 @@ pub(crate) fn eval_ewm_std_or_var(
         ));
     }
 
-    let alpha = evaluate_expr(&args[1], context, node_id)?;
+    let alpha = evaluate_formula(&args[1], context, node_id)?;
     validate_alpha(alpha, "ewm", node_id)?;
 
     // Default to bias-corrected output (pandas `adjust=False, bias=False`).
     let unbiased = if args.len() == 3 {
-        evaluate_expr(&args[2], context, node_id)? != 0.0
+        evaluate_formula(&args[2], context, node_id)? != 0.0
     } else {
         true
     };

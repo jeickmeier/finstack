@@ -128,7 +128,7 @@ impl MarketDataHierarchy {
         let mut matches = Vec::new();
         let start_depth = target.path.len();
         match &target.tag_filter {
-            None => collect_all_matches(node, start_depth, &mut matches),
+            None => collect_subtree_matches(node, start_depth, &mut matches),
             Some(filter) => collect_filtered_matches(node, filter, start_depth, &mut matches),
         }
 
@@ -193,10 +193,6 @@ fn collect_subtree_matches(
     for child in node.children().values() {
         collect_subtree_matches(child, matched_depth, matches);
     }
-}
-
-fn collect_all_matches(node: &HierarchyNode, depth: usize, matches: &mut Vec<ResolvedCurveMatch>) {
-    collect_subtree_matches(node, depth, matches);
 }
 
 fn collect_filtered_matches(

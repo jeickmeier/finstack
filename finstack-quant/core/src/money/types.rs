@@ -403,11 +403,6 @@ impl Money {
         Self::try_new_finite(amount, currency, cfg)
     }
 
-    #[inline]
-    fn amount_and_currency(self) -> (f64, Currency) {
-        (amount_from_repr(self.amount), self.currency)
-    }
-
     /// Amount accessor (by value).
     ///
     /// This converts the internal [`Decimal`](rust_decimal::Decimal) representation to `f64` for
@@ -455,7 +450,7 @@ impl Money {
     #[inline]
     #[must_use]
     pub fn into_parts(self) -> (f64, Currency) {
-        self.amount_and_currency()
+        (amount_from_repr(self.amount), self.currency)
     }
 
     // Checked arithmetic

@@ -2,7 +2,7 @@
 //!
 #![allow(clippy::expect_used, clippy::panic)]
 
-use super::helpers::{date_from_hazard_time, df_asof_to, haz_t, settlement_date, sp_cond_to};
+use super::helpers::{date_from_hazard_time, haz_t, settlement_date, sp_cond_to};
 use super::*;
 use crate::constants::{credit, ONE_BASIS_POINT};
 use crate::instruments::credit_derivatives::cds::{
@@ -582,16 +582,10 @@ fn test_time_and_settlement_helpers_match_curve_and_calendar_conventions() {
 }
 
 #[test]
-fn test_discount_survival_and_default_density_helpers_cover_boundary_cases() {
+fn test_survival_and_default_density_helpers_cover_boundary_cases() {
     let (disc, credit) = create_test_curves();
     let as_of = disc.base_date();
     let one_year = as_of.add_months(12);
-
-    assert_eq!(
-        df_asof_to(&disc, as_of, one_year).expect("df"),
-        disc.df_between_dates(as_of, one_year)
-            .expect("df between dates")
-    );
 
     let t_asof = haz_t(&credit, as_of).expect("haz_t as_of");
     let t_one_year = haz_t(&credit, one_year).expect("haz_t future");

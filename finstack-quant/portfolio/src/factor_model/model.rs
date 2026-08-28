@@ -139,7 +139,7 @@ impl FactorModelBuilder {
             ));
         }
 
-        let matcher = build_matcher(&config.matching);
+        let matcher = config.matching.build_matcher();
         let bump_config = config.bump_size.clone().unwrap_or_default();
         let sensitivity_engine = {
             #[cfg(test)]
@@ -178,10 +178,6 @@ impl Default for FactorModelBuilder {
     fn default() -> Self {
         Self::new()
     }
-}
-
-fn build_matcher(config: &MatchingConfig) -> Box<dyn finstack_quant_models::factor::FactorMatcher> {
-    config.build_matcher()
 }
 
 fn default_sensitivity_engine(

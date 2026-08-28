@@ -521,50 +521,13 @@ impl SwaptionLsmcPricer {
         Ok(paths)
     }
 
-    /// Accumulate the pathwise money-market numéraire `B(t)` along a
-    /// simulated short-rate path.
-    ///
-    /// `B(t)` is the value of the money-market account
-    /// `B(t) = exp(∫₀ᵗ r(s) ds)`, discretised on the simulation grid.
-    ///
-    /// The integral over each step is approximated with the **trapezoidal
-    /// rule**:
-    ///
-    /// ```text
-    /// B(t_0) = 1,
-    /// B(t_{k+1}) = B(t_k) · exp( ½·(r(t_k) + r(t_{k+1}))·Δt_k )
-    /// ```
-    ///
-    /// The exact-HW1F transition gives both endpoints `r(t_k)` and
-    /// `r(t_{k+1})` of every interval, so the cheap left-endpoint Riemann sum
-    /// `exp(r(t_k)·Δt_k)` it previously used left an avoidable O(Δt) bias in
-    /// the discount factor — the short rate moves materially within a step on
-    /// a coarse exercise-aligned grid. The trapezoidal rule is O(Δt²) and uses
-    /// only the path values already simulated. (The fully exact integrated
-    /// short rate needs the joint law of `(r(t), ∫r ds)`, which lives in the
-    /// Monte-Carlo discretisation layer.)
-    ///
-    /// The returned vector has one entry per grid point (`num_steps + 1`).
-    /// LSM continuation values and the final present value are discounted
-    /// by *ratios* of these pathwise factors — the stochastic discount
-    /// factor the Hull-White model produces — rather than by the
-    /// deterministic market discount curve. Discounting by the
-    /// deterministic curve would ignore the correlation between the
-    /// stochastic discount factor and the swap payoff and bias the
-    /// exercise boundary.
-    fn accumulate_bank_factors(rate_path: &[f64], time_grid: &TimeGrid) -> Vec<f64> {
-        // Shared trapezoidal accumulation, also used by the HW1F exotic
-        // MC/LSMC harnesses so every short-rate MC discounts consistently.
-        crate::instruments::rates::hw1f::bank_account::accumulate_bank_factors(rate_path, time_grid)
-    }
-
     /// Perform backward induction for swaptions using a time grid.
     ///
     /// # Discounting Convention
     ///
     /// This pricer discounts realised cashflows by the **pathwise
-    /// money-market numéraire** `B(t)` (see [`accumulate_bank_factors`]),
-    /// consistently with the Hull-White short-rate dynamics used to
+    /// money-market numéraire** `B(t)` using the shared Hull-White bank-account
+    /// accumulator, consistently with the short-rate dynamics used to
     /// simulate the paths. A continuation value carried back from a future
     /// exercise step `t'` to the current step `t` is multiplied by the
     /// pathwise ratio `B(t) / B(t')`, and the time-0 present value is
@@ -583,7 +546,6 @@ impl SwaptionLsmcPricer {
     ///
     /// See `lsmc.rs` for the flat-rate discounting approach.
     ///
-    /// [`accumulate_bank_factors`]: Self::accumulate_bank_factors
     #[allow(clippy::too_many_arguments)]
     fn backward_induction_swaption_grid<B, F>(
         &self,
@@ -607,7 +569,11 @@ impl SwaptionLsmcPricer {
         // market discount curve.
         let bank_factors: Vec<Vec<f64>> = paths
             .iter()
-            .map(|path| Self::accumulate_bank_factors(path, time_grid))
+            .map(|path| {
+                crate::instruments::rates::hw1f::bank_account::accumulate_bank_factors(
+                    path, time_grid,
+                )
+            })
             .collect();
 
         // Cashflow tracking. `exercise_step` is the grid step of the

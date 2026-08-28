@@ -66,7 +66,7 @@ d₂ = d₁ - σ√T
 | `bs_greeks` | `(spot, strike, r, q, sigma, t, OptionType, theta_days_per_year) -> Result<BsGreeks>` |
 | `bs_greeks_unchecked` | same inputs, `-> BsGreeks`; raw formula for validated Rust call sites |
 | `bs_vega_unchecked` | crate-internal vega primitive |
-| `black76_call` / `black76_put` | `(forward, strike, sigma, t) -> f64` — undiscounted |
+| `black_call` / `black_put` | `(forward, strike, sigma, t) -> f64` — undiscounted |
 | `vanilla_expiry_payoff` | `(spot, strike, OptionType) -> Result<f64>` |
 | `checked_closed_form_value` | `(value, what) -> Result<f64>` — the shared finiteness guard |
 | `option_type_from_bool` | boolean-to-`OptionType` adapter used by host bindings |

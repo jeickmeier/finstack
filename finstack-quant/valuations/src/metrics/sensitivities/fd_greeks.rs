@@ -305,13 +305,6 @@ where
     value
 }
 
-fn with_market_scratch<T>(
-    context: &mut MetricContext,
-    f: impl FnOnce(&MetricContext, &mut MarketContext) -> Result<T>,
-) -> Result<T> {
-    context.with_market_scratch(f)
-}
-
 // Traits for Instruments with Expiry and DayCount Information
 
 /// Trait for instruments that have an expiry date.
@@ -403,7 +396,7 @@ where
         // Common Random Numbers: same seed for all scenarios ensures variance reduction.
         let seeded_instrument = clone_with_crn_seed(instrument)?;
 
-        let (pv_up, pv_down) = with_market_scratch(context, |context, scratch| {
+        let (pv_up, pv_down) = context.with_market_scratch(|context, scratch| {
             let pv_up = eval_raw_with_scratch_bumps(
                 context,
                 scratch,
@@ -492,7 +485,7 @@ where
 
         // Common Random Numbers: same seed for all scenarios ensures variance reduction.
         let seeded_instrument = clone_with_crn_seed(instrument)?;
-        let (base_pv, pv_up, pv_down) = with_market_scratch(context, |context, scratch| {
+        let (base_pv, pv_up, pv_down) = context.with_market_scratch(|context, scratch| {
             let base_pv = context.reprice_instrument_raw(&seeded_instrument, scratch, as_of)?;
             let pv_up = eval_raw_with_scratch_bumps(
                 context,
@@ -583,7 +576,7 @@ where
                 bump_abs = bump_abs,
                 "vega down-bump would clamp σ at 0; using one-sided forward difference"
             );
-            with_market_scratch(context, |context, scratch| {
+            context.with_market_scratch(|context, scratch| {
                 let pv_up = eval_raw_with_scratch_bumps(
                     context,
                     scratch,
@@ -601,7 +594,7 @@ where
                 )
             })?
         } else {
-            with_market_scratch(context, |context, scratch| {
+            context.with_market_scratch(|context, scratch| {
                 let pv_up = eval_raw_with_scratch_bumps(
                     context,
                     scratch,
@@ -676,7 +669,7 @@ where
         // Absolute implied vol bump (vol points).
         let bump_abs = defaults.vol_bump_pct;
 
-        let (base_pv, pv_up, pv_down) = with_market_scratch(context, |context, scratch| {
+        let (base_pv, pv_up, pv_down) = context.with_market_scratch(|context, scratch| {
             let base_pv = context.reprice_instrument_raw(&seeded_instrument, scratch, as_of)?;
             let pv_up = eval_raw_with_scratch_bumps(
                 context,
@@ -769,7 +762,7 @@ where
 
         let seeded_instrument = clone_with_crn_seed(instrument)?;
 
-        let (v_pp, v_pm, v_mp, v_mm) = with_market_scratch(context, |context, scratch| {
+        let (v_pp, v_pm, v_mp, v_mm) = context.with_market_scratch(|context, scratch| {
             let v_pp = eval_raw_with_scratch_bumps(
                 context,
                 scratch,

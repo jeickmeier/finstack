@@ -55,9 +55,8 @@ pub mod types;
 pub mod volatility;
 
 pub use closed_form::{
-    black76_call, black76_implied_vol, black76_put, bs_greeks, bs_implied_vol, bs_price,
-    heston_call_price_fourier, heston_put_price_fourier, vanilla_expiry_payoff, BsGreeks,
-    HestonPricingParams, ONE_PERCENT,
+    black76_implied_vol, bs_greeks, bs_implied_vol, bs_price, heston_call_price_fourier,
+    heston_put_price_fourier, vanilla_expiry_payoff, BsGreeks, HestonPricingParams, ONE_PERCENT,
 };
 pub use pde::{
     BlackScholesPde, BoundaryCondition, CraigSneydStepper, Grid1D, Grid2D, HestonPde, PdeProblem1D,
