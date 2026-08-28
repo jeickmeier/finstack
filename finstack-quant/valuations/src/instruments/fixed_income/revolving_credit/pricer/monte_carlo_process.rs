@@ -404,9 +404,7 @@ impl StochasticProcess for RevolvingCreditProcess {
         // Short rate: σ_r (constant) for floating, or 0 for fixed
         out[1] = match &self.params.interest_rate {
             InterestRateSpec::Floating { params, .. } => {
-                // Avoid unused variable warning
-                let _ = t;
-                params.sigma
+                params.sigma_at_time(self.params.time_offset + t)
             }
             InterestRateSpec::Fixed { .. } | InterestRateSpec::DeterministicForward { .. } => 0.0,
         };
@@ -465,7 +463,7 @@ impl ProcessMetadata for RevolvingCreditProcess {
             } => {
                 params.add_param("rate_type", 1.0); // 1.0 = floating
                 params.add_param("rate_kappa", hw_params.kappa);
-                params.add_param("rate_sigma", hw_params.sigma);
+                params.add_param("rate_sigma", hw_params.sigma_at_time(0.0));
                 params.add_param("rate_initial", *initial);
             }
             InterestRateSpec::DeterministicForward { times, .. } => {
@@ -583,7 +581,8 @@ mod tests {
     #[test]
     fn test_process_params_floating_rate() {
         let utilization = UtilizationParams::new(0.5, 0.6, 0.1).expect("valid utilization params");
-        let hw_params = HullWhite1FParams::new(0.1, 0.01, 0.03);
+        let hw_params =
+            HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid Hull-White parameters");
         let interest_rate = InterestRateSpec::Floating {
             params: hw_params,
             initial: 0.04,
@@ -619,7 +618,7 @@ mod tests {
             .validate()
             .expect("fixed spec");
         InterestRateSpec::Floating {
-            params: HullWhite1FParams::new(0.1, 0.01, 0.03),
+            params: HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid Hull-White parameters"),
             initial: 0.04,
         }
         .validate()

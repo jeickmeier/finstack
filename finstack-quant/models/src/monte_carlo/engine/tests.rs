@@ -10,6 +10,79 @@ use crate::monte_carlo::TimeGrid;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
 
+struct TestEngineBuilder {
+    num_paths: usize,
+    time_grid: finstack_quant_core::Result<Option<TimeGrid>>,
+    parallel: bool,
+    chunk_size: Option<usize>,
+    path_capture: PathCaptureConfig,
+    antithetic: bool,
+}
+
+impl McEngine {
+    fn builder() -> TestEngineBuilder {
+        TestEngineBuilder {
+            num_paths: 100_000,
+            time_grid: Ok(None),
+            parallel: true,
+            chunk_size: None,
+            path_capture: PathCaptureConfig::default(),
+            antithetic: false,
+        }
+    }
+}
+
+impl TestEngineBuilder {
+    fn num_paths(mut self, value: usize) -> Self {
+        self.num_paths = value;
+        self
+    }
+
+    fn uniform_grid(mut self, t_max: f64, num_steps: usize) -> Self {
+        self.time_grid = TimeGrid::uniform(t_max, num_steps).map(Some);
+        self
+    }
+
+    fn time_grid(mut self, grid: TimeGrid) -> Self {
+        self.time_grid = Ok(Some(grid));
+        self
+    }
+
+    fn parallel(mut self, value: bool) -> Self {
+        self.parallel = value;
+        self
+    }
+
+    fn chunk_size(mut self, value: usize) -> Self {
+        self.chunk_size = Some(value);
+        self
+    }
+
+    fn antithetic(mut self, value: bool) -> Self {
+        self.antithetic = value;
+        self
+    }
+
+    fn capture_all_paths(mut self) -> Self {
+        self.path_capture = PathCaptureConfig::all();
+        self
+    }
+
+    fn build(self) -> finstack_quant_core::Result<McEngine> {
+        let time_grid = self
+            .time_grid?
+            .ok_or(finstack_quant_core::InputError::Invalid)?;
+        let mut config = McEngineConfig::new(self.num_paths, time_grid)
+            .parallel(self.parallel)
+            .antithetic(self.antithetic)
+            .path_capture(self.path_capture);
+        if let Some(chunk_size) = self.chunk_size {
+            config = config.chunk_size(chunk_size);
+        }
+        Ok(McEngine::new(config))
+    }
+}
+
 // Dummy implementations for testing
 #[derive(Clone)]
 struct DummyRng;
@@ -1267,7 +1340,7 @@ fn test_engine_antithetic_records_simulated_path_count() {
     assert_eq!(res.num_paths, requested);
     assert_eq!(res.num_simulated_paths, requested);
 
-    let engine_anti = McEngineBuilder::new()
+    let engine_anti = McEngine::builder()
         .num_paths(requested)
         .time_grid(grid)
         .parallel(false)

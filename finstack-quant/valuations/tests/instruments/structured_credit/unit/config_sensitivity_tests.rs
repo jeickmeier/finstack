@@ -128,10 +128,12 @@ fn correlation_structure_widens_the_loss_distribution() {
     let mut low = structured_credit();
     low.credit_model.stochastic_default_spec =
         Some(StochasticDefaultSpec::gaussian_copula(0.25, 0.10));
-    low.credit_model.correlation_structure = Some(CorrelationStructure::flat(0.05, 0.0));
+    low.credit_model.correlation_structure =
+        Some(CorrelationStructure::flat(0.05, 0.0).expect("valid correlation"));
 
     let mut high = low.clone();
-    high.credit_model.correlation_structure = Some(CorrelationStructure::flat(0.60, 0.0));
+    high.credit_model.correlation_structure =
+        Some(CorrelationStructure::flat(0.60, 0.0).expect("valid correlation"));
 
     let low_result = price(&low, &market);
     let high_result = price(&high, &market);

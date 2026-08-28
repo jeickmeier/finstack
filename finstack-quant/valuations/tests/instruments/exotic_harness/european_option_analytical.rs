@@ -69,7 +69,8 @@ fn short_rate_european_call_matches_analytical() {
 
     // Constant θ = 0 ⇒ pure Ornstein-Uhlenbeck, matching the analytical μ above.
     let pricer = RateExoticHw1fMcPricer {
-        process_params: HullWhite1FParams::new(kappa, sigma, 0.0),
+        process_params: HullWhite1FParams::new(kappa, sigma, 0.0)
+            .expect("valid Hull-White parameters"),
         r0,
         event_times: vec![t],
         config: RateExoticMcConfig {

@@ -138,7 +138,7 @@ impl PerNameCopulaDefault {
     /// * `copula_spec` - Copula family and parameters used for latent-variable draws.
     /// * `correlation` - Asset correlation as a finite decimal in `[0.0, 0.99]`.
     pub fn new(copula_spec: &CopulaSpec, correlation: f64) -> Result<Self> {
-        if matches!(copula_spec, CopulaSpec::MultiFactor { .. }) {
+        if matches!(copula_spec, CopulaSpec::MultiFactor) {
             return Err(finstack_quant_core::Error::Validation(
                 "per-name default simulation does not support multi-factor copulas: the \
                  engine provides a single systematic factor per period and cannot resolve \
@@ -575,8 +575,7 @@ mod tests {
     /// would silently collapse the model to a one-factor Gaussian.
     #[test]
     fn multi_factor_copula_is_rejected() {
-        let Err(err) = PerNameCopulaDefault::new(&CopulaSpec::MultiFactor { num_factors: 2 }, 0.30)
-        else {
+        let Err(err) = PerNameCopulaDefault::new(&CopulaSpec::MultiFactor, 0.30) else {
             panic!("multi-factor copulas must be rejected by the per-name engine");
         };
         assert!(

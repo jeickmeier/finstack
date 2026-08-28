@@ -309,7 +309,7 @@ mod tests {
     #[test]
     fn test_simulated_terminal_spot_matches_futures_price() {
         use super::super::super::discretization::schwartz_smith::ExactSchwartzSmith;
-        use super::super::super::engine::McEngine;
+        use super::super::super::engine::{McEngine, McEngineConfig};
         use super::super::super::payoff::vanilla::Forward;
         use super::super::super::rng::philox::PhiloxRng;
         use finstack_quant_core::currency::Currency;
@@ -323,12 +323,11 @@ mod tests {
 
         let t = 1.0;
         let steps = 12usize;
-        let engine = McEngine::builder()
-            .num_paths(100_000)
-            .uniform_grid(t, steps)
-            .parallel(false)
-            .build()
-            .expect("engine");
+        let engine = McEngine::new(
+            McEngineConfig::uniform(100_000, t, steps)
+                .expect("valid engine")
+                .parallel(false),
+        );
         let payoff = Forward::long(0.0, 1.0, steps);
         let result = engine
             .price(

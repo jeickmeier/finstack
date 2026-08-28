@@ -42,7 +42,7 @@ use finstack_quant_models::monte_carlo::process::ou::{
     calibrate_theta_from_curve, calibrate_theta_from_curve_with_piecewise_sigma, HullWhite1FParams,
 };
 use finstack_quant_models::rates::hull_white::{
-    hw_b, hw_ln_a, HullWhiteModelParams, HullWhiteParams,
+    hw_b, hw_ln_a, HullWhiteCalibrationParams, HullWhiteParams,
 };
 
 /// Spacing (years) of the piecewise-constant θ(t) bootstrap grid.
@@ -129,7 +129,7 @@ fn rebased_discount_fn<'a>(
 ///
 /// Returns an error if the curve cannot be re-based to `as_of`.
 pub fn prepare_hw1f_params(
-    hw_params: HullWhiteParams,
+    hw_params: HullWhiteCalibrationParams,
     discount_curve: &dyn Discounting,
     as_of: Date,
     horizon: f64,
@@ -155,14 +155,14 @@ pub fn prepare_hw1f_params(
     // passing the midpoints yields the midpoint-sampled θ *values*; re-pair
     // them with the interval boundaries to realise the midpoint rule.
     let midpoint_fit =
-        calibrate_theta_from_curve(hw_params.kappa, hw_params.sigma, discount_fn, &midpoints);
+        calibrate_theta_from_curve(hw_params.kappa, hw_params.sigma, discount_fn, &midpoints)?;
 
-    Ok(HullWhite1FParams::with_time_dependent_theta(
+    HullWhite1FParams::with_time_dependent_theta(
         hw_params.kappa,
         hw_params.sigma,
-        midpoint_fit.theta_curve,
+        midpoint_fit.theta_values().to_vec(),
         boundaries,
-    ))
+    )
 }
 
 /// Prepare a simulation-ready HW1F process from scheduled model parameters.
@@ -182,7 +182,7 @@ pub fn prepare_hw1f_params(
 /// * `horizon` - Positive simulation horizon in years used to build the θ(t)
 ///   midpoint grid.
 pub fn prepare_hw1f_model_params(
-    model: &HullWhiteModelParams,
+    model: &HullWhiteParams,
     discount_curve: &dyn Discounting,
     as_of: Date,
     horizon: f64,
@@ -195,17 +195,20 @@ pub fn prepare_hw1f_model_params(
     let boundaries: Vec<f64> = (0..n_steps)
         .map(|index| index as f64 * THETA_GRID_SPACING_YEARS)
         .collect();
-    calibrate_theta_from_curve_with_piecewise_sigma(
+    let midpoint_fit = calibrate_theta_from_curve_with_piecewise_sigma(
         model.kappa,
         model.volatility.times().to_vec(),
         model.volatility.values().to_vec(),
         discount_fn,
         &midpoints,
+    )?;
+    HullWhite1FParams::with_piecewise_sigma(
+        model.kappa,
+        model.volatility.times().to_vec(),
+        model.volatility.values().to_vec(),
+        midpoint_fit.theta_values().to_vec(),
+        boundaries,
     )
-    .map(|mut params| {
-        params.theta_times = boundaries;
-        params
-    })
 }
 
 /// Initial short rate `r(0)` for a HW1F simulation that reprices `discount_curve`.
@@ -318,7 +321,7 @@ impl<'a> Hw1fTermForward<'a> {
     ///
     /// Returns an error if the curve cannot be re-based to `as_of`.
     pub fn new(
-        hw_params: HullWhiteParams,
+        hw_params: HullWhiteCalibrationParams,
         discount_curve: &'a dyn Discounting,
         as_of: Date,
     ) -> Result<Self> {
@@ -418,45 +421,48 @@ mod tests {
     fn prepared_hw1f_params_grid_covers_horizon() {
         let as_of = date(2025, Month::January, 1);
         let curve = flat_curve(as_of, 0.03);
-        let hw = HullWhiteParams::new(0.15, 0.01).expect("hw");
+        let hw = HullWhiteCalibrationParams::new(0.15, 0.01).expect("hw");
         let horizon = 2.6_f64;
         let params = prepare_hw1f_params(hw, &curve, as_of, horizon).expect("prepared");
 
         // Monthly grid: ceil(2.6 · 12) = 32 intervals, one θ knot per interval.
         let n_steps = (horizon / THETA_GRID_SPACING_YEARS).ceil() as usize;
-        assert_eq!(params.theta_times.len(), 32);
-        assert_eq!(params.theta_curve.len(), params.theta_times.len());
+        assert_eq!(params.theta_times().len(), 32);
+        assert_eq!(params.theta_values().len(), params.theta_times().len());
 
-        // Knot times are the interval *left boundaries* (`theta_at_time` is
-        // left-continuous); the last interval covers `[last_boundary, ∞)`, so
-        // the horizon — and every event before it — lands in a defined θ knot.
-        assert!((params.theta_times[0] - 0.0).abs() < 1e-12);
+        // Knot times are the interval left boundaries.
+        assert!((params.theta_times()[0] - 0.0).abs() < 1e-12);
         assert!(n_steps as f64 * THETA_GRID_SPACING_YEARS >= horizon);
-        let last_boundary = *params.theta_times.last().expect("last");
+        let last_boundary = *params.theta_times().last().expect("last");
         assert!(last_boundary <= horizon && last_boundary + THETA_GRID_SPACING_YEARS >= horizon);
-        // θ(t) at the horizon resolves to the final knot, not an extrapolation.
         let theta_h = params.theta_at_time(horizon);
-        assert!((theta_h - *params.theta_curve.last().expect("θ")).abs() < 1e-12);
+        assert!((theta_h - *params.theta_values().last().expect("θ")).abs() < 1e-12);
     }
 
     #[test]
     fn scheduled_constant_sigma_matches_scalar_process() {
         let as_of = date(2025, Month::January, 1);
         let curve = flat_curve(as_of, 0.03);
-        let scalar = HullWhiteParams::new(0.05, 0.01).expect("scalar");
-        let model = HullWhiteModelParams::try_from(scalar).expect("model");
+        let scalar = HullWhiteCalibrationParams::new(0.05, 0.01).expect("scalar");
+        let model = HullWhiteParams::try_from(scalar).expect("model");
 
         let scalar_process =
             prepare_hw1f_params(scalar, &curve, as_of, 2.0).expect("scalar process");
         let scheduled_process =
             prepare_hw1f_model_params(&model, &curve, as_of, 2.0).expect("scheduled process");
 
-        assert_eq!(scheduled_process.sigma_at_time(1.0), scalar_process.sigma);
-        assert_eq!(scheduled_process.theta_times, scalar_process.theta_times);
+        assert_eq!(
+            scheduled_process.sigma_at_time(1.0),
+            scalar_process.sigma_at_time(1.0)
+        );
+        assert_eq!(
+            scheduled_process.theta_times(),
+            scalar_process.theta_times()
+        );
         for (scheduled, scalar) in scheduled_process
-            .theta_curve
+            .theta_values()
             .iter()
-            .zip(&scalar_process.theta_curve)
+            .zip(scalar_process.theta_values())
         {
             assert!((scheduled - scalar).abs() < 1.0e-12);
         }
@@ -471,7 +477,7 @@ mod tests {
         let as_of = date(2025, Month::January, 1);
         let rate = 0.03_f64;
         let curve = flat_curve(as_of, rate);
-        let hw = HullWhiteParams::new(0.15, 0.01).expect("hw");
+        let hw = HullWhiteCalibrationParams::new(0.15, 0.01).expect("hw");
         let recon = Hw1fTermForward::new(hw, &curve, as_of).expect("recon");
 
         // 6-month period fixing at t = 1y. On a flat curve r(t) ≡ rate keeps
@@ -491,7 +497,7 @@ mod tests {
     fn term_forward_zero_tau_is_zero() {
         let as_of = date(2025, Month::January, 1);
         let curve = flat_curve(as_of, 0.03);
-        let hw = HullWhiteParams::new(0.15, 0.01).expect("hw");
+        let hw = HullWhiteCalibrationParams::new(0.15, 0.01).expect("hw");
         let recon = Hw1fTermForward::new(hw, &curve, as_of).expect("recon");
         let coeffs = recon.period_coeffs(1.0, 0.0);
         assert!((coeffs.simple_forward(0.05)).abs() < 1e-12);
@@ -503,7 +509,7 @@ mod tests {
     fn term_forward_is_increasing_in_short_rate() {
         let as_of = date(2025, Month::January, 1);
         let curve = flat_curve(as_of, 0.03);
-        let hw = HullWhiteParams::new(0.15, 0.01).expect("hw");
+        let hw = HullWhiteCalibrationParams::new(0.15, 0.01).expect("hw");
         let recon = Hw1fTermForward::new(hw, &curve, as_of).expect("recon");
         let coeffs = recon.period_coeffs(1.0, 0.5);
         let lo = coeffs.simple_forward(0.01);

@@ -323,14 +323,8 @@ pub enum CopulaSpec {
         loading_volatility: f64,
     },
 
-    /// Multi-factor Gaussian copula with sector structure.
-    ///
-    /// Uses multiple systematic factors (global + sector-specific)
-    /// to capture industry concentration effects.
-    MultiFactor {
-        /// Number of systematic factors
-        num_factors: usize,
-    },
+    /// Two-factor Gaussian copula with one global and one shared sector factor.
+    MultiFactor,
 }
 
 impl CopulaSpec {
@@ -385,17 +379,13 @@ impl CopulaSpec {
         }
     }
 
-    /// Create a Multi-factor copula specification.
-    ///
-    /// # Arguments
-    ///
-    /// * `num_factors` - Requested number of systematic factors.
+    /// Create a global-plus-sector Gaussian copula specification.
     ///
     /// # Returns
     ///
-    /// A [`CopulaSpec::MultiFactor`] configuration.
-    pub fn multi_factor(num_factors: usize) -> Self {
-        CopulaSpec::MultiFactor { num_factors }
+    /// A [`CopulaSpec::MultiFactor`] configuration with exactly two factors.
+    pub fn multi_factor() -> Self {
+        CopulaSpec::MultiFactor
     }
 
     /// Build a copula from this specification.
@@ -417,9 +407,7 @@ impl CopulaSpec {
             CopulaSpec::RandomFactorLoading { loading_volatility } => {
                 Box::new(RandomFactorLoadingCopula::new(*loading_volatility))
             }
-            CopulaSpec::MultiFactor { num_factors } => {
-                Box::new(MultiFactorCopula::new(*num_factors))
-            }
+            CopulaSpec::MultiFactor => Box::new(MultiFactorCopula::new()),
         })
     }
 
@@ -456,7 +444,7 @@ impl CopulaSpec {
     ///
     /// `true` if this value is [`CopulaSpec::MultiFactor`].
     pub fn is_multi_factor(&self) -> bool {
-        matches!(self, CopulaSpec::MultiFactor { .. })
+        matches!(self, CopulaSpec::MultiFactor)
     }
 }
 
@@ -603,7 +591,7 @@ mod tests {
         assert_eq!(rfl_copula.num_factors(), 2);
 
         // Test Multi-factor
-        let mf = CopulaSpec::multi_factor(2);
+        let mf = CopulaSpec::multi_factor();
         assert!(mf.is_multi_factor());
         let mf_copula = mf.build().expect("multi-factor copula should build");
         assert_eq!(mf_copula.num_factors(), 2);

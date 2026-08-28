@@ -17,8 +17,9 @@ use crate::errors::display_to_py;
 use finstack_quant_models::closed_form::implied_vol::{black76_implied_vol, bs_implied_vol};
 use finstack_quant_models::closed_form::{
     asian_option_price_str, barrier_call_str, bs_greeks, bs_price, lookback_option_price_str,
-    option_type_from_bool, quanto_option_price_checked, vanilla_expiry_payoff, BsGreeks,
+    quanto_option_price, vanilla_expiry_payoff, BsGreeks,
 };
+use finstack_quant_models::OptionType;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -71,7 +72,7 @@ fn bs_price_wrapper(
     t: f64,
     is_call: bool,
 ) -> PyResult<f64> {
-    bs_price(spot, strike, r, q, sigma, t, option_type_from_bool(is_call)).map_err(display_to_py)
+    bs_price(spot, strike, r, q, sigma, t, OptionType::from(is_call)).map_err(display_to_py)
 }
 
 /// Vanilla option payoff at expiry: ``max(±(spot - strike), 0)``.
@@ -105,7 +106,7 @@ fn bs_price_wrapper(
 #[pyfunction(name = "vanilla_expiry_payoff")]
 #[pyo3(signature = (spot, strike, is_call))]
 fn vanilla_expiry_payoff_wrapper(spot: f64, strike: f64, is_call: bool) -> PyResult<f64> {
-    vanilla_expiry_payoff(spot, strike, option_type_from_bool(is_call)).map_err(display_to_py)
+    vanilla_expiry_payoff(spot, strike, OptionType::from(is_call)).map_err(display_to_py)
 }
 
 // bs_greeks
@@ -171,7 +172,7 @@ fn bs_greeks_wrapper<'py>(
         q,
         sigma,
         t,
-        option_type_from_bool(is_call),
+        OptionType::from(is_call),
         theta_days,
     )
     .map_err(display_to_py)?;
@@ -230,8 +231,7 @@ fn bs_implied_vol_wrapper(
     price: f64,
     is_call: bool,
 ) -> PyResult<f64> {
-    bs_implied_vol(spot, strike, r, q, t, option_type_from_bool(is_call), price)
-        .map_err(display_to_py)
+    bs_implied_vol(spot, strike, r, q, t, OptionType::from(is_call), price).map_err(display_to_py)
 }
 
 // black76_implied_vol
@@ -276,15 +276,8 @@ fn black76_implied_vol_wrapper(
     price: f64,
     is_call: bool,
 ) -> PyResult<f64> {
-    black76_implied_vol(
-        forward,
-        strike,
-        df,
-        t,
-        option_type_from_bool(is_call),
-        price,
-    )
-    .map_err(display_to_py)
+    black76_implied_vol(forward, strike, df, t, OptionType::from(is_call), price)
+        .map_err(display_to_py)
 }
 
 /// Reiner-Rubinstein continuous-monitoring barrier call price.
@@ -387,7 +380,7 @@ fn asian_option_wrapper(
         sigma,
         num_fixings,
         averaging,
-        option_type_from_bool(is_call),
+        OptionType::from(is_call),
     )
     .map_err(crate::errors::core_to_py)
 }
@@ -443,7 +436,7 @@ fn lookback_option_wrapper(
         sigma,
         extremum,
         strike_type,
-        option_type_from_bool(is_call),
+        OptionType::from(is_call),
     )
     .map_err(crate::errors::core_to_py)
 }
@@ -494,7 +487,7 @@ fn quanto_option_wrapper(
     correlation: f64,
     is_call: bool,
 ) -> PyResult<f64> {
-    quanto_option_price_checked(
+    quanto_option_price(
         spot,
         strike,
         t,
@@ -504,7 +497,7 @@ fn quanto_option_wrapper(
         vol_asset,
         vol_fx,
         correlation,
-        option_type_from_bool(is_call),
+        OptionType::from(is_call),
     )
     .map_err(crate::errors::core_to_py)
 }

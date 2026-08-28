@@ -9,7 +9,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
-use finstack_quant_models::rates::hull_white::HullWhiteParams;
+use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 use finstack_quant_valuations::instruments::rates::swaption::{
     BermudanSchedule, BermudanSwaption, BermudanSwaptionPricer, BermudanSwaptionPricerConfig,
     PreparedHullWhiteModel,
@@ -102,7 +102,7 @@ fn bench_bermudan_hw_tree(c: &mut Criterion) {
     let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
     let swaption = build_swaption(as_of);
     let market = build_market(as_of);
-    let hw_params = HullWhiteParams::default();
+    let hw_params = HullWhiteCalibrationParams::default();
     let ttm = swaption.time_to_maturity(as_of).expect("ttm");
     let disc = market.get_discount("USD-OIS").expect("USD-OIS");
     let cached = PreparedHullWhiteModel::prepare(hw_params, 100, disc.as_ref(), ttm)

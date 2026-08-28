@@ -1,7 +1,6 @@
 //! Execution, configuration, and diagnostics for Monte Carlo pricing.
 //!
 use super::path_capture::PathCaptureConfig;
-use super::pricing::McEngine;
 use crate::monte_carlo::TimeGrid;
 use finstack_quant_core::Result;
 
@@ -18,8 +17,8 @@ pub const MAX_CAPTURED_PATHS: usize = 100_000;
 
 /// Stores the runtime configuration for a Monte Carlo pricing run.
 ///
-/// This configuration is consumed by [`McEngine`] and can either be built
-/// manually or via [`McEngineBuilder`]. All time values are year fractions.
+/// Construct with [`Self::new`] or [`Self::uniform`], then pass it to
+/// [`McEngine`](super::McEngine). All time values are year fractions.
 #[derive(Debug, Clone)]
 pub struct McEngineConfig {
     /// Requested number of independent path estimators. Values above
@@ -90,6 +89,35 @@ impl McEngineConfig {
         }
     }
 
+    /// Create a configuration on a uniform time grid.
+    ///
+    /// # Arguments
+    ///
+    /// * `num_paths` - Requested independent path estimators.
+    /// * `t_max` - Positive finite simulation horizon in years.
+    /// * `num_steps` - Positive number of uniform time steps.
+    ///
+    /// # Errors
+    ///
+    /// Returns the time-grid validation error for an invalid horizon or step count.
+    pub fn uniform(num_paths: usize, t_max: f64, num_steps: usize) -> Result<Self> {
+        Ok(Self::new(num_paths, TimeGrid::uniform(t_max, num_steps)?))
+    }
+
+    /// Set the target confidence-interval half-width.
+    #[must_use]
+    pub fn target_ci(mut self, target: f64) -> Self {
+        self.target_ci_half_width = Some(target);
+        self
+    }
+
+    /// Install path-capture configuration.
+    #[must_use]
+    pub fn path_capture(mut self, config: PathCaptureConfig) -> Self {
+        self.path_capture = config;
+        self
+    }
+
     /// Enable or disable parallel execution.
     #[must_use]
     pub fn parallel(mut self, parallel: bool) -> Self {
@@ -118,142 +146,5 @@ impl McEngineConfig {
     pub fn antithetic(mut self, enabled: bool) -> Self {
         self.antithetic = enabled;
         self
-    }
-}
-
-/// Builder for [`McEngine`] with ergonomic defaults.
-pub struct McEngineBuilder {
-    num_paths: usize,
-    time_grid: Result<Option<TimeGrid>>,
-    target_ci: Option<f64>,
-    parallel: bool,
-    chunk_size: Option<usize>,
-    path_capture: PathCaptureConfig,
-    antithetic: bool,
-}
-
-impl McEngineBuilder {
-    /// Create a builder with default settings.
-    ///
-    /// The builder uses registry-backed path count and parallel defaults, and
-    /// no time grid. You must provide a valid grid via
-    /// [`Self::time_grid`] or [`Self::uniform_grid`] before calling [`Self::build`].
-    pub fn new() -> Self {
-        let defaults = &crate::monte_carlo::registry::embedded_defaults_or_panic()
-            .rust
-            .engine_builder;
-        Self {
-            num_paths: defaults.num_paths,
-            time_grid: Ok(None),
-            target_ci: None,
-            parallel: defaults.use_parallel,
-            chunk_size: None,
-            path_capture: PathCaptureConfig::default(),
-            antithetic: defaults.antithetic,
-        }
-    }
-
-    /// Set the requested number of paths.
-    pub fn num_paths(mut self, n: usize) -> Self {
-        self.num_paths = n;
-        self
-    }
-
-    /// Set the simulation time grid.
-    ///
-    /// # Arguments
-    ///
-    /// * `grid` - Grid supplied by the caller for this operation
-    pub fn time_grid(mut self, grid: TimeGrid) -> Self {
-        self.time_grid = Ok(Some(grid));
-        self
-    }
-
-    /// Set a uniform time grid in year fractions.
-    ///
-    /// # Arguments
-    ///
-    /// * `t_max` - Final simulation time in years.
-    /// * `num_steps` - Number of time steps between `0` and `t_max`.
-    ///
-    /// # Returns
-    ///
-    /// The builder stores either the valid grid or the exact construction error;
-    /// [`Self::build`] returns that error without replacing it.
-    pub fn uniform_grid(mut self, t_max: f64, num_steps: usize) -> Self {
-        self.time_grid = TimeGrid::uniform(t_max, num_steps).map(Some);
-        self
-    }
-
-    /// Set the target 95% CI half-width for serial auto-stopping.
-    pub fn target_ci(mut self, target: f64) -> Self {
-        self.target_ci = Some(target);
-        self
-    }
-
-    /// Enable or disable parallel execution.
-    pub fn parallel(mut self, enable: bool) -> Self {
-        self.parallel = enable;
-        self
-    }
-
-    /// Set the parallel chunk size to exactly `size`. Leave unset for adaptive chunking.
-    pub fn chunk_size(mut self, size: usize) -> Self {
-        self.chunk_size = Some(size);
-        self
-    }
-
-    /// Install a path-capture configuration.
-    pub fn path_capture(mut self, config: PathCaptureConfig) -> Self {
-        self.path_capture = config;
-        self
-    }
-
-    /// Capture every path in the run.
-    pub fn capture_all_paths(mut self) -> Self {
-        self.path_capture = PathCaptureConfig::all();
-        self
-    }
-
-    /// Capture a deterministic sample of paths.
-    pub fn capture_sample_paths(mut self, count: usize, seed: u64) -> Self {
-        self.path_capture = PathCaptureConfig::sample(count, seed);
-        self
-    }
-
-    /// Enable or disable antithetic path pairing.
-    pub fn antithetic(mut self, enable: bool) -> Self {
-        self.antithetic = enable;
-        self
-    }
-
-    /// Build an [`McEngine`] from the accumulated settings.
-    ///
-    /// # Errors
-    ///
-    /// Returns the original uniform-grid construction error, or
-    /// [`finstack_quant_core::InputError::Invalid`] when no grid was configured.
-    pub fn build(self) -> Result<McEngine> {
-        let time_grid = self
-            .time_grid?
-            .ok_or(finstack_quant_core::InputError::Invalid)?;
-
-        let config = McEngineConfig {
-            num_paths: self.num_paths,
-            time_grid,
-            target_ci_half_width: self.target_ci,
-            use_parallel: self.parallel,
-            chunk_size: self.chunk_size,
-            path_capture: self.path_capture,
-            antithetic: self.antithetic,
-        };
-
-        Ok(McEngine::new(config))
-    }
-}
-
-impl Default for McEngineBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }

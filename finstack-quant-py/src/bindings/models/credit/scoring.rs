@@ -2,9 +2,7 @@
 
 use finstack_quant_models::credit::scoring::{
     altman_em_score as core_altman_em_score, altman_z_double_prime as core_altman_z_double_prime,
-    altman_z_double_prime_with_pd as core_altman_z_double_prime_with_pd,
-    altman_z_prime as core_altman_z_prime, altman_z_prime_with_pd as core_altman_z_prime_with_pd,
-    altman_z_score as core_altman_z_score, altman_z_score_with_pd as core_altman_z_score_with_pd,
+    altman_z_prime as core_altman_z_prime, altman_z_score as core_altman_z_score,
     ohlson_o_score as core_ohlson_o_score, zmijewski_score as core_zmijewski_score,
     AltmanZDoublePrimeInput, AltmanZPrimeInput, AltmanZScoreInput, OhlsonOScoreInput, ScoringZone,
     ZmijewskiInput,
@@ -28,21 +26,14 @@ fn zone_to_str(zone: ScoringZone) -> &'static str {
 /// Z = 1.2 * X1 + 1.4 * X2 + 3.3 * X3 + 0.6 * X4 + 1.0 * X5
 ///
 /// Zone cutoffs: Z > 2.99 Safe, 1.81 <= Z <= 2.99 Grey, Z < 1.81 Distress.
-///
-/// Returns ``implied_pd=None`` unless ``with_implied_pd=True``.
 #[pyfunction]
-#[pyo3(
-    signature = (working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, market_equity_to_total_liabilities, sales_to_total_assets, with_implied_pd=false),
-    text_signature = "(working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, market_equity_to_total_liabilities, sales_to_total_assets, with_implied_pd=False)"
-)]
 fn altman_z_score(
     working_capital_to_total_assets: f64,
     retained_earnings_to_total_assets: f64,
     ebit_to_total_assets: f64,
     market_equity_to_total_liabilities: f64,
     sales_to_total_assets: f64,
-    with_implied_pd: bool,
-) -> PyResult<(f64, String, Option<f64>)> {
+) -> PyResult<(f64, String)> {
     let input = AltmanZScoreInput {
         working_capital_to_total_assets,
         retained_earnings_to_total_assets,
@@ -50,13 +41,8 @@ fn altman_z_score(
         market_equity_to_total_liabilities,
         sales_to_total_assets,
     };
-    let r = if with_implied_pd {
-        core_altman_z_score_with_pd(&input)
-    } else {
-        core_altman_z_score(&input)
-    }
-    .map_err(display_to_py)?;
-    Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
+    let r = core_altman_z_score(&input).map_err(display_to_py)?;
+    Ok((r.score, zone_to_str(r.zone).to_string()))
 }
 
 /// Compute the Altman Z'-Score for private firms.
@@ -65,20 +51,15 @@ fn altman_z_score(
 ///
 /// Zone cutoffs: Z' > 2.90 Safe, 1.23 <= Z' <= 2.90 Grey, Z' < 1.23 Distress.
 ///
-/// Returns a tuple ``(score, zone, implied_pd)``.
+/// Returns ``(score, zone)``.
 #[pyfunction]
-#[pyo3(
-    signature = (working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, book_equity_to_total_liabilities, sales_to_total_assets, with_implied_pd=false),
-    text_signature = "(working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, book_equity_to_total_liabilities, sales_to_total_assets, with_implied_pd=False)"
-)]
 fn altman_z_prime(
     working_capital_to_total_assets: f64,
     retained_earnings_to_total_assets: f64,
     ebit_to_total_assets: f64,
     book_equity_to_total_liabilities: f64,
     sales_to_total_assets: f64,
-    with_implied_pd: bool,
-) -> PyResult<(f64, String, Option<f64>)> {
+) -> PyResult<(f64, String)> {
     let input = AltmanZPrimeInput {
         working_capital_to_total_assets,
         retained_earnings_to_total_assets,
@@ -86,13 +67,8 @@ fn altman_z_prime(
         book_equity_to_total_liabilities,
         sales_to_total_assets,
     };
-    let r = if with_implied_pd {
-        core_altman_z_prime_with_pd(&input)
-    } else {
-        core_altman_z_prime(&input)
-    }
-    .map_err(display_to_py)?;
-    Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
+    let r = core_altman_z_prime(&input).map_err(display_to_py)?;
+    Ok((r.score, zone_to_str(r.zone).to_string()))
 }
 
 /// Compute the Altman Z''-Score for non-manufacturing firms (non-EM model;
@@ -103,32 +79,22 @@ fn altman_z_prime(
 ///
 /// Zone cutoffs: Z'' > 2.60 Safe, 1.10 <= Z'' <= 2.60 Grey, Z'' < 1.10 Distress.
 ///
-/// Returns a tuple ``(score, zone, implied_pd)``.
+/// Returns ``(score, zone)``.
 #[pyfunction]
-#[pyo3(
-    signature = (working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, book_equity_to_total_liabilities, with_implied_pd=false),
-    text_signature = "(working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, book_equity_to_total_liabilities, with_implied_pd=False)"
-)]
 fn altman_z_double_prime(
     working_capital_to_total_assets: f64,
     retained_earnings_to_total_assets: f64,
     ebit_to_total_assets: f64,
     book_equity_to_total_liabilities: f64,
-    with_implied_pd: bool,
-) -> PyResult<(f64, String, Option<f64>)> {
+) -> PyResult<(f64, String)> {
     let input = AltmanZDoublePrimeInput {
         working_capital_to_total_assets,
         retained_earnings_to_total_assets,
         ebit_to_total_assets,
         book_equity_to_total_liabilities,
     };
-    let r = if with_implied_pd {
-        core_altman_z_double_prime_with_pd(&input)
-    } else {
-        core_altman_z_double_prime(&input)
-    }
-    .map_err(display_to_py)?;
-    Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
+    let r = core_altman_z_double_prime(&input).map_err(display_to_py)?;
+    Ok((r.score, zone_to_str(r.zone).to_string()))
 }
 
 /// Compute the Altman EM-Score for emerging-market corporates.

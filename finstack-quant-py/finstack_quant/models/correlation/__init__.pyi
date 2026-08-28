@@ -149,21 +149,14 @@ class CopulaSpec:
         ...
 
     @classmethod
-    def multi_factor(cls, num_factors: int) -> CopulaSpec:
+    def multi_factor(cls) -> CopulaSpec:
         """
-        Multi-factor Gaussian copula with sector structure.
-
-        Parameters
-        ----------
-        num_factors : int
-            Requested number of systematic factors, clamped to the supported
-            range of one or two.
+        Two-factor Gaussian copula with global and shared-sector factors.
 
         Returns
         -------
         CopulaSpec
-            Multi-factor copula specification.
-
+            Two-factor copula specification.
         Notes
         -----
         This method does not raise; it returns a fixed instance.
@@ -171,7 +164,7 @@ class CopulaSpec:
         Examples
         --------
         >>> from finstack_quant.models.correlation import CopulaSpec
-        >>> spec = CopulaSpec.multi_factor(3)
+        >>> spec = CopulaSpec.multi_factor()
         >>> (spec.is_multi_factor, spec.build().num_factors)
         (True, 2)
         """

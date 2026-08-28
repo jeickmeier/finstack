@@ -7621,22 +7621,15 @@
         },
         {
           "additionalProperties": false,
-          "description": "Multi-factor Gaussian copula with sector structure.\n\nUses multiple systematic factors (global + sector-specific)\nto capture industry concentration effects.",
+          "description": "Two-factor Gaussian copula with one global and one shared sector factor.",
           "properties": {
-            "num_factors": {
-              "description": "Number of systematic factors",
-              "format": "uint",
-              "minimum": 0,
-              "type": "integer"
-            },
             "type": {
               "const": "multi_factor",
               "type": "string"
             }
           },
           "required": [
-            "type",
-            "num_factors"
+            "type"
           ],
           "type": "object"
         }
@@ -7647,15 +7640,12 @@
       "oneOf": [
         {
           "additionalProperties": false,
-          "description": "Flat (homogeneous) correlation structure.\n\nAll assets have the same pairwise correlation.",
           "properties": {
             "asset_correlation": {
-              "description": "Asset (default) correlation",
               "format": "double",
               "type": "number"
             },
             "prepay_default_correlation": {
-              "description": "Correlation between prepayment and default factors",
               "format": "double",
               "type": "number"
             },
@@ -7673,20 +7663,16 @@
         },
         {
           "additionalProperties": false,
-          "description": "Sectored correlation structure.\n\nDifferent correlation within vs. between sectors.",
           "properties": {
             "inter_sector": {
-              "description": "Inter-sector asset correlation",
               "format": "double",
               "type": "number"
             },
             "intra_sector": {
-              "description": "Intra-sector asset correlation",
               "format": "double",
               "type": "number"
             },
             "prepay_default": {
-              "description": "Prepay-default correlation",
               "format": "double",
               "type": "number"
             },
@@ -7705,10 +7691,8 @@
         },
         {
           "additionalProperties": false,
-          "description": "Full correlation matrix.\n\nCustom correlation structure for bespoke deals.",
           "properties": {
             "correlations": {
-              "description": "Flattened correlation matrix (row-major)",
               "items": {
                 "format": "double",
                 "type": "number"
@@ -7716,7 +7700,6 @@
               "type": "array"
             },
             "labels": {
-              "description": "Labels for matrix rows/columns",
               "items": {
                 "type": "string"
               },
@@ -21925,7 +21908,6 @@
       "description": "A finite, left-continuous piecewise-constant curve.",
       "properties": {
         "times": {
-          "description": "Knot times in years, strictly increasing and starting at exactly zero.\nEach entry is the left edge of the interval its value applies to.",
           "items": {
             "format": "double",
             "type": "number"
@@ -21933,7 +21915,6 @@
           "type": "array"
         },
         "values": {
-          "description": "Curve value on each interval, finite and strictly positive. Same length\nas `times`; `values[i]` applies over `[times[i], times[i + 1])`.",
           "items": {
             "format": "double",
             "type": "number"

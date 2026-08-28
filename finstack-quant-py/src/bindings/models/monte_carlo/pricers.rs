@@ -3,7 +3,6 @@
 use super::engine::{py_mc_defaults, resolve_currency};
 use super::results::PyMoneyEstimate;
 use crate::errors::core_to_py;
-use finstack_quant_core::currency::Currency;
 use finstack_quant_models::monte_carlo::pricer::basis::BasisKind;
 use finstack_quant_models::monte_carlo::pricer::european::EuropeanPricer;
 use finstack_quant_models::monte_carlo::pricer::lsmc::LsmcPricer;
@@ -19,9 +18,7 @@ use pyo3::prelude::*;
     frozen
 )]
 pub struct PyEuropeanPricer {
-    num_paths: usize,
-    seed: u64,
-    use_parallel: bool,
+    inner: EuropeanPricer,
 }
 
 #[pymethods]
@@ -34,27 +31,26 @@ impl PyEuropeanPricer {
         use_parallel: Option<bool>,
     ) -> PyResult<Self> {
         let defaults = &py_mc_defaults()?.european_pricer;
-        Ok(Self {
-            num_paths: num_paths.unwrap_or(defaults.num_paths),
-            seed: seed.unwrap_or(defaults.seed),
-            use_parallel: use_parallel.unwrap_or(defaults.use_parallel),
-        })
+        let inner = EuropeanPricer::new(num_paths.unwrap_or(defaults.num_paths))
+            .with_seed(seed.unwrap_or(defaults.seed))
+            .with_parallel(use_parallel.unwrap_or(defaults.use_parallel));
+        Ok(Self { inner })
     }
 
     /// Independent Monte Carlo path count used by this pricer.
     #[getter]
     fn num_paths(&self) -> usize {
-        self.num_paths
+        self.inner.num_paths()
     }
     /// Seed value used for path generation.
     #[getter]
     fn seed(&self) -> u64 {
-        self.seed
+        self.inner.seed()
     }
     /// Whether path generation runs on the rayon pool.
     #[getter]
     fn use_parallel(&self) -> bool {
-        self.use_parallel
+        self.inner.use_parallel()
     }
 
     /// Price a European call option under GBM.
@@ -77,7 +73,7 @@ impl PyEuropeanPricer {
     ) -> PyResult<PyMoneyEstimate> {
         let ccy = resolve_currency(currency)?;
         let num_steps = num_steps.unwrap_or(py_mc_defaults()?.european_pricer.num_steps);
-        let pricer = self.build_pricer();
+        let pricer = &self.inner;
         py.detach(|| {
             pricer.price_gbm_call(spot, strike, rate, div_yield, vol, expiry, num_steps, ccy)
         })
@@ -105,7 +101,7 @@ impl PyEuropeanPricer {
     ) -> PyResult<PyMoneyEstimate> {
         let ccy = resolve_currency(currency)?;
         let num_steps = num_steps.unwrap_or(py_mc_defaults()?.european_pricer.num_steps);
-        let pricer = self.build_pricer();
+        let pricer = &self.inner;
         py.detach(|| {
             pricer.price_gbm_put(spot, strike, rate, div_yield, vol, expiry, num_steps, ccy)
         })
@@ -116,16 +112,10 @@ impl PyEuropeanPricer {
     fn __repr__(&self) -> String {
         format!(
             "EuropeanPricer(num_paths={}, seed={}, use_parallel={})",
-            self.num_paths, self.seed, self.use_parallel,
+            self.inner.num_paths(),
+            self.inner.seed(),
+            self.inner.use_parallel(),
         )
-    }
-}
-
-impl PyEuropeanPricer {
-    fn build_pricer(&self) -> EuropeanPricer {
-        EuropeanPricer::new(self.num_paths)
-            .with_seed(self.seed)
-            .with_parallel(self.use_parallel)
     }
 }
 
@@ -136,9 +126,7 @@ impl PyEuropeanPricer {
     frozen
 )]
 pub struct PyPathDependentPricer {
-    num_paths: usize,
-    seed: u64,
-    use_parallel: bool,
+    inner: PathDependentPricer,
 }
 
 #[pymethods]
@@ -151,10 +139,11 @@ impl PyPathDependentPricer {
         use_parallel: Option<bool>,
     ) -> PyResult<Self> {
         let defaults = &py_mc_defaults()?.path_dependent_pricer;
+        let config = PathDependentPricerConfig::new(num_paths.unwrap_or(defaults.num_paths))
+            .with_seed(seed.unwrap_or(defaults.seed))
+            .with_parallel(use_parallel.unwrap_or(defaults.use_parallel));
         Ok(Self {
-            num_paths: num_paths.unwrap_or(defaults.num_paths),
-            seed: seed.unwrap_or(defaults.seed),
-            use_parallel: use_parallel.unwrap_or(defaults.use_parallel),
+            inner: PathDependentPricer::new(config),
         })
     }
 
@@ -177,7 +166,7 @@ impl PyPathDependentPricer {
     ) -> PyResult<PyMoneyEstimate> {
         let ccy = resolve_currency(currency)?;
         let num_steps = num_steps.unwrap_or(py_mc_defaults()?.path_dependent_pricer.num_steps);
-        let pricer = self.build_pricer();
+        let pricer = &self.inner;
         py.detach(|| {
             pricer.price_gbm_asian_call(spot, strike, rate, div_yield, vol, expiry, num_steps, ccy)
         })
@@ -204,7 +193,7 @@ impl PyPathDependentPricer {
     ) -> PyResult<PyMoneyEstimate> {
         let ccy = resolve_currency(currency)?;
         let num_steps = num_steps.unwrap_or(py_mc_defaults()?.path_dependent_pricer.num_steps);
-        let pricer = self.build_pricer();
+        let pricer = &self.inner;
         py.detach(|| {
             pricer.price_gbm_asian_put(spot, strike, rate, div_yield, vol, expiry, num_steps, ccy)
         })
@@ -215,28 +204,20 @@ impl PyPathDependentPricer {
     /// Independent Monte Carlo path count used by this pricer.
     #[getter]
     fn num_paths(&self) -> usize {
-        self.num_paths
+        self.inner.config().num_paths
     }
     /// Seed value used for path generation.
     #[getter]
     fn seed(&self) -> u64 {
-        self.seed
+        self.inner.config().seed
     }
 
     fn __repr__(&self) -> String {
         format!(
             "PathDependentPricer(paths={}, seed={}, parallel={})",
-            self.num_paths, self.seed, self.use_parallel,
-        )
-    }
-}
-
-impl PyPathDependentPricer {
-    fn build_pricer(&self) -> PathDependentPricer {
-        PathDependentPricer::new(
-            PathDependentPricerConfig::new(self.num_paths)
-                .with_seed(self.seed)
-                .with_parallel(self.use_parallel),
+            self.inner.config().num_paths,
+            self.inner.config().seed,
+            self.inner.config().use_parallel,
         )
     }
 }
@@ -248,32 +229,10 @@ impl PyPathDependentPricer {
     frozen
 )]
 pub struct PyLsmcPricer {
-    num_paths: usize,
-    seed: u64,
-    use_parallel: bool,
-    antithetic: bool,
+    inner: LsmcPricer,
+    num_steps: usize,
     basis: BasisKind,
     basis_degree: usize,
-}
-
-impl PyLsmcPricer {
-    fn prepare(
-        &self,
-        num_steps: Option<usize>,
-        currency: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<(LsmcPricer, usize, Currency)> {
-        let currency = resolve_currency(currency)?;
-        let num_steps = num_steps.unwrap_or(py_mc_defaults()?.lsmc.num_steps);
-        let pricer = LsmcPricer::gbm_american(
-            self.num_paths,
-            num_steps,
-            self.seed,
-            self.use_parallel,
-            self.antithetic,
-        )
-        .map_err(core_to_py)?;
-        Ok((pricer, num_steps, currency))
-    }
 }
 
 #[pymethods]
@@ -283,6 +242,7 @@ impl PyLsmcPricer {
         num_paths=None,
         seed=None,
         use_parallel=None,
+        num_steps=None,
         basis=None,
         basis_degree=None,
         antithetic=None,
@@ -291,6 +251,7 @@ impl PyLsmcPricer {
         num_paths: Option<usize>,
         seed: Option<u64>,
         use_parallel: Option<bool>,
+        num_steps: Option<usize>,
         basis: Option<&str>,
         basis_degree: Option<usize>,
         antithetic: Option<bool>,
@@ -298,36 +259,42 @@ impl PyLsmcPricer {
         let defaults = &py_mc_defaults()?.lsmc;
         let basis = BasisKind::parse(basis.unwrap_or(defaults.basis.as_str()))
             .map_err(crate::errors::value_error)?;
-        let basis_degree = basis_degree.unwrap_or(defaults.basis_degree);
+        let num_steps = num_steps.unwrap_or(defaults.num_steps);
+        let inner = LsmcPricer::gbm_american(
+            num_paths.unwrap_or(defaults.num_paths),
+            num_steps,
+            seed.unwrap_or(defaults.seed),
+            use_parallel.unwrap_or(defaults.use_parallel),
+            antithetic.unwrap_or(defaults.antithetic),
+        )
+        .map_err(core_to_py)?;
         Ok(Self {
-            num_paths: num_paths.unwrap_or(defaults.num_paths),
-            seed: seed.unwrap_or(defaults.seed),
-            use_parallel: use_parallel.unwrap_or(defaults.use_parallel),
-            antithetic: antithetic.unwrap_or(defaults.antithetic),
+            inner,
+            num_steps,
             basis,
-            basis_degree,
+            basis_degree: basis_degree.unwrap_or(defaults.basis_degree),
         })
     }
 
     /// Independent Monte Carlo path count used by this pricer.
     #[getter]
     fn num_paths(&self) -> usize {
-        self.num_paths
+        self.inner.config().num_paths
     }
     /// Seed value used for path generation.
     #[getter]
     fn seed(&self) -> u64 {
-        self.seed
+        self.inner.config().seed
     }
     /// Whether path generation runs on the rayon pool.
     #[getter]
     fn use_parallel(&self) -> bool {
-        self.use_parallel
+        self.inner.config().use_parallel
     }
     /// Whether each path is paired with its sign-flipped counterpart.
     #[getter]
     fn antithetic(&self) -> bool {
-        self.antithetic
+        self.inner.config().antithetic
     }
     #[getter]
     fn basis(&self) -> &'static str {
@@ -342,7 +309,7 @@ impl PyLsmcPricer {
     ///
     /// Releases the GIL during the Monte Carlo run.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (spot, strike, rate, div_yield, vol, expiry, num_steps=None, currency=None))]
+    #[pyo3(signature = (spot, strike, rate, div_yield, vol, expiry, currency=None))]
     fn price_american_put(
         &self,
         py: Python<'_>,
@@ -352,10 +319,11 @@ impl PyLsmcPricer {
         div_yield: f64,
         vol: f64,
         expiry: f64,
-        num_steps: Option<usize>,
         currency: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyMoneyEstimate> {
-        let (pricer, num_steps, currency) = self.prepare(num_steps, currency)?;
+        let currency = resolve_currency(currency)?;
+        let pricer = &self.inner;
+        let num_steps = self.num_steps;
         py.detach(|| {
             pricer.price_gbm_american_put(
                 spot,
@@ -378,7 +346,7 @@ impl PyLsmcPricer {
     ///
     /// Releases the GIL during the Monte Carlo run.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (spot, strike, rate, div_yield, vol, expiry, num_steps=None, currency=None))]
+    #[pyo3(signature = (spot, strike, rate, div_yield, vol, expiry, currency=None))]
     fn price_american_call(
         &self,
         py: Python<'_>,
@@ -388,10 +356,11 @@ impl PyLsmcPricer {
         div_yield: f64,
         vol: f64,
         expiry: f64,
-        num_steps: Option<usize>,
         currency: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyMoneyEstimate> {
-        let (pricer, num_steps, currency) = self.prepare(num_steps, currency)?;
+        let currency = resolve_currency(currency)?;
+        let pricer = &self.inner;
+        let num_steps = self.num_steps;
         py.detach(|| {
             pricer.price_gbm_american_call(
                 spot,
@@ -421,8 +390,7 @@ impl PyLsmcPricer {
     /// Releases the GIL during both Monte Carlo passes.
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (
-        spot, strike, rate, div_yield, vol, expiry, pricing_seed,
-        num_steps=None, currency=None,
+        spot, strike, rate, div_yield, vol, expiry, pricing_seed, currency=None,
     ))]
     fn price_american_put_unbiased(
         &self,
@@ -434,10 +402,11 @@ impl PyLsmcPricer {
         vol: f64,
         expiry: f64,
         pricing_seed: u64,
-        num_steps: Option<usize>,
         currency: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyMoneyEstimate> {
-        let (pricer, num_steps, currency) = self.prepare(num_steps, currency)?;
+        let currency = resolve_currency(currency)?;
+        let pricer = &self.inner;
+        let num_steps = self.num_steps;
         py.detach(|| {
             pricer.price_gbm_american_put_unbiased(
                 spot,
@@ -463,8 +432,7 @@ impl PyLsmcPricer {
     /// rationale and the meaning of `pricing_seed`.
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (
-        spot, strike, rate, div_yield, vol, expiry, pricing_seed,
-        num_steps=None, currency=None,
+        spot, strike, rate, div_yield, vol, expiry, pricing_seed, currency=None,
     ))]
     fn price_american_call_unbiased(
         &self,
@@ -476,10 +444,11 @@ impl PyLsmcPricer {
         vol: f64,
         expiry: f64,
         pricing_seed: u64,
-        num_steps: Option<usize>,
         currency: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyMoneyEstimate> {
-        let (pricer, num_steps, currency) = self.prepare(num_steps, currency)?;
+        let currency = resolve_currency(currency)?;
+        let pricer = &self.inner;
+        let num_steps = self.num_steps;
         py.detach(|| {
             pricer.price_gbm_american_call_unbiased(
                 spot,
@@ -501,11 +470,12 @@ impl PyLsmcPricer {
 
     fn __repr__(&self) -> String {
         format!(
-            "LsmcPricer(paths={}, seed={}, use_parallel={}, antithetic={}, basis={}, basis_degree={})",
-            self.num_paths,
-            self.seed,
-            self.use_parallel,
-            self.antithetic,
+            "LsmcPricer(paths={}, seed={}, use_parallel={}, antithetic={}, steps={}, basis={}, basis_degree={})",
+            self.inner.config().num_paths,
+            self.inner.config().seed,
+            self.inner.config().use_parallel,
+            self.inner.config().antithetic,
+            self.num_steps,
             self.basis.as_str(),
             self.basis_degree,
         )

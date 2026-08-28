@@ -8,7 +8,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::Result;
 use finstack_quant_models::rates::hull_white::{
-    capfloor_hw1f_scalar_keys, hw1f_scalar_keys, HullWhiteParams,
+    capfloor_hw1f_scalar_keys, hw1f_scalar_keys, HullWhiteCalibrationParams,
 };
 
 /// Source of the complete HW1F parameter pair used for pricing.
@@ -104,13 +104,13 @@ fn override_positive_f64(
 pub fn resolve_hw1f_params(
     request: &Hw1fResolveRequest<'_>,
     market: &MarketContext,
-) -> Result<(HullWhiteParams, Hw1fParamSource)> {
+) -> Result<(HullWhiteCalibrationParams, Hw1fParamSource)> {
     let object = request.overrides.and_then(serde_json::Value::as_object);
     let override_kappa = override_positive_f64(object, "hw1f_kappa")?;
     let override_sigma = override_positive_f64(object, "hw1f_sigma")?;
     match (override_kappa, override_sigma) {
         (Some(kappa), Some(sigma)) => {
-            return HullWhiteParams::new(kappa, sigma)
+            return HullWhiteCalibrationParams::new(kappa, sigma)
                 .map(|params| (params, Hw1fParamSource::Override));
         }
         (None, None) => {}
@@ -133,7 +133,7 @@ pub fn resolve_hw1f_params(
         .ok()
         .and_then(scalar_as_positive_f64);
     match (kappa, sigma) {
-        (Some(kappa), Some(sigma)) => HullWhiteParams::new(kappa, sigma)
+        (Some(kappa), Some(sigma)) => HullWhiteCalibrationParams::new(kappa, sigma)
             .map(|params| (params, Hw1fParamSource::MarketScalars)),
         (None, None) => Err(finstack_quant_core::Error::Validation(format!(
             "{}: missing HW1F parameters for curve '{}'; provide both hw1f_kappa and \
@@ -169,7 +169,10 @@ mod tests {
             resolve_hw1f_params(&request(Some(&overrides)), &MarketContext::new())
                 .expect("complete override");
         assert_eq!(source, Hw1fParamSource::Override);
-        assert_eq!(params, HullWhiteParams::new(0.05, 0.012).expect("valid"));
+        assert_eq!(
+            params,
+            HullWhiteCalibrationParams::new(0.05, 0.012).expect("valid")
+        );
     }
 
     #[test]
@@ -196,6 +199,9 @@ mod tests {
         let (params, source) =
             resolve_hw1f_params(&request(None), &market).expect("complete market pair");
         assert_eq!(source, Hw1fParamSource::MarketScalars);
-        assert_eq!(params, HullWhiteParams::new(0.04, 0.009).expect("valid"));
+        assert_eq!(
+            params,
+            HullWhiteCalibrationParams::new(0.04, 0.009).expect("valid")
+        );
     }
 }

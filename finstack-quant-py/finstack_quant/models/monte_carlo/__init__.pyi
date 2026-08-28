@@ -27,10 +27,8 @@ __all__ = [
     "EuropeanPricer",
     "GbmPathSummary",
     "LsmcPricer",
-    "McEngine",
     "MoneyEstimate",
     "PathDependentPricer",
-    "TimeGrid",
     "black_scholes_call",
     "black_scholes_put",
     "finite_diff_delta",
@@ -616,284 +614,6 @@ class Estimate:
         """
         ...
 
-class TimeGrid:
-    """
-    Discretised time axis for Monte Carlo stepping.
-
-    Examples
-    --------
-    >>> from finstack_quant.models.monte_carlo import TimeGrid
-    >>> TimeGrid(1.0, 4).num_steps
-    4
-    """
-
-    def __init__(self, t_max: float, num_steps: int) -> None:
-        """
-        Build a uniform grid from ``0`` to ``t_max`` with ``num_steps`` steps.
-
-        Parameters
-        ----------
-        t_max : float
-            Terminal time in years.
-        num_steps : int
-            Number of steps between 0 and ``t_max``.
-
-        Raises
-        ------
-        ValueError
-            If ``t_max`` is non-positive or ``num_steps`` is less than 1.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.monte_carlo import TimeGrid
-        >>> TimeGrid(0.5, 10).t_max
-        0.5
-        """
-        ...
-
-    @staticmethod
-    def from_times(times: Sequence[float]) -> TimeGrid:
-        """
-        Construct a grid from explicit increasing time points.
-
-        Parameters
-        ----------
-        times : Sequence[float]
-            Strictly increasing time knot sequence (copied as ``list[float]``
-            internally).
-
-        Returns
-        -------
-        TimeGrid
-            A ``TimeGrid`` instance.
-
-        Raises
-        ------
-        ValueError
-            If ``times`` is empty, not strictly increasing, or contains
-            non-finite values.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.monte_carlo import TimeGrid
-        >>> TimeGrid.from_times([0.0, 0.25, 0.5, 1.0]).num_steps
-        3
-        """
-        ...
-
-    @staticmethod
-    def uniform_with_required_times(
-        t_max: float,
-        steps_per_year: float,
-        min_steps: int,
-        required_times: Sequence[float],
-    ) -> TimeGrid:
-        """
-        Build a near-uniform grid that includes required knot times exactly.
-
-        Builds a uniform grid of ``max(round(t_max * steps_per_year),
-        min_steps)`` steps over ``[0, t_max]``, then merges each
-        ``required_times`` entry (e.g. exercise dates, barrier monitoring or
-        cashflow dates) as an exact grid knot.
-
-        Parameters
-        ----------
-        t_max : float
-            Terminal time in years; must be finite and strictly positive.
-        steps_per_year : float
-            Target uniform step density; must be finite and strictly
-            positive.
-        min_steps : int
-            Minimum number of uniform steps; must be at least 1.
-        required_times : Sequence[float]
-            Knot times in ``[0, t_max]`` that must appear exactly on the
-            merged grid.
-
-        Returns
-        -------
-        TimeGrid
-            A merged ``TimeGrid`` containing every required knot exactly.
-
-        Raises
-        ------
-        ValueError
-            If ``t_max`` or ``steps_per_year`` is non-finite or non-positive,
-            ``min_steps`` is zero, the step count overflows, or the merged
-            knots fail ``from_times`` validation.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.monte_carlo import TimeGrid
-        >>> grid = TimeGrid.uniform_with_required_times(1.0, 4.0, 2, [0.3])
-        >>> 0.3 in grid.times
-        True
-        """
-        ...
-
-    @property
-    def num_steps(self) -> int:
-        """
-        Number of time steps on the grid.
-
-        Returns
-        -------
-        int
-            Number of time steps on the grid.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.monte_carlo import TimeGrid
-        >>> TimeGrid(1.0, 100).num_steps
-        100
-        """
-        ...
-
-    @property
-    def t_max(self) -> float:
-        """
-        Terminal time of the grid.
-
-        Returns
-        -------
-        float
-            Maximum time coordinate.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.monte_carlo import TimeGrid
-        >>> TimeGrid(2.0, 8).t_max
-        2.0
-        """
-        ...
-
-    @property
-    def is_uniform(self) -> bool:
-        """
-        Whether step sizes are uniform.
-
-        Returns
-        -------
-        bool
-            ``True`` if all inner steps share one ``dt``.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.monte_carlo import TimeGrid
-        >>> TimeGrid(1.0, 5).is_uniform
-        True
-        """
-        ...
-
-    @property
-    def times(self) -> list[float]:
-        """
-        All time coordinates including the origin.
-
-        Returns
-        -------
-        list[float]
-            Copy of knot times.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.monte_carlo import TimeGrid
-        >>> TimeGrid(1.0, 2).times[0]
-        0.0
-        """
-        ...
-
-    @property
-    def dts(self) -> list[float]:
-        """
-        Step sizes between consecutive times.
-
-        Returns
-        -------
-        list[float]
-            Per-step ``dt`` values.
-
-        Notes
-        -----
-        This accessor does not raise; it returns the stored value.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.monte_carlo import TimeGrid
-        >>> len(TimeGrid(1.0, 4).dts)
-        4
-        """
-        ...
-
-    def time(self, step: int) -> float:
-        """
-        Time at a given step index.
-
-        Parameters
-        ----------
-        step : int
-            Step index in ``[0, num_steps]``.
-
-        Returns
-        -------
-        float
-            Time coordinate.
-
-        Raises
-        ------
-        IndexError
-            If ``step`` is out of bounds.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.monte_carlo import TimeGrid
-        >>> TimeGrid(1.0, 4).time(0)
-        0.0
-        """
-        ...
-
-    def dt(self, step: int) -> float:
-        """
-        Step size following the given step index.
-
-        Parameters
-        ----------
-        step : int
-            Step index in ``[0, num_steps - 1]``.
-
-        Returns
-        -------
-        float
-            Increment to the next time.
-
-        Raises
-        ------
-        IndexError
-            If ``step`` is out of bounds.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.monte_carlo import TimeGrid
-        >>> TimeGrid(1.0, 4).dt(0)
-        0.25
-        """
-        ...
-
 class GbmPathSummary:
     """
     Compact captured GBM spot paths.
@@ -1038,158 +758,6 @@ class GbmPathSummary:
         ValueError
             If a captured path's length differs from the time grid's, which
             would silently misalign the index.
-        """
-        ...
-
-class McEngine:
-    """
-    Full Monte Carlo engine bound to a :class:`TimeGrid`.
-
-    Examples
-    --------
-    >>> from finstack_quant.models.monte_carlo import McEngine, TimeGrid
-    >>> McEngine(100, TimeGrid(1.0, 50), seed=7).price_european_call(100, 100, 0.05, 0.0, 0.2).num_paths
-    100
-    """
-
-    def __init__(
-        self,
-        num_paths: int,
-        time_grid: TimeGrid,
-        seed: int | None = None,
-        use_parallel: bool | None = None,
-        antithetic: bool | None = None,
-    ) -> None:
-        """
-        Create a Monte Carlo engine.
-
-        Parameters
-        ----------
-        num_paths : int
-            Number of independent estimators. Without antithetic pairing this
-            is also the simulated-path count; with pairing, each estimator uses
-            two simulated paths.
-        time_grid : TimeGrid
-            Discretisation grid for path generation.
-        seed : int, optional
-            RNG seed. Defaults to the registry default (``42``).
-        use_parallel : bool, optional
-            Enable parallel path generation. Defaults to ``False``.
-        antithetic : bool, optional
-            Enable antithetic pairing. This preserves ``num_paths`` as the
-            estimator count and simulates ``2 * num_paths`` paths. Antithetic
-            pairing is incompatible with path capture.
-
-        Raises
-        ------
-        ValueError
-            If the embedded Monte Carlo defaults registry cannot be loaded.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.monte_carlo import McEngine, TimeGrid
-        >>> McEngine(10, TimeGrid(1.0, 5), seed=1, use_parallel=True)  # doctest: +ELLIPSIS
-        McEngine(...)
-        """
-        ...
-
-    def price_european_call(
-        self,
-        spot: float,
-        strike: float,
-        rate: float,
-        div_yield: float,
-        vol: float,
-        currency: str | None = None,
-    ) -> MoneyEstimate:
-        """
-        Price a European call on the engine's grid under GBM.
-
-        Parameters
-        ----------
-        spot : float
-            Initial spot price.
-        strike : float
-            Strike price.
-        rate : float
-            Risk-free rate (continuously compounded decimal).
-        div_yield : float
-            Dividend yield (continuously compounded decimal).
-        vol : float
-            Volatility (decimal).
-        currency : str, optional
-            ISO currency code. Defaults to USD.
-
-        Returns
-        -------
-        MoneyEstimate
-            Priced result with mean, stderr, and confidence bands.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.monte_carlo import McEngine, TimeGrid
-        >>> McEngine(500, TimeGrid(1.0, 52)).price_european_call(100, 100, 0.05, 0.0, 0.25).num_paths
-        500
-
-        Raises
-        ------
-        ValueError
-            If ``rate`` or ``div_yield`` is non-finite, ``vol`` is negative or non-finite,
-            the engine's path count is zero or exceeds ``10_000_000``,
-            ``currency`` is unknown, or discounting produces a non-finite value.
-        TypeError
-            If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
-
-        """
-        ...
-
-    def price_european_put(
-        self,
-        spot: float,
-        strike: float,
-        rate: float,
-        div_yield: float,
-        vol: float,
-        currency: str | None = None,
-    ) -> MoneyEstimate:
-        """
-        Price a European put on the engine's grid under GBM.
-
-        Parameters
-        ----------
-        spot : float
-            Initial spot price.
-        strike : float
-            Strike price.
-        rate : float
-            Risk-free rate (continuously compounded decimal).
-        div_yield : float
-            Dividend yield (continuously compounded decimal).
-        vol : float
-            Volatility (decimal).
-        currency : str, optional
-            ISO currency code. Defaults to USD.
-
-        Returns
-        -------
-        MoneyEstimate
-            Priced result with mean, stderr, and confidence bands.
-
-        Examples
-        --------
-        >>> from finstack_quant.models.monte_carlo import McEngine, TimeGrid
-        >>> McEngine(500, TimeGrid(1.0, 52)).price_european_put(100, 100, 0.05, 0.0, 0.25).num_paths
-        500
-
-        Raises
-        ------
-        ValueError
-            If ``rate`` or ``div_yield`` is non-finite, ``vol`` is negative or non-finite,
-            the engine's path count is zero or exceeds ``10_000_000``,
-            ``currency`` is unknown, or discounting produces a non-finite value.
-        TypeError
-            If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
-
         """
         ...
 
@@ -1734,7 +1302,7 @@ class LsmcPricer:
     Examples
     --------
     >>> from finstack_quant.models.monte_carlo import LsmcPricer
-    >>> LsmcPricer(300, 0).price_american_put(100, 100, 0.05, 0.0, 0.3, 1.0, num_steps=10).num_paths
+    >>> LsmcPricer(300, 0, num_steps=10).price_american_put(100, 100, 0.05, 0.0, 0.3, 1.0).num_paths
     300
     """
 
@@ -1743,6 +1311,7 @@ class LsmcPricer:
         num_paths: int | None = None,
         seed: int | None = None,
         use_parallel: bool | None = None,
+        num_steps: int | None = None,
         basis: str | None = None,
         basis_degree: int | None = None,
         antithetic: bool | None = None,
@@ -1758,6 +1327,8 @@ class LsmcPricer:
             RNG seed. Defaults to the registry default.
         use_parallel : bool, optional
             Parallel path generation flag. Defaults to the registry default.
+        num_steps : int, optional
+            Time-grid steps and exercise dates. Defaults to the registry value.
         basis : str, optional
             Regression basis family. One of ``"laguerre"``,
             ``"polynomial"``, or ``"normalized_polynomial"``. Defaults to
@@ -1889,7 +1460,6 @@ class LsmcPricer:
         div_yield: float,
         vol: float,
         expiry: float,
-        num_steps: int | None = None,
         currency: str | None = None,
     ) -> MoneyEstimate:
         """
@@ -1913,8 +1483,6 @@ class LsmcPricer:
             Volatility (decimal).
         expiry : float
             Maturity in years.
-        num_steps : int, optional
-            Exercise grid steps. Defaults to the registry default.
         currency : str, optional
             ISO currency code. Defaults to USD.
 
@@ -1926,7 +1494,7 @@ class LsmcPricer:
         Examples
         --------
         >>> from finstack_quant.models.monte_carlo import LsmcPricer
-        >>> LsmcPricer(200, 0).price_american_put(100, 100, 0.05, 0.0, 0.25, 1.0, num_steps=8).num_paths
+        >>> LsmcPricer(200, 0, num_steps=8).price_american_put(100, 100, 0.05, 0.0, 0.25, 1.0).num_paths
         200
 
         Raises
@@ -1936,7 +1504,7 @@ class LsmcPricer:
             with the normalized-polynomial basis; ``rate`` or ``div_yield``
             is non-finite; ``vol`` is negative or non-finite; ``expiry`` is
             non-finite or not strictly positive;
-            ``num_steps`` or the configured path count is zero; or
+            the configured time-step or path count is zero; or
             ``currency`` is unknown.
         TypeError
             If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
@@ -1952,7 +1520,6 @@ class LsmcPricer:
         div_yield: float,
         vol: float,
         expiry: float,
-        num_steps: int | None = None,
         currency: str | None = None,
     ) -> MoneyEstimate:
         """
@@ -1976,8 +1543,6 @@ class LsmcPricer:
             Volatility (decimal).
         expiry : float
             Maturity in years.
-        num_steps : int, optional
-            Exercise grid steps. Defaults to the registry default.
         currency : str, optional
             ISO currency code. Defaults to USD.
 
@@ -1989,7 +1554,7 @@ class LsmcPricer:
         Examples
         --------
         >>> from finstack_quant.models.monte_carlo import LsmcPricer
-        >>> LsmcPricer(200, 0).price_american_call(100, 100, 0.05, 0.0, 0.25, 1.0, num_steps=8).num_paths
+        >>> LsmcPricer(200, 0, num_steps=8).price_american_call(100, 100, 0.05, 0.0, 0.25, 1.0).num_paths
         200
 
         Raises
@@ -1999,7 +1564,7 @@ class LsmcPricer:
             with the normalized-polynomial basis; ``rate`` or ``div_yield``
             is non-finite; ``vol`` is negative or non-finite; ``expiry`` is
             non-finite or not strictly positive;
-            ``num_steps`` or the configured path count is zero; or
+            the configured time-step or path count is zero; or
             ``currency`` is unknown.
         TypeError
             If a non-``None`` ``currency`` is neither a string nor a ``Currency`` instance.
@@ -2016,7 +1581,6 @@ class LsmcPricer:
         vol: float,
         expiry: float,
         pricing_seed: int,
-        num_steps: int | None = None,
         currency: str | None = None,
     ) -> MoneyEstimate:
         """
@@ -2044,8 +1608,6 @@ class LsmcPricer:
             Seed for the pricing pass; must differ from the pricer's training
             seed (passing the same value reintroduces the in-sample bias and
             is rejected).
-        num_steps : int, optional
-            Exercise grid steps. Defaults to the registry default.
         currency : str, optional
             ISO currency code. Defaults to USD.
 
@@ -2070,7 +1632,6 @@ class LsmcPricer:
         vol: float,
         expiry: float,
         pricing_seed: int,
-        num_steps: int | None = None,
         currency: str | None = None,
     ) -> MoneyEstimate:
         """

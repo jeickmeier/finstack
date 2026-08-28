@@ -142,22 +142,6 @@ impl BsGreeks {
     }
 }
 
-/// Convert host-language call/put booleans into the canonical Rust option type.
-///
-/// # Arguments
-///
-/// * `is_call` - `true` for a call/payer payoff and `false` for a put/receiver
-///   payoff when a host binding supplies the compact boolean convention.
-#[must_use]
-#[inline]
-pub fn option_type_from_bool(is_call: bool) -> OptionType {
-    if is_call {
-        OptionType::Call
-    } else {
-        OptionType::Put
-    }
-}
-
 /// Vanilla option payoff at expiry: `max(±(spot - strike), 0)`.
 ///
 /// # Arguments
@@ -638,12 +622,6 @@ mod tests {
         let price = bs_price_unchecked(100.0, 100.0, 0.05, 0.02, 0.20, 1.0, OptionType::Call);
         // ATM call with these params should be around 9-10
         assert!(price > 8.0 && price < 12.0, "price = {}", price);
-    }
-
-    #[test]
-    fn option_type_from_bool_maps_binding_flags() {
-        assert!(matches!(option_type_from_bool(true), OptionType::Call));
-        assert!(matches!(option_type_from_bool(false), OptionType::Put));
     }
 
     #[test]

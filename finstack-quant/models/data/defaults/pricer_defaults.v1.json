@@ -1,16 +1,9 @@
 {
-  "schema": "finstack_quant.monte_carlo.pricer_defaults.v1",
+  "schema": "finstack_quant.models.monte_carlo_defaults/1",
   "version": 1,
   "rust": {
     "engine": {
       "use_parallel": true,
-      "chunk_size": 1000,
-      "antithetic": false
-    },
-    "engine_builder": {
-      "num_paths": 100000,
-      "use_parallel": true,
-      "chunk_size": 1000,
       "antithetic": false
     },
     "european_pricer": {
@@ -68,11 +61,6 @@
   },
   "convenience": {
     "default_currency": "USD",
-    "engine": {
-      "seed": 42,
-      "use_parallel": false,
-      "antithetic": false
-    },
     "european_pricer": {
       "num_paths": 100000,
       "seed": 42,

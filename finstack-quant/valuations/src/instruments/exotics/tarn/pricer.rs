@@ -22,7 +22,7 @@ use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::results::MoneyEstimate;
 use finstack_quant_models::monte_carlo::seed;
 use finstack_quant_models::monte_carlo::traits::{PathState, Payoff, StateKey};
-use finstack_quant_models::rates::hull_white::HullWhiteParams;
+use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 use std::sync::Arc;
 
 /// Path-local TARN payoff accumulator.
@@ -206,7 +206,7 @@ impl Payoff for TarnPayoff {
 /// TARN pricer using short-rate paths from the shared HW1F Monte Carlo harness.
 #[derive(Debug, Clone)]
 pub struct TarnPricer {
-    hw_params: Option<HullWhiteParams>,
+    hw_params: Option<HullWhiteCalibrationParams>,
     config: RateExoticMcConfig,
 }
 
@@ -220,7 +220,7 @@ impl TarnPricer {
     }
 
     /// Create a TARN pricer with explicit HW1F parameters.
-    pub fn with_hw_params(hw_params: HullWhiteParams) -> Self {
+    pub fn with_hw_params(hw_params: HullWhiteCalibrationParams) -> Self {
         Self {
             hw_params: Some(hw_params),
             config: RateExoticMcConfig::default(),
@@ -238,7 +238,7 @@ impl TarnPricer {
         inst: &Tarn,
         market: &MarketContext,
         _as_of: Date,
-    ) -> Result<HullWhiteParams> {
+    ) -> Result<HullWhiteCalibrationParams> {
         let overrides = hw1f_overrides_json(inst).or_else(|| {
             self.hw_params.map(|params| {
                 serde_json::json!({"hw1f_kappa": params.kappa, "hw1f_sigma": params.sigma})
@@ -677,7 +677,7 @@ mod tests {
     }
 
     fn deterministic_pricer(paths: usize) -> TarnPricer {
-        TarnPricer::with_hw_params(HullWhiteParams::new(0.05, 1e-12).expect("hw params"))
+        TarnPricer::with_hw_params(HullWhiteCalibrationParams::new(0.05, 1e-12).expect("hw params"))
             .with_config(RateExoticMcConfig {
                 num_paths: paths,
                 antithetic: false,
@@ -943,26 +943,28 @@ mod tests {
         let market = market(as_of, 0.02, 0.03);
         let tarn = test_tarn(1.0);
 
-        let low = TarnPricer::with_hw_params(HullWhiteParams::new(0.05, 0.015).expect("hw"))
-            .with_config(RateExoticMcConfig {
-                num_paths: 200,
-                antithetic: true,
-                min_steps_between_events: 1,
-                seed: 7,
-                ..Default::default()
-            })
-            .price_estimate(&tarn, &market, as_of)
-            .expect("low path price");
-        let high = TarnPricer::with_hw_params(HullWhiteParams::new(0.05, 0.015).expect("hw"))
-            .with_config(RateExoticMcConfig {
-                num_paths: 2_000,
-                antithetic: true,
-                min_steps_between_events: 1,
-                seed: 7,
-                ..Default::default()
-            })
-            .price_estimate(&tarn, &market, as_of)
-            .expect("high path price");
+        let low =
+            TarnPricer::with_hw_params(HullWhiteCalibrationParams::new(0.05, 0.015).expect("hw"))
+                .with_config(RateExoticMcConfig {
+                    num_paths: 200,
+                    antithetic: true,
+                    min_steps_between_events: 1,
+                    seed: 7,
+                    ..Default::default()
+                })
+                .price_estimate(&tarn, &market, as_of)
+                .expect("low path price");
+        let high =
+            TarnPricer::with_hw_params(HullWhiteCalibrationParams::new(0.05, 0.015).expect("hw"))
+                .with_config(RateExoticMcConfig {
+                    num_paths: 2_000,
+                    antithetic: true,
+                    min_steps_between_events: 1,
+                    seed: 7,
+                    ..Default::default()
+                })
+                .price_estimate(&tarn, &market, as_of)
+                .expect("high path price");
 
         assert!(
             high.stderr < low.stderr,

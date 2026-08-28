@@ -64,9 +64,7 @@ from finstack_quant.models.correlation import (
 from finstack_quant.models.monte_carlo import (
     EuropeanPricer,
     LsmcPricer,
-    McEngine,
     PathDependentPricer,
-    TimeGrid,
     black_scholes_call,
     black_scholes_put,
 )
@@ -652,16 +650,8 @@ class TestMonteCarloBenchmarks:
     def test_black_scholes_call(self, benchmark) -> None:
         benchmark(black_scholes_call, 100.0, 100.0, 0.05, 0.0, 0.2, 1.0)
 
-    def test_mc_engine_european(self, benchmark) -> None:
-        engine = McEngine(10_000, TimeGrid(1.0, 252), seed=42)
-
-        def _price():
-            return engine.price_european_call(100.0, 100.0, 0.05, 0.0, 0.2)
-
-        benchmark.pedantic(_price, rounds=5, warmup_rounds=1)
-
     def test_lsmc_american_put(self, benchmark) -> None:
-        pricer = LsmcPricer(num_paths=5_000, seed=42)
+        pricer = LsmcPricer(num_paths=5_000, seed=42, num_steps=50)
 
         def _price():
             return pricer.price_american_put(
@@ -671,7 +661,6 @@ class TestMonteCarloBenchmarks:
                 div_yield=0.0,
                 vol=0.3,
                 expiry=1.0,
-                num_steps=50,
             )
 
         benchmark.pedantic(_price, rounds=5, warmup_rounds=1)

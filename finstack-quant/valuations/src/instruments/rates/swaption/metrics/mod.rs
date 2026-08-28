@@ -72,7 +72,7 @@ pub(crate) fn register_swaption_metrics(
 /// the explicit tree pricer are registered.
 pub(crate) fn register_bermudan_swaption_metrics(
     registry: &mut MetricRegistry,
-    hw_params: finstack_quant_models::rates::hull_white::HullWhiteParams,
+    hw_params: finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams,
 ) -> std::result::Result<(), crate::metrics::MetricRegistryError> {
     use crate::pricer::InstrumentType;
     crate::register_metrics! {

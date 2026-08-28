@@ -1,6 +1,6 @@
 //! Execution, configuration, and diagnostics for Monte Carlo pricing.
 //!
-use super::config::{McEngineBuilder, McEngineConfig, MAX_CAPTURED_PATHS, MAX_NUM_PATHS};
+use super::config::{McEngineConfig, MAX_CAPTURED_PATHS, MAX_NUM_PATHS};
 use super::path_capture::PathCaptureMode;
 use crate::monte_carlo::captured_path_stats::apply_captured_path_statistics;
 use crate::monte_carlo::estimate::Estimate;
@@ -110,12 +110,6 @@ pub(crate) fn validate_discounted_payoff(
 }
 
 impl McEngine {
-    /// Create a builder with the crate's default engine settings.
-    #[must_use]
-    pub fn builder() -> McEngineBuilder {
-        McEngineBuilder::new()
-    }
-
     /// Create an engine from an explicit configuration.
     pub fn new(config: McEngineConfig) -> Self {
         Self { config }
@@ -372,13 +366,16 @@ impl McEngine {
     ///
     /// ```
     /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_models::monte_carlo::prelude::*;
+    /// use finstack_quant_models::monte_carlo::discretization::ExactGbm;
+    /// use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig};
+    /// use finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanCall;
+    /// use finstack_quant_models::monte_carlo::process::gbm::GbmProcess;
+    /// use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
     ///
-    /// let engine = McEngine::builder()
-    ///     .num_paths(25_000)
-    ///     .uniform_grid(1.0, 252)
-    ///     .build()
-    ///     .expect("valid Monte Carlo configuration");
+    /// let engine = McEngine::new(
+    ///     McEngineConfig::uniform(25_000, 1.0, 252)
+    ///         .expect("valid Monte Carlo configuration"),
+    /// );
     ///
     /// let rng = PhiloxRng::new(11);
     /// let process = GbmProcess::with_params(0.03, 0.01, 0.20).unwrap();
@@ -485,14 +482,20 @@ impl McEngine {
     ///
     /// ```
     /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_models::monte_carlo::prelude::*;
+    /// use finstack_quant_models::monte_carlo::discretization::ExactGbm;
+    /// use finstack_quant_models::monte_carlo::engine::{
+    ///     McEngine, McEngineConfig, PathCaptureConfig,
+    /// };
+    /// use finstack_quant_models::monte_carlo::paths::ProcessParams;
+    /// use finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanCall;
+    /// use finstack_quant_models::monte_carlo::process::gbm::GbmProcess;
+    /// use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
     ///
-    /// let engine = McEngine::builder()
-    ///     .num_paths(2_000)
-    ///     .uniform_grid(1.0, 12)
-    ///     .path_capture(PathCaptureConfig::sample(100, 17).with_payoffs())
-    ///     .build()
-    ///     .expect("valid Monte Carlo configuration");
+    /// let engine = McEngine::new(
+    ///     McEngineConfig::uniform(2_000, 1.0, 12)
+    ///         .expect("valid Monte Carlo configuration")
+    ///         .path_capture(PathCaptureConfig::sample(100, 17).with_payoffs()),
+    /// );
     ///
     /// let rng = PhiloxRng::new(5);
     /// let process = GbmProcess::with_params(0.03, 0.01, 0.20).unwrap();

@@ -92,7 +92,7 @@
 //! - Zero-vol and near-zero-vol touch probability paths fall back to the deterministic limit
 //! - `time <= 0` helper behavior uses the current terminal spot as a convenience convention;
 //!   realized expired barrier state still requires observed path history at the instrument layer
-//! - Rebates paid at expiry are supported via `barrier_rebate_continuous`
+//! - Rebates support explicit [`RebateTiming::AtHit`] and [`RebateTiming::AtExpiry`] conventions
 //! - For discrete monitoring in production, apply Broadie-Glasserman-Kou correction
 //!
 //! # Examples
@@ -616,11 +616,7 @@ pub fn barrier_touch_probability(
 ///   currency units.
 /// * `barrier_type` - Knock-in or knock-out direction and activation
 ///   convention controlling whether hit or no-hit earns the rebate.
-pub fn barrier_rebate_continuous(
-    params: &BarrierParams,
-    rebate: f64,
-    barrier_type: BarrierType,
-) -> f64 {
+fn barrier_rebate_at_expiry(params: &BarrierParams, rebate: f64, barrier_type: BarrierType) -> f64 {
     let is_up = barrier_type.is_up();
     let p_hit = barrier_touch_probability(
         params.spot,
@@ -657,9 +653,9 @@ pub fn barrier_rebate_continuous(
 /// - Knock-in rebates pay at expiry iff the barrier is never hit; `timing` is
 ///   ignored (a no-hit can only be known at expiry).
 /// - Knock-out rebates pay when the barrier is hit. With
-///   [`RebateTiming::AtExpiry`] the payment is deferred to expiry (the legacy
-///   [`barrier_rebate_continuous`] behavior); with [`RebateTiming::AtHit`]
-///   (market standard) the rebate is valued as `rebate · E[e^{-r·τ} 1{τ≤T}]`
+///   [`RebateTiming::AtExpiry`] the payment is deferred to expiry; with
+///   [`RebateTiming::AtHit`] (market standard) the rebate is valued as
+///   `rebate · E[e^{-r·τ} 1{τ≤T}]`
 ///   via the Rubinstein–Reiner discounted first-passage value.
 ///
 /// Returns a `NaN` sentinel when the at-hit closed form is undefined
@@ -685,7 +681,7 @@ pub fn barrier_rebate(
     match (barrier_type, timing) {
         (BarrierType::UpAndIn | BarrierType::DownAndIn, _)
         | (BarrierType::UpAndOut | BarrierType::DownAndOut, RebateTiming::AtExpiry) => {
-            barrier_rebate_continuous(params, rebate, barrier_type)
+            barrier_rebate_at_expiry(params, rebate, barrier_type)
         }
         (BarrierType::UpAndOut | BarrierType::DownAndOut, RebateTiming::AtHit) => {
             let is_up = barrier_type.is_up();
@@ -1131,8 +1127,7 @@ pub fn barrier_put_continuous(params: &BarrierParams, barrier_type: BarrierType)
 // lookup), callers should build the parameter bag via
 // [`BarrierParams::with_df`], which derives `rate = -ln(df)/t`. The
 // resulting `BarrierParams` can be passed to
-// [`barrier_call_continuous`], [`barrier_put_continuous`], or
-// [`barrier_rebate_continuous`] directly.
+// [`barrier_call_continuous`], [`barrier_put_continuous`], or [`barrier_rebate`].
 
 #[cfg(test)]
 mod tests {
@@ -1343,13 +1338,13 @@ mod tests {
                 barrier
             };
 
-            // barrier_rebate_continuous does not use strike; pass barrier as a
+            // The at-expiry helper does not use strike; pass barrier as a
             // convention-preserving sentinel.
             let p_rate = BarrierParams::new(spot, b, b, time, rate, div_yield, vol);
             let p_df = BarrierParams::with_df(spot, b, b, time, df, div_yield, vol)
                 .expect("positive df constructs");
-            let price_rate = barrier_rebate_continuous(&p_rate, rebate, barrier_type);
-            let price_df = barrier_rebate_continuous(&p_df, rebate, barrier_type);
+            let price_rate = barrier_rebate_at_expiry(&p_rate, rebate, barrier_type);
+            let price_df = barrier_rebate_at_expiry(&p_df, rebate, barrier_type);
 
             assert!(
                 (price_rate - price_df).abs() < 1e-10,
@@ -2155,7 +2150,7 @@ mod tests {
         );
 
         let p_no_hit = BarrierParams::new(100.0, 120.0, 120.0, 1.0, 0.0, 0.0, 0.0);
-        let rebate_no_hit = barrier_rebate_continuous(&p_no_hit, 5.0, BarrierType::UpAndIn);
+        let rebate_no_hit = barrier_rebate_at_expiry(&p_no_hit, 5.0, BarrierType::UpAndIn);
         assert_eq!(
             rebate_no_hit, 5.0,
             "knock-in rebate should pay in full when zero-vol path never hits"
@@ -2171,10 +2166,10 @@ mod tests {
     #[test]
     fn test_rebate_is_not_discounted_after_expiry() {
         let p_rate = BarrierParams::new(130.0, 120.0, 120.0, -0.25, 0.05, 0.0, 0.2);
-        let rate_rebate = barrier_rebate_continuous(&p_rate, 5.0, BarrierType::UpAndOut);
+        let rate_rebate = barrier_rebate_at_expiry(&p_rate, 5.0, BarrierType::UpAndOut);
         let p_df = BarrierParams::with_df(130.0, 120.0, 120.0, -0.25, 0.95, 0.0, 0.2)
             .expect("positive df is valid");
-        let df_rebate = barrier_rebate_continuous(&p_df, 5.0, BarrierType::UpAndOut);
+        let df_rebate = barrier_rebate_at_expiry(&p_df, 5.0, BarrierType::UpAndOut);
 
         assert_eq!(
             rate_rebate, 5.0,
@@ -2272,7 +2267,7 @@ mod tests {
 
             assert_eq!(
                 at_expiry,
-                barrier_rebate_continuous(&p, rebate, bt),
+                barrier_rebate_at_expiry(&p, rebate, bt),
                 "AtExpiry must reproduce the legacy at-expiry value"
             );
             assert!(

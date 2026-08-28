@@ -13,7 +13,7 @@
 //! # Usage
 //!
 //! ```text
-//! use finstack_quant_models::rates::hull_white::HullWhiteParams;
+//! use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 //! use finstack_quant_valuations::instruments::rates::swaption::{BermudanSwaption, PreparedHullWhiteModel, pricing::BermudanSwaptionTreeValuator};
 //!
 //! let swaption = BermudanSwaption::example();
@@ -23,7 +23,7 @@
 //! // Create calibrated model
 //! let ttm = swaption.time_to_maturity(as_of).unwrap();
 //! let model = PreparedHullWhiteModel::prepare(
-//!     HullWhiteParams::default(),
+//!     HullWhiteCalibrationParams::default(),
 //!     100,
 //!     discount_curve,
 //!     ttm,
@@ -395,7 +395,7 @@ mod tests {
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::math::interp::InterpStyle;
     use finstack_quant_core::money::Money;
-    use finstack_quant_models::rates::hull_white::HullWhiteParams;
+    use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
     use time::Month;
 
     fn test_discount_curve() -> DiscountCurve {
@@ -442,7 +442,7 @@ mod tests {
 
         let ttm = swaption.time_to_maturity(as_of).expect("Valid ttm");
         let model = PreparedHullWhiteModel::prepare(
-            HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
+            HullWhiteCalibrationParams::new(0.03, 0.01).expect("valid HW params"),
             50,
             &curve,
             ttm,
@@ -461,7 +461,7 @@ mod tests {
 
         let ttm = swaption.time_to_maturity(as_of).expect("Valid ttm");
         let model = PreparedHullWhiteModel::prepare(
-            HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
+            HullWhiteCalibrationParams::new(0.03, 0.01).expect("valid HW params"),
             50,
             &curve,
             ttm,
@@ -489,7 +489,7 @@ mod tests {
         let ttm = swaption.time_to_maturity(as_of).expect("Valid ttm");
         let exercise_times = swaption.exercise_times(as_of).expect("exercise times");
         let model = PreparedHullWhiteModel::prepare_with_times(
-            HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
+            HullWhiteCalibrationParams::new(0.03, 0.01).expect("valid HW params"),
             50,
             &curve,
             ttm,

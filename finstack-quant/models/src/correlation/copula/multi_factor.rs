@@ -33,50 +33,28 @@ const CDF_CLIP: f64 = 10.0;
 /// Default quadrature order for multi-dimensional integration.
 const MULTI_FACTOR_QUADRATURE_ORDER: u8 = 10;
 
-/// Multi-factor Gaussian copula with sector structure.
+/// Global-plus-sector two-factor Gaussian copula.
 ///
-/// Uses a global factor plus one sector-specific factor to model
-/// intra-sector vs. inter-sector correlation differences.
-///
-/// # Factor Limit
-///
-/// Supports one global factor alone or a global-plus-sector pair.
-///
-/// # Default Parameters
-///
-/// - Global loading: 0.4 (gives ~16% inter-sector correlation)
-/// - Sector loading: 0.3 (gives ~25% additional intra-sector correlation)
-/// - Sector fraction: 0.4 (40% of total correlation from sector factor)
-/// - Quadrature order: 10 (better accuracy while remaining cheap for two factors)
+/// The total correlation supplied to each pricing call is split between the
+/// global and sector factors. The default sector share is 40%; callers may
+/// set another finite share with [`Self::with_sector_fraction`].
 ///
 /// # References
 ///
 /// - `docs/REFERENCES.md#andersen-sidenius-basu-2003`
 /// - `docs/REFERENCES.md#hull-white-2004-cdo`
 pub struct MultiFactorCopula {
-    /// Number of systematic factors (1 or 2, capped)
-    num_factors_count: usize,
-    /// Global factor loading (default for all entities)
-    default_global_loading: f64,
-    /// Sector factor loading (default for all entities)
-    default_sector_loading: f64,
-    /// Fraction of total correlation attributed to sector factor in decompose_correlation
+    /// Fraction of total correlation attributed to the shared sector factor.
     sector_fraction: f64,
-    /// Cached quadrature for integration
+    /// Cached quadrature for integration.
     quadrature: GaussHermiteQuadrature,
 }
 
 impl Clone for MultiFactorCopula {
     fn clone(&self) -> Self {
-        // Preserve the configured quadrature order (recover it from the
-        // stored node count) — rebuilding at the fixed internal default
-        // would silently downgrade copulas built via `with_quadrature_order`.
         let order =
             u8::try_from(self.quadrature.points.len()).unwrap_or(MULTI_FACTOR_QUADRATURE_ORDER);
         Self {
-            num_factors_count: self.num_factors_count,
-            default_global_loading: self.default_global_loading,
-            default_sector_loading: self.default_sector_loading,
             sector_fraction: self.sector_fraction,
             quadrature: select_quadrature(order),
         }
@@ -86,156 +64,58 @@ impl Clone for MultiFactorCopula {
 impl std::fmt::Debug for MultiFactorCopula {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MultiFactorCopula")
-            .field("num_factors_count", &self.num_factors_count)
-            .field("default_global_loading", &self.default_global_loading)
-            .field("default_sector_loading", &self.default_sector_loading)
             .field("sector_fraction", &self.sector_fraction)
             .finish()
     }
 }
 
-/// Maximum supported total factors: one global plus one shared sector factor.
-const MAX_FACTORS: usize = 2;
+const NUM_FACTORS: usize = 2;
+impl Default for MultiFactorCopula {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl MultiFactorCopula {
-    /// Create a multi-factor copula with specified number of factors.
-    ///
-    /// Uses default loadings: β_G=0.4, β_S=0.3, sector_fraction=0.4
-    ///
-    /// # Arguments
-    /// * `num_factors` - Number of factors (1 or 2; capped at `MAX_FACTORS`)
-    ///
-    /// # Returns
-    ///
-    /// A multi-factor Gaussian copula with default loadings.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use finstack_quant_models::correlation::{Copula, MultiFactorCopula};
-    ///
-    /// let copula = MultiFactorCopula::new(2);
-    /// assert_eq!(copula.num_factors(), 2);
-    /// assert!(copula.intra_sector_correlation() >= copula.inter_sector_correlation());
-    /// ```
+    /// Create a global-plus-sector Gaussian copula.
     #[must_use]
-    pub fn new(num_factors: usize) -> Self {
-        Self::with_quadrature_order(num_factors, MULTI_FACTOR_QUADRATURE_ORDER)
+    pub fn new() -> Self {
+        Self::with_quadrature_order(MULTI_FACTOR_QUADRATURE_ORDER)
     }
 
-    /// Create a multi-factor copula with an explicit per-dimension quadrature
-    /// order.
-    ///
-    /// Integration cost is `order^{num_factors}`. Callers that configure a
-    /// pricer-level `quadrature_order` should pass it through here.
+    /// Create a global-plus-sector copula with explicit quadrature order.
     ///
     /// # Arguments
-    /// * `num_factors` - Number of factors (1 or 2; capped at `MAX_FACTORS`)
-    /// * `quadrature_order` - Gauss-Hermite points per dimension
+    ///
+    /// * `quadrature_order` - Gauss-Hermite points per systematic factor.
     #[must_use]
-    pub fn with_quadrature_order(num_factors: usize, quadrature_order: u8) -> Self {
-        let num_factors = num_factors.clamp(1, MAX_FACTORS);
+    pub fn with_quadrature_order(quadrature_order: u8) -> Self {
         Self {
-            num_factors_count: num_factors,
-            default_global_loading: 0.4,
-            default_sector_loading: 0.3,
             sector_fraction: 0.4,
             quadrature: select_quadrature(quadrature_order),
         }
     }
 
-    /// Create with custom loadings.
-    ///
-    /// Loadings are clamped to ensure β_G² + β_S² ≤ 1 (valid variance).
-    ///
-    /// # Note — loadings are descriptive parameters
-    ///
-    /// The stored default loadings parameterize the copula's *reporting*
-    /// accessors ([`Self::inter_sector_correlation`],
-    /// [`Self::intra_sector_correlation`]). The conditional-PD pricing path
-    /// ([`Copula::conditional_default_prob`]) derives its loadings from the
-    /// **correlation argument** supplied per call (typically base
-    /// correlation) via [`Self::decompose_correlation`] with this copula's
-    /// `sector_fraction` — it does not read the default loadings. Use
-    /// [`Self::with_loadings_and_sector_fraction`] to control how the
-    /// pricing correlation splits between global and sector factors.
+    /// Set the share of total correlation assigned to the sector factor.
     ///
     /// # Arguments
-    /// * `num_factors` - Number of factors (1 or 2; capped at `MAX_FACTORS`)
-    /// * `global_loading` - Loading on global factor (β_G), clamped to [0, 0.99]
-    /// * `sector_loading` - Loading on sector factor (β_S), clamped to maintain variance constraint
     ///
-    /// # Returns
+    /// * `sector_fraction` - Fraction in `[0, 1]`; finite values are clamped.
     ///
-    /// A multi-factor Gaussian copula with bounded loadings.
-    #[must_use]
-    pub fn with_loadings(num_factors: usize, global_loading: f64, sector_loading: f64) -> Self {
-        let gl = global_loading.clamp(0.0, 0.99);
-        let max_sector = (1.0 - gl * gl).sqrt();
-        let sl = sector_loading.clamp(0.0, max_sector * 0.99);
-
-        Self {
-            num_factors_count: num_factors.clamp(1, MAX_FACTORS),
-            default_global_loading: gl,
-            default_sector_loading: sl,
-            sector_fraction: 0.4,
-            quadrature: select_quadrature(MULTI_FACTOR_QUADRATURE_ORDER),
-        }
-    }
-
-    /// Create with custom loadings and sector fraction.
+    /// # Errors
     ///
-    /// # Arguments
-    /// * `num_factors` - Number of factors (1 or 2; capped at 2)
-    /// * `global_loading` - Loading on global factor (β_G), clamped to [0, 0.99]
-    /// * `sector_loading` - Loading on sector factor (β_S), clamped to maintain variance constraint
-    /// * `sector_fraction` - Fraction of total correlation from sector factor, clamped to [0, 1]
-    ///
-    /// # Returns
-    ///
-    /// A multi-factor Gaussian copula with explicit sector-fraction decomposition.
-    #[must_use]
-    pub fn with_loadings_and_sector_fraction(
-        num_factors: usize,
-        global_loading: f64,
-        sector_loading: f64,
+    /// Returns an error when `sector_fraction` is non-finite.
+    pub fn with_sector_fraction(
+        mut self,
         sector_fraction: f64,
-    ) -> Self {
-        let mut copula = Self::with_loadings(num_factors, global_loading, sector_loading);
-        copula.sector_fraction = sector_fraction.clamp(0.0, 1.0);
-        copula
-    }
-
-    /// Get the parameter-level inter-sector correlation (β_G²).
-    ///
-    /// Returns the correlation `β_G²` that would apply to a pair of names in
-    /// different sectors under the intended multi-factor model. See the module
-    /// documentation: this implementation does not currently resolve per-name
-    /// sector assignments, so every simulated pair behaves as
-    /// [`Self::intra_sector_correlation`] regardless of this value.
-    ///
-    /// # Returns
-    ///
-    /// The implied *parameter* correlation for cross-sector pairs, `β_G²`.
-    #[must_use]
-    pub fn inter_sector_correlation(&self) -> f64 {
-        self.default_global_loading * self.default_global_loading
-    }
-
-    /// Get the parameter-level intra-sector correlation (β_G² + β_S²).
-    ///
-    /// This is the realized pairwise correlation produced by the current
-    /// implementation for *every* pair of names (see module docs — sector
-    /// resolution is not wired through the [`Copula`] trait yet).
-    ///
-    /// # Returns
-    ///
-    /// The implied correlation between names in the same sector, `β_G² + β_S²`.
-    #[must_use]
-    pub fn intra_sector_correlation(&self) -> f64 {
-        let gl = self.default_global_loading;
-        let sl = self.default_sector_loading;
-        gl * gl + sl * sl
+    ) -> finstack_quant_core::Result<Self> {
+        if !sector_fraction.is_finite() {
+            return Err(finstack_quant_core::Error::Validation(
+                "multi-factor copula sector_fraction must be finite".into(),
+            ));
+        }
+        self.sector_fraction = sector_fraction.clamp(0.0, 1.0);
+        Ok(self)
     }
 
     /// Compute idiosyncratic loading given factor loadings.
@@ -246,25 +126,10 @@ impl MultiFactorCopula {
         (1.0 - sum_sq).max(0.0).sqrt()
     }
 
-    /// Recursive nested Gauss-Hermite integration over all
-    /// `num_factors_count` systematic factors.
+    /// Recursive two-dimensional Gauss-Hermite integration.
     ///
-    /// `scratch` is the current factor vector being filled in; `depth`
-    /// is the index of the next slot to integrate over. When `depth ==
-    /// num_factors_count` the scratch vector is complete and `f` is
-    /// evaluated at that point.
-    ///
-    /// The quadrature stored on the copula follows the physicists'
-    /// convention (weight `e^{-z²}`). To compute a standard-normal
-    /// expectation at each dimension we apply the transform
-    /// `x = √2 · z` and divide by `√π`, matching
-    /// [`GaussHermiteQuadrature::integrate`]'s normalization. The
-    /// per-dimension `1/√π` factor composes multiplicatively across
-    /// `num_factors_count` nested integrals, so the final result is the
-    /// multivariate expectation `E[f(Z)]` for `Z ~ N(0, I_d)`.
-    ///
-    /// Generalizes the earlier hand-rolled 1- and 2-dimensional
-    /// integration paths to arbitrary `K`.
+    /// The quadrature uses the physicists' `e^{-z²}` convention. Each
+    /// dimension applies `x = √2·z` and the `1/√π` normalization.
     fn integrate_recursive(
         &self,
         f: &dyn Fn(&[f64]) -> f64,
@@ -292,32 +157,10 @@ impl MultiFactorCopula {
         acc / std::f64::consts::PI.sqrt()
     }
 
-    /// Decompose total correlation into global and sector components.
-    ///
-    /// Given total correlation ρ and sector fraction f:
-    /// - β_G² = ρ · (1 - f)
-    /// - β_S² = ρ · f
-    ///
-    /// # Arguments
-    /// * `total_correlation` - Total correlation, clamped to [0, 0.99]
-    /// * `sector_fraction` - Fraction of correlation from sector factor, clamped to [0, 1]
-    ///
-    /// # Returns
-    ///
-    /// A pair `(global_loading, sector_loading)` whose squared values reconstruct
-    /// the bounded total correlation.
-    #[must_use]
-    pub fn decompose_correlation(
-        &self,
-        total_correlation: f64,
-        sector_fraction: f64,
-    ) -> (f64, f64) {
+    fn decompose_correlation(&self, total_correlation: f64) -> (f64, f64) {
         let rho = total_correlation.clamp(0.0, 0.99);
-        let f = sector_fraction.clamp(0.0, 1.0);
-
-        let global_sq = rho * (1.0 - f);
-        let sector_sq = rho * f;
-
+        let global_sq = rho * (1.0 - self.sector_fraction);
+        let sector_sq = rho * self.sector_fraction;
         (global_sq.sqrt(), sector_sq.sqrt())
     }
 }
@@ -331,22 +174,20 @@ impl Copula for MultiFactorCopula {
     ) -> f64 {
         debug_assert_eq!(
             factor_realization.len(),
-            self.num_factors_count,
-            "MultiFactorCopula expects exactly {} factors, got {}",
-            self.num_factors_count,
+            NUM_FACTORS,
+            "MultiFactorCopula expects exactly {NUM_FACTORS} factors, got {}",
             factor_realization.len()
         );
-        if factor_realization.len() != self.num_factors_count {
+        if factor_realization.len() != NUM_FACTORS {
             tracing::error!(
-                expected = self.num_factors_count,
+                expected = NUM_FACTORS,
                 actual = factor_realization.len(),
                 "MultiFactorCopula: factor length mismatch; returning unconditional PD"
             );
             return norm_cdf(default_threshold);
         }
 
-        let (global_loading, sector_loading) =
-            self.decompose_correlation(correlation, self.sector_fraction);
+        let (global_loading, sector_loading) = self.decompose_correlation(correlation);
         let z_global = factor_realization.first().copied().unwrap_or(0.0);
         let z_sector = factor_realization.get(1).copied().unwrap_or(0.0);
         let gamma = self.idiosyncratic_loading(global_loading, sector_loading);
@@ -377,7 +218,7 @@ impl Copula for MultiFactorCopula {
         // factor realizations must not simulate this copula name-by-name
         // (see `PerNameCopulaDefault::new`, which rejects multi-factor specs).
         let _ = mixing;
-        let (global_loading, _) = self.decompose_correlation(correlation, self.sector_fraction);
+        let (global_loading, _) = self.decompose_correlation(correlation);
         let residual_sd = (1.0 - global_loading * global_loading).max(0.0).sqrt();
         if residual_sd < 1e-10 {
             return norm_cdf(default_threshold - global_loading * systematic);
@@ -389,13 +230,12 @@ impl Copula for MultiFactorCopula {
     fn integrate_fn(&self, f: &dyn Fn(&[f64]) -> f64) -> f64 {
         // Nested Gauss-Hermite integration over one global dimension and,
         // when configured, one shared sector dimension.
-        let d = self.num_factors_count;
-        let mut scratch = vec![0.0_f64; d];
+        let mut scratch = [0.0_f64; NUM_FACTORS];
         self.integrate_recursive(f, &mut scratch, 0)
     }
 
     fn num_factors(&self) -> usize {
-        self.num_factors_count
+        NUM_FACTORS
     }
 
     fn model_name(&self) -> &'static str {
@@ -411,34 +251,22 @@ impl Copula for MultiFactorCopula {
 
 #[cfg(test)]
 mod tests {
-    use super::super::GaussianCopula;
     use super::*;
     use finstack_quant_core::math::standard_normal_inv_cdf;
 
     #[test]
     fn test_multi_factor_creation() {
-        let copula = MultiFactorCopula::new(2);
+        let copula = MultiFactorCopula::new();
         assert_eq!(copula.num_factors(), 2);
         assert_eq!(copula.model_name(), "Multi-Factor Gaussian Copula");
     }
 
     #[test]
-    fn test_multi_factor_capped_at_max_factors() {
-        // The model supports at most one global and one shared sector factor.
-        let copula = MultiFactorCopula::new(100);
-        assert_eq!(
-            copula.num_factors(),
-            MAX_FACTORS,
-            "Factors should be capped at MAX_FACTORS ({MAX_FACTORS})"
-        );
-    }
-
-    #[test]
     fn test_correlation_decomposition() {
-        let copula = MultiFactorCopula::new(2);
-
-        // With 50% sector fraction
-        let (global, sector) = copula.decompose_correlation(0.36, 0.5);
+        let copula = MultiFactorCopula::new()
+            .with_sector_fraction(0.5)
+            .expect("finite sector fraction");
+        let (global, sector) = copula.decompose_correlation(0.36);
 
         // Total correlation should reconstruct
         let reconstructed = global * global + sector * sector;
@@ -450,59 +278,14 @@ mod tests {
     }
 
     #[test]
-    fn test_inter_vs_intra_sector_correlation() {
-        let copula = MultiFactorCopula::with_loadings(2, 0.4, 0.4);
-
-        let inter = copula.inter_sector_correlation();
-        let intra = copula.intra_sector_correlation();
-
-        // Intra-sector should be higher than inter-sector
-        assert!(
-            intra > inter,
-            "Intra-sector {} should exceed inter-sector {}",
-            intra,
-            inter
-        );
-
-        // Inter-sector = β_G² = 0.16
-        assert!((inter - 0.16).abs() < 1e-6);
-
-        // Intra-sector = β_G² + β_S² = 0.32
-        assert!((intra - 0.32).abs() < 1e-6);
-    }
-
-    #[test]
-    fn test_single_factor_equals_gaussian() {
-        let multi_copula = MultiFactorCopula::new(1);
-        let gaussian_copula = GaussianCopula::new();
-
-        let threshold = standard_normal_inv_cdf(0.05);
-        let correlation = 0.30;
-
-        // Single-factor multi should behave like Gaussian
-        let multi_prob = multi_copula.conditional_default_prob(threshold, &[0.5], correlation);
-        let gaussian_prob =
-            gaussian_copula.conditional_default_prob(threshold, &[0.5], correlation);
-
-        // They use different loading decomposition, so won't be exactly equal
-        // but should be in the same ballpark
-        assert!(
-            (multi_prob - gaussian_prob).abs() < 0.05,
-            "Single-factor multi {} should be close to Gaussian {}",
-            multi_prob,
-            gaussian_prob
-        );
-    }
-
-    #[test]
     fn test_zero_tail_dependence() {
-        let copula = MultiFactorCopula::new(2);
+        let copula = MultiFactorCopula::new();
         assert_eq!(copula.tail_dependence(0.5), 0.0);
     }
 
     #[test]
     fn test_integration_recovers_unconditional() {
-        let copula = MultiFactorCopula::new(2);
+        let copula = MultiFactorCopula::new();
         let pd = 0.05;
         let threshold = standard_normal_inv_cdf(pd);
         let correlation = 0.30;
@@ -522,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_factor_length_mismatch_contract() {
-        let copula = MultiFactorCopula::new(2);
+        let copula = MultiFactorCopula::new();
         let pd = 0.05;
         let threshold = standard_normal_inv_cdf(pd);
         let correlation = 0.30;
@@ -548,19 +331,5 @@ mod tests {
         assert_contract(&[-1.0]);
         assert_contract(&[0.5, 1.0, -0.3]);
         assert_contract(&[]);
-    }
-
-    #[test]
-    fn test_loading_constraints() {
-        // Loadings should satisfy β_G² + β_S² ≤ 1
-        let copula = MultiFactorCopula::with_loadings(2, 0.8, 0.8);
-
-        // Should be clamped
-        let intra = copula.intra_sector_correlation();
-        assert!(
-            intra <= 1.0,
-            "Intra-sector correlation {} should be ≤ 1",
-            intra
-        );
     }
 }

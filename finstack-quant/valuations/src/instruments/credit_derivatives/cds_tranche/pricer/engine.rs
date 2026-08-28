@@ -54,16 +54,9 @@ impl CDSTranchePricer {
                         self.params.quadrature_order,
                     ))
                 }
-                CopulaSpec::MultiFactor { num_factors } => {
-                    // Honor the configured quadrature order like every other
-                    // copula variant. Note the multi-factor cost is
-                    // `order^{num_factors}` — tune `quadrature_order`
-                    // accordingly when selecting this copula.
-                    Box::new(MultiFactorCopula::with_quadrature_order(
-                        *num_factors,
-                        self.params.quadrature_order,
-                    ))
-                }
+                CopulaSpec::MultiFactor => Box::new(MultiFactorCopula::with_quadrature_order(
+                    self.params.quadrature_order,
+                )),
             })
             .as_ref()
     }

@@ -154,11 +154,8 @@ fn test_pricer_config_builder_methods_wire_copula_and_numerical_settings() {
         } if (loading_volatility - 0.125).abs() < 1e-12
     ));
 
-    let multi_factor = CDSTranchePricerConfig::default().with_multi_factor_copula(3);
-    assert!(matches!(
-        multi_factor.copula_spec,
-        CopulaSpec::MultiFactor { num_factors } if num_factors == 3
-    ));
+    let multi_factor = CDSTranchePricerConfig::default().with_multi_factor_copula();
+    assert!(matches!(multi_factor.copula_spec, CopulaSpec::MultiFactor));
 
     let config = CDSTranchePricerConfig::default().with_quadrature_order(7);
     let pricer =

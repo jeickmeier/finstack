@@ -427,7 +427,7 @@ fn build_full_feature_structured_credit() -> StructuredCredit {
     deal.credit_model.stochastic_default_spec =
         Some(StochasticDefaultSpec::gaussian_copula(0.025, 0.35));
     deal.credit_model.correlation_structure =
-        Some(CorrelationStructure::sectored(0.28, 0.12, -0.18));
+        Some(CorrelationStructure::sectored(0.28, 0.12, -0.18).expect("valid correlation"));
 
     let swap = crate::test_support::rates::usd_irs_swap(
         InstrumentId::new("HEDGE-SWAP"),

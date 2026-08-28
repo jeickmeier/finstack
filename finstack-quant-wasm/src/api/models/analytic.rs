@@ -18,9 +18,11 @@ use finstack_quant_models::closed_form::implied_vol::{
 };
 use finstack_quant_models::closed_form::{
     asian_option_price_str, barrier_call_str, bs_greeks as bs_greeks_core,
-    bs_price as bs_price_core, lookback_option_price_str, option_type_from_bool,
-    quanto_option_price_checked, vanilla_expiry_payoff as vanilla_expiry_payoff_core,
+    bs_price as bs_price_core, lookback_option_price_str,
+    quanto_option_price as quanto_option_price_core,
+    vanilla_expiry_payoff as vanilla_expiry_payoff_core,
 };
+use finstack_quant_models::OptionType;
 use wasm_bindgen::prelude::*;
 
 const DEFAULT_THETA_DAYS_PER_YEAR: f64 = 365.0;
@@ -70,7 +72,7 @@ pub fn bs_price(
     t: f64,
     is_call: bool,
 ) -> Result<f64, JsValue> {
-    bs_price_core(spot, strike, r, q, sigma, t, option_type_from_bool(is_call)).map_err(to_js_err)
+    bs_price_core(spot, strike, r, q, sigma, t, OptionType::from(is_call)).map_err(to_js_err)
 }
 
 /// Vanilla option payoff at expiry: `max(±(spot - strike), 0)`.
@@ -94,7 +96,7 @@ pub fn bs_price(
 /// not strictly positive.
 #[wasm_bindgen(js_name = vanillaExpiryPayoff)]
 pub fn vanilla_expiry_payoff(spot: f64, strike: f64, is_call: bool) -> Result<f64, JsValue> {
-    vanilla_expiry_payoff_core(spot, strike, option_type_from_bool(is_call)).map_err(to_js_err)
+    vanilla_expiry_payoff_core(spot, strike, OptionType::from(is_call)).map_err(to_js_err)
 }
 
 /// Black-Scholes / Garman-Kohlhagen Greeks as a `{delta, gamma, vega, theta, rho, rho_q}` object.
@@ -145,7 +147,7 @@ pub fn bs_greeks(
         q,
         sigma,
         t,
-        option_type_from_bool(is_call),
+        OptionType::from(is_call),
         theta_days,
     )
     .map_err(to_js_err)?;
@@ -194,8 +196,7 @@ pub fn bs_implied_vol(
     price: f64,
     is_call: bool,
 ) -> Result<f64, JsValue> {
-    bs_implied_vol_core(spot, strike, r, q, t, option_type_from_bool(is_call), price)
-        .map_err(to_js_err)
+    bs_implied_vol_core(spot, strike, r, q, t, OptionType::from(is_call), price).map_err(to_js_err)
 }
 
 /// Solve for Black-76 (forward-based) implied volatility.
@@ -223,15 +224,8 @@ pub fn black76_implied_vol(
     price: f64,
     is_call: bool,
 ) -> Result<f64, JsValue> {
-    black76_implied_vol_core(
-        forward,
-        strike,
-        df,
-        t,
-        option_type_from_bool(is_call),
-        price,
-    )
-    .map_err(to_js_err)
+    black76_implied_vol_core(forward, strike, df, t, OptionType::from(is_call), price)
+        .map_err(to_js_err)
 }
 
 /// Reiner-Rubinstein continuous-monitoring barrier call price.
@@ -301,7 +295,7 @@ pub fn asian_option_price(
     is_call: Option<bool>,
 ) -> Result<f64, JsValue> {
     let averaging = averaging.as_deref().unwrap_or("arithmetic");
-    let option_type = option_type_from_bool(is_call.unwrap_or(true));
+    let option_type = OptionType::from(is_call.unwrap_or(true));
     asian_option_price_str(
         spot,
         strike,
@@ -350,7 +344,7 @@ pub fn lookback_option_price(
     is_call: Option<bool>,
 ) -> Result<f64, JsValue> {
     let strike_type = strike_type.as_deref().unwrap_or("fixed");
-    let option_type = option_type_from_bool(is_call.unwrap_or(true));
+    let option_type = OptionType::from(is_call.unwrap_or(true));
     lookback_option_price_str(
         spot,
         strike,
@@ -395,7 +389,7 @@ pub fn quanto_option_price(
     correlation: f64,
     is_call: Option<bool>,
 ) -> Result<f64, JsValue> {
-    quanto_option_price_checked(
+    quanto_option_price_core(
         spot,
         strike,
         t,
@@ -405,7 +399,7 @@ pub fn quanto_option_price(
         vol_asset,
         vol_fx,
         correlation,
-        option_type_from_bool(is_call.unwrap_or(true)),
+        OptionType::from(is_call.unwrap_or(true)),
     )
     .map_err(to_js_err)
 }

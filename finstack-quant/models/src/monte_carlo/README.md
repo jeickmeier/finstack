@@ -13,7 +13,7 @@ Per-item detail is in the rustdoc (`cargo doc -p finstack-quant-models --open`).
 |------|------|----------------|
 | `barriers/` | Brownian-bridge hit probability and continuity corrections for discretely monitored barriers | `bridge`, `corrections` |
 | `discretization/` | Time-stepping and exact transitions | all except `qe_common` (`pub(crate)`) |
-| `engine/` | Generic simulation loop, config, path capture | files are private `mod`s; `McEngine`, `McEngineBuilder`, `McEngineConfig`, `PathCaptureConfig`, `PathCaptureMode`, `MAX_NUM_PATHS`, `MAX_CAPTURED_PATHS` are re-exported from `engine/mod.rs` |
+| `engine/` | Generic simulation loop, config, path capture | files are private `mod`s; `McEngine`, `McEngineConfig`, `PathCaptureConfig`, `PathCaptureMode`, `MAX_NUM_PATHS`, `MAX_CAPTURED_PATHS` are re-exported from `engine/mod.rs` |
 | `greeks/` | Sensitivity estimators | `pathwise`, `lrm`, `finite_diff`, `gbm_european` |
 | `payoff/` | Contract definitions evaluated on `PathState` | `vanilla`, `asian`, `barrier`, `lookback` |
 | `pricer/` | Higher-level workflows over `McEngine` | `european`, `path_dependent`, `lsmc`, `heston`, `basis`, `lsq` |
@@ -43,7 +43,7 @@ Per-item detail is in the rustdoc (`cargo doc -p finstack-quant-models --open`).
 | File | Contents |
 |------|----------|
 | `mod.rs` | Engine-module docs plus the `pub use` list that forms the crate's `engine` surface |
-| `config.rs` | `McEngineConfig`, `McEngineBuilder`, `MAX_NUM_PATHS`, `MAX_CAPTURED_PATHS` |
+| `config.rs` | `McEngineConfig`, `MAX_NUM_PATHS`, `MAX_CAPTURED_PATHS` |
 | `path_capture.rs` | `PathCaptureConfig`, `PathCaptureMode`, the deterministic hash-based sampling rule |
 | `pricing.rs` | `McEngine`, `price`, `price_with_capture`, all runtime validation, `adaptive_chunk_size`, result finalization |
 | `simulation.rs` | Engine-internal per-path loops, none re-exported publicly: `run_path_loop` and `NoiseHook` (`pub(crate)`, used by `engine_fractional`), `simulate_path` / `simulate_path_with_capture` / `simulate_antithetic_pair` (engine-private) |

@@ -9,7 +9,7 @@ use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
-use finstack_quant_models::rates::hull_white::HullWhiteParams;
+use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 use finstack_quant_valuations::instruments::rates::swaption::BermudanSwaptionTreeValuator;
 use finstack_quant_valuations::instruments::rates::swaption::{
     BermudanSchedule, BermudanSwaption, PreparedHullWhiteModel,
@@ -76,7 +76,7 @@ fn test_tree_valuator_rejects_mixed_curve_bermudan() {
     let curve = test_discount_curve();
     let ttm = swaption.time_to_maturity(as_of).expect("Valid ttm");
     let model = PreparedHullWhiteModel::prepare(
-        HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
+        HullWhiteCalibrationParams::new(0.03, 0.01).expect("valid HW params"),
         50,
         &curve,
         ttm,
@@ -106,7 +106,7 @@ fn test_bermudan_price_positive() {
 
     let ttm = swaption.time_to_maturity(as_of).expect("Valid ttm");
     let model = PreparedHullWhiteModel::prepare(
-        HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
+        HullWhiteCalibrationParams::new(0.03, 0.01).expect("valid HW params"),
         50,
         &curve,
         ttm,
@@ -141,7 +141,7 @@ fn test_bermudan_payer_vs_receiver() {
     let curve = test_discount_curve();
     let ttm = payer.time_to_maturity(as_of).expect("Valid ttm");
     let model = PreparedHullWhiteModel::prepare(
-        HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
+        HullWhiteCalibrationParams::new(0.03, 0.01).expect("valid HW params"),
         50,
         &curve,
         ttm,
@@ -184,7 +184,7 @@ fn test_bermudan_strike_sensitivity() {
     let curve = test_discount_curve();
     let ttm = low_strike.time_to_maturity(as_of).expect("Valid ttm");
     let model = PreparedHullWhiteModel::prepare(
-        HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
+        HullWhiteCalibrationParams::new(0.03, 0.01).expect("valid HW params"),
         50,
         &curve,
         ttm,
@@ -238,7 +238,7 @@ fn test_bermudan_more_exercise_dates_higher_value() {
     let curve = test_discount_curve();
     let ttm = early_swaption.time_to_maturity(as_of).expect("Valid ttm");
     let model = PreparedHullWhiteModel::prepare(
-        HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
+        HullWhiteCalibrationParams::new(0.03, 0.01).expect("valid HW params"),
         50,
         &curve,
         ttm,
@@ -453,7 +453,7 @@ fn test_lsmc_vs_tree_sanity() {
     //    Vasicek-style mean-reversion-level convention;
     //    the tree pricer uses its own forward-induction calibration in
     //    finstack-quant-valuations whose σ normalization differs. For the
-    //    uncalibrated `HullWhiteParams::default()` (κ = 3%, σ = 1%)
+    //    uncalibrated `HullWhiteCalibrationParams::default()` (κ = 3%, σ = 1%)
     //    used here, the resulting stationary short-rate std is ~4%,
     //    which produces substantially wider swap-rate dispersion under
     //    MC than under the tree's narrower grid.

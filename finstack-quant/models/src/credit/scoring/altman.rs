@@ -90,9 +90,8 @@ pub struct AltmanZDoublePrimeInput {
 /// - 1.81 <= Z <= 2.99: Grey
 /// - Z < 1.81: Distress
 ///
-/// The canonical result does not contain an implied PD. Use
-/// [`altman_z_score_with_pd`] and explicitly select a versioned heuristic if
-/// a non-empirical score-to-PD mapping is required.
+/// The canonical result does not contain an implied PD. Calibrate any
+/// score-to-PD mapping separately against a documented population and vintage.
 ///
 /// # Errors
 ///
@@ -172,21 +171,6 @@ pub fn altman_z_score(input: &AltmanZScoreInput) -> Result<ScoringResult, Credit
     })
 }
 
-/// Compute the original Altman Z-Score and apply an explicit PD heuristic.
-///
-/// # Arguments
-///
-/// * `input` - Finite public-company accounting ratios for the original
-///   five-factor 1968 Altman Z-Score model.
-///   after the model score and zone are calculated.
-pub fn altman_z_score_with_pd(
-    input: &AltmanZScoreInput,
-) -> Result<ScoringResult, CreditScoringError> {
-    let mut result = altman_z_score(input)?;
-    result.implied_pd = Some(z_score_heuristic(result.score, 2.99, 1.81));
-    Ok(result)
-}
-
 /// Compute the Altman Z'-Score for private firms.
 ///
 /// Z' = 0.717 * X1 + 0.847 * X2 + 3.107 * X3 + 0.420 * X4 + 0.998 * X5
@@ -254,21 +238,6 @@ pub fn altman_z_prime(input: &AltmanZPrimeInput) -> Result<ScoringResult, Credit
         implied_pd: None,
         model: "Altman Z'-Score (Private)",
     })
-}
-
-/// Compute the Altman Z'-Score and apply an explicit PD heuristic.
-///
-/// # Arguments
-///
-/// * `input` - Finite private-company accounting ratios for the five-factor
-///   Z' model, including book rather than market equity.
-///   after the model score and zone are calculated.
-pub fn altman_z_prime_with_pd(
-    input: &AltmanZPrimeInput,
-) -> Result<ScoringResult, CreditScoringError> {
-    let mut result = altman_z_prime(input)?;
-    result.implied_pd = Some(z_score_heuristic(result.score, 2.90, 1.23));
-    Ok(result)
 }
 
 /// Compute the Altman Z''-Score for non-manufacturing firms.
@@ -345,21 +314,6 @@ pub fn altman_z_double_prime(
         implied_pd: None,
         model: "Altman Z''-Score (Non-Manufacturer)",
     })
-}
-
-/// Compute the Altman Z''-Score and apply an explicit PD heuristic.
-///
-/// # Arguments
-///
-/// * `input` - Finite non-manufacturing-company accounting ratios for the
-///   four-factor constant-free Z'' model.
-///   after the model score and zone are calculated.
-pub fn altman_z_double_prime_with_pd(
-    input: &AltmanZDoublePrimeInput,
-) -> Result<ScoringResult, CreditScoringError> {
-    let mut result = altman_z_double_prime(input)?;
-    result.implied_pd = Some(z_score_heuristic(result.score, 2.60, 1.10));
-    Ok(result)
 }
 
 // EM-Score (emerging markets)
@@ -458,26 +412,5 @@ fn z_score_zone(z: f64, safe_threshold: f64, distress_threshold: f64) -> Scoring
         ScoringZone::Distress
     } else {
         ScoringZone::Grey
-    }
-}
-
-/// Uncalibrated house heuristic. It is not an empirical Altman mapping.
-fn z_score_heuristic(z: f64, safe_threshold: f64, distress_threshold: f64) -> f64 {
-    const PD_SAFE: f64 = 0.01;
-    const PD_DISTRESS: f64 = 0.50;
-
-    if z > safe_threshold {
-        // Deep safe: use exponential decay toward zero
-        let excess = z - safe_threshold;
-        PD_SAFE * (-0.5 * excess).exp()
-    } else if z < distress_threshold {
-        // Deep distress: increase toward cap
-        let deficit = distress_threshold - z;
-        (PD_DISTRESS + (1.0 - PD_DISTRESS) * (1.0 - (-0.5 * deficit).exp())).min(0.99)
-    } else {
-        // Grey zone: linear interpolation
-        let range = safe_threshold - distress_threshold;
-        let t = (safe_threshold - z) / range;
-        PD_SAFE + t * (PD_DISTRESS - PD_SAFE)
     }
 }

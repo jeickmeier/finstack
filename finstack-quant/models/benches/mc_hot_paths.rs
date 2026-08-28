@@ -19,7 +19,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::math::fractional::HurstExponent;
 use finstack_quant_models::monte_carlo::discretization::rough_heston::RoughHestonHybrid;
 use finstack_quant_models::monte_carlo::discretization::{ExactHullWhite1F, QeHeston};
-use finstack_quant_models::monte_carlo::engine::McEngine;
+use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig};
 use finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanCall;
 use finstack_quant_models::monte_carlo::pricer::basis::PolynomialBasis;
 use finstack_quant_models::monte_carlo::pricer::european::EuropeanPricer;
@@ -135,12 +135,11 @@ fn bench_heston_qe_pricer(c: &mut Criterion) {
 
     let num_paths = 5_000;
     group.bench_with_input(BenchmarkId::new("paths", num_paths), &num_paths, |b, &n| {
-        let engine = McEngine::builder()
-            .num_paths(n)
-            .uniform_grid(1.0, 252)
-            .parallel(false)
-            .build()
-            .expect("valid engine config");
+        let engine = McEngine::new(
+            McEngineConfig::uniform(n, 1.0, 252)
+                .expect("valid engine config")
+                .parallel(false),
+        );
         b.iter(|| {
             engine
                 .price(
@@ -201,7 +200,9 @@ fn bench_rough_heston_step(c: &mut Criterion) {
 
 fn bench_hw1f_pricer(c: &mut Criterion) {
     let mut group = c.benchmark_group("hw1f_pricer");
-    let process = HullWhite1FProcess::new(HullWhite1FParams::new(0.1, 0.01, 0.03));
+    let process = HullWhite1FProcess::new(
+        HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid Hull-White parameters"),
+    );
     let disc = ExactHullWhite1F::new();
     let payoff = EuropeanCall::new(0.03, 1.0, 252);
     let rng = PhiloxRng::new(42);
@@ -209,12 +210,11 @@ fn bench_hw1f_pricer(c: &mut Criterion) {
 
     let num_paths = 20_000;
     group.bench_with_input(BenchmarkId::new("paths", num_paths), &num_paths, |b, &n| {
-        let engine = McEngine::builder()
-            .num_paths(n)
-            .uniform_grid(1.0, 252)
-            .parallel(false)
-            .build()
-            .expect("valid engine config");
+        let engine = McEngine::new(
+            McEngineConfig::uniform(n, 1.0, 252)
+                .expect("valid engine config")
+                .parallel(false),
+        );
         b.iter(|| {
             engine
                 .price(&rng, &process, &disc, &[0.03], &payoff, Currency::USD, df)

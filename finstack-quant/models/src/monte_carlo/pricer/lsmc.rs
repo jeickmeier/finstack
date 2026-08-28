@@ -403,6 +403,11 @@ impl LsmcPricer {
         Self { config }
     }
 
+    /// Borrow the validated LSMC configuration.
+    pub fn config(&self) -> &LsmcConfig {
+        &self.config
+    }
+
     /// Convenience constructor for GBM American host bindings.
     ///
     /// Uses [`LsmcConfig::every_step`] so exercise occurs at each simulated
@@ -1489,7 +1494,7 @@ fn lsmc_basis(kind: BasisKind, degree: usize, strike: f64) -> Result<LsmcBasis> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::monte_carlo::prelude::{LaguerreBasis, PolynomialBasis};
+    use crate::monte_carlo::pricer::basis::{LaguerreBasis, PolynomialBasis};
     use crate::monte_carlo::process::gbm::GbmParams;
 
     #[test]

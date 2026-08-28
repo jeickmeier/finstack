@@ -13,7 +13,7 @@ use crate::results::ValuationResult;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::money::Money;
-use finstack_quant_models::rates::hull_white::HullWhiteParams;
+use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 use finstack_quant_models::trees::HullWhiteTree;
 use finstack_quant_models::trees::HullWhiteTreeConfig;
 use std::sync::Arc;
@@ -86,7 +86,7 @@ pub struct PreparedHullWhiteModel {
 impl PreparedHullWhiteModel {
     /// Prepare a Hull-White tree from fitted parameters, a discount curve, and a horizon.
     pub fn prepare(
-        params: HullWhiteParams,
+        params: HullWhiteCalibrationParams,
         steps: usize,
         disc: &dyn Discounting,
         ttm: f64,
@@ -99,7 +99,7 @@ impl PreparedHullWhiteModel {
     /// exercise decisions land on grid points instead of nearest-step
     /// approximations.
     pub fn prepare_with_times(
-        params: HullWhiteParams,
+        params: HullWhiteCalibrationParams,
         steps: usize,
         disc: &dyn Discounting,
         ttm: f64,
@@ -138,7 +138,7 @@ impl PreparedHullWhiteModel {
 /// [`BermudanSwaptionPricerConfig`]:
 ///
 /// ```text
-/// use finstack_quant_models::rates::hull_white::HullWhiteParams;
+/// use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 /// use finstack_quant_valuations::instruments::rates::swaption::{
 ///     BermudanSwaptionPricer, BermudanSwaptionPricerConfig,
 /// };
@@ -150,7 +150,7 @@ impl PreparedHullWhiteModel {
 /// # let disc: &dyn Discounting = todo!("provide a discount curve from MarketContext");
 /// let ttm = 5.0;
 /// let tree = PreparedHullWhiteModel::prepare(
-///     HullWhiteParams::default(),
+///     HullWhiteCalibrationParams::default(),
 ///     100,
 ///     disc,
 ///     ttm,
@@ -294,7 +294,7 @@ impl BermudanSwaptionPricer {
         swaption: &BermudanSwaption,
         market: &MarketContext,
         _ttm: f64,
-    ) -> std::result::Result<(HullWhiteParams, Hw1fParamSource), PricingError> {
+    ) -> std::result::Result<(HullWhiteCalibrationParams, Hw1fParamSource), PricingError> {
         let context_label = format!("BermudanSwaption {}", swaption.id);
         let overrides = hw1f_overrides_json(swaption);
         let req = Hw1fResolveRequest {
@@ -581,8 +581,10 @@ impl BermudanSwaptionPricer {
         })?;
 
         // Build θ(t) times for calibration (use grid times)
-        let theta_times: Vec<f64> = (0..=time_grid.num_steps())
-            .map(|i| time_grid.time(i.min(time_grid.num_steps() - 1)))
+        let theta_times: Vec<f64> = time_grid
+            .times()
+            .iter()
+            .copied()
             .filter(|&t| t <= ttm)
             .collect();
 
@@ -642,7 +644,13 @@ impl BermudanSwaptionPricer {
             hw_params.sigma,
             &discount_fn,
             &theta_times,
-        );
+        )
+        .map_err(|error| {
+            PricingError::model_failure_with_context(
+                error.to_string(),
+                PricingErrorContext::default(),
+            )
+        })?;
 
         // Initial short rate from the `as_of`-rebased curve: a one-sided
         // forward difference f(0) = −ln P(as_of, as_of+dt) / dt.

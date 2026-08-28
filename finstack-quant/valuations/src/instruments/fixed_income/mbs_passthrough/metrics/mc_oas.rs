@@ -45,7 +45,7 @@ use finstack_quant_core::{Error as CoreError, Result};
 use finstack_quant_models::monte_carlo::process::ou::HullWhite1FParams;
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::traits::RandomStream;
-use finstack_quant_models::rates::hull_white::HullWhiteParams;
+use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 use rayon::prelude::*;
 
 /// Configuration for Monte Carlo OAS calculation.
@@ -109,7 +109,6 @@ fn simulate_rate_paths(
 ) -> Vec<RatePath> {
     let dt = 1.0 / 12.0; // Monthly steps
     let kappa = params.kappa;
-    let sigma = params.sigma;
     let exp_kappa_dt = (-kappa * dt).exp();
 
     // θ(t) is piecewise-constant; precompute the per-step drift term using
@@ -118,12 +117,14 @@ fn simulate_rate_paths(
         .map(|i| params.theta_at_time(i as f64 * dt) * (1.0 - exp_kappa_dt))
         .collect();
 
-    // Conditional std dev of r_{t+Δt} | r_t
-    let std_dev = if (kappa * dt).abs() < 1e-8 {
-        sigma * dt.sqrt()
-    } else {
-        sigma * ((1.0 - (-2.0 * kappa * dt).exp()) / (2.0 * kappa)).sqrt()
-    };
+    let std_devs: Vec<f64> = (0..num_steps)
+        .map(|step| {
+            params
+                .sigma_variance_for_step(step as f64 * dt, dt)
+                .max(0.0)
+                .sqrt()
+        })
+        .collect();
 
     let mut paths = Vec::with_capacity(num_paths);
     let base_rng = PhiloxRng::new(seed);
@@ -142,7 +143,7 @@ fn simulate_rate_paths(
 
         for (step, &z) in normals.iter().enumerate() {
             // Exact HW1F step
-            r = r * exp_kappa_dt + drift_coeffs[step] + std_dev * z;
+            r = r * exp_kappa_dt + drift_coeffs[step] + std_devs[step] * z;
             rates.push(r);
         }
 
@@ -403,7 +404,7 @@ pub(crate) fn calculate_mc_oas(
     // simulated short rate reprices the curve (a constant θ from a single 5Y
     // zero leaves the model arbitrageable against the input curve).
     let initial_rate = initial_short_rate_from_curve(discount_curve.as_ref(), as_of)?;
-    let hw_params = HullWhiteParams::new(config.hw_kappa, config.hw_sigma)?;
+    let hw_params = HullWhiteCalibrationParams::new(config.hw_kappa, config.hw_sigma)?;
     let horizon = num_steps as f64 / 12.0;
     let hw1f = prepare_hw1f_params(hw_params, discount_curve.as_ref(), as_of, horizon)?;
 
@@ -542,7 +543,7 @@ mod tests {
 
     #[test]
     fn test_rate_path_simulation() {
-        let params = HullWhite1FParams::new(0.05, 0.01, 0.04);
+        let params = HullWhite1FParams::new(0.05, 0.01, 0.04).expect("valid Hull-White parameters");
         let paths = simulate_rate_paths(0.04, &params, 100, 120, 42);
         assert_eq!(paths.len(), 100);
 
@@ -679,7 +680,7 @@ mod tests {
 
         let curve = market.get_discount(&mbs.discount_curve_id).expect("curve");
         let initial_rate = initial_short_rate_from_curve(curve.as_ref(), as_of).expect("r0");
-        let hw = HullWhiteParams::new(config.hw_kappa, config.hw_sigma).expect("hw");
+        let hw = HullWhiteCalibrationParams::new(config.hw_kappa, config.hw_sigma).expect("hw");
         let hw1f = prepare_hw1f_params(hw, curve.as_ref(), as_of, 30.0).expect("theta prepared");
         let paths = simulate_rate_paths(initial_rate, &hw1f, 64, 360, config.seed);
         let steps = mc_step_schedule(&mbs, as_of, 360).expect("steps");

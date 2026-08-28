@@ -7,13 +7,15 @@
 use std::sync::OnceLock;
 
 use finstack_quant_core::config::FinstackConfig;
-use finstack_quant_core::{Error, Result};
+use finstack_quant_core::{ContractDescriptor, Error, Result};
 use serde::Deserialize;
 
 /// Config extension key for overriding Monte Carlo defaults.
 pub const MONTE_CARLO_DEFAULTS_EXTENSION_KEY: &str = "monte_carlo.defaults.v1";
 
 const PRICER_DEFAULTS: &str = include_str!("../../data/defaults/pricer_defaults.v1.json");
+const MONTE_CARLO_DEFAULTS_CONTRACT: ContractDescriptor =
+    ContractDescriptor::new("finstack_quant.models.monte_carlo_defaults");
 
 static EMBEDDED_DEFAULTS: OnceLock<Result<MonteCarloDefaults>> = OnceLock::new();
 
@@ -32,8 +34,6 @@ pub struct MonteCarloDefaults {
 pub struct RustDefaults {
     /// Generic engine defaults.
     pub engine: EngineDefaults,
-    /// Engine-builder defaults.
-    pub engine_builder: EngineBuilderDefaults,
     /// European pricer defaults.
     pub european_pricer: PricerRuntimeDefaults,
     /// Path-dependent pricer defaults.
@@ -58,8 +58,6 @@ pub struct RustDefaults {
 pub struct ConvenienceDefaults {
     /// Default currency code for convenience entry points.
     pub default_currency: String,
-    /// Engine constructor defaults.
-    pub engine: ConvenienceEngineDefaults,
     /// European pricer defaults.
     pub european_pricer: ConveniencePricerDefaults,
     /// Path-dependent pricer defaults.
@@ -88,22 +86,6 @@ pub struct PricerRuntimeDefaults {
 pub struct EngineDefaults {
     /// Whether parallel execution is requested by default.
     pub use_parallel: bool,
-    /// Parallel chunk size.
-    pub chunk_size: usize,
-    /// Whether antithetic variance reduction is enabled by default.
-    pub antithetic: bool,
-}
-
-/// Engine-builder runtime defaults.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct EngineBuilderDefaults {
-    /// Number of Monte Carlo paths.
-    pub num_paths: usize,
-    /// Whether parallel execution is requested by default.
-    pub use_parallel: bool,
-    /// Parallel chunk size.
-    pub chunk_size: usize,
     /// Whether antithetic variance reduction is enabled by default.
     pub antithetic: bool,
 }
@@ -230,18 +212,6 @@ pub struct ConveniencePricerDefaults {
     pub num_steps: usize,
 }
 
-/// Engine constructor defaults.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ConvenienceEngineDefaults {
-    /// Root RNG seed.
-    pub seed: u64,
-    /// Whether parallel execution is requested by default.
-    pub use_parallel: bool,
-    /// Whether antithetic variance reduction is enabled by default.
-    pub antithetic: bool,
-}
-
 /// LSMC pricer defaults.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -287,8 +257,8 @@ pub struct ConvenienceGreekDefaults {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct DefaultsFile {
-    schema: Option<String>,
-    version: Option<u32>,
+    schema: String,
+    version: u32,
     rust: RustDefaults,
     convenience: ConvenienceDefaults,
 }
@@ -368,8 +338,17 @@ fn defaults_from_file(file: DefaultsFile) -> Result<MonteCarloDefaults> {
 }
 
 fn validate_file(file: &DefaultsFile) -> Result<()> {
-    let _schema = &file.schema;
-    let _version = file.version;
+    let schema_version = MONTE_CARLO_DEFAULTS_CONTRACT
+        .parse_schema(&file.schema)
+        .map_err(|error| Error::Validation(error.to_string()))?;
+    let version = MONTE_CARLO_DEFAULTS_CONTRACT
+        .resolve(Some(file.version))
+        .map_err(|error| Error::Validation(error.to_string()))?;
+    if schema_version != version {
+        return Err(Error::Validation(format!(
+            "Monte Carlo defaults schema version {schema_version} does not match version {version}"
+        )));
+    }
     validate_runtime("rust.european_pricer", &file.rust.european_pricer)?;
     validate_runtime(
         "rust.path_dependent_pricer",
@@ -379,20 +358,7 @@ fn validate_file(file: &DefaultsFile) -> Result<()> {
             use_parallel: file.rust.path_dependent_pricer.use_parallel,
         },
     )?;
-    validate_runtime(
-        "rust.engine_builder",
-        &PricerRuntimeDefaults {
-            num_paths: file.rust.engine_builder.num_paths,
-            seed: 0,
-            use_parallel: file.rust.engine_builder.use_parallel,
-        },
-    )?;
     validate_engine("rust.engine", &file.rust.engine)?;
-    validate_positive_usize("rust.engine.chunk_size", file.rust.engine.chunk_size)?;
-    validate_positive_usize(
-        "rust.engine_builder.chunk_size",
-        file.rust.engine_builder.chunk_size,
-    )?;
     validate_positive_usize(
         "rust.path_dependent_pricer.chunk_size",
         file.rust.path_dependent_pricer.chunk_size,
@@ -413,7 +379,6 @@ fn validate_file(file: &DefaultsFile) -> Result<()> {
         "convenience.default_currency",
         &file.convenience.default_currency,
     )?;
-    validate_python_engine(&file.convenience.engine);
     validate_convenience_pricer(
         "convenience.path_dependent_pricer",
         &file.convenience.path_dependent_pricer,
@@ -435,10 +400,10 @@ fn validate_runtime(label: &str, defaults: &PricerRuntimeDefaults) -> Result<()>
     Ok(())
 }
 
-fn validate_engine(label: &str, defaults: &EngineDefaults) -> Result<()> {
+fn validate_engine(_label: &str, defaults: &EngineDefaults) -> Result<()> {
     let _parallel = defaults.use_parallel;
     let _antithetic = defaults.antithetic;
-    validate_positive_usize(&format!("{label}.chunk_size"), defaults.chunk_size)
+    Ok(())
 }
 
 fn validate_convenience_pricer(label: &str, defaults: &ConveniencePricerDefaults) -> Result<()> {
@@ -447,12 +412,6 @@ fn validate_convenience_pricer(label: &str, defaults: &ConveniencePricerDefaults
     let _seed = defaults.seed;
     let _parallel = defaults.use_parallel;
     Ok(())
-}
-
-fn validate_python_engine(defaults: &ConvenienceEngineDefaults) {
-    let _seed = defaults.seed;
-    let _parallel = defaults.use_parallel;
-    let _antithetic = defaults.antithetic;
 }
 
 fn validate_python_lsmc(label: &str, defaults: &ConvenienceLsmcDefaults) -> Result<()> {
@@ -549,4 +508,24 @@ fn validate_nonblank(label: &str, value: &str) -> Result<()> {
         return Err(Error::Validation(format!("{label} must not be blank")));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_contract_marker_is_required_and_versioned() {
+        let mut value: serde_json::Value =
+            serde_json::from_str(PRICER_DEFAULTS).expect("embedded defaults JSON");
+        value["schema"] = serde_json::json!("finstack_quant.models.monte_carlo_defaults/2");
+        let file: DefaultsFile =
+            serde_json::from_value(value).expect("structurally valid defaults");
+        assert!(defaults_from_file(file).is_err());
+
+        let mut missing: serde_json::Value =
+            serde_json::from_str(PRICER_DEFAULTS).expect("embedded defaults JSON");
+        missing.as_object_mut().expect("object").remove("schema");
+        assert!(serde_json::from_value::<DefaultsFile>(missing).is_err());
+    }
 }

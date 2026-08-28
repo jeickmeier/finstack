@@ -576,7 +576,9 @@ fn lsmc_european_uses_pathwise_money_market_numeraire() {
     // Flat 4% discount curve; meaningful HW vol so the payoff/numéraire
     // correlation (the convexity the deterministic DF ignores) is visible.
     let discount_fn = |t: f64| (-0.04 * t).exp();
-    let hw = HullWhite1FProcess::new(HullWhite1FParams::new(0.1, 0.03, 0.04));
+    let hw = HullWhite1FProcess::new(
+        HullWhite1FParams::new(0.1, 0.03, 0.04).expect("valid Hull-White parameters"),
+    );
     let r0 = 0.04;
     let strike = 0.03; // ITM payer
     let notional = 1_000_000.0;
@@ -660,7 +662,9 @@ fn lsmc_european_uses_pathwise_money_market_numeraire() {
 #[test]
 fn lsmc_bermudan_matches_pathwise_numeraire_reference() {
     let discount_fn = |t: f64| (-0.04 * t).exp();
-    let hw = HullWhite1FProcess::new(HullWhite1FParams::new(0.1, 0.03, 0.04));
+    let hw = HullWhite1FProcess::new(
+        HullWhite1FParams::new(0.1, 0.03, 0.04).expect("valid Hull-White parameters"),
+    );
     let r0 = 0.04;
     let strike = 0.03;
     let notional = 1_000_000.0;

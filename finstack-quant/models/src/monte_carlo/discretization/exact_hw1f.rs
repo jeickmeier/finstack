@@ -114,11 +114,11 @@ impl Discretization<HullWhite1FProcess> for ExactHullWhite1F {
         // Reuse the precomputed `dt`-dependent constants when this step's `dt`
         // matches the prepared one (exact bit match → identical value); fall
         // back to inline computation for unprepared or non-uniform grids.
-        let consts = match self.prepared {
-            Some(c) if params.sigma_curve.is_none() && c.dt.to_bits() == dt.to_bits() => c,
-            _ if params.sigma_curve.is_none() => {
-                Hw1fStepConstants::compute(params.kappa, params.sigma, dt)
-            }
+        let constant_sigma =
+            (params.volatility.times().len() == 1).then(|| params.volatility.values()[0]);
+        let consts = match (self.prepared, constant_sigma) {
+            (Some(c), Some(_)) if c.dt.to_bits() == dt.to_bits() => c,
+            (_, Some(sigma)) => Hw1fStepConstants::compute(params.kappa, sigma, dt),
             _ => Hw1fStepConstants {
                 dt,
                 exp_kappa_dt: (-params.kappa * dt).exp(),
@@ -136,10 +136,10 @@ impl Discretization<HullWhite1FProcess> for ExactHullWhite1F {
             return;
         }
         let params = process.params();
-        self.prepared = if params.sigma_curve.is_none() {
+        self.prepared = if params.volatility.times().len() == 1 {
             Some(Hw1fStepConstants::compute(
                 params.kappa,
-                params.sigma,
+                params.volatility.values()[0],
                 time_grid.dt(0),
             ))
         } else {
@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn test_exact_hw1f_mean_reversion() {
-        let params = HullWhite1FParams::new(0.1, 0.01, 0.03);
+        let params = HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid Hull-White parameters");
         let process = HullWhite1FProcess::new(params);
         let disc = ExactHullWhite1F::new();
 
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn test_exact_hw1f_positive_shock() {
-        let params = HullWhite1FParams::new(0.1, 0.01, 0.03);
+        let params = HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid Hull-White parameters");
         let process = HullWhite1FProcess::new(params);
         let disc = ExactHullWhite1F::new();
 
@@ -211,7 +211,8 @@ mod tests {
         let theta_times = vec![0.0, 0.5];
 
         let params =
-            HullWhite1FParams::with_time_dependent_theta(0.1, 0.01, theta_curve, theta_times);
+            HullWhite1FParams::with_time_dependent_theta(0.1, 0.01, theta_curve, theta_times)
+                .expect("valid Hull-White theta schedule");
         let process = HullWhite1FProcess::new(params);
         let disc = ExactHullWhite1F::new();
 
@@ -248,7 +249,8 @@ mod tests {
             0.01,
             vec![0.02, 0.04],
             vec![0.0, 0.5],
-        );
+        )
+        .expect("valid Hull-White theta schedule");
         let process = HullWhite1FProcess::new(params);
         let disc = ExactHullWhite1F::new();
 
@@ -280,7 +282,7 @@ mod tests {
             vec![0.03],
             vec![0.0],
         )
-        .expect("valid schedule");
+        .expect("valid Hull-White schedules");
         let process = HullWhite1FProcess::new(params);
         let disc = ExactHullWhite1F::new();
         let mut x = vec![0.03];

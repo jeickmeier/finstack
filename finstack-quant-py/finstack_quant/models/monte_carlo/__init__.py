@@ -30,9 +30,7 @@ MoneyEstimate = _mc.MoneyEstimate
 Estimate = _mc.Estimate
 GbmPathSummary = _mc.GbmPathSummary
 
-TimeGrid = _mc.TimeGrid
 
-McEngine = _mc.McEngine
 simulate_gbm_paths = _mc.simulate_gbm_paths
 heston_satisfies_feller = _mc.heston_satisfies_feller
 
@@ -64,10 +62,8 @@ __all__: list[str] = [
     "EuropeanPricer",
     "GbmPathSummary",
     "LsmcPricer",
-    "McEngine",
     "MoneyEstimate",
     "PathDependentPricer",
-    "TimeGrid",
     "black_scholes_call",
     "black_scholes_put",
     "finite_diff_delta",

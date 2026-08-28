@@ -173,7 +173,8 @@ fn flat_theta_misreprices_sloped_curve() {
     let curve_dfs: Vec<f64> = maturities.iter().map(|&m| sloped_discount_fn(m)).collect();
 
     // Flat-θ construction — IDENTICAL to the pre-fix `theta: r0` in the pricers.
-    let flat_params = HullWhite1FParams::new(kappa, sigma, r0);
+    let flat_params =
+        HullWhite1FParams::new(kappa, sigma, r0).expect("valid Hull-White parameters");
     let flat = simulate_zcb_prices(&flat_params, r0, &maturities, 48, 40_000, 4242);
 
     let mut max_bias_bp = 0.0_f64;
@@ -241,13 +242,14 @@ fn calibrated_theta_reprices_sloped_curve() {
 
     // --- Production M6 entry points (hw1f::hw1f_curve) -------------
     let curve = sloped_discount_curve(as_of);
-    let hw = finstack_quant_models::rates::hull_white::HullWhiteParams::new(kappa, sigma)
-        .expect("valid HW params");
+    let hw =
+        finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams::new(kappa, sigma)
+            .expect("valid HW params");
     let calibrated = prepare_hw1f_params(hw, &curve, as_of, 5.0).expect("θ(t) preparation");
     let r0 = initial_short_rate_from_curve(&curve, as_of).expect("r0 = f(0,0)");
     println!(
         "θ(t) knots = {}, r0 = f(0,0) = {r0:.6}",
-        calibrated.theta_times.len()
+        calibrated.theta_times().len()
     );
 
     let mc = simulate_zcb_prices(&calibrated, r0, &maturities, 96, 60_000, 4242);
@@ -295,7 +297,8 @@ fn theta_repricing_error_converges_with_grid() {
     let curve_df = sloped_discount_fn(5.0);
 
     let theta_times: Vec<f64> = (0..=250).map(|i| i as f64 * 0.02).collect();
-    let calibrated = calibrate_theta_from_curve(kappa, sigma, sloped_discount_fn, &theta_times);
+    let calibrated = calibrate_theta_from_curve(kappa, sigma, sloped_discount_fn, &theta_times)
+        .expect("valid theta calibration");
 
     let coarse = simulate_zcb_prices(&calibrated, r0, &maturity, 12, 60_000, 99)[0].0;
     let fine = simulate_zcb_prices(&calibrated, r0, &maturity, 192, 60_000, 99)[0].0;

@@ -442,7 +442,14 @@ impl CommodityOption {
         market: &MarketContext,
         as_of: Date,
     ) -> Result<Money> {
-        use finstack_quant_models::monte_carlo::prelude::*;
+        use finstack_quant_models::monte_carlo::discretization::ExactSchwartzSmith;
+        use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig};
+        use finstack_quant_models::monte_carlo::payoff::vanilla::{EuropeanCall, EuropeanPut};
+        use finstack_quant_models::monte_carlo::process::schwartz_smith::{
+            SchwartzSmithParams, SchwartzSmithProcess,
+        };
+        use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
+        use finstack_quant_models::monte_carlo::TimeGrid;
 
         if as_of > self.expiry {
             return Ok(Money::new(0.0, self.underlying.currency));

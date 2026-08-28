@@ -161,22 +161,22 @@ pub(crate) fn clo_prepay_spec() -> StochasticPrepaySpec {
     )
 }
 
-pub(crate) fn rmbs_correlation_structure() -> CorrelationStructure {
+pub(crate) fn rmbs_correlation_structure() -> Result<CorrelationStructure> {
     let calibration = rmbs_standard();
     CorrelationStructure::flat(calibration.default_correlation, -0.30)
 }
 
-pub(crate) fn clo_correlation_structure() -> CorrelationStructure {
+pub(crate) fn clo_correlation_structure() -> Result<CorrelationStructure> {
     let calibration = clo_standard();
     CorrelationStructure::sectored(calibration.default_correlation + 0.10, 0.10, -0.20)
 }
 
-pub(crate) fn cmbs_correlation_structure() -> CorrelationStructure {
+pub(crate) fn cmbs_correlation_structure() -> Result<CorrelationStructure> {
     let calibration = cmbs_standard();
     CorrelationStructure::flat(calibration.default_correlation + 0.05, -0.15)
 }
 
-pub(crate) fn abs_auto_correlation_structure() -> CorrelationStructure {
+pub(crate) fn abs_auto_correlation_structure() -> Result<CorrelationStructure> {
     CorrelationStructure::flat(0.08, -0.10)
 }
 

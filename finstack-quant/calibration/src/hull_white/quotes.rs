@@ -156,7 +156,7 @@ pub struct CapFloorCalibrationConfig {
     /// single cap/floor quote because one quote cannot identify both κ and σ.
     pub fixed_kappa: Option<f64>,
     /// Optional initial guess when solving both κ and σ.
-    pub initial_guess: Option<HullWhiteParams>,
+    pub initial_guess: Option<HullWhiteCalibrationParams>,
 }
 
 impl SwaptionQuote {

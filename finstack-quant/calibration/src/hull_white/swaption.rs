@@ -20,7 +20,7 @@ use finstack_quant_models::rates::hull_white::{hw_b, hw_bond_vol, hw_ln_a};
 ///
 /// # Returns
 ///
-/// Calibrated [`HullWhiteParams`] and a [`CalibrationReport`] with residual diagnostics.
+/// Calibrated [`HullWhiteCalibrationParams`] and a [`CalibrationReport`] with residual diagnostics.
 ///
 /// # Algorithm
 ///
@@ -70,8 +70,8 @@ pub fn calibrate_hull_white_to_swaptions(
     df: &dyn Fn(f64) -> f64,
     quotes: &[SwaptionQuote],
     frequency: SwapFrequency,
-    initial_guess: Option<HullWhiteParams>,
-) -> finstack_quant_core::Result<(HullWhiteParams, CalibrationReport)> {
+    initial_guess: Option<HullWhiteCalibrationParams>,
+) -> finstack_quant_core::Result<(HullWhiteCalibrationParams, CalibrationReport)> {
     calibrate_hull_white_to_swaptions_core(df, quotes, frequency, None, initial_guess, None)
 }
 
@@ -80,9 +80,9 @@ fn calibrate_hull_white_to_swaptions_core(
     quotes: &[SwaptionQuote],
     frequency: SwapFrequency,
     schedules: Option<&[SwaptionSchedule]>,
-    initial_guess: Option<HullWhiteParams>,
+    initial_guess: Option<HullWhiteCalibrationParams>,
     schedule_source: Option<&'static str>,
-) -> finstack_quant_core::Result<(HullWhiteParams, CalibrationReport)> {
+) -> finstack_quant_core::Result<(HullWhiteCalibrationParams, CalibrationReport)> {
     if quotes.len() < 2 {
         return Err(finstack_quant_core::Error::Validation(format!(
             "Need at least 2 swaption quotes for HW1F calibration (2 free parameters), got {}",
@@ -215,9 +215,8 @@ fn calibrate_hull_white_to_swaptions_core(
 
     validate_model_price_sanity(df, quotes, &target.prepared, ppy, &params)?;
 
-    // Final validation of (κ, σ) > 0 — `HullWhiteParams::new` is the
-    // canonical gate.
-    let params = HullWhiteParams::new(params.kappa, params.sigma)?;
+    // Final validation of (κ, σ) > 0 through the calibration parameter gate.
+    let params = HullWhiteCalibrationParams::new(params.kappa, params.sigma)?;
     Ok((params, report))
 }
 
@@ -234,7 +233,7 @@ fn validate_model_price_sanity(
     quotes: &[SwaptionQuote],
     prepared: &[PreparedSwaption],
     ppy: usize,
-    params: &HullWhiteParams,
+    params: &HullWhiteCalibrationParams,
 ) -> finstack_quant_core::Result<()> {
     for (q, pre) in quotes.iter().zip(prepared) {
         let model_price = hw1f_swaption_price_inner(Hw1fSwaptionPriceInput {
@@ -291,8 +290,8 @@ pub fn calibrate_hull_white_to_swaptions_with_schedules(
     df: &dyn Fn(f64) -> f64,
     quotes: &[SwaptionQuote],
     schedules: &[SwaptionSchedule],
-    initial_guess: Option<HullWhiteParams>,
-) -> finstack_quant_core::Result<(HullWhiteParams, CalibrationReport)> {
+    initial_guess: Option<HullWhiteCalibrationParams>,
+) -> finstack_quant_core::Result<(HullWhiteCalibrationParams, CalibrationReport)> {
     calibrate_hull_white_to_swaptions_core(
         df,
         quotes,

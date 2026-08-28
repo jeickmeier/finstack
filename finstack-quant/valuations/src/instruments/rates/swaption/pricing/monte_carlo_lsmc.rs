@@ -19,7 +19,7 @@
 //! use finstack_quant_models::monte_carlo::pricer::basis::PolynomialBasis;
 //! use finstack_quant_models::monte_carlo::process::ou::{HullWhite1FProcess, HullWhite1FParams};
 //!
-//! let hw_params = HullWhite1FParams::new(0.03, 0.01, 0.03);
+//! let hw_params = HullWhite1FParams::new(0.03, 0.01, 0.03).expect("valid parameters");
 //! let hw_process = HullWhite1FProcess::new(hw_params);
 //! let config = SwaptionLsmcConfig::default();
 //!

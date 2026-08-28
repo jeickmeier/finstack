@@ -1164,8 +1164,7 @@ class scoring:
         ebit_to_total_assets: float,
         market_equity_to_total_liabilities: float,
         sales_to_total_assets: float,
-        with_implied_pd: bool = False,
-    ) -> tuple[float, str, float | None]:
+    ) -> tuple[float, str]:
         """
         Original Altman Z-Score (1968) for publicly traded manufacturers.
 
@@ -1181,15 +1180,12 @@ class scoring:
             Market equity / total liabilities (X4).
         sales_to_total_assets : float
             Sales / total assets (X5).
-        with_implied_pd : bool, default False
-            When True, populate ``implied_pd`` from the score-to-PD heuristic.
 
         Returns
         -------
-        tuple[float, str, float | None]
-            ``(score, zone, implied_pd)`` where ``zone`` is one of
-            ``"safe"``, ``"grey"``, or ``"distress"``. ``implied_pd`` is
-            ``None`` unless ``with_implied_pd`` is True.
+        tuple[float, str]
+            ``(score, zone)`` where ``zone`` is ``"safe"``, ``"grey"``, or
+            ``"distress"``. Calibrate score-to-PD mappings separately.
 
         Raises
         ------
@@ -1203,7 +1199,7 @@ class scoring:
         Examples
         --------
         >>> from finstack_quant.models.credit import scoring
-        >>> score, zone, pd = scoring.altman_z_score(0.2, 0.3, 0.15, 1.5, 1.0)
+        >>> score, zone = scoring.altman_z_score(0.2, 0.3, 0.15, 1.5, 1.0)
         >>> zone
         'safe'
         """
@@ -1216,8 +1212,7 @@ class scoring:
         ebit_to_total_assets: float,
         book_equity_to_total_liabilities: float,
         sales_to_total_assets: float,
-        with_implied_pd: bool = False,
-    ) -> tuple[float, str, float | None]:
+    ) -> tuple[float, str]:
         """
         Altman Z'-Score (1983) for private firms.
 
@@ -1234,15 +1229,12 @@ class scoring:
             original public-company market-equity ratio (X4).
         sales_to_total_assets : float
             Sales divided by total assets, the private-firm turnover ratio (X5).
-        with_implied_pd : bool, default False
-            When True, populate ``implied_pd`` from the score-to-PD heuristic.
 
         Returns
         -------
-        tuple[float, str, float | None]
-            ``(score, zone, implied_pd)`` where ``zone`` is ``"safe"``,
-            ``"grey"``, or ``"distress"``. PD is absent unless an explicit
-            versioned heuristic is supplied.
+        tuple[float, str]
+            ``(score, zone)`` where ``zone`` is ``"safe"``, ``"grey"``, or
+            ``"distress"``.
 
         Raises
         ------
@@ -1256,7 +1248,7 @@ class scoring:
         Examples
         --------
         >>> from finstack_quant.models.credit import scoring
-        >>> score, zone, pd = scoring.altman_z_prime(0.2, 0.3, 0.15, 1.5, 1.0)
+        >>> score, zone = scoring.altman_z_prime(0.2, 0.3, 0.15, 1.5, 1.0)
         >>> zone in ("safe", "grey", "distress")
         True
 
@@ -1269,8 +1261,7 @@ class scoring:
         retained_earnings_to_total_assets: float,
         ebit_to_total_assets: float,
         book_equity_to_total_liabilities: float,
-        with_implied_pd: bool = False,
-    ) -> tuple[float, str, float | None]:
+    ) -> tuple[float, str]:
         """
         Altman Z''-Score for non-manufacturing firms (non-EM model, no constant).
 
@@ -1284,24 +1275,18 @@ class scoring:
             Earnings before interest and tax divided by total assets (X3).
         book_equity_to_total_liabilities : float
             Book value of equity divided by total liabilities (X4).
-        with_implied_pd : bool, default False
-            When True, populate ``implied_pd`` from the score-to-PD heuristic.
-
-        Returns ``(score, zone, implied_pd)``; PD is ``None`` unless an
-        explicit versioned heuristic is supplied.
 
         Examples
         --------
         >>> from finstack_quant.models.credit import scoring
-        >>> score, zone, pd = scoring.altman_z_double_prime(0.2, 0.3, 0.15, 1.5)
+        >>> score, zone = scoring.altman_z_double_prime(0.2, 0.3, 0.15, 1.5)
         >>> zone in ("safe", "grey", "distress")
         True
 
         Returns
         -------
-        tuple[float, str, float | None]
-            Unitless ``(Z'' score, lowercase zone, implied_pd)``; PD is
-            ``None`` without calibration and otherwise a decimal probability.
+        tuple[float, str]
+            Unitless ``(Z'' score, lowercase zone)``.
 
         Raises
         ------

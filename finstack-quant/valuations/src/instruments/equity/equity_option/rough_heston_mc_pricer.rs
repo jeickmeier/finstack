@@ -204,12 +204,10 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonMcPricer {
         )
         .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
 
-        let engine = finstack_quant_models::monte_carlo::engine::McEngine::builder()
-            .num_paths(num_paths)
-            .time_grid(time_grid)
-            .parallel(false)
-            .build()
-            .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
+        let engine = finstack_quant_models::monte_carlo::engine::McEngine::new(
+            finstack_quant_models::monte_carlo::engine::McEngineConfig::new(num_paths, time_grid)
+                .parallel(false),
+        );
 
         let ccy = equity_option.notional.currency();
         let discount_factor = (-r * t).exp();

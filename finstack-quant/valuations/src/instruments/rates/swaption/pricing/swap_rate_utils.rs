@@ -97,7 +97,7 @@ fn ln_a_factor(
     discount_curve_fn: &impl Fn(f64) -> f64,
 ) -> f64 {
     let kappa = params.kappa;
-    let sigma = params.sigma;
+    let sigma = params.sigma_at_time(t);
     let B = HullWhiteBondPrice::b_factor(kappa, t, maturity_time);
 
     let p0_t = discount_curve_fn(t);
@@ -288,7 +288,7 @@ mod tests {
         discount_curve_fn: impl Fn(f64) -> f64,
     ) -> f64 {
         let kappa = params.kappa;
-        let sigma = params.sigma;
+        let sigma = params.sigma_at_time(t);
         let B = HullWhiteBondPrice::b_factor(kappa, t, maturity_time);
         let tau = maturity_time - t;
         let theta_mid = params.theta_at_time((t + maturity_time) / 2.0);
@@ -335,9 +335,9 @@ mod tests {
     #[test]
     #[allow(non_snake_case)]
     fn test_bond_price_exact_a_reproduces_curve_non_flat() {
-        let params = HullWhite1FParams::new(0.2, 0.015, 0.03);
+        let params = HullWhite1FParams::new(0.2, 0.015, 0.03).expect("valid Hull-White parameters");
         let kappa = params.kappa;
-        let sigma = params.sigma;
+        let sigma = params.sigma_at_time(0.0);
 
         // Non-flat (humped) discount curve: instantaneous forward varies in t,
         // so f(t,T) (flat) ≠ f(0,t) — the case the old formula got wrong.
@@ -386,7 +386,7 @@ mod tests {
     /// (`P(0,T) = P_mkt(0,T)` when `r(0) = f(0,0)`); this anchors the fix.
     #[test]
     fn test_bond_price_reprices_curve_at_t0() {
-        let params = HullWhite1FParams::new(0.15, 0.01, 0.03);
+        let params = HullWhite1FParams::new(0.15, 0.01, 0.03).expect("valid Hull-White parameters");
         let discount_fn = |t: f64| (-(0.025 * t + 0.005 * t * t)).exp();
         // f(0,0) = 0.025.
         let r0 = 0.025;
@@ -402,7 +402,7 @@ mod tests {
 
     #[test]
     fn test_forward_swap_rate_simple() {
-        let params = HullWhite1FParams::new(0.1, 0.01, 0.03);
+        let params = HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid Hull-White parameters");
         let r_t = 0.03;
         let t = 0.0;
 
@@ -434,7 +434,7 @@ mod tests {
     /// the full `0.5`, under-stating the rate.
     #[test]
     fn test_started_swap_uses_stub_not_full_accrual() {
-        let params = HullWhite1FParams::new(0.1, 0.01, 0.03);
+        let params = HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid Hull-White parameters");
         let r_t = 0.03;
         let discount_fn = |t: f64| (-0.03 * t).exp();
 
@@ -479,7 +479,7 @@ mod tests {
     /// standard forward-starting path must agree.
     #[test]
     fn test_coupon_aligned_exercise_matches_standard_formula() {
-        let params = HullWhite1FParams::new(0.1, 0.01, 0.03);
+        let params = HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid Hull-White parameters");
         let r_t = 0.03;
         let discount_fn = |t: f64| (-0.03 * t).exp();
 

@@ -22,7 +22,7 @@ use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::results::MoneyEstimate;
 use finstack_quant_models::monte_carlo::seed;
 use finstack_quant_models::monte_carlo::traits::{PathState, Payoff, StateKey};
-use finstack_quant_models::rates::hull_white::HullWhiteParams;
+use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 
 /// Path-local snowball coupon accumulator.
 #[derive(Debug, Clone)]
@@ -239,8 +239,11 @@ impl SnowballDiscountingPricer {
         // term-forward coefficients (and the `r0` seasoned-fixing argument) are
         // unused here; default HW params and `r0 = 0.0` suffice. Only the
         // `accrual_fraction` / `discount_factor` fields are consumed below.
-        let term_forward =
-            Hw1fTermForward::new(HullWhiteParams::default(), discount_curve.as_ref(), as_of)?;
+        let term_forward = Hw1fTermForward::new(
+            HullWhiteCalibrationParams::default(),
+            discount_curve.as_ref(),
+            as_of,
+        )?;
         let events = coupon_events(inst, market, as_of, &term_forward, 0.0)?;
         if events.is_empty() {
             return Ok(Money::new(0.0, inst.notional.currency()));
@@ -338,7 +341,7 @@ impl Pricer for SnowballDiscountingPricer {
 /// Hull-White 1F Monte Carlo pricer for path-dependent snowballs.
 #[derive(Debug, Clone)]
 pub struct SnowballHw1fMcPricer {
-    hw_params: Option<HullWhiteParams>,
+    hw_params: Option<HullWhiteCalibrationParams>,
     config: RateExoticMcConfig,
 }
 
@@ -352,7 +355,7 @@ impl SnowballHw1fMcPricer {
     }
 
     /// Create a snowball MC pricer with explicit HW1F parameters.
-    pub fn with_hw_params(hw_params: HullWhiteParams) -> Self {
+    pub fn with_hw_params(hw_params: HullWhiteCalibrationParams) -> Self {
         Self {
             hw_params: Some(hw_params),
             config: RateExoticMcConfig::default(),
@@ -370,7 +373,7 @@ impl SnowballHw1fMcPricer {
         inst: &Snowball,
         market: &MarketContext,
         _as_of: Date,
-    ) -> Result<HullWhiteParams> {
+    ) -> Result<HullWhiteCalibrationParams> {
         let overrides = hw1f_overrides_json(inst).or_else(|| {
             self.hw_params.map(|params| {
                 serde_json::json!({"hw1f_kappa": params.kappa, "hw1f_sigma": params.sigma})
@@ -931,13 +934,15 @@ mod tests {
     }
 
     fn deterministic_mc_pricer(paths: usize) -> SnowballHw1fMcPricer {
-        SnowballHw1fMcPricer::with_hw_params(HullWhiteParams::new(0.05, 1e-12).expect("hw params"))
-            .with_config(RateExoticMcConfig {
-                num_paths: paths,
-                antithetic: false,
-                min_steps_between_events: 1,
-                ..Default::default()
-            })
+        SnowballHw1fMcPricer::with_hw_params(
+            HullWhiteCalibrationParams::new(0.05, 1e-12).expect("hw params"),
+        )
+        .with_config(RateExoticMcConfig {
+            num_paths: paths,
+            antithetic: false,
+            min_steps_between_events: 1,
+            ..Default::default()
+        })
     }
 
     #[test]
@@ -1167,28 +1172,30 @@ mod tests {
         let market = market(as_of, 0.02, 0.03);
         let inst = test_snowball();
 
-        let low =
-            SnowballHw1fMcPricer::with_hw_params(HullWhiteParams::new(0.05, 0.015).expect("hw"))
-                .with_config(RateExoticMcConfig {
-                    num_paths: 200,
-                    antithetic: true,
-                    min_steps_between_events: 1,
-                    seed: 7,
-                    ..Default::default()
-                })
-                .price_estimate(&inst, &market, as_of)
-                .expect("low path price");
-        let high =
-            SnowballHw1fMcPricer::with_hw_params(HullWhiteParams::new(0.05, 0.015).expect("hw"))
-                .with_config(RateExoticMcConfig {
-                    num_paths: 2_000,
-                    antithetic: true,
-                    min_steps_between_events: 1,
-                    seed: 7,
-                    ..Default::default()
-                })
-                .price_estimate(&inst, &market, as_of)
-                .expect("high path price");
+        let low = SnowballHw1fMcPricer::with_hw_params(
+            HullWhiteCalibrationParams::new(0.05, 0.015).expect("hw"),
+        )
+        .with_config(RateExoticMcConfig {
+            num_paths: 200,
+            antithetic: true,
+            min_steps_between_events: 1,
+            seed: 7,
+            ..Default::default()
+        })
+        .price_estimate(&inst, &market, as_of)
+        .expect("low path price");
+        let high = SnowballHw1fMcPricer::with_hw_params(
+            HullWhiteCalibrationParams::new(0.05, 0.015).expect("hw"),
+        )
+        .with_config(RateExoticMcConfig {
+            num_paths: 2_000,
+            antithetic: true,
+            min_steps_between_events: 1,
+            seed: 7,
+            ..Default::default()
+        })
+        .price_estimate(&inst, &market, as_of)
+        .expect("high path price");
 
         assert!(
             high.stderr < low.stderr,

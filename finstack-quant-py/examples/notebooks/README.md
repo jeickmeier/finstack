@@ -211,7 +211,7 @@ markets, portfolios, reporting, or the capstone workflow.
 
 | Path | Topics |
 |------|--------|
-| `monte_carlo_simulation.ipynb` | `TimeGrid`, `McEngine`, `EuropeanPricer`, Black-Scholes benchmarks |
+| `monte_carlo_simulation.ipynb` | Canonical Monte Carlo pricers and Black-Scholes benchmarks |
 | `correlation_and_credit_models.ipynb` | Copulas, recovery models, factor models, correlated Bernoulli |
 | `margin_collateral_and_xva.ipynb` | CSA specs, VM/IM, XVA, collateral analytics |
 | `regulatory_capital.ipynb` | FRTB SA, SA-CCR, initial-margin methodologies |

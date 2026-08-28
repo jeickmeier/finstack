@@ -41,7 +41,7 @@ use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::money::Money;
 use finstack_quant_models::rates::hull_white::{
     capfloor_hw1f_scalar_keys, capfloor_hw1f_sigma_schedule_key,
-    hw1f_term_caplet_price_from_dfs_with_model, HullWhiteModelParams, HullWhiteParams,
+    hw1f_term_caplet_price_from_dfs_with_model, HullWhiteCalibrationParams, HullWhiteParams,
 };
 
 /// Hull-White 1-factor closed-form pricer for caps and floors.
@@ -106,7 +106,7 @@ fn hw1f_ou_covariance(kappa: f64, sigma: f64, left_time: f64, right_time: f64) -
 }
 
 fn hw1f_ou_covariance_with_model(
-    params: &HullWhiteModelParams,
+    params: &HullWhiteParams,
     left_time: f64,
     right_time: f64,
 ) -> finstack_quant_core::Result<f64> {
@@ -202,7 +202,7 @@ pub(crate) fn hw1f_compounded_rfr_moment_match(
 /// covariance with the exact piecewise volatility integral.
 pub(crate) fn hw1f_compounded_rfr_moment_match_with_model(
     as_of: Date,
-    params: &HullWhiteModelParams,
+    params: &HullWhiteParams,
     projection: &OptionedCouponProjection,
 ) -> finstack_quant_core::Result<CompoundedRfrMomentMatch> {
     let context = DayCountContext::default();
@@ -543,7 +543,7 @@ pub(crate) fn resolve_capfloor_hw1f_params(
     cap_floor: &CapFloor,
     market: &MarketContext,
     _as_of: finstack_quant_core::dates::Date,
-) -> finstack_quant_core::Result<HullWhiteParams> {
+) -> finstack_quant_core::Result<HullWhiteCalibrationParams> {
     let context_label = format!("CapFloor {}", cap_floor.id);
     let overrides = hw1f_overrides_json(cap_floor);
     let req = Hw1fResolveRequest {
@@ -563,7 +563,7 @@ pub(crate) fn resolve_capfloor_hw1f_model_params(
     cap_floor: &CapFloor,
     market: &MarketContext,
     as_of: finstack_quant_core::dates::Date,
-) -> finstack_quant_core::Result<HullWhiteModelParams> {
+) -> finstack_quant_core::Result<HullWhiteParams> {
     if let Some(schedule) = &cap_floor
         .instrument_pricing_overrides
         .model_config
@@ -591,7 +591,7 @@ pub(crate) fn resolve_capfloor_hw1f_model_params(
                     cap_floor.id
                 ))
             })?;
-        return HullWhiteModelParams::new(kappa, schedule.clone());
+        return HullWhiteParams::new(kappa, schedule.clone());
     }
     let explicit_scalar_sigma = cap_floor
         .instrument_pricing_overrides
@@ -640,13 +640,13 @@ pub(crate) fn resolve_capfloor_hw1f_model_params(
                 })
                 .collect::<finstack_quant_core::Result<Vec<_>>>()?;
             let values = observations.iter().map(|(_, sigma)| *sigma).collect();
-            return HullWhiteModelParams::new(
+            return HullWhiteParams::new(
                 kappa,
                 finstack_quant_core::math::piecewise::PiecewiseConstantCurve::new(times, values)?,
             );
         }
     }
-    HullWhiteModelParams::try_from(resolve_capfloor_hw1f_params(cap_floor, market, as_of)?)
+    HullWhiteParams::try_from(resolve_capfloor_hw1f_params(cap_floor, market, as_of)?)
 }
 
 #[cfg(test)]
@@ -846,7 +846,8 @@ mod tests {
             // A flat θ = r₀ keeps the centered short-rate state exactly
             // zero-mean, so the independently reconstructed affine factors are
             // normalized to the resolver's deterministic projections.
-            process_params: HullWhite1FParams::new(kappa, sigma, short_rate),
+            process_params: HullWhite1FParams::new(kappa, sigma, short_rate)
+                .expect("valid Hull-White parameters"),
             r0: short_rate,
             event_times,
             config: RateExoticMcConfig {
@@ -1128,7 +1129,7 @@ mod tests {
         let t_end = DayCount::Act365F
             .year_fraction(as_of, period.accrual_end, DayCountContext::default())
             .expect("end time");
-        let model = HullWhiteModelParams::constant(0.05, 0.012).expect("constant model");
+        let model = HullWhiteParams::constant(0.05, 0.012).expect("constant model");
         let expected = caplet.notional.amount()
             * hw1f_term_caplet_price_from_dfs_with_model(
                 &model,
@@ -1300,7 +1301,7 @@ mod tests {
         assert!(zero_kappa.normal_vol.is_finite());
         assert!((zero_kappa.normal_vol - tiny_kappa.normal_vol).abs() < 1.0e-14);
 
-        let model = HullWhiteModelParams::constant(kappa, sigma).expect("constant model");
+        let model = HullWhiteParams::constant(kappa, sigma).expect("constant model");
         let scheduled = hw1f_compounded_rfr_moment_match_with_model(as_of, &model, &projection)
             .expect("scheduled moment match");
         assert!((scheduled.variance - matched.variance).abs() < 1.0e-15);

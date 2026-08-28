@@ -4273,11 +4273,10 @@ export interface CopulaSpecConstructor {
    */
   randomFactorLoading(loadingVol: number): CopulaSpec;
   /**
-   * Multi-factor Gaussian copula with sector structure.
+   * Two-factor Gaussian copula with global and shared-sector factors.
    * @returns A `CopulaSpec` handle for deferred construction.
-   * @param numFactors - Positive number of systematic factors in the Gaussian factor model.
    */
-  multiFactor(numFactors: number): CopulaSpec;
+  multiFactor(): CopulaSpec;
 }
 
 /**

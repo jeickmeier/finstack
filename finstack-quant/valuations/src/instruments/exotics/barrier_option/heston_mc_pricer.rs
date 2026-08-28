@@ -16,7 +16,7 @@ use finstack_quant_core::money::Money;
 
 use finstack_quant_models::closed_form::heston::HestonPricingParams;
 use finstack_quant_models::monte_carlo::discretization::qe_heston::QeHeston;
-use finstack_quant_models::monte_carlo::engine::McEngine;
+use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig};
 use finstack_quant_models::monte_carlo::payoff::barrier::{
     BarrierMonitoring, BarrierOptionPayoff, OptionKind,
 };
@@ -168,10 +168,7 @@ impl BarrierOptionHestonMcPricer {
             seed::derive_seed(&inst.id, "base")
         };
 
-        let engine = McEngine::builder()
-            .num_paths(num_paths)
-            .time_grid(time_grid)
-            .build()?;
+        let engine = McEngine::new(McEngineConfig::new(num_paths, time_grid));
 
         let rng = PhiloxRng::new(seed_val);
 

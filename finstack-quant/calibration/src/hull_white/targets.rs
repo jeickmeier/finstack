@@ -121,7 +121,7 @@ pub(super) struct HullWhiteSwaptionTarget<'a> {
 
 impl<'a> GlobalSolveTarget for HullWhiteSwaptionTarget<'a> {
     type Quote = SwaptionQuote;
-    type Curve = HullWhiteParams;
+    type Curve = HullWhiteCalibrationParams;
 
     fn build_time_grid_and_guesses(
         &self,
@@ -147,7 +147,7 @@ impl<'a> GlobalSolveTarget for HullWhiteSwaptionTarget<'a> {
         // step does not mask a successful calibration.
         let kappa = params[0].exp();
         let sigma = params[1].exp();
-        Ok(HullWhiteParams { kappa, sigma })
+        Ok(HullWhiteCalibrationParams { kappa, sigma })
     }
 
     fn calculate_residuals(
@@ -246,7 +246,7 @@ pub(super) struct HullWhiteCapFloorTarget<'a> {
 
 impl<'a> GlobalSolveTarget for HullWhiteCapFloorTarget<'a> {
     type Quote = CapFloorQuote;
-    type Curve = HullWhiteParams;
+    type Curve = HullWhiteCalibrationParams;
 
     fn build_time_grid_and_guesses(
         &self,
@@ -262,7 +262,7 @@ impl<'a> GlobalSolveTarget for HullWhiteCapFloorTarget<'a> {
     ) -> finstack_quant_core::Result<Self::Curve> {
         let kappa = params[0].exp();
         let sigma = params[1].exp();
-        Ok(HullWhiteParams { kappa, sigma })
+        Ok(HullWhiteCalibrationParams { kappa, sigma })
     }
 
     fn calculate_residuals(

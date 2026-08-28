@@ -32,84 +32,107 @@
 //! yield curve; the Ornstein-Uhlenbeck (Vasicek) model uses constant θ.
 
 use super::super::traits::{PathState, StateKey, StochasticProcess};
+use crate::rates::hull_white::HullWhiteParams;
 use finstack_quant_core::math::piecewise::PiecewiseConstantCurve;
 use finstack_quant_core::Result;
+use std::ops::Deref;
 use tracing::warn;
 
-/// Hull-White 1-factor parameters.
+/// Validated Hull-White one-factor process parameters.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(try_from = "RawHullWhite1FParams")]
 pub struct HullWhite1FParams {
-    /// Mean reversion speed (κ)
-    pub kappa: f64,
-    /// Instantaneous volatility (σ)
-    pub sigma: f64,
-    /// Optional piecewise-constant short-rate volatility schedule.
-    ///
-    /// When absent, [`Self::sigma`] is used everywhere.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sigma_curve: Option<PiecewiseConstantCurve>,
-    /// Time-dependent mean reversion level θ(t)
-    /// Stored as piecewise-constant segments
-    pub theta_curve: Vec<f64>,
-    /// Time breakpoints for θ(t) (must be sorted)
-    pub theta_times: Vec<f64>,
+    /// Canonical mean reversion and volatility schedule.
+    #[serde(flatten)]
+    pub model: HullWhiteParams,
+    /// Piecewise-constant mean-reversion levels.
+    theta_curve: Vec<f64>,
+    /// Left edges for `theta_curve`, starting at zero.
+    theta_times: Vec<f64>,
+}
+
+#[derive(serde::Deserialize)]
+struct RawHullWhite1FParams {
+    #[serde(flatten)]
+    model: HullWhiteParams,
+    theta_curve: Vec<f64>,
+    theta_times: Vec<f64>,
+}
+
+impl TryFrom<RawHullWhite1FParams> for HullWhite1FParams {
+    type Error = finstack_quant_core::Error;
+
+    fn try_from(raw: RawHullWhite1FParams) -> Result<Self> {
+        Self::from_parts(raw.model, raw.theta_curve, raw.theta_times)
+    }
+}
+
+impl Deref for HullWhite1FParams {
+    type Target = HullWhiteParams;
+
+    fn deref(&self) -> &Self::Target {
+        &self.model
+    }
 }
 
 impl HullWhite1FParams {
-    /// Create new Hull-White 1F parameters with constant θ.
+    /// Create constant-volatility, constant-level Hull-White parameters.
     ///
     /// # Arguments
     ///
-    /// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
-    /// * `sigma` - Diffusion volatility of the process in decimal annual units
-    /// * `theta` - Long-run mean level of the mean-reverting stochastic factor
-    pub fn new(kappa: f64, sigma: f64, theta: f64) -> Self {
-        Self {
-            kappa,
-            sigma,
-            sigma_curve: None,
-            theta_curve: vec![theta],
-            theta_times: vec![0.0],
-        }
+    /// * `kappa` - Positive finite mean-reversion speed in inverse years.
+    /// * `sigma` - Positive finite short-rate volatility per square-root year.
+    /// * `theta` - Finite long-run short-rate level as a decimal.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when any parameter violates its finite/range contract.
+    pub fn new(kappa: f64, sigma: f64, theta: f64) -> Result<Self> {
+        Self::from_parts(
+            HullWhiteParams::constant(kappa, sigma)?,
+            vec![theta],
+            vec![0.0],
+        )
     }
 
-    /// Create with time-dependent θ(t).
+    /// Create constant-volatility parameters with time-dependent θ(t).
     ///
     /// # Arguments
     ///
-    /// * `kappa` - Mean reversion speed
-    /// * `sigma` - Volatility
-    /// * `theta_curve` - θ values (piecewise constant)
-    /// * `theta_times` - Time breakpoints (must be sorted)
+    /// * `kappa` - Positive finite mean-reversion speed in inverse years.
+    /// * `sigma` - Positive finite short-rate volatility per square-root year.
+    /// * `theta_curve` - Finite piecewise-constant long-run levels.
+    /// * `theta_times` - Strictly increasing non-negative knot times.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the model or theta schedule is invalid.
     pub fn with_time_dependent_theta(
         kappa: f64,
         sigma: f64,
         theta_curve: Vec<f64>,
         theta_times: Vec<f64>,
-    ) -> Self {
-        assert_eq!(
-            theta_curve.len(),
-            theta_times.len(),
-            "Theta curve and times must have same length"
-        );
-        assert!(
-            !theta_times.is_empty(),
-            "Must have at least one theta value"
-        );
-
-        Self {
-            kappa,
-            sigma,
-            sigma_curve: None,
+    ) -> Result<Self> {
+        Self::from_parts(
+            HullWhiteParams::constant(kappa, sigma)?,
             theta_curve,
             theta_times,
-        }
+        )
     }
 
-    /// Create parameters with a piecewise-constant short-rate volatility.
+    /// Create parameters with piecewise-constant volatility and θ(t).
     ///
-    /// `sigma` retains the first segment for legacy readers; new process
-    /// calculations use the validated `sigma_curve`.
+    /// # Arguments
+    ///
+    /// * `kappa` - Positive finite mean-reversion speed in inverse years.
+    /// * `sigma_times` - Strictly increasing volatility knots starting at zero.
+    /// * `sigma_values` - Positive finite volatility values aligned with the knots.
+    /// * `theta_curve` - Finite piecewise-constant long-run levels.
+    /// * `theta_times` - Strictly increasing non-negative theta knots.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either schedule or mean reversion is invalid.
     pub fn with_piecewise_sigma(
         kappa: f64,
         sigma_times: Vec<f64>,
@@ -117,21 +140,40 @@ impl HullWhite1FParams {
         theta_curve: Vec<f64>,
         theta_times: Vec<f64>,
     ) -> Result<Self> {
-        let sigma_curve = PiecewiseConstantCurve::new(sigma_times, sigma_values)?;
-        if theta_curve.len() != theta_times.len() || theta_times.is_empty() {
+        Self::from_parts(
+            HullWhiteParams::new(
+                kappa,
+                PiecewiseConstantCurve::new(sigma_times, sigma_values)?,
+            )?,
+            theta_curve,
+            theta_times,
+        )
+    }
+
+    fn from_parts(
+        model: HullWhiteParams,
+        theta_curve: Vec<f64>,
+        theta_times: Vec<f64>,
+    ) -> Result<Self> {
+        if theta_curve.is_empty() || theta_curve.len() != theta_times.len() {
             return Err(finstack_quant_core::Error::Validation(
                 "Hull-White theta curve and times must be non-empty and equally sized".into(),
             ));
         }
-        if !kappa.is_finite() || kappa <= 0.0 {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Hull-White kappa must be positive and finite, got {kappa}"
-            )));
+        for (index, (&time, &theta)) in theta_times.iter().zip(&theta_curve).enumerate() {
+            if !time.is_finite() || time < 0.0 || !theta.is_finite() {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "invalid Hull-White theta knot at index {index}: time={time}, theta={theta}"
+                )));
+            }
+            if index > 0 && time <= theta_times[index - 1] {
+                return Err(finstack_quant_core::Error::Validation(
+                    "Hull-White theta times must increase strictly".into(),
+                ));
+            }
         }
         Ok(Self {
-            kappa,
-            sigma: sigma_curve.values()[0],
-            sigma_curve: Some(sigma_curve),
+            model,
             theta_curve,
             theta_times,
         })
@@ -140,9 +182,7 @@ impl HullWhite1FParams {
     /// Instantaneous short-rate volatility at `t`.
     #[must_use]
     pub fn sigma_at_time(&self, t: f64) -> f64 {
-        self.sigma_curve
-            .as_ref()
-            .map_or(self.sigma, |curve| curve.value_at(t))
+        self.model.volatility.value_at(t)
     }
 
     /// Exact OU state variance over `[t, t + dt]`.
@@ -150,19 +190,21 @@ impl HullWhite1FParams {
         if dt <= 0.0 {
             return Ok(0.0);
         }
-        match &self.sigma_curve {
-            Some(curve) => curve.integrate_squared_exp_weight(self.kappa, t + dt, t, t + dt),
-            None => {
-                if self.kappa.abs() < 1.0e-12 {
-                    Ok(self.sigma * self.sigma * dt)
-                } else {
-                    Ok(
-                        self.sigma * self.sigma * (-(-2.0 * self.kappa * dt).exp_m1())
-                            / (2.0 * self.kappa),
-                    )
-                }
-            }
-        }
+        self.model
+            .volatility
+            .integrate_squared_exp_weight(self.kappa, t + dt, t, t + dt)
+    }
+
+    /// Theta schedule values.
+    #[must_use]
+    pub fn theta_values(&self) -> &[f64] {
+        &self.theta_curve
+    }
+
+    /// Theta schedule knot times.
+    #[must_use]
+    pub fn theta_times(&self) -> &[f64] {
+        &self.theta_times
     }
 
     /// Exact OU variance for an already-validated simulation step.
@@ -257,18 +299,22 @@ impl HullWhite1FProcess {
         Self { params }
     }
 
-    /// Create with constant θ (Vasicek model).
+    /// Create a constant-level Vasicek process.
     ///
     /// # Arguments
     ///
-    /// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
-    /// * `theta` - Long-run mean level of the mean-reverting stochastic factor
-    /// * `sigma` - Diffusion volatility of the process in decimal annual units
-    pub fn vasicek(kappa: f64, theta: f64, sigma: f64) -> Self {
-        Self::new(HullWhite1FParams::new(kappa, sigma, theta))
+    /// * `kappa` - Positive finite mean-reversion speed in inverse years.
+    /// * `theta` - Finite long-run short-rate level as a decimal.
+    /// * `sigma` - Positive finite short-rate volatility per square-root year.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a parameter is non-finite or outside its range.
+    pub fn vasicek(kappa: f64, theta: f64, sigma: f64) -> Result<Self> {
+        Ok(Self::new(HullWhite1FParams::new(kappa, sigma, theta)?))
     }
 
-    /// Get parameters.
+    /// Borrow the validated process parameters.
     pub fn params(&self) -> &HullWhite1FParams {
         &self.params
     }
@@ -350,52 +396,41 @@ impl StochasticProcess for HullWhite1FProcess {
 ///
 /// # Arguments
 ///
-/// * `kappa` - Mean reversion speed
-/// * `sigma` - Short rate volatility
-/// * `discount_curve_fn` - Function mapping time (years) to discount factor P(0,t)
-/// * `theta_times` - Time breakpoints for θ(t) discretization
+/// * `kappa` - Positive finite mean-reversion speed in inverse years.
+/// * `sigma` - Positive finite short-rate volatility per square-root year.
+/// * `discount_curve_fn` - Function mapping time in years to `P(0,t)`.
+/// * `theta_times` - Strictly increasing non-negative θ(t) sample times.
 ///
-/// # Panics / limits
+/// # Errors
 ///
-/// For numerical stability `κ` must satisfy `|κ| > 1e-10`. The Vasicek-form
-/// θ(t) involves `∂f/∂t / κ` and `σ²/(2κ²)` terms that diverge as `κ → 0`.
-/// Callers simulating a driftless Brownian-motion short rate (κ ≈ 0)
-/// should use a dedicated `BrownianMotion` process rather than HW1F with
-/// tiny κ.
-///
-/// # Example
+/// Returns an error when the mean reversion, volatility, or theta schedule is invalid.
 ///
 /// ```
 /// use finstack_quant_models::monte_carlo::process::ou::calibrate_theta_from_curve;
 ///
-/// let discount_fn = |t: f64| (-0.03 * t).exp();  // Flat 3% curve
-/// let params = calibrate_theta_from_curve(0.03, 0.01, discount_fn, &[0.5, 1.0, 2.0, 5.0]);
+/// let discount_fn = |t: f64| (-0.03 * t).exp();
+/// let params = calibrate_theta_from_curve(0.03, 0.01, discount_fn, &[0.5, 1.0, 2.0, 5.0])?;
 /// # let _ = params;
+/// # Ok::<(), finstack_quant_core::Error>(())
 /// ```
 pub fn calibrate_theta_from_curve<F>(
     kappa: f64,
     sigma: f64,
     discount_curve_fn: F,
     theta_times: &[f64],
-) -> HullWhite1FParams
+) -> Result<HullWhite1FParams>
 where
     F: Fn(f64) -> f64,
 {
     if theta_times.is_empty() {
-        // Fallback: use instantaneous forward at t=0 as constant theta.
-        // f(0,0) is itself the stationary level for a "flat-near-zero"
-        // curve under the Vasicek convention.
         let f_0 = instantaneous_forward(&discount_curve_fn, 0.0);
         return HullWhite1FParams::new(kappa, sigma, f_0);
     }
 
-    let mut theta_curve = Vec::with_capacity(theta_times.len());
-
-    for &t in theta_times {
-        let theta_t = compute_theta_at_time(kappa, sigma, &discount_curve_fn, t);
-        theta_curve.push(theta_t);
-    }
-
+    let theta_curve = theta_times
+        .iter()
+        .map(|&t| compute_theta_at_time(kappa, sigma, &discount_curve_fn, t))
+        .collect();
     HullWhite1FParams::with_time_dependent_theta(kappa, sigma, theta_curve, theta_times.to_vec())
 }
 
@@ -611,10 +646,10 @@ mod tests {
 
     #[test]
     fn test_hw1f_params_constant_theta() {
-        let params = HullWhite1FParams::new(0.1, 0.01, 0.03);
+        let params = HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid parameters");
 
         assert_eq!(params.kappa, 0.1);
-        assert_eq!(params.sigma, 0.01);
+        assert_eq!(params.sigma_at_time(0.0), 0.01);
         assert_eq!(params.theta_at_time(0.0), 0.03);
         assert_eq!(params.theta_at_time(1.0), 0.03);
         assert_eq!(params.theta_at_time(10.0), 0.03);
@@ -626,7 +661,8 @@ mod tests {
         let theta_times = vec![0.0, 1.0, 2.0];
 
         let params =
-            HullWhite1FParams::with_time_dependent_theta(0.1, 0.01, theta_curve, theta_times);
+            HullWhite1FParams::with_time_dependent_theta(0.1, 0.01, theta_curve, theta_times)
+                .expect("valid theta schedule");
 
         assert_eq!(params.theta_at_time(0.0), 0.02);
         assert_eq!(params.theta_at_time(0.5), 0.02);
@@ -638,7 +674,7 @@ mod tests {
 
     #[test]
     fn test_hw1f_drift() {
-        let params = HullWhite1FParams::new(0.1, 0.01, 0.03);
+        let params = HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid parameters");
         let process = HullWhite1FProcess::new(params);
 
         let x = vec![0.04]; // Rate above mean
@@ -653,7 +689,7 @@ mod tests {
 
     #[test]
     fn test_hw1f_diffusion() {
-        let params = HullWhite1FParams::new(0.1, 0.01, 0.03);
+        let params = HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid parameters");
         let process = HullWhite1FProcess::new(params);
 
         let x = vec![0.05];
@@ -667,10 +703,11 @@ mod tests {
 
     #[test]
     fn test_vasicek_alias() {
-        let process = HullWhite1FProcess::vasicek(0.1, 0.03, 0.01);
+        let process =
+            HullWhite1FProcess::vasicek(0.1, 0.03, 0.01).expect("valid Vasicek parameters");
 
         assert_eq!(process.params().kappa, 0.1);
-        assert_eq!(process.params().sigma, 0.01);
+        assert_eq!(process.params().sigma_at_time(0.0), 0.01);
         assert_eq!(process.theta_at_time(0.0), 0.03);
     }
 
@@ -680,7 +717,8 @@ mod tests {
         let discount_fn = |t: f64| (-0.03 * t).exp();
         let theta_times = vec![0.0, 1.0, 2.0, 5.0, 10.0];
 
-        let params = calibrate_theta_from_curve(0.03, 0.01, discount_fn, &theta_times);
+        let params = calibrate_theta_from_curve(0.03, 0.01, discount_fn, &theta_times)
+            .expect("valid theta calibration");
 
         // For a flat curve, f(0,t) = 0.03 and ∂f/∂t ≈ 0
         // θ(t) ≈ κ·f + volatility term
@@ -689,11 +727,11 @@ mod tests {
         // Actually for flat curve: θ(t) = κ·f + σ²/(2κ²)·(1-e^{-κt})²
 
         assert_eq!(params.kappa, 0.03);
-        assert_eq!(params.sigma, 0.01);
-        assert_eq!(params.theta_times.len(), 5);
+        assert_eq!(params.sigma_at_time(0.0), 0.01);
+        assert_eq!(params.theta_times().len(), 5);
 
         // Theta values should be positive and reasonable
-        for &theta in &params.theta_curve {
+        for &theta in params.theta_values() {
             assert!(theta.is_finite(), "Theta must be finite");
             assert!(
                 theta > -0.1 && theta < 0.2,
@@ -706,11 +744,11 @@ mod tests {
     #[test]
     fn test_calibrate_theta_empty_times() {
         let discount_fn = |t: f64| (-0.03 * t).exp();
-        let params = calibrate_theta_from_curve(0.03, 0.01, discount_fn, &[]);
+        let params = calibrate_theta_from_curve(0.03, 0.01, discount_fn, &[])
+            .expect("valid theta calibration");
 
-        // Should fall back to constant theta at instantaneous forward f(0,0)
-        assert_eq!(params.theta_curve.len(), 1);
-        assert_eq!(params.theta_times.len(), 1);
+        assert_eq!(params.theta_values().len(), 1);
+        assert_eq!(params.theta_times().len(), 1);
     }
 
     #[test]
@@ -749,7 +787,8 @@ mod tests {
         let discount_fn = |t: f64| (-r_flat * t).exp();
 
         let times: Vec<f64> = vec![0.5, 1.0, 2.0, 3.0, 5.0, 10.0];
-        let params = calibrate_theta_from_curve(kappa, sigma, discount_fn, &times);
+        let params = calibrate_theta_from_curve(kappa, sigma, discount_fn, &times)
+            .expect("valid theta calibration");
 
         // Check each calibrated θ(t) against the analytical formula in the
         // *Vasicek-style mean-reversion-level* convention, which is what the
@@ -809,7 +848,8 @@ mod tests {
 
         let discount_fn = |t: f64| (-r_flat * t).exp();
         let times: Vec<f64> = vec![1.0, 2.0, 5.0, 10.0, 20.0];
-        let params = calibrate_theta_from_curve(kappa, sigma, discount_fn, &times);
+        let params = calibrate_theta_from_curve(kappa, sigma, discount_fn, &times)
+            .expect("valid theta calibration");
         let process = HullWhite1FProcess::new(params);
 
         // Evaluate the drift at r = r_flat for several t. At large t the
@@ -857,7 +897,8 @@ mod tests {
         let sigma = 0.01_f64;
         let discount_fn = |t: f64| (-r_flat * t).exp();
         let times: Vec<f64> = vec![0.5, 1.0, 2.0, 5.0, 10.0];
-        let params = calibrate_theta_from_curve(kappa, sigma, discount_fn, &times);
+        let params = calibrate_theta_from_curve(kappa, sigma, discount_fn, &times)
+            .expect("valid theta calibration");
         let process = HullWhite1FProcess::new(params);
         let disc = ExactHullWhite1F::new();
 
@@ -907,7 +948,8 @@ mod tests {
     #[test]
     fn constant_piecewise_sigma_matches_scalar_theta_calibration() {
         let discount = |time: f64| (-0.03 * time).exp();
-        let scalar = calibrate_theta_from_curve(0.05, 0.01, discount, &[0.5, 1.0, 2.0]);
+        let scalar = calibrate_theta_from_curve(0.05, 0.01, discount, &[0.5, 1.0, 2.0])
+            .expect("scalar theta calibration");
         let scheduled = calibrate_theta_from_curve_with_piecewise_sigma(
             0.05,
             vec![0.0],
@@ -917,8 +959,8 @@ mod tests {
         )
         .expect("scheduled theta calibration");
 
-        assert_eq!(scheduled.theta_times, scalar.theta_times);
-        for (actual, expected) in scheduled.theta_curve.iter().zip(&scalar.theta_curve) {
+        assert_eq!(scheduled.theta_times(), scalar.theta_times());
+        for (actual, expected) in scheduled.theta_values().iter().zip(scalar.theta_values()) {
             assert!((actual - expected).abs() < 1.0e-12);
         }
     }

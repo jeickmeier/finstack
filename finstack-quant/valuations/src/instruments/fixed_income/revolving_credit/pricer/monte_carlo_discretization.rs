@@ -134,17 +134,15 @@ impl Discretization<RevolvingCreditProcess> for RevolvingCreditDiscretization {
                 // For HW1F:
                 // r_{t+dt} = r_t e^{-κdt} + θ(1 - e^{-κdt}) + σ√[(1-e^{-2κdt})/(2κ)] Z
                 let kappa = params.kappa;
-                let sigma = params.sigma;
                 let theta = params.theta_at_time(process.params().time_offset + t);
 
                 let exp_kappa_dt = (-kappa * dt).exp();
                 let mean = x[1] * exp_kappa_dt + theta * (1.0 - exp_kappa_dt);
 
-                let std_dev = if (kappa * dt).abs() < 1e-8 {
-                    sigma * dt.sqrt() * (1.0 - kappa * dt / 3.0)
-                } else {
-                    sigma * ((1.0 - (-2.0 * kappa * dt).exp()) / (2.0 * kappa)).sqrt()
-                };
+                let std_dev = params
+                    .sigma_variance_for_step(process.params().time_offset + t, dt)
+                    .max(0.0)
+                    .sqrt();
 
                 x[1] = mean + std_dev * z_corr[1];
             }
@@ -384,7 +382,8 @@ mod tests {
     #[test]
     fn test_discretization_step_floating_rate() {
         let utilization = UtilizationParams::new(0.5, 0.6, 0.1).expect("valid utilization params");
-        let hw_params = HullWhite1FParams::new(0.1, 0.01, 0.03);
+        let hw_params =
+            HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid Hull-White parameters");
         let interest_rate = InterestRateSpec::Floating {
             params: hw_params,
             initial: 0.04,

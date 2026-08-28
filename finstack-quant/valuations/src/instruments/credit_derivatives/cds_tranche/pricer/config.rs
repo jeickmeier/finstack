@@ -226,7 +226,7 @@ impl CDSTranchePricerConfig {
     /// quadrature rule.
     pub fn validate(&self) -> CoreResult<()> {
         match &self.copula_spec {
-            CopulaSpec::Gaussian => {}
+            CopulaSpec::Gaussian | CopulaSpec::MultiFactor => {}
             CopulaSpec::StudentT { .. } => {
                 self.copula_spec
                     .build()
@@ -239,13 +239,6 @@ impl CDSTranchePricerConfig {
                     0.0,
                     0.5,
                 )?;
-            }
-            CopulaSpec::MultiFactor { num_factors } => {
-                if !(1..=5).contains(num_factors) {
-                    return Err(CoreError::Validation(format!(
-                        "copula_spec.num_factors must be in [1, 5], got {num_factors}"
-                    )));
-                }
             }
         }
         if let Some(recovery) = &self.recovery_spec {
@@ -304,15 +297,10 @@ impl CDSTranchePricerConfig {
         self
     }
 
-    /// Create configuration with multi-factor copula.
-    ///
-    /// # Arguments
-    ///
-    /// * `num_factors` - Number of systematic factors. Pricer validation
-    ///   accepts values from 1 through 5.
+    /// Create configuration with the global-plus-sector two-factor copula.
     #[must_use]
-    pub fn with_multi_factor_copula(mut self, num_factors: usize) -> Self {
-        self.copula_spec = CopulaSpec::multi_factor(num_factors);
+    pub fn with_multi_factor_copula(mut self) -> Self {
+        self.copula_spec = CopulaSpec::multi_factor();
         self
     }
 

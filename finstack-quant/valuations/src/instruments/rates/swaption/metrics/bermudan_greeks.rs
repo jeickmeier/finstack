@@ -28,7 +28,7 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::bumps::{BumpSpec, MarketBump};
 use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::Result;
-use finstack_quant_models::rates::hull_white::HullWhiteParams;
+use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 
 /// Default bump size for parallel rate shift (1 basis point).
 pub(crate) const DEFAULT_RATE_BUMP_BP: f64 = 1.0;
@@ -130,7 +130,7 @@ impl BermudanDeltaCalculator {
 
         validate_hw_greek_params(self.kappa, sigma)?;
         let model = PreparedHullWhiteModel::prepare(
-            HullWhiteParams::new(self.kappa, sigma)?,
+            HullWhiteCalibrationParams::new(self.kappa, sigma)?,
             self.tree_steps,
             disc,
             ttm,
@@ -251,7 +251,7 @@ impl BermudanVegaCalculator {
 
         validate_hw_greek_params(self.kappa, sigma)?;
         let model = PreparedHullWhiteModel::prepare(
-            HullWhiteParams::new(self.kappa, sigma)?,
+            HullWhiteCalibrationParams::new(self.kappa, sigma)?,
             self.tree_steps,
             disc,
             ttm,
@@ -361,7 +361,7 @@ impl BermudanGammaCalculator {
 
         validate_hw_greek_params(self.kappa, sigma)?;
         let model = PreparedHullWhiteModel::prepare(
-            HullWhiteParams::new(self.kappa, sigma)?,
+            HullWhiteCalibrationParams::new(self.kappa, sigma)?,
             self.tree_steps,
             disc,
             ttm,
@@ -524,7 +524,7 @@ impl MetricCalculator for ExerciseProbabilityCalculator {
 
         validate_hw_greek_params(self.kappa, self.sigma)?;
         let model = PreparedHullWhiteModel::prepare(
-            HullWhiteParams::new(self.kappa, self.sigma)?,
+            HullWhiteCalibrationParams::new(self.kappa, self.sigma)?,
             self.tree_steps,
             disc.as_ref(),
             ttm,
@@ -584,7 +584,7 @@ mod tests {
         use finstack_quant_core::market_data::term_structures::DiscountCurve;
         use finstack_quant_core::math::interp::InterpStyle;
         use finstack_quant_core::money::Money;
-        use finstack_quant_models::rates::hull_white::HullWhiteParams;
+        use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
         use time::Month;
 
         // Create test discount curve
@@ -624,7 +624,7 @@ mod tests {
         let ttm = swaption.time_to_maturity(as_of).expect("Valid ttm");
 
         let model = PreparedHullWhiteModel::prepare(
-            HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
+            HullWhiteCalibrationParams::new(0.03, 0.01).expect("valid HW params"),
             30,
             &curve,
             ttm,

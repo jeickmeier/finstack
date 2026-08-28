@@ -25,9 +25,13 @@
 /// Captures the various correlation parameters needed for
 /// stochastic structured credit modeling.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(tag = "structure", deny_unknown_fields)]
+#[serde(
+    tag = "structure",
+    deny_unknown_fields,
+    rename_all = "snake_case",
+    try_from = "RawCorrelationStructure"
+)]
 #[non_exhaustive]
-#[serde(rename_all = "snake_case")]
 pub enum CorrelationStructure {
     /// Flat (homogeneous) correlation structure.
     ///
@@ -62,6 +66,46 @@ pub enum CorrelationStructure {
     },
 }
 
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(tag = "structure", deny_unknown_fields, rename_all = "snake_case")]
+enum RawCorrelationStructure {
+    Flat {
+        asset_correlation: f64,
+        prepay_default_correlation: f64,
+    },
+    Sectored {
+        intra_sector: f64,
+        inter_sector: f64,
+        prepay_default: f64,
+    },
+    Matrix {
+        correlations: Vec<f64>,
+        labels: Vec<String>,
+    },
+}
+
+impl TryFrom<RawCorrelationStructure> for CorrelationStructure {
+    type Error = finstack_quant_core::Error;
+
+    fn try_from(raw: RawCorrelationStructure) -> Result<Self, Self::Error> {
+        match raw {
+            RawCorrelationStructure::Flat {
+                asset_correlation,
+                prepay_default_correlation,
+            } => Self::flat(asset_correlation, prepay_default_correlation),
+            RawCorrelationStructure::Sectored {
+                intra_sector,
+                inter_sector,
+                prepay_default,
+            } => Self::sectored(intra_sector, inter_sector, prepay_default),
+            RawCorrelationStructure::Matrix {
+                correlations,
+                labels,
+            } => Self::matrix(correlations, labels),
+        }
+    }
+}
+
 impl Default for CorrelationStructure {
     fn default() -> Self {
         CorrelationStructure::Flat {
@@ -72,81 +116,78 @@ impl Default for CorrelationStructure {
 }
 
 impl CorrelationStructure {
-    /// Create a flat correlation structure without altering supplied values.
-    ///
-    /// Use [`Self::try_flat`] when ingesting calibration or market-data input
-    /// that must fail fast on invalid correlations.
-    pub fn flat(asset_correlation: f64, prepay_default_correlation: f64) -> Self {
-        CorrelationStructure::Flat {
-            asset_correlation,
-            prepay_default_correlation,
-        }
-    }
-
-    /// Create a flat correlation structure and validate supplied values.
+    /// Create and validate a flat correlation structure.
     ///
     /// # Arguments
     ///
-    /// * `asset_correlation` - Asset correlation supplied by the caller for this operation
-    /// * `prepay_default_correlation` - Prepay default correlation supplied by the caller for this operation
-    pub fn try_flat(
+    /// * `asset_correlation` - Pairwise default correlation in `[0, 0.99]`.
+    /// * `prepay_default_correlation` - Prepayment/default correlation in `[-0.99, 0.99]`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either correlation is non-finite or outside its range.
+    pub fn flat(
         asset_correlation: f64,
         prepay_default_correlation: f64,
-    ) -> Result<Self, String> {
-        let structure = Self::flat(asset_correlation, prepay_default_correlation);
-        structure.validate()?;
+    ) -> finstack_quant_core::Result<Self> {
+        let structure = Self::Flat {
+            asset_correlation,
+            prepay_default_correlation,
+        };
+        structure
+            .validate()
+            .map_err(finstack_quant_core::Error::Validation)?;
         Ok(structure)
     }
 
-    /// Create a sectored correlation structure without altering supplied values.
-    ///
-    /// Use [`Self::try_sectored`] when ingesting calibration or market-data
-    /// input that must fail fast on invalid correlations.
-    pub fn sectored(intra_sector: f64, inter_sector: f64, prepay_default: f64) -> Self {
-        CorrelationStructure::Sectored {
-            intra_sector,
-            inter_sector,
-            prepay_default,
-        }
-    }
-
-    /// Create a sectored correlation structure and validate supplied values.
+    /// Create and validate a sectored correlation structure.
     ///
     /// # Arguments
     ///
-    /// * `intra_sector` - Intra sector supplied by the caller for this operation
-    /// * `inter_sector` - Inter sector supplied by the caller for this operation
-    /// * `prepay_default` - Prepay default supplied by the caller for this operation
-    pub fn try_sectored(
+    /// * `intra_sector` - Same-sector default correlation in `[0, 0.99]`.
+    /// * `inter_sector` - Cross-sector default correlation in `[0, 0.99]`.
+    /// * `prepay_default` - Prepayment/default correlation in `[-0.99, 0.99]`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a correlation is non-finite or outside its range.
+    pub fn sectored(
         intra_sector: f64,
         inter_sector: f64,
         prepay_default: f64,
-    ) -> Result<Self, String> {
-        let structure = Self::sectored(intra_sector, inter_sector, prepay_default);
-        structure.validate()?;
+    ) -> finstack_quant_core::Result<Self> {
+        let structure = Self::Sectored {
+            intra_sector,
+            inter_sector,
+            prepay_default,
+        };
+        structure
+            .validate()
+            .map_err(finstack_quant_core::Error::Validation)?;
         Ok(structure)
     }
 
-    /// Create a custom matrix correlation structure without altering supplied values.
-    ///
-    /// Use [`Self::try_matrix`] when ingesting calibration or market-data input
-    /// that must fail fast on invalid matrices.
-    pub fn matrix(correlations: Vec<f64>, labels: Vec<String>) -> Self {
-        CorrelationStructure::Matrix {
-            correlations,
-            labels,
-        }
-    }
-
-    /// Create a custom matrix correlation structure and validate supplied values.
+    /// Create and validate a custom correlation matrix.
     ///
     /// # Arguments
     ///
-    /// * `correlations` - Correlations supplied by the caller for this operation
-    /// * `labels` - Labels supplied by the caller for this operation
-    pub fn try_matrix(correlations: Vec<f64>, labels: Vec<String>) -> Result<Self, String> {
-        let structure = Self::matrix(correlations, labels);
-        structure.validate()?;
+    /// * `correlations` - Flattened row-major square correlation matrix.
+    /// * `labels` - Row/column labels aligned with the matrix dimensions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for shape, range, diagonal, symmetry, or PSD failures.
+    pub fn matrix(
+        correlations: Vec<f64>,
+        labels: Vec<String>,
+    ) -> finstack_quant_core::Result<Self> {
+        let structure = Self::Matrix {
+            correlations,
+            labels,
+        };
+        structure
+            .validate()
+            .map_err(finstack_quant_core::Error::Validation)?;
         Ok(structure)
     }
 
@@ -324,7 +365,10 @@ impl CorrelationStructure {
                     None
                 };
                 (
-                    CorrelationStructure::flat(new_asset, *prepay_default_correlation),
+                    CorrelationStructure::Flat {
+                        asset_correlation: new_asset,
+                        prepay_default_correlation: *prepay_default_correlation,
+                    },
                     clamp_info,
                 )
             }
@@ -353,7 +397,11 @@ impl CorrelationStructure {
                     )),
                 };
                 (
-                    CorrelationStructure::sectored(new_intra, new_inter, *prepay_default),
+                    CorrelationStructure::Sectored {
+                        intra_sector: new_intra,
+                        inter_sector: new_inter,
+                        prepay_default: *prepay_default,
+                    },
                     clamp_info,
                 )
             }
@@ -533,7 +581,10 @@ impl CorrelationStructure {
                     None
                 };
                 (
-                    CorrelationStructure::flat(*asset_correlation, new_pd),
+                    CorrelationStructure::Flat {
+                        asset_correlation: *asset_correlation,
+                        prepay_default_correlation: new_pd,
+                    },
                     clamp_info,
                 )
             }
@@ -552,7 +603,11 @@ impl CorrelationStructure {
                     None
                 };
                 (
-                    CorrelationStructure::sectored(*intra_sector, *inter_sector, new_pd),
+                    CorrelationStructure::Sectored {
+                        intra_sector: *intra_sector,
+                        inter_sector: *inter_sector,
+                        prepay_default: new_pd,
+                    },
                     clamp_info,
                 )
             }
@@ -589,7 +644,7 @@ mod tests {
 
     #[test]
     fn test_flat_correlation() {
-        let corr = CorrelationStructure::flat(0.10, -0.30);
+        let corr = CorrelationStructure::flat(0.10, -0.30).expect("valid flat correlation");
 
         assert!((corr.asset_correlation() - 0.10).abs() < 1e-10);
         assert!((corr.prepay_default_correlation() - (-0.30)).abs() < 1e-10);
@@ -598,7 +653,8 @@ mod tests {
 
     #[test]
     fn test_sectored_correlation() {
-        let corr = CorrelationStructure::sectored(0.30, 0.10, -0.20);
+        let corr =
+            CorrelationStructure::sectored(0.30, 0.10, -0.20).expect("valid sector correlation");
 
         assert!(corr.is_sectored());
         assert_eq!(corr.intra_sector_correlation(), Some(0.30));
@@ -607,7 +663,8 @@ mod tests {
 
     #[test]
     fn test_pairwise_correlation() {
-        let sectored = CorrelationStructure::sectored(0.30, 0.10, -0.20);
+        let sectored =
+            CorrelationStructure::sectored(0.30, 0.10, -0.20).expect("valid sector correlation");
 
         // Same sector
         assert!((sectored.pairwise_correlation(0, 1, true) - 0.30).abs() < 1e-10);
@@ -618,39 +675,18 @@ mod tests {
     }
 
     #[test]
-    fn test_constructors_preserve_invalid_input() {
-        let corr = CorrelationStructure::flat(1.5, -1.5);
-
-        assert_eq!(corr.asset_correlation(), 1.5);
-        assert_eq!(corr.prepay_default_correlation(), -1.5);
-        assert!(corr.validate().is_err());
-
-        let sectored = CorrelationStructure::sectored(1.5, -0.1, -1.5);
-        assert_eq!(sectored.intra_sector_correlation(), Some(1.5));
-        assert_eq!(sectored.inter_sector_correlation(), Some(-0.1));
-        assert!(sectored.validate().is_err());
-
-        let matrix = CorrelationStructure::matrix(
-            vec![1.0, 0.2, 0.2],
-            vec!["A".to_string(), "B".to_string()],
-        );
-        let result = matrix.validate();
-        assert!(result.is_err());
-        assert!(result
-            .expect_err("expected validation error for wrong-sized matrix")
-            .contains("size mismatch"));
-        assert!(matrix.bump_asset(0.1).validate().is_err());
-    }
-
-    #[test]
-    fn test_try_constructors_reject_invalid_input() {
-        assert!(CorrelationStructure::try_flat(1.5, -0.3).is_err());
-        assert!(CorrelationStructure::try_sectored(0.3, -0.1, -0.2).is_err());
-        assert!(CorrelationStructure::try_matrix(
+    fn constructors_and_serde_reject_invalid_input() {
+        assert!(CorrelationStructure::flat(1.5, -0.3).is_err());
+        assert!(CorrelationStructure::sectored(0.3, -0.1, -0.2).is_err());
+        assert!(CorrelationStructure::matrix(
             vec![1.0, 0.2, 0.2],
             vec!["A".to_string(), "B".to_string()],
         )
         .is_err());
+
+        let invalid =
+            r#"{"structure":"flat","asset_correlation":1.5,"prepay_default_correlation":-0.3}"#;
+        assert!(serde_json::from_str::<CorrelationStructure>(invalid).is_err());
     }
 
     #[test]
@@ -662,7 +698,7 @@ mod tests {
 
     #[test]
     fn test_bump_asset_flat() {
-        let corr = CorrelationStructure::flat(0.20, -0.30);
+        let corr = CorrelationStructure::flat(0.20, -0.30).expect("valid flat correlation");
         let bumped = corr.bump_asset(0.05);
 
         assert!((bumped.asset_correlation() - 0.25).abs() < 1e-10);
@@ -671,7 +707,8 @@ mod tests {
 
     #[test]
     fn test_bump_asset_sectored() {
-        let corr = CorrelationStructure::sectored(0.30, 0.10, -0.20);
+        let corr =
+            CorrelationStructure::sectored(0.30, 0.10, -0.20).expect("valid sector correlation");
         let bumped = corr.bump_asset(0.10);
 
         // Intra bumps by full delta
@@ -696,7 +733,7 @@ mod tests {
 
     #[test]
     fn test_bump_asset_clamping() {
-        let corr = CorrelationStructure::flat(0.95, -0.30);
+        let corr = CorrelationStructure::flat(0.95, -0.30).expect("valid flat correlation");
         let bumped = corr.bump_asset(0.10);
 
         // Should clamp to 0.99
@@ -705,7 +742,7 @@ mod tests {
 
     #[test]
     fn test_bump_prepay_default() {
-        let corr = CorrelationStructure::flat(0.20, -0.30);
+        let corr = CorrelationStructure::flat(0.20, -0.30).expect("valid flat correlation");
         let bumped = corr.bump_prepay_default(0.10);
 
         assert!((bumped.asset_correlation() - 0.20).abs() < 1e-10);
@@ -714,7 +751,7 @@ mod tests {
 
     #[test]
     fn test_bump_prepay_default_clamping() {
-        let corr = CorrelationStructure::flat(0.20, -0.95);
+        let corr = CorrelationStructure::flat(0.20, -0.95).expect("valid flat correlation");
         let bumped = corr.bump_prepay_default(-0.10);
 
         // Should clamp to -0.99
@@ -723,7 +760,7 @@ mod tests {
 
     #[test]
     fn test_validate_flat_ok() {
-        let corr = CorrelationStructure::flat(0.20, -0.30);
+        let corr = CorrelationStructure::flat(0.20, -0.30).expect("valid flat correlation");
         assert!(corr.validate().is_ok());
     }
 
@@ -732,7 +769,8 @@ mod tests {
         let corr = CorrelationStructure::matrix(
             vec![1.0, 0.5, 0.5, 1.0],
             vec!["A".to_string(), "B".to_string()],
-        );
+        )
+        .expect("valid correlation matrix");
         assert!(corr.validate().is_ok());
     }
 

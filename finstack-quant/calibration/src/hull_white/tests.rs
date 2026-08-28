@@ -22,17 +22,17 @@ fn flat_df(rate: f64) -> impl Fn(f64) -> f64 {
 
 #[test]
 fn hw_params_validation() {
-    assert!(HullWhiteParams::new(0.05, 0.01).is_ok());
-    assert!(HullWhiteParams::new(0.0, 0.01).is_err()); // kappa = 0
-    assert!(HullWhiteParams::new(-0.1, 0.01).is_err()); // kappa < 0
-    assert!(HullWhiteParams::new(0.05, 0.0).is_err()); // sigma = 0
-    assert!(HullWhiteParams::new(0.05, -0.01).is_err()); // sigma < 0
+    assert!(HullWhiteCalibrationParams::new(0.05, 0.01).is_ok());
+    assert!(HullWhiteCalibrationParams::new(0.0, 0.01).is_err()); // kappa = 0
+    assert!(HullWhiteCalibrationParams::new(-0.1, 0.01).is_err()); // kappa < 0
+    assert!(HullWhiteCalibrationParams::new(0.05, 0.0).is_err()); // sigma = 0
+    assert!(HullWhiteCalibrationParams::new(0.05, -0.01).is_err()); // sigma < 0
 }
 
 #[test]
 fn constant_model_params_match_scalar_state_variance() {
-    let scalar = HullWhiteParams::new(0.05, 0.01).expect("scalar parameters");
-    let model = HullWhiteModelParams::try_from(scalar).expect("constant model");
+    let scalar = HullWhiteCalibrationParams::new(0.05, 0.01).expect("scalar parameters");
+    let model = HullWhiteParams::try_from(scalar).expect("constant model");
     let expected = 0.01_f64.powi(2) * (1.0 - (-0.10_f64).exp()) / 0.10;
 
     assert!((model.state_variance(1.0).expect("variance") - expected).abs() < 1.0e-15);
@@ -40,8 +40,8 @@ fn constant_model_params_match_scalar_state_variance() {
 
 #[test]
 fn constant_model_bond_vol_matches_scalar_formula() {
-    let scalar = HullWhiteParams::new(0.05, 0.01).expect("scalar parameters");
-    let model = HullWhiteModelParams::try_from(scalar).expect("constant model");
+    let scalar = HullWhiteCalibrationParams::new(0.05, 0.01).expect("scalar parameters");
+    let model = HullWhiteParams::try_from(scalar).expect("constant model");
 
     let model_vol = hw_bond_vol_with_model(&model, 0.0, 1.0, 2.0).expect("model vol");
     let scalar_vol = hw_bond_vol(0.05, 0.01, 0.0, 1.0, 2.0);
@@ -54,7 +54,7 @@ fn piecewise_cap_floor_bootstrap_recovers_synthetic_segments() {
     let discount = flat_df(0.03);
     let forward = flat_df(0.03);
     let kappa = 0.05;
-    let generated = HullWhiteModelParams::new(
+    let generated = HullWhiteParams::new(
         kappa,
         PiecewiseConstantCurve::new(vec![0.0, 1.0], vec![0.01, 0.02]).expect("schedule"),
     )
@@ -114,22 +114,22 @@ fn piecewise_cap_floor_bootstrap_recovers_synthetic_segments() {
 
 #[test]
 fn b_function_properties() {
-    let p = HullWhiteParams::new(0.1, 0.01).expect("valid");
-    let b = p.b_function(0.0, 1.0);
+    let p = HullWhiteCalibrationParams::new(0.1, 0.01).expect("valid");
+    let b = hw_b(p.kappa, 0.0, 1.0);
     // B(0, 1) = (1 − e^{−0.1}) / 0.1 ≈ 0.9516
     assert!((b - 0.9516).abs() < 0.001);
 
     // B should be positive and increasing in (t2 − t1)
-    let b_short = p.b_function(0.0, 0.5);
-    let b_long = p.b_function(0.0, 2.0);
+    let b_short = hw_b(p.kappa, 0.0, 0.5);
+    let b_long = hw_b(p.kappa, 0.0, 2.0);
     assert!(b_short < b);
     assert!(b < b_long);
 }
 
 #[test]
 fn bond_option_vol_positive() {
-    let p = HullWhiteParams::new(0.05, 0.01).expect("valid");
-    let vol = p.bond_option_vol(0.0, 1.0, 2.0);
+    let p = HullWhiteCalibrationParams::new(0.05, 0.01).expect("valid");
+    let vol = hw_bond_vol(p.kappa, p.sigma, 0.0, 1.0, 2.0);
     assert!(vol > 0.0, "Bond option vol should be positive: {vol}");
 }
 
@@ -628,7 +628,7 @@ fn cap_floor_hw1f_calibration_recovers_two_parameters_on_synthetic_grid() {
         &quotes,
         CapFloorCalibrationConfig {
             frequency: SwapFrequency::Quarterly,
-            initial_guess: Some(HullWhiteParams::new(0.04, 0.01).expect("guess")),
+            initial_guess: Some(HullWhiteCalibrationParams::new(0.04, 0.01).expect("guess")),
             ..CapFloorCalibrationConfig::default()
         },
     )
@@ -693,7 +693,7 @@ fn hw1f_residuals_signal_err_on_non_finite_price_no_magic_literal() {
         initial_x0: [(-2.5_f64), (-4.0_f64)],
         prepared,
     };
-    let curve = HullWhiteParams {
+    let curve = HullWhiteCalibrationParams {
         kappa: 0.08,
         sigma: 0.012,
     };

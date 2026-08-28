@@ -69,7 +69,6 @@ d₂ = d₁ - σ√T
 | `black_call` / `black_put` | `(forward, strike, sigma, t) -> f64` — undiscounted |
 | `vanilla_expiry_payoff` | `(spot, strike, OptionType) -> Result<f64>` |
 | `checked_closed_form_value` | `(value, what) -> Result<f64>` — the shared finiteness guard |
-| `option_type_from_bool` | boolean-to-`OptionType` adapter used by host bindings |
 | `ONE_PERCENT` | `100.0`, the divisor that puts vega and rho on a per-1% basis |
 
 `BsGreeks` carries `delta`, `gamma`, `vega`, `theta`, `rho_r` (domestic /
@@ -139,8 +138,7 @@ with `λ = (r - q + σ²/2) / σ²`.
 | `up_out_put`, `up_in_put`, `down_out_put`, `down_in_put` | same shape (module-level only; not re-exported at `closed_form` root) |
 | `barrier_call_continuous`, `barrier_put_continuous` | `(&BarrierParams, BarrierType) -> f64` |
 | `barrier_touch_probability` | `(spot, barrier, time, rate, div_yield, vol, is_up) -> f64` |
-| `barrier_rebate_continuous` | `(&BarrierParams, rebate, BarrierType) -> f64` — pays at expiry |
-| `barrier_rebate` | adds `RebateTiming::{AtHit, AtExpiry}` |
+| `barrier_rebate` | explicit `RebateTiming::{AtHit, AtExpiry}` |
 
 `BarrierType` is `finstack_quant_core::types::BarrierType`, not a type defined
 here. `BarrierParams` groups `spot`/`strike`/`barrier`/`time`/`rate`/
@@ -294,7 +292,7 @@ surfaces as a validation error instead of crossing the host boundary.
 | `barrier_call_str` | `direction ∈ {"up","down"}`, `knock ∈ {"in","out"}` |
 | `asian_option_price_str` | `averaging ∈ {"arithmetic","geometric"}` |
 | `lookback_option_price_str` | `strike_type ∈ {"fixed","floating"}` |
-| `quanto_option_price_checked` | call/put only |
+| `quanto_option_price` | call/put only |
 
 ## Conventions
 

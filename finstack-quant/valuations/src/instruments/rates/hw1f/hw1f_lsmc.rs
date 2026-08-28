@@ -497,7 +497,8 @@ mod tests {
     #[test]
     fn noexercise_equals_discounted_par() {
         let pricer = RateExoticHw1fLsmcPricer {
-            process_params: HullWhite1FParams::new(0.05, 0.001, 0.03),
+            process_params: HullWhite1FParams::new(0.05, 0.001, 0.03)
+                .expect("valid Hull-White parameters"),
             r0: 0.03,
             event_times: vec![1.0, 2.0],
             exercise_times: vec![1.0, 2.0],
@@ -574,7 +575,8 @@ mod tests {
 
     fn coupon_pricer(r0: f64) -> RateExoticHw1fLsmcPricer {
         RateExoticHw1fLsmcPricer {
-            process_params: HullWhite1FParams::new(0.05, 0.001, r0),
+            process_params: HullWhite1FParams::new(0.05, 0.001, r0)
+                .expect("valid Hull-White parameters"),
             r0,
             event_times: vec![1.0, 1.5, 2.0],
             exercise_times: vec![1.5],
@@ -621,7 +623,8 @@ mod tests {
     #[test]
     fn oos_lsmc_noexercise_equals_discounted_par_and_uses_half_paths() {
         let pricer = RateExoticHw1fLsmcPricer {
-            process_params: HullWhite1FParams::new(0.05, 0.001, 0.03),
+            process_params: HullWhite1FParams::new(0.05, 0.001, 0.03)
+                .expect("valid Hull-White parameters"),
             r0: 0.03,
             event_times: vec![1.0, 2.0],
             exercise_times: vec![1.0, 2.0],

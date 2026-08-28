@@ -49,14 +49,14 @@ pub fn capfloor_hw1f_sigma_schedule_key(curve_id: &str) -> String {
 /// # Examples
 ///
 /// ```rust
-/// use finstack_quant_models::rates::hull_white::HullWhiteParams;
+/// use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 ///
-/// let params = HullWhiteParams::new(0.05, 0.01).unwrap();
-/// assert!(params.b_function(0.0, 1.0) > 0.0);
-/// assert!(params.bond_option_vol(0.0, 1.0, 2.0) > 0.0);
+/// let params = HullWhiteCalibrationParams::new(0.05, 0.01).unwrap();
+/// assert!(!params.is_uncalibrated_default());
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct HullWhiteParams {
+#[serde(try_from = "RawHullWhiteCalibrationParams")]
+pub struct HullWhiteCalibrationParams {
     /// Mean-reversion speed κ in inverse years; strictly positive and finite.
     pub kappa: f64,
     /// Short-rate volatility σ in absolute rate units per square-root year;
@@ -64,7 +64,21 @@ pub struct HullWhiteParams {
     pub sigma: f64,
 }
 
-impl Default for HullWhiteParams {
+#[derive(serde::Deserialize)]
+struct RawHullWhiteCalibrationParams {
+    kappa: f64,
+    sigma: f64,
+}
+
+impl TryFrom<RawHullWhiteCalibrationParams> for HullWhiteCalibrationParams {
+    type Error = Error;
+
+    fn try_from(raw: RawHullWhiteCalibrationParams) -> Result<Self> {
+        Self::new(raw.kappa, raw.sigma)
+    }
+}
+
+impl Default for HullWhiteCalibrationParams {
     /// Return generic uncalibrated initialization parameters.
     ///
     /// The defaults κ=3% and σ=1% are suitable for tests and initialization,
@@ -78,7 +92,7 @@ impl Default for HullWhiteParams {
     }
 }
 
-impl HullWhiteParams {
+impl HullWhiteCalibrationParams {
     /// Construct validated constant Hull-White parameters.
     ///
     /// # Arguments
@@ -111,34 +125,12 @@ impl HullWhiteParams {
     pub fn is_uncalibrated_default(&self) -> bool {
         (self.kappa - 0.03).abs() < f64::EPSILON && (self.sigma - 0.01).abs() < f64::EPSILON
     }
-
-    /// Evaluate the affine bond-loading function `B(t1, t2)`.
-    ///
-    /// # Arguments
-    ///
-    /// * `t1` - Earlier model time in years.
-    /// * `t2` - Later model time in years.
-    #[must_use]
-    pub fn b_function(&self, t1: f64, t2: f64) -> f64 {
-        hw_b(self.kappa, t1, t2)
-    }
-
-    /// Evaluate zero-coupon bond-option volatility under constant σ.
-    ///
-    /// # Arguments
-    ///
-    /// * `t` - Current model time in years.
-    /// * `expiry` - Bond-option expiry in years.
-    /// * `maturity` - Underlying zero-coupon bond maturity in years.
-    #[must_use]
-    pub fn bond_option_vol(&self, t: f64, expiry: f64, maturity: f64) -> f64 {
-        hw_bond_vol(self.kappa, self.sigma, t, expiry, maturity)
-    }
 }
 
-/// Hull-White parameters with a piecewise-constant short-rate volatility.
+/// Canonical Hull-White parameters with piecewise-constant short-rate volatility.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct HullWhiteModelParams {
+#[serde(try_from = "RawHullWhiteParams")]
+pub struct HullWhiteParams {
     /// Mean-reversion speed κ in inverse years; strictly positive and finite.
     pub kappa: f64,
     /// Left-continuous short-rate volatility σ(t), in absolute rate units per
@@ -146,7 +138,21 @@ pub struct HullWhiteModelParams {
     pub volatility: PiecewiseConstantCurve,
 }
 
-impl HullWhiteModelParams {
+#[derive(serde::Deserialize)]
+struct RawHullWhiteParams {
+    kappa: f64,
+    volatility: PiecewiseConstantCurve,
+}
+
+impl TryFrom<RawHullWhiteParams> for HullWhiteParams {
+    type Error = Error;
+
+    fn try_from(raw: RawHullWhiteParams) -> Result<Self> {
+        Self::new(raw.kappa, raw.volatility)
+    }
+}
+
+impl HullWhiteParams {
     /// Construct a model from mean reversion and a validated volatility schedule.
     ///
     /// # Arguments
@@ -220,10 +226,10 @@ impl HullWhiteModelParams {
     }
 }
 
-impl TryFrom<HullWhiteParams> for HullWhiteModelParams {
+impl TryFrom<HullWhiteCalibrationParams> for HullWhiteParams {
     type Error = Error;
 
-    fn try_from(params: HullWhiteParams) -> Result<Self> {
+    fn try_from(params: HullWhiteCalibrationParams) -> Result<Self> {
         Self::constant(params.kappa, params.sigma)
     }
 }
@@ -309,7 +315,7 @@ pub fn hw_bond_vol(kappa: f64, sigma: f64, t: f64, expiry: f64, maturity: f64) -
 /// Returns [`Error::Validation`] for non-finite, negative, or incorrectly
 /// ordered times, or when schedule integration fails.
 pub fn hw_bond_vol_with_model(
-    params: &HullWhiteModelParams,
+    params: &HullWhiteParams,
     t: f64,
     expiry: f64,
     maturity: f64,
@@ -468,7 +474,7 @@ pub fn hw1f_caplet_price_from_dfs(
 /// invalid, or when scheduled bond-volatility integration fails.
 #[allow(clippy::too_many_arguments)]
 pub fn hw1f_term_caplet_price_from_dfs_with_model(
-    params: &HullWhiteModelParams,
+    params: &HullWhiteParams,
     pf_start: f64,
     pf_end: f64,
     pd_pay: f64,
@@ -533,7 +539,7 @@ pub fn hw1f_term_caplet_price_from_dfs_with_model(
 /// * `is_cap` - `true` for a cap and `false` for a floor.
 #[must_use]
 pub fn hw1f_cap_floor_price(
-    params: HullWhiteParams,
+    params: HullWhiteCalibrationParams,
     discount_df: &dyn Fn(f64) -> f64,
     forward_df: &dyn Fn(f64) -> f64,
     periods: &[(f64, f64, f64)],
@@ -576,7 +582,7 @@ pub fn hw1f_cap_floor_price(
 /// Returns an error when any caplet input is invalid or scheduled volatility
 /// integration fails.
 pub fn hw1f_cap_floor_price_with_model(
-    params: &HullWhiteModelParams,
+    params: &HullWhiteParams,
     discount_df: &dyn Fn(f64) -> f64,
     forward_df: &dyn Fn(f64) -> f64,
     periods: &[(f64, f64, f64, f64)],
@@ -650,8 +656,8 @@ mod tests {
 
     #[test]
     fn scalar_and_scheduled_variance_agree() {
-        let scalar = HullWhiteParams::new(0.05, 0.01).expect("scalar parameters");
-        let model = HullWhiteModelParams::try_from(scalar).expect("constant model");
+        let scalar = HullWhiteCalibrationParams::new(0.05, 0.01).expect("scalar parameters");
+        let model = HullWhiteParams::try_from(scalar).expect("constant model");
         let expected = scalar.sigma * scalar.sigma * (1.0 - (-0.1_f64).exp()) / 0.1;
         let actual = model.state_variance(1.0).expect("state variance");
         assert!((actual - expected).abs() < 1.0e-14);
@@ -659,9 +665,9 @@ mod tests {
 
     #[test]
     fn constant_and_scheduled_bond_vol_agree() {
-        let scalar = HullWhiteParams::new(0.05, 0.01).expect("scalar parameters");
-        let model = HullWhiteModelParams::try_from(scalar).expect("constant model");
-        let expected = scalar.bond_option_vol(0.0, 1.0, 2.0);
+        let scalar = HullWhiteCalibrationParams::new(0.05, 0.01).expect("scalar parameters");
+        let model = HullWhiteParams::try_from(scalar).expect("constant model");
+        let expected = hw_bond_vol(scalar.kappa, scalar.sigma, 0.0, 1.0, 2.0);
         let actual = hw_bond_vol_with_model(&model, 0.0, 1.0, 2.0).expect("model vol");
         assert!((actual - expected).abs() < 1.0e-14);
     }

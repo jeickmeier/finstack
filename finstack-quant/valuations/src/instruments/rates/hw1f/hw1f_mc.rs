@@ -282,7 +282,8 @@ mod tests {
     fn pathwise_bank_account_discounts_zcb() {
         let r0 = 0.03;
         let pricer = RateExoticHw1fMcPricer {
-            process_params: HullWhite1FParams::new(0.05, 1e-12, r0),
+            process_params: HullWhite1FParams::new(0.05, 1e-12, r0)
+                .expect("valid Hull-White parameters"),
             r0,
             event_times: vec![1.0],
             config: RateExoticMcConfig {
@@ -303,7 +304,8 @@ mod tests {
     #[test]
     fn trivial_payoff_equals_one() {
         let pricer = RateExoticHw1fMcPricer {
-            process_params: HullWhite1FParams::new(0.05, 0.01, 0.0),
+            process_params: HullWhite1FParams::new(0.05, 0.01, 0.0)
+                .expect("valid Hull-White parameters"),
             r0: 0.03,
             event_times: vec![1.0],
             config: RateExoticMcConfig {
@@ -339,7 +341,8 @@ mod tests {
     fn antithetic_pair_stderr_below_iid() {
         let r0 = 0.03;
         let make = |antithetic: bool| RateExoticHw1fMcPricer {
-            process_params: HullWhite1FParams::new(0.05, 0.01, r0),
+            process_params: HullWhite1FParams::new(0.05, 0.01, r0)
+                .expect("valid Hull-White parameters"),
             r0,
             event_times: vec![1.0],
             config: RateExoticMcConfig {

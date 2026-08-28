@@ -54,7 +54,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
-use finstack_quant_models::rates::hull_white::HullWhiteParams;
+use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 use finstack_quant_models::{HullWhiteTree, HullWhiteTreeConfig};
 use finstack_quant_valuations::instruments::exotics::tarn::{Tarn, TarnPricer};
 use finstack_quant_valuations::instruments::rates::hw1f::RateExoticMcConfig;
@@ -135,7 +135,7 @@ fn tree_floating_note_pv(
     tarn: &Tarn,
     discount_curve: &DiscountCurve,
     as_of: Date,
-    hw: HullWhiteParams,
+    hw: HullWhiteCalibrationParams,
     tree_steps: usize,
 ) -> f64 {
     let day_count = tarn.day_count;
@@ -231,7 +231,7 @@ fn tarn_floating_note_mc_matches_hw_tree() {
     // Modest mean reversion / 40 bp vol. A small σ keeps the O(σ²) discounting-
     // convention term negligible; the short rate is still genuinely stochastic
     // (the reconstructed forward fluctuates by ~σ√t across paths).
-    let hw = HullWhiteParams::new(0.10, 0.004).expect("hw params");
+    let hw = HullWhiteCalibrationParams::new(0.10, 0.004).expect("hw params");
 
     // --- Monte-Carlo (M6/M7 path) -------------------------------------------
     let mc_result = TarnPricer::with_hw_params(hw)

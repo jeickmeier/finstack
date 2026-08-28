@@ -7,7 +7,6 @@ use finstack_quant_models::credit::migration::{
     projection, GeneratorMatrix, MigrationSimulator, RatingScale, TransitionMatrix,
 };
 use finstack_quant_models::credit::pd::MasterScale;
-use finstack_quant_models::credit::scoring::{altman_z_score_with_pd, AltmanZScoreInput};
 use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
@@ -33,7 +32,7 @@ fn reference_transition_matrix() -> TransitionMatrix {
 }
 
 #[test]
-fn credit_workflow_maps_scoring_migration_and_loss_modules_together() {
+fn credit_workflow_maps_migration_and_loss_modules_together() {
     let annual = reference_transition_matrix();
     let generator = GeneratorMatrix::from_transition_matrix(&annual).unwrap();
     let half_year = projection::project(&generator, 0.5).unwrap();
@@ -45,19 +44,10 @@ fn credit_workflow_maps_scoring_migration_and_loss_modules_together() {
     assert!(pd_1y > 0.0);
     assert!(pd_1y > pd_half, "one-year PD must exceed the half-year PD");
 
-    let score = altman_z_score_with_pd(&AltmanZScoreInput {
-        working_capital_to_total_assets: 0.10,
-        retained_earnings_to_total_assets: 0.20,
-        ebit_to_total_assets: 0.15,
-        market_equity_to_total_liabilities: 1.50,
-        sales_to_total_assets: 1.80,
-    })
-    .unwrap();
     let mapped = MasterScale::sp_assumptions()
         .unwrap()
-        .map_score(&score)
+        .map_pd(pd_1y)
         .unwrap();
-    assert_eq!(Some(mapped.input_pd), score.implied_pd);
     assert!(mapped.central_pd > 0.0);
 
     let ead = EadCalculator::revolver(60.0, 40.0).unwrap().ead();

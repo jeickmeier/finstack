@@ -259,12 +259,11 @@ class TestMonteCarloNamespace:
     """Verify the models.monte_carlo subpackage."""
 
     def test_monte_carlo_exports(self) -> None:
-        """Monte Carlo should export engine, pricer, and result types."""
+        """Monte Carlo should export canonical pricer and result types."""
         from finstack_quant import models
         from finstack_quant.models.monte_carlo import (  # noqa: F401
             EuropeanPricer,
             LsmcPricer,
-            McEngine,
             MoneyEstimate,
             PathDependentPricer,
         )

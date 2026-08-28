@@ -121,7 +121,7 @@ fn clo_deal(n_assets: usize, base_cdr: f64, correlation: f64) -> StructuredCredi
         correlation,
     ))
     .with_stochastic_prepay(deterministic_prepay)
-    .with_correlation(CorrelationStructure::flat(correlation, 0.0));
+    .with_correlation(CorrelationStructure::flat(correlation, 0.0).expect("valid correlation"));
     sc
 }
 

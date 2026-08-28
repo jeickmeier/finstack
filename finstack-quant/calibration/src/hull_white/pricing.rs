@@ -90,7 +90,7 @@ pub(crate) fn hw1f_cap_floor_price(
 ) -> f64 {
     let periods: Vec<_> = cap_floor_periods(spec.maturity, spec.frequency).collect();
     finstack_quant_models::rates::hull_white::hw1f_cap_floor_price(
-        HullWhiteParams { kappa, sigma },
+        HullWhiteCalibrationParams { kappa, sigma },
         discount_df,
         forward_df,
         &periods,
@@ -101,7 +101,7 @@ pub(crate) fn hw1f_cap_floor_price(
 
 /// Price a full cap/floor under a scheduled HW1F short-rate volatility.
 pub(crate) fn hw1f_cap_floor_price_with_model(
-    params: &HullWhiteModelParams,
+    params: &HullWhiteParams,
     discount_df: &dyn Fn(f64) -> f64,
     forward_df: &dyn Fn(f64) -> f64,
     spec: CapFloorPriceSpec,

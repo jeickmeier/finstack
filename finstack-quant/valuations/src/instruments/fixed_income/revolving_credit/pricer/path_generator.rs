@@ -31,7 +31,7 @@ use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::rng::sobol::SobolRng;
 use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream, StochasticProcess};
 use finstack_quant_models::monte_carlo::TimeGrid;
-use finstack_quant_models::rates::hull_white::HullWhiteParams;
+use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 
 use super::super::cashflow_engine::ThreeFactorPathData;
 use super::super::types::{
@@ -151,7 +151,7 @@ pub fn generate_three_factor_paths(
                                 DayCountContext::default(),
                             )?
                             .max(1e-6);
-                        let scalar = HullWhiteParams::new(*kappa, *sigma)?;
+                        let scalar = HullWhiteCalibrationParams::new(*kappa, *sigma)?;
                         let params = prepare_hw1f_params(
                             scalar,
                             disc_curve.as_ref(),
@@ -171,7 +171,7 @@ pub fn generate_three_factor_paths(
                         // the supplied constant mean level remains exact.
                         (
                             InterestRateSpec::Floating {
-                                params: HullWhite1FParams::new(*kappa, *sigma, *theta),
+                                params: HullWhite1FParams::new(*kappa, *sigma, *theta)?,
                                 initial: *initial,
                             },
                             None,
@@ -234,7 +234,7 @@ pub fn generate_three_factor_paths(
     // discounting over the static curve.
     let stochastic_rates = matches!(
         &process.params().interest_rate,
-        InterestRateSpec::Floating { params, .. } if params.sigma > 0.0
+        InterestRateSpec::Floating { params, .. } if params.sigma_at_time(0.0) > 0.0
     );
 
     // Convert payment dates to time points using facility's day count

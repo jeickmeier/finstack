@@ -156,8 +156,7 @@ pub use barrier::{
     up_in_call, up_out_call, RebateTiming,
 };
 pub use dispatch::{
-    asian_option_price_str, barrier_call_str, lookback_option_price_str,
-    quanto_option_price_checked,
+    asian_option_price_str, barrier_call_str, lookback_option_price_str, quanto_option_price,
 };
 pub use heston::{heston_call_price_fourier, heston_put_price_fourier, HestonPricingParams};
 pub use implied_vol::{black76_implied_vol, bs_implied_vol};
@@ -167,8 +166,7 @@ pub use lookback::{
 };
 pub use quanto::{quanto_call, quanto_drift_adjustment, quanto_put};
 pub use vanilla::{
-    bs_greeks, bs_price, checked_closed_form_value, option_type_from_bool, vanilla_expiry_payoff,
-    BsGreeks, ONE_PERCENT,
+    bs_greeks, bs_price, checked_closed_form_value, vanilla_expiry_payoff, BsGreeks, ONE_PERCENT,
 };
 pub use volatility::{
     bachelier_call, bachelier_delta_call, bachelier_delta_put, bachelier_gamma, bachelier_put,

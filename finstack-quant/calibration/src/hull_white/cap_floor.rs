@@ -31,7 +31,7 @@ pub fn calibrate_hull_white_to_cap_floors(
     forward_df: &dyn Fn(f64) -> f64,
     quotes: &[CapFloorQuote],
     config: CapFloorCalibrationConfig,
-) -> finstack_quant_core::Result<(HullWhiteParams, CalibrationReport)> {
+) -> finstack_quant_core::Result<(HullWhiteCalibrationParams, CalibrationReport)> {
     if quotes.is_empty() {
         return Err(finstack_quant_core::Error::Validation(
             "Need at least one cap/floor quote for HW1F calibration".to_string(),
@@ -115,7 +115,7 @@ pub fn calibrate_hull_white_to_cap_floors(
         // σ is rejected, and the report residuals are vega-scaled so the
         // validation tolerance is applied on the vol scale, matching the
         // two-parameter objective.
-        let fixed = HullWhiteParams::new(fixed_kappa, 1e-4)?.kappa;
+        let fixed = HullWhiteCalibrationParams::new(fixed_kappa, 1e-4)?.kappa;
         if !(KAPPA_MIN..=KAPPA_MAX).contains(&fixed) {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "Cap/floor HW1F fixed_kappa = {fixed:.6} outside the bounded range \
@@ -169,7 +169,7 @@ pub fn calibrate_hull_white_to_cap_floors(
             frequency,
             moneyness,
         );
-        return Ok((HullWhiteParams::new(fixed, sigma)?, report));
+        return Ok((HullWhiteCalibrationParams::new(fixed, sigma)?, report));
     }
 
     // Two-parameter (κ, σ) path via GlobalFitOptimizer.
@@ -226,7 +226,10 @@ pub fn calibrate_hull_white_to_cap_floors(
         moneyness,
     );
 
-    Ok((HullWhiteParams::new(params.kappa, params.sigma)?, report))
+    Ok((
+        HullWhiteCalibrationParams::new(params.kappa, params.sigma)?,
+        report,
+    ))
 }
 
 /// Apply cap/floor metadata shared by the fixed-kappa and two-parameter paths.
@@ -483,7 +486,7 @@ pub fn bootstrap_hull_white_sigma_schedule_to_cap_floors(
     forward_df: &dyn Fn(f64) -> f64,
     quotes: &[CapFloorQuote],
     config: PiecewiseSigmaCalibrationConfig,
-) -> finstack_quant_core::Result<(HullWhiteModelParams, CalibrationReport)> {
+) -> finstack_quant_core::Result<(HullWhiteParams, CalibrationReport)> {
     config.validate()?;
     if quotes.is_empty() {
         return Err(finstack_quant_core::Error::Validation(
@@ -533,7 +536,7 @@ pub fn bootstrap_hull_white_sigma_schedule_to_cap_floors(
         let model_price = |candidate: f64| -> finstack_quant_core::Result<f64> {
             let mut candidate_sigmas = sigmas.clone();
             candidate_sigmas.push(candidate);
-            let model = HullWhiteModelParams::new(
+            let model = HullWhiteParams::new(
                 config.fixed_kappa,
                 PiecewiseConstantCurve::new(times.clone(), candidate_sigmas)?,
             )?;
@@ -572,7 +575,7 @@ pub fn bootstrap_hull_white_sigma_schedule_to_cap_floors(
         }
     }
     let volatility = PiecewiseConstantCurve::new(times, sigmas)?;
-    let model = HullWhiteModelParams::new(config.fixed_kappa, volatility)?;
+    let model = HullWhiteParams::new(config.fixed_kappa, volatility)?;
     let report = CalibrationReport::for_type_with_tolerance(
         "hull_white_1f_cap_floor_piecewise",
         residuals,

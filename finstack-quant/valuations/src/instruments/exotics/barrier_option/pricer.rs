@@ -556,8 +556,8 @@ mod tests {
     use finstack_quant_core::types::BarrierType as AnalyticalBarrierType;
     use finstack_quant_core::types::InstrumentId;
     use finstack_quant_models::closed_form::barrier::{
-        barrier_call_continuous, barrier_put_continuous, barrier_rebate_continuous, down_out_call,
-        BarrierParams,
+        barrier_call_continuous, barrier_put_continuous, barrier_rebate, down_out_call,
+        BarrierParams, RebateTiming,
     };
     use time::Month;
 
@@ -696,8 +696,12 @@ mod tests {
         assert!(((rebate_pv - base_pv) - expected_at_hit).abs() < 1e-12);
 
         // Explicit AtExpiry reproduces the legacy pay-at-expiry value.
-        let expected_at_expiry =
-            barrier_rebate_continuous(&p, rebate, AnalyticalBarrierType::UpAndOut);
+        let expected_at_expiry = barrier_rebate(
+            &p,
+            rebate,
+            AnalyticalBarrierType::UpAndOut,
+            RebateTiming::AtExpiry,
+        );
         assert!(((rebate_pv_at_expiry - base_pv) - expected_at_expiry).abs() < 1e-12);
 
         // At-hit must dominate at-expiry under positive rates.

@@ -7,20 +7,35 @@ use crate::{Error, Result};
 
 /// A finite, left-continuous piecewise-constant curve.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(try_from = "RawPiecewiseConstantCurve")]
 pub struct PiecewiseConstantCurve {
     /// Knot times in years, strictly increasing and starting at exactly zero.
     /// Each entry is the left edge of the interval its value applies to.
     times: Vec<f64>,
-    /// Curve value on each interval, finite and strictly positive. Same length
-    /// as `times`; `values[i]` applies over `[times[i], times[i + 1])`.
+    /// Curve value on each interval, finite and non-negative. Same length as
+    /// `times`; `values[i]` applies over `[times[i], times[i + 1])`.
     values: Vec<f64>,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+struct RawPiecewiseConstantCurve {
+    times: Vec<f64>,
+    values: Vec<f64>,
+}
+
+impl TryFrom<RawPiecewiseConstantCurve> for PiecewiseConstantCurve {
+    type Error = Error;
+
+    fn try_from(raw: RawPiecewiseConstantCurve) -> Result<Self> {
+        Self::new(raw.times, raw.values)
+    }
 }
 
 impl PiecewiseConstantCurve {
     /// Create a validated left-continuous curve.
     ///
     /// The first knot must be exactly zero, knots must be strictly increasing,
-    /// and all values must be finite and strictly positive.
+    /// and all values must be finite and non-negative.
     pub fn new(times: Vec<f64>, values: Vec<f64>) -> Result<Self> {
         if times.is_empty() || values.is_empty() || times.len() != values.len() {
             return Err(Error::Validation(
@@ -39,9 +54,9 @@ impl PiecewiseConstantCurve {
                     "piecewise curve time at index {index} must be finite and non-negative, got {time}"
                 )));
             }
-            if !value.is_finite() || value <= 0.0 {
+            if !value.is_finite() || value < 0.0 {
                 return Err(Error::Validation(format!(
-                    "piecewise curve value at index {index} must be positive and finite, got {value}"
+                    "piecewise curve value at index {index} must be non-negative and finite, got {value}"
                 )));
             }
             if index > 0 && time <= times[index - 1] {

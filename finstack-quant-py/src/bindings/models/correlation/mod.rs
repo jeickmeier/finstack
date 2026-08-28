@@ -70,11 +70,11 @@ impl PyCopulaSpec {
         Self::from_inner(CopulaSpec::random_factor_loading(loading_vol))
     }
 
-    /// Multi-factor Gaussian copula with sector structure.
+    /// Global-plus-sector two-factor Gaussian copula.
     #[classmethod]
-    #[pyo3(text_signature = "(cls, num_factors)")]
-    fn multi_factor(_cls: &Bound<'_, PyType>, num_factors: usize) -> Self {
-        Self::from_inner(CopulaSpec::multi_factor(num_factors))
+    #[pyo3(text_signature = "(cls)")]
+    fn multi_factor(_cls: &Bound<'_, PyType>) -> Self {
+        Self::from_inner(CopulaSpec::multi_factor())
     }
 
     /// Build a concrete `Copula` from this specification.

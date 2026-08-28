@@ -1,11 +1,9 @@
-//! `McEngine` binding (configured via `PyTimeGrid`) plus process helpers.
+//! Process helpers and canonical Monte Carlo convenience functions.
 
 use super::results::{PyGbmPathSummary, PyMoneyEstimate};
-use super::time_grid::PyTimeGrid;
 use crate::bindings::core::currency::extract_currency;
 use crate::errors::core_to_py;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig};
 use finstack_quant_models::monte_carlo::registry::{self, ConvenienceDefaults};
 use pyo3::prelude::*;
 use std::str::FromStr;
@@ -16,116 +14,6 @@ pub(super) fn py_mc_defaults() -> PyResult<&'static ConvenienceDefaults> {
     registry::embedded_defaults()
         .map(|defaults| &defaults.convenience)
         .map_err(core_to_py)
-}
-
-/// The core Monte Carlo engine for full control over simulation.
-#[pyclass(
-    name = "McEngine",
-    module = "finstack_quant.models.monte_carlo",
-    frozen
-)]
-pub struct PyMcEngine {
-    inner: McEngine,
-    seed: u64,
-}
-
-#[pymethods]
-impl PyMcEngine {
-    /// Build an engine from a time grid configuration.
-    ///
-    /// ``num_paths`` is the number of independent estimators. With antithetic
-    /// pairing enabled, the engine simulates twice that many sample paths.
-    #[new]
-    #[pyo3(signature = (num_paths, time_grid, seed=None, use_parallel=None, antithetic=None))]
-    fn new(
-        num_paths: usize,
-        time_grid: &PyTimeGrid,
-        seed: Option<u64>,
-        use_parallel: Option<bool>,
-        antithetic: Option<bool>,
-    ) -> PyResult<Self> {
-        let defaults = &py_mc_defaults()?.engine;
-        let seed = seed.unwrap_or(defaults.seed);
-        let use_parallel = use_parallel.unwrap_or(defaults.use_parallel);
-        let antithetic = antithetic.unwrap_or(defaults.antithetic);
-        let config = McEngineConfig::new(num_paths, time_grid.inner.clone())
-            .parallel(use_parallel)
-            .antithetic(antithetic);
-        Ok(Self {
-            inner: McEngine::new(config),
-            seed,
-        })
-    }
-
-    /// Price a European call under GBM.
-    #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (spot, strike, rate, div_yield, vol, currency=None))]
-    fn price_european_call(
-        &self,
-        py: Python<'_>,
-        spot: f64,
-        strike: f64,
-        rate: f64,
-        div_yield: f64,
-        vol: f64,
-        currency: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<PyMoneyEstimate> {
-        let ccy = extract_optional_currency(currency)?;
-        py.detach(|| {
-            finstack_quant_models::monte_carlo::pricer::european::price_engine_gbm_call(
-                &self.inner,
-                self.seed,
-                spot,
-                strike,
-                rate,
-                div_yield,
-                vol,
-                ccy,
-            )
-        })
-        .map(PyMoneyEstimate::from_inner)
-        .map_err(core_to_py)
-    }
-
-    /// Price a European put under GBM.
-    #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (spot, strike, rate, div_yield, vol, currency=None))]
-    fn price_european_put(
-        &self,
-        py: Python<'_>,
-        spot: f64,
-        strike: f64,
-        rate: f64,
-        div_yield: f64,
-        vol: f64,
-        currency: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<PyMoneyEstimate> {
-        let ccy = extract_optional_currency(currency)?;
-        py.detach(|| {
-            finstack_quant_models::monte_carlo::pricer::european::price_engine_gbm_put(
-                &self.inner,
-                self.seed,
-                spot,
-                strike,
-                rate,
-                div_yield,
-                vol,
-                ccy,
-            )
-        })
-        .map(PyMoneyEstimate::from_inner)
-        .map_err(core_to_py)
-    }
-
-    fn __repr__(&self) -> String {
-        let c = self.inner.config();
-        format!(
-            "McEngine(paths={}, steps={}, T={:.4})",
-            c.num_paths,
-            c.time_grid.num_steps(),
-            c.time_grid.t_max()
-        )
-    }
 }
 
 /// Simulate a compact set of GBM spot paths through Rust path capture.
@@ -144,7 +32,7 @@ fn simulate_gbm_paths(
     seed: Option<u64>,
     antithetic: bool,
 ) -> PyResult<PyGbmPathSummary> {
-    let seed = seed.unwrap_or(py_mc_defaults()?.engine.seed);
+    let seed = seed.unwrap_or(py_mc_defaults()?.european_pricer.seed);
     let config = finstack_quant_models::monte_carlo::GbmPathConfig::new(
         spot, rate, div_yield, vol, expiry, num_steps, num_paths,
     )
@@ -392,7 +280,6 @@ fn price_heston_put(
 }
 
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<PyMcEngine>()?;
     m.add_function(wrap_pyfunction!(simulate_gbm_paths, m)?)?;
     m.add_function(wrap_pyfunction!(heston_satisfies_feller, m)?)?;
     m.add_function(wrap_pyfunction!(price_heston_call, m)?)?;

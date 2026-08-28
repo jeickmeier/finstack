@@ -21,7 +21,7 @@ use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::results::MoneyEstimate;
 use finstack_quant_models::monte_carlo::seed;
 use finstack_quant_models::monte_carlo::traits::{PathState, Payoff, StateKey};
-use finstack_quant_models::rates::hull_white::HullWhiteParams;
+use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy)]
@@ -218,7 +218,7 @@ impl ExerciseBoundaryPayoff for CallableRangeAccrualPayoff {
 /// Callable range accrual pricer using shared HW1F MC/LSMC infrastructure.
 #[derive(Debug, Clone)]
 pub struct CallableRangeAccrualPricer {
-    hw_params: Option<HullWhiteParams>,
+    hw_params: Option<HullWhiteCalibrationParams>,
     config: RateExoticMcConfig,
 }
 
@@ -232,7 +232,7 @@ impl CallableRangeAccrualPricer {
     }
 
     /// Create a callable range accrual pricer with explicit HW1F parameters.
-    pub fn with_hw_params(hw_params: HullWhiteParams) -> Self {
+    pub fn with_hw_params(hw_params: HullWhiteCalibrationParams) -> Self {
         Self {
             hw_params: Some(hw_params),
             config: RateExoticMcConfig::default(),
@@ -250,7 +250,7 @@ impl CallableRangeAccrualPricer {
         inst: &CallableRangeAccrual,
         market: &MarketContext,
         _as_of: Date,
-    ) -> Result<HullWhiteParams> {
+    ) -> Result<HullWhiteCalibrationParams> {
         let overrides = hw1f_overrides_json(inst).or_else(|| {
             self.hw_params.map(|params| {
                 serde_json::json!({"hw1f_kappa": params.kappa, "hw1f_sigma": params.sigma})
@@ -720,7 +720,7 @@ mod tests {
 
     fn deterministic_pricer(paths: usize) -> CallableRangeAccrualPricer {
         CallableRangeAccrualPricer::with_hw_params(
-            HullWhiteParams::new(0.05, 1e-12).expect("hw params"),
+            HullWhiteCalibrationParams::new(0.05, 1e-12).expect("hw params"),
         )
         .with_config(RateExoticMcConfig {
             num_paths: paths,
@@ -745,7 +745,7 @@ mod tests {
 
         let pricer_for_degree = |degree: usize| {
             CallableRangeAccrualPricer::with_hw_params(
-                HullWhiteParams::new(0.05, 0.01).expect("hw params"),
+                HullWhiteCalibrationParams::new(0.05, 0.01).expect("hw params"),
             )
             .with_config(RateExoticMcConfig {
                 num_paths: 256,

@@ -657,7 +657,7 @@ mod tests {
     use finstack_quant_core::money::fx::{FxMatrix, SimpleFxProvider};
     use finstack_quant_core::money::Money;
     use finstack_quant_core::types::BarrierType;
-    use finstack_quant_models::closed_form::barrier::{barrier_rebate_continuous, RebateTiming};
+    use finstack_quant_models::closed_form::barrier::{barrier_rebate, RebateTiming};
     use std::sync::Arc;
     use time::Month;
 
@@ -951,7 +951,12 @@ mod tests {
             BarrierType::UpAndOut,
             RebateTiming::AtExpiry,
         );
-        let continuous_per_unit = barrier_rebate_continuous(&params, rebate, BarrierType::UpAndOut);
+        let continuous_per_unit = barrier_rebate(
+            &params,
+            rebate,
+            BarrierType::UpAndOut,
+            RebateTiming::AtExpiry,
+        );
         let actual_delta = rebate_pv.amount() - base_pv.amount();
         let expected_delta = expected_per_unit * notional;
 

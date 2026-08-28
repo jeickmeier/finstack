@@ -27,7 +27,6 @@
 //! - [`pricer`] provides higher-level European, path-dependent, and LSMC workflows.
 //! - [`simulate_gbm_paths`] returns compact captured GBM paths for plotting and
 //!   diagnostics.
-//! - [`prelude`] re-exports commonly used types.
 //!
 //! # Module map
 //!
@@ -38,7 +37,6 @@
 //!   [`variance_reduction`].
 //! - Results and diagnostics: [`estimate`], [`OnlineStats`], [`paths`], and [`results`].
 //! - Runtime defaults and reproducibility: [`registry`] and [`seed`].
-//! - Common imports: [`prelude`].
 //!
 //! # Conventions
 //!
@@ -111,70 +109,6 @@ pub use traits::{
     state_keys, Discretization, PathState, Payoff, ProportionalDiffusion, RandomStream, StateKey,
     StochasticProcess,
 };
-
-/// Prelude for convenient imports of the main Monte Carlo entry points.
-///
-/// Use this module when you want the crate's common engine, process, payoff, and pricer
-/// types without spelling their full paths.
-pub mod prelude {
-    pub use super::estimate::Estimate;
-    pub use super::gbm_paths::{simulate_gbm_paths, GbmPathConfig, GbmPathSummary};
-    pub use super::paths::{
-        CashflowType, PathDataset, PathPoint, PathSamplingMethod, ProcessParams, SimulatedPath,
-    };
-    pub use super::traits::{Discretization, PathState, RandomStream, StochasticProcess};
-    pub use super::TimeGrid;
-    pub use super::{required_samples, OnlineCovariance, OnlineStats};
-
-    pub use super::rng::philox::PhiloxRng;
-    pub use super::rng::sobol::SobolRng;
-
-    pub use super::process::brownian::{BrownianParams, BrownianProcess, MultiBrownianProcess};
-    pub use super::process::cir::{CirParams, CirPlusPlusProcess, CirProcess};
-    pub use super::process::gbm::{GbmParams, GbmProcess, MultiGbmProcess};
-    pub use super::process::heston::HestonProcess;
-    pub use super::process::multi_ou::MultiOuParams;
-    pub use super::process::ou::{HullWhite1FParams, HullWhite1FProcess};
-    pub use super::process::schwartz_smith::{SchwartzSmithParams, SchwartzSmithProcess};
-    pub use crate::closed_form::heston::HestonPricingParams;
-    pub use finstack_quant_core::math::linalg::{apply_correlation, cholesky_decomposition};
-
-    // Route everything through the `discretization` module's own re-exports
-    // (see `src/discretization/mod.rs`) so there is one canonical public path
-    // per scheme. The prelude is a curated list on top of that.
-    pub use super::discretization::{
-        CheyetteRoughEuler, EulerMaruyama, ExactGbm, ExactHullWhite1F, ExactMultiGbm,
-        ExactMultiGbmCorrelated, ExactSchwartzSmith, Milstein, QeCir, QeHeston, RoughBergomiEuler,
-        RoughHestonHybrid,
-    };
-
-    pub use super::engine::{
-        McEngine, McEngineBuilder, McEngineConfig, PathCaptureConfig, PathCaptureMode,
-    };
-    pub use super::engine_fractional::simulate_path_fractional;
-
-    pub use super::results::{MoneyEstimate, MonteCarloResult};
-    pub use super::rng::fbm::{create_fbm_generator, FractionalNoiseGenerator};
-    pub use super::rng::volterra::RiemannLiouvilleVolterra;
-    pub use super::traits::Payoff;
-
-    pub use super::payoff::asian::{
-        geometric_asian_call_closed_form, AsianCall, AsianPut, AveragingMethod,
-    };
-    pub use super::payoff::barrier::{BarrierOptionPayoff, BarrierType};
-    pub use super::payoff::vanilla::{Digital, EuropeanCall, EuropeanPut, Forward};
-
-    pub use super::pricer::basis::{LaguerreBasis, PolynomialBasis};
-    pub use super::pricer::european::EuropeanPricer;
-    pub use super::pricer::lsmc::{
-        AmericanCall, AmericanPut, ExercisePolicy, LsmcConfig, LsmcPricer,
-    };
-    pub use super::pricer::path_dependent::{PathDependentPricer, PathDependentPricerConfig};
-
-    pub use super::greeks::finite_diff::{
-        finite_diff_delta, finite_diff_delta_crn, finite_diff_gamma, finite_diff_gamma_crn,
-    };
-}
 
 #[cfg(test)]
 mod gbm_path_summary_tests {

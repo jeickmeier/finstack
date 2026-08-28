@@ -1,18 +1,14 @@
 //! Python bindings for the `finstack-quant-models` crate.
 //!
-//! Exposes convenience pricing over the Rust Monte Carlo crate: engine,
-//! European/Asian/LSMC pricers, Black-Scholes formulas, and selected non-GBM
-//! process wrappers. Advanced Rust process, discretization, RNG, payoff, and
-//! Greeks types are intentionally not standalone Python types yet; their
-//! parameters are passed directly as numeric arguments to the exposed pricer
-//! constructors and methods.
+//! Exposes canonical European, Asian, LSMC, Heston, analytical, and Greek
+//! workflows. Advanced Rust process, discretization, RNG, and payoff types
+//! remain Rust-only.
 
 mod analytical;
 mod engine;
 mod greeks;
 mod pricers;
 mod results;
-mod time_grid;
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;
@@ -26,7 +22,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
 
     results::register(py, &m)?;
-    time_grid::register(py, &m)?;
     engine::register(py, &m)?;
     pricers::register(py, &m)?;
     analytical::register(py, &m)?;
@@ -38,8 +33,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "MoneyEstimate",
             "Estimate",
             "GbmPathSummary",
-            "TimeGrid",
-            "McEngine",
             "simulate_gbm_paths",
             "heston_satisfies_feller",
             "EuropeanPricer",

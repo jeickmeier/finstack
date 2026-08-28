@@ -176,20 +176,11 @@ fn monte_carlo_parallel_path_evaluation_is_reproducible() {
 }
 
 #[test]
-fn stochastic_pricing_rejects_invalid_correlation_structure() {
-    let mut sc = build_sc("ABS-BAD-CORR", 1_000_000.0);
-    sc.with_correlation(CorrelationStructure::matrix(
-        vec![1.0, 0.2, 0.2],
-        vec!["A".to_string(), "B".to_string()],
-    ));
-    let mut market = MarketContext::new();
-    market = market.insert(discount_curve(closing_date()));
-
-    let err = sc
-        .price_stochastic_with_mode(&market, closing_date(), PricingMode::Tree)
-        .expect_err("invalid correlation should fail before pricing");
-
-    assert!(format!("{err:?}").contains("Correlation matrix size mismatch"));
+fn correlation_constructor_rejects_invalid_matrix() {
+    let err =
+        CorrelationStructure::matrix(vec![1.0, 0.2, 0.2], vec!["A".to_string(), "B".to_string()])
+            .expect_err("wrong-sized correlation matrix must fail");
+    assert!(err.to_string().contains("size mismatch"));
 }
 
 #[test]
@@ -209,13 +200,12 @@ fn current_loss_percentage_respects_defaults_and_recoveries() {
 }
 
 #[test]
-fn stochastic_helper_methods_toggle_flags_and_preserve_chainability() {
+fn stochastic_helper_methods_toggle_flags() {
     let mut sc = build_sc("ABS-STOCHASTIC", 1_000_000.0);
     assert!(!sc.is_stochastic());
 
-    let chained = sc.enable_stochastic_defaults();
-
-    assert!(std::ptr::eq(chained, &sc));
+    sc.enable_stochastic_defaults()
+        .expect("valid built-in defaults");
     assert!(sc.is_stochastic());
     assert!(sc.credit_model.stochastic_prepay_spec.is_some());
     assert!(sc.credit_model.stochastic_default_spec.is_some());
@@ -231,7 +221,8 @@ fn stochastic_helper_methods_toggle_flags_and_preserve_chainability() {
 #[test]
 fn enable_stochastic_defaults_populates_specs_for_each_deal_family() {
     let mut abs = build_sc("ABS-DEFAULTS", 1_000_000.0);
-    abs.enable_stochastic_defaults();
+    abs.enable_stochastic_defaults()
+        .expect("valid built-in defaults");
     assert!(abs.is_stochastic());
 
     let make = |deal_type| {
@@ -254,7 +245,8 @@ fn enable_stochastic_defaults_populates_specs_for_each_deal_family() {
         make(DealType::Cmbs),
         make(DealType::Card),
     ] {
-        sc.enable_stochastic_defaults();
+        sc.enable_stochastic_defaults()
+            .expect("valid built-in defaults");
         assert!(sc.credit_model.stochastic_prepay_spec.is_some());
         assert!(sc.credit_model.stochastic_default_spec.is_some());
         assert!(sc.credit_model.correlation_structure.is_some());
@@ -588,7 +580,8 @@ fn mc_variance_no_catastrophic_cancellation_on_large_pv_deal() {
     sc.credit_model.stochastic_prepay_spec = Some(StochasticPrepaySpec::deterministic(
         sc.credit_model.prepayment_spec.clone(),
     ));
-    sc.credit_model.correlation_structure = Some(CorrelationStructure::flat(0.3, 0.0));
+    sc.credit_model.correlation_structure =
+        Some(CorrelationStructure::flat(0.3, 0.0).expect("valid correlation"));
 
     let market = MarketContext::new().insert(
         DiscountCurve::builder("USD-OIS")
@@ -709,7 +702,8 @@ fn philox_rng_discipline_determinism_and_stream_identity() {
     sc.credit_model.stochastic_prepay_spec = Some(StochasticPrepaySpec::deterministic(
         sc.credit_model.prepayment_spec.clone(),
     ));
-    sc.credit_model.correlation_structure = Some(CorrelationStructure::flat(0.3, 0.0));
+    sc.credit_model.correlation_structure =
+        Some(CorrelationStructure::flat(0.3, 0.0).expect("valid correlation"));
 
     let market = MarketContext::new().insert(
         DiscountCurve::builder("USD-OIS")
@@ -1054,7 +1048,9 @@ fn stochastic_pricing_result_bit_hash_is_stable() {
                 0.15,
             ));
             sc.with_stochastic_default(StochasticDefaultSpec::gaussian_copula(0.03, 0.20));
-            sc.with_correlation(CorrelationStructure::sectored(0.30, 0.10, -0.20));
+            sc.with_correlation(
+                CorrelationStructure::sectored(0.30, 0.10, -0.20).expect("valid correlation"),
+            );
         } else if case.label == "factor_correlated_mc" {
             use finstack_quant_cashflows::builder::DefaultModelSpec;
             sc.credit_model.default_spec = DefaultModelSpec::constant_cdr(0.05);
@@ -1067,7 +1063,8 @@ fn stochastic_pricing_result_bit_hash_is_stable() {
             sc.credit_model.stochastic_prepay_spec = Some(StochasticPrepaySpec::deterministic(
                 sc.credit_model.prepayment_spec.clone(),
             ));
-            sc.credit_model.correlation_structure = Some(CorrelationStructure::flat(0.3, 0.0));
+            sc.credit_model.correlation_structure =
+                Some(CorrelationStructure::flat(0.3, 0.0).expect("valid correlation"));
         }
 
         let market = MarketContext::new().insert(discount_curve(closing_date()));

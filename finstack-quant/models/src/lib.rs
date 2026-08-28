@@ -58,10 +58,6 @@ pub use closed_form::{
     black76_implied_vol, bs_greeks, bs_implied_vol, bs_price, heston_call_price_fourier,
     heston_put_price_fourier, vanilla_expiry_payoff, BsGreeks, HestonPricingParams, ONE_PERCENT,
 };
-pub use pde::{
-    BlackScholesPde, BoundaryCondition, CraigSneydStepper, Grid1D, Grid2D, HestonPde, PdeProblem1D,
-    PdeProblem2D, PdeSolution, PdeSolution2D, Solver1D, Solver2D,
-};
 pub use trees::{
     short_rate_keys, single_factor_equity_state, state_keys, two_factor_equity_rates_state,
     BarrierSpec, BarrierStyle, BinomialTree, EvolutionParams, HullWhiteTree, HullWhiteTreeConfig,

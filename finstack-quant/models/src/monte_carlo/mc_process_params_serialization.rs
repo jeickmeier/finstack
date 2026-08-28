@@ -99,15 +99,16 @@ fn test_hull_white_1f_params_serialization() {
         0.1,  // κ = mean reversion speed
         0.01, // σ = volatility
         0.03, // θ = constant mean reversion level
-    );
+    )
+    .expect("valid Hull-White parameters");
 
     let restored = roundtrip_json(&params);
 
     // Compare fields
     assert_eq!(params.kappa, restored.kappa);
-    assert_eq!(params.sigma, restored.sigma);
-    assert_eq!(params.theta_curve, restored.theta_curve);
-    assert_eq!(params.theta_times, restored.theta_times);
+    assert_eq!(params.model, restored.model);
+    assert_eq!(params.theta_values(), restored.theta_values());
+    assert_eq!(params.theta_times(), restored.theta_times());
 
     // Verify theta function behavior is preserved
     assert_eq!(params.theta_at_time(0.0), restored.theta_at_time(0.0));
@@ -124,15 +125,16 @@ fn test_hull_white_1f_params_time_dependent_serialization() {
         0.01, // σ
         theta_curve,
         theta_times,
-    );
+    )
+    .expect("valid Hull-White theta schedule");
 
     let restored = roundtrip_json(&params);
 
     // Compare fields
     assert_eq!(params.kappa, restored.kappa);
-    assert_eq!(params.sigma, restored.sigma);
-    assert_eq!(params.theta_curve, restored.theta_curve);
-    assert_eq!(params.theta_times, restored.theta_times);
+    assert_eq!(params.model, restored.model);
+    assert_eq!(params.theta_values(), restored.theta_values());
+    assert_eq!(params.theta_times(), restored.theta_times());
 
     // Verify theta at various times
     for t in [0.0, 0.5, 1.0, 1.5, 2.0, 10.0] {

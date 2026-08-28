@@ -13,8 +13,8 @@ Within [`monte_carlo`](src/monte_carlo/mod.rs), four traits define the simulatio
 contracts: [`RandomStream`](src/monte_carlo/traits.rs),
 [`StochasticProcess`](src/monte_carlo/traits.rs),
 [`Discretization`](src/monte_carlo/traits.rs), and
-[`Payoff`](src/monte_carlo/traits.rs). `monte_carlo::prelude` re-exports the
-types most simulation callers need.
+[`Payoff`](src/monte_carlo/traits.rs). Import concrete types from their owning
+modules; no wildcard prelude is provided.
 
 ## Position in the stack
 
@@ -104,10 +104,9 @@ what dropping discrete dividends or jumps would do).
 
 ## Pricing workflow
 
-1. Build an `McEngine` from `McEngine::builder()` with a time grid and runtime
-   options.
-2. Construct an RNG. **The seed lives on the RNG, not on the engine** —
-   `PhiloxRng::new(seed)`. `McEngineBuilder` has no `seed` method.
+1. Build an `McEngineConfig` with a time grid and runtime options, then pass it
+   to `McEngine::new`.
+2. Construct an RNG. The seed lives on the RNG, not on the engine.
 3. Pick a `StochasticProcess` and a compatible `Discretization`.
 4. Supply the initial state as a raw `&[f64]` of length `process.dim()`.
 5. Pick or implement a `Payoff`.
@@ -121,14 +120,17 @@ reduction, optional serial early stopping, and optional path capture.
 
 ```rust
 use finstack_quant_core::currency::Currency;
-use finstack_quant_models::monte_carlo::prelude::*;
+use finstack_quant_models::monte_carlo::discretization::ExactGbm;
+use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig};
+use finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanCall;
+use finstack_quant_models::monte_carlo::process::gbm::GbmProcess;
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 
-let engine = McEngine::builder()
-    .num_paths(25_000)
-    .uniform_grid(1.0, 252)
-    .parallel(true)
-    .build()
-    .expect("valid Monte Carlo configuration");
+let engine = McEngine::new(
+    McEngineConfig::uniform(25_000, 1.0, 252)
+        .expect("valid Monte Carlo configuration")
+        .parallel(true),
+);
 
 let rng = PhiloxRng::new(11);
 let process = GbmProcess::with_params(0.03, 0.01, 0.20).expect("valid GBM parameters");
@@ -165,15 +167,21 @@ consumers can interpret them.
 
 ```rust
 use finstack_quant_core::currency::Currency;
-use finstack_quant_models::monte_carlo::prelude::*;
+use finstack_quant_models::monte_carlo::discretization::ExactGbm;
+use finstack_quant_models::monte_carlo::engine::{
+    McEngine, McEngineConfig, PathCaptureConfig,
+};
+use finstack_quant_models::monte_carlo::paths::ProcessParams;
+use finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanCall;
+use finstack_quant_models::monte_carlo::process::gbm::GbmProcess;
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 
-let engine = McEngine::builder()
-    .num_paths(10_000)
-    .uniform_grid(1.0, 12)
-    .path_capture(PathCaptureConfig::sample(200, 17).with_payoffs())
-    .parallel(false)
-    .build()
-    .expect("valid Monte Carlo configuration");
+let engine = McEngine::new(
+    McEngineConfig::uniform(10_000, 1.0, 12)
+        .expect("valid Monte Carlo configuration")
+        .path_capture(PathCaptureConfig::sample(200, 17).with_payoffs())
+        .parallel(false),
+);
 
 let rng = PhiloxRng::new(11);
 let process = GbmProcess::with_params(0.03, 0.01, 0.20).expect("valid GBM parameters");
@@ -215,7 +223,11 @@ one path set and replays it on a second, independent set. It rejects a
 
 ```rust
 use finstack_quant_core::currency::Currency;
-use finstack_quant_models::monte_carlo::prelude::*;
+use finstack_quant_models::monte_carlo::pricer::basis::PolynomialBasis;
+use finstack_quant_models::monte_carlo::pricer::lsmc::{
+    AmericanPut, LsmcConfig, LsmcPricer,
+};
+use finstack_quant_models::monte_carlo::process::gbm::GbmProcess;
 
 let cfg = LsmcConfig::new(50_000, vec![25, 50, 75, 100], 100)
     .expect("valid LSMC config")
@@ -261,14 +273,18 @@ All four require a splittable RNG and fail closed with `SobolRng`.
 
 ```rust
 use finstack_quant_core::currency::Currency;
-use finstack_quant_models::monte_carlo::prelude::*;
+use finstack_quant_models::monte_carlo::discretization::ExactGbm;
+use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig};
+use finstack_quant_models::monte_carlo::greeks::finite_diff::finite_diff_delta_crn;
+use finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanCall;
+use finstack_quant_models::monte_carlo::process::gbm::GbmProcess;
+use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 
-let engine = McEngine::builder()
-    .num_paths(20_000)
-    .uniform_grid(1.0, 50)
-    .parallel(false)
-    .build()
-    .expect("valid config");
+let engine = McEngine::new(
+    McEngineConfig::uniform(20_000, 1.0, 50)
+        .expect("valid config")
+        .parallel(false),
+);
 let rng = PhiloxRng::new(42);
 let gbm = GbmProcess::with_params(0.05, 0.0, 0.2).expect("valid GBM parameters");
 let disc = ExactGbm::new();
@@ -423,8 +439,8 @@ position.
 
 Default path counts, seeds, and parallel/antithetic flags are versioned JSON in
 [`data/defaults/pricer_defaults.v1.json`](data/defaults/pricer_defaults.v1.json),
-embedded at build time and read by `McEngineConfig::new`, `McEngineBuilder::new`,
-`LsmcConfig::new`, `PathDependentPricerConfig`, and the convenience pricers.
+embedded at build time and read by `McEngineConfig::new`, `LsmcConfig::new`,
+`PathDependentPricerConfig`, and the convenience pricers.
 Overlays use the `FinstackConfig` extension key
 `monte_carlo.defaults.v1` (`registry::MONTE_CARLO_DEFAULTS_EXTENSION_KEY`).
 

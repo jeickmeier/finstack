@@ -48,12 +48,11 @@ impl JsCopulaSpec {
         }
     }
 
-    /// Multi-factor Gaussian copula with sector structure.
-    /// @param num_factors - Positive number of systematic factors in the Gaussian factor model.
+    /// Global-plus-sector two-factor Gaussian copula.
     #[wasm_bindgen(js_name = multiFactor)]
-    pub fn multi_factor(num_factors: usize) -> Self {
+    pub fn multi_factor() -> Self {
         Self {
-            inner: CopulaSpec::multi_factor(num_factors),
+            inner: CopulaSpec::multi_factor(),
         }
     }
 
@@ -452,7 +451,7 @@ mod tests {
         let rfl_copula = rfl.build().expect("RFL copula should build");
         assert_eq!(rfl_copula.num_factors(), 2);
 
-        let mf = JsCopulaSpec::multi_factor(2);
+        let mf = JsCopulaSpec::multi_factor();
         assert!(mf.is_multi_factor());
         assert!(!mf.is_rfl());
         let mf_copula = mf.build().expect("multi-factor copula should build");

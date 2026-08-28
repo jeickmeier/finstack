@@ -31,7 +31,7 @@ let default = StochasticDefaultSpec::factor_correlated(
     0.5,
     0.3,
 );
-let correlation = CorrelationStructure::try_flat(0.20, -0.15)?;
+let correlation = CorrelationStructure::flat(0.20, -0.15)?;
 # let _ = (prepay, default, correlation);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```

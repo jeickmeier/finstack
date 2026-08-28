@@ -33,7 +33,7 @@ use finstack_quant_core::market_data::surfaces::{VolCube, VolQuoteType, VolSurfa
 use finstack_quant_core::market_data::term_structures::{CreditIndexData, DiscountCurve};
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::Result;
-use finstack_quant_models::rates::hull_white::HullWhiteParams;
+use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 use std::sync::Arc;
 
 /// Normalized output payload for a step.
@@ -366,7 +366,7 @@ pub(crate) fn execute_params(
             }
 
             let initial_guess = match (p.initial_kappa, p.initial_sigma) {
-                (Some(kappa), Some(sigma)) => Some(HullWhiteParams::new(kappa, sigma)?),
+                (Some(kappa), Some(sigma)) => Some(HullWhiteCalibrationParams::new(kappa, sigma)?),
                 (None, None) => None,
                 _ => {
                     return Err(finstack_quant_core::Error::Validation(
@@ -436,7 +436,7 @@ pub(crate) fn execute_params(
             }
 
             let initial_guess = match (p.initial_kappa, p.initial_sigma) {
-                (Some(kappa), Some(sigma)) => Some(HullWhiteParams::new(kappa, sigma)?),
+                (Some(kappa), Some(sigma)) => Some(HullWhiteCalibrationParams::new(kappa, sigma)?),
                 (None, None) => None,
                 _ => {
                     return Err(finstack_quant_core::Error::Validation(

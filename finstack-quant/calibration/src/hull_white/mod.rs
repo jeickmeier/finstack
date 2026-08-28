@@ -50,7 +50,7 @@ use crate::solver::global::GlobalFitOptimizer;
 use crate::solver::multi_start::MultiStartConfig;
 use crate::solver::traits::GlobalSolveTarget;
 use crate::CalibrationReport;
-use finstack_quant_models::rates::hull_white::{HullWhiteModelParams, HullWhiteParams};
+use finstack_quant_models::rates::hull_white::{HullWhiteCalibrationParams, HullWhiteParams};
 
 mod cap_floor;
 mod pricing;

@@ -22,6 +22,7 @@ use finstack_quant_core::dates::{Date, DateExt, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::solver::{BrentSolver, Solver};
 use finstack_quant_core::money::Money;
+use finstack_quant_core::Result;
 use finstack_quant_models::correlation::RecoverySpec as StochasticRecoverySpec;
 use finstack_quant_models::credit::pool::{
     CorrelationStructure, StochasticDefaultSpec, StochasticPrepaySpec,
@@ -192,10 +193,7 @@ impl StructuredCredit {
         let months_to_maturity = as_of.months_until(self.maturity).max(1) as usize;
         let mut tree_config = ScenarioTreeConfig::new(months_to_maturity, 3);
 
-        let (prepay, default, correlation) = self.effective_stochastic_specs();
-        correlation
-            .validate()
-            .map_err(finstack_quant_core::Error::Validation)?;
+        let (prepay, default, _correlation) = self.effective_stochastic_specs()?;
         tree_config.prepay_spec = prepay;
         tree_config.default_spec = default;
         tree_config.recovery_spec =
@@ -309,11 +307,11 @@ impl StructuredCredit {
 
     fn effective_stochastic_specs(
         &self,
-    ) -> (
+    ) -> Result<(
         StochasticPrepaySpec,
         StochasticDefaultSpec,
         CorrelationStructure,
-    ) {
+    )> {
         let prepay = self
             .credit_model
             .stochastic_prepay_spec
@@ -330,18 +328,17 @@ impl StructuredCredit {
                 StochasticDefaultSpec::deterministic(self.credit_model.default_spec.clone())
             });
 
-        let correlation = self
-            .credit_model
-            .correlation_structure
-            .clone()
-            .unwrap_or_else(|| match self.deal_type {
-                DealType::Rmbs => rmbs_correlation_structure(),
-                DealType::Clo | DealType::Cbo => clo_correlation_structure(),
-                DealType::Cmbs => cmbs_correlation_structure(),
-                _ => abs_auto_correlation_structure(),
-            });
+        let correlation = match &self.credit_model.correlation_structure {
+            Some(correlation) => correlation.clone(),
+            None => match self.deal_type {
+                DealType::Rmbs => rmbs_correlation_structure()?,
+                DealType::Clo | DealType::Cbo => clo_correlation_structure()?,
+                DealType::Cmbs => cmbs_correlation_structure()?,
+                _ => abs_auto_correlation_structure()?,
+            },
+        };
 
-        (prepay, default, correlation)
+        Ok((prepay, default, correlation))
     }
 
     /// Calculate Z-Spread given a market price.

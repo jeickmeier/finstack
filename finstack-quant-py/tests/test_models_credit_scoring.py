@@ -5,17 +5,12 @@ import pytest
 from finstack_quant.models.credit import pd, scoring
 
 
-def test_altman_pd_requires_explicit_versioned_heuristic() -> None:
+def test_altman_score_does_not_publish_uncalibrated_pd() -> None:
     args = (0.10, 0.20, 0.15, 1.50, 1.80)
 
-    score, zone, implied_pd = scoring.altman_z_score(*args)
+    score, zone = scoring.altman_z_score(*args)
     assert score > 2.99
     assert zone == "safe"
-    assert implied_pd is None
-
-    _, _, heuristic_pd = scoring.altman_z_score(*args, with_implied_pd=True)
-    assert heuristic_pd is not None
-    assert 0.0 <= heuristic_pd <= 1.0
 
 
 def test_pit_cycle_sign_matches_documented_convention() -> None:

@@ -225,7 +225,7 @@ pub fn lookback_option_price_str(
 ///
 /// Returns `Error::Validation` if the resulting option price is non-finite.
 #[allow(clippy::too_many_arguments)]
-pub fn quanto_option_price_checked(
+pub fn quanto_option_price(
     spot: f64,
     strike: f64,
     t: f64,
@@ -363,7 +363,7 @@ mod tests {
 
     #[test]
     fn quanto_dispatch_matches_leaf_functions_and_checks_finiteness() {
-        let price = quanto_option_price_checked(
+        let price = quanto_option_price(
             100.0,
             100.0,
             1.0,
@@ -382,7 +382,7 @@ mod tests {
         );
         // Degenerate maturity with a negative domestic rate drives the price
         // non-finite; the dispatcher must reject it.
-        assert!(quanto_option_price_checked(
+        assert!(quanto_option_price(
             100.0,
             100.0,
             1.0e6,

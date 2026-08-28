@@ -16,7 +16,9 @@ use finstack_quant_models::monte_carlo::discretization::{
     EulerMaruyama, ExactGbm, ExactHullWhite1F, ExactMultiGbmCorrelated, ExactSchwartzSmith, QeCir,
     QeHeston,
 };
-use finstack_quant_models::monte_carlo::engine::McEngine;
+use finstack_quant_models::monte_carlo::engine::{
+    McEngine, McEngineConfig, PathCaptureConfig,
+};
 use finstack_quant_models::monte_carlo::payoff::asian::{default_fixing_steps, AsianCall, AveragingMethod};
 use finstack_quant_models::monte_carlo::payoff::barrier::{BarrierOptionPayoff, OptionKind};
 use finstack_quant_models::monte_carlo::payoff::lookback::{Lookback, LookbackDirection};
@@ -53,7 +55,7 @@ pub fn heston() -> HestonProcess {
 }
 
 pub fn hw1f() -> HullWhite1FProcess {
-    HullWhite1FProcess::new(HullWhite1FParams::new(0.1, 0.01, 0.03))
+    HullWhite1FProcess::new(HullWhite1FParams::new(0.1, 0.01, 0.03).expect("valid Hull-White parameters"))
 }
 
 pub fn cir() -> CirProcess {
@@ -99,34 +101,31 @@ pub fn barrier_up_out(num_steps: usize) -> BarrierOptionPayoff {
 }
 
 pub fn serial_engine(num_paths: usize, num_steps: usize) -> McEngine {
-    McEngine::builder()
-        .num_paths(num_paths)
-        .uniform_grid(1.0, num_steps)
-        .parallel(false)
-        .antithetic(false)
-        .build()
-        .expect("valid engine")
+    McEngine::new(
+        McEngineConfig::uniform(num_paths, 1.0, num_steps)
+            .expect("valid engine")
+            .parallel(false)
+            .antithetic(false),
+    )
 }
 
 pub fn antithetic_engine(num_paths: usize, num_steps: usize) -> McEngine {
-    McEngine::builder()
-        .num_paths(num_paths)
-        .uniform_grid(1.0, num_steps)
-        .parallel(false)
-        .antithetic(true)
-        .build()
-        .expect("valid engine")
+    McEngine::new(
+        McEngineConfig::uniform(num_paths, 1.0, num_steps)
+            .expect("valid engine")
+            .parallel(false)
+            .antithetic(true),
+    )
 }
 
 pub fn capture_engine(num_paths: usize, num_steps: usize, sample: usize) -> McEngine {
-    McEngine::builder()
-        .num_paths(num_paths)
-        .uniform_grid(1.0, num_steps)
-        .parallel(false)
-        .antithetic(false)
-        .capture_sample_paths(sample, SEED)
-        .build()
-        .expect("valid engine")
+    McEngine::new(
+        McEngineConfig::uniform(num_paths, 1.0, num_steps)
+            .expect("valid engine")
+            .parallel(false)
+            .antithetic(false)
+            .path_capture(PathCaptureConfig::sample(sample, SEED)),
+    )
 }
 
 pub fn path_dependent_pricer(num_paths: usize) -> PathDependentPricer {

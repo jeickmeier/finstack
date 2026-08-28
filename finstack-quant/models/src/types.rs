@@ -17,6 +17,16 @@ pub enum OptionType {
     Put,
 }
 
+impl From<bool> for OptionType {
+    fn from(is_call: bool) -> Self {
+        if is_call {
+            Self::Call
+        } else {
+            Self::Put
+        }
+    }
+}
+
 impl std::fmt::Display for OptionType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

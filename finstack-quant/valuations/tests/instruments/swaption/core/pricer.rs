@@ -5,7 +5,7 @@
 use crate::swaption::common::*;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
-use finstack_quant_models::rates::hull_white::HullWhiteParams;
+use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 use finstack_quant_models::SabrParameters;
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 use finstack_quant_valuations::instruments::rates::swaption::{BermudanSchedule, BermudanSwaption};
@@ -158,8 +158,13 @@ fn test_bermudan_pricer_cached_model_sets_measure() {
     let market = create_flat_market(as_of, 0.03, 0.2);
     let disc = market.get_discount("USD_OIS").unwrap();
     let ttm = swaption.time_to_maturity(as_of).unwrap();
-    let model = PreparedHullWhiteModel::prepare(HullWhiteParams::default(), 50, disc.as_ref(), ttm)
-        .unwrap();
+    let model = PreparedHullWhiteModel::prepare(
+        HullWhiteCalibrationParams::default(),
+        50,
+        disc.as_ref(),
+        ttm,
+    )
+    .unwrap();
 
     let pricer = BermudanSwaptionPricer::tree_with_config(BermudanSwaptionPricerConfig {
         prepared_model: Some(model),

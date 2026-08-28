@@ -8,8 +8,6 @@ import pytest
 from finstack_quant.models.monte_carlo import (
     EuropeanPricer,
     GbmPathSummary,
-    McEngine,
-    TimeGrid,
     finite_diff_delta,
     finite_diff_delta_crn,
     finite_diff_gamma,
@@ -119,63 +117,6 @@ class TestEuropeanPricer:
         r1 = p1.price_call(spot=100.0, strike=100.0, rate=0.05, div_yield=0.0, vol=0.20, expiry=1.0)
         r2 = p2.price_call(spot=100.0, strike=100.0, rate=0.05, div_yield=0.0, vol=0.20, expiry=1.0)
         assert r1.mean.amount == pytest.approx(r2.mean.amount, abs=1e-10)
-
-
-@pytest.mark.parametrize("is_call", [True, False], ids=["call", "put"])
-def test_seeded_engine_and_european_pricer_results_are_identical(is_call: bool) -> None:
-    """The retained Python entry points must remain deterministic equivalents."""
-    num_paths = 2_048
-    num_steps = 12
-    seed = 123
-    engine = McEngine(
-        num_paths=num_paths,
-        time_grid=TimeGrid(t_max=1.0, num_steps=num_steps),
-        seed=seed,
-        use_parallel=False,
-        antithetic=False,
-    )
-    pricer = EuropeanPricer(num_paths=num_paths, seed=seed, use_parallel=False)
-
-    if is_call:
-        engine_result = engine.price_european_call(100.0, 100.0, 0.05, 0.0, 0.2)
-        pricer_result = pricer.price_call(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, num_steps=num_steps)
-    else:
-        engine_result = engine.price_european_put(100.0, 100.0, 0.05, 0.0, 0.2)
-        pricer_result = pricer.price_put(100.0, 100.0, 0.05, 0.0, 0.2, 1.0, num_steps=num_steps)
-
-    assert engine_result.mean.amount == pricer_result.mean.amount
-    assert engine_result.mean.currency.code == pricer_result.mean.currency.code
-    assert engine_result.stderr == pricer_result.stderr
-    assert engine_result.std_dev == pricer_result.std_dev
-    assert engine_result.ci_lower.amount == pricer_result.ci_lower.amount
-    assert engine_result.ci_upper.amount == pricer_result.ci_upper.amount
-    assert engine_result.num_paths == pricer_result.num_paths
-    assert engine_result.num_simulated_paths == pricer_result.num_simulated_paths
-
-
-def test_mc_engine_antithetic_preserves_estimator_and_simulation_counts() -> None:
-    engine = McEngine(
-        num_paths=128,
-        time_grid=TimeGrid(t_max=1.0, num_steps=8),
-        seed=42,
-        use_parallel=False,
-        antithetic=True,
-    )
-    result = engine.price_european_call(100.0, 100.0, 0.05, 0.0, 0.2)
-    assert result.num_paths == 128
-    assert result.num_simulated_paths == 256
-
-
-@pytest.mark.parametrize(
-    ("t_max", "num_steps"),
-    [
-        (0.0, 8),
-        (1.0, 0),
-    ],
-)
-def test_time_grid_invalid_inputs_raise_value_error(t_max: float, num_steps: int) -> None:
-    with pytest.raises(ValueError, match="Invalid input data"):
-        TimeGrid(t_max=t_max, num_steps=num_steps)
 
 
 def test_simulate_gbm_paths_is_typed_deterministic_and_shaped() -> None:

@@ -89,14 +89,17 @@
 //!
 //! ```
 //! use finstack_quant_core::currency::Currency;
-//! use finstack_quant_models::monte_carlo::prelude::*;
+//! use finstack_quant_models::monte_carlo::discretization::ExactGbm;
+//! use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig};
+//! use finstack_quant_models::monte_carlo::payoff::vanilla::EuropeanCall;
+//! use finstack_quant_models::monte_carlo::process::gbm::GbmProcess;
+//! use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 //!
-//! let engine = McEngine::builder()
-//!     .num_paths(10_000)
-//!     .uniform_grid(1.0, 252)
-//!     .parallel(false)
-//!     .build()
-//!     .unwrap();
+//! let engine = McEngine::new(
+//!     McEngineConfig::uniform(10_000, 1.0, 252)
+//!         .expect("valid engine")
+//!         .parallel(false),
+//! );
 //! let rng = PhiloxRng::new(42);
 //!
 //! let gbm = GbmProcess::with_params(

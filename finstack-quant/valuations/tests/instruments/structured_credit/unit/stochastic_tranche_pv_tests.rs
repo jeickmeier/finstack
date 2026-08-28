@@ -312,7 +312,8 @@ fn stochastic_default_volatility_changes_loss_dispersion() {
         1.0,
         0.0,
     ));
-    low_vol.credit_model.correlation_structure = Some(CorrelationStructure::flat(0.64, 0.0));
+    low_vol.credit_model.correlation_structure =
+        Some(CorrelationStructure::flat(0.64, 0.0).expect("valid correlation"));
 
     let mut high_vol = low_vol.clone();
     high_vol.credit_model.stochastic_default_spec = Some(StochasticDefaultSpec::factor_correlated(
