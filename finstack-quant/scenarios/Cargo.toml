@@ -25,6 +25,7 @@ time = { workspace = true, features = ["macros"] }
 tracing = { version = "0.1", default-features = false }
 
 [dev-dependencies]
+finstack-quant-calibration = { path = "../calibration", version = "0.8.0" }
 criterion = { workspace = true }
 jsonschema = { version = "0.28", default-features = false }
 

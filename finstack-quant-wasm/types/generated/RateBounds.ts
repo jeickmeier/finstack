@@ -11,7 +11,7 @@
  * # Examples
  *
  * ```
- * use finstack_quant_valuations::calibration::RateBounds;
+ * use finstack_quant_calibration::RateBounds;
  * use finstack_quant_core::currency::Currency;
  *
  * // Use currency-specific defaults

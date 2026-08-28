@@ -24,7 +24,7 @@ numeric-serde helpers that keep instrument invariants uniform.
 | `traits/` | The `Instrument` trait, `Attributes`, `PricingOptions`, `OptionGreeks*`, and the `impl_*` macros |
 | `traits/instrument.rs` | `Instrument` definition — required methods, default methods, and the override contract for each |
 | `traits/macros.rs` | `impl_instrument_base!`, `impl_focused_pricing_overrides!`, `impl_empty_cashflow_provider!` |
-| `traits/pricing_options.rs` | `PricingOptions` — config, market history, model override, registry override, plus `pub(crate)` recalibration caches |
+| `traits/pricing_options.rs` | `PricingOptions` — config, market history, model override, registry override, plus the optional recalibration-provider port |
 | `traits/option_greeks.rs` | `OptionGreekKind`, `OptionGreeksRequest`, `OptionGreeks`, `OptionGreeksProvider`, and `impl_equity_exotic_traits!` (a fourth `#[macro_export]` macro, filed here rather than in `traits/macros.rs`) |
 | `parameters/` | Shared parameter types (see table below) |
 | `pricing/` | Shared pricing kernels (see table below) |

@@ -1,11 +1,12 @@
 # Valuations JSON Schemas
 
 This directory contains JSON Schema Draft 2020-12 definitions owned by the
-valuations crate: instruments, calibration, market quotes, valuation results,
-and shared definitions needed by those schemas. The Rust serde types and strict
-loaders are authoritative.
+valuations crate: instruments, valuation results, and shared definitions needed
+by those schemas. The Rust serde types and strict loaders are authoritative.
 
 Cashflow schemas are owned under [`../../cashflows/schemas/`](../../cashflows/schemas/);
+calibration and market-quote schemas under
+[`../../calibration/schemas/`](../../calibration/schemas/);
 portfolio materialization schemas under [`../../portfolio/schemas/`](../../portfolio/schemas/);
 credit factor-model schemas under
 [`../../models/schemas/factor_model/`](../../models/schemas/factor_model/).
@@ -72,8 +73,6 @@ schemas/
     fx/                    # FX spots, forwards, options, barriers
     commodity/             # Commodity forwards, options, swaps
     exotics/               # Asian, barrier, lookback, basket, range accrual, TARN, snowball
-  calibration/1/           # Canonical calibration schema (v1)
-  market/1/                # Market quote schemas (v1)
   results/1/               # Valuation result schema (v1)
 ```
 
@@ -104,10 +103,6 @@ Add to your `.vscode/settings.json`:
     {
       "fileMatch": ["**/instruments/**/*.json"],
       "url": "./finstack-quant/valuations/schemas/instruments/1/instrument.schema.json"
-    },
-    {
-      "fileMatch": ["**/calibration/**/*.json"],
-      "url": "./finstack-quant/valuations/schemas/calibration/1/calibration.schema.json"
     }
   ]
 }
@@ -219,75 +214,13 @@ runtime validation helpers do this automatically for embedded schemas.
 `exotics/basket.schema.json` is the single canonical basket schema; there is no
 separate "basket with instruments" artifact.
 
-### Calibration JSON
-
-Calibration uses a plan-based approach. Quotes are carried once in the
-envelope-level `market_data` array; `plan.quote_sets` holds only **named lists of
-quote IDs** that resolve into it, and each step names the quote set it consumes:
-
-```json
-{
-  "schema": "finstack_quant.calibration/1",
-  "plan": {
-    "id": "usd_ois_discount",
-    "quote_sets": {
-      "usd_quotes": ["USD-SOFR-DEP-3M", "USD-OIS-SWAP-5Y"]
-    },
-    "steps": [
-      {
-        "id": "USD-OIS",
-        "quote_set": "usd_quotes",
-        "kind": "discount",
-        "curve_id": "USD-OIS",
-        "currency": "USD",
-        "base_date": "2026-05-08",
-        "method": "bootstrap",
-        "interpolation": "linear",
-        "extrapolation": "flat_forward"
-      }
-    ]
-  },
-  "market_data": [
-    {
-      "kind": "rate_quote",
-      "type": "deposit",
-      "id": "USD-SOFR-DEP-3M",
-      "index": "USD-SOFR-OIS",
-      "pillar": { "tenor": { "count": 3, "unit": "months" } },
-      "rate": 0.052
-    },
-    {
-      "kind": "rate_quote",
-      "type": "swap",
-      "id": "USD-OIS-SWAP-5Y",
-      "index": "USD-SOFR-OIS",
-      "pillar": { "tenor": { "count": 5, "unit": "years" } },
-      "rate": 0.045
-    }
-  ],
-  "prior_market": []
-}
-```
-
-Only `schema` and `plan` are required at the root, and only `id` and `steps`
-within the plan. `prior_market` carries pre-built curves and surfaces that the
-plan reads but does not produce. Twelve complete, runnable envelopes live in
-[`../examples/market_bootstrap/`](../examples/market_bootstrap/); between them
-they exercise six of the thirteen step kinds — `discount`, `forward`, `hazard`,
-`vol_surface`, `swaption_vol`, and `base_correlation`. The remaining seven
-(`inflation`, `parametric`, `hull_white`, `cap_floor_hull_white`,
-`svi_surface`, `xccy_basis`, `student_t`) have no reference envelope; their
-required fields are in the `CalibrationStep` `oneOf` of
-[`calibration/1/calibration.schema.json`](calibration/1/calibration.schema.json).
-
 ## Versioning
 
 Schema versions are encoded in directory paths; every artifact in this tree is
 currently at `/1/`, and a breaking change adds a sibling `/2/` rather than
 mutating `/1/`. On database-oriented paths, the strict Rust loaders enforce the
 `schema` field
-(for example, `"finstack_quant.instrument/1"` and
-`"finstack_quant.calibration/1"`). Raw `serde_json` deserialization and generic
+(for example, `"finstack_quant.instrument/1"`). Raw `serde_json` deserialization and generic
 JSON Schema validators only check what their caller invokes; they do not
 replace strict loader version, resource-limit, migration, or semantic checks.
 

@@ -5,10 +5,9 @@ use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::exotics::callable_range_accrual::CallableRangeAccrual;
 use crate::instruments::exotics::range_accrual::BoundsType;
 use crate::instruments::rates::hw1f::{
-    basis_for_degree, calibrate_hw1f_params, initial_short_rate_from_curve, resolve_hw1f_params,
-    ExerciseBoundaryPayoff, Hw1fCalibrationFlavor, Hw1fCapletSurfacePoint, Hw1fResolveRequest,
-    Hw1fSurfaceCalibration, Hw1fTermForward, PeriodForwardCoeffs, RateExoticHw1fLsmcPricer,
-    RateExoticHw1fMcPricer, RateExoticMcConfig,
+    basis_for_degree, initial_short_rate_from_curve, prepare_hw1f_params, resolve_hw1f_params,
+    ExerciseBoundaryPayoff, Hw1fParamFamily, Hw1fResolveRequest, Hw1fTermForward,
+    PeriodForwardCoeffs, RateExoticHw1fLsmcPricer, RateExoticHw1fMcPricer, RateExoticMcConfig,
 };
 use crate::metrics::MetricId;
 use crate::pricer::{
@@ -219,15 +218,15 @@ impl ExerciseBoundaryPayoff for CallableRangeAccrualPayoff {
 /// Callable range accrual pricer using shared HW1F MC/LSMC infrastructure.
 #[derive(Debug, Clone)]
 pub struct CallableRangeAccrualPricer {
-    hw_params: HullWhiteParams,
+    hw_params: Option<HullWhiteParams>,
     config: RateExoticMcConfig,
 }
 
 impl CallableRangeAccrualPricer {
-    /// Create a callable range accrual pricer with default HW1F and MC settings.
+    /// Create a pricer requiring explicit or pre-calibrated HW1F parameters.
     pub fn new() -> Self {
         Self {
-            hw_params: HullWhiteParams::default(),
+            hw_params: None,
             config: RateExoticMcConfig::default(),
         }
     }
@@ -235,7 +234,7 @@ impl CallableRangeAccrualPricer {
     /// Create a callable range accrual pricer with explicit HW1F parameters.
     pub fn with_hw_params(hw_params: HullWhiteParams) -> Self {
         Self {
-            hw_params,
+            hw_params: Some(hw_params),
             config: RateExoticMcConfig::default(),
         }
     }
@@ -250,20 +249,18 @@ impl CallableRangeAccrualPricer {
         &self,
         inst: &CallableRangeAccrual,
         market: &MarketContext,
-        as_of: Date,
+        _as_of: Date,
     ) -> Result<HullWhiteParams> {
-        let overrides = hw1f_overrides_json(inst);
-        let surface_points = callable_range_surface_points(inst, as_of)?;
+        let overrides = hw1f_overrides_json(inst).or_else(|| {
+            self.hw_params.map(|params| {
+                serde_json::json!({"hw1f_kappa": params.kappa, "hw1f_sigma": params.sigma})
+            })
+        });
         let context_label = format!("CallableRangeAccrual {}", inst.id);
         let req = Hw1fResolveRequest {
             curve_id: inst.range_accrual.discount_curve_id.as_str(),
-            flavor: Hw1fCalibrationFlavor::CapFloor,
+            family: Hw1fParamFamily::CapFloor,
             overrides: overrides.as_ref(),
-            surface: Some(Hw1fSurfaceCalibration::CapFloor {
-                vol_surface_id: inst.range_accrual.vol_surface_id.as_str(),
-                points: surface_points.as_slice(),
-            }),
-            fallback: Some(self.hw_params),
             context: context_label.as_str(),
         };
         // Provenance (`hw1f_param_source`) is stamped by the resolver's
@@ -366,7 +363,7 @@ impl CallableRangeAccrualPricer {
         // simulated short rate reprices the initial curve (HW1F, not Vasicek).
         let horizon = schedule.event_times.last().copied().unwrap_or(0.0);
         let process_params =
-            calibrate_hw1f_params(hw_params, discount_curve.as_ref(), as_of, horizon)?;
+            prepare_hw1f_params(hw_params, discount_curve.as_ref(), as_of, horizon)?;
         if schedule.exercise_times.is_empty() {
             let mc = RateExoticHw1fMcPricer {
                 process_params,
@@ -406,46 +403,15 @@ impl Default for CallableRangeAccrualPricer {
 }
 
 fn hw1f_overrides_json(inst: &CallableRangeAccrual) -> Option<serde_json::Value> {
-    let kappa = inst
-        .instrument_pricing_overrides
-        .model_config
-        .hw1f_mean_reversion?;
-    let sigma = inst.instrument_pricing_overrides.model_config.hw1f_sigma?;
-    Some(serde_json::json!({ "hw1f_kappa": kappa, "hw1f_sigma": sigma }))
-}
-
-fn callable_range_surface_points(
-    inst: &CallableRangeAccrual,
-    as_of: Date,
-) -> Result<Vec<Hw1fCapletSurfacePoint>> {
-    let ctx = DayCountContext::default();
-    let range = &inst.range_accrual;
-    let strike = 0.5 * (range.lower_bound + range.upper_bound);
-    let reference_tenor = range.reference_tenor.ok_or_else(|| {
-        finstack_quant_core::Error::Validation(
-            "CallableRangeAccrual requires reference_tenor for HW1F calibration".to_string(),
-        )
-    })?;
-    let accrual = reference_tenor.to_years_simple().max(1.0 / 365.0);
-    let mut points = Vec::new();
-    for &date in &range.observation_dates {
-        if date <= as_of {
-            continue;
-        }
-        let t_fix = range.day_count.year_fraction(as_of, date, ctx)?;
-        if t_fix > 0.0 {
-            points.push(Hw1fCapletSurfacePoint {
-                t_fix,
-                accrual,
-                forward: strike,
-                strike,
-                is_cap: true,
-                annuity: range.notional.amount().abs(),
-                normal_vol_per_unit_sigma: None,
-            });
-        }
+    let config = &inst.instrument_pricing_overrides.model_config;
+    let mut values = serde_json::Map::new();
+    if let Some(kappa) = config.hw1f_mean_reversion {
+        values.insert("hw1f_kappa".to_string(), serde_json::json!(kappa));
     }
-    Ok(points)
+    if let Some(sigma) = config.hw1f_sigma {
+        values.insert("hw1f_sigma".to_string(), serde_json::json!(sigma));
+    }
+    (!values.is_empty()).then_some(serde_json::Value::Object(values))
 }
 
 impl Pricer for CallableRangeAccrualPricer {

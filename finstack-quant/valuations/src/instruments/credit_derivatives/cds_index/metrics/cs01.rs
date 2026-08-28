@@ -28,8 +28,6 @@
 //! [canonical]: crate::metrics::sensitivities::cs01
 //! [`CDSIndex::cs01`]: crate::instruments::credit_derivatives::cds_index::CDSIndex::cs01
 
-use crate::calibration::bumps::hazard::bump_hazard_shift;
-use crate::calibration::bumps::BumpRequest;
 use crate::instruments::credit_derivatives::cds_index::{CDSIndex, IndexPricing};
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::sensitivities::cs01::{
@@ -49,8 +47,9 @@ pub(crate) struct Cs01Calculator;
 
 impl MetricCalculator for Cs01Calculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
+        let provider = context.recalibration_provider("cs01")?;
         let idx: &CDSIndex = context.instrument_as()?;
-        idx.cs01(&context.curves, context.as_of)
+        idx.cs01(&context.curves, context.as_of, provider.as_ref())
     }
 }
 
@@ -101,7 +100,7 @@ impl MetricCalculator for Cs01HazardCalculator {
             let mut out = ctx.clone();
             for id in &credit_ids {
                 let hazard = ctx.get_hazard(id.as_str())?;
-                let bumped = bump_hazard_shift(hazard.as_ref(), &BumpRequest::Parallel(bp))?;
+                let bumped = hazard.with_parallel_hazard_rate_bump_bp(bp)?;
                 out = out.insert(bumped);
             }
             Ok(out)
@@ -153,18 +152,16 @@ impl MetricCalculator for CdsIndexBucketedCs01HazardCalculator {
             let single_node = node_times.len() == 1;
             let mut series: Vec<(Cow<'static, str>, f64)> = Vec::with_capacity(node_times.len());
             for tenor in node_times {
-                let request_up = if single_node {
-                    BumpRequest::Parallel(bump_bp)
+                let bumped_up = if single_node {
+                    hazard.with_parallel_hazard_rate_bump_bp(bump_bp)?
                 } else {
-                    BumpRequest::Tenors(vec![(tenor, bump_bp)])
+                    hazard.with_tenor_hazard_rate_bumps_bp(&[(tenor, bump_bp)])?
                 };
-                let request_down = if single_node {
-                    BumpRequest::Parallel(-bump_bp)
+                let bumped_down = if single_node {
+                    hazard.with_parallel_hazard_rate_bump_bp(-bump_bp)?
                 } else {
-                    BumpRequest::Tenors(vec![(tenor, -bump_bp)])
+                    hazard.with_tenor_hazard_rate_bumps_bp(&[(tenor, -bump_bp)])?
                 };
-                let bumped_up = bump_hazard_shift(hazard.as_ref(), &request_up)?;
-                let bumped_down = bump_hazard_shift(hazard.as_ref(), &request_down)?;
                 let (pv_up, pv_down) = context.with_market_scratch(|ctx, scratch| {
                     scratch.insert_mut(bumped_up);
                     let pv_up = ctx.reprice_raw(scratch, as_of)?;
@@ -226,12 +223,15 @@ impl MetricCalculator for CdsIndexBucketedCs01Calculator {
             total.add(compute_key_rate_cs01_series_with_context_raw(
                 context,
                 &credit_id,
-                Some(&discount_id),
                 KeyRateCs01Request {
                     series_id,
                     bump_bp,
-                    doc_clause: None,
-                    cds_valuation_convention: None,
+                    conventions: crate::recalibration::HazardRecalibrationConventions {
+                        discount_curve_id: discount_id.clone(),
+                        doc_clause: None,
+                        cds_valuation_convention: None,
+                        deal_quote_override: None,
+                    },
                 },
                 reval,
             )?);

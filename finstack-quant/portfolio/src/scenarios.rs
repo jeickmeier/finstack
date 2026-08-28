@@ -8,6 +8,7 @@ use crate::error::{Error, Result};
 use crate::portfolio::Portfolio;
 use crate::types::PositionId;
 use crate::{evaluation::PositionInvalidation, MarketFactorKey};
+use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_scenarios::engine::{
@@ -15,8 +16,8 @@ use finstack_quant_scenarios::engine::{
     ScenarioMarketTarget,
 };
 use finstack_quant_scenarios::spec::{CurveKind, ScenarioSpec};
-use finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache;
 use finstack_quant_valuations::instruments::{Instrument, RatesCurveKind};
+use finstack_quant_valuations::recalibration::RecalibrationProvider;
 use indexmap::IndexMap;
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -164,15 +165,15 @@ fn apply_scenario<'a>(
     market: &MarketContext,
     config: &finstack_quant_core::config::FinstackConfig,
 ) -> Result<AppliedScenarioState<'a>> {
-    apply_scenario_with_cache(portfolio, scenario, market, config, None)
+    apply_scenario_with_provider(portfolio, scenario, market, config, None)
 }
 
-fn apply_scenario_with_cache<'a>(
+fn apply_scenario_with_provider<'a>(
     portfolio: &'a Portfolio,
     scenario: &ScenarioSpec,
     market: &MarketContext,
     config: &finstack_quant_core::config::FinstackConfig,
-    hazard_cache: Option<Arc<HazardRecalibrationCache>>,
+    provider: Option<Arc<dyn RecalibrationProvider>>,
 ) -> Result<AppliedScenarioState<'a>> {
     let mut market_copy = market.clone();
     let mut instruments = scenario.requires_instruments().then(|| {
@@ -192,8 +193,10 @@ fn apply_scenario_with_cache<'a>(
         as_of: portfolio.as_of,
     };
 
-    let engine = match hazard_cache {
-        Some(cache) => ScenarioEngine::with_config(config.clone()).with_hazard_cache(cache),
+    let engine = match provider {
+        Some(provider) => {
+            ScenarioEngine::with_config(config.clone()).with_recalibration_provider(provider)
+        }
         None => ScenarioEngine::with_config(config.clone()),
     };
     let report = engine
@@ -570,18 +573,19 @@ pub fn scenario_pnl_batch(
     let base = crate::valuation::value_portfolio(portfolio, market, config, &options)?;
     let profile = crate::evaluation::EvaluationProfile::from_options(&options);
     let mut results = Vec::with_capacity(scenarios.len());
-    let hazard_cache = Arc::new(HazardRecalibrationCache::new());
+    let recalibration_provider: Arc<dyn RecalibrationProvider> =
+        Arc::new(CachedRecalibrationProvider::new());
 
     for wave in scenarios.chunks(SCENARIO_BATCH_MAX_ACTIVE_STATES) {
         let mut applied = Vec::with_capacity(wave.len());
         let mut application_error = None;
         for scenario in wave {
-            match apply_scenario_with_cache(
+            match apply_scenario_with_provider(
                 portfolio,
                 scenario,
                 market,
                 config,
-                Some(Arc::clone(&hazard_cache)),
+                Some(Arc::clone(&recalibration_provider)),
             ) {
                 Ok(state) => applied.push((scenario.id.clone(), state)),
                 Err(error) => {

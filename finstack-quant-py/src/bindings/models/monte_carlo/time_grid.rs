@@ -1,7 +1,7 @@
 //! TimeGrid bindings.
 
 use crate::errors::core_to_py;
-use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::TimeGrid;
 use pyo3::prelude::*;
 
 /// Discretised time grid for Monte Carlo simulation.

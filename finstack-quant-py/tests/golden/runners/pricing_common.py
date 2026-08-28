@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from finstack_quant.core.market_data import MarketContext
-from finstack_quant.valuations import (
+from finstack_quant.calibration import (
     CalibrationEnvelopeError,
     calibrate,
 )

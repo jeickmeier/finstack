@@ -192,12 +192,11 @@ pub(crate) fn duration_convexity(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::calibration::bumps::rates::bump_discount_curve_synthetic;
-    use crate::calibration::bumps::BumpRequest;
     use crate::cashflow::builder::specs::PrepaymentModelSpec;
     use crate::instruments::fixed_income::mbs_passthrough::{AgencyProgram, PoolType};
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::DayCount;
+    use finstack_quant_core::market_data::bumps::BumpSpec;
     use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::math::interp::InterpStyle;
@@ -398,16 +397,10 @@ mod tests {
         let market = create_test_market(as_of);
         let curve_id = CurveId::new("USD-TSY");
 
-        let base_curve = market.get_discount(&curve_id).expect("original");
-        let bumped_curve = bump_discount_curve_synthetic(
-            base_curve.as_ref(),
-            &market,
-            &BumpRequest::Parallel(100.0),
-            as_of,
-            Currency::USD,
-        )
-        .expect("bump");
-        let bumped_market = market.clone().insert(bumped_curve);
+        let mut bumped_market = market.clone();
+        bumped_market
+            .apply_curve_bump_in_place(&curve_id, BumpSpec::parallel_bp(100.0))
+            .expect("bump");
 
         let original = market.get_discount(&curve_id).expect("original");
         let bumped = bumped_market.get_discount(&curve_id).expect("bumped");

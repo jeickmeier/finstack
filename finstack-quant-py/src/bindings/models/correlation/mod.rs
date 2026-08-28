@@ -81,10 +81,7 @@ impl PyCopulaSpec {
     fn build(&self) -> PyResult<PyCopula> {
         self.inner
             .build()
-            .map(|inner| PyCopula {
-                inner,
-                spec: self.inner.clone(),
-            })
+            .map(|inner| PyCopula { inner })
             .map_err(display_to_py)
     }
 
@@ -124,9 +121,6 @@ impl PyCopulaSpec {
 pub struct PyCopula {
     /// Boxed trait object.
     pub(crate) inner: Box<dyn Copula + Send + Sync>,
-    /// Originating spec, retained so concrete-model-only diagnostics
-    /// (`stress_correlation_proxy`) can be dispatched.
-    pub(crate) spec: CopulaSpec,
 }
 
 #[pymethods]
@@ -182,17 +176,9 @@ impl PyCopula {
     /// Raises ``ValueError`` for non-RFL copulas.
     #[pyo3(text_signature = "(self, correlation)")]
     fn stress_correlation_proxy(&self, correlation: f64) -> PyResult<f64> {
-        match &self.spec {
-            CopulaSpec::RandomFactorLoading { loading_volatility } => {
-                Ok(corr::RandomFactorLoadingCopula::new(*loading_volatility)
-                    .stress_correlation_proxy(correlation))
-            }
-            _ => Err(value_error(format!(
-                "stress_correlation_proxy is only defined for the Random Factor Loading \
-                 copula, got '{}'",
-                self.inner.model_name()
-            ))),
-        }
+        self.inner
+            .stress_correlation_proxy(correlation)
+            .map_err(display_to_py)
     }
 
     fn __repr__(&self) -> String {

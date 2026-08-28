@@ -17,8 +17,8 @@ use finstack_quant_models::closed_form::implied_vol::{
     black76_implied_vol as black76_implied_vol_core, bs_implied_vol as bs_implied_vol_core,
 };
 use finstack_quant_models::closed_form::{
-    asian_option_price_str, barrier_call_str, bs_greeks_checked as bs_greeks_core,
-    bs_price_checked, lookback_option_price_str, option_type_from_bool,
+    asian_option_price_str, barrier_call_str, bs_greeks as bs_greeks_core,
+    bs_price as bs_price_core, lookback_option_price_str, option_type_from_bool,
     quanto_option_price_checked, vanilla_expiry_payoff as vanilla_expiry_payoff_core,
 };
 use wasm_bindgen::prelude::*;
@@ -70,8 +70,7 @@ pub fn bs_price(
     t: f64,
     is_call: bool,
 ) -> Result<f64, JsValue> {
-    bs_price_checked(spot, strike, r, q, sigma, t, option_type_from_bool(is_call))
-        .map_err(to_js_err)
+    bs_price_core(spot, strike, r, q, sigma, t, option_type_from_bool(is_call)).map_err(to_js_err)
 }
 
 /// Vanilla option payoff at expiry: `max(±(spot - strike), 0)`.
@@ -137,8 +136,7 @@ pub fn bs_greeks(
     is_call: bool,
     theta_days: Option<f64>,
 ) -> Result<JsValue, JsValue> {
-    // theta_days validation (finite, > 0) lives in `bs_greeks_checked` —
-    // the single home for Greeks input validation.
+    // theta_days validation (finite, > 0) lives in canonical `bs_greeks`.
     let theta_days = theta_days.unwrap_or(DEFAULT_THETA_DAYS_PER_YEAR);
     let g = bs_greeks_core(
         spot,

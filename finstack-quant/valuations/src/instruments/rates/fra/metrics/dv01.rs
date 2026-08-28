@@ -8,11 +8,11 @@
 //! support). When metadata is unavailable, falls back to the generic
 //! fitted-curve bump path.
 
-use crate::calibration::bumps::BumpRequest;
 use crate::instruments::rates::fra::ForwardRateAgreement;
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::sensitivities::cs01::sensitivity_central_diff;
 use crate::metrics::{MetricCalculator, MetricContext};
+use crate::recalibration::QuoteBump;
 use finstack_quant_core::dates::DayCountContext;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{
@@ -60,7 +60,7 @@ impl MetricCalculator for FraRateCurveDv01Calculator {
                     let bumped_discount = context.bump_discount_rate_quotes_cached(
                         discount.as_ref(),
                         discount_cal,
-                        &BumpRequest::Parallel(bp),
+                        &QuoteBump::ParallelBp(bp),
                     )?;
                     let with_discount = market.clone().insert(bumped_discount.as_ref().clone());
                     let bumped_discount_ref = with_discount.get_discount(discount_id.as_str())?;

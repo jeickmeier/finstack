@@ -15678,7 +15678,7 @@
       "type": "object"
     },
     "HazardCalibrationRecipe": {
-      "description": "Exact valuation-layer inputs required to replay a hazard-curve calibration.\n\nThe core market-data crate stores these payloads without interpreting them;\nthe valuations crate deserializes them back into its canonical\n`HazardCurveParams`, typed CDS quotes, and `CalibrationConfig`. Keeping the\ncomplete serde payloads avoids replacing date pillars with rounded tenors or\nsilently substituting current defaults for the original solver policy.",
+      "description": "Exact valuation-layer inputs required to replay a hazard-curve calibration.\n\nThe core market-data crate stores these payloads without interpreting them;\nthe calibration crate deserializes them back into its canonical\n`HazardCurveParams`, typed CDS quotes, and `CalibrationConfig`. Keeping the\ncomplete serde payloads avoids replacing date pillars with rounded tenors or\nsilently substituting current defaults for the original solver policy.",
       "properties": {
         "calibration_config": {
           "description": "Exact serialized `CalibrationConfig`, including solver and validation policy."
@@ -20299,7 +20299,7 @@
           ]
         },
         "hw1f_mean_reversion": {
-          "description": "Hull-White 1F mean-reversion speed override (κ), in annualised units.\n\nCompanion to [`Self::hw1f_sigma`]; either may be set alone. Cap/floor\npricing may hold κ fixed and calibrate σ from a normal-vol surface.\nTypical values: 0.01–0.10.",
+          "description": "Hull-White 1F mean-reversion speed override (κ), in annualised units.\n\nCompanion to [`Self::hw1f_sigma`]. The two values must be supplied\ntogether unless the market context contains a complete pre-fitted\nscalar pair or volatility schedule. Typical values: 0.01–0.10.",
           "format": "double",
           "type": [
             "number",
@@ -20307,7 +20307,7 @@
           ]
         },
         "hw1f_sigma": {
-          "description": "Hull-White 1F short-rate absolute volatility override (σ), in annual decimal units.\n\nThis is the **short-rate** σ used directly in the HW1F stochastic differential\nequation `dr = [θ(t) − κr] dt + σ dW`. It is **not** an option implied\nvolatility (Black/Normal) and must not be confused with `implied_volatility`.\n\nTypical values: 0.005–0.015 (50–150 bp/year annualised short-rate vol).\nA value of 0.20 (a typical lognormal swaption vol) would be approximately\n13–40× too large and would produce a wildly mis-priced HW tree.\n\nSetting σ alone is valid and means κ = 0 (pure Ho-Lee dynamics); pair\nit with [`Self::hw1f_mean_reversion`] to select a mean-reverting\nparameterisation. A κ-only cap/floor override is also valid when a\nnormal-vol surface is available: κ is held fixed while σ is calibrated\nfrom market quotes.\n\nThis is the canonical short-rate volatility field for the\n**rates-credit** callable path (`credit_curve_id` set): that path reads\nonly `hw1f_sigma`/`hw1f_mean_reversion` and rejects the legacy\n`implied_volatility`/`mean_reversion` channel rather than silently\nreinterpreting it. Its mean reversion is additionally capped by\n[`KAPPA_MAX`](finstack_quant_models::trees::two_factor_rates_credit::KAPPA_MAX);\nHull-White trees on other paths keep their own wider range.",
+          "description": "Hull-White 1F short-rate absolute volatility override (σ), in annual decimal units.\n\nThis is the **short-rate** σ used directly in the HW1F stochastic differential\nequation `dr = [θ(t) − κr] dt + σ dW`. It is **not** an option implied\nvolatility (Black/Normal) and must not be confused with `implied_volatility`.\n\nTypical values: 0.005–0.015 (50–150 bp/year annualised short-rate vol).\nA value of 0.20 (a typical lognormal swaption vol) would be approximately\n13–40× too large and would produce a wildly mis-priced HW tree.\n\nThis override is valid only with [`Self::hw1f_mean_reversion`]. Pricing\nrequires a complete, positive, finite parameter pair (or a complete\npre-fitted pair/schedule in the market context); partial inputs are\nrejected and no volatility surface is queried.\n\nThis is the canonical short-rate volatility field for the\n**rates-credit** callable path (`credit_curve_id` set): that path reads\nonly `hw1f_sigma`/`hw1f_mean_reversion` and rejects the legacy\n`implied_volatility`/`mean_reversion` channel rather than silently\nreinterpreting it. Its mean reversion is additionally capped by\n[`KAPPA_MAX`](finstack_quant_models::trees::two_factor_rates_credit::KAPPA_MAX);\nHull-White trees on other paths keep their own wider range.",
           "format": "double",
           "type": [
             "number",
@@ -20324,6 +20324,14 @@
             }
           ],
           "description": "Optional piecewise-constant Hull-White short-rate volatility schedule.\n\nWhen supplied, this replaces the scalar [`Self::hw1f_sigma`] override.\nThe schedule is left-continuous, starts at time zero, and carries\nabsolute annual short-rate volatilities."
+        },
+        "lmm_base_vol": {
+          "description": "Pre-calibrated flat LMM forward-rate volatility loading scale.\n\nThis is the positive annualized decimal scale applied to the Bermudan\nLMM loading shape. Obtain it from the top-level calibration helper;\npricing never reads or fits a volatility surface.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "mc_antithetic": {
           "description": "Optional antithetic-variates override for Monte Carlo pricing.\n\n`None` keeps the selected pricer's default. Structured equity pricers\ndefault to `true`; set `Some(false)` only for controlled diagnostics.",

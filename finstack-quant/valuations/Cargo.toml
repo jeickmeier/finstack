@@ -33,6 +33,7 @@ strum = { workspace = true, features = ["derive"] }
 ts-rs = { version = "12", optional = true, features = ["serde-compat", "no-serde-warnings"] }
 
 [dev-dependencies]
+finstack-quant-calibration = { path = "../calibration", version = "0.8.0" }
 time = { workspace = true, features = ["macros"] }
 proptest = "1.11.0"
 criterion = { workspace = true }
@@ -98,27 +99,7 @@ name = "cashflow_generation"
 harness = false
 
 [[bench]]
-name = "calibration"
-harness = false
-
-[[bench]]
-name = "global_calibration"
-harness = false
-
-[[bench]]
-name = "credit_factor_calibration"
-harness = false
-
-[[bench]]
 name = "linear_rates"
-harness = false
-
-[[bench]]
-name = "df_bootstrap"
-harness = false
-
-[[bench]]
-name = "fwd_curve"
 harness = false
 
 [[bench]]
@@ -163,10 +144,6 @@ harness = false
 
 [[bench]]
 name = "metrics"
-harness = false
-
-[[bench]]
-name = "sabr_slice"
 harness = false
 
 [[bench]]

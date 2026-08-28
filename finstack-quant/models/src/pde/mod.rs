@@ -53,20 +53,20 @@
 //! and `volatility/`. PDE solvers are numerical pricing models, tightly coupled
 //! to the valuations domain, and unlikely to be reused outside it.
 
-pub mod adi;
-pub mod boundary;
-pub mod bridge;
-pub mod bridge2d;
-pub mod exercise;
-pub mod grid;
-pub mod grid2d;
-pub mod operator;
-pub mod operator2d;
-pub mod problem;
-pub mod problem2d;
-pub mod solver;
-pub mod solver2d;
-pub mod stepper;
+mod adi;
+mod boundary;
+mod bridge;
+mod bridge2d;
+mod exercise;
+mod grid;
+mod grid2d;
+mod operator;
+mod operator2d;
+mod problem;
+mod problem2d;
+mod solver;
+mod solver2d;
+mod stepper;
 
 pub use adi::CraigSneydStepper;
 pub use boundary::BoundaryCondition;

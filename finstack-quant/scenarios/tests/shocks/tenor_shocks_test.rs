@@ -176,7 +176,8 @@ fn test_tenor_interpolate_mode() {
     };
 
     let report = engine.apply(&scenario, &mut ctx).unwrap();
-    assert_eq!(report.operations_applied, 1);
+    assert_eq!(report.user_operations, 1);
+    assert_eq!(report.operations_applied, 2);
 
     // Verify shock was applied (interpolated at 3Y)
     // The curve ID remains "USD-OIS".

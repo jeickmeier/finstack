@@ -26,12 +26,7 @@ mod recovery01;
 mod risky_annuity;
 mod risky_pv01;
 
-use crate::market::quotes::cds::CdsQuote;
-use crate::market::quotes::ids::Pillar;
 use crate::metrics::MetricRegistry;
-use finstack_quant_core::dates::DayCountContext;
-use finstack_quant_core::market_data::term_structures::{HazardCalibrationRecipe, HazardCurve};
-use finstack_quant_core::HashMap;
 
 pub(crate) fn market_doc_clause(
     cds: &crate::instruments::credit_derivatives::cds::CreditDefaultSwap,
@@ -52,142 +47,19 @@ pub(crate) fn market_doc_clause(
     }
 }
 
-pub(crate) fn hazard_with_deal_quote(
+pub(crate) fn deal_quote_override(
     cds: &crate::instruments::credit_derivatives::cds::CreditDefaultSwap,
-    hazard: &HazardCurve,
-) -> finstack_quant_core::Result<Option<HazardCurve>> {
+) -> Option<crate::recalibration::DealCdsQuoteOverride> {
     let Some(quote_bp) = cds.instrument_pricing_overrides.market_quotes.cds_quote_bp else {
-        return Ok(None);
+        return None;
     };
     if !cds.uses_clean_price() {
-        return Ok(None);
+        return None;
     }
-
-    let Some(source_recipe) = hazard.hazard_calibration() else {
-        return Ok(None);
-    };
-    let mut risk_inputs = source_recipe.spread_risk_inputs.clone();
-    let template_input =
-        risk_inputs
-            .first()
-            .ok_or_else(|| finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "CDS quote override for '{}' requires at least one spread-risk replay input",
-                    hazard.id()
-                ),
-                category: "cs01_rebootstrap".to_string(),
-            })?;
-    let template_quote: CdsQuote =
-        serde_json::from_value(template_input.quote.clone()).map_err(|error| {
-            finstack_quant_core::Error::Validation(format!(
-                "CDS quote override for '{}' found an invalid spread-risk quote: {error}",
-                hazard.id()
-            ))
-        })?;
-    let deal_quote = match template_quote {
-        CdsQuote::CdsParSpread {
-            id,
-            entity,
-            convention,
-            recovery_rate,
-            ..
-        } => CdsQuote::CdsParSpread {
-            id,
-            entity,
-            convention,
-            pillar: Pillar::Date(cds.premium.end),
-            spread_bp: quote_bp,
-            recovery_rate,
-        },
-        CdsQuote::CdsUpfront { .. } => {
-            return Err(finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "CDS quote override for '{}' found an upfront quote in par-spread risk inputs",
-                    hazard.id()
-                ),
-                category: "cs01_rebootstrap".to_string(),
-            });
-        }
-    };
-    let build_ctx = crate::market::BuildCtx::new(hazard.base_date(), 1.0, HashMap::default());
-    let contractual_pillar =
-        crate::market::build::cds::resolve_cds_quote_dates(&deal_quote, &build_ctx)?.maturity;
-    let contractual_time = hazard.day_count().year_fraction(
-        hazard.base_date(),
-        contractual_pillar,
-        DayCountContext::default(),
-    )?;
-    let target_index = risk_inputs
-        .iter()
-        .enumerate()
-        .find(|(_, input)| {
-            let time_scale = input.pillar_time.abs().max(contractual_time.abs()).max(1.0);
-            input.pillar_date == contractual_pillar
-                && (input.pillar_time - contractual_time).abs() <= 1e-12 * time_scale
-        })
-        .map(|(index, _)| index)
-        .ok_or_else(|| finstack_quant_core::Error::Calibration {
-            message: format!(
-                "CDS quote override for '{}' has no exact spread-risk replay pillar for \
-                 contractual date {} (time {})",
-                hazard.id(),
-                contractual_pillar,
-                contractual_time
-            ),
-            category: "cs01_rebootstrap".to_string(),
-        })?;
-    let source_quote: CdsQuote = serde_json::from_value(risk_inputs[target_index].quote.clone())
-        .map_err(|error| {
-            finstack_quant_core::Error::Validation(format!(
-                "CDS quote override for '{}' found an invalid spread-risk quote: {error}",
-                hazard.id()
-            ))
-        })?;
-    let overridden_quote = match source_quote {
-        CdsQuote::CdsParSpread {
-            id,
-            entity,
-            convention,
-            pillar,
-            recovery_rate,
-            ..
-        } => CdsQuote::CdsParSpread {
-            id,
-            entity,
-            convention,
-            pillar,
-            spread_bp: quote_bp,
-            recovery_rate,
-        },
-        CdsQuote::CdsUpfront { .. } => {
-            return Err(finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "CDS quote override for '{}' found an upfront quote in par-spread risk inputs",
-                    hazard.id()
-                ),
-                category: "cs01_rebootstrap".to_string(),
-            });
-        }
-    };
-    risk_inputs[target_index].quote = serde_json::to_value(overridden_quote).map_err(|error| {
-        finstack_quant_core::Error::Validation(format!(
-            "failed to persist CDS quote override for '{}': {error}",
-            hazard.id()
-        ))
-    })?;
-    let derived_recipe = HazardCalibrationRecipe::new(
-        source_recipe.hazard_params.clone(),
-        source_recipe.calibration_inputs.clone(),
-        risk_inputs,
-        source_recipe.calibration_config.clone(),
-    )?;
-
-    Ok(Some(
-        hazard
-            .to_builder_with_id(hazard.id().clone())
-            .hazard_calibration(derived_recipe)
-            .build()?,
-    ))
+    Some(crate::recalibration::DealCdsQuoteOverride {
+        contract_end: cds.premium.end,
+        spread_bp: quote_bp,
+    })
 }
 
 /// Per-deal CS01 conventions for `CreditDefaultSwap`.
@@ -211,16 +83,8 @@ impl crate::metrics::sensitivities::cs01::CdsCs01Conventions
         Ok((market_doc_clause(self), self.valuation_convention))
     }
 
-    fn cs01_curve_override(
-        &self,
-        curves: &finstack_quant_core::market_data::context::MarketContext,
-        hazard_id: &finstack_quant_core::types::CurveId,
-        _as_of: finstack_quant_core::dates::Date,
-    ) -> finstack_quant_core::Result<Option<finstack_quant_core::market_data::context::MarketContext>>
-    {
-        let hazard = curves.get_hazard(hazard_id.as_str())?;
-        Ok(hazard_with_deal_quote(self, hazard.as_ref())?
-            .map(|quote_hazard| curves.clone().insert(quote_hazard)))
+    fn cs01_deal_quote_override(&self) -> Option<crate::recalibration::DealCdsQuoteOverride> {
+        deal_quote_override(self)
     }
 }
 
@@ -284,69 +148,13 @@ pub(crate) fn register_cds_metrics(
 mod tests {
     use super::*;
     use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
-    use crate::market::conventions::ids::{CdsConventionKey, CdsDocClause};
-    use crate::market::quotes::cds::CdsQuote;
-    use crate::market::quotes::ids::{Pillar, QuoteId};
-    use finstack_quant_core::market_data::term_structures::{
-        HazardCalibrationInput, HazardCalibrationRecipe,
-    };
 
     #[test]
-    fn cds_quote_override_updates_replay_risk_quote() {
+    fn cds_quote_override_returns_provider_contract() {
         let mut cds = CreditDefaultSwap::example();
         cds.instrument_pricing_overrides.market_quotes.cds_quote_bp = Some(321.0);
-        let quote = CdsQuote::CdsParSpread {
-            id: QuoteId::new("ACME-5Y"),
-            entity: "ACME".to_string(),
-            convention: CdsConventionKey {
-                currency: cds.notional.currency(),
-                doc_clause: CdsDocClause::IsdaNa,
-            },
-            pillar: Pillar::Date(cds.premium.end),
-            spread_bp: 150.0,
-            recovery_rate: cds.protection.recovery_rate,
-        };
-        let input = HazardCalibrationInput {
-            quote: serde_json::to_value(quote).expect("serialize quote"),
-            pillar_date: cds.premium.end,
-            pillar_time: finstack_quant_core::dates::DayCount::Act365F
-                .year_fraction(
-                    cds.premium.start,
-                    cds.premium.end,
-                    DayCountContext::default(),
-                )
-                .expect("valid pillar time"),
-        };
-        let recipe = HazardCalibrationRecipe::new(
-            serde_json::json!({}),
-            vec![input.clone()],
-            vec![input],
-            serde_json::json!({}),
-        )
-        .expect("valid replay recipe");
-        let hazard = HazardCurve::builder(cds.protection.credit_curve_id.clone())
-            .base_date(cds.premium.start)
-            .recovery_rate(cds.protection.recovery_rate)
-            .knots([(1.0, 0.01), (5.0, 0.02)])
-            .hazard_calibration(recipe)
-            .build()
-            .expect("recipe-backed hazard");
-
-        let derived = hazard_with_deal_quote(&cds, &hazard)
-            .expect("derive deal replay")
-            .expect("deal quote override");
-        let risk_quote: CdsQuote = serde_json::from_value(
-            derived
-                .hazard_calibration()
-                .expect("derived curve must remain replayable")
-                .spread_risk_inputs[0]
-                .quote
-                .clone(),
-        )
-        .expect("deserialize risk quote");
-        assert!(matches!(
-            risk_quote,
-            CdsQuote::CdsParSpread { spread_bp, .. } if spread_bp == 321.0
-        ));
+        let request = deal_quote_override(&cds).expect("deal quote override");
+        assert_eq!(request.contract_end, cds.premium.end);
+        assert_eq!(request.spread_bp, 321.0);
     }
 }

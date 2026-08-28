@@ -40,7 +40,7 @@ pub use json::{
     parse_instrument_json, parse_model_key, present_metric_values_from_instrument_json,
     present_standard_option_greeks_from_instrument_json, pretty_instrument_json,
     price_instrument_json, validate_instrument_json, validate_typed_instrument_json,
-    STANDARD_OPTION_GREEKS,
+    JsonPricingRequest, STANDARD_OPTION_GREEKS,
 };
 pub use keys::{InstrumentType, ModelKey, PricerKey};
 pub use registry::{expect_inst, Pricer, PricerRegistry, PricingDispatch};

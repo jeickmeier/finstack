@@ -401,6 +401,13 @@ impl Copula for RandomFactorLoadingCopula {
         "Random Factor Loading Copula"
     }
 
+    fn stress_correlation_proxy(&self, correlation: f64) -> finstack_quant_core::Result<f64> {
+        Ok(RandomFactorLoadingCopula::stress_correlation_proxy(
+            self,
+            correlation,
+        ))
+    }
+
     fn tail_dependence(&self, _correlation: f64) -> f64 {
         // RFL does not have a closed-form strict copula lower-tail
         // dependence coefficient. Returning NaN signals "not available"

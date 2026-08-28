@@ -60,15 +60,15 @@ use crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
-use finstack_quant_models::monte_carlo::online_stats::OnlineStats;
 use finstack_quant_models::monte_carlo::pricer::lsq::solve_least_squares;
 use finstack_quant_models::monte_carlo::process::ou::{HullWhite1FParams, HullWhite1FProcess};
 use finstack_quant_models::monte_carlo::results::MoneyEstimate;
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
 use finstack_quant_models::monte_carlo::traits::{
     Discretization, PathState, RandomStream, StateKey,
 };
+use finstack_quant_models::monte_carlo::OnlineStats;
+use finstack_quant_models::monte_carlo::TimeGrid;
 
 /// Generic HW1F LSMC pricer for callable rate exotics.
 pub struct RateExoticHw1fLsmcPricer {
@@ -77,7 +77,7 @@ pub struct RateExoticHw1fLsmcPricer {
     ///
     /// The simulated short rate follows `dr_t = κ·(θ(t) - r_t)·dt + σ·dW_t`.
     /// θ(t) MUST be bootstrapped from the product's discount curve (see
-    /// [`crate::instruments::rates::hw1f::calibrate_hw1f_params`])
+    /// [`crate::instruments::rates::hw1f::prepare_hw1f_params`])
     /// so the simulated short rate reprices the initial curve — a constant θ
     /// makes the process a plain Vasicek that mis-reprices any non-flat curve.
     pub process_params: HullWhite1FParams,

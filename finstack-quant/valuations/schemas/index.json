@@ -1,14 +1,6 @@
 {
   "artifacts": [
     {
-      "$id": "https://finstack_quant.dev/schemas/calibration/1/calibration.schema.json",
-      "bytes": 224452,
-      "kind": "input",
-      "path": "schemas/calibration/1/calibration.schema.json",
-      "summary": "Build a market from quotes: a calibration plan, flat market data, and any pre-built curves or surfaces.",
-      "title": "Calibration"
-    },
-    {
       "$id": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
       "bytes": 843,
       "kind": "component",
@@ -74,7 +66,7 @@
     },
     {
       "$id": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
-      "bytes": 85894,
+      "bytes": 86303,
       "kind": "component",
       "path": "schemas/common/1/instrument_pricing_overrides.schema.json",
       "summary": "Instrument-owned market quote and model configuration overrides.",
@@ -743,14 +735,6 @@
       "path": "schemas/instruments/1/rates/yoy_inflation_swap.schema.json",
       "summary": "Year-on-year inflation swap.",
       "title": "yoy_inflation_swap"
-    },
-    {
-      "$id": "https://finstack_quant.dev/schemas/market/1/market_quote.schema.json",
-      "bytes": 43359,
-      "kind": "component",
-      "path": "schemas/market/1/market_quote.schema.json",
-      "summary": "One market observation, tagged by asset class.",
-      "title": "Market Quote"
     },
     {
       "$id": "https://finstack_quant.dev/schemas/results/1/valuation_result.schema.json",

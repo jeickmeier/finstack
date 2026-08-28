@@ -686,8 +686,17 @@ fn waterfall_rules_round_trip_and_price_through_json() {
             .build()
             .unwrap(),
     );
-    price_instrument_json(&json, &market, "2024-01-01", "default", &[], None, None)
-        .expect("a waterfall_rules deal must price through the JSON binding path");
+    price_instrument_json(finstack_quant_valuations::pricer::JsonPricingRequest {
+        instrument_json: &json,
+        market: &market,
+        as_of: "2024-01-01",
+        model: "default",
+        metrics: &[],
+        instrument_pricing_overrides_json: None,
+        market_history_json: None,
+        pricing_options: finstack_quant_valuations::instruments::PricingOptions::default(),
+    })
+    .expect("a waterfall_rules deal must price through the JSON binding path");
 }
 
 // Nested serde strictness: `deny_unknown_fields` does not propagate to nested

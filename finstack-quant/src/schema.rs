@@ -47,6 +47,10 @@ fn domain_registries() -> Vec<(&'static str, &'static [SchemaArtifact])> {
     vec![
         ("core", finstack_quant_core::schema::ARTIFACTS),
         ("attribution", finstack_quant_attribution::schema::ARTIFACTS),
+        (
+            "calibration",
+            finstack_quant_calibration::schema_artifacts_slice(),
+        ),
         ("cashflows", finstack_quant_cashflows::schema::ARTIFACTS),
         (
             "factor_model",
@@ -196,7 +200,7 @@ pub fn find(selector: &str) -> Result<&'static SchemaArtifact> {
         })
 }
 
-/// List every schema the workspace publishes, across all nine domains.
+/// List every schema the workspace publishes, across all ten domains.
 ///
 /// One call replaces nine per-crate `index()` calls, which is what a service
 /// wrapping this library needs in order to advertise its contracts without
@@ -621,7 +625,7 @@ mod tests {
 
     #[test]
     #[ignore = "slow: covered by mise rust-test-slow"]
-    fn index_covers_all_nine_domains() {
+    fn index_covers_all_ten_domains() {
         let index = index().expect("index");
         let rows = index["artifacts"].as_array().expect("rows");
         let domains: std::collections::BTreeSet<&str> = rows
@@ -633,6 +637,7 @@ mod tests {
             domains,
             [
                 "attribution",
+                "calibration",
                 "cashflows",
                 "core",
                 "factor_model",

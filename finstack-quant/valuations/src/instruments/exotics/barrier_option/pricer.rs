@@ -153,8 +153,7 @@ impl BarrierOptionMcPricer {
         // barrier monitoring - this ensures time steps align with volatility assumptions)
         let steps_per_year = self.config.steps_per_year;
         let num_steps = ((t_vol * steps_per_year).round() as usize).max(self.config.min_steps);
-        let time_grid =
-            finstack_quant_models::monte_carlo::time_grid::TimeGrid::uniform(t_vol, num_steps)?;
+        let time_grid = finstack_quant_models::monte_carlo::TimeGrid::uniform(t_vol, num_steps)?;
         // `maturity_step` must equal `time_grid.num_steps()` (= num_steps): the engine
         // calls `on_event` with `state.step = num_steps` on the last iteration, so the
         // terminal-spot capture guard `state.step == maturity_step` must fire there.

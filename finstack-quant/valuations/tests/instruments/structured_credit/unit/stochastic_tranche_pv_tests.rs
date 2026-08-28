@@ -138,15 +138,16 @@ fn stochastic_single_path(sc: &StructuredCredit, market: &MarketContext) -> Valu
         Box::new(sc.clone()),
     )))
     .expect("instrument envelope JSON");
-    price_instrument_json(
-        &json,
+    price_instrument_json(finstack_quant_valuations::pricer::JsonPricingRequest {
+        instrument_json: &json,
         market,
-        "2024-01-01",
-        "structured_credit_stochastic",
-        &[],
-        None,
-        None,
-    )
+        as_of: "2024-01-01",
+        model: "structured_credit_stochastic",
+        metrics: &[],
+        instrument_pricing_overrides_json: None,
+        market_history_json: None,
+        pricing_options: finstack_quant_valuations::instruments::PricingOptions::default(),
+    })
     .expect("stochastic json pricing")
 }
 

@@ -120,7 +120,7 @@ pub struct ScenarioSpec {
 /// [`Self::SolveToPar`] is the production default: implied par CDS spreads are
 /// shocked and the hazard is re-bootstrapped so the curve still prices those
 /// quotes. [`Self::FirstOrderShift`] applies
-/// [`bump_hazard_shift`](finstack_quant_valuations::calibration::bumps::bump_hazard_shift)
+/// [`HazardCurve::with_parallel_hazard_rate_bump_bp`](finstack_quant_core::market_data::term_structures::HazardCurve::with_parallel_hazard_rate_bump_bp)
 /// directly to hazard knots for screening and large hierarchy fan-out.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

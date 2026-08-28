@@ -39,7 +39,6 @@ use finstack_quant_models::factor::{
     BumpSizeConfig, CurveType, FactorCovarianceMatrix, FactorDefinition, FactorModelConfig,
     FactorType, MarketDependency, MatchingConfig, PricingMode, RiskMeasure, UnmatchedPolicy,
 };
-use finstack_quant_valuations::calibration::bumps::{bump_hazard_shift, BumpRequest};
 use finstack_quant_valuations::instruments::Instrument;
 use std::collections::{BTreeMap, HashMap};
 
@@ -1009,8 +1008,8 @@ impl<'a> CreditBumpContexts<'a> {
         };
         if !self.contexts.contains_key(&key) {
             let curve = self.base.get_hazard(curve_id.as_str())?;
-            let up_curve = bump_hazard_shift(curve.as_ref(), &BumpRequest::Parallel(bump_size))?;
-            let down_curve = bump_hazard_shift(curve.as_ref(), &BumpRequest::Parallel(-bump_size))?;
+            let up_curve = curve.with_parallel_hazard_rate_bump_bp(bump_size)?;
+            let down_curve = curve.with_parallel_hazard_rate_bump_bp(-bump_size)?;
             self.contexts.insert(
                 key.clone(),
                 (
@@ -1047,7 +1046,7 @@ fn shift_credit_curves(
             continue;
         }
         let curve = out.get_hazard(curve_id.as_str())?;
-        let bumped = bump_hazard_shift(curve.as_ref(), &BumpRequest::Parallel(scaled))?;
+        let bumped = curve.with_parallel_hazard_rate_bump_bp(scaled)?;
         out = out.insert(bumped);
     }
     Ok(out)

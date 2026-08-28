@@ -332,6 +332,31 @@ fn valuations_dts_exposes_reusable_market_handle_pricing() {
 }
 
 #[test]
+fn calibration_dts_owns_calibration_surface() {
+    let dts = index_dts();
+    let calibration = interface_block(&dts, "CalibrationNamespace");
+    let valuations = interface_block(&dts, "ValuationsNamespace");
+
+    for name in [
+        "calibrate(",
+        "validateCalibrationJson(",
+        "dryRun(",
+        "dependencyGraphJson(",
+        "calibrateBermudanLmmBaseVol(",
+    ] {
+        assert!(
+            calibration.contains(name),
+            "calibration interface missing {name}"
+        );
+        assert!(
+            !valuations.contains(name),
+            "valuations interface still exposes {name}"
+        );
+    }
+    assert!(dts.contains("export declare const calibration: CalibrationNamespace;"));
+}
+
+#[test]
 fn pricing_entry_points_declare_structured_valuation_results() {
     // Pricing returns are computation results, not wire documents: the
     // bindings hand back a plain JS object (parity with Python's
@@ -815,18 +840,10 @@ fn models_monte_carlo_dts_matches_pricing_surface() {
     let monte_carlo = interface_block(&dts, "MonteCarloNamespace");
 
     assert!(dts.contains("export interface MonteCarloNamespace"));
-    // The 12 facade exports pinned under [wasm_models_subset].
+    // The four facade exports pinned under [wasm_models_subset].
     for name in [
-        "priceEuropeanCall(",
-        "priceEuropeanPut(",
         "priceHestonCall(",
         "priceHestonPut(",
-        "priceAsianCall(",
-        "priceAsianPut(",
-        "priceAmericanPut(",
-        "priceAmericanCall(",
-        "priceAmericanPutUnbiased(",
-        "priceAmericanCallUnbiased(",
         "blackScholesCall(",
         "blackScholesPut(",
     ] {

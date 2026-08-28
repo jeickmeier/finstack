@@ -1,12 +1,39 @@
 //! Shared pricing runner helpers for instrument-level golden fixtures.
 
 use crate::golden::schema::{GoldenFixture, Market};
+use finstack_quant_calibration::api::engine;
+use finstack_quant_calibration::api::schema::CalibrationEnvelope;
+use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
 use finstack_quant_core::contract::LoadLimits;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_valuations::calibration::api::engine;
-use finstack_quant_valuations::calibration::api::schema::CalibrationEnvelope;
-use finstack_quant_valuations::pricer::price_instrument_json;
+use finstack_quant_valuations::instruments::PricingOptions;
+use finstack_quant_valuations::pricer::{
+    price_instrument_json as canonical_price_instrument_json, JsonPricingRequest,
+};
 use std::collections::BTreeMap;
+use std::sync::Arc;
+
+fn price_instrument_json(
+    instrument_json: &str,
+    market: &MarketContext,
+    as_of: &str,
+    model: &str,
+    metrics: &[String],
+    instrument_pricing_overrides_json: Option<&str>,
+    market_history_json: Option<&str>,
+) -> finstack_quant_core::Result<finstack_quant_valuations::results::ValuationResult> {
+    canonical_price_instrument_json(JsonPricingRequest {
+        instrument_json,
+        market,
+        as_of,
+        model,
+        metrics,
+        instrument_pricing_overrides_json,
+        market_history_json,
+        pricing_options: PricingOptions::default()
+            .with_recalibration_provider(Arc::new(CachedRecalibrationProvider::new())),
+    })
+}
 
 fn metric_base(metric: &str) -> &str {
     metric.split_once("::").map_or(metric, |(base, _)| base)

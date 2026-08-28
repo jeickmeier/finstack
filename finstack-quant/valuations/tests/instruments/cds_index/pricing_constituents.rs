@@ -483,7 +483,8 @@ fn test_constituents_detailed_additive_metrics() {
     let rpv01_sum: f64 = rpv01.constituents.iter().map(|c| c.value).sum();
     assert_relative_eq(rpv01.total, rpv01_sum, 1e-10, "Risky PV01 total equals sum");
 
-    let cs01 = idx.cs01_detailed(&ctx, as_of).unwrap();
+    let provider = finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new();
+    let cs01 = idx.cs01_detailed(&ctx, as_of, &provider).unwrap();
     let cs01_sum: f64 = cs01.constituents.iter().map(|c| c.value).sum();
     assert_relative_eq(cs01.total, cs01_sum, 1e-10, "CS01 total equals sum");
 }

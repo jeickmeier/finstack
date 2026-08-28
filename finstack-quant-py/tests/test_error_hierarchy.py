@@ -49,7 +49,7 @@ from finstack_quant.portfolio import (
     portfolio_result_total_value,
     value_portfolio,
 )
-from finstack_quant.valuations import CalibrationEnvelopeError
+from finstack_quant.calibration import CalibrationEnvelopeError
 
 REPARENTED_ERRORS = [
     AnalyticsError,

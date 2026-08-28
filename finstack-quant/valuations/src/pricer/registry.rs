@@ -416,8 +416,7 @@ impl PricerRegistry {
         let crate::instruments::PricingOptions {
             config: cfg,
             market_history,
-            hazard_recalibration_cache,
-            rate_recalibration_cache,
+            recalibration_provider,
             ..
         } = options;
 
@@ -462,8 +461,7 @@ impl PricerRegistry {
             metrics,
             cfg,
             market_history,
-            hazard_recalibration_cache,
-            rate_recalibration_cache,
+            recalibration_provider,
             pricer_registry: shared.registry.unwrap_or_else(|| Arc::new(self.clone())),
             base_result,
         })

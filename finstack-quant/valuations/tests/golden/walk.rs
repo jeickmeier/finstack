@@ -2,8 +2,8 @@
 
 use crate::golden::pricing_common::requested_metrics;
 use crate::golden::schema::{Body, GoldenFixture, Market, SCHEMA};
+use finstack_quant_calibration::api::schema::CalibrationEnvelope;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_valuations::calibration::api::schema::CalibrationEnvelope;
 use finstack_quant_valuations::metrics::MetricId;
 use finstack_quant_valuations::pricer::parse_boxed_instrument_json;
 use std::collections::BTreeSet;

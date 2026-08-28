@@ -19,9 +19,10 @@
 
 //! Reusable analytical, numerical, credit, correlation, and stochastic models.
 //!
-//! This crate owns product-independent model engines. Instrument definitions,
-//! market resolution, calibration orchestration, pricing registries, metrics,
-//! and valuation results remain in `finstack-quant-valuations`.
+//! Instrument definitions, market resolution, instrument-specific pricing
+//! orchestration, metrics, and valuation results remain in
+//! `finstack-quant-valuations`. Product-independent pricing workflows and
+//! runtime defaults live beside their model engines here.
 //!
 //! # Module Organization
 //!
@@ -54,9 +55,9 @@ pub mod types;
 pub mod volatility;
 
 pub use closed_form::{
-    black76_call, black76_implied_vol, black76_put, bs_greeks, bs_greeks_checked, bs_implied_vol,
-    bs_price, bs_price_checked, heston_call_price_fourier, heston_put_price_fourier,
-    vanilla_expiry_payoff, BsGreeks, HestonPricingParams, ONE_PERCENT,
+    black76_call, black76_implied_vol, black76_put, bs_greeks, bs_implied_vol, bs_price,
+    heston_call_price_fourier, heston_put_price_fourier, vanilla_expiry_payoff, BsGreeks,
+    HestonPricingParams, ONE_PERCENT,
 };
 pub use pde::{
     BlackScholesPde, BoundaryCondition, CraigSneydStepper, Grid1D, Grid2D, HestonPde, PdeProblem1D,

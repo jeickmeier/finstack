@@ -47,7 +47,7 @@ Its `README.md` and `.d.ts` are wasm-pack copies; treat nothing in `pkg/` or
 
 ## Namespaces
 
-`index.js` exports the initializer plus these 13 namespaces, assembled from
+`index.js` exports the initializer plus these 14 namespaces, assembled from
 `exports/*.js`:
 
 | Namespace              | Contents                                                                                                                                                                                                                                                        |
@@ -55,6 +55,7 @@ Its `README.md` and `.d.ts` are wasm-pack copies; treat nothing in `pkg/` or
 | `core`                 | `Currency`, `Money`, `Rate`/`Bps`/`Percentage`, `DayCount`, `Tenor`, date helpers, `DiscountCurve`/`HazardCurve`/`ForwardCurve`, `VolCube`, `FxDeltaVolSurface`, `FxMatrix`, and the `math` helpers (Cholesky, statistics, special functions, stable summation) |
 | `analytics`            | `Performance` panel engine, `constrainedLeastSquares`                                                                                                                                                                                                           |
 | `attribution`          | `attributePnl`, `attributePnlFromSpec`, waterfall/metric defaults, schema validation                                                                                                                                                                            |
+| `calibration`          | quote ingestion, market construction, plan validation, dependency graphs, and explicit Bermudan LMM base-vol fitting                                                                                                                                           |
 | `cashflows`            | schedule build/validate, `accruedInterest`, dated flows, CPR↔SMM and CDR↔MDR conversions                                                                                                                                                                        |
 | `covenants`            | spec/report/engine validation, `evaluateEngine`, preset covenant packages                                                                                                                                                                                       |
 | `features`             | signal cleaning, neutralization, weighting, and timeseries / cross-sectional / panel transforms                                                                                                                                                                 |
@@ -64,7 +65,7 @@ Its `README.md` and `.d.ts` are wasm-pack copies; treat nothing in `pkg/` or
 | `scenarios`            | spec parse/compose/validate, builtin templates and components, `applyScenario`, `computeHorizonReturn`                                                                                                                                                          |
 | `statements`           | model and check-suite validation, `evaluateModel`, `runMonteCarlo`, formula parsing                                                                                                                                                                             |
 | `statements_analytics` | sensitivity, variance, scenario sets, backtesting, goal seek, DCF, LBO, WACC, check reports, comps                                                                                                                                                              |
-| `valuations`           | nested `instruments`, `fx`, `creditDerivatives`, `composite`, and `market`; plus calibration (`calibrate`, `dryRun`, …), product-specific coupon helpers, and the reusable `Market` handle                                                                      |
+| `valuations`           | nested `instruments`, `fx`, `creditDerivatives`, `composite`, and `market`; product-specific coupon helpers; and the reusable `Market` handle                                                                                                                    |
 
 Hover any namespace member in a TypeScript IDE for its arguments, result shape,
 error behavior, and conventions. `index.d.ts` is the authoritative surface; use its
@@ -73,7 +74,7 @@ camelCase parameter names.
 ## Quick start
 
 ```javascript
-import init, { analytics, core, models, valuations } from 'finstack-quant-wasm';
+import init, { analytics, calibration, core, models, valuations } from 'finstack-quant-wasm';
 
 await init();
 
@@ -97,22 +98,6 @@ const perf = analytics.Performance.fromReturns(
 perf.sharpe(0.0); // Float64Array [ 0.917662935482247 ]
 perf.free();
 
-// Monte Carlo. The seed is a u64, so pass a BigInt.
-const estimate = models.monteCarlo.priceEuropeanCall(
-  100,
-  100,
-  0.03,
-  0,
-  0.2,
-  1,
-  10_000,
-  42n,
-  64,
-  'USD'
-);
-estimate.mean; // 9.16530187202297
-estimate.currency; // 'USD'
-
 // Typed instruments round-trip through the canonical `finstack_quant.instrument/1`
 // envelope.
 const bond = valuations.instruments.Bond.fixed(
@@ -129,12 +114,12 @@ JSON.parse(bond.toJson()).schema; // 'finstack_quant.instrument/1'
 
 ### Pricing against a market
 
-`valuations.calibrate` turns a quote envelope into a materialized market; the result's
+`calibration.calibrate` turns a quote envelope into a materialized market; the result's
 `result.final_market` is the MarketContext every pricing entry point accepts. When
 pricing many instruments, parse it once into a `Market` handle.
 
 ```javascript
-const calibrated = valuations.calibrate(envelope); // CalibrationResultEnvelope
+const calibrated = calibration.calibrate(envelope); // CalibrationResultEnvelope
 const market = new valuations.Market(JSON.stringify(calibrated.result.final_market));
 
 for (const instrumentJson of instruments) {
@@ -149,7 +134,7 @@ for (const instrumentJson of instruments) {
 ```
 
 Always inspect `calibrated.result.step_reports` and `calibrated.result.report` before
-using a calibrated market downstream. `valuations.validateCalibrationJson` is the
+using a calibrated market downstream. `calibration.validateCalibrationJson` is the
 fast pre-flight that canonicalizes an envelope without solving.
 
 ### Initialization: web vs Node

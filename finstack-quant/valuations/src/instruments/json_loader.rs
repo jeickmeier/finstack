@@ -879,14 +879,6 @@ pub fn cashflow_provider_from_value(
 mod tests {
     use rust_decimal::Decimal;
 
-    #[allow(dead_code, unused_imports)]
-    mod credit_support {
-        include!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/support/credit.rs"
-        ));
-    }
-
     use super::*;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::Date;
@@ -1239,16 +1231,7 @@ mod tests {
 
     #[test]
     fn test_cds_roundtrip() {
-        let cds = credit_support::cds_buy_protection(
-            "CDS-TEST",
-            Money::new(10_000_000.0, Currency::USD),
-            100.0,
-            Date::from_calendar_date(2024, Month::January, 1).expect("Valid test date"),
-            Date::from_calendar_date(2029, Month::January, 1).expect("Valid test date"),
-            "USD-OIS",
-            "CORP-HAZARD",
-        )
-        .expect("CDS construction should succeed in test");
+        let cds = CreditDefaultSwap::example();
 
         let json = InstrumentJson::CreditDefaultSwap(cds.clone());
         let serialized =

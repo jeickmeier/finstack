@@ -303,8 +303,8 @@ impl LatentFactorSpec {
     ///
     /// Returns [`crate::correlation::Error`] if a multi-factor specification
     /// contains an invalid volatility vector or correlation matrix. Call
-    /// [`LatentMultiFactor::new_or_identity`] explicitly if repair/fallback
-    /// behavior is desired.
+    /// [`crate::correlation::nearest_correlation_matrix`] explicitly before
+    /// construction when projection is part of the caller's policy.
     pub fn build(&self) -> Result<LatentFactorKind> {
         Ok(match self {
             LatentFactorSpec::SingleFactor {
@@ -563,8 +563,7 @@ impl LatentTwoFactor {
 /// - Unit diagonal: ρᵢᵢ = 1
 /// - Positive semi-definite: All eigenvalues ≥ 0
 ///
-/// Invalid matrices will be replaced with the identity matrix.
-/// Use [`LatentMultiFactor::validated`] for explicit validation.
+/// Invalid matrices are rejected; correlation repair is an explicit caller policy.
 #[derive(Debug, Clone)]
 pub struct LatentMultiFactor {
     num_factors: usize,
@@ -591,108 +590,6 @@ impl LatentMultiFactor {
     ///
     /// A validated multi-factor model.
     pub fn new(num_factors: usize, volatilities: Vec<f64>, correlations: Vec<f64>) -> Result<Self> {
-        Self::validated(num_factors, volatilities, correlations)
-    }
-
-    /// Create a multi-factor model, projecting near-PSD correlation matrices
-    /// onto the nearest valid correlation matrix (Higham 2002) before falling
-    /// back to the identity.
-    ///
-    /// Precedence of attempts:
-    ///
-    /// 1. `new` — use the matrix as provided if it is already a valid
-    ///    correlation matrix.
-    /// 2. [`nearest_correlation_matrix`](crate::correlation::nearest_correlation_matrix)
-    ///    — repair small PSD violations (typical when the matrix comes from a
-    ///    thresholded sample estimate or shrinkage) and retry validation.
-    /// 3. Identity fallback — only if both of the above fail, and only with a
-    ///    loud warning. This preserves backwards compatibility with existing
-    ///    call sites while eliminating silent identity substitution for
-    ///    matrices that were *almost* correct.
-    ///
-    /// Sites that want a hard error on invalid input should call
-    /// [`LatentMultiFactor::validated`] directly instead.
-    ///
-    /// # Returns
-    ///
-    /// A validated model from the original matrix, a model built from the
-    /// Higham-projected matrix, or (last resort) an uncorrelated fallback.
-    ///
-    /// # Arguments
-    ///
-    /// * `num_factors` - Num factors supplied by the caller for this operation
-    /// * `volatilities` - Volatilities supplied by the caller for this operation
-    /// * `correlations` - Correlations supplied by the caller for this operation
-    #[must_use]
-    pub fn new_or_identity(
-        num_factors: usize,
-        volatilities: Vec<f64>,
-        correlations: Vec<f64>,
-    ) -> Self {
-        if let Ok(model) = Self::new(num_factors, volatilities.clone(), correlations.clone()) {
-            return model;
-        }
-
-        // Try Higham's nearest-correlation projection before the identity
-        // fallback. This repairs small PSD violations (e.g. sample-correlation
-        // estimation noise) instead of silently throwing the user's correlation
-        // structure away.
-        let n = num_factors.max(1);
-        if correlations.len() == n * n {
-            match crate::correlation::nearest_correlation_matrix(
-                &correlations,
-                n,
-                crate::correlation::NearestCorrelationOpts::default(),
-            ) {
-                Ok(repaired) => {
-                    if let Ok(model) = Self::new(num_factors, volatilities.clone(), repaired) {
-                        tracing::warn!(
-                            num_factors,
-                            "Invalid correlation matrix; using Higham (2002) nearest \
-                             correlation projection as the repaired input"
-                        );
-                        return model;
-                    }
-                }
-                Err(err) => {
-                    tracing::warn!(
-                        num_factors,
-                        %err,
-                        "Nearest-correlation projection rejected the input; \
-                         continuing to identity fallback"
-                    );
-                }
-            }
-        }
-
-        tracing::warn!(
-            num_factors,
-            "Invalid correlation matrix and projection failed; falling back to \
-             uncorrelated (identity) model"
-        );
-        Self::uncorrelated(num_factors, volatilities)
-    }
-
-    /// Create a multi-factor model with validation.
-    ///
-    /// Returns an error if the correlation matrix is invalid.
-    ///
-    /// # Arguments
-    /// * `num_factors` - Number of factors (must be ≥ 1)
-    /// * `volatilities` - Factor volatilities (one per factor)
-    /// * `correlations` - Correlation matrix (flattened row-major, n×n values)
-    ///
-    /// # Errors
-    /// Returns [`crate::correlation::Error`] if the matrix is invalid.
-    ///
-    /// # Returns
-    ///
-    /// A validated multi-factor model.
-    pub fn validated(
-        num_factors: usize,
-        volatilities: Vec<f64>,
-        correlations: Vec<f64>,
-    ) -> Result<Self> {
         let n = num_factors.max(1);
 
         // Validate volatilities length: previously a mismatch silently replaced
@@ -1133,7 +1030,7 @@ mod tests {
     fn test_multi_factor_valid_matrix() {
         let corr = vec![1.0, 0.5, 0.5, 1.0];
         let vols = vec![0.2, 0.3];
-        let model = LatentMultiFactor::validated(2, vols, corr)
+        let model = LatentMultiFactor::new(2, vols, corr)
             .expect("valid 2x2 correlation matrix should create model");
 
         assert_eq!(LatentFactorKind::Multi(model.clone()).num_factors(), 2);
@@ -1171,19 +1068,6 @@ mod tests {
     }
 
     #[test]
-    fn test_multi_factor_new_or_identity_fallback() {
-        let corr = vec![1.0, 0.5, 0.3, 1.0];
-        let vols = vec![0.2, 0.3];
-        let model = LatentFactorKind::Multi(LatentMultiFactor::new_or_identity(2, vols, corr));
-
-        let corr_matrix = model.correlation_matrix();
-        assert!((corr_matrix[0] - 1.0).abs() < 1e-10);
-        assert!(corr_matrix[1].abs() < 1e-10);
-        assert!(corr_matrix[2].abs() < 1e-10);
-        assert!((corr_matrix[3] - 1.0).abs() < 1e-10);
-    }
-
-    #[test]
     fn test_multi_factor_uncorrelated() {
         let model =
             LatentFactorKind::Multi(LatentMultiFactor::uncorrelated(3, vec![0.1, 0.2, 0.3]));
@@ -1204,7 +1088,7 @@ mod tests {
     fn test_generate_correlated_factors() {
         let corr = vec![1.0, 0.6, 0.6, 1.0];
         let vols = vec![1.0, 1.0]; // Unit volatilities for easy verification
-        let model = LatentMultiFactor::validated(2, vols, corr.clone())
+        let model = LatentMultiFactor::new(2, vols, corr.clone())
             .expect("correlated model should create successfully");
 
         // Verify L * L^T = correlation matrix (covariance structure is preserved).
@@ -1234,7 +1118,7 @@ mod tests {
     fn test_generate_correlated_factors_with_volatility() {
         let corr = vec![1.0, 0.0, 0.0, 1.0]; // Identity
         let vols = vec![0.2, 0.3];
-        let model = LatentMultiFactor::validated(2, vols, corr)
+        let model = LatentMultiFactor::new(2, vols, corr)
             .expect("identity correlation model should create successfully");
 
         let factors = model.generate_correlated_factors(&[1.0, 1.0]);
@@ -1247,7 +1131,7 @@ mod tests {
     #[test]
     fn test_generate_correlated_factors_into_matches_allocating_api() {
         let corr = vec![1.0, 0.6, 0.6, 1.0];
-        let model = LatentMultiFactor::validated(2, vec![0.2, 0.3], corr)
+        let model = LatentMultiFactor::new(2, vec![0.2, 0.3], corr)
             .expect("correlated model should create successfully");
 
         let mut out = vec![0.0; 2];
@@ -1260,7 +1144,7 @@ mod tests {
     #[should_panic(expected = "expected 2 independent factors, got 1")]
     fn test_generate_correlated_factors_into_rejects_wrong_input_length() {
         let corr = vec![1.0, 0.6, 0.6, 1.0];
-        let model = LatentMultiFactor::validated(2, vec![0.2, 0.3], corr)
+        let model = LatentMultiFactor::new(2, vec![0.2, 0.3], corr)
             .expect("correlated model should create successfully");
 
         let mut out = vec![0.0; 2];
@@ -1270,7 +1154,7 @@ mod tests {
     #[test]
     fn test_diagonal_factor_contribution_multi_factor_uses_cholesky_diagonal() {
         let corr = vec![1.0, 0.6, 0.6, 1.0];
-        let model = LatentMultiFactor::validated(2, vec![0.2, 0.3], corr)
+        let model = LatentMultiFactor::new(2, vec![0.2, 0.3], corr)
             .expect("correlated model should create successfully");
 
         let l_entry = model.cholesky_factor().factor_matrix()[3];

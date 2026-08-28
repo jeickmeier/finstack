@@ -11,7 +11,7 @@ import type { SolverConfig } from "./SolverConfig";
  *
  * # Examples
  * ```rust
- * use finstack_quant_valuations::calibration::CalibrationReport;
+ * use finstack_quant_calibration::CalibrationReport;
  * use std::collections::BTreeMap;
  *
  * let mut residuals = BTreeMap::new();

@@ -148,4 +148,4 @@ pub use types::PayReceive;
 pub use types::PremiumLegSpec;
 pub use types::ProtectionLegSpec;
 
-pub(crate) use types::{resolve_market_conventions, CdsConventionResolved};
+pub use types::{resolve_market_conventions, CdsConventionResolved};

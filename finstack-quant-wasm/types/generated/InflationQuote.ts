@@ -11,8 +11,8 @@
  *
  * Zero-coupon inflation swap:
  * ```rust
- * use finstack_quant_valuations::market::quotes::inflation::InflationQuote;
- * use finstack_quant_valuations::market::quotes::ids::QuoteId;
+ * use finstack_quant_calibration::quotes::inflation::InflationQuote;
+ * use finstack_quant_calibration::quotes::ids::QuoteId;
  * use finstack_quant_valuations::market::conventions::ids::InflationSwapConventionId;
  * use finstack_quant_core::dates::Date;
  *
@@ -27,8 +27,8 @@
  *
  * Year-on-year inflation swap:
  * ```rust
- * use finstack_quant_valuations::market::quotes::inflation::InflationQuote;
- * use finstack_quant_valuations::market::quotes::ids::QuoteId;
+ * use finstack_quant_calibration::quotes::inflation::InflationQuote;
+ * use finstack_quant_calibration::quotes::ids::QuoteId;
  * use finstack_quant_valuations::market::conventions::ids::InflationSwapConventionId;
  * use finstack_quant_core::dates::{Date, Tenor};
  *

@@ -67,10 +67,7 @@ impl JsCopulaSpec {
     pub fn build(&self) -> Result<JsCopula, JsValue> {
         self.inner
             .build()
-            .map(|inner| JsCopula {
-                inner,
-                spec: self.inner.clone(),
-            })
+            .map(|inner| JsCopula { inner })
             .map_err(to_js_err)
     }
 
@@ -103,9 +100,6 @@ impl JsCopulaSpec {
 #[wasm_bindgen(js_name = Copula)]
 pub struct JsCopula {
     inner: Box<dyn Copula + Send + Sync>,
-    /// Originating spec, retained so concrete-model-only diagnostics
-    /// (`stressCorrelationProxy`) can be dispatched.
-    spec: CopulaSpec,
 }
 
 #[wasm_bindgen(js_class = Copula)]
@@ -171,17 +165,9 @@ impl JsCopula {
     /// Loading model.
     #[wasm_bindgen(js_name = stressCorrelationProxy)]
     pub fn stress_correlation_proxy(&self, correlation: f64) -> Result<f64, JsValue> {
-        match &self.spec {
-            CopulaSpec::RandomFactorLoading { loading_volatility } => {
-                Ok(corr::RandomFactorLoadingCopula::new(*loading_volatility)
-                    .stress_correlation_proxy(correlation))
-            }
-            _ => Err(JsValue::from_str(&format!(
-                "stressCorrelationProxy is only defined for the Random Factor Loading \
-                 copula, got '{}'",
-                self.inner.model_name()
-            ))),
-        }
+        self.inner
+            .stress_correlation_proxy(correlation)
+            .map_err(to_js_err)
     }
 }
 

@@ -16,9 +16,8 @@
 use crate::errors::display_to_py;
 use finstack_quant_models::closed_form::implied_vol::{black76_implied_vol, bs_implied_vol};
 use finstack_quant_models::closed_form::{
-    asian_option_price_str, barrier_call_str, bs_greeks_checked, bs_price_checked,
-    lookback_option_price_str, option_type_from_bool, quanto_option_price_checked,
-    vanilla_expiry_payoff, BsGreeks,
+    asian_option_price_str, barrier_call_str, bs_greeks, bs_price, lookback_option_price_str,
+    option_type_from_bool, quanto_option_price_checked, vanilla_expiry_payoff, BsGreeks,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -72,8 +71,7 @@ fn bs_price_wrapper(
     t: f64,
     is_call: bool,
 ) -> PyResult<f64> {
-    bs_price_checked(spot, strike, r, q, sigma, t, option_type_from_bool(is_call))
-        .map_err(display_to_py)
+    bs_price(spot, strike, r, q, sigma, t, option_type_from_bool(is_call)).map_err(display_to_py)
 }
 
 /// Vanilla option payoff at expiry: ``max(±(spot - strike), 0)``.
@@ -165,9 +163,8 @@ fn bs_greeks_wrapper<'py>(
     is_call: bool,
     theta_days: f64,
 ) -> PyResult<Bound<'py, PyDict>> {
-    // theta_days validation (finite, > 0) lives in `bs_greeks_checked` —
-    // the single home for Greeks input validation.
-    let greeks: BsGreeks = bs_greeks_checked(
+    // theta_days validation (finite, > 0) lives in `bs_greeks`.
+    let greeks: BsGreeks = bs_greeks(
         spot,
         strike,
         r,

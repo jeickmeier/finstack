@@ -3,12 +3,12 @@
 //!
 //! Two responsibilities, both required for an arbitrage-free HW1F simulation:
 //!
-//! 1. **θ(t) calibration (defect M6).** The Hull-White 1-factor model fits the
+//! 1. **θ(t) preparation (defect M6).** The Hull-White 1-factor model fits the
 //!    initial discount curve only when its mean-reversion *level* θ is
-//!    time-dependent (Brigo–Mercurio §3.3.1). [`calibrate_hw1f_params`] wraps
+//!    time-dependent (Brigo–Mercurio §3.3.1). [`prepare_hw1f_params`] wraps
 //!    the canonical `finstack_quant_models::monte_carlo::process::ou::calibrate_theta_from_curve`
 //!    bootstrap, presenting the discount curve as the `P(as_of, as_of+t)`
-//!    closure the calibrator expects.
+//!    closure the deterministic process builder expects.
 //!
 //! 2. **Term-forward reconstruction (defect M7).** An exotic coupon indexed to,
 //!    e.g., a 6-month rate must use the *term* simple forward, not the
@@ -27,7 +27,7 @@
 //!    ```
 //!
 //!    [`Hw1fTermForward`] precomputes the per-event `(B, ln A, τ)` triple from
-//!    the *same* initial curve used to calibrate θ(t), so the reconstruction is
+//!    the *same* initial curve used to prepare θ(t), so the reconstruction is
 //!    consistent with the simulated dynamics.
 //!
 //! # Reference
@@ -48,7 +48,7 @@ use finstack_quant_models::rates::hull_white::{
 /// Spacing (years) of the piecewise-constant θ(t) bootstrap grid.
 ///
 /// θ(t) is piecewise-constant on intervals of this width, each interval
-/// carrying the θ value sampled at its **midpoint** (see [`calibrate_hw1f_params`]).
+/// carrying the θ value sampled at its **midpoint** (see [`prepare_hw1f_params`]).
 /// The midpoint rule makes the curve-repricing error O(spacing²) rather than
 /// O(spacing) of a left-endpoint rule, so a monthly grid reprices even a
 /// steeply-sloped curve to a few bp. Monthly is also fine enough to resolve
@@ -100,7 +100,7 @@ fn rebased_discount_fn<'a>(
     })
 }
 
-/// Calibrate time-dependent HW1F parameters θ(t) to a discount curve.
+/// Prepare time-dependent HW1F parameters θ(t) from a discount curve.
 ///
 /// Bootstraps a piecewise-constant θ(t) (defect M6 fix) so the simulated short
 /// rate reprices the initial curve. The θ(t) formula itself is the canonical
@@ -128,7 +128,7 @@ fn rebased_discount_fn<'a>(
 /// # Errors
 ///
 /// Returns an error if the curve cannot be re-based to `as_of`.
-pub fn calibrate_hw1f_params(
+pub fn prepare_hw1f_params(
     hw_params: HullWhiteParams,
     discount_curve: &dyn Discounting,
     as_of: Date,
@@ -165,23 +165,23 @@ pub fn calibrate_hw1f_params(
     ))
 }
 
-/// Calibrate a simulation-ready HW1F process from scheduled model parameters.
+/// Prepare a simulation-ready HW1F process from scheduled model parameters.
 ///
-/// This is the piecewise-volatility counterpart to [`calibrate_hw1f_params`].
+/// This is the piecewise-volatility counterpart to [`prepare_hw1f_params`].
 /// It uses the exact volatility-kernel correction when deriving θ(t), so a
 /// one-segment schedule reproduces the scalar process.
 ///
 /// # Arguments
 ///
-/// * `model` - Calibrated Hull-White mean reversion and piecewise volatility
+/// * `model` - Fitted Hull-White mean reversion and piecewise volatility
 ///   schedule to translate into a simulation process.
-/// * `discount_curve` - Discounting curve repriced by the calibrated θ(t)
+/// * `discount_curve` - Discounting curve repriced by the prepared θ(t)
 ///   drift; its date convention is rebased at `as_of`.
 /// * `as_of` - Valuation date from which the process and discount curve are
 ///   rebased.
 /// * `horizon` - Positive simulation horizon in years used to build the θ(t)
 ///   midpoint grid.
-pub fn calibrate_hw1f_model_params(
+pub fn prepare_hw1f_model_params(
     model: &HullWhiteModelParams,
     discount_curve: &dyn Discounting,
     as_of: Date,
@@ -415,12 +415,12 @@ mod tests {
     }
 
     #[test]
-    fn calibrate_hw1f_params_grid_covers_horizon() {
+    fn prepared_hw1f_params_grid_covers_horizon() {
         let as_of = date(2025, Month::January, 1);
         let curve = flat_curve(as_of, 0.03);
         let hw = HullWhiteParams::new(0.15, 0.01).expect("hw");
         let horizon = 2.6_f64;
-        let params = calibrate_hw1f_params(hw, &curve, as_of, horizon).expect("calibrated");
+        let params = prepare_hw1f_params(hw, &curve, as_of, horizon).expect("prepared");
 
         // Monthly grid: ceil(2.6 · 12) = 32 intervals, one θ knot per interval.
         let n_steps = (horizon / THETA_GRID_SPACING_YEARS).ceil() as usize;
@@ -447,9 +447,9 @@ mod tests {
         let model = HullWhiteModelParams::try_from(scalar).expect("model");
 
         let scalar_process =
-            calibrate_hw1f_params(scalar, &curve, as_of, 2.0).expect("scalar process");
+            prepare_hw1f_params(scalar, &curve, as_of, 2.0).expect("scalar process");
         let scheduled_process =
-            calibrate_hw1f_model_params(&model, &curve, as_of, 2.0).expect("scheduled process");
+            prepare_hw1f_model_params(&model, &curve, as_of, 2.0).expect("scheduled process");
 
         assert_eq!(scheduled_process.sigma_at_time(1.0), scalar_process.sigma);
         assert_eq!(scheduled_process.theta_times, scalar_process.theta_times);

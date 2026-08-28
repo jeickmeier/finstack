@@ -3,10 +3,10 @@
 use super::*;
 use crate::monte_carlo::paths::{CashflowType, ProcessParams};
 use crate::monte_carlo::results::MonteCarloResult;
-use crate::monte_carlo::time_grid::TimeGrid;
 use crate::monte_carlo::traits::{
     Discretization, PathState, Payoff, RandomStream, StochasticProcess,
 };
+use crate::monte_carlo::TimeGrid;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
 

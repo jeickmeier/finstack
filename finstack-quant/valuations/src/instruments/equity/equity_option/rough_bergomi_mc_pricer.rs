@@ -174,7 +174,7 @@ fn build_xi0_from_surface(
 fn simulate_rbergomi<F: finstack_quant_models::monte_carlo::traits::Payoff>(
     num_paths: usize,
     rng: &mut finstack_quant_models::monte_carlo::rng::philox::PhiloxRng,
-    time_grid: &finstack_quant_models::monte_carlo::time_grid::TimeGrid,
+    time_grid: &finstack_quant_models::monte_carlo::TimeGrid,
     process: &finstack_quant_models::monte_carlo::process::rough_bergomi::RoughBergomiProcess,
     disc: &finstack_quant_models::monte_carlo::discretization::rough_bergomi::RoughBergomiEuler,
     initial_state: &[f64],
@@ -184,11 +184,11 @@ fn simulate_rbergomi<F: finstack_quant_models::monte_carlo::traits::Payoff>(
     num_steps: usize,
     err_ctx: crate::pricer::PricingErrorContext,
 ) -> std::result::Result<(f64, f64), PricingError> {
-    use finstack_quant_models::monte_carlo::online_stats::OnlineStats;
     use finstack_quant_models::monte_carlo::rng::fbm::FractionalNoiseGenerator;
     use finstack_quant_models::monte_carlo::traits::{
         Discretization, RandomStream, StochasticProcess,
     };
+    use finstack_quant_models::monte_carlo::OnlineStats;
 
     let num_factors = process.num_factors();
     let work_size = disc.work_size(process);
@@ -371,9 +371,8 @@ impl crate::pricer::Pricer for EquityOptionRoughBergomiMcPricer {
                 params,
             );
 
-        let time_grid =
-            finstack_quant_models::monte_carlo::time_grid::TimeGrid::uniform(t, self.num_steps)
-                .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
+        let time_grid = finstack_quant_models::monte_carlo::TimeGrid::uniform(t, self.num_steps)
+            .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
 
         // Build discretization and the Riemann-Liouville Volterra generator.
         // rBergomi requires the RL Volterra process Ỹ_t = √(2H)∫₀ᵗ(t−s)^{H−½}dW_s

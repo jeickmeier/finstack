@@ -193,7 +193,7 @@ fn finstack_config_still_accepts_valid_extensions() {
             "ingest_scale": {"overrides": {}},
             "output_scale": {"overrides": {}}
         },
-        "extensions": {"valuations.calibration.v1": {"anything": 1}}
+        "extensions": {"calibration.config.v1": {"anything": 1}}
     }"#;
     let config: serde_json::Result<FinstackConfig> = serde_json::from_str(json);
     assert!(

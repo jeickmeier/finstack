@@ -6,8 +6,8 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_statements::types::NodeId;
 use finstack_quant_statements::FinancialModelSpec;
-use finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache;
 use finstack_quant_valuations::instruments::Instrument;
+use finstack_quant_valuations::recalibration::RecalibrationProvider;
 use indexmap::IndexMap;
 
 /// Execution context for scenario application.
@@ -76,8 +76,8 @@ pub struct ExecutionContext<'a> {
 pub(crate) struct HazardApplyEnv<'a> {
     /// Solve-to-par versus first-order hazard-knot delivery.
     pub mode: HazardBumpMode,
-    /// Shared recalibration cache for this apply (or a caller-owned batch).
-    pub cache: &'a HazardRecalibrationCache,
+    /// Quote-recalibration service shared by this immutable scenario batch.
+    pub provider: Option<&'a dyn RecalibrationProvider>,
 }
 
 /// A concrete market-data target changed while applying a scenario.

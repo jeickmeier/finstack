@@ -7,13 +7,12 @@
 //! reboots the hazard curve under the bumped recovery so quoted spreads remain
 //! invariant. Curves without par quotes fall back to a frozen-curve local bump.
 
-use crate::calibration::bumps::hazard::recalibrate_hazard_with_recovery;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds::metrics::market_doc_clause;
 use crate::instruments::credit_derivatives::cds_option::pricer::synthetic_underlying_cds;
 use crate::instruments::credit_derivatives::cds_option::CDSOption;
 use crate::metrics::{MetricCalculator, MetricContext};
-use finstack_quant_core::market_data::context::MarketContext;
+use crate::recalibration::{HazardRecalibrationAction, HazardRecalibrationRequest};
 use finstack_quant_core::Result;
 
 /// Standard recovery rate bump: 1% (0.01)
@@ -26,10 +25,11 @@ pub(crate) struct Recovery01Calculator;
 
 fn price_at_bumped_recovery(
     option: &CDSOption,
-    base_market: &MarketContext,
+    context: &MetricContext,
     new_recovery: f64,
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<f64> {
+    let base_market = context.curves.as_ref();
     let mut bumped_option = option.clone();
     bumped_option.recovery_rate = new_recovery;
 
@@ -37,15 +37,22 @@ fn price_at_bumped_recovery(
     let has_par_quotes = hazard.hazard_calibration().is_some();
     let market_for_pricing = if has_par_quotes {
         let synthetic = synthetic_underlying_cds(option, as_of)?;
-        let recalibrated = recalibrate_hazard_with_recovery(
-            hazard.as_ref(),
-            new_recovery,
-            base_market,
-            Some(&option.discount_curve_id),
-            Some(market_doc_clause(&synthetic)),
-            Some(synthetic.valuation_convention),
+        let recalibrated = context.rebuild_hazard_curve(
+            HazardRecalibrationRequest {
+                hazard,
+                source_market: std::sync::Arc::clone(&context.curves),
+                target_market: std::sync::Arc::clone(&context.curves),
+                discount_curve_id: option.discount_curve_id.clone(),
+                doc_clause: Some(market_doc_clause(&synthetic)),
+                cds_valuation_convention: Some(synthetic.valuation_convention),
+                deal_quote_override: None,
+                action: HazardRecalibrationAction::RecoveryRateReplay {
+                    recovery_rate: new_recovery,
+                },
+            },
+            "recovery01",
         )?;
-        base_market.clone().insert(recalibrated)
+        base_market.clone().insert(recalibrated.as_ref().clone())
     } else {
         // Frozen-curve fallback: keep the hazard λ knots unchanged but realign
         // the curve's `recovery_rate` metadata with the bumped trade recovery
@@ -75,18 +82,16 @@ impl MetricCalculator for Recovery01Calculator {
 
         let slope = match (can_bump_up, can_bump_down) {
             (true, true) => {
-                let pv_up = price_at_bumped_recovery(option, &context.curves, bumped_up, as_of)?;
-                let pv_down =
-                    price_at_bumped_recovery(option, &context.curves, bumped_down, as_of)?;
+                let pv_up = price_at_bumped_recovery(option, context, bumped_up, as_of)?;
+                let pv_down = price_at_bumped_recovery(option, context, bumped_down, as_of)?;
                 (pv_up - pv_down) / (up_delta + down_delta)
             }
             (true, false) => {
-                let pv_up = price_at_bumped_recovery(option, &context.curves, bumped_up, as_of)?;
+                let pv_up = price_at_bumped_recovery(option, context, bumped_up, as_of)?;
                 (pv_up - context.base_value.amount()) / up_delta
             }
             (false, true) => {
-                let pv_down =
-                    price_at_bumped_recovery(option, &context.curves, bumped_down, as_of)?;
+                let pv_down = price_at_bumped_recovery(option, context, bumped_down, as_of)?;
                 (context.base_value.amount() - pv_down) / down_delta
             }
             (false, false) => 0.0,

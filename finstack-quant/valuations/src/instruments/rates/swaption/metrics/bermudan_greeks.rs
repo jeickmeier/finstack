@@ -22,7 +22,7 @@
 //! ```
 
 use crate::instruments::rates::swaption::pricing::BermudanSwaptionTreeValuator;
-use crate::instruments::rates::swaption::{BermudanSwaption, CalibratedHullWhiteModel};
+use crate::instruments::rates::swaption::{BermudanSwaption, PreparedHullWhiteModel};
 use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::bumps::{BumpSpec, MarketBump};
@@ -129,7 +129,7 @@ impl BermudanDeltaCalculator {
         }
 
         validate_hw_greek_params(self.kappa, sigma)?;
-        let model = CalibratedHullWhiteModel::calibrate(
+        let model = PreparedHullWhiteModel::prepare(
             HullWhiteParams::new(self.kappa, sigma)?,
             self.tree_steps,
             disc,
@@ -250,7 +250,7 @@ impl BermudanVegaCalculator {
         }
 
         validate_hw_greek_params(self.kappa, sigma)?;
-        let model = CalibratedHullWhiteModel::calibrate(
+        let model = PreparedHullWhiteModel::prepare(
             HullWhiteParams::new(self.kappa, sigma)?,
             self.tree_steps,
             disc,
@@ -360,7 +360,7 @@ impl BermudanGammaCalculator {
         }
 
         validate_hw_greek_params(self.kappa, sigma)?;
-        let model = CalibratedHullWhiteModel::calibrate(
+        let model = PreparedHullWhiteModel::prepare(
             HullWhiteParams::new(self.kappa, sigma)?,
             self.tree_steps,
             disc,
@@ -523,7 +523,7 @@ impl MetricCalculator for ExerciseProbabilityCalculator {
         }
 
         validate_hw_greek_params(self.kappa, self.sigma)?;
-        let model = CalibratedHullWhiteModel::calibrate(
+        let model = PreparedHullWhiteModel::prepare(
             HullWhiteParams::new(self.kappa, self.sigma)?,
             self.tree_steps,
             disc.as_ref(),
@@ -577,7 +577,7 @@ mod tests {
     fn test_exercise_probability_profile_from_valuator() {
         // Integration test: verify from_valuator uses actual tree probabilities
         use crate::instruments::rates::swaption::{
-            BermudanSchedule, BermudanSwaption, CalibratedHullWhiteModel,
+            BermudanSchedule, BermudanSwaption, PreparedHullWhiteModel,
         };
         use finstack_quant_core::currency::Currency;
         use finstack_quant_core::dates::Tenor;
@@ -623,7 +623,7 @@ mod tests {
         let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
         let ttm = swaption.time_to_maturity(as_of).expect("Valid ttm");
 
-        let model = CalibratedHullWhiteModel::calibrate(
+        let model = PreparedHullWhiteModel::prepare(
             HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
             30,
             &curve,

@@ -26,7 +26,6 @@ use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::math::fractional::HurstExponent;
 use finstack_quant_core::money::Money;
 use finstack_quant_models::monte_carlo::discretization::cheyette_rough::CheyetteRoughEuler;
-use finstack_quant_models::monte_carlo::online_stats::OnlineStats;
 use finstack_quant_models::monte_carlo::pricer::lsq::solve_least_squares;
 use finstack_quant_models::monte_carlo::process::cheyette_rough::{
     CheyetteRoughVolParams, CheyetteRoughVolProcess,
@@ -35,6 +34,7 @@ use finstack_quant_models::monte_carlo::rng::fbm::FractionalNoiseGenerator;
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::rng::volterra::RiemannLiouvilleVolterra;
 use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream};
+use finstack_quant_models::monte_carlo::OnlineStats;
 
 /// Configuration for the Cheyette rough vol Bermudan swaption pricer.
 #[derive(Debug, Clone)]

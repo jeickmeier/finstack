@@ -205,18 +205,14 @@ mod generated_schema_contract {
     }
 
     fn generated_standalone_schema_paths() -> Vec<PathBuf> {
-        let mut paths: Vec<_> = [
-            ("calibration/1", "calibration"),
-            ("results/1", "valuation_result"),
-            ("market/1", "market_quote"),
-        ]
-        .into_iter()
-        .map(|(subdir, filename)| {
-            schema_root()
-                .join(subdir)
-                .join(format!("{filename}.schema.json"))
-        })
-        .collect();
+        let mut paths: Vec<_> = [("results/1", "valuation_result")]
+            .into_iter()
+            .map(|(subdir, filename)| {
+                schema_root()
+                    .join(subdir)
+                    .join(format!("{filename}.schema.json"))
+            })
+            .collect();
         paths.extend(
             CASHFLOW_SCHEMA_FILES
                 .iter()

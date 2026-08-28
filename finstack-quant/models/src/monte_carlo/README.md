@@ -28,9 +28,7 @@ Per-item detail is in the rustdoc (`cargo doc -p finstack-quant-models --open`).
 | `lib.rs` | Module declarations, crate docs, `prelude` |
 | `traits.rs` | `RandomStream`, `StochasticProcess`, `Discretization`, `Payoff`, `PathState`, `StateKey`, `state_keys`, `ProportionalDiffusion` |
 | `engine_fractional.rs` | `simulate_path_fractional` — per-path loop that injects pre-generated fractional noise, for rough-volatility processes the generic engine rejects |
-| `time_grid.rs` | Re-export shim over `finstack_quant_core::math::time_grid` so callers need only this crate |
 | `estimate.rs` | `Estimate`: raw f64 mean / stderr / CI / optional distribution statistics |
-| `online_stats.rs` | Re-export shim over `finstack_quant_core::math::stats`: `OnlineStats`, `OnlineCovariance`, `required_samples` (Welford accumulation and mergeable chunk statistics) |
 | `results.rs` | `MoneyEstimate`, `MonteCarloResult`, `RunMetadata` — currency-tagged outputs |
 | `paths.rs` | `PathDataset`, `SimulatedPath`, `PathPoint`, `PathSamplingMethod`, `ProcessParams`, `CashflowType` |
 | `registry.rs` | Embedded runtime defaults from `../data/defaults/pricer_defaults.v1.json`; `MONTE_CARLO_DEFAULTS_EXTENSION_KEY` |

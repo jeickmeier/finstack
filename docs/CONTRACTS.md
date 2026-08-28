@@ -40,7 +40,7 @@ contract. The pre-release policy is documented in
 | Contract | Required marker | Runtime type / ingress | Published schema |
 |---|---|---|---|
 | Instrument | `finstack_quant.instrument/1` | `InstrumentEnvelope::from_slice_strict` | [instrument union and per-instrument schemas](../finstack-quant/valuations/schemas/instruments/1/) |
-| Calibration request | `finstack_quant.calibration/1` | `CalibrationEnvelope::from_slice_strict` | [calibration](../finstack-quant/valuations/schemas/calibration/1/calibration.schema.json) |
+| Calibration request | `finstack_quant.calibration/1` | `CalibrationEnvelope::from_slice_strict` | [calibration](../finstack-quant/calibration/schemas/calibration/1/calibration.schema.json) |
 | Calibration result | `finstack_quant.calibration/1` | `CalibrationResultEnvelope::from_slice_strict` | embedded in the calibration registry graph |
 | Market context state | numeric `schema_version: 1` | `MarketContext::from_state_slice` | derived wherever the state is embedded |
 | Financial model | numeric `schema_version: 1` | `FinancialModelSpec::from_slice_strict` | [financial model](../finstack-quant/statements/schemas/statements/1/financial_model_spec.schema.json) |
@@ -69,7 +69,7 @@ The registries also publish reusable, runtime-backed components:
   default-model contracts under
   [`cashflow/1`](../finstack-quant/cashflows/schemas/cashflow/1/);
 - rate, credit, volatility, and scalar market quotes in
-  [`market_quote.schema.json`](../finstack-quant/valuations/schemas/market/1/market_quote.schema.json);
+  [`market_quote.schema.json`](../finstack-quant/calibration/schemas/market/1/market_quote.schema.json);
 - `Date`, `Decimal`, `Currency`, `Money`, IDs, tenors, day counts, business-day
   conventions, diagnostics, and closed pricing-override maps under
   [`common/1`](../finstack-quant/valuations/schemas/common/1/);

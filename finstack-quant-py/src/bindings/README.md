@@ -28,6 +28,7 @@ for this crate.
 | `attribution/` | `pub` | `entry.rs` (spec pipeline), `pnl_attribution.rs`, `return_contribution.rs`, `schema.rs` |
 | `cashflows/` | `pub` | `builder/` (`orchestrator.rs`, `schedule.rs`, `specs.rs`), `accrual.rs`, `aggregation.rs`, `primitives.rs`, `schema.rs` |
 | `core/` | `pub` | Most files (45), though `valuations/` is larger by line count: `dates/`, `market_data/` (with `curves/`), `math/`, `credit/`, plus `config.rs`, `currency.rs`, `money.rs`, `types.rs`, `rating_scales.rs`, `table.rs`, `schema.rs` |
+| `calibration/` | `pub` | Calibration envelopes, diagnostics, schema registry, and explicit model-calibration helpers |
 | `covenants/` | `pub` | `report.rs` (`PyCovenantReport`) plus JSON spec/report validators in `mod.rs` |
 | `features/` | `pub` | Single file; all transforms are free functions on `mod.rs` |
 | `margin/` | `pub` | `calculators.rs`, `im.rs`, `regulatory.rs`, `xva.rs`, `metrics.rs`, `types.rs`, `sensitivity_frame.rs`, `schema.rs` |
@@ -36,8 +37,8 @@ for this crate.
 | `scenarios/` | `pub` | `engine.rs`, `horizon.rs`, `operation_spec/` (typed authoring path), `schema.rs` |
 | `statements/` | `pub` | `builder.rs`, `evaluator.rs`, `types.rs`, `capital_structure.rs`, `checks.rs`, `adjustments.rs`, `monte_carlo.rs`, `dsl.rs`, `schema.rs` |
 | `statements_analytics/` | `pub` | `analysis.rs`, `typed.rs`, `corkscrew.rs`, `ecl.rs`, `scorecards.rs`, `comps.rs`, and the `templates_*.rs` family |
-| `valuations/` | `pub` | Instrument, market, calibration, and product-pricing bindings: `typed_rates.rs`, `typed_fx.rs`, `typed_equity.rs`, `typed_legs.rs`, `typed_credit/`, `typed_structured_credit/`, plus `pricing.rs`, `instruments.rs`, `calibration.rs`, `exotic_rates.rs`, and `schema.rs` |
-| `schema.rs` | `pub` | The workspace-wide `finstack_quant.schema` namespace: merges all nine per-domain registries and labels each row with its owning domain |
+| `valuations/` | `pub` | Instrument, market, and product-pricing bindings: `typed_rates.rs`, `typed_fx.rs`, `typed_equity.rs`, `typed_legs.rs`, `typed_credit/`, `typed_structured_credit/`, plus `pricing.rs`, `instruments.rs`, `exotic_rates.rs`, and `schema.rs` |
+| `schema.rs` | `pub` | The workspace-wide `finstack_quant.schema` namespace: merges all ten per-domain registries and labels each row with its owning domain |
 | `schema_registry.rs` | `pub(crate)` | `registry_index` / `find_artifact` / `render_profile` / `validate_against`, and the `schema_registry_functions!` macro that generates the identical `index` / `get` / `validate` trio for each `finstack_quant.<domain>.schema` |
 | `module_utils.rs` | `pub(crate)` | Submodule registration; also `py_to_json_value`, `py_to_json_string`, `py_to_serde`, `parse_currency`, `parse_date` |
 | `extract.rs` | `pub(crate)` | Polymorphic "typed object **or** canonical JSON string" extraction — the `*Access` enums (`ModelAccess`, `ResultAccess`, `MarketAccess`, `PortfolioAccess`, `ValuationAccess`, `PortfolioResultAccess`) deref to the borrowed Rust type so no clone or re-parse happens on the typed path |

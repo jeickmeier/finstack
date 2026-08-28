@@ -14,7 +14,7 @@ use crate::monte_carlo::payoff::vanilla::{EuropeanCall, EuropeanPut};
 use crate::monte_carlo::process::gbm::GbmProcess;
 use crate::monte_carlo::registry;
 use crate::monte_carlo::rng::philox::PhiloxRng;
-use crate::monte_carlo::time_grid::TimeGrid;
+use crate::monte_carlo::TimeGrid;
 use finstack_quant_core::cashflow::flat_discount_factor;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;

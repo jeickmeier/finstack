@@ -16,7 +16,7 @@ fn test_delta_call_positive() {
             &market,
             as_of,
             &[MetricId::Delta],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let delta = *result.measures.get("delta").unwrap();
@@ -36,7 +36,7 @@ fn test_gamma_positive() {
             &market,
             as_of,
             &[MetricId::Gamma],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let gamma = *result.measures.get("gamma").unwrap();
@@ -56,7 +56,7 @@ fn test_vega_positive() {
             &market,
             as_of,
             &[MetricId::Vega],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let vega = *result.measures.get("vega").unwrap();
@@ -76,7 +76,7 @@ fn test_theta_exists() {
             &market,
             as_of,
             &[MetricId::Theta],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let theta = *result.measures.get("theta").unwrap();
@@ -105,7 +105,7 @@ fn test_cs01_call_positive() {
             &market,
             as_of,
             &[MetricId::Cs01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let cs01 = *result.measures.get("cs01").unwrap();
@@ -125,7 +125,7 @@ fn test_dv01_positive() {
             &market,
             as_of,
             &[MetricId::Dv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let dv01 = *result.measures.get("dv01").unwrap();
@@ -148,7 +148,7 @@ fn test_delta_moneyness_effect() {
                 &market,
                 as_of,
                 &[MetricId::Delta],
-                finstack_quant_valuations::instruments::PricingOptions::default(),
+                crate::test_support::credit::pricing_options(),
             )
             .unwrap();
         let delta = *result.measures.get("delta").unwrap();
@@ -173,7 +173,7 @@ fn test_gamma_peaks_atm() {
                 &market,
                 as_of,
                 &[MetricId::Gamma],
-                finstack_quant_valuations::instruments::PricingOptions::default(),
+                crate::test_support::credit::pricing_options(),
             )
             .unwrap();
         let gamma = *result.measures.get("gamma").unwrap();
@@ -201,7 +201,7 @@ fn test_vega_time_decay() {
                 &market,
                 as_of,
                 &[MetricId::Vega],
-                finstack_quant_valuations::instruments::PricingOptions::default(),
+                crate::test_support::credit::pricing_options(),
             )
             .unwrap();
         let vega = *result.measures.get("vega").unwrap();

@@ -37,7 +37,7 @@
 
 use crate::instruments::fixed_income::mbs_passthrough::pricer::first_unpaid_accrual_start;
 use crate::instruments::fixed_income::mbs_passthrough::AgencyMbsPassthrough;
-use crate::instruments::rates::hw1f::{calibrate_hw1f_params, initial_short_rate_from_curve};
+use crate::instruments::rates::hw1f::{initial_short_rate_from_curve, prepare_hw1f_params};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::solver::{BrentSolver, Solver};
@@ -405,7 +405,7 @@ pub(crate) fn calculate_mc_oas(
     let initial_rate = initial_short_rate_from_curve(discount_curve.as_ref(), as_of)?;
     let hw_params = HullWhiteParams::new(config.hw_kappa, config.hw_sigma)?;
     let horizon = num_steps as f64 / 12.0;
-    let hw1f = calibrate_hw1f_params(hw_params, discount_curve.as_ref(), as_of, horizon)?;
+    let hw1f = prepare_hw1f_params(hw_params, discount_curve.as_ref(), as_of, horizon)?;
 
     // Simulate rate paths
     let paths = simulate_rate_paths(
@@ -680,7 +680,7 @@ mod tests {
         let curve = market.get_discount(&mbs.discount_curve_id).expect("curve");
         let initial_rate = initial_short_rate_from_curve(curve.as_ref(), as_of).expect("r0");
         let hw = HullWhiteParams::new(config.hw_kappa, config.hw_sigma).expect("hw");
-        let hw1f = calibrate_hw1f_params(hw, curve.as_ref(), as_of, 30.0).expect("theta fit");
+        let hw1f = prepare_hw1f_params(hw, curve.as_ref(), as_of, 30.0).expect("theta prepared");
         let paths = simulate_rate_paths(initial_rate, &hw1f, 64, 360, config.seed);
         let steps = mc_step_schedule(&mbs, as_of, 360).expect("steps");
         let total: f64 = paths

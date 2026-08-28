@@ -50,7 +50,7 @@ pub fn embedded_liquidity_defaults() -> Result<&'static LiquidityDefaults> {
 /// a panic here means the binary itself is malformed.
 #[must_use]
 #[allow(clippy::expect_used)]
-pub fn embedded_liquidity_defaults_or_panic() -> &'static LiquidityDefaults {
+pub(crate) fn embedded_liquidity_defaults_or_panic() -> &'static LiquidityDefaults {
     embedded_liquidity_defaults()
         .expect("embedded models liquidity defaults are compile-time assets")
 }

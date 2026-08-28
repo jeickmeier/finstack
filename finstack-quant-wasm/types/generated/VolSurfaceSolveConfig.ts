@@ -9,7 +9,7 @@
  *
  * # Examples
  * ```
- * use finstack_quant_valuations::calibration::VolSurfaceSolveConfig;
+ * use finstack_quant_calibration::VolSurfaceSolveConfig;
  *
  * let config = VolSurfaceSolveConfig {
  *     validation_tolerance: 2e-3, // 0.20 vol points

@@ -2,6 +2,7 @@
 
 use super::plan::{MarketStateId, PortfolioStateId};
 use crate::Portfolio;
+use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -69,6 +70,5 @@ impl<'a> PreparedPortfolioState<'a> {
 fn state_pricing_options(config: &FinstackConfig) -> PricingOptions {
     PricingOptions::default()
         .with_config(config)
-        .with_new_hazard_recalibration_cache()
-        .with_new_rate_recalibration_cache()
+        .with_recalibration_provider(std::sync::Arc::new(CachedRecalibrationProvider::new()))
 }

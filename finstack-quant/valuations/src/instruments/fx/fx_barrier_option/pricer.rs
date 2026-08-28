@@ -22,7 +22,7 @@ use finstack_quant_models::monte_carlo::pricer::path_dependent::{
     PathDependentPricer, PathDependentPricerConfig,
 };
 use finstack_quant_models::monte_carlo::process::gbm::{GbmParams, GbmProcess};
-use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::TimeGrid;
 
 struct FxBarrierPricingOutcome {
     value: Money,

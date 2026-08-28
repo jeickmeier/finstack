@@ -3,6 +3,9 @@
 //! Comprehensive tests for all CDS metrics including CS01, DV01,
 //! expected loss, jump-to-default, par spread, and risk sensitivities.
 
+use finstack_quant_calibration::recalibration::{
+    bump_discount_curve_from_rate_calibration, bump_hazard_spreads,
+};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::bumps::BumpSpec;
@@ -13,15 +16,13 @@ use finstack_quant_core::market_data::term_structures::{
 };
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, IndexId};
-use finstack_quant_valuations::calibration::bumps::{
-    bump_discount_curve_from_rate_calibration, bump_hazard_spreads, BumpRequest,
-};
 use finstack_quant_valuations::instruments::credit_derivatives::cds::{
     CdsValuationConvention, CreditDefaultSwap,
 };
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::market::conventions::ids::CdsDocClause;
 use finstack_quant_valuations::metrics::MetricId;
+use finstack_quant_valuations::recalibration::QuoteBump;
 use time::macros::date;
 
 fn sum_bucketed_cs01_hazard(result: &finstack_quant_valuations::results::ValuationResult) -> f64 {
@@ -99,7 +100,7 @@ fn bump_quote_calibrated_discount(
         curve,
         calibration,
         market,
-        &BumpRequest::Parallel(bump_bp),
+        &QuoteBump::ParallelBp(bump_bp),
     )
     .unwrap()
 }
@@ -145,7 +146,7 @@ fn test_cs01_positive_for_buyer() {
             &market,
             as_of,
             &[MetricId::Cs01Hazard],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -178,7 +179,7 @@ fn standard_cs01_without_deal_quote_matches_direct_up_down_replay() {
             &market,
             as_of,
             &[MetricId::Cs01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect("standard CS01 should compute");
     let standard = result.measures[MetricId::Cs01.as_str()];
@@ -187,7 +188,7 @@ fn standard_cs01_without_deal_quote_matches_direct_up_down_replay() {
     let bumped_up = bump_hazard_spreads(
         &hazard,
         &market,
-        &BumpRequest::Parallel(1.0),
+        &QuoteBump::ParallelBp(1.0),
         Some(&discount_id),
         None,
         None,
@@ -196,7 +197,7 @@ fn standard_cs01_without_deal_quote_matches_direct_up_down_replay() {
     let bumped_down = bump_hazard_spreads(
         &hazard,
         &market,
-        &BumpRequest::Parallel(-1.0),
+        &QuoteBump::ParallelBp(-1.0),
         Some(&discount_id),
         None,
         None,
@@ -239,7 +240,7 @@ fn deal_quote_override_is_shared_by_cs01_and_cs_gamma() {
                 &market,
                 as_of,
                 &[MetricId::Cs01, MetricId::CsGamma],
-                finstack_quant_valuations::instruments::PricingOptions::default(),
+                crate::test_support::credit::pricing_options(),
             )
             .expect("deal-quote spread risk should compute");
         (
@@ -278,7 +279,7 @@ fn risky_pv01_with_deal_quote_does_not_require_replayable_hazard() {
             &market,
             as_of,
             &[MetricId::RiskyPv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect("risky PV01 should compute from a manual hazard curve");
     let expected = base_result.measures[MetricId::RiskyPv01.as_str()];
@@ -294,7 +295,7 @@ fn risky_pv01_with_deal_quote_does_not_require_replayable_hazard() {
             &market,
             as_of,
             &[MetricId::RiskyPv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect("risky PV01 must not depend on standard CS01 replay");
 
@@ -330,7 +331,7 @@ fn deal_quote_cs_gamma_is_centered_on_override_quote_set() {
     let centered_hazard = bump_hazard_spreads(
         &hazard,
         &market,
-        &BumpRequest::Tenors(vec![(override_tenor, override_quote_bp - 100.0)]),
+        &QuoteBump::TenorsBp(vec![(override_tenor, override_quote_bp - 100.0)]),
         Some(&discount_id),
         None,
         None,
@@ -340,7 +341,7 @@ fn deal_quote_cs_gamma_is_centered_on_override_quote_set() {
     let bumped_up = bump_hazard_spreads(
         &centered_hazard,
         &centered_market,
-        &BumpRequest::Parallel(1.0),
+        &QuoteBump::ParallelBp(1.0),
         Some(&discount_id),
         None,
         None,
@@ -349,7 +350,7 @@ fn deal_quote_cs_gamma_is_centered_on_override_quote_set() {
     let bumped_down = bump_hazard_spreads(
         &centered_hazard,
         &centered_market,
-        &BumpRequest::Parallel(-1.0),
+        &QuoteBump::ParallelBp(-1.0),
         Some(&discount_id),
         None,
         None,
@@ -387,7 +388,7 @@ fn deal_quote_cs_gamma_is_centered_on_override_quote_set() {
             &market,
             as_of,
             &[MetricId::CsGamma],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect("deal-quote CS-Gamma should compute");
     let actual_gamma = result.measures[MetricId::CsGamma.as_str()];
@@ -436,7 +437,7 @@ fn bucketed_cs01_quote_uses_each_off_grid_replay_pillar_once() {
             &market,
             as_of,
             &[MetricId::Cs01, MetricId::BucketedCs01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect("off-grid quote-space CS01 should compute");
     let prefix = "bucketed_cs01::CORP::";
@@ -494,7 +495,7 @@ fn deal_quote_override_rejects_non_matching_replay_maturity() {
             &market,
             as_of,
             &[MetricId::Cs01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect_err("a 10Y deal quote must not overwrite the nearest 5Y replay pillar");
     let message = error.to_string();
@@ -537,12 +538,11 @@ fn test_cs01_hazard_vs_risky_pv01_consistency() {
     // Use value_raw for high-precision comparison (matches how CS01 metric is now computed)
     use finstack_quant_valuations::instruments::Instrument;
     // Manually compute the same central finite-difference CS01 definition used by the metric.
-    use finstack_quant_valuations::calibration::bumps::{bump_hazard_shift, BumpRequest};
     let hazard = market
         .get_hazard(cds.protection.credit_curve_id.as_str())
         .unwrap();
-    let bumped_up = bump_hazard_shift(hazard.as_ref(), &BumpRequest::Parallel(1.0)).unwrap();
-    let bumped_down = bump_hazard_shift(hazard.as_ref(), &BumpRequest::Parallel(-1.0)).unwrap();
+    let bumped_up = hazard.with_parallel_hazard_rate_bump_bp(1.0).unwrap();
+    let bumped_down = hazard.with_parallel_hazard_rate_bump_bp(-1.0).unwrap();
     let pv_up = cds
         .value_raw(&market.clone().insert(bumped_up), as_of)
         .unwrap();
@@ -556,7 +556,7 @@ fn test_cs01_hazard_vs_risky_pv01_consistency() {
             &market,
             as_of,
             &[MetricId::Cs01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect_err("standard CS01 requires quote-space replay");
     assert!(
@@ -569,7 +569,7 @@ fn test_cs01_hazard_vs_risky_pv01_consistency() {
             &market,
             as_of,
             &[MetricId::Cs01Hazard],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let cs01 = *result.measures.get("cs01_hazard").unwrap();
@@ -620,7 +620,7 @@ fn test_bucketed_cs01_reconciles_with_parallel_under_cds_convention() {
             &market,
             as_of,
             &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let parallel = *result.measures.get("cs01_hazard").unwrap();
@@ -654,7 +654,7 @@ fn test_risky_pv01_positive() {
             &market,
             as_of,
             &[MetricId::RiskyPv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -683,7 +683,7 @@ fn test_par_spread_metric() {
             &market,
             as_of,
             &[MetricId::ParSpread],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -718,7 +718,7 @@ fn test_cds_par_spread_metric_does_not_return_quoted_spread_override() {
             &market,
             as_of,
             &[MetricId::ParSpread],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let quoted = quoted_cds
@@ -726,7 +726,7 @@ fn test_cds_par_spread_metric_does_not_return_quoted_spread_override() {
             &market,
             as_of,
             &[MetricId::ParSpread],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -762,7 +762,7 @@ fn test_recovery01_uses_deal_quote_replay_inputs() {
                 &market,
                 as_of,
                 &[MetricId::Recovery01],
-                finstack_quant_valuations::instruments::PricingOptions::default(),
+                crate::test_support::credit::pricing_options(),
             )
             .expect("deal-quote Recovery01 should compute");
         result.measures[MetricId::Recovery01.as_str()]
@@ -789,7 +789,7 @@ fn test_protection_leg_pv_metric() {
             &market,
             as_of,
             &[MetricId::ProtectionLegPv],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -811,7 +811,7 @@ fn test_premium_leg_pv_metric() {
             &market,
             as_of,
             &[MetricId::PremiumLegPv],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -836,7 +836,7 @@ fn test_expected_loss_positive() {
             &market,
             as_of,
             &[MetricId::ExpectedLoss],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -873,7 +873,7 @@ fn test_expected_loss_formula() {
             &market,
             as_of,
             &[MetricId::ExpectedLoss],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -913,7 +913,7 @@ fn test_expected_loss_conditions_on_as_of() {
             &market,
             as_of,
             &[MetricId::ExpectedLoss],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let expected_loss = *result.measures.get("expected_loss").unwrap();
@@ -953,7 +953,7 @@ fn test_jump_to_default_positive_for_buyer() {
             &market,
             as_of,
             &[MetricId::JumpToDefault],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -986,7 +986,7 @@ fn test_jump_to_default_negative_for_seller() {
             &market,
             as_of,
             &[MetricId::JumpToDefault],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -1011,7 +1011,7 @@ fn test_jump_to_default_magnitude() {
             &market,
             as_of,
             &[MetricId::JumpToDefault],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -1053,7 +1053,7 @@ fn test_jump_to_default_uses_adjusted_coupon_schedule_for_accrued() {
             &market,
             as_of,
             &[MetricId::JumpToDefault],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let jtd = *result.measures.get("jump_to_default").unwrap();
@@ -1102,7 +1102,7 @@ fn test_dv01_metric() {
             &market,
             as_of,
             &[MetricId::Dv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -1143,7 +1143,7 @@ fn test_cds_dv01_keeps_unreplayable_hazard_curve_frozen() {
             &market,
             as_of,
             &[MetricId::Dv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let dv01 = *result.measures.get("dv01").unwrap();
@@ -1182,7 +1182,7 @@ fn test_cds_dv01_uses_discount_quote_bump_when_calibration_exists() {
             &market,
             as_of,
             &[MetricId::Dv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let dv01 = *result.measures.get("dv01").unwrap();
@@ -1230,7 +1230,7 @@ fn test_cds_dv01_recalibrates_hazard_on_bumped_discount_market() {
             &market,
             as_of,
             &[MetricId::Dv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect("DV01 should recalibrate hazard against each bumped discount curve");
 
@@ -1327,7 +1327,7 @@ fn test_cdsw_par_spread_metric_uses_full_premium_denominator_when_requested() {
             &market,
             as_of,
             &[MetricId::ParSpread],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let cdsw = cdsw_cds
@@ -1335,7 +1335,7 @@ fn test_cdsw_par_spread_metric_uses_full_premium_denominator_when_requested() {
             &market,
             as_of,
             &[MetricId::ParSpread],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -1360,7 +1360,7 @@ fn test_theta_metric() {
             &market,
             as_of,
             &[MetricId::Theta],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -1382,7 +1382,7 @@ fn test_hazard_cs01_metric() {
             &market,
             as_of,
             &[MetricId::Cs01Hazard],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -1417,7 +1417,7 @@ fn test_multiple_metrics_simultaneously() {
             &market,
             as_of,
             &metrics,
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -1446,7 +1446,7 @@ fn test_risky_pv01_computable() {
             &market,
             as_of,
             &[MetricId::RiskyPv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -1494,7 +1494,7 @@ fn test_metrics_scale_with_notional() {
             &market,
             as_of,
             &metrics,
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let result_large = cds_large
@@ -1502,7 +1502,7 @@ fn test_metrics_scale_with_notional() {
             &market,
             as_of,
             &metrics,
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -1536,7 +1536,7 @@ fn test_cs01_increases_with_tenor() {
                 &market,
                 as_of,
                 &[MetricId::Cs01Hazard],
-                finstack_quant_valuations::instruments::PricingOptions::default(),
+                crate::test_support::credit::pricing_options(),
             )
             .unwrap();
 
@@ -1573,7 +1573,7 @@ fn test_expected_loss_increases_with_tenor() {
                 &market,
                 as_of,
                 &[MetricId::ExpectedLoss],
-                finstack_quant_valuations::instruments::PricingOptions::default(),
+                crate::test_support::credit::pricing_options(),
             )
             .unwrap();
 
@@ -1603,7 +1603,7 @@ fn test_bucketed_dv01_metric() {
             &market,
             as_of,
             &[MetricId::BucketedDv01, MetricId::Dv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 

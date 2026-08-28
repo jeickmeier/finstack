@@ -27,10 +27,11 @@ fn test_standard_cs01_requires_replay_recipe() {
     let tranche = mezzanine_tranche();
     let market = standard_market_context();
     let as_of = base_date();
+    let provider = finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new();
 
     // Act
     let error = pricer
-        .calculate_cs01(&tranche, &market, as_of)
+        .calculate_cs01(&tranche, &market, as_of, &provider)
         .expect_err("standard tranche CS01 requires quote-space replay");
 
     // Assert
@@ -142,12 +143,13 @@ fn test_standard_cs01_is_normalized_across_bump_sizes() {
     config_2bp.cs01_bump_size = 2.0;
     let pricer_2bp =
         CDSTranchePricer::with_params(config_2bp).expect("valid tranche pricer config");
+    let provider = finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new();
 
     let cs01_1bp = pricer_1bp
-        .calculate_cs01(&tranche, &market, as_of)
+        .calculate_cs01(&tranche, &market, as_of, &provider)
         .expect("1bp replay-backed CS01");
     let cs01_2bp = pricer_2bp
-        .calculate_cs01(&tranche, &market, as_of)
+        .calculate_cs01(&tranche, &market, as_of, &provider)
         .expect("2bp replay-backed CS01");
 
     assert!(cs01_1bp.is_finite() && cs01_2bp.is_finite());
@@ -170,16 +172,14 @@ fn test_cs01_preserves_bespoke_index_structure_during_bumps() {
     // Replicate the production fallback for a manually built index curve:
     // symmetric model-hazard shifts preserve the heterogeneous issuer bundle.
     let bump_bp = 1.0;
-    let bumped_curve_up = finstack_quant_valuations::calibration::bumps::bump_hazard_shift(
-        index.index_credit_curve.as_ref(),
-        &finstack_quant_valuations::calibration::bumps::BumpRequest::Parallel(bump_bp),
-    )
-    .unwrap();
-    let bumped_curve_down = finstack_quant_valuations::calibration::bumps::bump_hazard_shift(
-        index.index_credit_curve.as_ref(),
-        &finstack_quant_valuations::calibration::bumps::BumpRequest::Parallel(-bump_bp),
-    )
-    .unwrap();
+    let bumped_curve_up = index
+        .index_credit_curve
+        .with_parallel_hazard_rate_bump_bp(bump_bp)
+        .unwrap();
+    let bumped_curve_down = index
+        .index_credit_curve
+        .with_parallel_hazard_rate_bump_bp(-bump_bp)
+        .unwrap();
 
     let mut builder_up =
         finstack_quant_core::market_data::term_structures::CreditIndexData::builder()

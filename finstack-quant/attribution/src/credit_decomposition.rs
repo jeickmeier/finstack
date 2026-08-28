@@ -8,6 +8,7 @@ use super::credit_cascade::{
 use super::factors::{MarketRestoreFlags, MarketSnapshot};
 use super::spec::AttributionSpec;
 use super::types::PnlAttribution;
+use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
 use finstack_quant_models::factor::credit::hierarchy::CreditFactorModel;
@@ -111,21 +112,26 @@ impl AttributionSpec {
             MarketSnapshot::restore_market(market_t1, &credit_snapshot, MarketRestoreFlags::CREDIT);
         let cs01_bump_bp = 1.0_f64;
         let disc = cascade.discount_curve_id.as_ref();
+        let recalibration_provider = CachedRecalibrationProvider::new();
         let pv_up = instrument.value(
             &shift_credit_curves_par_spread(
+                market_t0,
                 &cs01_base_market,
                 &cascade.hazard_curve_ids,
                 disc,
                 cs01_bump_bp,
+                &recalibration_provider,
             )?,
             self.as_of_t1,
         )?;
         let pv_down = instrument.value(
             &shift_credit_curves_par_spread(
+                market_t0,
                 &cs01_base_market,
                 &cascade.hazard_curve_ids,
                 disc,
                 -cs01_bump_bp,
+                &recalibration_provider,
             )?,
             self.as_of_t1,
         )?;

@@ -18,7 +18,7 @@ const PRICER_DEFAULTS: &str = include_str!("../../data/defaults/pricer_defaults.
 static EMBEDDED_DEFAULTS: OnceLock<Result<MonteCarloDefaults>> = OnceLock::new();
 
 /// Resolved Monte Carlo defaults.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct MonteCarloDefaults {
     /// Rust API defaults.
     pub rust: RustDefaults,
@@ -27,7 +27,8 @@ pub struct MonteCarloDefaults {
 }
 
 /// Defaults used by Rust Monte Carlo APIs.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RustDefaults {
     /// Generic engine defaults.
     pub engine: EngineDefaults,
@@ -52,7 +53,8 @@ pub struct RustDefaults {
 }
 
 /// Defaults shared by the host bindings and the Rust convenience pricers.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ConvenienceDefaults {
     /// Default currency code for convenience entry points.
     pub default_currency: String,
@@ -287,34 +289,8 @@ pub struct ConvenienceGreekDefaults {
 struct DefaultsFile {
     schema: Option<String>,
     version: Option<u32>,
-    rust: RustDefaultsFile,
-    convenience: ConvenienceDefaultsFile,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RustDefaultsFile {
-    engine: EngineDefaults,
-    engine_builder: EngineBuilderDefaults,
-    european_pricer: PricerRuntimeDefaults,
-    path_dependent_pricer: PathDependentPricerDefaults,
-    lsmc: LsmcRuntimeDefaults,
-    rate_exotics: RateExoticDefaults,
-    swaption_lsmc: SwaptionLsmcDefaults,
-    lmm_bermudan: LmmBermudanDefaults,
-    cheyette_rough: CheyetteRoughDefaults,
-    merton_pik_bond: MertonPikBondDefaults,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ConvenienceDefaultsFile {
-    default_currency: String,
-    engine: ConvenienceEngineDefaults,
-    european_pricer: ConveniencePricerDefaults,
-    path_dependent_pricer: ConveniencePricerDefaults,
-    lsmc: ConvenienceLsmcDefaults,
-    greeks: ConvenienceGreekDefaults,
+    rust: RustDefaults,
+    convenience: ConvenienceDefaults,
 }
 
 /// Return the validated, process-wide Monte Carlo defaults embedded in the crate.
@@ -386,26 +362,8 @@ fn parse_embedded_defaults() -> Result<MonteCarloDefaults> {
 fn defaults_from_file(file: DefaultsFile) -> Result<MonteCarloDefaults> {
     validate_file(&file)?;
     Ok(MonteCarloDefaults {
-        rust: RustDefaults {
-            engine: file.rust.engine,
-            engine_builder: file.rust.engine_builder,
-            european_pricer: file.rust.european_pricer,
-            path_dependent_pricer: file.rust.path_dependent_pricer,
-            lsmc: file.rust.lsmc,
-            rate_exotics: file.rust.rate_exotics,
-            swaption_lsmc: file.rust.swaption_lsmc,
-            lmm_bermudan: file.rust.lmm_bermudan,
-            cheyette_rough: file.rust.cheyette_rough,
-            merton_pik_bond: file.rust.merton_pik_bond,
-        },
-        convenience: ConvenienceDefaults {
-            default_currency: file.convenience.default_currency,
-            engine: file.convenience.engine,
-            european_pricer: file.convenience.european_pricer,
-            path_dependent_pricer: file.convenience.path_dependent_pricer,
-            lsmc: file.convenience.lsmc,
-            greeks: file.convenience.greeks,
-        },
+        rust: file.rust,
+        convenience: file.convenience,
     })
 }
 

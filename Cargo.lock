@@ -714,6 +714,7 @@ version = "0.8.0"
 dependencies = [
  "finstack-quant-analytics",
  "finstack-quant-attribution",
+ "finstack-quant-calibration",
  "finstack-quant-cashflows",
  "finstack-quant-core",
  "finstack-quant-covenants",
@@ -757,6 +758,7 @@ name = "finstack-quant-attribution"
 version = "0.8.0"
 dependencies = [
  "criterion",
+ "finstack-quant-calibration",
  "finstack-quant-cashflows",
  "finstack-quant-core",
  "finstack-quant-models",
@@ -772,6 +774,34 @@ dependencies = [
  "smallvec",
  "time",
  "tracing",
+]
+
+[[package]]
+name = "finstack-quant-calibration"
+version = "0.8.0"
+dependencies = [
+ "criterion",
+ "finstack-quant-cashflows",
+ "finstack-quant-core",
+ "finstack-quant-models",
+ "finstack-quant-valuations",
+ "indexmap",
+ "jsonschema",
+ "num-complex",
+ "proptest",
+ "rayon",
+ "rust_decimal",
+ "rust_decimal_macros",
+ "schemars",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "strum",
+ "thiserror",
+ "time",
+ "toml",
+ "tracing",
+ "ts-rs",
 ]
 
 [[package]]
@@ -898,6 +928,7 @@ version = "0.8.0"
 dependencies = [
  "criterion",
  "finstack-quant-attribution",
+ "finstack-quant-calibration",
  "finstack-quant-cashflows",
  "finstack-quant-core",
  "finstack-quant-margin",
@@ -930,6 +961,7 @@ dependencies = [
  "finstack-quant-analytics",
  "finstack-quant-arrow",
  "finstack-quant-attribution",
+ "finstack-quant-calibration",
  "finstack-quant-cashflows",
  "finstack-quant-core",
  "finstack-quant-covenants",
@@ -960,6 +992,7 @@ version = "0.8.0"
 dependencies = [
  "criterion",
  "finstack-quant-attribution",
+ "finstack-quant-calibration",
  "finstack-quant-core",
  "finstack-quant-models",
  "finstack-quant-statements",
@@ -1030,6 +1063,7 @@ version = "0.8.0"
 dependencies = [
  "criterion",
  "finstack-quant-analytics",
+ "finstack-quant-calibration",
  "finstack-quant-cashflows",
  "finstack-quant-core",
  "finstack-quant-covenants",
@@ -1071,6 +1105,7 @@ dependencies = [
  "console_error_panic_hook",
  "finstack-quant-analytics",
  "finstack-quant-attribution",
+ "finstack-quant-calibration",
  "finstack-quant-cashflows",
  "finstack-quant-core",
  "finstack-quant-covenants",

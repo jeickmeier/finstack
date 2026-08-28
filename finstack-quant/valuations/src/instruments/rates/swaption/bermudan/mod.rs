@@ -2,7 +2,7 @@
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::rates::hw1f::{
-    resolve_hw1f_params, Hw1fCalibrationFlavor, Hw1fParamSource, Hw1fResolveRequest,
+    resolve_hw1f_params, Hw1fParamFamily, Hw1fParamSource, Hw1fResolveRequest,
 };
 use crate::instruments::rates::swaption::pricing::BermudanSwaptionTreeValuator;
 use crate::instruments::rates::swaption::BermudanSwaption;
@@ -19,15 +19,15 @@ use finstack_quant_models::trees::HullWhiteTreeConfig;
 use std::sync::Arc;
 
 fn hw1f_overrides_json(swaption: &BermudanSwaption) -> Option<serde_json::Value> {
-    let kappa = swaption
-        .instrument_pricing_overrides
-        .model_config
-        .hw1f_mean_reversion?;
-    let sigma = swaption
-        .instrument_pricing_overrides
-        .model_config
-        .hw1f_sigma?;
-    Some(serde_json::json!({ "hw1f_kappa": kappa, "hw1f_sigma": sigma }))
+    let config = &swaption.instrument_pricing_overrides.model_config;
+    let mut values = serde_json::Map::new();
+    if let Some(kappa) = config.hw1f_mean_reversion {
+        values.insert("hw1f_kappa".to_string(), serde_json::json!(kappa));
+    }
+    if let Some(sigma) = config.hw1f_sigma {
+        values.insert("hw1f_sigma".to_string(), serde_json::json!(sigma));
+    }
+    (!values.is_empty()).then_some(serde_json::Value::Object(values))
 }
 
 // LSMC imports (gated by feature)
@@ -77,28 +77,28 @@ impl std::str::FromStr for BermudanPricingMethod {
     }
 }
 
-/// Opaque calibrated Hull-White model for Bermudan swaption pricing.
+/// Opaque Hull-White tree prepared from already-fitted model parameters.
 #[derive(Debug, Clone)]
-pub struct CalibratedHullWhiteModel {
+pub struct PreparedHullWhiteModel {
     tree: Arc<HullWhiteTree>,
 }
 
-impl CalibratedHullWhiteModel {
-    /// Calibrate a Hull-White tree model from a discount curve and horizon.
-    pub fn calibrate(
+impl PreparedHullWhiteModel {
+    /// Prepare a Hull-White tree from fitted parameters, a discount curve, and a horizon.
+    pub fn prepare(
         params: HullWhiteParams,
         steps: usize,
         disc: &dyn Discounting,
         ttm: f64,
     ) -> std::result::Result<Self, PricingError> {
-        Self::calibrate_with_times(params, steps, disc, ttm, &[])
+        Self::prepare_with_times(params, steps, disc, ttm, &[])
     }
 
-    /// Calibrate a Hull-White tree model whose grid passes exactly through
+    /// Prepare a Hull-White tree whose grid passes exactly through
     /// the supplied mandatory times (e.g. Bermudan exercise dates), so
     /// exercise decisions land on grid points instead of nearest-step
     /// approximations.
-    pub fn calibrate_with_times(
+    pub fn prepare_with_times(
         params: HullWhiteParams,
         steps: usize,
         disc: &dyn Discounting,
@@ -133,8 +133,8 @@ impl CalibratedHullWhiteModel {
 ///
 /// # Model Reuse
 ///
-/// For portfolio pricing, calibrate the Hull-White model once and reuse it
-/// across multiple instruments by putting the calibrated tree on
+/// For portfolio pricing, prepare the Hull-White tree once and reuse it
+/// across multiple instruments by putting the prepared tree on
 /// [`BermudanSwaptionPricerConfig`]:
 ///
 /// ```text
@@ -142,14 +142,14 @@ impl CalibratedHullWhiteModel {
 /// use finstack_quant_valuations::instruments::rates::swaption::{
 ///     BermudanSwaptionPricer, BermudanSwaptionPricerConfig,
 /// };
-/// use finstack_quant_valuations::instruments::rates::swaption::CalibratedHullWhiteModel;
+/// use finstack_quant_valuations::instruments::rates::swaption::PreparedHullWhiteModel;
 /// use finstack_quant_core::market_data::traits::Discounting;
 ///
 /// # fn main() -> finstack_quant_core::Result<()> {
-/// // Calibrate once (discount curve and horizon omitted here)
+/// // Prepare once from fitted parameters (discount curve and horizon omitted here)
 /// # let disc: &dyn Discounting = todo!("provide a discount curve from MarketContext");
 /// let ttm = 5.0;
-/// let tree = CalibratedHullWhiteModel::calibrate(
+/// let tree = PreparedHullWhiteModel::prepare(
 ///     HullWhiteParams::default(),
 ///     100,
 ///     disc,
@@ -158,7 +158,7 @@ impl CalibratedHullWhiteModel {
 ///
 /// // Reuse across many instruments
 /// let pricer = BermudanSwaptionPricer::tree_with_config(BermudanSwaptionPricerConfig {
-///     pre_calibrated_model: Some(tree.clone()),
+///     prepared_model: Some(tree.clone()),
 ///     ..Default::default()
 /// });
 /// # let _ = pricer;
@@ -189,28 +189,17 @@ pub struct BermudanSwaptionPricer {
 /// Configuration for Bermudan swaption Hull-White tree and LSMC pricers.
 #[derive(Debug, Clone)]
 pub struct BermudanSwaptionPricerConfig {
-    /// Hull-White model parameters.
-    pub hw_params: HullWhiteParams,
     /// Number of tree steps for Hull-White tree pricing.
     pub tree_steps: usize,
     /// Number of Monte Carlo paths for LSMC pricing.
     pub mc_paths: usize,
     /// Random seed for LSMC pricing.
     pub mc_seed: u64,
-    /// Pre-calibrated Hull-White tree for model reuse.
+    /// Prepared Hull-White tree for model reuse.
     ///
-    /// When set, the tree pricer skips calibration and uses this model
-    /// directly. This enables O(1) pricing per instrument instead of
-    /// O(Steps × Time) calibration.
-    pub pre_calibrated_model: Option<CalibratedHullWhiteModel>,
-    /// When true, refuse to price with uncalibrated default HW parameters.
-    ///
-    /// The pricer registry (`finstack_quant_valuations::pricer::exotics`) sets
-    /// this on registered Bermudan pricers so callers reaching the registry
-    /// with uncalibrated params receive a clear error rather than a
-    /// silently-wrong price. Direct constructor callers retain the
-    /// permissive default (`false`) for testing and bespoke workflows.
-    pub enforce_calibration: bool,
+    /// When set, the pricer reuses this prepared tree directly. This avoids
+    /// repeating O(Steps × Time) deterministic tree preparation per instrument.
+    pub prepared_model: Option<PreparedHullWhiteModel>,
 }
 
 impl BermudanSwaptionPricerConfig {
@@ -229,12 +218,10 @@ impl BermudanSwaptionPricerConfig {
 impl Default for BermudanSwaptionPricerConfig {
     fn default() -> Self {
         Self {
-            hw_params: HullWhiteParams::default(),
             tree_steps: Self::DEFAULT_TREE_STEPS,
             mc_paths: Self::DEFAULT_MC_PATHS,
             mc_seed: Self::DEFAULT_MC_SEED,
-            pre_calibrated_model: None,
-            enforce_calibration: true,
+            prepared_model: None,
         }
     }
 }
@@ -259,7 +246,7 @@ impl BermudanSwaptionPricer {
 
     /// Create a Hull-White tree pricer with explicit configuration.
     ///
-    /// Set `pre_calibrated_model` on the config to reuse a calibrated
+    /// Set `prepared_model` on the config to reuse a prepared
     /// Hull-White tree across a portfolio.
     pub fn tree_with_config(config: BermudanSwaptionPricerConfig) -> Self {
         Self {
@@ -281,9 +268,9 @@ impl BermudanSwaptionPricer {
         }
     }
 
-    /// Get the pre-calibrated model, if set.
-    pub fn calibrated_model(&self) -> Option<&CalibratedHullWhiteModel> {
-        self.config.pre_calibrated_model.as_ref()
+    /// Get the prepared model, if set.
+    pub fn prepared_model(&self) -> Option<&PreparedHullWhiteModel> {
+        self.config.prepared_model.as_ref()
     }
 
     fn effective_tree_steps(&self, swaption: &BermudanSwaption) -> usize {
@@ -306,24 +293,14 @@ impl BermudanSwaptionPricer {
         &self,
         swaption: &BermudanSwaption,
         market: &MarketContext,
-        ttm: f64,
+        _ttm: f64,
     ) -> std::result::Result<(HullWhiteParams, Hw1fParamSource), PricingError> {
         let context_label = format!("BermudanSwaption {}", swaption.id);
         let overrides = hw1f_overrides_json(swaption);
-        let surface = super::hw1f_swaption_surface_calibration(
-            swaption.vol_surface_id.as_str(),
-            Some(ttm),
-            swaption.underlying_fixed_leg.frequency,
-        )
-        .map_err(|e| {
-            PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
-        })?;
         let req = Hw1fResolveRequest {
             curve_id: swaption.get_discount_curve_id().as_str(),
-            flavor: Hw1fCalibrationFlavor::Swaption,
+            family: Hw1fParamFamily::Swaption,
             overrides: overrides.as_ref(),
-            surface: Some(surface),
-            fallback: Some(self.config.hw_params),
             context: context_label.as_str(),
         };
 
@@ -332,34 +309,9 @@ impl BermudanSwaptionPricer {
         })
     }
 
-    fn enforce_resolved_hw_params(
-        &self,
-        swaption: &BermudanSwaption,
-        hw_params: HullWhiteParams,
-        source: Hw1fParamSource,
-    ) -> std::result::Result<(), PricingError> {
-        if self.config.enforce_calibration
-            && source == Hw1fParamSource::DefaultFallback
-            && hw_params.is_uncalibrated_default()
-        {
-            return Err(PricingError::model_failure_with_context(
-                format!(
-                    "Bermudan swaption {} received uncalibrated HullWhiteParams::default() \
-                     (κ={:.3}, σ={:.3}) and no calibrated HW1F overrides, surface, market scalars, \
-                     or pre-calibrated model. Supply pricing_overrides.hw1f_mean_reversion and \
-                     pricing_overrides.hw1f_sigma, calibrated market scalars, or a pre-calibrated \
-                     tree on `BermudanSwaptionPricerConfig`.",
-                    swaption.id, hw_params.kappa, hw_params.sigma,
-                ),
-                PricingErrorContext::default(),
-            ));
-        }
-        Ok(())
-    }
-
     /// Price using Hull-White tree.
     ///
-    /// If a pre-calibrated model is set on the config, it will be used
+    /// If a prepared model is set on the config, it will be used
     /// directly, skipping the calibration step.
     fn price_tree(
         &self,
@@ -416,56 +368,55 @@ impl BermudanSwaptionPricer {
                 )
             })?;
 
-        // Use pre-calibrated model if available, otherwise calibrate a new one
-        let (pv, used_cached_model) =
-            if let Some(ref cached_tree) = self.config.pre_calibrated_model {
-                // Use pre-calibrated model (O(1) per instrument)
-                let valuator =
-                    BermudanSwaptionTreeValuator::new(swaption, cached_tree, disc.as_ref(), as_of)
-                        .map_err(|e| {
-                            PricingError::model_failure_with_context(
-                                e.to_string(),
-                                PricingErrorContext::default(),
-                            )
-                        })?;
-                let pv = valuator.price().map_err(|e| {
-                    PricingError::model_failure_with_context(
-                        e.to_string(),
-                        PricingErrorContext::default(),
-                    )
-                })?;
-                (pv, true)
-            } else {
-                // Calibrate new model (O(Steps × Time) per instrument)
-                let (hw_params, hw_source) = self.effective_hw_params(swaption, market, ttm)?;
-                self.enforce_resolved_hw_params(swaption, hw_params, hw_source)?;
-                // Thread exercise dates into the tree grid so Bermudan exercise
-                // decisions land exactly on grid points.
-                let tree_steps = self.effective_tree_steps(swaption);
-                let model = CalibratedHullWhiteModel::calibrate_with_times(
-                    hw_params,
-                    tree_steps,
-                    disc.as_ref(),
-                    ttm,
-                    &exercise_times,
-                )?;
+        // Use a prepared model if available, otherwise prepare a request-local tree.
+        let (pv, used_cached_model) = if let Some(ref cached_tree) = self.config.prepared_model {
+            // Use the prepared model (O(1) per instrument).
+            let valuator =
+                BermudanSwaptionTreeValuator::new(swaption, cached_tree, disc.as_ref(), as_of)
+                    .map_err(|e| {
+                        PricingError::model_failure_with_context(
+                            e.to_string(),
+                            PricingErrorContext::default(),
+                        )
+                    })?;
+            let pv = valuator.price().map_err(|e| {
+                PricingError::model_failure_with_context(
+                    e.to_string(),
+                    PricingErrorContext::default(),
+                )
+            })?;
+            (pv, true)
+        } else {
+            // Prepare a request-local tree (O(Steps × Time) per instrument).
+            let (hw_params, _hw_source) = self.effective_hw_params(swaption, market, ttm)?;
+            // Thread exercise dates into the tree grid so Bermudan exercise
+            // decisions land exactly on grid points.
+            let tree_steps = self.effective_tree_steps(swaption);
+            let model = PreparedHullWhiteModel::prepare_with_times(
+                hw_params,
+                tree_steps,
+                disc.as_ref(),
+                ttm,
+                &exercise_times,
+            )?;
 
-                let valuator =
-                    BermudanSwaptionTreeValuator::new(swaption, &model, disc.as_ref(), as_of)
-                        .map_err(|e| {
-                            PricingError::model_failure_with_context(
-                                e.to_string(),
-                                PricingErrorContext::default(),
-                            )
-                        })?;
-                let pv = valuator.price().map_err(|e| {
-                    PricingError::model_failure_with_context(
-                        e.to_string(),
-                        PricingErrorContext::default(),
-                    )
-                })?;
-                (pv, false)
-            };
+            let valuator =
+                BermudanSwaptionTreeValuator::new(swaption, &model, disc.as_ref(), as_of).map_err(
+                    |e| {
+                        PricingError::model_failure_with_context(
+                            e.to_string(),
+                            PricingErrorContext::default(),
+                        )
+                    },
+                )?;
+            let pv = valuator.price().map_err(|e| {
+                PricingError::model_failure_with_context(
+                    e.to_string(),
+                    PricingErrorContext::default(),
+                )
+            })?;
+            (pv, false)
+        };
 
         let mut result = ValuationResult::stamped(
             swaption.id.as_str(),
@@ -542,8 +493,7 @@ impl BermudanSwaptionPricer {
                 )
             })?;
 
-        let (hw_params, hw_source) = self.effective_hw_params(swaption, market, ttm)?;
-        self.enforce_resolved_hw_params(swaption, hw_params, hw_source)?;
+        let (hw_params, _hw_source) = self.effective_hw_params(swaption, market, ttm)?;
 
         // Get exercise times in years
         // Filter exercise times to be within [0, ttm]

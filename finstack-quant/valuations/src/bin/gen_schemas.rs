@@ -219,13 +219,7 @@ fn run_schema_registries(
     command: &SchemaGenerationCommand,
     artifacts: Vec<SchemaArtifact>,
 ) -> Result<()> {
-    let roots = [
-        "schemas/calibration",
-        "schemas/common",
-        "schemas/instruments",
-        "schemas/market",
-        "schemas/results",
-    ];
+    let roots = ["schemas/common", "schemas/instruments", "schemas/results"];
     let mut registries = roots
         .into_iter()
         .map(|root| (root, Vec::new()))

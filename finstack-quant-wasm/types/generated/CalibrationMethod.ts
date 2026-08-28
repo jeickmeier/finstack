@@ -15,7 +15,7 @@
  *
  * # Examples
  * ```rust
- * use finstack_quant_valuations::calibration::CalibrationMethod;
+ * use finstack_quant_calibration::CalibrationMethod;
  *
  * let method = CalibrationMethod::GlobalSolve { use_analytical_jacobian: true };
  * ```

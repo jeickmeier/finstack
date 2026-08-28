@@ -12,25 +12,6 @@ export const valuations = {
   instruments,
   market,
   validateValuationResultJson: wasm.validateValuationResultJson,
-  // Calibration: build a MarketContext from raw quotes.
-  // ⚠️ BLOCKING: calibration can be CPU-heavy; callers must run it behind an
-  // application-level timeout until the envelope schema carries timeout_ms.
-  calibrate(envelope) {
-    const json = typeof envelope === 'string' ? envelope : JSON.stringify(envelope);
-    return wasm.calibrate(json);
-  },
-  validateCalibrationJson(envelope) {
-    const json = typeof envelope === 'string' ? envelope : JSON.stringify(envelope);
-    return wasm.validateCalibrationJson(json);
-  },
-  dryRun(envelope) {
-    const json = typeof envelope === 'string' ? envelope : JSON.stringify(envelope);
-    return wasm.dryRun(json);
-  },
-  dependencyGraphJson(envelope) {
-    const json = typeof envelope === 'string' ? envelope : JSON.stringify(envelope);
-    return wasm.dependencyGraphJson(json);
-  },
   Market: wasm.Market,
   tarnCouponProfile: wasm.tarnCouponProfile,
   snowballCouponProfile: wasm.snowballCouponProfile,

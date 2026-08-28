@@ -20,10 +20,7 @@ pub(super) struct EnrichmentRequest<'a> {
     pub(super) metrics: &'a [MetricId],
     pub(super) cfg: Option<Arc<FinstackConfig>>,
     pub(super) market_history: Option<Arc<MarketHistory>>,
-    pub(super) hazard_recalibration_cache:
-        Option<Arc<crate::calibration::bumps::hazard::HazardRecalibrationCache>>,
-    pub(super) rate_recalibration_cache:
-        Option<Arc<crate::calibration::bumps::rates::RateRecalibrationCache>>,
+    pub(super) recalibration_provider: Option<Arc<dyn crate::recalibration::RecalibrationProvider>>,
     pub(super) pricer_registry: Arc<PricerRegistry>,
     pub(super) base_result: ValuationResult,
 }
@@ -39,8 +36,7 @@ pub(super) fn enrich(
         metrics,
         cfg,
         market_history,
-        hazard_recalibration_cache,
-        rate_recalibration_cache,
+        recalibration_provider,
         pricer_registry,
         mut base_result,
     } = request;
@@ -56,8 +52,7 @@ pub(super) fn enrich(
             market_history,
             model: None,
             registry: Some(Arc::clone(&pricer_registry)),
-            hazard_recalibration_cache,
-            rate_recalibration_cache,
+            recalibration_provider,
         };
         let (metric_measures, details) = composite
             .valuation_details_with_metrics(market.as_ref(), as_of, metrics, options)
@@ -79,8 +74,7 @@ pub(super) fn enrich(
             MetricBuildOptions {
                 cfg,
                 market_history,
-                hazard_recalibration_cache,
-                rate_recalibration_cache,
+                recalibration_provider,
                 metric_registry,
                 pricing_dispatch: crate::pricer::PricingDispatch::registered(
                     model,
@@ -112,8 +106,7 @@ pub(super) fn enrich(
             MetricBuildOptions {
                 cfg: cfg.clone(),
                 market_history: market_history.clone(),
-                hazard_recalibration_cache: hazard_recalibration_cache.clone(),
-                rate_recalibration_cache: rate_recalibration_cache.clone(),
+                recalibration_provider: recalibration_provider.clone(),
                 metric_registry: metric_registry.clone(),
                 ..MetricBuildOptions::default()
             },
@@ -133,8 +126,7 @@ pub(super) fn enrich(
             MetricBuildOptions {
                 cfg,
                 market_history,
-                hazard_recalibration_cache,
-                rate_recalibration_cache,
+                recalibration_provider,
                 metric_registry,
                 pricing_dispatch: crate::pricer::PricingDispatch::registered(
                     model,

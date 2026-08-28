@@ -5,14 +5,11 @@ use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::exotics::tarn::Tarn;
 use crate::instruments::rates::hw1f::cumulative_coupon::{CouponEvent, CumulativeCouponTracker};
 use crate::instruments::rates::hw1f::hw1f_curve::{
-    calibrate_hw1f_params, initial_short_rate_from_curve, Hw1fTermForward, PeriodForwardCoeffs,
+    initial_short_rate_from_curve, prepare_hw1f_params, Hw1fTermForward, PeriodForwardCoeffs,
 };
 use crate::instruments::rates::hw1f::hw1f_mc::RateExoticHw1fMcPricer;
 use crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
-use crate::instruments::rates::hw1f::{
-    resolve_hw1f_params, Hw1fCalibrationFlavor, Hw1fCapletSurfacePoint, Hw1fResolveRequest,
-    Hw1fSurfaceCalibration,
-};
+use crate::instruments::rates::hw1f::{resolve_hw1f_params, Hw1fParamFamily, Hw1fResolveRequest};
 use crate::metrics::MetricId;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
@@ -209,15 +206,15 @@ impl Payoff for TarnPayoff {
 /// TARN pricer using short-rate paths from the shared HW1F Monte Carlo harness.
 #[derive(Debug, Clone)]
 pub struct TarnPricer {
-    hw_params: HullWhiteParams,
+    hw_params: Option<HullWhiteParams>,
     config: RateExoticMcConfig,
 }
 
 impl TarnPricer {
-    /// Create a TARN pricer with default HW1F parameters and MC settings.
+    /// Create a TARN pricer requiring explicit or pre-calibrated HW1F parameters.
     pub fn new() -> Self {
         Self {
-            hw_params: HullWhiteParams::default(),
+            hw_params: None,
             config: RateExoticMcConfig::default(),
         }
     }
@@ -225,7 +222,7 @@ impl TarnPricer {
     /// Create a TARN pricer with explicit HW1F parameters.
     pub fn with_hw_params(hw_params: HullWhiteParams) -> Self {
         Self {
-            hw_params,
+            hw_params: Some(hw_params),
             config: RateExoticMcConfig::default(),
         }
     }
@@ -240,24 +237,18 @@ impl TarnPricer {
         &self,
         inst: &Tarn,
         market: &MarketContext,
-        as_of: Date,
+        _as_of: Date,
     ) -> Result<HullWhiteParams> {
-        let overrides = hw1f_overrides_json(inst);
-        let surface_points = tarn_surface_points(inst, as_of)?;
-        let surface =
-            inst.vol_surface_id
-                .as_ref()
-                .map(|vol_surface_id| Hw1fSurfaceCalibration::CapFloor {
-                    vol_surface_id: vol_surface_id.as_str(),
-                    points: surface_points.as_slice(),
-                });
+        let overrides = hw1f_overrides_json(inst).or_else(|| {
+            self.hw_params.map(|params| {
+                serde_json::json!({"hw1f_kappa": params.kappa, "hw1f_sigma": params.sigma})
+            })
+        });
         let context_label = format!("TARN {}", inst.id);
         let req = Hw1fResolveRequest {
             curve_id: inst.discount_curve_id.as_str(),
-            flavor: Hw1fCalibrationFlavor::CapFloor,
+            family: Hw1fParamFamily::CapFloor,
             overrides: overrides.as_ref(),
-            surface,
-            fallback: Some(self.hw_params),
             context: context_label.as_str(),
         };
         // Provenance (`hw1f_param_source`) is stamped by the resolver's
@@ -466,7 +457,7 @@ impl TarnPricer {
         // discounted with the pathwise numeraire.
         let horizon = event_times.last().copied().unwrap_or(0.0);
         let process_params =
-            calibrate_hw1f_params(hw_params, discount_curve.as_ref(), as_of, horizon)?;
+            prepare_hw1f_params(hw_params, discount_curve.as_ref(), as_of, horizon)?;
         let mc = RateExoticHw1fMcPricer {
             process_params,
             r0,
@@ -503,38 +494,15 @@ impl Default for TarnPricer {
 }
 
 fn hw1f_overrides_json(inst: &Tarn) -> Option<serde_json::Value> {
-    let kappa = inst
-        .instrument_pricing_overrides
-        .model_config
-        .hw1f_mean_reversion?;
-    let sigma = inst.instrument_pricing_overrides.model_config.hw1f_sigma?;
-    Some(serde_json::json!({ "hw1f_kappa": kappa, "hw1f_sigma": sigma }))
-}
-
-fn tarn_surface_points(inst: &Tarn, as_of: Date) -> Result<Vec<Hw1fCapletSurfacePoint>> {
-    let ctx = DayCountContext::default();
-    let mut points = Vec::new();
-    for period in inst.coupon_dates.windows(2) {
-        let start = period[0];
-        let end = period[1];
-        if start <= as_of || end <= start {
-            continue;
-        }
-        let t_fix = inst.day_count.year_fraction(as_of, start, ctx)?;
-        let accrual = inst.day_count.year_fraction(start, end, ctx)?;
-        if t_fix > 0.0 && accrual > 0.0 {
-            points.push(Hw1fCapletSurfacePoint {
-                t_fix,
-                accrual,
-                forward: inst.fixed_rate,
-                strike: inst.fixed_rate,
-                is_cap: true,
-                annuity: accrual * inst.notional.amount().abs(),
-                normal_vol_per_unit_sigma: None,
-            });
-        }
+    let config = &inst.instrument_pricing_overrides.model_config;
+    let mut values = serde_json::Map::new();
+    if let Some(kappa) = config.hw1f_mean_reversion {
+        values.insert("hw1f_kappa".to_string(), serde_json::json!(kappa));
     }
-    Ok(points)
+    if let Some(sigma) = config.hw1f_sigma {
+        values.insert("hw1f_sigma".to_string(), serde_json::json!(sigma));
+    }
+    (!values.is_empty()).then_some(serde_json::Value::Object(values))
 }
 
 /// PV of a fully-seasoned TARN schedule whose every coupon fixes off the

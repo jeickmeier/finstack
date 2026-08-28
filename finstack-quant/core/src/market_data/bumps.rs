@@ -704,11 +704,11 @@ impl Bumpable for HazardCurve {
 
 impl Bumpable for InflationCurve {
     fn apply_bump(&self, spec: BumpSpec) -> crate::Result<Self> {
-        spec.validate_parallel("InflationCurve")?;
+        spec.validate_finite()?;
 
         let factor = spec.resolve_standard_values_or_error(
             "InflationCurve",
-            "only supports Additive/{Percent,Fraction} or Multiplicative/Factor",
+            "only supports Additive/{RateBp,Percent,Fraction} or Multiplicative/Factor",
         )?;
 
         let bumped_id = spec.standard_bump_id(self.id());
@@ -721,10 +721,30 @@ impl Bumpable for InflationCurve {
             }
 
             let zero_rate = self.inflation_rate(0.0, t);
+            let weight = match spec.bump_type {
+                BumpType::Parallel => 1.0,
+                BumpType::TriangularKeyRate {
+                    prev_bucket,
+                    target_bucket,
+                    next_bucket,
+                } => {
+                    super::term_structures::common::validate_triangular_bucket_grid(
+                        prev_bucket,
+                        target_bucket,
+                        next_bucket,
+                    )?;
+                    super::term_structures::common::triangular_weight(
+                        t,
+                        prev_bucket,
+                        target_bucket,
+                        next_bucket,
+                    )
+                }
+            };
             let bumped_zero_rate = if factor.1 {
-                (1.0 + zero_rate) * factor.0 - 1.0
+                (1.0 + zero_rate) * (1.0 + (factor.0 - 1.0) * weight) - 1.0
             } else {
-                zero_rate + factor.0
+                zero_rate + factor.0 * weight
             };
             let bumped_cpi = self.base_cpi() * (1.0 + bumped_zero_rate).powf(t);
             bumped_points.push((t, bumped_cpi));

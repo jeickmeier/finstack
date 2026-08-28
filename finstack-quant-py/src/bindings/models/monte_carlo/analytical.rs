@@ -4,10 +4,10 @@ use pyo3::prelude::*;
 
 /// Black-Scholes European call present value under GBM.
 ///
-/// Argument order is ``(spot, strike, rate, div_yield, vol, expiry)``. Internally
-/// re-ordered to the Rust crate's ``(spot, strike, expiry, rate, q, vol)`` layout.
-/// Rates and dividend yield are continuously compounded decimals. Non-finite
-/// inputs return ``NaN``; this helper does not raise.
+/// Argument order is ``(spot, strike, rate, div_yield, vol, expiry)``, matching
+/// the canonical Rust closed-form implementation. Rates and dividend yield are
+/// continuously compounded decimals. Non-finite inputs return ``NaN``; this
+/// helper does not raise.
 ///
 /// Parameters
 /// ----------
@@ -43,17 +43,17 @@ fn black_scholes_call(
     vol: f64,
     expiry: f64,
 ) -> f64 {
-    finstack_quant_models::monte_carlo::variance_reduction::control_variate::black_scholes_call(
-        spot, strike, expiry, rate, div_yield, vol,
+    finstack_quant_models::closed_form::black_scholes_spot_call(
+        spot, strike, rate, div_yield, vol, expiry,
     )
 }
 
 /// Black-Scholes European put present value under GBM.
 ///
-/// Argument order is ``(spot, strike, rate, div_yield, vol, expiry)``. Internally
-/// re-ordered to the Rust crate's ``(spot, strike, expiry, rate, q, vol)`` layout.
-/// Rates and dividend yield are continuously compounded decimals. Non-finite
-/// inputs return ``NaN``; this helper does not raise.
+/// Argument order is ``(spot, strike, rate, div_yield, vol, expiry)``, matching
+/// the canonical Rust closed-form implementation. Rates and dividend yield are
+/// continuously compounded decimals. Non-finite inputs return ``NaN``; this
+/// helper does not raise.
 ///
 /// Parameters
 /// ----------
@@ -89,8 +89,8 @@ fn black_scholes_put(
     vol: f64,
     expiry: f64,
 ) -> f64 {
-    finstack_quant_models::monte_carlo::variance_reduction::control_variate::black_scholes_put(
-        spot, strike, expiry, rate, div_yield, vol,
+    finstack_quant_models::closed_form::black_scholes_spot_put(
+        spot, strike, rate, div_yield, vol, expiry,
     )
 }
 

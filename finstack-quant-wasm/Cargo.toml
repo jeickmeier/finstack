@@ -22,6 +22,7 @@ finstack-quant-margin = { path = "../finstack-quant/margin", version = "0.8.0" }
 finstack-quant-statements = { path = "../finstack-quant/statements", version = "0.8.0" }
 finstack-quant-statements-analytics = { path = "../finstack-quant/statements-analytics", version = "0.8.0" }
 finstack-quant-valuations = { path = "../finstack-quant/valuations", version = "0.8.0", default-features = false }
+finstack-quant-calibration = { path = "../finstack-quant/calibration", version = "0.8.0", default-features = false }
 finstack-quant-models = { path = "../finstack-quant/models", version = "0.8.0", default-features = false }
 finstack-quant-scenarios = { path = "../finstack-quant/scenarios", version = "0.8.0" }
 finstack-quant-portfolio = { path = "../finstack-quant/portfolio", version = "0.8.0", default-features = false }

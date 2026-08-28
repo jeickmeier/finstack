@@ -923,7 +923,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::calibration::bumps::{bump_hazard_shift, BumpRequest};
     use crate::instruments::credit_derivatives::cds_option::parameters::CDSOptionParams;
     use crate::instruments::credit_derivatives::cds_option::pricer::synthetic_underlying_cds;
     use crate::instruments::CreditParams;
@@ -1131,8 +1130,9 @@ mod tests {
         let market = market(as_of);
         let base_ctx = context_for(&option, &market, as_of, 0.30);
         let hazard = market.get_hazard(&option.credit_curve_id).expect("hazard");
-        let bumped_hazard =
-            bump_hazard_shift(hazard.as_ref(), &BumpRequest::Parallel(1.0)).expect("bumped hazard");
+        let bumped_hazard = hazard
+            .with_parallel_hazard_rate_bump_bp(1.0)
+            .expect("bumped hazard");
         let bumped_market = market.insert(bumped_hazard);
         let bumped_ctx = context_for(&option, &bumped_market, as_of, 0.30);
 

@@ -3,7 +3,6 @@
 //! Exposes the [`PyValuationResult`] envelope for pricing output,
 //! JSON-based instrument loading and the standard pricer pipeline.
 
-mod calibration;
 pub(crate) mod composite;
 mod credit_derivatives;
 mod exotic_rates;
@@ -308,11 +307,10 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     m.setattr(
         "__doc__",
-        "Instrument pricing: bonds, swaps, options, and calibration.",
+        "Instrument pricing for bonds, swaps, options, and structured products.",
     )?;
 
     m.add_class::<PyValuationResult>()?;
-    calibration::register(py, &m)?;
     composite::register(py, &m)?;
     exotic_rates::register(py, &m)?;
     credit_derivatives::register(py, &m)?;
@@ -324,12 +322,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         py,
         [
             "ValuationResult",
-            "CalibrationResult",
-            "CalibrationEnvelopeError",
-            "validate_calibration_json",
-            "calibrate",
-            "dry_run",
-            "dependency_graph_json",
             "tarn_coupon_profile",
             "snowball_coupon_profile",
             "inverse_floater_coupon_profile",

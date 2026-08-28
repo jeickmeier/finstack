@@ -46,8 +46,8 @@ by the Python/WASM bindings via [`dispatch.rs`](dispatch.rs).
 | [`implied_vol.rs`](implied_vol.rs) | Newton-Raphson + bisection implied-vol solvers |
 | [`dispatch.rs`](dispatch.rs) | String-keyed routing shared by the Python and WASM bindings |
 
-All analytical Greeks live in `vanilla.rs`, on `bs_greeks` /
-`bs_greeks_checked` / `bs_vega`.
+All analytical Greeks live in `vanilla.rs`, on `bs_greeks`,
+`bs_greeks_unchecked`, and the crate-internal `bs_vega_unchecked`.
 
 ## Black-Scholes / Garman-Kohlhagen (`vanilla.rs`)
 
@@ -61,11 +61,11 @@ d₂ = d₁ - σ√T
 
 | Item | Signature sketch |
 |------|------------------|
-| `bs_price` | `(spot, strike, r, q, sigma, t, OptionType) -> f64` |
-| `bs_price_checked` | same, `-> Result<f64>`; rejects non-finite output |
-| `bs_greeks` | `(spot, strike, r, q, sigma, t, OptionType, theta_days_per_year) -> BsGreeks` |
-| `bs_greeks_checked` | same, `-> Result<BsGreeks>`; validates every input |
-| `bs_vega` | `(spot, strike, time, rate, div_yield, vol) -> f64` (note the different argument order) |
+| `bs_price` | `(spot, strike, r, q, sigma, t, OptionType) -> Result<f64>` |
+| `bs_price_unchecked` | same inputs, `-> f64`; raw formula for validated Rust call sites |
+| `bs_greeks` | `(spot, strike, r, q, sigma, t, OptionType, theta_days_per_year) -> Result<BsGreeks>` |
+| `bs_greeks_unchecked` | same inputs, `-> BsGreeks`; raw formula for validated Rust call sites |
+| `bs_vega_unchecked` | crate-internal vega primitive |
 | `black76_call` / `black76_put` | `(forward, strike, sigma, t) -> f64` — undiscounted |
 | `vanilla_expiry_payoff` | `(spot, strike, OptionType) -> Result<f64>` |
 | `checked_closed_form_value` | `(value, what) -> Result<f64>` — the shared finiteness guard |
@@ -124,8 +124,6 @@ the log-average directly, not the standard Black-Scholes form. Every return
 path is capped at the no-arbitrage bound `df·M₁`, because the moment-matching
 approximation can overshoot for deep-ITM/high-vol inputs.
 
-`AsianPriceResult` and `AsianGreeks` are declared and re-exported but no
-function in this module currently returns them.
 
 References: Kemna & Vorst (1990); Turnbull & Wakeman (1991); Levy (1992);
 Curran (1994); Rogers & Shi (1995); Haug (2007) ch. 3.

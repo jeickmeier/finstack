@@ -35,7 +35,7 @@ use effects::{
 };
 use finstack_quant_core::market_data::bumps::MarketBump;
 use finstack_quant_core::market_data::hierarchy::ResolutionMode;
-use finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache;
+use finstack_quant_valuations::recalibration::RecalibrationProvider;
 use hierarchy::{expand_hierarchy_operations, ExpansionOutcome};
 use std::sync::Arc;
 
@@ -57,15 +57,28 @@ const fn hazard_bump_mode_name(mode: HazardBumpMode) -> &'static str {
 /// The engine is intentionally lightweight: it owns an immutable
 /// [`FinstackConfig`](finstack_quant_core::config::FinstackConfig) (used to stamp
 /// the active rounding policy into reports) and an optional shared
-/// [`HazardRecalibrationCache`]. All other mutable inputs are supplied via
+/// quote-recalibration provider. All other mutable inputs are supplied via
 /// [`ExecutionContext`].
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct ScenarioEngine {
     /// Active configuration; its rounding mode is stamped into
     /// [`ApplicationReport::meta`].
     config: finstack_quant_core::config::FinstackConfig,
-    /// Optional cache reused across [`Self::apply`] calls on the same unstressed snapshot.
-    hazard_cache: Option<Arc<HazardRecalibrationCache>>,
+    /// Optional provider reused across calls belonging to one immutable batch.
+    recalibration_provider: Option<Arc<dyn RecalibrationProvider>>,
+}
+
+impl std::fmt::Debug for ScenarioEngine {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ScenarioEngine")
+            .field("config", &self.config)
+            .field(
+                "has_recalibration_provider",
+                &self.recalibration_provider.is_some(),
+            )
+            .finish()
+    }
 }
 
 impl ScenarioEngine {
@@ -98,25 +111,19 @@ impl ScenarioEngine {
     pub fn with_config(config: finstack_quant_core::config::FinstackConfig) -> Self {
         Self {
             config,
-            hazard_cache: None,
+            recalibration_provider: None,
         }
     }
 
-    /// Share a hazard recalibration cache across subsequent [`Self::apply`] calls.
-    ///
-    /// The cache is safe for independent applies that start from the same
-    /// unstressed market snapshot. Source-curve fingerprints prevent a
-    /// sequential second bump of an already-rewritten hazard from reusing the
-    /// first bootstrapped result.
+    /// Inject the quote-recalibration service for one immutable scenario batch.
     ///
     /// # Arguments
     ///
-    /// * `cache` - Shared cache used for every subsequent [`Self::apply`] on
-    ///   this engine. Identical ParCDS solve-to-par bumps against the same
-    ///   source curve reuse the bootstrapped result.
+    /// * `provider` - Shared service used for subsequent quote-replay
+    ///   operations on this engine.
     #[must_use]
-    pub fn with_hazard_cache(mut self, cache: Arc<HazardRecalibrationCache>) -> Self {
-        self.hazard_cache = Some(cache);
+    pub fn with_recalibration_provider(mut self, provider: Arc<dyn RecalibrationProvider>) -> Self {
+        self.recalibration_provider = Some(provider);
         self
     }
 
@@ -282,17 +289,9 @@ impl ScenarioEngine {
         // call this entry point without their own validation pass.
         spec.validate()?;
 
-        let owned_cache;
-        let hazard_cache = match &self.hazard_cache {
-            Some(cache) => cache.as_ref(),
-            None => {
-                owned_cache = HazardRecalibrationCache::new();
-                &owned_cache
-            }
-        };
         let env = HazardApplyEnv {
             mode: spec.hazard_bump_mode,
-            cache: hazard_cache,
+            provider: self.recalibration_provider.as_deref(),
         };
 
         let mut applied = 0;

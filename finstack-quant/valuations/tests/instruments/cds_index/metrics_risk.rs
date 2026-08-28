@@ -14,7 +14,6 @@ use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_valuations::constants::isda::STANDARD_RECOVERY_SENIOR;
 use finstack_quant_valuations::instruments::Instrument;
-use finstack_quant_valuations::instruments::PricingOptions;
 use finstack_quant_valuations::metrics::MetricId;
 use serde_json::json;
 use time::macros::date;
@@ -34,7 +33,7 @@ fn test_risky_pv01_positive() {
             &ctx,
             as_of,
             &[MetricId::RiskyPv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let rpv01 = *result.measures.get("risky_pv01").unwrap();
@@ -58,7 +57,7 @@ fn test_cs01_positive() {
             &ctx,
             as_of,
             &[MetricId::Cs01Hazard],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let cs01 = *result.measures.get("cs01_hazard").unwrap();
@@ -81,7 +80,7 @@ fn test_dv01_calculation() {
             &ctx,
             as_of,
             &[MetricId::Dv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let dv01 = *result.measures.get("dv01").unwrap();
@@ -105,7 +104,7 @@ fn test_hazard_cs01_calculation() {
             &ctx,
             as_of,
             &[MetricId::Cs01Hazard],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -133,7 +132,7 @@ fn test_dv01_scales_with_notional() {
             &ctx,
             as_of,
             &[MetricId::Dv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let result_20mm = idx_20mm
@@ -141,7 +140,7 @@ fn test_dv01_scales_with_notional() {
             &ctx,
             as_of,
             &[MetricId::Dv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -173,7 +172,7 @@ fn test_cs01_increases_with_maturity() {
             &ctx,
             as_of,
             &[MetricId::Cs01Hazard],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let result_5y = idx_5y
@@ -181,7 +180,7 @@ fn test_cs01_increases_with_maturity() {
             &ctx,
             as_of,
             &[MetricId::Cs01Hazard],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -204,9 +203,10 @@ fn test_standard_cs01_requires_replay_recipe() {
 
     let idx = standard_single_curve_index("CDX-CS01", start, end, 10_000_000.0);
     let ctx = standard_market_context(as_of);
+    let provider = finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new();
 
     let direct_error = idx
-        .cs01(&ctx, as_of)
+        .cs01(&ctx, as_of, &provider)
         .expect_err("standard CS01 requires quote-space replay");
     assert!(direct_error.to_string().contains("calibration recipe"));
 
@@ -215,7 +215,8 @@ fn test_standard_cs01_requires_replay_recipe() {
             &ctx,
             as_of,
             &[MetricId::Cs01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            finstack_quant_valuations::instruments::PricingOptions::default()
+                .with_recalibration_provider(std::sync::Arc::new(provider)),
         )
         .expect_err("standard CS01 metric requires quote-space replay");
     assert!(result.to_string().contains("calibration recipe"));
@@ -237,7 +238,7 @@ fn test_risky_pv01_single_vs_constituents() {
             &ctx,
             as_of,
             &[MetricId::RiskyPv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let result_const = idx_const
@@ -245,7 +246,7 @@ fn test_risky_pv01_single_vs_constituents() {
             &ctx,
             as_of,
             &[MetricId::RiskyPv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -278,7 +279,7 @@ fn test_cs01_single_vs_constituents() {
             &ctx,
             as_of,
             &[MetricId::Cs01Hazard],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let result_const = idx_const
@@ -286,7 +287,7 @@ fn test_cs01_single_vs_constituents() {
             &ctx,
             as_of,
             &[MetricId::Cs01Hazard],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -312,7 +313,7 @@ fn test_bucketed_cs01_requires_replay_recipe() {
             &ctx,
             as_of,
             &[MetricId::Cs01, MetricId::BucketedCs01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect_err("standard CDS index CS01 requires quote-space replay");
     assert!(error.to_string().contains("calibration recipe"));
@@ -351,7 +352,7 @@ fn bucketed_cs01_quote_single_curve_uses_each_off_grid_replay_quote_once() {
             &market,
             as_of,
             &[MetricId::Cs01, MetricId::BucketedCs01],
-            PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect("single-curve quote-space bucketed CS01");
     let prefix = "bucketed_cs01::HZ-INDEX::";
@@ -434,7 +435,7 @@ fn bucketed_cs01_quote_constituents_use_each_off_grid_replay_quote_once() {
             &market,
             as_of,
             &[MetricId::Cs01, MetricId::BucketedCs01],
-            PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect("constituent quote-space bucketed CS01");
     let curve_buckets = |curve_id: &str| {
@@ -487,7 +488,7 @@ fn test_bucketed_cs01_reconciles_to_parallel_constituents() {
             &ctx,
             as_of,
             &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -561,7 +562,7 @@ fn bucketed_hazard_cs01_reports_each_distinct_constituent_curve() {
             &market,
             as_of,
             &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
-            PricingOptions::default().with_config(&config),
+            crate::test_support::credit::pricing_options().with_config(&config),
         )
         .expect("constituent hazard CS01 should compute");
 
@@ -637,7 +638,7 @@ fn bucketed_hazard_cs01_uses_each_non_aligned_curve_node_once() {
             &market,
             as_of,
             &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
-            PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect("non-aligned constituent hazard CS01 should compute");
     let constituent_buckets: Vec<_> = result
@@ -688,7 +689,7 @@ fn bucketed_hazard_cs01_single_node_is_not_repeated() {
             &market,
             as_of,
             &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
-            PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect("single-node hazard CS01 should compute");
     let buckets: Vec<_> = result
@@ -739,7 +740,7 @@ fn constituent_using_index_curve_id_is_included_once() {
             &market,
             as_of,
             &[MetricId::Cs01Hazard, MetricId::BucketedCs01Hazard],
-            PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect("shared index/constituent hazard curve risk should compute");
     let shared_buckets: Vec<_> = result
@@ -790,7 +791,7 @@ fn test_all_risk_metrics_together() {
             &ctx,
             as_of,
             &metrics,
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -814,7 +815,7 @@ fn test_dv01_reasonable_magnitude() {
             &ctx,
             as_of,
             &[MetricId::Dv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let dv01 = *result.measures.get("dv01").unwrap();
@@ -845,7 +846,7 @@ fn test_risk_metrics_finite() {
             &ctx,
             as_of,
             &metrics,
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
 
@@ -881,7 +882,7 @@ fn test_recovery01_finite_and_nonzero() {
             &ctx,
             as_of,
             &[MetricId::Recovery01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let recovery01 = *result.measures.get("recovery_01").unwrap();
@@ -913,7 +914,7 @@ fn test_recovery01_scales_with_notional() {
             &ctx,
             as_of,
             &[MetricId::Recovery01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap()
         .measures
@@ -924,7 +925,7 @@ fn test_recovery01_scales_with_notional() {
             &ctx,
             as_of,
             &[MetricId::Recovery01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap()
         .measures
@@ -954,7 +955,7 @@ fn test_cs01_hazard_is_finite_and_nonzero() {
             &ctx,
             as_of,
             &[MetricId::Cs01Hazard],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let cs01_hazard = *result.measures.get("cs01_hazard").unwrap();
@@ -986,7 +987,7 @@ fn test_cs01_hazard_scales_with_notional() {
             &ctx,
             as_of,
             &[MetricId::Cs01Hazard],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap()
         .measures
@@ -997,7 +998,7 @@ fn test_cs01_hazard_scales_with_notional() {
             &ctx,
             as_of,
             &[MetricId::Cs01Hazard],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap()
         .measures

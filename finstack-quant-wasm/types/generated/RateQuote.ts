@@ -11,8 +11,8 @@
  *
  * Deposit quote:
  * ```rust
- * use finstack_quant_valuations::market::quotes::rates::RateQuote;
- * use finstack_quant_valuations::market::quotes::ids::{Pillar, QuoteId};
+ * use finstack_quant_calibration::quotes::rates::RateQuote;
+ * use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};
  * use finstack_quant_core::types::IndexId;
  *
  * # fn example() -> finstack_quant_core::Result<()> {
@@ -28,8 +28,8 @@
  *
  * Swap quote:
  * ```rust
- * use finstack_quant_valuations::market::quotes::rates::RateQuote;
- * use finstack_quant_valuations::market::quotes::ids::{Pillar, QuoteId};
+ * use finstack_quant_calibration::quotes::rates::RateQuote;
+ * use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};
  * use finstack_quant_core::types::IndexId;
  *
  * # fn example() -> finstack_quant_core::Result<()> {

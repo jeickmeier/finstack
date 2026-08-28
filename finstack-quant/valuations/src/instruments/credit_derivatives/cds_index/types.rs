@@ -536,9 +536,10 @@ impl CDSIndex {
         &self,
         curves: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
+        provider: &dyn crate::recalibration::RecalibrationProvider,
     ) -> finstack_quant_core::Result<f64> {
         let pricer = CDSIndexPricer::new();
-        pricer.cs01(self, curves, as_of)
+        pricer.cs01(self, curves, as_of, provider)
     }
 
     /// Calculate NPV with per-constituent breakdown (if applicable).
@@ -596,9 +597,10 @@ impl CDSIndex {
         &self,
         curves: &finstack_quant_core::market_data::context::MarketContext,
         as_of: finstack_quant_core::dates::Date,
+        provider: &dyn crate::recalibration::RecalibrationProvider,
     ) -> finstack_quant_core::Result<IndexResult<f64>> {
         let pricer = CDSIndexPricer::new();
-        pricer.cs01_detailed(self, curves, as_of)
+        pricer.cs01_detailed(self, curves, as_of, provider)
     }
 }
 

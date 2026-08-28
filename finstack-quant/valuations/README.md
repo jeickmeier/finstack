@@ -141,7 +141,7 @@ assumption is applied it is stamped in `ResultsMeta::fx_policy_applied` (see
 
 **Rate units.** Rates and spreads are decimals unless a field or method name says
 otherwise. Fields and arguments named `*_bp` are basis points. Calibration bump
-requests (`calibration::bumps::BumpRequest::Parallel`) are in basis points;
+quote-recalibration requests (`QuoteBump::ParallelBp`) are in basis points;
 volatility bumps use `VolBumpRequest` because absolute-vs-relative semantics
 differ. `constants::ONE_BASIS_POINT` exists for hot paths; prefer
 `finstack_quant_core::types::{Rate, Bps, Percentage}` elsewhere.

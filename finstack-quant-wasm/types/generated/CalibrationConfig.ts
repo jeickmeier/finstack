@@ -48,7 +48,7 @@ import type { VolSurfaceSolveConfig } from "./VolSurfaceSolveConfig";
  *
  * 1. **Step-level** (`CalibrationStep.params.method`): Per-instrument-type overrides
  * 2. **Plan-level** (`CalibrationPlan.settings`): Plan-wide defaults
- * 3. **Finstack config extensions** (`valuations.calibration.canonical`): application defaults
+ * 3. **Finstack config extensions** (`calibration.config.v1`): application defaults
  * 4. **Global defaults** (`CalibrationConfig::default()`): fallback values
  *
  * Step-level settings always take precedence over plan-level settings.
@@ -58,7 +58,7 @@ import type { VolSurfaceSolveConfig } from "./VolSurfaceSolveConfig";
  * # Examples
  *
  * ```rust
- * use finstack_quant_valuations::calibration::CalibrationConfig;
+ * use finstack_quant_calibration::CalibrationConfig;
  *
  * // Create a default config
  * let config = CalibrationConfig::default();

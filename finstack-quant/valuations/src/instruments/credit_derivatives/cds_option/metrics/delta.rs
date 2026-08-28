@@ -13,7 +13,6 @@
 //! This module is the single source of truth for both values;
 //! [`CDSOption::delta`] is a thin pass-through to [`delta`].
 
-use crate::calibration::bumps::{bump_hazard_spreads, BumpRequest};
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds::pricer::CDSPricer;
 use crate::instruments::credit_derivatives::cds_option::bloomberg_quadrature::{
@@ -25,6 +24,9 @@ use crate::instruments::credit_derivatives::cds_option::pricer::{
 use crate::instruments::credit_derivatives::cds_option::{CDSOption, CDSOptionStrikeKind};
 use crate::instruments::OptionType;
 use crate::metrics::{MetricCalculator, MetricContext};
+use crate::recalibration::{
+    HazardRecalibrationAction, HazardRecalibrationRequest, QuoteBump, RecalibrationProvider,
+};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
 
@@ -38,7 +40,12 @@ pub(crate) struct DeltaCalculator;
 impl MetricCalculator for DeltaCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let option: &CDSOption = context.instrument_as()?;
-        delta(option, &context.curves, context.as_of)
+        let provider = if option.strike.kind() == CDSOptionStrikeKind::CleanPricePct {
+            Some(context.recalibration_provider("cds_option_delta")?)
+        } else {
+            None
+        };
+        delta_with_provider(option, &context.curves, context.as_of, provider.as_deref())
     }
 }
 
@@ -51,6 +58,15 @@ pub(crate) fn delta(
     curves: &MarketContext,
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<f64> {
+    delta_with_provider(option, curves, as_of, None)
+}
+
+fn delta_with_provider(
+    option: &CDSOption,
+    curves: &MarketContext,
+    as_of: finstack_quant_core::dates::Date,
+    provider: Option<&dyn RecalibrationProvider>,
+) -> Result<f64> {
     option.validate_supported_configuration()?;
     let t = option.time_to_expiry(as_of)?;
     if t <= 0.0 {
@@ -58,7 +74,11 @@ pub(crate) fn delta(
     }
     match option.strike.kind() {
         CDSOptionStrikeKind::Spread => spread_black_delta(option, curves, as_of, t),
-        CDSOptionStrikeKind::CleanPricePct => price_strike_delta(option, curves, as_of),
+        CDSOptionStrikeKind::CleanPricePct => {
+            let provider = provider
+                .ok_or_else(|| crate::recalibration::provider_missing("cds_option_delta"))?;
+            price_strike_delta(option, curves, as_of, provider)
+        }
     }
 }
 
@@ -98,6 +118,7 @@ pub(super) fn price_strike_delta(
     option: &CDSOption,
     curves: &MarketContext,
     as_of: finstack_quant_core::dates::Date,
+    provider: &dyn RecalibrationProvider,
 ) -> Result<f64> {
     let sigma = resolve_sigma(option, curves, as_of)?;
     let cds = synthetic_underlying_cds(option, as_of)?;
@@ -108,16 +129,17 @@ pub(super) fn price_strike_delta(
     )?;
 
     let bumped_market = |bump_bp: f64| -> Result<MarketContext> {
-        let request = BumpRequest::Parallel(bump_bp);
-        let bumped = bump_hazard_spreads(
-            hazard.as_ref(),
-            curves,
-            &request,
-            Some(&option.discount_curve_id),
-            None,
-            None,
-        )?;
-        Ok(curves.clone().insert(bumped))
+        let bumped = provider.rebuild_hazard_curve(&HazardRecalibrationRequest {
+            hazard: std::sync::Arc::clone(&hazard),
+            source_market: std::sync::Arc::new(curves.clone()),
+            target_market: std::sync::Arc::new(curves.clone()),
+            discount_curve_id: option.discount_curve_id.clone(),
+            doc_clause: None,
+            cds_valuation_convention: None,
+            deal_quote_override: None,
+            action: HazardRecalibrationAction::SpreadBump(QuoteBump::ParallelBp(bump_bp)),
+        })?;
+        Ok(curves.clone().insert(bumped.as_ref().clone()))
     };
     let up_market = bumped_market(PRICE_DELTA_SPREAD_BUMP_BP)?;
     let down_market = bumped_market(-PRICE_DELTA_SPREAD_BUMP_BP)?;

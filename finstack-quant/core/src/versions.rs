@@ -37,11 +37,11 @@ pub const HULL_WHITE_1F: &str =
     "Hull-White 1F (Jamshidian decomposition, vega-weighted, multi-start)";
 
 /// Multi-curve OIS discount curve bootstrap, produced by the default
-/// target at `finstack_quant_valuations::calibration::targets::discount`.
+/// target in `finstack-quant-calibration`.
 pub const MULTI_CURVE_OIS_DISCOUNT: &str = "Multi-curve OIS discounting v1.0";
 
 /// ISDA Standard Model v1.8.2, used by the CDS hazard-curve bootstrap in
-/// `finstack_quant_valuations::calibration::targets::hazard`. The version
+/// the hazard target in `finstack-quant-calibration`. The version
 /// mirrors the ISDA reference implementation revision.
 pub const ISDA_STANDARD_MODEL: &str = "ISDA Standard Model v1.8.2";
 

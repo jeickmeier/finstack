@@ -97,7 +97,7 @@
 //! - [`InterestRateSwap`] for vanilla IRS
 //! - [`Swaption`] for European swaptions
 //! - [`CapFloor`] for caps and floors
-//! - [`crate::calibration`] for curve calibration
+//! - the calibration crate for curve construction
 
 /// Basis swap module - Floating vs floating swaps.
 pub mod basis_swap;

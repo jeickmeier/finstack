@@ -383,7 +383,14 @@ impl std::str::FromStr for CDSConvention {
     }
 }
 
-pub(crate) fn resolve_market_conventions(
+/// Resolve the CDS schedule and settlement conventions for calibration and pricing.
+///
+/// # Arguments
+///
+/// * `currency` - Contract currency used to select the convention registry entry.
+/// * `doc_clause` - Optional exact ISDA document-clause identifier. When omitted,
+///   the currency default is selected; an explicitly unknown clause is rejected.
+pub fn resolve_market_conventions(
     currency: Currency,
     doc_clause: Option<&str>,
 ) -> finstack_quant_core::Result<&'static CdsConventionResolved> {
@@ -418,14 +425,22 @@ pub(crate) fn resolve_market_conventions(
         })
 }
 
+/// Fully resolved market conventions shared by CDS builders and calibration targets.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CdsConventionResolved {
+pub struct CdsConventionResolved {
+    /// Standard CDS convention family represented by the document clause.
     pub doc_clause: CDSConvention,
+    /// Accrual day-count convention for premium payments.
     pub day_count: DayCount,
+    /// Contractual premium-payment frequency.
     pub frequency: Tenor,
+    /// Business-day adjustment applied to scheduled payment dates.
     pub business_day_convention: BusinessDayConvention,
+    /// Stub convention used when constructing the premium schedule.
     pub stub_convention: StubKind,
+    /// Cash-settlement delay in business days after the trade date.
     pub settlement_delay_days: u16,
+    /// Calendar identifier used when no contract-specific calendar is supplied.
     pub default_calendar_id: String,
 }
 
@@ -663,6 +678,36 @@ pub struct CreditDefaultSwap {
 }
 
 impl CreditDefaultSwap {
+    /// Return the CDS par spread implied by an immutable market snapshot.
+    ///
+    /// The result is expressed in basis points and uses this contract's
+    /// valuation convention, premium schedule, discount curve, hazard curve,
+    /// and recovery assumption. This narrow entry point supports calibration
+    /// residuals without exposing the internal CDS pricer.
+    ///
+    /// # Arguments
+    ///
+    /// * `market` - Market containing the discount and hazard curves named by
+    ///   this CDS. Curve recovery metadata must match the contract recovery.
+    /// * `as_of` - Valuation date used for settlement and accrued-premium
+    ///   conventions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the instrument is invalid, required curves are
+    /// missing, recovery assumptions conflict, or par-spread pricing fails.
+    pub fn get_par_spread(
+        &self,
+        market: &finstack_quant_core::market_data::context::MarketContext,
+        as_of: finstack_quant_core::dates::Date,
+    ) -> finstack_quant_core::Result<f64> {
+        crate::instruments::common_impl::traits::Instrument::validate_for_pricing(self)?;
+        let discount = market.get_discount(self.premium.discount_curve_id.as_str())?;
+        let hazard = market.get_hazard(self.protection.credit_curve_id.as_str())?;
+        super::pricer::CDSPricer::with_config(super::pricer::CDSPricerConfig::from_cds(self))
+            .par_spread(self, discount.as_ref(), hazard.as_ref(), as_of)
+    }
+
     /// Create a canonical example CDS for testing and documentation.
     ///
     /// Returns a 5-year investment-grade CDS with standard ISDA conventions.

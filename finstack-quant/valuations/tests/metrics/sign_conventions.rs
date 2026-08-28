@@ -514,18 +514,15 @@ fn test_cds_cs01_protection_buyer_positive() {
 
     let market = calibrated_cds_market(as_of);
 
-    let registry = standard_registry();
-    let pv = cds.value(&market, as_of).unwrap();
-    let mut context = MetricContext::new(
-        Arc::new(cds),
-        Arc::new(market),
-        as_of,
-        pv,
-        MetricContext::default_config(),
-    );
-
-    let results = registry.compute(&[MetricId::Cs01], &mut context).unwrap();
-    let cs01 = *results.get(&MetricId::Cs01).unwrap();
+    let result = cds
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01],
+            crate::credit_support::pricing_options(),
+        )
+        .unwrap();
+    let cs01 = result.measures[MetricId::Cs01.as_str()];
 
     // Protection buyer benefits from spread widening, so CS01 > 0
     assert!(
@@ -555,18 +552,15 @@ fn test_cds_cs01_protection_seller_negative() {
 
     let market = calibrated_cds_market(as_of);
 
-    let registry = standard_registry();
-    let pv = cds.value(&market, as_of).unwrap();
-    let mut context = MetricContext::new(
-        Arc::new(cds),
-        Arc::new(market),
-        as_of,
-        pv,
-        MetricContext::default_config(),
-    );
-
-    let results = registry.compute(&[MetricId::Cs01], &mut context).unwrap();
-    let cs01 = *results.get(&MetricId::Cs01).unwrap();
+    let result = cds
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01],
+            crate::credit_support::pricing_options(),
+        )
+        .unwrap();
+    let cs01 = result.measures[MetricId::Cs01.as_str()];
 
     // Protection seller is hurt by spread widening, so CS01 < 0
     assert!(
@@ -606,35 +600,27 @@ fn test_cds_cs01_opposite_signs() {
 
     let market = calibrated_cds_market(as_of);
 
-    let registry = standard_registry();
-
     // Compute CS01 for buy protection
-    let pv_buy = cds_buy.value(&market, as_of).unwrap();
-    let mut context_buy = MetricContext::new(
-        Arc::new(cds_buy),
-        Arc::new(market.clone()),
-        as_of,
-        pv_buy,
-        MetricContext::default_config(),
-    );
-    let results_buy = registry
-        .compute(&[MetricId::Cs01], &mut context_buy)
+    let results_buy = cds_buy
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01],
+            crate::credit_support::pricing_options(),
+        )
         .unwrap();
-    let cs01_buy = *results_buy.get(&MetricId::Cs01).unwrap();
+    let cs01_buy = results_buy.measures[MetricId::Cs01.as_str()];
 
     // Compute CS01 for sell protection
-    let pv_sell = cds_sell.value(&market, as_of).unwrap();
-    let mut context_sell = MetricContext::new(
-        Arc::new(cds_sell),
-        Arc::new(market),
-        as_of,
-        pv_sell,
-        MetricContext::default_config(),
-    );
-    let results_sell = registry
-        .compute(&[MetricId::Cs01], &mut context_sell)
+    let results_sell = cds_sell
+        .price_with_metrics(
+            &market,
+            as_of,
+            &[MetricId::Cs01],
+            crate::credit_support::pricing_options(),
+        )
         .unwrap();
-    let cs01_sell = *results_sell.get(&MetricId::Cs01).unwrap();
+    let cs01_sell = results_sell.measures[MetricId::Cs01.as_str()];
 
     // Buy and sell should have opposite signs
     assert!(

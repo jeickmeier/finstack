@@ -68,19 +68,3 @@ mod types;
 pub use parameters::CDSOptionParams;
 pub use strike::{CDSOptionStrike, CDSOptionStrikeKind};
 pub use types::{CDSOption, ProtectionStartConvention};
-
-#[cfg(test)]
-#[path = "../../../../tests/instruments/cds_option/common.rs"]
-mod common;
-#[cfg(test)]
-#[path = "../../../../tests/instruments/cds_option/test_cdx_hy_price_strike.rs"]
-mod test_cdx_hy_price_strike;
-#[cfg(test)]
-#[path = "../../../../tests/instruments/cds_option/test_cdx_ig_46_cdso_regressions.rs"]
-mod test_cdx_ig_46_cdso_regressions;
-#[cfg(test)]
-#[path = "../../../../tests/instruments/cds_option/test_option_bounds.rs"]
-mod test_option_bounds;
-#[cfg(test)]
-#[path = "../../../../tests/instruments/cds_option/test_pricing.rs"]
-mod test_pricing;

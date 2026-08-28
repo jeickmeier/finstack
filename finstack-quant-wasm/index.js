@@ -9,6 +9,7 @@ export { default } from './pkg/finstack_quant_wasm.js';
 export { core } from './exports/core.js';
 export { analytics } from './exports/analytics.js';
 export { attribution } from './exports/attribution.js';
+export { calibration } from './exports/calibration.js';
 export { cashflows } from './exports/cashflows.js';
 export { covenants } from './exports/covenants.js';
 export { features } from './exports/features.js';

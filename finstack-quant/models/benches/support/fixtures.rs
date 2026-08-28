@@ -33,7 +33,7 @@ use finstack_quant_models::monte_carlo::process::schwartz_smith::{
     SchwartzSmithParams, SchwartzSmithProcess,
 };
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::TimeGrid;
 use finstack_quant_models::monte_carlo::traits::{PathState, Payoff};
 
 pub const SPOT: f64 = 100.0;

@@ -52,6 +52,7 @@ use super::factors::*;
 use super::helpers::*;
 use super::model_params;
 use super::types::*;
+use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -594,6 +595,7 @@ fn attribute_pnl_parallel_impl(
     prepared_endpoints: Option<(Money, Money)>,
 ) -> Result<PnlAttribution> {
     validate_attribution_period(as_of_t0, as_of_t1)?;
+    let recalibration_provider = CachedRecalibrationProvider::new();
 
     // Endpoint repricings remain part of the workflow's accounting even when
     // the portfolio engine prepared them. The prepared path removes duplicate
@@ -1458,10 +1460,12 @@ fn attribute_pnl_parallel_impl(
                                 &cascade.hazard_curve_ids,
                             ),
                             _ => shift_credit_curves_par_spread(
+                                market_t0,
                                 &market_t0_credit,
                                 &cascade.hazard_curve_ids,
                                 cascade.discount_curve_id.as_ref(),
                                 cumulative_bp.unwrap_or(0.0),
+                                &recalibration_provider,
                             )?,
                         };
                         reprice_instrument(instrument, &market_step, as_of_t1)

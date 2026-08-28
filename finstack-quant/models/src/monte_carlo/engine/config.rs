@@ -2,7 +2,7 @@
 //!
 use super::path_capture::PathCaptureConfig;
 use super::pricing::McEngine;
-use crate::monte_carlo::time_grid::TimeGrid;
+use crate::monte_carlo::TimeGrid;
 use finstack_quant_core::Result;
 
 /// Maximum number of Monte Carlo paths allowed per simulation run.
@@ -124,7 +124,7 @@ impl McEngineConfig {
 /// Builder for [`McEngine`] with ergonomic defaults.
 pub struct McEngineBuilder {
     num_paths: usize,
-    time_grid: Option<TimeGrid>,
+    time_grid: Result<Option<TimeGrid>>,
     target_ci: Option<f64>,
     parallel: bool,
     chunk_size: Option<usize>,
@@ -144,7 +144,7 @@ impl McEngineBuilder {
             .engine_builder;
         Self {
             num_paths: defaults.num_paths,
-            time_grid: None,
+            time_grid: Ok(None),
             target_ci: None,
             parallel: defaults.use_parallel,
             chunk_size: None,
@@ -165,7 +165,7 @@ impl McEngineBuilder {
     ///
     /// * `grid` - Grid supplied by the caller for this operation
     pub fn time_grid(mut self, grid: TimeGrid) -> Self {
-        self.time_grid = Some(grid);
+        self.time_grid = Ok(Some(grid));
         self
     }
 
@@ -178,11 +178,10 @@ impl McEngineBuilder {
     ///
     /// # Returns
     ///
-    /// The builder with `time_grid` populated if `TimeGrid::uniform` succeeds.
-    /// Invalid inputs leave the builder without a grid, causing
-    /// [`Self::build`] to return an error later.
+    /// The builder stores either the valid grid or the exact construction error;
+    /// [`Self::build`] returns that error without replacing it.
     pub fn uniform_grid(mut self, t_max: f64, num_steps: usize) -> Self {
-        self.time_grid = TimeGrid::uniform(t_max, num_steps).ok();
+        self.time_grid = TimeGrid::uniform(t_max, num_steps).map(Some);
         self
     }
 
@@ -232,13 +231,11 @@ impl McEngineBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error when no valid time grid has been configured. This
-    /// commonly happens when neither [`Self::time_grid`] nor
-    /// [`Self::uniform_grid`] was called, or when `uniform_grid` was called with
-    /// invalid inputs.
+    /// Returns the original uniform-grid construction error, or
+    /// [`finstack_quant_core::InputError::Invalid`] when no grid was configured.
     pub fn build(self) -> Result<McEngine> {
         let time_grid = self
-            .time_grid
+            .time_grid?
             .ok_or(finstack_quant_core::InputError::Invalid)?;
 
         let config = McEngineConfig {

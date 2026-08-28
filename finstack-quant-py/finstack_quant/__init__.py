@@ -3,7 +3,7 @@
 The public API mirrors the Rust umbrella crate structure exactly.
 Import subpackages by domain::
 
-    from finstack_quant import core, analytics, valuations
+    from finstack_quant import calibration, core, analytics, valuations
 
 Submodules are loaded lazily — importing ``finstack_quant`` does not pull in every
 domain, which reduces cold-start time in CLIs, notebooks, and serverless
@@ -27,6 +27,7 @@ __all__ = [
     "__version__",
     "analytics",
     "attribution",
+    "calibration",
     "cashflows",
     "core",
     "covenants",
@@ -54,6 +55,7 @@ if TYPE_CHECKING:
     from . import (
         analytics as analytics,
         attribution as attribution,
+        calibration as calibration,
         cashflows as cashflows,
         core as core,
         covenants as covenants,

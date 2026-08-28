@@ -115,12 +115,7 @@ fn test_cds_par_spread_consistency() {
 
     let metrics = vec![MetricId::ParSpread];
     let result = cds
-        .price_with_metrics(
-            &market,
-            as_of,
-            &metrics,
-            finstack_quant_valuations::instruments::PricingOptions::default(),
-        )
+        .price_with_metrics(&market, as_of, &metrics, credit_support::pricing_options())
         .expect("pricing with metrics should succeed");
 
     if let Some(&par_spread_bp) = result.measures.get(MetricId::ParSpread.as_str()) {
@@ -208,12 +203,7 @@ fn test_cds_cs01_vs_risky_annuity() {
 
     let metrics = vec![MetricId::Cs01, MetricId::RiskyAnnuity];
     let result = cds
-        .price_with_metrics(
-            &market,
-            as_of,
-            &metrics,
-            finstack_quant_valuations::instruments::PricingOptions::default(),
-        )
+        .price_with_metrics(&market, as_of, &metrics, credit_support::pricing_options())
         .expect("pricing with metrics should succeed");
 
     if let (Some(&cs01), Some(&risky_annuity)) = (

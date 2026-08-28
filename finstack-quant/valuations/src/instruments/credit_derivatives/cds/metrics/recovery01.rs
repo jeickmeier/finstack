@@ -36,11 +36,11 @@
 //! and the premium leg (accrued on default settlement). This metric captures
 //! the full direct sensitivity across both legs.
 
-use super::{hazard_with_deal_quote, market_doc_clause};
-use crate::calibration::bumps::hazard::recalibrate_hazard_with_recovery;
+use super::{deal_quote_override, market_doc_clause};
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
 use crate::metrics::{MetricCalculator, MetricContext};
+use crate::recalibration::{HazardRecalibrationAction, HazardRecalibrationRequest};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
 
@@ -59,10 +59,11 @@ pub(crate) struct Recovery01Calculator;
 /// use an explicitly frozen hazard curve. Returns the bumped PV.
 fn price_at_bumped_recovery(
     cds: &CreditDefaultSwap,
-    base_market: &MarketContext,
+    context: &MetricContext,
     new_recovery: f64,
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<f64> {
+    let base_market = context.curves.as_ref();
     let mut bumped_cds = cds.clone();
     bumped_cds.protection.recovery_rate = new_recovery;
 
@@ -86,21 +87,27 @@ fn price_at_bumped_recovery(
     };
 
     let market_for_pricing: MarketContext = if has_par_quotes {
-        let recalibrated = recalibrate_hazard_with_recovery(
-            hazard.as_ref(),
-            new_recovery,
-            base_market,
-            Some(&discount_id),
-            Some(market_doc_clause(cds)),
-            Some(cds.valuation_convention),
-        )
+        let recalibrated = context
+            .rebuild_hazard_curve(
+                HazardRecalibrationRequest {
+                    hazard,
+                    source_market: std::sync::Arc::clone(&context.curves),
+                    target_market: std::sync::Arc::clone(&context.curves),
+                    discount_curve_id: discount_id,
+                    doc_clause: Some(market_doc_clause(cds)),
+                    cds_valuation_convention: Some(cds.valuation_convention),
+                    deal_quote_override: deal_quote_override(cds),
+                    action: HazardRecalibrationAction::RecoveryRateReplay { recovery_rate: new_recovery },
+                },
+                "recovery01",
+            )
         .map_err(|e| finstack_quant_core::Error::Calibration {
             message: format!(
                 "CDS Recovery01: recovery re-bootstrap failed for curve '{credit_id}' ({e}); refusing silent frozen-curve fallback"
             ),
             category: "recovery01_rebootstrap".to_string(),
         })?;
-        base_market.clone().insert(recalibrated)
+        base_market.clone().insert(recalibrated.as_ref().clone())
     } else {
         frozen_curve_market()?
     };
@@ -112,11 +119,7 @@ impl MetricCalculator for Recovery01Calculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let cds: &CreditDefaultSwap = context.instrument_as()?;
         let as_of = context.as_of;
-        let original_market = context.curves.as_ref();
-        let hazard = original_market.get_hazard(cds.protection.credit_curve_id.as_str())?;
-        let adjusted_market = hazard_with_deal_quote(cds, hazard.as_ref())?
-            .map(|quote_hazard| original_market.clone().insert(quote_hazard));
-        let market = adjusted_market.as_ref().unwrap_or(original_market);
+        let market = context.curves.as_ref();
 
         let base_recovery = cds.protection.recovery_rate;
 
@@ -130,18 +133,18 @@ impl MetricCalculator for Recovery01Calculator {
 
         let slope = match (can_bump_up, can_bump_down) {
             (true, true) => {
-                let pv_up = price_at_bumped_recovery(cds, market, bumped_up, as_of)?;
-                let pv_down = price_at_bumped_recovery(cds, market, bumped_down, as_of)?;
+                let pv_up = price_at_bumped_recovery(cds, context, bumped_up, as_of)?;
+                let pv_down = price_at_bumped_recovery(cds, context, bumped_down, as_of)?;
                 (pv_up - pv_down) / (up_delta + down_delta)
             }
             (true, false) => {
                 let base_pv = cds.value(market, as_of)?.amount();
-                let pv_up = price_at_bumped_recovery(cds, market, bumped_up, as_of)?;
+                let pv_up = price_at_bumped_recovery(cds, context, bumped_up, as_of)?;
                 (pv_up - base_pv) / up_delta
             }
             (false, true) => {
                 let base_pv = cds.value(market, as_of)?.amount();
-                let pv_down = price_at_bumped_recovery(cds, market, bumped_down, as_of)?;
+                let pv_down = price_at_bumped_recovery(cds, context, bumped_down, as_of)?;
                 (base_pv - pv_down) / down_delta
             }
             (false, false) => 0.0,

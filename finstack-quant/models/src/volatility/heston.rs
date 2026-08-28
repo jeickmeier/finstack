@@ -434,14 +434,14 @@ impl HestonParams {
         Ok(params)
     }
 
-    /// Check whether the Feller condition (2κθ > σ²) is satisfied.
+    /// Check whether the inclusive Feller condition (2κθ ≥ σ²) is satisfied.
     ///
-    /// When satisfied, the variance process is strictly positive almost surely.
-    /// When violated, variance can reach zero, which causes numerical issues
-    /// in Monte Carlo simulation (though Fourier pricing remains valid).
+    /// At equality the CIR variance boundary remains unattainable. When the
+    /// condition is violated, variance can reach zero, which causes numerical
+    /// issues in Monte Carlo simulation (though Fourier pricing remains valid).
     #[must_use]
     pub fn satisfies_feller_condition(&self) -> bool {
-        2.0 * self.kappa * self.theta > self.sigma_v * self.sigma_v
+        2.0 * self.kappa * self.theta >= self.sigma_v * self.sigma_v
     }
 
     /// Return deterministic average variance over `[0, t]`.

@@ -75,10 +75,10 @@ Domains that mirror a nested Rust module tree expose it as nested packages:
 - `finstack_quant.models.factor.{credit, risk, schema}`,
   `finstack_quant.features.dataframe`.
 
-Each of the nine schema-publishing registry domains also has a Python schema
+Each of the ten schema-publishing registry domains also has a Python schema
 namespace. The factor registry lives at `finstack_quant.models.factor.schema`;
 the others use the corresponding domain's `.schema` module.
-`finstack_quant.schema` is the merged view over all nine.
+`finstack_quant.schema` is the merged view over all ten.
 
 ## Build and install
 

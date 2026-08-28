@@ -148,8 +148,6 @@
 //!
 //! # See Also
 //!
-//! - [`AsianPriceResult`] for result structure with optional Greeks
-//! - [`AsianGreeks`] for first-order sensitivities
 //! - Monte Carlo pricing for exact arithmetic average pricing
 
 use finstack_quant_core::math::special_functions::norm_cdf;
@@ -171,31 +169,6 @@ fn validate_discount_factor(df: f64) -> Result<()> {
         )));
     }
     Ok(())
-}
-
-/// Pricing result for Asian options.
-#[derive(Debug, Clone, Copy)]
-pub struct AsianPriceResult {
-    /// Option price
-    pub price: f64,
-    /// First-order Greeks (delta, gamma, vega, theta, rho)
-    pub greeks: Option<AsianGreeks>,
-}
-
-/// Greeks for Asian options.
-/// Greeks for Asian options
-#[derive(Debug, Clone, Copy, Default)]
-pub struct AsianGreeks {
-    /// Delta: sensitivity to underlying price
-    pub delta: f64,
-    /// Gamma: rate of change of delta
-    pub gamma: f64,
-    /// Vega: sensitivity to volatility
-    pub vega: f64,
-    /// Theta: time decay
-    pub theta: f64,
-    /// Rho: sensitivity to interest rate
-    pub rho: f64,
 }
 
 /// Price a geometric average Asian call option (closed-form).

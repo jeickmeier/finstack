@@ -671,6 +671,107 @@ impl HazardCurve {
         self.metadata_builder(temp_id).knots(shifted_points).build()
     }
 
+    /// Create a curve with every model hazard rate shifted in basis-point units.
+    ///
+    /// This is a direct intensity shock; it does not replay CDS par quotes.
+    /// Stored par-spread and calibration recipes are intentionally removed.
+    ///
+    /// # Arguments
+    ///
+    /// * `bump_bp` - Additive hazard-rate shift in basis points, where one
+    ///   basis point is `1e-4` in decimal intensity units.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the shock is non-finite or produces an invalid
+    /// hazard rate.
+    pub fn with_parallel_hazard_rate_bump_bp(&self, bump_bp: f64) -> crate::Result<Self> {
+        if !bump_bp.is_finite() {
+            return Err(crate::error::InputError::UnsupportedBump {
+                reason: "hazard-rate basis-point bump must be finite".to_string(),
+            }
+            .into());
+        }
+        self.metadata_builder(self.id.clone())
+            .knots(
+                self.knot_points()
+                    .map(|(tenor, hazard_rate)| (tenor, hazard_rate + bump_bp * 1e-4)),
+            )
+            .build()
+    }
+
+    /// Create a curve with direct hazard-rate shocks at tenor segments.
+    ///
+    /// An exact knot match shocks that knot. Otherwise the segment containing
+    /// the requested tenor is shocked; targets beyond the final knot are a
+    /// no-op. Requests are applied in order, so repeated targets are additive.
+    /// Stored par-spread and calibration recipes are intentionally removed.
+    ///
+    /// # Arguments
+    ///
+    /// * `targets_bp` - Ordered `(tenor_years, bump_bp)` shocks. Tenors are
+    ///   measured from the curve base date and bumps are additive hazard-rate
+    ///   basis points.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a tenor or bump is non-finite, the curve is
+    /// malformed, or rebuilding the shocked curve fails validation.
+    pub fn with_tenor_hazard_rate_bumps_bp(
+        &self,
+        targets_bp: &[(f64, f64)],
+    ) -> crate::Result<Self> {
+        let knots: Vec<f64> = self.knot_points().map(|(tenor, _)| tenor).collect();
+        let mut hazard_rates: Vec<f64> = self
+            .knot_points()
+            .map(|(_, hazard_rate)| hazard_rate)
+            .collect();
+        if knots.len() < 2 {
+            let total_bp = targets_bp.iter().try_fold(0.0, |total, (tenor, bump_bp)| {
+                if !tenor.is_finite() || !bump_bp.is_finite() {
+                    return Err(crate::error::InputError::UnsupportedBump {
+                        reason: "hazard-rate tenor and basis-point bump must be finite".to_string(),
+                    });
+                }
+                Ok(total + bump_bp)
+            })?;
+            return self.with_parallel_hazard_rate_bump_bp(total_bp);
+        }
+
+        let last_knot = knots[knots.len() - 1];
+        for (tenor, bump_bp) in targets_bp {
+            if !tenor.is_finite() || !bump_bp.is_finite() {
+                return Err(crate::error::InputError::UnsupportedBump {
+                    reason: "hazard-rate tenor and basis-point bump must be finite".to_string(),
+                }
+                .into());
+            }
+            if *tenor > last_knot + 1e-6 {
+                continue;
+            }
+            let mut target_index = knots
+                .iter()
+                .position(|knot| (*knot - tenor).abs() <= 1e-6)
+                .unwrap_or(0);
+            if target_index == 0 {
+                if *tenor <= knots[0] {
+                    target_index = 0;
+                } else if *tenor >= last_knot {
+                    target_index = knots.len() - 1;
+                } else if let Some(index) = (0..knots.len() - 1)
+                    .find(|index| *tenor > knots[*index] && *tenor < knots[*index + 1])
+                {
+                    target_index = index;
+                }
+            }
+            hazard_rates[target_index] = (hazard_rates[target_index] + bump_bp * 1e-4).max(0.0);
+        }
+
+        self.metadata_builder(self.id.clone())
+            .knots(knots.into_iter().zip(hazard_rates))
+            .build()
+    }
+
     /// Roll the curve forward by a specified number of days.
     ///
     /// This creates a new curve with:
@@ -1529,6 +1630,60 @@ mod tests {
             (quote - 70.0).abs() < 1e-9,
             "fallback quote must reflect bumped hazards, got {quote}"
         );
+    }
+
+    #[test]
+    fn direct_hazard_rate_parallel_bump_is_additive() {
+        let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+        let curve = HazardCurve::builder("DIRECT-PARALLEL")
+            .base_date(base)
+            .recovery_rate(0.40)
+            .knots([(1.0, 0.010), (3.0, 0.015), (5.0, 0.020)])
+            .par_spreads([(1.0, 60.0), (3.0, 90.0), (5.0, 120.0)])
+            .build()
+            .expect("valid hazard curve");
+
+        let up = curve
+            .with_parallel_hazard_rate_bump_bp(25.0)
+            .expect("parallel direct shock");
+        let round_trip = up
+            .with_parallel_hazard_rate_bump_bp(-25.0)
+            .expect("reverse direct shock");
+
+        for (tenor, base_rate) in curve.knot_points() {
+            assert!((up.hazard_rate(tenor) - base_rate - 25e-4).abs() < 1e-12);
+            assert!((round_trip.hazard_rate(tenor) - base_rate).abs() < 1e-12);
+        }
+        assert_eq!(up.id(), curve.id());
+        assert_eq!(up.par_spread_points().count(), 0);
+        assert!(up.hazard_calibration().is_none());
+    }
+
+    #[test]
+    fn direct_hazard_rate_tenor_bumps_preserve_segment_matching_and_additivity() {
+        let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+        let curve = HazardCurve::builder("DIRECT-TENORS")
+            .base_date(base)
+            .recovery_rate(0.40)
+            .knots([(1.0, 0.010), (3.0, 0.015), (5.0, 0.020), (10.0, 0.025)])
+            .build()
+            .expect("valid hazard curve");
+
+        let bumped = curve
+            .with_tenor_hazard_rate_bumps_bp(&[
+                (4.0, 3.0),
+                (4.0, 5.0),
+                (3.0, 2.0),
+                (10.0 + 2e-6, 100.0),
+            ])
+            .expect("tenor direct shocks");
+        let expected = [0.010, 0.016, 0.020, 0.025];
+        for ((tenor, rate), expected_rate) in bumped.knot_points().zip(expected) {
+            assert!(
+                (rate - expected_rate).abs() < 1e-12,
+                "unexpected direct hazard rate at {tenor}: {rate}"
+            );
+        }
     }
 
     #[test]

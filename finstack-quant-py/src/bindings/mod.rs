@@ -8,6 +8,7 @@ use pyo3::types::PyList;
 
 pub mod analytics;
 pub mod attribution;
+pub mod calibration;
 pub mod cashflows;
 pub mod core;
 pub mod covenants;
@@ -38,6 +39,7 @@ pub fn register_root(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     core::register(py, m)?;
     analytics::register(py, m)?;
     attribution::register(py, m)?;
+    calibration::register(py, m)?;
     cashflows::register(py, m)?;
     covenants::register(py, m)?;
     features::register(py, m)?;
@@ -56,6 +58,7 @@ pub fn register_root(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
             "core",
             "analytics",
             "attribution",
+            "calibration",
             "cashflows",
             "covenants",
             "features",

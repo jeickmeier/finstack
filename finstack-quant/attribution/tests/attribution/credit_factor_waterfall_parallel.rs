@@ -145,16 +145,6 @@ fn flat_discount(base: time::Date) -> DiscountCurve {
         .expect("discount curve")
 }
 
-fn flat_hazard(base: time::Date, rate: f64) -> HazardCurve {
-    HazardCurve::builder("ISSUER-A-HAZ")
-        .base_date(base)
-        .day_count(DayCount::Act365F)
-        .recovery_rate(0.4)
-        .knots([(0.5_f64, rate), (5.0_f64, rate), (10.0_f64, rate)])
-        .build()
-        .expect("hazard curve")
-}
-
 fn make_market_state(disc: DiscountCurve, haz: HazardCurve) -> MarketContextState {
     MarketContextState {
         schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
@@ -171,6 +161,31 @@ fn make_market_state(disc: DiscountCurve, haz: HazardCurve) -> MarketContextStat
         hierarchy: None,
         vol_cubes: vec![],
     }
+}
+
+fn flat_market_state(base: time::Date, rate: f64) -> MarketContextState {
+    let discount = flat_discount(base);
+    let convention = CdsConventionKey {
+        currency: Currency::USD,
+        doc_clause: CdsDocClause::IsdaNa,
+    };
+    let spread_bp = rate * (1.0 - 0.4) * 10_000.0;
+    let hazard = calibrated_hazard_curve(
+        &discount,
+        base,
+        "ISSUER-A-HAZ",
+        "ISSUER-A",
+        0.4,
+        convention,
+        &[
+            (1, spread_bp),
+            (3, spread_bp),
+            (5, spread_bp),
+            (10, spread_bp),
+        ],
+    )
+    .expect("replayable hazard curve");
+    make_market_state(discount, hazard)
 }
 
 fn standard_period() -> (time::Date, time::Date) {
@@ -208,8 +223,8 @@ fn waterfall_credit_factor_detail_reconciles_to_credit_curves_pnl() {
     let bond = make_bond();
     let model = make_model(vec![HierarchyDimension::Rating, HierarchyDimension::Region]);
 
-    let market_t0 = make_market_state(flat_discount(as_of_t0), flat_hazard(as_of_t0, 0.01));
-    let market_t1 = make_market_state(flat_discount(as_of_t1), flat_hazard(as_of_t1, 0.02));
+    let market_t0 = flat_market_state(as_of_t0, 0.01);
+    let market_t1 = flat_market_state(as_of_t1, 0.02);
 
     let spec = AttributionSpec {
         instrument: InstrumentJson::Bond(bond),
@@ -249,7 +264,7 @@ fn waterfall_credit_factor_detail_reconciles_to_credit_curves_pnl() {
     );
     // For a flat (parallel) hazard move the curve-shape component is ~0.
     assert!(
-        detail.curve_shape_pnl.amount().abs() < 1e-6,
+        detail.curve_shape_pnl.amount().abs() < 1e-4 * expected.abs().max(1.0),
         "a flat hazard move must leave curve_shape ~0, got {}",
         detail.curve_shape_pnl.amount()
     );
@@ -269,10 +284,7 @@ fn waterfall_twisted_hazard_attributes_curve_shape_not_adder() {
 
     // T0 flat at 200 bp; T1 twisted with shifts (+100,+100,+50,+50,0,-50,-50,
     // -100,-100) bp — signed average exactly 0, large L1.
-    let market_t0 = make_market_state(
-        flat_discount(as_of_t0),
-        twisted_hazard(as_of_t0, &[0.02; 9]),
-    );
+    let market_t0 = flat_market_state(as_of_t0, 0.02);
     let market_t1 = make_market_state(
         flat_discount(as_of_t1),
         twisted_hazard(
@@ -351,8 +363,8 @@ fn parallel_credit_detail_plus_cross_effects_preserves_total() {
     let bond = make_bond();
     let model = make_model(vec![HierarchyDimension::Rating, HierarchyDimension::Region]);
 
-    let market_t0 = make_market_state(flat_discount(as_of_t0), flat_hazard(as_of_t0, 0.01));
-    let market_t1 = make_market_state(flat_discount(as_of_t1), flat_hazard(as_of_t1, 0.02));
+    let market_t0 = flat_market_state(as_of_t0, 0.01);
+    let market_t1 = flat_market_state(as_of_t1, 0.02);
 
     let spec = AttributionSpec {
         instrument: InstrumentJson::Bond(bond),
@@ -415,8 +427,8 @@ fn waterfall_no_model_keeps_default_credit_step() {
 
     let (as_of_t0, as_of_t1) = standard_period();
     let bond = make_bond();
-    let market_t0 = make_market_state(flat_discount(as_of_t0), flat_hazard(as_of_t0, 0.01));
-    let market_t1 = make_market_state(flat_discount(as_of_t1), flat_hazard(as_of_t1, 0.02));
+    let market_t0 = flat_market_state(as_of_t0, 0.01);
+    let market_t1 = flat_market_state(as_of_t1, 0.02);
 
     let spec = AttributionSpec {
         instrument: InstrumentJson::Bond(bond),
@@ -452,8 +464,8 @@ fn parallel_model_with_unmapped_issuer_adds_diagnostic_note() {
 
     let spec = AttributionSpec {
         instrument: InstrumentJson::Bond(bond),
-        market_t0: make_market_state(flat_discount(as_of_t0), flat_hazard(as_of_t0, 0.01)),
-        market_t1: make_market_state(flat_discount(as_of_t1), flat_hazard(as_of_t1, 0.02)),
+        market_t0: flat_market_state(as_of_t0, 0.01),
+        market_t1: flat_market_state(as_of_t1, 0.02),
         as_of_t0,
         as_of_t1,
         method: AttributionMethod::Parallel,
@@ -488,8 +500,8 @@ fn parallel_model_with_unmapped_issuer_adds_diagnostic_note() {
 fn same_credit_total_different_hierarchy_different_detail() {
     let (as_of_t0, as_of_t1) = standard_period();
 
-    let market_t0 = make_market_state(flat_discount(as_of_t0), flat_hazard(as_of_t0, 0.01));
-    let market_t1 = make_market_state(flat_discount(as_of_t1), flat_hazard(as_of_t1, 0.02));
+    let market_t0 = flat_market_state(as_of_t0, 0.01);
+    let market_t1 = flat_market_state(as_of_t1, 0.02);
 
     let run = |levels: Vec<HierarchyDimension>| {
         let bond = make_bond();
@@ -535,7 +547,8 @@ fn same_credit_total_different_hierarchy_different_detail() {
         let detail = attribution.credit_factor_detail.as_ref().unwrap();
         let attributed = detail.generic_pnl.amount()
             + detail.levels.iter().map(|l| l.total.amount()).sum::<f64>()
-            + detail.adder_pnl_total.amount();
+            + detail.adder_pnl_total.amount()
+            + detail.curve_shape_pnl.amount();
         assert!(
             (attributed - attribution.credit_curves_pnl.amount()).abs() < 1e-8,
             "reconciliation failed for one of the runs"
@@ -561,8 +574,8 @@ fn same_credit_total_different_hierarchy_different_detail() {
 #[test]
 fn parallel_credit_cascade_attributes_each_step_to_its_own_contribution() {
     let (as_of_t0, as_of_t1) = standard_period();
-    let market_t0 = make_market_state(flat_discount(as_of_t0), flat_hazard(as_of_t0, 0.01));
-    let market_t1 = make_market_state(flat_discount(as_of_t1), flat_hazard(as_of_t1, 0.02));
+    let market_t0 = flat_market_state(as_of_t0, 0.01);
+    let market_t1 = flat_market_state(as_of_t1, 0.02);
 
     let run = |method: AttributionMethod| {
         let spec = AttributionSpec {

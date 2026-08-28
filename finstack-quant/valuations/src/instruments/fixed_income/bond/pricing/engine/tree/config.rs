@@ -10,8 +10,8 @@ use finstack_quant_models::trees::TreeCompounding;
 ///
 /// Controls which interest rate tree is used for backward induction. The default
 /// `HoLee` model is a simple parallel-shift tree appropriate for quick estimates.
-/// For production callable bond OAS, prefer `HullWhite` with calibrated parameters
-/// or `HullWhiteCalibratedToSwaptions` for automatic calibration.
+/// For production callable bond OAS, use `HullWhite` with parameters fitted
+/// before pricing.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 #[derive(Default)]
@@ -36,15 +36,6 @@ pub enum TreeModelChoice {
         mean_reversion: f64,
         /// Lognormal short-rate volatility (e.g., 0.20 for 20%)
         sigma: f64,
-    },
-    /// Hull-White 1-factor calibrated to co-terminal swaptions.
-    ///
-    /// Extracts relevant swaption quotes from the market context and calibrates
-    /// (kappa, sigma) automatically. This is the recommended choice for
-    /// production callable bond OAS.
-    HullWhiteCalibratedToSwaptions {
-        /// ID of the swaption volatility surface in the market context
-        swaption_vol_surface_id: String,
     },
 }
 
@@ -202,8 +193,6 @@ pub struct TreePricerConfig {
     ///
     /// - `HoLee` (default): Uses the existing `ShortRateTree` path.
     /// - `HullWhite { kappa, sigma }`: Uses a calibrated HW trinomial tree.
-    /// - `HullWhiteCalibratedToSwaptions { .. }`: Auto-calibrates HW params
-    ///   from swaption vol data (preferred for production callable bond OAS).
     pub tree_model: TreeModelChoice,
 
     /// Optional discount curve used only for tree/OAS calibration.
@@ -289,9 +278,7 @@ pub fn bond_tree_config(bond: &Bond) -> finstack_quant_core::Result<TreePricerCo
         Some(crate::instruments::common_impl::parameters::VolatilityModel::Black)
     );
 
-    // For callable/putable bonds, default to Hull-White with reasonable parameters.
-    // HullWhiteCalibratedToSwaptions should be preferred when swaption vol data
-    // is available in the market context.
+    // For callable/putable bonds, select only explicitly parameterized models.
     let tree_model = if bond.call_put.is_some() {
         if uses_black_lognormal {
             let Some(sigma) = implied_volatility else {
@@ -631,31 +618,6 @@ impl TreePricerConfig {
         }
     }
 
-    /// Create a configuration using a Hull-White 1-factor tree calibrated
-    /// to swaption volatilities from the market context.
-    ///
-    /// This is the recommended choice for production callable bond OAS.
-    ///
-    /// # Arguments
-    ///
-    /// * `swaption_vol_surface_id` - ID of the swaption vol surface in market context
-    pub fn hull_white_calibrated(swaption_vol_surface_id: String) -> Self {
-        Self {
-            tree_steps: 100,
-            volatility: 0.01, // placeholder; overridden by calibrated sigma
-            tolerance: 1e-6,
-            max_iterations: 50,
-            initial_bracket_size_bp: Some(1000.0),
-            mean_reversion: None,
-            tree_model: TreeModelChoice::HullWhiteCalibratedToSwaptions {
-                swaption_vol_surface_id,
-            },
-            tree_discount_curve_id: None,
-            oas_quote_compounding: OasQuoteCompounding::Continuous,
-            oas_price_basis: OasPriceBasis::SettlementDirty,
-            tree_compounding: TreeCompounding::default(),
-        }
-    }
 }
 
 #[cfg(test)]

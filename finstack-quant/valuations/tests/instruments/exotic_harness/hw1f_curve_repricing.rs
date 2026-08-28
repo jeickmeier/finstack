@@ -13,7 +13,7 @@
 //!
 //! * [`calibrated_theta_reprices_sloped_curve`] is the **core M6 regression**.
 //!   It builds the process through the *production* entry points the fixed
-//!   pricers use — `hw1f::hw1f_curve::calibrate_hw1f_params` (the
+//!   pricers use — `hw1f::hw1f_curve::prepare_hw1f_params` (the
 //!   θ(t) bootstrap) and `initial_short_rate_from_curve` (`r0 = f(0,0)`) — and
 //!   asserts the simulated ZCB prices reproduce the input discount factors. On
 //!   the parent commit the pricers used flat `θ = r0`, so this assertion fails
@@ -38,10 +38,10 @@ use finstack_quant_models::monte_carlo::process::ou::{
     calibrate_theta_from_curve, HullWhite1FParams, HullWhite1FProcess,
 };
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
 use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream};
+use finstack_quant_models::monte_carlo::TimeGrid;
 use finstack_quant_valuations::instruments::rates::hw1f::{
-    calibrate_hw1f_params, initial_short_rate_from_curve,
+    initial_short_rate_from_curve, prepare_hw1f_params,
 };
 use time::Month;
 
@@ -132,7 +132,7 @@ fn sloped_discount_fn(t: f64) -> f64 {
 
 /// The sloped curve of [`sloped_discount_fn`] as a real [`DiscountCurve`],
 /// sampled on a fine (quarterly) knot grid out to 6y. This lets the core M6
-/// test drive the *production* `calibrate_hw1f_params` /
+/// test drive the *production* `prepare_hw1f_params` /
 /// `initial_short_rate_from_curve` entry points the exotic pricers use, rather
 /// than a hand-rolled bootstrap.
 fn sloped_discount_curve(as_of: Date) -> DiscountCurve {
@@ -208,7 +208,7 @@ fn flat_theta_misreprices_sloped_curve() {
 ///
 /// Builds the HW1F process through the **production** entry points the TARN /
 /// snowball / callable-range-accrual pricers use after the M6 fix:
-/// `calibrate_hw1f_params` (the θ(t) bootstrap) and `initial_short_rate_from_curve`
+/// `prepare_hw1f_params` (the θ(t) construction) and `initial_short_rate_from_curve`
 /// (`r0 = f(0,0)`). It then simulates ZCB prices and asserts they reproduce the
 /// input discount factors.
 ///
@@ -243,7 +243,7 @@ fn calibrated_theta_reprices_sloped_curve() {
     let curve = sloped_discount_curve(as_of);
     let hw = finstack_quant_models::rates::hull_white::HullWhiteParams::new(kappa, sigma)
         .expect("valid HW params");
-    let calibrated = calibrate_hw1f_params(hw, &curve, as_of, 5.0).expect("θ(t) bootstrap");
+    let calibrated = prepare_hw1f_params(hw, &curve, as_of, 5.0).expect("θ(t) preparation");
     let r0 = initial_short_rate_from_curve(&curve, as_of).expect("r0 = f(0,0)");
     println!(
         "θ(t) knots = {}, r0 = f(0,0) = {r0:.6}",

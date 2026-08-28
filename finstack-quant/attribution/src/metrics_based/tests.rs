@@ -850,7 +850,7 @@ fn test_vanna_alone_does_not_produce_spot_vol_cross_pnl() {
 }
 
 #[test]
-fn hw1f_cap_surface_shock_produces_metrics_based_vol_pnl() {
+fn hw1f_cap_surface_shock_does_not_affect_explicit_parameter_pricing() {
     use finstack_quant_core::dates::{DayCount, Tenor};
     use finstack_quant_core::market_data::bumps::{
         BumpMode, BumpSpec, BumpType, BumpUnits, MarketBump,
@@ -877,6 +877,10 @@ fn hw1f_cap_surface_shock_produces_metrics_based_vol_pnl() {
     )
     .expect("cap");
     cap.vol_type = CapFloorVolType::Normal;
+    cap.instrument_pricing_overrides
+        .model_config
+        .hw1f_mean_reversion = Some(0.03);
+    cap.instrument_pricing_overrides.model_config.hw1f_sigma = Some(0.01);
 
     let discount = DiscountCurve::builder("USD-OIS")
         .base_date(as_of_t0)
@@ -937,10 +941,15 @@ fn hw1f_cap_surface_shock_produces_metrics_based_vol_pnl() {
     )
     .expect("attribution");
 
-    assert!(val_t0.measures.get("vega").copied().unwrap_or(0.0) > 0.0);
+    let vega = val_t0.measures.get("vega").copied().unwrap_or(0.0);
     assert!(
-        attribution.vol_pnl.amount().abs() > 1e-6,
-        "surface-driven HW cap must produce non-zero vol P&L"
+        vega.abs() < 1e-12,
+        "explicit-parameter HW1F pricing must not sample the vol surface; got vega={vega}, measures={:?}",
+        val_t0.measures
+    );
+    assert!(
+        attribution.vol_pnl.amount().abs() < 1e-12,
+        "a surface-only move must have zero HW1F vol P&L when parameters are explicit"
     );
 }
 

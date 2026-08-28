@@ -43,12 +43,12 @@ use super::super::results::MoneyEstimate;
 use super::lsq::{regression_coefficients_with_basis, regression_with_basis};
 use crate::monte_carlo::discretization::exact::ExactGbm;
 use crate::monte_carlo::estimate::Estimate;
-use crate::monte_carlo::online_stats::OnlineStats;
 use crate::monte_carlo::pricer::basis::{build_lsmc_basis, BasisFunctions, BasisKind, LsmcBasis};
 use crate::monte_carlo::process::gbm::GbmProcess;
 use crate::monte_carlo::rng::philox::PhiloxRng;
-use crate::monte_carlo::time_grid::TimeGrid;
 use crate::monte_carlo::traits::{Discretization, RandomStream};
+use crate::monte_carlo::OnlineStats;
+use crate::monte_carlo::TimeGrid;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 

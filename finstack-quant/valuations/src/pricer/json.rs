@@ -294,6 +294,26 @@ fn resolve_model_key(
     }
 }
 
+/// Complete request for canonical JSON instrument pricing.
+pub struct JsonPricingRequest<'a> {
+    /// Canonical v1 instrument envelope JSON.
+    pub instrument_json: &'a str,
+    /// Market context supplying all model inputs.
+    pub market: &'a MarketContext,
+    /// ISO-8601 valuation date.
+    pub as_of: &'a str,
+    /// Concrete model key or `"default"`.
+    pub model: &'a str,
+    /// Strict metric identifiers requested with the valuation.
+    pub metrics: &'a [String],
+    /// Optional JSON overrides applied while constructing the instrument.
+    pub instrument_pricing_overrides_json: Option<&'a str>,
+    /// Optional serialized market history for historical risk metrics.
+    pub market_history_json: Option<&'a str>,
+    /// Pricing services and configuration supplied by the caller.
+    pub pricing_options: crate::instruments::PricingOptions,
+}
+
 /// Price a canonical instrument envelope using the shared standard registry.
 ///
 /// Pass `"default"` for `model` to use the instrument's native pricing model.
@@ -301,17 +321,9 @@ fn resolve_model_key(
 ///
 /// # Arguments
 ///
-/// * `instrument_json` - Required canonical v1 instrument envelope.
-/// * `market` - Market context supplying all required curves, surfaces,
-///   fixings, and FX data.
-/// * `as_of` - ISO-8601 valuation date.
-/// * `model` - A concrete model key or the case-insensitive `"default"`.
-/// * `metrics` - Strict metric identifiers requested in addition to the base
-///   valuation; pass an empty slice for price only.
-/// * `pricing_options` - Optional JSON metric-pricing overrides applied to the
-///   instrument before validation.
-/// * `market_history_json` - Optional serialized market history for metrics
-///   that require historical scenarios, such as historical VaR.
+/// * `request` - Instrument JSON, immutable market, valuation date, model,
+///   requested metrics, optional JSON overrides/history, and caller-supplied
+///   [`PricingOptions`](crate::instruments::PricingOptions).
 ///
 /// # Errors
 ///
@@ -319,20 +331,18 @@ fn resolve_model_key(
 /// history; missing required market data; or a failure in the selected pricer or
 /// metric calculation.
 pub fn price_instrument_json(
-    instrument_json: &str,
-    market: &MarketContext,
-    as_of: &str,
-    model: &str,
-    metrics: &[String],
-    pricing_options: Option<&str>,
-    market_history_json: Option<&str>,
+    request: JsonPricingRequest<'_>,
 ) -> finstack_quant_core::Result<ValuationResult> {
-    let instrument = parse_boxed_instrument_json(instrument_json, pricing_options)?;
-    let as_of = finstack_quant_core::dates::parse_iso_date(as_of)?;
-    let model = resolve_model_key(instrument.as_ref(), model)?;
+    let instrument = parse_boxed_instrument_json(
+        request.instrument_json,
+        request.instrument_pricing_overrides_json,
+    )?;
+    let as_of = finstack_quant_core::dates::parse_iso_date(request.as_of)?;
+    let model = resolve_model_key(instrument.as_ref(), request.model)?;
     let registry = shared_standard_registry();
     let metric_registry = registry.get_metric_registry();
-    let metric_ids: Vec<MetricId> = metrics
+    let metric_ids: Vec<MetricId> = request
+        .metrics
         .iter()
         .map(|metric| {
             MetricId::parse_strict(metric).or_else(|strict_error| {
@@ -345,19 +355,20 @@ pub fn price_instrument_json(
             })
         })
         .collect::<finstack_quant_core::Result<_>>()?;
-    let pricing_options = if let Some(json) = market_history_json {
+    let pricing_options = if let Some(json) = request.market_history_json {
         let history: crate::metrics::risk::MarketHistory = serde_json::from_str(json)
             .map_err(|e| Error::Validation(format!("invalid market history JSON: {e}")))?;
-        crate::instruments::PricingOptions::default()
+        request
+            .pricing_options
             .with_market_history(std::sync::Arc::new(history))
     } else {
-        crate::instruments::PricingOptions::default()
+        request.pricing_options
     };
     PricerRegistry::price_with_metrics_shared(
         &registry,
         instrument.as_ref(),
         model,
-        market,
+        request.market,
         as_of,
         &metric_ids,
         pricing_options,
@@ -392,15 +403,16 @@ pub fn metric_value_from_instrument_json(
     metric: &str,
 ) -> finstack_quant_core::Result<f64> {
     let metric_ids = [metric.to_string()];
-    let result = price_instrument_json(
+    let result = price_instrument_json(JsonPricingRequest {
         instrument_json,
         market,
         as_of,
         model,
-        &metric_ids,
-        None,
-        None,
-    )?;
+        metrics: &metric_ids,
+        instrument_pricing_overrides_json: None,
+        market_history_json: None,
+        pricing_options: crate::instruments::PricingOptions::default(),
+    })?;
     result
         .metric_str(metric)
         .ok_or_else(|| Error::Validation(format!("metric `{metric}` was not returned")))
@@ -438,15 +450,16 @@ pub fn present_metric_values_from_instrument_json<'a>(
     metrics: &'a [&'a str],
 ) -> finstack_quant_core::Result<Vec<(&'a str, f64)>> {
     let metric_ids: Vec<String> = metrics.iter().map(|m| (*m).to_string()).collect();
-    let result = price_instrument_json(
+    let result = price_instrument_json(JsonPricingRequest {
         instrument_json,
         market,
         as_of,
         model,
-        &metric_ids,
-        None,
-        None,
-    )?;
+        metrics: &metric_ids,
+        instrument_pricing_overrides_json: None,
+        market_history_json: None,
+        pricing_options: crate::instruments::PricingOptions::default(),
+    })?;
     Ok(metrics
         .iter()
         .filter_map(|m| result.metric_str(m).map(|v| (*m, v)))
@@ -588,6 +601,27 @@ mod tests {
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::money::Money;
+
+    fn price_instrument_json(
+        instrument_json: &str,
+        market: &MarketContext,
+        as_of: &str,
+        model: &str,
+        metrics: &[String],
+        instrument_pricing_overrides_json: Option<&str>,
+        market_history_json: Option<&str>,
+    ) -> finstack_quant_core::Result<ValuationResult> {
+        super::price_instrument_json(JsonPricingRequest {
+            instrument_json,
+            market,
+            as_of,
+            model,
+            metrics,
+            instrument_pricing_overrides_json,
+            market_history_json,
+            pricing_options: crate::instruments::PricingOptions::default(),
+        })
+    }
 
     fn envelope_value(instrument: InstrumentJson) -> Value {
         serde_json::to_value(InstrumentEnvelope::new(instrument)).expect("serialize envelope")

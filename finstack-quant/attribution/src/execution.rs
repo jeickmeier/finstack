@@ -4,6 +4,7 @@ use super::parallel::attribute_pnl_parallel_with_credit_model;
 use super::spec::{default_attribution_metrics, AttributionResult, AttributionSpec};
 use super::waterfall::attribute_pnl_waterfall_with_credit_model;
 use super::{attribute_pnl_metrics_based, AttributionMethod};
+use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
 use finstack_quant_core::{currency::Currency, dates::Date, money::Money};
@@ -217,7 +218,10 @@ impl AttributionSpec {
                 // silently inert (audit finding: spec.rs wrote the extension
                 // but pricing ran with `PricingOptions::default()`).
                 let pricing_options = finstack_quant_valuations::instruments::PricingOptions::new()
-                    .with_config(&config);
+                    .with_config(&config)
+                    .with_recalibration_provider(std::sync::Arc::new(
+                        CachedRecalibrationProvider::new(),
+                    ));
                 let val_t0 = instrument_arc.price_with_metrics(
                     &market_t0,
                     self.as_of_t0,

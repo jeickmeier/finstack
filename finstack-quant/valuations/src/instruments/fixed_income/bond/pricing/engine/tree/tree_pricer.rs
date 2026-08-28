@@ -325,17 +325,7 @@ impl TreePricer {
         }
         Self::reject_inert_hazard_inputs(bond)?;
 
-        let effective_model = match &self.config.tree_model {
-            TreeModelChoice::HullWhiteCalibratedToSwaptions {
-                swaption_vol_surface_id,
-            } => Self::resolve_hw_calibrated(
-                market_context,
-                &discount_curve,
-                swaption_vol_surface_id,
-                time_to_maturity,
-            ),
-            other => other.clone(),
-        };
+        let effective_model = self.config.tree_model.clone();
 
         match effective_model {
             TreeModelChoice::HullWhite { kappa, sigma } => {
@@ -399,7 +389,7 @@ impl TreePricer {
                 vars.insert(short_rate_keys::OAS, continuous_oas_bp);
                 tree.price(vars, time_to_maturity, market_context, &valuator)
             }
-            TreeModelChoice::HoLee | TreeModelChoice::HullWhiteCalibratedToSwaptions { .. } => {
+            TreeModelChoice::HoLee => {
                 let tree_config = ShortRateTreeConfig {
                     steps: self.config.tree_steps,
                     volatility: self.config.volatility,
@@ -532,20 +522,7 @@ impl TreePricer {
             Self::reject_inert_hazard_inputs(bond)?;
         }
 
-        // Resolve the effective HW parameters when using HullWhite model variants.
-        // For HullWhiteCalibratedToSwaptions, attempt swaption calibration;
-        // on failure, log a warning and fall back to HoLee.
-        let effective_model = match &self.config.tree_model {
-            TreeModelChoice::HullWhiteCalibratedToSwaptions {
-                swaption_vol_surface_id,
-            } if !use_rates_credit => Self::resolve_hw_calibrated(
-                market_context,
-                &discount_curve,
-                swaption_vol_surface_id,
-                time_to_maturity,
-            ),
-            other => other.clone(),
-        };
+        let effective_model = self.config.tree_model.clone();
 
         let mut sr_tree: Option<ShortRateTree> = None;
         let mut hw_tree: Option<HullWhiteTree> = None;
@@ -571,7 +548,7 @@ impl TreePricer {
                         &mandatory,
                     )?);
                 }
-                TreeModelChoice::HoLee | TreeModelChoice::HullWhiteCalibratedToSwaptions { .. } => {
+                TreeModelChoice::HoLee => {
                     let tree_config = ShortRateTreeConfig {
                         steps: self.config.tree_steps,
                         volatility: self.config.volatility,
@@ -732,105 +709,6 @@ impl TreePricer {
             * 10_000.0)
     }
 
-    /// Attempt swaption-calibrated Hull-White. On failure, fall back to HoLee.
-    ///
-    /// Reads the swaption vol surface from the market context, converts grid
-    /// points into `SwaptionQuote`s, and runs Levenberg-Marquardt calibration.
-    fn resolve_hw_calibrated(
-        market_context: &MarketContext,
-        discount_curve: &std::sync::Arc<
-            finstack_quant_core::market_data::term_structures::DiscountCurve,
-        >,
-        swaption_vol_surface_id: &str,
-        time_to_maturity: f64,
-    ) -> TreeModelChoice {
-        use crate::calibration::hull_white::{
-            calibrate_hull_white_to_swaptions, SwapFrequency, SwaptionQuote,
-        };
-
-        let Ok(surface) = market_context.get_surface(swaption_vol_surface_id) else {
-            tracing::warn!(
-                vol_surface_id = swaption_vol_surface_id,
-                "Swaption vol surface not found in market context; \
-                 falling back to HoLee tree model"
-            );
-            return TreeModelChoice::HoLee;
-        };
-
-        // Build SwaptionQuote list from the surface grid.
-        // Convention: expiries axis = swaption expiry (years),
-        //             strikes axis = underlying swap tenor (years).
-        // Each grid point is an ATM normal vol.
-        let expiries = surface.expiries();
-        let tenors = surface.strikes();
-        let mut quotes = Vec::with_capacity(expiries.len() * tenors.len());
-        for &expiry in expiries {
-            // Only use swaptions expiring before the bond maturity
-            if expiry > time_to_maturity || expiry <= 0.0 {
-                continue;
-            }
-            for &tenor in tenors {
-                if tenor <= 0.0 {
-                    continue;
-                }
-                let vol = finstack_quant_models::volatility::get_surface_vol_clamped(
-                    &surface, expiry, tenor,
-                );
-                if vol > 0.0 && vol.is_finite() {
-                    quotes.push(SwaptionQuote {
-                        expiry,
-                        tenor,
-                        volatility: vol,
-                        is_normal_vol: true,
-                    });
-                }
-            }
-        }
-
-        if quotes.len() < 2 {
-            tracing::warn!(
-                vol_surface_id = swaption_vol_surface_id,
-                n_valid = quotes.len(),
-                "Insufficient swaption quotes from vol surface; \
-                 falling back to HoLee tree model"
-            );
-            return TreeModelChoice::HoLee;
-        }
-
-        let day_count = std::sync::Arc::clone(discount_curve);
-        let df_fn = move |t: f64| day_count.df(t);
-
-        match calibrate_hull_white_to_swaptions(&df_fn, &quotes, SwapFrequency::SemiAnnual, None) {
-            Ok((params, report)) => {
-                if report.success {
-                    tracing::info!(
-                        kappa = params.kappa,
-                        sigma = params.sigma,
-                        n_quotes = quotes.len(),
-                        "Hull-White calibrated to swaptions"
-                    );
-                    TreeModelChoice::HullWhite {
-                        kappa: params.kappa,
-                        sigma: params.sigma,
-                    }
-                } else {
-                    tracing::warn!(
-                        reason = report.convergence_reason.as_str(),
-                        "Swaption calibration did not converge; \
-                         falling back to HoLee tree model"
-                    );
-                    TreeModelChoice::HoLee
-                }
-            }
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    "Swaption calibration failed; falling back to HoLee tree model"
-                );
-                TreeModelChoice::HoLee
-            }
-        }
-    }
 }
 
 impl Default for TreePricer {

@@ -70,7 +70,7 @@ ENUM_NAMING_EXCEPTIONS = {
     ("finstack-quant/scenarios/src/templates/json.rs", "ScenarioTemplateSchema"): "exact namespaced schema marker",
     ("finstack-quant/test-utils/src/golden/types.rs", "Tolerance"): "contractually fixed tolerance unit tags",
     (
-        "finstack-quant/valuations/src/calibration/api/schema.rs",
+        "finstack-quant/calibration/src/api/schema.rs",
         "CalibrationSchema",
     ): "exact namespaced schema marker",
     (
@@ -284,9 +284,9 @@ BINDING_FORBIDDEN = (
 RETIRED_PATHS = (
     ROOT / "scripts/sync_instrument_schema_overrides.py",
     ROOT / "scripts/golden/migrate_v1_to_v2.py",
-    ROOT / "finstack-quant/valuations/schemas/calibration/2",
-    ROOT / "finstack-quant/valuations/schemas/calibration/3",
-    ROOT / "finstack-quant/valuations/schemas/calibration/4",
+    ROOT / "finstack-quant/calibration/schemas/calibration/2",
+    ROOT / "finstack-quant/calibration/schemas/calibration/3",
+    ROOT / "finstack-quant/calibration/schemas/calibration/4",
 )
 
 

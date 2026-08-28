@@ -12,7 +12,7 @@ use finstack_quant_core::types::CurveId;
 use finstack_quant_models::rates::hull_white::HullWhiteParams;
 use finstack_quant_valuations::instruments::rates::swaption::BermudanSwaptionTreeValuator;
 use finstack_quant_valuations::instruments::rates::swaption::{
-    BermudanSchedule, BermudanSwaption, CalibratedHullWhiteModel,
+    BermudanSchedule, BermudanSwaption, PreparedHullWhiteModel,
 };
 use finstack_quant_valuations::instruments::rates::swaption::{
     BermudanSwaptionPricer, BermudanSwaptionPricerConfig,
@@ -75,7 +75,7 @@ fn test_tree_valuator_rejects_mixed_curve_bermudan() {
 
     let curve = test_discount_curve();
     let ttm = swaption.time_to_maturity(as_of).expect("Valid ttm");
-    let model = CalibratedHullWhiteModel::calibrate(
+    let model = PreparedHullWhiteModel::prepare(
         HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
         50,
         &curve,
@@ -105,7 +105,7 @@ fn test_bermudan_price_positive() {
     let curve = test_discount_curve();
 
     let ttm = swaption.time_to_maturity(as_of).expect("Valid ttm");
-    let model = CalibratedHullWhiteModel::calibrate(
+    let model = PreparedHullWhiteModel::prepare(
         HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
         50,
         &curve,
@@ -140,7 +140,7 @@ fn test_bermudan_payer_vs_receiver() {
 
     let curve = test_discount_curve();
     let ttm = payer.time_to_maturity(as_of).expect("Valid ttm");
-    let model = CalibratedHullWhiteModel::calibrate(
+    let model = PreparedHullWhiteModel::prepare(
         HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
         50,
         &curve,
@@ -183,7 +183,7 @@ fn test_bermudan_strike_sensitivity() {
 
     let curve = test_discount_curve();
     let ttm = low_strike.time_to_maturity(as_of).expect("Valid ttm");
-    let model = CalibratedHullWhiteModel::calibrate(
+    let model = PreparedHullWhiteModel::prepare(
         HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
         50,
         &curve,
@@ -237,7 +237,7 @@ fn test_bermudan_more_exercise_dates_higher_value() {
 
     let curve = test_discount_curve();
     let ttm = early_swaption.time_to_maturity(as_of).expect("Valid ttm");
-    let model = CalibratedHullWhiteModel::calibrate(
+    let model = PreparedHullWhiteModel::prepare(
         HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
         50,
         &curve,
@@ -362,8 +362,15 @@ fn test_bermudan_to_european_conversion() {
 // LSMC Tests (requires "mc" feature)
 
 fn build_market_context() -> MarketContext {
+    use finstack_quant_core::market_data::scalars::MarketScalar;
+    use finstack_quant_models::rates::hull_white::hw1f_scalar_keys;
+
     let curve = test_discount_curve();
-    MarketContext::new().insert(curve)
+    let (kappa_key, sigma_key) = hw1f_scalar_keys("USD-OIS");
+    MarketContext::new()
+        .insert(curve)
+        .insert_price(&kappa_key, MarketScalar::Unitless(0.05))
+        .insert_price(&sigma_key, MarketScalar::Unitless(0.012))
 }
 
 /// Test LSMC vs Tree: prices should be in same ballpark.
@@ -382,7 +389,6 @@ fn test_lsmc_vs_tree_sanity() {
     // Price with tree
     let tree_pricer = BermudanSwaptionPricer::tree_with_config(BermudanSwaptionPricerConfig {
         tree_steps: 100,
-        enforce_calibration: false,
         ..Default::default()
     });
     let tree_result = tree_pricer.price_dyn(&swaption, &market, as_of);
@@ -400,7 +406,6 @@ fn test_lsmc_vs_tree_sanity() {
     let lsmc_pricer = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
         mc_paths: 10_000,
         mc_seed: 42,
-        enforce_calibration: false,
         ..Default::default()
     });
     let lsmc_result = lsmc_pricer.price_dyn(&swaption, &market, as_of);
@@ -509,7 +514,6 @@ fn test_lsmc_determinism() {
     let pricer1 = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
         mc_paths: 5_000,
         mc_seed: 12345,
-        enforce_calibration: false,
         ..Default::default()
     });
     let result1 = pricer1
@@ -519,7 +523,6 @@ fn test_lsmc_determinism() {
     let pricer2 = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
         mc_paths: 5_000,
         mc_seed: 12345,
-        enforce_calibration: false,
         ..Default::default()
     });
     let result2 = pricer2
@@ -552,7 +555,6 @@ fn test_lsmc_different_seeds() {
     let pricer1 = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
         mc_paths: 5_000,
         mc_seed: 111,
-        enforce_calibration: false,
         ..Default::default()
     });
     let result1 = pricer1
@@ -562,7 +564,6 @@ fn test_lsmc_different_seeds() {
     let pricer2 = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
         mc_paths: 5_000,
         mc_seed: 222,
-        enforce_calibration: false,
         ..Default::default()
     });
     let result2 = pricer2
@@ -595,14 +596,11 @@ fn test_lsmc_pricer_key() {
     );
 }
 
-// Bermudan calibration gate
+// Bermudan fitted-parameter gate
 
-/// With `enforce_calibration` set, pricing a Bermudan with the
-/// uncalibrated `HullWhiteParams::default()` must return a clear
-/// `ModelFailure` instead of silently producing a 10–30%-wrong price.
-/// Covers the tree path.
+/// Tree pricing rejects a missing fitted Hull-White parameter pair.
 #[test]
-fn test_tree_refuses_uncalibrated_default_when_require_calibration_set() {
+fn test_tree_rejects_missing_hw1f_parameters() {
     let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("valid");
     let swap_start = as_of;
     let swap_end = Date::from_calendar_date(2030, Month::January, 1).expect("valid");
@@ -612,57 +610,56 @@ fn test_tree_refuses_uncalibrated_default_when_require_calibration_set() {
 
     let pricer = BermudanSwaptionPricer::tree_with_config(BermudanSwaptionPricerConfig {
         tree_steps: 50,
-        enforce_calibration: true,
         ..Default::default()
     });
 
     // Direct tree pricer call — no market context needed for this path
     // because we expect early return on the uncalibrated guard. Use the
     // dyn Pricer trait as the registry does.
-    let market = build_market_context();
+    let market = MarketContext::new().insert(test_discount_curve());
     let err = pricer
         .price_dyn(&swaption, &market, as_of)
-        .expect_err("require_calibration should refuse uncalibrated default");
-    // The error message should mention calibration.
+        .expect_err("tree pricing must reject missing fitted parameters");
     let msg = format!("{err}");
     assert!(
-        msg.contains("uncalibrated"),
-        "error message must reference calibration requirement: {msg}"
+        msg.contains("provide both"),
+        "error message must describe the complete parameter requirement: {msg}"
     );
 }
 
-/// Same guarantee on the LSMC path.
+/// LSMC pricing rejects a partial explicit parameter pair.
 #[test]
-fn test_lsmc_refuses_uncalibrated_default_when_require_calibration_set() {
+fn test_lsmc_rejects_partial_hw1f_parameters() {
     let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("valid");
     let swap_start = as_of;
     let swap_end = Date::from_calendar_date(2030, Month::January, 1).expect("valid");
     let first_exercise = Date::from_calendar_date(2027, Month::January, 1).expect("valid");
-    let swaption =
+    let mut swaption =
         test_bermudan_swaption(swap_start, swap_end, first_exercise, 0.03, OptionType::Call);
+    swaption
+        .instrument_pricing_overrides
+        .model_config
+        .hw1f_mean_reversion = Some(0.05);
 
     let pricer = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
         mc_paths: 1_000,
-        enforce_calibration: true,
         ..Default::default()
     });
 
-    let market = build_market_context();
+    let market = MarketContext::new().insert(test_discount_curve());
     let err = pricer
         .price_dyn(&swaption, &market, as_of)
-        .expect_err("require_calibration should refuse uncalibrated default on LSMC");
+        .expect_err("LSMC pricing must reject a partial explicit parameter pair");
     let msg = format!("{err}");
     assert!(
-        msg.contains("uncalibrated"),
-        "error message must reference calibration requirement: {msg}"
+        msg.contains("partial") || msg.contains("complete"),
+        "error message must describe the complete parameter requirement: {msg}"
     );
 }
 
-/// Sanity: opting out of the calibration guard explicitly still prices
-/// successfully off the uncalibrated parameters, for tests and bespoke
-/// workflows. The guard itself is on by default.
+/// A complete pre-fitted market scalar pair is sufficient for LSMC pricing.
 #[test]
-fn test_explicit_opt_out_still_prices_with_warning() {
+fn test_lsmc_uses_prefitted_market_parameters() {
     let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("valid");
     let swap_start = as_of;
     let swap_end = Date::from_calendar_date(2030, Month::January, 1).expect("valid");
@@ -672,47 +669,48 @@ fn test_explicit_opt_out_still_prices_with_warning() {
 
     let market = build_market_context();
 
-    // Explicit opt-out — should succeed (with a tracing::warn!).
     let pricer = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
         mc_paths: 1_000,
         mc_seed: 42,
-        enforce_calibration: false,
         ..Default::default()
     });
     let result = pricer
         .price_dyn(&swaption, &market, as_of)
-        .expect("explicit opt-out should still price");
+        .expect("pre-fitted market parameters should price");
     assert!(
         result.value.amount().is_finite(),
-        "permissive default must produce a finite price"
+        "pre-fitted parameters must produce a finite price"
     );
 }
 
-/// With a calibrated (non-default) HullWhiteParams, `enforce_calibration`
-/// should be transparent — pricing succeeds just as it would without
-/// the flag.
+/// A complete explicit parameter pair prices successfully.
 #[test]
-fn test_require_calibration_with_explicit_params_prices_successfully() {
+fn test_complete_explicit_hw1f_parameters_price_successfully() {
     let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("valid");
     let swap_start = as_of;
     let swap_end = Date::from_calendar_date(2030, Month::January, 1).expect("valid");
     let first_exercise = Date::from_calendar_date(2027, Month::January, 1).expect("valid");
-    let swaption =
+    let mut swaption =
         test_bermudan_swaption(swap_start, swap_end, first_exercise, 0.03, OptionType::Call);
+    swaption
+        .instrument_pricing_overrides
+        .model_config
+        .hw1f_mean_reversion = Some(0.05);
+    swaption
+        .instrument_pricing_overrides
+        .model_config
+        .hw1f_sigma = Some(0.012);
 
     let market = build_market_context();
 
-    // Explicitly-chosen params (not the 3% / 1% defaults).
     let pricer = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
-        hw_params: HullWhiteParams::new(0.05, 0.012).expect("valid HW params"),
         mc_paths: 1_000,
         mc_seed: 42,
-        enforce_calibration: true,
         ..Default::default()
     });
     let result = pricer
         .price_dyn(&swaption, &market, as_of)
-        .expect("explicit params should be accepted under require_calibration");
+        .expect("complete explicit parameters should be accepted");
     assert!(result.value.amount().is_finite());
 }
 
@@ -737,7 +735,6 @@ fn test_require_calibration_accepts_instrument_hw1f_overrides() {
     let pricer = BermudanSwaptionPricer::lsmc_with_config(BermudanSwaptionPricerConfig {
         mc_paths: 1_000,
         mc_seed: 42,
-        enforce_calibration: true,
         ..Default::default()
     });
 
@@ -770,7 +767,6 @@ fn test_tree_require_calibration_accepts_instrument_hw1f_overrides() {
 
     let market = build_market_context();
     let pricer = BermudanSwaptionPricer::tree_with_config(BermudanSwaptionPricerConfig {
-        enforce_calibration: true,
         ..Default::default()
     });
 

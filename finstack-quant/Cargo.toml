@@ -12,6 +12,7 @@ description = "Finstack Quant umbrella crate: deterministic, cross-platform fina
 finstack_quant_core = { package = "finstack-quant-core", path = "core", version = "0.8.0" }
 finstack_quant_analytics = { package = "finstack-quant-analytics", path = "analytics", version = "0.8.0" }
 finstack_quant_attribution = { package = "finstack-quant-attribution", path = "attribution", version = "0.8.0" }
+finstack_quant_calibration = { package = "finstack-quant-calibration", path = "calibration", version = "0.8.0" }
 finstack_quant_cashflows = { package = "finstack-quant-cashflows", path = "cashflows", version = "0.8.0" }
 finstack_quant_covenants = { package = "finstack-quant-covenants", path = "covenants", version = "0.8.0" }
 finstack_quant_features = { package = "finstack-quant-features", path = "features", version = "0.8.0" }

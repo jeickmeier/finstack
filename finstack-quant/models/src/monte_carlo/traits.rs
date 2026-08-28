@@ -786,7 +786,7 @@ pub trait Discretization<P: StochasticProcess + ?Sized>: Send + Sync {
     /// fast path guarded by an exact `dt` match and fall back to direct
     /// computation otherwise, so results remain bit-identical regardless of
     /// whether `prepare` ran. The default is a no-op.
-    fn prepare(&mut self, _process: &P, _time_grid: &crate::monte_carlo::time_grid::TimeGrid) {}
+    fn prepare(&mut self, _process: &P, _time_grid: &crate::monte_carlo::TimeGrid) {}
 
     /// Workspace size required for intermediate calculations.
     fn work_size(&self, process: &P) -> usize {

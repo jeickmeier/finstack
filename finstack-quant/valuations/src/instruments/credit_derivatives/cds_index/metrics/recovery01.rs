@@ -18,11 +18,11 @@
 //! knots are reused unchanged. That partial sensitivity typically understates
 //! the true value by 2-5x for spread-bootstrapped curves.
 
-use crate::calibration::bumps::hazard::recalibrate_hazard_with_recovery;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds::metrics::market_doc_clause;
 use crate::instruments::credit_derivatives::cds_index::CDSIndex;
 use crate::metrics::{MetricCalculator, MetricContext};
+use crate::recalibration::{HazardRecalibrationAction, HazardRecalibrationRequest};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
 
@@ -33,6 +33,7 @@ const RECOVERY_BUMP: f64 = 0.01;
 /// `new_recovery`: a full par-spread re-bootstrap when the curve carries its
 /// calibration quotes, a frozen-curve recovery realignment otherwise.
 fn market_with_recovery(
+    context: &MetricContext,
     index: &CDSIndex,
     market: &MarketContext,
     curve_id: &str,
@@ -49,21 +50,29 @@ fn market_with_recovery(
     };
 
     if hazard.hazard_calibration().is_some() {
-        let recalibrated = recalibrate_hazard_with_recovery(
-            hazard.as_ref(),
-            new_recovery,
-            market,
-            Some(&discount_id),
-            Some(market_doc_clause(&synthetic)),
-            Some(synthetic.valuation_convention),
-        )
+        let recalibrated = context
+            .rebuild_hazard_curve(
+                HazardRecalibrationRequest {
+                    hazard,
+                    source_market: std::sync::Arc::new(market.clone()),
+                    target_market: std::sync::Arc::new(market.clone()),
+                    discount_curve_id: discount_id,
+                    doc_clause: Some(market_doc_clause(&synthetic)),
+                    cds_valuation_convention: Some(synthetic.valuation_convention),
+                    deal_quote_override: None,
+                    action: HazardRecalibrationAction::RecoveryRateReplay {
+                        recovery_rate: new_recovery,
+                    },
+                },
+                "recovery01",
+            )
         .map_err(|e| finstack_quant_core::Error::Calibration {
             message: format!(
                 "CDS index Recovery01: recovery re-bootstrap failed for curve '{curve_id}' ({e}); refusing silent frozen-curve fallback"
             ),
             category: "recovery01_rebootstrap".to_string(),
         })?;
-        Ok(market.clone().insert(recalibrated))
+        Ok(market.clone().insert(recalibrated.as_ref().clone()))
     } else {
         frozen_curve_market()
     }
@@ -114,6 +123,7 @@ impl MetricCalculator for Recovery01Calculator {
             let mut market = context.curves.as_ref().clone();
             if bumped.constituents.is_empty() {
                 market = market_with_recovery(
+                    context,
                     bumped,
                     &market,
                     bumped.protection.credit_curve_id.as_str(),
@@ -122,6 +132,7 @@ impl MetricCalculator for Recovery01Calculator {
             } else {
                 for con in &bumped.constituents {
                     market = market_with_recovery(
+                        context,
                         bumped,
                         &market,
                         con.credit.credit_curve_id.as_str(),

@@ -7,6 +7,7 @@
 //!  4. `per_issuer_adder_is_omitted_by_default`
 //!  5. `per_bucket_breakdown_can_be_disabled`
 
+use crate::attribution_support::calibrated_hazard_curve;
 use finstack_quant_attribution::{
     compute_credit_factor_attribution, AttributionEnvelope, AttributionMethod, AttributionSpec,
     CreditAttributionInput, CreditFactorDetailOptions, PnlAttribution,
@@ -31,6 +32,7 @@ use finstack_quant_models::factor::{
 };
 use finstack_quant_valuations::instruments::json_loader::InstrumentJson;
 use finstack_quant_valuations::instruments::{Attributes, Bond};
+use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
 use std::collections::BTreeMap;
 use time::Month;
 
@@ -274,21 +276,32 @@ fn taylor_credit_detail_reconciles_to_credit_curves_pnl() {
             .expect("discount curve")
     };
 
-    // Hazard curves: T0 at 100 bp, T1 at 200 bp → +100 bp parallel shift.
-    let make_hazard = |base, rate: f64| {
-        HazardCurve::builder("ISSUER-A-HAZ")
-            .base_date(base)
-            .day_count(DayCount::Act365F)
-            .recovery_rate(0.4)
-            .knots([(0.5_f64, rate), (5.0_f64, rate), (10.0_f64, rate)])
-            .build()
-            .expect("hazard curve")
-    };
-
     let disc_t0 = make_discount(as_of_t0);
     let disc_t1 = make_discount(as_of_t1);
-    let haz_t0 = make_hazard(as_of_t0, 0.01); // 100 bp
-    let haz_t1 = make_hazard(as_of_t1, 0.02); // 200 bp
+    let convention = CdsConventionKey {
+        currency: Currency::USD,
+        doc_clause: CdsDocClause::IsdaNa,
+    };
+    let haz_t0 = calibrated_hazard_curve(
+        &disc_t0,
+        as_of_t0,
+        "ISSUER-A-HAZ",
+        "ISSUER-A",
+        0.4,
+        convention.clone(),
+        &[(1, 60.0), (3, 60.0), (5, 60.0), (10, 60.0)],
+    )
+    .expect("T0 hazard calibration");
+    let haz_t1 = calibrated_hazard_curve(
+        &disc_t1,
+        as_of_t1,
+        "ISSUER-A-HAZ",
+        "ISSUER-A",
+        0.4,
+        convention,
+        &[(1, 120.0), (3, 120.0), (5, 120.0), (10, 120.0)],
+    )
+    .expect("T1 hazard calibration");
 
     let make_market_state =
         |disc: DiscountCurve, haz: HazardCurve, prices: BTreeMap<String, MarketScalar>| {
@@ -432,41 +445,50 @@ fn twisted_hazard_curve_does_not_omit_or_explode_credit_detail() {
             .expect("discount curve")
     };
 
-    // T0 hazard: flat at 200 bp on the standard tenor grid. T1 hazard: a TWIST
-    // — short tenors up, long tenors down — with knots placed exactly on the
-    // standard tenors so the per-tenor shifts are controlled. The signed
-    // shifts (+100,+100,+50,+50,0,-50,-50,-100,-100 bp) sum to EXACTLY 0, so
-    // the average parallel move is 0, yet the absolute (L1) move is large
-    // (~66 bp). Centered at 200 bp so every T1 rate stays comfortably positive.
-    let std_tenors = [0.25, 0.5, 1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 30.0];
-    let haz_t0 = HazardCurve::builder("ISSUER-A-HAZ")
-        .base_date(as_of_t0)
-        .day_count(DayCount::Act365F)
-        .recovery_rate(0.4)
-        .knots(
-            std_tenors
-                .iter()
-                .map(|&t| (t, 0.02_f64))
-                .collect::<Vec<_>>(),
-        )
-        .build()
-        .expect("hazard t0");
-    let t1_rates = [
-        0.030, 0.030, 0.025, 0.025, 0.020, 0.015, 0.015, 0.010, 0.010,
-    ];
-    let haz_t1 = HazardCurve::builder("ISSUER-A-HAZ")
-        .base_date(as_of_t1)
-        .day_count(DayCount::Act365F)
-        .recovery_rate(0.4)
-        .knots(
-            std_tenors
-                .iter()
-                .zip(t1_rates.iter())
-                .map(|(&t, &r)| (t, r))
-                .collect::<Vec<_>>(),
-        )
-        .build()
-        .expect("hazard t1");
+    // Use lossless quote recipes on both dates: T0 is flat, while T1 has a
+    // pronounced short-end widening and long-end tightening.
+    let disc_t0 = make_discount(as_of_t0);
+    let disc_t1 = make_discount(as_of_t1);
+    let convention = CdsConventionKey {
+        currency: Currency::USD,
+        doc_clause: CdsDocClause::IsdaNa,
+    };
+    let haz_t0 = calibrated_hazard_curve(
+        &disc_t0,
+        as_of_t0,
+        "ISSUER-A-HAZ",
+        "ISSUER-A",
+        0.4,
+        convention.clone(),
+        &[
+            (1, 120.0),
+            (2, 120.0),
+            (3, 120.0),
+            (5, 120.0),
+            (7, 120.0),
+            (10, 120.0),
+            (30, 120.0),
+        ],
+    )
+    .expect("T0 hazard calibration");
+    let haz_t1 = calibrated_hazard_curve(
+        &disc_t1,
+        as_of_t1,
+        "ISSUER-A-HAZ",
+        "ISSUER-A",
+        0.4,
+        convention,
+        &[
+            (1, 180.0),
+            (2, 165.0),
+            (3, 150.0),
+            (5, 135.0),
+            (7, 125.0),
+            (10, 115.0),
+            (30, 110.0),
+        ],
+    )
+    .expect("T1 hazard calibration");
 
     let make_market_state =
         |disc: DiscountCurve, haz: HazardCurve, prices: BTreeMap<String, MarketScalar>| {
@@ -503,8 +525,8 @@ fn twisted_hazard_curve_does_not_omit_or_explode_credit_detail() {
     let model = make_model();
     let spec = AttributionSpec {
         instrument: InstrumentJson::Bond(bond),
-        market_t0: make_market_state(make_discount(as_of_t0), haz_t0, prices()),
-        market_t1: make_market_state(make_discount(as_of_t1), haz_t1, prices()),
+        market_t0: make_market_state(disc_t0, haz_t0, prices()),
+        market_t1: make_market_state(disc_t1, haz_t1, prices()),
         as_of_t0,
         as_of_t1,
         method: AttributionMethod::Taylor(TaylorAttributionConfig::default()),

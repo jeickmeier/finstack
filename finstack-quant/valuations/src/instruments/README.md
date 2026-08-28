@@ -73,8 +73,8 @@ Main entry points:
 | `as_marginable()` | Optional `finstack_quant_margin::Marginable` view |
 
 `PricingOptions` carries the optional config, model override, pricer registry,
-market history, and recalibration caches; `PricingOptions::default()` uses the
-shared standard registry and each instrument's `default_model()`.
+market history, and quote-recalibration provider; `PricingOptions::default()`
+uses the shared standard registry and each instrument's `default_model()`.
 
 Cashflow policy is universal. Deterministic products emit contractual or
 projected schedules; contingent or exhausted products still return an explicit

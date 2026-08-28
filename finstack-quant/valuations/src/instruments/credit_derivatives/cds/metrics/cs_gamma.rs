@@ -51,13 +51,15 @@
 //! spread-risk pillar is replaced. The up, down, and center replays therefore
 //! use the same overridden quote set as standard CS01.
 
-use crate::calibration::bumps::hazard::{bump_hazard_spreads, replay_hazard_spread_risk_center};
-use crate::calibration::bumps::BumpRequest;
 use crate::constants::BASIS_POINTS_PER_UNIT;
 use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::sensitivities::cs01::with_prepared_cds_risk_context;
 use crate::metrics::{MetricCalculator, MetricContext};
+use crate::recalibration::{
+    HazardRecalibrationAction, HazardRecalibrationConventions, HazardRecalibrationRequest,
+    QuoteBump,
+};
 
 /// Calculates CS-Gamma for credit default swaps.
 ///
@@ -92,27 +94,36 @@ impl MetricCalculator for CsGammaCalculator {
                     "CDS CS-Gamma",
                 )?;
 
-                // Helper: build the bumped hazard curve for a non-zero shift.
-                let make_bumped = |shift_bp: f64| -> finstack_quant_core::Result<_> {
-                    let req = BumpRequest::Parallel(shift_bp);
-                    bump_hazard_spreads(
-                        hazard_ref,
-                        base_ctx,
-                        &req,
-                        Some(&prepared.discount_id),
-                        Some(prepared.doc_clause),
-                        Some(prepared.valuation_convention),
-                    )
+                let conventions = HazardRecalibrationConventions {
+                    discount_curve_id: prepared.discount_id.clone(),
+                    doc_clause: Some(prepared.doc_clause),
+                    cds_valuation_convention: Some(prepared.valuation_convention),
+                    deal_quote_override: prepared.deal_quote_override,
                 };
-
-                let bumped_hazard_up = make_bumped(bump_bp)?;
-                let bumped_hazard_dn = make_bumped(-bump_bp)?;
-                let bumped_hazard_0 = replay_hazard_spread_risk_center(
+                let bumped_hazard_up = context.bump_hazard_spreads_cached(
                     hazard_ref,
                     base_ctx,
-                    Some(&prepared.discount_id),
-                    Some(prepared.doc_clause),
-                    Some(prepared.valuation_convention),
+                    &QuoteBump::ParallelBp(bump_bp),
+                    &conventions,
+                )?;
+                let bumped_hazard_dn = context.bump_hazard_spreads_cached(
+                    hazard_ref,
+                    base_ctx,
+                    &QuoteBump::ParallelBp(-bump_bp),
+                    &conventions,
+                )?;
+                let bumped_hazard_0 = context.rebuild_hazard_curve(
+                    HazardRecalibrationRequest {
+                        hazard: std::sync::Arc::clone(&hazard),
+                        source_market: std::sync::Arc::clone(&context.curves),
+                        target_market: std::sync::Arc::clone(&context.curves),
+                        discount_curve_id: prepared.discount_id.clone(),
+                        doc_clause: Some(prepared.doc_clause),
+                        cds_valuation_convention: Some(prepared.valuation_convention),
+                        deal_quote_override: prepared.deal_quote_override,
+                        action: HazardRecalibrationAction::SpreadRiskCenterReplay,
+                    },
+                    "cs_gamma",
                 )?;
 
                 let (pv_up, pv_0, pv_dn) = context.with_market_scratch(|ctx, scratch| {

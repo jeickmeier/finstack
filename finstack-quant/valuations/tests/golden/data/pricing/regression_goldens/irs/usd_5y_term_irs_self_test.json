@@ -12,7 +12,7 @@
     "last_reviewed_by": "claude",
     "last_reviewed_on": "2026-07-11",
     "review_interval_months": 12,
-    "regen_command": "Re-run via: `uv run pytest finstack-quant-py/tests/golden/test_pricing_irs.py -v -k self_test`. To regenerate expected outputs (after deliberate calibration or pricing changes), call `finstack_quant.valuations.calibrate(envelope)` + `price_instrument_with_metrics(...)` and update expected_outputs.",
+    "regen_command": "Re-run via: `uv run pytest finstack-quant-py/tests/golden/test_pricing_irs.py -v -k self_test`. To regenerate expected outputs (after deliberate calibration or pricing changes), call `finstack_quant.calibration.calibrate(envelope)` + `price_instrument_with_metrics(...)` and update expected_outputs.",
     "screenshots": []
   },
   "kind": "pricing",

@@ -24,17 +24,13 @@
 //!   Chapter 3: One-factor Short-Rate Models, Section 3.3.2 (Gaussian forward-rate
 //!   dynamics underpinning the closed-form caplet normal volatility). `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
 
-use crate::calibration::hull_white::{capfloor_hw1f_scalar_keys, capfloor_hw1f_sigma_schedule_key};
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::rates::cap_floor::pricing::payoff::CapletFloorletInputs;
 use crate::instruments::rates::cap_floor::pricing::projection::{
     resolve_optioned_caplet_inputs, OptionedCouponProjection,
 };
 use crate::instruments::rates::cap_floor::types::{CapFloor, RateOptionType};
-use crate::instruments::rates::hw1f::{
-    resolve_hw1f_params, Hw1fCalibrationFlavor, Hw1fCapletSurfacePoint, Hw1fResolveRequest,
-    Hw1fSurfaceCalibration,
-};
+use crate::instruments::rates::hw1f::{resolve_hw1f_params, Hw1fParamFamily, Hw1fResolveRequest};
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
@@ -44,6 +40,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::money::Money;
 use finstack_quant_models::rates::hull_white::{
+    capfloor_hw1f_scalar_keys, capfloor_hw1f_sigma_schedule_key,
     hw1f_term_caplet_price_from_dfs_with_model, HullWhiteModelParams, HullWhiteParams,
 };
 
@@ -91,6 +88,7 @@ fn hw1f_b(kappa: f64, tenor: f64) -> f64 {
     }
 }
 
+#[cfg(test)]
 fn hw1f_ou_covariance(kappa: f64, sigma: f64, left_time: f64, right_time: f64) -> f64 {
     let min_time = left_time.min(right_time).max(0.0);
     if sigma <= 0.0 || min_time <= 0.0 {
@@ -136,6 +134,7 @@ fn hw1f_ou_covariance_with_model(
 /// curve. It omits higher-order product terms and convexity/measure corrections,
 /// so it is an approximation rather than the exact term-caplet bond option.
 /// `B` and OU covariance use continuous limits as `kappa -> 0`.
+#[cfg(test)]
 pub(crate) fn hw1f_compounded_rfr_moment_match(
     as_of: Date,
     kappa: f64,
@@ -349,9 +348,8 @@ impl CapFloorHullWhitePricer {
             RateOptionType::Cap | RateOptionType::Caplet
         );
 
-        // Resolve HW1F parameters following the documented precedence:
-        // explicit `pricing_overrides` κ/σ → calibrated MarketContext scalars
-        // → warned `HullWhiteParams::default()`.
+        // Resolve a complete HW1F input from either explicit overrides or
+        // pre-fitted MarketContext parameters. Missing/partial inputs fail.
         let hw_model =
             resolve_capfloor_hw1f_model_params(cap_floor, market, as_of).map_err(|e| {
                 PricingError::model_failure_with_context(
@@ -506,8 +504,8 @@ impl CapFloorHullWhitePricer {
 ///
 /// Reads `model_config.hw1f_mean_reversion` → `hw1f_kappa` and
 /// `model_config.hw1f_sigma` → `hw1f_sigma` (the Hull-White short-rate absolute
-/// volatility). A κ-only override is retained so [`resolve_hw1f_params`] can
-/// hold mean reversion fixed while calibrating σ from the normal-vol surface.
+/// volatility). Partial overrides are retained so [`resolve_hw1f_params`] can
+/// identify the fitted parameter pair independently of option implied volatility.
 /// A σ-only override is retained as well and rejected by the shared resolver.
 ///
 /// # Unit contract
@@ -535,30 +533,23 @@ fn hw1f_overrides_json(cap_floor: &CapFloor) -> Option<serde_json::Value> {
     (!overrides.is_empty()).then_some(serde_json::Value::Object(overrides))
 }
 
-/// Resolve the effective Hull-White 1F (κ, σ) the tree pricer uses for `cap_floor`.
+/// Resolve the effective Hull-White 1F (κ, σ) the cap/floor pricer uses.
 ///
-/// Applies the documented precedence (explicit `pricing_overrides` κ/σ →
-/// calibrated `MarketContext` scalars → defaults). Sharing this with the vega
-/// calculator keeps the model-consistent vega bump aligned with the σ the
-/// pricer actually consumes, rather than an unrelated `implied_volatility`.
+/// Applies the documented precedence (complete explicit overrides, then a
+/// complete pre-fitted `MarketContext` pair). Sharing this with the vega
+/// calculator keeps the model-consistent vega bump aligned with the sigma the
+/// pricer consumes, rather than an unrelated `implied_volatility`.
 pub(crate) fn resolve_capfloor_hw1f_params(
     cap_floor: &CapFloor,
     market: &MarketContext,
-    as_of: finstack_quant_core::dates::Date,
+    _as_of: finstack_quant_core::dates::Date,
 ) -> finstack_quant_core::Result<HullWhiteParams> {
     let context_label = format!("CapFloor {}", cap_floor.id);
     let overrides = hw1f_overrides_json(cap_floor);
-    let kappa_hint = capfloor_kappa_hint(cap_floor, market);
-    let surface_points = capfloor_surface_points(cap_floor, market, as_of, kappa_hint)?;
     let req = Hw1fResolveRequest {
         curve_id: cap_floor.discount_curve_id.as_str(),
-        flavor: Hw1fCalibrationFlavor::CapFloor,
+        family: Hw1fParamFamily::CapFloor,
         overrides: overrides.as_ref(),
-        surface: Some(Hw1fSurfaceCalibration::CapFloor {
-            vol_surface_id: cap_floor.vol_surface_id.as_str(),
-            points: &surface_points,
-        }),
-        fallback: None,
         context: context_label.as_str(),
     };
     // Provenance (`hw1f_param_source`) is stamped by the resolver's
@@ -656,80 +647,6 @@ pub(crate) fn resolve_capfloor_hw1f_model_params(
         }
     }
     HullWhiteModelParams::try_from(resolve_capfloor_hw1f_params(cap_floor, market, as_of)?)
-}
-
-fn capfloor_kappa_hint(cap_floor: &CapFloor, market: &MarketContext) -> f64 {
-    if let Some(kappa) = cap_floor
-        .instrument_pricing_overrides
-        .model_config
-        .hw1f_mean_reversion
-        .filter(|value| value.is_finite() && *value > 0.0)
-    {
-        return kappa;
-    }
-    let (kappa_key, _) = capfloor_hw1f_scalar_keys(cap_floor.discount_curve_id.as_str());
-    if let Ok(scalar) = market.get_price(&kappa_key) {
-        let value = match scalar {
-            MarketScalar::Unitless(value) => *value,
-            MarketScalar::Price(money) => money.amount(),
-        };
-        if value.is_finite() && value > 0.0 {
-            return value;
-        }
-    }
-    HullWhiteParams::default().kappa
-}
-
-fn capfloor_surface_points(
-    cap_floor: &CapFloor,
-    market: &MarketContext,
-    as_of: finstack_quant_core::dates::Date,
-    kappa: f64,
-) -> finstack_quant_core::Result<Vec<Hw1fCapletSurfacePoint>> {
-    let periods = cap_floor.pricing_periods()?;
-    let strike = if cap_floor.overnight_coupon.is_some() {
-        cap_floor.strike_f64()?
-    } else {
-        cap_floor.strike_f64()? - cap_floor.spread_f64()?
-    };
-    let mut points = Vec::with_capacity(periods.len());
-    for period in &periods {
-        if period.payment_date <= as_of {
-            continue;
-        }
-        let resolved_inputs = resolve_optioned_caplet_inputs(cap_floor, period, market, as_of)?;
-        let projection = &resolved_inputs.coupon;
-        if projection.payment_date <= as_of || projection.fixing_date <= as_of {
-            continue;
-        }
-        let t_fix = resolved_inputs.time_to_fixing;
-        if t_fix <= 0.0 {
-            continue;
-        }
-        let tau = projection.accrual_year_fraction;
-        if tau <= 0.0 {
-            continue;
-        }
-        let df = resolved_inputs.discount_factor;
-        let normal_vol_per_unit_sigma = if projection.is_compounded_overnight {
-            Some(hw1f_compounded_rfr_moment_match(as_of, kappa, 1.0, projection)?.normal_vol)
-        } else {
-            None
-        };
-        points.push(Hw1fCapletSurfacePoint {
-            t_fix,
-            accrual: tau,
-            forward: projection.forward,
-            strike,
-            is_cap: matches!(
-                cap_floor.rate_option_type,
-                RateOptionType::Cap | RateOptionType::Caplet
-            ),
-            annuity: (cap_floor.notional.amount() * tau * df).abs(),
-            normal_vol_per_unit_sigma,
-        });
-    }
-    Ok(points)
 }
 
 #[cfg(test)]
@@ -957,14 +874,16 @@ mod tests {
             .expect("compounded-SOFR HW Monte Carlo benchmark")
     }
 
-    /// Pricing a cap via the HW pricer (which falls back to uncalibrated
-    /// `HullWhiteParams::default()` absent overrides) must still produce a
-    /// finite PV. This locks in that adding the uncalibrated-params diagnostic
-    /// did not change numerics.
+    /// Pricing a cap via the HW pricer with explicit fitted parameters must
+    /// produce a finite PV.
     #[test]
     fn hw_cap_floor_produces_finite_pv() {
         let as_of = date(2023, 12, 1);
-        let cap = CapFloor::example().expect("CapFloor example should build");
+        let mut cap = CapFloor::example().expect("CapFloor example should build");
+        cap.instrument_pricing_overrides
+            .model_config
+            .hw1f_mean_reversion = Some(0.05);
+        cap.instrument_pricing_overrides.model_config.hw1f_sigma = Some(0.01);
         let market = MarketContext::new()
             .insert(flat_discount_with_tenor(
                 cap.discount_curve_id.as_str(),
@@ -991,6 +910,9 @@ mod tests {
 
     /// Builds a cap with flat discount/forward curves.
     fn example_cap_market() -> (finstack_quant_core::dates::Date, CapFloor, MarketContext) {
+        use finstack_quant_core::market_data::scalars::MarketScalar;
+        use finstack_quant_models::rates::hull_white::capfloor_hw1f_scalar_keys;
+
         let as_of = date(2023, 12, 1);
         let cap = CapFloor::example().expect("CapFloor example should build");
         let market = MarketContext::new()
@@ -1006,26 +928,29 @@ mod tests {
                 0.03,
                 10.0,
             ));
+        let (kappa_key, sigma_key) = capfloor_hw1f_scalar_keys(cap.discount_curve_id.as_str());
+        let market = market
+            .insert_price(&kappa_key, MarketScalar::Unitless(0.05))
+            .insert_price(&sigma_key, MarketScalar::Unitless(0.01));
         (as_of, cap, market)
     }
 
-    /// When the `MarketContext` carries calibrated `{curve}_CAPFLOOR_HW1F_*`
-    /// scalars, the pricer must consume them: the PV differs from the
-    /// default-params PV.
+    /// When the `MarketContext` carries a fitted `{curve}_CAPFLOOR_HW1F_*`
+    /// pair, the pricer must consume it: changing the complete pair changes PV.
     #[test]
     fn hw_cap_floor_uses_calibrated_market_scalars() {
-        use crate::calibration::hull_white::capfloor_hw1f_scalar_keys;
         use finstack_quant_core::market_data::scalars::MarketScalar;
+        use finstack_quant_models::rates::hull_white::capfloor_hw1f_scalar_keys;
 
-        let (as_of, cap, default_market) = example_cap_market();
-        let default_pv = CapFloorHullWhitePricer
-            .price_internal(&cap, &default_market, as_of)
-            .expect("default-params pricing should succeed")
+        let (as_of, cap, baseline_market) = example_cap_market();
+        let baseline_pv = CapFloorHullWhitePricer
+            .price_internal(&cap, &baseline_market, as_of)
+            .expect("market-parameter pricing should succeed")
             .value
             .amount();
 
         let (kappa_key, sigma_key) = capfloor_hw1f_scalar_keys(cap.discount_curve_id.as_str());
-        let calibrated_market = default_market
+        let calibrated_market = baseline_market
             .insert_price(&kappa_key, MarketScalar::Unitless(0.10))
             .insert_price(&sigma_key, MarketScalar::Unitless(0.030));
 
@@ -1037,16 +962,16 @@ mod tests {
 
         assert!(calibrated_pv.is_finite());
         assert!(
-            (calibrated_pv - default_pv).abs() > 1e-9,
-            "calibrated PV ({calibrated_pv}) must differ from default PV ({default_pv})"
+            (calibrated_pv - baseline_pv).abs() > 1e-9,
+            "updated fitted PV ({calibrated_pv}) must differ from baseline market PV ({baseline_pv})"
         );
     }
 
     /// Explicit `pricing_overrides` κ/σ win over calibrated market scalars.
     #[test]
     fn hw_cap_floor_overrides_win_over_market_scalars() {
-        use crate::calibration::hull_white::capfloor_hw1f_scalar_keys;
         use finstack_quant_core::market_data::scalars::MarketScalar;
+        use finstack_quant_models::rates::hull_white::capfloor_hw1f_scalar_keys;
 
         let (as_of, mut cap, market) = example_cap_market();
         let (kappa_key, sigma_key) = capfloor_hw1f_scalar_keys(cap.discount_curve_id.as_str());
@@ -1109,14 +1034,14 @@ mod tests {
         );
         assert!(
             (overridden_pv - default_pv).abs() > 1e-9,
-            "hw1f_sigma override must change PV vs default: override={overridden_pv}, default={default_pv}"
+            "hw1f_sigma override must change PV vs market parameters: override={overridden_pv}, market={default_pv}"
         );
     }
 
     /// Regression (W26): `market_quotes.implied_volatility` must NOT be silently
     /// treated as the HW1F short-rate σ. When only `implied_volatility` is set
     /// (without the dedicated `hw1f_sigma`/`hw1f_mean_reversion` fields), the
-    /// pricer must fall through to the calibrated-scalar / default branch and
+    /// pricer must use the complete calibrated-scalar pair and
     /// the PV must be unchanged.
     #[test]
     fn implied_volatility_is_not_used_as_hw1f_sigma() {
@@ -1534,7 +1459,7 @@ mod tests {
         let fixing_date = date(2024, 1, 2);
         let as_of = date(2024, 2, 15);
         let payment_date = date(2024, 4, 2);
-        let caplet = CapFloor::new_caplet(
+        let mut caplet = CapFloor::new_caplet(
             "FIXED-UNPAID-HW",
             Money::new(1_000_000.0, Currency::USD),
             0.04,
@@ -1546,6 +1471,11 @@ mod tests {
             "UNUSED-VOL",
         )
         .expect("caplet");
+        caplet
+            .instrument_pricing_overrides
+            .model_config
+            .hw1f_mean_reversion = Some(0.05);
+        caplet.instrument_pricing_overrides.model_config.hw1f_sigma = Some(0.012);
         let fixings = ScalarTimeSeries::new("FIXING:TEST-TERM-3M", vec![(fixing_date, 0.07)], None)
             .expect("fixings");
         let market = MarketContext::new()
@@ -1594,6 +1524,11 @@ mod tests {
             payment_calendar_id: Some("usny".into()),
             spread_compounding: OvernightSpreadCompounding::Exclude,
         });
+        caplet
+            .instrument_pricing_overrides
+            .model_config
+            .hw1f_mean_reversion = Some(0.05);
+        caplet.instrument_pricing_overrides.model_config.hw1f_sigma = Some(0.012);
         let calendar = calendar_by_id("usny").expect("USNY calendar");
         let mut fixing_values = Vec::new();
         let mut observation_date = accrual_start;

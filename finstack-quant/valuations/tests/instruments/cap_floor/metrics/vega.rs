@@ -351,7 +351,7 @@ fn test_hull_white_1f_market_and_sigma_vegas_are_distinct() {
 }
 
 #[test]
-fn test_hull_white_1f_surface_shock_moves_pv_and_vega() {
+fn test_hull_white_1f_pricing_does_not_sample_vol_surface() {
     use finstack_quant_core::market_data::bumps::{
         BumpMode, BumpSpec, BumpType, BumpUnits, MarketBump,
     };
@@ -364,7 +364,7 @@ fn test_hull_white_1f_surface_shock_moves_pv_and_vega() {
     cap.instrument_pricing_overrides
         .model_config
         .hw1f_mean_reversion = Some(0.03);
-    cap.instrument_pricing_overrides.model_config.hw1f_sigma = None;
+    cap.instrument_pricing_overrides.model_config.hw1f_sigma = Some(0.01);
 
     let disc_curve = build_flat_discount_curve(0.05, as_of, "USD_OIS");
     let fwd_curve = build_flat_forward_curve(0.05, as_of, "USD_LIBOR_3M");
@@ -398,13 +398,10 @@ fn test_hull_white_1f_surface_shock_moves_pv_and_vega() {
     let base_pv = base.value.amount();
     let shocked_pv = shocked.value.amount();
     let vega = *base.measures.get("vega").unwrap();
-    assert!(
-        vega > 0.0,
-        "surface-driven HW vega should be positive: {vega}"
-    );
-    assert!(
-        (shocked_pv - base_pv).abs() > 1e-6,
-        "HW cap PV must move under a vol surface shock: base={base_pv}, shocked={shocked_pv}"
+    assert!(vega.abs() < 1e-12, "surface vega must be zero: {vega}");
+    assert_eq!(
+        shocked_pv, base_pv,
+        "HW cap pricing must not sample the volatility surface"
     );
 }
 

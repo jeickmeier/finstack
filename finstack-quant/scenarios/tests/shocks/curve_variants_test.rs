@@ -94,7 +94,7 @@ fn test_par_cds_parallel_shock() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
-        hazard_bump_mode: Default::default(),
+        hazard_bump_mode: finstack_quant_scenarios::HazardBumpMode::FirstOrderShift,
     };
 
     let engine = ScenarioEngine::new();
@@ -222,7 +222,7 @@ fn test_forecast_curve_node_shock() {
 fn test_par_cds_node_shock() {
     let base_date = Date::from_calendar_date(2025, Month::January, 1).unwrap();
 
-    // Create discount curve (needed for recalibration)
+    // Keep the discount curve present so the market matches a normal credit setup.
     let discount = DiscountCurve::builder("USD-OIS")
         .base_date(base_date)
         .knots(vec![(0.0, 1.0), (1.0, 0.95), (5.0, 0.80), (10.0, 0.60)])
@@ -233,7 +233,7 @@ fn test_par_cds_node_shock() {
         .base_date(base_date)
         .recovery_rate(0.4)
         .knots(vec![(0.0, 0.0), (1.0, 0.02), (5.0, 0.025)])
-        .par_spreads(vec![(1.0, 120.0), (5.0, 150.0)]) // Adds Par Spreads (in bp) to enable re-calibration path
+        .par_spreads(vec![(1.0, 120.0), (5.0, 150.0)])
         .build()
         .unwrap();
 
@@ -253,7 +253,7 @@ fn test_par_cds_node_shock() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
-        hazard_bump_mode: Default::default(),
+        hazard_bump_mode: finstack_quant_scenarios::HazardBumpMode::FirstOrderShift,
     };
 
     let engine = ScenarioEngine::new();
@@ -266,7 +266,7 @@ fn test_par_cds_node_shock() {
         as_of: base_date,
     };
 
-    // Par CDS node shocks should now succeed via approximate hazard bump
+    // First-order mode applies the direct core hazard-intensity operation.
     let report = engine.apply(&scenario, &mut ctx).unwrap();
     assert_eq!(report.operations_applied, 1);
 
@@ -276,7 +276,7 @@ fn test_par_cds_node_shock() {
     // Original 5Y lambda = 0.025. New approx 0.025 + 0.004167 = 0.029167
 
     // We can just verify it changed in the right direction
-    // After recalibration, knots may have changed, so interpolate at 5.0
+    // The exact 5Y node is targeted directly.
     let val_5y = bumped.hazard_rate(5.0);
     assert!(
         val_5y > 0.025,
@@ -461,7 +461,7 @@ fn test_all_curve_types_in_one_scenario() {
         ],
         priority: 0,
         resolution_mode: Default::default(),
-        hazard_bump_mode: Default::default(),
+        hazard_bump_mode: finstack_quant_scenarios::HazardBumpMode::FirstOrderShift,
     };
 
     let engine = ScenarioEngine::new();

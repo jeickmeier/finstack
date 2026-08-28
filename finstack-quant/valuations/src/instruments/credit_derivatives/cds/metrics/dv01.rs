@@ -5,17 +5,15 @@
 //! hazard curve must be re-bootstrapped from unchanged CDS spreads. This matches
 //! Bloomberg-style IR DV01 for CDS screens.
 
-use super::{hazard_with_deal_quote, market_doc_clause};
-use crate::calibration::bumps::hazard::replay_hazard_on_dependency_market;
-use crate::calibration::bumps::BumpRequest;
+use super::{deal_quote_override, market_doc_clause};
 use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::sensitivities::cs01::sensitivity_central_diff;
 use crate::metrics::{MetricCalculator, MetricContext};
+use crate::recalibration::{HazardRecalibrationAction, HazardRecalibrationRequest, QuoteBump};
 use finstack_quant_core::market_data::bumps::BumpSpec;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
-use std::sync::Arc;
 
 /// CDS DV01 calculator with par-spread hazard re-bootstrap when possible.
 pub(crate) struct CdsDv01Calculator;
@@ -35,7 +33,7 @@ impl CdsDv01Calculator {
             let bumped_discount = context.bump_discount_rate_quotes_cached(
                 base_discount.as_ref(),
                 calibration,
-                &BumpRequest::Parallel(bump_bp),
+                &QuoteBump::ParallelBp(bump_bp),
             )?;
             bumped_market = bumped_market.insert(bumped_discount.as_ref().clone());
         } else {
@@ -49,15 +47,20 @@ impl CdsDv01Calculator {
             let base_hazard = context
                 .curves
                 .get_hazard(cds.protection.credit_curve_id.as_str())?;
-            let recalibrated = replay_hazard_on_dependency_market(
-                base_hazard.as_ref(),
-                context.curves.as_ref(),
-                &bumped_market,
-                Some(&cds.premium.discount_curve_id),
-                Some(market_doc_clause(cds)),
-                Some(cds.valuation_convention),
+            let recalibrated = context.rebuild_hazard_curve(
+                HazardRecalibrationRequest {
+                    hazard: base_hazard,
+                    source_market: std::sync::Arc::clone(&context.curves),
+                    target_market: std::sync::Arc::new(bumped_market.clone()),
+                    discount_curve_id: cds.premium.discount_curve_id.clone(),
+                    doc_clause: Some(market_doc_clause(cds)),
+                    cds_valuation_convention: Some(cds.valuation_convention),
+                    deal_quote_override: deal_quote_override(cds),
+                    action: HazardRecalibrationAction::DependencyMarketReplay,
+                },
+                "dv01",
             )?;
-            bumped_market = bumped_market.insert(recalibrated);
+            bumped_market = bumped_market.insert(recalibrated.as_ref().clone());
         }
 
         context.reprice_raw(&bumped_market, context.as_of)
@@ -74,26 +77,14 @@ impl MetricCalculator for CdsDv01Calculator {
             return Ok(0.0);
         }
 
-        let original_curves = Arc::clone(&context.curves);
-        let result = (|| {
-            let hazard = original_curves.get_hazard(cds.protection.credit_curve_id.as_str())?;
-            if let Some(quote_hazard) = hazard_with_deal_quote(&cds, hazard.as_ref())? {
-                context.set_market(Arc::new(
-                    original_curves.as_ref().clone().insert(quote_hazard),
-                ));
-            }
+        let hazard = context
+            .curves
+            .get_hazard(cds.protection.credit_curve_id.as_str())?;
+        let rebootstrap_hazard = hazard.hazard_calibration().is_some();
 
-            let hazard = context
-                .curves
-                .get_hazard(cds.protection.credit_curve_id.as_str())?;
-            let rebootstrap_hazard = hazard.hazard_calibration().is_some();
+        let pv_up = Self::price_at_rate_bump(&cds, context, bump_bp, rebootstrap_hazard)?;
+        let pv_down = Self::price_at_rate_bump(&cds, context, -bump_bp, rebootstrap_hazard)?;
 
-            let pv_up = Self::price_at_rate_bump(&cds, context, bump_bp, rebootstrap_hazard)?;
-            let pv_down = Self::price_at_rate_bump(&cds, context, -bump_bp, rebootstrap_hazard)?;
-
-            Ok(sensitivity_central_diff(pv_up, pv_down, bump_bp))
-        })();
-        context.set_market(original_curves);
-        result
+        Ok(sensitivity_central_diff(pv_up, pv_down, bump_bp))
     }
 }

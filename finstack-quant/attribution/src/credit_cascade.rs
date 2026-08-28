@@ -39,10 +39,11 @@ use finstack_quant_models::factor::matching::{
     bucket_factor_id, CREDIT_GENERIC_FACTOR_ID, ISSUER_ID_META_KEY,
 };
 
-use finstack_quant_valuations::calibration::bumps::{
-    bump_hazard_shift, bump_hazard_spreads, BumpRequest,
-};
 use finstack_quant_valuations::instruments::Instrument;
+use finstack_quant_valuations::recalibration::{
+    provider_missing, HazardRecalibrationAction, HazardRecalibrationRequest, QuoteBump,
+    RecalibrationProvider,
+};
 
 /// Threshold above which an adder step's absolute P&L is considered large
 /// enough to warrant a `tracing::warn!`. Expressed as a fraction of the
@@ -497,79 +498,63 @@ fn factor_move_bp(
 }
 
 /// Apply a parallel **par CDS spread** shift (in bp) to every hazard curve in
-/// `curve_ids` from `base_market`, returning a new MarketContext with the
-/// shifted curves.
+/// `curve_ids` from `source_market` into `target_market`, returning a new
+/// market with the shifted curves.
 ///
-/// A curve carrying par CDS spread points is re-bootstrapped from those points
-/// shifted by `delta_bp` (the canonical par-spread methodology, matching the
-/// `Cs01` / `BucketedCs01` metrics). A curve with no par points — or when no
-/// discount curve is available to re-bootstrap against — falls back to a direct
-/// hazard-rate shift, exactly the fallback the canonical `Cs01` metric itself
-/// uses. Non-hazard families on `base_market` are preserved.
+/// Every curve is first replayed unchanged against the target dependency
+/// market and then bumped from that replayed center. Direct hazard-intensity
+/// shifts are intentionally not a fallback for this quote-space attribution
+/// operation.
 ///
 /// Used by the credit-factor cascade so the per-issuer step `delta_bp`, the
 /// credit-detail CS01, and `credit_curves_pnl` are all expressed in the same
 /// par CDS spread basis.
 pub(crate) fn shift_credit_curves_par_spread(
-    base_market: &MarketContext,
+    source_market: &MarketContext,
+    target_market: &MarketContext,
     curve_ids: &[CurveId],
     discount_id: Option<&CurveId>,
     delta_bp: f64,
+    provider: &dyn RecalibrationProvider,
 ) -> Result<MarketContext> {
-    let mut new_market = base_market.clone();
-    if delta_bp == 0.0 {
-        return Ok(new_market);
-    }
-    let req = BumpRequest::Parallel(delta_bp);
+    let mut new_market = target_market.clone();
+    let discount_id = discount_id
+        .cloned()
+        .ok_or_else(|| provider_missing("attribution credit replay"))?;
+    let source_market = Arc::new(source_market.clone());
     for curve_id in curve_ids {
-        let Ok(cur) = base_market.get_hazard(curve_id.as_str()) else {
+        let Ok(source_hazard) = source_market.get_hazard(curve_id.as_str()) else {
             continue;
         };
-        let bumped = if discount_id.is_some() && cur.par_spread_points().next().is_some() {
-            match bump_hazard_spreads(cur.as_ref(), base_market, &req, discount_id, None, None) {
-                Ok(c) => c,
-                Err(_) => bump_hazard_for_par_spread_move(cur.as_ref(), delta_bp)?,
-            }
-        } else {
-            bump_hazard_for_par_spread_move(cur.as_ref(), delta_bp)?
-        };
-        new_market = new_market.insert(bumped);
+        let target = Arc::new(new_market.clone());
+        let replayed = provider.rebuild_hazard_curve(&HazardRecalibrationRequest {
+            hazard: source_hazard,
+            source_market: Arc::clone(&source_market),
+            target_market: Arc::clone(&target),
+            discount_curve_id: discount_id.clone(),
+            doc_clause: None,
+            cds_valuation_convention: None,
+            deal_quote_override: None,
+            action: HazardRecalibrationAction::DependencyMarketReplay,
+        })?;
+        new_market = new_market.insert(replayed.as_ref().clone());
+        if delta_bp == 0.0 {
+            continue;
+        }
+        let replay_market = Arc::new(new_market.clone());
+        let bumped = provider.rebuild_hazard_curve(&HazardRecalibrationRequest {
+            hazard: replayed,
+            source_market: Arc::clone(&replay_market),
+            target_market: replay_market,
+            discount_curve_id: discount_id.clone(),
+            doc_clause: None,
+            cds_valuation_convention: None,
+            deal_quote_override: None,
+            action: HazardRecalibrationAction::SpreadBump(QuoteBump::ParallelBp(delta_bp)),
+        })?;
+        new_market = new_market.insert(bumped.as_ref().clone());
     }
     Ok(new_market)
-}
-
-/// Fallback hazard-rate bump reproducing a par CDS spread move of `par_spread_bp`
-/// when the curve cannot be re-bootstrapped (no par-spread points, or no
-/// discount curve).
-///
-/// `measure_par_spread_shift` derives the par-spread move of an un-quoted
-/// hazard curve from the credit-triangle identity `s ≈ λ·(1 − R)`, so the
-/// hazard-rate move equivalent to a `par_spread_bp` par-spread move is
-/// `par_spread_bp / (1 − R)`. Bumping the hazard rate by that keeps the
-/// cascade's par-spread `delta_bp` and the applied bump unit-consistent — a
-/// direct `par_spread_bp` hazard bump would understate the move by the LGD
-/// factor and leak `(1 − LGD)·credit_pnl` into `curve_shape`.
-///
-/// **Zero LGD** (audit Mi2): `recovery == 1.0` means the credit leg has no
-/// PV sensitivity to hazard — no hazard-rate bump reproduces a par-spread
-/// move, and the former `hazard_bp = par_spread_bp` identity fallback was an
-/// arbitrary bump. The curve is returned unchanged with a `tracing::warn!`.
-fn bump_hazard_for_par_spread_move(
-    hazard: &finstack_quant_core::market_data::term_structures::HazardCurve,
-    par_spread_bp: f64,
-) -> Result<finstack_quant_core::market_data::term_structures::HazardCurve> {
-    let lgd = 1.0 - hazard.recovery_rate();
-    if lgd.abs() <= 1e-12 {
-        tracing::warn!(
-            recovery_rate = hazard.recovery_rate(),
-            par_spread_bp,
-            "zero-LGD hazard curve: a par-spread bump has no hazard-rate \
-             equivalent (credit leg carries no PV sensitivity); returning the \
-             curve unchanged"
-        );
-        return Ok(hazard.clone());
-    }
-    bump_hazard_shift(hazard, &BumpRequest::Parallel(par_spread_bp / lgd))
 }
 
 /// Replace the running market's hazard curves (for `curve_ids`) with the T1
@@ -1021,31 +1006,6 @@ mod tests {
             "bp-quoted series of comparable magnitude must not be flagged, \
              got warnings = {:?}",
             cascade.warnings
-        );
-    }
-
-    /// Audit Mi2: recovery == 1.0 means LGD = 0 — the credit leg has no PV
-    /// sensitivity to hazard, so no hazard-rate bump can reproduce a par
-    /// spread move. The fallback must leave the curve unchanged (identity)
-    /// instead of applying an arbitrary `hazard_bp = par_spread_bp` bump.
-    #[test]
-    fn zero_lgd_par_spread_fallback_leaves_curve_unchanged() {
-        let as_of = create_date(2025, Month::January, 1).unwrap();
-        let curve = HazardCurve::builder("ZERO-LGD")
-            .base_date(as_of)
-            .recovery_rate(1.0)
-            .knots([(1.0, 0.02), (5.0, 0.02)])
-            .build()
-            .unwrap();
-
-        let bumped =
-            bump_hazard_for_par_spread_move(&curve, 25.0).expect("zero-LGD fallback must succeed");
-
-        assert!(
-            (bumped.hazard_rate(2.0) - curve.hazard_rate(2.0)).abs() < 1e-15,
-            "zero-LGD curve must be returned unchanged, got hazard {} vs {}",
-            bumped.hazard_rate(2.0),
-            curve.hazard_rate(2.0)
         );
     }
 

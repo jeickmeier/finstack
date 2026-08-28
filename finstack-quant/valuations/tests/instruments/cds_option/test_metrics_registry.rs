@@ -1,6 +1,7 @@
 //! Tests for CDS Option metrics framework integration.
 
 use super::common::*;
+use finstack_quant_calibration::recalibration::bump_discount_curve_from_rate_calibration;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -9,11 +10,9 @@ use finstack_quant_core::market_data::term_structures::{
     RateCalibrationPillar, RateCalibrationQuote, RateCalibrationRecipe,
 };
 use finstack_quant_core::types::{CurveId, IndexId};
-use finstack_quant_valuations::calibration::bumps::{
-    bump_discount_curve_from_rate_calibration, BumpRequest,
-};
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::{standard_registry, MetricContext, MetricId};
+use finstack_quant_valuations::recalibration::QuoteBump;
 use time::macros::date;
 
 fn quote_calibrated_discount(rate: f64, as_of: finstack_quant_core::dates::Date) -> DiscountCurve {
@@ -59,7 +58,7 @@ fn bump_quote_calibrated_discount(
         curve,
         calibration,
         market,
-        &BumpRequest::Parallel(bump_bp),
+        &QuoteBump::ParallelBp(bump_bp),
     )
     .unwrap()
 }
@@ -146,7 +145,7 @@ fn test_cds_option_dv01_bumps_swap_curve_quotes_and_matches_cds_convention() {
             &market,
             as_of,
             &[MetricId::Dv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let dv01 = *result.measures.get("dv01").unwrap();
@@ -192,7 +191,7 @@ fn test_cds_option_dv01_falls_back_to_direct_bump_without_calibration() {
             &market,
             as_of,
             &[MetricId::Dv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect("CDS option DV01 should fall back to a direct discount-factor bump");
     let dv01 = *result.measures.get("dv01").expect("dv01 present");
@@ -337,7 +336,7 @@ fn test_bucketed_cs01_requires_replay_recipe() {
             &market,
             as_of,
             &[MetricId::Cs01, MetricId::BucketedCs01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect_err("standard CDS option CS01 metrics require quote-space replay");
     assert!(error.to_string().contains("calibration recipe"));
@@ -387,7 +386,7 @@ fn test_spread_dv01_requires_replay_recipe() {
             &market,
             as_of,
             &[MetricId::SpreadDv01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .expect_err("standard spread DV01 requires quote-space replay");
     assert!(error.to_string().contains("calibration recipe"));

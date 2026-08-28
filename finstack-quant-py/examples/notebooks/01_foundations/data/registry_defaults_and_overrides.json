@@ -1,7 +1,7 @@
 {
   "EXTENSION_KEYS": {
     "analytics_defaults": "analytics.defaults.v1",
-    "calibration_defaults": "valuations.calibration_defaults.v1",
+    "calibration_defaults": "calibration.defaults.v1",
     "contract_specs": "valuations.contract_specs.v1",
     "credit_assumptions": "models.credit_assumptions.v1",
     "ecl_policy": "statements_analytics.ecl_policy.v1",

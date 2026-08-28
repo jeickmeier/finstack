@@ -16,18 +16,15 @@ pub mod forward_swap_rate;
 pub mod mc_config;
 pub use mc_config::RateExoticMcConfig;
 
-/// HW1F parameter resolution with overrides/market-scalar/default precedence.
-pub mod hw1f_calibration;
-pub use hw1f_calibration::{
-    resolve_hw1f_params, Hw1fCalibrationFlavor, Hw1fCapletSurfacePoint, Hw1fParamSource,
-    Hw1fResolveRequest, Hw1fSurfaceCalibration,
-};
+/// HW1F parameter resolution from complete overrides or pre-fitted market scalars.
+pub mod params;
+pub use params::{resolve_hw1f_params, Hw1fParamFamily, Hw1fParamSource, Hw1fResolveRequest};
 
-/// HW1F θ(t) curve calibration and term-forward bond reconstruction.
+/// HW1F θ(t) preparation and term-forward bond reconstruction.
 pub mod hw1f_curve;
 pub use hw1f_curve::{
-    calibrate_hw1f_model_params, calibrate_hw1f_params, initial_short_rate_from_curve,
-    Hw1fTermForward, PeriodForwardCoeffs,
+    initial_short_rate_from_curve, prepare_hw1f_model_params, prepare_hw1f_params, Hw1fTermForward,
+    PeriodForwardCoeffs,
 };
 
 /// Historical CMS (par swap rate) fixing lookups for seasoned CMS trades.

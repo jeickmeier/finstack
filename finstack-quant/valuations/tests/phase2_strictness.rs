@@ -1,8 +1,6 @@
 //! Phase 2 strict persisted calibration-step contract regressions.
 
-use finstack_quant_valuations::calibration::api::schema::{
-    CalibrationStep, DiscountCurveParams, StepParams,
-};
+use finstack_quant_calibration::api::schema::{CalibrationStep, DiscountCurveParams, StepParams};
 
 #[test]
 fn calibration_step_rejects_unknown_flattened_fields() {

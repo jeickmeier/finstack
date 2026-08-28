@@ -13,6 +13,7 @@ from types import ModuleType
 import pytest
 
 from finstack_quant.attribution import schema as attribution_schema
+from finstack_quant.calibration import schema as calibration_schema
 from finstack_quant.cashflows import schema as cashflows_schema
 from finstack_quant.core import schema as core_schema
 from finstack_quant.margin import schema as margin_schema
@@ -25,6 +26,7 @@ from finstack_quant.valuations import schema as valuations_schema
 # Every crate that owns a schema registry exposes the same three functions.
 NAMESPACES = [
     attribution_schema,
+    calibration_schema,
     cashflows_schema,
     core_schema,
     factor_model_schema,
@@ -117,9 +119,9 @@ def test_instrument_catalogue_is_cheap_to_list() -> None:
 
 
 def test_every_registry_crate_publishes_the_same_surface() -> None:
-    # Nine crates own a registry; a tenth added later must show up here rather
+    # Ten crates own a registry; an eleventh added later must show up here rather
     # than silently shipping without the discovery surface.
-    assert len(NAMESPACES) == 9
+    assert len(NAMESPACES) == 10
     for namespace in NAMESPACES:
         # Namespaces that predate the registry also keep their named accessors,
         # so the trio is a floor rather than the whole surface.
@@ -128,7 +130,7 @@ def test_every_registry_crate_publishes_the_same_surface() -> None:
 
 def test_indexes_together_cover_the_whole_published_corpus() -> None:
     paths = {row["path"] for namespace in NAMESPACES for row in json.loads(namespace.index())["artifacts"]}
-    assert len(paths) == 116, "the nine indexes must account for every checked-in artifact"
+    assert len(paths) == 116, "the ten indexes must account for every checked-in artifact"
 
 
 @pytest.mark.parametrize("namespace", NAMESPACES)

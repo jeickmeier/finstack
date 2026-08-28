@@ -34,9 +34,9 @@
 
 use super::super::engine::McEngine;
 use crate::monte_carlo::engine::build_correlation_factor;
-use crate::monte_carlo::online_stats::OnlineStats;
 use crate::monte_carlo::traits::Payoff;
 use crate::monte_carlo::traits::{Discretization, RandomStream, StochasticProcess};
+use crate::monte_carlo::OnlineStats;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 
@@ -574,7 +574,7 @@ mod tests {
     use crate::monte_carlo::payoff::vanilla::EuropeanCall;
     use crate::monte_carlo::process::gbm::{GbmParams, GbmProcess};
     use crate::monte_carlo::rng::philox::PhiloxRng;
-    use crate::monte_carlo::time_grid::TimeGrid;
+    use crate::monte_carlo::TimeGrid;
     use finstack_quant_core::math::{norm_cdf, norm_pdf};
 
     const SPOT: f64 = 100.0;

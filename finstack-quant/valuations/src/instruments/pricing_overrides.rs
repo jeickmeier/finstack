@@ -481,11 +481,10 @@ pub struct ModelConfig {
     /// A value of 0.20 (a typical lognormal swaption vol) would be approximately
     /// 13–40× too large and would produce a wildly mis-priced HW tree.
     ///
-    /// Setting σ alone is valid and means κ = 0 (pure Ho-Lee dynamics); pair
-    /// it with [`Self::hw1f_mean_reversion`] to select a mean-reverting
-    /// parameterisation. A κ-only cap/floor override is also valid when a
-    /// normal-vol surface is available: κ is held fixed while σ is calibrated
-    /// from market quotes.
+    /// This override is valid only with [`Self::hw1f_mean_reversion`]. Pricing
+    /// requires a complete, positive, finite parameter pair (or a complete
+    /// pre-fitted pair/schedule in the market context); partial inputs are
+    /// rejected and no volatility surface is queried.
     ///
     /// This is the canonical short-rate volatility field for the
     /// **rates-credit** callable path (`credit_curve_id` set): that path reads
@@ -505,11 +504,18 @@ pub struct ModelConfig {
     pub hw1f_sigma_schedule: Option<finstack_quant_core::math::piecewise::PiecewiseConstantCurve>,
     /// Hull-White 1F mean-reversion speed override (κ), in annualised units.
     ///
-    /// Companion to [`Self::hw1f_sigma`]; either may be set alone. Cap/floor
-    /// pricing may hold κ fixed and calibrate σ from a normal-vol surface.
-    /// Typical values: 0.01–0.10.
+    /// Companion to [`Self::hw1f_sigma`]. The two values must be supplied
+    /// together unless the market context contains a complete pre-fitted
+    /// scalar pair or volatility schedule. Typical values: 0.01–0.10.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hw1f_mean_reversion: Option<f64>,
+    /// Pre-calibrated flat LMM forward-rate volatility loading scale.
+    ///
+    /// This is the positive annualized decimal scale applied to the Bermudan
+    /// LMM loading shape. Obtain it from the top-level calibration helper;
+    /// pricing never reads or fits a volatility surface.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lmm_base_vol: Option<f64>,
     /// Credit hazard-rate volatility for the two-factor rates-credit callable
     /// lattice (σ_λ), annualised, in **absolute** decimal hazard-rate points
     /// per √year.
@@ -663,6 +669,13 @@ impl ModelConfig {
             (self.hazard_volatility, true),
             (self.hazard_mean_reversion, true),
         ])?;
+        if let Some(base_vol) = self.lmm_base_vol {
+            if !base_vol.is_finite() || base_vol <= 0.0 {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "lmm_base_vol must be positive and finite, got {base_vol}"
+                )));
+            }
+        }
         if let Some(rho) = self.rate_credit_correlation {
             if !rho.is_finite() || !(-1.0..=1.0).contains(&rho) {
                 return Err(finstack_quant_core::Error::Validation(format!(

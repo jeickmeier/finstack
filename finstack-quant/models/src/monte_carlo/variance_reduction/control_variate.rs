@@ -13,11 +13,11 @@
 //! # Online Covariance
 //!
 //! For large-scale simulations where storing all samples is impractical,
-//! use [`OnlineCovariance`](crate::monte_carlo::online_stats::OnlineCovariance)
+//! use [`OnlineCovariance`](crate::monte_carlo::OnlineCovariance)
 //! to compute covariance incrementally:
 //!
 //! ```
-//! use finstack_quant_models::monte_carlo::online_stats::OnlineCovariance;
+//! use finstack_quant_models::monte_carlo::OnlineCovariance;
 //!
 //! let mut cov = OnlineCovariance::new();
 //! // Update incrementally during simulation
@@ -33,84 +33,7 @@
 //! let control_mean = cov.mean_y();
 //! ```
 
-use crate::closed_form::{black_scholes_spot_call, black_scholes_spot_put};
 use crate::monte_carlo::estimate::Estimate;
-
-/// Black-Scholes formula for European call option.
-///
-/// # Arguments
-///
-/// * `spot` - Current spot price
-/// * `strike` - Option exercise price in the same price units as `spot`.
-/// * `time_to_maturity` - Time to maturity in years
-/// * `rate` - Continuously compounded annual risk-free rate as a decimal.
-/// * `dividend_yield` - Continuously compounded annual dividend or carry yield
-///   as a decimal.
-/// * `volatility` - Annualized lognormal volatility as a decimal.
-///
-/// # Returns
-///
-/// Call option price
-///
-/// # Argument order
-///
-/// This forwards to
-/// [`crate::closed_form::black_scholes_spot_call`], which
-/// is the canonical implementation, but takes `(spot, strike, t, r, q, vol)`
-/// where core takes `(spot, strike, r, q, vol, t)`. The permutation is kept
-/// because this signature is what `finstack_quant.models.monte_carlo` exposes to
-/// Python; do not "simplify" a call site by swapping one for the other
-/// without reordering the arguments.
-pub fn black_scholes_call(
-    spot: f64,
-    strike: f64,
-    time_to_maturity: f64,
-    rate: f64,
-    dividend_yield: f64,
-    volatility: f64,
-) -> f64 {
-    black_scholes_spot_call(
-        spot,
-        strike,
-        rate,
-        dividend_yield,
-        volatility,
-        time_to_maturity,
-    )
-}
-
-/// Black-Scholes formula for European put option.
-///
-/// # Arguments
-///
-/// * `spot` - Current underlying spot in the same price units as `strike`.
-/// * `strike` - Option exercise price in the same price units as `spot`.
-/// * `time_to_maturity` - Time from valuation to option expiry in years.
-/// * `rate` - Continuously compounded annual risk-free rate as a decimal.
-/// * `dividend_yield` - Continuously compounded annual dividend or carry yield
-///   as a decimal.
-/// * `volatility` - Annualized lognormal volatility as a decimal.
-///
-/// # Returns
-///
-/// Returns the undiscounted-scale European put price in the units of `spot`.
-pub fn black_scholes_put(
-    spot: f64,
-    strike: f64,
-    time_to_maturity: f64,
-    rate: f64,
-    dividend_yield: f64,
-    volatility: f64,
-) -> f64 {
-    black_scholes_spot_put(
-        spot,
-        strike,
-        rate,
-        dividend_yield,
-        volatility,
-        time_to_maturity,
-    )
-}
 
 /// Apply control variate adjustment to a Monte Carlo estimate.
 ///
@@ -194,48 +117,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_black_scholes_call() {
-        // ATM call: S=100, K=100, T=1, r=5%, q=2%, σ=20%
-        let price = black_scholes_call(100.0, 100.0, 1.0, 0.05, 0.02, 0.2);
-
-        // Should be around 8-9 for these parameters
-        assert!(price > 7.0 && price < 10.0);
-    }
-
-    #[test]
-    fn test_black_scholes_put() {
-        // ATM put: S=100, K=100, T=1, r=5%, q=2%, σ=20%
-        let price = black_scholes_put(100.0, 100.0, 1.0, 0.05, 0.02, 0.2);
-
-        // Should be positive
-        assert!(price > 5.0 && price < 8.0);
-    }
-
-    #[test]
-    fn test_put_call_parity() {
-        let s = 100.0;
-        let k = 100.0;
-        let t = 1.0;
-        let r = 0.05;
-        let q = 0.02;
-        let sigma = 0.2;
-
-        let call = black_scholes_call(s, k, t, r, q, sigma);
-        let put = black_scholes_put(s, k, t, r, q, sigma);
-
-        // Put-call parity: C - P = S*e^(-qT) - K*e^(-rT)
-        let lhs = call - put;
-        let rhs = s * (-q * t).exp() - k * (-r * t).exp();
-
-        assert!(
-            (lhs - rhs).abs() < 1e-8,
-            "Put-call parity failed: {} vs {}",
-            lhs,
-            rhs
-        );
-    }
-
-    #[test]
     fn test_control_variate_adjustment() {
         // Simulate some correlated samples
         let mc_samples: Vec<f64> = vec![10.0, 12.0, 11.0, 13.0, 10.5];
@@ -289,20 +170,6 @@ mod tests {
         // Var(x) = 2.5, Var(y) = 10, Cov(x,y) = 5
         assert!(cov > 0.0);
         assert!((cov - 5.0).abs() < 0.1);
-    }
-
-    #[test]
-    fn test_bs_itm_call() {
-        // Deep ITM call should be close to intrinsic value
-        let price = black_scholes_call(120.0, 100.0, 0.01, 0.05, 0.0, 0.01);
-        assert!((price - 20.0).abs() < 0.5);
-    }
-
-    #[test]
-    fn test_bs_otm_call() {
-        // Deep OTM call should be close to zero
-        let price = black_scholes_call(80.0, 100.0, 0.01, 0.05, 0.0, 0.01);
-        assert!(price < 0.1);
     }
 
     #[test]

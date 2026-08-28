@@ -10,7 +10,7 @@ use finstack_quant_models::SabrParameters;
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 use finstack_quant_valuations::instruments::rates::swaption::{BermudanSchedule, BermudanSwaption};
 use finstack_quant_valuations::instruments::rates::swaption::{
-    BermudanSwaptionPricer, BermudanSwaptionPricerConfig, CalibratedHullWhiteModel,
+    BermudanSwaptionPricer, BermudanSwaptionPricerConfig, PreparedHullWhiteModel,
     SimpleSwaptionBlackPricer,
 };
 use finstack_quant_valuations::instruments::Instrument;
@@ -158,12 +158,11 @@ fn test_bermudan_pricer_cached_model_sets_measure() {
     let market = create_flat_market(as_of, 0.03, 0.2);
     let disc = market.get_discount("USD_OIS").unwrap();
     let ttm = swaption.time_to_maturity(as_of).unwrap();
-    let model =
-        CalibratedHullWhiteModel::calibrate(HullWhiteParams::default(), 50, disc.as_ref(), ttm)
-            .unwrap();
+    let model = PreparedHullWhiteModel::prepare(HullWhiteParams::default(), 50, disc.as_ref(), ttm)
+        .unwrap();
 
     let pricer = BermudanSwaptionPricer::tree_with_config(BermudanSwaptionPricerConfig {
-        pre_calibrated_model: Some(model),
+        prepared_model: Some(model),
         ..Default::default()
     });
     let result = pricer.price_dyn(&swaption, &market, as_of).unwrap();

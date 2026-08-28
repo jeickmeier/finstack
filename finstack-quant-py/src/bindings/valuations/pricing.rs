@@ -94,13 +94,19 @@ fn price_instrument(
     let inner = py
         .detach(move || {
             finstack_quant_valuations::pricer::price_instrument_json(
-                &instrument_json,
-                &market,
-                &as_of,
-                &model,
-                &metrics,
-                pricing_options.as_deref(),
-                market_history.as_deref(),
+                finstack_quant_valuations::pricer::JsonPricingRequest {
+                    instrument_json: &instrument_json,
+                    market: &market,
+                    as_of: &as_of,
+                    model: &model,
+                    metrics: &metrics,
+                    instrument_pricing_overrides_json: pricing_options.as_deref(),
+                    market_history_json: market_history.as_deref(),
+                    pricing_options: finstack_quant_valuations::instruments::PricingOptions::default()
+                        .with_recalibration_provider(std::sync::Arc::new(
+                            finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
+                        )),
+                },
             )
         })
         .map_err(core_to_py)?;

@@ -4,9 +4,9 @@
 
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_valuations::calibration::api::engine;
-use finstack_quant_valuations::calibration::api::schema::CalibrationEnvelope;
-use finstack_quant_valuations::calibration::bumps::{bump_hazard_spreads, BumpRequest};
+use finstack_quant_calibration::api::engine;
+use finstack_quant_calibration::api::schema::CalibrationEnvelope;
+use finstack_quant_calibration::recalibration::bump_hazard_spreads;
 use finstack_quant_valuations::constants::bloomberg_cdso;
 use finstack_quant_valuations::instruments::credit_derivatives::cds::CdsValuationConvention;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::bloomberg_quadrature::{
@@ -15,6 +15,7 @@ use finstack_quant_valuations::instruments::credit_derivatives::cds_option::bloo
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::pricer::synthetic_underlying_cds;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::CDSOption;
 use finstack_quant_valuations::market::conventions::ids::CdsDocClause;
+use finstack_quant_valuations::recalibration::QuoteBump;
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
@@ -123,7 +124,7 @@ fn cdx_ig_46_reported_npv_uses_supplied_curve_not_zero_rebootstrap() {
     let zero_hazard = bump_hazard_spreads(
         hazard.as_ref(),
         &market,
-        &BumpRequest::Parallel(0.0),
+        &QuoteBump::ParallelBp(0.0),
         Some(&option.discount_curve_id),
         Some(CdsDocClause::IsdaNa),
         Some(CdsValuationConvention::BloombergCdswClean),

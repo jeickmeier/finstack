@@ -139,7 +139,8 @@ fn diag_cdx_ig_46_spot_cds_reconciliation() {
     // Use the public bumped-spread Spread DV01 path: bump par spreads by
     // +1 bp parallel, re-bootstrap hazard, reprice. This is exactly what
     // CDSW's published Spread DV01 measures (DOCS 2057273 §3 & §4).
-    use finstack_quant_valuations::calibration::bumps::{bump_hazard_spreads, BumpRequest};
+    use finstack_quant_calibration::recalibration::bump_hazard_spreads;
+    use finstack_quant_valuations::recalibration::QuoteBump;
     let pv_base = cds.value(&market, as_of).unwrap().amount();
 
     // Inspect the bumped hazard curve so we can isolate "are we bumping
@@ -148,7 +149,7 @@ fn diag_cdx_ig_46_spot_cds_reconciliation() {
     let hazard_bumped = bump_hazard_spreads(
         hazard_curve_base.as_ref(),
         &market,
-        &BumpRequest::Parallel(1.0),
+        &QuoteBump::ParallelBp(1.0),
         Some(&cds.premium.discount_curve_id),
         None,
         None,
@@ -179,7 +180,7 @@ fn diag_cdx_ig_46_spot_cds_reconciliation() {
         let bumped = bump_hazard_spreads(
             hazard_curve_base.as_ref(),
             &market,
-            &BumpRequest::Parallel(bump_bp),
+            &QuoteBump::ParallelBp(bump_bp),
             Some(&cds.premium.discount_curve_id),
             None,
             None,
@@ -259,7 +260,7 @@ fn diag_cdx_ig_46_spot_cds_reconciliation() {
         let bumped_zero = bump_hazard_spreads(
             hazard_curve_base.as_ref(),
             &market,
-            &BumpRequest::Parallel(0.0),
+            &QuoteBump::ParallelBp(0.0),
             Some(&cds.premium.discount_curve_id),
             None,
             None,
@@ -305,10 +306,10 @@ fn diag_cdx_ig_46_spot_cds_reconciliation() {
     // round-trip: the bootstrap solver targets NPV=0 on this same
     // instrument, so any non-zero residual after re-bootstrapping is a
     // calibration-vs-pricer convergence gap, not a structural difference.
+    use finstack_quant_calibration::build::{build_cds_instrument, BuildCtx};
+    use finstack_quant_calibration::quotes::cds::CdsQuote;
+    use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};
     use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
-    use finstack_quant_valuations::market::quotes::cds::CdsQuote;
-    use finstack_quant_valuations::market::quotes::ids::{Pillar, QuoteId};
-    use finstack_quant_valuations::market::{build_cds_instrument, BuildCtx};
     let mut curve_ids = finstack_quant_core::HashMap::default();
     curve_ids.insert("discount".to_string(), "USD-S531-SWAP-20260507".to_string());
     curve_ids.insert("credit".to_string(), "CDX-NA-IG-46-CBBT".to_string());

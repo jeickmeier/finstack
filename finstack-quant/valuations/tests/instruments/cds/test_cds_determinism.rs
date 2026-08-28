@@ -69,7 +69,7 @@ fn metric_value(
             market,
             as_of,
             std::slice::from_ref(&metric),
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            test_utils::pricing_options(),
         )
         .unwrap();
     result.measures[metric.as_str()]
@@ -152,20 +152,10 @@ fn test_cds_all_metrics_determinism() {
     ];
 
     let first = cds
-        .price_with_metrics(
-            &market,
-            as_of,
-            &metrics,
-            finstack_quant_valuations::instruments::PricingOptions::default(),
-        )
+        .price_with_metrics(&market, as_of, &metrics, test_utils::pricing_options())
         .unwrap();
     let second = cds
-        .price_with_metrics(
-            &market,
-            as_of,
-            &metrics,
-            finstack_quant_valuations::instruments::PricingOptions::default(),
-        )
+        .price_with_metrics(&market, as_of, &metrics, test_utils::pricing_options())
         .unwrap();
 
     for metric in &metrics {

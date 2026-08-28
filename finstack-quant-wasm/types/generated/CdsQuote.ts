@@ -13,8 +13,8 @@
  *
  * Par spread quote:
  * ```rust
- * use finstack_quant_valuations::market::quotes::cds::CdsQuote;
- * use finstack_quant_valuations::market::quotes::ids::{Pillar, QuoteId};
+ * use finstack_quant_calibration::quotes::cds::CdsQuote;
+ * use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};
  * use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
  * use finstack_quant_core::currency::Currency;
  *
@@ -36,8 +36,8 @@
  *
  * Upfront quote:
  * ```rust
- * use finstack_quant_valuations::market::quotes::cds::CdsQuote;
- * use finstack_quant_valuations::market::quotes::ids::{Pillar, QuoteId};
+ * use finstack_quant_calibration::quotes::cds::CdsQuote;
+ * use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};
  * use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
  * use finstack_quant_core::currency::Currency;
  *

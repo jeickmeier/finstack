@@ -714,6 +714,25 @@ public = [
     "yield_pca_scenario",
 ]
 
+[crates.calibration]
+rust_crate = "finstack-quant-calibration"
+rust_lib = "finstack-quant/calibration/src/lib.rs"
+python_package = "finstack_quant.calibration"
+visibility = "pub"
+status = "exists"
+
+[crates.calibration.symbols]
+public = [
+    "CalibrationEnvelope",
+    "CalibrationEnvelopeError",
+    "CalibrationResult",
+    "calibrate",
+    "calibrate_bermudan_lmm_base_vol",
+    "dependency_graph_json",
+    "dry_run",
+    "validate_calibration_json",
+]
+
 [crates.valuations]
 rust_crate = "finstack-quant-valuations"
 rust_lib   = "finstack-quant/valuations/src/lib.rs"
@@ -726,11 +745,9 @@ status = "exists"
 # Top-level public modules. Symbol-level pinning for non-submodule public names
 # lives in [crates.valuations.symbols] below.
 instruments  = { python = "finstack_quant.valuations.instruments",  status = "exists", note = "Instrument JSON validation and pricing helpers live under finstack_quant.valuations.instruments" }
-calibration  = { python = "finstack_quant.valuations",              status = "flattened", note = "calibrate, dry_run, validate_calibration_json, dependency_graph_json exported from finstack_quant.valuations root" }
 composite    = { python = "finstack_quant.valuations.composite",    status = "exists", note = "Resolved generic composite instruments, primitive exposure reports, explicit rebalancing, and dated history." }
 credit_derivatives = { python = "finstack_quant.valuations.credit_derivatives", status = "exists", note = "CDS-family example-payload factories; mirrors WASM valuations.creditDerivatives" }
 schema       = { python = "finstack_quant.valuations.schema",       status = "exists", note = "Compiled-in JSON Schema accessors and envelope/type validators; no WASM twin" }
-envelope     = { python = "finstack_quant.valuations.envelope",     status = "exists", note = "Pure-Python typing aid: the CalibrationEnvelope alias. Rust owns envelope validation and the versioned schema, so there is no Rust or WASM twin" }
 # Rust-only infrastructure modules, listed for completeness so the module
 # inventory covers the whole crate root. None is surfaced as a host namespace.
 constants    = { python = "finstack_quant.valuations.constants",    status = "missing", note = "Rust-only numeric/convention constants; hosts see the values through APIs that consume them (e.g. theta_days defaults), not as a namespace" }
@@ -745,24 +762,14 @@ results      = { python = "finstack_quant.valuations.results",      status = "mi
 # resolve when imported from `finstack_quant.valuations`. Adding a public name to
 # the Python surface without listing it here fails the parity test.
 [crates.valuations.symbols]
-# Existing PyO3/Python classes plus the broad JSON-native CalibrationEnvelope
-# alias from finstack-quant-py/finstack_quant/valuations/envelope.py.
-#
 public = [
-    "CalibrationEnvelope",
-    "CalibrationEnvelopeError",
-    "CalibrationResult",
     "ValuationResult",
-    "calibrate",
     "callable_range_accrual_accrued",
     "cms_spread_option_intrinsic",
-    "dependency_graph_json",
-    "dry_run",
     "instrument_cashflows",
     "inverse_floater_coupon_profile",
     "snowball_coupon_profile",
     "tarn_coupon_profile",
-    "validate_calibration_json",
 ]
 
 [crates.valuations.composite]
@@ -2079,6 +2086,7 @@ file = "finstack_quant/finstack_quant.pyi"
 names = [
     "analytics",
     "attribution",
+    "calibration",
     "cashflows",
     "core",
     "covenants",
@@ -2108,6 +2116,7 @@ file = "../finstack-quant-wasm/index.js"
 namespaces = [
     "analytics",
     "attribution",
+    "calibration",
     "cashflows",
     "core",
     "covenants",
@@ -2231,7 +2240,7 @@ root_exports = [
 ]
 
 # finstack_quant.core.market_data symbols intentionally absent from the WASM core
-# facade. Browser callers build market data via `valuations.calibrate` JSON
+# facade. Browser callers build market data via `calibration.calibrate` JSON
 # (`MarketContextState`) rather than the Python `MarketContext` builder API.
 python_only_market_data = [
     "curves",
@@ -2528,14 +2537,6 @@ liquidity = [
 monteCarlo = [
     "blackScholesCall",
     "blackScholesPut",
-    "priceAmericanCall",
-    "priceAmericanCallUnbiased",
-    "priceAmericanPut",
-    "priceAmericanPutUnbiased",
-    "priceAsianCall",
-    "priceAsianPut",
-    "priceEuropeanCall",
-    "priceEuropeanPut",
     "priceHestonCall",
     "priceHestonPut",
 ]
@@ -2574,17 +2575,6 @@ monteCarlo = [
     "simulate_gbm_paths",
 ]
 
-[wasm_models_subset.nested_wasm_only]
-monteCarlo = [
-    "priceAmericanCall",
-    "priceAmericanCallUnbiased",
-    "priceAmericanPut",
-    "priceAmericanPutUnbiased",
-    "priceAsianCall",
-    "priceAsianPut",
-    "priceEuropeanCall",
-    "priceEuropeanPut",
-]
 
 [wasm_models_subset.monte_carlo_python_js_map]
 black_scholes_call = "blackScholesCall"
@@ -2620,6 +2610,29 @@ price_heston_put = "priceHestonPut"
 "RecoveryModel.is_stochastic" = "isStochastic"
 "RecoveryModel.model_name" = "modelName"
 
+# WASM calibration subset
+# ---------------------------------------------------------------------------
+[wasm_calibration_subset]
+rust_module_root = "../finstack-quant-wasm/src/api/calibration.rs"
+js_export_file = "../finstack-quant-wasm/exports/calibration.js"
+root_exports = [
+    "calibrate",
+    "calibrateBermudanLmmBaseVol",
+    "dependencyGraphJson",
+    "dryRun",
+    "validateCalibrationJson",
+]
+
+[wasm_calibration_subset.python_js_map]
+calibrate = "calibrate"
+calibrate_bermudan_lmm_base_vol = "calibrateBermudanLmmBaseVol"
+dependency_graph_json = "dependencyGraphJson"
+dry_run = "dryRun"
+validate_calibration_json = "validateCalibrationJson"
+
+[wasm_calibration_subset.wasm_only]
+symbols = []
+
 # WASM valuations subset
 #
 # Python tracks the full valuations surface via [crates.valuations.symbols].
@@ -2637,23 +2650,16 @@ nested = ["composite", "creditDerivatives", "fx", "instruments", "market"]
 # Instrument pricing helpers live under `valuations.instruments`.
 root_exports = [
     "Market",
-    "calibrate",
     "callableRangeAccrualAccrued",
     "cmsSpreadOptionIntrinsic",
-    "dependencyGraphJson",
-    "dryRun",
     "inverseFloaterCouponProfile",
     "snowballCouponProfile",
     "tarnCouponProfile",
-    "validateCalibrationJson",
     "validateValuationResultJson",
 ]
 
 # Python-only valuations symbols (not on WASM valuations facade).
 python_only = [
-    "CalibrationEnvelope",
-    "CalibrationEnvelopeError",
-    "CalibrationResult",
     "ValuationResult",
     "instrument_cashflows",
 ]
@@ -2672,10 +2678,6 @@ snowball_coupon_profile = "snowballCouponProfile"
 inverse_floater_coupon_profile = "inverseFloaterCouponProfile"
 cms_spread_option_intrinsic = "cmsSpreadOptionIntrinsic"
 callable_range_accrual_accrued = "callableRangeAccrualAccrued"
-validate_calibration_json = "validateCalibrationJson"
-dependency_graph_json = "dependencyGraphJson"
-calibrate = "calibrate"
-dry_run = "dryRun"
 
 # Python twins that live below the valuations root after API consolidation.
 [wasm_valuations_subset.python_path_js_map]

@@ -616,26 +616,6 @@ fn scenario_override_examples() -> finstack_quant_core::Result<Vec<Value>> {
     ])
 }
 
-/// A canonical minimal calibration request.
-///
-/// Only `plan` is required; `market_data` and `prior_market` are omitted when
-/// empty, so this is the smallest well-formed request shape.
-fn calibration_examples() -> finstack_quant_core::Result<Vec<Value>> {
-    let plan = crate::calibration::api::schema::CalibrationPlan {
-        id: "usd_curves".to_string(),
-        description: Some("Bootstrap the USD OIS discount curve.".to_string()),
-        quote_sets: Default::default(),
-        steps: Vec::new(),
-        settings: Default::default(),
-    };
-    let envelope =
-        crate::calibration::api::schema::CalibrationEnvelope::new(plan, Vec::new(), Vec::new());
-    let value = serde_json::to_value(&envelope).map_err(|error| {
-        finstack_quant_core::Error::Internal(format!("serialize calibration example: {error}"))
-    })?;
-    Ok(vec![value])
-}
-
 /// Canonical `ValuationResult`: a priced bond with its policy stamps.
 fn valuation_result_examples() -> finstack_quant_core::Result<Vec<Value>> {
     let as_of =
@@ -659,28 +639,6 @@ fn valuation_result_examples() -> finstack_quant_core::Result<Vec<Value>> {
         crate::results::ValuationResult::stamped_with_meta("US912828XG33", as_of, value, meta);
     let value = serde_json::to_value(&result).map_err(|error| {
         finstack_quant_core::Error::Internal(format!("serialize valuation result example: {error}"))
-    })?;
-    Ok(vec![value])
-}
-
-/// Canonical `MarketQuote`: a money-market deposit rate.
-fn market_quote_examples() -> finstack_quant_core::Result<Vec<Value>> {
-    let quote = crate::market::quotes::market_quote::MarketQuote::Rates(
-        crate::market::quotes::rates::RateQuote::Deposit {
-            id: "USD-SOFR-3M-DEPO".into(),
-            index: "USD-SOFR".into(),
-            pillar: crate::market::quotes::ids::Pillar::Tenor(
-                finstack_quant_core::dates::Tenor::parse("3M").map_err(|error| {
-                    finstack_quant_core::Error::Internal(format!(
-                        "parse example pillar tenor: {error}"
-                    ))
-                })?,
-            ),
-            rate: 0.0533,
-        },
-    );
-    let value = serde_json::to_value(&quote).map_err(|error| {
-        finstack_quant_core::Error::Internal(format!("serialize market quote example: {error}"))
     })?;
     Ok(vec![value])
 }
@@ -896,28 +854,6 @@ pub fn artifacts() -> Vec<SchemaArtifact> {
              beside it: this document is too large to hand to a model.",
         )
         .with_examples(instrument_examples),
-        SchemaArtifact::new::<crate::calibration::api::schema::CalibrationEnvelope>(
-            "schemas/calibration/1/calibration.schema.json",
-            "https://finstack_quant.dev/schemas/calibration/1/calibration.schema.json",
-            "Calibration",
-            "Canonical typed calibration request and result envelope.",
-        )
-        .with_packager(package_valuations_schema)
-        .with_kind(SchemaKind::Input)
-        .with_summary(
-            "Build a market from quotes: a calibration plan, flat market data, and any \
-             pre-built curves or surfaces.",
-        )
-        .with_examples(calibration_examples),
-        SchemaArtifact::new::<crate::market::quotes::market_quote::MarketQuote>(
-            "schemas/market/1/market_quote.schema.json",
-            "https://finstack_quant.dev/schemas/market/1/market_quote.schema.json",
-            "Market Quote",
-            "Canonical tagged market quote.",
-        )
-        .with_packager(package_valuations_schema)
-        .with_summary("One market observation, tagged by asset class.")
-        .with_examples(market_quote_examples),
         SchemaArtifact::new::<crate::results::ValuationResult>(
             "schemas/results/1/valuation_result.schema.json",
             "https://finstack_quant.dev/schemas/results/1/valuation_result.schema.json",

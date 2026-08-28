@@ -12,7 +12,7 @@ use crate::monte_carlo::discretization::exact::ExactGbm;
 use crate::monte_carlo::payoff::vanilla::{EuropeanCall, EuropeanPut};
 use crate::monte_carlo::process::gbm::GbmProcess;
 use crate::monte_carlo::rng::philox::PhiloxRng;
-use crate::monte_carlo::time_grid::TimeGrid;
+use crate::monte_carlo::TimeGrid;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 
@@ -297,7 +297,7 @@ impl EuropeanPricer {
 /// ```
 /// use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig};
 /// use finstack_quant_models::monte_carlo::pricer::european::price_engine_gbm_call;
-/// use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
+/// use finstack_quant_models::monte_carlo::TimeGrid;
 ///
 /// let grid = TimeGrid::uniform(1.0, 16).unwrap();
 /// let engine = McEngine::new(McEngineConfig::new(2_000, grid).parallel(false));

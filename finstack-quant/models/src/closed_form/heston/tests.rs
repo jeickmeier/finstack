@@ -707,30 +707,16 @@ fn deterministic_avg_variance_taylor_branch_is_continuous() {
     assert!((below - 0.01).abs() < 1e-6);
 }
 
-/// Monte Carlo and Fourier wrappers share the same canonical Heston validation.
+/// Closed-form and Monte Carlo paths share one canonical Heston parameter type.
 #[test]
-fn monte_carlo_and_fourier_share_correlation_validation() {
-    assert!(
-        finstack_quant_models::monte_carlo::process::heston::HestonProcessParams::new(
-            0.05, 0.02, 2.0, 0.04, 0.3, 1.0, 0.04,
-        )
-        .is_err()
-    );
-    assert!(
-        finstack_quant_models::monte_carlo::process::heston::HestonProcessParams::new(
-            0.05, 0.02, 2.0, 0.04, 0.3, -1.0, 0.04,
-        )
-        .is_err()
-    );
+fn canonical_heston_params_validate_correlation() {
+    assert!(HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, 1.0, 0.04).is_err());
+    assert!(HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -1.0, 0.04).is_err());
 
-    // A well-formed MC parameter set still converts successfully.
-    let mc_ok = finstack_quant_models::monte_carlo::process::heston::HestonProcessParams::new(
-        0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04,
-    )
-    .expect("valid MC params");
-    let cf = HestonPricingParams::try_from(mc_ok).expect("valid MC params must convert");
-    assert_eq!(cf.rho, -0.7);
-    assert_eq!(cf.kappa, 2.0);
+    let params = HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04)
+        .expect("valid Heston params");
+    assert_eq!(params.rho, -0.7);
+    assert_eq!(params.kappa, 2.0);
 }
 
 /// Scalar Fourier integration retries adaptively and then reports convergence

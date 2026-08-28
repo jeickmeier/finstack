@@ -21,7 +21,7 @@ pub struct HazardCalibrationInput {
 /// Exact valuation-layer inputs required to replay a hazard-curve calibration.
 ///
 /// The core market-data crate stores these payloads without interpreting them;
-/// the valuations crate deserializes them back into its canonical
+/// the calibration crate deserializes them back into its canonical
 /// `HazardCurveParams`, typed CDS quotes, and `CalibrationConfig`. Keeping the
 /// complete serde payloads avoids replacing date pillars with rounded tenors or
 /// silently substituting current defaults for the original solver policy.

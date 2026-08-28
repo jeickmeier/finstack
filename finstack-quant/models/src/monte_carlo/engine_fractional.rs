@@ -28,10 +28,10 @@
 //! ```
 
 use crate::monte_carlo::engine::{run_path_loop, NoiseHook};
-use crate::monte_carlo::time_grid::TimeGrid;
 #[cfg(test)]
 use crate::monte_carlo::traits::PathState;
 use crate::monte_carlo::traits::{Discretization, Payoff, RandomStream, StochasticProcess};
+use crate::monte_carlo::TimeGrid;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 

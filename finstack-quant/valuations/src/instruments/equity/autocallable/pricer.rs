@@ -15,7 +15,7 @@ use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig};
 use finstack_quant_models::monte_carlo::pricer::path_dependent::PathDependentPricerConfig;
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::TimeGrid;
 
 /// Autocallable Monte Carlo pricer.
 pub struct AutocallableMcPricer {

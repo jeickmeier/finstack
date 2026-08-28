@@ -13,7 +13,7 @@
 pub(crate) mod floating_reset_descriptors;
 mod generic;
 pub(crate) mod overnight;
-pub(crate) mod overnight_conventions;
+pub mod overnight_conventions;
 pub mod swap_legs;
 pub mod time;
 mod trs;

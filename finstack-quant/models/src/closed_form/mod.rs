@@ -150,7 +150,6 @@ pub mod volatility;
 
 pub use asian::{
     arithmetic_asian_call_tw, arithmetic_asian_put_tw, geometric_asian_call, geometric_asian_put,
-    AsianGreeks, AsianPriceResult,
 };
 pub use barrier::{
     barrier_call_continuous, barrier_put_continuous, barrier_rebate, down_in_call, down_out_call,
@@ -168,9 +167,8 @@ pub use lookback::{
 };
 pub use quanto::{quanto_call, quanto_drift_adjustment, quanto_put};
 pub use vanilla::{
-    black76_call, black76_put, bs_greeks_checked, bs_greeks_checked as bs_greeks, bs_price_checked,
-    bs_price_checked as bs_price, checked_closed_form_value, option_type_from_bool,
-    vanilla_expiry_payoff, BsGreeks, ONE_PERCENT,
+    black76_call, black76_put, bs_greeks, bs_price, checked_closed_form_value,
+    option_type_from_bool, vanilla_expiry_payoff, BsGreeks, ONE_PERCENT,
 };
 pub use volatility::{
     bachelier_call, bachelier_delta_call, bachelier_delta_put, bachelier_gamma, bachelier_put,

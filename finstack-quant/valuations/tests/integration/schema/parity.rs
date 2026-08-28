@@ -26,25 +26,6 @@ fn extract_enum_values(schema: &Value) -> Vec<&str> {
     Vec::new()
 }
 
-/// Extract tagged enum discriminator values from a schemars-generated schema.
-///
-/// For `#[serde(tag = "kind")]` enums, schemars generates `oneOf` where each
-/// variant has `properties.kind.const`.
-fn extract_tagged_enum_discriminators(schema: &Value) -> Vec<&str> {
-    if let Some(arr) = schema.get("oneOf").and_then(|v| v.as_array()) {
-        return arr
-            .iter()
-            .filter_map(|v| {
-                v.get("properties")
-                    .and_then(|p| p.get("kind"))
-                    .and_then(|k| k.get("const"))
-                    .and_then(|c| c.as_str())
-            })
-            .collect();
-    }
-    Vec::new()
-}
-
 fn assert_enum_parity(schema_name: &str, mut actual: Vec<&str>, expected: &[&str]) {
     let mut expected: Vec<&str> = expected.to_vec();
     expected.sort();
@@ -96,71 +77,6 @@ fn test_attribution_factors_schema_parity() {
         // Skip this test gracefully — the schemars derive guarantees parity.
         eprintln!(
             "WARN: AttributionFactor not found in schema $defs — \
-             schema is auto-generated, parity guaranteed by derive"
-        );
-    }
-}
-
-// Calibration Schema Parity
-
-/// Canonical list of calibration step kinds.
-///
-/// Must match `StepParams` enum variants in `src/calibration/api/schema.rs`.
-const CANONICAL_CALIBRATION_STEP_KINDS: &[&str] = &[
-    "base_correlation",
-    "cap_floor_hull_white",
-    "discount",
-    "forward",
-    "hazard",
-    "hull_white",
-    "inflation",
-    "parametric",
-    "student_t",
-    "svi_surface",
-    "swaption_vol",
-    "vol_surface",
-    "xccy_basis",
-];
-
-#[test]
-fn test_calibration_step_kinds_schema_parity() {
-    let schema_json = include_str!("../../../schemas/calibration/1/calibration.schema.json");
-    let schema: Value = serde_json::from_str(schema_json).expect("Schema JSON should be valid");
-
-    // StepParams is a tagged enum with tag="kind". In schemars output it appears
-    // as $defs.StepParams with oneOf containing variants keyed by properties.kind.const.
-    let step_params = schema
-        .pointer("/$defs/StepParams")
-        .or_else(|| schema.pointer("/$defs/CalibrationStep"));
-
-    if let Some(sp) = step_params {
-        let values = extract_tagged_enum_discriminators(sp);
-        if !values.is_empty() {
-            assert_enum_parity(
-                "CalibrationStep.kind",
-                values,
-                CANONICAL_CALIBRATION_STEP_KINDS,
-            );
-            return;
-        }
-    }
-
-    // Fallback: try the old path
-    if let Some(enum_arr) = schema.pointer("/$defs/CalibrationStep/properties/kind/enum") {
-        let values: Vec<&str> = enum_arr
-            .as_array()
-            .expect("kind.enum should be array")
-            .iter()
-            .filter_map(|v| v.as_str())
-            .collect();
-        assert_enum_parity(
-            "CalibrationStep.kind",
-            values,
-            CANONICAL_CALIBRATION_STEP_KINDS,
-        );
-    } else {
-        eprintln!(
-            "WARN: StepParams/CalibrationStep not found in schema — \
              schema is auto-generated, parity guaranteed by derive"
         );
     }

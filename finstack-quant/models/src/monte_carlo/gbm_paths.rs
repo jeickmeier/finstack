@@ -8,7 +8,7 @@ use crate::monte_carlo::engine::{McEngine, McEngineConfig, PathCaptureConfig};
 use crate::monte_carlo::payoff::vanilla::EuropeanCall;
 use crate::monte_carlo::process::{GbmProcess, ProcessMetadata};
 use crate::monte_carlo::rng::philox::PhiloxRng;
-use crate::monte_carlo::time_grid::TimeGrid;
+use crate::monte_carlo::TimeGrid;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::{Error, Result};
 use serde::{Deserialize, Serialize};

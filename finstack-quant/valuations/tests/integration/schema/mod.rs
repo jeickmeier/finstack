@@ -6,5 +6,3 @@
 //! - [`ts_export`]: TypeScript type generation (requires `ts_export` feature)
 
 pub mod parity;
-#[cfg(feature = "ts_export")]
-pub mod ts_export;

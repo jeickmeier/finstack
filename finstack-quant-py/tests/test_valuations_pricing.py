@@ -305,7 +305,11 @@ def _tarn_json() -> str:
             "day_count": "act_365f",
             "instrument_pricing_overrides": {
                 "market_quotes": {"implied_volatility": 1e-12},
-                "model_config": {"mc_paths": 32, "mean_reversion": 0.05},
+                "model_config": {
+                    "mc_paths": 32,
+                    "hw1f_mean_reversion": 0.05,
+                    "hw1f_sigma": 0.01,
+                },
             },
             "attributes": {},
         },
@@ -337,7 +341,11 @@ def _snowball_json() -> str:
             "day_count": "act_365f",
             "instrument_pricing_overrides": {
                 "market_quotes": {"implied_volatility": 1e-12},
-                "model_config": {"mc_paths": 32, "mean_reversion": 0.05},
+                "model_config": {
+                    "mc_paths": 32,
+                    "hw1f_mean_reversion": 0.05,
+                    "hw1f_sigma": 0.01,
+                },
             },
             "attributes": {},
         },
@@ -412,7 +420,11 @@ def _callable_range_accrual_json() -> str:
             },
             "instrument_pricing_overrides": {
                 "market_quotes": {"implied_volatility": 1e-12},
-                "model_config": {"mc_paths": 8, "mean_reversion": 0.05},
+                "model_config": {
+                    "mc_paths": 8,
+                    "hw1f_mean_reversion": 0.05,
+                    "hw1f_sigma": 0.01,
+                },
             },
             "attributes": {},
         },

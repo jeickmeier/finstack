@@ -9,7 +9,7 @@
  * # Examples
  *
  * ```
- * use finstack_quant_valuations::calibration::SolverConfig;
+ * use finstack_quant_calibration::SolverConfig;
  *
  * # fn main() -> Result<(), Box<dyn std::error::Error>> {
  * let config = SolverConfig::brent_default().with_tolerance(1e-12).with_max_iterations(200);

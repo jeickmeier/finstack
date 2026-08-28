@@ -163,23 +163,13 @@ pub(crate) fn register_exotic_pricers(
 
     // Bermudan Swaption LSMC (Hull-White 1F Monte Carlo).
     //
-    // Registered with `enforce_calibration`: uncalibrated
-    // `HullWhiteParams::default()` (κ=3%, σ=1%) produces 10–30% errors
-    // on early-exercise premia. Callers must supply calibrated params
-    // through instrument `pricing_overrides`, constructor-level
-    // `HullWhiteParams::new(κ, σ)`, market scalars/surface calibration, or
-    // a pre-calibrated tree on `BermudanSwaptionPricerConfig`; otherwise
-    // pricing returns `PricingError::ModelFailure`.
+    // Callers must supply a complete fitted parameter pair through instrument
+    // pricing overrides or market scalars; there is no default-parameter path.
 
     registry.register(
         InstrumentType::BermudanSwaption,
         ModelKey::MonteCarloHullWhite1F,
-        crate::instruments::rates::swaption::BermudanSwaptionPricer::lsmc_with_config(
-            crate::instruments::rates::swaption::BermudanSwaptionPricerConfig {
-                enforce_calibration: true,
-                ..Default::default()
-            },
-        ),
+        crate::instruments::rates::swaption::BermudanSwaptionPricer::lsmc(),
     )?;
 
     // Bermudan Swaption - Hull-White 1F Tree. See note on the LSMC
@@ -187,12 +177,7 @@ pub(crate) fn register_exotic_pricers(
     registry.register(
         InstrumentType::BermudanSwaption,
         ModelKey::HullWhite1F,
-        crate::instruments::rates::swaption::BermudanSwaptionPricer::tree_with_config(
-            crate::instruments::rates::swaption::BermudanSwaptionPricerConfig {
-                enforce_calibration: true,
-                ..Default::default()
-            },
-        ),
+        crate::instruments::rates::swaption::BermudanSwaptionPricer::tree(),
     )?;
 
     // Barrier Option - PDE Crank-Nicolson 1D
@@ -214,23 +199,13 @@ crate::instruments::exotics::barrier_option::heston_mc_pricer::BarrierOptionHest
 ModelKey::MonteCarloHeston,
 crate::instruments::exotics::asian_option::heston_mc_pricer::AsianOptionHestonMcPricer::default(),)?;
 
-    // Bermudan Swaption - LMM Monte Carlo.
-    //
-    // Registered with `enforce_calibration`: the factor loading *shape*
-    // (α=0.4 linear decay, 2-factor) and the `base_vol` scale are not
-    // calibrated per-period. Only the overall Rebonato `base_vol` is fitted
-    // to the longest co-terminal European swaption. Callers must be aware
-    // this is a structural prototype; the guard refuses pricing via the
-    // registry so callers are redirected to a calibrated model.
+    // Bermudan Swaption - LMM Monte Carlo. The loading shape is constructed
+    // here, while the required loading scale is supplied explicitly through
+    // `model_config.lmm_base_vol`.
     registry.register(
         InstrumentType::BermudanSwaption,
         ModelKey::LmmMonteCarlo,
-        crate::instruments::rates::swaption::lmm_pricer::BermudanSwaptionLmmPricer::with_config(
-            crate::instruments::rates::swaption::pricing::lmm_bermudan::LmmBermudanConfig {
-                enforce_calibration: true,
-                ..Default::default()
-            },
-        ),
+        crate::instruments::rates::swaption::lmm_pricer::BermudanSwaptionLmmPricer::default(),
     )?;
 
     // Bermudan Swaption - Cheyette Rough Vol Monte Carlo.

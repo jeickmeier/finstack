@@ -7,7 +7,7 @@
 //
 // Building a MarketContext from quotes (canonical path):
 //
-//   import { valuations } from 'finstack-quant-wasm/exports/valuations.js';
+//   import { calibration } from 'finstack-quant-wasm/exports/calibration.js';
 //   import type { CalibrationEnvelope } from 'finstack-quant-wasm';
 //   const envelope: CalibrationEnvelope = {
 //     schema: 'finstack_quant.calibration/1',
@@ -15,7 +15,7 @@
 //     market_data: [],   // flat id-addressable quotes/snapshots
 //     prior_market: [],  // optional pre-built curves/surfaces
 //   };
-//   const result = valuations.calibrate(envelope);  // CalibrationResultEnvelope
+//   const result = calibration.calibrate(envelope);  // CalibrationResultEnvelope
 //   const marketJson = JSON.stringify(result.result.final_market);
 //
 // `result.result.final_market` is the materialized MarketContextState ready
@@ -4564,95 +4564,20 @@ export interface CorrelationNamespace {
 }
 
 // --- models.monteCarlo ----------------------------------------------------------
-// Convenience subset of finstack-quant-models::monte_carlo. Advanced Rust process,
-// discretization, RNG, payoff, and Greeks types are not standalone WASM types.
+// Host-neutral subset shared with Python: Heston Monte Carlo pricing and
+// Black-Scholes analytical references.
 
 /**
- * Namespaced TypeScript entry points for monte carlo calculations and types.
+ * Namespaced TypeScript entry points for Monte Carlo calculations.
  * @example
  * ```typescript
  * import init, { models } from "finstack-quant-wasm";
  * await init();
- * const estimate = models.monteCarlo.priceEuropeanCall(
- *   100,
- *   100,
- *   0.03,
- *   0,
- *   0.2,
- *   1,
- *   10_000,
- *   42n,
- *   64,
- *   "USD"
- * );
- * console.log(estimate.estimate);
+ * const price = models.monteCarlo.blackScholesCall(100, 100, 0.03, 0, 0.2, 1);
+ * console.log(price);
  * ```
  */
 export interface MonteCarloNamespace {
-  /**
-   * Price a European call option via Monte Carlo under GBM dynamics.
-   *
-   * Returns a JSON object with `mean`, `currency`, `stderr`, `std_dev`,
-   * `ci_lower`, `ci_upper`, `num_paths`, `num_simulated_paths`,
-   * `median`, `percentile_25`, `percentile_75`, `min`, `max`, and
-   * `relative_stderr`.
-   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
-   * @param spot - Current spot price or exchange rate in the same units as the strike.
-   * @param strike - Option strike price in the same price units as the underlying.
-   * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-   * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
-   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   * @param numPaths - Number of simulated stochastic paths; larger values improve sampling precision.
-   * @param seed - Deterministic random-number seed used to reproduce simulation output.
-   * @param numSteps - Time steps per path. Omit to use the registry default of 1; ExactGbm is unbiased for any Δt so a European payoff only needs the terminal step.
-   * @param currency - ISO-4217 currency code for the monetary amount or market convention.
-   * @throws Error - Throws a JavaScript exception if `currency` is unknown; embedded defaults cannot be loaded when `num_steps` is omitted; the GBM parameters, expiry, step count, path count, or computed discount factor fail validation; a simulated discounted payoff is non-finite; or the result cannot be serialized.
-   */
-  priceEuropeanCall(
-    spot: number,
-    strike: number,
-    rate: number,
-    divYield: number,
-    vol: number,
-    expiry: number,
-    numPaths: number,
-    seed: bigint,
-    numSteps?: number,
-    currency?: string
-  ): MonteCarloEstimateJson;
-  /**
-   * Price a European put option via Monte Carlo under GBM dynamics.
-   *
-   * Returns a JSON object with `mean`, `currency`, `stderr`, `std_dev`,
-   * `ci_lower`, `ci_upper`, `num_paths`, `num_simulated_paths`,
-   * `median`, `percentile_25`, `percentile_75`, `min`, `max`, and
-   * `relative_stderr`.
-   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
-   * @param spot - Current spot price or exchange rate in the same units as the strike.
-   * @param strike - Option strike price in the same price units as the underlying.
-   * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-   * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
-   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   * @param numPaths - Number of simulated stochastic paths; larger values improve sampling precision.
-   * @param seed - Deterministic random-number seed used to reproduce simulation output.
-   * @param numSteps - Time steps per path. Omit to use the registry default of 1; ExactGbm is unbiased for any Δt so a European payoff only needs the terminal step.
-   * @param currency - ISO-4217 currency code for the monetary amount or market convention.
-   * @throws Error - Throws a JavaScript exception if `currency` is unknown; embedded defaults cannot be loaded when `num_steps` is omitted; the GBM parameters, expiry, step count, path count, or computed discount factor fail validation; a simulated discounted payoff is non-finite; or the result cannot be serialized.
-   */
-  priceEuropeanPut(
-    spot: number,
-    strike: number,
-    rate: number,
-    divYield: number,
-    vol: number,
-    expiry: number,
-    numPaths: number,
-    seed: bigint,
-    numSteps?: number,
-    currency?: string
-  ): MonteCarloEstimateJson;
   /**
    * Price a European call under Heston stochastic volatility.
    * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
@@ -4722,209 +4647,6 @@ export interface MonteCarloNamespace {
     seed: bigint,
     numSteps?: number,
     currency?: string
-  ): MonteCarloEstimateJson;
-  /**
-   * Price an Asian call via Monte Carlo under GBM dynamics.
-   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
-   * @param spot - Current spot price or exchange rate in the same units as the strike.
-   * @param strike - Option strike price in the same price units as the underlying.
-   * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-   * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
-   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   * @param numPaths - Number of simulated stochastic paths; larger values improve sampling precision.
-   * @param seed - Deterministic random-number seed used to reproduce simulation output.
-   * @param numSteps - Number of time steps per simulated path.
-   * @param currency - ISO-4217 currency code for the monetary amount or market convention.
-   * @throws Error - Throws a JavaScript exception if `currency` is unknown; embedded defaults cannot be loaded when `num_steps` is omitted; the GBM parameters, expiry, step count, path count, or computed discount factor fail validation; a simulated discounted payoff is non-finite; or the result cannot be serialized.
-   */
-  priceAsianCall(
-    spot: number,
-    strike: number,
-    rate: number,
-    divYield: number,
-    vol: number,
-    expiry: number,
-    numPaths: number,
-    seed: bigint,
-    numSteps?: number,
-    currency?: string
-  ): MonteCarloEstimateJson;
-  /**
-   * Price an Asian put via Monte Carlo under GBM dynamics.
-   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
-   * @param spot - Current spot price or exchange rate in the same units as the strike.
-   * @param strike - Option strike price in the same price units as the underlying.
-   * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-   * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
-   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   * @param numPaths - Number of simulated stochastic paths; larger values improve sampling precision.
-   * @param seed - Deterministic random-number seed used to reproduce simulation output.
-   * @param numSteps - Number of time steps per simulated path.
-   * @param currency - ISO-4217 currency code for the monetary amount or market convention.
-   * @throws Error - Throws a JavaScript exception if `currency` is unknown; embedded defaults cannot be loaded when `num_steps` is omitted; the GBM parameters, expiry, step count, path count, or computed discount factor fail validation; a simulated discounted payoff is non-finite; or the result cannot be serialized.
-   */
-  priceAsianPut(
-    spot: number,
-    strike: number,
-    rate: number,
-    divYield: number,
-    vol: number,
-    expiry: number,
-    numPaths: number,
-    seed: bigint,
-    numSteps?: number,
-    currency?: string
-  ): MonteCarloEstimateJson;
-  /**
-   * Price a Bermudan put via LSMC under GBM dynamics.
-   *
-   * Exercise is decided on the discrete grid `1..=num_steps`, not as a
-   * continuous American. Immediate exercise at valuation (`t = 0`) floors
-   * the reported price at intrinsic.
-   *
-   * Optional knobs:
-   * - `use_parallel` (default `false`): run path generation on the rayon pool.
-   * - `basis` (default `"laguerre"`): regression basis — `"laguerre"`,
-   *   `"polynomial"`, or `"normalized_polynomial"`.
-   * - `basis_degree` (default `3`): polynomial/Laguerre degree. Must be
-   *   positive; `"laguerre"` additionally requires degree in `[1, 4]`.
-   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
-   * @param spot - Current spot price or exchange rate in the same units as the strike.
-   * @param strike - Option strike price in the same price units as the underlying.
-   * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-   * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
-   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   * @param numPaths - Number of simulated stochastic paths; larger values improve sampling precision.
-   * @param seed - Deterministic random-number seed used to reproduce simulation output.
-   * @param numSteps - Number of time steps per simulated path.
-   * @param currency - ISO-4217 currency code for the monetary amount or market convention.
-   * @param useParallel - Whether simulation paths are evaluated in parallel when supported.
-   * @param basis - Regression basis family used by the American-option exercise estimator.
-   * @param basisDegree - Maximum polynomial degree used by the American-option exercise basis.
-   * @throws Error - Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is unknown; `strike` is non-finite or `<= 0`; the GBM parameters, path count, step count, expiry, basis name, or basis degree fail validation; path generation fails; or the result cannot be serialized.
-   */
-  priceAmericanPut(
-    spot: number,
-    strike: number,
-    rate: number,
-    divYield: number,
-    vol: number,
-    expiry: number,
-    numPaths: number,
-    seed: bigint,
-    numSteps?: number,
-    currency?: string,
-    useParallel?: boolean,
-    basis?: string,
-    basisDegree?: number
-  ): MonteCarloEstimateJson;
-  /**
-   * Price an American call via LSMC under GBM dynamics.
-   *
-   * Optional knobs match [`price_american_put`].
-   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
-   * @param spot - Current spot price or exchange rate in the same units as the strike.
-   * @param strike - Option strike price in the same price units as the underlying.
-   * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-   * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
-   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   * @param numPaths - Number of simulated stochastic paths; larger values improve sampling precision.
-   * @param seed - Deterministic random-number seed used to reproduce simulation output.
-   * @param numSteps - Number of time steps per simulated path.
-   * @param currency - ISO-4217 currency code for the monetary amount or market convention.
-   * @param useParallel - Whether simulation paths are evaluated in parallel when supported.
-   * @param basis - Regression basis family used by the American-option exercise estimator.
-   * @param basisDegree - Maximum polynomial degree used by the American-option exercise basis.
-   * @throws Error - Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is unknown; `strike` is non-finite or `<= 0`; the GBM parameters, path count, step count, expiry, basis name, or basis degree fail validation; path generation fails; or the result cannot be serialized.
-   */
-  priceAmericanCall(
-    spot: number,
-    strike: number,
-    rate: number,
-    divYield: number,
-    vol: number,
-    expiry: number,
-    numPaths: number,
-    seed: bigint,
-    numSteps?: number,
-    currency?: string,
-    useParallel?: boolean,
-    basis?: string,
-    basisDegree?: number
-  ): MonteCarloEstimateJson;
-  /**
-   * Two-pass unbiased American put price (training fit + out-of-sample pricing).
-   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
-   * @param spot - Current spot price or exchange rate in the same units as the strike.
-   * @param strike - Option strike price in the same price units as the underlying.
-   * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-   * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
-   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   * @param numPaths - Number of simulated stochastic paths; larger values improve sampling precision.
-   * @param seed - Deterministic random-number seed used to reproduce simulation output.
-   * @param pricingSeed - Independent deterministic seed used for unbiased-pricing sampling.
-   * @param numSteps - Number of time steps per simulated path.
-   * @param currency - ISO-4217 currency code for the monetary amount or market convention.
-   * @param useParallel - Whether simulation paths are evaluated in parallel when supported.
-   * @param basis - Regression basis family used by the American-option exercise estimator.
-   * @param basisDegree - Maximum polynomial degree used by the American-option exercise basis.
-   * @throws Error - Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is unknown; `strike` is non-finite or `<= 0`; the GBM parameters, path count, step count, expiry, basis name, or basis degree fail validation; `pricing_seed == seed`; either path-generation pass or the regression fit fails; or the result cannot be serialized.
-   */
-  priceAmericanPutUnbiased(
-    spot: number,
-    strike: number,
-    rate: number,
-    divYield: number,
-    vol: number,
-    expiry: number,
-    numPaths: number,
-    seed: bigint,
-    pricingSeed: bigint,
-    numSteps?: number,
-    currency?: string,
-    useParallel?: boolean,
-    basis?: string,
-    basisDegree?: number
-  ): MonteCarloEstimateJson;
-  /**
-   * Two-pass unbiased American call price (training fit + out-of-sample pricing).
-   * @returns Discounted Monte Carlo estimate with standard error and optional path statistics.
-   * @param spot - Current spot price or exchange rate in the same units as the strike.
-   * @param strike - Option strike price in the same price units as the underlying.
-   * @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
-   * @param divYield - Continuous dividend yield expressed as a decimal, such as 0.02 for 2%.
-   * @param vol - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param expiry - Time to option expiry in years on the model's annual time basis.
-   * @param numPaths - Number of simulated stochastic paths; larger values improve sampling precision.
-   * @param seed - Deterministic random-number seed used to reproduce simulation output.
-   * @param pricingSeed - Independent deterministic seed used for unbiased-pricing sampling.
-   * @param numSteps - Number of time steps per simulated path.
-   * @param currency - ISO-4217 currency code for the monetary amount or market convention.
-   * @param useParallel - Whether simulation paths are evaluated in parallel when supported.
-   * @param basis - Regression basis family used by the American-option exercise estimator.
-   * @param basisDegree - Maximum polynomial degree used by the American-option exercise basis.
-   * @throws Error - Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is unknown; `strike` is non-finite or `<= 0`; the GBM parameters, path count, step count, expiry, basis name, or basis degree fail validation; `pricing_seed == seed`; either path-generation pass or the regression fit fails; or the result cannot be serialized.
-   */
-  priceAmericanCallUnbiased(
-    spot: number,
-    strike: number,
-    rate: number,
-    divYield: number,
-    vol: number,
-    expiry: number,
-    numPaths: number,
-    seed: bigint,
-    pricingSeed: bigint,
-    numSteps?: number,
-    currency?: string,
-    useParallel?: boolean,
-    basis?: string,
-    basisDegree?: number
   ): MonteCarloEstimateJson;
   /**
    * Black-Scholes call price.
@@ -8124,6 +7846,68 @@ export interface ModelsNamespace {
 export declare const models: ModelsNamespace;
 
 /**
+ * Quote ingestion, market construction, and explicit model calibration.
+ * @example
+ * ```typescript
+ * import init, { calibration } from "finstack-quant-wasm";
+ * await init();
+ * const graph = calibration.dependencyGraphJson({
+ *   schema: "finstack_quant.calibration/1",
+ *   plan: { id: "smoke", description: null, quote_sets: {}, steps: [], settings: {} }
+ * });
+ * console.log(JSON.parse(graph).nodes);
+ * ```
+ */
+export interface CalibrationNamespace {
+  /**
+   * Execute a calibration envelope and return its fitted market and reports.
+   * @param envelope - Typed calibration envelope or its serialized JSON form.
+   * @returns Calibration result including the materialized market and per-step reports.
+   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed or violates the calibration schema or static plan contract, market context construction or a calibration step fails, a solver does not converge, or the result envelope cannot be converted to a JavaScript value.
+   */
+  calibrate(envelope: CalibrationEnvelope | string): CalibrationResultEnvelope;
+  /**
+   * Validate and canonicalize a calibration envelope without solving it.
+   * @param envelope - Typed calibration envelope or its serialized JSON form.
+   * @returns Canonical pretty-printed calibration-envelope JSON.
+   * @throws Error - Throws a JavaScript exception if `json` is malformed, its calibration schema marker is missing, malformed, or unsupported, static envelope validation fails, or the canonical envelope cannot be serialized.
+   */
+  validateCalibrationJson(envelope: CalibrationEnvelope | string): string;
+  /**
+   * Return all static plan errors and dependencies without running solvers.
+   * @param envelope - Typed calibration envelope or its serialized JSON form.
+   * @returns JSON `CalibrationValidationReport` containing errors and a dependency graph.
+   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed, its schema marker is missing, malformed, or unsupported, the envelope structure is invalid, or the validation report cannot be serialized. Semantic findings are returned in the report rather than thrown.
+   */
+  dryRun(envelope: CalibrationEnvelope | string): string;
+  /**
+   * Return the ordered read/write dependency graph for a calibration plan.
+   * @param envelope - Typed calibration envelope or its serialized JSON form.
+   * @returns JSON dependency graph with initial IDs and plan-step nodes.
+   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed, its schema marker is missing, malformed, or unsupported, the envelope structure is invalid, or the dependency graph cannot be serialized.
+   */
+  dependencyGraphJson(envelope: CalibrationEnvelope | string): string;
+  /**
+   * Fit the Bermudan LMM loading scale from the market swaption surface.
+   * @param market - Reusable market handle containing discount and swaption-volatility inputs.
+   * @param asOf - ISO-8601 valuation date.
+   * @returns Positive finite LMM base volatility.
+   * @throws Error - Throws if the envelope is not a Bermudan swaption, the date or market inputs are invalid, or the Rebonato calibration cannot be completed.
+   * @param instrument - Instrument used by this call.
+   */
+  calibrateBermudanLmmBaseVol(
+    instrument: Record<string, unknown> | string,
+    market: Market,
+    asOf: string
+  ): number;
+}
+
+/**
+ * Namespaced TypeScript entry point for calibration APIs.
+ */
+export declare const calibration: CalibrationNamespace;
+
+/**
  * Namespaced TypeScript entry points for valuations calculations and types.
  * @example
  * ```typescript
@@ -8165,42 +7949,6 @@ export interface ValuationsNamespace {
    * @throws Error - Throws a JavaScript exception if `json` is malformed or does not match the `ValuationResult` schema, or the canonical result cannot be serialized.
    */
   validateValuationResultJson(json: string): string;
-  /**
-   * Validate a calibration plan JSON and return the canonical (pretty-printed) form.
-   * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
-   * @returns Canonical calibration-plan JSON after validation.
-   * @throws Error - Throws a JavaScript exception if `json` is malformed, its calibration schema marker is missing, malformed, or unsupported, static envelope validation fails, or the canonical envelope cannot be serialized.
-   */
-  validateCalibrationJson(envelope: CalibrationEnvelope | string): string;
-  /**
-   * Execute a `CalibrationEnvelope` and return the full `CalibrationResultEnvelope`.
-   * Accepts either a typed object or a pre-serialized JSON string.
-   * The canonical path for building a `MarketContext` from quotes — the resulting
-   * `result.final_market` is a materialized state ready for `MarketContext::try_from`
-   * (Rust) or `result.market` (Python).
-   *
-   * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
-   * @returns Calibration result including the fitted market and step reports.
-   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed or violates the calibration schema or static plan contract, market context construction or a calibration step fails, a solver does not converge, or the result envelope cannot be converted to a JavaScript value.
-   */
-  calibrate(envelope: CalibrationEnvelope | string): CalibrationResultEnvelope;
-  /**
-   * Pre-flight envelope validation without invoking the solver.
-   *
-   * Returns a JSON-serialized `CalibrationValidationReport` listing every error found
-   * plus the dependency graph. Microseconds.
-   * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
-   * @returns Canonical calibration envelope JSON without running the solver.
-   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed, its schema marker is missing, malformed, or unsupported, the envelope structure is invalid, or the validation report cannot be serialized. Semantic findings are returned in the report rather than thrown.
-   */
-  dryRun(envelope: CalibrationEnvelope | string): string;
-  /**
-   * Returns the static dependency graph of a calibration plan as JSON.
-   * @param envelope - Calibration envelope containing the plan, market data, and optional prior market objects.
-   * @returns Static calibration-plan dependency graph as JSON.
-   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed, its schema marker is missing, malformed, or unsupported, the envelope structure is invalid, or the dependency graph cannot be serialized.
-   */
-  dependencyGraphJson(envelope: CalibrationEnvelope | string): string;
   /**
    * Parsed `MarketContext` handle for reuse across pricing calls.
    */

@@ -12,13 +12,15 @@
 //! thin pass-through to [`gamma`].
 
 use super::delta::{black_delta_ratio, delta_display_forward, price_strike_delta};
-use crate::calibration::bumps::{bump_hazard_spreads, BumpRequest};
 use crate::instruments::credit_derivatives::cds_option::bloomberg_quadrature::ForwardCdsContext;
 use crate::instruments::credit_derivatives::cds_option::pricer::{
     resolve_sigma, synthetic_underlying_cds,
 };
 use crate::instruments::credit_derivatives::cds_option::{CDSOption, CDSOptionStrikeKind};
 use crate::metrics::{MetricCalculator, MetricContext};
+use crate::recalibration::{
+    HazardRecalibrationAction, HazardRecalibrationRequest, QuoteBump, RecalibrationProvider,
+};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
 
@@ -35,7 +37,12 @@ pub(crate) struct GammaCalculator;
 impl MetricCalculator for GammaCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
         let option: &CDSOption = context.instrument_as()?;
-        gamma(option, &context.curves, context.as_of)
+        let provider = if option.strike.kind() == CDSOptionStrikeKind::CleanPricePct {
+            Some(context.recalibration_provider("cds_option_gamma")?)
+        } else {
+            None
+        };
+        gamma_with_provider(option, &context.curves, context.as_of, provider.as_deref())
     }
 }
 
@@ -45,6 +52,15 @@ pub(crate) fn gamma(
     curves: &MarketContext,
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<f64> {
+    gamma_with_provider(option, curves, as_of, None)
+}
+
+fn gamma_with_provider(
+    option: &CDSOption,
+    curves: &MarketContext,
+    as_of: finstack_quant_core::dates::Date,
+    provider: Option<&dyn RecalibrationProvider>,
+) -> Result<f64> {
     option.validate_supported_configuration()?;
     let t = option.time_to_expiry(as_of)?;
     if t <= 0.0 {
@@ -52,7 +68,11 @@ pub(crate) fn gamma(
     }
     match option.strike.kind() {
         CDSOptionStrikeKind::Spread => spread_black_gamma(option, curves, as_of, t),
-        CDSOptionStrikeKind::CleanPricePct => price_strike_gamma(option, curves, as_of),
+        CDSOptionStrikeKind::CleanPricePct => {
+            let provider = provider
+                .ok_or_else(|| crate::recalibration::provider_missing("cds_option_gamma"))?;
+            price_strike_gamma(option, curves, as_of, provider)
+        }
     }
 }
 
@@ -94,6 +114,7 @@ fn price_strike_gamma(
     option: &CDSOption,
     curves: &MarketContext,
     as_of: finstack_quant_core::dates::Date,
+    provider: &dyn RecalibrationProvider,
 ) -> Result<f64> {
     let hazard = curves.get_hazard(&option.credit_curve_id)?;
     crate::metrics::sensitivities::cs01::require_hazard_replay(
@@ -101,19 +122,29 @@ fn price_strike_gamma(
         "CDS option price-strike gamma",
     )?;
     let bumped_market = |bump_bp: f64| -> Result<MarketContext> {
-        let request = BumpRequest::Parallel(bump_bp);
-        let bumped = bump_hazard_spreads(
-            hazard.as_ref(),
-            curves,
-            &request,
-            Some(&option.discount_curve_id),
-            None,
-            None,
-        )?;
-        Ok(curves.clone().insert(bumped))
+        let bumped = provider.rebuild_hazard_curve(&HazardRecalibrationRequest {
+            hazard: std::sync::Arc::clone(&hazard),
+            source_market: std::sync::Arc::new(curves.clone()),
+            target_market: std::sync::Arc::new(curves.clone()),
+            discount_curve_id: option.discount_curve_id.clone(),
+            doc_clause: None,
+            cds_valuation_convention: None,
+            deal_quote_override: None,
+            action: HazardRecalibrationAction::SpreadBump(QuoteBump::ParallelBp(bump_bp)),
+        })?;
+        Ok(curves.clone().insert(bumped.as_ref().clone()))
     };
-    let delta_up = price_strike_delta(option, &bumped_market(PRICE_GAMMA_SPREAD_BUMP_BP)?, as_of)?;
-    let delta_down =
-        price_strike_delta(option, &bumped_market(-PRICE_GAMMA_SPREAD_BUMP_BP)?, as_of)?;
+    let delta_up = price_strike_delta(
+        option,
+        &bumped_market(PRICE_GAMMA_SPREAD_BUMP_BP)?,
+        as_of,
+        provider,
+    )?;
+    let delta_down = price_strike_delta(
+        option,
+        &bumped_market(-PRICE_GAMMA_SPREAD_BUMP_BP)?,
+        as_of,
+        provider,
+    )?;
     Ok(delta_up - delta_down)
 }

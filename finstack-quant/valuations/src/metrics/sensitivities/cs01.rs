@@ -60,12 +60,11 @@
 //!   (short bond, buy protection) gains when spreads widen, so CS01 is
 //!   positive.
 
-use crate::calibration::bumps::hazard::bump_hazard_shift;
-use crate::calibration::bumps::BumpRequest;
 use crate::instruments::credit_derivatives::cds::CdsValuationConvention;
 use crate::market::conventions::ids::CdsDocClause;
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::{MetricContext, MetricId};
+use crate::recalibration::{DealCdsQuoteOverride, HazardRecalibrationConventions, QuoteBump};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::HazardCurve;
 use finstack_quant_core::math::NeumaierAccumulator;
@@ -203,10 +202,8 @@ fn require_cs01_discount_id<'a>(
 pub(crate) fn compute_parallel_cs01_with_context_raw<RevalFn>(
     context: &mut MetricContext,
     hazard_id: &CurveId,
-    discount_id: Option<&CurveId>,
     bump_bp: f64,
-    doc_clause: Option<CdsDocClause>,
-    cds_valuation_convention: Option<CdsValuationConvention>,
+    conventions: HazardRecalibrationConventions,
     mut revalue_raw: RevalFn,
 ) -> finstack_quant_core::Result<f64>
 where
@@ -217,20 +214,14 @@ where
     let hazard = base_ctx.get_hazard(hazard_id.as_str())?;
     let hazard_ref = hazard.as_ref();
     require_hazard_replay(hazard_ref, "quote-space CS01")?;
-    let discount_id = require_cs01_discount_id(discount_id, hazard_ref)?;
+    let discount_id = require_cs01_discount_id(Some(&conventions.discount_curve_id), hazard_ref)?;
+    debug_assert_eq!(discount_id, &conventions.discount_curve_id);
 
-    let bump_request_up = BumpRequest::Parallel(bump_bp);
-    let bump_request_down = BumpRequest::Parallel(-bump_bp);
+    let bump_request_up = QuoteBump::ParallelBp(bump_bp);
+    let bump_request_down = QuoteBump::ParallelBp(-bump_bp);
 
     let bumped_hazard_up = context
-        .bump_hazard_spreads_cached(
-            hazard_ref,
-            base_ctx,
-            &bump_request_up,
-            Some(discount_id),
-            doc_clause,
-            cds_valuation_convention,
-        )
+        .bump_hazard_spreads_cached(hazard_ref, base_ctx, &bump_request_up, &conventions)
         .map_err(|e| finstack_quant_core::Error::Calibration {
             message: format!(
                 "CS01 up-bumped hazard curve re-calibration failed for '{}': {}",
@@ -241,14 +232,7 @@ where
         })?;
 
     let bumped_hazard_down = context
-        .bump_hazard_spreads_cached(
-            hazard_ref,
-            base_ctx,
-            &bump_request_down,
-            Some(discount_id),
-            doc_clause,
-            cds_valuation_convention,
-        )
+        .bump_hazard_spreads_cached(hazard_ref, base_ctx, &bump_request_down, &conventions)
         .map_err(|e| finstack_quant_core::Error::Calibration {
             message: format!(
                 "CS01 down-bumped hazard curve re-calibration failed for '{}': {}",
@@ -291,14 +275,12 @@ where
 pub(crate) struct KeyRateCs01Request {
     pub(crate) series_id: MetricId,
     pub(crate) bump_bp: f64,
-    pub(crate) doc_clause: Option<CdsDocClause>,
-    pub(crate) cds_valuation_convention: Option<CdsValuationConvention>,
+    pub(crate) conventions: HazardRecalibrationConventions,
 }
 
 pub(crate) fn compute_key_rate_cs01_series_with_context_raw<RevalFn>(
     context: &mut MetricContext,
     hazard_id: &CurveId,
-    discount_id: Option<&CurveId>,
     request: KeyRateCs01Request,
     mut revalue_raw: RevalFn,
 ) -> finstack_quant_core::Result<f64>
@@ -308,16 +290,16 @@ where
     let KeyRateCs01Request {
         series_id,
         bump_bp,
-        doc_clause,
-        cds_valuation_convention,
+        conventions,
     } = request;
     let curves = Arc::clone(&context.curves);
     let base_ctx = curves.as_ref();
     let hazard = base_ctx.get_hazard(hazard_id.as_str())?;
     let hazard_ref = hazard.as_ref();
     require_hazard_replay(hazard_ref, "quote-space bucketed CS01")?;
-    let discount_id = require_cs01_discount_id(discount_id, hazard_ref)?;
-    let buckets = crate::calibration::bumps::hazard::hazard_spread_risk_buckets(hazard_ref)?;
+    let discount_id = require_cs01_discount_id(Some(&conventions.discount_curve_id), hazard_ref)?;
+    debug_assert_eq!(discount_id, &conventions.discount_curve_id);
+    let buckets = context.hazard_spread_risk_buckets(hazard_ref)?;
     let base_labels: Vec<_> = buckets
         .iter()
         .map(|bucket| super::config::format_bucket_label_cow(bucket.pillar_time))
@@ -346,10 +328,8 @@ where
                 .bump_hazard_spread_risk_input_cached(
                     hazard_ref,
                     base_ctx,
-                    (bucket.index, bump_bp),
-                    Some(discount_id),
-                    doc_clause,
-                    cds_valuation_convention,
+                    (bucket.quote_index, bump_bp),
+                    &conventions,
                 )
                 .map_err(|e| finstack_quant_core::Error::Calibration {
                     message: format!(
@@ -363,10 +343,8 @@ where
                 .bump_hazard_spread_risk_input_cached(
                     hazard_ref,
                     base_ctx,
-                    (bucket.index, -bump_bp),
-                    Some(discount_id),
-                    doc_clause,
-                    cds_valuation_convention,
+                    (bucket.quote_index, -bump_bp),
+                    &conventions,
                 )
                 .map_err(|e| finstack_quant_core::Error::Calibration {
                     message: format!(
@@ -499,10 +477,18 @@ where
         let cs01 = compute_parallel_cs01_with_context_raw(
             context,
             &hazard_id,
-            discount_id.as_ref(),
             bump_bp,
-            None,
-            None,
+            HazardRecalibrationConventions {
+                discount_curve_id: discount_id.ok_or_else(|| {
+                    finstack_quant_core::Error::Calibration {
+                        message: "CS01 requires a discount curve identifier".to_string(),
+                        category: "cs01_rebootstrap".to_string(),
+                    }
+                })?,
+                doc_clause: None,
+                cds_valuation_convention: None,
+                deal_quote_override: None,
+            },
             reval,
         )?;
 
@@ -547,12 +533,21 @@ where
         let total = compute_key_rate_cs01_series_with_context_raw(
             context,
             &hazard_id,
-            discount_id.as_ref(),
             KeyRateCs01Request {
                 series_id,
                 bump_bp,
-                doc_clause: None,
-                cds_valuation_convention: None,
+                conventions: HazardRecalibrationConventions {
+                    discount_curve_id: discount_id.ok_or_else(|| {
+                        finstack_quant_core::Error::Calibration {
+                            message: "bucketed CS01 requires a discount curve identifier"
+                                .to_string(),
+                            category: "cs01_rebootstrap".to_string(),
+                        }
+                    })?,
+                    doc_clause: None,
+                    cds_valuation_convention: None,
+                    deal_quote_override: None,
+                },
             },
             reval,
         )?;
@@ -615,8 +610,8 @@ where
 
         let as_of = context.as_of;
 
-        let bumped_up = bump_hazard_shift(hazard_ref, &BumpRequest::Parallel(bump_bp))?;
-        let bumped_down = bump_hazard_shift(hazard_ref, &BumpRequest::Parallel(-bump_bp))?;
+        let bumped_up = hazard_ref.with_parallel_hazard_rate_bump_bp(bump_bp)?;
+        let bumped_down = hazard_ref.with_parallel_hazard_rate_bump_bp(-bump_bp)?;
 
         let (pv_up, pv_down) = context.with_market_scratch(|ctx, scratch| {
             scratch.insert_mut(bumped_up);
@@ -708,18 +703,16 @@ where
             for t in node_times {
                 let label = format_hazard_node_label(t);
 
-                let request_up = if single_node {
-                    BumpRequest::Parallel(bump_bp)
+                let bumped_up = if single_node {
+                    hazard_ref.with_parallel_hazard_rate_bump_bp(bump_bp)?
                 } else {
-                    BumpRequest::Tenors(vec![(t, bump_bp)])
+                    hazard_ref.with_tenor_hazard_rate_bumps_bp(&[(t, bump_bp)])?
                 };
-                let request_down = if single_node {
-                    BumpRequest::Parallel(-bump_bp)
+                let bumped_down = if single_node {
+                    hazard_ref.with_parallel_hazard_rate_bump_bp(-bump_bp)?
                 } else {
-                    BumpRequest::Tenors(vec![(t, -bump_bp)])
+                    hazard_ref.with_tenor_hazard_rate_bumps_bp(&[(t, -bump_bp)])?
                 };
-                let bumped_up = bump_hazard_shift(hazard_ref, &request_up)?;
-                let bumped_down = bump_hazard_shift(hazard_ref, &request_down)?;
 
                 scratch.insert_mut(bumped_up);
                 let pv_up = ctx.reprice_raw(scratch, as_of)?;
@@ -783,17 +776,9 @@ pub(crate) trait CdsCs01Conventions {
         Ok(None)
     }
 
-    /// Optional replacement market context applied for the duration of the
-    /// CS01 compute (e.g. a CDS with a deal-level quote override swaps in a
-    /// hazard curve rebuilt from that quote). `None` leaves `context.curves`
-    /// unchanged.
-    fn cs01_curve_override(
-        &self,
-        _curves: &MarketContext,
-        _hazard_id: &CurveId,
-        _as_of: finstack_quant_core::dates::Date,
-    ) -> finstack_quant_core::Result<Option<MarketContext>> {
-        Ok(None)
+    /// Optional deal-level clean-spread override passed to the provider.
+    fn cs01_deal_quote_override(&self) -> Option<DealCdsQuoteOverride> {
+        None
     }
 }
 
@@ -803,6 +788,7 @@ pub(crate) struct PreparedCdsRiskContext {
     pub(crate) discount_id: CurveId,
     pub(crate) doc_clause: CdsDocClause,
     pub(crate) valuation_convention: CdsValuationConvention,
+    pub(crate) deal_quote_override: Option<DealCdsQuoteOverride>,
 }
 
 /// Resolve CDS spread-risk inputs, apply any deal-quote market override, run
@@ -843,24 +829,16 @@ where
     let (doc_clause, valuation_convention) = context
         .instrument_as::<I>()?
         .cs01_bootstrap_convention(context.as_of)?;
-    let original_curves = Arc::clone(&context.curves);
-    if let Some(override_ctx) = context.instrument_as::<I>()?.cs01_curve_override(
-        original_curves.as_ref(),
-        &hazard_id,
-        context.as_of,
-    )? {
-        context.set_market(Arc::new(override_ctx));
-    }
+    let deal_quote_override = context.instrument_as::<I>()?.cs01_deal_quote_override();
 
     let prepared = PreparedCdsRiskContext {
         hazard_id,
         discount_id,
         doc_clause,
         valuation_convention,
+        deal_quote_override,
     };
-    let result = calculate(context, &prepared);
-    context.set_market(original_curves);
-    result
+    calculate(context, &prepared)
 }
 
 /// Build the reval closure used by CS01 calculators.
@@ -911,10 +889,13 @@ where
             let cs01 = compute_parallel_cs01_with_context_raw(
                 context,
                 &prepared.hazard_id,
-                Some(&prepared.discount_id),
                 bump_bp,
-                Some(prepared.doc_clause),
-                Some(prepared.valuation_convention),
+                HazardRecalibrationConventions {
+                    discount_curve_id: prepared.discount_id.clone(),
+                    doc_clause: Some(prepared.doc_clause),
+                    cds_valuation_convention: Some(prepared.valuation_convention),
+                    deal_quote_override: prepared.deal_quote_override,
+                },
                 reval,
             )?;
             context.computed.insert(
@@ -972,12 +953,15 @@ where
                 compute_key_rate_cs01_series_with_context_raw(
                     context,
                     &prepared.hazard_id,
-                    Some(&prepared.discount_id),
                     KeyRateCs01Request {
                         series_id,
                         bump_bp,
-                        doc_clause: Some(prepared.doc_clause),
-                        cds_valuation_convention: Some(prepared.valuation_convention),
+                        conventions: HazardRecalibrationConventions {
+                            discount_curve_id: prepared.discount_id.clone(),
+                            doc_clause: Some(prepared.doc_clause),
+                            cds_valuation_convention: Some(prepared.valuation_convention),
+                            deal_quote_override: prepared.deal_quote_override,
+                        },
                     },
                     move |temp_ctx: &MarketContext| {
                         let surv = temp_ctx.get_hazard(hazard_key.as_str())?;
@@ -989,12 +973,15 @@ where
                 compute_key_rate_cs01_series_with_context_raw(
                     context,
                     &prepared.hazard_id,
-                    Some(&prepared.discount_id),
                     KeyRateCs01Request {
                         series_id,
                         bump_bp,
-                        doc_clause: Some(prepared.doc_clause),
-                        cds_valuation_convention: Some(prepared.valuation_convention),
+                        conventions: HazardRecalibrationConventions {
+                            discount_curve_id: prepared.discount_id.clone(),
+                            doc_clause: Some(prepared.doc_clause),
+                            cds_valuation_convention: Some(prepared.valuation_convention),
+                            deal_quote_override: prepared.deal_quote_override,
+                        },
                     },
                     reval,
                 )

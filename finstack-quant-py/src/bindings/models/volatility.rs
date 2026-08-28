@@ -396,7 +396,6 @@ impl PySabrCalibrator {
         t: f64,
         beta: f64,
     ) -> PyResult<PySabrParameters> {
-        check_smile_lengths(&strikes, &market_vols)?;
         py.detach(|| {
             self.inner
                 .calibrate(forward, &strikes, &market_vols, t, beta)
@@ -437,7 +436,6 @@ impl PySabrCalibrator {
         t: f64,
         beta: f64,
     ) -> PyResult<PySabrParameters> {
-        check_smile_lengths(&strikes, &market_vols)?;
         py.detach(|| {
             self.inner
                 .calibrate_auto_shift(forward, &strikes, &market_vols, t, beta)
@@ -449,17 +447,6 @@ impl PySabrCalibrator {
     fn __repr__(&self) -> String {
         "SabrCalibrator".to_string()
     }
-}
-
-fn check_smile_lengths(strikes: &[f64], market_vols: &[f64]) -> PyResult<()> {
-    if strikes.len() != market_vols.len() {
-        return Err(crate::errors::value_error(format!(
-            "strikes length ({}) must match market_vols length ({})",
-            strikes.len(),
-            market_vols.len()
-        )));
-    }
-    Ok(())
 }
 
 /// Evaluate a core volatility surface with checked grid bounds.

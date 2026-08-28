@@ -474,6 +474,45 @@ class TestValuationsNamespace:
             assert name not in valuations.__all__
             assert not hasattr(valuations, name)
 
+    def test_valuations_do_not_export_calibration(self) -> None:
+        """Calibration has no compatibility aliases under valuations."""
+        from finstack_quant import valuations
+
+        for name in (
+            "CalibrationEnvelope",
+            "CalibrationEnvelopeError",
+            "CalibrationResult",
+            "calibrate",
+            "calibrate_bermudan_lmm_base_vol",
+            "dependency_graph_json",
+            "dry_run",
+            "validate_calibration_json",
+        ):
+            assert name not in valuations.__all__
+            assert not hasattr(valuations, name)
+
+
+class TestCalibrationNamespace:
+    """Verify the calibration crate's top-level Python namespace."""
+
+    def test_calibration_owns_compiled_surface(self) -> None:
+        """Calibration symbols should resolve only from the calibration package."""
+        from finstack_quant import calibration
+
+        expected = {
+            "CalibrationEnvelope",
+            "CalibrationEnvelopeError",
+            "CalibrationResult",
+            "calibrate",
+            "calibrate_bermudan_lmm_base_vol",
+            "dependency_graph_json",
+            "dry_run",
+            "validate_calibration_json",
+        }
+        assert set(calibration.__all__) == expected
+        assert calibration.CalibrationResult.__module__ == "finstack_quant.calibration"
+        assert calibration.CalibrationEnvelopeError.__module__ == "finstack_quant.calibration"
+
     def test_models_stub_exports_fourier_pricers(self) -> None:
         """Models stubs should declare the runtime Fourier pricing exports."""
         stub_path = Path(__file__).parents[1] / "finstack_quant" / "models" / "__init__.pyi"

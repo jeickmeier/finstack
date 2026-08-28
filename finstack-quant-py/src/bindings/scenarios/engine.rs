@@ -225,7 +225,11 @@ fn apply_with_context(
     model: Option<&mut finstack_quant_statements::FinancialModelSpec>,
     as_of: time::Date,
 ) -> finstack_quant_scenarios::Result<finstack_quant_scenarios::engine::ApplicationReport> {
-    let engine = finstack_quant_scenarios::ScenarioEngine::new();
+    let engine = finstack_quant_scenarios::ScenarioEngine::new().with_recalibration_provider(
+        std::sync::Arc::new(
+            finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
+        ),
+    );
     let mut ctx = finstack_quant_scenarios::ExecutionContext {
         market,
         model,

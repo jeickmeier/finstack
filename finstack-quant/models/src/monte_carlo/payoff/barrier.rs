@@ -17,9 +17,9 @@
 //! carries no variance entry and the configured sigma is used unchanged.
 
 use super::super::barriers::bridge::{check_barrier_hit, BarrierDirection};
-use crate::monte_carlo::time_grid::TimeGrid;
 use crate::monte_carlo::traits::PathState;
 use crate::monte_carlo::traits::Payoff;
+use crate::monte_carlo::TimeGrid;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
 pub use finstack_quant_core::types::BarrierType;
@@ -331,8 +331,8 @@ impl Payoff for BarrierOptionPayoff {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::monte_carlo::time_grid::TimeGrid;
     use crate::monte_carlo::traits::state_keys;
+    use crate::monte_carlo::TimeGrid;
 
     fn create_path_state(step: usize, time: f64, spot: f64, uniform_random: f64) -> PathState {
         let mut state = PathState::new(step, time);

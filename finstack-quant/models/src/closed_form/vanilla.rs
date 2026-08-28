@@ -5,12 +5,12 @@
 //!
 //! # Features
 //!
-//! - **[`bs_price_checked`]**: Computes the fair value of a European call or put
-//! - **[`bs_greeks_checked`]**: Computes all first-order Greeks
+//! - **[`bs_price`]**: Computes the fair value of a European call or put
+//! - **[`bs_greeks`]**: Computes all first-order Greeks
 //!   (delta, gamma, vega, theta, rho_r, rho_q)
 //! - **`BsGreeks`**: Struct holding per-unit Greeks with both domestic and foreign rho
 //!
-//! [`bs_greeks_checked`] computes every Greek in one pass and takes an explicit
+//! [`bs_greeks`] computes every Greek in one pass and takes an explicit
 //! `theta_days_per_year` for day-count control. Crate-internal callers that need
 //! only vega (for example implied-vol solvers) use `bs_vega_unchecked`. Both use
 //! the same scaling conventions: vega per 1% vol, rho per 1% rate.
@@ -305,7 +305,7 @@ pub fn bs_price_unchecked(
 /// * `t` - Remaining time to expiry in years.
 /// * `option_type` - Call or put payoff convention for the returned price.
 #[allow(clippy::too_many_arguments)]
-pub fn bs_price_checked(
+pub fn bs_price(
     spot: f64,
     strike: f64,
     r: f64,
@@ -506,7 +506,7 @@ pub fn bs_greeks_unchecked(
 /// * `theta_days_per_year` - Positive calendar or trading-day basis used to
 ///   convert annual theta into the returned per-day amount.
 #[allow(clippy::too_many_arguments)]
-pub fn bs_greeks_checked(
+pub fn bs_greeks(
     spot: f64,
     strike: f64,
     r: f64,
@@ -751,7 +751,7 @@ mod tests {
 
     #[test]
     fn checked_price_rejects_negative_volatility() {
-        let error = bs_price_checked(100.0, 102.0, 0.05, 0.0, -0.2, 1.0, OptionType::Call)
+        let error = bs_price(100.0, 102.0, 0.05, 0.0, -0.2, 1.0, OptionType::Call)
             .expect_err("negative volatility must be rejected");
         assert!(error.to_string().contains("non-negative"));
     }

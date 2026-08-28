@@ -14,15 +14,16 @@ use finstack_quant_core::dates::{Date, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 
+use finstack_quant_models::closed_form::heston::HestonPricingParams;
 use finstack_quant_models::monte_carlo::discretization::qe_heston::QeHeston;
 use finstack_quant_models::monte_carlo::engine::McEngine;
 use finstack_quant_models::monte_carlo::payoff::barrier::{
     BarrierMonitoring, BarrierOptionPayoff, OptionKind,
 };
-use finstack_quant_models::monte_carlo::process::heston::{HestonProcess, HestonProcessParams};
+use finstack_quant_models::monte_carlo::process::heston::HestonProcess;
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::seed;
-use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::TimeGrid;
 
 /// Barrier option Heston Monte Carlo pricer.
 ///
@@ -112,7 +113,7 @@ impl BarrierOptionHestonMcPricer {
         let rho = Self::heston_scalar(market, "HESTON_RHO", -0.7);
         let v0 = Self::heston_scalar(market, "HESTON_V0", 0.04);
 
-        let heston_params = HestonProcessParams::new(r, q, kappa, theta, sigma_v, rho, v0)?;
+        let heston_params = HestonPricingParams::new(r, q, kappa, theta, sigma_v, rho, v0)?;
         let process = HestonProcess::new(heston_params);
         let discretization = QeHeston::new();
 

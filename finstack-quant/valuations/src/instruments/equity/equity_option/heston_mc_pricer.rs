@@ -16,13 +16,14 @@ use crate::results::ValuationResult;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
+use finstack_quant_models::closed_form::heston::HestonPricingParams;
 use finstack_quant_models::monte_carlo::discretization::qe_heston::QeHeston;
 use finstack_quant_models::monte_carlo::engine::McEngine;
 use finstack_quant_models::monte_carlo::payoff::vanilla::{EuropeanCall, EuropeanPut};
-use finstack_quant_models::monte_carlo::process::heston::{HestonProcess, HestonProcessParams};
+use finstack_quant_models::monte_carlo::process::heston::HestonProcess;
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::seed;
-use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
+use finstack_quant_models::monte_carlo::TimeGrid;
 
 /// Equity option Heston Monte Carlo pricer.
 ///
@@ -88,13 +89,12 @@ impl EquityOptionHestonMcPricer {
         }
 
         // Heston parameters: **Audit P3b** — use the strict resolver so a
-        // missing or mistyped HESTON_* scalar fails loudly here rather than
-        // silently selecting the representative SPX defaults. Validation
-        // (positive κ/θ/σᵥ/v₀, ρ ∈ (−1, 1)) is still enforced inside
-        // `HestonProcessParams::new`. The MC wrapper shares the canonical
-        // five-factor Heston parameter type with the Fourier engine.
+        // Missing or mistyped HESTON_* scalars fail loudly rather than selecting
+        // representative SPX defaults. The canonical `HestonPricingParams::new`
+        // enforces positive κ/θ/σᵥ/v₀ and ρ ∈ (−1, 1) for both Monte Carlo and
+        // Fourier paths.
         let cf_params = crate::instruments::equity::equity_option::heston_market::heston_params_from_market_strict(market, r, q)?;
-        let heston_params = HestonProcessParams::new(
+        let heston_params = HestonPricingParams::new(
             cf_params.r,
             cf_params.q,
             cf_params.kappa,

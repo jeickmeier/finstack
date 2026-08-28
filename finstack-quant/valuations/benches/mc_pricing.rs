@@ -12,7 +12,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_models::rates::hull_white::HullWhiteParams;
 use finstack_quant_valuations::instruments::rates::swaption::{
     BermudanSchedule, BermudanSwaption, BermudanSwaptionPricer, BermudanSwaptionPricerConfig,
-    CalibratedHullWhiteModel,
+    PreparedHullWhiteModel,
 };
 use finstack_quant_valuations::pricer::Pricer;
 use std::hint::black_box;
@@ -105,12 +105,11 @@ fn bench_bermudan_hw_tree(c: &mut Criterion) {
     let hw_params = HullWhiteParams::default();
     let ttm = swaption.time_to_maturity(as_of).expect("ttm");
     let disc = market.get_discount("USD-OIS").expect("USD-OIS");
-    let cached = CalibratedHullWhiteModel::calibrate(hw_params, 100, disc.as_ref(), ttm)
+    let cached = PreparedHullWhiteModel::prepare(hw_params, 100, disc.as_ref(), ttm)
         .expect("pre-calibrated HW tree");
 
     let calibrate_each = BermudanSwaptionPricer::tree_with_config(BermudanSwaptionPricerConfig {
         tree_steps: 100,
-        enforce_calibration: false,
         ..Default::default()
     });
     group.bench_function("calibrate_each_price", |b| {
@@ -124,8 +123,7 @@ fn bench_bermudan_hw_tree(c: &mut Criterion) {
 
     let reused = BermudanSwaptionPricer::tree_with_config(BermudanSwaptionPricerConfig {
         tree_steps: 100,
-        pre_calibrated_model: Some(cached),
-        enforce_calibration: false,
+        prepared_model: Some(cached),
         ..Default::default()
     });
     group.bench_function("pre_calibrated_100_steps", |b| {

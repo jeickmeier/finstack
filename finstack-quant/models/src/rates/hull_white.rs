@@ -1,13 +1,48 @@
 //! Product-independent Hull-White one-factor parameters and pricing kernels.
 //!
 //! This module owns the reusable equations of the Hull-White one-factor
-//! short-rate model. Quote preparation, calibration optimization, market
-//! resolution, and instrument pricing orchestration live in the valuations
-//! crate.
+//! short-rate model. Quote preparation and fitting live in the calibration
+//! crate; fitted-input resolution and instrument pricing live in valuations.
 
 use finstack_quant_core::math::piecewise::PiecewiseConstantCurve;
 use finstack_quant_core::math::special_functions::norm_cdf;
 use finstack_quant_core::{Error, Result};
+
+/// Market-scalar keys for swaption-calibrated HW1F mean reversion and volatility.
+///
+/// # Arguments
+///
+/// * `curve_id` - Discount or projection curve identifier prefixed into both keys.
+#[must_use]
+pub fn hw1f_scalar_keys(curve_id: &str) -> (String, String) {
+    (
+        format!("{curve_id}_HW1F_KAPPA"),
+        format!("{curve_id}_HW1F_SIGMA"),
+    )
+}
+
+/// Market-scalar keys for cap/floor-calibrated HW1F mean reversion and volatility.
+///
+/// # Arguments
+///
+/// * `curve_id` - Discount or projection curve identifier prefixed into both keys.
+#[must_use]
+pub fn capfloor_hw1f_scalar_keys(curve_id: &str) -> (String, String) {
+    (
+        format!("{curve_id}_CAPFLOOR_HW1F_KAPPA"),
+        format!("{curve_id}_CAPFLOOR_HW1F_SIGMA"),
+    )
+}
+
+/// Market-series key for a cap/floor-calibrated piecewise HW1F sigma schedule.
+///
+/// # Arguments
+///
+/// * `curve_id` - Discount or projection curve identifier prefixed into the key.
+#[must_use]
+pub fn capfloor_hw1f_sigma_schedule_key(curve_id: &str) -> String {
+    format!("{curve_id}_CAPFLOOR_HW1F_SIGMA_SCHEDULE")
+}
 
 /// Validated constant-parameter Hull-White one-factor model.
 ///

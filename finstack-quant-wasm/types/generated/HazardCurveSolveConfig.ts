@@ -13,7 +13,7 @@ import type { ResidualWeightingScheme } from "./ResidualWeightingScheme";
  *
  * # Examples
  * ```
- * use finstack_quant_valuations::calibration::HazardCurveSolveConfig;
+ * use finstack_quant_calibration::HazardCurveSolveConfig;
  *
  * // For distressed debt scenarios, increase the max hazard rate
  * let config = HazardCurveSolveConfig {

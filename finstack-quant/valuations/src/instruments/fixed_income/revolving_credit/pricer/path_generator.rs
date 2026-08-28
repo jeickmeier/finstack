@@ -25,12 +25,12 @@ use crate::instruments::fixed_income::revolving_credit::pricer::monte_carlo_proc
     CreditSpreadParams, InterestRateSpec, RevolvingCreditProcess, RevolvingCreditProcessParams,
     UtilizationParams,
 };
-use crate::instruments::rates::hw1f::{calibrate_hw1f_params, initial_short_rate_from_curve};
+use crate::instruments::rates::hw1f::{initial_short_rate_from_curve, prepare_hw1f_params};
 use finstack_quant_models::monte_carlo::process::ou::HullWhite1FParams;
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::rng::sobol::SobolRng;
-use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
 use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream, StochasticProcess};
+use finstack_quant_models::monte_carlo::TimeGrid;
 use finstack_quant_models::rates::hull_white::HullWhiteParams;
 
 use super::super::cashflow_engine::ThreeFactorPathData;
@@ -152,7 +152,7 @@ pub fn generate_three_factor_paths(
                             )?
                             .max(1e-6);
                         let scalar = HullWhiteParams::new(*kappa, *sigma)?;
-                        let params = calibrate_hw1f_params(
+                        let params = prepare_hw1f_params(
                             scalar,
                             disc_curve.as_ref(),
                             simulation_anchor,

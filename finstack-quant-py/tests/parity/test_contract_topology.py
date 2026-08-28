@@ -571,6 +571,7 @@ def test_cashflows_has_no_cross_crate_symbols() -> None:
 
 WASM_NAMESPACE_SUBSETS = [
     ("wasm_analytics_subset", "analytics", "finstack_quant.analytics"),
+    ("wasm_calibration_subset", "calibration", "finstack_quant.calibration"),
     ("wasm_covenants_subset", "covenants", "finstack_quant.covenants"),
     ("wasm_features_subset", "features", "finstack_quant.features"),
     ("wasm_margin_subset", "margin", "finstack_quant.margin"),

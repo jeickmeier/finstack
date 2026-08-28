@@ -1013,9 +1013,9 @@ fn test_sabr_atm_pinning_interpolates_when_grid_lacks_forward() {
         .with_max_iterations(1000)
         .calibrate_with_atm_pinning(forward, &strikes, &market_vols, expiry, 0.5)
         .expect("ATM-pinned calibration should succeed");
-    let calibrated_model = SabrModel::new(calibrated);
+    let prepared_model = SabrModel::new(calibrated);
 
-    let calibrated_atm = calibrated_model
+    let calibrated_atm = prepared_model
         .atm_volatility(forward, expiry)
         .expect("calibrated ATM vol should compute");
     let interp_err = (calibrated_atm - true_atm).abs();
@@ -1053,20 +1053,20 @@ fn test_sabr_calibrate_with_atm_pinning_matches_synthetic_smile() {
         .with_max_iterations(200)
         .calibrate_with_atm_pinning(forward, &strikes, &market_vols, expiry, beta)
         .expect("ATM-pinned calibration should succeed");
-    let calibrated_model = SabrModel::new(calibrated);
+    let prepared_model = SabrModel::new(calibrated);
 
     let atm_idx = strikes
         .iter()
         .position(|&strike| strike == forward)
         .expect("ATM strike should be present");
     let atm_market = market_vols[atm_idx];
-    let calibrated_atm = calibrated_model
+    let calibrated_atm = prepared_model
         .atm_volatility(forward, expiry)
         .expect("ATM vol should compute");
     assert!((calibrated_atm - atm_market).abs() < 1e-8);
 
     for (strike, market_vol) in strikes.iter().zip(market_vols.iter()) {
-        let fitted = calibrated_model
+        let fitted = prepared_model
             .implied_volatility(forward, *strike, expiry)
             .expect("fitted vol should compute");
         assert!(
@@ -1103,10 +1103,10 @@ fn test_sabr_beta_zero_calibrates_negative_cross_zero_forward() {
         .with_max_iterations(500)
         .calibrate_with_atm_pinning(forward, &strikes, &market_vols, expiry, 0.0)
         .expect("β=0 negative-forward calibration should succeed");
-    let calibrated_model = SabrModel::new(calibrated);
+    let prepared_model = SabrModel::new(calibrated);
 
     let atm_market = market_vols[2];
-    let calibrated_atm = calibrated_model
+    let calibrated_atm = prepared_model
         .atm_volatility(forward, expiry)
         .expect("ATM normal vol should compute");
     assert!(
@@ -1115,7 +1115,7 @@ fn test_sabr_beta_zero_calibrates_negative_cross_zero_forward() {
     );
 
     for (strike, market_vol) in strikes.iter().zip(market_vols.iter()) {
-        let fitted = calibrated_model
+        let fitted = prepared_model
             .implied_volatility(forward, *strike, expiry)
             .expect("fitted vol should compute");
         assert!(
@@ -1464,9 +1464,9 @@ fn test_sabr_normal_convention_calibration_reprices_wings_unweighted() {
     );
 
     // Unweighted wing repricing: every strike within 0.5 normal bp.
-    let calibrated_model = SabrModel::new(calibrated);
+    let prepared_model = SabrModel::new(calibrated);
     for (strike, market_vol) in strikes.iter().zip(market_vols.iter()) {
-        let fitted = calibrated_model
+        let fitted = prepared_model
             .implied_volatility(forward, *strike, expiry)
             .expect("fitted normal vol should compute");
         assert!(

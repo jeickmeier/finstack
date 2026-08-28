@@ -35,7 +35,7 @@ use crate::monte_carlo::process::heston::HestonProcess;
 use crate::monte_carlo::registry;
 use crate::monte_carlo::results::MoneyEstimate;
 use crate::monte_carlo::rng::philox::PhiloxRng;
-use crate::monte_carlo::time_grid::TimeGrid;
+use crate::monte_carlo::TimeGrid;
 use finstack_quant_core::cashflow::flat_discount_factor;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;

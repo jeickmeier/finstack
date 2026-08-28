@@ -264,10 +264,7 @@ fn persisted_contract_fields_do_not_use_fx_hash_maps() {
             "core/src/market_data/term_structures/credit_index.rs",
             "CreditIndexData",
         ),
-        (
-            "valuations/src/calibration/api/schema.rs",
-            "CalibrationPlan",
-        ),
+        ("calibration/src/api/schema.rs", "CalibrationPlan"),
         (
             "valuations/src/instruments/fixed_income/structured_credit/types/mod.rs",
             "MarketConditions",

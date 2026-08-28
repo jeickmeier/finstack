@@ -32,11 +32,11 @@
 //! # Module map
 //!
 //! - Models and simulation inputs: [`rng`], [`process`], and [`discretization`].
-//! - Engine contracts and execution: [`traits`], [`time_grid`], [`engine`], and
+//! - Engine contracts and execution: [`traits`], [`TimeGrid`], [`engine`], and
 //!   [`engine_fractional`].
 //! - Products and analytics: [`payoff`], [`pricer`], [`barriers`], [`greeks`], and
 //!   [`variance_reduction`].
-//! - Results and diagnostics: [`estimate`], [`online_stats`], [`paths`], and [`results`].
+//! - Results and diagnostics: [`estimate`], [`OnlineStats`], [`paths`], and [`results`].
 //! - Runtime defaults and reproducibility: [`registry`] and [`seed`].
 //! - Common imports: [`prelude`].
 //!
@@ -85,11 +85,9 @@ pub mod discretization;
 pub mod estimate;
 mod gbm_paths;
 mod indexed_spot_table;
-pub mod online_stats;
 pub mod paths;
 pub mod process;
 pub mod rng;
-pub mod time_grid;
 pub mod traits;
 
 pub mod barriers;
@@ -106,6 +104,8 @@ pub mod variance_reduction;
 #[cfg(test)]
 mod mc_process_params_serialization;
 
+pub use finstack_quant_core::math::stats::{required_samples, OnlineCovariance, OnlineStats};
+pub use finstack_quant_core::math::time_grid::TimeGrid;
 pub use gbm_paths::{simulate_gbm_paths, GbmPathConfig, GbmPathSummary};
 pub use traits::{
     state_keys, Discretization, PathState, Payoff, ProportionalDiffusion, RandomStream, StateKey,
@@ -119,12 +119,12 @@ pub use traits::{
 pub mod prelude {
     pub use super::estimate::Estimate;
     pub use super::gbm_paths::{simulate_gbm_paths, GbmPathConfig, GbmPathSummary};
-    pub use super::online_stats::{required_samples, OnlineCovariance, OnlineStats};
     pub use super::paths::{
         CashflowType, PathDataset, PathPoint, PathSamplingMethod, ProcessParams, SimulatedPath,
     };
-    pub use super::time_grid::TimeGrid;
     pub use super::traits::{Discretization, PathState, RandomStream, StochasticProcess};
+    pub use super::TimeGrid;
+    pub use super::{required_samples, OnlineCovariance, OnlineStats};
 
     pub use super::rng::philox::PhiloxRng;
     pub use super::rng::sobol::SobolRng;
@@ -132,10 +132,11 @@ pub mod prelude {
     pub use super::process::brownian::{BrownianParams, BrownianProcess, MultiBrownianProcess};
     pub use super::process::cir::{CirParams, CirPlusPlusProcess, CirProcess};
     pub use super::process::gbm::{GbmParams, GbmProcess, MultiGbmProcess};
-    pub use super::process::heston::{HestonProcess, HestonProcessParams};
+    pub use super::process::heston::HestonProcess;
     pub use super::process::multi_ou::MultiOuParams;
     pub use super::process::ou::{HullWhite1FParams, HullWhite1FProcess};
     pub use super::process::schwartz_smith::{SchwartzSmithParams, SchwartzSmithProcess};
+    pub use crate::closed_form::heston::HestonPricingParams;
     pub use finstack_quant_core::math::linalg::{apply_correlation, cholesky_decomposition};
 
     // Route everything through the `discretization` module's own re-exports
@@ -173,8 +174,6 @@ pub mod prelude {
     pub use super::greeks::finite_diff::{
         finite_diff_delta, finite_diff_delta_crn, finite_diff_gamma, finite_diff_gamma_crn,
     };
-
-    pub use super::variance_reduction::control_variate::{black_scholes_call, black_scholes_put};
 }
 
 #[cfg(test)]

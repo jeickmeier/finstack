@@ -27,6 +27,7 @@
 //! | `core`             | [`finstack_quant_core`]                 |
 //! | `analytics`        | [`finstack_quant_analytics`]            |
 //! | `attribution`      | [`finstack_quant_attribution`]          |
+//! | `calibration`      | [`finstack_quant_calibration`]          |
 //! | `cashflows`        | [`finstack_quant_cashflows`]            |
 //! | `covenants`        | [`finstack_quant_covenants`]            |
 //! | `features`         | [`finstack_quant_features`]             |
@@ -61,6 +62,7 @@
 
 pub use finstack_quant_analytics as analytics;
 pub use finstack_quant_attribution as attribution;
+pub use finstack_quant_calibration as calibration;
 pub use finstack_quant_cashflows as cashflows;
 pub use finstack_quant_core as core;
 pub use finstack_quant_covenants as covenants;

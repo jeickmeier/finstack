@@ -43,10 +43,8 @@ define_convention_id!(
 define_convention_id!(
     /// Identifier for Option market conventions (Equity/FX/Commodity).
     ///
-    /// Tags an option implied-volatility quote
-    /// ([`VolQuote::OptionVol`](crate::market::quotes::vol::VolQuote)) with the
-    /// market convention it was quoted under, so quotes from different venues
-    /// are not blended during surface construction.
+    /// Tags an option implied-volatility quote with the market convention it
+    /// was quoted under, so calibration does not blend venues.
     OptionConventionId
 );
 

@@ -22,8 +22,6 @@
 //!
 //! [canonical]: crate::metrics::sensitivities::cs01
 
-use crate::calibration::bumps::hazard::bump_hazard_shift;
-use crate::calibration::bumps::BumpRequest;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds_tranche::CDSTranche;
 use crate::metrics::sensitivities::config as sens_config;
@@ -99,10 +97,17 @@ impl MetricCalculator for CdsTrancheCs01Calculator {
         let cs01 = compute_parallel_cs01_with_context_raw(
             context,
             &hazard_id,
-            discount_id.as_ref(),
             bump_bp,
-            None,
-            None,
+            crate::recalibration::HazardRecalibrationConventions {
+                discount_curve_id: discount_id.ok_or_else(|| {
+                    finstack_quant_core::Error::Validation(
+                        "CDS tranche CS01 requires a discount curve".to_string(),
+                    )
+                })?,
+                doc_clause: None,
+                cds_valuation_convention: None,
+                deal_quote_override: None,
+            },
             reval,
         )?;
 
@@ -177,12 +182,19 @@ impl MetricCalculator for CdsTrancheBucketedCs01Calculator {
         compute_key_rate_cs01_series_with_context_raw(
             context,
             &hazard_id,
-            discount_id.as_ref(),
             KeyRateCs01Request {
                 series_id,
                 bump_bp,
-                doc_clause: None,
-                cds_valuation_convention: None,
+                conventions: crate::recalibration::HazardRecalibrationConventions {
+                    discount_curve_id: discount_id.ok_or_else(|| {
+                        finstack_quant_core::Error::Validation(
+                            "CDS tranche bucketed CS01 requires a discount curve".to_string(),
+                        )
+                    })?,
+                    doc_clause: None,
+                    cds_valuation_convention: None,
+                    deal_quote_override: None,
+                },
             },
             reval,
         )
@@ -209,14 +221,8 @@ impl MetricCalculator for CdsTrancheCs01HazardCalculator {
 
         let as_of = context.as_of;
 
-        let bumped_up = Arc::new(bump_hazard_shift(
-            hazard_ref,
-            &BumpRequest::Parallel(bump_bp),
-        )?);
-        let bumped_down = Arc::new(bump_hazard_shift(
-            hazard_ref,
-            &BumpRequest::Parallel(-bump_bp),
-        )?);
+        let bumped_up = Arc::new(hazard_ref.with_parallel_hazard_rate_bump_bp(bump_bp)?);
+        let bumped_down = Arc::new(hazard_ref.with_parallel_hazard_rate_bump_bp(-bump_bp)?);
 
         let ctx_up = base_ctx
             .clone()
@@ -274,14 +280,9 @@ impl MetricCalculator for CdsTrancheBucketedCs01HazardCalculator {
         for t in buckets {
             let label = sens_config::format_bucket_label_cow(t);
 
-            let bumped_up = Arc::new(bump_hazard_shift(
-                hazard_ref,
-                &BumpRequest::Tenors(vec![(t, bump_bp)]),
-            )?);
-            let bumped_down = Arc::new(bump_hazard_shift(
-                hazard_ref,
-                &BumpRequest::Tenors(vec![(t, -bump_bp)]),
-            )?);
+            let bumped_up = Arc::new(hazard_ref.with_tenor_hazard_rate_bumps_bp(&[(t, bump_bp)])?);
+            let bumped_down =
+                Arc::new(hazard_ref.with_tenor_hazard_rate_bumps_bp(&[(t, -bump_bp)])?);
 
             let ctx_up = base_ctx
                 .clone()

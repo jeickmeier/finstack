@@ -44,13 +44,19 @@ fn price_envelope(
     let inner = py
         .detach(move || {
             finstack_quant_valuations::pricer::price_instrument_json(
-                &envelope_json,
-                &market,
-                &as_of,
-                &model,
-                &metrics,
-                pricing_options.as_deref(),
-                market_history.as_deref(),
+                finstack_quant_valuations::pricer::JsonPricingRequest {
+                    instrument_json: &envelope_json,
+                    market: &market,
+                    as_of: &as_of,
+                    model: &model,
+                    metrics: &metrics,
+                    instrument_pricing_overrides_json: pricing_options.as_deref(),
+                    market_history_json: market_history.as_deref(),
+                    pricing_options: finstack_quant_valuations::instruments::PricingOptions::default()
+                        .with_recalibration_provider(std::sync::Arc::new(
+                            finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
+                        )),
+                },
             )
         })
         .map_err(core_to_py)?;
@@ -70,13 +76,26 @@ fn envelope_metric_value(
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let model = model.to_owned();
     py.detach(move || {
-        finstack_quant_valuations::pricer::metric_value_from_instrument_json(
-            &envelope_json,
-            &market,
-            &as_of,
-            &model,
-            metric,
-        )
+        let metrics = [metric.to_string()];
+        let result = finstack_quant_valuations::pricer::price_instrument_json(
+            finstack_quant_valuations::pricer::JsonPricingRequest {
+                instrument_json: &envelope_json,
+                market: &market,
+                as_of: &as_of,
+                model: &model,
+                metrics: &metrics,
+                instrument_pricing_overrides_json: None,
+                market_history_json: None,
+                pricing_options: finstack_quant_valuations::instruments::PricingOptions::default()
+                    .with_recalibration_provider(std::sync::Arc::new(
+                        finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(
+                        ),
+                    )),
+            },
+        )?;
+        result.metric_str(metric).ok_or_else(|| {
+            finstack_quant_core::Error::Validation(format!("metric `{metric}` was not returned"))
+        })
     })
     .map_err(core_to_py)
 }
@@ -98,12 +117,27 @@ fn envelope_option_greeks<'py>(
     let model = model.to_owned();
     let pairs = py
         .detach(move || {
-            finstack_quant_valuations::pricer::present_standard_option_greeks_from_instrument_json(
-                &envelope_json,
-                &market,
-                &as_of,
-                &model,
-            )
+            let names = finstack_quant_valuations::pricer::STANDARD_OPTION_GREEKS;
+            let metrics = names.iter().map(|name| (*name).to_string()).collect::<Vec<_>>();
+            let result = finstack_quant_valuations::pricer::price_instrument_json(
+                finstack_quant_valuations::pricer::JsonPricingRequest {
+                    instrument_json: &envelope_json,
+                    market: &market,
+                    as_of: &as_of,
+                    model: &model,
+                    metrics: &metrics,
+                    instrument_pricing_overrides_json: None,
+                    market_history_json: None,
+                    pricing_options: finstack_quant_valuations::instruments::PricingOptions::default()
+                        .with_recalibration_provider(std::sync::Arc::new(
+                            finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
+                        )),
+                },
+            )?;
+            Ok::<_, finstack_quant_core::Error>(names
+                .iter()
+                .filter_map(|name| result.metric_str(name).map(|value| (*name, value)))
+                .collect::<Vec<_>>())
         })
         .map_err(core_to_py)?;
     let out = PyDict::new(py);

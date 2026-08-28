@@ -11,6 +11,7 @@
 
 pub mod analytics;
 pub mod attribution;
+pub mod calibration;
 pub mod cashflows;
 pub mod core;
 pub mod covenants;

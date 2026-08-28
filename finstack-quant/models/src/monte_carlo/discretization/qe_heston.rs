@@ -376,11 +376,7 @@ impl Discretization<HestonProcess> for QeHeston {
         x[1] = v_next;
     }
 
-    fn prepare(
-        &mut self,
-        process: &HestonProcess,
-        time_grid: &crate::monte_carlo::time_grid::TimeGrid,
-    ) {
+    fn prepare(&mut self, process: &HestonProcess, time_grid: &crate::monte_carlo::TimeGrid) {
         if time_grid.num_steps() == 0 {
             return;
         }
@@ -403,14 +399,14 @@ impl Discretization<HestonProcess> for QeHeston {
 #[cfg(test)]
 mod tests {
     use super::super::super::process::heston::HestonProcess;
-    use super::super::super::process::heston::HestonProcessParams;
     use super::*;
+    use crate::closed_form::heston::HestonPricingParams;
 
     #[test]
     fn test_qe_heston_variance_positive() {
         let qe = QeHeston::new();
         let params =
-            HestonProcessParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+            HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
 
         // Test with various shocks
         for z in [-3.0, -1.0, 0.0, 1.0, 3.0] {
@@ -424,7 +420,7 @@ mod tests {
     fn test_qe_heston_mean_reversion() {
         let qe = QeHeston::new();
         let params =
-            HestonProcessParams::new(0.05, 0.02, 2.0, 0.04, 0.1, -0.5, 0.04).expect("valid");
+            HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.1, -0.5, 0.04).expect("valid");
 
         // Starting above theta
         let v_high = qe.step_variance(0.08, params.kappa, params.theta, params.sigma_v, 0.1, 0.0);
@@ -610,7 +606,7 @@ mod tests {
 
         // Verify it works without panics
         let params =
-            HestonProcessParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+            HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
         let v = qe.step_variance(0.04, params.kappa, params.theta, params.sigma_v, 0.1, 0.0);
         assert!(v >= 0.0);
     }
@@ -620,7 +616,7 @@ mod tests {
         // Test custom psi_c threshold
         let qe = QeHeston::with_psi_c(2.0).expect("psi_c = 2.0 is the Andersen upper bound");
         let params =
-            HestonProcessParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
+            HestonPricingParams::new(0.05, 0.02, 2.0, 0.04, 0.3, -0.7, 0.04).expect("valid");
 
         // Variance should remain positive
         for z in [-2.0, 0.0, 2.0] {
@@ -768,7 +764,7 @@ mod tests {
 
     #[test]
     fn test_qe_heston_clamps_rho_and_integrated_variance_before_sqrt() {
-        let heston = HestonProcess::new(HestonProcessParams {
+        let heston = HestonProcess::new(HestonPricingParams {
             r: 0.03,
             q: 0.01,
             model: crate::volatility::heston::HestonParams {

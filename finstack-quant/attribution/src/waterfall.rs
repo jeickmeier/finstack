@@ -41,6 +41,7 @@ use super::factors::*;
 use super::helpers::*;
 use super::model_params;
 use super::types::*;
+use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
@@ -50,6 +51,7 @@ use finstack_quant_core::{Error, Result};
 use finstack_quant_models::factor::credit::hierarchy::CreditFactorModel;
 use finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot;
 use finstack_quant_valuations::instruments::Instrument;
+use finstack_quant_valuations::recalibration::RecalibrationProvider;
 use std::sync::Arc;
 
 /// Default waterfall order for factor attribution.
@@ -405,6 +407,7 @@ fn attribute_pnl_waterfall_impl(
     let mut ctx = WaterfallContext {
         target_instrument: instrument,
         current_instrument: instrument_t0,
+        source_market: market_t0,
         current_market: market_t0.clone(),
         current_val: val_t0,
         market_t1,
@@ -413,6 +416,7 @@ fn attribute_pnl_waterfall_impl(
         strict_validation,
         num_repricings: 2, // T₀ and T₁ repricings already performed
         factor_use: InstrumentFactorUse::of(instrument.as_ref()),
+        recalibration_provider: Arc::new(CachedRecalibrationProvider::new()),
     };
 
     for factor in factor_order {
@@ -508,6 +512,7 @@ struct WaterfallContext<'a> {
     target_instrument: &'a Arc<dyn Instrument>,
     current_instrument: Arc<dyn Instrument>,
     factor_use: InstrumentFactorUse,
+    source_market: &'a MarketContext,
     current_market: MarketContext,
     current_val: Money,
     market_t1: &'a MarketContext,
@@ -515,6 +520,7 @@ struct WaterfallContext<'a> {
     as_of_t1: Date,
     strict_validation: bool,
     num_repricings: usize,
+    recalibration_provider: Arc<dyn RecalibrationProvider>,
 }
 
 impl<'a> WaterfallContext<'a> {
@@ -568,10 +574,12 @@ impl<'a> WaterfallContext<'a> {
                 CreditStepKind::Generic | CreditStepKind::Level(_) | CreditStepKind::Adder => {
                     cumulative_bp += step.delta_bp;
                     shift_credit_curves_par_spread(
+                        self.source_market,
                         &credit_base,
                         &cascade.hazard_curve_ids,
                         discount_id,
                         cumulative_bp,
+                        self.recalibration_provider.as_ref(),
                     )?
                 }
             };
@@ -838,6 +846,7 @@ mod tests {
             target_instrument: &instrument,
             current_instrument: Arc::clone(&instrument),
             factor_use: InstrumentFactorUse::of(instrument.as_ref()),
+            source_market: &market,
             current_market: market.clone(),
             current_val: Money::new(1.0e9, Currency::USD),
             market_t1: &market,
@@ -845,6 +854,7 @@ mod tests {
             as_of_t1: date!(2025 - 01 - 16),
             strict_validation: false,
             num_repricings: 0,
+            recalibration_provider: Arc::new(CachedRecalibrationProvider::new()),
         };
 
         // Apply 30 increments of 0.1; ideal answer is exactly 1_000_000_003.
@@ -877,6 +887,7 @@ mod tests {
             target_instrument: &instrument,
             current_instrument: Arc::clone(&instrument),
             factor_use: InstrumentFactorUse::of(instrument.as_ref()),
+            source_market: &market,
             current_market: market.clone(),
             current_val: Money::new(100.0, Currency::USD),
             market_t1: &market,
@@ -884,6 +895,7 @@ mod tests {
             as_of_t1: date!(2025 - 01 - 16),
             strict_validation: false,
             num_repricings: 0,
+            recalibration_provider: Arc::new(CachedRecalibrationProvider::new()),
         };
 
         let result = ctx.update_current_value(ctx.current_val, Money::new(10.0, Currency::EUR));

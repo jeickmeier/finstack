@@ -5,11 +5,11 @@
 //! screen convention: apply a +1bp parallel bump to the quoted CDS par-spread
 //! curve, re-bootstrap the hazard curve, and revalue the underlying CDS.
 
-use crate::calibration::bumps::{bump_hazard_spreads, BumpRequest};
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds_option::pricer::synthetic_underlying_cds;
 use crate::instruments::credit_derivatives::cds_option::CDSOption;
 use crate::metrics::{MetricCalculator, MetricContext};
+use crate::recalibration::{HazardRecalibrationConventions, QuoteBump};
 use finstack_quant_core::Result;
 
 /// Spread DV01 calculator for the option's synthetic underlying CDS.
@@ -24,16 +24,22 @@ impl MetricCalculator for UnderlyingSpreadDv01Calculator {
             hazard.as_ref(),
             "CDS option underlying spread DV01",
         )?;
-        let request = BumpRequest::Parallel(1.0);
-        let bumped_hazard = bump_hazard_spreads(
+        let bumped_hazard = context.bump_hazard_spreads_cached(
             hazard.as_ref(),
             &context.curves,
-            &request,
-            Some(&option.discount_curve_id),
-            None,
-            None,
+            &QuoteBump::ParallelBp(1.0),
+            &HazardRecalibrationConventions {
+                discount_curve_id: option.discount_curve_id.clone(),
+                doc_clause: None,
+                cds_valuation_convention: None,
+                deal_quote_override: None,
+            },
         )?;
-        let bumped_market = context.curves.as_ref().clone().insert(bumped_hazard);
+        let bumped_market = context
+            .curves
+            .as_ref()
+            .clone()
+            .insert(bumped_hazard.as_ref().clone());
         let base_pv = cds.value(&context.curves, context.as_of)?.amount();
         let bumped_pv = cds.value(&bumped_market, context.as_of)?.amount();
         Ok(bumped_pv - base_pv)

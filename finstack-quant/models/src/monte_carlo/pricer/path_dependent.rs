@@ -8,7 +8,6 @@ use super::super::results::{MoneyEstimate, MonteCarloResult};
 use super::super::traits::Payoff;
 use crate::monte_carlo::discretization::exact::ExactGbm;
 use crate::monte_carlo::estimate::Estimate;
-use crate::monte_carlo::online_stats::OnlineStats;
 use crate::monte_carlo::payoff::asian::{
     default_fixing_steps, AsianCall, AsianPut, AveragingMethod,
 };
@@ -16,8 +15,9 @@ use crate::monte_carlo::process::gbm::GbmProcess;
 use crate::monte_carlo::process::metadata::ProcessMetadata;
 use crate::monte_carlo::rng::philox::PhiloxRng;
 use crate::monte_carlo::rng::sobol::{SobolRng, MAX_SOBOL_DIMENSION};
-use crate::monte_carlo::time_grid::TimeGrid;
 use crate::monte_carlo::traits::{Discretization, RandomStream, StochasticProcess};
+use crate::monte_carlo::OnlineStats;
+use crate::monte_carlo::TimeGrid;
 use finstack_quant_core::cashflow::flat_discount_factor;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::math::random::BrownianBridge;
@@ -1204,7 +1204,7 @@ mod tests {
     use crate::monte_carlo::payoff::vanilla::EuropeanCall;
     use crate::monte_carlo::process::gbm::{GbmParams, GbmProcess};
     use crate::monte_carlo::rng::sobol::MAX_SOBOL_DIMENSION;
-    use crate::monte_carlo::time_grid::TimeGrid;
+    use crate::monte_carlo::TimeGrid;
     use finstack_quant_core::currency::Currency;
 
     use crate::monte_carlo::payoff::lookback::{Lookback, LookbackDirection};
@@ -1330,7 +1330,7 @@ mod tests {
     /// "stderr" over dependent Sobol points has no such guarantee.)
     #[test]
     fn test_sobol_rqmc_stderr_covers_true_error() {
-        use crate::monte_carlo::variance_reduction::control_variate::black_scholes_call;
+        use crate::closed_form::black_scholes_spot_call;
 
         let (s0, k, r, q, sigma, t) = (100.0, 100.0, 0.05, 0.0, 0.2, 1.0);
         let num_steps = 16usize;
@@ -1347,7 +1347,7 @@ mod tests {
             .price_with_paths(&gbm, s0, t, num_steps, &payoff, Currency::USD, df)
             .expect("sobol pricing should succeed");
 
-        let bs = black_scholes_call(s0, k, t, r, q, sigma);
+        let bs = black_scholes_spot_call(s0, k, r, q, sigma, t);
         let mean = result.estimate.mean.amount();
         let stderr = result.estimate.stderr;
 

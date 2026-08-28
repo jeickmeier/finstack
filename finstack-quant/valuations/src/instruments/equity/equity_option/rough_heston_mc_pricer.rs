@@ -173,9 +173,8 @@ impl crate::pricer::Pricer for EquityOptionRoughHestonMcPricer {
             );
 
         // Build time grid and discretization
-        let time_grid =
-            finstack_quant_models::monte_carlo::time_grid::TimeGrid::uniform(t, self.num_steps)
-                .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
+        let time_grid = finstack_quant_models::monte_carlo::TimeGrid::uniform(t, self.num_steps)
+            .map_err(|e| crate::pricer::PricingError::from_core(e, err_ctx.clone()))?;
         let times: Vec<f64> = (0..=self.num_steps)
             .map(|i| t * i as f64 / self.num_steps as f64)
             .collect();

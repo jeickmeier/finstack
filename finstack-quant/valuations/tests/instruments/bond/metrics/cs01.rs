@@ -46,7 +46,7 @@ fn test_cs01_negative_for_long_bond() {
             &market,
             as_of,
             &[MetricId::Cs01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let cs01 = *result.measures.get("cs01").unwrap();
@@ -118,7 +118,7 @@ fn test_cs01_zspread_fallback_uses_settlement_anchored_basis() {
             &market,
             as_of,
             &[MetricId::ZSpread, MetricId::Cs01],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            crate::test_support::credit::pricing_options(),
         )
         .unwrap();
     let z = *result.measures.get("z_spread").expect("z_spread measure");

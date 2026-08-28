@@ -481,29 +481,10 @@ pub(crate) fn full_signed_schedule_with_curves_as_of(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::calibration::api::engine;
-    use crate::calibration::api::schema::CalibrationEnvelope;
     use finstack_quant_core::cashflow::CFKind;
     use finstack_quant_core::dates::{DayCount, Tenor};
     use finstack_quant_core::market_data::context::MarketContext;
     use time::macros::date;
-
-    #[derive(serde::Deserialize)]
-    struct GoldenV2Metadata {
-        valuation_date: String,
-    }
-
-    #[derive(serde::Deserialize)]
-    struct GoldenV2Market {
-        envelope: CalibrationEnvelope,
-    }
-
-    #[derive(serde::Deserialize)]
-    struct GoldenV2PricingFixture {
-        metadata: GoldenV2Metadata,
-        market: GoldenV2Market,
-        instrument: serde_json::Value,
-    }
 
     #[test]
     fn irs_leg_schedules_do_not_emit_notional_flows() {
@@ -622,108 +603,6 @@ mod tests {
         assert!(uses_observation_shift_dcf(shift_only));
     }
 
-    #[test]
-    fn fixed_leg_pv_uses_builder_payment_dates_once() {
-        let fixture = load_bloomberg_fixture();
-        let as_of = finstack_quant_core::dates::parse_iso_date(&fixture.metadata.valuation_date)
-            .expect("fixture valuation date parses");
-        let irs = load_fixture_irs(&fixture);
-        let market = load_fixture_market(&fixture);
-        let disc = market
-            .get_discount(&irs.fixed.discount_curve_id)
-            .expect("discount curve");
-        let schedule = fixed_leg_schedule(&irs).expect("fixed schedule");
-        let direct_pv: f64 = schedule
-            .get_flows()
-            .iter()
-            .map(|flow| {
-                let df = crate::instruments::rates::irs::pricer::robust_relative_df(
-                    &disc, as_of, flow.date,
-                )
-                .expect("discount factor");
-                flow.amount.amount() * df
-            })
-            .sum();
-        let priced_pv = irs.pv_fixed_leg(&disc, as_of).expect("fixed leg PV");
-
-        assert!(
-            (priced_pv - direct_pv).abs() < 1e-6,
-            "fixed leg PV should discount builder-emitted payment dates exactly once: priced={priced_pv}, direct={direct_pv}"
-        );
-    }
-
-    #[test]
-    fn float_leg_pv_uses_schedule_payment_dates_once() {
-        let fixture = load_bloomberg_fixture();
-        let as_of = finstack_quant_core::dates::parse_iso_date(&fixture.metadata.valuation_date)
-            .expect("fixture valuation date parses");
-        let irs = load_fixture_irs(&fixture);
-        let market = load_fixture_market(&fixture);
-        let disc = market
-            .get_discount(&irs.fixed.discount_curve_id)
-            .expect("discount curve");
-        let schedule = float_leg_schedule_with_curves_as_of(&irs, Some(&market), Some(as_of))
-            .expect("float schedule");
-        let direct_pv: f64 = schedule
-            .get_flows()
-            .iter()
-            .map(|flow| {
-                let df = crate::instruments::rates::irs::pricer::robust_relative_df(
-                    &disc, as_of, flow.date,
-                )
-                .expect("discount factor");
-                flow.amount.amount() * df
-            })
-            .sum();
-        let priced_pv = irs.pv_float_leg(&market, as_of).expect("float leg PV");
-
-        assert!(
-            (priced_pv - direct_pv).abs() < 1e-6,
-            "float leg PV should discount schedule payment dates exactly once: priced={priced_pv}, direct={direct_pv}"
-        );
-    }
-
-    #[test]
-    fn write_bloomberg_schedule_diagnostic_csv() {
-        let fixture = load_bloomberg_fixture();
-        let as_of = finstack_quant_core::dates::parse_iso_date(&fixture.metadata.valuation_date)
-            .expect("fixture valuation date parses");
-        let irs = load_fixture_irs(&fixture);
-        let market = load_fixture_market(&fixture);
-
-        let fixed = fixed_leg_schedule(&irs).expect("fixed schedule");
-        let float = float_leg_schedule_with_curves_as_of(&irs, Some(&market), Some(as_of))
-            .expect("float schedule");
-        let report_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target/golden-reports/irs-schedule-diagnostics.csv");
-        if let Some(parent) = report_path.parent() {
-            std::fs::create_dir_all(parent).expect("create report dir");
-        }
-
-        let mut csv = String::from(
-            "row,finstack_fixed_date,finstack_float_date,finstack_fixed_amount,finstack_float_amount,finstack_net_amount\n",
-        );
-        for (idx, (fixed_flow, float_flow)) in fixed
-            .get_flows()
-            .iter()
-            .zip(float.get_flows().iter())
-            .enumerate()
-        {
-            csv.push_str(&format!(
-                "{},{},{},{:.8},{:.8},{:.8}\n",
-                idx + 1,
-                fixed_flow.date,
-                float_flow.date,
-                fixed_flow.amount.amount(),
-                float_flow.amount.amount(),
-                fixed_flow.amount.amount() - float_flow.amount.amount(),
-            ));
-        }
-
-        std::fs::write(&report_path, csv).expect("write schedule diagnostic CSV");
-        assert!(report_path.exists());
-    }
-
     /// W-13: A single-curve OIS leg with a non-zero rate cut-off must NOT be
     /// priced via the plain compounded DF identity. The fast path freezes no
     /// rates, so on a steep curve it produces the same PV as a no-cut-off leg.
@@ -834,27 +713,4 @@ mod tests {
         );
     }
 
-    fn load_bloomberg_fixture() -> GoldenV2PricingFixture {
-        serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/golden/data/pricing/bloomberg/irs/usd_sofr_5y_receive_fixed_swpm.json"
-        )))
-        .expect("fixture parses")
-    }
-
-    fn load_fixture_irs(fixture: &GoldenV2PricingFixture) -> InterestRateSwap {
-        crate::instruments::json_loader::InstrumentEnvelope::from_value(fixture.instrument.clone())
-            .expect("fixture instrument loads")
-            .as_any()
-            .downcast_ref::<InterestRateSwap>()
-            .expect("fixture instrument is IRS")
-            .clone()
-    }
-
-    fn load_fixture_market(fixture: &GoldenV2PricingFixture) -> MarketContext {
-        let result = engine::execute_with_diagnostics(&fixture.market.envelope)
-            .expect("fixture market envelope calibrates");
-        MarketContext::try_from(result.result.final_market)
-            .expect("fixture calibrated market rehydrates")
-    }
 }

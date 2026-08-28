@@ -6,7 +6,7 @@
 //! Reference: Glasserman (2003) - "Monte Carlo Methods in Financial Engineering".
 //!
 
-use crate::monte_carlo::online_stats::OnlineStats;
+use crate::monte_carlo::OnlineStats;
 
 /// Compute pathwise delta for European call under GBM.
 ///

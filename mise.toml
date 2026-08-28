@@ -629,7 +629,7 @@ run = [
 [tasks.wasm-gen-bindings]
 description = "Export TypeScript types from Rust (writes finstack-quant-wasm/types/generated/)"
 run = [
-  "cargo test -p finstack-quant-valuations --test integration --features ts_export -- schema::ts_export --test-threads=1",
+  "cargo test -p finstack-quant-calibration --test ts_export --features ts_export -- --test-threads=1",
   "cargo test -p finstack-quant-portfolio --test ts_export --features ts_export",
   "uv run --no-sync python scripts/sync_generated_ts_index.py",
 ]
@@ -668,6 +668,7 @@ run = [
   "uv run --no-sync python scripts/check_schema_residue.py",
   "cargo run -p finstack-quant-core --bin gen_core_schemas -- --check",
   "cargo run -p finstack-quant-attribution --bin gen_attribution_schemas -- --check",
+  "cargo run -p finstack-quant-calibration --bin gen_schemas -- --check",
   "cargo run -p finstack-quant-cashflows --bin gen_cashflow_schemas -- --check",
   "cargo run -p finstack-quant-models --bin gen_factor_model_schemas -- --check",
   "cargo run -p finstack-quant-margin --bin gen_margin_schema -- --check",
@@ -680,6 +681,7 @@ run = [
   "cargo test -p finstack-quant-portfolio --test materialization_schema --no-fail-fast",
   "cargo test -p finstack-quant-margin --test schema_parity --no-fail-fast",
   "cargo test -p finstack-quant-attribution --test attribution attribution::schema_contract:: --no-fail-fast",
+  "cargo test -p finstack-quant-calibration --test calibration schema_parity --no-fail-fast",
   "cargo test -p finstack-quant-statements --test schema_contract --no-fail-fast",
   "cargo test -p finstack-quant-scenarios --test schema_contract --no-fail-fast",
   "cargo test -p finstack-quant-models --test factor_schema_contract --no-fail-fast",
@@ -693,6 +695,7 @@ description = "Regenerate typed JSON schemas from Rust types"
 run = [
   "cargo run -p finstack-quant-core --bin gen_core_schemas -- --write",
   "cargo run -p finstack-quant-attribution --bin gen_attribution_schemas -- --write",
+  "cargo run -p finstack-quant-calibration --bin gen_schemas -- --write",
   "cargo run -p finstack-quant-cashflows --bin gen_cashflow_schemas -- --write",
   "cargo run -p finstack-quant-models --bin gen_factor_model_schemas -- --write",
   "cargo run -p finstack-quant-margin --bin gen_margin_schema -- --write",

@@ -13,17 +13,15 @@ use crate::utils::calculate_interpolation_weights;
 use crate::warning::Warning;
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, Tenor};
 use finstack_quant_core::market_data::bumps::{
-    BumpMode, BumpSpec, BumpType, BumpUnits, MarketBump,
+    BumpMode, BumpSpec, BumpType, BumpUnits, Bumpable, MarketBump,
 };
 use finstack_quant_core::market_data::context::{CurveStorage, MarketContext};
 use finstack_quant_core::market_data::term_structures::{
     DiscountCurve, ForwardCurve, InflationCurve, PriceCurve,
 };
 use finstack_quant_core::types::CurveId;
-use finstack_quant_valuations::calibration::bumps::{
-    bump_discount_curve_synthetic, bump_hazard_shift, bump_hazard_spreads_cached,
-    bump_inflation_rates, infer_currency_from_curve_id, infer_currency_from_discount_curve_id,
-    observation_lag_from_curve, BumpRequest,
+use finstack_quant_valuations::recalibration::{
+    HazardRecalibrationAction, HazardRecalibrationRequest, QuoteBump,
 };
 
 /// Shared market snapshot for curve-effect generation without a mutable context.
@@ -51,9 +49,45 @@ where
     effects
 }
 
+/// Build the core triangular key-rate bump centered on one native knot.
+fn key_rate_spec(knots: &[f64], index: usize, bump_bp: f64) -> Option<BumpSpec> {
+    let &target = knots.get(index)?;
+    Some(match (index.checked_sub(1), knots.get(index + 1)) {
+        (None, Some(&next)) => BumpSpec::triangular_key_rate_first_bp(target, next, bump_bp),
+        (Some(previous), None) => {
+            BumpSpec::triangular_key_rate_last_bp(knots[previous], target, bump_bp)
+        }
+        (Some(previous), Some(&next)) => {
+            BumpSpec::triangular_key_rate_bp(knots[previous], target, next, bump_bp)
+        }
+        (None, None) => BumpSpec::parallel_bp(bump_bp),
+    })
+}
+
+/// Convert resolved curve-node shocks into core triangular key-rate bumps.
+fn node_market_bump_effects(
+    curve_id: &CurveId,
+    knots: &[f64],
+    indexed_targets: &[(usize, f64)],
+    warnings: Vec<Warning>,
+) -> Vec<ScenarioEffect> {
+    let mut effects = Vec::with_capacity(indexed_targets.len() + warnings.len());
+    for &(index, bump_bp) in indexed_targets {
+        let Some(spec) = key_rate_spec(knots, index, bump_bp) else {
+            continue;
+        };
+        effects.push(ScenarioEffect::MarketBump(MarketBump::Curve {
+            id: curve_id.clone(),
+            spec,
+        }));
+    }
+    effects.extend(warnings.into_iter().map(ScenarioEffect::Warning));
+    effects
+}
+
 /// Result of resolving bump targets, including any warnings.
 struct BumpTargetResult {
-    /// Resolved (time, bump_value) pairs for curve knots (used by BumpRequest::Tenors).
+    /// Resolved `(time, bump_value)` pairs for direct or quote-space delivery.
     targets: Vec<(f64, f64)>,
     /// Resolved (knot_index, bump_value) pairs for direct curve modification.
     indexed_targets: Vec<(usize, f64)>,
@@ -347,15 +381,17 @@ where
 }
 
 fn preview_discount_zero(base: &DiscountCurve, deltas_bp: &[f64], t: f64) -> Result<f64> {
-    let knots = base.knots();
-    let dfs = base.dfs();
-    let bumped: Vec<(f64, f64)> = knots
-        .iter()
-        .zip(dfs.iter())
-        .zip(deltas_bp.iter())
-        .map(|((&tk, &df), &bp)| (tk, df * (-(bp * 1e-4) * tk).exp()))
-        .collect();
-    Ok(base.rebuild_with_knots(bumped)?.zero(t))
+    let mut preview = base.clone();
+    for (index, bump_bp) in deltas_bp.iter().copied().enumerate() {
+        if bump_bp.abs() <= f64::EPSILON {
+            continue;
+        }
+        let Some(spec) = key_rate_spec(base.knots(), index, bump_bp) else {
+            continue;
+        };
+        preview = preview.apply_bump(spec)?;
+    }
+    Ok(preview.zero(t))
 }
 
 fn implied_inflation_rate(curve: &InflationCurve, t: f64) -> f64 {
@@ -366,30 +402,16 @@ fn implied_inflation_rate(curve: &InflationCurve, t: f64) -> f64 {
 }
 
 fn preview_inflation_implied(base: &InflationCurve, deltas_bp: &[f64], t: f64) -> Result<f64> {
-    let base_cpi = base.base_cpi();
-    let knots = base.knots();
-    let cpi_levels = base.cpi_levels();
-    let bumped: Vec<(f64, f64)> = knots
-        .iter()
-        .zip(cpi_levels.iter())
-        .zip(deltas_bp.iter())
-        .map(|((&tk, &cpi), &bp)| {
-            if tk <= 0.0 {
-                return (tk, cpi);
-            }
-            let implied = (cpi / base_cpi).powf(1.0 / tk) - 1.0;
-            (tk, base_cpi * (1.0 + implied + bp * 1e-4).powf(tk))
-        })
-        .collect();
-    let preview = InflationCurve::builder(base.id().clone())
-        .base_cpi(base_cpi)
-        .base_date(base.base_date())
-        .day_count(base.day_count())
-        .indexation_lag_months(base.indexation_lag_months())
-        .interp(base.interp_style())
-        .extrapolation(base.extrapolation())
-        .knots(bumped)
-        .build()?;
+    let mut preview = base.clone();
+    for (index, bump_bp) in deltas_bp.iter().copied().enumerate() {
+        if bump_bp.abs() <= f64::EPSILON {
+            continue;
+        }
+        let Some(spec) = key_rate_spec(base.knots(), index, bump_bp) else {
+            continue;
+        };
+        preview = preview.apply_bump(spec)?;
+    }
     Ok(implied_inflation_rate(&preview, t))
 }
 
@@ -602,7 +624,7 @@ fn resolve_discount_curve_id(
 fn par_cds_effects(
     curve_id: &CurveId,
     discount_curve_id: Option<&CurveId>,
-    bump_req: &BumpRequest,
+    bump_req: &QuoteBump,
     market: &MarketContext,
     extra_warnings: Vec<Warning>,
     env: &HazardApplyEnv<'_>,
@@ -612,31 +634,34 @@ fn par_cds_effects(
         .map_err(|_| missing_market_err(curve_id.as_str()))?;
     match env.mode {
         HazardBumpMode::FirstOrderShift => {
-            let new_curve = bump_hazard_shift(&base_curve, bump_req)?;
+            bump_req.validate()?;
+            let new_curve = match bump_req {
+                QuoteBump::ParallelBp(bp) => base_curve.with_parallel_hazard_rate_bump_bp(*bp)?,
+                QuoteBump::TenorsBp(targets) => {
+                    base_curve.with_tenor_hazard_rate_bumps_bp(targets)?
+                }
+            };
             Ok(update_effects(new_curve, extra_warnings))
         }
         HazardBumpMode::SolveToPar => {
-            if base_curve.hazard_calibration().is_none() {
-                let new_curve = bump_hazard_shift(&base_curve, bump_req)?;
-                let mut warnings = extra_warnings;
-                warnings.push(Warning::HazardRecalibrationFallback {
-                    curve_id: curve_id.to_string(),
-                    reason: "hazard curve has no persisted lossless calibration recipe".to_string(),
-                    node: matches!(bump_req, BumpRequest::Tenors(_)),
-                });
-                return Ok(update_effects(new_curve, warnings));
-            }
+            let provider = env.provider.ok_or_else(|| {
+                Error::Core(finstack_quant_valuations::recalibration::provider_missing(
+                    "par_cds_scenario",
+                ))
+            })?;
             let (discount_id, warning) =
                 resolve_discount_curve_id(market, discount_curve_id, Some(curve_id))?;
-            let new_curve = bump_hazard_spreads_cached(
-                Some(env.cache),
-                &base_curve,
-                market,
-                bump_req,
-                Some(&discount_id),
-                None,
-                None,
-            )?;
+            let source_market = std::sync::Arc::new(market.clone());
+            let new_curve = provider.rebuild_hazard_curve(&HazardRecalibrationRequest {
+                hazard: base_curve,
+                source_market: std::sync::Arc::clone(&source_market),
+                target_market: source_market,
+                discount_curve_id: discount_id,
+                doc_clause: None,
+                cds_valuation_convention: None,
+                deal_quote_override: None,
+                action: HazardRecalibrationAction::SpreadBump(bump_req.clone()),
+            })?;
             let mut effects = vec![ScenarioEffect::UpdateCurve(CurveStorage::from(
                 new_curve.as_ref().clone(),
             ))];
@@ -719,23 +744,18 @@ fn curve_parallel_effects_on(
     ctx: &CurveApplyCtx<'_>,
 ) -> Result<Vec<ScenarioEffect>> {
     let market = ctx.market;
-    let as_of = ctx.as_of;
     let env = ctx.env;
-    let bump_req = BumpRequest::Parallel(bp);
+    let bump_req = QuoteBump::ParallelBp(bp);
 
     match curve_kind {
         CurveKind::Discount => {
-            let base_curve = market
+            let _base_curve = market
                 .get_discount(curve_id.as_str())
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
-
-            let currency = infer_currency_from_discount_curve_id(&base_curve);
-            let new_curve =
-                bump_discount_curve_synthetic(&base_curve, market, &bump_req, as_of, currency)?;
-
-            Ok(vec![ScenarioEffect::UpdateCurve(CurveStorage::from(
-                new_curve,
-            ))])
+            Ok(vec![ScenarioEffect::MarketBump(MarketBump::Curve {
+                id: curve_id.clone(),
+                spec: BumpSpec::parallel_bp(bp),
+            })])
         }
         CurveKind::Forward => {
             // Forward curve parallel bump uses direct additive rate shifts.
@@ -761,30 +781,13 @@ fn curve_parallel_effects_on(
             env,
         ),
         CurveKind::Inflation => {
-            let base_curve = market
+            let _base_curve = market
                 .get_inflation_curve(curve_id.as_str())
                 .map_err(|_| missing_market_err(curve_id.as_str()))?;
-
-            let (discount_id, warning) =
-                resolve_discount_curve_id(market, discount_curve_id, Some(curve_id))?;
-
-            let currency = infer_currency_from_curve_id(&base_curve);
-            let lag = observation_lag_from_curve(&base_curve);
-            let new_curve = bump_inflation_rates(
-                &base_curve,
-                market,
-                &bump_req,
-                &discount_id,
-                as_of,
-                currency,
-                &lag,
-            )?;
-
-            let mut effects = vec![ScenarioEffect::UpdateCurve(CurveStorage::from(new_curve))];
-            if let Some(w) = warning {
-                effects.push(ScenarioEffect::Warning(w));
-            }
-            Ok(effects)
+            Ok(vec![ScenarioEffect::MarketBump(MarketBump::Curve {
+                id: curve_id.clone(),
+                spec: BumpSpec::parallel_bp(bp),
+            })])
         }
         CurveKind::Commodity => {
             let _base_curve = market
@@ -868,13 +871,12 @@ fn curve_node_effects_on(
                 |d, t| preview_discount_zero(&base_curve, d, t),
                 |t, bp| base_curve.zero(t) + bp * 1e-4,
             )?;
-            let bump_req = BumpRequest::Tenors(result.targets);
-
-            let currency = infer_currency_from_discount_curve_id(&base_curve);
-            let new_curve =
-                bump_discount_curve_synthetic(&base_curve, market, &bump_req, as_of, currency)?;
-
-            Ok(update_effects(new_curve, result.warnings))
+            Ok(node_market_bump_effects(
+                curve_id,
+                &knots,
+                &result.indexed_targets,
+                result.warnings,
+            ))
         }
         CurveKind::Forward => {
             let base_curve = market
@@ -929,7 +931,7 @@ fn curve_node_effects_on(
                 base_curve.day_count(),
                 delivery,
             )?;
-            let bump_req = BumpRequest::Tenors(result.targets);
+            let bump_req = QuoteBump::TenorsBp(result.targets);
             par_cds_effects(
                 curve_id,
                 discount_curve_id,
@@ -946,20 +948,13 @@ fn curve_node_effects_on(
 
             let knots: Vec<f64> = base_curve.knots().to_vec();
 
-            let (discount_id, warning) =
-                resolve_discount_curve_id(market, discount_curve_id, Some(curve_id))?;
-            let tenor_day_count = market
-                .get_discount(discount_id.as_str())
-                .map(|day_count| day_count.day_count())
-                .unwrap_or(DayCount::Act365F);
-
             let mut result = resolve_bump_targets(
                 curve_id.as_str(),
                 nodes,
                 &knots,
                 match_mode,
                 as_of,
-                tenor_day_count,
+                base_curve.day_count(),
                 BumpDelivery::Direct,
             )?;
             calibrate_native_interpolant(
@@ -969,26 +964,12 @@ fn curve_node_effects_on(
                 |d, t| preview_inflation_implied(&base_curve, d, t),
                 |t, bp| implied_inflation_rate(&base_curve, t) + bp * 1e-4,
             )?;
-            let bump_req = BumpRequest::Tenors(result.targets);
-
-            let currency = infer_currency_from_curve_id(&base_curve);
-            let lag = observation_lag_from_curve(&base_curve);
-            let new_curve = bump_inflation_rates(
-                &base_curve,
-                market,
-                &bump_req,
-                &discount_id,
-                as_of,
-                currency,
-                &lag,
-            )?;
-
-            let mut effects = vec![ScenarioEffect::UpdateCurve(CurveStorage::from(new_curve))];
-            effects.extend(result.warnings.into_iter().map(ScenarioEffect::Warning));
-            if let Some(w) = warning {
-                effects.push(ScenarioEffect::Warning(w));
-            }
-            Ok(effects)
+            Ok(node_market_bump_effects(
+                curve_id,
+                &knots,
+                &result.indexed_targets,
+                result.warnings,
+            ))
         }
         CurveKind::Commodity => {
             let base_curve = market
@@ -1139,6 +1120,7 @@ mod tests {
     use super::*;
     use crate::engine::ScenarioEngine;
     use crate::spec::{OperationSpec, ScenarioSpec};
+    use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
     use finstack_quant_core::dates::DayCount;
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::term_structures::VolatilityIndexCurve;
@@ -1146,12 +1128,10 @@ mod tests {
     use finstack_quant_statements::FinancialModelSpec;
     use time::macros::date;
 
-    fn solve_env(
-        cache: &finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache,
-    ) -> HazardApplyEnv<'_> {
+    fn solve_env(provider: &CachedRecalibrationProvider) -> HazardApplyEnv<'_> {
         HazardApplyEnv {
             mode: HazardBumpMode::SolveToPar,
-            cache,
+            provider: Some(provider),
         }
     }
 
@@ -1366,8 +1346,8 @@ mod tests {
         };
 
         let curve_id = CurveId::from("USD-OIS");
-        let cache = finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache::new();
-        let env = solve_env(&cache);
+        let provider = CachedRecalibrationProvider::new();
+        let env = solve_env(&provider);
         let effects = curve_node_effects(
             CurveKind::Discount,
             &curve_id,
@@ -1387,12 +1367,21 @@ mod tests {
             "direct-shift interpolated discount bump must not warn first-order, got {effects:?}"
         );
 
-        let bumped = effects
+        let bumps = effects
             .iter()
-            .find_map(|e| match e {
-                ScenarioEffect::UpdateCurve(storage) => storage.discount().map(|c| (**c).clone()),
+            .filter_map(|effect| match effect {
+                ScenarioEffect::MarketBump(bump) => Some(bump.clone()),
                 _ => None,
             })
+            .collect::<Vec<_>>();
+        let mut bumped_market = market.clone();
+        for bump in bumps {
+            bumped_market = bumped_market
+                .bump([bump])
+                .expect("apply discount curve bump");
+        }
+        let bumped = bumped_market
+            .get_discount("USD-OIS")
             .expect("discount curve update");
         let delta = bumped.zero(3.0) - base_zero;
         assert!(
@@ -1401,10 +1390,10 @@ mod tests {
         );
     }
 
-    /// Par-CDS off-pillar interpolate still goes through solve-to-par, so the
-    /// first-order delivery warning must fire.
+    /// Par-CDS solve-to-par rejects curves that do not carry a lossless replay
+    /// recipe; stored display spreads are not sufficient quote provenance.
     #[test]
-    fn interpolated_node_bump_on_par_cds_warns_first_order() {
+    fn interpolated_node_bump_on_par_cds_requires_lossless_recipe() {
         use finstack_quant_core::market_data::term_structures::HazardCurve;
 
         let as_of = date!(2025 - 01 - 01);
@@ -1431,9 +1420,9 @@ mod tests {
             as_of,
         };
 
-        let cache = finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache::new();
-        let env = solve_env(&cache);
-        let effects = curve_node_effects(
+        let provider = CachedRecalibrationProvider::new();
+        let env = solve_env(&provider);
+        let error = curve_node_effects(
             CurveKind::ParCDS,
             &CurveId::from("USD-CDS"),
             None,
@@ -1442,15 +1431,9 @@ mod tests {
             &ctx,
             &env,
         )
-        .expect("interpolated par-CDS node bump should apply");
+        .expect_err("display par spreads must not substitute for a replay recipe");
 
-        assert!(
-            effects.iter().any(|e| matches!(
-                e,
-                ScenarioEffect::Warning(Warning::InterpolatedNodeBumpFirstOrder { .. })
-            )),
-            "off-pillar interpolated bump on par-CDS must warn first-order, got {effects:?}"
-        );
+        assert!(error.to_string().contains("no lossless calibration recipe"));
     }
 
     /// The first-order warning must not fire when no approximation is in
@@ -1482,8 +1465,8 @@ mod tests {
             as_of,
         };
 
-        let cache = finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache::new();
-        let env = solve_env(&cache);
+        let provider = CachedRecalibrationProvider::new();
+        let env = solve_env(&provider);
         // Exact pillar hit on a direct-shift discount curve: no approximation.
         let effects = curve_node_effects(
             CurveKind::Discount,
@@ -1591,8 +1574,8 @@ mod tests {
             calendar: None,
             as_of,
         };
-        let cache = finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache::new();
-        let env = solve_env(&cache);
+        let provider = CachedRecalibrationProvider::new();
+        let env = solve_env(&provider);
         let effects = curve_node_effects(
             CurveKind::Commodity,
             &CurveId::from("WTI"),
@@ -1630,8 +1613,8 @@ mod tests {
             calendar: None,
             as_of,
         };
-        let cache = finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache::new();
-        let env = solve_env(&cache);
+        let provider = CachedRecalibrationProvider::new();
+        let env = solve_env(&provider);
         let effects = curve_node_effects(
             CurveKind::Commodity,
             &CurveId::from("WTI"),
@@ -1672,8 +1655,8 @@ mod tests {
         };
 
         let curve_id = CurveId::from("WTI");
-        let cache = finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache::new();
-        let env = solve_env(&cache);
+        let provider = CachedRecalibrationProvider::new();
+        let env = solve_env(&provider);
         let effects =
             curve_parallel_effects(CurveKind::Commodity, &curve_id, None, 250.0, &ctx, &env)
                 .expect("commodity shock should be handled");

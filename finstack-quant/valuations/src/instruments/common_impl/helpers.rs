@@ -519,10 +519,7 @@ pub fn get_unitless_scalar_strict(
 pub(crate) struct MetricBuildOptions {
     pub(crate) cfg: Option<Arc<FinstackConfig>>,
     pub(crate) market_history: Option<Arc<MarketHistory>>,
-    pub(crate) hazard_recalibration_cache:
-        Option<Arc<crate::calibration::bumps::hazard::HazardRecalibrationCache>>,
-    pub(crate) rate_recalibration_cache:
-        Option<Arc<crate::calibration::bumps::rates::RateRecalibrationCache>>,
+    pub(crate) recalibration_provider: Option<Arc<dyn crate::recalibration::RecalibrationProvider>>,
     pub(crate) metric_registry: Option<Arc<crate::metrics::MetricRegistry>>,
     pub(crate) pricing_dispatch: crate::pricer::PricingDispatch,
 }
@@ -538,8 +535,7 @@ pub(crate) fn compute_metrics_dyn(
     let MetricBuildOptions {
         cfg,
         market_history,
-        hazard_recalibration_cache,
-        rate_recalibration_cache,
+        recalibration_provider,
         metric_registry,
         pricing_dispatch,
     } = options;
@@ -556,8 +552,7 @@ pub(crate) fn compute_metrics_dyn(
     if let Some(history) = market_history {
         context = context.with_market_history(history);
     }
-    context.set_hazard_recalibration_cache(hazard_recalibration_cache);
-    context.set_rate_recalibration_cache(rate_recalibration_cache);
+    context.set_recalibration_provider(recalibration_provider);
     context.set_pricer_dispatch(pricing_dispatch);
 
     // Preserve only the subsets consumed by the metric layer.

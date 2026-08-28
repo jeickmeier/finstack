@@ -20,18 +20,6 @@ use finstack_quant_valuations::pricer::InstrumentType;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Warning {
-    /// Hazard-curve solve-to-par recalibration failed; engine fell back to a
-    /// direct hazard-rate shift. CS01 may differ from the recalibrated path.
-    HazardRecalibrationFallback {
-        /// Curve identifier that failed to recalibrate.
-        curve_id: String,
-        /// Underlying error message from the recalibration attempt.
-        reason: String,
-        /// Whether the fallback was triggered by a node-bump (`true`) or a
-        /// parallel-bump (`false`) operation.
-        node: bool,
-    },
-
     /// A discount curve was resolved heuristically (currency-prefix or single-
     /// curve fallback) instead of via an explicit `discount_curve_id`.
     DiscountCurveHeuristic {
@@ -241,22 +229,6 @@ pub enum Warning {
 impl fmt::Display for Warning {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Warning::HazardRecalibrationFallback {
-                curve_id,
-                reason,
-                node,
-            } => write!(
-                f,
-                "Hazard curve '{curve_id}' {kind} shock: par-CDS recalibration failed ({reason}); \
-                 applied direct hazard-rate shift instead. Risk-neutral default probabilities will be \
-                 additively shifted by the requested bp amount {target} rather than re-solved from \
-                 par spreads, which can materially change CS01 for sharply sloped curves. Note \
-                 the magnitude bias: by the credit triangle (dLambda ~ dSpread / (1 - R)), a \
-                 direct hazard shift of the par-spread bp under-shocks default intensities by \
-                 roughly the factor (1 - recovery).",
-                kind = if *node { "node" } else { "parallel" },
-                target = if *node { "at the targeted pillars" } else { "at each pillar" },
-            ),
             Warning::DiscountCurveHeuristic { reason, .. } => f.write_str(reason),
             Warning::CommodityShockOutsideRange { detail, .. }
             | Warning::FxTriangulationInconsistent { detail }

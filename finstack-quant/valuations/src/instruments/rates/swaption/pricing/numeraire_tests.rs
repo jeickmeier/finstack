@@ -37,14 +37,14 @@
 use finstack_quant_core::currency::Currency;
 use finstack_quant_models::monte_carlo::discretization::exact_hw1f::ExactHullWhite1F;
 use finstack_quant_models::monte_carlo::discretization::lmm_predictor_corrector::LmmPredictorCorrector;
-use finstack_quant_models::monte_carlo::online_stats::OnlineStats;
 use finstack_quant_models::monte_carlo::pricer::basis::{BasisFunctions, PolynomialBasis};
 use finstack_quant_models::monte_carlo::pricer::lsq::solve_least_squares;
 use finstack_quant_models::monte_carlo::process::lmm::{LmmParams, LmmProcess};
 use finstack_quant_models::monte_carlo::process::ou::{HullWhite1FParams, HullWhite1FProcess};
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
 use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream};
+use finstack_quant_models::monte_carlo::OnlineStats;
+use finstack_quant_models::monte_carlo::TimeGrid;
 
 use super::lmm_bermudan::{build_exercise_aligned_grid, price_bermudan_lmm, LmmBermudanConfig};
 use super::monte_carlo_lsmc::{SwaptionLsmcConfig, SwaptionLsmcPricer};
@@ -223,7 +223,6 @@ fn lmm_single_exercise_matches_numeraire_correct_reference() {
         antithetic: false,
         min_steps_between_exercises: LMM_MIN_STEPS,
         oos_lsmc: false,
-        enforce_calibration: false,
     };
 
     for &ex_t in &[1.0, 2.0, 3.0] {
@@ -283,7 +282,6 @@ fn lmm_bermudan_respects_coterminal_lower_bound() {
         antithetic: true,
         min_steps_between_exercises: LMM_MIN_STEPS,
         oos_lsmc: false,
-        enforce_calibration: false,
     };
 
     let exercise_times = [1.0, 2.0, 3.0];

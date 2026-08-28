@@ -62,27 +62,19 @@ PdeProblem2D → Operators2D     → CraigSneydStepper             → PdeSoluti
 
 ## Public API vs internal plumbing
 
-Every submodule is `pub mod`, so everything below is technically public. What is
-re-exported at the `pde` root is the intended surface:
+Implementation submodules are private. The supported surface is explicitly
+re-exported at the `pde` root:
 
 `CraigSneydStepper`, `BoundaryCondition`, `BlackScholesPde`, `HestonPde`,
 `ExerciseType`, `PenaltyExercise`, `Grid1D`, `PdeGridError`, `Grid2D`,
 `TridiagOperator`, `apply_cross_derivative`, `Operators2D`, `PdeProblem1D`,
 `PdeProblem2D`, `PdeSolution`, `PdeSolverError`, `Solver1D`, `Solver1DBuilder`,
-`PdeSolution2D`, `PdeSolver2DError`, `Solver2D`,
-`RannacherStepper`, `StepperError`, `ThetaStepper`, `TimeStepper`.
+`PdeSolution2D`, `PdeSolver2DError`, `Solver2D`, `RannacherStepper`,
+`StepperError`, `ThetaStepper`, and `TimeStepper`.
 
-Public in a submodule but **not** re-exported at the root — reach them by full
-path if you need them: `operator::ThomasError`, `adi::AdiWorkBuffers`,
-`adi::fill_boundaries`, `operator2d::apply_cross_derivative_into`.
-`grid::find_interval` and `grid::find_nearest` are `pub(crate)`.
-`CraigSneydStepper::douglas_for_test` is `#[cfg(test)] pub(super)`.
-
-`crate::models` re-exports a smaller subset one level up: `BlackScholesPde`,
-`BoundaryCondition`, `CraigSneydStepper`, `Grid1D`, `Grid2D`, `HestonPde`,
-`PdeProblem1D`, `PdeProblem2D`, `PdeSolution`, `PdeSolution2D`, `Solver1D`,
-`Solver2D`. The builders, operators, steppers, and exercise types are reachable
-only through `models::pde::*`.
+Work buffers, in-place operator helpers, interval searches, and test-only
+steppers remain internal. The crate root re-exports the smaller set used by
+most valuation engines; advanced solver components remain under `pde::*`.
 
 Outside this directory only `Grid1D`, `Grid2D`, `BlackScholesPde`, `HestonPde`,
 `BoundaryCondition`, `PdeProblem1D`, `Solver1D`, and `Solver2D` are actually

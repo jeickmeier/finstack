@@ -9,7 +9,7 @@ import type { ResidualWeightingScheme } from "./ResidualWeightingScheme";
  *
  * # Examples
  * ```
- * use finstack_quant_valuations::calibration::InflationCurveSolveConfig;
+ * use finstack_quant_calibration::InflationCurveSolveConfig;
  *
  * let config = InflationCurveSolveConfig {
  *     validation_tolerance: 1e-6,  // Relax for noisy inflation markets

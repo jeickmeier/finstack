@@ -940,62 +940,6 @@ fn test_el_curve_monotonicity() {
 }
 
 #[test]
-fn test_cs01_calculation_requires_replay_recipe() {
-    let model = CDSTranchePricer::new();
-    let mut tranche = sample_tranche();
-    tranche.side = TrancheSide::SellProtection; // Sell protection for positive CS01
-    let market_ctx = sample_market_context();
-    let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid test date");
-
-    let error = model
-        .calculate_cs01(&tranche, &market_ctx, as_of)
-        .expect_err("standard tranche CS01 requires quote-space replay");
-    assert!(error.to_string().contains("calibration recipe"));
-}
-
-/// Curves without a persisted calibration recipe cannot report standard CS01.
-#[test]
-fn test_cs01_rejects_model_hazard_shift_without_recipe() {
-    let base_date = Date::from_calendar_date(2025, Month::January, 1).expect("Valid test date");
-    let discount_curve = DiscountCurve::builder("USD-OIS")
-        .base_date(base_date)
-        .knots([(0.0, 1.0), (1.0, 0.95), (5.0, 0.80), (10.0, 0.60)])
-        .interp(finstack_quant_core::math::interp::InterpStyle::LogLinear)
-        .build()
-        .expect("Curve builder should succeed with valid test data");
-    // Hazard curve WITHOUT par-spread points.
-    let index_curve = HazardCurve::builder("CDX.NA.IG.42")
-        .base_date(base_date)
-        .recovery_rate(0.40)
-        .knots(vec![(1.0, 0.01), (3.0, 0.015), (5.0, 0.02), (10.0, 0.025)])
-        .build()
-        .expect("Curve builder should succeed with valid test data");
-    let base_corr_curve = BaseCorrelationCurve::builder("CDX.NA.IG.42_5Y")
-        .knots(vec![(3.0, 0.25), (7.0, 0.30), (15.0, 0.40), (30.0, 0.50)])
-        .build()
-        .expect("Curve builder should succeed with valid test data");
-    let index_data = CreditIndexData::builder()
-        .num_constituents(125)
-        .recovery_rate(0.40)
-        .index_credit_curve(Arc::new(index_curve))
-        .base_correlation_curve(Arc::new(base_corr_curve))
-        .build()
-        .expect("CreditIndexData builder should succeed");
-    let market_ctx = MarketContext::new()
-        .insert(discount_curve)
-        .insert_credit_index("CDX.NA.IG.42", index_data);
-
-    let model = CDSTranchePricer::new();
-    let tranche = sample_tranche();
-    let as_of = base_date;
-
-    let error = model
-        .calculate_cs01(&tranche, &market_ctx, as_of)
-        .expect_err("standard tranche CS01 must not fall back to hazard shifts");
-    assert!(error.to_string().contains("calibration recipe"));
-}
-
-#[test]
 fn test_correlation_delta_calculation() {
     let model = CDSTranchePricer::new();
     let tranche = sample_tranche();

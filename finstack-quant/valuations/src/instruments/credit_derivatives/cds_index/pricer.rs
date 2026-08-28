@@ -11,8 +11,6 @@
 //! risky PV01, and leg PVs. Heavy numerical work is delegated to
 //! `crate::instruments::credit_derivatives::cds::pricer::CDSPricer`.
 
-use crate::calibration::bumps::hazard::bump_hazard_spreads;
-use crate::calibration::bumps::BumpRequest;
 use crate::cashflow::builder::schedule::merge_cashflow_schedules;
 use crate::cashflow::builder::{CashFlowSchedule, Notional};
 use crate::cashflow::primitives::{CFKind, CashFlow};
@@ -28,12 +26,16 @@ use crate::instruments::credit_derivatives::cds::{CreditDefaultSwap, PayReceive}
 use crate::instruments::credit_derivatives::cds_index::{
     CDSIndex, ConstituentResult, IndexParSpreadResult, IndexPricing, IndexResult, ParSpreadMethod,
 };
+use crate::recalibration::{
+    HazardRecalibrationAction, HazardRecalibrationRequest, QuoteBump, RecalibrationProvider,
+};
 use finstack_quant_core::dates::{Date, DateExt};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::{Error, Result};
+use std::sync::Arc;
 
 /// Tolerance applied to the constituent weight sum when validating that ∑w ≈ 1.
 ///
@@ -417,8 +419,9 @@ impl CDSIndexPricer {
         index: &CDSIndex,
         curves: &MarketContext,
         as_of: Date,
+        provider: &dyn RecalibrationProvider,
     ) -> Result<f64> {
-        Ok(self.cs01_detailed(index, curves, as_of)?.total)
+        Ok(self.cs01_detailed(index, curves, as_of, provider)?.total)
     }
 
     /// CS01 (approximate) with optional per-constituent breakdown.
@@ -427,9 +430,10 @@ impl CDSIndexPricer {
         index: &CDSIndex,
         curves: &MarketContext,
         as_of: Date,
+        provider: &dyn RecalibrationProvider,
     ) -> Result<IndexResult<f64>> {
         self.aggregate_f64_detailed(index, curves, as_of, |_, cds, _, _, _| {
-            self.compute_cds_cs01(cds, curves, as_of)
+            self.compute_cds_cs01(cds, curves, as_of, provider)
         })
     }
 
@@ -438,6 +442,7 @@ impl CDSIndexPricer {
         cds: &CreditDefaultSwap,
         curves: &MarketContext,
         as_of: Date,
+        provider: &dyn RecalibrationProvider,
     ) -> Result<f64> {
         let credit_id = &cds.protection.credit_curve_id;
         let discount_id = &cds.premium.discount_curve_id;
@@ -445,25 +450,31 @@ impl CDSIndexPricer {
 
         let pricer = CDSPricer::with_config(self.cds_config.clone());
         let hazard = curves.get_hazard(credit_id)?;
-        let hazard_ref = hazard.as_ref();
-        crate::metrics::sensitivities::cs01::require_hazard_replay(hazard_ref, "CDS index CS01")?;
+        crate::metrics::sensitivities::cs01::require_hazard_replay(
+            hazard.as_ref(),
+            "CDS index CS01",
+        )?;
+        let market = Arc::new(curves.clone());
 
         let bump_hazard_for = |bp: f64| -> Result<_> {
-            bump_hazard_spreads(
-                hazard_ref,
-                curves,
-                &BumpRequest::Parallel(bp),
-                Some(discount_id),
-                None,
-                None,
-            )
-            .map_err(|e| finstack_quant_core::Error::Calibration {
-                message: format!(
-                    "CDS index CS01: par-spread re-bootstrap failed for curve '{}' ({e})",
-                    credit_id
-                ),
-                category: "cs01_rebootstrap".to_string(),
-            })
+            provider
+                .rebuild_hazard_curve(&HazardRecalibrationRequest {
+                    hazard: Arc::clone(&hazard),
+                    source_market: Arc::clone(&market),
+                    target_market: Arc::clone(&market),
+                    discount_curve_id: discount_id.clone(),
+                    doc_clause: None,
+                    cds_valuation_convention: None,
+                    deal_quote_override: None,
+                    action: HazardRecalibrationAction::SpreadBump(QuoteBump::ParallelBp(bp)),
+                })
+                .map_err(|e| finstack_quant_core::Error::Calibration {
+                    message: format!(
+                        "CDS index CS01: par-spread re-bootstrap failed for curve '{}' ({e})",
+                        credit_id
+                    ),
+                    category: "cs01_rebootstrap".to_string(),
+                })
         };
 
         let bumped_up = bump_hazard_for(bump_bp)?;

@@ -4,10 +4,10 @@ use super::config::{McEngineBuilder, McEngineConfig, MAX_CAPTURED_PATHS, MAX_NUM
 use super::path_capture::PathCaptureMode;
 use crate::monte_carlo::captured_path_stats::apply_captured_path_statistics;
 use crate::monte_carlo::estimate::Estimate;
-use crate::monte_carlo::online_stats::OnlineStats;
 use crate::monte_carlo::paths::{PathDataset, PathSamplingMethod, ProcessParams, SimulatedPath};
 use crate::monte_carlo::results::{MoneyEstimate, MonteCarloResult};
 use crate::monte_carlo::traits::{Discretization, Payoff, RandomStream, StochasticProcess};
+use crate::monte_carlo::OnlineStats;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::math::linalg::{cholesky_correlation, CorrelationFactor};
 use finstack_quant_core::Result;

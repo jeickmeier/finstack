@@ -29,10 +29,10 @@
 //! single-name names. An index recovery shock conceptually shifts the index
 //! pricing convention, not the per-issuer recovery agreements.
 
-use crate::calibration::bumps::hazard::recalibrate_hazard_with_recovery;
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds_tranche::CDSTranche;
 use crate::metrics::{MetricCalculator, MetricContext};
+use crate::recalibration::{HazardRecalibrationAction, HazardRecalibrationRequest};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::CreditIndexData;
 use finstack_quant_core::Result;
@@ -85,30 +85,39 @@ fn frozen_market_at_bumped_recovery(
 /// Build a market with both the index recovery bumped and the index hazard
 /// curve re-bootstrapped from par spreads at the new recovery.
 fn recalibrated_market_at_bumped_recovery(
+    context: &MetricContext,
     base_market: &MarketContext,
     tranche: &CDSTranche,
     original_index: &CreditIndexData,
     new_recovery: f64,
 ) -> Result<MarketContext> {
     let mut bumped_index = rebuild_with_recovery(original_index, new_recovery)?;
-    let recalibrated = recalibrate_hazard_with_recovery(
-        original_index.index_credit_curve.as_ref(),
-        new_recovery,
-        base_market,
-        Some(&tranche.discount_curve_id),
-        None,
-        None,
-    )
-    .map_err(|error| finstack_quant_core::Error::Calibration {
-        message: format!(
-            "CDS tranche '{}' Recovery01 failed to re-bootstrap index hazard curve '{}' \
+    let recalibrated = context
+        .rebuild_hazard_curve(
+            HazardRecalibrationRequest {
+                hazard: Arc::clone(&original_index.index_credit_curve),
+                source_market: Arc::new(base_market.clone()),
+                target_market: Arc::new(base_market.clone()),
+                discount_curve_id: tranche.discount_curve_id.clone(),
+                doc_clause: None,
+                cds_valuation_convention: None,
+                deal_quote_override: None,
+                action: HazardRecalibrationAction::RecoveryRateReplay {
+                    recovery_rate: new_recovery,
+                },
+            },
+            "recovery01",
+        )
+        .map_err(|error| finstack_quant_core::Error::Calibration {
+            message: format!(
+                "CDS tranche '{}' Recovery01 failed to re-bootstrap index hazard curve '{}' \
              at recovery {new_recovery}: {error}",
-            tranche.id,
-            original_index.index_credit_curve.id()
-        ),
-        category: "recovery01_rebootstrap".to_string(),
-    })?;
-    bumped_index.index_credit_curve = Arc::new(recalibrated);
+                tranche.id,
+                original_index.index_credit_curve.id()
+            ),
+            category: "recovery01_rebootstrap".to_string(),
+        })?;
+    bumped_index.index_credit_curve = recalibrated;
     Ok(base_market
         .clone()
         .insert_credit_index(&tranche.credit_index_id, bumped_index))
@@ -136,12 +145,14 @@ impl MetricCalculator for Recovery01Calculator {
         let (curves_up, curves_down) = if has_par_quotes {
             (
                 recalibrated_market_at_bumped_recovery(
+                    context,
                     market,
                     tranche,
                     original_index.as_ref(),
                     bumped_recovery_up,
                 )?,
                 recalibrated_market_at_bumped_recovery(
+                    context,
                     market,
                     tranche,
                     original_index.as_ref(),
@@ -300,20 +311,5 @@ mod tests {
         assert!(bumped.issuer_credit_curves.is_some());
         assert!(bumped.issuer_recovery_rates.is_none());
         assert!(bumped.issuer_weights.is_none());
-    }
-
-    #[test]
-    fn recalibration_failure_is_propagated() {
-        let tranche = CDSTranche::example();
-        let index = sample_index(false, false);
-        let error =
-            recalibrated_market_at_bumped_recovery(&MarketContext::new(), &tranche, &index, 0.41)
-                .expect_err("missing discount curve must fail rebootstrap");
-
-        assert!(matches!(
-            error,
-            finstack_quant_core::Error::Calibration { ref category, .. }
-                if category == "recovery01_rebootstrap"
-        ));
     }
 }

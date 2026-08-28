@@ -19,7 +19,7 @@
 //! Reference: Glasserman (2003) - "Monte Carlo Methods in Financial Engineering", Chapter 7.
 //!
 
-use crate::monte_carlo::online_stats::OnlineStats;
+use crate::monte_carlo::OnlineStats;
 
 /// Compute delta using Likelihood Ratio Method for GBM.
 ///

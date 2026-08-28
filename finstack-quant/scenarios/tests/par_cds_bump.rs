@@ -11,10 +11,8 @@ use finstack_quant_scenarios::{
     TenorMatchMode,
 };
 use finstack_quant_statements::FinancialModelSpec;
-use finstack_quant_valuations::calibration::bumps::HazardRecalibrationCache;
 use finstack_quant_valuations::instruments::Bond;
 use finstack_quant_valuations::instruments::Instrument;
-use std::sync::Arc;
 use time::Month;
 
 #[test]
@@ -22,14 +20,15 @@ fn test_par_cds_bump_integration() {
     // Setup market with hazard curve and discount curve
     let base_date = Date::from_calendar_date(2025, Month::January, 1).unwrap();
 
-    // Create discount curve (needed for recalibration)
+    // Keep the discount curve present so the market matches a normal credit setup.
     let discount = DiscountCurve::builder("USD-OIS")
         .base_date(base_date)
         .knots(vec![(0.0, 1.0), (1.0, 0.95), (5.0, 0.80), (10.0, 0.60)])
         .build()
         .unwrap();
 
-    // Create hazard curve with par spreads (needed for recalibration path)
+    // The direct first-order path operates on hazard intensities; display par
+    // spreads are intentionally not used as a replay recipe.
     // Par spread ≈ hazard_rate * 10000 * (1 - recovery)
     // For 1Y: 0.01 * 10000 * 0.6 = 60 bp
     // For 5Y: 0.02 * 10000 * 0.6 = 120 bp
@@ -58,7 +57,7 @@ fn test_par_cds_bump_integration() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
-        hazard_bump_mode: Default::default(),
+        hazard_bump_mode: HazardBumpMode::FirstOrderShift,
     };
 
     let engine = ScenarioEngine::new();
@@ -78,12 +77,11 @@ fn test_par_cds_bump_integration() {
     // Verify result
     let bumped = market.get_hazard("USD-CDS").unwrap();
 
-    // Check lambda at 5.0 (after recalibration, knots may have changed, so interpolate)
+    // Check lambda at the shocked 5Y node.
     let l_5y = bumped.hazard_rate(5.0);
     let original_lambda = 0.02;
 
-    // With recalibration, the relationship is more complex than a simple shift
-    // The key is that the hazard rate should increase when the par spread is bumped up
+    // A positive direct shock must increase the target hazard intensity.
     println!("Original: {}, Bumped: {}", original_lambda, l_5y);
     assert!(
         l_5y > original_lambda,
@@ -139,7 +137,7 @@ fn test_par_cds_bump_reprices_credit_bond() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
-        hazard_bump_mode: Default::default(),
+        hazard_bump_mode: HazardBumpMode::FirstOrderShift,
     };
 
     let mut market_after = market;
@@ -249,7 +247,7 @@ fn roll_with_discount_and_par_cds_bump_survives_knot_on_roll_tenor() {
             ],
             priority: 0,
             resolution_mode: Default::default(),
-            hazard_bump_mode: Default::default(),
+            hazard_bump_mode: HazardBumpMode::FirstOrderShift,
         };
 
         let engine = ScenarioEngine::new();
@@ -317,7 +315,7 @@ fn apply_par_cds(market: &mut MarketContext, as_of: Date, spec: &ScenarioSpec) {
 }
 
 #[test]
-fn solve_to_par_without_recipe_falls_back_to_first_order_shift() {
+fn solve_to_par_without_provider_is_a_hard_error() {
     let (base_date, market) = par_cds_market();
     let original = market.get_hazard("USD-CDS").unwrap().hazard_rate(5.0);
 
@@ -341,42 +339,56 @@ fn solve_to_par_without_recipe_falls_back_to_first_order_shift() {
         },
     );
     let mut solved = market;
-    apply_par_cds(
-        &mut solved,
-        base_date,
-        &ScenarioSpec {
-            id: "solve".into(),
-            name: None,
-            description: None,
-            operations: vec![OperationSpec::CurveParallelBp {
-                curve_kind: CurveKind::ParCDS,
-                curve_id: "USD-CDS".into(),
-                discount_curve_id: Some("USD-OIS".into()),
-                bp: 25.0,
-            }],
-            priority: 0,
-            resolution_mode: Default::default(),
-            hazard_bump_mode: HazardBumpMode::SolveToPar,
-        },
-    );
+    let mut model = FinancialModelSpec::new("test", vec![]);
+    let mut ctx = ExecutionContext {
+        market: &mut solved,
+        model: Some(&mut model),
+        instruments: None,
+        rate_bindings: None,
+        calendar: None,
+        as_of: base_date,
+    };
+    let error = ScenarioEngine::new()
+        .apply(
+            &ScenarioSpec {
+                id: "solve".into(),
+                name: None,
+                description: None,
+                operations: vec![OperationSpec::CurveParallelBp {
+                    curve_kind: CurveKind::ParCDS,
+                    curve_id: "USD-CDS".into(),
+                    discount_curve_id: Some("USD-OIS".into()),
+                    bp: 25.0,
+                }],
+                priority: 0,
+                resolution_mode: Default::default(),
+                hazard_bump_mode: HazardBumpMode::SolveToPar,
+            },
+            &mut ctx,
+        )
+        .expect_err("solve-to-par requires an injected provider");
 
     let shifted_h = shifted.get_hazard("USD-CDS").unwrap().hazard_rate(5.0);
-    let solved_h = solved.get_hazard("USD-CDS").unwrap().hazard_rate(5.0);
     assert!(
         (shifted_h - (original + 0.0025)).abs() < 1e-10,
         "first-order should add 25bp to the 5Y hazard: original={original} shifted={shifted_h}"
     );
-    assert!(
-        (solved_h - shifted_h).abs() < 1e-12,
-        "solve-to-par without a replay recipe must use the warned first-order fallback"
-    );
+    match error {
+        finstack_quant_scenarios::Error::Core(finstack_quant_core::Error::Calibration {
+            message,
+            category,
+        }) => {
+            assert_eq!(category, "recalibration_provider_missing");
+            assert!(message.contains("par_cds_scenario"));
+        }
+        other => panic!("unexpected missing-provider error: {other}"),
+    }
 }
 
 #[test]
-fn sequential_same_curve_par_cds_ops_compound_with_shared_cache() {
+fn sequential_same_curve_first_order_ops_compound() {
     let (base_date, market) = par_cds_market();
-    let cache = Arc::new(HazardRecalibrationCache::new());
-    let engine = ScenarioEngine::new().with_hazard_cache(Arc::clone(&cache));
+    let engine = ScenarioEngine::new();
 
     let once = ScenarioSpec {
         id: "once".into(),
@@ -390,7 +402,7 @@ fn sequential_same_curve_par_cds_ops_compound_with_shared_cache() {
         }],
         priority: 0,
         resolution_mode: Default::default(),
-        hazard_bump_mode: HazardBumpMode::SolveToPar,
+        hazard_bump_mode: HazardBumpMode::FirstOrderShift,
     };
     let twice = ScenarioSpec {
         id: "twice".into(),
@@ -412,7 +424,7 @@ fn sequential_same_curve_par_cds_ops_compound_with_shared_cache() {
         ],
         priority: 0,
         resolution_mode: Default::default(),
-        hazard_bump_mode: HazardBumpMode::SolveToPar,
+        hazard_bump_mode: HazardBumpMode::FirstOrderShift,
     };
 
     let mut once_market = market.clone();

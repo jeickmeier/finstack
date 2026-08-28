@@ -559,6 +559,7 @@ impl CDSTranchePricer {
         tranche: &CDSTranche,
         market_ctx: &MarketContext,
         as_of: Date,
+        provider: &dyn crate::recalibration::RecalibrationProvider,
     ) -> Result<f64> {
         tranche.validate()?;
         if self.params.cs01_bump_size <= 0.0 {
@@ -575,20 +576,26 @@ impl CDSTranchePricer {
         )?;
 
         let bump_bp = self.params.cs01_bump_size;
+        let source_market = std::sync::Arc::new(market_ctx.clone());
         let bump_index_spreads = |sign: f64| -> Result<_> {
-            let request = crate::calibration::bumps::BumpRequest::Parallel(sign * bump_bp);
-            let bumped_hazard = crate::calibration::bumps::hazard::bump_hazard_spreads(
-                hazard.as_ref(),
-                market_ctx,
-                &request,
-                Some(&tranche.discount_curve_id),
-                None,
-                None,
+            let bumped_hazard = provider.rebuild_hazard_curve(
+                &crate::recalibration::HazardRecalibrationRequest {
+                    hazard: std::sync::Arc::clone(hazard),
+                    source_market: std::sync::Arc::clone(&source_market),
+                    target_market: std::sync::Arc::clone(&source_market),
+                    discount_curve_id: tranche.discount_curve_id.clone(),
+                    doc_clause: None,
+                    cds_valuation_convention: None,
+                    deal_quote_override: None,
+                    action: crate::recalibration::HazardRecalibrationAction::SpreadBump(
+                        crate::recalibration::QuoteBump::ParallelBp(sign * bump_bp),
+                    ),
+                },
             )?;
             self.rebuild_credit_index(
                 original_index_arc.as_ref(),
                 original_index_arc.recovery_rate,
-                std::sync::Arc::new(bumped_hazard),
+                bumped_hazard,
                 std::sync::Arc::clone(&original_index_arc.base_correlation_curve),
             )
         };

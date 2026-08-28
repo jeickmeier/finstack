@@ -24,8 +24,8 @@ Nothing here is published. `scripts` and `benchmarks` are absent from the
 wasm-bindgen output, not the `index.js` facade — and exits 1 with a build hint if
 either `pkg-node/finstack_quant_wasm.js` or `pkg-node/finstack_quant_wasm_bg.wasm`
 is missing. Every symbol in the file is therefore a flat bindgen name
-(`w.priceEuropeanCall`, `w.csaUsdRegulatoryJson`), not a namespaced facade name
-(`models.monteCarlo.priceEuropeanCall`). That deliberately bypasses the facade layer so
+(`w.blackScholesCall`, `w.csaUsdRegulatoryJson`), not a namespaced facade name
+(`models.monteCarlo.blackScholesCall`). That deliberately bypasses the facade layer so
 the numbers are boundary cost only; it also means the benchmark does not exercise
 the wrappers `exports/*.js` installs.
 

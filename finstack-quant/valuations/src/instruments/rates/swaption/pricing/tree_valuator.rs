@@ -14,7 +14,7 @@
 //!
 //! ```text
 //! use finstack_quant_models::rates::hull_white::HullWhiteParams;
-//! use finstack_quant_valuations::instruments::rates::swaption::{BermudanSwaption, CalibratedHullWhiteModel, pricing::BermudanSwaptionTreeValuator};
+//! use finstack_quant_valuations::instruments::rates::swaption::{BermudanSwaption, PreparedHullWhiteModel, pricing::BermudanSwaptionTreeValuator};
 //!
 //! let swaption = BermudanSwaption::example();
 //! # let discount_curve: &dyn finstack_quant_core::market_data::traits::Discounting = todo!();
@@ -22,7 +22,7 @@
 //!
 //! // Create calibrated model
 //! let ttm = swaption.time_to_maturity(as_of).unwrap();
-//! let model = CalibratedHullWhiteModel::calibrate(
+//! let model = PreparedHullWhiteModel::prepare(
 //!     HullWhiteParams::default(),
 //!     100,
 //!     discount_curve,
@@ -36,7 +36,7 @@
 use crate::instruments::common_impl::parameters::OptionType;
 use crate::instruments::rates::swaption::types::BermudanType;
 use crate::instruments::rates::swaption::BermudanSwaption;
-use crate::instruments::rates::swaption::CalibratedHullWhiteModel;
+use crate::instruments::rates::swaption::PreparedHullWhiteModel;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::HashSet;
@@ -50,7 +50,7 @@ pub struct BermudanSwaptionTreeValuator<'a> {
     /// Reference to the Bermudan swaption
     swaption: &'a BermudanSwaption,
     /// Reference to the calibrated Hull-White model
-    model: &'a CalibratedHullWhiteModel,
+    model: &'a PreparedHullWhiteModel,
     /// Reference to the discount curve
     discount_curve: &'a dyn Discounting,
     /// Valuation date.
@@ -93,7 +93,7 @@ impl<'a> BermudanSwaptionTreeValuator<'a> {
     /// A valuator ready to compute prices via `price()` method.
     pub fn new(
         swaption: &'a BermudanSwaption,
-        model: &'a CalibratedHullWhiteModel,
+        model: &'a PreparedHullWhiteModel,
         discount_curve: &'a dyn Discounting,
         as_of: Date,
     ) -> Result<Self> {
@@ -388,7 +388,7 @@ impl<'a> BermudanSwaptionTreeValuator<'a> {
 mod tests {
     use super::*;
     use crate::instruments::rates::swaption::{
-        BermudanSchedule, BermudanSwaption, CalibratedHullWhiteModel,
+        BermudanSchedule, BermudanSwaption, PreparedHullWhiteModel,
     };
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::Tenor;
@@ -441,7 +441,7 @@ mod tests {
         let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
 
         let ttm = swaption.time_to_maturity(as_of).expect("Valid ttm");
-        let model = CalibratedHullWhiteModel::calibrate(
+        let model = PreparedHullWhiteModel::prepare(
             HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
             50,
             &curve,
@@ -460,7 +460,7 @@ mod tests {
         let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
 
         let ttm = swaption.time_to_maturity(as_of).expect("Valid ttm");
-        let model = CalibratedHullWhiteModel::calibrate(
+        let model = PreparedHullWhiteModel::prepare(
             HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
             50,
             &curve,
@@ -488,7 +488,7 @@ mod tests {
 
         let ttm = swaption.time_to_maturity(as_of).expect("Valid ttm");
         let exercise_times = swaption.exercise_times(as_of).expect("exercise times");
-        let model = CalibratedHullWhiteModel::calibrate_with_times(
+        let model = PreparedHullWhiteModel::prepare_with_times(
             HullWhiteParams::new(0.03, 0.01).expect("valid HW params"),
             50,
             &curve,

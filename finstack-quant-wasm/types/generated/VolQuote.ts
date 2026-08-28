@@ -12,8 +12,8 @@ import type { OptionType } from "./OptionType";
  *
  * Option volatility quote:
  * ```rust
- * use finstack_quant_valuations::market::quotes::vol::VolQuote;
- * use finstack_quant_valuations::market::quotes::ids::QuoteId;
+ * use finstack_quant_calibration::quotes::vol::VolQuote;
+ * use finstack_quant_calibration::quotes::ids::QuoteId;
  * use finstack_quant_valuations::market::conventions::ids::OptionConventionId;
  * use finstack_quant_valuations::instruments::OptionType;
  * use finstack_quant_core::dates::Date;
@@ -32,8 +32,8 @@ import type { OptionType } from "./OptionType";
  *
  * Swaption volatility quote:
  * ```rust
- * use finstack_quant_valuations::market::quotes::vol::VolQuote;
- * use finstack_quant_valuations::market::quotes::ids::QuoteId;
+ * use finstack_quant_calibration::quotes::vol::VolQuote;
+ * use finstack_quant_calibration::quotes::ids::QuoteId;
  * use finstack_quant_valuations::market::conventions::ids::SwaptionConventionId;
  * use finstack_quant_core::dates::Date;
  * use finstack_quant_core::market_data::surfaces::VolQuoteType;

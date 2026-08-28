@@ -9,11 +9,11 @@
 //! so CDS and CDS-option IR DV01 share a single unit and sign convention and
 //! can be aggregated across a portfolio regardless of how the curve was built.
 
-use crate::calibration::bumps::BumpRequest;
 use crate::instruments::credit_derivatives::cds_option::CDSOption;
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::sensitivities::cs01::sensitivity_central_diff;
 use crate::metrics::{MetricCalculator, MetricContext};
+use crate::recalibration::QuoteBump;
 use finstack_quant_core::market_data::bumps::BumpSpec;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
@@ -43,7 +43,7 @@ impl CdsOptionDv01Calculator {
             let bumped_discount = context.bump_discount_rate_quotes_cached(
                 base_discount.as_ref(),
                 calibration,
-                &BumpRequest::Parallel(bump_bp),
+                &QuoteBump::ParallelBp(bump_bp),
             )?;
             bumped_market = bumped_market.insert(bumped_discount.as_ref().clone());
         } else {

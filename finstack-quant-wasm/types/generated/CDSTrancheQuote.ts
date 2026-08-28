@@ -15,8 +15,8 @@
  * # Examples
  *
  * ```rust
- * use finstack_quant_valuations::market::quotes::cds_tranche::CDSTrancheQuote;
- * use finstack_quant_valuations::market::quotes::ids::QuoteId;
+ * use finstack_quant_calibration::quotes::cds_tranche::CDSTrancheQuote;
+ * use finstack_quant_calibration::quotes::ids::QuoteId;
  * use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
  * use finstack_quant_core::dates::Date;
  * use finstack_quant_core::currency::Currency;

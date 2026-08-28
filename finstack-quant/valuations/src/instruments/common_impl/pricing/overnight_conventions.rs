@@ -26,7 +26,7 @@ use finstack_quant_core::Result;
 ///
 /// Returns a validation error when the global `ConventionRegistry` is not
 /// initialized.
-pub(crate) fn rate_index_conventions(index_id: &str) -> Result<Option<RateIndexConventions>> {
+pub fn rate_index_conventions(index_id: &str) -> Result<Option<RateIndexConventions>> {
     let registry = ConventionRegistry::try_global()?;
     let idx = IndexId::new(index_id);
     Ok(registry.require_rate_index(&idx).ok().cloned())
@@ -42,7 +42,7 @@ pub(crate) fn rate_index_conventions(index_id: &str) -> Result<Option<RateIndexC
 ///
 /// Returns a validation error when an overnight RFR record is missing
 /// `ois_compounding` or records Simple compounding for an overnight index.
-pub(crate) fn compounding_from_conventions(
+pub fn compounding_from_conventions(
     rate_conv: &RateIndexConventions,
 ) -> Result<FloatingLegCompounding> {
     match rate_conv.kind {

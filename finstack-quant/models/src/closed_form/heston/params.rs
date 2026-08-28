@@ -29,7 +29,7 @@ pub mod heston_defaults {
 /// which feeds into a price error worth flagging for risk use.
 pub(super) const HESTON_TAIL_DIAGNOSTIC_THRESHOLD: f64 = 1e-4;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 /// Market inputs for closed-form Heston pricing.
 ///
 /// The stochastic parameters are stored once in the canonical models-layer
@@ -46,6 +46,7 @@ pub struct HestonPricingParams {
     /// Continuously compounded dividend or foreign yield as an annual decimal.
     pub q: f64,
     /// Canonical Heston stochastic parameters.
+    #[serde(flatten)]
     pub model: HestonParams,
 }
 
@@ -94,30 +95,11 @@ impl HestonPricingParams {
             model: HestonParams::new(v0, kappa, theta, sigma_v, rho)?,
         })
     }
-}
 
-/// Convert Monte Carlo Heston parameters into closed-form Fourier parameters.
-///
-/// This is a [`TryFrom`] (not `From`) because the conversion must re-run
-/// [`HestonPricingParams::new`] validation for the carry rates and canonical
-/// stochastic parameters.
-impl TryFrom<finstack_quant_models::monte_carlo::process::heston::HestonProcessParams>
-    for HestonPricingParams
-{
-    type Error = finstack_quant_core::Error;
-
-    fn try_from(
-        value: finstack_quant_models::monte_carlo::process::heston::HestonProcessParams,
-    ) -> finstack_quant_core::Result<Self> {
-        Self::new(
-            value.r,
-            value.q,
-            value.kappa,
-            value.theta,
-            value.sigma_v,
-            value.rho,
-            value.v0,
-        )
+    /// Return whether the variance process satisfies the inclusive Feller condition.
+    #[must_use]
+    pub fn satisfies_feller(&self) -> bool {
+        self.model.satisfies_feller_condition()
     }
 }
 

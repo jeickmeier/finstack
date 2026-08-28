@@ -350,7 +350,6 @@ impl JsSabrCalibrator {
         t: f64,
         beta: f64,
     ) -> Result<JsSabrParameters, JsValue> {
-        check_smile_lengths(&strikes, &market_vols)?;
         self.inner
             .calibrate(forward, &strikes, &market_vols, t, beta)
             .map(|inner| JsSabrParameters { inner })
@@ -383,23 +382,11 @@ impl JsSabrCalibrator {
         t: f64,
         beta: f64,
     ) -> Result<JsSabrParameters, JsValue> {
-        check_smile_lengths(&strikes, &market_vols)?;
         self.inner
             .calibrate_auto_shift(forward, &strikes, &market_vols, t, beta)
             .map(|inner| JsSabrParameters { inner })
             .map_err(to_js_err)
     }
-}
-
-fn check_smile_lengths(strikes: &[f64], market_vols: &[f64]) -> Result<(), JsValue> {
-    if strikes.len() != market_vols.len() {
-        return Err(to_js_err(format!(
-            "strikes length ({}) must match market_vols length ({})",
-            strikes.len(),
-            market_vols.len()
-        )));
-    }
-    Ok(())
 }
 
 impl Default for JsSabrCalibrator {

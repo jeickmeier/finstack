@@ -67,13 +67,19 @@ pub(super) fn price_result_with_context(
     market_history_json: Option<&str>,
 ) -> Result<ValuationResult, JsValue> {
     finstack_quant_valuations::pricer::price_instrument_json(
-        instrument_json,
-        market,
-        as_of,
-        model,
-        &metrics,
-        pricing_options,
-        market_history_json,
+        finstack_quant_valuations::pricer::JsonPricingRequest {
+            instrument_json,
+            market,
+            as_of,
+            model,
+            metrics: &metrics,
+            instrument_pricing_overrides_json: pricing_options,
+            market_history_json,
+            pricing_options: finstack_quant_valuations::instruments::PricingOptions::default()
+                .with_recalibration_provider(std::sync::Arc::new(
+                    finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
+                )),
+        },
     )
     .map_err(|e| to_js_error(&e))
 }
@@ -131,14 +137,28 @@ pub(super) fn metric_value_with_context(
     model: &str,
     metric: &str,
 ) -> Result<f64, JsValue> {
-    finstack_quant_valuations::pricer::metric_value_from_instrument_json(
-        instrument_json,
-        market,
-        as_of,
-        model,
-        metric,
+    let metrics = [metric.to_string()];
+    let result = finstack_quant_valuations::pricer::price_instrument_json(
+        finstack_quant_valuations::pricer::JsonPricingRequest {
+            instrument_json,
+            market,
+            as_of,
+            model,
+            metrics: &metrics,
+            instrument_pricing_overrides_json: None,
+            market_history_json: None,
+            pricing_options: finstack_quant_valuations::instruments::PricingOptions::default()
+                .with_recalibration_provider(std::sync::Arc::new(
+                    finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
+                )),
+        },
     )
-    .map_err(to_js_err)
+    .map_err(to_js_err)?;
+    result.metric_str(metric).ok_or_else(|| {
+        to_js_err(finstack_quant_core::Error::Validation(format!(
+            "metric `{metric}` was not returned"
+        )))
+    })
 }
 
 pub(super) fn standard_option_greeks_with_context(
@@ -147,13 +167,31 @@ pub(super) fn standard_option_greeks_with_context(
     as_of: &str,
     model: &str,
 ) -> Result<Vec<(&'static str, f64)>, JsValue> {
-    finstack_quant_valuations::pricer::present_standard_option_greeks_from_instrument_json(
-        instrument_json,
-        market,
-        as_of,
-        model,
+    let names = finstack_quant_valuations::pricer::STANDARD_OPTION_GREEKS;
+    let metrics = names
+        .iter()
+        .map(|name| (*name).to_string())
+        .collect::<Vec<_>>();
+    let result = finstack_quant_valuations::pricer::price_instrument_json(
+        finstack_quant_valuations::pricer::JsonPricingRequest {
+            instrument_json,
+            market,
+            as_of,
+            model,
+            metrics: &metrics,
+            instrument_pricing_overrides_json: None,
+            market_history_json: None,
+            pricing_options: finstack_quant_valuations::instruments::PricingOptions::default()
+                .with_recalibration_provider(std::sync::Arc::new(
+                    finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
+                )),
+        },
     )
-    .map_err(to_js_err)
+    .map_err(to_js_err)?;
+    Ok(names
+        .iter()
+        .filter_map(|name| result.metric_str(name).map(|value| (*name, value)))
+        .collect())
 }
 
 /// Deserialize a `ValuationResult` from JSON and return the canonical JSON.

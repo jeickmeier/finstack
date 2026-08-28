@@ -1,3 +1,4 @@
+#[path = "../../../calibration/tests/support/calibration.rs"]
 pub mod calibration;
 pub mod commodity_curves;
 pub mod credit;

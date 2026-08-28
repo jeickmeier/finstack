@@ -339,7 +339,13 @@ impl InterestRateFuture {
         Ok(())
     }
 
-    pub(crate) fn resolve_dates(&self) -> finstack_quant_core::Result<(Date, Date, Date)> {
+    /// Resolve the fixing, reference-period start, and reference-period end dates.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-date-range error when the resolved end is not after
+    /// the resolved start.
+    pub fn resolve_dates(&self) -> finstack_quant_core::Result<(Date, Date, Date)> {
         let fixing = self.fixing_date.unwrap_or(self.expiry);
         let period_start = self
             .period_start

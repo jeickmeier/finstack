@@ -31,12 +31,8 @@ pub struct PricingOptions {
     pub model: Option<ModelKey>,
     /// Optional explicit pricer registry override.
     pub registry: Option<Arc<PricerRegistry>>,
-    /// Batch-local cache shared by finite-difference credit-risk calculations.
-    pub(crate) hazard_recalibration_cache:
-        Option<Arc<crate::calibration::bumps::hazard::HazardRecalibrationCache>>,
-    /// Batch-local cache shared by quote-shock rate-risk calculations.
-    pub(crate) rate_recalibration_cache:
-        Option<Arc<crate::calibration::bumps::rates::RateRecalibrationCache>>,
+    /// Quote-recalibration service shared by one immutable pricing batch.
+    pub recalibration_provider: Option<Arc<dyn crate::recalibration::RecalibrationProvider>>,
 }
 
 impl PricingOptions {
@@ -100,25 +96,17 @@ impl PricingOptions {
         self
     }
 
-    /// Attach a new hazard-recalibration cache for one immutable pricing batch.
+    /// Attach the quote-recalibration service for this immutable pricing batch.
     ///
-    /// Clones of the returned options share the cache. Callers must create a
-    /// fresh cache when the market snapshot changes.
-    pub fn with_new_hazard_recalibration_cache(mut self) -> Self {
-        self.hazard_recalibration_cache = Some(Arc::new(
-            crate::calibration::bumps::hazard::HazardRecalibrationCache::default(),
-        ));
-        self
-    }
-
-    /// Attach a new rate-recalibration cache for one immutable pricing batch.
+    /// # Arguments
     ///
-    /// Clones of the returned options share the cache. Callers must create a
-    /// fresh cache when the market snapshot changes.
-    pub fn with_new_rate_recalibration_cache(mut self) -> Self {
-        self.rate_recalibration_cache = Some(Arc::new(
-            crate::calibration::bumps::rates::RateRecalibrationCache::default(),
-        ));
+    /// * `provider` - Shared service that owns quote decoding, replay, and
+    ///   batch-local rate and credit calibration caches.
+    pub fn with_recalibration_provider(
+        mut self,
+        provider: Arc<dyn crate::recalibration::RecalibrationProvider>,
+    ) -> Self {
+        self.recalibration_provider = Some(provider);
         self
     }
 

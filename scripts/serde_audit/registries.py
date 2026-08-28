@@ -100,8 +100,8 @@ ONE_WAY_EXCEPTIONS = (
         "Computed statement-analysis report; source statement results are canonical.",
     ),
     *_exception(
-        "valuations",
-        "src/calibration/api/validate.rs",
+        "calibration",
+        "src/api/validate.rs",
         ("CalibrationValidationReport", "DependencyGraph", "DependencyNode"),
         "validation-report",
         "Transient calibration validation view, regenerated from the input envelope.",
@@ -445,8 +445,8 @@ REVIEWED_EXCEPTIONS = (
 )
 MAINTAINED_CONTRACTS = frozenset({
     ("valuations", "src/instruments/json_loader.rs", "InstrumentEnvelope"),
-    ("valuations", "src/calibration/api/schema.rs", "CalibrationEnvelope"),
-    ("valuations", "src/calibration/api/schema.rs", "CalibrationResultEnvelope"),
+    ("calibration", "src/api/schema.rs", "CalibrationEnvelope"),
+    ("calibration", "src/api/schema.rs", "CalibrationResultEnvelope"),
     ("core", "src/market_data/context/state_serde.rs", "MarketContextState"),
     ("statements", "src/types/model.rs", "FinancialModelSpec"),
     ("scenarios", "src/envelope.rs", "ScenarioEnvelope"),

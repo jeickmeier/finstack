@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import json
+import pickle
 
 import pytest
 
-from finstack_quant.valuations import (
+from finstack_quant.calibration import (
     CalibrationEnvelopeError,
     calibrate,
     dependency_graph_json,
@@ -39,6 +40,13 @@ def test_dependency_graph_json_well_formed() -> None:
     graph = json.loads(dependency_graph_json(json.dumps(_empty_envelope())))
     assert "initial_ids" in graph
     assert graph["nodes"] == []
+
+
+def test_calibration_result_pickles_through_top_level_module() -> None:
+    result = calibrate(json.dumps(_empty_envelope()))
+    restored = pickle.loads(pickle.dumps(result))
+    assert restored.success is True
+    assert type(restored).__module__ == "finstack_quant.calibration"
 
 
 def test_dry_run_surfaces_undefined_quote_set_with_suggestion() -> None:

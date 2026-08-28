@@ -47,7 +47,7 @@
 //!
 //! ## Models and Calibration
 //!
-//! - [`crate::calibration`]: curve and surface calibration.
+//! - the calibration crate: quote ingestion, market construction, and calibration.
 //!
 //! Product-independent model engines are provided by [`finstack_quant_models`].
 //!
@@ -97,8 +97,6 @@
 
 extern crate self as finstack_quant_valuations;
 
-/// Curve and surface calibration tooling.
-pub mod calibration;
 /// Cashflow schedule generation and builders.
 pub(crate) use finstack_quant_cashflows as cashflow;
 /// Shared numerical constants and basis point helpers.
@@ -112,6 +110,8 @@ pub mod market;
 pub mod prelude;
 /// Pricing dispatch and registry infrastructure.
 pub mod pricer;
+/// Contracts for quote-driven market recalibration supplied by the calibration crate.
+pub mod recalibration;
 /// Valuation result envelopes and metadata.
 pub mod results;
 /// JSON Schema generation for API contracts.

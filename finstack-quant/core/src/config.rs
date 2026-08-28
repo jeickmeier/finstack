@@ -125,7 +125,7 @@ pub struct FinstackConfig {
     pub tolerances: ToleranceConfig,
     /// Optional module-specific configuration sections (versioned, namespaced keys).
     ///
-    /// Keys follow `{crate}.{domain}.v{N}`, e.g., `valuations.calibration.v1`.
+    /// Keys follow `{crate}.{domain}.v{N}`, e.g., `calibration.config.v1`.
     /// Values are validated by the owning crate's strict serde schema.
     #[serde(default, skip_serializing_if = "ConfigExtensions::is_empty")]
     pub extensions: ConfigExtensions,
@@ -135,7 +135,7 @@ pub struct FinstackConfig {
 ///
 /// Keys must match the `{crate}.{domain}.v{N}` pattern (one or more
 /// dot-separated `snake_case` segments followed by a `v{N}` version segment,
-/// e.g. `valuations.calibration.v1` or
+/// e.g. `calibration.config.v1` or
 /// `valuations.structured_credit.ytm.v1`). Deserialization rejects keys that
 /// do not match, so obvious typos fail loudly instead of being silently
 /// carried along .
@@ -175,7 +175,7 @@ impl<'de> Deserialize<'de> for ConfigExtensions {
         let inner = BTreeMap::<String, JsonValue>::deserialize(deserializer)?;
         if let Some(bad) = inner.keys().find(|k| !is_valid_extension_key(k)) {
             return Err(serde::de::Error::custom(format!(
-                "invalid config extension key '{bad}': keys must match '{{crate}}.{{domain}}.v{{N}}' (e.g. 'valuations.calibration.v1')"
+                "invalid config extension key '{bad}': keys must match '{{crate}}.{{domain}}.v{{N}}' (e.g. 'calibration.config.v1')"
             )));
         }
         Ok(Self { inner })
@@ -204,7 +204,7 @@ impl ConfigExtensions {
     /// Insert or replace a section by key.
     ///
     /// Extension keys must use a versioned namespace such as
-    /// `valuations.calibration.v1`. The stored JSON is intentionally opaque to
+    /// `calibration.config.v1`. The stored JSON is intentionally opaque to
     /// core; the crate that owns the namespace validates its schema when it
     /// consumes the section. The prior value, if any, is returned so a caller
     /// can implement an explicit configuration update policy.
@@ -702,7 +702,7 @@ mod tests {
         // ): extension keys are validated
         // against `{crate}.{domain}.v{N}` at deserialization.
         for key in [
-            "valuations.calibration.v1",
+            "calibration.config.v1",
             "core.dummy_registry.v1",
             "valuations.structured_credit.ytm.v1",
         ] {
@@ -720,9 +720,9 @@ mod tests {
         for key in [
             "valuationscalibration",     // no namespacing at all
             "valuations.v1",             // missing domain segment
-            "valuations.calibration",    // missing version segment
-            "valuations.calibration.2",  // version missing the `v` prefix
-            "valuations.calibration.vX", // non-numeric version
+            "calibration.config",        // missing version segment
+            "calibration.config.2",      // version missing the `v` prefix
+            "calibration.config.vX",     // non-numeric version
             "Valuations.Calibration.v1", // not snake_case
         ] {
             let json = format!(
@@ -739,7 +739,7 @@ mod tests {
     fn config_extensions_validate_programmatic_insertion() {
         let mut extensions = ConfigExtensions::default();
         assert!(extensions
-            .insert("valuations.calibration.v1", serde_json::json!({}))
+            .insert("calibration.config.v1", serde_json::json!({}))
             .is_ok());
         assert!(extensions
             .insert("not namespaced", serde_json::json!({}))

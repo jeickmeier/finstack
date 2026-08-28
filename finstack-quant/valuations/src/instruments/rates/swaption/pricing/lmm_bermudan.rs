@@ -31,13 +31,13 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::discretization::lmm_predictor_corrector::LmmPredictorCorrector;
 use finstack_quant_models::monte_carlo::engine::MAX_NUM_PATHS;
-use finstack_quant_models::monte_carlo::online_stats::OnlineStats;
 use finstack_quant_models::monte_carlo::pricer::lsq::solve_least_squares;
 use finstack_quant_models::monte_carlo::process::lmm::{LmmParams, LmmProcess};
 use finstack_quant_models::monte_carlo::results::MoneyEstimate;
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
-use finstack_quant_models::monte_carlo::time_grid::TimeGrid;
 use finstack_quant_models::monte_carlo::traits::{Discretization, RandomStream};
+use finstack_quant_models::monte_carlo::OnlineStats;
+use finstack_quant_models::monte_carlo::TimeGrid;
 
 const EXERCISE_TIME_TOLERANCE: f64 = 1e-10;
 
@@ -69,20 +69,6 @@ pub struct LmmBermudanConfig {
     /// standard error (only half the paths drive the estimate). Mirrors
     /// `RateExoticMcConfig::oos_lsmc` on the HW1F exotic harness.
     pub oos_lsmc: bool,
-    /// When true, refuse to price with the uncalibrated structural defaults.
-    ///
-    /// The pricer registry (`finstack_quant_valuations::pricer::exotics`) sets this
-    /// on the registered LMM pricer so callers reaching the registry receive a
-    /// clear error rather than a silently-wrong price. Direct constructor
-    /// callers retain the permissive default (`false`) for testing and bespoke
-    /// workflows.
-    ///
-    /// The parameters gated by this flag are the factor loading *shape*
-    /// (α=0.4 linear decay, 2-factor structure). These drive the co-terminal
-    /// correlation structure and early-exercise premium; without per-period
-    /// calibration the Bermudan price is model-assumption-driven rather than
-    /// surface-consistent.
-    pub enforce_calibration: bool,
 }
 
 impl Default for LmmBermudanConfig {
@@ -97,7 +83,6 @@ impl Default for LmmBermudanConfig {
             antithetic: defaults.antithetic,
             min_steps_between_exercises: defaults.min_steps_between_exercises,
             oos_lsmc: false,
-            enforce_calibration: true,
         }
     }
 }
@@ -146,25 +131,6 @@ pub fn price_bermudan_lmm(
     validate_path_config(config)?;
     let (time_grid, exercise_step_indices) =
         build_exercise_aligned_grid(exercise_times, maturity, config.min_steps_between_exercises)?;
-
-    // Guard: refuse uncalibrated structural defaults when enforcement is enabled
-    // (as the pricer registry does).  The factor loading shape (α=0.4 linear
-    // decay, 2-factor structure) and the Bermudan co-terminal correlation
-    // structure it implies are not per-period calibrated; without calibration
-    // the early-exercise premium is model-assumption-driven rather than
-    // surface-consistent.  Mirrors the enforce_calibration guard in
-    // BermudanSwaptionPricer (HW1F).
-    if config.enforce_calibration {
-        return Err(finstack_quant_core::Error::Validation(
-            "LMM Bermudan swaption pricer reached with uncalibrated structural parameters. \
-             The factor loading shape (α=0.4 linear decay, 2-factor model) is hardcoded and \
-             drives the co-terminal correlation structure and early-exercise premium. \
-             Per-period loading calibration to co-terminal swaptions is required for \
-             production use. This pricer is currently a research prototype — \
-             use a calibrated model (HullWhite1F, MonteCarloHullWhite1F) for production pricing."
-                .to_string(),
-        ));
-    }
 
     let n = params.num_forwards;
     let process = LmmProcess::new(params.clone());
@@ -707,7 +673,6 @@ mod tests {
             antithetic,
             min_steps_between_exercises: 1,
             oos_lsmc,
-            enforce_calibration: false,
         }
     }
 
@@ -864,7 +829,6 @@ mod tests {
             antithetic: true,
             min_steps_between_exercises: 4,
             oos_lsmc: false,
-            enforce_calibration: false,
         };
 
         let result = price_bermudan_lmm(
@@ -900,7 +864,6 @@ mod tests {
             antithetic: true,
             min_steps_between_exercises: 4,
             oos_lsmc: false,
-            enforce_calibration: false,
         };
 
         let european = price_bermudan_lmm(
@@ -952,7 +915,6 @@ mod tests {
             antithetic: false,
             min_steps_between_exercises: 4,
             oos_lsmc: false,
-            enforce_calibration: false,
         };
         let oos = LmmBermudanConfig {
             oos_lsmc: true,

@@ -48,7 +48,7 @@
 //!
 //! - [`BasisSwap`] for instrument struct
 //! - `BasisSwapLeg` for leg specification
-//! - Multi-curve calibration in [`calibration`](crate::calibration)
+//! - Multi-curve construction in the calibration crate
 
 pub(crate) mod metrics;
 mod types;

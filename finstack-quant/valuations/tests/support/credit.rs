@@ -1,3 +1,14 @@
+use finstack_quant_calibration::api::engine;
+use finstack_quant_calibration::api::market_datum::MarketDatum;
+use finstack_quant_calibration::api::prior_market::PriorMarketObject;
+use finstack_quant_calibration::api::schema::{
+    CalibrationEnvelope, CalibrationPlan, CalibrationSchema, CalibrationStep, HazardCurveParams,
+    StepParams,
+};
+use finstack_quant_calibration::quotes::cds::CdsQuote;
+use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};
+use finstack_quant_calibration::quotes::market_quote::MarketQuote;
+use finstack_quant_calibration::{CalibrationConfig, CalibrationMethod};
 use finstack_quant_core::{
     currency::Currency,
     dates::Date,
@@ -8,24 +19,23 @@ use finstack_quant_core::{
     types::{CurveId, InstrumentId},
     HashMap,
 };
-use finstack_quant_valuations::calibration::api::engine;
-use finstack_quant_valuations::calibration::api::market_datum::MarketDatum;
-use finstack_quant_valuations::calibration::api::prior_market::PriorMarketObject;
-use finstack_quant_valuations::calibration::api::schema::{
-    CalibrationEnvelope, CalibrationPlan, CalibrationSchema, CalibrationStep, HazardCurveParams,
-    StepParams,
-};
-use finstack_quant_valuations::calibration::{CalibrationConfig, CalibrationMethod};
 use finstack_quant_valuations::constants::isda::STANDARD_RECOVERY_SENIOR;
 use finstack_quant_valuations::instruments::credit_derivatives::cds::{
     CDSConvention, CreditDefaultSwap, PayReceive, PremiumLegSpec, ProtectionLegSpec,
 };
-use finstack_quant_valuations::instruments::{Attributes, InstrumentPricingOverrides};
+use finstack_quant_valuations::instruments::{
+    Attributes, InstrumentPricingOverrides, PricingOptions,
+};
 use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
-use finstack_quant_valuations::market::quotes::cds::CdsQuote;
-use finstack_quant_valuations::market::quotes::ids::{Pillar, QuoteId};
-use finstack_quant_valuations::market::quotes::market_quote::MarketQuote;
 use rust_decimal::Decimal;
+use std::sync::Arc;
+
+/// Build request-scoped pricing options with a fresh cached recalibration provider.
+pub fn pricing_options() -> PricingOptions {
+    PricingOptions::default().with_recalibration_provider(Arc::new(
+        finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
+    ))
+}
 
 /// Calibrate a replayable USD senior hazard curve from standard CDS par quotes.
 pub fn calibrated_hazard_curve(
