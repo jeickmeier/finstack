@@ -1,0 +1,96 @@
+"""Compiled-in schemas for calibration envelopes and raw market quotes.
+
+Examples
+--------
+>>> import json
+>>> from finstack_quant.calibration import schema
+>>> json.loads(schema.get("calibration.schema.json"))["$schema"]
+'https://json-schema.org/draft/2020-12/schema'
+"""
+
+__all__ = ["get", "index", "validate"]
+
+def index() -> str:
+    """List every schema published by the calibration crate.
+
+    Returns
+    -------
+    str
+        Pretty-printed registry JSON containing the calibration artifacts.
+
+    Raises
+    ------
+    ValueError
+        If an artifact cannot be rendered.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.calibration import schema
+    >>> len(json.loads(schema.index())["artifacts"])
+    2
+    """
+    ...
+
+def get(selector: str, profile: str = "canonical") -> str:
+    """Fetch one calibration schema by path, identifier, or filename.
+
+    Parameters
+    ----------
+    selector : str
+        Registry path, schema identifier, or trailing schema filename.
+    profile : str, optional
+        ``"canonical"`` returns the published validator contract; ``"llm"``
+        returns its self-contained authoring projection.
+
+    Returns
+    -------
+    str
+        Pretty-printed JSON Schema text.
+
+    Raises
+    ------
+    KeyError
+        If ``selector`` does not identify a calibration artifact.
+    ValueError
+        If ``profile`` is unknown or rendering fails.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.calibration import schema
+    >>> json.loads(schema.get("market_quote.schema.json"))["title"]
+    'Market Quote'
+    """
+    ...
+
+def validate(selector: str, payload: str) -> str:
+    """Validate JSON against one published calibration schema.
+
+    Parameters
+    ----------
+    selector : str
+        Registry path, schema identifier, or trailing schema filename.
+    payload : str
+        JSON text to validate.
+
+    Returns
+    -------
+    str
+        Pretty-printed array of JSON Pointer diagnostics; empty means valid.
+
+    Raises
+    ------
+    KeyError
+        If ``selector`` does not identify a calibration artifact.
+    ValueError
+        If ``payload`` is malformed JSON or the schema cannot be built.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.calibration import schema
+    >>> json.loads(schema.validate("calibration.schema.json", "{}")) != []
+    True
+    """
+    ...

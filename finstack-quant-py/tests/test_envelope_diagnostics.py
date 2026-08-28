@@ -44,7 +44,7 @@ def test_dependency_graph_json_well_formed() -> None:
 
 def test_calibration_result_pickles_through_top_level_module() -> None:
     result = calibrate(json.dumps(_empty_envelope()))
-    restored = pickle.loads(pickle.dumps(result))
+    restored = pickle.loads(pickle.dumps(result))  # noqa: S301 - trusted in-process round trip
     assert restored.success is True
     assert type(restored).__module__ == "finstack_quant.calibration"
 

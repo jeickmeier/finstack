@@ -4,6 +4,8 @@
 //! a JSON-in / rich-result-out API that matches the existing scenarios-engine
 //! binding pattern.
 
+mod schema;
+
 use crate::bindings::core::market_data::context::PyMarketContext;
 use crate::bindings::pandas_utils::dict_to_dataframe;
 use crate::errors::display_to_py;
@@ -490,6 +492,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(dry_run, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(dependency_graph_json, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(calibrate_bermudan_lmm_base_vol, &m)?)?;
+    schema::register(py, &m)?;
     m.setattr(
         "__all__",
         PyList::new(
@@ -502,6 +505,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
                 "dry_run",
                 "dependency_graph_json",
                 "calibrate_bermudan_lmm_base_vol",
+                "schema",
             ],
         )?,
     )?;

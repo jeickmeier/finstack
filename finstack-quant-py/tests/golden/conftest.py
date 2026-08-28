@@ -18,8 +18,8 @@ import time
 from types import ModuleType
 import warnings
 
-from finstack_quant.core.market_data import MarketContext
 from finstack_quant.calibration import validate_calibration_json
+from finstack_quant.core.market_data import MarketContext
 
 from .pricing_validation import requested_metrics, validate_requested_metrics, validated_instrument_json
 from .schema import SCHEMA, GoldenFixture

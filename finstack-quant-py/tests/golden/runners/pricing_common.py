@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 
-from finstack_quant.core.market_data import MarketContext
 from finstack_quant.calibration import (
     CalibrationEnvelopeError,
     calibrate,
 )
+from finstack_quant.core.market_data import MarketContext
 from finstack_quant.valuations.instruments import price_instrument
 from tests.golden.pricing_validation import requested_metrics, validated_instrument_json
 from tests.golden.schema import GoldenFixture

@@ -28,6 +28,7 @@ from typing import Any
 import pytest
 
 from finstack_quant.analytics import AnalyticsError, constrained_least_squares
+from finstack_quant.calibration import CalibrationEnvelopeError
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.market_data import DiscountCurve, MarketContext
 from finstack_quant.core.math import linalg
@@ -49,7 +50,6 @@ from finstack_quant.portfolio import (
     portfolio_result_total_value,
     value_portfolio,
 )
-from finstack_quant.calibration import CalibrationEnvelopeError
 
 REPARENTED_ERRORS = [
     AnalyticsError,

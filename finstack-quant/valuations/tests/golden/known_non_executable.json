@@ -29,22 +29,6 @@
       ]
     },
     {
-      "path": "pricing/bloomberg/cap_floor/usd_cap_5y_atm_black.json",
-      "description": "USD Bloomberg cap HW1F and curve-risk benchmark gaps",
-      "metrics": [
-        {
-          "metric": "npv",
-          "reason": "Bloomberg's proprietary HW1F stripping and compounded-SOFR convexity settings are not exposed by the supplied SWPM/VCUB screens.",
-          "evidence": "After executable Curve 490 single-curve calibration, contractual compounded-SOFR projection, and price-consistent scalar HW sigma calibration on the product schedule, executable NPV is 248081.800707 versus Bloomberg 258327.94. The remaining 10246.14 gap cannot be source-backed without Bloomberg's optionlet strip or HW1F calibration settings."
-        },
-        {
-          "metric": "vega",
-          "reason": "Bloomberg's screen vega depends on its undisclosed quote-to-optionlet stripping Jacobian.",
-          "evidence": "Market-quote vega now bumps the normal surface and recalibrates the price-consistent scalar HW sigma through the production path, producing 278547.200768 versus Bloomberg 265946.0. Reproducing the remaining 12601.20 gap requires Bloomberg's stripping Jacobian; direct HW sigma sensitivity is separately reported as hw_sigma_vega."
-        }
-      ]
-    },
-    {
       "path": "pricing/bloomberg/fra/usd_fra_3x6.json",
       "description": "USD Bloomberg FRA combined-DV01 benchmark gap",
       "metrics": [

@@ -6,7 +6,7 @@
     "description": "Bloomberg SWPM USD 5Y ATM SOFR cap captured from screens on 2026-05-02.",
     "valuation_date": "2026-05-02",
     "source": "bloomberg-screen",
-    "source_detail": "Bloomberg SWPM USD SOFR cap, curve 490 USD SOFR discount/projection dated 2026-05-01, USD RFR BVOL Cube, trade date 2026-05-02, valuation date 2026-05-02. The legacy fixture filename is retained; the screen uses normal volatility/HW1F. The executable envelope calibrates a single discount/projection curve from all 26 visible Curve 490 market-rate points with the screen's one-day OIS cutoff; compounded-SOFR forwards are derived from its discount factors on contractual observation dates. The cap terms explicitly encode LongFront schedule generation, compounded SOFR with one-day cutoff, two-business-day payment delay, and excluded spread compounding. Kappa is fixed at the documented benchmark assumption while sigma is recalibrated from the normal-vol surface. Bloomberg targets and tolerances are unchanged.",
+    "source_detail": "Bloomberg SWPM USD SOFR cap, curve 490 USD SOFR discount/projection dated 2026-05-01, USD RFR BVOL Cube, trade date 2026-05-02, valuation date 2026-05-02. The legacy fixture filename is retained; the screen uses normal volatility/HW1F. The executable envelope calibrates a single discount/projection curve from all 26 visible Curve 490 market-rate points with the screen's one-day OIS cutoff; compounded-SOFR forwards are derived from its discount factors on contractual observation dates. The cap terms explicitly encode LongFront schedule generation, compounded SOFR with one-day cutoff, two-business-day payment delay, and excluded spread compounding. Kappa and sigma persist the output of the source normal-optionlet-strip calibration; pricing consumes those fitted parameters without sampling or fitting the volatility surface. Bloomberg market-vol vega remains source evidence, while the executable sensitivity is the distinct direct HW sigma vega.",
     "captured_by": "jeickmeier",
     "captured_on": "2026-05-02",
     "last_reviewed_by": "jeickmeier",
@@ -1342,7 +1342,8 @@
         "instrument_pricing_overrides": {
           "model_config": {
             "tree_steps": 300,
-            "hw1f_mean_reversion": 0.0342
+            "hw1f_mean_reversion": 0.0342,
+            "hw1f_sigma": 0.0102198114667328
           }
         },
         "attributes": {
@@ -1359,12 +1360,13 @@
             "screen_model": "HW1F",
             "screen_volatility_type": "Normal",
             "screen_convexity_adjustment": "Normal",
-            "hw1f_calibration_method": "fixed_kappa_surface_calibrated_sigma",
+            "hw1f_calibration_method": "fixed_kappa_precalibrated_sigma",
             "hw1f_fixed_kappa": "0.0342",
             "hw1f_source_quote": "Twenty-expiry normal optionlet strip retained in prior_market[USD-RFR-BVOL-CUBE-5Y].vols_row_major; the VCUB screenshot supplies the raw cube but does not expose Bloomberg's stripping recipe.",
             "hw1f_source_quote_normal_vol": "derived optionlet strip, 20 quarterly expiries; proprietary raw-cube stripping Jacobian unavailable",
-            "hw1f_param_routing": "Kappa is supplied through pricing_overrides.hw1f_mean_reversion. Sigma is recalibrated from the normal-vol surface for every base or bumped valuation; no fixed sigma is supplied.",
-            "hw1f_calibration_note": "Bloomberg shows HW1F and normal VCUB inputs but not mean reversion or proprietary stripping settings. Kappa remains an explicit benchmark assumption. The raw visible cube column is retained without fitting sigma to expected_outputs.",
+            "hw1f_param_routing": "The pre-calibrated kappa and sigma pair is supplied through pricing_overrides.model_config. Pricing and nested repricing consume the pair without querying the normal-vol surface.",
+            "hw1f_calibration_note": "Bloomberg shows HW1F and normal VCUB inputs but not mean reversion or proprietary stripping settings. Kappa remains an explicit benchmark assumption and sigma persists the source optionlet-strip calibration output. The raw visible cube column is retained as calibration provenance.",
+            "bloomberg_market_normal_vol_vega_per_1pct": "265946.0",
             "legacy_fixture_name": "usd_cap_5y_atm_black"
           }
         }
@@ -1373,7 +1375,7 @@
   },
   "expected": {
     "npv": 258327.94,
-    "vega": 265946.0,
+    "hw_sigma_vega": 252165.81,
     "dv01": 2158.57
   },
   "tolerances": {
@@ -1382,10 +1384,10 @@
       "rel": 1e-05,
       "tolerance_reason": "Bloomberg SWPM screen NPV is displayed to cents; the executable fixture should reproduce the screen within one dollar on 10MM notional. abs-or-rel: absolute/display tolerance is the intended comparison gate; relative tolerance is retained only as a legacy diagnostic."
     },
-    "vega": {
+    "hw_sigma_vega": {
       "abs": 10.0,
       "rel": 0.0001,
-      "tolerance_reason": "Bloomberg displays Vega(1bp)=2,659.46; expected_outputs stores the comparable per-1pct normal-vol value of 265,946.0. abs-or-rel: absolute/display tolerance is the intended comparison gate; relative tolerance is retained only as a legacy diagnostic."
+      "tolerance_reason": "With pre-calibrated HW1F parameters, the executable risk axis is direct short-rate sigma sensitivity per 0.01 absolute sigma. Bloomberg's distinct market-normal-vol vega remains in provenance and is not relabeled as model-parameter vega. abs-or-rel: absolute tolerance covers finite-difference rounding; relative tolerance is retained as a diagnostic."
     },
     "dv01": {
       "abs": 25.0,

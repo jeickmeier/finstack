@@ -721,6 +721,9 @@ python_package = "finstack_quant.calibration"
 visibility = "pub"
 status = "exists"
 
+[crates.calibration.modules]
+schema = { python = "finstack_quant.calibration.schema", status = "exists", note = "Registry-backed index/get/validate over calibration envelopes and raw market-quote schemas; no WASM twin." }
+
 [crates.calibration.symbols]
 public = [
     "CalibrationEnvelope",

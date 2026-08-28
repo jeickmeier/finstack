@@ -1,4 +1,16 @@
-"""Quote ingestion, market construction, and explicit model calibration."""
+"""Quote ingestion, market construction, and explicit model calibration.
+
+Examples
+--------
+>>> import json
+>>> from finstack_quant.calibration import calibrate
+>>> envelope = {
+...     "schema": "finstack_quant.calibration/1",
+...     "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}},
+... }
+>>> calibrate(json.dumps(envelope)).success
+True
+"""
 
 from __future__ import annotations
 
@@ -8,6 +20,7 @@ from typing import Any
 import pandas as pd
 
 from finstack_quant.calibration.envelope import CalibrationEnvelope as CalibrationEnvelope
+from finstack_quant.calibration import schema as schema
 from finstack_quant.core.market_data import MarketContext
 
 __all__ = [
@@ -18,6 +31,7 @@ __all__ = [
     "calibrate_bermudan_lmm_base_vol",
     "dependency_graph_json",
     "dry_run",
+    "schema",
     "validate_calibration_json",
 ]
 
@@ -28,7 +42,10 @@ class CalibrationResult:
     --------
     >>> import json
     >>> from finstack_quant.calibration import calibrate
-    >>> envelope = {"schema": "finstack_quant.calibration/1", "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}}}
+    >>> envelope = {
+    ...     "schema": "finstack_quant.calibration/1",
+    ...     "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}},
+    ... }
     >>> calibrate(json.dumps(envelope)).success
     True
     """
@@ -51,6 +68,18 @@ class CalibrationResult:
         ------
         ValueError
             If ``json`` is malformed or does not encode a result envelope.
+
+        Examples
+        --------
+        >>> import json
+        >>> from finstack_quant.calibration import CalibrationResult, calibrate
+        >>> envelope = {
+        ...     "schema": "finstack_quant.calibration/1",
+        ...     "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}},
+        ... }
+        >>> result = calibrate(json.dumps(envelope))
+        >>> CalibrationResult.from_json(result.to_json()).success
+        True
         """
         ...
 
@@ -77,6 +106,10 @@ class CalibrationResult:
         -------
         bool
             ``True`` only when the overall plan succeeded.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored plan status.
         """
         ...
 
@@ -136,6 +169,10 @@ class CalibrationResult:
         -------
         list[str]
             Lexicographically ordered step identifiers.
+
+        Notes
+        -----
+        This accessor does not raise; it returns stored report identifiers.
         """
         ...
 
@@ -147,6 +184,10 @@ class CalibrationResult:
         -------
         int
             Sum of per-step iteration counts.
+
+        Notes
+        -----
+        This accessor does not raise; it sums stored iteration counts.
         """
         ...
 
@@ -158,6 +199,10 @@ class CalibrationResult:
         -------
         float
             Maximum ``abs(residual) / tolerance`` across steps.
+
+        Notes
+        -----
+        This accessor does not raise; it reads the stored aggregate report.
         """
         ...
 
@@ -169,6 +214,10 @@ class CalibrationResult:
         -------
         float
             RMSE of normalized quote residuals.
+
+        Notes
+        -----
+        This accessor does not raise; it reads the stored aggregate report.
         """
         ...
 
@@ -266,7 +315,10 @@ def validate_calibration_json(json: str) -> str:
     --------
     >>> import json
     >>> from finstack_quant.calibration import validate_calibration_json
-    >>> envelope = {"schema": "finstack_quant.calibration/1", "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}}}
+    >>> envelope = {
+    ...     "schema": "finstack_quant.calibration/1",
+    ...     "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}},
+    ... }
     >>> json.loads(validate_calibration_json(json.dumps(envelope)))["plan"]["id"]
     'smoke'
     """
@@ -294,7 +346,10 @@ def dry_run(json: str) -> str:
     --------
     >>> import json
     >>> from finstack_quant.calibration import dry_run
-    >>> envelope = {"schema": "finstack_quant.calibration/1", "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}}}
+    >>> envelope = {
+    ...     "schema": "finstack_quant.calibration/1",
+    ...     "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}},
+    ... }
     >>> json.loads(dry_run(json.dumps(envelope)))["errors"]
     []
     """
@@ -322,7 +377,10 @@ def dependency_graph_json(json: str) -> str:
     --------
     >>> import json
     >>> from finstack_quant.calibration import dependency_graph_json
-    >>> envelope = {"schema": "finstack_quant.calibration/1", "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}}}
+    >>> envelope = {
+    ...     "schema": "finstack_quant.calibration/1",
+    ...     "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}},
+    ... }
     >>> json.loads(dependency_graph_json(json.dumps(envelope)))["nodes"]
     []
     """
@@ -352,7 +410,10 @@ def calibrate(json: str) -> CalibrationResult:
     --------
     >>> import json
     >>> from finstack_quant.calibration import calibrate
-    >>> envelope = {"schema": "finstack_quant.calibration/1", "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}}}
+    >>> envelope = {
+    ...     "schema": "finstack_quant.calibration/1",
+    ...     "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}},
+    ... }
     >>> calibrate(json.dumps(envelope)).success
     True
     """
@@ -391,7 +452,10 @@ def calibrate_bermudan_lmm_base_vol(
     Examples
     --------
     >>> from finstack_quant.calibration import calibrate_bermudan_lmm_base_vol
-    >>> callable(calibrate_bermudan_lmm_base_vol)
+    >>> try:
+    ...     calibrate_bermudan_lmm_base_vol("{}", "{}", "2025-01-01")
+    ... except ValueError as exc:
+    ...     "missing field" in str(exc)
     True
     """
     ...

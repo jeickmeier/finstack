@@ -507,6 +507,7 @@ class TestCalibrationNamespace:
             "calibrate_bermudan_lmm_base_vol",
             "dependency_graph_json",
             "dry_run",
+            "schema",
             "validate_calibration_json",
         }
         assert set(calibration.__all__) == expected
