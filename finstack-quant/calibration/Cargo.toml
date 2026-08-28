@@ -65,7 +65,7 @@ name = "sabr_slice"
 harness = false
 
 [[bin]]
-name = "gen_schemas"
+name = "gen_calibration_schemas"
 path = "src/bin/gen_schemas.rs"
 
 [lints]

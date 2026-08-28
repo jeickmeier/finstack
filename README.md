@@ -46,12 +46,13 @@ finstack-quant/
 │   ├── core/                     # money/FX, dates, market data, math, expressions
 │   ├── analytics/                # return-series performance and risk statistics
 │   ├── attribution/              # multi-period P&L attribution
+│   ├── calibration/              # quote ingestion, market construction, calibration, replay caches
 │   ├── cashflows/                # schedule construction, accrual, dated flows
 │   ├── covenants/                # covenant specs, evaluation, forecasting
 │   ├── features/                 # vectorized panel feature transforms
 │   ├── margin/                   # CSA/VM/IM, SIMM, FRTB-SBA, SA-CCR, XVA
 │   ├── models/                   # analytical, numerical, factor, credit, correlation, stochastic models
-│   ├── valuations/               # instruments, pricing, calibration, metrics, results
+│   ├── valuations/               # instruments, pricing, recalibration port, metrics, results
 │   │   └── macros/               # `FinancialBuilder` derive used by valuations
 │   ├── statements/               # statement model graph and period evaluation
 │   ├── statements-analytics/     # DCF, scenario sets, sensitivity, ECL, backtesting
@@ -73,7 +74,7 @@ finstack-quant/
 ## Crate map
 
 `finstack-quant` is the umbrella crate. It has no cargo features and
-unconditionally re-exports all thirteen domain crates, so one dependency
+unconditionally re-exports all fourteen domain crates, so one dependency
 reaches the whole API.
 
 | Crate | Umbrella path | Provides |
@@ -81,12 +82,13 @@ reaches the whole API.
 | [`finstack-quant-core`](finstack-quant/core/README.md) | `finstack_quant::core` | `Money`/`Currency`/`Rate`, FX providers, dates and calendars, term structures, math, expression engine, config, `table` envelope |
 | [`finstack-quant-analytics`](finstack-quant/analytics/README.md) | `finstack_quant::analytics` | `Performance` entry point: return/risk scalars, drawdowns, rolling windows, alpha/beta, basic factor models |
 | [`finstack-quant-attribution`](finstack-quant/attribution/README.md) | `finstack_quant::attribution` | Multi-period P&L attribution: simple bridge, metrics-based, parallel, waterfall, Taylor |
+| [`finstack-quant-calibration`](finstack-quant/calibration/README.md) | `finstack_quant::calibration` | Quote ingestion, market construction, calibration engines, explicit model fitting, and cached quote replay |
 | [`finstack-quant-cashflows`](finstack-quant/cashflows/README.md) | `finstack_quant::cashflows` | Schedule construction, accrual, currency-preserving aggregation |
 | [`finstack-quant-covenants`](finstack-quant/covenants/README.md) | `finstack_quant::covenants` | Covenant specs, evaluation engine, threshold schedules, forecasting, standard packages |
 | [`finstack-quant-features`](finstack-quant/features/README.md) | `finstack_quant::features` | Time-series, cross-sectional, and panel feature transforms over `Option<f64>` columns |
 | [`finstack-quant-margin`](finstack-quant/margin/README.md) | `finstack_quant::margin` | CSA/repo terms, VM and IM engines (SIMM, schedule, haircut, CCP), collateral metrics, XVA config, regulatory capital |
 | [`finstack-quant-models`](finstack-quant/models/README.md) | `finstack_quant::models` | Closed-form/Fourier formulas, volatility, rates/DTSM, credit and structured-credit pool models, factor risk, liquidity, PDE/tree engines, and Monte Carlo |
-| [`finstack-quant-valuations`](finstack-quant/valuations/README.md) | `finstack_quant::valuations` | Instruments, market resolution, pricing registries, calibration, metrics, and result envelopes |
+| [`finstack-quant-valuations`](finstack-quant/valuations/README.md) | `finstack_quant::valuations` | Instruments, market resolution, pricing registries, recalibration provider contract, metrics, and result envelopes |
 | [`finstack-quant-statements`](finstack-quant/statements/README.md) | `finstack_quant::statements` | Statement model graph, DSL formulas, forecasting, corkscrews, deterministic period evaluation |
 | [`finstack-quant-statements-analytics`](finstack-quant/statements-analytics/README.md) | `finstack_quant::statements_analytics` | Sensitivity, scenario sets, variance, DCF, goal seek, covenant forecasting, backtesting, templates |
 | [`finstack-quant-portfolio`](finstack-quant/portfolio/README.md) | `finstack_quant::portfolio` | Entities and positions, valuation and metric aggregation, grouping, optimization, risk decomposition, materialization |
@@ -113,11 +115,12 @@ edges, read off the manifests:
 | `analytics`, `cashflows`, `covenants`, `features`, `margin` | nothing else in-workspace |
 | `models` | `analytics`, `cashflows` |
 | `valuations` | `analytics`, `cashflows`, `covenants`, `margin`, `models`, `valuations-macros` |
-| `attribution` | `cashflows`, `models`, `valuations` |
+| `calibration` | `cashflows`, `models`, `valuations` |
+| `attribution` | `calibration`, `cashflows`, `models`, `valuations` |
 | `statements` | `cashflows`, `valuations` |
 | `statements-analytics` | `covenants`, `statements`, `valuations` |
-| `scenarios` | `attribution`, `statements`, `valuations` |
-| `portfolio` | `attribution`, `cashflows`, `margin`, `models`, `scenarios`, `valuations` |
+| `scenarios` | `attribution`, `calibration`, `statements`, `valuations` |
+| `portfolio` | `attribution`, `calibration`, `cashflows`, `margin`, `models`, `scenarios`, `valuations` |
 
 `valuations` is the mid-stack hub and `portfolio` is the top. No Rust crate
 depends on a binding crate, and `core` never depends on `models`.

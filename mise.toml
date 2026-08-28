@@ -668,7 +668,7 @@ run = [
   "uv run --no-sync python scripts/check_schema_residue.py",
   "cargo run -p finstack-quant-core --bin gen_core_schemas -- --check",
   "cargo run -p finstack-quant-attribution --bin gen_attribution_schemas -- --check",
-  "cargo run -p finstack-quant-calibration --bin gen_schemas -- --check",
+  "cargo run -p finstack-quant-calibration --bin gen_calibration_schemas -- --check",
   "cargo run -p finstack-quant-cashflows --bin gen_cashflow_schemas -- --check",
   "cargo run -p finstack-quant-models --bin gen_factor_model_schemas -- --check",
   "cargo run -p finstack-quant-margin --bin gen_margin_schema -- --check",
@@ -695,7 +695,7 @@ description = "Regenerate typed JSON schemas from Rust types"
 run = [
   "cargo run -p finstack-quant-core --bin gen_core_schemas -- --write",
   "cargo run -p finstack-quant-attribution --bin gen_attribution_schemas -- --write",
-  "cargo run -p finstack-quant-calibration --bin gen_schemas -- --write",
+  "cargo run -p finstack-quant-calibration --bin gen_calibration_schemas -- --write",
   "cargo run -p finstack-quant-cashflows --bin gen_cashflow_schemas -- --write",
   "cargo run -p finstack-quant-models --bin gen_factor_model_schemas -- --write",
   "cargo run -p finstack-quant-margin --bin gen_margin_schema -- --write",
