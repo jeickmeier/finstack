@@ -324,12 +324,10 @@ mod tests {
             spread_decimal: Some(0.0010), // 10bp in decimal
         };
 
-        match quote {
-            RateQuote::Swap { spread_decimal, .. } => {
-                assert_eq!(spread_decimal, Some(0.0010));
-            }
-            _ => panic!("Expected Swap variant"),
-        }
+        let RateQuote::Swap { spread_decimal, .. } = quote else {
+            unreachable!("constructed swap quote should retain the Swap variant");
+        };
+        assert_eq!(spread_decimal, Some(0.0010));
     }
 
     /// Test that spread_decimal serializes and deserializes correctly
@@ -346,12 +344,10 @@ mod tests {
 
         let quote: RateQuote = serde_json::from_str(json).expect("Failed to deserialize");
 
-        match quote {
-            RateQuote::Swap { spread_decimal, .. } => {
-                assert_eq!(spread_decimal, Some(0.0010));
-            }
-            _ => panic!("Expected Swap variant"),
-        }
+        let RateQuote::Swap { spread_decimal, .. } = quote else {
+            unreachable!("deserialized swap quote should use the Swap variant");
+        };
+        assert_eq!(spread_decimal, Some(0.0010));
     }
 
     /// Old "spread" field should be rejected (use "spread_decimal")
@@ -399,12 +395,10 @@ mod tests {
 
         // Test round-trip: deserialize and verify
         let roundtrip: RateQuote = serde_json::from_str(&json).expect("Failed to deserialize");
-        match roundtrip {
-            RateQuote::Swap { spread_decimal, .. } => {
-                assert_eq!(spread_decimal, Some(0.0010));
-            }
-            _ => panic!("Expected Swap variant"),
-        }
+        let RateQuote::Swap { spread_decimal, .. } = roundtrip else {
+            unreachable!("round-tripped swap quote should retain the Swap variant");
+        };
+        assert_eq!(spread_decimal, Some(0.0010));
     }
 
     /// Test that None spread_decimal works correctly
@@ -421,12 +415,10 @@ mod tests {
             spread_decimal: None,
         };
 
-        match quote {
-            RateQuote::Swap { spread_decimal, .. } => {
-                assert_eq!(spread_decimal, None);
-            }
-            _ => panic!("Expected Swap variant"),
-        }
+        let RateQuote::Swap { spread_decimal, .. } = quote else {
+            unreachable!("constructed swap quote should retain the Swap variant");
+        };
+        assert_eq!(spread_decimal, None);
 
         // Test JSON without spread field
         let json = r#"{
@@ -439,12 +431,10 @@ mod tests {
 
         let quote: RateQuote =
             serde_json::from_str(json).expect("Failed to deserialize without spread");
-        match quote {
-            RateQuote::Swap { spread_decimal, .. } => {
-                assert_eq!(spread_decimal, None);
-            }
-            _ => panic!("Expected Swap variant"),
-        }
+        let RateQuote::Swap { spread_decimal, .. } = quote else {
+            unreachable!("deserialized swap quote should use the Swap variant");
+        };
+        assert_eq!(spread_decimal, None);
     }
 
     /// Test that bumping a swap preserves the spread_decimal
@@ -463,17 +453,16 @@ mod tests {
 
         let bumped = quote.bump_rate_decimal(0.0001); // Bump by 1bp
 
-        match bumped {
-            RateQuote::Swap {
-                rate,
-                spread_decimal,
-                ..
-            } => {
-                assert_eq!(rate, 0.0451); // rate bumped
-                assert_eq!(spread_decimal, Some(0.0010)); // spread unchanged
-            }
-            _ => panic!("Expected Swap variant"),
-        }
+        let RateQuote::Swap {
+            rate,
+            spread_decimal,
+            ..
+        } = bumped
+        else {
+            unreachable!("bumped swap quote should retain the Swap variant");
+        };
+        assert_eq!(rate, 0.0451); // rate bumped
+        assert_eq!(spread_decimal, Some(0.0010)); // spread unchanged
     }
 
     /// A +1bp *rate* bump must lower a futures price by 0.01

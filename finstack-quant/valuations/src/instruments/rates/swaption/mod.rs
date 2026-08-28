@@ -98,7 +98,8 @@
 //! - [`crate::instruments::rates::swaption::SwaptionExercise`] for exercise style specification
 //! - [`crate::instruments::rates::swaption::SwaptionSettlement`] for settlement type
 //! - swaption metrics module for risk metrics
-//! - [`crate::instruments::rates::swaption::SimpleSwaptionBlackPricer`] for Black model pricer
+//! - [`crate::instruments::rates::swaption::SimpleSwaptionBlackPricer`] for Black-76 pricing
+//! - [`crate::instruments::rates::swaption::SimpleSwaptionNormalPricer`] for Bachelier pricing
 //! - [`crate::instruments::rates::swaption::VolatilityModel`] for selecting Black vs Normal
 
 use finstack_quant_core::dates::Date;
@@ -115,7 +116,7 @@ pub mod lmm_pricer;
 pub(crate) mod metrics;
 /// Swaption parameters and market data extraction
 pub(crate) mod parameters;
-/// Swaption pricer implementation using Black (1976) model
+/// European swaption pricers for Black-76 and Bachelier normal models.
 pub(crate) mod pricer;
 /// Bermudan swaption pricing engines (tree, LSMC, LMM).
 ///
@@ -132,7 +133,7 @@ pub use bermudan::{
     PreparedHullWhiteModel,
 };
 pub use parameters::SwaptionParams;
-pub use pricer::SimpleSwaptionBlackPricer;
+pub use pricer::{SimpleSwaptionBlackPricer, SimpleSwaptionNormalPricer};
 pub use pricing::{lmm_bermudan::LmmBermudanConfig, BermudanSwaptionTreeValuator};
 pub use types::{
     BermudanSchedule, BermudanSwaption, BermudanType, CashSettlementMethod, GreekInputs, Swaption,
@@ -145,6 +146,16 @@ pub use types::{
 /// tenors (for example, 2Y, 5Y, 10Y), not by day-count year fractions. Business
 /// day adjustment and settlement lag can shorten or lengthen the actual accrual
 /// interval by a few days without changing that market tenor label.
+///
+/// # Arguments
+///
+/// * `start` - Contractual effective date of the underlying swap.
+/// * `end` - Contractual maturity date of the underlying swap.
+///
+/// # Errors
+///
+/// Returns a validation error when `end` is not after `start` or the dates do
+/// not define a positive whole-month tenor.
 pub fn contractual_swap_tenor_years(start: Date, end: Date) -> finstack_quant_core::Result<f64> {
     if end <= start {
         return Err(finstack_quant_core::Error::Validation(format!(

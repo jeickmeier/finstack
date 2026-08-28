@@ -5,7 +5,7 @@ use super::{ModelKey, PricerRegistry, PricingError, PricingErrorContext};
 use crate::instruments::common_impl::helpers::{compute_metrics_dyn, MetricBuildOptions};
 use crate::instruments::Instrument;
 use crate::metrics::risk::MarketHistory;
-use crate::metrics::MetricId;
+use crate::metrics::{MetricId, MetricRegistry};
 use crate::results::ValuationResult;
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::dates::Date;
@@ -20,6 +20,7 @@ pub(super) struct EnrichmentRequest<'a> {
     pub(super) metrics: &'a [MetricId],
     pub(super) cfg: Option<Arc<FinstackConfig>>,
     pub(super) market_history: Option<Arc<MarketHistory>>,
+    pub(super) metric_registry: Option<Arc<MetricRegistry>>,
     pub(super) recalibration_provider: Option<Arc<dyn crate::recalibration::RecalibrationProvider>>,
     pub(super) pricer_registry: Arc<PricerRegistry>,
     pub(super) base_result: ValuationResult,
@@ -36,12 +37,12 @@ pub(super) fn enrich(
         metrics,
         cfg,
         market_history,
+        metric_registry,
         recalibration_provider,
         pricer_registry,
         mut base_result,
     } = request;
     let err_ctx = PricingErrorContext::from_instrument(instrument).model(model);
-    let metric_registry = pricer_registry.metric_registry_override();
 
     if let Some(composite) = instrument
         .as_any()
@@ -52,7 +53,9 @@ pub(super) fn enrich(
             market_history,
             model: None,
             registry: Some(Arc::clone(&pricer_registry)),
+            metric_registry,
             recalibration_provider,
+            instrument_validated: false,
         };
         let (metric_measures, details) = composite
             .valuation_details_with_metrics(market.as_ref(), as_of, metrics, options)

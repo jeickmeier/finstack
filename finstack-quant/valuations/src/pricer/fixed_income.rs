@@ -19,11 +19,8 @@ pub(crate) fn register_fixed_income_pricers(
     );
 
     // Convertible Bond
-    registry.register(
-        InstrumentType::Convertible,
-        ModelKey::Discounting,
-        crate::instruments::fixed_income::convertible::pricer::ConvertibleTreePricer,
-    )?;
+    registry
+        .register(crate::instruments::fixed_income::convertible::pricer::ConvertibleTreePricer)?;
 
     // Inflation Linked Bond
     register_generic!(
@@ -34,16 +31,12 @@ pub(crate) fn register_fixed_income_pricers(
 
     // Revolving Credit
     registry.register(
-        InstrumentType::RevolvingCredit,
-        ModelKey::Discounting,
         crate::instruments::fixed_income::revolving_credit::pricer::RevolvingCreditPricer::new(
             ModelKey::Discounting,
         ),
     )?;
 
     registry.register(
-        InstrumentType::RevolvingCredit,
-        ModelKey::MonteCarloGBM,
         crate::instruments::fixed_income::revolving_credit::pricer::RevolvingCreditPricer::new(
             ModelKey::MonteCarloGBM,
         ),
@@ -51,13 +44,9 @@ pub(crate) fn register_fixed_income_pricers(
 
     // Term Loan (including DDTL)
     registry.register(
-        InstrumentType::TermLoan,
-        ModelKey::Discounting,
         crate::instruments::fixed_income::term_loan::pricing::TermLoanDiscountingPricer,
     )?;
     registry.register(
-        InstrumentType::TermLoan,
-        ModelKey::Tree,
         crate::instruments::fixed_income::term_loan::pricing::TermLoanTreePricer::default(),
     )?;
 

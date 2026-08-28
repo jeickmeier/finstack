@@ -44,9 +44,9 @@ use crate::instruments::fixed_income::mbs_passthrough::{
     pricer::project_cashflows as project_mbs_cashflows, AgencyMbsPassthrough,
 };
 use crate::instruments::fx::fx_swap::FxSwap;
-use crate::instruments::json_loader::InstrumentEnvelope;
 use crate::instruments::rates::xccy_swap::XccySwap;
-use crate::pricer::{shared_standard_registry, ModelKey, PricerKey};
+use crate::instruments::Instrument;
+use crate::pricer::{shared_standard_registry, ModelKey, ParsedInstrument, PricerKey};
 
 // Envelope schema
 
@@ -159,21 +159,50 @@ pub fn instrument_cashflows_json(
     as_of: &str,
     model: &str,
 ) -> Result<String> {
-    let envelope = build_envelope(instrument_json, market, as_of, model)?;
+    let instrument = crate::pricer::parse_boxed_instrument_json(instrument_json, None)?;
+    instrument_cashflows(&instrument, market, as_of, model)
+}
+
+/// Build and serialize the enriched cashflow envelope for an already parsed
+/// and validated instrument.
+///
+/// This is the canonical core behind [`instrument_cashflows_json`]. Host
+/// bindings use it after parsing the instrument so validation precedence does
+/// not require a second deserialization.
+///
+/// # Arguments
+///
+/// * `instrument` - Validated instrument whose cashflows are projected and
+///   reconciled to canonical pricing.
+/// * `market` - Market context supplying discount, credit, index, and FX data
+///   required to build and value the cashflow schedule.
+/// * `as_of` - ISO-8601 valuation date used for schedule eligibility and
+///   cashflow present values.
+/// * `model` - Registered pricing-model name: `"discounting"` or
+///   `"hazard_rate"` when that instrument/model pair is supported.
+///
+/// # Errors
+///
+/// Returns `Error::Validation` if the model is unsupported, the instrument and
+/// model are not registered together, required market data is missing, or the
+/// resulting cashflows cannot be reconciled or serialized.
+pub fn instrument_cashflows(
+    instrument: &ParsedInstrument,
+    market: &MarketContext,
+    as_of: &str,
+    model: &str,
+) -> Result<String> {
+    let envelope = build_envelope(instrument.as_instrument(), market, as_of, model)?;
     serde_json::to_string(&envelope)
         .map_err(|e| Error::Validation(format!("failed to serialize cashflow envelope: {e}")))
 }
 
 fn build_envelope(
-    instrument_json: &str,
+    instrument: &dyn Instrument,
     market: &MarketContext,
     as_of: &str,
     model: &str,
 ) -> Result<InstrumentCashflowEnvelope> {
-    // Validate the instrument before resolving model/date inputs or touching
-    // market data so every public valuation route reports malformed
-    // instruments consistently.
-    let instrument = InstrumentEnvelope::from_str(instrument_json)?;
     let instrument_type = instrument.key();
     let instrument_id = instrument.id().to_string();
 
@@ -206,12 +235,12 @@ fn build_envelope(
     // effective valuation date and the scenario-adjusted value used for honest
     // reconciliation below.
     let canonical_result = registry.price_with_metrics(
-        instrument.as_ref(),
+        instrument,
         model_key,
         market,
         requested_as_of,
         &[],
-        crate::instruments::PricingOptions::default(),
+        crate::instruments::PricingOptions::default().mark_instrument_validated(),
     )?;
     let as_of_date = canonical_result.as_of;
 
@@ -387,10 +416,8 @@ fn build_envelope(
                 as_of_date,
             )?
             .amount();
-        let pv = crate::instruments::common_impl::helpers::apply_scenario_raw_value(
-            instrument.as_ref(),
-            base_pv,
-        );
+        let pv =
+            crate::instruments::common_impl::helpers::apply_scenario_raw_value(instrument, base_pv);
 
         let mbs_row = mbs_state.as_ref().and_then(|m| m.get(&flow.date));
 

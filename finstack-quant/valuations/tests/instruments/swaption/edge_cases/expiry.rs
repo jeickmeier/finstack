@@ -71,11 +71,7 @@ fn at_expiry_direct_sabr_and_registry_models_share_intrinsic_without_volatility(
     assert!(direct > 0.0, "deep-ITM payer must have positive intrinsic");
     assert!((sabr - direct).abs() < 1e-8);
 
-    for model in [
-        ModelKey::Discounting,
-        ModelKey::Black76,
-        ModelKey::HullWhite1F,
-    ] {
+    for model in [ModelKey::Black76, ModelKey::HullWhite1F] {
         let registry = swaption
             .price_with_metrics(
                 &market,

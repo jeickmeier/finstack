@@ -708,7 +708,6 @@ impl TreePricer {
             .quote_from_continuous_decimal(continuous_oas_bp / 10_000.0)
             * 10_000.0)
     }
-
 }
 
 impl Default for TreePricer {

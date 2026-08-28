@@ -370,7 +370,8 @@ pub fn compute_horizon_return(
     let boxed =
         finstack_quant_valuations::pricer::json::parse_boxed_instrument_json(instrument_json, None)
             .map_err(to_js_err)?;
-    let instrument: Arc<dyn finstack_quant_valuations::instruments::Instrument> = Arc::from(boxed);
+    let instrument: Arc<dyn finstack_quant_valuations::instruments::Instrument> =
+        Arc::from(boxed.into_boxed());
 
     let market: finstack_quant_core::market_data::context::MarketContext =
         serde_json::from_str(market_json).map_err(to_js_err)?;

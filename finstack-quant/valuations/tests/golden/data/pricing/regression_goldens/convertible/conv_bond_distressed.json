@@ -16,7 +16,7 @@
     "screenshots": []
   },
   "kind": "pricing",
-  "model": "discounting",
+  "model": "tree",
   "market": {
     "kind": "envelope",
     "envelope": {

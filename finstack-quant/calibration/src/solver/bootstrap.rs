@@ -1056,16 +1056,14 @@ mod w40_tests {
             "Item 10: a no-bracket local-minimum knot must be a hard failure, \
              not a successful calibration",
         );
-        match err {
-            finstack_quant_core::Error::Calibration { message, category } => {
-                assert_eq!(category, "bootstrapping");
-                assert!(
-                    message.contains("no converged root") && message.contains("sign-change root"),
-                    "error must explain the no-bracket failure mode; got: {message}"
-                );
-            }
-            other => panic!("expected a Calibration error, got: {other:?}"),
-        }
+        let finstack_quant_core::Error::Calibration { message, category } = err else {
+            unreachable!("no-bracket failure should return a Calibration error");
+        };
+        assert_eq!(category, "bootstrapping");
+        assert!(
+            message.contains("no converged root") && message.contains("sign-change root"),
+            "error must explain the no-bracket failure mode; got: {message}"
+        );
     }
 
     /// Gate-bypass regression: a no-bracket candidate returned on the solver's
@@ -1107,16 +1105,14 @@ mod w40_tests {
             "a no-bracket Some-path knot must be a hard failure when the target \
              does not opt into approximate knots",
         );
-        match err {
-            finstack_quant_core::Error::Calibration { message, category } => {
-                assert_eq!(category, "bootstrapping");
-                assert!(
-                    message.contains("sign-change root"),
-                    "error must explain the no-bracket failure mode; got: {message}"
-                );
-            }
-            other => panic!("expected a Calibration error, got: {other:?}"),
-        }
+        let finstack_quant_core::Error::Calibration { message, category } = err else {
+            unreachable!("no-bracket failure should return a Calibration error");
+        };
+        assert_eq!(category, "bootstrapping");
+        assert!(
+            message.contains("sign-change root"),
+            "error must explain the no-bracket failure mode; got: {message}"
+        );
     }
 
     /// Same target/quote economics as

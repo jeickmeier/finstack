@@ -1547,16 +1547,14 @@ mod tests {
 
         let err =
             GlobalFitOptimizer::optimize(&target, &quotes, &config, None).expect_err("should fail");
-        match err {
-            Error::Calibration { message, .. } => {
-                assert!(
-                    message.contains("times.len() == initials.len()"),
-                    "unexpected message: {}",
-                    message
-                );
-            }
-            other => panic!("unexpected error type: {:?}", other),
-        }
+        let Error::Calibration { message, .. } = err else {
+            unreachable!("length mismatch should return a Calibration error");
+        };
+        assert!(
+            message.contains("times.len() == initials.len()"),
+            "unexpected message: {}",
+            message
+        );
     }
 
     #[test]
@@ -1567,16 +1565,14 @@ mod tests {
 
         let err =
             GlobalFitOptimizer::optimize(&target, &quotes, &config, None).expect_err("should fail");
-        match err {
-            Error::Calibration { message, .. } => {
-                assert!(
-                    message.contains("strictly increasing"),
-                    "unexpected message: {}",
-                    message
-                );
-            }
-            other => panic!("unexpected error type: {:?}", other),
-        }
+        let Error::Calibration { message, .. } = err else {
+            unreachable!("non-increasing times should return a Calibration error");
+        };
+        assert!(
+            message.contains("strictly increasing"),
+            "unexpected message: {}",
+            message
+        );
     }
 
     #[test]
@@ -1587,17 +1583,15 @@ mod tests {
 
         let err =
             GlobalFitOptimizer::optimize(&target, &quotes, &config, None).expect_err("should fail");
-        match err {
-            Error::Calibration { message, .. } => {
-                assert!(
-                    message.contains("non-negative finite times")
-                        || message.contains("finite initial guesses"),
-                    "unexpected message: {}",
-                    message
-                );
-            }
-            other => panic!("unexpected error type: {:?}", other),
-        }
+        let Error::Calibration { message, .. } = err else {
+            unreachable!("non-finite inputs should return a Calibration error");
+        };
+        assert!(
+            message.contains("non-negative finite times")
+                || message.contains("finite initial guesses"),
+            "unexpected message: {}",
+            message
+        );
     }
 
     #[test]
@@ -1818,15 +1812,13 @@ mod tests {
 
         let err = GlobalFitOptimizer::optimize(&target, &quotes, &config, None)
             .expect_err("n_residuals < n_params should fail");
-        match err {
-            Error::Calibration { message, .. } => {
-                assert!(
-                    message.contains("n_residuals >= n_params"),
-                    "unexpected message: {message}"
-                );
-            }
-            other => panic!("unexpected error type: {other:?}"),
-        }
+        let Error::Calibration { message, .. } = err else {
+            unreachable!("underdetermined systems should return a Calibration error");
+        };
+        assert!(
+            message.contains("n_residuals >= n_params"),
+            "unexpected message: {message}"
+        );
     }
 
     #[test]
@@ -1838,29 +1830,25 @@ mod tests {
             let target = TestTarget::from_len(2, vec![0.01, 0.02]).with_weights(weights);
             let err = GlobalFitOptimizer::optimize(&target, &quotes, &config, None)
                 .expect_err("invalid weights should fail");
-            match err {
-                Error::Calibration { message, .. } => {
-                    assert!(
-                        message.contains("non-negative finite residual weights"),
-                        "unexpected message: {message}"
-                    );
-                }
-                other => panic!("unexpected error type: {other:?}"),
-            }
+            let Error::Calibration { message, .. } = err else {
+                unreachable!("invalid residual weights should return a Calibration error");
+            };
+            assert!(
+                message.contains("non-negative finite residual weights"),
+                "unexpected message: {message}"
+            );
         }
 
         let zero_target = TestTarget::from_len(2, vec![0.01, 0.02]).with_weights(vec![0.0, 0.0]);
         let zero_err = GlobalFitOptimizer::optimize(&zero_target, &quotes, &config, None)
             .expect_err("all-zero weights should fail");
-        match zero_err {
-            Error::Calibration { message, .. } => {
-                assert!(
-                    message.contains("at least one positive residual weight"),
-                    "unexpected message: {message}"
-                );
-            }
-            other => panic!("unexpected error type: {other:?}"),
-        }
+        let Error::Calibration { message, .. } = zero_err else {
+            unreachable!("all-zero residual weights should return a Calibration error");
+        };
+        assert!(
+            message.contains("at least one positive residual weight"),
+            "unexpected message: {message}"
+        );
     }
 
     #[test]

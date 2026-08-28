@@ -812,9 +812,7 @@ fn tree_finite_difference_greeks(
 }
 
 /// Registry pricer for Equity Option using Black-Scholes model
-pub(crate) struct SimpleEquityOptionBlackPricer {
-    model: crate::pricer::ModelKey,
-}
+pub(crate) struct SimpleEquityOptionBlackPricer;
 
 impl SimpleEquityOptionBlackPricer {
     /// Create new Black-Scholes pricer with default model.
@@ -824,14 +822,7 @@ impl SimpleEquityOptionBlackPricer {
     /// equivalent (BSM is Black-76 applied to the forward
     /// `F = S × exp((r-q)T)`), so the same model key covers both.
     pub(crate) fn new() -> Self {
-        Self {
-            model: crate::pricer::ModelKey::Black76,
-        }
-    }
-
-    /// Create pricer with specified model key
-    pub(crate) fn with_model(model: crate::pricer::ModelKey) -> Self {
-        Self { model }
+        Self
     }
 }
 
@@ -843,7 +834,10 @@ impl Default for SimpleEquityOptionBlackPricer {
 
 impl crate::pricer::Pricer for SimpleEquityOptionBlackPricer {
     fn key(&self) -> crate::pricer::PricerKey {
-        crate::pricer::PricerKey::new(crate::pricer::InstrumentType::EquityOption, self.model)
+        crate::pricer::PricerKey::new(
+            crate::pricer::InstrumentType::EquityOption,
+            crate::pricer::ModelKey::Black76,
+        )
     }
 
     #[tracing::instrument(
@@ -881,7 +875,7 @@ impl crate::pricer::Pricer for SimpleEquityOptionBlackPricer {
             crate::pricer::PricingError::model_failure_with_context(
                 e.to_string(),
                 crate::pricer::PricingErrorContext::from_instrument(equity_option)
-                    .model(self.model),
+                    .model(self.key().model),
             )
         })?;
 
@@ -1094,6 +1088,42 @@ mod tests {
             .attributes(Attributes::new())
             .build()
             .expect("equity option")
+    }
+
+    #[test]
+    fn equity_option_default_equals_black76_for_pv_and_raw() {
+        let as_of = date(2025, 1, 1);
+        let option = option(date(2026, 1, 1), OptionType::Call, ExerciseStyle::European);
+        let market = market(as_of, 100.0, 0.20, 0.03, 0.01);
+        let registry = crate::pricer::standard_registry();
+
+        let default = option
+            .price_with_metrics(
+                &market,
+                as_of,
+                &[],
+                crate::instruments::PricingOptions::default(),
+            )
+            .expect("default equity-option price");
+        let black76 = registry
+            .price_with_metrics(
+                &option,
+                ModelKey::Black76,
+                &market,
+                as_of,
+                &[],
+                crate::instruments::PricingOptions::default(),
+            )
+            .expect("Black76 equity-option price");
+        let default_raw = option
+            .value_raw(&market, as_of)
+            .expect("default equity-option raw price");
+        let black76_raw = registry
+            .price_raw(&option, ModelKey::Black76, &market, as_of)
+            .expect("Black76 equity-option raw price");
+
+        assert_eq!(default.value, black76.value);
+        assert_eq!(default_raw, black76_raw);
     }
 
     #[test]

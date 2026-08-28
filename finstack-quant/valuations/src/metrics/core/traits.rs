@@ -616,16 +616,9 @@ impl MetricContext {
             PricingDispatch::Registered { model, registry } => {
                 let options =
                     crate::instruments::PricingOptions::default().with_config(self.config());
-                Ok(crate::pricer::PricerRegistry::price_with_metrics_shared(
-                    registry,
-                    instrument,
-                    *model,
-                    market,
-                    as_of,
-                    &[],
-                    options,
-                )?
-                .value)
+                Ok(registry
+                    .price_with_metrics(instrument, *model, market, as_of, &[], options)?
+                    .value)
             }
             PricingDispatch::InstrumentDefault => instrument.value(market, as_of),
         }

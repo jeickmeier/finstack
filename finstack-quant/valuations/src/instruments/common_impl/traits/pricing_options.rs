@@ -4,7 +4,7 @@
 
 use crate::metrics::risk::MarketHistory;
 use crate::metrics::MetricRegistry;
-use crate::pricer::{shared_standard_registry, ModelKey, PricerRegistry};
+use crate::pricer::{ModelKey, PricerRegistry};
 use finstack_quant_core::config::FinstackConfig;
 use std::sync::Arc;
 
@@ -31,8 +31,12 @@ pub struct PricingOptions {
     pub model: Option<ModelKey>,
     /// Optional explicit pricer registry override.
     pub registry: Option<Arc<PricerRegistry>>,
+    /// Optional explicit metric registry override.
+    pub metric_registry: Option<Arc<MetricRegistry>>,
     /// Quote-recalibration service shared by one immutable pricing batch.
     pub recalibration_provider: Option<Arc<dyn crate::recalibration::RecalibrationProvider>>,
+    /// Whether a trusted parsed-instrument boundary already performed validation.
+    pub(crate) instrument_validated: bool,
 }
 
 impl PricingOptions {
@@ -112,18 +116,17 @@ impl PricingOptions {
 
     /// Set an explicit metric registry for this pricing request.
     ///
-    /// The metric registry is attached to the selected pricer registry so the
-    /// existing [`Self::registry`] field remains the single dispatch bundle.
-    /// Call [`Self::with_registry`] first when overriding both registries; a
-    /// later `with_registry` call replaces the complete registry selection.
+    /// # Arguments
+    ///
+    /// * `metric_registry` - Registry used to resolve and calculate requested
+    ///   metrics. This selection is independent of the pricer registry.
     pub fn with_metric_registry(mut self, metric_registry: Arc<MetricRegistry>) -> Self {
-        let registry = self
-            .registry
-            .as_deref()
-            .cloned()
-            .unwrap_or_else(|| shared_standard_registry().as_ref().clone())
-            .with_metric_registry(metric_registry);
-        self.registry = Some(Arc::new(registry));
+        self.metric_registry = Some(metric_registry);
+        self
+    }
+
+    pub(crate) fn mark_instrument_validated(mut self) -> Self {
+        self.instrument_validated = true;
         self
     }
 }

@@ -72,6 +72,11 @@ where
         Ok(Self { instrument })
     }
 
+    /// Enter the lifecycle after a trusted boundary already validated the instrument.
+    pub(crate) fn from_validated(instrument: &'a I) -> Self {
+        Self { instrument }
+    }
+
     /// Resolve the instrument's effective valuation date after validation.
     pub(crate) fn effective_as_of(&self, market: &MarketContext, requested: Date) -> Date {
         self.instrument.resolve_pricing_as_of(market, requested)

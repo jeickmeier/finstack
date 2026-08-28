@@ -156,7 +156,8 @@ class CopulaSpec:
         Parameters
         ----------
         num_factors : int
-            Number of systematic factors.
+            Requested number of systematic factors, clamped to the supported
+            range of one or two.
 
         Returns
         -------
@@ -172,7 +173,7 @@ class CopulaSpec:
         >>> from finstack_quant.models.correlation import CopulaSpec
         >>> spec = CopulaSpec.multi_factor(3)
         >>> (spec.is_multi_factor, spec.build().num_factors)
-        (True, 3)
+        (True, 2)
         """
         ...
 

@@ -1056,7 +1056,7 @@ mod tests {
     fn json_parse_error_surfaces_as_strict_load_diagnostic() {
         let error = dry_run("not json").expect_err("malformed JSON");
         let EnvelopeError::StrictLoad { message } = error else {
-            panic!("expected strict load error");
+            unreachable!("malformed JSON should produce a strict load error");
         };
         assert!(!message.is_empty());
     }
@@ -1165,7 +1165,7 @@ mod tests {
                         &bytes,
                         &LoadLimits::default(),
                     )
-                    .unwrap_or_else(|error| panic!("{name} must load: {error}"));
+                    .expect("current calibration result schema should load");
                     assert_eq!(loaded.schema, CalibrationSchema::Calibration);
                     assert!(report.diagnostics.is_empty());
                 }
@@ -1176,7 +1176,7 @@ mod tests {
                     )
                     .expect_err("invalid result schema must fail");
                     let ContractError::Report(report) = error else {
-                        panic!("{name} must return a structured report");
+                        unreachable!("{name} must return a structured report");
                     };
                     assert_eq!(report.diagnostics[0].code, expected_code, "{name}");
                 }
@@ -1227,13 +1227,13 @@ mod tests {
                 CalibrationResultEnvelope::from_slice_strict(&bytes, &LoadLimits::default())
                     .expect_err("nested final market version must fail");
             let ContractError::Report(report) = error else {
-                panic!("{name} nested version must return diagnostics");
+                unreachable!("{name} nested version must return diagnostics");
             };
             let diagnostic = report
                 .diagnostics
                 .iter()
                 .find(|diagnostic| diagnostic.code == expected_code)
-                .unwrap_or_else(|| panic!("{name} missing {expected_code}: {report:?}"));
+                .expect("nested version report should contain the expected diagnostic code");
             assert_eq!(
                 diagnostic.pointer.as_deref(),
                 Some("/result/final_market/schema_version"),
@@ -1248,7 +1248,7 @@ mod tests {
         let error = CalibrationResultEnvelope::from_slice_strict(&bytes, &LoadLimits::default())
             .expect_err("invalid nested market references must fail");
         let ContractError::Report(report) = error else {
-            panic!("restore failure must return diagnostics");
+            unreachable!("restore failure must return diagnostics");
         };
         let diagnostic = report
             .diagnostics
@@ -1277,7 +1277,7 @@ mod tests {
         )
         .expect_err("nested final market depth must be enforced");
         let ContractError::Report(report) = error else {
-            panic!("nested depth must return bounded structured diagnostics");
+            unreachable!("nested depth must return bounded structured diagnostics");
         };
         assert_eq!(report.diagnostics.len(), 1);
         let depth = report

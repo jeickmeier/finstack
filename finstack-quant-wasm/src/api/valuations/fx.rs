@@ -12,8 +12,8 @@
 //! deterministic stream set `mc_seed_scenario` inside the instrument JSON.
 
 use super::pricing::{
-    metric_value_with_context, parse_market_json, price_result_with_context,
-    standard_option_greeks_with_context, validate_pricing_instrument_json,
+    metric_value_with_context, parse_market_json, parse_pricing_instrument_json,
+    price_result_with_context, standard_option_greeks_with_context,
 };
 use crate::utils::{to_js_err, to_js_error, to_js_value};
 use finstack_quant_valuations::pricer::{
@@ -45,7 +45,7 @@ fn pretty_json(json: &str) -> Result<String, JsValue> {
 /// the Python typed wrappers' `id` property.
 fn instrument_id_from_json(json: &str) -> Result<String, JsValue> {
     finstack_quant_valuations::pricer::parse_boxed_instrument_json(json, None)
-        .map(|instrument| instrument.id().to_string())
+        .map(|instrument| instrument.as_instrument().id().to_string())
         .map_err(|e| to_js_error(&e))
 }
 
@@ -58,7 +58,7 @@ fn price_payload(
     pricing_options: Option<String>,
     market_history: Option<String>,
 ) -> Result<JsValue, JsValue> {
-    validate_pricing_instrument_json(json, pricing_options.as_deref())?;
+    let instrument = parse_pricing_instrument_json(json, pricing_options.as_deref())?;
     let market = parse_market_json(market_json)?;
     let metrics: Vec<String> = match metrics {
         None => Vec::new(),
@@ -66,12 +66,11 @@ fn price_payload(
         Some(value) => serde_wasm_bindgen::from_value(value).map_err(to_js_err)?,
     };
     let result = price_result_with_context(
-        json,
+        &instrument,
         &market,
         as_of,
         model.as_deref().unwrap_or("default"),
         metrics,
-        pricing_options.as_deref(),
         market_history.as_deref(),
     )?;
     to_js_value(&result)
@@ -84,10 +83,10 @@ fn metric_value(
     model: Option<String>,
     metric: &str,
 ) -> Result<f64, JsValue> {
-    validate_pricing_instrument_json(json, None)?;
+    let instrument = parse_pricing_instrument_json(json, None)?;
     let market = parse_market_json(market_json)?;
     metric_value_with_context(
-        json,
+        &instrument,
         &market,
         as_of,
         model.as_deref().unwrap_or("default"),
@@ -106,10 +105,10 @@ fn option_greeks_object(
     as_of: &str,
     model: Option<&str>,
 ) -> Result<JsValue, JsValue> {
-    validate_pricing_instrument_json(instrument_json, None)?;
+    let instrument = parse_pricing_instrument_json(instrument_json, None)?;
     let market = parse_market_json(market_json)?;
     let pairs = standard_option_greeks_with_context(
-        instrument_json,
+        &instrument,
         &market,
         as_of,
         model.unwrap_or("default"),
@@ -124,6 +123,37 @@ fn option_greeks_object(
         out.insert(metric.to_string(), Value::from(value));
     }
     to_js_value(&Value::Object(out))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn public_json_routes_validate_instrument_before_market_json() {
+        assert!(price_payload(
+            "{}",
+            "not-market-json",
+            "not-a-date",
+            Some("not-a-model".to_string()),
+            None,
+            None,
+            None,
+        )
+        .is_err());
+        assert!(metric_value(
+            "{}",
+            "not-market-json",
+            "not-a-date",
+            Some("not-a-model".to_string()),
+            "not-a-metric",
+        )
+        .is_err());
+        assert!(
+            option_greeks_object("{}", "not-market-json", "not-a-date", Some("not-a-model"),)
+                .is_err()
+        );
+    }
 }
 
 macro_rules! fx_class {

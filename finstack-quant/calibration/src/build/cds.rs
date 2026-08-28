@@ -303,7 +303,8 @@ mod tests {
     use time::Month;
 
     fn cds_build_ctx() -> BuildCtx {
-        let as_of = Date::from_calendar_date(2024, Month::January, 2).unwrap();
+        let as_of =
+            Date::from_calendar_date(2024, Month::January, 2).expect("valid CDS build date");
         let mut curve_ids = HashMap::default();
         curve_ids.insert("discount".to_string(), "USD-OIS".to_string());
         curve_ids.insert("credit".to_string(), "ABC-CORP".to_string());
@@ -320,7 +321,8 @@ mod tests {
         let ctx = cds_build_ctx();
 
         // June 20, 2026 is a Saturday - pick this as our explicit maturity date
-        let explicit_maturity = Date::from_calendar_date(2026, Month::June, 20).unwrap();
+        let explicit_maturity =
+            Date::from_calendar_date(2026, Month::June, 20).expect("valid CDS maturity date");
 
         let quote = CdsQuote::CdsParSpread {
             id: QuoteId::new("CDS-TEST-5Y"),
@@ -370,7 +372,7 @@ mod tests {
                 currency: Currency::USD,
                 doc_clause: CdsDocClause::IsdaNa,
             },
-            pillar: Pillar::Tenor("5Y".parse().unwrap()),
+            pillar: Pillar::Tenor("5Y".parse().expect("valid 5Y CDS tenor")),
             spread_bp: 100.0,
             recovery_rate: 0.40,
         };
@@ -410,7 +412,8 @@ mod tests {
         ];
 
         for ((ty, tm, td), (ey, em, ed)) in cases {
-            let as_of = Date::from_calendar_date(ty, tm, td).unwrap();
+            let as_of =
+                Date::from_calendar_date(ty, tm, td).expect("valid CDS trade-date test case");
             let mut curve_ids = HashMap::default();
             curve_ids.insert("discount".to_string(), "USD-OIS".to_string());
             curve_ids.insert("credit".to_string(), "ABC-CORP".to_string());
@@ -423,7 +426,7 @@ mod tests {
                     currency: Currency::USD,
                     doc_clause: CdsDocClause::IsdaNa,
                 },
-                pillar: Pillar::Tenor("5Y".parse().unwrap()),
+                pillar: Pillar::Tenor("5Y".parse().expect("valid 5Y CDS tenor")),
                 spread_bp: 100.0,
                 recovery_rate: 0.40,
             };
@@ -434,7 +437,8 @@ mod tests {
                 .downcast_ref::<CreditDefaultSwap>()
                 .expect("Expected CreditDefaultSwap");
 
-            let expected = Date::from_calendar_date(ey, em, ed).unwrap();
+            let expected =
+                Date::from_calendar_date(ey, em, ed).expect("valid expected CDS maturity");
             assert_eq!(
                 cds.premium.end, expected,
                 "trade {as_of}: expected 5Y maturity {expected}, got {}",
@@ -447,7 +451,8 @@ mod tests {
 
     #[test]
     fn test_cds_tenor_pillar_runs_from_spot_not_prior_imm_start() -> Result<()> {
-        let as_of = Date::from_calendar_date(2026, Month::May, 2).unwrap();
+        let as_of = Date::from_calendar_date(2026, Month::May, 2)
+            .expect("valid CDS spot-date regression date");
         let mut curve_ids = HashMap::default();
         curve_ids.insert("discount".to_string(), "USD-OIS".to_string());
         curve_ids.insert("credit".to_string(), "IBM-USD-SENIOR".to_string());
@@ -460,7 +465,7 @@ mod tests {
                 currency: Currency::USD,
                 doc_clause: CdsDocClause::IsdaNa,
             },
-            pillar: Pillar::Tenor("5Y".parse().unwrap()),
+            pillar: Pillar::Tenor("5Y".parse().expect("valid 5Y CDS tenor")),
             spread_bp: 60.5,
             recovery_rate: 0.40,
         };
@@ -474,7 +479,7 @@ mod tests {
 
         assert_eq!(
             cds.premium.end,
-            Date::from_calendar_date(2031, Month::June, 20).unwrap()
+            Date::from_calendar_date(2031, Month::June, 20).expect("valid expected CDS maturity")
         );
 
         Ok(())
@@ -490,7 +495,7 @@ mod tests {
                 currency: Currency::USD,
                 doc_clause: CdsDocClause::IsdaNa,
             },
-            pillar: Pillar::Tenor("5Y".parse().unwrap()),
+            pillar: Pillar::Tenor("5Y".parse().expect("valid 5Y CDS tenor")),
             spread_bp: 100.0,
             recovery_rate: 1.5,
         };
@@ -508,7 +513,7 @@ mod tests {
                 currency: Currency::USD,
                 doc_clause: CdsDocClause::IsdaNa,
             },
-            pillar: Pillar::Tenor("5Y".parse().unwrap()),
+            pillar: Pillar::Tenor("5Y".parse().expect("valid 5Y CDS tenor")),
             spread_bp: 100.0,
             recovery_rate: -0.1,
         };

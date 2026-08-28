@@ -1,17 +1,34 @@
 //! WASM bindings for standalone structured-credit tranche analytics.
 //!
 //! Mirrors the Python `StructuredCredit` metric methods — discount margin, OAS,
-//! break-even CDR and the scenario table — as free functions that wrap the
-//! `pricer::structured_credit_*_json` entry points: parse the market JSON,
-//! dispatch, and return a scalar or a typed plain object. The OAS, metrics,
-//! and scenario-table entry points return structured JavaScript objects with
-//! the same snake_case fields Python exposes through its `OasResult` /
-//! `TrancheMetrics` / `ScenarioTable` wrappers. The exported JS surface lives
-//! under `valuations.instruments`.
+//! break-even CDR and the scenario table — as free functions that parse the
+//! canonical envelope and dispatch to the typed structured-credit domain API.
+//! The OAS, metrics, and scenario-table entry points return structured
+//! JavaScript objects with the same snake_case fields Python exposes through
+//! its `OasResult` / `TrancheMetrics` / `ScenarioTable` wrappers. The exported
+//! JS surface lives under `valuations.instruments`.
 
-use super::pricing::{parse_market_json, validate_pricing_instrument_json};
+use super::pricing::parse_market_json;
 use crate::utils::{to_js_error, to_js_value};
+use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
+    self as rust_structured_credit, StructuredCredit,
+};
+use finstack_quant_valuations::instruments::InstrumentJson;
 use wasm_bindgen::prelude::*;
+
+fn parse_structured_credit(instrument_json: &str) -> Result<StructuredCredit, JsValue> {
+    match finstack_quant_valuations::pricer::json::parse_instrument_json(instrument_json)
+        .map_err(|error| to_js_error(&error))?
+    {
+        InstrumentJson::StructuredCredit(deal) => Ok(*deal),
+        other => Err(to_js_error(&finstack_quant_core::Error::Validation(
+            format!(
+                "expected a structured_credit instrument, got {}",
+                other.type_tag()
+            ),
+        ))),
+    }
+}
 
 /// Z-spread-equivalent discount margin for a floating-rate tranche, returned in
 /// decimal units (`0.015` = 150 bp).
@@ -35,14 +52,10 @@ pub fn structured_credit_tranche_discount_margin(
     as_of: &str,
     target_pv: f64,
 ) -> Result<f64, JsValue> {
-    validate_pricing_instrument_json(instrument_json, None)?;
+    let deal = parse_structured_credit(instrument_json)?;
     let market = parse_market_json(market_json)?;
-    finstack_quant_valuations::pricer::structured_credit_tranche_discount_margin_json(
-        instrument_json,
-        tranche_id,
-        &market,
-        as_of,
-        target_pv,
+    rust_structured_credit::structured_credit_tranche_discount_margin(
+        &deal, tranche_id, &market, as_of, target_pv,
     )
     .map_err(|e| to_js_error(&e))
 }
@@ -67,13 +80,10 @@ pub fn structured_credit_tranche_breakeven_cdr(
     market_json: &str,
     as_of: &str,
 ) -> Result<f64, JsValue> {
-    validate_pricing_instrument_json(instrument_json, None)?;
+    let deal = parse_structured_credit(instrument_json)?;
     let market = parse_market_json(market_json)?;
-    finstack_quant_valuations::pricer::structured_credit_tranche_breakeven_cdr_json(
-        instrument_json,
-        tranche_id,
-        &market,
-        as_of,
+    rust_structured_credit::structured_credit_tranche_breakeven_cdr(
+        &deal, tranche_id, &market, as_of,
     )
     .map_err(|e| to_js_error(&e))
 }
@@ -111,10 +121,10 @@ pub fn structured_credit_tranche_oas(
     as_of: &str,
     config_json: Option<String>,
 ) -> Result<JsValue, JsValue> {
-    validate_pricing_instrument_json(instrument_json, None)?;
+    let deal = parse_structured_credit(instrument_json)?;
     let market = parse_market_json(market_json)?;
-    let result = finstack_quant_valuations::pricer::structured_credit_tranche_oas_json(
-        instrument_json,
+    let result = rust_structured_credit::structured_credit_tranche_oas(
+        &deal,
         tranche_id,
         market_price_pct,
         &market,
@@ -155,14 +165,10 @@ pub fn structured_credit_tranche_scenario_table(
     as_of: &str,
     grid_json: &str,
 ) -> Result<JsValue, JsValue> {
-    validate_pricing_instrument_json(instrument_json, None)?;
+    let deal = parse_structured_credit(instrument_json)?;
     let market = parse_market_json(market_json)?;
-    let result = finstack_quant_valuations::pricer::structured_credit_tranche_scenario_table_json(
-        instrument_json,
-        tranche_id,
-        &market,
-        as_of,
-        grid_json,
+    let result = rust_structured_credit::structured_credit_tranche_scenario_table(
+        &deal, tranche_id, &market, as_of, grid_json,
     )
     .map_err(|e| to_js_error(&e))?;
     to_js_value(&result)
@@ -199,10 +205,10 @@ pub fn structured_credit_tranche_metrics(
     as_of: &str,
     market_price_pct: Option<f64>,
 ) -> Result<JsValue, JsValue> {
-    validate_pricing_instrument_json(instrument_json, None)?;
+    let deal = parse_structured_credit(instrument_json)?;
     let market = parse_market_json(market_json)?;
-    let result = finstack_quant_valuations::pricer::structured_credit_tranche_metrics_json(
-        instrument_json,
+    let result = rust_structured_credit::structured_credit_tranche_metrics(
+        &deal,
         tranche_id,
         &market,
         as_of,
@@ -210,4 +216,53 @@ pub fn structured_credit_tranche_metrics(
     )
     .map_err(|e| to_js_error(&e))?;
     to_js_value(&result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn public_json_routes_validate_instrument_before_market_json() {
+        assert!(structured_credit_tranche_discount_margin(
+            "{}",
+            "missing",
+            "not-market-json",
+            "not-a-date",
+            f64::NAN,
+        )
+        .is_err());
+        assert!(structured_credit_tranche_breakeven_cdr(
+            "{}",
+            "missing",
+            "not-market-json",
+            "not-a-date",
+        )
+        .is_err());
+        assert!(structured_credit_tranche_oas(
+            "{}",
+            "missing",
+            f64::NAN,
+            "not-market-json",
+            "not-a-date",
+            Some("not-json".to_string()),
+        )
+        .is_err());
+        assert!(structured_credit_tranche_scenario_table(
+            "{}",
+            "missing",
+            "not-market-json",
+            "not-a-date",
+            "not-json",
+        )
+        .is_err());
+        assert!(structured_credit_tranche_metrics(
+            "{}",
+            "missing",
+            "not-market-json",
+            "not-a-date",
+            Some(f64::NAN),
+        )
+        .is_err());
+    }
 }

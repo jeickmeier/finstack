@@ -9,22 +9,13 @@ use crate::pricer::{
 use crate::results::ValuationResult;
 use finstack_quant_core::market_data::context::MarketContext;
 
-/// Swaption pricer supporting Black-76 and instrument-selected fallback models.
-pub struct SimpleSwaptionBlackPricer {
-    model: ModelKey,
-}
+/// European swaption pricer using the Black-76 formula.
+pub struct SimpleSwaptionBlackPricer;
 
 impl SimpleSwaptionBlackPricer {
-    /// Create a new swaption pricer with the default Black-76 model.
+    /// Create a Black-76 swaption pricer.
     pub fn new() -> Self {
-        Self {
-            model: ModelKey::Black76,
-        }
-    }
-
-    /// Create a swaption pricer with the specified model key.
-    pub fn with_model(model: ModelKey) -> Self {
-        Self { model }
+        Self
     }
 }
 
@@ -36,7 +27,7 @@ impl Default for SimpleSwaptionBlackPricer {
 
 impl Pricer for SimpleSwaptionBlackPricer {
     fn key(&self) -> PricerKey {
-        PricerKey::new(InstrumentType::Swaption, self.model)
+        PricerKey::new(InstrumentType::Swaption, ModelKey::Black76)
     }
 
     fn price_dyn(
@@ -52,80 +43,117 @@ impl Pricer for SimpleSwaptionBlackPricer {
                 PricingError::type_mismatch(InstrumentType::Swaption, instrument.key())
             })?;
 
-        if let Some(pv) = swaption.terminal_value(market, as_of).map_err(|error| {
-            PricingError::from_core(
-                error,
-                PricingErrorContext::from_instrument(swaption).model(self.model),
-            )
-        })? {
-            return Ok(ValuationResult::stamped(swaption.id(), as_of, pv));
-        }
-
-        let pv = match self.model {
-            ModelKey::Black76 => {
-                if swaption.sabr_params.is_some() {
-                    swaption.price_sabr(market, as_of).map_err(|e| {
-                        PricingError::model_failure_with_context(
-                            e.to_string(),
-                            PricingErrorContext::default(),
-                        )
-                    })?
-                } else {
-                    // Use Act/365F for the option time-to-expiry so the vol-surface
-                    // pillar lookup is on the SAME time axis that `price_black` /
-                    // `price_normal` use internally (Swaption::time_to_expiry
-                    // hardcodes Act/365F). Using `swaption.day_count` here indexed
-                    // the surface at a different tenor for non-Act/365F swaptions
-                    // (e.g. Act/360 -> ~1.4% relative-vol error and a mis-pillared
-                    // calibration).
-                    let time_to_expiry = year_fraction(
-                        finstack_quant_core::dates::DayCount::Act365F,
-                        as_of,
-                        swaption.expiry,
-                    )
-                    .map_err(|e| {
-                        PricingError::model_failure_with_context(
-                            e.to_string(),
-                            PricingErrorContext::default(),
-                        )
-                    })?;
-                    let forward = swaption.forward_swap_rate(market, as_of).map_err(|e| {
-                        PricingError::model_failure_with_context(
-                            e.to_string(),
-                            PricingErrorContext::default(),
-                        )
-                    })?;
-                    let vol = swaption
-                        .resolve_volatility(market, forward, time_to_expiry)
-                        .map_err(|e| {
-                            PricingError::missing_market_data_with_context(
-                                e.to_string(),
-                                PricingErrorContext::default(),
-                            )
-                        })?;
-
-                    match swaption.vol_model {
-                        VolatilityModel::Black => swaption.price_black(market, vol, as_of),
-                        VolatilityModel::Normal => swaption.price_normal(market, vol, as_of),
-                    }
-                    .map_err(|e| {
-                        PricingError::model_failure_with_context(
-                            e.to_string(),
-                            PricingErrorContext::default(),
-                        )
-                    })?
-                }
-            }
-            _ => swaption.base_value(market, as_of).map_err(|e| {
-                PricingError::model_failure_with_context(
-                    e.to_string(),
-                    PricingErrorContext::default(),
-                )
-            })?,
-        };
-
-        Ok(ValuationResult::stamped(swaption.id(), as_of, pv))
+        price_swaption(
+            swaption,
+            market,
+            as_of,
+            ModelKey::Black76,
+            VolatilityModel::Black,
+        )
     }
+}
+
+/// European swaption pricer using the Bachelier normal formula.
+pub struct SimpleSwaptionNormalPricer;
+
+impl SimpleSwaptionNormalPricer {
+    /// Create a Bachelier normal swaption pricer.
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for SimpleSwaptionNormalPricer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Pricer for SimpleSwaptionNormalPricer {
+    fn key(&self) -> PricerKey {
+        PricerKey::new(InstrumentType::Swaption, ModelKey::Normal)
+    }
+
+    fn price_dyn(
+        &self,
+        instrument: &dyn Instrument,
+        market: &MarketContext,
+        as_of: finstack_quant_core::dates::Date,
+    ) -> std::result::Result<ValuationResult, PricingError> {
+        let swaption = instrument
+            .as_any()
+            .downcast_ref::<Swaption>()
+            .ok_or_else(|| {
+                PricingError::type_mismatch(InstrumentType::Swaption, instrument.key())
+            })?;
+
+        price_swaption(
+            swaption,
+            market,
+            as_of,
+            ModelKey::Normal,
+            VolatilityModel::Normal,
+        )
+    }
+}
+
+fn price_swaption(
+    swaption: &Swaption,
+    market: &MarketContext,
+    as_of: finstack_quant_core::dates::Date,
+    model: ModelKey,
+    expected_vol_model: VolatilityModel,
+) -> std::result::Result<ValuationResult, PricingError> {
+    let context = PricingErrorContext::from_instrument(swaption).model(model);
+    if swaption.vol_model != expected_vol_model {
+        return Err(PricingError::invalid_input_with_context(
+            format!(
+                "swaption volatility model `{}` is incompatible with requested pricing model `{model}`",
+                swaption.vol_model
+            ),
+            context,
+        ));
+    }
+
+    if let Some(pv) = swaption
+        .terminal_value(market, as_of)
+        .map_err(|error| PricingError::from_core(error, context.clone()))?
+    {
+        return Ok(ValuationResult::stamped(swaption.id(), as_of, pv));
+    }
+
+    let pv = if swaption.sabr_params.is_some() {
+        swaption.price_sabr(market, as_of).map_err(|error| {
+            PricingError::model_failure_with_context(error.to_string(), context.clone())
+        })?
+    } else {
+        // Use Act/365F for the option time-to-expiry so the vol-surface
+        // pillar lookup is on the same time axis used by both pricing kernels.
+        let time_to_expiry = year_fraction(
+            finstack_quant_core::dates::DayCount::Act365F,
+            as_of,
+            swaption.expiry,
+        )
+        .map_err(|error| {
+            PricingError::model_failure_with_context(error.to_string(), context.clone())
+        })?;
+        let forward = swaption.forward_swap_rate(market, as_of).map_err(|error| {
+            PricingError::model_failure_with_context(error.to_string(), context.clone())
+        })?;
+        let vol = swaption
+            .resolve_volatility(market, forward, time_to_expiry)
+            .map_err(|error| {
+                PricingError::missing_market_data_with_context(error.to_string(), context.clone())
+            })?;
+
+        match expected_vol_model {
+            VolatilityModel::Black => swaption.price_black(market, vol, as_of),
+            VolatilityModel::Normal => swaption.price_normal(market, vol, as_of),
+        }
+        .map_err(|error| PricingError::model_failure_with_context(error.to_string(), context))?
+    };
+
+    Ok(ValuationResult::stamped(swaption.id(), as_of, pv))
 }
 
 #[cfg(test)]
@@ -151,9 +179,65 @@ mod tests {
     };
     use date_support::date;
     use discount_forward_curve_support::flat_discount_with_tenor;
+    use finstack_quant_models::SabrParameters;
 
     #[test]
-    fn discounting_registry_applies_swaption_scenario_once_for_pv_and_raw() {
+    fn swaption_default_matches_declared_volatility_model_for_pv_and_raw() {
+        let as_of = date(2025, 1, 1);
+        let mut black = Swaption::example();
+        black.instrument_pricing_overrides =
+            InstrumentPricingOverrides::default().with_implied_vol(0.20);
+        let mut normal = black.clone();
+        normal.vol_model = VolatilityModel::Normal;
+        let mut sabr = black.clone();
+        sabr.sabr_params = Some(SabrParameters {
+            alpha: 0.20,
+            beta: 0.5,
+            rho: -0.3,
+            nu: 0.4,
+            shift: None,
+        });
+        let market = MarketContext::new().insert(flat_discount_with_tenor(
+            black.get_discount_curve_id().as_str(),
+            as_of,
+            0.03,
+            10.0,
+        ));
+        let registry = crate::pricer::standard_registry();
+
+        for (swaption, expected_model) in [
+            (&black, ModelKey::Black76),
+            (&normal, ModelKey::Normal),
+            (&sabr, ModelKey::Black76),
+        ] {
+            let default = swaption
+                .price_with_metrics(&market, as_of, &[], PricingOptions::default())
+                .expect("default swaption price");
+            let explicit = registry
+                .price_with_metrics(
+                    swaption,
+                    expected_model,
+                    &market,
+                    as_of,
+                    &[],
+                    PricingOptions::default(),
+                )
+                .expect("explicit swaption price");
+            let default_raw = swaption
+                .value_raw(&market, as_of)
+                .expect("default swaption raw price");
+            let explicit_raw = registry
+                .price_raw(swaption, expected_model, &market, as_of)
+                .expect("explicit swaption raw price");
+
+            assert_eq!(swaption.default_model(), expected_model);
+            assert_eq!(default.value, explicit.value);
+            assert_eq!(default_raw, explicit_raw);
+        }
+    }
+
+    #[test]
+    fn black76_registry_applies_swaption_scenario_once_for_pv_and_raw() {
         let as_of = date(2025, 1, 1);
         let mut baseline = Swaption::example();
         baseline.instrument_pricing_overrides =
@@ -171,11 +255,11 @@ mod tests {
                 &market,
                 as_of,
                 &[],
-                PricingOptions::default().with_model(ModelKey::Discounting),
+                PricingOptions::default().with_model(ModelKey::Black76),
             )
             .expect("baseline swaption registry price");
         let baseline_raw = registry
-            .price_raw(&baseline, ModelKey::Discounting, &market, as_of)
+            .price_raw(&baseline, ModelKey::Black76, &market, as_of)
             .expect("baseline swaption registry raw price");
 
         let mut shocked = baseline;
@@ -186,11 +270,11 @@ mod tests {
                 &market,
                 as_of,
                 &[],
-                PricingOptions::default().with_model(ModelKey::Discounting),
+                PricingOptions::default().with_model(ModelKey::Black76),
             )
             .expect("shocked swaption registry price");
         let shocked_raw = registry
-            .price_raw(&shocked, ModelKey::Discounting, &market, as_of)
+            .price_raw(&shocked, ModelKey::Black76, &market, as_of)
             .expect("shocked swaption registry raw price");
 
         let expected_pv = baseline_result.value.amount() * 0.90;

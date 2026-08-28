@@ -645,7 +645,8 @@ mod tests {
     use finstack_quant_core::HashMap;
 
     fn usd_build_ctx() -> BuildCtx {
-        let as_of = Date::from_calendar_date(2024, time::Month::January, 2).unwrap();
+        let as_of = Date::from_calendar_date(2024, time::Month::January, 2)
+            .expect("valid USD rate build date");
         let mut curve_ids = HashMap::default();
         curve_ids.insert("discount".to_string(), "USD-OIS".to_string());
         curve_ids.insert("forward".to_string(), "USD-SOFR".to_string());
@@ -849,8 +850,8 @@ mod tests {
         let quote = RateQuote::Fra {
             id: QuoteId::new("USD-SOFR-FRA-3x6"),
             index: IndexId::new("USD-SOFR-3M"),
-            start: Pillar::Tenor("3M".parse().unwrap()),
-            end: Pillar::Tenor("6M".parse().unwrap()),
+            start: Pillar::Tenor("3M".parse().expect("valid 3M FRA start tenor")),
+            end: Pillar::Tenor("6M".parse().expect("valid 6M FRA end tenor")),
             rate: 0.05,
         };
 
@@ -919,7 +920,8 @@ mod tests {
 
     #[test]
     fn test_swap_enables_eom_when_start_is_month_end() -> Result<()> {
-        let as_of = Date::from_calendar_date(2024, time::Month::January, 31).unwrap();
+        let as_of = Date::from_calendar_date(2024, time::Month::January, 31)
+            .expect("valid month-end swap build date");
         let mut curve_ids = HashMap::default();
         curve_ids.insert("discount".to_string(), "GBP-SONIA-OIS".to_string());
         curve_ids.insert("forward".to_string(), "GBP-SONIA-OIS".to_string());

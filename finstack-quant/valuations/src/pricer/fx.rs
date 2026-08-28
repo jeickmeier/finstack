@@ -63,13 +63,9 @@ pub(crate) fn register_fx_pricers(
     // FX Barrier Option
 
     registry.register(
-        InstrumentType::FxBarrierOption,
-        ModelKey::MonteCarloGBM,
         crate::instruments::fx::fx_barrier_option::pricer::FxBarrierOptionMcPricer::default(),
     )?;
     registry.register(
-        InstrumentType::FxBarrierOption,
-        ModelKey::FxBarrierBSContinuous,
         crate::instruments::fx::fx_barrier_option::pricer::FxBarrierOptionAnalyticalPricer,
     )?;
     // FX Digital Option

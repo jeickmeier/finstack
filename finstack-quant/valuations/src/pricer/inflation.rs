@@ -23,13 +23,13 @@ pub(crate) fn register_inflation_pricers(
     );
 
     // Inflation Cap/Floor
-    registry.register(InstrumentType::InflationCapFloor,
-ModelKey::Black76,
-crate::instruments::rates::inflation_cap_floor::pricer::SimpleInflationCapFloorPricer::default(),)?;
-    registry.register(InstrumentType::InflationCapFloor,
-ModelKey::Normal,
-crate::instruments::rates::inflation_cap_floor::pricer::SimpleInflationCapFloorPricer::with_model(
-    ModelKey::Normal,
-),)?;
+    registry.register(
+        crate::instruments::rates::inflation_cap_floor::pricer::SimpleInflationCapFloorPricer::default(),
+    )?;
+    registry.register(
+        crate::instruments::rates::inflation_cap_floor::pricer::SimpleInflationCapFloorPricer::with_model(
+            ModelKey::Normal,
+        ),
+    )?;
     Ok(())
 }

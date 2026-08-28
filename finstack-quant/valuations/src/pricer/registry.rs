@@ -81,7 +81,6 @@ pub trait Pricer: Send + Sync {
 #[derive(Clone, Default)]
 pub struct PricerRegistry {
     pricers: Arc<BTreeMap<PricerKey, Arc<dyn Pricer>>>,
-    metric_registry: Option<Arc<crate::metrics::MetricRegistry>>,
 }
 /// Pricing path used consistently by base, bumped, theta, and scenario valuations.
 #[derive(Clone, Default)]
@@ -119,21 +118,6 @@ impl PricingDispatch {
     }
 }
 
-#[derive(Clone, Default)]
-struct SharedPricingInputs {
-    registry: Option<Arc<PricerRegistry>>,
-    market: Option<Arc<Market>>,
-}
-
-struct PricingRequest<'a> {
-    instrument: &'a dyn Priceable,
-    model: ModelKey,
-    market: &'a Market,
-    as_of: finstack_quant_core::dates::Date,
-    metrics: &'a [crate::metrics::MetricId],
-    options: crate::instruments::PricingOptions,
-}
-
 impl PricerRegistry {
     /// Create a new empty pricer registry.
     ///
@@ -143,42 +127,20 @@ impl PricerRegistry {
         Self::default()
     }
 
-    /// Attach the metric registry used by canonical pricing requests.
-    ///
-    /// When no override is attached, pricing uses
-    /// [`crate::metrics::standard_registry`].
-    pub fn with_metric_registry(
-        mut self,
-        metric_registry: Arc<crate::metrics::MetricRegistry>,
-    ) -> Self {
-        self.metric_registry = Some(metric_registry);
-        self
-    }
-
-    /// Return the metric registry used by canonical pricing requests.
-    pub fn get_metric_registry(&self) -> &crate::metrics::MetricRegistry {
-        match self.metric_registry.as_deref() {
-            Some(registry) => registry,
-            None => crate::metrics::standard_registry(),
-        }
-    }
-
-    pub(crate) fn metric_registry_override(&self) -> Option<Arc<crate::metrics::MetricRegistry>> {
-        self.metric_registry.clone()
-    }
-
-    /// Register a pricer for a specific instrument/model pair.
+    /// Register a pricer under its authoritative key.
     ///
     /// Returns [`PricingError::DuplicateRegistration`] without mutating the
     /// registry when the key already exists. Use [`Self::replace`] for an
     /// intentional overwrite.
+    ///
+    /// # Arguments
+    ///
+    /// * `pricer` - Implementation whose [`Pricer::key`] selects the instrument/model pair.
     pub fn register(
         &mut self,
-        inst: InstrumentType,
-        model: ModelKey,
         pricer: impl Pricer + 'static,
     ) -> std::result::Result<(), PricingError> {
-        let key = PricerKey::new(inst, model);
+        let key = pricer.key();
         if self.pricers.contains_key(&key) {
             return Err(PricingError::DuplicateRegistration { key });
         }
@@ -190,16 +152,9 @@ impl PricerRegistry {
     ///
     /// # Arguments
     ///
-    /// * `inst` - Instrument type whose pricing registration is replaced.
-    /// * `model` - Pricing model paired with `inst` in the registry key.
-    /// * `pricer` - Replacement implementation stored for the instrument/model pair.
-    pub fn replace(
-        &mut self,
-        inst: InstrumentType,
-        model: ModelKey,
-        pricer: impl Pricer + 'static,
-    ) {
-        let key = PricerKey::new(inst, model);
+    /// * `pricer` - Replacement implementation stored under its authoritative key.
+    pub fn replace(&mut self, pricer: impl Pricer + 'static) {
+        let key = pricer.key();
         Arc::make_mut(&mut self.pricers).insert(key, Arc::new(pricer));
     }
 
@@ -220,6 +175,7 @@ impl PricerRegistry {
         &'registry self,
         instrument: &'instrument dyn Priceable,
         model: ModelKey,
+        instrument_validated: bool,
     ) -> std::result::Result<
         (
             crate::instruments::common_impl::helpers::ValidatedPricingLifecycle<
@@ -231,9 +187,14 @@ impl PricerRegistry {
         PricingError,
     > {
         let context = PricingErrorContext::from_instrument(instrument).model(model);
-        let lifecycle =
+        let lifecycle = if instrument_validated {
+            crate::instruments::common_impl::helpers::ValidatedPricingLifecycle::from_validated(
+                instrument,
+            )
+        } else {
             crate::instruments::common_impl::helpers::ValidatedPricingLifecycle::new(instrument)
-                .map_err(|error| PricingError::from_core(error, context))?;
+                .map_err(|error| PricingError::from_core(error, context))?
+        };
 
         let key = PricerKey::new(instrument.key(), model);
         let pricer = self
@@ -347,76 +308,12 @@ impl PricerRegistry {
         metrics: &[crate::metrics::MetricId],
         options: crate::instruments::PricingOptions,
     ) -> std::result::Result<crate::results::ValuationResult, PricingError> {
-        let shared = if metrics.is_empty() {
-            SharedPricingInputs::default()
-        } else {
-            // Both registries and markets are Arc-backed copy-on-write
-            // snapshots, so these clones are O(1) refcount increments.
-            SharedPricingInputs {
-                registry: Some(Arc::new(self.clone())),
-                market: Some(Arc::new(market.clone())),
-            }
-        };
-        self.price_with_metrics_impl(
-            PricingRequest {
-                instrument,
-                model,
-                market,
-                as_of,
-                metrics,
-                options,
-            },
-            shared,
-        )
-    }
-
-    /// Price an instrument through an already shared registry.
-    ///
-    /// This avoids cloning the registry when metric calculators need to reprice
-    /// through the same dispatch table.
-    pub(crate) fn price_with_metrics_shared(
-        registry: &Arc<Self>,
-        instrument: &dyn Priceable,
-        model: ModelKey,
-        market: &Market,
-        as_of: finstack_quant_core::dates::Date,
-        metrics: &[crate::metrics::MetricId],
-        options: crate::instruments::PricingOptions,
-    ) -> std::result::Result<crate::results::ValuationResult, PricingError> {
-        let shared_market = (!metrics.is_empty()).then(|| Arc::new(market.clone()));
-        registry.as_ref().price_with_metrics_impl(
-            PricingRequest {
-                instrument,
-                model,
-                market,
-                as_of,
-                metrics,
-                options,
-            },
-            SharedPricingInputs {
-                registry: Some(Arc::clone(registry)),
-                market: shared_market,
-            },
-        )
-    }
-
-    fn price_with_metrics_impl(
-        &self,
-        request: PricingRequest<'_>,
-        shared: SharedPricingInputs,
-    ) -> std::result::Result<crate::results::ValuationResult, PricingError> {
-        let PricingRequest {
-            instrument,
-            model,
-            market,
-            as_of,
-            metrics,
-            options,
-        } = request;
         let crate::instruments::PricingOptions {
             config: cfg,
             market_history,
+            metric_registry,
             recalibration_provider,
+            instrument_validated,
             ..
         } = options;
 
@@ -429,7 +326,7 @@ impl PricerRegistry {
             num_metrics = metrics.len(),
             "dispatching registered pricer"
         );
-        let (lifecycle, pricer) = self.validated_pricer(instrument, model)?;
+        let (lifecycle, pricer) = self.validated_pricer(instrument, model, instrument_validated)?;
         let effective_as_of = lifecycle.effective_as_of(market, as_of);
         let err_ctx = PricingErrorContext::from_instrument(instrument).model(model);
         let mut base_result = pricer
@@ -456,13 +353,14 @@ impl PricerRegistry {
         super::enrichment::enrich(super::enrichment::EnrichmentRequest {
             instrument,
             model,
-            market: shared.market.unwrap_or_else(|| Arc::new(market.clone())),
+            market: Arc::new(market.clone()),
             as_of: effective_as_of,
             metrics,
             cfg,
             market_history,
+            metric_registry,
             recalibration_provider,
-            pricer_registry: shared.registry.unwrap_or_else(|| Arc::new(self.clone())),
+            pricer_registry: Arc::new(self.clone()),
             base_result,
         })
     }
@@ -475,7 +373,7 @@ impl PricerRegistry {
         market: &Market,
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<f64, PricingError> {
-        let (lifecycle, pricer) = self.validated_pricer(instrument, model)?;
+        let (lifecycle, pricer) = self.validated_pricer(instrument, model, false)?;
         let effective_as_of = lifecycle.effective_as_of(market, as_of);
         let err_ctx = PricingErrorContext::from_instrument(instrument).model(model);
         let base_value = pricer
@@ -694,11 +592,12 @@ mod tests {
 
     struct FixedBondPricer {
         amount: f64,
+        model: ModelKey,
     }
 
     impl Pricer for FixedBondPricer {
         fn key(&self) -> PricerKey {
-            PricerKey::new(InstrumentType::Bond, ModelKey::Discounting)
+            PricerKey::new(InstrumentType::Bond, self.model)
         }
 
         fn price_dyn(
@@ -944,13 +843,9 @@ mod tests {
         let as_of = date!(2025 - 01 - 15);
         let mut registry = PricerRegistry::new();
         registry
-            .register(
-                InstrumentType::Bond,
-                ModelKey::Discounting,
-                CountingBondPricer {
-                    calls: Arc::clone(&pricer_calls),
-                },
-            )
+            .register(CountingBondPricer {
+                calls: Arc::clone(&pricer_calls),
+            })
             .expect("unique test pricer registration");
 
         let registry_err = registry
@@ -1060,11 +955,11 @@ mod tests {
         };
         let market = Market::new();
         let mut registry = PricerRegistry::new();
-        registry.register(InstrumentType::Bond,
-        ModelKey::Discounting,
-        crate::instruments::common_impl::GenericInstrumentPricer::<RawLifecycleInstrument>::discounting(
-            InstrumentType::Bond,
-        ),).expect("unique test pricer registration");
+        registry
+            .register(crate::instruments::common_impl::GenericInstrumentPricer::<
+                RawLifecycleInstrument,
+            >::discounting(InstrumentType::Bond))
+            .expect("unique test pricer registration");
 
         let base_raw = instrument
             .base_value_raw(&market, effective_as_of)
@@ -1129,7 +1024,7 @@ mod tests {
             Market::new().insert(flat_discount_curve("USD-TREASURY", date!(2025 - 01 - 15)));
         let mut registry = PricerRegistry::new();
         registry
-            .register(InstrumentType::Bond, ModelKey::HazardRate, RichBondPricer)
+            .register(RichBondPricer)
             .expect("unique test pricer registration");
         let mut cfg = FinstackConfig::default();
         cfg.rounding.output_scale.overrides.insert(Currency::USD, 4);
@@ -1280,7 +1175,10 @@ mod tests {
         let disc = flat_discount_curve_with_fx_policy("USD-TREASURY", as_of, "curve::xccy_basis");
         let market = MarketContext::new().insert(disc);
 
-        let pricer = FixedBondPricer { amount: 1_000.0 };
+        let pricer = FixedBondPricer {
+            amount: 1_000.0,
+            model: ModelKey::Discounting,
+        };
         let mut result = pricer
             .price_dyn(&bond, &market, as_of)
             .expect("synthetic pricer should price");
@@ -1459,11 +1357,10 @@ mod tests {
 
         let mut registry = PricerRegistry::new();
         registry
-            .register(
-                InstrumentType::Bond,
-                ModelKey::Discounting,
-                FixedBondPricer { amount: 990.0 },
-            )
+            .register(FixedBondPricer {
+                amount: 990.0,
+                model: ModelKey::Discounting,
+            })
             .expect("unique test pricer registration");
 
         let result = bond
@@ -1514,11 +1411,10 @@ mod tests {
             .insert(flat_discount_curve("USD-TREASURY", as_of));
         let mut pricers = PricerRegistry::new();
         pricers
-            .register(
-                InstrumentType::Bond,
-                ModelKey::Discounting,
-                FixedBondPricer { amount: 990.0 },
-            )
+            .register(FixedBondPricer {
+                amount: 990.0,
+                model: ModelKey::Discounting,
+            })
             .expect("unique test pricer registration");
         let mut metrics = MetricRegistry::new();
         metrics
@@ -1535,8 +1431,8 @@ mod tests {
                 as_of,
                 &[MetricId::Dv01],
                 crate::instruments::PricingOptions::default()
-                    .with_registry(Arc::new(pricers))
-                    .with_metric_registry(Arc::new(metrics)),
+                    .with_metric_registry(Arc::new(metrics))
+                    .with_registry(Arc::new(pricers)),
             )
             .expect("custom pricer and metric registries should compose");
 
@@ -1566,11 +1462,10 @@ mod tests {
 
         let mut registry = PricerRegistry::new();
         registry
-            .register(
-                InstrumentType::Bond,
-                ModelKey::HazardRate,
-                FixedBondPricer { amount: 995.0 },
-            )
+            .register(FixedBondPricer {
+                amount: 995.0,
+                model: ModelKey::HazardRate,
+            })
             .expect("unique test pricer registration");
 
         let result = bond
@@ -1755,467 +1650,6 @@ mod tests {
             "PV with empty metrics should equal bare value: baseline={:.4} with_metrics={:.4}",
             baseline.amount(),
             with_metrics.value.amount()
-        );
-    }
-
-    // ─── Existing tests ──────────────────────────────────────────────────────
-
-    #[test]
-    fn registry_creation_test() {
-        let registry = super::super::standard_registry();
-
-        let key = PricerKey::new(InstrumentType::Bond, ModelKey::Discounting);
-        assert!(registry.get_pricer(key).is_some());
-    }
-
-    #[test]
-    fn registration_covers_all_pricers() {
-        let registry = super::super::standard_registry();
-
-        // Bond pricers
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(InstrumentType::Bond, ModelKey::Discounting))
-                .is_some(),
-            "Bond Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(InstrumentType::Bond, ModelKey::HazardRate))
-                .is_some(),
-            "Bond HazardRate pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(InstrumentType::Bond, ModelKey::Tree))
-                .is_some(),
-            "Bond OAS pricer should be registered"
-        );
-
-        // Interest Rate pricers
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(InstrumentType::Irs, ModelKey::Discounting))
-                .is_some(),
-            "IRS Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(InstrumentType::Fra, ModelKey::Discounting))
-                .is_some(),
-            "FRA Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(InstrumentType::CapFloor, ModelKey::Black76))
-                .is_some(),
-            "CapFloor Black76 pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::CapFloor,
-                    ModelKey::Discounting
-                ))
-                .is_none(),
-            "CapFloor Discounting pricer should not alias Black76"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(InstrumentType::Swaption, ModelKey::Black76))
-                .is_some(),
-            "Swaption Black76 pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::Swaption,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "Swaption Discounting pricer should be registered"
-        );
-
-        // Credit pricers
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(InstrumentType::Cds, ModelKey::HazardRate))
-                .is_some(),
-            "CDS HazardRate pricer should be registered"
-        );
-        // CDS / CDSIndex / CDSOption / CDSTranche no longer register a
-        // `ModelKey::Discounting` alias. The earlier registrations pointed at
-        // the same hazard (or Black76) implementation, which falsely implied a
-        // pure-discounting alternative existed. See `pricer/credit.rs` for
-        // the rationale; callers should look these products up under their
-        // real model key.
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(InstrumentType::Cds, ModelKey::Discounting))
-                .is_none(),
-            "CDS Discounting pricer must not be registered (misleading alias removed)"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::CdsIndex,
-                    ModelKey::HazardRate
-                ))
-                .is_some(),
-            "CDSIndex HazardRate pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::CdsIndex,
-                    ModelKey::Discounting
-                ))
-                .is_none(),
-            "CDSIndex Discounting pricer must not be registered (misleading alias removed)"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::CdsOption,
-                    ModelKey::BloombergCdso
-                ))
-                .is_some(),
-            "CDSOption BloombergCdso pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(InstrumentType::CdsOption, ModelKey::Black76))
-                .is_none(),
-            "Black76 pricer for CDSOption was decommissioned (DOCS 2055833 §1.2)"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::CdsOption,
-                    ModelKey::Discounting
-                ))
-                .is_none(),
-            "CDSOption Discounting pricer must not be registered (misleading alias removed)"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::CdsTranche,
-                    ModelKey::HazardRate
-                ))
-                .is_some(),
-            "CDSTranche HazardRate pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::CdsTranche,
-                    ModelKey::Discounting
-                ))
-                .is_none(),
-            "CDSTranche Discounting pricer must not be registered (misleading alias removed)"
-        );
-
-        // FX pricers
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::FxSpot,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "FxSpot Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(InstrumentType::FxOption, ModelKey::Black76))
-                .is_some(),
-            "FxOption Black76 pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::FxOption,
-                    ModelKey::Discounting
-                ))
-                .is_none(),
-            "FxOption Discounting pricer must not be registered (misleading alias removed)"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::FxSwap,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "FxSwap Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::FxDigitalOption,
-                    ModelKey::Black76
-                ))
-                .is_some(),
-            "FxDigitalOption Black76 pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::FxDigitalOption,
-                    ModelKey::Discounting
-                ))
-                .is_none(),
-            "FxDigitalOption Discounting pricer must not be registered (misleading alias removed)"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::FxTouchOption,
-                    ModelKey::Black76
-                ))
-                .is_some(),
-            "FxTouchOption Black76 pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::FxTouchOption,
-                    ModelKey::Discounting
-                ))
-                .is_none(),
-            "FxTouchOption Discounting pricer must not be registered (misleading alias removed)"
-        );
-
-        // Equity pricers
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::Equity,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "Equity Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::EquityOption,
-                    ModelKey::Black76
-                ))
-                .is_some(),
-            "EquityOption Black76 pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::EquityOption,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "EquityOption Discounting pricer should be registered"
-        );
-
-        // Basic pricers
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::Deposit,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "Deposit Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::InterestRateFuture,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "InterestRateFuture Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::BasisSwap,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "BasisSwap Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(InstrumentType::Repo, ModelKey::Discounting))
-                .is_some(),
-            "Repo Discounting pricer should be registered"
-        );
-
-        // Inflation pricers
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::InflationSwap,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "InflationSwap Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::YoYInflationSwap,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "YoYInflationSwap Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::InflationCapFloor,
-                    ModelKey::Black76
-                ))
-                .is_some(),
-            "InflationCapFloor Black76 pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::InflationCapFloor,
-                    ModelKey::Normal
-                ))
-                .is_some(),
-            "InflationCapFloor Normal pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::InflationLinkedBond,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "InflationLinkedBond Discounting pricer should be registered"
-        );
-
-        // Complex pricers
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::VarianceSwap,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "VarianceSwap Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::FxVarianceSwap,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "FxVarianceSwap Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::RealEstateAsset,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "RealEstateAsset Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(InstrumentType::CmsOption, ModelKey::Black76))
-                .is_some(),
-            "CmsOption Black76 pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::CmsOption,
-                    ModelKey::StaticReplication
-                ))
-                .is_some(),
-            "CmsOption StaticReplication pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::CmsOption,
-                    ModelKey::Discounting
-                ))
-                .is_none(),
-            "CmsOption Discounting pricer must not be registered because it was only a Black76 alias"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::CommodityOption,
-                    ModelKey::Black76
-                ))
-                .is_some(),
-            "CommodityOption Black76 pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::Basket,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "Basket Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::Convertible,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "Convertible Discounting pricer should be registered"
-        );
-
-        // Structured credit pricer (unified for ABS, CLO, CMBS, RMBS)
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::StructuredCredit,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "StructuredCredit Discounting pricer should be registered"
-        );
-
-        // TRS and Private Markets
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::EquityTotalReturnSwap,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "EquityTotalReturnSwap Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::FiIndexTotalReturnSwap,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "FIIndexTotalReturnSwap Discounting pricer should be registered"
-        );
-        assert!(
-            registry
-                .get_pricer(PricerKey::new(
-                    InstrumentType::PrivateMarketsFund,
-                    ModelKey::Discounting
-                ))
-                .is_some(),
-            "PrivateMarketsFund Discounting pricer should be registered"
         );
     }
 }

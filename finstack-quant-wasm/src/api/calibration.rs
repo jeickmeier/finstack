@@ -156,15 +156,12 @@ pub fn calibrate_bermudan_lmm_base_vol(
 ) -> Result<f64, JsValue> {
     let instrument = finstack_quant_valuations::pricer::parse_instrument_json(instrument_json)
         .map_err(crate::utils::to_js_err)?;
-    let swaption = match instrument {
-        finstack_quant_valuations::instruments::InstrumentJson::BermudanSwaption(swaption) => {
-            swaption
-        }
-        _ => {
-            return Err(crate::utils::to_js_err(
-                "instrument must be a bermudan_swaption envelope",
-            ));
-        }
+    let finstack_quant_valuations::instruments::InstrumentJson::BermudanSwaption(swaption) =
+        instrument
+    else {
+        return Err(crate::utils::to_js_err(
+            "instrument must be a bermudan_swaption envelope",
+        ));
     };
     let as_of = crate::utils::parse_iso_date(as_of)?;
     finstack_quant_calibration::calibrate_bermudan_lmm_base_vol(&swaption, market.inner(), as_of)

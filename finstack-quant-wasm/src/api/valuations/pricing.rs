@@ -33,12 +33,11 @@ pub(super) fn parse_market_json(market_json: &str) -> Result<MarketContext, JsVa
     serde_json::from_str(market_json).map_err(to_js_err)
 }
 
-pub(super) fn validate_pricing_instrument_json(
+pub(super) fn parse_pricing_instrument_json(
     instrument_json: &str,
     pricing_options: Option<&str>,
-) -> Result<(), JsValue> {
+) -> Result<finstack_quant_valuations::pricer::ParsedInstrument, JsValue> {
     finstack_quant_valuations::pricer::parse_boxed_instrument_json(instrument_json, pricing_options)
-        .map(drop)
         .map_err(|e| to_js_error(&e))
 }
 
@@ -58,28 +57,24 @@ fn valuation_result_value(result: &ValuationResult) -> Result<JsValue, JsValue> 
 }
 
 pub(super) fn price_result_with_context(
-    instrument_json: &str,
+    instrument: &finstack_quant_valuations::pricer::ParsedInstrument,
     market: &MarketContext,
     as_of: &str,
     model: &str,
     metrics: Vec<String>,
-    pricing_options: Option<&str>,
     market_history_json: Option<&str>,
 ) -> Result<ValuationResult, JsValue> {
-    finstack_quant_valuations::pricer::price_instrument_json(
-        finstack_quant_valuations::pricer::JsonPricingRequest {
-            instrument_json,
-            market,
-            as_of,
-            model,
-            metrics: &metrics,
-            instrument_pricing_overrides_json: pricing_options,
-            market_history_json,
-            pricing_options: finstack_quant_valuations::instruments::PricingOptions::default()
-                .with_recalibration_provider(std::sync::Arc::new(
-                    finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
-                )),
-        },
+    finstack_quant_valuations::pricer::price_instrument(
+        instrument,
+        market,
+        as_of,
+        model,
+        &metrics,
+        market_history_json,
+        finstack_quant_valuations::instruments::PricingOptions::default()
+            .with_recalibration_provider(std::sync::Arc::new(
+                finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
+            )),
     )
     .map_err(|e| to_js_error(&e))
 }
@@ -94,13 +89,13 @@ fn price_instrument_with_context(
     pricing_options: Option<&str>,
     market_history_json: Option<&str>,
 ) -> Result<String, JsValue> {
+    let instrument = parse_pricing_instrument_json(instrument_json, pricing_options)?;
     valuation_result_json(price_result_with_context(
-        instrument_json,
+        &instrument,
         market,
         as_of,
         model,
         metrics,
-        pricing_options,
         market_history_json,
     )?)
 }
@@ -117,41 +112,37 @@ fn price_instrument_result(
     as_of: &str,
     model: Option<&str>,
 ) -> Result<ValuationResult, JsValue> {
-    validate_pricing_instrument_json(instrument_json, None)?;
+    let instrument = parse_pricing_instrument_json(instrument_json, None)?;
     let market = parse_market_json(market_json)?;
     price_result_with_context(
-        instrument_json,
+        &instrument,
         &market,
         as_of,
         model.unwrap_or("default"),
         Vec::new(),
         None,
-        None,
     )
 }
 
 pub(super) fn metric_value_with_context(
-    instrument_json: &str,
+    instrument: &finstack_quant_valuations::pricer::ParsedInstrument,
     market: &MarketContext,
     as_of: &str,
     model: &str,
     metric: &str,
 ) -> Result<f64, JsValue> {
     let metrics = [metric.to_string()];
-    let result = finstack_quant_valuations::pricer::price_instrument_json(
-        finstack_quant_valuations::pricer::JsonPricingRequest {
-            instrument_json,
-            market,
-            as_of,
-            model,
-            metrics: &metrics,
-            instrument_pricing_overrides_json: None,
-            market_history_json: None,
-            pricing_options: finstack_quant_valuations::instruments::PricingOptions::default()
-                .with_recalibration_provider(std::sync::Arc::new(
-                    finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
-                )),
-        },
+    let result = finstack_quant_valuations::pricer::price_instrument(
+        instrument,
+        market,
+        as_of,
+        model,
+        &metrics,
+        None,
+        finstack_quant_valuations::instruments::PricingOptions::default()
+            .with_recalibration_provider(std::sync::Arc::new(
+                finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
+            )),
     )
     .map_err(to_js_err)?;
     result.metric_str(metric).ok_or_else(|| {
@@ -162,7 +153,7 @@ pub(super) fn metric_value_with_context(
 }
 
 pub(super) fn standard_option_greeks_with_context(
-    instrument_json: &str,
+    instrument: &finstack_quant_valuations::pricer::ParsedInstrument,
     market: &MarketContext,
     as_of: &str,
     model: &str,
@@ -172,20 +163,17 @@ pub(super) fn standard_option_greeks_with_context(
         .iter()
         .map(|name| (*name).to_string())
         .collect::<Vec<_>>();
-    let result = finstack_quant_valuations::pricer::price_instrument_json(
-        finstack_quant_valuations::pricer::JsonPricingRequest {
-            instrument_json,
-            market,
-            as_of,
-            model,
-            metrics: &metrics,
-            instrument_pricing_overrides_json: None,
-            market_history_json: None,
-            pricing_options: finstack_quant_valuations::instruments::PricingOptions::default()
-                .with_recalibration_provider(std::sync::Arc::new(
-                    finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
-                )),
-        },
+    let result = finstack_quant_valuations::pricer::price_instrument(
+        instrument,
+        market,
+        as_of,
+        model,
+        &metrics,
+        None,
+        finstack_quant_valuations::instruments::PricingOptions::default()
+            .with_recalibration_provider(std::sync::Arc::new(
+                finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
+            )),
     )
     .map_err(to_js_err)?;
     Ok(names
@@ -292,7 +280,7 @@ pub fn price_instrument(
     pricing_options: Option<String>,
     market_history: Option<String>,
 ) -> Result<JsValue, JsValue> {
-    validate_pricing_instrument_json(instrument_json, pricing_options.as_deref())?;
+    let instrument = parse_pricing_instrument_json(instrument_json, pricing_options.as_deref())?;
     let market = parse_market_json(market_json)?;
     let model = model.as_deref().unwrap_or("default");
     let metric_strs: Vec<String> = match metrics {
@@ -301,12 +289,11 @@ pub fn price_instrument(
         Some(value) => serde_wasm_bindgen::from_value(value).map_err(to_js_err)?,
     };
     let result = price_result_with_context(
-        instrument_json,
+        &instrument,
         &market,
         as_of,
         model,
         metric_strs,
-        pricing_options.as_deref(),
         market_history.as_deref(),
     )?;
     valuation_result_value(&result)
@@ -335,10 +322,10 @@ pub fn instrument_cashflows_json(
     as_of: &str,
     model: &str,
 ) -> Result<String, JsValue> {
-    validate_pricing_instrument_json(instrument_json, None)?;
+    let instrument = parse_pricing_instrument_json(instrument_json, None)?;
     let market = parse_market_json(market_json)?;
-    finstack_quant_valuations::instruments::cashflow_export::instrument_cashflows_json(
-        instrument_json,
+    finstack_quant_valuations::instruments::cashflow_export::instrument_cashflows(
+        &instrument,
         &market,
         as_of,
         model,
@@ -465,19 +452,18 @@ pub fn price_instrument_with_market(
     pricing_options: Option<String>,
     market_history: Option<String>,
 ) -> Result<JsValue, JsValue> {
-    validate_pricing_instrument_json(instrument_json, pricing_options.as_deref())?;
+    let instrument = parse_pricing_instrument_json(instrument_json, pricing_options.as_deref())?;
     let metric_strs: Vec<String> = match metrics {
         None => Vec::new(),
         Some(value) if value.is_undefined() || value.is_null() => Vec::new(),
         Some(value) => serde_wasm_bindgen::from_value(value).map_err(to_js_err)?,
     };
     let result = price_result_with_context(
-        instrument_json,
+        &instrument,
         market.inner(),
         as_of,
         model,
         metric_strs,
-        pricing_options.as_deref(),
         market_history.as_deref(),
     )?;
     valuation_result_value(&result)
@@ -502,9 +488,9 @@ pub fn instrument_cashflows_with_market(
     as_of: &str,
     model: &str,
 ) -> Result<String, JsValue> {
-    validate_pricing_instrument_json(instrument_json, None)?;
-    finstack_quant_valuations::instruments::cashflow_export::instrument_cashflows_json(
-        instrument_json,
+    let instrument = parse_pricing_instrument_json(instrument_json, None)?;
+    finstack_quant_valuations::instruments::cashflow_export::instrument_cashflows(
+        &instrument,
         market.inner(),
         as_of,
         model,
@@ -552,6 +538,24 @@ mod tests {
         assert_eq!(
             finstack_quant_valuations::pricer::parse_model_key("monte_carlo_gbm").expect("ok"),
             finstack_quant_valuations::pricer::ModelKey::MonteCarloGBM
+        );
+    }
+
+    #[test]
+    fn public_json_routes_validate_instrument_before_market_json() {
+        assert!(price_instrument(
+            "{}",
+            "not-market-json",
+            "not-a-date",
+            Some("not-a-model".to_string()),
+            None,
+            None,
+            None,
+        )
+        .is_err());
+        assert!(
+            instrument_cashflows_json("{}", "not-market-json", "not-a-date", "not-a-model",)
+                .is_err()
         );
     }
 
@@ -1041,14 +1045,14 @@ mod tests {
     fn wasm_market_reuses_parsed_market_for_pricing_and_cashflows() {
         let inst = bond_instrument_json();
         let market = JsMarket::new(&market_context_json()).expect("market handle");
+        let instrument = parse_pricing_instrument_json(&inst, None).expect("parsed instrument");
 
         let priced = price_result_with_context(
-            &inst,
+            &instrument,
             market.inner(),
             "2024-01-01",
             "discounting",
             Vec::new(),
-            None,
             None,
         )
         .expect("price");

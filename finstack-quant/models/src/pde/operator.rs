@@ -290,7 +290,7 @@ impl TridiagOperator {
     /// * `rhs` — right-hand side vector (length `n`)
     ///
     /// Returns the solution vector of length `n`, or
-    /// [`ThomasError::DegeneratePivot`] if the forward elimination hits a
+    /// `ThomasError::DegeneratePivot` if the forward elimination hits a
     /// degenerate pivot (a sign that `(I - alpha*A)` has lost diagonal
     /// dominance, e.g. via a boundary-condition modification). Without the
     /// guard such a pivot would yield a silent `inf` / `NaN` solution.
@@ -343,7 +343,7 @@ impl TridiagOperator {
     /// writing the result into `out`.
     ///
     /// Like [`solve_thomas`](Self::solve_thomas) but avoids allocating the
-    /// output vector. Returns [`ThomasError::DegeneratePivot`] on a
+    /// output vector. Returns `ThomasError::DegeneratePivot` on a
     /// degenerate pivot.
     pub fn solve_thomas_into(
         &self,

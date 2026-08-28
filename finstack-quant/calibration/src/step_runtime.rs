@@ -737,19 +737,17 @@ mod tests {
         let outcome = execute_params(&params, &quotes, &context, &CalibrationConfig::default())
             .expect("Student-t step should calibrate");
 
-        match outcome.output {
-            StepOutput::Scalar { key, value } => {
-                assert_eq!(key, "TRANCHE-1_STUDENT_T_DF");
-                let MarketScalar::Unitless(calibrated_df) = value else {
-                    panic!("expected unitless calibrated df");
-                };
-                assert!(
-                    (calibrated_df - 6.0).abs() < 0.5,
-                    "expected calibrated df near 6.0, got {calibrated_df}"
-                );
-            }
-            _ => panic!("expected scalar output"),
-        }
+        let StepOutput::Scalar { key, value } = outcome.output else {
+            unreachable!("Student-t calibration should return a scalar output");
+        };
+        assert_eq!(key, "TRANCHE-1_STUDENT_T_DF");
+        let MarketScalar::Unitless(calibrated_df) = value else {
+            unreachable!("Student-t degrees of freedom should be unitless");
+        };
+        assert!(
+            (calibrated_df - 6.0).abs() < 0.5,
+            "expected calibrated df near 6.0, got {calibrated_df}"
+        );
     }
 
     #[test]
@@ -861,23 +859,21 @@ mod tests {
         let outcome = execute_params(&params, &quotes, &context, &CalibrationConfig::default())
             .expect("Hull-White step should calibrate");
 
-        match outcome.output {
-            StepOutput::Scalars(values) => {
-                assert!(
-                    values
-                        .iter()
-                        .any(|(key, _)| key.starts_with("USD-OIS_") && key.ends_with("KAPPA")),
-                    "expected calibrated kappa scalar output"
-                );
-                assert!(
-                    values
-                        .iter()
-                        .any(|(key, _)| key.starts_with("USD-OIS_") && key.ends_with("SIGMA")),
-                    "expected calibrated sigma scalar output"
-                );
-            }
-            _ => panic!("expected multiple scalar outputs for Hull-White calibration"),
-        }
+        let StepOutput::Scalars(values) = outcome.output else {
+            unreachable!("Hull-White calibration should return multiple scalar outputs");
+        };
+        assert!(
+            values
+                .iter()
+                .any(|(key, _)| key.starts_with("USD-OIS_") && key.ends_with("KAPPA")),
+            "expected calibrated kappa scalar output"
+        );
+        assert!(
+            values
+                .iter()
+                .any(|(key, _)| key.starts_with("USD-OIS_") && key.ends_with("SIGMA")),
+            "expected calibrated sigma scalar output"
+        );
     }
 
     #[test]
@@ -918,23 +914,21 @@ mod tests {
         let outcome = execute_params(&params, &quotes, &context, &CalibrationConfig::default())
             .expect("cap/floor Hull-White step should calibrate");
 
-        match outcome.output {
-            StepOutput::Scalars(values) => {
-                assert!(
-                    values
-                        .iter()
-                        .any(|(key, _)| key == "USD-OIS_CAPFLOOR_HW1F_KAPPA"),
-                    "expected calibrated cap/floor kappa scalar output"
-                );
-                assert!(
-                    values
-                        .iter()
-                        .any(|(key, _)| key == "USD-OIS_CAPFLOOR_HW1F_SIGMA"),
-                    "expected calibrated cap/floor sigma scalar output"
-                );
-            }
-            _ => panic!("expected multiple scalar outputs for cap/floor Hull-White calibration"),
-        }
+        let StepOutput::Scalars(values) = outcome.output else {
+            unreachable!("cap/floor Hull-White calibration should return scalar outputs");
+        };
+        assert!(
+            values
+                .iter()
+                .any(|(key, _)| key == "USD-OIS_CAPFLOOR_HW1F_KAPPA"),
+            "expected calibrated cap/floor kappa scalar output"
+        );
+        assert!(
+            values
+                .iter()
+                .any(|(key, _)| key == "USD-OIS_CAPFLOOR_HW1F_SIGMA"),
+            "expected calibrated cap/floor sigma scalar output"
+        );
     }
 
     #[test]
@@ -973,15 +967,13 @@ mod tests {
 
         let outcome = execute_params(&params, &quotes, &context, &CalibrationConfig::default())
             .expect("piecewise cap/floor calibration");
-        match outcome.output {
-            StepOutput::ScalarsAndSeries { scalars, series } => {
-                assert_eq!(scalars.len(), 1);
-                assert_eq!(scalars[0].0, "USD-OIS_CAPFLOOR_HW1F_KAPPA");
-                assert_eq!(series.id().as_str(), "USD-OIS_CAPFLOOR_HW1F_SIGMA_SCHEDULE");
-                assert_eq!(series.len(), 1);
-            }
-            _ => panic!("piecewise cap/floor calibration must persist scalars and schedule"),
-        }
+        let StepOutput::ScalarsAndSeries { scalars, series } = outcome.output else {
+            unreachable!("piecewise cap/floor calibration should persist scalars and a schedule");
+        };
+        assert_eq!(scalars.len(), 1);
+        assert_eq!(scalars[0].0, "USD-OIS_CAPFLOOR_HW1F_KAPPA");
+        assert_eq!(series.id().as_str(), "USD-OIS_CAPFLOOR_HW1F_SIGMA_SCHEDULE");
+        assert_eq!(series.len(), 1);
     }
 
     #[test]
@@ -1107,20 +1099,17 @@ mod tests {
         let outcome = execute_params(&params, &quotes, &context, &CalibrationConfig::default())
             .expect("SVI step should build a surface");
 
-        match outcome.output {
-            StepOutput::Surface(surface) => {
-                assert_eq!(surface.id(), &CurveId::from("SPX-SVI"));
-                assert_eq!(surface.grid_shape(), (2, 5));
-                let atm_vol =
-                    finstack_quant_models::volatility::get_surface_vol(&surface, t1, 100.0)
-                        .expect("ATM point should exist");
-                assert!(atm_vol.is_finite(), "ATM SVI vol should be finite");
-                assert!(
-                    atm_vol > 0.0 && atm_vol < 1.0,
-                    "ATM SVI vol should be in a realistic range, got {atm_vol}"
-                );
-            }
-            _ => panic!("expected surface output"),
-        }
+        let StepOutput::Surface(surface) = outcome.output else {
+            unreachable!("SVI calibration should return a surface output");
+        };
+        assert_eq!(surface.id(), &CurveId::from("SPX-SVI"));
+        assert_eq!(surface.grid_shape(), (2, 5));
+        let atm_vol = finstack_quant_models::volatility::get_surface_vol(&surface, t1, 100.0)
+            .expect("ATM point should exist");
+        assert!(atm_vol.is_finite(), "ATM SVI vol should be finite");
+        assert!(
+            atm_vol > 0.0 && atm_vol < 1.0,
+            "ATM SVI vol should be in a realistic range, got {atm_vol}"
+        );
     }
 }

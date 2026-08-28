@@ -820,6 +820,10 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for EquityOpt
 impl crate::instruments::common_impl::traits::Instrument for EquityOption {
     impl_instrument_base!(crate::pricer::InstrumentType::EquityOption);
 
+    fn default_model(&self) -> crate::pricer::ModelKey {
+        crate::pricer::ModelKey::Black76
+    }
+
     fn validate_invariants(&self) -> finstack_quant_core::Result<()> {
         EquityOption::validate(self)
     }

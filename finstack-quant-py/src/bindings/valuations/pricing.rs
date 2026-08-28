@@ -5,23 +5,6 @@ use crate::bindings::extract::{extract_instrument_json, extract_market};
 use crate::errors::core_to_py;
 use pyo3::prelude::*;
 
-fn validate_pricing_instrument_json(
-    py: Python<'_>,
-    instrument_json: &str,
-    pricing_options: Option<&str>,
-) -> PyResult<()> {
-    let instrument_json = instrument_json.to_owned();
-    let pricing_options = pricing_options.map(str::to_owned);
-    py.detach(move || {
-        finstack_quant_valuations::pricer::parse_boxed_instrument_json(
-            &instrument_json,
-            pricing_options.as_deref(),
-        )
-        .map(drop)
-        .map_err(core_to_py)
-    })
-}
-
 /// Price an instrument from its canonical envelope and return a ``ValuationResult``.
 ///
 /// Parameters
@@ -83,30 +66,34 @@ fn price_instrument(
     market_history: Option<&str>,
 ) -> PyResult<PyValuationResult> {
     let instrument_json = extract_instrument_json(instrument_json)?;
-    validate_pricing_instrument_json(py, &instrument_json, pricing_options)?;
+    let pricing_options = pricing_options.map(str::to_owned);
+    let instrument = py.detach(move || {
+        finstack_quant_valuations::pricer::parse_boxed_instrument_json(
+            &instrument_json,
+            pricing_options.as_deref(),
+        )
+        .map_err(core_to_py)
+    })?;
     let market = extract_market(py, market)?;
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let model = model.to_owned();
     let metrics = metrics.unwrap_or_default();
-    let pricing_options = pricing_options.map(str::to_owned);
     let market_history = market_history.map(str::to_owned);
 
     let inner = py
         .detach(move || {
-            finstack_quant_valuations::pricer::price_instrument_json(
-                finstack_quant_valuations::pricer::JsonPricingRequest {
-                    instrument_json: &instrument_json,
-                    market: &market,
-                    as_of: &as_of,
-                    model: &model,
-                    metrics: &metrics,
-                    instrument_pricing_overrides_json: pricing_options.as_deref(),
-                    market_history_json: market_history.as_deref(),
-                    pricing_options: finstack_quant_valuations::instruments::PricingOptions::default()
-                        .with_recalibration_provider(std::sync::Arc::new(
-                            finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
-                        )),
-                },
+            finstack_quant_valuations::pricer::price_instrument(
+                &instrument,
+                &market,
+                &as_of,
+                &model,
+                &metrics,
+                market_history.as_deref(),
+                finstack_quant_valuations::instruments::PricingOptions::default()
+                    .with_recalibration_provider(std::sync::Arc::new(
+                        finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(
+                        ),
+                    )),
             )
         })
         .map_err(core_to_py)?;
@@ -251,14 +238,17 @@ fn instrument_cashflows_json(
     model: &str,
 ) -> PyResult<String> {
     let instrument_json = extract_instrument_json(instrument_json)?;
-    validate_pricing_instrument_json(py, &instrument_json, None)?;
+    let instrument = py.detach(move || {
+        finstack_quant_valuations::pricer::parse_boxed_instrument_json(&instrument_json, None)
+            .map_err(core_to_py)
+    })?;
     let market = extract_market(py, market)?;
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let model = model.to_owned();
 
     py.detach(move || {
-        finstack_quant_valuations::instruments::cashflow_export::instrument_cashflows_json(
-            &instrument_json,
+        finstack_quant_valuations::instruments::cashflow_export::instrument_cashflows(
+            &instrument,
             &market,
             &as_of,
             &model,

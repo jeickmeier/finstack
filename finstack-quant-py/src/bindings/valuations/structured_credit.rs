@@ -15,8 +15,9 @@ use crate::bindings::pandas_utils::{
 };
 use crate::errors::display_to_py;
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
-    OasResult, ScenarioTable, TrancheMetrics,
+    self as rust_structured_credit, OasResult, ScenarioTable, StructuredCredit, TrancheMetrics,
 };
+use finstack_quant_valuations::instruments::InstrumentJson;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use std::collections::BTreeMap;
@@ -32,6 +33,23 @@ const SCENARIO_CELL_COLUMNS: &[ColumnSchema<'static>] = &[
     ("wal", "float64"),
     ("writedown", "float64"),
 ];
+
+fn extract_structured_credit(
+    py: Python<'_>,
+    instrument: &Bound<'_, PyAny>,
+) -> PyResult<StructuredCredit> {
+    let instrument_json = extract_instrument_json(instrument)?;
+    py.detach(move || {
+        match finstack_quant_valuations::pricer::json::parse_instrument_json(&instrument_json)? {
+            InstrumentJson::StructuredCredit(deal) => Ok(*deal),
+            other => Err(finstack_quant_core::Error::Validation(format!(
+                "expected a structured_credit instrument, got {}",
+                other.type_tag()
+            ))),
+        }
+    })
+    .map_err(display_to_py)
+}
 
 /// Solve a z-spread-equivalent discount margin for a floating-rate tranche.
 ///
@@ -83,13 +101,13 @@ fn structured_credit_tranche_discount_margin(
     as_of: &Bound<'_, PyAny>,
     target_pv: f64,
 ) -> PyResult<f64> {
-    let instrument_json = extract_instrument_json(instrument_json)?;
+    let deal = extract_structured_credit(py, instrument_json)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     py.detach(move || {
-        finstack_quant_valuations::pricer::structured_credit_tranche_discount_margin_json(
-            &instrument_json,
+        rust_structured_credit::structured_credit_tranche_discount_margin(
+            &deal,
             &tranche_id,
             &market,
             &as_of,
@@ -130,13 +148,13 @@ fn structured_credit_tranche_breakeven_cdr(
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
 ) -> PyResult<f64> {
-    let instrument_json = extract_instrument_json(instrument_json)?;
+    let deal = extract_structured_credit(py, instrument_json)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     py.detach(move || {
-        finstack_quant_valuations::pricer::structured_credit_tranche_breakeven_cdr_json(
-            &instrument_json,
+        rust_structured_credit::structured_credit_tranche_breakeven_cdr(
+            &deal,
             &tranche_id,
             &market,
             &as_of,
@@ -184,15 +202,15 @@ fn structured_credit_tranche_oas(
     as_of: &Bound<'_, PyAny>,
     config_json: Option<&str>,
 ) -> PyResult<PyOasResult> {
-    let instrument_json = extract_instrument_json(instrument_json)?;
+    let deal = extract_structured_credit(py, instrument_json)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let config_json = config_json.map(str::to_owned);
     let inner = py
         .detach(move || {
-            finstack_quant_valuations::pricer::structured_credit_tranche_oas_json(
-                &instrument_json,
+            rust_structured_credit::structured_credit_tranche_oas(
+                &deal,
                 &tranche_id,
                 market_price_pct,
                 &market,
@@ -240,14 +258,14 @@ fn structured_credit_tranche_metrics(
     as_of: &Bound<'_, PyAny>,
     market_price_pct: Option<f64>,
 ) -> PyResult<PyTrancheMetrics> {
-    let instrument_json = extract_instrument_json(instrument_json)?;
+    let deal = extract_structured_credit(py, instrument_json)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let inner = py
         .detach(move || {
-            finstack_quant_valuations::pricer::structured_credit_tranche_metrics_json(
-                &instrument_json,
+            rust_structured_credit::structured_credit_tranche_metrics(
+                &deal,
                 &tranche_id,
                 &market,
                 &as_of,
@@ -293,15 +311,15 @@ fn structured_credit_tranche_scenario_table(
     as_of: &Bound<'_, PyAny>,
     grid_json: &str,
 ) -> PyResult<PyScenarioTable> {
-    let instrument_json = extract_instrument_json(instrument_json)?;
+    let deal = extract_structured_credit(py, instrument_json)?;
     let market = extract_market(py, market)?;
     let tranche_id = tranche_id.to_owned();
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let grid_json = grid_json.to_owned();
     let inner = py
         .detach(move || {
-            finstack_quant_valuations::pricer::structured_credit_tranche_scenario_table_json(
-                &instrument_json,
+            rust_structured_credit::structured_credit_tranche_scenario_table(
+                &deal,
                 &tranche_id,
                 &market,
                 &as_of,

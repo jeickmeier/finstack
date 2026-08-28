@@ -161,10 +161,10 @@ marker (`finstack_quant.instrument/1`, `finstack_quant.calibration/1`). See
 [docs/SERDE_STABILITY.md](../../docs/SERDE_STABILITY.md).
 
 **Result-return contract.** Computation entry points return typed results — a
-Rust struct, a `Py*` wrapper, or a plain JS object — not JSON strings. Only
-`_json` / `*Json`-suffixed surfaces (`pricer::price_instrument_json`,
-`pricer::structured_credit_tranche_metrics_json`, and friends) return JSON, and
-each has a public typed twin. See `.agents/rules/project-rules.md`.
+Rust struct, a `Py*` wrapper, or a plain JS object — not JSON strings.
+`pricer::price_instrument_json` takes JSON input but returns a typed
+`ValuationResult`; only explicit validation and formatting surfaces return JSON
+strings. See `.agents/rules/project-rules.md`.
 
 **Model and convention provenance.** Pricing models and market conventions cite
 their sources in rustdoc `# References` sections pointing at

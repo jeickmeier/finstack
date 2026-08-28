@@ -24,25 +24,23 @@ use indexmap::IndexMap;
 pub(crate) fn register_credit_pricers(
     registry: &mut PricerRegistry,
 ) -> std::result::Result<(), crate::pricer::PricingError> {
-    registry.register(InstrumentType::Cds, ModelKey::HazardRate, CDSHazardPricer)?;
+    registry.register(CDSHazardPricer)?;
 
     // CDS Index
-    registry.register(InstrumentType::CdsIndex,
-ModelKey::HazardRate,
-crate::instruments::credit_derivatives::cds_index::pricer::SimpleCdsIndexHazardPricer::default(),)?;
+    registry.register(
+        crate::instruments::credit_derivatives::cds_index::pricer::SimpleCdsIndexHazardPricer::default(),
+    )?;
 
     // CDS Tranche
-    registry.register(InstrumentType::CdsTranche,
-ModelKey::HazardRate,
-crate::instruments::credit_derivatives::cds_tranche::pricer::SimpleCDSTrancheHazardPricer::default(),)?;
+    registry.register(
+        crate::instruments::credit_derivatives::cds_tranche::pricer::SimpleCDSTrancheHazardPricer::default(),
+    )?;
 
     // CDS Option — Bloomberg CDSO numerical-quadrature model.
     // The legacy closed-form Black-on-spreads pricer was decommissioned in
     // 2010 (DOCS 2055833 §1.2) and removed from finstack-quant alongside the
     // Bloomberg-quadrature default.
     registry.register(
-        InstrumentType::CdsOption,
-        ModelKey::BloombergCdso,
         crate::instruments::credit_derivatives::cds_option::pricer::BloombergCdsoPricer,
     )?;
 
@@ -53,11 +51,7 @@ crate::instruments::credit_derivatives::cds_tranche::pricer::SimpleCDSTrancheHaz
         crate::instruments::fixed_income::structured_credit::StructuredCredit
     );
 
-    registry.register(
-        InstrumentType::StructuredCredit,
-        ModelKey::StructuredCreditStochastic,
-        StructuredCreditStochasticPricer,
-    )?;
+    registry.register(StructuredCreditStochasticPricer)?;
     Ok(())
 }
 

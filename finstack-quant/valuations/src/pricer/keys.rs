@@ -511,29 +511,6 @@ pub enum ModelKey {
 }
 
 impl ModelKey {
-    /// Returns true when the model uses Monte Carlo or stochastic simulation infrastructure.
-    ///
-    /// Monte Carlo models are built into the standard crate configuration; this predicate
-    /// describes model behavior, not a Cargo feature gate.
-    pub const fn is_monte_carlo_model(self) -> bool {
-        matches!(
-            self,
-            Self::MonteCarloGBM
-                | Self::MonteCarloHeston
-                | Self::MonteCarloHullWhite1F
-                | Self::HestonFourier
-                | Self::MertonMc
-                | Self::MonteCarloSchwartzSmith
-                | Self::LmmMonteCarlo
-                | Self::MonteCarloRoughBergomi
-                | Self::MonteCarloRoughHeston
-                | Self::RoughHestonFourier
-                | Self::MonteCarloCheyetteRoughVol
-        )
-    }
-}
-
-impl ModelKey {
     /// Canonical snake_case wire identifier.
     pub const fn as_str(self) -> &'static str {
         match self {

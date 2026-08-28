@@ -20,13 +20,14 @@ fn xccy_build_ctx(as_of: Date) -> BuildCtx {
 
 #[test]
 fn test_build_xccy_basis_swap() {
-    let as_of = Date::from_calendar_date(2025, time::Month::January, 10).unwrap();
+    let as_of =
+        Date::from_calendar_date(2025, time::Month::January, 10).expect("valid XCCY build date");
     let ctx = xccy_build_ctx(as_of);
 
     let quote = XccyQuote::BasisSwap {
         id: QuoteId::new("EURUSD-XCCY-5Y"),
         convention: XccyConventionId::new("EUR/USD-XCCY"),
-        far_pillar: Pillar::Tenor("5Y".parse().unwrap()),
+        far_pillar: Pillar::Tenor("5Y".parse().expect("valid 5Y XCCY tenor")),
         basis_spread_bp: -15.0,
         spot_fx: Some(1.10),
     };
@@ -79,7 +80,8 @@ fn test_build_xccy_basis_swap() {
 
 #[test]
 fn unregistered_forward_override_keeps_contractual_overnight_compounding() {
-    let as_of = Date::from_calendar_date(2025, time::Month::January, 10).unwrap();
+    let as_of =
+        Date::from_calendar_date(2025, time::Month::January, 10).expect("valid XCCY build date");
     let mut curve_ids = finstack_quant_core::HashMap::default();
     curve_ids.insert("domestic_discount".to_string(), "USD-OIS".to_string());
     curve_ids.insert("foreign_discount".to_string(), "EUR-OIS".to_string());
@@ -93,7 +95,7 @@ fn unregistered_forward_override_keeps_contractual_overnight_compounding() {
     let quote = XccyQuote::BasisSwap {
         id: QuoteId::new("EURUSD-XCCY-5Y-ALIAS"),
         convention: XccyConventionId::new("EUR/USD-XCCY"),
-        far_pillar: Pillar::Tenor("5Y".parse().unwrap()),
+        far_pillar: Pillar::Tenor("5Y".parse().expect("valid 5Y XCCY tenor")),
         basis_spread_bp: -15.0,
         spot_fx: Some(1.10),
     };
@@ -116,7 +118,8 @@ fn unregistered_forward_override_keeps_contractual_overnight_compounding() {
 
 #[test]
 fn registered_term_forward_override_on_ois_convention_is_rejected() {
-    let as_of = Date::from_calendar_date(2025, time::Month::January, 10).unwrap();
+    let as_of =
+        Date::from_calendar_date(2025, time::Month::January, 10).expect("valid XCCY build date");
     let mut curve_ids = finstack_quant_core::HashMap::default();
     curve_ids.insert("domestic_discount".to_string(), "USD-OIS".to_string());
     curve_ids.insert("foreign_discount".to_string(), "EUR-OIS".to_string());
@@ -127,13 +130,13 @@ fn registered_term_forward_override_on_ois_convention_is_rejected() {
     let quote = XccyQuote::BasisSwap {
         id: QuoteId::new("EURUSD-XCCY-5Y-TERM"),
         convention: XccyConventionId::new("EUR/USD-XCCY"),
-        far_pillar: Pillar::Tenor("5Y".parse().unwrap()),
+        far_pillar: Pillar::Tenor("5Y".parse().expect("valid 5Y XCCY tenor")),
         basis_spread_bp: -15.0,
         spot_fx: Some(1.10),
     };
 
     let Err(err) = build_xccy_instrument(&quote, &ctx) else {
-        panic!("term override on OIS must fail");
+        unreachable!("term override on OIS must fail");
     };
     assert!(
         err.to_string().contains("USD-SOFR-3M"),

@@ -350,32 +350,20 @@ mod discount_margin_tests {
     }
 
     #[test]
-    fn discount_margin_reachable_through_json() {
-        // The discount-margin metric is reachable from the JSON binding surface
-        // and returns the same value as the direct call.
-        use finstack_quant_valuations::instruments::json_loader::{
-            InstrumentEnvelope, InstrumentJson,
-        };
-        use finstack_quant_valuations::pricer::structured_credit_tranche_discount_margin_json;
+    fn discount_margin_boundary_matches_domain_calculator() {
+        // The host-facing boundary returns the same value as the Date/Money
+        // domain calculator.
+        use finstack_quant_valuations::instruments::fixed_income::structured_credit::structured_credit_tranche_discount_margin;
 
         let sc = deal(true);
         let mkt = market();
         let pv = sc.value_tranche("SR", &mkt, closing()).unwrap();
         let direct = calculate_tranche_discount_margin(&sc, "SR", &mkt, closing(), pv).unwrap();
 
-        let json = serde_json::to_string(&InstrumentEnvelope::new(
-            InstrumentJson::StructuredCredit(Box::new(sc)),
-        ))
-        .unwrap();
-        let from_json = structured_credit_tranche_discount_margin_json(
-            &json,
-            "SR",
-            &mkt,
-            "2024-01-01",
-            pv.amount(),
-        )
-        .unwrap();
-        assert!((direct - from_json).abs() < 1e-12);
+        let from_boundary =
+            structured_credit_tranche_discount_margin(&sc, "SR", &mkt, "2024-01-01", pv.amount())
+                .unwrap();
+        assert!((direct - from_boundary).abs() < 1e-12);
     }
 }
 
@@ -807,28 +795,17 @@ mod oas_tests {
     }
 
     #[test]
-    fn standalone_metrics_reachable_through_json() {
-        // The standalone tranche metrics (OAS, break-even CDR, scenario table)
-        // are reachable from the JSON binding surface and return the same values
-        // as the direct calls.
+    fn tranche_analytics_boundaries_match_domain_calculators() {
+        // Host-facing tranche boundaries preserve the typed domain results.
         use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
-            calculate_tranche_breakeven_cdr, scenario_table, ScenarioGrid,
-        };
-        use finstack_quant_valuations::instruments::json_loader::{
-            InstrumentEnvelope, InstrumentJson,
-        };
-        use finstack_quant_valuations::pricer::{
-            structured_credit_tranche_breakeven_cdr_json, structured_credit_tranche_oas_json,
-            structured_credit_tranche_scenario_table_json,
+            calculate_tranche_breakeven_cdr, scenario_table,
+            structured_credit_tranche_breakeven_cdr, structured_credit_tranche_oas,
+            structured_credit_tranche_scenario_table, ScenarioGrid,
         };
 
         let sc = deal();
         let mkt = market();
         let as_of = closing();
-        let json = serde_json::to_string(&InstrumentEnvelope::new(
-            InstrumentJson::StructuredCredit(Box::new(sc.clone())),
-        ))
-        .unwrap();
 
         // OAS (deterministic config so the comparison is exact).
         let config = OasConfig {
@@ -838,22 +815,16 @@ mod oas_tests {
         };
         let direct_oas = calculate_tranche_oas(&sc, "SR", 99.0, &mkt, as_of, &config).unwrap();
         let config_json = serde_json::to_string(&config).unwrap();
-        let json_oas = structured_credit_tranche_oas_json(
-            &json,
-            "SR",
-            99.0,
-            &mkt,
-            "2024-01-01",
-            Some(&config_json),
-        )
-        .unwrap();
-        assert!((direct_oas.oas - json_oas.oas).abs() < 1e-12);
+        let boundary_oas =
+            structured_credit_tranche_oas(&sc, "SR", 99.0, &mkt, "2024-01-01", Some(&config_json))
+                .unwrap();
+        assert!((direct_oas.oas - boundary_oas.oas).abs() < 1e-12);
 
         // Break-even CDR.
         let direct_be = calculate_tranche_breakeven_cdr(&sc, "SR", &mkt, as_of).unwrap();
-        let json_be =
-            structured_credit_tranche_breakeven_cdr_json(&json, "SR", &mkt, "2024-01-01").unwrap();
-        assert!((direct_be - json_be).abs() < 1e-12);
+        let boundary_be =
+            structured_credit_tranche_breakeven_cdr(&sc, "SR", &mkt, "2024-01-01").unwrap();
+        assert!((direct_be - boundary_be).abs() < 1e-12);
 
         // Scenario table.
         let grid = ScenarioGrid {
@@ -864,16 +835,11 @@ mod oas_tests {
         };
         let direct_st = scenario_table(&sc, "SR", &mkt, as_of, &grid).unwrap();
         let grid_json = serde_json::to_string(&grid).unwrap();
-        let json_st = structured_credit_tranche_scenario_table_json(
-            &json,
-            "SR",
-            &mkt,
-            "2024-01-01",
-            &grid_json,
-        )
-        .unwrap();
-        assert_eq!(direct_st.cells.len(), json_st.cells.len());
-        assert!(!json_st.cells.is_empty());
-        assert!((direct_st.cells[0].price - json_st.cells[0].price).abs() < 1e-9);
+        let boundary_st =
+            structured_credit_tranche_scenario_table(&sc, "SR", &mkt, "2024-01-01", &grid_json)
+                .unwrap();
+        assert_eq!(direct_st.cells.len(), boundary_st.cells.len());
+        assert!(!boundary_st.cells.is_empty());
+        assert!((direct_st.cells[0].price - boundary_st.cells[0].price).abs() < 1e-9);
     }
 }

@@ -5,10 +5,9 @@ The dispatch core of the valuations crate. It owns the three key types
 `PricerRegistry` that maps a `(instrument, model)` pair to one pricer
 implementation, and the JSON entry points the Python and WASM bindings call.
 
-Every registry-dispatched result runs `price_with_metrics_impl`, reached through
-`PricerRegistry::price_with_metrics` (direct callers) or `price_with_metrics_shared`
-(the instrument-side wrapper behind `Instrument::price_with_metrics`, which only
-resolves the model and the registry before calling in here).
+Every registry-dispatched result runs `PricerRegistry::price_with_metrics`.
+`Instrument::price_with_metrics` resolves the model and registry before calling
+that same implementation.
 The ordering rules documented below — validate, resolve `as_of`, price unshocked,
 stamp metadata, apply the scenario shock exactly once, enrich with metrics — are
 therefore the whole pricing contract for anything reached by a `ModelKey`.
@@ -45,8 +44,6 @@ in a different crate, reached by the MC instrument pricers.
 | [`errors.rs`](errors.rs) | `PricingError`, `PricingErrorContext`, the two lossy conversions to/from `finstack_quant_core::Error` | private mod, types re-exported |
 | [`enrichment.rs`](enrichment.rs) | Metric enrichment applied after the base PV | `pub(super)`, fully internal |
 | [`json.rs`](json.rs) | Envelope parse/validate, model + metric discovery, the JSON pricing entry points | `pub mod` |
-| [`structured_credit_json.rs`](structured_credit_json.rs) | Five structured-credit tranche analytics that the generic metric registry cannot carry | `pub mod` |
-| [`cos.rs`](cos.rs) | Fang-Oosterlee COS Fourier pricer (`CosConfig`, `CosPricer`, `bs_cos_price`, `vg_cos_price`, `merton_jump_cos_price`) | `pub mod` |
 | [`rates.rs`](rates.rs) | Registrations: Bond, Irs, Fra, BasisSwap, Deposit, InterestRateFuture, BondFuture, CapFloor, Swaption, Repo, Dcf | private mod |
 | [`credit.rs`](credit.rs) | Registrations: Cds, CdsIndex, CdsTranche, CdsOption, StructuredCredit | private mod |
 | [`equity.rs`](equity.rs) | Registrations: Equity, EquityFuture, EquityTotalReturnFuture, EquityOption, EquityTotalReturnSwap, VarianceSwap, VolatilityIndexFuture, RealEstateAsset, LeveredRealEstateEquity, PrivateMarketsFund | private mod |
@@ -67,7 +64,7 @@ Re-exported from `crate::pricer` (and therefore public API):
 `InstrumentType`, `ModelKey`, `PricerKey`, `Pricer`, `PricerRegistry`,
 `PricingError`, `PricingErrorContext`, `standard_registry()`, `expect_inst`
 (marked `#[doc(hidden)]`), every `pub fn` in `json` and
-`structured_credit_json`, `STANDARD_OPTION_GREEKS`, and the `cos` module.
+`ParsedInstrument`, and `STANDARD_OPTION_GREEKS`.
 
 Internal, despite living next to the public surface:
 
@@ -75,12 +72,8 @@ Internal, despite living next to the public surface:
 |------|-----------|------|
 | `shared_standard_registry()` | `pub(crate)` | `Arc` handle onto the same singleton `standard_registry()` returns |
 | `register_generic!` | `pub(crate) use` | Registration boilerplate for `GenericInstrumentPricer` |
-| `PricerRegistry::price_with_metrics_shared` | `pub(crate)` | Entry point used by `Instrument::price_with_metrics` |
 | `PricerRegistry::price_raw` | `pub(crate)` | Unrounded `f64` path for finite-difference risk |
-| `PricerRegistry::metric_registry_override` | `pub(crate)` | |
-| `PricerRegistry::duplicate_keys` | `pub(super)` | Read only by `build_standard_registry` and its test |
 | `registry::attach_metric_measures` | `pub(super)` | |
-| `errors::actionable_unknown_pricer_message` | `pub(crate)` | Rewrites `UnknownPricer` into a Monte-Carlo-aware hint |
 | `enrichment::*` | `pub(super)` | |
 
 `PricerRegistry` derives `Clone` and `Default`, so a caller can build a bespoke
@@ -133,10 +126,6 @@ which asserts `serde_json::to_string(&variant) == format!("\"{}\"", variant.as_s
 for every variant. The colocated unit tests in `keys.rs` only cover the
 `Display`/`FromStr` round trip, which would pass even if serde disagreed.
 
-`ModelKey::is_monte_carlo_model()` is a behavior predicate over eleven variants,
-not a cargo-feature gate; it only selects the wording of the `UnknownPricer`
-hint.
-
 ## The registry
 
 ```rust
@@ -161,29 +150,29 @@ a hash map would work; the ordered map is there to make any enumeration of the
 registry (`all_models`, `all_models_grouped`, `available_models_for_instrument`,
 `list_models*`) deterministic without every call site remembering to sort.
 
-`register` **rejects** a duplicate key: it logs `tracing::warn!`, records the key
-in `duplicate_keys`, and leaves the first registration in place. `replace` is the
-explicit overwrite, intended for tests and controlled monkey-patching.
-`build_standard_registry` runs inside a `OnceLock` initializer and so cannot
-return a `Result`; it emits `tracing::error!` per collision instead, and
-`pricer::tests::register_all_pricers_has_no_duplicate_keys` is the CI gate that
-turns a collision into a failing build.
+`register` **rejects** a duplicate key with
+`PricingError::DuplicateRegistration` and leaves the first registration in
+place. `replace` is the explicit overwrite, intended for tests and controlled
+monkey-patching. `build_standard_registry` propagates registration errors to the
+`OnceLock` initializer, where a duplicate built-in registration is treated as an
+invariant violation.
 
 `standard_registry()` returns a `&'static PricerRegistry` from a process-wide
 `OnceLock<Arc<PricerRegistry>>`. When metrics are requested, the pricing path
-needs an `Arc<PricerRegistry>` so calculators can reprice through the same
-dispatch table; `price_with_metrics` compares `self` against
-the singleton with `std::ptr::eq` and reuses its `Arc` on a hit, deep-cloning the
-registry map only for a bespoke registry.
+wraps a cheap clone in `Arc`; the registry's ordered pricer map is already
+`Arc`-backed, so this does not deep-clone the dispatch table.
 
 ## Pricing pipeline
 
-`PricerRegistry::price_with_metrics` (and the `pub(crate)`
-`price_with_metrics_shared` behind `Instrument::price_with_metrics`) runs a fixed
-sequence. The ordering is load-bearing; change it and results change.
+`PricerRegistry::price_with_metrics` runs a fixed sequence. The ordering is
+load-bearing; change it and results change.
 
-1. **Validate, then look up.** `ValidatedPricingLifecycle::new(instrument)` calls
-   `Instrument::validate_for_pricing()`. A malformed instrument therefore fails
+1. **Validate, then look up.** Ordinary Rust calls use
+   `ValidatedPricingLifecycle::new(instrument)`, which calls
+   `Instrument::validate_for_pricing()`. Host requests instead arrive as a
+   `ParsedInstrument`, whose private construction already performed that same
+   validation before market extraction; the registry consumes its internal
+   marker rather than validating twice. A malformed instrument therefore fails
    as invalid input *before* model lookup or any market access. Only then is
    `PricerKey::new(instrument.key(), model)` resolved; a miss produces
    `UnknownPricer { key, available_models }` where `available_models` lists every
@@ -279,12 +268,6 @@ mapping table in [`errors.rs`](errors.rs):
 `PricingError` derives serde because it flows through the crate-level
 `crate::Error` wire envelope.
 
-`Instrument::price_with_metrics` post-processes `UnknownPricer` through
-`actionable_unknown_pricer_message`, which — for a Monte Carlo `ModelKey` —
-replaces the message with a hint naming the likely cause (a barrier/lookback
-switched off continuous monitoring, a Bermudan swaption asking for LSMC) plus
-the available-model list.
-
 ## JSON entry points
 
 `json.rs` is the shared pipeline behind both host bindings: parse a canonical
@@ -294,7 +277,7 @@ as-of date and model key, dispatch through the standard registry.
 | Function | Returns |
 |----------|---------|
 | `parse_instrument_json` | `InstrumentJson` |
-| `parse_boxed_instrument_json` | `Box<dyn Instrument>` |
+| `parse_boxed_instrument_json` | `ParsedInstrument` |
 | `instrument_envelope_from_spec` | `String` (canonical envelope JSON) |
 | `validate_instrument_json`, `validate_typed_instrument_json` | `String` (re-serialized envelope) |
 | `pretty_instrument_json` | `String` |
@@ -302,18 +285,26 @@ as-of date and model key, dispatch through the standard registry.
 | `list_models`, `list_models_grouped` | `Vec<String>` / `BTreeMap<String, Vec<String>>` |
 | `list_standard_metrics`, `list_standard_metrics_grouped` | same shapes |
 | `price_instrument_json` | `ValuationResult` |
+| `price_instrument` | `ValuationResult` from a `ParsedInstrument` |
 | `metric_value_from_instrument_json` | `f64` |
 | `present_metric_values_from_instrument_json` | `Vec<(&str, f64)>` |
 | `present_standard_option_greeks_from_instrument_json` | `Vec<(&'static str, f64)>` |
+| `instrument_cashflows_json` | `String` from an instrument envelope |
+| `instrument_cashflows` | `String` from a `ParsedInstrument` |
 
 **The `_json` suffix here means JSON *in*, not JSON *out*.** `price_instrument_json`
-returns a typed `ValuationResult`; the five `structured_credit_tranche_*_json`
-functions return `f64`, `OasResult`, `TrancheMetrics`, and `ScenarioTable`. Only
-`validate_*`, `pretty_*`, and `instrument_envelope_from_spec` return a JSON
-string, and each of those is a validation/formatting surface rather than a
-computation. This is consistent with the result-return contract in
+returns a typed `ValuationResult`. Only `validate_*`, `pretty_*`, and
+`instrument_envelope_from_spec` return a JSON string, and each of those is a
+validation/formatting surface rather than a computation. This is consistent
+with the result-return contract in
 [`.agents/rules/project-rules.md`](../../../../.agents/rules/project-rules.md)
 even though the names read the other way.
+
+Structured-credit tranche analytics live with their instrument domain under
+`instruments::fixed_income::structured_credit`. The Python and WASM boundaries
+parse the canonical envelope once into `InstrumentJson::StructuredCredit`, then
+call those typed functions; they are intentionally not part of the generic
+pricer registry API.
 
 Two further conventions:
 
@@ -321,24 +312,24 @@ Two further conventions:
   with no registered pricer is omitted, so the output describes real dispatch
   coverage rather than the model vocabulary `ModelKey::iter()` would advertise.
   `list_standard_metrics*`, by contrast, comes from the metric registry.
-- **Non-finite results are rejected at the boundary.** `structured_credit_json.rs`
-  runs `ensure_finite` over every scalar field before returning, because
-  `serde_json` renders `NaN`/`inf` as JSON `null`, which downstream consumers
-  coerce to `0` — a failed computation must not read as a valid one.
+- **Non-finite structured-credit results are rejected at the typed domain
+  boundary.** The tranche analytics run `ensure_finite` over every scalar field
+  before returning, because `serde_json` renders `NaN`/`inf` as JSON `null`,
+  which downstream consumers coerce to `0` — a failed computation must not read
+  as a valid one.
 
 `price_instrument_json` accepts `"default"` for `model`, which resolves to
 `Instrument::default_model()`. The comparison in `resolve_model_key` is exact
-(`model == "default"`), so the "case-insensitive" wording in the rustdoc on
-`price_instrument_json` and `parse_model_key` is wrong — `"Default"` is rejected.
+(`model == "default"`), so `"Default"` and other case variants are rejected.
 
 ## Verification
 
 ```bash
-# Colocated unit tests (never `cargo test` — it would also run doc tests).
-cargo nextest run -p finstack-quant-valuations --lib -E 'test(/pricer::/)'
+# Colocated unit tests.
+mise run rust-test-filter -- finstack-quant-valuations pricer
 
-# Registry construction, key round trips, error display.
-cargo nextest run -p finstack-quant-valuations --test instruments -E 'test(/common::pricer/)'
+# Registry construction, key round trips, error display, and exact coverage.
+mise run rust-test-filter -- finstack-quant-valuations common::pricer
 
 mise run rust-test
 mise run rust-lint
@@ -348,9 +339,9 @@ mise run rust-gen-schemas
 mise run rust-check-schemas
 ```
 
-The CI-critical unit tests in this directory are
-`pricer::tests::register_all_pricers_has_no_duplicate_keys` (no shard silently
-overwrites another's pricer) and `pricer::keys::tests::abi_is_stable` (the
+The CI-critical tests are
+`common::pricer::registry::standard_registry_has_exact_expected_coverage` (the
+complete built-in dispatch table) and `pricer::keys::tests::abi_is_stable` (the
 `repr` sizes that the wire format assumes).
 
 No bench targets this module directly; registry dispatch is exercised through

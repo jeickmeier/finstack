@@ -65,7 +65,7 @@
     ]
   },
   "kind": "pricing",
-  "model": "discounting",
+  "model": "normal",
   "market": {
     "kind": "envelope",
     "envelope": {

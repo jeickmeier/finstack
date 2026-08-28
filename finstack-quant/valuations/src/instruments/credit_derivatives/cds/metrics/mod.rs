@@ -50,9 +50,10 @@ pub(crate) fn market_doc_clause(
 pub(crate) fn deal_quote_override(
     cds: &crate::instruments::credit_derivatives::cds::CreditDefaultSwap,
 ) -> Option<crate::recalibration::DealCdsQuoteOverride> {
-    let Some(quote_bp) = cds.instrument_pricing_overrides.market_quotes.cds_quote_bp else {
-        return None;
-    };
+    let quote_bp = cds
+        .instrument_pricing_overrides
+        .market_quotes
+        .cds_quote_bp?;
     if !cds.uses_clean_price() {
         return None;
     }

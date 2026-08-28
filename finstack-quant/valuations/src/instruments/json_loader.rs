@@ -574,6 +574,19 @@ macro_rules! instrument_json_into_boxed_match {
     };
 }
 
+macro_rules! instrument_json_as_instrument_match {
+    (
+        [$instrument_json:expr]
+        $(plain: $variant:ident($ty:ty) => $tag:literal @ $category:literal = $example:expr;)*
+        $(boxed: $boxed_variant:ident($boxed_ty:ty) => $boxed_tag:literal @ $boxed_category:literal = $boxed_example:expr;)*
+    ) => {
+        match $instrument_json {
+            $(InstrumentJson::$variant(instrument) => instrument as &dyn Instrument,)*
+            $(InstrumentJson::$boxed_variant(instrument) => instrument.as_ref() as &dyn Instrument,)*
+        }
+    };
+}
+
 macro_rules! instrument_json_from_any_match {
     (
         [$value:expr]
@@ -620,6 +633,12 @@ impl InstrumentJson {
     #[must_use]
     pub const fn type_tag(&self) -> &'static str {
         with_instrument_json_registry!(instrument_json_type_tag_match, self)
+    }
+
+    /// Validate this payload without cloning or consuming its concrete instrument.
+    pub(crate) fn validate_for_pricing(&self) -> Result<()> {
+        let instrument = with_instrument_json_registry!(instrument_json_as_instrument_match, self);
+        validate_loaded_instrument(instrument)
     }
 
     /// Convert this JSON representation into a boxed instrument trait object.
@@ -679,7 +698,7 @@ impl InstrumentEnvelope {
     /// Returns an error when the concrete instrument cannot be constructed or
     /// violates its domain or pricing invariants.
     pub fn into_boxed(self) -> Result<Box<dyn Instrument>> {
-        Self::finalize_loaded_instrument(self.instrument.into_boxed()?)
+        self.instrument.into_boxed()
     }
 
     /// Compute the versioned SHA-256 hash of this envelope's canonical JSON.
@@ -713,11 +732,6 @@ impl InstrumentEnvelope {
         let envelope: Self = deserialize_json_value(value, limits)?;
         let instrument = envelope.into_boxed()?;
         Ok((instrument, ValidationReport::default()))
-    }
-
-    fn finalize_loaded_instrument(instrument: Box<dyn Instrument>) -> Result<Box<dyn Instrument>> {
-        validate_loaded_instrument(instrument.as_ref())?;
-        Ok(instrument)
     }
 
     /// Load an instrument from a JSON value.

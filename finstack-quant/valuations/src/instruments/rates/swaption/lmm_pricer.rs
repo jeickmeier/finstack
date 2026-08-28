@@ -22,7 +22,7 @@ use finstack_quant_models::monte_carlo::process::lmm::LmmParams;
 /// Bermudan swaption pricer using LMM/BGM Monte Carlo with LSMC exercise.
 ///
 /// Builds [`LmmParams`] from the swaption's canonical underlying fixed-leg
-/// schedule and projection/discount curves, then delegates to [`price_bermudan_lmm`] for
+/// schedule and projection/discount curves, then delegates to `price_bermudan_lmm` for
 /// LSMC-based Bermudan exercise valuation.
 ///
 /// # Parameter Construction

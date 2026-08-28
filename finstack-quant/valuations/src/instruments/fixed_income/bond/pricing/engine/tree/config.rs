@@ -617,7 +617,6 @@ impl TreePricerConfig {
             tree_compounding: TreeCompounding::default(),
         }
     }
-
 }
 
 #[cfg(test)]

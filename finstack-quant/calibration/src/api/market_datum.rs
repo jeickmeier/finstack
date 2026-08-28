@@ -240,11 +240,12 @@ mod tests {
             id: "AAPL".into(),
             scalar: MarketScalar::Unitless(175.42),
         });
-        let json = serde_json::to_string(&datum).unwrap();
+        let json = serde_json::to_string(&datum).expect("price datum should serialize");
         assert!(json.contains(r#""kind":"price""#));
-        let back: MarketDatum = serde_json::from_str(&json).unwrap();
+        let back: MarketDatum =
+            serde_json::from_str(&json).expect("serialized price datum should deserialize");
         let MarketDatum::Price(p) = back else {
-            panic!("expected Price variant");
+            unreachable!("round-tripped price datum should retain the Price variant");
         };
         assert_eq!(p.id, "AAPL");
         assert!(matches!(p.scalar, MarketScalar::Unitless(v) if (v - 175.42).abs() < 1e-12));

@@ -41,6 +41,7 @@ pub(crate) mod pricing;
 pub(crate) mod risk;
 pub(crate) mod scenario;
 pub(crate) mod summary;
+mod tranche_analytics;
 
 pub use deal_specific::{
     AbsChargeOffCalculator, AbsCreditEnhancementCalculator, CmbsDscrCalculator, RmbsWalCalculator,
@@ -59,6 +60,11 @@ pub use risk::{
 };
 pub use scenario::{scenario_table, ScenarioCell, ScenarioGrid, ScenarioTable};
 pub use summary::{calculate_tranche_metrics, TrancheMetrics};
+pub use tranche_analytics::{
+    structured_credit_tranche_breakeven_cdr, structured_credit_tranche_discount_margin,
+    structured_credit_tranche_metrics, structured_credit_tranche_oas,
+    structured_credit_tranche_scenario_table,
+};
 
 // Standalone tranche metric functions are included in the explicit lists above.
 

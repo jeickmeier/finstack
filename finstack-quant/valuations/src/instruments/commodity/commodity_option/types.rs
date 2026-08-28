@@ -661,6 +661,10 @@ fn black76_unit_price(
 impl Instrument for CommodityOption {
     impl_instrument_base!(crate::pricer::InstrumentType::CommodityOption);
 
+    fn default_model(&self) -> crate::pricer::ModelKey {
+        crate::pricer::ModelKey::Black76
+    }
+
     fn validate_invariants(&self) -> Result<()> {
         self.validate()
     }
@@ -1226,6 +1230,67 @@ mod tests {
             Some("WTI-SPOT")
         );
         assert_eq!(volatility.reference_strike, Some(option.strike));
+    }
+
+    #[test]
+    fn commodity_option_default_equals_black76_for_pv_and_raw() {
+        let option = CommodityOption::example();
+        let as_of = Date::from_calendar_date(2025, time::Month::January, 15).expect("valid date");
+        let market = MarketContext::new()
+            .insert(
+                DiscountCurve::builder("USD-OIS")
+                    .base_date(as_of)
+                    .knots([(0.0, 1.0), (1.0, 0.97)])
+                    .build()
+                    .expect("discount curve"),
+            )
+            .insert(
+                PriceCurve::builder("WTI-FORWARD")
+                    .base_date(as_of)
+                    .spot_price(75.0)
+                    .knots([(0.0, 75.0), (1.0, 76.0)])
+                    .build()
+                    .expect("price curve"),
+            )
+            .insert_surface(
+                VolSurface::builder("WTI-VOL")
+                    .expiries(&[0.25, 0.5, 1.0])
+                    .strikes(&[60.0, 75.0, 90.0])
+                    .row(&[0.25, 0.25, 0.25])
+                    .row(&[0.25, 0.25, 0.25])
+                    .row(&[0.25, 0.25, 0.25])
+                    .build()
+                    .expect("vol surface"),
+            );
+        let registry = crate::pricer::standard_registry();
+
+        let default = option
+            .price_with_metrics(
+                &market,
+                as_of,
+                &[],
+                crate::instruments::PricingOptions::default(),
+            )
+            .expect("default commodity-option price");
+        let black76 = registry
+            .price_with_metrics(
+                &option,
+                crate::pricer::ModelKey::Black76,
+                &market,
+                as_of,
+                &[],
+                crate::instruments::PricingOptions::default(),
+            )
+            .expect("Black76 commodity-option price");
+        let default_raw = option
+            .value_raw(&market, as_of)
+            .expect("default commodity-option raw price");
+        let black76_raw = registry
+            .price_raw(&option, crate::pricer::ModelKey::Black76, &market, as_of)
+            .expect("Black76 commodity-option raw price");
+
+        assert_eq!(default.value, black76.value);
+        assert_eq!(default_raw, black76_raw);
     }
 
     #[test]

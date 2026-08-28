@@ -1226,6 +1226,13 @@ pub struct GreekInputs {
 impl crate::instruments::common_impl::traits::Instrument for Swaption {
     impl_instrument_base!(crate::pricer::InstrumentType::Swaption);
 
+    fn default_model(&self) -> crate::pricer::ModelKey {
+        match self.vol_model {
+            VolatilityModel::Black => crate::pricer::ModelKey::Black76,
+            VolatilityModel::Normal => crate::pricer::ModelKey::Normal,
+        }
+    }
+
     fn validate_invariants(&self) -> finstack_quant_core::Result<()> {
         self.validate()
     }

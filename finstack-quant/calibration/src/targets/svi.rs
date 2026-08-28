@@ -494,7 +494,7 @@ mod tests {
         let error = evaluate_svi_model_vol(&params, 1.0, 95.0, 100.0)
             .expect_err("negative total variance must fail");
         let finstack_quant_core::Error::Calibration { message, category } = error else {
-            panic!("expected structured calibration error");
+            unreachable!("invalid SVI variance should return a Calibration error");
         };
         assert_eq!(category, "svi_evaluation");
         assert!(message.contains("expiry=1.000000000000"));

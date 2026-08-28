@@ -712,5 +712,4 @@ mod tests {
              steep curve: no_cutoff={pv_no_cutoff}, cutoff={pv_cutoff}"
         );
     }
-
 }

@@ -5,7 +5,7 @@
 //! pricing overrides, parse the as-of date and model key, and dispatch through
 //! the standard pricer registry.
 
-use super::{shared_standard_registry, ModelKey, PricerRegistry};
+use super::{shared_standard_registry, ModelKey};
 use crate::instruments::json_loader::MAX_JSON_BYTES;
 use crate::instruments::{Instrument, InstrumentEnvelope, InstrumentJson, MetricPricingOverrides};
 use crate::metrics::MetricId;
@@ -27,6 +27,33 @@ pub const STANDARD_OPTION_GREEKS: &[&str] = &[
     "vanna",
     "volga",
 ];
+
+/// Instrument parsed and validated at a host-language request boundary.
+///
+/// This handle preserves proof that validation already ran before market
+/// extraction. Parsed pricing cores accept it so registry dispatch can avoid
+/// repeating validation while ordinary Rust pricing routes remain guarded.
+pub struct ParsedInstrument {
+    instrument: Box<dyn Instrument>,
+}
+
+impl ParsedInstrument {
+    fn new(instrument: Box<dyn Instrument>) -> Self {
+        Self { instrument }
+    }
+
+    /// Borrow the validated instrument trait object.
+    #[must_use]
+    pub fn as_instrument(&self) -> &dyn Instrument {
+        self.instrument.as_ref()
+    }
+
+    /// Consume this validation handle and return the boxed instrument.
+    #[must_use]
+    pub fn into_boxed(self) -> Box<dyn Instrument> {
+        self.instrument
+    }
+}
 
 /// Parse a canonical instrument envelope into the canonical Rust enum.
 ///
@@ -54,7 +81,7 @@ pub fn parse_instrument_json(json: &str) -> finstack_quant_core::Result<Instrume
     let envelope: InstrumentEnvelope = serde_json::from_str(json)
         .map_err(|error| Error::Validation(format!("invalid instrument envelope JSON: {error}")))?;
     let instrument = envelope.instrument;
-    instrument.clone().into_boxed()?.validate_for_pricing()?;
+    instrument.validate_for_pricing()?;
     Ok(instrument)
 }
 
@@ -97,7 +124,7 @@ pub fn instrument_envelope_from_spec(
         "spec": spec,
     }))
     .map_err(|error| Error::Validation(format!("invalid {type_tag} instrument spec: {error}")))?;
-    instrument.clone().into_boxed()?;
+    instrument.validate_for_pricing()?;
     serde_json::to_string(&InstrumentEnvelope::new(instrument))
         .map_err(|error| Error::Validation(format!("invalid instrument JSON: {error}")))
 }
@@ -140,10 +167,8 @@ pub fn validate_typed_instrument_json(
 /// Returns `Error::Validation` when parsing, instrument validation, or
 /// canonical serialization fails.
 pub fn validate_instrument_json(json: &str) -> finstack_quant_core::Result<String> {
-    parse_boxed_instrument_json(json, None)?;
-    let parsed: InstrumentEnvelope = serde_json::from_str(json)
-        .map_err(|e| Error::Validation(format!("invalid instrument envelope JSON: {e}")))?;
-    serde_json::to_string(&parsed)
+    let instrument = parse_instrument_json(json)?;
+    serde_json::to_string(&InstrumentEnvelope::new(instrument))
         .map_err(|e| Error::Validation(format!("invalid instrument JSON: {e}")))
 }
 
@@ -220,7 +245,7 @@ pub fn list_models_grouped() -> BTreeMap<String, Vec<String>> {
 }
 
 /// Parse a canonical instrument envelope, optionally merge metric pricing
-/// overrides, and box the concrete instrument for pricing dispatch.
+/// overrides, and return a validated handle for pricing dispatch.
 ///
 /// # Arguments
 ///
@@ -235,15 +260,15 @@ pub fn list_models_grouped() -> BTreeMap<String, Vec<String>> {
 pub fn parse_boxed_instrument_json(
     instrument_json: &str,
     pricing_options: Option<&str>,
-) -> finstack_quant_core::Result<Box<dyn Instrument>> {
+) -> finstack_quant_core::Result<ParsedInstrument> {
     let effective_json = instrument_json_for_pricing(instrument_json, pricing_options)?;
-    InstrumentEnvelope::from_str(effective_json.as_ref())
+    InstrumentEnvelope::from_str(effective_json.as_ref()).map(ParsedInstrument::new)
 }
 
 /// Parse a concrete model key used by the JSON pricing helpers.
 ///
 /// This function only accepts named [`ModelKey`] values. The special
-/// case-insensitive `"default"` selector is handled by the pricing entry
+/// exact `"default"` selector is handled by the pricing entry
 /// points, where it resolves to the instrument's default model.
 ///
 /// # Arguments
@@ -337,12 +362,61 @@ pub fn price_instrument_json(
         request.instrument_json,
         request.instrument_pricing_overrides_json,
     )?;
-    let as_of = finstack_quant_core::dates::parse_iso_date(request.as_of)?;
-    let model = resolve_model_key(instrument.as_ref(), request.model)?;
+    price_instrument(
+        &instrument,
+        request.market,
+        request.as_of,
+        request.model,
+        request.metrics,
+        request.market_history_json,
+        request.pricing_options,
+    )
+}
+
+/// Price an already parsed and validated instrument using the shared standard
+/// registry.
+///
+/// This is the canonical core behind [`price_instrument_json`]. Host bindings
+/// use it after parsing the instrument so malformed instruments can be reported
+/// before market extraction without deserializing the instrument twice.
+///
+/// # Arguments
+///
+/// * `instrument` - Validated instrument to dispatch through the standard
+///   pricer registry.
+/// * `market` - Market context supplying curves, quotes, fixings, and FX data.
+/// * `as_of` - ISO-8601 valuation date.
+/// * `model` - Concrete model key or `"default"` to use the instrument's
+///   native default model.
+/// * `metrics` - Strict metric identifiers requested with the valuation.
+/// * `market_history_json` - Optional serialized market history required by
+///   historical risk metrics.
+/// * `pricing_options` - Pricing services and configuration supplied by the
+///   caller.
+///
+/// # Errors
+///
+/// Returns an error for an invalid date, model, metric identifier, or market
+/// history; missing required market data; or a failure in the selected pricer
+/// or metric calculation.
+pub fn price_instrument(
+    instrument: &ParsedInstrument,
+    market: &MarketContext,
+    as_of: &str,
+    model: &str,
+    metrics: &[String],
+    market_history_json: Option<&str>,
+    pricing_options: crate::instruments::PricingOptions,
+) -> finstack_quant_core::Result<ValuationResult> {
+    let instrument = instrument.as_instrument();
+    let as_of = finstack_quant_core::dates::parse_iso_date(as_of)?;
+    let model = resolve_model_key(instrument, model)?;
     let registry = shared_standard_registry();
-    let metric_registry = registry.get_metric_registry();
-    let metric_ids: Vec<MetricId> = request
-        .metrics
+    let metric_registry = pricing_options.metric_registry.clone();
+    let metric_registry = metric_registry
+        .as_deref()
+        .unwrap_or_else(|| crate::metrics::standard_registry());
+    let metric_ids: Vec<MetricId> = metrics
         .iter()
         .map(|metric| {
             MetricId::parse_strict(metric).or_else(|strict_error| {
@@ -355,25 +429,24 @@ pub fn price_instrument_json(
             })
         })
         .collect::<finstack_quant_core::Result<_>>()?;
-    let pricing_options = if let Some(json) = request.market_history_json {
+    let pricing_options = if let Some(json) = market_history_json {
         let history: crate::metrics::risk::MarketHistory = serde_json::from_str(json)
             .map_err(|e| Error::Validation(format!("invalid market history JSON: {e}")))?;
-        request
-            .pricing_options
-            .with_market_history(std::sync::Arc::new(history))
+        pricing_options.with_market_history(std::sync::Arc::new(history))
     } else {
-        request.pricing_options
+        pricing_options
     };
-    PricerRegistry::price_with_metrics_shared(
-        &registry,
-        instrument.as_ref(),
-        model,
-        request.market,
-        as_of,
-        &metric_ids,
-        pricing_options,
-    )
-    .map_err(Into::into)
+    let pricing_options = pricing_options.mark_instrument_validated();
+    registry
+        .price_with_metrics(
+            instrument,
+            model,
+            market,
+            as_of,
+            &metric_ids,
+            pricing_options,
+        )
+        .map_err(Into::into)
 }
 
 /// Price a canonical instrument envelope and return one requested scalar
@@ -587,6 +660,7 @@ fn instrument_json_for_pricing<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::instruments::commodity::commodity_option::CommodityOption;
     use crate::instruments::credit_derivatives::cds_option::CDSOption;
     use crate::instruments::equity::equity_option::EquityOption;
     use crate::instruments::equity::pe_fund::PrivateMarketsFund;
@@ -598,6 +672,7 @@ mod tests {
     use crate::instruments::fixed_income::term_loan::TermLoan;
     use crate::instruments::fx::FxOption;
     use crate::instruments::rates::ir_future::InterestRateFuture;
+    use crate::instruments::rates::swaption::Swaption;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::money::Money;
@@ -676,6 +751,33 @@ mod tests {
         assert_eq!(
             resolve_model_key(&fx_option, "default").expect("model"),
             ModelKey::Black76
+        );
+
+        let equity_option = EquityOption::example().expect("equity option");
+        let swaption = Swaption::example();
+        let commodity_option = CommodityOption::example();
+        for instrument in [
+            &equity_option as &dyn Instrument,
+            &swaption as &dyn Instrument,
+            &commodity_option as &dyn Instrument,
+        ] {
+            assert_eq!(
+                resolve_model_key(instrument, "default").expect("model"),
+                ModelKey::Black76
+            );
+        }
+
+        let mut normal_swaption = Swaption::example();
+        normal_swaption.vol_model = crate::instruments::rates::swaption::VolatilityModel::Normal;
+        assert_eq!(
+            resolve_model_key(&normal_swaption, "default").expect("model"),
+            ModelKey::Normal
+        );
+
+        let convertible = ConvertibleBond::example().expect("convertible");
+        assert_eq!(
+            resolve_model_key(&convertible, "default").expect("model"),
+            ModelKey::Tree
         );
     }
 

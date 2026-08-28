@@ -13,6 +13,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::pricer::*;
+use std::collections::BTreeMap;
 use std::str::FromStr;
 use strum::IntoEnumIterator;
 use time::macros::date;
@@ -275,275 +276,194 @@ fn test_registry_price_with_unknown_pricer() {
 }
 
 #[test]
-fn test_standard_registry_has_all_bond_pricers() {
+fn removed_option_discounting_aliases_return_unknown_pricer() {
+    use finstack_quant_valuations::instruments::commodity::CommodityOption;
+    use finstack_quant_valuations::instruments::equity::equity_option::EquityOption;
+    use finstack_quant_valuations::instruments::rates::swaption::Swaption;
+
+    let equity_option = EquityOption::example().expect("equity option example");
+    let swaption = Swaption::example();
+    let commodity_option = CommodityOption::example();
     let registry = standard_registry();
+    let market = MarketContext::new();
+    let as_of = date!(2025 - 01 - 01);
 
-    assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::Bond, ModelKey::Discounting))
-        .is_some());
-    assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::Bond, ModelKey::Tree))
-        .is_some());
-}
-
-#[test]
-fn test_standard_registry_has_all_rates_pricers() {
-    let registry = standard_registry();
-
-    // IRS
-    assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::Irs, ModelKey::Discounting))
-        .is_some());
-
-    // FRA
-    assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::Fra, ModelKey::Discounting))
-        .is_some());
-
-    // Basis Swap
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::BasisSwap,
-            ModelKey::Discounting
-        ))
-        .is_some());
-
-    // Deposit
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::Deposit,
-            ModelKey::Discounting
-        ))
-        .is_some());
-
-    // IR Future
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::InterestRateFuture,
-            ModelKey::Discounting
-        ))
-        .is_some());
-}
-
-#[test]
-fn test_standard_registry_has_all_options_pricers() {
-    let registry = standard_registry();
-
-    // CapFloor
-    assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::CapFloor, ModelKey::Black76))
-        .is_some());
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::CapFloor,
-            ModelKey::Discounting
-        ))
-        .is_none());
-
-    // Swaption
-    assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::Swaption, ModelKey::Black76))
-        .is_some());
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::Swaption,
-            ModelKey::Discounting
-        ))
-        .is_some());
-
-    // Equity Option
-    assert!(registry
-        .get_pricer(PricerKey::new(
+    for (instrument, expected_type) in [
+        (
+            &equity_option as &dyn Instrument,
             InstrumentType::EquityOption,
-            ModelKey::Black76
-        ))
-        .is_some());
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::EquityOption,
-            ModelKey::Discounting
-        ))
-        .is_some());
+        ),
+        (&swaption as &dyn Instrument, InstrumentType::Swaption),
+        (
+            &commodity_option as &dyn Instrument,
+            InstrumentType::CommodityOption,
+        ),
+    ] {
+        let error = registry
+            .price_with_metrics(
+                instrument,
+                ModelKey::Discounting,
+                &market,
+                as_of,
+                &[],
+                Default::default(),
+            )
+            .expect_err("removed Discounting alias must not route to a Black-76 kernel");
 
-    // FX Option
-    assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::FxOption, ModelKey::Black76))
-        .is_some());
-    // The misleading `Discounting` alias was removed (it pointed at the same
-    // Black76 impl); look FxOption up under its real model key.
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::FxOption,
-            ModelKey::Discounting
-        ))
-        .is_none());
-
-    // CDS Option — registered under BloombergCdso; the Black76 pricer was
-    // decommissioned and the Discounting alias removed.
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::CdsOption,
-            ModelKey::BloombergCdso
-        ))
-        .is_some());
-    assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::CdsOption, ModelKey::Black76))
-        .is_none());
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::CdsOption,
-            ModelKey::Discounting
-        ))
-        .is_none());
+        match error {
+            PricingError::UnknownPricer {
+                key,
+                available_models,
+            } => {
+                assert_eq!(key, PricerKey::new(expected_type, ModelKey::Discounting));
+                assert!(available_models.contains(&ModelKey::Black76));
+                assert!(!available_models.contains(&ModelKey::Discounting));
+            }
+            other => panic!("Expected UnknownPricer, got {other:?}"),
+        }
+    }
 }
 
 #[test]
-fn test_standard_registry_has_all_credit_pricers() {
-    let registry = standard_registry();
+fn standard_registry_has_exact_expected_coverage() {
+    use InstrumentType as I;
+    use ModelKey as M;
 
-    // CDS / CDSIndex / CDSTranche no longer register a `ModelKey::Discounting`
-    // alias (the earlier registrations pointed at the same hazard impl, falsely
-    // implying a pure-discounting alternative). Look them up under HazardRate.
+    let expected = BTreeMap::from([
+        (
+            I::Bond,
+            vec![M::Discounting, M::Tree, M::HazardRate, M::MertonMc],
+        ),
+        (I::Cds, vec![M::HazardRate]),
+        (I::CdsIndex, vec![M::HazardRate]),
+        (I::CdsTranche, vec![M::HazardRate]),
+        (I::CdsOption, vec![M::BloombergCdso]),
+        (I::Irs, vec![M::Discounting]),
+        (I::CapFloor, vec![M::Black76, M::HullWhite1F]),
+        (I::Swaption, vec![M::Black76, M::HullWhite1F, M::Normal]),
+        (
+            I::BermudanSwaption,
+            vec![
+                M::HullWhite1F,
+                M::MonteCarloHullWhite1F,
+                M::LmmMonteCarlo,
+                M::MonteCarloCheyetteRoughVol,
+            ],
+        ),
+        (I::BasisSwap, vec![M::Discounting]),
+        (I::Basket, vec![M::Discounting]),
+        (I::Convertible, vec![M::Tree]),
+        (I::Deposit, vec![M::Discounting]),
+        (
+            I::EquityOption,
+            vec![
+                M::Black76,
+                M::MonteCarloHeston,
+                M::HestonFourier,
+                M::MonteCarloRoughBergomi,
+                M::MonteCarloRoughHeston,
+                M::RoughHestonFourier,
+                M::PdeCrankNicolson1D,
+                M::PdeAdi2D,
+            ],
+        ),
+        (I::FxOption, vec![M::Black76]),
+        (I::FxSpot, vec![M::Discounting]),
+        (I::FxSwap, vec![M::Discounting]),
+        (I::XccySwap, vec![M::Discounting]),
+        (I::InflationLinkedBond, vec![M::Discounting]),
+        (I::InflationSwap, vec![M::Discounting]),
+        (I::YoYInflationSwap, vec![M::Discounting]),
+        (I::InflationCapFloor, vec![M::Black76, M::Normal]),
+        (I::InterestRateFuture, vec![M::Discounting]),
+        (I::VarianceSwap, vec![M::Discounting]),
+        (I::FxVarianceSwap, vec![M::Discounting]),
+        (I::Equity, vec![M::Discounting]),
+        (I::Repo, vec![M::Discounting]),
+        (I::Fra, vec![M::Discounting]),
+        (
+            I::StructuredCredit,
+            vec![M::Discounting, M::StructuredCreditStochastic],
+        ),
+        (I::PrivateMarketsFund, vec![M::Discounting]),
+        (I::RevolvingCredit, vec![M::Discounting, M::MonteCarloGBM]),
+        (
+            I::AsianOption,
+            vec![
+                M::MonteCarloGBM,
+                M::MonteCarloHeston,
+                M::AsianGeometricBS,
+                M::AsianTurnbullWakeman,
+            ],
+        ),
+        (
+            I::BarrierOption,
+            vec![
+                M::MonteCarloGBM,
+                M::MonteCarloHeston,
+                M::BarrierBSContinuous,
+                M::PdeCrankNicolson1D,
+            ],
+        ),
+        (
+            I::LookbackOption,
+            vec![M::MonteCarloGBM, M::LookbackBSContinuous],
+        ),
+        (I::QuantoOption, vec![M::QuantoBS]),
+        (I::Autocallable, vec![M::MonteCarloGBM]),
+        (I::CmsOption, vec![M::Black76, M::StaticReplication]),
+        (I::CmsSwap, vec![M::Black76, M::StaticReplication]),
+        (I::CliquetOption, vec![M::MonteCarloGBM]),
+        (
+            I::RangeAccrual,
+            vec![M::MonteCarloGBM, M::StaticReplication],
+        ),
+        (
+            I::FxBarrierOption,
+            vec![M::MonteCarloGBM, M::FxBarrierBSContinuous],
+        ),
+        (I::TermLoan, vec![M::Discounting, M::Tree]),
+        (I::Dcf, vec![M::Discounting]),
+        (I::RealEstateAsset, vec![M::Discounting]),
+        (I::LeveredRealEstateEquity, vec![M::Discounting]),
+        (I::EquityTotalReturnSwap, vec![M::Discounting]),
+        (I::FiIndexTotalReturnSwap, vec![M::Discounting]),
+        (I::BondFuture, vec![M::BondFutureCleanPriceProxy]),
+        (I::CommodityForward, vec![M::Discounting]),
+        (I::CommoditySwap, vec![M::Discounting]),
+        (
+            I::CommodityOption,
+            vec![M::Black76, M::MonteCarloSchwartzSmith],
+        ),
+        (I::CommodityAsianOption, vec![M::AsianTurnbullWakeman]),
+        (I::CommoditySwaption, vec![M::Black76]),
+        (I::CommoditySpreadOption, vec![M::Black76]),
+        (I::VolatilityIndexFuture, vec![M::Discounting]),
+        (I::FxForward, vec![M::Discounting]),
+        (I::Ndf, vec![M::Discounting]),
+        (I::AgencyMbsPassthrough, vec![M::Discounting]),
+        (I::AgencyTba, vec![M::Discounting]),
+        (I::DollarRoll, vec![M::Discounting]),
+        (I::AgencyCmo, vec![M::Discounting]),
+        (I::FxDigitalOption, vec![M::Black76]),
+        (I::FxTouchOption, vec![M::Black76]),
+        (I::Tarn, vec![M::MonteCarloHullWhite1F]),
+        (I::CmsSpreadOption, vec![M::StaticReplication]),
+        (I::CallableRangeAccrual, vec![M::MonteCarloHullWhite1F]),
+        (I::Snowball, vec![M::Discounting, M::MonteCarloHullWhite1F]),
+        (I::Composite, vec![M::Discounting]),
+        (I::CommodityFuture, vec![M::Discounting]),
+        (I::FxFuture, vec![M::Discounting]),
+        (I::EquityFuture, vec![M::Discounting]),
+        (I::EquityTotalReturnFuture, vec![M::Discounting]),
+        (I::InterestRateFutureOption, vec![M::Discounting]),
+        (I::EquityFutureOption, vec![M::Discounting]),
+        (I::FxFutureOption, vec![M::Discounting]),
+        (I::CommodityFutureOption, vec![M::Discounting]),
+        (I::VolatilityIndexFutureOption, vec![M::Discounting]),
+    ]);
 
-    // CDS
-    assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::Cds, ModelKey::HazardRate))
-        .is_some());
-    assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::Cds, ModelKey::Discounting))
-        .is_none());
-
-    // CDS Index
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::CdsIndex,
-            ModelKey::HazardRate
-        ))
-        .is_some());
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::CdsIndex,
-            ModelKey::Discounting
-        ))
-        .is_none());
-
-    // CDS Tranche
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::CdsTranche,
-            ModelKey::HazardRate
-        ))
-        .is_some());
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::CdsTranche,
-            ModelKey::Discounting
-        ))
-        .is_none());
-}
-
-#[test]
-fn test_standard_registry_has_all_fx_pricers() {
-    let registry = standard_registry();
-
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::FxSpot,
-            ModelKey::Discounting
-        ))
-        .is_some());
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::FxSwap,
-            ModelKey::Discounting
-        ))
-        .is_some());
-}
-
-#[test]
-fn test_standard_registry_has_other_pricers() {
-    let registry = standard_registry();
-
-    // Equity
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::Equity,
-            ModelKey::Discounting
-        ))
-        .is_some());
-
-    // TRS
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::EquityTotalReturnSwap,
-            ModelKey::Discounting
-        ))
-        .is_some());
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::FiIndexTotalReturnSwap,
-            ModelKey::Discounting
-        ))
-        .is_some());
-
-    // Convertible
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::Convertible,
-            ModelKey::Discounting
-        ))
-        .is_some());
-
-    // Inflation
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::InflationSwap,
-            ModelKey::Discounting
-        ))
-        .is_some());
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::InflationLinkedBond,
-            ModelKey::Discounting
-        ))
-        .is_some());
-
-    // Variance Swap
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::VarianceSwap,
-            ModelKey::Discounting
-        ))
-        .is_some());
-
-    // Repo
-    assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::Repo, ModelKey::Discounting))
-        .is_some());
-
-    // Basket
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::Basket,
-            ModelKey::Discounting
-        ))
-        .is_some());
-
-    // Structured Credit
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::StructuredCredit,
-            ModelKey::Discounting
-        ))
-        .is_some());
-
-    // Private Markets Fund
-    assert!(registry
-        .get_pricer(PricerKey::new(
-            InstrumentType::PrivateMarketsFund,
-            ModelKey::Discounting
-        ))
-        .is_some());
+    assert_eq!(standard_registry().all_models_grouped(), expected);
 }
 
 #[test]

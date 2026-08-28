@@ -337,12 +337,10 @@ mod tests {
             .bump_vol_absolute(0.0001)
             .expect("valid volatility bump");
 
-        match bumped {
-            VolQuote::CapFloorVol { vol, .. } => {
-                assert!((vol - 0.0089).abs() < 1e-12);
-            }
-            other => panic!("unexpected bumped quote: {other:?}"),
-        }
+        let VolQuote::CapFloorVol { vol, .. } = bumped else {
+            unreachable!("bumping a cap/floor quote should retain its variant");
+        };
+        assert!((vol - 0.0089).abs() < 1e-12);
     }
 
     #[test]

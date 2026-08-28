@@ -11,14 +11,13 @@ use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 use finstack_quant_valuations::instruments::rates::swaption::{BermudanSchedule, BermudanSwaption};
 use finstack_quant_valuations::instruments::rates::swaption::{
     BermudanSwaptionPricer, BermudanSwaptionPricerConfig, PreparedHullWhiteModel,
-    SimpleSwaptionBlackPricer,
+    SimpleSwaptionBlackPricer, SimpleSwaptionNormalPricer,
 };
-use finstack_quant_valuations::instruments::Instrument;
-use finstack_quant_valuations::pricer::{ModelKey, Pricer};
+use finstack_quant_valuations::pricer::Pricer;
 use time::macros::date;
 
 #[test]
-fn test_simple_swaption_black76_pricer_honors_instrument_vol_model() {
+fn test_simple_swaption_normal_pricer_uses_bachelier_formula() {
     let (as_of, expiry, swap_start, swap_end) = standard_dates();
     let mut swaption = create_standard_payer_swaption(expiry, swap_start, swap_end, 0.05);
     swaption.vol_model =
@@ -30,7 +29,7 @@ fn test_simple_swaption_black76_pricer_honors_instrument_vol_model() {
 
     let market = create_flat_market(as_of, 0.03, 0.2);
     let expected_normal = swaption.price_normal(&market, 0.25, as_of).unwrap();
-    let pricer = SimpleSwaptionBlackPricer::with_model(ModelKey::Black76);
+    let pricer = SimpleSwaptionNormalPricer;
     let result = pricer.price_dyn(&swaption, &market, as_of).unwrap().value;
 
     assert_approx_eq(
@@ -42,7 +41,7 @@ fn test_simple_swaption_black76_pricer_honors_instrument_vol_model() {
 }
 
 #[test]
-fn test_simple_swaption_pricer_fallback_uses_instrument_value() {
+fn test_simple_swaption_pricers_reject_volatility_model_mismatch() {
     let (as_of, expiry, swap_start, swap_end) = standard_dates();
     let mut swaption = create_standard_payer_swaption(expiry, swap_start, swap_end, 0.05);
     swaption.vol_model =
@@ -53,16 +52,17 @@ fn test_simple_swaption_pricer_fallback_uses_instrument_value() {
         .with_implied_vol(0.35);
 
     let market = create_flat_market(as_of, 0.03, 0.2);
-    let pricer = SimpleSwaptionBlackPricer::with_model(ModelKey::Discounting);
-    let result = pricer.price_dyn(&swaption, &market, as_of).unwrap().value;
+    let black_error = SimpleSwaptionBlackPricer
+        .price_dyn(&swaption, &market, as_of)
+        .expect_err("Black-76 route must reject a normal-volatility instrument");
+    assert!(black_error.to_string().contains("incompatible"));
 
-    let expected = swaption.value(&market, as_of).unwrap();
-    assert_approx_eq(
-        result.amount(),
-        expected.amount(),
-        1e-10,
-        "pricer fallback result",
-    );
+    swaption.vol_model =
+        finstack_quant_valuations::instruments::rates::swaption::VolatilityModel::Black;
+    let normal_error = SimpleSwaptionNormalPricer
+        .price_dyn(&swaption, &market, as_of)
+        .expect_err("normal route must reject a Black-volatility instrument");
+    assert!(normal_error.to_string().contains("incompatible"));
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn test_simple_swaption_black_pricer_uses_sabr_dispatch_when_present() {
     let market = create_flat_market(as_of, 0.05, 0.30);
 
     let expected = swaption.price_sabr(&market, as_of).unwrap();
-    let pricer = SimpleSwaptionBlackPricer::with_model(ModelKey::Black76);
+    let pricer = SimpleSwaptionBlackPricer;
     let result = pricer.price_dyn(&swaption, &market, as_of).unwrap().value;
 
     assert_approx_eq(
@@ -100,7 +100,7 @@ fn test_simple_swaption_black_pricer_prices_out_of_grid_strike_via_vol_provider(
     let swaption = create_standard_payer_swaption(expiry, swap_start, swap_end, 0.15);
 
     let market = create_flat_market(as_of, 0.03, 0.20);
-    let pricer = SimpleSwaptionBlackPricer::with_model(ModelKey::Black76);
+    let pricer = SimpleSwaptionBlackPricer;
     let result = pricer
         .price_dyn(&swaption, &market, as_of)
         .expect("vol_clamped should handle any strike");
@@ -123,7 +123,7 @@ fn test_simple_swaption_black_pricer_type_mismatch() {
     )
     .unwrap();
 
-    let pricer = SimpleSwaptionBlackPricer::with_model(ModelKey::Black76);
+    let pricer = SimpleSwaptionBlackPricer;
     let err = pricer
         .price_dyn(&bond, &market, as_of)
         .expect_err("wrong instrument should fail");

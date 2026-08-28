@@ -31,24 +31,18 @@ mod errors;
 pub mod json;
 mod keys;
 mod registry;
-pub mod structured_credit_json;
 
 pub use errors::{PricingError, PricingErrorContext};
 pub use json::{
     instrument_envelope_from_spec, list_models, list_models_grouped, list_standard_metrics,
     list_standard_metrics_grouped, metric_value_from_instrument_json, parse_boxed_instrument_json,
     parse_instrument_json, parse_model_key, present_metric_values_from_instrument_json,
-    present_standard_option_greeks_from_instrument_json, pretty_instrument_json,
+    present_standard_option_greeks_from_instrument_json, pretty_instrument_json, price_instrument,
     price_instrument_json, validate_instrument_json, validate_typed_instrument_json,
-    JsonPricingRequest, STANDARD_OPTION_GREEKS,
+    JsonPricingRequest, ParsedInstrument, STANDARD_OPTION_GREEKS,
 };
 pub use keys::{InstrumentType, ModelKey, PricerKey};
 pub use registry::{expect_inst, Pricer, PricerRegistry, PricingDispatch};
-pub use structured_credit_json::{
-    structured_credit_tranche_breakeven_cdr_json, structured_credit_tranche_discount_margin_json,
-    structured_credit_tranche_metrics_json, structured_credit_tranche_oas_json,
-    structured_credit_tranche_scenario_table_json,
-};
 
 // Asset-class registration submodules
 mod commodity;
@@ -79,18 +73,14 @@ use std::sync::{Arc, OnceLock};
 /// byte-identical to the hand-written registrations they replace.
 macro_rules! register_generic {
     ($registry:expr, $inst:expr, $ty:ty $(,)?) => {
-        $registry.register(
-            $inst,
-            $crate::pricer::ModelKey::Discounting,
-            $crate::instruments::common_impl::GenericInstrumentPricer::<$ty>::discounting($inst),
-        )?
+        $registry.register($crate::instruments::common_impl::GenericInstrumentPricer::<
+            $ty,
+        >::discounting($inst))?
     };
     ($registry:expr, $inst:expr, $ty:ty, $model:expr $(,)?) => {
-        $registry.register(
-            $inst,
-            $model,
-            $crate::instruments::common_impl::GenericInstrumentPricer::<$ty>::new($inst, $model),
-        )?
+        $registry.register($crate::instruments::common_impl::GenericInstrumentPricer::<
+            $ty,
+        >::new($inst, $model))?
     };
 }
 
@@ -188,17 +178,25 @@ mod tests {
         }
     }
 
+    #[test]
+    fn registration_key_comes_from_the_pricer() {
+        let mut registry = PricerRegistry::new();
+        let key = DummyPricer.key();
+
+        registry.register(DummyPricer).expect("registration");
+
+        assert!(registry.get_pricer(key).is_some());
+    }
+
     /// `register` returns a typed collision error without overwriting.
     #[test]
     fn register_rejects_duplicate_key() {
         let mut registry = PricerRegistry::new();
         let key = PricerKey::new(InstrumentType::Deposit, ModelKey::Tree);
 
-        registry
-            .register(InstrumentType::Deposit, ModelKey::Tree, DummyPricer)
-            .expect("first registration");
+        registry.register(DummyPricer).expect("first registration");
         let error = registry
-            .register(InstrumentType::Deposit, ModelKey::Tree, DummyPricer)
+            .register(DummyPricer)
             .expect_err("duplicate registration must fail");
         assert_eq!(error, PricingError::DuplicateRegistration { key });
         assert!(registry.get_pricer(key).is_some());
@@ -208,10 +206,8 @@ mod tests {
     fn replace_is_the_explicit_overwrite_operation() {
         let mut registry = PricerRegistry::new();
         let key = PricerKey::new(InstrumentType::Deposit, ModelKey::Tree);
-        registry
-            .register(InstrumentType::Deposit, ModelKey::Tree, DummyPricer)
-            .expect("first registration");
-        registry.replace(InstrumentType::Deposit, ModelKey::Tree, DummyPricer);
+        registry.register(DummyPricer).expect("first registration");
+        registry.replace(DummyPricer);
         assert!(registry.get_pricer(key).is_some());
     }
 
@@ -231,57 +227,10 @@ mod tests {
 
         let mut cloned = standard_registry().clone();
         cloned
-            .register(InstrumentType::Deposit, ModelKey::Tree, DummyPricer)
+            .register(DummyPricer)
             .expect("new clone registration");
 
         assert!(cloned.get_pricer(key).is_some());
         assert!(standard_registry().get_pricer(key).is_none());
-    }
-
-    #[test]
-    fn standard_registry_exposes_range_accrual_analytic_and_mc_models() {
-        let registry = standard_registry();
-        assert!(registry
-            .get_pricer(PricerKey::new(
-                InstrumentType::RangeAccrual,
-                ModelKey::StaticReplication,
-            ))
-            .is_some());
-        assert!(registry
-            .get_pricer(PricerKey::new(
-                InstrumentType::RangeAccrual,
-                ModelKey::MonteCarloGBM,
-            ))
-            .is_some());
-        assert!(registry
-            .get_pricer(PricerKey::new(
-                InstrumentType::Tarn,
-                ModelKey::MonteCarloHullWhite1F,
-            ))
-            .is_some());
-        assert!(registry
-            .get_pricer(PricerKey::new(
-                InstrumentType::Snowball,
-                ModelKey::MonteCarloHullWhite1F,
-            ))
-            .is_some());
-        assert!(registry
-            .get_pricer(PricerKey::new(
-                InstrumentType::Snowball,
-                ModelKey::Discounting,
-            ))
-            .is_some());
-        assert!(registry
-            .get_pricer(PricerKey::new(
-                InstrumentType::CallableRangeAccrual,
-                ModelKey::MonteCarloHullWhite1F,
-            ))
-            .is_some());
-        assert!(registry
-            .get_pricer(PricerKey::new(
-                InstrumentType::CmsSpreadOption,
-                ModelKey::StaticReplication,
-            ))
-            .is_some());
     }
 }

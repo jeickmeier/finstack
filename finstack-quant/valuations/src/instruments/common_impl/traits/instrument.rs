@@ -4,7 +4,7 @@ use crate::cashflow::traits::CashflowProvider;
 use crate::instruments::common_impl::dependencies::MarketDependencies;
 use crate::instruments::model_params::ModelParamsSnapshot;
 use crate::metrics::MetricId;
-use crate::pricer::{shared_standard_registry, InstrumentType, ModelKey, PricerRegistry};
+use crate::pricer::{shared_standard_registry, InstrumentType, ModelKey};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::types::Attributes;
 use finstack_quant_core::{currency::Currency, dates::Date, money::Money, types::CurveId, Error};
@@ -816,7 +816,9 @@ pub trait Instrument: CashflowProvider + Send + Sync {
             market_history,
             model,
             registry,
+            metric_registry,
             recalibration_provider,
+            instrument_validated: _,
         } = options;
         let model = model.unwrap_or_else(|| self.default_model());
         let registry = registry.unwrap_or_else(shared_standard_registry);
@@ -826,11 +828,12 @@ pub trait Instrument: CashflowProvider + Send + Sync {
             market_history,
             model: None,
             registry: None,
+            metric_registry,
             recalibration_provider,
+            instrument_validated: false,
         };
 
-        Ok(PricerRegistry::price_with_metrics_shared(
-            &registry,
+        Ok(registry.price_with_metrics(
             instrument.as_ref(),
             model,
             market,

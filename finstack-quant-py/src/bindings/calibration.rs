@@ -461,15 +461,12 @@ fn calibrate_bermudan_lmm_base_vol(
 ) -> PyResult<f64> {
     let instrument = finstack_quant_valuations::pricer::parse_instrument_json(instrument_json)
         .map_err(crate::errors::core_to_py)?;
-    let swaption = match instrument {
-        finstack_quant_valuations::instruments::InstrumentJson::BermudanSwaption(swaption) => {
-            swaption
-        }
-        _ => {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "instrument_json must contain a bermudan_swaption envelope",
-            ));
-        }
+    let finstack_quant_valuations::instruments::InstrumentJson::BermudanSwaption(swaption) =
+        instrument
+    else {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "instrument_json must contain a bermudan_swaption envelope",
+        ));
     };
     let market = crate::bindings::extract::extract_market(py, market)?;
     let as_of = crate::bindings::date_utils::extract_date(as_of)?;
