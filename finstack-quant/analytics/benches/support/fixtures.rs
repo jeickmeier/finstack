@@ -2,7 +2,6 @@
 //!
 //! No RNG crate and no clock. A seeded generator is required: these inputs
 //! feed the same code paths the correctness tests pin.
-#![allow(dead_code)]
 
 use finstack_quant_analytics::Performance;
 use finstack_quant_core::dates::{Date, Month, PeriodKind};
@@ -62,21 +61,13 @@ pub fn perf_panel(n_obs: usize, n_tickers: usize, seed: u64) -> Performance {
         .expect("performance panel")
 }
 
-/// Two-ticker price panel used by construction benches.
-pub fn price_panel_750() -> (Vec<Date>, Vec<f64>, Vec<f64>) {
-    let n = 750;
-    let dates = synthetic_dates(n);
-    let prices_a: Vec<f64> = (0..n).map(|i| 100.0 + i as f64 * 0.02).collect();
-    let prices_b: Vec<f64> = (0..n).map(|i| 50.0 - i as f64 * 0.005).collect();
-    (dates, prices_a, prices_b)
-}
-
 /// Symmetric unit-diagonal matrix that is indefinite for every `n >= 3`.
 ///
 /// The decaying off-diagonal kernel used by the crate's Higham unit test is
 /// actually positive definite (smallest eigenvalue ≈ 0.20 at `n = 50`). This
 /// fixture keeps that bulk and overwrites the leading 3×3 with the classic
 /// indefinite correlation-shaped block so Cholesky fails and Higham iterates.
+#[allow(dead_code)]
 pub fn near_correlation_needs_repair(n: usize) -> Vec<f64> {
     let mut input = vec![0.0; n * n];
     for i in 0..n {
@@ -101,16 +92,8 @@ pub fn near_correlation_needs_repair(n: usize) -> Vec<f64> {
     input
 }
 
-/// Identity correlation — already PSD, so Higham should early-exit.
-pub fn identity_correlation(n: usize) -> Vec<f64> {
-    let mut input = vec![0.0; n * n];
-    for i in 0..n {
-        input[i * n + i] = 1.0;
-    }
-    input
-}
-
 /// Full-rank exposure panel plus returns/weights for constrained LS.
+#[allow(dead_code)]
 pub fn constrained_ls_inputs(n_assets: usize, n_factors: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let mut exposures = Vec::with_capacity(n_assets * n_factors);
     let mut returns = Vec::with_capacity(n_assets);

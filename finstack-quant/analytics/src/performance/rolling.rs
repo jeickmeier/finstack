@@ -1,15 +1,12 @@
 //! Rolling per-ticker metrics on [`Performance`].
-//!
-//! Pure layout split from `performance.rs`; no behavior changes.
 
 use super::Performance;
 use crate::math::summation::NeumaierAccumulator;
 use crate::returns::MIN_GROWTH_FACTOR;
-use crate::risk_metrics::{rolling_sharpe, rolling_sortino, rolling_volatility, DatedSeries};
-
-/// Recompute precision interval for the sliding log-sum used by
-/// `rolling_returns`. Mirrors `risk_metrics::rolling::ROLLING_KERNEL_RECOMPUTE_INTERVAL`.
-const ROLLING_LOG_SUM_RECOMPUTE_INTERVAL: usize = 1024;
+use crate::risk_metrics::{
+    rolling_sharpe, rolling_sortino, rolling_volatility, DatedSeries,
+    ROLLING_KERNEL_RECOMPUTE_INTERVAL,
+};
 
 #[inline]
 fn log_factor(r: f64) -> Option<f64> {
@@ -81,7 +78,7 @@ impl Performance {
                 }
             }
             steps_since_recompute += 1;
-            if !log_sum.is_finite() || steps_since_recompute >= ROLLING_LOG_SUM_RECOMPUTE_INTERVAL {
+            if !log_sum.is_finite() || steps_since_recompute >= ROLLING_KERNEL_RECOMPUTE_INTERVAL {
                 let start = end - window;
                 log_sum = recompute_log_sum(&returns[start..end]).unwrap_or(f64::NAN);
                 steps_since_recompute = 0;

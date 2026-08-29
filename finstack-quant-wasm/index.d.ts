@@ -111,10 +111,11 @@ export interface WasmOwned {
 /**
  * Stateful performance analytics engine over a panel of ticker price (or return) series.
  *
- * Dates are ISO-8601 values in ascending order. Numeric inputs are row-major
- * with one row per date and one column per ticker. Scalar rates and returns
- * use decimal fractions; numeric outputs are Float64Array values in ticker
- * order unless the method documents an object or matrix shape.
+ * Dates are ISO-8601 values in ascending order. The `prices` and `returns`
+ * supplied to the panel constructors are ticker-major and column-oriented;
+ * matrix inputs to other methods follow their parameter documentation. Scalar
+ * rates and returns use decimal fractions; numeric outputs are Float64Array
+ * values in ticker order unless the method documents an object or matrix shape.
  *
  * Invalid dates, shapes, frequencies, tickers, and confidence levels are
  * returned as rejected JsValue errors.
@@ -2402,7 +2403,8 @@ export declare const core: CoreNamespace;
  */
 export type NumericArray = number[] | Float64Array;
 /**
- * Nested numeric arrays, one inner array per row, accepted by matrix WASM entry points.
+ * Nested numeric arrays represented as an outer collection of numeric vectors.
+ * Each API specifies the semantic meaning and required length of the outer and inner dimensions.
  */
 export type NumericMatrix = NumericArray[];
 
@@ -2848,17 +2850,21 @@ export interface LookbackReturns {
  * (`Performance.fromReturns(...)`); every metric is then reachable as
  * an instance method.
  *
+ * The `prices` and `returns` supplied to the panel constructors are ticker-major
+ * and column-oriented; matrix inputs to other methods follow their parameter
+ * documentation.
+ *
  * All multi-ticker scalar outputs come back as `number[]` indexed by the
  * panel's ticker order; vector / per-ticker / structured outputs are
  * serialized to plain JS objects (e.g. `DatedSeries`, `BetaResult[]`).
  */
 export declare class Performance {
   /**
-   * Construct from a price matrix. `dates` is an array of ISO date strings,
-   * `prices` is `prices[i]` = column for ticker `i`.
-   * @param dates - ISO-8601 observation dates in ascending order, one entry per price row.
-   * @param prices - Row-major matrix where `prices[i][j]` is ticker j on observation i.
-   * @param tickerNames - Ticker labels aligned with the price-matrix columns.
+   * Construct from a ticker-major, column-oriented price matrix. The outer
+   * element selects a ticker, and each inner series is aligned to `dates`.
+   * @param dates - ISO-8601 observation dates in ascending order, with one entry per value in each inner price series.
+   * @param prices - Ticker-major, column-oriented matrix where `prices[tickerIdx][dateIdx]` is the price for `tickerIdx` at `dates[dateIdx]`.
+   * @param tickerNames - Ticker labels aligned with the outer elements of `prices`.
    * @param benchmarkTicker - Optional ticker label to use as the benchmark return series.
    * @param frequency - Optional observation frequency token; defaults to daily.
    * @throws Error - Rejects malformed dates or matrices, invalid prices, unsupported frequencies, and an unknown benchmark ticker.
@@ -2871,10 +2877,11 @@ export declare class Performance {
     frequency?: string
   );
   /**
-   * Construct from a return matrix (one row per `dates` entry per ticker).
-   * @param dates - ISO-8601 observation dates in ascending order, one entry per return row.
-   * @param returns - Row-major simple decimal return matrix where `returns[i][j]` is ticker j on observation i.
-   * @param tickerNames - Ticker labels aligned with the return-matrix columns.
+   * Construct from a ticker-major, column-oriented return matrix. The outer
+   * element selects a ticker, and each inner series is aligned to `dates`.
+   * @param dates - ISO-8601 observation dates in ascending order, with one entry per value in each inner return series.
+   * @param returns - Ticker-major, column-oriented simple decimal return matrix where `returns[tickerIdx][dateIdx]` is the return for `tickerIdx` at `dates[dateIdx]`.
+   * @param tickerNames - Ticker labels aligned with the outer elements of `returns`.
    * @param benchmarkTicker - Optional ticker label to use as the benchmark return series.
    * @param frequency - Optional observation frequency token; defaults to daily.
    * @returns A `Performance` handle over the supplied return panel.
@@ -2904,6 +2911,8 @@ export declare class Performance {
    * Ticker names in column order.
    * @throws Error - Rejects if the ticker-name vector cannot be serialized to JavaScript.
    * @returns Ticker labels in column order as a JavaScript string array.
+   */
+  tickerNames(): string[];
   /**
    * Benchmark column index.
    * @returns Zero-based index of the benchmark ticker in `tickerNames()`.
@@ -3041,8 +3050,8 @@ export declare class Performance {
    */
   downsideDeviation(mar?: number): Float64Array;
   /**
-   * Longest drawdown duration (in periods) per asset.
-   * @returns Per-ticker longest drawdown length in periods, as a JavaScript number array.
+   * Longest drawdown duration in calendar days per asset.
+   * @returns Per-ticker longest drawdown duration in calendar days, as a JavaScript number array.
    * @throws Error - Rejects if the duration vector cannot be serialized to JavaScript.
    */
   maxDrawdownDuration(): number[];

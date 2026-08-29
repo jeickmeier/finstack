@@ -1,7 +1,5 @@
 //! Benchmark-relative metrics on [`Performance`] (alpha/beta/greeks,
 //! tracking error, information ratio, R², capture, multi-factor).
-//!
-//! Pure layout split from `performance.rs`; no behavior changes.
 
 use super::Performance;
 use crate::benchmark::{

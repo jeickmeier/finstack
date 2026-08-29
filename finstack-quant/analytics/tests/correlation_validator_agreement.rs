@@ -1,5 +1,5 @@
-//! Pins that `analytics::correlation::validate_correlation_matrix` and
-//! `core::math::linalg::validate_correlation_matrix` agree.
+//! Pins that analytics' detailed correlation diagnostics and core's coarse
+//! validator agree.
 //!
 //! The two used to disagree in *both* directions: analytics applied a 1e-10
 //! diagonal/symmetry tolerance against core's 1e-6, while core enforced a
@@ -7,15 +7,31 @@
 //! opposite answers from `core.math.linalg.validate_correlation_matrix` and
 //! `valuations.correlation.validate_correlation_matrix` on the same matrix.
 //!
-//! They now share their thresholds — analytics defines its constants in terms
-//! of core's — so this file guards that agreement instead of documenting the
-//! gap. The two keep separate error *types* on purpose: analytics returns
-//! located variants (`DiagonalNotOne { index, value }`, `OutOfBounds { i, j,
-//! value }`, `NotSymmetric { i, j, diff }`) that core's coarser
-//! `InputError::Invalid` cannot express.
+//! Core owns the canonical detailed validation and maps those diagnostics onto
+//! its existing coarse `InputError`. Analytics re-exports the detailed error
+//! type and delegates validation to core.
 
-use finstack_quant_analytics::correlation::validate_correlation_matrix as analytics_validate;
-use finstack_quant_core::math::linalg::validate_correlation_matrix as core_validate;
+use finstack_quant_analytics::correlation::{
+    validate_correlation_matrix as analytics_validate, Error,
+};
+use finstack_quant_core::math::linalg::{
+    validate_correlation_matrix as core_validate, validate_correlation_matrix_detailed,
+    CorrelationError,
+};
+use serde_json::json;
+
+fn assert_detailed_rejection(matrix: &[f64], n: usize, expected: impl FnOnce(&Error) -> bool) {
+    let analytics_error = analytics_validate(matrix, n).expect_err("analytics should reject input");
+    assert!(
+        expected(&analytics_error),
+        "unexpected analytics error: {analytics_error:?}"
+    );
+
+    let core_error =
+        validate_correlation_matrix_detailed(matrix, n).expect_err("core should reject input");
+    assert_eq!(analytics_error, core_error);
+    assert!(core_validate(matrix, n).is_err());
+}
 
 /// Cases spanning both former divergence directions plus the boundaries.
 fn agreement_cases() -> Vec<(&'static str, Vec<f64>, usize, bool)> {
@@ -88,4 +104,145 @@ fn rounding_scale_overshoot_is_accepted_by_both() {
     let m = vec![1.0, over, over, 1.0];
     assert!(core_validate(&m, 2).is_ok());
     assert!(analytics_validate(&m, 2).is_ok());
+}
+
+#[test]
+fn diagonal_within_tolerance_is_accepted_by_both() {
+    let matrix = [1.0 + 5e-11];
+    assert!(core_validate(&matrix, 1).is_ok());
+    assert!(analytics_validate(&matrix, 1).is_ok());
+}
+
+#[test]
+fn wrong_size_reports_detailed_error_and_coarse_core_rejection() {
+    assert_detailed_rejection(&[1.0, 0.5, 0.5], 2, |error| {
+        matches!(
+            error,
+            Error::InvalidSize {
+                expected: 2,
+                actual: 3
+            }
+        )
+    });
+}
+
+#[test]
+fn invalid_diagonal_reports_detailed_error_and_coarse_core_rejection() {
+    assert_detailed_rejection(&[0.9, 0.5, 0.5, 1.0], 2, |error| {
+        matches!(
+            error,
+            Error::DiagonalNotOne {
+                index: 0,
+                value: 0.9
+            }
+        )
+    });
+}
+
+#[test]
+fn asymmetry_reports_detailed_error_and_coarse_core_rejection() {
+    assert_detailed_rejection(&[1.0, 0.5, 0.3, 1.0], 2, |error| {
+        matches!(
+            error,
+            Error::NotSymmetric {
+                i: 0,
+                j: 1,
+                diff
+            } if (*diff - 0.2).abs() < f64::EPSILON
+        )
+    });
+}
+
+#[test]
+fn out_of_bounds_reports_detailed_error_and_coarse_core_rejection() {
+    assert_detailed_rejection(&[1.0, 1.5, 1.5, 1.0], 2, |error| {
+        matches!(
+            error,
+            Error::OutOfBounds {
+                i: 0,
+                j: 1,
+                value: 1.5
+            }
+        )
+    });
+}
+
+#[test]
+fn non_psd_reports_detailed_error_and_coarse_core_rejection() {
+    let matrix = [
+        1.0, -0.75, -0.75, //
+        -0.75, 1.0, -0.75, //
+        -0.75, -0.75, 1.0,
+    ];
+    assert_detailed_rejection(&matrix, 3, |error| {
+        matches!(error, Error::NotPositiveSemiDefinite { .. })
+    });
+}
+
+#[test]
+fn analytics_error_is_core_correlation_error_reexport() {
+    let error = analytics_validate(&[1.0, 0.5, 0.5], 2).expect_err("wrong size should fail");
+    let _: CorrelationError = error;
+}
+
+#[test]
+fn correlation_error_serde_shape_is_stable() {
+    let cases = [
+        (
+            Error::InvalidSize {
+                expected: 2,
+                actual: 3,
+            },
+            json!({"invalid_size": {"expected": 2, "actual": 3}}),
+        ),
+        (
+            Error::DiagonalNotOne {
+                index: 1,
+                value: 0.9,
+            },
+            json!({"diagonal_not_one": {"index": 1, "value": 0.9}}),
+        ),
+        (
+            Error::NotSymmetric {
+                i: 0,
+                j: 1,
+                diff: 0.2,
+            },
+            json!({"not_symmetric": {"i": 0, "j": 1, "diff": 0.2}}),
+        ),
+        (
+            Error::NotPositiveSemiDefinite { row: 2 },
+            json!({"not_positive_semi_definite": {"row": 2}}),
+        ),
+        (
+            Error::OutOfBounds {
+                i: 0,
+                j: 1,
+                value: 1.5,
+            },
+            json!({"out_of_bounds": {"i": 0, "j": 1, "value": 1.5}}),
+        ),
+        (
+            Error::DidNotConverge {
+                max_iter: 100,
+                tol: 1e-8,
+            },
+            json!({"did_not_converge": {"max_iter": 100, "tol": 1e-8}}),
+        ),
+        (
+            Error::EigenDecompositionFailed,
+            json!("eigen_decomposition_failed"),
+        ),
+    ];
+
+    for (error, expected) in cases {
+        assert_eq!(
+            serde_json::to_value(&error).expect("error should serialize"),
+            expected
+        );
+        assert_eq!(
+            serde_json::from_value::<Error>(expected).expect("error should deserialize"),
+            error
+        );
+    }
 }

@@ -1,7 +1,5 @@
 //! Per-ticker scalar metrics on [`Performance`] (CAGR, Sharpe, Sortino,
 //! Calmar, drawdown statistics, VaR family, etc.).
-//!
-//! Pure layout split from `performance.rs`; no behavior changes.
 
 use super::Performance;
 use crate::dates::HolidayCalendar;

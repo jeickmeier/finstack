@@ -96,6 +96,8 @@ impl Default for NearestCorrelationOpts {
 ///   `1e-6` at any off-diagonal entry.
 /// * [`Error::DiagonalNotOne`] if any diagonal entry is further than `1e-3`
 ///   from `1.0`.
+/// * [`Error::EigenDecompositionFailed`] if a PSD projection cannot decompose
+///   its symmetric input.
 /// * [`Error::DidNotConverge`] if the algorithm fails to converge within
 ///   `opts.max_iter` iterations.
 pub fn nearest_correlation_matrix(
@@ -166,7 +168,7 @@ pub fn nearest_correlation_matrix(
             r[k] = prev[k] - s[k];
         }
 
-        let x = project_psd(&r, n);
+        let x = project_psd(&r, n)?;
 
         for k in 0..(n * n) {
             s[k] = x[k] - r[k];
@@ -184,7 +186,7 @@ pub fn nearest_correlation_matrix(
             // One final PSD projection followed by a unit-diagonal rescale
             // (a congruence transform, which preserves PSD exactly) makes the
             // postcondition unconditional even for loose user tolerances.
-            let mut out = project_psd(&next, n);
+            let mut out = project_psd(&next, n)?;
             rescale_to_unit_diagonal(&mut out, n);
             return Ok(out);
         }
@@ -225,16 +227,13 @@ fn rescale_to_unit_diagonal(matrix: &mut [f64], n: usize) {
 /// tridiagonal QR, `O(n³)`), which scales to portfolio-size correlation
 /// matrices without the `O(n⁵)` worst case of a hand-rolled Jacobi
 /// sweep.
-fn project_psd(matrix: &[f64], n: usize) -> Vec<f64> {
+fn project_psd(matrix: &[f64], n: usize) -> Result<Vec<f64>> {
     if n == 0 {
-        return Vec::new();
+        return Ok(Vec::new());
     }
 
-    let Ok((eigenvalues, eigenvectors)) =
-        finstack_quant_core::math::linalg::symmetric_eigen(matrix, n)
-    else {
-        return vec![0.0; n * n];
-    };
+    let (eigenvalues, eigenvectors) = finstack_quant_core::math::linalg::symmetric_eigen(matrix, n)
+        .map_err(|_| Error::EigenDecompositionFailed)?;
 
     // Reconstruct using only non-negative eigenvalues: X = V · diag(max(λ, 0)) · Vᵀ.
     // `eigenvectors[i * n + k]` is the `i`-th component of the `k`-th
@@ -254,7 +253,7 @@ fn project_psd(matrix: &[f64], n: usize) -> Vec<f64> {
             out[j * n + i] = sum;
         }
     }
-    out
+    Ok(out)
 }
 
 fn symmetrize(matrix: &[f64], n: usize) -> Vec<f64> {
@@ -353,6 +352,16 @@ mod tests {
         let err = nearest_correlation_matrix(&input, 2, NearestCorrelationOpts::default())
             .expect_err("symmetry guard");
         assert!(matches!(err, Error::NotSymmetric { .. }));
+    }
+
+    #[test]
+    fn non_finite_input_reports_eigendecomposition_failure() {
+        let input = vec![1.0, f64::NAN, f64::NAN, 1.0];
+        let err = nearest_correlation_matrix(&input, 2, NearestCorrelationOpts::default())
+            .expect_err("eigendecomposition failure must be reported");
+
+        assert!(matches!(err, Error::EigenDecompositionFailed));
+        assert_eq!(err.to_string(), "Symmetric eigendecomposition failed");
     }
 
     /// The algorithm is Higham (2002) Algorithm 3.3: the Dykstra correction is

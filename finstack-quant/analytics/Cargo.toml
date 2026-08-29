@@ -13,7 +13,6 @@ autobenches = false
 finstack-quant-core = { path = "../core", version = "0.8.0" }
 nalgebra = { version = "0.34", default-features = false, features = ["std"] }
 serde = { workspace = true }
-thiserror = { workspace = true }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 
 [dev-dependencies]

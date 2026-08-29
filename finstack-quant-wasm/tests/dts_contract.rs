@@ -25,6 +25,21 @@ fn contains_ignoring_ws(haystack: &str, needle: &str) -> bool {
     compact_haystack.contains(&compact_needle)
 }
 
+fn preceding_jsdoc<'a>(dts: &'a str, declaration: &str) -> &'a str {
+    let prefix = dts
+        .split_once(declaration)
+        .map(|(prefix, _)| prefix.trim_end())
+        .unwrap_or_else(|| panic!("declaration missing: {declaration}"));
+    assert!(
+        prefix.ends_with("*/"),
+        "JSDoc is not immediately before: {declaration}"
+    );
+    let doc_start = prefix
+        .rfind("/**")
+        .unwrap_or_else(|| panic!("JSDoc start missing before: {declaration}"));
+    &prefix[doc_start..]
+}
+
 fn interface_block<'a>(dts: &'a str, interface_name: &str) -> &'a str {
     let start = dts
         .find(&format!("export interface {interface_name}"))
@@ -101,6 +116,21 @@ fn credit_factor_hierarchy_dts_exposes_public_surface() {
 #[test]
 fn analytics_dts_matches_runtime_hotspots() {
     let dts = index_dts();
+    let numeric_matrix_docs = preceding_jsdoc(&dts, "export type NumericMatrix = NumericArray[];");
+    let constructor_docs = preceding_jsdoc(
+        &dts,
+        "  constructor(
+    dates: string[],
+    prices: NumericMatrix,",
+    );
+    let from_returns_docs = preceding_jsdoc(
+        &dts,
+        "  static fromReturns(
+    dates: string[],
+    returns: NumericMatrix,",
+    );
+    let ticker_names_docs = preceding_jsdoc(&dts, "  tickerNames(): string[];");
+    let drawdown_duration_docs = preceding_jsdoc(&dts, "  maxDrawdownDuration(): number[];");
 
     assert!(dts.contains("export declare class Performance {"));
     assert!(dts.contains("Performance: typeof Performance;"));
@@ -115,6 +145,45 @@ fn analytics_dts_matches_runtime_hotspots() {
     assert!(contains_ignoring_ws(
         &dts,
         "activeDatesForTicker(tickerIdx: number): string[];",
+    ));
+    assert!(dts.contains("export type NumericMatrix = NumericArray[];"));
+    assert!(contains_signature(
+        &dts,
+        "constructor(dates: string[], prices: NumericMatrix, tickerNames: string[], benchmarkTicker?: string | null, frequency?: string);",
+    ));
+    assert!(
+        numeric_matrix_docs.contains(
+            "Nested numeric arrays represented as an outer collection of numeric vectors."
+        ),
+        "NumericMatrix docs must describe a neutral outer vector collection"
+    );
+    assert!(numeric_matrix_docs.contains(
+        "Each API specifies the semantic meaning and required length of the outer and inner dimensions."
+    ));
+    assert!(!numeric_matrix_docs.contains("one inner array per row"));
+    assert!(constructor_docs.contains(
+        "@param prices - Ticker-major, column-oriented matrix where `prices[tickerIdx][dateIdx]` is the price for `tickerIdx` at `dates[dateIdx]`."
+    ));
+    assert!(!constructor_docs.contains("Row-major"));
+    assert!(!constructor_docs.contains("one row per"));
+    assert!(from_returns_docs.contains(
+        "@param returns - Ticker-major, column-oriented simple decimal return matrix where `returns[tickerIdx][dateIdx]` is the return for `tickerIdx` at `dates[dateIdx]`."
+    ));
+    assert!(!from_returns_docs.contains("Row-major"));
+    assert!(!from_returns_docs.contains("one row per"));
+    assert!(contains_signature(&dts, "tickerNames(): string[];"));
+    assert!(ticker_names_docs.contains("Ticker names in column order."));
+    assert!(
+        ticker_names_docs.contains("Ticker labels in column order as a JavaScript string array.")
+    );
+    assert!(ticker_names_docs
+        .contains("Rejects if the ticker-name vector cannot be serialized to JavaScript."));
+    assert!(contains_signature(&dts, "maxDrawdownDuration(): number[];"));
+    assert!(
+        drawdown_duration_docs.contains("Longest drawdown duration in calendar days per asset.")
+    );
+    assert!(drawdown_duration_docs.contains(
+        "Per-ticker longest drawdown duration in calendar days, as a JavaScript number array."
     ));
     assert!(contains_ignoring_ws(
         &dts,

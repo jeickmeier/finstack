@@ -3,8 +3,8 @@
 //! Crate-internal except for [`DatedSeries`] (re-exported at the crate root).
 //! `///` doc examples target crate developers and are marked `ignore`.
 //!
-//! All rolling functions share O(n) sliding-window kernels and produce either
-//! a dated struct (aligned to window-end dates) or a NaN-padded `Vec<f64>`.
+//! All rolling functions share O(n) sliding-window kernels and return a
+//! [`DatedSeries`] aligned to window-end dates.
 
 use crate::dates::Date;
 use finstack_quant_core::math::neumaier_sum;
@@ -18,7 +18,7 @@ use super::return_based::{invalid_annualization_factor, sharpe};
 /// which accumulates floating-point drift over time. Every
 /// `ROLLING_KERNEL_RECOMPUTE_INTERVAL` steps we recompute those values
 /// over the full window to restore precision.
-const ROLLING_KERNEL_RECOMPUTE_INTERVAL: usize = 1024;
+pub(crate) const ROLLING_KERNEL_RECOMPUTE_INTERVAL: usize = 1024;
 
 #[inline]
 fn recompute_mean_m2(window: &[f64]) -> (f64, f64) {
@@ -49,8 +49,8 @@ fn recompute_sum_sum_ds(window: &[f64], mar: f64) -> (f64, f64) {
 /// A dated time-series column: scalar values aligned with window-end dates.
 ///
 /// Shared carrier type for rolling analytics outputs. Concrete metrics
-/// (rolling Sharpe, Sortino, volatility, etc.) re-use this struct via
-/// this struct so they share field names, serde shape, and helper methods.
+/// (rolling Sharpe, Sortino, volatility, etc.) reuse this struct so they
+/// share field names, serde shape, and helper methods.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct DatedSeries {
     /// Computed metric values, one per completed rolling window.
@@ -232,9 +232,8 @@ pub(crate) fn rolling_sortino(
 }
 
 // Each kernel advances a sliding window over `returns[..n]` and calls
-// `emit` once per completed window.  Both the dated (struct) and undated
-// (NaN-padded Vec) public functions delegate here; they share *identical*
-// arithmetic and differ only in how the output is assembled.
+// `emit` once per completed window. The metric functions assemble those
+// values and their window-end dates into a `DatedSeries`.
 
 /// Shared kernel for rolling metrics that only need window mean and M2.
 ///

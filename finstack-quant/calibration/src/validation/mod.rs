@@ -5,11 +5,9 @@
 //! that results conform to financial reality (e.g., non-negative hazard rates,
 //! positive discount factors, no-arbitrage volatility surfaces).
 //!
-//! # Submodules
-//! - [`config`]: Configuration for validation thresholds and strictness modes.
-//! - [`curves`]: Runtime validators for term structures (Yield, Hazard, Inflation).
-//! - [`surfaces`]: Runtime validators for volatility and correlation surfaces.
-//! - [`preflight`]: Pre-execution validation for calibration steps.
+//! Configuration, curve and surface validators, and calibration-step preflight
+//! checks are implemented in private submodules and exposed here through the
+//! public validation types and functions below.
 
 mod config;
 pub(crate) mod curves;

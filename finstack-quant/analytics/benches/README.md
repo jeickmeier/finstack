@@ -7,12 +7,11 @@ until it is added as a `[[bench]]` target. Two targets are registered
 cost at one size) and `analytics_scaling` (how cost grows with series length
 or matrix dimension).
 
-Every case is driven through [`Performance`](../src/performance/mod.rs), the crate's
-canonical public entry point. Almost every per-metric building block is `pub(crate)`;
-the narrow public exceptions listed in [`../src/lib.rs`](../src/lib.rs) — `beta`,
-`regression::constrained_least_squares`, and the `correlation` matrix helpers — exist
-for cross-crate use, not as a measurement surface. If you add a benchmark, go through
-`Performance` too — measuring an internal helper measures something users cannot call.
+Most cases are driven through [`Performance`](../src/performance/mod.rs), the crate's
+canonical public entry point. The scaling target also directly benchmarks the
+intentionally public `correlation::nearest_correlation_matrix` repair helper and
+`regression::constrained_least_squares`. Almost every per-metric building block remains
+`pub(crate)` and is not a benchmark surface.
 
 ## Cases
 
@@ -35,7 +34,8 @@ tail metrics sort, so per-observation cost is expected to grow with `n log n`.
 
 ## Fixtures
 
-Panel inputs are generated in-file and are deterministic — no RNG crate, no clock:
+Both benchmark targets share deterministic inputs from
+[`support/fixtures.rs`](support/fixtures.rs) — no RNG crate, no clock:
 
 - `synthetic_returns(n, seed)` — a splitmix64-style iteration mapped into
   `(-0.02, 0.02)`.
@@ -45,6 +45,10 @@ Panel inputs are generated in-file and are deterministic — no RNG crate, no cl
   `PeriodKind::Daily`.
 - `perf_panel(n_obs, n_tickers, seed)` — multi-ticker panel where column 0 (`T0`) is the
   benchmark ticker; used by the rolling-greeks, multi-factor, and correlation cases.
+- `near_correlation_needs_repair(n)` — an indefinite correlation-shaped matrix used by
+  the scaling target's repair benchmark.
+- `constrained_ls_inputs(n_assets, n_factors)` — full-rank exposures, returns, and
+  weights used by the scaling target's constrained-regression benchmark.
 
 Keep new fixtures deterministic. A seeded generator is a hard requirement here, not a
 style preference: benchmark inputs feed the same code paths the correctness tests pin.

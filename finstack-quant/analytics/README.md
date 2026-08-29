@@ -217,13 +217,13 @@ Entries live in [`docs/REFERENCES.md`](../../docs/REFERENCES.md):
 ## Verification
 
 ```bash
-cargo clippy -p finstack-quant-analytics --lib --bins --tests --examples --all-features -- -D warnings
-cargo nextest run -p finstack-quant-analytics --lib --test '*'
-cargo bench -p finstack-quant-analytics --bench analytics_hot_paths
-cargo bench -p finstack-quant-analytics --bench analytics_scaling
+mise run rust-lint-crate -- finstack-quant-analytics
+mise run rust-test-crate -- finstack-quant-analytics
+mise run rust-bench-crate -- finstack-quant-analytics analytics_hot_paths
+mise run rust-bench-crate -- finstack-quant-analytics analytics_scaling
 ```
 
 Workspace gates (`mise run rust-lint`, `mise run rust-test`, `mise run rust-doc`
-— the last one runs doctests) are what CI enforces. Use `cargo nextest`, not
-`cargo test`, for crate-scoped runs; see
-[`CONTRIBUTING.md`](../../CONTRIBUTING.md).
+— the last one runs doctests) are what CI enforces. The scoped tasks above
+route through the project's supported lint, nextest, and Criterion tooling;
+see [`CONTRIBUTING.md`](../../CONTRIBUTING.md).

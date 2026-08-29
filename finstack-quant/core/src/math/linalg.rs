@@ -103,6 +103,71 @@ pub const CORRELATION_BOUND_SLACK: f64 = 1e-12;
 /// (diagonal ≈ 1) and general covariance matrices with large entries.
 pub const PIVOT_TOLERANCE_RELATIVE: f64 = 1e-10;
 
+/// Detailed error type for correlation matrix operations.
+///
+/// Validation variants preserve the first failure detected while checking a
+/// row-major flattened correlation matrix. Iterative correlation algorithms
+/// can additionally report convergence and eigendecomposition failures through
+/// this shared public error surface.
+#[derive(Debug, Clone, PartialEq, Error, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum CorrelationError {
+    /// Matrix size does not match expected n×n.
+    #[error("Invalid matrix size: expected {expected}×{expected}={}, got {actual}", expected * expected)]
+    InvalidSize {
+        /// Expected number of factors (n for n×n matrix).
+        expected: usize,
+        /// Actual length of the matrix array.
+        actual: usize,
+    },
+    /// Diagonal element is not 1.
+    #[error("Diagonal element [{index},{index}] = {value}, expected 1.0")]
+    DiagonalNotOne {
+        /// Index of the invalid diagonal element.
+        index: usize,
+        /// Actual value found on diagonal.
+        value: f64,
+    },
+    /// Matrix is not symmetric.
+    #[error("Matrix not symmetric: |ρ[{i},{j}] - ρ[{j},{i}]| = {diff}")]
+    NotSymmetric {
+        /// Row index.
+        i: usize,
+        /// Column index.
+        j: usize,
+        /// Absolute difference `|rho[i,j] - rho[j,i]|`.
+        diff: f64,
+    },
+    /// Matrix is not positive semi-definite (Cholesky failed).
+    #[error("Matrix not positive semi-definite: Cholesky failed at row {row}")]
+    NotPositiveSemiDefinite {
+        /// Row where Cholesky decomposition failed.
+        row: usize,
+    },
+    /// Correlation value out of bounds [-1, 1].
+    #[error("Correlation ρ[{i},{j}] = {value} out of bounds [-1, 1]")]
+    OutOfBounds {
+        /// Row index.
+        i: usize,
+        /// Column index.
+        j: usize,
+        /// Out-of-bounds value.
+        value: f64,
+    },
+    /// Iterative algorithm exhausted its iteration budget before converging.
+    #[error("Did not converge within {max_iter} iterations (tolerance {tol})")]
+    DidNotConverge {
+        /// Iteration budget that was exhausted.
+        max_iter: usize,
+        /// Frobenius-norm convergence tolerance that was not reached.
+        tol: f64,
+    },
+    /// Symmetric eigendecomposition failed during a correlation operation.
+    #[error("Symmetric eigendecomposition failed")]
+    EigenDecompositionFailed,
+}
+
 /// Error type for Cholesky decomposition failures.
 #[derive(Debug, Clone, PartialEq, Error, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -520,7 +585,8 @@ pub fn cholesky_correlation(
 ///
 /// # Errors
 ///
-/// Returns [`CholeskyError::DimensionMismatch`] if `matrix.len() != n * n`.
+/// Returns [`CholeskyError::DimensionMismatch`] if `matrix.len() != n * n`, or
+/// [`CholeskyError::NonFiniteInput`] if `matrix` contains NaN or infinity.
 ///
 /// # Example
 ///
@@ -557,6 +623,15 @@ pub fn symmetric_eigen(
     }
     if n == 0 {
         return Ok((Vec::new(), Vec::new()));
+    }
+    for (index, &value) in matrix.iter().enumerate() {
+        if !value.is_finite() {
+            return Err(CholeskyError::NonFiniteInput {
+                value,
+                row: index / n,
+                col: index % n,
+            });
+        }
     }
 
     let a = nalgebra::DMatrix::from_fn(n, n, |i, j| matrix[i * n + j]);
@@ -1030,48 +1105,77 @@ pub fn build_correlation_matrix(
 ///   `n * n` finite entries.
 /// * `n` - Matrix dimension used to interpret the flat row-major buffer.
 pub fn validate_correlation_matrix(matrix: &[f64], n: usize) -> Result<()> {
+    validate_correlation_matrix_detailed(matrix, n).map_err(|error| match error {
+        CorrelationError::InvalidSize { .. } => error::InputError::DimensionMismatch.into(),
+        _ => error::InputError::Invalid.into(),
+    })
+}
+
+/// Validate a flattened row-major correlation matrix with located diagnostics.
+///
+/// Checks matrix size, unit diagonal, coefficient bounds, symmetry, and
+/// positive semidefiniteness in that order. Numerical thresholds and Cholesky
+/// semantics are identical to [`validate_correlation_matrix`].
+///
+/// # Arguments
+///
+/// * `matrix` - Correlation coefficients in row-major `n × n` order; each
+///   entry at row `i`, column `j` is stored at `i * n + j`.
+/// * `n` - Number of variables represented by each matrix dimension; `0`
+///   accepts an empty matrix.
+///
+/// # Errors
+///
+/// Returns the first [`CorrelationError`] detected.
+pub fn validate_correlation_matrix_detailed(
+    matrix: &[f64],
+    n: usize,
+) -> std::result::Result<(), CorrelationError> {
     if matrix.len() != n * n {
-        return Err(crate::error::InputError::DimensionMismatch.into());
+        return Err(CorrelationError::InvalidSize {
+            expected: n,
+            actual: matrix.len(),
+        });
+    }
+    if n == 0 {
+        return Ok(());
     }
 
-    // Check diagonal
     for i in 0..n {
-        let diag = matrix[i * n + i];
-        if (diag - 1.0).abs() > DIAGONAL_TOLERANCE {
-            return Err(crate::error::InputError::Invalid.into());
+        let value = matrix[i * n + i];
+        if (value - 1.0).abs() > DIAGONAL_TOLERANCE {
+            return Err(CorrelationError::DiagonalNotOne { index: i, value });
         }
     }
 
-    // Check off-diagonal range and symmetry
     for i in 0..n {
         for j in 0..n {
             if i == j {
                 continue;
             }
 
-            let val = matrix[i * n + j];
-            if !(-1.0 - CORRELATION_BOUND_SLACK..=1.0 + CORRELATION_BOUND_SLACK).contains(&val) {
-                return Err(crate::error::InputError::Invalid.into());
+            let value = matrix[i * n + j];
+            if !(-1.0 - CORRELATION_BOUND_SLACK..=1.0 + CORRELATION_BOUND_SLACK).contains(&value) {
+                return Err(CorrelationError::OutOfBounds { i, j, value });
             }
-
-            // Check symmetry
-            let val_sym = matrix[j * n + i];
-            if (val - val_sym).abs() > SYMMETRY_TOLERANCE {
-                return Err(crate::error::InputError::Invalid.into());
+            if i < j {
+                let diff = (matrix[i * n + j] - matrix[j * n + i]).abs();
+                if diff > SYMMETRY_TOLERANCE {
+                    return Err(CorrelationError::NotSymmetric { i, j, diff });
+                }
             }
         }
     }
 
-    // Check positive semi-definite using the pivoted path so that nearly-rank-deficient
-    // but valid correlation matrices are accepted rather than rejected by an absolute
-    // threshold.
-    match cholesky_correlation(matrix, n) {
-        Ok(_) => Ok(()),
-        Err(CholeskyError::DimensionMismatch { .. }) => {
-            Err(error::InputError::DimensionMismatch.into())
-        }
-        Err(_) => Err(error::InputError::Invalid.into()),
+    if let Err(error) = cholesky_correlation(matrix, n) {
+        let row = match error {
+            CholeskyError::NotPositiveDefinite { row, .. } => row,
+            _ => 0,
+        };
+        return Err(CorrelationError::NotPositiveSemiDefinite { row });
     }
+
+    Ok(())
 }
 
 /// Result of Ledoit-Wolf covariance shrinkage.
@@ -1393,6 +1497,20 @@ mod tests {
                 expected: 2,
                 actual: 3
             }
+        ));
+    }
+
+    #[test]
+    fn symmetric_eigen_rejects_non_finite_input() {
+        let err = symmetric_eigen(&[1.0, f64::NAN, f64::NAN, 1.0], 2)
+            .expect_err("non-finite input should fail");
+        assert!(matches!(
+            err,
+            CholeskyError::NonFiniteInput {
+                value,
+                row: 0,
+                col: 1,
+            } if value.is_nan()
         ));
     }
 

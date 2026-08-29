@@ -141,6 +141,12 @@ fn performance_facade_exercises_broad_api_surface() {
         assert_finite_metric(label, &values, ticker_count);
     }
 
+    let standalone_var = perf.value_at_risk(0.95);
+    let standalone_es = perf.expected_shortfall(0.95);
+    let (batch_var, batch_es) = perf.value_at_risk_and_es(0.95);
+    assert_eq!(batch_var, standalone_var);
+    assert_eq!(batch_es, standalone_es);
+
     let durations = perf.max_drawdown_duration();
     assert_eq!(durations.len(), ticker_count);
     assert!(durations.iter().all(|duration| *duration >= 0));

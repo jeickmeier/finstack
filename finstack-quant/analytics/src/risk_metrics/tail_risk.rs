@@ -42,6 +42,39 @@ fn finite_returns_copy(returns: &[f64]) -> Option<Vec<f64>> {
     Some(data)
 }
 
+fn historical_var_data(
+    returns: &[f64],
+    confidence: f64,
+    invalid_confidence_message: Option<&str>,
+) -> Option<(Vec<f64>, f64)> {
+    if returns.is_empty() {
+        return None;
+    }
+    if !has_strict_confidence(confidence) {
+        if let Some(message) = invalid_confidence_message {
+            tracing::debug!(confidence, reason = "invalid_confidence", "{message}");
+        }
+        return None;
+    }
+    let mut data = finite_returns_copy(returns)?;
+    let var_threshold = quantile(&mut data, 1.0 - confidence);
+    Some((data, var_threshold))
+}
+
+fn expected_shortfall_from_data(data: &[f64], var_threshold: f64) -> f64 {
+    let (tail_sum, tail_count) = data
+        .iter()
+        .filter(|&&value| value <= var_threshold)
+        .fold((0.0_f64, 0usize), |(sum, count), &value| {
+            (sum + value, count + 1)
+        });
+    if tail_count == 0 {
+        var_threshold
+    } else {
+        tail_sum / tail_count as f64
+    }
+}
+
 /// Historical Value-at-Risk at the given confidence level.
 ///
 /// Computes the `(1 - confidence)` quantile of the empirical return
@@ -72,21 +105,12 @@ fn finite_returns_copy(returns: &[f64]) -> Option<Vec<f64>> {
 /// slice or an invalid confidence level.
 #[must_use]
 pub(crate) fn value_at_risk(returns: &[f64], confidence: f64) -> f64 {
-    if returns.is_empty() {
-        return f64::NAN;
-    }
-    if !has_strict_confidence(confidence) {
-        tracing::debug!(
-            confidence,
-            reason = "invalid_confidence",
-            "value_at_risk returning NaN"
-        );
-        return f64::NAN;
-    }
-    let Some(mut data) = finite_returns_copy(returns) else {
+    let Some((_, var_threshold)) =
+        historical_var_data(returns, confidence, Some("value_at_risk returning NaN"))
+    else {
         return f64::NAN;
     };
-    quantile(&mut data, 1.0 - confidence)
+    var_threshold
 }
 /// Expected Shortfall (CVaR / ES) at the given confidence level.
 ///
@@ -123,40 +147,24 @@ pub(crate) fn value_at_risk(returns: &[f64], confidence: f64) -> f64 {
 ///
 /// # References
 ///
-/// - Artzner et al. (1999): see docs/REFERENCES.md#artzner1999CoherentRisk `docs/REFERENCES.md#artzner1999CoherentRisk`
+/// - Artzner et al. (1999): `docs/REFERENCES.md#artzner1999CoherentRisk`
 #[must_use]
 pub(crate) fn expected_shortfall(returns: &[f64], confidence: f64) -> f64 {
-    if returns.is_empty() {
-        return f64::NAN;
-    }
-    if !has_strict_confidence(confidence) {
-        tracing::debug!(
-            confidence,
-            reason = "invalid_confidence",
-            "expected_shortfall returning NaN"
-        );
-        return f64::NAN;
-    }
-    let Some(mut data) = finite_returns_copy(returns) else {
+    let Some((data, var_threshold)) = historical_var_data(
+        returns,
+        confidence,
+        Some("expected_shortfall returning NaN"),
+    ) else {
         return f64::NAN;
     };
-    let var_threshold = quantile(&mut data, 1.0 - confidence);
-    let (tail_sum, tail_count) = data
-        .iter()
-        .filter(|&&v| v <= var_threshold)
-        .fold((0.0_f64, 0usize), |(s, n), &v| (s + v, n + 1));
-    if tail_count == 0 {
-        var_threshold
-    } else {
-        tail_sum / tail_count as f64
-    }
+    expected_shortfall_from_data(&data, var_threshold)
 }
 
-/// Compute historical VaR and Expected Shortfall in a single pass.
+/// Compute historical VaR and Expected Shortfall together.
 ///
-/// Shares the `finite_returns_copy` allocation and `quantile_finite`
-/// partition between the two metrics, which is the common case for
-/// summary outputs that report both.
+/// Shares one validated finite-return copy and one quantile calculation
+/// between the two metrics, which is the common case for summary outputs
+/// that report both.
 ///
 /// Returns `(value_at_risk, expected_shortfall)`. Sentinel rules match the
 /// standalone [`value_at_risk`] / [`expected_shortfall`] functions:
@@ -164,25 +172,10 @@ pub(crate) fn expected_shortfall(returns: &[f64], confidence: f64) -> f64 {
 /// `confidence`.
 #[must_use]
 pub(crate) fn value_at_risk_and_es(returns: &[f64], confidence: f64) -> (f64, f64) {
-    if returns.is_empty() {
-        return (f64::NAN, f64::NAN);
-    }
-    if !has_strict_confidence(confidence) {
-        return (f64::NAN, f64::NAN);
-    }
-    let Some(mut data) = finite_returns_copy(returns) else {
+    let Some((data, var_threshold)) = historical_var_data(returns, confidence, None) else {
         return (f64::NAN, f64::NAN);
     };
-    let var_threshold = quantile(&mut data, 1.0 - confidence);
-    let (tail_sum, tail_count) = data
-        .iter()
-        .filter(|&&v| v <= var_threshold)
-        .fold((0.0_f64, 0usize), |(s, n), &v| (s + v, n + 1));
-    let es = if tail_count == 0 {
-        var_threshold
-    } else {
-        tail_sum / tail_count as f64
-    };
+    let es = expected_shortfall_from_data(&data, var_threshold);
     (var_threshold, es)
 }
 /// Tail ratio = |upper tail| / |lower tail|.
@@ -503,19 +496,19 @@ mod tests {
     use super::*;
     use crate::math::stats::{mean, mean_var, variance};
 
+    fn assert_f64_eq_nan_aware(actual: f64, expected: f64) {
+        if expected.is_nan() {
+            assert!(actual.is_nan(), "expected NaN, got {actual}");
+        } else {
+            assert_eq!(actual, expected);
+        }
+    }
+
     #[test]
     fn var_basic() {
         let data: Vec<f64> = (-100..=100).map(|i| i as f64 / 100.0).collect();
         let var = value_at_risk(&data, 0.95);
         assert!(var < -0.8);
-    }
-
-    #[test]
-    fn es_is_worse_than_var() {
-        let data: Vec<f64> = (-100..=100).map(|i| i as f64 / 100.0).collect();
-        let var = value_at_risk(&data, 0.95);
-        let es = expected_shortfall(&data, 0.95);
-        assert!(es <= var);
     }
 
     #[test]
@@ -536,6 +529,28 @@ mod tests {
         let es = expected_shortfall(&data, 0.5);
         let expected = (-3.0 - 1.0 - 1.0) / 3.0;
         assert!((es - expected).abs() < 1e-12);
+    }
+
+    #[test]
+    fn combined_var_and_es_exactly_match_standalone_metrics() {
+        let finite = [-0.08, 0.03, -0.02, 0.01, -0.05, 0.04];
+        let tied_threshold = [-3.0, -1.0, -1.0, 10.0];
+        let non_finite_nan = [-0.03, f64::NAN, 0.01];
+        let non_finite_infinity = [-0.03, f64::INFINITY, 0.01];
+        let cases: &[(&[f64], f64)] = &[
+            (&finite, 0.95),
+            (&tied_threshold, 0.5),
+            (&finite, 1.0),
+            (&non_finite_nan, 0.95),
+            (&non_finite_infinity, 0.95),
+            (&[], 0.95),
+        ];
+
+        for &(returns, confidence) in cases {
+            let (combined_var, combined_es) = value_at_risk_and_es(returns, confidence);
+            assert_f64_eq_nan_aware(combined_var, value_at_risk(returns, confidence));
+            assert_f64_eq_nan_aware(combined_es, expected_shortfall(returns, confidence));
+        }
     }
 
     #[test]
@@ -672,7 +687,7 @@ mod tests {
     }
 
     #[test]
-    fn es_is_worse_than_var_always() {
+    fn expected_shortfall_is_at_most_var_across_distributions() {
         let datasets: Vec<Vec<f64>> = vec![
             (-100..=100).map(|i| i as f64 / 100.0).collect(),
             vec![0.05, -0.10, 0.03, -0.15, 0.07, -0.02, 0.01, -0.08],
@@ -681,7 +696,7 @@ mod tests {
         for data in &datasets {
             let var = value_at_risk(data, 0.95);
             let es = expected_shortfall(data, 0.95);
-            assert!(es <= var + 1e-14, "ES must be ≤ VaR: es={es}, var={var}");
+            assert!(es <= var, "ES must be ≤ VaR: es={es}, var={var}");
         }
     }
 
@@ -745,21 +760,6 @@ mod tests {
         );
     }
 
-    // ─── Moved from tests/api_invariants.rs::tail_risk_api ───────────────────
-
-    fn large_data() -> Vec<f64> {
-        (0..201).map(|i| (i as f64 - 100.0) / 100.0).collect()
-    }
-
-    #[test]
-    fn es_le_var_invariant() {
-        let data = large_data();
-        let confidence = 0.95;
-        let var = value_at_risk(&data, confidence);
-        let es = expected_shortfall(&data, confidence);
-        assert!(es <= var + 1e-12, "ES must be <= VaR: es={es}, var={var}");
-    }
-
     #[test]
     fn empty_input_consistency() {
         let empty: Vec<f64> = vec![];
@@ -769,8 +769,6 @@ mod tests {
         let (var, es) = value_at_risk_and_es(&empty, 0.95);
         assert!(var.is_nan() && es.is_nan());
     }
-
-    // ─── Moved from tests/correctness_regressions.rs ─────────────────────────
 
     #[test]
     fn value_at_risk_requires_strict_confidence_bounds() {

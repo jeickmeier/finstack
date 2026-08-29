@@ -16,7 +16,9 @@ pub(crate) use return_based::{
     modified_sharpe, omega_ratio, sharpe, sortino, volatility,
 };
 pub use rolling::DatedSeries;
-pub(crate) use rolling::{rolling_sharpe, rolling_sortino, rolling_volatility};
+pub(crate) use rolling::{
+    rolling_sharpe, rolling_sortino, rolling_volatility, ROLLING_KERNEL_RECOMPUTE_INTERVAL,
+};
 pub(crate) use tail_risk::{
     cornish_fisher_var, expected_shortfall, kurtosis, parametric_var, skew_kurt, skewness,
     tail_ratio, value_at_risk, value_at_risk_and_es,

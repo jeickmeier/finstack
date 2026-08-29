@@ -168,10 +168,11 @@ fn rolling_greeks_to_js(rg: &fa::RollingGreeks) -> Result<JsValue, JsValue> {
 
 /// Stateful performance analytics engine over a panel of ticker price (or return) series.
 ///
-/// Dates are ISO-8601 values in ascending order. Numeric inputs are row-major
-/// with one row per date and one column per ticker. Scalar rates and returns
-/// use decimal fractions; numeric outputs are Float64Array values in ticker
-/// order unless the method documents an object or matrix shape.
+/// Dates are ISO-8601 values in ascending order. The `prices` and `returns`
+/// supplied to the panel constructors are ticker-major and column-oriented;
+/// matrix inputs to other methods follow their parameter documentation. Scalar
+/// rates and returns use decimal fractions; numeric outputs are Float64Array
+/// values in ticker order unless the method documents an object or matrix shape.
 ///
 /// Invalid dates, shapes, frequencies, tickers, and confidence levels are
 /// returned as rejected JsValue errors.
@@ -182,15 +183,15 @@ pub struct JsPerformance {
 
 #[wasm_bindgen(js_class = Performance)]
 impl JsPerformance {
-    /// Construct from a price matrix. `dates` is an array of ISO date strings,
-    /// `prices` is `prices[i]` = column for ticker `i`.
+    /// Construct from a ticker-major, column-oriented price matrix. The outer
+    /// element selects a ticker, and each inner series is aligned to `dates`.
     /// # Errors
     ///
     /// Rejects malformed dates or matrices, invalid prices, unsupported
     /// frequencies, and an unknown benchmark ticker.
-    /// @param dates - ISO-8601 observation dates in ascending order, one entry per price row.
-    /// @param prices - Row-major matrix where `prices[i][j]` is ticker j on observation i.
-    /// @param ticker_names - Ticker labels aligned with the price-matrix columns.
+    /// @param dates - ISO-8601 observation dates in ascending order, with one entry per value in each inner price series.
+    /// @param prices - Ticker-major, column-oriented matrix where `prices[ticker_idx][date_idx]` is the price for `ticker_idx` at `dates[date_idx]`.
+    /// @param ticker_names - Ticker labels aligned with the outer elements of `prices`.
     /// @param benchmark_ticker - Optional ticker label to use as the benchmark return series.
     /// @param frequency - Optional observation frequency token; defaults to daily.
     #[wasm_bindgen(constructor)]
@@ -213,14 +214,15 @@ impl JsPerformance {
         Ok(JsPerformance { inner })
     }
 
-    /// Construct from a return matrix (one row per `dates` entry per ticker).
+    /// Construct from a ticker-major, column-oriented return matrix. The outer
+    /// element selects a ticker, and each inner series is aligned to `dates`.
     /// # Errors
     ///
     /// Rejects malformed dates or matrices and invalid benchmark or
     /// frequency inputs.
-    /// @param dates - ISO-8601 observation dates in ascending order, one entry per return row.
-    /// @param returns - Row-major simple decimal return matrix where `returns[i][j]` is ticker j on observation i.
-    /// @param ticker_names - Ticker labels aligned with the return-matrix columns.
+    /// @param dates - ISO-8601 observation dates in ascending order, with one entry per value in each inner return series.
+    /// @param returns - Ticker-major, column-oriented simple decimal return matrix where `returns[ticker_idx][date_idx]` is the return for `ticker_idx` at `dates[date_idx]`.
+    /// @param ticker_names - Ticker labels aligned with the outer elements of `returns`.
     /// @param benchmark_ticker - Optional ticker label to use as the benchmark return series.
     /// @param frequency - Optional observation frequency token; defaults to daily.
     /// @returns A `Performance` handle over the supplied return panel.
@@ -511,12 +513,12 @@ impl JsPerformance {
         vec_f64_to_js(&self.inner.downside_deviation(mar.unwrap_or(0.0)))
     }
 
-    /// Longest drawdown duration (in periods) per asset.
+    /// Longest drawdown duration in calendar days per asset.
     ///
     /// # Errors
     ///
     /// Rejects if the duration vector cannot be serialized to JavaScript.
-    /// @returns Per-ticker longest drawdown length in periods, as a JavaScript number array.
+    /// @returns Per-ticker longest drawdown duration in calendar days, as a JavaScript number array.
     #[wasm_bindgen(js_name = maxDrawdownDuration)]
     pub fn max_drawdown_duration(&self) -> Result<JsValue, JsValue> {
         // `usize` does not fit a typed array; keep the serde path.

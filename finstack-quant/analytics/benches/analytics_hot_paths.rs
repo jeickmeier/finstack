@@ -4,66 +4,15 @@
 //! public entry point. Building-block functions are `pub(crate)` and not
 //! intended for direct measurement.
 
+#[path = "support/fixtures.rs"]
+mod fixtures;
+
 use std::hint::black_box;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use finstack_quant_analytics::Performance;
-use finstack_quant_core::dates::{Date, Month, PeriodKind};
-
-fn synthetic_returns(n: usize, seed: u64) -> Vec<f64> {
-    // Deterministic pseudo-random sequence via a splitmix64-ish iteration;
-    // avoids bench-time jitter from a real RNG crate.
-    let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15);
-    (0..n)
-        .map(|_| {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            let u = ((z ^ (z >> 31)) as f64) / (u64::MAX as f64);
-            (u - 0.5) * 0.04
-        })
-        .collect()
-}
-
-fn synthetic_dates(n: usize) -> Vec<Date> {
-    let start = Date::from_calendar_date(2020, Month::January, 1).expect("valid");
-    let mut dates = Vec::with_capacity(n);
-    let mut d = start;
-    for _ in 0..n {
-        dates.push(d);
-        d = d.next_day().expect("next day");
-    }
-    dates
-}
-
-fn perf_from_returns(n: usize, seed: u64) -> Performance {
-    let returns = synthetic_returns(n, seed);
-    let dates = synthetic_dates(n);
-    Performance::from_returns(
-        dates,
-        vec![returns],
-        vec!["X".to_string()],
-        None,
-        PeriodKind::Daily,
-    )
-    .expect("performance from returns")
-}
-
-/// Build a multi-ticker `Performance` sized for benchmark/factor / correlation
-/// hot paths. Column 0 is the benchmark.
-fn perf_panel(n_obs: usize, n_tickers: usize, seed: u64) -> Performance {
-    assert!(n_tickers >= 2, "panel must have at least benchmark + 1");
-    let dates = synthetic_dates(n_obs);
-    let mut columns: Vec<Vec<f64>> = Vec::with_capacity(n_tickers);
-    let mut names: Vec<String> = Vec::with_capacity(n_tickers);
-    for i in 0..n_tickers {
-        columns.push(synthetic_returns(n_obs, seed.wrapping_add(i as u64)));
-        names.push(format!("T{i}"));
-    }
-    Performance::from_returns(dates, columns, names, Some("T0"), PeriodKind::Daily)
-        .expect("performance panel")
-}
+use finstack_quant_core::dates::PeriodKind;
+use fixtures::{perf_from_returns, perf_panel, synthetic_dates, synthetic_returns};
 
 fn bench_tail_risk(c: &mut Criterion) {
     let perf_small = perf_from_returns(2_500, 42);
@@ -153,8 +102,6 @@ fn bench_multi_factor_greeks(c: &mut Criterion) {
     // Three factors plus the portfolio column gives a representative
     // OLS sized for a small risk-model regression.
     let perf = perf_panel(2_500, 4, 23);
-    let f1 = perf.dates(); // grab dates so we can build factor slices below
-    black_box(f1);
     c.bench_function("Performance::multi_factor_greeks 2.5k k=3", |b| {
         // Pre-extract factor return slices. The portfolio column is index 3;
         // factors are columns 0 (benchmark), 1, and 2.

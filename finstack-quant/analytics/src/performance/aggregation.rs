@@ -1,7 +1,5 @@
 //! Series, correlation, lookback, and period-aggregation methods on
 //! [`Performance`].
-//!
-//! Pure layout split from `performance.rs`; no behavior changes.
 
 use super::{LookbackReturns, Performance};
 use crate::aggregation::{
