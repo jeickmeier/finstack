@@ -8,7 +8,7 @@ use pyo3::types::{PyList, PyModule};
 const MODULE_DOC: &str = "Compiled-in JSON Schemas for calibration envelopes and raw market quotes.\n\nUse `index()` to list the calibration crate's contracts, `get(selector)` to fetch one, and `validate(selector, payload)` for pointer-precise validation.\n\nExamples\n--------\n>>> import json\n>>> from finstack_quant.calibration import schema\n>>> json.loads(schema.get(\"calibration.schema.json\"))[\"$schema\"]\n'https://json-schema.org/draft/2020-12/schema'\n";
 
 schema_registry_functions!(
-    finstack_quant_calibration::schema::artifacts_slice(),
+    finstack_quant_calibration::json_schema::artifacts_slice(),
     "finstack_quant.calibration.schema"
 );
 

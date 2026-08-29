@@ -29,7 +29,6 @@ __all__ = [
     "CalibrationResult",
     "calibrate",
     "calibrate_bermudan_lmm_base_vol",
-    "dependency_graph_json",
     "dry_run",
     "schema",
     "validate_calibration_json",
@@ -256,21 +255,6 @@ class CalibrationResult:
         """
         ...
 
-    def to_report_dataframe(self) -> pd.DataFrame:
-        """Build the same per-step table as :meth:`to_dataframe`.
-
-        Returns
-        -------
-        pandas.DataFrame
-            Deterministically ordered calibration-step summary.
-
-        Raises
-        ------
-        ValueError
-            If the report cannot be converted to Python tabular values.
-        """
-        ...
-
     def __repr__(self) -> str: ...
 
 class CalibrationEnvelopeError(RuntimeError):
@@ -309,7 +293,8 @@ def validate_calibration_json(json: str) -> str:
     Raises
     ------
     CalibrationEnvelopeError
-        If ingestion or static validation fails.
+        If ingestion or static validation fails. Static validation is
+        fail-fast (first error); use ``dry_run`` to list every static error.
 
     Examples
     --------
@@ -355,37 +340,6 @@ def dry_run(json: str) -> str:
     """
     ...
 
-def dependency_graph_json(json: str) -> str:
-    """Return the static read/write dependency graph for a calibration plan.
-
-    Parameters
-    ----------
-    json : str
-        JSON calibration envelope.
-
-    Returns
-    -------
-    str
-        JSON graph with initial IDs and ordered step nodes.
-
-    Raises
-    ------
-    CalibrationEnvelopeError
-        If the input cannot be loaded as an envelope.
-
-    Examples
-    --------
-    >>> import json
-    >>> from finstack_quant.calibration import dependency_graph_json
-    >>> envelope = {
-    ...     "schema": "finstack_quant.calibration/1",
-    ...     "plan": {"id": "smoke", "description": None, "quote_sets": {}, "steps": [], "settings": {}},
-    ... }
-    >>> json.loads(dependency_graph_json(json.dumps(envelope)))["nodes"]
-    []
-    """
-    ...
-
 def calibrate(json: str) -> CalibrationResult:
     """Build a market context from quotes and an ordered calibration plan.
 
@@ -404,7 +358,8 @@ def calibrate(json: str) -> CalibrationResult:
     ------
     CalibrationEnvelopeError
         If ingestion, dependency resolution, market construction, or solving
-        fails.
+        fails. Static validation is fail-fast (first error); use ``dry_run``
+        to list every static error.
 
     Examples
     --------

@@ -185,7 +185,7 @@ fn resolve_no_bracket<Q: std::fmt::Debug>(ctx: NoBracketContext<'_, Q>) -> Resul
 
         // No sign-change bracket, but the target explicitly opts into best-effort
         // knots and the best point reprices within the validation tolerance. This is
-        // the audit item-10 "explicit caller opt-in": used by base-correlation
+        // the explicit caller opt-in: used by base-correlation
         // bootstrapping, whose objective (tranche upfront vs. correlation) is monotone,
         // so a best point pinned at a scan bound is the genuine "closest reachable"
         // knot, not a spurious local minimum. Flagged `is_approximate = true` so the

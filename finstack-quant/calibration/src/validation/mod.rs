@@ -19,4 +19,10 @@ pub(crate) mod surfaces;
 
 pub(crate) use config::default_rate_bounds_policy_for_serde;
 pub use config::{RateBounds, RateBoundsPolicy, ValidationConfig, ValidationMode};
+pub use curves::CurveValidator;
 pub(crate) use preflight::preflight_step;
+pub use surfaces::{
+    validate_butterfly_call_convexity, validate_butterfly_spread, validate_calendar_spread,
+    validate_calendar_spread_with_forwards, validate_surface, validate_surface_with_forwards,
+    validate_vol_bounds,
+};

@@ -73,7 +73,6 @@
 //! - **Plan-Driven API**: Uses `"finstack_quant.calibration/1"` schema for structured calibration plans.
 //! - **Flexible Solvers**: Supports both sequential bootstrapping and global optimization (Newton/LM).
 //! - **Market Standards**: Implements post-2008 multi-curve frameworks and strict pricing conventions.
-//! - **Extensible Architecture**: Easy to add new instrument types and calibration targets.
 //!
 //! # See Also
 //! - `api` for the plan schema and engine.
@@ -93,19 +92,20 @@
 /// Plan-driven calibration API (schema + execution engine).
 pub mod api;
 /// Quote-to-instrument construction and date resolution.
-pub mod build;
+pub(crate) mod build;
 /// Embedded calibration defaults.
 mod defaults;
 /// Hull-White one-factor model calibration to European swaptions.
 pub mod hull_white;
 /// Bermudan LMM loading-scale calibration.
 pub mod lmm;
-pub use lmm::calibrate_bermudan_lmm_base_vol;
+pub use lmm::{calibrate_bermudan_lmm_base_vol, calibrate_bermudan_lmm_base_vol_from_json};
+/// Checked-in JSON Schema artifacts owned by this crate.
+pub mod json_schema;
 /// Prepared quotes for calibration.
 pub(crate) mod prepared;
 /// Raw market quote data-transfer objects.
 pub mod quotes;
-pub mod schema;
 /// Solver utilities and implementations used by calibration.
 pub(crate) mod solver;
 /// Calibration targets mapping API steps to domain execution.
@@ -115,7 +115,8 @@ pub(crate) mod targets;
 mod config;
 mod report;
 pub(crate) mod step_runtime;
-pub(crate) mod validation;
+/// Curve and surface validators, preflight checks, and rate-bound policy.
+pub mod validation;
 
 /// Quote-space replay and batch-local recalibration provider.
 ///
@@ -131,26 +132,29 @@ pub use defaults::{
 /// Shared constants (tolerances, magic numbers).
 pub(crate) mod constants;
 
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod hazard_curve_tests;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod repricing_tests;
+#[cfg(test)]
+mod test_support;
+
 // These types form the supported public API for calibration configuration.
 // They are used by wasm/py bindings and external consumers.
 
 /// Configuration types for calibration.
 pub use config::{
-    CalibrationConfig, CalibrationMethod, DiscountCurveSolveConfig, HazardCurveSolveConfig,
-    InflationCurveSolveConfig, MarketFreshnessPolicy, MarketQuoteSide, RatesStepConventions,
-    ResidualWeightingScheme, VolSurfaceSolveConfig,
+    CalibrationConfig, CalibrationMethod, DiscountCurveSolveConfig, ForwardCurveSolveConfig,
+    HazardCurveSolveConfig, InflationCurveSolveConfig, MarketFreshnessPolicy, MarketQuoteSide,
+    RatesStepConventions, ResidualWeightingScheme, VolSurfaceSolveConfig,
 };
 
 /// Solver configuration (Brent/Newton).
 pub use solver::SolverConfig;
 
 /// Validation types for curves and surfaces.
-pub use validation::curves::CurveValidator;
-pub use validation::surfaces::{
-    validate_butterfly_call_convexity, validate_butterfly_spread, validate_calendar_spread,
-    validate_calendar_spread_with_forwards, validate_surface, validate_surface_with_forwards,
-    validate_vol_bounds,
-};
 pub use validation::{RateBounds, RateBoundsPolicy, ValidationConfig, ValidationMode};
 
 /// Calibration diagnostics and results.

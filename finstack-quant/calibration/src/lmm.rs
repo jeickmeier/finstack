@@ -323,6 +323,42 @@ pub fn calibrate_bermudan_lmm_base_vol(
     Ok(calibration.base_vol)
 }
 
+/// Parse a canonical instrument envelope and calibrate the Bermudan LMM loading scale.
+///
+/// The envelope must contain a `bermudan_swaption` payload. Host bindings
+/// extract only the market and valuation date; this function owns the
+/// instrument parse and kind check.
+///
+/// # Arguments
+///
+/// * `instrument_json` - Canonical instrument envelope JSON. The payload
+///   `type` must be `bermudan_swaption`; any other supported instrument is
+///   rejected after parse.
+/// * `market` - Immutable market containing discount/projection curves and the
+///   Black-lognormal swaption volatility surface.
+/// * `as_of` - Calibration date used for curve and expiry year fractions.
+///
+/// # Errors
+///
+/// Returns an error if `instrument_json` is malformed, exceeds the instrument
+/// size cap, is not a Bermudan swaption, or the typed calibration fails.
+pub fn calibrate_bermudan_lmm_base_vol_from_json(
+    instrument_json: &str,
+    market: &MarketContext,
+    as_of: Date,
+) -> Result<f64> {
+    let instrument = finstack_quant_valuations::pricer::parse_instrument_json(instrument_json)?;
+    let finstack_quant_valuations::instruments::InstrumentJson::BermudanSwaption(swaption) =
+        instrument
+    else {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "instrument_json must contain a bermudan_swaption envelope, got '{}'",
+            instrument.type_tag()
+        )));
+    };
+    calibrate_bermudan_lmm_base_vol(&swaption, market, as_of)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -431,6 +467,57 @@ mod tests {
         assert!(
             (base_vol - SURFACE_VOL).abs() > 1.0e-6,
             "the forward-loading scale must not be the raw swaption quote"
+        );
+    }
+
+    fn bermudan_envelope_json(swaption: BermudanSwaption) -> String {
+        let envelope = finstack_quant_valuations::instruments::InstrumentEnvelope::new(
+            finstack_quant_valuations::instruments::InstrumentJson::BermudanSwaption(swaption),
+        );
+        serde_json::to_string(&envelope).expect("serialize Bermudan envelope")
+    }
+
+    #[test]
+    fn from_json_matches_typed_helper() {
+        let as_of = Date::from_calendar_date(2025, Month::January, 17).expect("as of");
+        let market = MarketContext::new()
+            .insert(test_discount_curve(as_of))
+            .insert_surface(test_surface());
+        let swaption = test_swaption();
+        let typed = calibrate_bermudan_lmm_base_vol(&swaption, &market, as_of)
+            .expect("typed LMM base-vol calibration");
+        let from_json = calibrate_bermudan_lmm_base_vol_from_json(
+            &bermudan_envelope_json(swaption),
+            &market,
+            as_of,
+        )
+        .expect("JSON LMM base-vol calibration");
+        assert_eq!(typed, from_json);
+    }
+
+    #[test]
+    fn from_json_rejects_non_bermudan_instrument() {
+        let as_of = Date::from_calendar_date(2025, Month::January, 17).expect("as of");
+        let bond = finstack_quant_valuations::instruments::Bond::fixed(
+            "TEST-BOND",
+            Money::new(1_000_000.0, Currency::USD),
+            0.05,
+            Date::from_calendar_date(2024, Month::January, 1).expect("start"),
+            Date::from_calendar_date(2034, Month::January, 1).expect("end"),
+            finstack_quant_core::dates::StubKind::ShortFront,
+            "USD-OIS",
+        )
+        .expect("bond");
+        let envelope = finstack_quant_valuations::instruments::InstrumentEnvelope::new(
+            finstack_quant_valuations::instruments::InstrumentJson::Bond(bond),
+        );
+        let json = serde_json::to_string(&envelope).expect("serialize bond envelope");
+        let err = calibrate_bermudan_lmm_base_vol_from_json(&json, &MarketContext::new(), as_of)
+            .expect_err("non-Bermudan instrument must be rejected");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("bermudan_swaption") && msg.contains("bond"),
+            "unexpected kind-check error: {msg}"
         );
     }
 

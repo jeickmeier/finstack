@@ -7,7 +7,6 @@ export const calibration = {
   calibrate: (envelope) => wasm.calibrate(jsonInput(envelope)),
   validateCalibrationJson: (envelope) => wasm.validateCalibrationJson(jsonInput(envelope)),
   dryRun: (envelope) => wasm.dryRun(jsonInput(envelope)),
-  dependencyGraphJson: (envelope) => wasm.dependencyGraphJson(jsonInput(envelope)),
   calibrateBermudanLmmBaseVol: (instrument, market, asOf) =>
     wasm.calibrateBermudanLmmBaseVol(jsonInput(instrument), market, asOf),
 };

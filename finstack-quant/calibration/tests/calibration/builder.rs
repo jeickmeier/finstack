@@ -55,11 +55,7 @@ fn missing_quote_set_fails_fast() {
     };
 
     let err = engine::execute(&envelope).expect_err("missing quote set should error");
-    assert!(matches!(
-        err,
-        finstack_quant_core::Error::Calibration { category, .. }
-            if category == "undefined_quote_set"
-    ));
+    assert_eq!(err.details().category, "undefined_quote_set");
 }
 
 #[test]

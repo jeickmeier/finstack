@@ -68,9 +68,7 @@ pub use finstack_quant_models::rates::hull_white::{
 pub use quotes::{
     CapFloorCalibrationConfig, CapFloorQuote, SwapFrequency, SwaptionQuote, SwaptionSchedule,
 };
-pub use swaption::{
-    calibrate_hull_white_to_swaptions, calibrate_hull_white_to_swaptions_with_schedules,
-};
+pub use swaption::calibrate_hull_white_to_swaptions;
 
 #[cfg(test)]
 pub(crate) use pricing::hw1f_cap_floor_implied_normal_vol;

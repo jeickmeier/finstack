@@ -1,12 +1,16 @@
-//! Shared runtime types and solver contracts for market calibration.
-//!
-use finstack_quant_calibration::build::{build_cds_tranche_instrument, CDSTrancheBuildOverrides};
-use finstack_quant_calibration::quotes::cds::CdsQuote;
-use finstack_quant_calibration::quotes::cds_tranche::CDSTrancheQuote;
-use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};
-use finstack_quant_calibration::quotes::inflation::InflationQuote;
-use finstack_quant_calibration::quotes::market_quote::MarketQuote;
-use finstack_quant_calibration::quotes::rates::RateQuote;
+//! Quote-to-instrument construction coverage for every quote class.
+#![allow(clippy::unwrap_used, clippy::panic)]
+
+use crate::build::cds::build_cds_instrument;
+use crate::build::cds_tranche::{build_cds_tranche_instrument, CDSTrancheBuildOverrides};
+use crate::build::rates::build_rate_instrument;
+use crate::build::BuildCtx;
+use crate::quotes::cds::CdsQuote;
+use crate::quotes::cds_tranche::CDSTrancheQuote;
+use crate::quotes::ids::{Pillar, QuoteId};
+use crate::quotes::inflation::InflationQuote;
+use crate::quotes::market_quote::MarketQuote;
+use crate::quotes::rates::RateQuote;
 use finstack_quant_core::dates::{Date, DayCount, Tenor};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::IndexId;
@@ -151,27 +155,23 @@ fn test_all_quote_types_instrument_construction() {
     curve_ids.insert("discount".to_string(), "USD-OIS".to_string());
     curve_ids.insert("forward".to_string(), "USD-LIBOR-3M".to_string());
     curve_ids.insert("credit".to_string(), "NA-HY-Curve".to_string());
-    let build_ctx =
-        finstack_quant_calibration::build::BuildCtx::new(base_date, 1_000_000.0, curve_ids);
+    let build_ctx = BuildCtx::new(base_date, 1_000_000.0, curve_ids);
 
     for q in &discount_quotes {
         if let MarketQuote::Rates(rq) = q {
-            finstack_quant_calibration::build::build_rate_instrument(rq, &build_ctx)
-                .expect("discount instrument build");
+            build_rate_instrument(rq, &build_ctx).expect("discount instrument build");
         }
     }
 
     for q in &forward_quotes {
         if let MarketQuote::Rates(rq) = q {
-            finstack_quant_calibration::build::build_rate_instrument(rq, &build_ctx)
-                .expect("forward instrument build");
+            build_rate_instrument(rq, &build_ctx).expect("forward instrument build");
         }
     }
 
     for q in &hazard_quotes {
         if let MarketQuote::Cds(cds_q) = q {
-            finstack_quant_calibration::build::build_cds_instrument(cds_q, &build_ctx)
-                .expect("cds instrument build");
+            build_cds_instrument(cds_q, &build_ctx).expect("cds instrument build");
         }
     }
 

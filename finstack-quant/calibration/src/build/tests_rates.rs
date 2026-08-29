@@ -1,7 +1,8 @@
-//! Tests for the surrounding crate component and its documented behavior.
-//!
-use finstack_quant_calibration::build::build_rate_instrument;
-use finstack_quant_calibration::build::BuildCtx;
+//! Quote-to-rate-instrument construction tests.
+#![allow(clippy::unwrap_used, clippy::panic)]
+
+use crate::build::rates::build_rate_instrument;
+use crate::build::BuildCtx;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, Tenor};
 use finstack_quant_valuations::instruments::rates::deposit::Deposit;
@@ -9,8 +10,8 @@ use finstack_quant_valuations::instruments::rates::fra::ForwardRateAgreement;
 use finstack_quant_valuations::instruments::rates::irs::InterestRateSwap;
 use rust_decimal::Decimal;
 
-use finstack_quant_calibration::quotes::ids::Pillar;
-use finstack_quant_calibration::quotes::rates::RateQuote; // Used in code if needed, or string into
+use crate::quotes::ids::Pillar;
+use crate::quotes::rates::RateQuote;
 
 fn usd_build_ctx(as_of: Date) -> BuildCtx {
     let mut curve_ids = finstack_quant_core::HashMap::default();

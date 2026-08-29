@@ -136,7 +136,7 @@ fn bench_discount_and_forward_steps(c: &mut Criterion) {
     let disc_data = quotes_to_data(&disc_mq);
     let fwd_ids = quote_set_ids(&fwd_mq);
 
-    c.bench_function("calibration_v2_discount_step", |b| {
+    c.bench_function("calibration_discount_step", |b| {
         b.iter(|| {
             let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
             quote_sets.insert("disc".to_string(), disc_ids.clone());
@@ -162,7 +162,7 @@ fn bench_discount_and_forward_steps(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("calibration_v2_discount_then_forward_steps", |b| {
+    c.bench_function("calibration_discount_then_forward_steps", |b| {
         let mut combined_data = disc_data.clone();
         combined_data.extend(quotes_to_data(&fwd_mq));
         b.iter(|| {

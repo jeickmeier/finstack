@@ -11,6 +11,10 @@ use time::Date;
 /// data sources. Quote IDs should be unique within a calibration set and follow a consistent
 /// naming convention (e.g., "{currency}-{index}-{type}-{pillar}").
 ///
+/// [`QuoteId::new`] is infallible, including for empty strings. Empty or
+/// whitespace-only IDs are rejected when this type is deserialized from the
+/// wire, and again by [`MarketQuote::validate`](super::market_quote::MarketQuote::validate).
+///
 /// # Examples
 ///
 /// ```rust
@@ -19,10 +23,23 @@ use time::Date;
 /// let id = QuoteId::new("USD-SOFR-DEP-1M");
 /// assert_eq!(id.as_str(), "USD-SOFR-DEP-1M");
 /// ```
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, PartialOrd, Ord, schemars::JsonSchema)]
 pub struct QuoteId(String);
+
+impl<'de> Deserialize<'de> for QuoteId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if value.trim().is_empty() {
+            return Err(serde::de::Error::custom(
+                "quote id must not be empty or whitespace",
+            ));
+        }
+        Ok(Self(value))
+    }
+}
 
 impl QuoteId {
     /// Create a new `QuoteId` from a string.
@@ -134,5 +151,41 @@ impl fmt::Display for Pillar {
             Pillar::Tenor(t) => write!(f, "{}", t),
             Pillar::Date(d) => write!(f, "{}", d),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::QuoteId;
+
+    #[test]
+    fn new_accepts_empty_id() {
+        let id = QuoteId::new("");
+        assert_eq!(id.as_str(), "");
+        assert_eq!(QuoteId::new("   ").as_str(), "   ");
+    }
+
+    #[test]
+    fn deserialize_accepts_nonempty_id() {
+        let id: QuoteId = serde_json::from_str("\"USD-OIS-SWAP-5Y\"").expect("valid quote id");
+        assert_eq!(id.as_str(), "USD-OIS-SWAP-5Y");
+    }
+
+    #[test]
+    fn deserialize_rejects_empty_id() {
+        let err = serde_json::from_str::<QuoteId>("\"\"").expect_err("empty quote id");
+        assert!(
+            err.to_string().contains("quote id must not be empty"),
+            "unexpected deserialize error: {err}"
+        );
+    }
+
+    #[test]
+    fn deserialize_rejects_whitespace_id() {
+        let err = serde_json::from_str::<QuoteId>("\"  \\t\\n\"").expect_err("whitespace quote id");
+        assert!(
+            err.to_string().contains("quote id must not be empty"),
+            "unexpected deserialize error: {err}"
+        );
     }
 }

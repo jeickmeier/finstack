@@ -341,7 +341,6 @@ fn calibration_dts_owns_calibration_surface() {
         "calibrate(",
         "validateCalibrationJson(",
         "dryRun(",
-        "dependencyGraphJson(",
         "calibrateBermudanLmmBaseVol(",
     ] {
         assert!(

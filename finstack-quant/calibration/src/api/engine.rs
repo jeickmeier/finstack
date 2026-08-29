@@ -22,7 +22,6 @@ use crate::validation::preflight_step;
 use crate::CalibrationReport;
 use finstack_quant_core::explain::{ExplanationTrace, TraceEntry};
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::Result;
 use rayon::prelude::*;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -705,28 +704,20 @@ fn bad_fit_envelope_error(step_id: &str, report: &CalibrationReport) -> Envelope
 
 /// Execute a full [`CalibrationEnvelope`] plan.
 ///
-/// Primary entry point — maps any structured envelope failure to
-/// [`finstack_quant_core::Error`]. Bindings that
-/// want full structured detail (e.g., `worst_quote_id` on solver
-/// non-convergence) should call [`execute_with_diagnostics`] directly.
+/// Returns a structured [`ExecuteError`] for ingestion, configuration,
+/// context, preflight, target, and solver-acceptance failures (including
+/// `worst_quote_id` on non-convergence). `From<ExecuteError>` maps that
+/// payload to [`finstack_quant_core::Error`] so `?` still works in
+/// functions that return `finstack_quant_core::Result`.
+///
+/// Static validation is fail-fast: the first envelope error is returned.
+/// [`super::validate::dry_run`] lists every static error without solving.
 ///
 /// # Arguments
 ///
 /// * `envelope` - Typed calibration plan, inputs, quote sets, and solver
 ///   settings to execute in declared dependency order.
-pub fn execute(envelope: &CalibrationEnvelope) -> Result<CalibrationResultEnvelope> {
-    execute_with_diagnostics(envelope).map_err(Into::into)
-}
-
-/// Execute a full [`CalibrationEnvelope`] plan, preserving one structured
-/// error payload for ingestion, configuration, context, preflight, target, and
-/// solver-acceptance failures.
-///
-/// # Arguments
-///
-/// * `envelope` - Typed calibration plan, inputs, quote sets, and solver
-///   settings to execute in declared dependency order.
-pub fn execute_with_diagnostics(
+pub fn execute(
     envelope: &CalibrationEnvelope,
 ) -> std::result::Result<CalibrationResultEnvelope, ExecuteError> {
     let _span = tracing::info_span!(
@@ -736,7 +727,11 @@ pub fn execute_with_diagnostics(
     )
     .entered();
 
-    if let Some(error) = envelope.validate().errors.into_iter().next() {
+    if let Some(error) = super::validate::validate(envelope)
+        .errors
+        .into_iter()
+        .next()
+    {
         return Err(ExecuteError::envelope(ExecutionStage::Ingestion, error));
     }
     let plan = &envelope.plan;

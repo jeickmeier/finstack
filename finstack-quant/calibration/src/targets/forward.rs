@@ -144,8 +144,7 @@ impl ForwardCurveTarget {
             base_context: context.clone(),
         });
 
-        // Forward curves use discount curve validation tolerance (could add dedicated config later).
-        let success_tolerance = Some(config.discount_curve.validation_tolerance);
+        let success_tolerance = Some(config.forward_curve.validation_tolerance);
 
         if matches!(params.method, CalibrationMethod::Bootstrap) {
             return Err(finstack_quant_core::Error::Validation(format!(
@@ -818,7 +817,7 @@ impl GlobalSolveTarget for ForwardCurveTarget {
             };
             let annuity = quote_annuity_proxy(quote, time);
             let pv01_inverse_sq = 1.0 / (annuity * annuity);
-            let scheme_factor = match self.config.discount_curve.weighting_scheme {
+            let scheme_factor = match self.config.forward_curve.weighting_scheme {
                 ResidualWeightingScheme::Equal => 1.0,
                 ResidualWeightingScheme::LinearTime => time,
                 ResidualWeightingScheme::SqrtTime => time.sqrt(),
@@ -927,7 +926,7 @@ mod tests {
         let base_date = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
         let mut config = CalibrationConfig::default()
             .with_rate_bounds(RateBounds::new(-0.01, 0.10).expect("valid explicit rate bounds"));
-        config.discount_curve.weighting_scheme = ResidualWeightingScheme::LinearTime;
+        config.forward_curve.weighting_scheme = ResidualWeightingScheme::LinearTime;
         let target = ForwardCurveTarget::new(ForwardCurveTargetParams {
             base_date,
             currency: Currency::USD,
@@ -1015,7 +1014,7 @@ mod tests {
             &target,
             &quotes,
             &target.config,
-            Some(target.config.discount_curve.validation_tolerance),
+            Some(target.config.forward_curve.validation_tolerance),
         )
         .expect("bounded global solve should return its best curve");
         assert!(

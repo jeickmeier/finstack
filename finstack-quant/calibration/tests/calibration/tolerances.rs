@@ -32,6 +32,7 @@ pub const F64_ABS_TOL_STRICT: f64 = 1e-12;
 pub const F64_ABS_TOL_LOOSE: f64 = 1e-10;
 
 /// Repricing PV tolerance (absolute dollars) used by canonical external repricing tests.
+#[allow(dead_code)]
 pub const REPRICE_PV_ABS_TOL_DOLLARS: f64 = 1.0;
 
 /// Swap repricing tolerance expressed as an implied par-rate error in basis points.
@@ -44,6 +45,7 @@ pub const SWAP_REPRICE_TOL_BP: f64 = 0.1;
 pub const SWAP_REPRICE_MIN_ABS_DOLLARS: f64 = 1.0;
 
 /// FRA repricing tolerance (absolute dollars) for a $1mm notional FRA.
+#[allow(dead_code)]
 pub const FRA_REPRICE_ABS_TOL_DOLLARS: f64 = 5.0;
 
 /// Bloomberg DF difference tolerances (basis points of DF, i.e. (df - bbg_df) * 10_000).

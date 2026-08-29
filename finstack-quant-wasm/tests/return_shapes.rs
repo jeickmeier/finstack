@@ -106,7 +106,6 @@ fn json_suffixed_exports_return_strings() {
         "validateCovenantSpecJson",
         "validateCovenantReportJson",
         "validateCovenantEngineJson",
-        "dependencyGraphJson",
         "validateValuationResultJson",
         "instrumentCashflowsJson",
     ] {

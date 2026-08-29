@@ -4,9 +4,9 @@ use crate::api::schema::{CalibrationStep, HullWhiteVolatilityMode, StepParams};
 use crate::config::CalibrationConfig;
 use crate::hull_white::{
     bootstrap_hull_white_sigma_schedule_to_cap_floors, calibrate_hull_white_to_cap_floors,
-    calibrate_hull_white_to_swaptions_with_schedules, capfloor_hw1f_scalar_keys,
-    capfloor_hw1f_sigma_schedule_key, hw1f_scalar_keys, CapFloorCalibrationConfig, CapFloorQuote,
-    PiecewiseSigmaCalibrationConfig, SwaptionQuote, SwaptionSchedule,
+    calibrate_hull_white_to_swaptions, capfloor_hw1f_scalar_keys, capfloor_hw1f_sigma_schedule_key,
+    hw1f_scalar_keys, CapFloorCalibrationConfig, CapFloorQuote, PiecewiseSigmaCalibrationConfig,
+    SwapFrequency, SwaptionQuote, SwaptionSchedule,
 };
 use crate::quotes::market_quote::MarketQuote;
 use crate::quotes::vol::VolQuote;
@@ -22,8 +22,9 @@ use crate::targets::swaption::SwaptionVolTarget;
 use crate::targets::vol::VolSurfaceTarget;
 use crate::targets::xccy_basis::XccyBasisTarget;
 use crate::validation::surfaces::validate_surface;
+use crate::validation::CurveValidator;
 use crate::validation::ValidationMode;
-use crate::{CalibrationReport, CurveValidator};
+use crate::CalibrationReport;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{DayCount, DayCountContext};
 use finstack_quant_core::explain::TraceEntry;
@@ -375,10 +376,11 @@ pub(crate) fn execute_params(
                     ))
                 }
             };
-            let (hw_params, report) = calibrate_hull_white_to_swaptions_with_schedules(
+            let (hw_params, report) = calibrate_hull_white_to_swaptions(
                 &df,
                 &hw_quotes,
-                &hw_schedules,
+                SwapFrequency::Annual,
+                Some(&hw_schedules),
                 initial_guess,
             )?;
 

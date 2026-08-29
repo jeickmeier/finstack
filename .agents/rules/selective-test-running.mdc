@@ -46,6 +46,8 @@ Add `--all-features` to `rust-lint-crate` / `rust-fmt-crate` when touching featu
 | `finstack-quant/statements/` | `finstack-quant-statements` |
 | `finstack-quant/statements-analytics/` | `finstack-quant-statements-analytics` |
 | `finstack-quant/valuations/` | `finstack-quant-valuations` |
+| `finstack-quant/calibration/` | `finstack-quant-calibration` |
+| `finstack-quant/calibration/` | `finstack-quant-calibration` |
 | `finstack-quant/features/` | `finstack-quant-features` |
 | `finstack-quant/portfolio/` | `finstack-quant-portfolio` |
 | `finstack-quant/scenarios/` | `finstack-quant-scenarios` |

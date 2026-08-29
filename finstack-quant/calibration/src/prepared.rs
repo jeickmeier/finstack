@@ -40,7 +40,7 @@ pub(crate) enum CalibrationQuote {
     /// Inflation quote (ZCIS)
     Inflation(PreparedQuote<InflationQuote>),
     /// Cross-currency basis swap quote (par spread on a fixed-notional or MtM-resetting
-    /// XCCY swap). Constructed via `prepare_xccy_quote` in `market::build::prepared`.
+    /// XCCY swap). Constructed via `prepare_xccy_quote` in `build::prepared`.
     XccyBasis(PreparedQuote<XccyQuote>),
 }
 

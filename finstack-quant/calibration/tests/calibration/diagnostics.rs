@@ -4,7 +4,7 @@ use finstack_quant_calibration::api::errors::EnvelopeError;
 use finstack_quant_calibration::api::schema::{
     CalibrationEnvelope, CalibrationPlan, CalibrationStep, DiscountCurveParams, StepParams,
 };
-use finstack_quant_calibration::api::validate::{dependency_graph_json, dry_run, validate};
+use finstack_quant_calibration::api::validate::{dry_run, validate};
 
 fn empty_envelope(id: &str) -> CalibrationEnvelope {
     CalibrationEnvelope {
@@ -135,6 +135,21 @@ fn obsolete_strict_load_error_kinds_are_rejected() {
             "found": "future-schema",
             "expected": "finstack_quant.calibration/1",
         }),
+        serde_json::json!({
+            "kind": "unknown_step_kind",
+            "step_index": 0,
+            "step_id": "s",
+            "found": "mystery",
+            "expected_one_of": ["discount"],
+        }),
+        serde_json::json!({
+            "kind": "quote_class_mismatch",
+            "step_index": 0,
+            "step_id": "s",
+            "step_kind": "discount",
+            "expected_class": "rates",
+            "breakdown": [],
+        }),
     ];
 
     for payload in obsolete {
@@ -175,15 +190,6 @@ fn dry_run_returns_json_for_minimal_envelope() {
     let report_json = dry_run(&json).expect("dry_run succeeds");
     assert!(report_json.contains("\"errors\""));
     assert!(report_json.contains("\"dependency_graph\""));
-}
-
-#[test]
-fn dependency_graph_json_for_empty_plan_is_well_formed() {
-    let env = empty_envelope("smoke");
-    let json = serde_json::to_string(&env).expect("serialize");
-    let graph_json = dependency_graph_json(&json).expect("dep graph succeeds");
-    assert!(graph_json.contains("\"initial_ids\""));
-    assert!(graph_json.contains("\"nodes\""));
 }
 
 #[test]

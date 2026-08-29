@@ -15,7 +15,14 @@ use finstack_quant_models::rates::hull_white::{hw_b, hw_bond_vol, hw_ln_a};
 /// * `df` - Discount factor function: `df(t)` returns P(0, t). Must satisfy `df(0) ≈ 1`.
 /// * `quotes` - Swaption market data.
 /// * `frequency` - Coupon frequency of the underlying swap (e.g., semi-annual for USD,
-///   annual for EUR). This materially affects the annuity factor and forward swap rate.
+///   annual for EUR). Used for the synthetic constant-period schedule when
+///   `schedules` is `None`; ignored for annuity construction when contractual
+///   schedules are supplied.
+/// * `schedules` - Optional contractual fixed-leg schedules aligned with
+///   `quotes`. `None` builds a synthetic constant-period schedule from
+///   `frequency`. `Some` replaces that schedule with quote-aligned payment
+///   times, accruals, and unlagged maturities (preserving calendars, stubs,
+///   and payment lags).
 /// * `initial_guess` - Optional seed for (κ, σ). Pass `None` to use built-in defaults.
 ///
 /// # Returns
@@ -66,13 +73,27 @@ use finstack_quant_models::rates::hull_white::{hw_b, hw_bond_vol, hw_ln_a};
 /// - Fewer than 2 quotes are provided (2 free parameters)
 /// - Calibration fails to converge
 /// - Discount function returns invalid values
+/// - A supplied schedule is malformed or its length does not match `quotes`
+///
+/// HW1F swaption calibration treats every leg as a vanilla fixed-vs-IBOR
+/// swap. For OIS swaptions the daily compounding inside each accrual period
+/// is approximated by a single forward rate.
 pub fn calibrate_hull_white_to_swaptions(
     df: &dyn Fn(f64) -> f64,
     quotes: &[SwaptionQuote],
     frequency: SwapFrequency,
+    schedules: Option<&[SwaptionSchedule]>,
     initial_guess: Option<HullWhiteCalibrationParams>,
 ) -> finstack_quant_core::Result<(HullWhiteCalibrationParams, CalibrationReport)> {
-    calibrate_hull_white_to_swaptions_core(df, quotes, frequency, None, initial_guess, None)
+    let schedule_source = schedules.is_some().then_some("real_day_count");
+    calibrate_hull_white_to_swaptions_core(
+        df,
+        quotes,
+        frequency,
+        schedules,
+        initial_guess,
+        schedule_source,
+    )
 }
 
 fn calibrate_hull_white_to_swaptions_core(
@@ -259,49 +280,6 @@ fn validate_model_price_sanity(
     Ok(())
 }
 
-/// Calibrate HW1F to swaptions using contractual fixed-leg schedules.
-///
-/// Functionally identical to [`calibrate_hull_white_to_swaptions`] but replaces
-/// the synthetic constant-period schedule with quote-aligned payment times,
-/// fixed-leg accrual factors, and unlagged maturity times. This preserves
-/// registered calendars, business-day adjustments, stubs, and payment lags.
-///
-/// # Arguments
-///
-/// * `df` - Discount-factor function where `df(t)` returns `P(0,t)` on the
-///   same time axis as quote expiries and schedule payment times.
-/// * `quotes` - ATM European swaption quotes to fit. Volatilities use decimal
-///   normal absolute-rate or Black units.
-/// * `schedules` - Contractual fixed-leg schedules aligned with `quotes`.
-/// * `initial_guess` - Optional starting `(kappa, sigma)` parameters for the
-///   optimizer. `None` uses the bounded default seed.
-///
-/// # OIS-Specific Limitations
-///
-/// HW1F swaption calibration here treats every leg as a vanilla fixed-vs.-
-/// IBOR swap. For OIS swaptions (compounded-in-arrears), the daily compounding
-/// inside each accrual period is approximated by a single forward rate — the
-/// HW1F r* equation does not capture the daily reset structure. This is
-/// acceptable for ATM or near-ATM calibration (the loss is well below typical
-/// market vol-of-vol noise) but is not appropriate for term-RFR-strict
-/// calibration. The cap/floor path uses the analytical HW1F caplet vol
-/// formula and is unaffected.
-pub fn calibrate_hull_white_to_swaptions_with_schedules(
-    df: &dyn Fn(f64) -> f64,
-    quotes: &[SwaptionQuote],
-    schedules: &[SwaptionSchedule],
-    initial_guess: Option<HullWhiteCalibrationParams>,
-) -> finstack_quant_core::Result<(HullWhiteCalibrationParams, CalibrationReport)> {
-    calibrate_hull_white_to_swaptions_core(
-        df,
-        quotes,
-        SwapFrequency::Annual,
-        Some(schedules),
-        initial_guess,
-        Some("real_day_count"),
-    )
-}
-
 /// ATM vega for a swaption expressed in the same volatility units as the
 /// quote (Bachelier σ for normal vol, Black-76 σ for lognormal).
 ///
@@ -474,7 +452,7 @@ pub(super) fn compute_swaption_market_price(
 /// 3. Sum the individual zero-coupon bond put prices.
 ///
 /// Uses a synthetic constant-`dt` schedule. The production HW1F calibrator
-/// (`calibrate_hull_white_to_swaptions_with_schedules`) drives
+/// (`calibrate_hull_white_to_swaptions` with contractual schedules) drives
 /// [`hw1f_swaption_price_inner`] directly with real accrual fractions, so
 /// this scalar-time wrapper exists primarily as a stable test harness.
 #[allow(dead_code)]

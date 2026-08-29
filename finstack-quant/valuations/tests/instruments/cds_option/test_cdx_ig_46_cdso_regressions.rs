@@ -45,7 +45,7 @@ fn fixture_instrument_spec(fixture: &Value) -> &Value {
 fn bootstrap_market(fixture: &Value) -> MarketContext {
     let envelope: CalibrationEnvelope =
         serde_json::from_value(fixture_market_envelope(fixture).clone()).expect("parse envelope");
-    let result = engine::execute_with_diagnostics(&envelope).expect("calibrate");
+    let result = engine::execute(&envelope).expect("calibrate");
     MarketContext::try_from(result.result.final_market).expect("rehydrate market")
 }
 

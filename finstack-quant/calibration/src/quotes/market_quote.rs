@@ -69,9 +69,10 @@ pub enum MarketQuote {
 }
 
 impl MarketQuote {
-    /// Validate quote-domain invariants before calibration.
-    pub fn validate(&self) -> Result<()> {
-        let id = match self {
+    /// Identifier shared by every quote class.
+    #[must_use]
+    pub fn id(&self) -> &str {
+        match self {
             Self::Bond(quote) => quote.id().as_str(),
             Self::Rates(quote) => quote.id().as_str(),
             Self::Cds(quote) => quote.id().as_str(),
@@ -80,81 +81,26 @@ impl MarketQuote {
             Self::Inflation(quote) => quote.id().as_str(),
             Self::Vol(quote) => quote.id().as_str(),
             Self::Xccy(quote) => quote.id().as_str(),
-        };
-        if id.trim().is_empty() {
+        }
+    }
+
+    /// Validate quote-domain invariants before calibration.
+    pub fn validate(&self) -> Result<()> {
+        if self.id().trim().is_empty() {
             return Err(Error::Validation(
                 "market quote id must not be empty".to_string(),
             ));
         }
 
         match self {
-            Self::Bond(quote) => validate_finite(quote.value(), "bond quote"),
-            Self::Rates(quote) => validate_finite(quote.value(), "rate quote"),
-            Self::Cds(CdsQuote::CdsParSpread {
-                spread_bp,
-                recovery_rate,
-                ..
-            }) => {
-                validate_finite(*spread_bp, "CDS spread")?;
-                validate_unit_interval(*recovery_rate, "CDS recovery rate")
-            }
-            Self::Cds(CdsQuote::CdsUpfront {
-                running_spread_bp,
-                upfront_pct,
-                recovery_rate,
-                ..
-            }) => {
-                validate_finite(*running_spread_bp, "CDS running spread")?;
-                validate_finite(*upfront_pct, "CDS upfront")?;
-                validate_unit_interval(*recovery_rate, "CDS recovery rate")
-            }
-            Self::CDSTranche(CDSTrancheQuote::CDSTranche {
-                attachment,
-                detachment,
-                upfront_pct,
-                running_spread_bp,
-                ..
-            }) => {
-                validate_unit_interval(*attachment, "tranche attachment")?;
-                validate_unit_interval(*detachment, "tranche detachment")?;
-                if attachment >= detachment {
-                    return Err(Error::Validation(
-                        "tranche attachment must be below detachment".to_string(),
-                    ));
-                }
-                validate_finite(*upfront_pct, "tranche upfront")?;
-                validate_finite(*running_spread_bp, "tranche running spread")
-            }
-            Self::Fx(FxQuote::ForwardOutright { forward_rate, .. }) => {
-                validate_positive(*forward_rate, "FX forward")
-            }
-            Self::Fx(FxQuote::SwapOutright {
-                near_rate,
-                far_rate,
-                ..
-            }) => {
-                validate_positive(*near_rate, "FX swap near rate")?;
-                validate_positive(*far_rate, "FX swap far rate")
-            }
-            Self::Fx(FxQuote::OptionVanilla { strike, .. }) => {
-                validate_positive(*strike, "FX option strike")
-            }
-            Self::Inflation(InflationQuote::InflationSwap { rate, .. })
-            | Self::Inflation(InflationQuote::YoYInflationSwap { rate, .. }) => {
-                validate_finite(*rate, "inflation quote")
-            }
+            Self::Bond(quote) => validate_bond_quote(quote),
+            Self::Rates(quote) => validate_rate_quote(quote),
+            Self::Cds(quote) => validate_cds_quote(quote),
+            Self::CDSTranche(quote) => validate_cds_tranche_quote(quote),
+            Self::Fx(quote) => validate_fx_quote(quote),
+            Self::Inflation(quote) => validate_inflation_quote(quote),
             Self::Vol(quote) => quote.validate(),
-            Self::Xccy(XccyQuote::BasisSwap {
-                basis_spread_bp,
-                spot_fx,
-                ..
-            }) => {
-                validate_finite(*basis_spread_bp, "cross-currency basis spread")?;
-                if let Some(spot) = spot_fx {
-                    validate_positive(*spot, "cross-currency spot FX")?;
-                }
-                Ok(())
-            }
+            Self::Xccy(quote) => validate_xccy_quote(quote),
         }
     }
 }
@@ -260,33 +206,161 @@ impl QuoteSnapshot {
     }
 }
 
-fn validate_finite(value: f64, label: &str) -> Result<()> {
+fn validate_finite(value: f64, field: &str) -> Result<()> {
     if !value.is_finite() {
         return Err(Error::Validation(format!(
-            "{label} must be finite, got {value}"
+            "{field} must be finite; got {value}"
         )));
     }
     Ok(())
 }
 
-fn validate_positive(value: f64, label: &str) -> Result<()> {
-    validate_finite(value, label)?;
+fn validate_positive(value: f64, field: &str) -> Result<()> {
+    validate_finite(value, field)?;
     if value <= 0.0 {
         return Err(Error::Validation(format!(
-            "{label} must be positive, got {value}"
+            "{field} must be positive; got {value}"
         )));
     }
     Ok(())
 }
 
-fn validate_unit_interval(value: f64, label: &str) -> Result<()> {
-    validate_finite(value, label)?;
+fn validate_unit_interval(value: f64, field: &str) -> Result<()> {
+    validate_finite(value, field)?;
     if !(0.0..=1.0).contains(&value) {
         return Err(Error::Validation(format!(
-            "{label} must lie within [0, 1], got {value}"
+            "{field} must be in [0, 1]; got {value}"
         )));
     }
     Ok(())
+}
+
+fn validate_rate_quote(quote: &RateQuote) -> Result<()> {
+    match quote {
+        RateQuote::Deposit { rate, .. }
+        | RateQuote::Fra { rate, .. }
+        | RateQuote::Swap { rate, .. } => validate_finite(*rate, "rate"),
+        RateQuote::Futures {
+            price,
+            convexity_adjustment,
+            ..
+        } => {
+            validate_finite(*price, "price")?;
+            validate_finite(*convexity_adjustment, "convexity_adjustment")
+        }
+    }
+}
+
+fn validate_cds_quote(quote: &CdsQuote) -> Result<()> {
+    match quote {
+        CdsQuote::CdsParSpread {
+            spread_bp,
+            recovery_rate,
+            ..
+        } => {
+            validate_positive(*spread_bp, "spread_bp")?;
+            validate_unit_interval(*recovery_rate, "recovery_rate")
+        }
+        CdsQuote::CdsUpfront {
+            running_spread_bp,
+            upfront_pct,
+            recovery_rate,
+            ..
+        } => {
+            validate_positive(*running_spread_bp, "running_spread_bp")?;
+            validate_finite(*upfront_pct, "upfront_pct")?;
+            validate_unit_interval(*recovery_rate, "recovery_rate")
+        }
+    }
+}
+
+fn validate_cds_tranche_quote(quote: &CDSTrancheQuote) -> Result<()> {
+    let CDSTrancheQuote::CDSTranche {
+        attachment,
+        detachment,
+        upfront_pct,
+        running_spread_bp,
+        ..
+    } = quote;
+    validate_unit_interval(*attachment, "attachment")?;
+    validate_unit_interval(*detachment, "detachment")?;
+    if attachment >= detachment {
+        return Err(Error::Validation(format!(
+            "attachment must be less than detachment; got attachment={attachment}, detachment={detachment}"
+        )));
+    }
+    validate_finite(*upfront_pct, "upfront_pct")?;
+    validate_positive(*running_spread_bp, "running_spread_bp")
+}
+
+fn validate_fx_quote(quote: &FxQuote) -> Result<()> {
+    match quote {
+        FxQuote::ForwardOutright { forward_rate, .. } => {
+            validate_positive(*forward_rate, "forward_rate")
+        }
+        FxQuote::SwapOutright {
+            near_rate,
+            far_rate,
+            ..
+        } => {
+            validate_positive(*near_rate, "near_rate")?;
+            validate_positive(*far_rate, "far_rate")
+        }
+        FxQuote::OptionVanilla { strike, .. } => validate_positive(*strike, "strike"),
+    }
+}
+
+fn validate_inflation_quote(quote: &InflationQuote) -> Result<()> {
+    match quote {
+        InflationQuote::InflationSwap { rate, .. }
+        | InflationQuote::YoYInflationSwap { rate, .. } => validate_finite(*rate, "rate"),
+    }
+}
+
+fn validate_xccy_quote(quote: &XccyQuote) -> Result<()> {
+    let XccyQuote::BasisSwap {
+        basis_spread_bp,
+        spot_fx,
+        ..
+    } = quote;
+    validate_finite(*basis_spread_bp, "basis_spread_bp")?;
+    if let Some(value) = spot_fx {
+        validate_positive(*value, "spot_fx")?;
+    }
+    Ok(())
+}
+
+fn validate_bond_quote(quote: &BondQuote) -> Result<()> {
+    match quote {
+        BondQuote::FixedRateBulletCleanPrice {
+            coupon_rate,
+            clean_price_pct,
+            ..
+        } => {
+            validate_finite(*coupon_rate, "coupon_rate")?;
+            validate_positive(*clean_price_pct, "clean_price_pct")
+        }
+        BondQuote::FixedRateBulletZSpread {
+            coupon_rate,
+            z_spread,
+            ..
+        } => {
+            validate_finite(*coupon_rate, "coupon_rate")?;
+            validate_finite(*z_spread, "z_spread")
+        }
+        BondQuote::FixedRateBulletOas {
+            coupon_rate, oas, ..
+        } => {
+            validate_finite(*coupon_rate, "coupon_rate")?;
+            validate_finite(*oas, "oas")
+        }
+        BondQuote::FixedRateBulletYtm {
+            coupon_rate, ytm, ..
+        } => {
+            validate_finite(*coupon_rate, "coupon_rate")?;
+            validate_finite(*ytm, "ytm")
+        }
+    }
 }
 
 /// Trait for filtering quote collections into specific types (owned).

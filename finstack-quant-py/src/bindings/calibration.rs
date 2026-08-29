@@ -186,21 +186,12 @@ impl PyCalibrationResult {
         })
     }
 
-    fn _market_json_uncached(&self) -> PyResult<String> {
-        MarketContext::try_from(self.inner.result.final_market.clone()).map_err(display_to_py)?;
-        serde_json::to_string(&self.inner.result.final_market).map_err(display_to_py)
-    }
-
     /// The aggregated calibration report as a JSON string.
     #[getter]
     fn report_json<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyString>> {
         cached_json(py, &self.cached_report_json, || {
             serde_json::to_string(&self.inner.result.report)
         })
-    }
-
-    fn _report_json_uncached(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner.result.report).map_err(display_to_py)
     }
 
     /// List of step identifiers in lexicographic step-ID order.
@@ -271,22 +262,10 @@ impl PyCalibrationResult {
     /// Columns: ``step_id``, ``success``, ``iterations``, ``max_residual``,
     /// ``rmse``, ``convergence_reason``. Rows are ordered lexicographically by
     /// step ID because the result contract stores reports in a ``BTreeMap``.
-    ///
-    /// This is the default export and the same table as
-    /// ``to_report_dataframe`` — both call one implementation, so the two
-    /// cannot drift apart. The plan-level roll-ups (``success``,
-    /// ``iterations``, ``max_residual``, ``rmse``) are getters on the result
-    /// and are not repeated per row.
+    /// The plan-level roll-ups (``success``, ``iterations``, ``max_residual``,
+    /// ``rmse``) are getters on the result and are not repeated per row.
     #[pyo3(text_signature = "($self)")]
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        self.to_report_dataframe(py)
-    }
-
-    /// Per-step summary as a pandas ``DataFrame``.
-    ///
-    /// Columns: ``step_id``, ``success``, ``iterations``, ``max_residual``,
-    /// ``rmse``, ``convergence_reason``. Identical to ``to_dataframe``.
-    fn to_report_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let n = self.inner.result.step_reports.len();
         let mut ids: Vec<String> = Vec::with_capacity(n);
         let mut successes: Vec<bool> = Vec::with_capacity(n);
@@ -341,6 +320,8 @@ impl PyCalibrationResult {
 /// ------
 /// CalibrationEnvelopeError
 ///     If strict loading or static validation rejects the calibration envelope.
+///     Static validation is fail-fast (first error); use ``dry_run`` to list
+///     every static error.
 #[pyfunction]
 fn validate_calibration_json(py: Python<'_>, json: &str) -> PyResult<String> {
     validate_api::validate_calibration_json(json)
@@ -372,30 +353,6 @@ fn dry_run(py: Python<'_>, json: &str) -> PyResult<String> {
         .map_err(|error| execute_error_to_py(py, error))
 }
 
-/// Dump the static dependency graph of a calibration plan.
-///
-/// Parameters
-/// ----------
-/// json : str
-///     JSON-serialized ``CalibrationEnvelope``.
-///
-/// Returns
-/// -------
-/// str
-///     Pretty-printed JSON ``DependencyGraph`` with ``initial_ids`` and
-///     ``nodes`` (per-step reads/writes in declared order).
-///
-/// Raises
-/// ------
-/// CalibrationEnvelopeError
-///     If the envelope JSON is malformed.
-#[pyfunction]
-fn dependency_graph_json(py: Python<'_>, json: &str) -> PyResult<String> {
-    validate_api::dependency_graph_json(json)
-        .map_err(ExecuteError::from)
-        .map_err(|error| execute_error_to_py(py, error))
-}
-
 /// Execute a calibration plan and return the full result.
 ///
 /// Parameters
@@ -413,7 +370,8 @@ fn dependency_graph_json(py: Python<'_>, json: &str) -> PyResult<String> {
 /// ------
 /// CalibrationEnvelopeError
 ///     If ingestion, validation, context construction, target construction,
-///     solving, or final fit acceptance fails.
+///     solving, or final fit acceptance fails. Static validation is fail-fast
+///     (first error); use ``dry_run`` to list every static error.
 #[pyfunction]
 fn calibrate(py: Python<'_>, json: &str) -> PyResult<PyCalibrationResult> {
     let envelope = validate_api::parse_envelope(json)
@@ -424,7 +382,7 @@ fn calibrate(py: Python<'_>, json: &str) -> PyResult<PyCalibrationResult> {
     // an un-boxed large `Err` variant on the `detach` closure trips
     // `clippy::result_large_err`.
     let result = py
-        .detach(|| engine::execute_with_diagnostics(&envelope).map_err(Box::new))
+        .detach(|| engine::execute(&envelope).map_err(Box::new))
         .map_err(|e| execute_error_to_py(py, *e))?;
     Ok(PyCalibrationResult::new(result))
 }
@@ -459,19 +417,15 @@ fn calibrate_bermudan_lmm_base_vol(
     market: &Bound<'_, PyAny>,
     as_of: &Bound<'_, PyAny>,
 ) -> PyResult<f64> {
-    let instrument = finstack_quant_valuations::pricer::parse_instrument_json(instrument_json)
-        .map_err(crate::errors::core_to_py)?;
-    let finstack_quant_valuations::instruments::InstrumentJson::BermudanSwaption(swaption) =
-        instrument
-    else {
-        return Err(pyo3::exceptions::PyValueError::new_err(
-            "instrument_json must contain a bermudan_swaption envelope",
-        ));
-    };
+    let instrument_json = instrument_json.to_owned();
     let market = crate::bindings::extract::extract_market(py, market)?;
     let as_of = crate::bindings::date_utils::extract_date(as_of)?;
     py.detach(move || {
-        finstack_quant_calibration::calibrate_bermudan_lmm_base_vol(&swaption, &market, as_of)
+        finstack_quant_calibration::calibrate_bermudan_lmm_base_vol_from_json(
+            &instrument_json,
+            &market,
+            as_of,
+        )
     })
     .map_err(crate::errors::core_to_py)
 }
@@ -487,7 +441,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(validate_calibration_json, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(calibrate, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(dry_run, &m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(dependency_graph_json, &m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(calibrate_bermudan_lmm_base_vol, &m)?)?;
     schema::register(py, &m)?;
     m.setattr(
@@ -500,7 +453,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
                 "calibrate",
                 "validate_calibration_json",
                 "dry_run",
-                "dependency_graph_json",
                 "calibrate_bermudan_lmm_base_vol",
                 "schema",
             ],

@@ -13,7 +13,7 @@
 //!
 //! # Quick Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use finstack_quant_calibration::build::BuildCtx;
 //! use finstack_quant_calibration::build::build_rate_instrument;
 //! use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};
@@ -61,8 +61,11 @@ pub(crate) mod rates;
 /// Builders for cross-currency swap instruments.
 pub(crate) mod xccy;
 
-pub use cds::build_cds_instrument;
-pub use cds_tranche::{build_cds_tranche_instrument, CDSTrancheBuildOverrides};
-pub use context::BuildCtx;
-pub use rates::build_rate_instrument;
-pub use xccy::build_xccy_instrument;
+pub(crate) use context::BuildCtx;
+
+#[cfg(test)]
+mod tests_credit;
+#[cfg(test)]
+mod tests_quote_construction;
+#[cfg(test)]
+mod tests_rates;

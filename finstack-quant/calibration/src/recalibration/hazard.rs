@@ -715,7 +715,7 @@ fn recalibrate_from_par_spreads(
 ///   must match the stored recipe; `None` uses the stored value.
 /// * `cds_valuation_convention` - Optional valuation-convention assertion.
 ///   When supplied, it must match the stored recipe; `None` uses the stored value.
-pub fn bump_hazard_spreads_cached(
+pub(crate) fn bump_hazard_spreads_cached(
     cache: Option<&HazardRecalibrationCache>,
     hazard: &HazardCurve,
     context: &MarketContext,

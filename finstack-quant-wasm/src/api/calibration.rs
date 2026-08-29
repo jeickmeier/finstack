@@ -1,7 +1,7 @@
 //! WASM bindings for the calibration engine.
 //!
 //! Mirrors the Python `calibrate` / `validate_calibration_json` surface plus
-//! Phase 4 diagnostics (`dryRun`, `dependencyGraphJson`).
+//! diagnostics (`dryRun`).
 //!
 //! # Number safety
 //!
@@ -15,7 +15,7 @@
 //! boundary (e.g. a `report.iterations() -> usize` accessor), route it
 //! through that guard first.
 //!
-//! On error, all four functions throw a JS `Error` with `name =
+//! On error, the host functions throw a JS `Error` with `name =
 //! "CalibrationEnvelopeError"`. The error exposes `kind`, `stage`, `step_id`,
 //! `solver_diagnostics`, and JSON-string `details` properties plus a
 //! structured `cause` object. Absent optional properties are JavaScript
@@ -67,7 +67,8 @@ fn validate_calibration_json_inner(json: &str) -> Result<String, ExecuteError> {
 ///
 /// Throws a JavaScript exception if `json` is malformed, its calibration
 /// schema marker is missing, malformed, or unsupported, static envelope
-/// validation fails, or the canonical envelope cannot be serialized.
+/// validation fails (fail-fast: first error; `dryRun` lists every static
+/// error), or the canonical envelope cannot be serialized.
 #[wasm_bindgen(js_name = validateCalibrationJson)]
 pub fn validate_calibration_json(json: &str) -> Result<String, JsValue> {
     validate_calibration_json_inner(json).map_err(execute_error_to_js)
@@ -80,7 +81,7 @@ pub fn validate_calibration_json(json: &str) -> Result<String, JsValue> {
 /// envelope-related).
 fn calibrate_inner(envelope_json: &str) -> Result<CalibrationResultEnvelope, ExecuteError> {
     let envelope = validate::parse_envelope(envelope_json)?;
-    engine::execute_with_diagnostics(&envelope)
+    engine::execute(&envelope)
 }
 
 /// Execute a calibration plan and return the full result envelope.
@@ -95,7 +96,8 @@ fn calibrate_inner(envelope_json: &str) -> Result<CalibrationResultEnvelope, Exe
 /// # Errors
 ///
 /// Throws a JavaScript exception if `envelopeJson` is malformed or violates
-/// the calibration schema or static plan contract, market context construction
+/// the calibration schema or static plan contract (fail-fast: first static
+/// error; `dryRun` lists every static error), market context construction
 /// or a calibration step fails, a solver does not converge, or the result
 /// envelope cannot be converted to a JavaScript value.
 #[wasm_bindgen(js_name = calibrate)]
@@ -121,20 +123,6 @@ pub fn dry_run(envelope_json: &str) -> Result<String, JsValue> {
     validate::dry_run(envelope_json).map_err(|error| execute_error_to_js(error.into()))
 }
 
-/// Returns the static dependency graph of a calibration plan as JSON.
-/// @param envelope_json - CalibrationEnvelope JSON containing targets, parameters, bounds, and dependencies.
-///
-/// # Errors
-///
-/// Throws a JavaScript exception if `envelopeJson` is malformed, its schema
-/// marker is missing, malformed, or unsupported, the envelope structure is
-/// invalid, or the dependency graph cannot be serialized.
-#[wasm_bindgen(js_name = dependencyGraphJson)]
-pub fn dependency_graph_json(envelope_json: &str) -> Result<String, JsValue> {
-    validate::dependency_graph_json(envelope_json)
-        .map_err(|error| execute_error_to_js(error.into()))
-}
-
 /// Calibrate the explicit Bermudan LMM loading scale from the market surface.
 ///
 /// Callers must place the returned value in `modelConfig.lmmBaseVol` before
@@ -154,18 +142,13 @@ pub fn calibrate_bermudan_lmm_base_vol(
     market: &crate::api::valuations::market_handle::JsMarket,
     as_of: &str,
 ) -> Result<f64, JsValue> {
-    let instrument = finstack_quant_valuations::pricer::parse_instrument_json(instrument_json)
-        .map_err(crate::utils::to_js_err)?;
-    let finstack_quant_valuations::instruments::InstrumentJson::BermudanSwaption(swaption) =
-        instrument
-    else {
-        return Err(crate::utils::to_js_err(
-            "instrument must be a bermudan_swaption envelope",
-        ));
-    };
     let as_of = crate::utils::parse_iso_date(as_of)?;
-    finstack_quant_calibration::calibrate_bermudan_lmm_base_vol(&swaption, market.inner(), as_of)
-        .map_err(crate::utils::to_js_err)
+    finstack_quant_calibration::calibrate_bermudan_lmm_base_vol_from_json(
+        instrument_json,
+        market.inner(),
+        as_of,
+    )
+    .map_err(crate::utils::to_js_err)
 }
 
 /// Map every execution stage to the same structured JavaScript error contract.
@@ -340,15 +323,6 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&report_json).expect("json");
         assert!(parsed.get("errors").is_some());
         assert!(parsed.get("dependency_graph").is_some());
-    }
-
-    #[test]
-    fn dependency_graph_json_for_empty_plan() {
-        let json = empty_envelope_json();
-        let graph_json = dependency_graph_json(&json).expect("dep graph");
-        let parsed: serde_json::Value = serde_json::from_str(&graph_json).expect("json");
-        assert!(parsed.get("initial_ids").is_some());
-        assert!(parsed.get("nodes").is_some());
     }
 
     #[test]

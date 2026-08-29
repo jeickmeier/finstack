@@ -13,14 +13,6 @@ fn suggestion_hint(suggestion: &Option<String>) -> String {
     }
 }
 
-fn format_breakdown(breakdown: &[(String, usize)]) -> String {
-    breakdown
-        .iter()
-        .map(|(c, n)| format!("{n} '{c}'"))
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
 fn format_worst_quote(id: &Option<String>, residual: &Option<f64>) -> String {
     match (id, residual) {
         (Some(id), Some(r)) => format!(" Worst quote: '{id}' (residual {r:.3e})."),
@@ -33,18 +25,6 @@ fn format_worst_quote(id: &Option<String>, residual: &Option<f64>) -> String {
 #[non_exhaustive]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum EnvelopeError {
-    /// A step's `kind` discriminator is not a recognized variant.
-    #[error("step[{step_index}] '{step_id}': unknown kind '{found}'; expected one of: {}", expected_one_of.join(", "))]
-    UnknownStepKind {
-        /// Zero-based index of the offending step in `plan.steps`.
-        step_index: usize,
-        /// Step identifier from `plan.steps[i].id`.
-        step_id: String,
-        /// The unrecognized `kind` value found in the envelope.
-        found: String,
-        /// Closed list of recognized `kind` values.
-        expected_one_of: Vec<String>,
-    },
     /// A step references a curve / surface ID that's not produced by an
     /// earlier step or carried in `market_data` / `prior_market`.
     #[error("step[{step_index}] '{step_id}' (kind='{step_kind}'): missing {missing_kind} dependency '{missing_id}'. Available: [{}]", available.join(", "))]
@@ -75,20 +55,6 @@ pub enum EnvelopeError {
         available: Vec<String>,
         /// Closest-match suggestion (Levenshtein distance ≤ 3), if any.
         suggestion: Option<String>,
-    },
-    /// A step's `quote_set` contains quotes of a class incompatible with the step.
-    #[error("step[{step_index}] '{step_id}' (kind='{step_kind}'): expected quotes of class '{expected_class}', but found: {}", format_breakdown(breakdown))]
-    QuoteClassMismatch {
-        /// Zero-based index of the offending step.
-        step_index: usize,
-        /// Step identifier.
-        step_id: String,
-        /// Step kind.
-        step_kind: String,
-        /// The quote class the step expected (e.g. `"rates"`).
-        expected_class: String,
-        /// `(class, count)` breakdown of the actual quote classes present.
-        breakdown: Vec<(String, usize)>,
     },
     /// Two calibration steps use the same audit identifier.
     #[error("step[{duplicate_index}] duplicates step ID '{step_id}' first declared at step[{first_index}]")]
@@ -171,10 +137,8 @@ impl EnvelopeError {
     /// error kind without parsing the full JSON payload.
     pub fn kind_str(&self) -> &'static str {
         match self {
-            EnvelopeError::UnknownStepKind { .. } => "unknown_step_kind",
             EnvelopeError::MissingDependency { .. } => "missing_dependency",
             EnvelopeError::UndefinedQuoteSet { .. } => "undefined_quote_set",
-            EnvelopeError::QuoteClassMismatch { .. } => "quote_class_mismatch",
             EnvelopeError::DuplicateStepId { .. } => "duplicate_step_id",
             EnvelopeError::SolverNotConverged { .. } => "solver_not_converged",
             EnvelopeError::QuoteDataInvalid { .. } => "quote_data_invalid",
@@ -191,10 +155,8 @@ impl EnvelopeError {
     /// (for example, [`EnvelopeError::StrictLoad`]).
     pub fn step_id(&self) -> Option<&str> {
         match self {
-            EnvelopeError::UnknownStepKind { step_id, .. }
-            | EnvelopeError::MissingDependency { step_id, .. }
+            EnvelopeError::MissingDependency { step_id, .. }
             | EnvelopeError::UndefinedQuoteSet { step_id, .. }
-            | EnvelopeError::QuoteClassMismatch { step_id, .. }
             | EnvelopeError::DuplicateStepId { step_id, .. }
             | EnvelopeError::SolverNotConverged { step_id, .. }
             | EnvelopeError::QuoteDataInvalid { step_id, .. } => Some(step_id),

@@ -46,7 +46,7 @@ use rust_decimal::Decimal;
 /// # Examples
 ///
 /// Building a deposit:
-/// ```rust
+/// ```rust,ignore
 /// use finstack_quant_calibration::build::BuildCtx;
 /// use finstack_quant_calibration::build::build_rate_instrument;
 /// use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};
@@ -75,7 +75,7 @@ use rust_decimal::Decimal;
 /// ```
 ///
 /// Building a swap:
-/// ```rust
+/// ```rust,ignore
 /// use finstack_quant_calibration::build::BuildCtx;
 /// use finstack_quant_calibration::build::build_rate_instrument;
 /// use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};

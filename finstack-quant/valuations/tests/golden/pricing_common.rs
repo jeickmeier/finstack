@@ -63,7 +63,7 @@ fn resolve_market(market: &Market) -> Result<MarketContext, String> {
             let (env, _load_report) =
                 CalibrationEnvelope::from_slice_strict(&bytes, &LoadLimits::default())
                     .map_err(|error| format!("strictly load market envelope: {error}"))?;
-            let result = engine::execute_with_diagnostics(&env).map_err(|error| {
+            let result = engine::execute(&env).map_err(|error| {
                 let plan_id = &env.plan.id;
                 let details = error.details();
                 format!(

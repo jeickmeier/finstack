@@ -4,7 +4,7 @@
 //!
 //! | Asset class       | Functions                                                   |
 //! |-------------------|-------------------------------------------------------------|
-//! | Discount rates    | `bump_discount_curve`, `bump_discount_curve_from_rate_calibration`, `bump_discount_curve_with_config` |
+//! | Discount rates    | `bump_discount_curve`, `bump_discount_curve_from_rate_calibration` |
 //! | Forward rates     | `bump_forward_curve_from_rate_calibration`                    |
 //! | Credit hazard     | `bump_hazard_spreads`                                        |
 //!
@@ -18,8 +18,8 @@
 //!
 //! Stored rate-calibration recipes retain the quote set, method, curve role,
 //! day count, and OIS convention needed by the
-//! `*_from_rate_calibration` entry points. `bump_discount_curve_with_config`
-//! additionally accepts the runtime solver and validation policy. Synthetic
+//! `*_from_rate_calibration` entry points. `bump_discount_curve` accepts the
+//! quote list plus the runtime solver and validation policy. Synthetic
 //! bump helpers operate directly on curve knots and do not recalibrate.
 //!
 //! ## Induced-error bound
@@ -35,10 +35,9 @@ pub(crate) mod hazard;
 mod provider;
 pub(crate) mod rates;
 
-pub use hazard::{bump_hazard_spreads, bump_hazard_spreads_cached, HazardRecalibrationCache};
+pub use hazard::{bump_hazard_spreads, HazardRecalibrationCache};
 pub use provider::CachedRecalibrationProvider;
 pub use rates::{
     bump_discount_curve, bump_discount_curve_from_rate_calibration,
-    bump_discount_curve_with_config, bump_forward_curve_from_rate_calibration,
-    infer_currency_from_discount_curve_id,
+    bump_forward_curve_from_rate_calibration, infer_currency_from_discount_curve_id,
 };

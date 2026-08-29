@@ -11,7 +11,6 @@ import pytest
 from finstack_quant.calibration import (
     CalibrationEnvelopeError,
     calibrate,
-    dependency_graph_json,
     dry_run,
     validate_calibration_json,
 )
@@ -34,12 +33,6 @@ def test_dry_run_returns_json_report() -> None:
     report = json.loads(dry_run(json.dumps(_empty_envelope())))
     assert report["errors"] == []
     assert "dependency_graph" in report
-
-
-def test_dependency_graph_json_well_formed() -> None:
-    graph = json.loads(dependency_graph_json(json.dumps(_empty_envelope())))
-    assert "initial_ids" in graph
-    assert graph["nodes"] == []
 
 
 def test_calibration_result_pickles_through_top_level_module() -> None:
@@ -110,7 +103,7 @@ def test_calibration_envelope_error_inherits_runtime_error() -> None:
 
 @pytest.mark.parametrize(
     "operation",
-    [validate_calibration_json, calibrate, dry_run, dependency_graph_json],
+    [validate_calibration_json, calibrate, dry_run],
 )
 def test_all_calibration_entry_points_expose_execution_error_details(
     operation: Callable[[str], object],

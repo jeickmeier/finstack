@@ -29,7 +29,7 @@
 // the envelope without solving — use it to surface schema errors early.
 //
 // Structured diagnostics: errors thrown by `calibrate`,
-// `validateCalibrationJson`, `dryRun`, and `dependencyGraphJson` have:
+// `validateCalibrationJson`, and `dryRun` have:
 //   - name: 'CalibrationEnvelopeError'
 //   - kind: Rust-owned execution category such as 'strict_load' or
 //     'solver_not_converged'
@@ -7850,11 +7850,11 @@ export declare const models: ModelsNamespace;
  * ```typescript
  * import init, { calibration } from "finstack-quant-wasm";
  * await init();
- * const graph = calibration.dependencyGraphJson({
+ * const report = calibration.dryRun({
  *   schema: "finstack_quant.calibration/1",
  *   plan: { id: "smoke", description: null, quote_sets: {}, steps: [], settings: {} }
  * });
- * console.log(JSON.parse(graph).nodes);
+ * console.log(JSON.parse(report).errors);
  * ```
  */
 export interface CalibrationNamespace {
@@ -7862,14 +7862,14 @@ export interface CalibrationNamespace {
    * Execute a calibration envelope and return its fitted market and reports.
    * @param envelope - Typed calibration envelope or its serialized JSON form.
    * @returns Calibration result including the materialized market and per-step reports.
-   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed or violates the calibration schema or static plan contract, market context construction or a calibration step fails, a solver does not converge, or the result envelope cannot be converted to a JavaScript value.
+   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed or violates the calibration schema or static plan contract (fail-fast: first static error; `dryRun` lists every static error), market context construction or a calibration step fails, a solver does not converge, or the result envelope cannot be converted to a JavaScript value.
    */
   calibrate(envelope: CalibrationEnvelope | string): CalibrationResultEnvelope;
   /**
    * Validate and canonicalize a calibration envelope without solving it.
    * @param envelope - Typed calibration envelope or its serialized JSON form.
    * @returns Canonical pretty-printed calibration-envelope JSON.
-   * @throws Error - Throws a JavaScript exception if `json` is malformed, its calibration schema marker is missing, malformed, or unsupported, static envelope validation fails, or the canonical envelope cannot be serialized.
+   * @throws Error - Throws a JavaScript exception if `json` is malformed, its calibration schema marker is missing, malformed, or unsupported, static envelope validation fails (fail-fast: first error; `dryRun` lists every static error), or the canonical envelope cannot be serialized.
    */
   validateCalibrationJson(envelope: CalibrationEnvelope | string): string;
   /**
@@ -7879,13 +7879,6 @@ export interface CalibrationNamespace {
    * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed, its schema marker is missing, malformed, or unsupported, the envelope structure is invalid, or the validation report cannot be serialized. Semantic findings are returned in the report rather than thrown.
    */
   dryRun(envelope: CalibrationEnvelope | string): string;
-  /**
-   * Return the ordered read/write dependency graph for a calibration plan.
-   * @param envelope - Typed calibration envelope or its serialized JSON form.
-   * @returns JSON dependency graph with initial IDs and plan-step nodes.
-   * @throws Error - Throws a JavaScript exception if `envelopeJson` is malformed, its schema marker is missing, malformed, or unsupported, the envelope structure is invalid, or the dependency graph cannot be serialized.
-   */
-  dependencyGraphJson(envelope: CalibrationEnvelope | string): string;
   /**
    * Fit the Bermudan LMM loading scale from the market swaption surface.
    * @param market - Reusable market handle containing discount and swaption-volatility inputs.

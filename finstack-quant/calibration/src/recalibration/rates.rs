@@ -177,33 +177,10 @@ pub fn infer_currency_from_discount_curve_id(curve: &DiscountCurve) -> Currency 
 ///   by the calibration step.
 /// * `bump` - Parallel or tenor-specific rate shock, expressed in basis points
 ///   as defined by [`QuoteBump`].
-pub fn bump_discount_curve(
-    quotes: &[RateQuote],
-    params: &DiscountCurveParams,
-    base_context: &MarketContext,
-    bump: &QuoteBump,
-) -> finstack_quant_core::Result<DiscountCurve> {
-    // Recipe metadata currently persists the calibration method rather than
-    // every numerical solver knob. Preserve the requested method here while
-    // retaining the documented defaults for solver fields not stored in the recipe.
-    let cfg = CalibrationConfig {
-        calibration_method: params.method.clone(),
-        ..CalibrationConfig::default()
-    };
-    bump_discount_curve_with_config(quotes, params, base_context, bump, &cfg)
-}
-
-/// Bump a discount curve by shocking rate quotes and re-calibrating with an
-/// explicit solver configuration.
-///
-/// # Arguments
-///
-/// * `quotes` - Original rate calibration quotes to shock and bootstrap.
-/// * `params` - Discount-curve calibration recipe and pricing conventions.
-/// * `base_context` - Unshocked market context supplying calibration dependencies.
-/// * `bump` - Parallel or tenor-specific rate shock in basis points.
 /// * `config` - Solver and validation policy to apply during re-calibration.
-pub fn bump_discount_curve_with_config(
+///   Preserve `params.method` on `config.calibration_method` when the recipe
+///   method should override other documented defaults.
+pub fn bump_discount_curve(
     quotes: &[RateQuote],
     params: &DiscountCurveParams,
     base_context: &MarketContext,
@@ -331,7 +308,7 @@ fn bump_discount_curve_from_rate_calibration_with_projection(
         },
         ..CalibrationConfig::default()
     };
-    let bumped = bump_discount_curve_with_config(&quotes, &params, &base_context, bump, &cfg)?;
+    let bumped = bump_discount_curve(&quotes, &params, &base_context, bump, &cfg)?;
     if matches!(replay_shape, DiscountReplayShape::CalibratedOnSourceGrid) {
         let replayed_on_source_grid = curve
             .knots()
@@ -340,7 +317,7 @@ fn bump_discount_curve_from_rate_calibration_with_projection(
             .collect::<Vec<_>>();
         return curve.rebuild_with_knots(replayed_on_source_grid);
     }
-    let unbumped = bump_discount_curve_with_config(
+    let unbumped = bump_discount_curve(
         &quotes,
         &params,
         &base_context,
@@ -2016,8 +1993,18 @@ mod tests {
         let context = MarketContext::new().insert_series(
             fixing_seed(index.as_str(), base_date, 0.0430).expect("SOFR fixing seed"),
         );
-        let source = bump_discount_curve(&quotes, &params, &context, &QuoteBump::ParallelBp(0.0))
-            .expect("source SOFR calibration");
+        let cfg = CalibrationConfig {
+            calibration_method: params.method.clone(),
+            ..CalibrationConfig::default()
+        };
+        let source = bump_discount_curve(
+            &quotes,
+            &params,
+            &context,
+            &QuoteBump::ParallelBp(0.0),
+            &cfg,
+        )
+        .expect("source SOFR calibration");
         let calibration = source
             .rate_calibration()
             .cloned()
@@ -2056,9 +2043,14 @@ mod tests {
                 &QuoteBump::ParallelBp(bump_bp),
             )
             .expect("stored-recipe quote shock");
-            let direct =
-                bump_discount_curve(&quotes, &params, &context, &QuoteBump::ParallelBp(bump_bp))
-                    .expect("explicit-recipe quote shock");
+            let direct = bump_discount_curve(
+                &quotes,
+                &params,
+                &context,
+                &QuoteBump::ParallelBp(bump_bp),
+                &cfg,
+            )
+            .expect("explicit-recipe quote shock");
             for &time in source.knots() {
                 assert!(
                     (replayed.df(time) - direct.df(time)).abs() < 1e-12,

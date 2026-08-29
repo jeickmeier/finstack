@@ -20,6 +20,7 @@ export * from "./DiscountCurveParams";
 export * from "./DiscountCurveSolveConfig";
 export * from "./DividendScheduleDatum";
 export * from "./ForwardCurveParams";
+export * from "./ForwardCurveSolveConfig";
 export * from "./FxQuote";
 export * from "./FxSpotDatum";
 export * from "./HazardCurveParams";

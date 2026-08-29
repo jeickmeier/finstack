@@ -16,26 +16,27 @@ only to replay an already-calibrated context.
 | `api/` | public | `CalibrationEnvelope` schema, `engine::execute`, envelope validation, market-datum and prior-market inputs |
 | `recalibration/` | public | Cached quote-space replay implementing valuations' `RecalibrationProvider` port |
 | `quotes/` | public | Raw market quote DTOs and quote identifiers |
-| `build/` | public | Quote-to-instrument construction and date resolution |
+| `build/` | crate-private | Quote-to-instrument construction and date resolution |
 | `hull_white/` | public | Hull-White 1F calibration to swaptions and cap/floors |
 | `defaults.rs` | public | Embedded calibration defaults and their config-extension override key |
 | `solver.rs` + `solver/` | crate-private | Sequential bootstrap, global fit (Newton/LM), multi-start, shared helpers; re-exports `SolverConfig` |
 | `targets/` | crate-private | Per-step targets: discount, forward, hazard, inflation, vol, swaption, SVI, LMM, base correlation, Student-t, XCCY basis, parametric |
-| `validation/` | crate-private | Curve/surface validators, preflight checks, rate bounds |
+| `validation/` | public | Curve/surface validators, preflight checks, rate bounds |
 | `config.rs` | re-exported | `CalibrationConfig` and the per-curve solve configs |
 | `report.rs` | re-exported | `CalibrationReport`, `CalibrationDiagnostics`, `QuoteQuality` |
 | `step_runtime.rs` | crate-private | Step execution plumbing |
-| `prepared.rs` | crate-private | Calibration-side wrappers around `market::build::PreparedQuote` |
+| `prepared.rs` | crate-private | Calibration-side wrappers around `build::prepared::PreparedQuote` |
 | `constants.rs` | crate-private | Shared numerical thresholds for the solvers and targets |
 
-Public re-exports from `crate::calibration`: `CalibrationConfig`,
-`CalibrationMethod`, `DiscountCurveSolveConfig`, `HazardCurveSolveConfig`,
-`InflationCurveSolveConfig`, `VolSurfaceSolveConfig`, `RatesStepConventions`,
+Public re-exports from `finstack_quant_calibration`: `CalibrationConfig`,
+`CalibrationMethod`, `DiscountCurveSolveConfig`, `ForwardCurveSolveConfig`,
+`HazardCurveSolveConfig`, `InflationCurveSolveConfig`, `VolSurfaceSolveConfig`,
+`RatesStepConventions`,
 `ResidualWeightingScheme`,
-`SolverConfig`, `CurveValidator`, the surface no-arbitrage validators
-(`validate_surface`, `validate_calendar_spread`, `validate_butterfly_spread`,
-and friends), `RateBounds`, `RateBoundsPolicy`, `ValidationConfig`,
+`SolverConfig`, `RateBounds`, `RateBoundsPolicy`, `ValidationConfig`,
 `ValidationMode`, `CalibrationReport`, `CalibrationDiagnostics`, `QuoteQuality`.
+Surface no-arbitrage validators and `CurveValidator` live on
+`finstack_quant_calibration::validation`.
 
 ## Envelope structure
 
@@ -92,9 +93,11 @@ fn run(plan: CalibrationPlan) -> finstack_quant_core::Result<MarketContext> {
 
 `engine::execute` returns a `CalibrationResultEnvelope` whose `result` carries
 `final_market` (a `MarketContextState`), a merged plan-level `report`,
-`step_reports` keyed by step id, and `results_meta`. Use
-`engine::execute_with_diagnostics` when you want the structured `ExecuteError`
-with `worst_quote_id`, tolerance, and related detail preserved.
+`step_reports` keyed by step id, and `results_meta`. Failures are a structured
+`ExecuteError` (including `worst_quote_id` on solver non-convergence). Static
+validation is fail-fast; `dry_run` lists every static error without solving.
+`From<ExecuteError>` maps to `finstack_quant_core::Error` so `?` still works
+in `core::Result` functions.
 
 Both hosts take the same envelope JSON but hand back different shapes.
 `finstack_quant.calibration.calibrate(envelope_json)` returns a
@@ -127,7 +130,8 @@ residuals are decimal implied vols.
 | Setting | Default | Residual unit | Used by |
 |---------|---------|---------------|---------|
 | `solver.tolerance()` | `1e-12` | parameter space | all numerical solvers |
-| `discount_curve.validation_tolerance` | `1e-8` | PV / notional | discount, forward (borrowed), xccy |
+| `discount_curve.validation_tolerance` | `1e-8` | PV / notional | discount, xccy |
+| `forward_curve.validation_tolerance` | `1e-8` | PV / notional | forward |
 | `hazard_curve.validation_tolerance` | `1e-8` | PV / notional | hazard |
 | `inflation_curve.validation_tolerance` | `1e-8` | PV / notional | inflation |
 | `vol_surface.validation_tolerance` | `1e-3` | decimal implied vol | SABR and SVI surfaces |
@@ -168,9 +172,8 @@ reset/end-date boundaries, keeping `rate(reset)` and DF-implied
 back to fixed numeric-tenor stepping from zero.
 
 The global forward target enforces `CalibrationConfig::effective_rate_bounds`
-per fitted reset-rate parameter, and — until a dedicated forward solve config
-exists — borrows `discount_curve.weighting_scheme` and
-`discount_curve.validation_tolerance`.
+per fitted reset-rate parameter and reads `forward_curve.weighting_scheme` and
+`forward_curve.validation_tolerance`.
 
 ### Interpolation
 
@@ -257,8 +260,8 @@ variant plus its params struct in `api/schema.rs`, and wire it through
 `targets/mod.rs` and the engine.
 
 **New quote-driven instrument**: define the quote type under
-[`../market/quotes/`](../market/README.md), add a builder under
-`market/build/`, then teach the relevant target to build and price it.
+[`quotes/`](quotes/), add a builder under `build/`, then teach the
+relevant target to build and price it.
 
 Regenerate schemas after any public wire change: `mise run rust-gen-schemas`,
 verify with `mise run rust-check-schemas`.
@@ -266,8 +269,7 @@ verify with `mise run rust-check-schemas`.
 ## Verification
 
 ```bash
-cargo nextest run -p finstack-quant-valuations --test calibration
-cargo nextest run -p finstack-quant-valuations --test credit_calibration
-cargo bench -p finstack-quant-valuations --bench calibration
-cargo bench -p finstack-quant-valuations --bench global_calibration
+mise run rust-test-crate -- finstack-quant-calibration
+mise run rust-bench-crate -- finstack-quant-calibration calibration
+mise run rust-bench-crate -- finstack-quant-calibration global_calibration
 ```

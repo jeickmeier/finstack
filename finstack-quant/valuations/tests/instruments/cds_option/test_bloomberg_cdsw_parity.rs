@@ -301,37 +301,27 @@ fn diag_cdx_ig_46_spot_cds_reconciliation() {
     // Act/360. The fix is to align the fixture and the bootstrap on
     // Act/360; this probe guards against future regressions of the same
     // shape.
-    // Use `build_cds_instrument` to construct the par-CDS exactly the way
-    // the bootstrap pipeline does. This guarantees an apples-to-apples
-    // round-trip: the bootstrap solver targets NPV=0 on this same
-    // instrument, so any non-zero residual after re-bootstrapping is a
-    // calibration-vs-pricer convergence gap, not a structural difference.
-    use finstack_quant_calibration::build::{build_cds_instrument, BuildCtx};
-    use finstack_quant_calibration::quotes::cds::CdsQuote;
-    use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};
-    use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
-    let mut curve_ids = finstack_quant_core::HashMap::default();
-    curve_ids.insert("discount".to_string(), "USD-S531-SWAP-20260507".to_string());
-    curve_ids.insert("credit".to_string(), "CDX-NA-IG-46-CBBT".to_string());
-    let build_ctx = BuildCtx::new(as_of, 100_000_000.0, curve_ids);
-    let par_quote = CdsQuote::CdsParSpread {
-        id: QuoteId::new("CDX-NA-IG-46-PAR-CHECK-5Y"),
-        entity: "CDX.NA.IG.46".to_string(),
-        convention: CdsConventionKey {
-            currency: finstack_quant_core::currency::Currency::USD,
-            doc_clause: CdsDocClause::IsdaNa,
-        },
-        pillar: Pillar::Tenor("5Y".parse().unwrap()),
-        spread_bp: 53.6264,
-        recovery_rate: 0.4,
-    };
-    let par_cds_dyn = build_cds_instrument(&par_quote, &build_ctx).unwrap();
+    // Reprice the 5Y par CDS with the same public valuations constructor as
+    // the spot CDS above. The bootstrap targets NPV ≈ 0 at this coupon, so
+    // a residual beyond the integration floor is a pricer/convention gap.
+    let mut par_cds = crate::test_support::credit::cds_buy_protection(
+        "CDX-NA-IG-46-PAR-CHECK-5Y",
+        Money::new(100_000_000.0, Currency::USD),
+        53.6264,
+        date!(2026 - 03 - 20),
+        date!(2031 - 06 - 20),
+        "USD-S531-SWAP-20260507",
+        "CDX-NA-IG-46-CBBT",
+    )
+    .expect("par CDS");
+    par_cds.protection.recovery_rate = 0.4;
+    par_cds.valuation_convention = CdsValuationConvention::BloombergCdswClean;
 
-    let npv_at_par = par_cds_dyn.value_raw(&market, as_of).unwrap();
+    let npv_at_par = par_cds.value_raw(&market, as_of).unwrap();
     eprintln!(
         "\n  Bootstrap round-trip @ coupon = 5Y par (53.6264 bp):\n\
-           finstack NPV (build_cds_instrument, 100M notional) = ${npv_at_par:>14.6}\n\
-           expected                                            = $0.00 (NPV at par by definition)",
+           finstack NPV (public CDS constructor, 100M notional) = ${npv_at_par:>14.6}\n\
+           expected                                              = $0.00 (NPV at par by definition)",
     );
     // The bootstrap converges to ~1e-12 NPV/notional in unit-notional
     // space (per the BOOTSTRAP_TRACE diagnostics in

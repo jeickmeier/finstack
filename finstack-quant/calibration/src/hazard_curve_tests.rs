@@ -1,16 +1,16 @@
 //! Hazard curve calibration tests (canonical).
 
-use finstack_quant_calibration::api::engine;
-use finstack_quant_calibration::api::schema::{
+use crate::api::engine;
+use crate::api::schema::{
     CalibrationEnvelope, CalibrationPlan, CalibrationStep, HazardCurveParams, StepParams,
 };
-use finstack_quant_calibration::build::build_cds_instrument;
-use finstack_quant_calibration::build::BuildCtx;
-use finstack_quant_calibration::quotes::cds::CdsQuote;
-use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};
-use finstack_quant_calibration::quotes::market_quote::MarketQuote;
-use finstack_quant_calibration::recalibration::bump_hazard_spreads;
-use finstack_quant_calibration::{CalibrationConfig, CalibrationMethod, ResidualWeightingScheme};
+use crate::build::cds::build_cds_instrument;
+use crate::build::BuildCtx;
+use crate::quotes::cds::CdsQuote;
+use crate::quotes::ids::{Pillar, QuoteId};
+use crate::quotes::market_quote::MarketQuote;
+use crate::recalibration::bump_hazard_spreads;
+use crate::{CalibrationConfig, CalibrationMethod, ResidualWeightingScheme};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -23,8 +23,8 @@ use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsD
 use finstack_quant_valuations::recalibration::QuoteBump;
 use time::Month;
 
-use crate::calibration_support as cal_utils;
-use crate::common::fixtures;
+use crate::test_support as cal_utils;
+use crate::test_support as fixtures;
 
 fn create_test_discount_curve(base: Date) -> DiscountCurve {
     DiscountCurve::builder("TEST-DISC")
@@ -147,7 +147,7 @@ fn hazard_recipe_act365f_inputs_replay_round_trip_and_reject_tampering() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
@@ -374,13 +374,15 @@ fn hazard_calibration_rejects_zero_spread() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
     };
 
-    let err = engine::execute(&envelope).expect_err("zero spread should be invalid");
+    let err: finstack_quant_core::Error = engine::execute(&envelope)
+        .expect_err("zero spread should be invalid")
+        .into();
     assert!(matches!(
         err,
         finstack_quant_core::Error::Validation(_)
@@ -446,13 +448,15 @@ fn hazard_calibration_rejects_negative_spread() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
     };
 
-    let err = engine::execute(&envelope).expect_err("negative spread should be invalid");
+    let err: finstack_quant_core::Error = engine::execute(&envelope)
+        .expect_err("negative spread should be invalid")
+        .into();
     assert!(matches!(
         err,
         finstack_quant_core::Error::Validation(_)
@@ -516,14 +520,15 @@ fn hazard_calibration_rejects_non_standard_upfront_running_coupon() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
     };
 
-    let err = engine::execute(&envelope)
-        .expect_err("non-standard upfront running coupon should be invalid");
+    let err: finstack_quant_core::Error = engine::execute(&envelope)
+        .expect_err("non-standard upfront running coupon should be invalid")
+        .into();
     assert!(matches!(
         err,
         finstack_quant_core::Error::Validation(_)
@@ -623,7 +628,7 @@ fn hazard_calibration_handles_extreme_high_spread() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
@@ -748,7 +753,7 @@ fn hazard_calibration_global_solve_sqrt_time_is_not_rougher_than_bootstrap() {
     let bootstrap_env = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan: bootstrap_plan,
         market_data: market_data.clone(),
         prior_market: prior.clone(),
@@ -805,7 +810,7 @@ fn hazard_calibration_global_solve_sqrt_time_is_not_rougher_than_bootstrap() {
     let global_env = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan: global_plan,
         market_data,
         prior_market: prior,
@@ -905,7 +910,7 @@ fn hazard_calibration_reprices_par_spread() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,

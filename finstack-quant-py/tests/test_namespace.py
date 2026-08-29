@@ -483,7 +483,6 @@ class TestValuationsNamespace:
             "CalibrationResult",
             "calibrate",
             "calibrate_bermudan_lmm_base_vol",
-            "dependency_graph_json",
             "dry_run",
             "validate_calibration_json",
         ):
@@ -504,7 +503,6 @@ class TestCalibrationNamespace:
             "CalibrationResult",
             "calibrate",
             "calibrate_bermudan_lmm_base_vol",
-            "dependency_graph_json",
             "dry_run",
             "schema",
             "validate_calibration_json",

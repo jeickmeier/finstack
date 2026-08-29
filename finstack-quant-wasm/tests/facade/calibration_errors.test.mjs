@@ -58,7 +58,6 @@ test('calibration is owned only by the calibration namespace', () => {
   for (const name of [
     'calibrate',
     'calibrateBermudanLmmBaseVol',
-    'dependencyGraphJson',
     'dryRun',
     'validateCalibrationJson',
   ]) {

@@ -380,6 +380,51 @@ impl Default for DiscountCurveSolveConfig {
     }
 }
 
+/// Forward-curve specific numerical solver configuration.
+///
+/// Controls residual weighting and post-solve success tolerance for
+/// projection-curve global solves. Defaults match the values previously
+/// borrowed from [`DiscountCurveSolveConfig`].
+///
+/// # Examples
+/// ```
+/// use finstack_quant_calibration::ForwardCurveSolveConfig;
+///
+/// let config = ForwardCurveSolveConfig {
+///     validation_tolerance: 1e-6,
+///     ..Default::default()
+/// };
+/// ```
+#[cfg_attr(feature = "ts_export", derive(TS))]
+#[cfg_attr(feature = "ts_export", ts(export))]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct ForwardCurveSolveConfig {
+    /// Weighting scheme for global solve residuals.
+    #[serde(default)]
+    pub weighting_scheme: ResidualWeightingScheme,
+    /// Tolerance for determining calibration *success* (applied to residuals).
+    ///
+    /// After the solver converges, the final residuals are compared against this
+    /// tolerance. If `max_residual > validation_tolerance`, the calibration report
+    /// will have `success = false` even if the solver converged.
+    ///
+    /// This is distinct from `solver.tolerance()` which controls when the numerical
+    /// solver terminates. See [`CalibrationConfig`] for a full explanation.
+    ///
+    /// Default: `1e-8` (suitable for per-unit-notional residuals).
+    pub validation_tolerance: f64,
+}
+
+impl Default for ForwardCurveSolveConfig {
+    fn default() -> Self {
+        Self {
+            weighting_scheme: ResidualWeightingScheme::default(),
+            validation_tolerance: 1e-8,
+        }
+    }
+}
+
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
 /// Selected side of the market snapshot.
@@ -577,6 +622,10 @@ pub struct CalibrationConfig {
     #[serde(default)]
     pub discount_curve: DiscountCurveSolveConfig,
 
+    /// Forward-curve specific solver configuration.
+    #[serde(default)]
+    pub forward_curve: ForwardCurveSolveConfig,
+
     /// Hazard-curve specific solver configuration.
     #[serde(default)]
     pub hazard_curve: HazardCurveSolveConfig,
@@ -636,6 +685,7 @@ impl Default for CalibrationConfig {
             calibration_method: CalibrationMethod::default(),
             compute_diagnostics: false,
             discount_curve: DiscountCurveSolveConfig::default(),
+            forward_curve: ForwardCurveSolveConfig::default(),
             hazard_curve: HazardCurveSolveConfig::default(),
             inflation_curve: InflationCurveSolveConfig::default(),
             vol_surface: VolSurfaceSolveConfig::default(),
@@ -703,6 +753,10 @@ impl CalibrationConfig {
         self.validate_solver_vs_success_tolerance(
             "discount_curve.validation_tolerance",
             self.discount_curve.validation_tolerance,
+        )?;
+        self.validate_solver_vs_success_tolerance(
+            "forward_curve.validation_tolerance",
+            self.forward_curve.validation_tolerance,
         )?;
         self.validate_solver_vs_success_tolerance(
             "hazard_curve.validation_tolerance",
@@ -983,6 +1037,31 @@ mod fx_and_hierarchy_settings_tests {
         let json = r#"{}"#;
         let cfg: CalibrationConfig = serde_json::from_str(json).expect("empty JSON");
         assert!((cfg.vol_surface.validation_tolerance - 1e-3).abs() < 1e-15);
+    }
+
+    #[test]
+    fn omitted_forward_curve_section_uses_defaults() {
+        let json = r#"{}"#;
+        let cfg: CalibrationConfig = serde_json::from_str(json).expect("empty JSON");
+        assert!((cfg.forward_curve.validation_tolerance - 1e-8).abs() < 1e-15);
+        assert_eq!(
+            cfg.forward_curve.weighting_scheme,
+            ResidualWeightingScheme::default()
+        );
+    }
+
+    #[test]
+    fn forward_curve_validation_tolerance_must_dominate_solver() {
+        let mut cfg = CalibrationConfig::default();
+        cfg.forward_curve.validation_tolerance = 1e-14;
+        let err = cfg
+            .validate()
+            .expect_err("solver tolerance looser than forward-curve success tolerance should fail");
+        assert!(
+            err.to_string()
+                .contains("forward_curve.validation_tolerance"),
+            "unexpected validation error: {err}"
+        );
     }
 
     #[test]

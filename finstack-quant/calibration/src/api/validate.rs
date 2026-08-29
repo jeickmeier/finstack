@@ -11,8 +11,8 @@
 //! step would surface as a [`EnvelopeError::MissingDependency`] rather than a
 //! cycle.
 //!
-//! [`dry_run`] and [`dependency_graph_json`] are JSON-string wrappers for
-//! cross-binding consumption (Python / WASM).
+//! [`dry_run`] is a JSON-string wrapper for cross-binding consumption
+//! (Python / WASM). The dependency graph is included in that report.
 
 // `EnvelopeError` is intentionally large (carries available-IDs lists, etc.)
 // because the cross-binding consumers want all the diagnostic context in
@@ -24,11 +24,9 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::api::errors::EnvelopeError;
 use crate::api::schema::{CalibrationEnvelope, CalibrationStep, CALIBRATION_CONTRACT};
-use crate::quotes::{
-    bond::BondQuote, cds::CdsQuote, cds_tranche::CDSTrancheQuote, fx::FxQuote,
-    inflation::InflationQuote, market_quote::MarketQuote, rates::RateQuote, vol::VolQuote,
-    xccy::XccyQuote,
-};
+use crate::quotes::market_quote::MarketQuote;
+#[cfg(test)]
+use crate::quotes::{cds::CdsQuote, rates::RateQuote};
 #[cfg(test)]
 use finstack_quant_core::contract::ContractError;
 use finstack_quant_core::contract::{
@@ -105,18 +103,6 @@ pub fn validate(envelope: &CalibrationEnvelope) -> CalibrationValidationReport {
     }
 }
 
-impl CalibrationEnvelope {
-    /// Run the complete solver-free semantic validation pass.
-    ///
-    /// The returned report contains every detected envelope error together
-    /// with the dependency graph. An empty `errors` list means the request is
-    /// semantically valid for execution.
-    #[must_use]
-    pub fn validate(&self) -> CalibrationValidationReport {
-        validate(self)
-    }
-}
-
 pub(crate) fn append_contract_diagnostics(
     report: &mut ContractValidationReport,
     errors: impl IntoIterator<Item = EnvelopeError>,
@@ -129,9 +115,7 @@ pub(crate) fn append_contract_diagnostics(
 
 fn contract_diagnostic(error: &EnvelopeError) -> Diagnostic {
     let pointer = match error {
-        EnvelopeError::UnknownStepKind { step_index, .. }
-        | EnvelopeError::MissingDependency { step_index, .. }
-        | EnvelopeError::QuoteClassMismatch { step_index, .. } => {
+        EnvelopeError::MissingDependency { step_index, .. } => {
             format!("/plan/steps/{step_index}")
         }
         EnvelopeError::DuplicateStepId {
@@ -180,29 +164,14 @@ pub fn dry_run(envelope_json: &str) -> Result<String, EnvelopeError> {
     serialize_pretty_json(&report, "CalibrationValidationReport")
 }
 
-/// JSON-friendly wrapper that returns just the dependency graph.
-///
-/// # Arguments
-///
-/// * `envelope_json` - UTF-8 JSON calibration-envelope document whose initial
-///   market IDs and ordered step dependencies are serialized as a graph.
-pub fn dependency_graph_json(envelope_json: &str) -> Result<String, EnvelopeError> {
-    let envelope = parse_envelope(envelope_json)?;
-    let nodes = build_nodes(&envelope.plan.steps);
-    let mut sorted_initial: Vec<String> = collect_initial_ids(&envelope).into_iter().collect();
-    sorted_initial.sort();
-    let graph = DependencyGraph {
-        initial_ids: sorted_initial,
-        nodes,
-    };
-    serialize_pretty_json(&graph, "DependencyGraph")
-}
-
 /// Validate a calibration envelope JSON string and return its canonical form.
 ///
 /// This is the Rust-owned implementation used by host-language bindings. It
 /// centralizes the parse and pretty-serialization path so Python and WASM do
 /// not each reimplement the same validation logic.
+///
+/// Static validation is fail-fast: the first envelope error is returned.
+/// [`dry_run`] lists every static error without solving.
 ///
 /// # Arguments
 ///
@@ -210,7 +179,7 @@ pub fn dependency_graph_json(envelope_json: &str) -> Result<String, EnvelopeErro
 ///   statically validate, and reserialize in canonical pretty JSON form.
 pub fn validate_calibration_json(envelope_json: &str) -> Result<String, EnvelopeError> {
     let envelope = parse_envelope(envelope_json)?;
-    if let Some(error) = envelope.validate().errors.into_iter().next() {
+    if let Some(error) = validate(&envelope).errors.into_iter().next() {
         return Err(error);
     }
     serialize_pretty_json(&envelope, "CalibrationEnvelope")
@@ -373,278 +342,12 @@ fn check_quote_data(envelope: &CalibrationEnvelope, errors: &mut Vec<EnvelopeErr
 }
 
 fn validate_quote_payload(step_id: &str, quote: &MarketQuote, errors: &mut Vec<EnvelopeError>) {
-    match quote {
-        MarketQuote::Bond(q) => validate_bond_quote(step_id, q, errors),
-        MarketQuote::Rates(q) => validate_rate_quote(step_id, q, errors),
-        MarketQuote::Cds(q) => validate_cds_quote(step_id, q, errors),
-        MarketQuote::CDSTranche(q) => validate_cds_tranche_quote(step_id, q, errors),
-        MarketQuote::Fx(q) => validate_fx_quote(step_id, q, errors),
-        MarketQuote::Inflation(q) => validate_inflation_quote(step_id, q, errors),
-        MarketQuote::Vol(q) => validate_vol_quote(step_id, q, errors),
-        MarketQuote::Xccy(q) => validate_xccy_quote(step_id, q, errors),
-    }
-}
-
-fn push_quote_error(
-    step_id: &str,
-    quote_id: &str,
-    reason: impl Into<String>,
-    errors: &mut Vec<EnvelopeError>,
-) {
-    errors.push(EnvelopeError::QuoteDataInvalid {
-        step_id: step_id.to_string(),
-        quote_id: quote_id.to_string(),
-        reason: reason.into(),
-    });
-}
-
-fn require_finite(
-    step_id: &str,
-    quote_id: &str,
-    field: &str,
-    value: f64,
-    errors: &mut Vec<EnvelopeError>,
-) {
-    if !value.is_finite() {
-        push_quote_error(
-            step_id,
-            quote_id,
-            format!("{field} must be finite; got {value}"),
-            errors,
-        );
-    }
-}
-
-fn require_positive(
-    step_id: &str,
-    quote_id: &str,
-    field: &str,
-    value: f64,
-    errors: &mut Vec<EnvelopeError>,
-) {
-    require_finite(step_id, quote_id, field, value, errors);
-    if value <= 0.0 {
-        push_quote_error(
-            step_id,
-            quote_id,
-            format!("{field} must be positive; got {value}"),
-            errors,
-        );
-    }
-}
-
-fn require_unit_interval(
-    step_id: &str,
-    quote_id: &str,
-    field: &str,
-    value: f64,
-    errors: &mut Vec<EnvelopeError>,
-) {
-    require_finite(step_id, quote_id, field, value, errors);
-    if !(0.0..=1.0).contains(&value) {
-        push_quote_error(
-            step_id,
-            quote_id,
-            format!("{field} must be in [0, 1]; got {value}"),
-            errors,
-        );
-    }
-}
-
-fn validate_rate_quote(step_id: &str, quote: &RateQuote, errors: &mut Vec<EnvelopeError>) {
-    let quote_id = quote.id().as_str();
-    match quote {
-        RateQuote::Deposit { rate, .. }
-        | RateQuote::Fra { rate, .. }
-        | RateQuote::Swap { rate, .. } => {
-            require_finite(step_id, quote_id, "rate", *rate, errors);
-        }
-        RateQuote::Futures {
-            price,
-            convexity_adjustment,
-            ..
-        } => {
-            require_finite(step_id, quote_id, "price", *price, errors);
-            require_finite(
-                step_id,
-                quote_id,
-                "convexity_adjustment",
-                *convexity_adjustment,
-                errors,
-            );
-        }
-    }
-}
-
-fn validate_cds_quote(step_id: &str, quote: &CdsQuote, errors: &mut Vec<EnvelopeError>) {
-    let quote_id = quote.id().as_str();
-    match quote {
-        CdsQuote::CdsParSpread {
-            spread_bp,
-            recovery_rate,
-            ..
-        } => {
-            require_positive(step_id, quote_id, "spread_bp", *spread_bp, errors);
-            require_unit_interval(step_id, quote_id, "recovery_rate", *recovery_rate, errors);
-        }
-        CdsQuote::CdsUpfront {
-            running_spread_bp,
-            upfront_pct,
-            recovery_rate,
-            ..
-        } => {
-            require_positive(
-                step_id,
-                quote_id,
-                "running_spread_bp",
-                *running_spread_bp,
-                errors,
-            );
-            require_finite(step_id, quote_id, "upfront_pct", *upfront_pct, errors);
-            require_unit_interval(step_id, quote_id, "recovery_rate", *recovery_rate, errors);
-        }
-    }
-}
-
-fn validate_cds_tranche_quote(
-    step_id: &str,
-    quote: &CDSTrancheQuote,
-    errors: &mut Vec<EnvelopeError>,
-) {
-    let quote_id = quote.id().as_str();
-    let CDSTrancheQuote::CDSTranche {
-        attachment,
-        detachment,
-        upfront_pct,
-        running_spread_bp,
-        ..
-    } = quote;
-    require_unit_interval(step_id, quote_id, "attachment", *attachment, errors);
-    require_unit_interval(step_id, quote_id, "detachment", *detachment, errors);
-    if attachment >= detachment {
-        push_quote_error(
-            step_id,
-            quote_id,
-            format!(
-                "attachment must be less than detachment; got attachment={attachment}, detachment={detachment}"
-            ),
-            errors,
-        );
-    }
-    require_finite(step_id, quote_id, "upfront_pct", *upfront_pct, errors);
-    require_positive(
-        step_id,
-        quote_id,
-        "running_spread_bp",
-        *running_spread_bp,
-        errors,
-    );
-}
-
-fn validate_fx_quote(step_id: &str, quote: &FxQuote, errors: &mut Vec<EnvelopeError>) {
-    let quote_id = quote.id().as_str();
-    match quote {
-        FxQuote::ForwardOutright { forward_rate, .. } => {
-            require_positive(step_id, quote_id, "forward_rate", *forward_rate, errors);
-        }
-        FxQuote::SwapOutright {
-            near_rate,
-            far_rate,
-            ..
-        } => {
-            require_positive(step_id, quote_id, "near_rate", *near_rate, errors);
-            require_positive(step_id, quote_id, "far_rate", *far_rate, errors);
-        }
-        FxQuote::OptionVanilla { strike, .. } => {
-            require_positive(step_id, quote_id, "strike", *strike, errors);
-        }
-    }
-}
-
-fn validate_inflation_quote(
-    step_id: &str,
-    quote: &InflationQuote,
-    errors: &mut Vec<EnvelopeError>,
-) {
-    let quote_id = quote.id().as_str();
-    match quote {
-        InflationQuote::InflationSwap { rate, .. }
-        | InflationQuote::YoYInflationSwap { rate, .. } => {
-            require_finite(step_id, quote_id, "rate", *rate, errors);
-        }
-    }
-}
-
-fn validate_vol_quote(step_id: &str, quote: &VolQuote, errors: &mut Vec<EnvelopeError>) {
-    let quote_id = quote.id().as_str();
-    match quote {
-        VolQuote::OptionVol { strike, vol, .. } => {
-            require_positive(step_id, quote_id, "strike", *strike, errors);
-            require_positive(step_id, quote_id, "vol", *vol, errors);
-        }
-        VolQuote::SwaptionVol { strike, vol, .. } | VolQuote::CapFloorVol { strike, vol, .. } => {
-            require_finite(step_id, quote_id, "strike", *strike, errors);
-            require_positive(step_id, quote_id, "vol", *vol, errors);
-        }
-    }
-}
-
-fn validate_xccy_quote(step_id: &str, quote: &XccyQuote, errors: &mut Vec<EnvelopeError>) {
-    let quote_id = quote.id().as_str();
-    let XccyQuote::BasisSwap {
-        basis_spread_bp,
-        spot_fx,
-        ..
-    } = quote;
-    require_finite(
-        step_id,
-        quote_id,
-        "basis_spread_bp",
-        *basis_spread_bp,
-        errors,
-    );
-    if let Some(value) = spot_fx {
-        require_positive(step_id, quote_id, "spot_fx", *value, errors);
-    }
-}
-
-fn validate_bond_quote(step_id: &str, quote: &BondQuote, errors: &mut Vec<EnvelopeError>) {
-    let quote_id = quote.id().as_str();
-    match quote {
-        BondQuote::FixedRateBulletCleanPrice {
-            coupon_rate,
-            clean_price_pct,
-            ..
-        } => {
-            require_finite(step_id, quote_id, "coupon_rate", *coupon_rate, errors);
-            require_positive(
-                step_id,
-                quote_id,
-                "clean_price_pct",
-                *clean_price_pct,
-                errors,
-            );
-        }
-        BondQuote::FixedRateBulletZSpread {
-            coupon_rate,
-            z_spread,
-            ..
-        } => {
-            require_finite(step_id, quote_id, "coupon_rate", *coupon_rate, errors);
-            require_finite(step_id, quote_id, "z_spread", *z_spread, errors);
-        }
-        BondQuote::FixedRateBulletOas {
-            coupon_rate, oas, ..
-        } => {
-            require_finite(step_id, quote_id, "coupon_rate", *coupon_rate, errors);
-            require_finite(step_id, quote_id, "oas", *oas, errors);
-        }
-        BondQuote::FixedRateBulletYtm {
-            coupon_rate, ytm, ..
-        } => {
-            require_finite(step_id, quote_id, "coupon_rate", *coupon_rate, errors);
-            require_finite(step_id, quote_id, "ytm", *ytm, errors);
-        }
+    if let Err(error) = quote.validate() {
+        errors.push(EnvelopeError::QuoteDataInvalid {
+            step_id: step_id.to_string(),
+            quote_id: quote.id().to_string(),
+            reason: error.to_string(),
+        });
     }
 }
 
@@ -795,7 +498,6 @@ mod tests {
         let report = validate(&env);
         assert!(report.errors.is_empty());
         assert!(report.dependency_graph.nodes.is_empty());
-        assert!(env.validate().errors.is_empty());
     }
 
     #[test]
@@ -828,7 +530,7 @@ mod tests {
         assert!(matches!(error, EnvelopeError::UndefinedQuoteSet { .. }));
 
         let duplicate = duplicate_price_envelope();
-        let error = crate::api::engine::execute_with_diagnostics(&duplicate)
+        let error = crate::api::engine::execute(&duplicate)
             .expect_err("execute path must not bypass envelope validation");
         assert!(matches!(
             error,
@@ -875,15 +577,6 @@ mod tests {
         let report_json = dry_run(&json).expect("dry_run");
         assert!(report_json.contains("\"errors\""));
         assert!(report_json.contains("\"dependency_graph\""));
-    }
-
-    #[test]
-    fn dependency_graph_json_is_well_formed() {
-        let env = empty_envelope("smoke");
-        let json = serde_json::to_string(&env).expect("serialize");
-        let graph_json = dependency_graph_json(&json).expect("dep graph");
-        assert!(graph_json.contains("\"initial_ids\""));
-        assert!(graph_json.contains("\"nodes\""));
     }
 
     #[test]

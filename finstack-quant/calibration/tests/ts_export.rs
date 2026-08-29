@@ -25,9 +25,9 @@ use finstack_quant_calibration::quotes::vol::VolQuote;
 use finstack_quant_calibration::quotes::xccy::XccyQuote;
 use finstack_quant_calibration::{
     CalibrationConfig, CalibrationDiagnostics, CalibrationMethod, CalibrationReport,
-    DiscountCurveSolveConfig, HazardCurveSolveConfig, InflationCurveSolveConfig,
-    MarketFreshnessPolicy, MarketQuoteSide, QuoteQuality, RateBounds, RateBoundsPolicy,
-    RatesStepConventions, ResidualWeightingScheme, SolverConfig, ValidationMode,
+    DiscountCurveSolveConfig, ForwardCurveSolveConfig, HazardCurveSolveConfig,
+    InflationCurveSolveConfig, MarketFreshnessPolicy, MarketQuoteSide, QuoteQuality, RateBounds,
+    RateBoundsPolicy, RatesStepConventions, ResidualWeightingScheme, SolverConfig, ValidationMode,
     VolSurfaceSolveConfig,
 };
 use finstack_quant_valuations::instruments::OptionType;
@@ -88,6 +88,7 @@ fn export_calibration_types() {
     MarketQuoteSide::export(cfg).expect("export MarketQuoteSide");
     CalibrationMethod::export(cfg).expect("export CalibrationMethod");
     DiscountCurveSolveConfig::export(cfg).expect("export DiscountCurveSolveConfig");
+    ForwardCurveSolveConfig::export(cfg).expect("export ForwardCurveSolveConfig");
     HazardCurveSolveConfig::export(cfg).expect("export HazardCurveSolveConfig");
     InflationCurveSolveConfig::export(cfg).expect("export InflationCurveSolveConfig");
     VolSurfaceSolveConfig::export(cfg).expect("export VolSurfaceSolveConfig");

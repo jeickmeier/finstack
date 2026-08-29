@@ -3,21 +3,21 @@
 //! The goal is to ensure that curves produced by canonical calibration steps can reprice
 //! instruments constructed *outside* the solver to reasonable tolerances.
 
-use finstack_quant_calibration::api::engine;
-use finstack_quant_calibration::api::schema::{
+use crate::api::engine;
+use crate::api::schema::{
     CalibrationEnvelope, CalibrationPlan, CalibrationStep, DiscountCurveParams, ForwardCurveParams,
     HazardCurveParams, InflationCurveParams, StepParams,
 };
-use finstack_quant_calibration::build::build_cds_instrument;
-use finstack_quant_calibration::build::build_rate_instrument;
-use finstack_quant_calibration::build::BuildCtx;
-use finstack_quant_calibration::quotes::cds::CdsQuote;
-use finstack_quant_calibration::quotes::ids::{Pillar, QuoteId};
-use finstack_quant_calibration::quotes::inflation::InflationQuote;
-use finstack_quant_calibration::quotes::market_quote::MarketQuote;
-use finstack_quant_calibration::quotes::rates::RateQuote;
-use finstack_quant_calibration::recalibration::bump_hazard_spreads;
-use finstack_quant_calibration::{CalibrationConfig, CalibrationMethod};
+use crate::build::cds::build_cds_instrument;
+use crate::build::rates::build_rate_instrument;
+use crate::build::BuildCtx;
+use crate::quotes::cds::CdsQuote;
+use crate::quotes::ids::{Pillar, QuoteId};
+use crate::quotes::inflation::InflationQuote;
+use crate::quotes::market_quote::MarketQuote;
+use crate::quotes::rates::RateQuote;
+use crate::recalibration::bump_hazard_spreads;
+use crate::{CalibrationConfig, CalibrationMethod};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCountContext, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -42,10 +42,9 @@ use finstack_quant_valuations::recalibration::QuoteBump;
 use rust_decimal::Decimal;
 use time::Month;
 
-use crate::calibration_support as cal_utils;
-use crate::common::fixtures;
-
-use super::tolerances;
+use crate::test_support as cal_utils;
+use crate::test_support as fixtures;
+use crate::test_support as tolerances;
 
 /// FRA repricing tolerance per $1M notional.
 const FRA_TOLERANCE_DOLLARS: f64 = tolerances::FRA_REPRICE_ABS_TOL_DOLLARS;
@@ -77,7 +76,7 @@ fn forward_only_envelope(
 
     CalibrationEnvelope {
         schema_url: None,
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan: CalibrationPlan {
             id: "forward-global-reprice".to_string(),
             description: None,
@@ -144,7 +143,7 @@ fn discount_curve_deposit_repricing() {
     quote_sets.insert("mm".to_string(), cal_utils::quote_set_ids(&mm_quotes));
 
     let settings = CalibrationConfig {
-        solver: finstack_quant_calibration::SolverConfig::brent_default()
+        solver: crate::SolverConfig::brent_default()
             .with_tolerance(1e-12)
             .with_max_iterations(200),
         ..Default::default()
@@ -175,7 +174,7 @@ fn discount_curve_deposit_repricing() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
@@ -260,7 +259,7 @@ fn discount_curve_swap_repricing() {
     quote_sets.insert("disc".to_string(), cal_utils::quote_set_ids(&disc_quotes));
 
     let settings = CalibrationConfig {
-        solver: finstack_quant_calibration::SolverConfig::brent_default()
+        solver: crate::SolverConfig::brent_default()
             .with_tolerance(1e-12)
             .with_max_iterations(200),
         ..Default::default()
@@ -293,7 +292,7 @@ fn discount_curve_swap_repricing() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
@@ -391,7 +390,7 @@ fn forward_curve_fra_repricing() {
     );
 
     let settings = CalibrationConfig {
-        solver: finstack_quant_calibration::SolverConfig::brent_default()
+        solver: crate::SolverConfig::brent_default()
             .with_tolerance(1e-12)
             .with_max_iterations(200),
         ..Default::default()
@@ -440,7 +439,7 @@ fn forward_curve_fra_repricing() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
@@ -774,7 +773,7 @@ fn hazard_curve_cds_repricing() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
@@ -897,7 +896,7 @@ fn hazard_curve_step_report_matches_market_built_cds_repricing() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
@@ -1055,7 +1054,7 @@ fn hazard_recipe_upfront_inputs_support_par_space_replay() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
@@ -1203,7 +1202,7 @@ fn inflation_curve_swap_repricing() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: finstack_quant_calibration::api::schema::CalibrationSchema::CURRENT,
+        schema: crate::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),

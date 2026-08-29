@@ -104,6 +104,14 @@
           "description": "When `true`, a calibration step whose solver reports\n`report.success == false` is propagated as a\n`finstack_quant_core::Error::Calibration` and its output is **not**\ninstalled into the market context.\n\nDefaults to `true` — this is the safe production choice because\na non-converged solver would otherwise silently poison downstream\npricing. Diagnostic workflows that want to inspect the\nreport without aborting can set this to `false`.",
           "type": "boolean"
         },
+        "forward_curve": {
+          "$ref": "#/$defs/ForwardCurveSolveConfig",
+          "default": {
+            "validation_tolerance": 1e-8,
+            "weighting_scheme": "sqrt_time"
+          },
+          "description": "Forward-curve specific solver configuration."
+        },
         "fx": {
           "$ref": "#/$defs/FxConfig",
           "default": {
@@ -302,6 +310,10 @@
               "weighting_scheme": "sqrt_time"
             },
             "fail_on_bad_fit": true,
+            "forward_curve": {
+              "validation_tolerance": 1e-8,
+              "weighting_scheme": "sqrt_time"
+            },
             "fx": {
               "cache_capacity": 256,
               "enable_triangulation": true,
@@ -1828,6 +1840,24 @@
           "type": "object"
         }
       ]
+    },
+    "ForwardCurveSolveConfig": {
+      "additionalProperties": false,
+      "description": "Forward-curve specific numerical solver configuration.\n\nControls residual weighting and post-solve success tolerance for\nprojection-curve global solves. Defaults match the values previously\nborrowed from [`DiscountCurveSolveConfig`].\n\n# Examples\n```\nuse finstack_quant_calibration::ForwardCurveSolveConfig;\n\nlet config = ForwardCurveSolveConfig {\n    validation_tolerance: 1e-6,\n    ..Default::default()\n};\n```",
+      "properties": {
+        "validation_tolerance": {
+          "default": 1e-8,
+          "description": "Tolerance for determining calibration *success* (applied to residuals).\n\nAfter the solver converges, the final residuals are compared against this\ntolerance. If `max_residual > validation_tolerance`, the calibration report\nwill have `success = false` even if the solver converged.\n\nThis is distinct from `solver.tolerance()` which controls when the numerical\nsolver terminates. See [`CalibrationConfig`] for a full explanation.\n\nDefault: `1e-8` (suitable for per-unit-notional residuals).",
+          "format": "double",
+          "type": "number"
+        },
+        "weighting_scheme": {
+          "$ref": "#/$defs/ResidualWeightingScheme",
+          "default": "sqrt_time",
+          "description": "Weighting scheme for global solve residuals."
+        }
+      },
+      "type": "object"
     },
     "FxConfig": {
       "additionalProperties": false,
@@ -5545,6 +5575,10 @@
             "weighting_scheme": "sqrt_time"
           },
           "fail_on_bad_fit": true,
+          "forward_curve": {
+            "validation_tolerance": 1e-8,
+            "weighting_scheme": "sqrt_time"
+          },
           "fx": {
             "cache_capacity": 256,
             "enable_triangulation": true,

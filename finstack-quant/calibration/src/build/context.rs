@@ -35,7 +35,7 @@ use finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;
 /// # Examples
 ///
 /// Basic usage:
-/// ```rust
+/// ```rust,ignore
 /// use finstack_quant_calibration::build::BuildCtx;
 /// use finstack_quant_core::dates::Date;
 /// use finstack_quant_core::HashMap;
@@ -50,7 +50,7 @@ use finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;
 /// ```
 ///
 /// Minimal context with no curve roles:
-/// ```rust
+/// ```rust,ignore
 /// use finstack_quant_calibration::build::BuildCtx;
 /// use finstack_quant_core::dates::Date;
 /// use finstack_quant_core::HashMap;
@@ -117,7 +117,7 @@ impl BuildCtx {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// use finstack_quant_calibration::build::BuildCtx;
     /// use finstack_quant_core::dates::Date;
     /// use finstack_quant_core::HashMap;
@@ -195,7 +195,7 @@ impl BuildCtx {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// use finstack_quant_calibration::build::BuildCtx;
     /// use finstack_quant_core::dates::Date;
     /// use finstack_quant_core::HashMap;

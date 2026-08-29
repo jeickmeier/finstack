@@ -89,11 +89,11 @@ pub(crate) trait BootstrapTarget {
     /// against the target tolerance, and the report flags it via the
     /// `approximate_knots` metadata.
     ///
-    /// Defaults to `false`: a no-bracket knot is a hard failure (audit item 10).
+    /// Defaults to `false`: a no-bracket knot is a hard failure.
     /// Targets whose objective is monotone and whose market quotes can
     /// legitimately sit outside the model-reachable range — notably
     /// base-correlation bootstrapping against tranche upfronts — override this
-    /// to `true` (the audit's sanctioned "explicit caller opt-in").
+    /// to `true`.
     fn allow_approximate_knots(&self) -> bool {
         false
     }

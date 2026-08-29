@@ -96,10 +96,11 @@ let curve = market.get_discount("USD-OIS")?;
 println!("DF(1y) = {}", curve.df(1.0));
 ```
 
-`engine::execute` flattens any structured failure into
-`finstack_quant_core::Error`. Call `engine::execute_with_diagnostics` instead
-when you need the structured detail (`worst_quote_id`, tolerance, and the rest)
-on solver non-convergence.
+`engine::execute` returns a structured `ExecuteError` (`worst_quote_id`,
+tolerance, and the rest) on solver non-convergence. `From<ExecuteError>` maps
+that payload to `finstack_quant_core::Error` so `?` still works in
+`core::Result` functions. Static validation is fail-fast; `dry_run` lists
+every static error without solving.
 
 Same pattern in Python and JavaScript:
 

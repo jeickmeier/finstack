@@ -228,7 +228,7 @@ fn calibrate_hw1f_round_trip() {
         .collect();
 
     let (params, report) =
-        calibrate_hull_white_to_swaptions(&df_fn, &quotes, SwapFrequency::default(), None)
+        calibrate_hull_white_to_swaptions(&df_fn, &quotes, SwapFrequency::default(), None, None)
             .expect("Calibration should succeed");
 
     assert!(
@@ -273,10 +273,10 @@ fn calibrate_hw1f_annual_vs_semiannual_produces_different_params() {
     ];
 
     let (params_semi, _) =
-        calibrate_hull_white_to_swaptions(&df_fn, &quotes, SwapFrequency::SemiAnnual, None)
+        calibrate_hull_white_to_swaptions(&df_fn, &quotes, SwapFrequency::SemiAnnual, None, None)
             .expect("semi-annual");
     let (params_ann, _) =
-        calibrate_hull_white_to_swaptions(&df_fn, &quotes, SwapFrequency::Annual, None)
+        calibrate_hull_white_to_swaptions(&df_fn, &quotes, SwapFrequency::Annual, None, None)
             .expect("annual");
 
     assert!(
@@ -311,7 +311,8 @@ fn calibrate_hw1f_rejects_insufficient_quotes() {
         is_normal_vol: true,
     }];
     let df_fn = flat_df(0.03);
-    let result = calibrate_hull_white_to_swaptions(&df_fn, &quotes, SwapFrequency::default(), None);
+    let result =
+        calibrate_hull_white_to_swaptions(&df_fn, &quotes, SwapFrequency::default(), None, None);
     assert!(result.is_err(), "Should reject < 2 quotes");
 }
 
@@ -371,7 +372,7 @@ fn hw1f_calibration_recovers_kappa_on_wide_round_trip_grid() {
         .collect();
 
     let (params, report) =
-        calibrate_hull_white_to_swaptions(&df_fn, &quotes, SwapFrequency::SemiAnnual, None)
+        calibrate_hull_white_to_swaptions(&df_fn, &quotes, SwapFrequency::SemiAnnual, None, None)
             .expect("calibration should succeed");
 
     assert!(
@@ -423,7 +424,7 @@ fn hw1f_calibration_errors_when_kappa_drives_out_of_bounds() {
         .collect();
 
     let result =
-        calibrate_hull_white_to_swaptions(&df_fn, &quotes, SwapFrequency::SemiAnnual, None);
+        calibrate_hull_white_to_swaptions(&df_fn, &quotes, SwapFrequency::SemiAnnual, None, None);
 
     match result {
         Ok((params, _)) => {
@@ -721,7 +722,7 @@ fn hw1f_residuals_signal_err_on_non_finite_price_no_magic_literal() {
     // End-to-end: the full calibration with the same NaN curve must
     // fail cleanly rather than silently converge to a poisoned minimum.
     let calib =
-        calibrate_hull_white_to_swaptions(&nan_df, &quotes, SwapFrequency::SemiAnnual, None);
+        calibrate_hull_white_to_swaptions(&nan_df, &quotes, SwapFrequency::SemiAnnual, None, None);
     assert!(
         calib.is_err() || calib.as_ref().is_ok_and(|(_, report)| !report.success),
         "calibration on a degenerate (NaN-priced) curve must report \
@@ -1059,8 +1060,14 @@ fn swaption_malformed_schedule_is_rejected() {
             maturity_time: 10.0,
         },
     ];
-    let err = calibrate_hull_white_to_swaptions_with_schedules(&df_fn, &quotes, &schedules, None)
-        .expect_err("a malformed per-quote schedule must be rejected");
+    let err = calibrate_hull_white_to_swaptions(
+        &df_fn,
+        &quotes,
+        SwapFrequency::Annual,
+        Some(&schedules),
+        None,
+    )
+    .expect_err("a malformed per-quote schedule must be rejected");
     let msg = err.to_string();
     assert!(
         msg.contains("5Yx5Y") && msg.contains("malformed"),

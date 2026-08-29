@@ -1,9 +1,10 @@
-//! Tests for the surrounding crate component and its documented behavior.
-//!
-use finstack_quant_calibration::build::build_cds_instrument;
-use finstack_quant_calibration::build::BuildCtx;
-use finstack_quant_calibration::quotes::cds::CdsQuote;
-use finstack_quant_calibration::quotes::ids::Pillar;
+//! Quote-to-CDS-instrument construction tests.
+#![allow(clippy::unwrap_used, clippy::panic)]
+
+use crate::build::cds::build_cds_instrument;
+use crate::build::BuildCtx;
+use crate::quotes::cds::CdsQuote;
+use crate::quotes::ids::Pillar;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, Tenor};
 use finstack_quant_core::HashMap;

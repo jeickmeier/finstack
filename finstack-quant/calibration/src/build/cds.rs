@@ -120,7 +120,7 @@ fn resolve_cds_dates(
 /// # Examples
 ///
 /// Building from a par spread quote:
-/// ```rust
+/// ```rust,ignore
 /// use finstack_quant_calibration::build::BuildCtx;
 /// use finstack_quant_calibration::build::build_cds_instrument;
 /// use finstack_quant_calibration::quotes::cds::CdsQuote;
@@ -155,7 +155,7 @@ fn resolve_cds_dates(
 /// ```
 ///
 /// Building from an upfront quote:
-/// ```rust
+/// ```rust,ignore
 /// use finstack_quant_calibration::build::BuildCtx;
 /// use finstack_quant_calibration::build::build_cds_instrument;
 /// use finstack_quant_calibration::quotes::cds::CdsQuote;

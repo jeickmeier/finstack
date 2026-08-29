@@ -416,7 +416,7 @@ impl CalibrationEnvelope {
         let envelope: Self = deserialize_json_value(value, limits)?;
         super::validate::append_contract_diagnostics(
             &mut report,
-            envelope.validate().errors,
+            super::validate::validate(&envelope).errors,
             limits,
         );
         Ok((envelope, report))
