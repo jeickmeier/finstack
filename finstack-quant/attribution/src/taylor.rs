@@ -29,6 +29,7 @@ use super::helpers::*;
 use super::metrics_based::extract_keyrate_cs01_per_curve;
 use super::model_params;
 use super::types::*;
+use crate::policy_map::map_policy;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::bumps::{BumpSpec, MarketBump};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -42,12 +43,12 @@ use finstack_quant_models::volatility::measure_vol_surface_shift;
 use finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::bump_surface_vol_absolute;
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Configuration for Taylor-based P&L attribution.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct TaylorAttributionConfig {
     /// Include second-order (gamma/convexity) terms.
@@ -202,7 +203,8 @@ fn record_taylor_factor_result(
 /// `Σ sensitivityᵢ × moveᵢ`. The scalar `sensitivity` (total across buckets)
 /// and `market_move` (average across buckets) are diagnostics: their product
 /// does **not** equal `explained_pnl` for non-parallel curve moves.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub(crate) struct TaylorFactorResult {
     /// Human-readable factor name (e.g. "Rates:USD-OIS").
     pub factor_name: String,
@@ -228,7 +230,8 @@ pub(crate) struct TaylorFactorResult {
 }
 
 /// Complete result of Taylor-based attribution.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub(crate) struct TaylorAttributionResult {
     /// Actual P&L on a total-return basis: `PV_T1 − PV_T0` plus the period
     /// coupon income captured by the theta factor. The explained factors
@@ -363,20 +366,11 @@ fn compute_taylor_result(
             ),
         )
     };
-    let rate_results = match execution_policy {
-        ExecutionPolicy::Parallel => market_deps
-            .curves
-            .discount_curves
-            .par_iter()
-            .map(compute_rate)
-            .collect::<Vec<_>>(),
-        ExecutionPolicy::Serial => market_deps
-            .curves
-            .discount_curves
-            .iter()
-            .map(compute_rate)
-            .collect::<Vec<_>>(),
-    };
+    let rate_results = map_policy(
+        execution_policy,
+        &market_deps.curves.discount_curves,
+        compute_rate,
+    );
     for (curve_id, result) in rate_results {
         record_taylor_factor_result(
             "rate",
@@ -400,20 +394,11 @@ fn compute_taylor_result(
             ),
         )
     };
-    let forward_results = match execution_policy {
-        ExecutionPolicy::Parallel => market_deps
-            .curves
-            .forward_curves
-            .par_iter()
-            .map(compute_forward)
-            .collect::<Vec<_>>(),
-        ExecutionPolicy::Serial => market_deps
-            .curves
-            .forward_curves
-            .iter()
-            .map(compute_forward)
-            .collect::<Vec<_>>(),
-    };
+    let forward_results = map_policy(
+        execution_policy,
+        &market_deps.curves.forward_curves,
+        compute_forward,
+    );
     for (curve_id, result) in forward_results {
         record_taylor_factor_result(
             "forward",
@@ -468,13 +453,7 @@ fn compute_taylor_result(
             }),
         )
     };
-    let credit_results = match execution_policy {
-        ExecutionPolicy::Parallel => credit_curves
-            .par_iter()
-            .map(compute_credit)
-            .collect::<Vec<_>>(),
-        ExecutionPolicy::Serial => credit_curves.iter().map(compute_credit).collect::<Vec<_>>(),
-    };
+    let credit_results = map_policy(execution_policy, credit_curves, compute_credit);
     for (curve_id, result) in credit_results {
         record_taylor_factor_result(
             "credit",
@@ -527,18 +506,11 @@ fn compute_taylor_result(
                 ),
             )
         };
-    let vol_results = match execution_policy {
-        ExecutionPolicy::Parallel => market_deps
-            .volatility_dependencies
-            .par_iter()
-            .map(compute_vol)
-            .collect::<Vec<_>>(),
-        ExecutionPolicy::Serial => market_deps
-            .volatility_dependencies
-            .iter()
-            .map(compute_vol)
-            .collect::<Vec<_>>(),
-    };
+    let vol_results = map_policy(
+        execution_policy,
+        &market_deps.volatility_dependencies,
+        compute_vol,
+    );
     for (vol_surface_id, result) in vol_results {
         record_taylor_factor_result(
             "vol",

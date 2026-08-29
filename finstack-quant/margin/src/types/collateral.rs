@@ -10,7 +10,6 @@ use crate::registry::margin_registry_from_config;
 use crate::registry::{embedded_registry, embedded_registry_or_panic, AssetClassDefault};
 use crate::types::serde_validation;
 use finstack_quant_core::config::FinstackConfig;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Collateral asset classes per BCBS-IOSCO standards.
@@ -22,7 +21,8 @@ use serde::{Deserialize, Serialize};
 ///
 /// BCBS-IOSCO "Margin requirements for non-centrally cleared derivatives" (2020)
 /// Annex A: Standardized haircut schedule `docs/REFERENCES.md#bcbs-iosco-uncleared-margin`
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum CollateralAssetClass {
@@ -148,9 +148,8 @@ impl CollateralAssetClass {
 ///
 /// Some CSAs restrict collateral based on remaining maturity to limit
 /// duration risk in the collateral portfolio.
-#[derive(
-    Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MaturityConstraints {
     /// Minimum remaining years to maturity (if any)
@@ -159,7 +158,7 @@ pub struct MaturityConstraints {
         deserialize_with = "serde_validation::min_remaining_years::deserialize",
         serialize_with = "serde_validation::min_remaining_years::serialize"
     )]
-    #[schemars(range(min = 0.0))]
+    #[cfg_attr(feature = "json-schema", schemars(range(min = 0.0)))]
     pub min_remaining_years: Option<f64>,
     /// Maximum remaining years to maturity (if any)
     #[serde(
@@ -167,7 +166,7 @@ pub struct MaturityConstraints {
         deserialize_with = "serde_validation::max_remaining_years::deserialize",
         serialize_with = "serde_validation::max_remaining_years::serialize"
     )]
-    #[schemars(range(min = 0.0))]
+    #[cfg_attr(feature = "json-schema", schemars(range(min = 0.0)))]
     pub max_remaining_years: Option<f64>,
 }
 
@@ -212,7 +211,8 @@ impl MaturityConstraints {
 /// Single collateral eligibility entry.
 ///
 /// Defines eligibility criteria and haircut for a specific type of collateral.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CollateralEligibility {
     /// Asset class
@@ -233,7 +233,7 @@ pub struct CollateralEligibility {
         deserialize_with = "serde_validation::haircut::deserialize",
         serialize_with = "serde_validation::haircut::serialize"
     )]
-    #[schemars(range(min = 0.0, max = 1.0))]
+    #[cfg_attr(feature = "json-schema", schemars(range(min = 0.0, max = 1.0)))]
     pub haircut: f64,
 
     /// Additional FX haircut for currency mismatch (decimal)
@@ -244,7 +244,7 @@ pub struct CollateralEligibility {
         deserialize_with = "serde_validation::fx_haircut_addon::deserialize",
         serialize_with = "serde_validation::fx_haircut_addon::serialize"
     )]
-    #[schemars(range(min = 0.0, max = 1.0))]
+    #[cfg_attr(feature = "json-schema", schemars(range(min = 0.0, max = 1.0)))]
     pub fx_haircut_addon: f64,
 
     /// Concentration limit as fraction of total collateral (optional)
@@ -256,7 +256,7 @@ pub struct CollateralEligibility {
         deserialize_with = "serde_validation::concentration_limit::deserialize",
         serialize_with = "serde_validation::concentration_limit::serialize"
     )]
-    #[schemars(range(min = 0.0, max = 1.0))]
+    #[cfg_attr(feature = "json-schema", schemars(range(min = 0.0, max = 1.0)))]
     pub concentration_limit: Option<f64>,
 }
 
@@ -353,7 +353,8 @@ mod collateral_maturity_tests {
 /// # let _ = schedule;
 /// # Ok::<(), finstack_quant_core::Error>(())
 /// ```
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EligibleCollateralSchedule {
     /// List of eligible collateral types with haircuts
@@ -368,7 +369,7 @@ pub struct EligibleCollateralSchedule {
         deserialize_with = "serde_validation::default_haircut::deserialize",
         serialize_with = "serde_validation::default_haircut::serialize"
     )]
-    #[schemars(range(min = 0.0, max = 1.0))]
+    #[cfg_attr(feature = "json-schema", schemars(range(min = 0.0, max = 1.0)))]
     pub default_haircut: Option<f64>,
 
     /// Whether rehypothecation of posted collateral is permitted

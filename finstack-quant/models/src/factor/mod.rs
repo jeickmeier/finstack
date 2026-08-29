@@ -88,6 +88,7 @@ mod primitives;
 /// Product-independent factor and position risk kernels.
 pub mod risk;
 /// JSON Schema generation helpers for factor-model contracts.
+#[cfg(feature = "json-schema")]
 pub mod schema;
 /// Positions × factors sensitivity matrix storage.
 mod sensitivity_matrix;

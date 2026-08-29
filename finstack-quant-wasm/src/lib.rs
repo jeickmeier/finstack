@@ -25,8 +25,9 @@ pub mod api;
 pub mod utils;
 
 #[wasm_bindgen(start)]
-/// Module initializer: installs the panic hook (called automatically).
+/// Module initializer: installs the panic hook when `console_panic_hook` is enabled.
 pub fn start() {
+    #[cfg(feature = "console_panic_hook")]
     console_error_panic_hook::set_once();
 }
 

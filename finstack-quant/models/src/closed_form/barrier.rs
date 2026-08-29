@@ -225,17 +225,8 @@ impl BarrierParams {
 /// breached); paying at expiry is the less common variant. Knock-in rebates
 /// always pay at expiry by definition (only at expiry is it known that the
 /// option failed to knock in), so this setting does not affect them.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Default,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RebateTiming {
     /// Rebate is paid at the barrier hit time (market standard for KO rebates).

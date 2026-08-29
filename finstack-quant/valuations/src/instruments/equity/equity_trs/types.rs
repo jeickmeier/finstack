@@ -22,9 +22,8 @@ use rust_decimal::Decimal;
 use time::macros::date;
 
 /// Settlement timing for manufactured discrete dividends on an equity TRS.
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum TrsDividendSettlement {
     /// Settle on the supplied dividend date, matching standard manufactured
@@ -88,8 +87,8 @@ pub enum TrsDividendSettlement {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = EquityTotalReturnSwap::validate)]
 #[serde(deny_unknown_fields, try_from = "EquityTotalReturnSwapUnchecked")]
 pub struct EquityTotalReturnSwap {
@@ -121,7 +120,10 @@ pub struct EquityTotalReturnSwap {
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     pub past_fixings: Vec<(Date, f64)>,
     /// Optional OTC margin specification for VM/IM.
     ///
@@ -158,7 +160,10 @@ pub struct EquityTotalReturnSwap {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[builder(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     pub discrete_dividends: Vec<(Date, f64)>,
     /// Attributes for scenario selection and tagging.
     #[builder(default)]
@@ -187,7 +192,8 @@ pub struct EquityTotalReturnSwap {
 
 /// Mirror of `EquityTotalReturnSwap` used by serde to apply `validate()`
 /// after deserialization. Not part of the public API.
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct EquityTotalReturnSwapUnchecked {
     /// Unique instrument identifier.
@@ -217,7 +223,10 @@ struct EquityTotalReturnSwapUnchecked {
     /// Pricing errors when the current period's start level is unavailable.
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     past_fixings: Vec<(Date, f64)>,
     /// Optional OTC margin specification for VM/IM.
     ///
@@ -249,7 +258,10 @@ struct EquityTotalReturnSwapUnchecked {
     /// not add continuous-yield dividend return to avoid double counting.
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     discrete_dividends: Vec<(Date, f64)>,
     /// Attributes for scenario selection and tagging.
     #[serde(default)]

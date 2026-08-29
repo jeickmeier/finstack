@@ -5,7 +5,6 @@
 
 use crate::{Error, Result, ScenarioSpec, TemplateMetadata};
 use indexmap::{IndexMap, IndexSet};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 const EMBEDDED_TEMPLATE_JSONS: [(&str, &str); 5] = [
@@ -32,7 +31,8 @@ const EMBEDDED_TEMPLATE_JSONS: [(&str, &str); 5] = [
 ];
 
 /// Exact persistence marker for scenario-template documents.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub(crate) enum ScenarioTemplateSchema {
     /// The sole supported scenario-template contract.
     #[serde(rename = "finstack_quant.scenario_template/1")]
@@ -90,7 +90,8 @@ fn parse_embedded_document(name: &str, json: &str) -> Result<JsonTemplateDocumen
 /// Serde-facing JSON document for a composable stress template.
 ///
 /// Drives both the embedded built-in loader and runtime JSON registration paths.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub(crate) struct JsonTemplateDocument {
     /// Scenario-template schema marker.
@@ -165,7 +166,8 @@ impl JsonTemplateDocument {
 }
 
 /// Composite scenario identity plus ordered component references.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub(crate) struct JsonCompositeTemplate {
     id: String,

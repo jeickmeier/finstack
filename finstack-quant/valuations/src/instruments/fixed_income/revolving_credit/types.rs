@@ -28,8 +28,8 @@ use rust_decimal::prelude::ToPrimitive;
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct RevolvingCredit {
     /// Unique identifier for the facility.
@@ -43,12 +43,18 @@ pub struct RevolvingCredit {
 
     /// Date when the facility becomes available.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub commitment_date: Date,
 
     /// Date when the facility expires.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
 
     /// Base rate specification (fixed or floating).
@@ -229,7 +235,8 @@ impl RevolvingCredit {
 ///
 /// Defines whether the facility pays a fixed rate or a floating rate
 /// tied to a market index plus margin.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[allow(clippy::large_enum_variant)]
 #[serde(rename_all = "snake_case")]
 pub enum BaseRateSpec {
@@ -264,7 +271,8 @@ impl BaseRateSpec {
 /// - Facility: annual fee on total commitment
 ///
 /// Flat fees can be represented as single-tier vectors.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct RevolvingCreditFees {
     /// One-time upfront fee paid by borrower to lender at commitment.
@@ -419,7 +427,8 @@ impl RevolvingCreditFees {
 ///
 /// Determines whether the facility uses a known (deterministic) schedule
 /// or stochastic utilization for Monte Carlo pricing.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum DrawRepaySpec {
     /// Deterministic schedule of draws and repayments.
@@ -430,12 +439,16 @@ pub enum DrawRepaySpec {
 }
 
 /// A single draw or repayment event.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DrawRepayEvent {
     /// Date of the draw or repayment.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
 
     /// Amount being drawn or repaid (absolute value).
@@ -450,7 +463,8 @@ pub struct DrawRepayEvent {
 /// Defines the stochastic process and simulation parameters for
 /// Monte Carlo pricing with uncertain draw/repayment patterns. Credit risk is
 /// incorporated via hazard-rate survival weighting (no explicit default events).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct StochasticUtilizationSpec {
     /// Utilization process specification.
@@ -487,7 +501,8 @@ pub struct StochasticUtilizationSpec {
 ///
 /// Enables multi-factor modeling with credit risk, interest rate dynamics,
 /// correlation between factors, and default modeling.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct McConfig {
     /// Correlation matrix (3x3) between [utilization, rate, credit].
@@ -615,7 +630,8 @@ impl McConfig {
 }
 
 /// Credit spread process specification.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CreditSpreadProcessSpec {
     /// CIR process for stochastic credit spread/hazard rate.
@@ -654,7 +670,8 @@ pub enum CreditSpreadProcessSpec {
 }
 
 /// Interest rate process specification (for floating rates).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum InterestRateProcessSpec {
     /// Hull-White 1-factor model for short rate.
@@ -694,7 +711,8 @@ pub enum InterestRateProcessSpec {
 /// For the 80/20 implementation, we support a single mean-reverting process.
 /// This can be extended in the future to support other processes (jump-diffusion,
 /// regime-switching, etc.).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum UtilizationProcess {
     /// Mean-reverting utilization rate process.

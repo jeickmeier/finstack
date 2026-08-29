@@ -144,6 +144,7 @@ pub mod prelude;
 /// Shared credit rating-scale registry.
 pub mod rating_scales;
 /// Deterministic JSON Schema assembly helpers.
+#[cfg(feature = "json-schema")]
 pub mod schema;
 /// `deny_unknown_fields` enforcement for structs that use `#[serde(flatten)]`.
 pub mod serde_guard;

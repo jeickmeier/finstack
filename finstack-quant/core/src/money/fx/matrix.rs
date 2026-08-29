@@ -1,14 +1,92 @@
 //! FX quote storage, triangulation, caching, and provider-backed conversion.
 //!
+use std::collections::VecDeque;
 use std::num::NonZeroUsize;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
 
-use lru::LruCache;
-use parking_lot::Mutex;
+use crate::collections::{HashMap, HashSet};
+
+fn recover<T>(res: Result<T, std::sync::PoisonError<T>>) -> T {
+    res.unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    recover(mutex.lock())
+}
+
+/// Insertion-order LRU cache used for provider-observed FX quotes.
+struct BoundedCache<K, V> {
+    cap: usize,
+    map: HashMap<K, V>,
+    order: VecDeque<K>,
+}
+
+impl<K, V> BoundedCache<K, V>
+where
+    K: Clone + Eq + std::hash::Hash,
+{
+    fn new(cap: NonZeroUsize) -> Self {
+        Self {
+            cap: cap.get(),
+            map: HashMap::default(),
+            order: VecDeque::new(),
+        }
+    }
+
+    fn clear(&mut self) {
+        self.map.clear();
+        self.order.clear();
+    }
+
+    fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
+        self.map.iter()
+    }
+
+    fn get(&mut self, key: &K) -> Option<&V> {
+        if !self.map.contains_key(key) {
+            return None;
+        }
+        self.touch(key);
+        self.map.get(key)
+    }
+
+    fn put(&mut self, key: K, value: V) {
+        if self.map.contains_key(&key) {
+            self.touch(&key);
+            self.map.insert(key, value);
+            return;
+        }
+        if self.map.len() >= self.cap {
+            if let Some(old) = self.order.pop_front() {
+                self.map.remove(&old);
+            }
+        }
+        self.order.push_back(key.clone());
+        self.map.insert(key, value);
+    }
+
+    fn pop(&mut self, key: &K) -> Option<V> {
+        let value = self.map.remove(key)?;
+        if let Some(idx) = self.order.iter().position(|k| k == key) {
+            self.order.remove(idx);
+        }
+        Some(value)
+    }
+
+    fn touch(&mut self, key: &K) {
+        if let Some(idx) = self.order.iter().position(|k| k == key) {
+            self.order.remove(idx);
+        }
+        self.order.push_back(key.clone());
+    }
+}
 
 // Non-cryptographic keys (currency pairs, query keys) use the workspace-standard
 // FxHash rather than std's SipHash for ~2x faster lookups on the FX hot path.
-use crate::collections::{HashMap, HashSet};
 use crate::currency::Currency;
 use crate::dates::Date;
 
@@ -149,7 +227,7 @@ pub struct FxMatrix {
     quotes: Mutex<HashMap<Pair, f64>>,
     /// Query-sensitive quotes observed from providers or triangulation. This is
     /// the only genuinely bounded cache (governed by `config.cache_capacity`).
-    observed_quotes: Mutex<LruCache<QueryKey, ObservedQuote>>,
+    observed_quotes: Mutex<BoundedCache<QueryKey, ObservedQuote>>,
     /// Authoritative date/policy-scoped quotes pinned via [`FxMatrix::set_quote_on`].
     /// Unlike `observed_quotes`, this map never evicts, so a pinned fixing is
     /// never silently replaced by the provider under cache pressure.
@@ -196,7 +274,7 @@ impl FxMatrix {
         Self {
             provider,
             quotes: Mutex::new(HashMap::default()),
-            observed_quotes: Mutex::new(LruCache::new(capacity)),
+            observed_quotes: Mutex::new(BoundedCache::new(capacity)),
             pinned_quotes: Mutex::new(HashMap::default()),
             config,
         }
@@ -225,7 +303,7 @@ impl FxMatrix {
             ));
         }
         let capacity = NonZeroUsize::new(config.cache_capacity).unwrap_or(NonZeroUsize::MIN);
-        let observed_quotes = LruCache::new(capacity);
+        let observed_quotes = BoundedCache::new(capacity);
         Ok(Self {
             provider,
             quotes: Mutex::new(HashMap::default()),
@@ -523,7 +601,7 @@ impl FxMatrix {
         for &(from, to, rate) in quotes {
             validate_fx_rate(from, to, rate)?;
         }
-        let mut map = self.quotes.lock();
+        let mut map = lock(&self.quotes);
         for &(from, to, rate) in quotes {
             map.insert(Pair(from, to), rate);
         }
@@ -548,9 +626,9 @@ impl FxMatrix {
     /// matrix.clear_cache();
     /// ```
     pub fn clear_cache(&self) {
-        self.quotes.lock().clear();
-        self.observed_quotes.lock().clear();
-        self.pinned_quotes.lock().clear();
+        lock(&self.quotes).clear();
+        lock(&self.observed_quotes).clear();
+        lock(&self.pinned_quotes).clear();
     }
 
     /// Return cached quote count for quick diagnostics.
@@ -571,11 +649,11 @@ impl FxMatrix {
     /// assert_eq!(matrix.cache_stats(), 0);
     /// ```
     pub fn cache_stats(&self) -> usize {
-        let quotes = self.quotes.lock();
-        let observed_quotes = self.observed_quotes.lock();
+        let quotes = lock(&self.quotes);
+        let observed_quotes = lock(&self.observed_quotes);
         // Pinned (date/policy-scoped) quotes are included so diagnostics
         // reflect every stored quote .
-        let pinned_quotes = self.pinned_quotes.lock();
+        let pinned_quotes = lock(&self.pinned_quotes);
         quotes.len() + observed_quotes.len() + pinned_quotes.len()
     }
 
@@ -605,7 +683,7 @@ impl FxMatrix {
 
         // Explicit pair-global quotes take precedence.
         {
-            let quotes = self.quotes.lock();
+            let quotes = lock(&self.quotes);
             for (pair, rate) in quotes.iter() {
                 seen.insert((pair.0, pair.1));
                 quote_vec.push((pair.0, pair.1, *rate));
@@ -629,7 +707,7 @@ impl FxMatrix {
             super::types::FxConversionPolicy,
             f64,
         )> = {
-            let pinned = self.pinned_quotes.lock();
+            let pinned = lock(&self.pinned_quotes);
             pinned
                 .iter()
                 .map(|(key, &rate)| (key.from, key.to, key.on, key.policy, rate))
@@ -753,8 +831,8 @@ impl FxMatrix {
         // bumped pair are scaled so they stay consistent with the bumped provider.
         let bumped = Self::try_with_config(bumped_provider, self.config)?;
         {
-            let src = self.quotes.lock();
-            let mut dst = bumped.quotes.lock();
+            let src = lock(&self.quotes);
+            let mut dst = lock(&bumped.quotes);
             for (pair, rate) in src.iter() {
                 let rate = if pair.0 == from && pair.1 == to {
                     *rate * multiplier
@@ -770,8 +848,8 @@ impl FxMatrix {
         // are scaled by the bump multiplier so the relative bump applies on
         // every date, not only where the provider answers.
         {
-            let src = self.pinned_quotes.lock();
-            let mut dst = bumped.pinned_quotes.lock();
+            let src = lock(&self.pinned_quotes);
+            let mut dst = lock(&bumped.pinned_quotes);
             for (key, rate) in src.iter() {
                 let rate = if key.from == from && key.to == to {
                     *rate * multiplier
@@ -812,7 +890,7 @@ impl FxMatrix {
             )));
         }
 
-        let global: HashMap<Pair, f64> = self.quotes.lock().clone();
+        let global: HashMap<Pair, f64> = lock(&self.quotes).clone();
         validate_fx_snapshot(
             &global,
             &HashMap::default(),
@@ -828,7 +906,7 @@ impl FxMatrix {
         type ScopedRates = (HashMap<Pair, f64>, HashMap<Pair, f64>);
         let mut scoped: HashMap<Scope, ScopedRates> = HashMap::default();
         {
-            let observed = self.observed_quotes.lock();
+            let observed = lock(&self.observed_quotes);
             for (query, quote) in observed.iter() {
                 if quote.rate.is_finite() && quote.rate > 0.0 {
                     scoped
@@ -840,7 +918,7 @@ impl FxMatrix {
             }
         }
         {
-            let pinned = self.pinned_quotes.lock();
+            let pinned = lock(&self.pinned_quotes);
             for (query, &rate) in pinned.iter() {
                 if rate.is_finite() && rate > 0.0 {
                     scoped
@@ -919,7 +997,7 @@ impl FxMatrix {
             checked.is_ok(),
             "FxMatrix internal quote must be finite, positive (got {from}->{to}={rate})"
         );
-        let mut quotes = self.quotes.lock();
+        let mut quotes = lock(&self.quotes);
         quotes.insert(Pair(from, to), rate);
     }
 
@@ -950,7 +1028,7 @@ impl FxMatrix {
             (rate, rate)
         };
 
-        self.observed_quotes.lock().put(
+        lock(&self.observed_quotes).put(
             QueryKey {
                 from: base,
                 to: quote,
@@ -975,7 +1053,7 @@ impl FxMatrix {
         policy: FxConversionPolicy,
         rate: f64,
     ) {
-        self.pinned_quotes.lock().insert(
+        lock(&self.pinned_quotes).insert(
             QueryKey {
                 from,
                 to,
@@ -995,7 +1073,7 @@ impl FxMatrix {
         on: Date,
         policy: FxConversionPolicy,
     ) -> (Option<f64>, Option<f64>) {
-        let quotes = self.pinned_quotes.lock();
+        let quotes = lock(&self.pinned_quotes);
         let direct = quotes
             .get(&QueryKey {
                 from,
@@ -1069,7 +1147,7 @@ impl FxMatrix {
     /// Read direct and reciprocal cached quotes for a pair under a single lock.
     #[inline]
     fn read_cached_pair_bidir(&self, from: Currency, to: Currency) -> (Option<f64>, Option<f64>) {
-        let mut quotes = self.quotes.lock();
+        let mut quotes = lock(&self.quotes);
         let direct_key = Pair(from, to);
         let rev_key = Pair(to, from);
 
@@ -1113,7 +1191,7 @@ impl FxMatrix {
             on,
             policy,
         };
-        let mut quotes = self.observed_quotes.lock();
+        let mut quotes = lock(&self.observed_quotes);
         let Some(observed) = quotes.get(&key).copied() else {
             return Ok(None);
         };

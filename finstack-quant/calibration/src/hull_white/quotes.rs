@@ -201,17 +201,8 @@ impl SwaptionQuote {
 /// Number of coupon payments per year for the underlying swap in HW1F calibration.
 ///
 /// USD swaps are semi-annual (2), EUR swaps are annual (1).
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-    Default,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum SwapFrequency {
     /// 1 payment per year (EUR, GBP standard).

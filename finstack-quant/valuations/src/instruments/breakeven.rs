@@ -16,9 +16,8 @@ use crate::metrics::MetricId;
 /// | `Oas`              | CS01            | basis points         |
 /// | `ImpliedVol`       | Vega            | vol points (1 = 1%)  |
 /// | `BaseCorrelation`  | Correlation01   | correlation points   |
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum BreakevenTarget {
     /// Z-spread breakeven, in **basis points** (sensitivity: CS01).
@@ -70,17 +69,8 @@ impl BreakevenTarget {
 ///
 /// `Iterative` is the more accurate answer where it is supported; `Linear` is
 /// the fast approximation and the default.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum BreakevenMode {
     /// `-(carry_total) / sensitivity`, using the sensitivity at `as_of`.
@@ -99,9 +89,8 @@ pub enum BreakevenMode {
 }
 
 /// Configuration for the breakeven calculator.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BreakevenConfig {
     /// Which valuation parameter to solve for.

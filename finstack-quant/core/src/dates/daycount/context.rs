@@ -59,7 +59,8 @@ impl<'a> std::fmt::Debug for DayCountContext<'a> {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 /// Serializable snapshot of [`DayCountContext`] state for persistence and interchange.
 ///
@@ -78,7 +79,10 @@ pub struct DayCountContextState {
     /// Required for exact ICMA accrual on round-trip. `None` selects the
     /// frequency-only calculation path.
     #[serde(default, with = "crate::wire::optional_date_pair")]
-    #[schemars(with = "Option<(crate::wire::DateWire, crate::wire::DateWire)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<(crate::wire::DateWire, crate::wire::DateWire)>")
+    )]
     pub coupon_period: Option<(Date, Date)>,
     /// Whether the accrual end is the instrument termination date.
     pub end_is_termination_date: bool,

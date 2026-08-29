@@ -6,7 +6,6 @@
 
 use super::FactorId;
 use finstack_quant_core::HashMap;
-use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 
 /// User-supplied factor covariance matrix with row-major storage.
@@ -26,7 +25,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 /// against per-bp sensitivities — mis-scales portfolio variance by `1e8`.
 /// The credit calibrator produces matrices in this convention from the spread
 /// panel's native units; hand-built matrices must match it.
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FactorCovarianceMatrix {
     /// Factor identifiers, in the row and column order of `data`.

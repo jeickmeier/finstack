@@ -9,9 +9,8 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 
 /// Call or put on a CMS spread.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CmsSpreadOptionType {
     /// max(CMS_long - CMS_short - K, 0)
@@ -50,7 +49,8 @@ impl std::fmt::Display for CmsSpreadOptionType {
 ///
 /// - Hagan, P. S. (2003). "Convexity Conundrums." *Wilmott Magazine*. `docs/REFERENCES.md#hagan-2003-cms-convexity`
 /// - Antonov, A., Konikov, M., & Spector, M. (2013). "SABR Spreads." *Risk*. `docs/REFERENCES.md#hagan-2002-sabr`
-#[derive(PartialEq, Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(PartialEq, Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CmsSpreadOption {
     /// Unique instrument identifier.
@@ -67,11 +67,17 @@ pub struct CmsSpreadOption {
     pub notional: Money,
     /// Option expiry date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry_date: Date,
     /// Payment date (may differ from expiry).
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub payment_date: Date,
     /// Swaption volatility surface for long tenor.
     pub long_vol_surface_id: CurveId,

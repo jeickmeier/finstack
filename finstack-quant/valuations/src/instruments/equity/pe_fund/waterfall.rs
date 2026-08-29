@@ -20,9 +20,8 @@ use time::Duration;
 use serde::{Deserialize, Serialize};
 
 /// Waterfall allocation style.
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum WaterfallStyle {
     /// European style: aggregate all events at fund level
@@ -36,9 +35,8 @@ pub enum WaterfallStyle {
 }
 
 /// Catch-up mode for GP profit sharing.
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CatchUpMode {
     /// Full catch-up: GP gets 100% until target split is reached
@@ -49,7 +47,8 @@ pub enum CatchUpMode {
 }
 
 /// Hurdle types for waterfall tiers.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Hurdle {
     /// IRR-based hurdle (annual rate)
@@ -61,10 +60,11 @@ pub enum Hurdle {
 }
 
 /// Individual tranche in the waterfall.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 // Distinct from the structured-credit capital-structure `Tranche`.
-#[schemars(rename = "PeFundWaterfallTranche")]
+#[cfg_attr(feature = "json-schema", schemars(rename = "PeFundWaterfallTranche"))]
 pub enum Tranche {
     /// Return LP capital contributions before any profit sharing
     ReturnOfCapital,
@@ -109,7 +109,8 @@ pub enum Tranche {
 }
 
 /// Clawback settlement trigger.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ClawbackSettle {
     /// Settle at fund termination
@@ -119,7 +120,8 @@ pub enum ClawbackSettle {
 }
 
 /// Clawback specification for GP carry reconciliation.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ClawbackSpec {
     /// Whether clawback is enabled
@@ -141,15 +143,16 @@ impl Default for ClawbackSpec {
 }
 
 /// Complete waterfall specification.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 // Distinct from the statements capital-structure `WaterfallSpec`.
-#[schemars(rename = "PeFundWaterfallSpec")]
+#[cfg_attr(feature = "json-schema", schemars(rename = "PeFundWaterfallSpec"))]
 pub struct WaterfallSpec {
     /// Allocation style (European vs American)
     pub style: WaterfallStyle,
     /// Ordered sequence of waterfall tranches
-    #[schemars(with = "Vec<Tranche>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "Vec<Tranche>"))]
     pub tranches: SmallVec<[Tranche; 8]>,
     /// Optional clawback specification
     #[serde(default)]
@@ -363,7 +366,8 @@ impl WaterfallSpecBuilder {
 }
 
 /// Type of fund event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum FundEventKind {
     /// Capital contribution from LP
@@ -375,12 +379,16 @@ pub enum FundEventKind {
 }
 
 /// Single fund cash flow event.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FundEvent {
     /// Date of the event
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
     /// Amount (positive for all event types, sign determined by kind)
     pub amount: Money,
@@ -441,12 +449,16 @@ impl FundEvent {
 }
 
 /// Single row in the allocation ledger.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AllocationRow {
     /// Date of allocation
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
     /// Period key (for grouping)
     pub period_key: Option<Arc<str>>,
@@ -469,7 +481,8 @@ pub struct AllocationRow {
 }
 
 /// Complete allocation ledger with metadata.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AllocationLedger {
     /// Allocation rows
@@ -479,7 +492,10 @@ pub struct AllocationLedger {
     /// LP contribution events stored as negative flows for cashflow reconstruction
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_money_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")
+    )]
     contributions: Vec<(Date, Money)>,
 }
 

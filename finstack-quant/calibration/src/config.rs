@@ -38,7 +38,8 @@ use ts_rs::TS;
 /// ```
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CalibrationMethod {
     /// Traditional sequential bootstrap (default).
@@ -89,7 +90,8 @@ impl std::str::FromStr for CalibrationMethod {
 /// - `InverseDuration`: Weights based on inverse DV01 approximation.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ResidualWeightingScheme {
     /// Equal weighting (1.0 for all quotes).
@@ -152,7 +154,8 @@ impl std::str::FromStr for ResidualWeightingScheme {
 /// ```
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct HazardCurveSolveConfig {
     /// Minimum allowed hazard rate (must be non-negative for survival monotonicity).
@@ -205,7 +208,8 @@ impl Default for HazardCurveSolveConfig {
 /// ```
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct InflationCurveSolveConfig {
     /// Weighting scheme for global solve residuals.
@@ -261,7 +265,8 @@ impl Default for InflationCurveSolveConfig {
 /// ```
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct VolSurfaceSolveConfig {
     /// Tolerance for determining calibration *success* (applied to vol residuals).
@@ -308,7 +313,8 @@ impl Default for VolSurfaceSolveConfig {
 /// ```
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct DiscountCurveSolveConfig {
     /// Number of points in the initial geometric scan grid.
@@ -397,7 +403,8 @@ impl Default for DiscountCurveSolveConfig {
 /// ```
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct ForwardCurveSolveConfig {
     /// Weighting scheme for global solve residuals.
@@ -428,9 +435,8 @@ impl Default for ForwardCurveSolveConfig {
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
 /// Selected side of the market snapshot.
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum MarketQuoteSide {
     /// Mid-market observations.
@@ -445,7 +451,8 @@ pub enum MarketQuoteSide {
 /// Audit metadata and freshness policy for calibration inputs.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct MarketFreshnessPolicy {
     /// RFC3339 timestamp at which the quote snapshot was captured.
@@ -571,7 +578,8 @@ fn market_freshness_is_default(policy: &MarketFreshnessPolicy) -> bool {
 /// - Curve interpolation context: `docs/REFERENCES.md#hagan-west-monotone-convex`
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct CalibrationConfig {
     /// Solver configuration including numerical method (e.g., Brent) and parameters (tolerance, iterations).
@@ -897,7 +905,8 @@ impl CalibrationConfig {
 /// *step-level* conventions (e.g., curve time-axis day count).
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct RatesStepConventions {
     /// Day count used to map dates to year fractions for curve knot times.

@@ -9,7 +9,8 @@ use finstack_quant_core::dates::Date;
 use serde::{Deserialize, Serialize};
 
 /// Primary structured credit deal classification
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
@@ -45,19 +46,8 @@ impl core::fmt::Display for DealType {
 }
 
 /// Tranche seniority levels
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
@@ -84,7 +74,8 @@ impl core::fmt::Display for TrancheSeniority {
 }
 
 /// Asset type classification for pool composition (flattened hierarchy)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type")]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
@@ -234,7 +225,8 @@ pub enum AssetType {
 }
 
 /// Payment distribution modes
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum PaymentMode {
@@ -246,7 +238,10 @@ pub enum PaymentMode {
         triggered_by: String,
         /// Trigger date.
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         trigger_date: Date,
     },
     /// Hybrid mode with custom rules
@@ -286,7 +281,8 @@ impl AssetType {
 }
 
 /// Consequences when triggers are breached
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]

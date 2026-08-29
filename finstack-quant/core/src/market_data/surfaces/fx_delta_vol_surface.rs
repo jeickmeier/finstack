@@ -50,9 +50,10 @@ use crate::{error::InputError, types::CurveId};
 /// assert_eq!(surface.num_expiries(), 3);
 /// assert!((surface.atm_vols()[0] - 0.08).abs() < 1e-12);
 /// ```
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "FxDeltaVolSurfaceWire")]
-#[schemars(try_from = "FxDeltaVolSurfaceWire")]
+#[cfg_attr(feature = "json-schema", schemars(try_from = "FxDeltaVolSurfaceWire"))]
 pub struct FxDeltaVolSurface {
     id: CurveId,
     /// Expiry times in years (strictly increasing, all positive).
@@ -74,7 +75,8 @@ pub struct FxDeltaVolSurface {
 /// Mirrors the serialized field layout exactly so the wire format is
 /// unchanged; conversion runs the same validation as the public
 /// constructors and rejects unknown fields.
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct FxDeltaVolSurfaceWire {
     /// Surface identifier.

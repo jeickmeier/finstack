@@ -62,9 +62,8 @@ fn default_fx_underlying(base_currency: Currency, quote_currency: Currency) -> F
 }
 
 /// Pair/venue FX delta quoting convention selected by the contract.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum FxDeltaConventionKind {
     /// Unadjusted spot delta.
@@ -105,9 +104,8 @@ impl std::str::FromStr for FxDeltaConventionKind {
     }
 }
 /// Explicit venue and premium-currency convention for FX delta reporting.
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FxDeltaConvention {
     /// Delta convention quoted by the venue.
@@ -156,8 +154,8 @@ impl FxDeltaConvention {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = FxOption::validate)]
 #[serde(deny_unknown_fields)]
 pub struct FxOption {
@@ -180,7 +178,10 @@ pub struct FxOption {
     pub delta_convention: FxDeltaConvention,
     /// Option expiry date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Day count convention
     #[serde(default = "crate::serde_defaults::day_count_act365f")]
@@ -223,9 +224,8 @@ pub struct FxOption {
 // Declare canonical market dependencies for the DV01 calculator.
 // FxOption uses both domestic and foreign curves for Garman-Kohlhagen pricing
 /// Delta conventions relevant for FX ATM DNS strikes.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum FxAtmDeltaConvention {
     /// Unadjusted spot delta convention.

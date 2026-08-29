@@ -3,9 +3,8 @@
 use super::MetricId;
 
 /// Describes whether a metric can be scaled and summed across instruments.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum MetricAggregation {
     /// The metric is linear in position quantity and currency-convertible.

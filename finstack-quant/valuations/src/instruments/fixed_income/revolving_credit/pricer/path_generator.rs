@@ -18,7 +18,6 @@
 use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
-use rayon::prelude::*;
 
 use crate::instruments::fixed_income::revolving_credit::pricer::monte_carlo_discretization::RevolvingCreditDiscretization;
 use crate::instruments::fixed_income::revolving_credit::pricer::monte_carlo_process::{
@@ -410,99 +409,109 @@ pub fn generate_three_factor_paths(
         let payment_indices_ref = &refined.payment_indices;
         let times_ref = time_grid.times();
 
-        let chunked: Vec<Vec<ThreeFactorPathData>> = (0..num_iterations)
-            .into_par_iter()
-            .map(|iter_idx| {
-                // Each iteration has its own RNG substream and its own
-                // per-thread scratch buffers. PhiloxRng is counter-based, so
-                // (seed, stream_id) uniquely seeds an independent substream.
-                let mut rng = PhiloxRng::with_stream(seed, iter_idx as u64);
-                let mut z = vec![0.0; num_factors];
-                let mut z_neg = if use_antithetic {
-                    vec![0.0; num_factors]
-                } else {
-                    Vec::new()
-                };
-                let mut work = vec![0.0; work_size];
+        let generate_iteration = |iter_idx: usize| {
+            // Each iteration has its own RNG substream and its own
+            // per-thread scratch buffers. PhiloxRng is counter-based, so
+            // (seed, stream_id) uniquely seeds an independent substream.
+            let mut rng = PhiloxRng::with_stream(seed, iter_idx as u64);
+            let mut z = vec![0.0; num_factors];
+            let mut z_neg = if use_antithetic {
+                vec![0.0; num_factors]
+            } else {
+                Vec::new()
+            };
+            let mut work = vec![0.0; work_size];
 
-                // Generate random variates for this iteration on the refined grid.
-                let mut z_sequences: Vec<Vec<f64>> = Vec::with_capacity(num_steps);
-                for _ in 0..num_steps {
-                    rng.fill_std_normals(&mut z);
-                    z_sequences.push(z.clone());
+            // Generate random variates for this iteration on the refined grid.
+            let mut z_sequences: Vec<Vec<f64>> = Vec::with_capacity(num_steps);
+            for _ in 0..num_steps {
+                rng.fill_std_normals(&mut z);
+                z_sequences.push(z.clone());
+            }
+
+            let mut local_paths = Vec::with_capacity(paths_per_iteration);
+            for sign_idx in 0..paths_per_iteration {
+                let mut state = initial_state.to_vec();
+                let mut utilization_path = Vec::with_capacity(num_payment_dates);
+                let mut short_rate_path = Vec::with_capacity(num_payment_dates);
+                let mut credit_spread_path = Vec::with_capacity(num_payment_dates);
+
+                if let Some((ref times, ref rates)) = rate_curve_opt {
+                    state[1] = interpolate_rate(rate_time_offset + times_ref[0], times, rates);
                 }
 
-                let mut local_paths = Vec::with_capacity(paths_per_iteration);
-                for sign_idx in 0..paths_per_iteration {
-                    let mut state = initial_state.to_vec();
-                    let mut utilization_path = Vec::with_capacity(num_payment_dates);
-                    let mut short_rate_path = Vec::with_capacity(num_payment_dates);
-                    let mut credit_spread_path = Vec::with_capacity(num_payment_dates);
+                // Record the t₀ state for every payment date at/before
+                // as_of (at least the first).
+                for _ in 0..num_initial {
+                    utilization_path.push(state[0].clamp(0.0, 1.0));
+                    short_rate_path.push(state[1]);
+                    credit_spread_path.push(state[2].max(0.0));
+                }
 
-                    if let Some((ref times, ref rates)) = rate_curve_opt {
-                        state[1] = interpolate_rate(rate_time_offset + times_ref[0], times, rates);
+                let mut next_payment_idx = 1;
+
+                for (i, z_seq) in z_sequences.iter().enumerate().take(num_steps) {
+                    let t_next = times_ref[i + 1];
+
+                    {
+                        let t = times_ref[i];
+                        let dt = t_next - t;
+
+                        // Zero utilization vol freezes ONLY the
+                        // utilization factor; rate/spread keep stepping.
+                        let u_frozen = state[0];
+                        if sign_idx == 0 {
+                            disc.step(&process, t, dt, &mut state, z_seq, &mut work);
+                        } else {
+                            for (j, val) in z_seq.iter().enumerate() {
+                                z_neg[j] = -val;
+                            }
+                            disc.step(&process, t, dt, &mut state, &z_neg, &mut work);
+                        }
+                        if is_zero_vol {
+                            state[0] = u_frozen;
+                        }
                     }
 
-                    // Record the t₀ state for every payment date at/before
-                    // as_of (at least the first).
-                    for _ in 0..num_initial {
+                    if let Some((ref times, ref rates)) = rate_curve_opt {
+                        state[1] = interpolate_rate(rate_time_offset + t_next, times, rates);
+                    }
+
+                    if next_payment_idx < payment_indices_ref.len()
+                        && i + 1 == payment_indices_ref[next_payment_idx]
+                        && utilization_path.len() < num_payment_dates
+                    {
                         utilization_path.push(state[0].clamp(0.0, 1.0));
                         short_rate_path.push(state[1]);
                         credit_spread_path.push(state[2].max(0.0));
+                        next_payment_idx += 1;
                     }
-
-                    let mut next_payment_idx = 1;
-
-                    for (i, z_seq) in z_sequences.iter().enumerate().take(num_steps) {
-                        let t_next = times_ref[i + 1];
-
-                        {
-                            let t = times_ref[i];
-                            let dt = t_next - t;
-
-                            // Zero utilization vol freezes ONLY the
-                            // utilization factor; rate/spread keep stepping.
-                            let u_frozen = state[0];
-                            if sign_idx == 0 {
-                                disc.step(&process, t, dt, &mut state, z_seq, &mut work);
-                            } else {
-                                for (j, val) in z_seq.iter().enumerate() {
-                                    z_neg[j] = -val;
-                                }
-                                disc.step(&process, t, dt, &mut state, &z_neg, &mut work);
-                            }
-                            if is_zero_vol {
-                                state[0] = u_frozen;
-                            }
-                        }
-
-                        if let Some((ref times, ref rates)) = rate_curve_opt {
-                            state[1] = interpolate_rate(rate_time_offset + t_next, times, rates);
-                        }
-
-                        if next_payment_idx < payment_indices_ref.len()
-                            && i + 1 == payment_indices_ref[next_payment_idx]
-                            && utilization_path.len() < num_payment_dates
-                        {
-                            utilization_path.push(state[0].clamp(0.0, 1.0));
-                            short_rate_path.push(state[1]);
-                            credit_spread_path.push(state[2].max(0.0));
-                            next_payment_idx += 1;
-                        }
-                    }
-
-                    local_paths.push(ThreeFactorPathData {
-                        utilization_path,
-                        short_rate_path,
-                        credit_spread_path,
-                        time_points: raw_time_points_ref.clone(),
-                        payment_dates: payment_dates_ref.to_vec(),
-                        stochastic_rates,
-                    });
                 }
-                local_paths
-            })
-            .collect();
+
+                local_paths.push(ThreeFactorPathData {
+                    utilization_path,
+                    short_rate_path,
+                    credit_spread_path,
+                    time_points: raw_time_points_ref.clone(),
+                    payment_dates: payment_dates_ref.to_vec(),
+                    stochastic_rates,
+                });
+            }
+            local_paths
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let chunked: Vec<Vec<ThreeFactorPathData>> = {
+            use rayon::prelude::*;
+            (0..num_iterations)
+                .into_par_iter()
+                .map(generate_iteration)
+                .collect()
+        };
+
+        #[cfg(target_arch = "wasm32")]
+        let chunked: Vec<Vec<ThreeFactorPathData>> =
+            (0..num_iterations).map(generate_iteration).collect();
 
         // Flatten — iteration order is preserved by `collect()` so paths are
         // in the same order as the original serial loop (modulo the antithetic

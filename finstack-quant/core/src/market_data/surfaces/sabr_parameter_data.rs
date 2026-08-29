@@ -5,9 +5,8 @@
 /// This type records calibrated market data. SABR evaluation, interpolation,
 /// calibration, and convention conversion are owned by
 /// `finstack-quant-models`.
-#[derive(
-    Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "RawSabrParameterData")]
 pub struct SabrParameterData {
     /// Initial volatility level, strictly positive.
@@ -23,7 +22,8 @@ pub struct SabrParameterData {
     pub shift: Option<f64>,
 }
 
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct RawSabrParameterData {
     alpha: f64,

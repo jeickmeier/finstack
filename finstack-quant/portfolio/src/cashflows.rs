@@ -326,6 +326,7 @@ fn json_money_amount(value: &serde_json::Value) -> Option<f64> {
 /// Rayon's fan-out overhead exceeds the per-position scheduling cost for
 /// small books. Mirrors `VALUE_PORTFOLIO_PARALLEL_MIN_POSITIONS` in
 /// `valuation.rs` so the crate uses one consistent parallel cutover.
+#[cfg(not(target_arch = "wasm32"))]
 const AGGREGATE_CASHFLOWS_PARALLEL_MIN_POSITIONS: usize = 64;
 
 /// Aggregate contractual portfolio cashflows while preserving `CFKind` classification.
@@ -372,7 +373,6 @@ pub fn aggregate_full_cashflows(
         scaled_flows: Vec<(finstack_quant_core::cashflow::CashFlow, Money)>,
     }
 
-    use rayon::prelude::*;
     let schedule_position = |position: &crate::position::Position| -> PositionCashflowResult {
         let instrument_id = position.instrument.id().to_string();
         let instrument_type = position.instrument.key();
@@ -405,8 +405,10 @@ pub fn aggregate_full_cashflows(
         }
     };
 
+    #[cfg(not(target_arch = "wasm32"))]
     let per_position: Vec<PositionCashflowResult> =
         if portfolio.positions.len() >= AGGREGATE_CASHFLOWS_PARALLEL_MIN_POSITIONS {
+            use rayon::prelude::*;
             portfolio
                 .positions
                 .par_iter()
@@ -415,6 +417,10 @@ pub fn aggregate_full_cashflows(
         } else {
             portfolio.positions.iter().map(schedule_position).collect()
         };
+
+    #[cfg(target_arch = "wasm32")]
+    let per_position: Vec<PositionCashflowResult> =
+        portfolio.positions.iter().map(schedule_position).collect();
 
     // Phase B (serial): merge per-position results into the aggregated
     // structures. Serial keeps `events` / `by_position` / `by_date` ordering

@@ -15,7 +15,8 @@ use indexmap::IndexMap;
 ///
 /// These details are for rich structured outputs that do not fit the scalar
 /// `measures` map while still belonging in the standard valuation envelope.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum ValuationDetails {
     /// Recursive leg valuation and primitive exposure detail for a composite.
@@ -38,7 +39,8 @@ pub enum ValuationDetails {
 }
 
 /// Metadata for CDS-family valuation paths.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CreditDerivativeValuationDetails {
     /// Registered model key used by the pricer.
     pub model_key: ModelKey,
@@ -55,7 +57,8 @@ pub struct CreditDerivativeValuationDetails {
 /// `.claude/rules/project-description.md` ("FX policy visibility: Applied
 /// conversion strategy recorded per layer (e.g., valuations, statements,
 /// portfolio)").
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct FxValuationDetails {
     /// `true` when the FX spot was obtained via triangulation through the
     /// [`FxMatrix`](finstack_quant_core::money::fx::FxMatrix) pivot currency
@@ -67,7 +70,8 @@ pub struct FxValuationDetails {
 }
 
 /// Reproducibility and convergence diagnostics for a Monte Carlo valuation.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct MonteCarloValuationDetails {
     /// Registered model used for the simulation.
     pub model_key: ModelKey,
@@ -215,7 +219,8 @@ pub struct MonteCarloValuationDetails {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ValuationResult {
     /// Required wire-format schema version. Only numeric `1` is accepted.
@@ -226,7 +231,10 @@ pub struct ValuationResult {
 
     /// Valuation date (T+0) for the calculation.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub as_of: Date,
 
     /// Present value in the instrument's native currency.

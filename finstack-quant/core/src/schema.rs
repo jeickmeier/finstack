@@ -1,5 +1,6 @@
 //! Deterministic JSON Schema assembly helpers.
 
+#[cfg(feature = "json-schema")]
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -2136,32 +2137,37 @@ mod tests {
     use serde_json::json;
 
     #[allow(dead_code)]
-    #[derive(serde::Serialize, serde::Deserialize, JsonSchema)]
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
     #[serde(transparent)]
-    #[schemars(transparent)]
+    #[cfg_attr(feature = "json-schema", schemars(transparent))]
     struct ExternalText(String);
 
     #[allow(dead_code)]
-    #[derive(serde::Serialize, serde::Deserialize, JsonSchema)]
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
     struct SuffixProbe {
         value: String,
     }
 
     #[allow(dead_code)]
-    #[derive(serde::Serialize, serde::Deserialize, JsonSchema)]
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
     struct RecursiveProbe {
         value: String,
         child: Option<Box<RecursiveProbe>>,
     }
 
     #[allow(dead_code)]
-    #[derive(serde::Serialize, serde::Deserialize, JsonSchema)]
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
     struct RecursiveEnvelope {
         probe: RecursiveProbe,
     }
 
     #[allow(dead_code)]
-    #[derive(serde::Serialize, serde::Deserialize, JsonSchema)]
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
     struct RecursiveContainer {
         envelope: RecursiveEnvelope,
     }
@@ -2333,7 +2339,8 @@ mod tests {
     #[test]
     fn generated_schema_preserves_derived_assertions() {
         #[allow(dead_code)]
-        #[derive(serde::Serialize, serde::Deserialize, JsonSchema)]
+        #[derive(serde::Serialize, serde::Deserialize)]
+        #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
         struct DerivedProbe {
             value: String,
         }

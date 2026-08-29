@@ -1,7 +1,7 @@
 //! Versioned serde contract and generated JSON Schema for margin payloads.
 
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "json-schema")]
 use serde_json::Value;
 
 use crate::{CsaSpec, MarginCall, OtcMarginSpec};
@@ -18,7 +18,8 @@ pub const MARGIN_SCHEMA_DESCRIPTION: &str = "OTC derivative margin specification
 pub const MARGIN_SCHEMA: &str = "finstack_quant.margin/1";
 
 /// Typed value of the required margin schema marker.
-#[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub enum MarginSchema {
     /// The sole pre-release margin contract.
     #[serde(rename = "finstack_quant.margin/1")]
@@ -31,7 +32,8 @@ impl MarginSchema {
 }
 
 /// Strict root envelope for every supported margin payload.
-#[derive(Clone, Debug, JsonSchema, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields, untagged)]
 pub enum MarginEnvelope {
     /// An OTC margin specification.
@@ -122,6 +124,7 @@ impl MarginEnvelope {
 /// The `csa_spec` branch is the one a caller authors most often; the VM
 /// parameters, eligible-collateral schedule and call timing come from their
 /// documented defaults rather than invented numbers.
+#[cfg(feature = "json-schema")]
 fn margin_examples() -> finstack_quant_core::Result<Vec<Value>> {
     let csa = crate::types::CsaSpec {
         id: "CSA-ACME-2024".to_string(),
@@ -145,6 +148,7 @@ fn margin_examples() -> finstack_quant_core::Result<Vec<Value>> {
 /// This lives in the library, not the generator binary, so the generator, the
 /// contract tests and the bindings all render from one definition. Rendering
 /// goes through [`finstack_quant_core::schema::SchemaArtifact::generate`].
+#[cfg(feature = "json-schema")]
 pub const ARTIFACTS: &[finstack_quant_core::schema::SchemaArtifact] = &[
     finstack_quant_core::schema::SchemaArtifact::new::<MarginEnvelope>(
         "schemas/margin/1/margin.schema.json",
@@ -165,6 +169,7 @@ pub const ARTIFACTS: &[finstack_quant_core::schema::SchemaArtifact] = &[
 ///
 /// Returns [`finstack_quant_core::Error::Internal`] if schemars output cannot
 /// be represented as a JSON object.
+#[cfg(feature = "json-schema")]
 pub fn generated_margin_schema() -> finstack_quant_core::Result<Value> {
     ARTIFACTS[0].generate()
 }

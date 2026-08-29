@@ -13,17 +13,8 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, DealId, InstrumentId};
 
 /// CMO tranche type enumeration.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CmoTrancheType {
     /// Sequential pay - receives principal in order
@@ -56,7 +47,8 @@ impl std::fmt::Display for CmoTrancheType {
 }
 
 /// PAC collar boundaries.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PacCollar {
     /// Lower PSA bound
@@ -81,7 +73,8 @@ impl PacCollar {
 }
 
 /// CMO tranche definition.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CmoTranche {
     /// Tranche identifier (e.g., "A", "B", "IO")
@@ -221,7 +214,8 @@ impl CmoTranche {
 }
 
 /// CMO waterfall configuration.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CmoWaterfall {
     /// Tranches in the deal (ordered by priority for sequential)
@@ -278,8 +272,8 @@ impl CmoWaterfall {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 #[builder(validate = AgencyCmo::validate)]
 pub struct AgencyCmo {
@@ -291,7 +285,10 @@ pub struct AgencyCmo {
     pub agency: AgencyProgram,
     /// Issue date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub issue_date: Date,
     /// Waterfall configuration with tranches
     pub waterfall: CmoWaterfall,

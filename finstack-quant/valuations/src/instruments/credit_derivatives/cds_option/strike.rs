@@ -56,22 +56,27 @@ use rust_decimal::Decimal;
 /// assert_eq!(price.native_surface_coordinate().unwrap(), 107.0);
 /// assert!((price.clean_price_fraction().unwrap() - 1.07).abs() < 1e-15);
 /// ```
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CDSOptionStrike {
     /// Strike forward spread as a decimal annual rate (`0.0325` = 325 bp).
     Spread(
         #[serde(with = "finstack_quant_core::wire::decimal")]
-        #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DecimalWire")
+        )]
         Decimal,
     ),
     /// Strike clean price in percentage-price points (`107.0` = fraction
     /// `1.07`). CDX HY index options are quoted this way.
     CleanPricePct(
         #[serde(with = "finstack_quant_core::wire::decimal")]
-        #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DecimalWire")
+        )]
         Decimal,
     ),
 }

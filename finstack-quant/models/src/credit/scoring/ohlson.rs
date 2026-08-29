@@ -43,7 +43,8 @@ pub const OHLSON_GREY_PD: f64 = OHLSON_OPTIMAL_CUTOFF_PD / 2.0;
 ///
 /// Ohlson, J. A. (1980). "Financial Ratios and the Probabilistic Prediction
 /// of Bankruptcy." *Journal of Accounting Research*, 18(1), 109-131. `docs/REFERENCES.md#ohlson-1980`
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct OhlsonOScoreInput {
     /// Ohlson's SIZE variable: `ln(Total Assets / GNP price-level index)`.
     ///

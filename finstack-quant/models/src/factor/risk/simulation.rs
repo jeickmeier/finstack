@@ -339,13 +339,8 @@ impl SimulationDecomposer {
         let mut factor_pnls = vec![0.0; n * n_factors];
         let mut factor_shocks = vec![0.0; n * n_factors];
 
-        use rayon::prelude::*;
-        portfolio_pnls
-            .par_iter_mut()
-            .zip(factor_pnls.par_chunks_mut(n_factors))
-            .zip(factor_shocks.par_chunks_mut(n_factors))
-            .enumerate()
-            .for_each(|(s, ((p_pnl, f_pnls), f_shocks))| {
+        let fill_scenario =
+            |s: usize, p_pnl: &mut f64, f_pnls: &mut [f64], f_shocks: &mut [f64]| {
                 let z = &normals[s * n_factors..(s + 1) * n_factors];
                 let mut total = 0.0;
                 for i in 0..n_factors {
@@ -362,7 +357,35 @@ impl SimulationDecomposer {
                     total += pnl_i;
                 }
                 *p_pnl = total;
-            });
+            };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use rayon::prelude::*;
+            portfolio_pnls
+                .par_iter_mut()
+                .zip(factor_pnls.par_chunks_mut(n_factors))
+                .zip(factor_shocks.par_chunks_mut(n_factors))
+                .enumerate()
+                .for_each(|(s, ((p_pnl, f_pnls), f_shocks))| {
+                    fill_scenario(s, p_pnl, f_pnls, f_shocks);
+                });
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            for (s, (p_pnl, (f_pnls, f_shocks))) in portfolio_pnls
+                .iter_mut()
+                .zip(
+                    factor_pnls
+                        .chunks_mut(n_factors)
+                        .zip(factor_shocks.chunks_mut(n_factors)),
+                )
+                .enumerate()
+            {
+                fill_scenario(s, p_pnl, f_pnls, f_shocks);
+            }
+        }
 
         ScenarioSet {
             portfolio_pnls,

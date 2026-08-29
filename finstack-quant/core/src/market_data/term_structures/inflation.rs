@@ -123,7 +123,8 @@ pub(crate) const DEFAULT_INDEXATION_LAG_MONTHS: u32 = 3;
 /// - Inflation swap valuation (zero-coupon and year-on-year)
 /// - Real rate curve construction (nominal - breakeven = real)
 /// - Pension liability modeling with inflation indexation
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "RawInflationCurve", into = "RawInflationCurve")]
 pub struct InflationCurve {
     id: CurveId,
@@ -142,7 +143,8 @@ pub struct InflationCurve {
 }
 
 /// Raw serializable state of an InflationCurve
-#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct RawInflationCurve {
     /// Curve identifier
@@ -151,7 +153,7 @@ struct RawInflationCurve {
     pub base_cpi: f64,
     /// Base date
     #[serde(with = "crate::wire::date")]
-    #[schemars(with = "crate::wire::DateWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
     pub base_date: Date,
     /// Day count convention
     #[serde(default = "default_day_count")]

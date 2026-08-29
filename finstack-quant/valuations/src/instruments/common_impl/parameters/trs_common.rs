@@ -21,9 +21,8 @@ use finstack_quant_core::dates::{Date, DateExt, Schedule};
 /// let side = TrsSide::PayTotalReturn;
 /// assert_eq!(side.sign(), -1.0);
 /// ```
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum TrsSide {
     /// Receive total return, pay financing.
@@ -94,16 +93,23 @@ impl TrsSide {
 ///     },
 /// );
 /// ```
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct TrsScheduleSpec {
     /// Start date for the TRS leg.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub start: Date,
     /// End date for the TRS leg.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub end: Date,
     /// Schedule parameters (frequency, day count, business_day_convention, calendar, stub).
     pub params: ScheduleParams,

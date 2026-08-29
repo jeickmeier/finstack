@@ -42,8 +42,8 @@ fn default_gobet_miri() -> bool {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BarrierOption {
     /// Unique instrument identifier
@@ -75,7 +75,10 @@ pub struct BarrierOption {
     pub barrier_type: BarrierType,
     /// Option expiry date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Terminal underlying fixing observed at expiry.
     ///

@@ -1,7 +1,6 @@
 //! Core types for the financial statement checks framework.
 
 use finstack_quant_core::dates::PeriodId;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::types::NodeId;
@@ -95,23 +94,13 @@ impl SignConventionPolicy {
 
 /// Severity level for a check finding, ordered from least to most severe.
 #[derive(
-    Debug,
-    Default,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 // Distinct from `finstack_quant_core::contract::Severity`, which has no `info`
 // level and is published as `common/1/diagnostic.schema.json`.
-#[schemars(rename = "CheckSeverity")]
+#[cfg_attr(feature = "json-schema", schemars(rename = "CheckSeverity"))]
 pub enum Severity {
     /// Informational finding — no action required.
     #[default]
@@ -123,7 +112,8 @@ pub enum Severity {
 }
 
 /// Category that groups related checks together.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CheckCategory {
     /// Balance sheet balances, retained earnings flow-through, cash ties
@@ -152,7 +142,8 @@ pub enum PeriodScope {
 
 /// Materiality context attached to a finding, describing its quantitative
 /// significance.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct Materiality {
     /// Absolute amount of the discrepancy.
     pub absolute: f64,
@@ -165,7 +156,8 @@ pub struct Materiality {
 }
 
 /// A single finding produced by a check for a specific period or node.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CheckFinding {
     /// Identifier of the check that produced this finding.
     pub check_id: String,
@@ -175,7 +167,7 @@ pub struct CheckFinding {
     pub message: String,
     /// Period the finding relates to, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "Option<String>"))]
     pub period: Option<PeriodId>,
     /// Materiality context, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -186,7 +178,8 @@ pub struct CheckFinding {
 }
 
 /// Outcome of a single check execution.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CheckResult {
     /// Identifier of the check.
     pub check_id: String,
@@ -296,7 +289,8 @@ pub(crate) fn effective_tolerance(
 }
 
 /// Aggregate counts for a completed check run.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CheckSummary {
     /// Total number of checks executed.
     pub total_checks: usize,
@@ -313,7 +307,8 @@ pub struct CheckSummary {
 }
 
 /// Full report aggregating all [`CheckResult`]s from a check run.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CheckReport {
     /// Individual results for each check.
     pub results: Vec<CheckResult>,

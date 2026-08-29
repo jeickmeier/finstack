@@ -16,8 +16,8 @@ use time::macros::date;
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = CliquetOption::validate)]
 #[serde(deny_unknown_fields, try_from = "CliquetOptionUnchecked")]
 pub struct CliquetOption {
@@ -27,11 +27,17 @@ pub struct CliquetOption {
     pub underlying_ticker: String,
     /// Reset dates for periodic return locking
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub reset_dates: Vec<Date>,
     /// Explicit terminal expiry date for the structure.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Local cap on individual period returns
     pub local_cap: f64,
@@ -82,7 +88,10 @@ pub struct CliquetOption {
     #[builder(default)]
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     pub past_fixings: Vec<(Date, f64)>,
     /// Pricing overrides (manual price, yield, spread)
     #[builder(default)]
@@ -114,17 +123,8 @@ pub struct CliquetOption {
 }
 
 /// Cliquet payoff aggregation type.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CliquetPayoffType {
     /// Additive: Sum of period returns
@@ -136,7 +136,8 @@ pub enum CliquetPayoffType {
 
 /// Mirror of `CliquetOption` used by serde to apply `validate()` after
 /// deserialization. Not part of the public API.
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct CliquetOptionUnchecked {
     /// Unique instrument identifier
@@ -145,11 +146,17 @@ struct CliquetOptionUnchecked {
     underlying_ticker: String,
     /// Reset dates for periodic return locking
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     reset_dates: Vec<Date>,
     /// Explicit terminal expiry date for the structure.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     expiry: Date,
     /// Local cap on individual period returns
     local_cap: f64,
@@ -196,7 +203,10 @@ struct CliquetOptionUnchecked {
     /// cap/floor applied) and only the remaining future periods are simulated.
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     past_fixings: Vec<(Date, f64)>,
     /// Pricing overrides (manual price, yield, spread)
     #[serde(default)]

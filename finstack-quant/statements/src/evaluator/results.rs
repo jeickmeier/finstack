@@ -6,7 +6,6 @@ use finstack_quant_core::dates::{Date, PeriodId};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::wire::SchemaVersion;
 use indexmap::IndexMap;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
@@ -45,19 +44,26 @@ use crate::types::FinancialModelSpec;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct StatementResult {
     /// Required wire-format schema version. Only numeric `1` is accepted.
     pub schema_version: SchemaVersion,
 
     /// Map of node_id → (period_id → value) [f64 for scalar results]
-    #[schemars(with = "IndexMap<String, IndexMap<String, f64>>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "IndexMap<String, IndexMap<String, f64>>")
+    )]
     pub nodes: IndexMap<String, IndexMap<PeriodId, f64>>,
 
     /// Map of node_id → (period_id → Money) for monetary nodes
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
-    #[schemars(with = "IndexMap<String, IndexMap<String, Money>>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "IndexMap<String, IndexMap<String, Money>>")
+    )]
     pub monetary_nodes: IndexMap<String, IndexMap<PeriodId, Money>>,
 
     /// Track value types for each node
@@ -81,9 +87,10 @@ pub struct StatementResult {
 /// Distinct from [`finstack_quant_core::config::ResultsMeta`], which is the
 /// workspace-wide *audit* stamp (numeric mode, rounding context, FX policy).
 /// This type records how the evaluation *ran* — timing, graph size, warnings.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
-#[schemars(rename = "StatementEvalStats")]
+#[cfg_attr(feature = "json-schema", schemars(rename = "StatementEvalStats"))]
 pub struct EvalStats {
     /// Evaluation time in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -122,11 +129,12 @@ impl Default for EvalStats {
 }
 
 /// Numeric mode used for evaluation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 // Distinct from `finstack_quant_core::config::NumericMode`, which carries a
 // different value set.
-#[schemars(rename = "StatementNumericMode")]
+#[cfg_attr(feature = "json-schema", schemars(rename = "StatementNumericMode"))]
 pub enum NumericMode {
     /// f64 floating-point mode (current default)
     #[default]
@@ -369,7 +377,8 @@ fn monetary_map_skipping_nonfinite(
 }
 
 /// Cash claim category affected by a capital-structure warning.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CapitalStructureClaimCategory {
     /// Fee claims such as commitment or facility fees.
@@ -388,7 +397,8 @@ impl std::fmt::Display for CapitalStructureClaimCategory {
 }
 
 /// Typed reason for a capital-structure evaluation warning.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CapitalStructureWarning {
     /// A schedule-to-model balance ratio exceeded the safety bound and was clamped.
@@ -404,7 +414,10 @@ pub enum CapitalStructureWarning {
         cashflow_kind: CFKind,
         /// Original contractual payment date.
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         cashflow_date: Date,
     },
     /// A negative creditor claim was neutralized instead of reducing other claims.
@@ -447,7 +460,8 @@ pub enum CapitalStructureWarning {
 }
 
 /// Warning emitted during evaluation.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum EvalWarning {
     /// Division by zero encountered
@@ -455,7 +469,7 @@ pub enum EvalWarning {
         /// Identifier of the node that triggered the warning.
         node_id: String,
         /// Period in which the warning occurred.
-        #[schemars(with = "String")]
+        #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
         period: PeriodId,
     },
     /// NaN value bubbled up to a node result
@@ -464,7 +478,7 @@ pub enum EvalWarning {
         /// Identifier of the node that produced the NaN value.
         node_id: String,
         /// Period in which the warning occurred.
-        #[schemars(with = "String")]
+        #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
         period: PeriodId,
     },
     /// Non-finite value (NaN, Inf, -Inf) detected when storing a node result.
@@ -475,7 +489,7 @@ pub enum EvalWarning {
         /// Identifier of the node that produced the non-finite value.
         node_id: String,
         /// Period in which the warning occurred.
-        #[schemars(with = "String")]
+        #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
         period: PeriodId,
         /// The actual non-finite value (NaN, Inf, or -Inf).
         value: f64,
@@ -483,7 +497,7 @@ pub enum EvalWarning {
     /// Capital-structure extraction or waterfall processing required a guarded fallback.
     CapitalStructure {
         /// Period in which the warning was raised.
-        #[schemars(with = "String")]
+        #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
         period: PeriodId,
         /// Typed reason and associated diagnostic values.
         warning: CapitalStructureWarning,
@@ -498,7 +512,7 @@ pub enum EvalWarning {
         /// Identifier of the node whose aggregate dropped inputs.
         node_id: String,
         /// Period in which the drop occurred.
-        #[schemars(with = "String")]
+        #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
         period: PeriodId,
         /// Name of the aggregate function that dropped values.
         function: String,

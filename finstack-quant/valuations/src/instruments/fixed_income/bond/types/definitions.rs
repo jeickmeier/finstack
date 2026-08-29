@@ -13,7 +13,8 @@ fn is_linear_accrual_method(method: &crate::cashflow::accrual::AccrualMethod) ->
 }
 
 /// Bond settlement and ex-coupon conventions.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct BondSettlementConvention {
     /// Number of settlement days after trade date (e.g., 2 for T+2).
     #[serde(default)]
@@ -42,14 +43,9 @@ pub struct BondSettlementConvention {
 /// [`crate::instruments::Instrument::value`] is the **dirty NPV at `as_of`**,
 /// not the market dirty quote at settlement. Quoted YTM, z-spread, and DM
 /// remain settlement-anchored.
-#[derive(
-    Clone,
-    Debug,
-    finstack_quant_valuations_macros::FinancialBuilder,
-    serde::Serialize,
-    schemars::JsonSchema,
-)]
-#[schemars(deny_unknown_fields)]
+#[derive(Clone, Debug, finstack_quant_valuations_macros::FinancialBuilder, serde::Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "json-schema", schemars(deny_unknown_fields))]
 pub struct Bond {
     /// Unique identifier for the bond.
     pub id: InstrumentId,
@@ -57,11 +53,17 @@ pub struct Bond {
     pub notional: Money,
     /// Issue date of the bond.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub issue_date: Date,
     /// Maturity date of the bond.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
     /// Cashflow specification (fixed, floating, or amortizing).
     pub cashflow_spec: CashflowSpec,
@@ -122,7 +124,7 @@ pub struct Bond {
     /// For inflation-linked bonds (TIPS, UK Linkers), use the dedicated
     /// `InflationLinkedBond` instrument which handles index-ratio accrual.
     #[serde(default, skip_serializing_if = "is_linear_accrual_method")]
-    #[schemars(extend("default" = "linear"))]
+    #[cfg_attr(feature = "json-schema", schemars(extend("default" = "linear")))]
     #[builder(default)]
     pub accrual_method: crate::cashflow::accrual::AccrualMethod,
     /// Attributes for scenario selection and tagging.
@@ -244,18 +246,25 @@ impl<'de> serde::Deserialize<'de> for Bond {
 ///     make_whole: None,
 /// };
 /// ```
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CallPut {
     /// First date when the option can be exercised.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub start_date: Date,
     /// Last date when the option can be exercised, inclusive.
     ///
     /// Use the same value as `start_date` for one-day/discrete exercise.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub end_date: Date,
     /// Redemption price as percentage of par amount.
     pub price_pct_of_par: f64,
@@ -281,7 +290,8 @@ pub struct CallPut {
 /// - Investment-grade corporates: typically Treasury + 25-50 bp
 /// - High-yield: typically Treasury + 50-100 bp
 /// - Convertibles: typically Treasury + 50 bp
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MakeWholeSpec {
     /// Reference curve identifier (e.g., "USD-TREASURY").
@@ -310,7 +320,8 @@ pub struct MakeWholeSpec {
 ///     make_whole: None,
 /// });
 /// ```
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CallPutSchedule {
     /// Call options (issuer can redeem early).

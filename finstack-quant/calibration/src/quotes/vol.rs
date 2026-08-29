@@ -67,7 +67,8 @@ use ts_rs::TS;
 #[cfg_attr(feature = "ts_export", ts(rename_all = "snake_case"))]
 // The externally tagged shape makes each quote payload's concrete kind
 // explicit while keeping every nested field fully typed.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[allow(clippy::large_enum_variant)]
 pub enum VolQuote {
@@ -82,7 +83,10 @@ pub enum VolQuote {
         /// Option expiry
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         expiry: Date,
         /// Strike
         strike: f64,
@@ -102,12 +106,18 @@ pub enum VolQuote {
         /// Option expiry
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         expiry: Date,
         /// Underlying swap maturity date
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         maturity: Date,
         /// Strike rate
         strike: f64,
@@ -129,7 +139,10 @@ pub enum VolQuote {
         /// Cap/floor maturity or caplet expiry.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         expiry: Date,
         /// Strike rate.
         strike: f64,

@@ -11,9 +11,8 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 
 /// Payout type for digital (binary) options.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum DigitalPayoutType {
@@ -75,8 +74,8 @@ impl std::str::FromStr for DigitalPayoutType {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = FxDigitalOption::validate)]
 #[serde(deny_unknown_fields)]
 pub struct FxDigitalOption {
@@ -97,7 +96,10 @@ pub struct FxDigitalOption {
     pub payout_amount: Money,
     /// Option expiry date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Day count convention
     pub day_count: DayCount,

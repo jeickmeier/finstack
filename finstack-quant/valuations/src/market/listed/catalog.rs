@@ -8,9 +8,8 @@
 use crate::pricer::InstrumentType;
 
 /// Supported exchange catalog.
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ListedExchange {
     /// CME Group exchanges (CME, CBOT, NYMEX, COMEX).
@@ -51,9 +50,8 @@ impl std::str::FromStr for ListedExchange {
 }
 
 /// High-level listed product form.
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ListedProductKind {
     /// Exchange future.
@@ -65,9 +63,8 @@ pub enum ListedProductKind {
 }
 
 /// Readiness of the mapped valuation route.
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ListedCoverageStatus {
     /// Direct canonical instrument with complete core pricing and first-order risk.
@@ -79,7 +76,8 @@ pub enum ListedCoverageStatus {
 }
 
 /// One liquid exchange product family and its valuation route.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ListedProductCoverage {
     /// Exchange venue.

@@ -15,7 +15,8 @@ use super::enums::{TrancheSeniority, TriggerConsequence};
 use finstack_quant_core::types::CreditRating;
 
 /// Tranche behavioral type used by the structured-credit waterfall.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
@@ -29,7 +30,8 @@ fn default_behavior_type() -> TrancheBehaviorType {
 }
 
 /// Coverage-test trigger specification for a tranche or deal.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CoverageTrigger {
     /// Breach threshold, expressed as a coverage ratio (1.20 means 120%).
@@ -38,7 +40,10 @@ pub struct CoverageTrigger {
     pub cure_level: Option<f64>,
     /// Date on which the breach was recorded, if one has occurred.
     #[serde(default, with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub breach_date: Option<Date>,
     /// Consequence applied while the trigger is breached.
     pub consequence: TriggerConsequence,
@@ -79,7 +84,8 @@ impl CoverageTrigger {
 }
 
 /// Credit-enhancement amounts and flags available to a tranche.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CreditEnhancement {
     /// Principal subordination supplied by junior tranches.
@@ -109,7 +115,8 @@ impl Default for CreditEnhancement {
 /// Tranche coupon specification
 ///
 /// Supports fixed and floating rate coupons used in standard structured credit instruments.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[allow(clippy::large_enum_variant)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -226,7 +233,8 @@ impl TrancheCoupon {
 }
 
 /// Structured credit tranche with attachment/detachment points
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Tranche {
     /// Unique tranche identifier
@@ -287,11 +295,17 @@ pub struct Tranche {
     pub can_reinvest: bool,
     /// Legal final maturity date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
     /// Expected maturity date (may be earlier than legal maturity for CLOs)
     #[serde(default, with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub expected_maturity: Option<Date>,
 
     /// Payment priority (1 = most senior, paid first).
@@ -629,8 +643,9 @@ impl Default for TrancheBuilder {
 }
 
 /// Collection of tranches forming the capital structure
-#[derive(Debug, Clone, Serialize, schemars::JsonSchema)]
-#[schemars(deny_unknown_fields)]
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "json-schema", schemars(deny_unknown_fields))]
 pub struct TrancheStructure {
     /// Ordered tranches (typically sorted by payment priority)
     pub tranches: Vec<Tranche>,

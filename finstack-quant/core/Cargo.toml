@@ -22,23 +22,11 @@ time = { workspace = true, features = ["macros", "formatting", "parsing", "serde
 smallvec = { version = "1.15", default-features = false }
 phf = { version = "0.13", features = ["macros"], default-features = false }
 rustc-hash = { workspace = true }
-parking_lot = "0.12"
-lru = "0.18"
 indexmap = { workspace = true, features = ["serde"] }
 rust_decimal = { workspace = true }
-# `schemars` is a build-time/runtime dependency for JSON-Schema derivation.
-# It is consumed downstream by `finstack-quant-valuations` (see
-# `finstack-quant/valuations/tests/schema_audit.rs` and `valuations/schemas/`),
-# which means feature-gating `JsonSchema` derives in this crate would
-# cascade into the binding crates and the schema-parity test harness.
-# Until a binary-size or compile-time bench shows the cost is material,
-# `schemars` stays an unconditional dependency. Re-evaluate when the
-# workspace adopts a `wasm-only` build profile that drops the JSON-schema
-# story (binding consumers don't need it at runtime, only at build time
-# for `valuations/schemas/` regeneration).
-schemars = { workspace = true }
+schemars = { workspace = true, optional = true }
 statrs = { version = "0.18", default-features = false }
-nalgebra = { version = "0.34", default-features = false, features = ["std", "serde-serialize"] }
+nalgebra = { version = "0.34", default-features = false, features = ["std"] }
 num-complex = "0.4"
 # Production-grade random number generation
 rand = { version = "0.9.3", default-features = false, features = ["std"] }
@@ -50,8 +38,14 @@ ts-rs = { version = "12", optional = true, features = ["serde-compat", "no-serde
 time = { workspace = true, features = ["wasm-bindgen"] }
 
 [features]
-default = []
+default = ["json-schema"]
+json-schema = ["dep:schemars"]
 ts_export = ["dep:ts-rs"]
+
+[[bin]]
+name = "gen_core_schemas"
+path = "src/bin/gen_core_schemas.rs"
+required-features = ["json-schema"]
 
 [build-dependencies]
 serde = { workspace = true, features = ["alloc"] }

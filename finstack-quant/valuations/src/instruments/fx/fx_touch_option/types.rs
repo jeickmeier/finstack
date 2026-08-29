@@ -9,9 +9,8 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 
 /// Touch type: one-touch (pays if barrier is hit) or no-touch (pays if not hit).
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum TouchType {
@@ -46,9 +45,8 @@ impl std::str::FromStr for TouchType {
 }
 
 /// Barrier direction for touch options.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum BarrierDirection {
@@ -83,9 +81,8 @@ impl std::str::FromStr for BarrierDirection {
 }
 
 /// Payout timing for touch options.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum PayoutTiming {
@@ -156,8 +153,8 @@ impl std::str::FromStr for PayoutTiming {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = FxTouchOption::validate)]
 #[serde(deny_unknown_fields)]
 pub struct FxTouchOption {
@@ -179,14 +176,20 @@ pub struct FxTouchOption {
     pub payout_timing: PayoutTiming,
     /// Option expiry date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// First date on which barrier monitoring is active. When set, a live
     /// valuation after this date requires `observed_touch`.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub monitoring_start_date: Option<Date>,
     /// Day count convention
     pub day_count: DayCount,

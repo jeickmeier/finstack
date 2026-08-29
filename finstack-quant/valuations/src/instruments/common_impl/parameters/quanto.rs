@@ -4,7 +4,8 @@ use finstack_quant_core::types::CurveId;
 
 /// Quanto adjustment parameters for instruments where payoff currency differs from
 /// underlying currency.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct QuantoSpec {
     /// Correlation between the underlying asset and the FX rate.
@@ -13,7 +14,10 @@ pub struct QuantoSpec {
         serialize_with = "finstack_quant_core::wire::serialize_correlation",
         deserialize_with = "finstack_quant_core::wire::deserialize_correlation"
     )]
-    #[schemars(with = "finstack_quant_core::wire::CorrelationWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::CorrelationWire")
+    )]
     pub correlation: f64,
     /// FX volatility surface ID (required for quanto vol lookup).
     pub fx_vol_surface_id: CurveId,

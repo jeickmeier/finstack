@@ -4,21 +4,12 @@ use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind
 use finstack_quant_core::Result;
 
 /// Volatility model for pricing
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Default,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 // Distinct from the shared `common_impl::parameters::volatility::VolatilityModel`.
-#[schemars(rename = "SwaptionVolatilityModel")]
+#[cfg_attr(feature = "json-schema", schemars(rename = "SwaptionVolatilityModel"))]
 pub enum VolatilityModel {
     /// Black (Lognormal) model (1976)
     #[default]
@@ -52,9 +43,8 @@ impl std::str::FromStr for VolatilityModel {
 }
 
 /// Swaption settlement method
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum SwaptionSettlement {
@@ -69,17 +59,8 @@ pub enum SwaptionSettlement {
 /// The trade confirmation or ISDA settlement matrix determines the method.
 /// Modern EUR cash-settled swaptions use collateralized cash price; legacy
 /// trades may retain par-yield or ISDA par-par terms.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Default,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum CashSettlementMethod {
@@ -164,17 +145,8 @@ impl std::str::FromStr for SwaptionSettlement {
 }
 
 /// Swaption exercise style
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Default,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum SwaptionExercise {
@@ -216,16 +188,23 @@ impl std::str::FromStr for SwaptionExercise {
 ///
 /// Defines the exercise dates and constraints for a Bermudan swaption.
 /// Exercise dates are typically aligned with swap coupon dates.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BermudanSchedule {
     /// Exercise dates (must be sorted, typically on swap coupon dates)
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub exercise_dates: Vec<Date>,
     /// Lockout period end (no exercise before this date)
     #[serde(default, with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub lockout_end: Option<Date>,
     /// Notice period in business days before exercise
     pub notice_days: u32,
@@ -336,17 +315,8 @@ impl BermudanSchedule {
 /// This distinction affects pricing methodology and calibration:
 /// - Co-terminal: All exercise dates lead to the same swap end date
 /// - Non-co-terminal: Each exercise date may have a different remaining swap tenor
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Default,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum BermudanType {

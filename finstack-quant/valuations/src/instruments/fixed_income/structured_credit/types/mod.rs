@@ -70,7 +70,8 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 /// Market conditions that affect prepayment behavior.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MarketConditions {
     /// Current refinancing rate.
@@ -88,7 +89,8 @@ pub struct MarketConditions {
 }
 
 /// Credit factors affecting default probability.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CreditFactors {
     /// Current FICO/credit score.
@@ -112,7 +114,8 @@ pub struct CreditFactors {
 }
 
 /// Deal metadata (counterparties and identifiers).
-#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Metadata {
     /// Manager identifier (for CLO).
@@ -128,7 +131,8 @@ pub struct Metadata {
 }
 
 /// Behavioral overrides for prepayment, default, and recovery assumptions.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Overrides {
     /// Override prepayment with constant annual CPR.
@@ -154,7 +158,8 @@ pub struct Overrides {
 /// This groups the "credit model" knobs that were previously exposed as many
 /// top-level fields on [`StructuredCredit`]. The struct is intended to be
 /// embedded via `#[serde(flatten)]` to preserve the existing JSON shape.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CreditModelConfig {
     /// Prepayment model specification.
     #[serde(default = "CreditModelConfig::default_prepayment_spec")]
@@ -186,12 +191,9 @@ pub struct CreditModelConfig {
 /// This single type handles CLO, ABS, CMBS, and RMBS instruments using
 /// composition for deal-specific differences.
 #[derive(
-    Clone,
-    finstack_quant_valuations_macros::FinancialBuilder,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
+    Clone, finstack_quant_valuations_macros::FinancialBuilder, serde::Serialize, serde::Deserialize,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct StructuredCredit {
     /// Unique instrument identifier.
@@ -209,19 +211,31 @@ pub struct StructuredCredit {
     /// Key dates.
     /// Deal closing date (issuance).
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub closing_date: Date,
     /// First payment date to tranches.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub first_payment_date: Date,
     /// End of reinvestment period (if applicable).
     #[serde(default, with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub reinvestment_end_date: Option<Date>,
     /// Legal final maturity date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
 
     /// Payment frequency for the structure.

@@ -28,17 +28,8 @@ use time::Month;
 ///
 /// Use `GnmaI` or `GnmaII` to select the appropriate convention. Their
 /// persisted values are exactly `GNMA_I` and `GNMA_II`, respectively.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AgencyProgram {
     /// Fannie Mae (Federal National Mortgage Association)
@@ -196,17 +187,9 @@ impl finstack_quant_cashflows::CashflowScheduleSource for AgencyMbsPassthrough {
 /// Distinguishes between generic (TBA-eligible) pools and specified pools
 /// with known characteristics.
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    Default,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
+    Clone, Copy, Debug, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum PoolType {
     /// Generic pool (TBA-eligible, standard assumptions)
@@ -277,8 +260,8 @@ pub enum PoolType {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AgencyMbsPassthrough {
     /// Unique instrument identifier.
@@ -319,7 +302,10 @@ pub struct AgencyMbsPassthrough {
     pub wam: u32,
     /// Issue date of the pool.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub issue_date: Date,
     /// End date of the latest accrual period whose delayed P&I payment has
     /// settled and is already reflected in `current_face`.
@@ -329,11 +315,17 @@ pub struct AgencyMbsPassthrough {
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub last_paid_accrual_end: Option<Date>,
     /// Legal maturity date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
     /// Optional custom payment delay (overrides agency default).
     #[builder(optional)]

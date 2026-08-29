@@ -22,7 +22,6 @@ use crate::validation::preflight_step;
 use crate::CalibrationReport;
 use finstack_quant_core::explain::{ExplanationTrace, TraceEntry};
 use finstack_quant_core::market_data::context::MarketContext;
-use rayon::prelude::*;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Stage at which calibration execution failed.
@@ -544,14 +543,22 @@ fn execute_batch(
         return Ok(vec![outcome]);
     }
 
-    batch
-        .par_iter()
-        .map(|item| {
-            step_runtime::execute(item.step, &item.quotes, context, settings).map_err(|error| {
-                ExecuteError::other(ExecutionStage::Target, Some(item.step.id.clone()), error)
-            })
+    let run_item = |item: &StepBatchItem| {
+        step_runtime::execute(item.step, &item.quotes, context, settings).map_err(|error| {
+            ExecuteError::other(ExecutionStage::Target, Some(item.step.id.clone()), error)
         })
-        .collect()
+    };
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use rayon::prelude::*;
+        batch.par_iter().map(run_item).collect()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        batch.iter().map(run_item).collect()
+    }
 }
 
 /// Apply batch results to context and state.

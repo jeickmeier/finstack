@@ -141,25 +141,37 @@ impl PortfolioMarginAggregator {
         // margin portfolios. Results are collected positionally so the
         // downstream merge keeps the same deterministic order the serial
         // version produced.
-        use rayon::prelude::*;
-        let position_sensitivities: Vec<(PositionId, NettingSetId, Result<SimmSensitivities>)> =
-            self.positions
-                .par_iter()
-                .map(|(pos_id, ns_id)| {
-                    if let Some(position) = portfolio.get_position(pos_id.as_str()) {
-                        let sens = self.calculate_position_sensitivities(position, market, as_of);
-                        (position.position_id.clone(), ns_id.clone(), sens)
-                    } else {
-                        (
-                            pos_id.clone(),
-                            ns_id.clone(),
-                            Err(Error::validation(format!(
-                                "MO-15: tracked margin position '{pos_id}' is missing from portfolio"
-                            ))),
-                        )
-                    }
-                })
-                .collect();
+        let map_position = |(pos_id, ns_id): &(PositionId, NettingSetId)| {
+            if let Some(position) = portfolio.get_position(pos_id.as_str()) {
+                let sens = self.calculate_position_sensitivities(position, market, as_of);
+                (position.position_id.clone(), ns_id.clone(), sens)
+            } else {
+                (
+                    pos_id.clone(),
+                    ns_id.clone(),
+                    Err(Error::validation(format!(
+                        "MO-15: tracked margin position '{pos_id}' is missing from portfolio"
+                    ))),
+                )
+            }
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let position_sensitivities: Vec<(
+            PositionId,
+            NettingSetId,
+            Result<SimmSensitivities>,
+        )> = {
+            use rayon::prelude::*;
+            self.positions.par_iter().map(map_position).collect()
+        };
+
+        #[cfg(target_arch = "wasm32")]
+        let position_sensitivities: Vec<(
+            PositionId,
+            NettingSetId,
+            Result<SimmSensitivities>,
+        )> = self.positions.iter().map(map_position).collect();
 
         // Phase B (serial): merge into the netting set map. Serial keeps
         // mutation to `self.netting_sets` trivially correct and preserves the

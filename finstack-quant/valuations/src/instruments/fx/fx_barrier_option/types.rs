@@ -13,9 +13,8 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::BarrierType;
 use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 /// Contractual barrier-monitoring convention.
-#[derive(
-    PartialEq, Eq, Clone, Debug, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(PartialEq, Eq, Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Monitoring {
     /// Monitor continuously from `monitoring_start_date` through expiry.
@@ -25,7 +24,10 @@ pub enum Monitoring {
     Discrete {
         /// Strictly increasing dates on which the barrier level is observed.
         #[serde(with = "finstack_quant_core::wire::dates")]
-        #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+        )]
         observation_dates: Vec<Date>,
     },
 }
@@ -38,8 +40,8 @@ pub enum Monitoring {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = FxBarrierOption::validate)]
 #[serde(deny_unknown_fields)]
 pub struct FxBarrierOption {
@@ -70,14 +72,20 @@ pub struct FxBarrierOption {
     pub barrier_type: BarrierType,
     /// Option expiry date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// First date on which barrier monitoring is active. When set, a live
     /// valuation after this date requires `observed_barrier_breached`.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub monitoring_start_date: Option<Date>,
     /// Observed barrier state for expired options.
     ///

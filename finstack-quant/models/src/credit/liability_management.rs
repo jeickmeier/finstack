@@ -68,17 +68,8 @@ pub const TENDER_RECOMMENDATION_HURDLE: f64 = 1.02;
 /// The variant records how the new instrument ranks against the existing claim
 /// and is reported back on [`ExchangeOfferAnalysis`] for audit purposes; it
 /// does not change the arithmetic.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ExchangeType {
     /// New instrument issued at the same face amount as the old claim.
@@ -137,7 +128,8 @@ impl FromStr for ExchangeType {
 }
 
 /// Hold-versus-tender economics of a distressed exchange offer.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct ExchangeOfferAnalysis {
     /// Structure of the offer, echoed back in canonical form.
     pub exchange_type: ExchangeType,
@@ -247,17 +239,8 @@ pub fn analyze_exchange_offer(
 /// Each variant reinterprets the `repurchase_price_pct` argument of
 /// [`analyze_lme`]; see that function's documentation for the per-variant
 /// meaning and admissible range.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum LmeType {
     /// Open-market repurchase of debt below par.
@@ -321,7 +304,8 @@ impl FromStr for LmeType {
 /// Leverage is gross debt over EBITDA, so a value of `8.0` reads as 8.0x.
 /// Only debt retired at par reduces leverage; consent fees and collateral
 /// transfers leave gross debt unchanged.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct LeverageImpact {
     /// Gross debt of the target instrument before the exercise.
     pub pre_total_debt: f64,
@@ -336,7 +320,8 @@ pub struct LeverageImpact {
 }
 
 /// Issuer-side economics of a liability management exercise.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct LmeAnalysis {
     /// Structure of the exercise, echoed back in canonical form.
     pub lme_type: LmeType,

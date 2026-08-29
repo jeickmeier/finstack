@@ -11,7 +11,8 @@ use serde::{Deserialize, Serialize};
 ///
 /// This struct encapsulates the market data curve identifiers and
 /// currency pair information needed for pricing FX-related instruments.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct FxUnderlyingParams {
     /// Base currency (being priced)
     pub base_currency: Currency,
@@ -56,7 +57,8 @@ impl FxUnderlyingParams {
 }
 
 /// Equity underlying parameters for options and equity-linked swaps.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EquityUnderlyingParams {
     /// Underlying ticker/identifier
@@ -130,7 +132,8 @@ impl EquityUnderlyingParams {
 }
 
 /// Commodity underlying parameters for forwards, swaps, and options.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CommodityUnderlyingParams {
     /// Commodity type (e.g., "Energy", "Metal", "Agricultural")
     pub commodity_type: String,
@@ -180,7 +183,8 @@ impl CommodityUnderlyingParams {
 }
 
 /// Index underlying parameters for total return swaps and index-linked instruments.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct IndexUnderlyingParams {
     /// Index identifier (e.g., "CDX.IG", "HY.BOND.INDEX")

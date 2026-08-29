@@ -9,7 +9,6 @@ use crate::{
     transform_cross_sectional_with_op, transform_timeseries_with_op, CrossSectionalOp, TimeSeriesOp,
 };
 use finstack_quant_core::{Error, Result};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeSet;
@@ -141,7 +140,8 @@ fn validate_operation_names(operations: &[PanelOperation]) -> Result<()> {
 }
 
 /// Specification for a panel transform pipeline.
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PanelTransformSpec {
     /// Input numeric value column. `None` represents missing data.
@@ -161,7 +161,8 @@ pub struct PanelTransformSpec {
 }
 
 /// A named panel transform operation.
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "family", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PanelOperation {
     /// Time-series operation evaluated within each entity.
@@ -215,7 +216,8 @@ impl PanelOperation {
 }
 
 /// A named output column from a panel transform pipeline.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PanelTransformColumn {
     /// Output column name.
@@ -225,7 +227,8 @@ pub struct PanelTransformColumn {
 }
 
 /// Ordered result columns from a panel transform pipeline.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PanelTransformResult {
     /// Output columns in the same order as requested operations.

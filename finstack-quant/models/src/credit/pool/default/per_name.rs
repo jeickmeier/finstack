@@ -39,17 +39,8 @@ use finstack_quant_core::Result;
 /// Selects whether each scenario realizes defaults name-by-name (finite-pool
 /// copula simulation) or applies the closed-form LHP conditional default
 /// probability uniformly to the pool.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Default,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum PoolGranularity {
     /// Simulate each name's default independently conditional on the

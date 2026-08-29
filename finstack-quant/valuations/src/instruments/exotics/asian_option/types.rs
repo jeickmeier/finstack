@@ -8,9 +8,8 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 
 /// Averaging method for Asian options.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum AveragingMethod {
     /// Arithmetic average: (1/n) Σ S_i
@@ -88,8 +87,8 @@ impl std::str::FromStr for AveragingMethod {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AsianOption {
     /// Unique instrument identifier
@@ -104,7 +103,10 @@ pub struct AsianOption {
     pub averaging_method: AveragingMethod,
     /// Option expiry date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Dates on which underlying is observed for averaging.
     ///
@@ -112,7 +114,10 @@ pub struct AsianOption {
     /// The pricer uses these dates directly without further adjustment.
     /// See struct-level documentation for business day convention guidance.
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub fixing_dates: Vec<Date>,
     /// Notional amount
     pub notional: Money,
@@ -157,7 +162,10 @@ pub struct AsianOption {
     #[builder(default)]
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     pub past_fixings: Vec<(Date, f64)>,
 }
 

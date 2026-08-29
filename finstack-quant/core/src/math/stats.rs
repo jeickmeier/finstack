@@ -306,17 +306,8 @@ pub fn correlation(x: &[f64], y: &[f64]) -> f64 {
 }
 
 /// Methods for calculating realized variance from price series.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RealizedVarMethod {
     /// Standard close-to-close returns (market standard default)

@@ -55,8 +55,8 @@ use finstack_quant_core::types::IndexId;
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Deposit {
     /// Unique identifier for the deposit.
@@ -65,11 +65,17 @@ pub struct Deposit {
     pub notional: Money,
     /// Start date of the deposit period.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub start_date: Date,
     /// Maturity date of the deposit period.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
     /// Day count convention for interest accrual.
     pub day_count: DayCount,
@@ -81,7 +87,10 @@ pub struct Deposit {
     /// this instrument (e.g., constructing placeholders).
     #[builder(optional)]
     #[serde(default, with = "finstack_quant_core::wire::optional_decimal")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")
+    )]
     pub quote_rate: Option<Decimal>,
     /// Discount curve id used for valuation and par extraction.
     pub discount_curve_id: CurveId,

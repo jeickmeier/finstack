@@ -7,7 +7,8 @@
 use serde::{Deserialize, Serialize};
 
 /// Covenant check result.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CovenantReport {
     /// Type of covenant being checked

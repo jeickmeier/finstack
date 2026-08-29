@@ -12,9 +12,8 @@ use finstack_quant_core::money::Money;
 ///
 /// Describes how principal amortizes or is exchanged during the life of the contract.
 /// Used by instruments (e.g., bonds) and cashflow legs for consistent behavior.
-#[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum AmortizationSpec {
@@ -31,7 +30,10 @@ pub enum AmortizationSpec {
     StepRemaining {
         /// Ordered list of `(date, remaining_principal_after_date)`.
         #[serde(with = "finstack_quant_core::wire::dated_money_values")]
-        #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")
+        )]
         schedule: Vec<(Date, Money)>,
     },
     /// Fixed percentage of **original** notional paid each period (capped by remaining outstanding).
@@ -48,7 +50,10 @@ pub enum AmortizationSpec {
     CustomPrincipal {
         /// List of `(date, principal_amount)` exchanges; amounts are absolute cashflows.
         #[serde(with = "finstack_quant_core::wire::dated_money_values")]
-        #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")
+        )]
         items: Vec<(Date, Money)>,
     },
 }
@@ -75,7 +80,8 @@ impl Hash for AmortizationSpec {
 ///
 /// Combines initial principal with amortization behavior for complete
 /// notional lifecycle management.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Notional {
     /// Initial principal amount outstanding at leg inception.

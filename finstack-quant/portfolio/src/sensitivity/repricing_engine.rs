@@ -196,32 +196,28 @@ impl FullRepricingEngine {
         // preserves factor order and produces identical results regardless of
         // scheduling. This mirrors `DeltaBasedEngine`, which already
         // parallelizes the equivalent (and cheaper) work over factors.
-        use rayon::prelude::*;
-        let profile_results: Vec<Result<FactorPnlProfile>> = factors
-            .par_iter()
-            .enumerate()
-            .map(|(factor_index, factor)| {
-                let (bump_size, bump_unit) = self
-                    .bump_config
-                    .bump_size_with_unit_for_factor(&factor.id, &factor.factor_type);
-                Self::validate_bump_size(factor, bump_size)?;
-                let affected_positions = repricing_plan.affected(factor_index);
-                let reconvert_all = mapping_bumps_fx(&factor.market_mapping);
-                let mut position_pnls = Vec::with_capacity(self.scenario_grid.shifts().len());
+        let compute_profile = |(factor_index, factor): (usize, &FactorDefinition)| {
+            let (bump_size, bump_unit) = self
+                .bump_config
+                .bump_size_with_unit_for_factor(&factor.id, &factor.factor_type);
+            Self::validate_bump_size(factor, bump_size)?;
+            let affected_positions = repricing_plan.affected(factor_index);
+            let reconvert_all = mapping_bumps_fx(&factor.market_mapping);
+            let mut position_pnls = Vec::with_capacity(self.scenario_grid.shifts().len());
 
-                for &shift in self.scenario_grid.shifts() {
-                    if shift == 0.0 {
-                        position_pnls.push(vec![0.0; positions.len()]);
-                        continue;
-                    }
-                    let bumped_market = market.bump(mapping_to_market_bumps(
-                        &factor.market_mapping,
-                        bump_size * shift,
-                        bump_unit,
-                        as_of,
-                    )?)?;
+            for &shift in self.scenario_grid.shifts() {
+                if shift == 0.0 {
+                    position_pnls.push(vec![0.0; positions.len()]);
+                    continue;
+                }
+                let bumped_market = market.bump(mapping_to_market_bumps(
+                    &factor.market_mapping,
+                    bump_size * shift,
+                    bump_unit,
+                    as_of,
+                )?)?;
 
-                    let pnl_row: Vec<f64> = positions
+                let pnl_row: Vec<f64> = positions
                         .iter()
                         .zip(affected_positions)
                         .enumerate()
@@ -242,16 +238,29 @@ impl FullRepricingEngine {
                             },
                         )
                         .collect::<Result<_>>()?;
-                    position_pnls.push(pnl_row);
-                }
+                position_pnls.push(pnl_row);
+            }
 
-                Ok(FactorPnlProfile {
-                    factor_id: factor.id.clone(),
-                    shifts: self.scenario_grid.shifts().to_vec(),
-                    position_pnls,
-                })
+            Ok(FactorPnlProfile {
+                factor_id: factor.id.clone(),
+                shifts: self.scenario_grid.shifts().to_vec(),
+                position_pnls,
             })
-            .collect();
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let profile_results: Vec<Result<FactorPnlProfile>> = {
+            use rayon::prelude::*;
+            factors
+                .par_iter()
+                .enumerate()
+                .map(compute_profile)
+                .collect()
+        };
+
+        #[cfg(target_arch = "wasm32")]
+        let profile_results: Vec<Result<FactorPnlProfile>> =
+            factors.iter().enumerate().map(compute_profile).collect();
         profile_results.into_iter().collect()
     }
 }

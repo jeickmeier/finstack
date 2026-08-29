@@ -14,7 +14,8 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
 
 use crate::instruments::Position;
 
-#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 enum RepoDayCountWire {
     #[serde(rename = "act_360")]
@@ -104,7 +105,8 @@ mod deliverable_basket_wire {
 /// delivery month. For CME/CBOT contracts, callers can use
 /// [`super::BondFuturePricer::calculate_conversion_factor`] to calculate a
 /// factor and store the result here.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DeliverableBond {
     /// Identifier of the deliverable bond
@@ -114,7 +116,10 @@ pub struct DeliverableBond {
         serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
         deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
-    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::PositiveF64Wire")
+    )]
     pub conversion_factor: f64,
 }
 
@@ -134,7 +139,8 @@ pub struct DeliverableBond {
 /// assert_eq!(specs.contract_size, 100_000.0);
 /// assert_eq!(specs.standard_coupon, 0.06);
 /// ```
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BondFutureSpecs {
     /// Face value of a single contract (e.g., $100,000 for UST)
@@ -159,7 +165,7 @@ pub struct BondFutureSpecs {
     ///
     /// Bond-future repo supports `act_360` and `act_365f`.
     #[serde(default = "default_repo_day_count", with = "repo_day_count_wire")]
-    #[schemars(with = "RepoDayCountWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "RepoDayCountWire"))]
     pub repo_day_count: DayCount,
 }
 
@@ -433,8 +439,8 @@ impl BondFutureSpecs {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BondFuture {
     /// Unique identifier for the contract
@@ -446,17 +452,26 @@ pub struct BondFuture {
 
     /// Future expiry date (last trading day)
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
 
     /// First delivery date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub delivery_start: Date,
 
     /// Last delivery date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub delivery_end: Date,
 
     /// Contract/entry futures price (e.g., 125.50 for 125-16/32).
@@ -467,7 +482,10 @@ pub struct BondFuture {
         serialize_with = "finstack_quant_core::wire::serialize_non_negative_f64",
         deserialize_with = "finstack_quant_core::wire::deserialize_non_negative_f64"
     )]
-    #[schemars(with = "finstack_quant_core::wire::NonNegativeF64Wire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::NonNegativeF64Wire")
+    )]
     pub quoted_price: f64,
 
     /// Position side (Long or Short)
@@ -478,8 +496,8 @@ pub struct BondFuture {
 
     /// Basket of deliverable bonds with conversion factors
     #[serde(with = "deliverable_basket_wire")]
-    #[schemars(with = "Vec<DeliverableBond>")]
-    #[schemars(length(min = 1))]
+    #[cfg_attr(feature = "json-schema", schemars(with = "Vec<DeliverableBond>"))]
+    #[cfg_attr(feature = "json-schema", schemars(length(min = 1)))]
     pub deliverable_basket: Vec<DeliverableBond>,
 
     /// Selected cheapest-to-deliver (CTD) bond identifier.

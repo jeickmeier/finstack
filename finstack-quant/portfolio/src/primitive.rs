@@ -1,6 +1,7 @@
 //! Primitive exposure reporting across direct and composite positions.
 
 use crate::error::{Error, Result};
+#[cfg(not(target_arch = "wasm32"))]
 use crate::evaluation::POSITION_PARALLEL_MIN_POSITIONS;
 use crate::fx::convert_to_base;
 use crate::portfolio::Portfolio;
@@ -18,7 +19,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// One primitive exposure path traced back to its owning portfolio position.
-#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PortfolioPrimitivePath {
     /// Portfolio position containing the direct instrument or root composite.
@@ -38,7 +40,8 @@ pub struct PortfolioPrimitivePath {
 }
 
 /// Net and gross portfolio exposure for one primitive instrument identifier.
-#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PortfolioPrimitiveAggregate {
     /// Primitive instrument identifier.
@@ -60,7 +63,8 @@ pub struct PortfolioPrimitiveAggregate {
 }
 
 /// Portfolio primitive decomposition retaining both path and concentration views.
-#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PortfolioPrimitiveExposureReport {
     /// Portfolio reporting currency used for every value and risk amount.
@@ -103,6 +107,7 @@ pub fn primitive_exposure_report(
     let report_position = |position: &Position| -> Result<PositionPrimitiveReport> {
         position_primitive_report(portfolio, position, market, metrics)
     };
+    #[cfg(not(target_arch = "wasm32"))]
     let per_position: Vec<Result<PositionPrimitiveReport>> =
         if portfolio.positions().len() >= POSITION_PARALLEL_MIN_POSITIONS {
             use rayon::prelude::*;
@@ -114,6 +119,10 @@ pub fn primitive_exposure_report(
         } else {
             portfolio.positions().iter().map(report_position).collect()
         };
+
+    #[cfg(target_arch = "wasm32")]
+    let per_position: Vec<Result<PositionPrimitiveReport>> =
+        portfolio.positions().iter().map(report_position).collect();
 
     let mut paths = Vec::new();
     let mut definitions = BTreeMap::<String, String>::new();

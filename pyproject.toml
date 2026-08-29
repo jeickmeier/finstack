@@ -118,26 +118,78 @@ filterwarnings = [
     "ignore::DeprecationWarning:pytest.*",
 ]
 
-[dependency-groups]
-dev = [
+[project.optional-dependencies]
+build = [
     "maturin>=1.10.2,<2.0",
+]
+test = [
     "pytest>=9.0.2",
     "pytest-benchmark>=5.2.3",
     "hypothesis>=6.122.4",
-    "ty>=0.0.18",
-    "ruff>=0.14.8,<0.16",
-    "ipython>=9.8.0",
-    "jupyter>=1.1.1",
-    "bandit>=1.8.2",
-    "pre-commit>=4.0.1",
     "pytest-randomly>=4.0.1",
-    "quantlib>=1.41",
-    "types-python-dateutil>=2.9.0.20251115",
     "pytest-cov>=7.0.0",
-    "pyarrow>=18.0.0",
-    "polars>=1.0.0",
     "jsonschema>=4.26.0",
 ]
+lint = [
+    "ty>=0.0.18",
+    "ruff>=0.14.8,<0.16",
+    "bandit>=1.8.2",
+    "pre-commit>=4.0.1",
+    "types-python-dateutil>=2.9.0.20251115",
+]
+goldens = [
+    "quantlib>=1.41",
+]
+arrow = [
+    "pyarrow>=18.0.0",
+    "polars>=1.0.0",
+]
+notebooks = [
+    "ipython>=9.8.0",
+    "jupyter>=1.1.1",
+]
+
+[dependency-groups]
+build = [
+    "maturin>=1.10.2,<2.0",
+]
+test = [
+    "pytest>=9.0.2",
+    "pytest-benchmark>=5.2.3",
+    "hypothesis>=6.122.4",
+    "pytest-randomly>=4.0.1",
+    "pytest-cov>=7.0.0",
+    "jsonschema>=4.26.0",
+]
+lint = [
+    "ty>=0.0.18",
+    "ruff>=0.14.8,<0.16",
+    "bandit>=1.8.2",
+    "pre-commit>=4.0.1",
+    "types-python-dateutil>=2.9.0.20251115",
+]
+goldens = [
+    "quantlib>=1.41",
+]
+arrow = [
+    "pyarrow>=18.0.0",
+    "polars>=1.0.0",
+]
+notebooks = [
+    "ipython>=9.8.0",
+    "jupyter>=1.1.1",
+]
+dev = [
+    { include-group = "build" },
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "goldens" },
+    { include-group = "arrow" },
+    { include-group = "notebooks" },
+]
+
+[tool.uv]
+default-groups = ["dev"]
 
 #######################
 # Ruff Configuration

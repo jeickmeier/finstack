@@ -8,7 +8,6 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_core::money::Money;
 use indexmap::IndexMap;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Aggregated cashflows from capital structure instruments by period.
@@ -55,21 +54,31 @@ use serde::{Deserialize, Serialize};
 ///
 /// assert_eq!(cs.get_total_interest(&period).unwrap(), 12_500.0);
 /// ```
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CapitalStructureCashflows {
     /// Map of instrument_id → (period_id → cashflow_type → amount)
-    #[schemars(with = "IndexMap<String, IndexMap<String, CashflowBreakdown>>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "IndexMap<String, IndexMap<String, CashflowBreakdown>>")
+    )]
     pub by_instrument: IndexMap<String, IndexMap<PeriodId, CashflowBreakdown>>,
 
     /// Total cashflows across all instruments in the reporting currency (if available)
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
-    #[schemars(with = "IndexMap<String, CashflowBreakdown>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "IndexMap<String, CashflowBreakdown>")
+    )]
     pub totals: IndexMap<PeriodId, CashflowBreakdown>,
 
     /// Totals bucketed by native instrument currency
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
-    #[schemars(with = "IndexMap<String, IndexMap<String, CashflowBreakdown>>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "IndexMap<String, IndexMap<String, CashflowBreakdown>>")
+    )]
     pub totals_by_currency: IndexMap<Currency, IndexMap<PeriodId, CashflowBreakdown>>,
 
     /// Reporting currency used for `totals` (if populated)
@@ -83,7 +92,7 @@ pub struct CapitalStructureCashflows {
     /// principal allocations. With the per-period allocations this satisfies
     /// `fees + cash interest + principal + equity == available cash`.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
-    #[schemars(with = "IndexMap<String, Money>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "IndexMap<String, Money>"))]
     pub equity_distribution: IndexMap<PeriodId, Money>,
 }
 
@@ -104,7 +113,8 @@ pub struct CapitalStructureCashflows {
 /// waterfall allocates cash against expense claims, so folding a receipt into
 /// `interest_expense_cash` as a negative claim would corrupt pro-rata
 /// allocation. See [`Self::net_interest_expense_cash`] for the combined view.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CashflowBreakdown {
     /// Cash interest payments (coupons, floating resets)

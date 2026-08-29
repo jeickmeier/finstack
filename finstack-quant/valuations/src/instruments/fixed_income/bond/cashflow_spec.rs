@@ -136,7 +136,8 @@ pub struct FloatingConventionParams {
 /// providing convenience constructors with sensible defaults for common bond use cases.
 /// This ensures parity with all builder features (floors/caps, BDC, calendars, PIK, etc.)
 /// while keeping the bond API simple.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CashflowSpec {
     /// Fixed-rate bond using the canonical `FixedCouponSpec`.

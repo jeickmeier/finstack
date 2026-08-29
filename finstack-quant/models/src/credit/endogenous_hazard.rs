@@ -17,7 +17,8 @@ use finstack_quant_core::{Error, InputError, Result};
 use serde::{Deserialize, Serialize};
 
 /// Map from leverage to hazard rate.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum LeverageHazardMap {
     /// `lambda(t) = lambda_0 * (L(t) / L_0)^beta`
@@ -44,7 +45,8 @@ pub enum LeverageHazardMap {
 /// Models the relationship between a firm's leverage and its instantaneous
 /// hazard rate, enabling a feedback loop where PIK accrual increases the
 /// notional (and hence leverage), which drives the hazard rate higher.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EndogenousHazardSpec {
     /// Base (reference) hazard rate `lambda_0`.

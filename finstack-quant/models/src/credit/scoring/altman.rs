@@ -24,7 +24,8 @@ use super::types::{check_finite, CreditScoringError, ScoringResult, ScoringZone}
 ///
 /// Altman, E. I. (1968). "Financial Ratios, Discriminant Analysis and the
 /// Prediction of Corporate Bankruptcy." *Journal of Finance*, 23(4), 589-609. `docs/REFERENCES.md#altman-1968`
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct AltmanZScoreInput {
     /// X1: Working Capital / Total Assets.
     pub working_capital_to_total_assets: f64,
@@ -42,7 +43,8 @@ pub struct AltmanZScoreInput {
 ///
 /// Replaces market equity with book equity in X4. Coefficients are
 /// re-estimated for the private-firm sample.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct AltmanZPrimeInput {
     /// X1: Working Capital / Total Assets.
     pub working_capital_to_total_assets: f64,
@@ -69,7 +71,8 @@ pub struct AltmanZPrimeInput {
 /// - Altman, E. I. (2005). "An Emerging Market Credit Scoring System for
 ///   Corporate Bonds." *Emerging Markets Review*, 6(4), 311-323. (EM-Score
 ///   variant with +3.25 constant.)
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct AltmanZDoublePrimeInput {
     /// X1: Working Capital / Total Assets.
     pub working_capital_to_total_assets: f64,

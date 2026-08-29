@@ -46,7 +46,8 @@ use ts_rs::TS;
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
 #[cfg_attr(feature = "ts_export", ts(rename_all = "snake_case"))]
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "class", rename_all = "snake_case", deny_unknown_fields)]
 pub enum MarketQuote {
     /// Bond instruments
@@ -106,7 +107,8 @@ impl MarketQuote {
 }
 
 /// Source and market-state metadata attached to one ingested quote.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct QuoteProvenance {
     /// Vendor, venue, or internal source identifier.
@@ -122,7 +124,8 @@ pub struct QuoteProvenance {
 }
 
 /// Validated quote plus provenance and freshness policy.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct QuoteSnapshot {
     /// Typed market quote.

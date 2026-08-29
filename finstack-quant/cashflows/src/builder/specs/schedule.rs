@@ -34,17 +34,9 @@ use rust_decimal::Decimal;
 /// - `docs/REFERENCES.md#isda-cds-standard-model`
 /// - CME IMM date rules (third Wednesday of the contract month)
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum RollRule {
@@ -73,7 +65,8 @@ impl RollRule {
 /// This type controls how accrual boundaries and payment dates are generated.
 /// The fields describe schedule construction conventions, not discounting or
 /// valuation conventions.
-#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ScheduleParams {
     /// Accrual and payment frequency used to generate the schedule boundaries.
@@ -565,12 +558,16 @@ impl ScheduleParams {
 }
 
 /// Fixed-rate coupon window with a shared schedule.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FixedWindow {
     /// Annual coupon rate as a decimal, for example `0.05` for 5%.
     #[serde(with = "finstack_quant_core::wire::decimal")]
-    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DecimalWire")
+    )]
     pub rate: Decimal,
     /// Schedule-generation parameters for this fixed-rate window.
     pub schedule: ScheduleParams,

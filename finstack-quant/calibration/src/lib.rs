@@ -101,6 +101,7 @@ pub mod hull_white;
 pub mod lmm;
 pub use lmm::{calibrate_bermudan_lmm_base_vol, calibrate_bermudan_lmm_base_vol_from_json};
 /// Checked-in JSON Schema artifacts owned by this crate.
+#[cfg(feature = "json-schema")]
 pub mod json_schema;
 /// Prepared quotes for calibration.
 pub(crate) mod prepared;

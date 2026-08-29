@@ -14,10 +14,12 @@ use finstack_quant_valuations::metrics::MetricId;
 use indexmap::IndexMap;
 use std::sync::Arc;
 
+#[cfg(not(target_arch = "wasm32"))]
 const STATE_PARALLEL_MIN_JOBS: usize = 8;
 /// Date-parallel execution only when every book is below the position-parallel
 /// cutover. Larger books keep `PositionExecution::Auto` so the position axis
 /// stays parallel instead of being forced serial inside each date job.
+#[cfg(not(target_arch = "wasm32"))]
 const STATE_PARALLEL_MAX_POSITIONS: usize = super::POSITION_PARALLEL_MIN_POSITIONS - 1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -314,6 +316,7 @@ impl<'a> PortfolioEvaluationPlan<'a> {
     }
 
     pub(crate) fn execute(self) -> PortfolioEvaluationOutcome {
+        #[cfg(not(target_arch = "wasm32"))]
         let state_parallel = self.jobs.len() >= STATE_PARALLEL_MIN_JOBS
             && self.jobs.iter().all(|job| {
                 self.portfolio(job.key.portfolio_state).is_ok_and(|state| {
@@ -321,6 +324,7 @@ impl<'a> PortfolioEvaluationPlan<'a> {
                 })
             });
 
+        #[cfg(not(target_arch = "wasm32"))]
         let ordered_results: Vec<Result<PortfolioValuation>> = if state_parallel {
             use rayon::prelude::*;
             self.jobs
@@ -333,6 +337,13 @@ impl<'a> PortfolioEvaluationPlan<'a> {
                 .map(|job| self.execute_job(job, job.execution))
                 .collect()
         };
+
+        #[cfg(target_arch = "wasm32")]
+        let ordered_results: Vec<Result<PortfolioValuation>> = self
+            .jobs
+            .iter()
+            .map(|job| self.execute_job(job, job.execution))
+            .collect();
 
         let mut results = IndexMap::with_capacity(self.jobs.len());
         let mut failures = IndexMap::new();

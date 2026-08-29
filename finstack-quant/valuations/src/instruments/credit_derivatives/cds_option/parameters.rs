@@ -67,17 +67,24 @@ pub(crate) fn validate_common_terms(
 }
 
 /// Construction-time inputs for a CDS option.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CDSOptionParams {
     /// Typed option strike: forward spread or clean price.
     pub strike: CDSOptionStrike,
     /// Option expiry date. Must precede `cds_maturity`.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Underlying CDS maturity date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub cds_maturity: Date,
     /// Notional amount.
     pub notional: Money,

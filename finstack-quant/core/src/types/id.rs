@@ -90,7 +90,6 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// A phantom-typed identifier that prevents mixing different kinds of IDs.
@@ -131,10 +130,11 @@ use serde::{Deserialize, Serialize};
 ///
 /// `Id<T>` is `Send + Sync` as it wraps an `Arc<str>`. Multiple threads can
 /// safely share and clone IDs with minimal synchronization overhead.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
 #[serde(deny_unknown_fields)]
-#[schemars(transparent)]
+#[cfg_attr(feature = "json-schema", schemars(transparent))]
 pub struct Id<T> {
     value: Arc<str>,
     #[serde(skip)]
@@ -395,42 +395,51 @@ impl<T> std::str::FromStr for Id<T> {
 }
 
 /// Marker type for curve identifiers
-#[derive(Debug, Clone, Copy, Default, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CurveTag;
 
 /// Marker type for instrument identifiers
-#[derive(Debug, Clone, Copy, Default, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct InstrumentTag;
 
 /// Marker type for index identifiers (equity or fixed income)
-#[derive(Debug, Clone, Copy, Default, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct IndexTag;
 
 /// Marker type for price/market-scalar identifiers
-#[derive(Debug, Clone, Copy, Default, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct PriceTag;
 
 /// Marker type for underlying asset identifiers (equity, fx, commodity)
-#[derive(Debug, Clone, Copy, Default, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct UnderlyingTag;
 
 /// Marker type for holiday calendar identifiers
-#[derive(Debug, Clone, Copy, Default, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CalendarTag;
 
 /// Marker type for securitized pool identifiers
-#[derive(Debug, Clone, Copy, Default, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct PoolTag;
 
 /// Marker type for structured deal identifiers
-#[derive(Debug, Clone, Copy, Default, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct DealTag;
 
 /// Marker type for credit issuer identifiers.
 ///
 /// Used by the credit factor model hierarchy to key per-issuer beta rows,
 /// adder-vol state, and idiosyncratic volatility models.
-#[derive(Debug, Clone, Copy, Default, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct IssuerTag;
 
 /// Type aliases for common ID types

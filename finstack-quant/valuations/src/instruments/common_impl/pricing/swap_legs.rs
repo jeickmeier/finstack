@@ -47,9 +47,8 @@ use serde::{Deserialize, Serialize};
 /// - ISDA IBOR Fallbacks Protocol (2021)
 /// - ARRC SOFR Conventions (2020) `docs/REFERENCES.md#arrc-sofr-users-guide`
 /// - Bank of England SONIA Conventions (2019)
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum CompoundingMethod {

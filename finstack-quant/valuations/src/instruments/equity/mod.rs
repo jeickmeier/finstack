@@ -73,9 +73,8 @@
 //! - [`PrivateMarketsFund`] for PE/credit fund valuation
 
 /// Explicit stochastic model policy for path-dependent equity structures.
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum EquityPathModel {
     /// Piecewise GBM calibrated to the ATM-forward total-variance term

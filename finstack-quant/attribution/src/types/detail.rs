@@ -152,7 +152,8 @@ mod currency_pair_key_map {
 /// processes a single instrument. Therefore `LevelPnl.by_bucket` will contain
 /// at most one entry per call (the issuer's bucket at that level).
 /// Portfolio-level multi-bucket aggregation is provided at the portfolio layer.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CreditFactorAttribution {
     /// Deterministic traceability ID for the calibrated model. Format:
     /// `format!("{}/{:016x}", model.as_of, fnv1a64(serde_json::to_string(model)))`.
@@ -189,7 +190,10 @@ pub struct CreditFactorAttribution {
     /// Optional per-issuer adder breakdown (gated by
     /// `CreditFactorDetailOptions.include_per_issuer_adder`, default off).
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<BTreeMap<String, Money>>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<BTreeMap<String, Money>>")
+    )]
     pub adder_pnl_by_issuer: Option<BTreeMap<IssuerId, Money>>,
     /// Diagnostic: absolute magnitude of the per-issuer adder step P&L
     /// (`|adder_pnl_total|`). Surfaced so downstream consumers can detect
@@ -202,7 +206,8 @@ pub struct CreditFactorAttribution {
 }
 
 /// P&L contribution from a single hierarchy level.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct LevelPnl {
     /// Human-readable level name (e.g. `"rating"`, `"region"`, `"sector"`,
     /// or a custom dimension key).
@@ -220,14 +225,15 @@ pub struct LevelPnl {
 ///
 /// Provides aggregate and per-curve/per-tenor breakdown for discount
 /// and forward curves.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct RatesCurvesAttribution {
     /// P&L by curve ID.
     pub by_curve: IndexMap<CurveId, Money>,
 
     /// P&L by (curve_id, tenor), serialized with `"{curve_id}|{tenor}"` keys.
     #[serde(with = "curve_tenor_key_map", default)]
-    #[schemars(with = "IndexMap<String, Money>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "IndexMap<String, Money>"))]
     pub by_tenor: IndexMap<(CurveId, String), Money>,
 
     /// Total discount curves P&L.
@@ -240,14 +246,15 @@ pub struct RatesCurvesAttribution {
 /// Detailed attribution for credit hazard curves.
 ///
 /// Provides per-curve and per-tenor breakdown for credit spread risk.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CreditCurvesAttribution {
     /// P&L by curve ID.
     pub by_curve: IndexMap<CurveId, Money>,
 
     /// P&L by (curve_id, tenor), serialized with `"{curve_id}|{tenor}"` keys.
     #[serde(with = "curve_tenor_key_map", default)]
-    #[schemars(with = "IndexMap<String, Money>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "IndexMap<String, Money>"))]
     pub by_tenor: IndexMap<(CurveId, String), Money>,
 }
 
@@ -255,7 +262,8 @@ pub struct CreditCurvesAttribution {
 ///
 /// Provides per-curve breakdown with optional tenor detail for
 /// term-structured inflation curves.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct InflationCurvesAttribution {
     /// P&L by curve ID.
     pub by_curve: IndexMap<CurveId, Money>,
@@ -263,14 +271,18 @@ pub struct InflationCurvesAttribution {
     /// P&L by (curve_id, tenor) for term-structured inflation curves,
     /// serialized with `"{curve_id}|{tenor}"` keys.
     #[serde(with = "opt_curve_tenor_key_map", default)]
-    #[schemars(with = "Option<IndexMap<String, Money>>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<IndexMap<String, Money>>")
+    )]
     pub by_tenor: Option<IndexMap<(CurveId, String), Money>>,
 }
 
 /// Detailed attribution for base correlation curves.
 ///
 /// Used for structured credit products (CDO tranches, synthetic credit).
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CorrelationsAttribution {
     /// P&L by correlation curve ID.
     pub by_curve: IndexMap<CurveId, Money>,
@@ -279,26 +291,29 @@ pub struct CorrelationsAttribution {
 /// Detailed attribution for FX rate changes.
 ///
 /// Provides per-currency-pair breakdown.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct FxAttribution {
     /// P&L by (from_currency, to_currency) pair, serialized with
     /// `"{FROM}/{TO}"` keys (e.g. `"EUR/USD"`).
     #[serde(with = "currency_pair_key_map", default)]
-    #[schemars(with = "IndexMap<String, Money>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "IndexMap<String, Money>"))]
     pub by_pair: IndexMap<(Currency, Currency), Money>,
 }
 
 /// Detailed attribution for implied volatility changes.
 ///
 /// Provides per-surface breakdown.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct VolAttribution {
     /// P&L by volatility surface ID.
     pub by_surface: IndexMap<CurveId, Money>,
 }
 
 /// Detailed attribution for cross-factor interaction terms.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CrossFactorDetail {
     /// Total cross-factor P&L across all populated pairs.
     pub total: Money,
@@ -312,7 +327,8 @@ pub struct CrossFactorDetail {
 ///
 /// Extensible structure for instrument-specific model parameters
 /// (prepayment speeds, default rates, recovery rates, etc.).
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct ModelParamsAttribution {
     /// Prepayment speed changes (for MBS/ABS).
     pub prepayment: Option<Money>,
@@ -338,7 +354,8 @@ pub struct ModelParamsAttribution {
 /// `credit_part` are both `None` and `total` carries the canonical scalar
 /// value. When a model is supplied, the two parts sum to `total` at
 /// 1e-8 absolute tolerance.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SourceLine {
     /// Total signed amount for this line (always populated).
@@ -410,7 +427,8 @@ impl SourceLine {
 ///
 /// Bloomberg PORT decomposes carry into Carry (coupon/funding), Curve Roll-Down,
 /// and Shift as distinct P&L components. `docs/REFERENCES.md#campisi-2000`
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CarryDetail {
     /// Total carry P&L. Equals the `CarryTotal` metric on the metrics-based
     /// path, or the repricing-based time drift plus coupons paid on the
@@ -474,7 +492,8 @@ pub struct CarryDetail {
 /// on any path whose `carry_detail.coupon_income` is populated when a
 /// `CreditFactorModel` is supplied — the decomposition logic is
 /// method-agnostic.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CreditCarryDecomposition {
     /// Deterministic traceability id of the model used (matches
     /// `CreditFactorAttribution.model_id`).
@@ -488,7 +507,8 @@ pub struct CreditCarryDecomposition {
 }
 
 /// Per-factor breakdown of credit carry.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CreditCarryByLevel {
     /// Generic (PC) factor contribution to credit carry.
     pub generic: Money,
@@ -499,12 +519,16 @@ pub struct CreditCarryByLevel {
     /// Optional per-issuer adder breakdown (gated by
     /// `CreditFactorDetailOptions.include_per_issuer_adder`).
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<BTreeMap<String, Money>>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<BTreeMap<String, Money>>")
+    )]
     pub adder_by_issuer: Option<BTreeMap<IssuerId, Money>>,
 }
 
 /// Carry contribution from a single hierarchy level.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct LevelCarry {
     /// Human-readable level name (e.g. `"rating"`, `"region"`).
     pub level_name: String,
@@ -518,7 +542,8 @@ pub struct LevelCarry {
 /// Detailed attribution for market scalars.
 ///
 /// Includes dividends, equity/commodity prices, inflation indices, etc.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct ScalarsAttribution {
     /// Dividend changes by equity ID.
     #[serde(default)]

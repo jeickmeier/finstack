@@ -6,7 +6,8 @@ use super::config::PricingMode;
 use crate::instruments::fixed_income::structured_credit::types::TrancheSeniority;
 
 /// Stochastic pricing result for a structured credit deal.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct StochasticPricingResult {
     /// Net present value of the deal
     pub npv: Money,
@@ -120,7 +121,8 @@ impl StochasticPricingResult {
 }
 
 /// Tranche-level pricing result.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct TranchePricingResult {
     /// Tranche identifier
     pub tranche_id: String,

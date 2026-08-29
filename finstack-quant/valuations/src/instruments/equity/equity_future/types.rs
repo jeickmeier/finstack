@@ -11,7 +11,8 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 
 /// Market inputs for a fixed-currency quanto equity future.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EquityFutureQuantoSpec {
     /// Settlement-currency discount curve used to form the ATM FX forward.
@@ -74,8 +75,8 @@ impl EquityFutureQuantoSpec {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = EquityFuture::validate)]
 #[serde(deny_unknown_fields)]
 pub struct EquityFuture {
@@ -99,7 +100,10 @@ pub struct EquityFuture {
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     pub discrete_dividends: Vec<(Date, f64)>,
     /// Required quanto adjustment when settlement and underlying currencies differ.
     #[builder(optional)]

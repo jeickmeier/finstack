@@ -129,7 +129,8 @@ use crate::{
 pub const DEFAULT_MIN_FORWARD_TENOR: f64 = 1e-6;
 
 /// Piece-wise discount factor curve supporting several interpolation styles.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "RawDiscountCurve", into = "RawDiscountCurve")]
 pub struct DiscountCurve {
     pub(crate) id: CurveId,
@@ -174,14 +175,15 @@ pub struct DiscountCurve {
 }
 
 /// Raw serializable state of DiscountCurve
-#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct RawDiscountCurve {
     /// Curve identifier
     pub id: String,
     /// Base date
     #[serde(with = "crate::wire::date")]
-    #[schemars(with = "crate::wire::DateWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
     pub base: Date,
     /// Day count convention for discount time basis
     pub day_count: DayCount,

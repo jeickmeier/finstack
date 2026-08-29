@@ -24,7 +24,6 @@ use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
 use finstack_quant_core::types::{CurveId, IndexId};
 use finstack_quant_valuations::instruments::credit_derivatives::cds::CdsValuationConvention;
 use indexmap::IndexMap;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ts_export")]
 use ts_rs::TS;
@@ -39,7 +38,8 @@ const FINAL_MARKET_POINTER: &str = "/result/final_market";
 /// Exact schema marker accepted by calibration envelopes.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub enum CalibrationSchema {
     /// The sole supported calibration contract.
     #[serde(rename = "finstack_quant.calibration/1")]
@@ -232,7 +232,8 @@ fn parse_result_value(
 /// Complete calibration result with market snapshot and diagnostics.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CalibrationResult {
     /// Final calibrated market context (all curves, surfaces, scalars, etc.)
@@ -254,7 +255,8 @@ pub struct CalibrationResult {
 /// Top-level envelope for calibration results.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CalibrationResultEnvelope {
     /// Schema marker; current writers emit [`CALIBRATION_SCHEMA`].
@@ -329,7 +331,8 @@ impl CalibrationResultEnvelope {
 /// (plus optional pre-built prior calibrated objects) to build upon.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CalibrationEnvelope {
     /// Optional `$schema` URL/path for editor-side JSON Schema discovery.
@@ -429,7 +432,8 @@ impl CalibrationEnvelope {
 /// [`CalibrationStep`] to be executed.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CalibrationPlan {
     /// Unique identifier for the calibration plan.
@@ -454,7 +458,8 @@ pub struct CalibrationPlan {
 /// (e.g., a yield curve) using a specified set of quotes.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CalibrationStep {
     /// Unique identifier for the object being calibrated in this step.
     pub id: String,
@@ -493,7 +498,8 @@ impl<'de> Deserialize<'de> for CalibrationStep {
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
 #[cfg_attr(feature = "ts_export", ts(rename_all = "snake_case"))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StepParams {
     /// Discount curve calibration.
@@ -695,7 +701,8 @@ impl StepParams {
 /// Parameters for discount curve calibration step.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DiscountCurveParams {
     /// Identifier for the discount curve being built.
@@ -706,7 +713,10 @@ pub struct DiscountCurveParams {
     pub currency: Currency,
     /// Base date for the curve.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Calibration method to use.
@@ -741,7 +751,8 @@ pub struct DiscountCurveParams {
 /// Parameters for forward curve calibration step.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ForwardCurveParams {
     /// Identifier for the forward curve being built.
@@ -752,7 +763,10 @@ pub struct ForwardCurveParams {
     pub currency: Currency,
     /// Base date for the curve.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Tenor in years for the forward curve.
@@ -784,7 +798,8 @@ pub struct ForwardCurveParams {
 /// Parameters for hazard curve calibration step.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct HazardCurveParams {
     /// Identifier for the hazard curve being built.
@@ -800,7 +815,10 @@ pub struct HazardCurveParams {
     pub currency: Currency,
     /// Base date for the curve.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Identifier for the discount curve to use.
@@ -855,7 +873,8 @@ pub struct HazardCurveParams {
 /// Parameters for inflation curve calibration step.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct InflationCurveParams {
     /// Identifier for the inflation curve being built.
@@ -866,7 +885,10 @@ pub struct InflationCurveParams {
     pub currency: Currency,
     /// Base date for the curve.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Identifier for the discount curve to use.
@@ -918,7 +940,8 @@ pub struct InflationCurveParams {
 /// Monthly adjustments should approximately sum to zero.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SeasonalFactors {
     /// Monthly adjustment factors (Jan=index 0 through Dec=index 11).
@@ -929,7 +952,8 @@ pub struct SeasonalFactors {
 /// Parameters for volatility surface calibration step.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum VolSurfaceModel {
     /// Stochastic alpha-beta-rho model.
@@ -939,14 +963,18 @@ pub enum VolSurfaceModel {
 /// Parameters for volatility surface calibration step.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct VolSurfaceParams {
     /// Identifier for the volatility surface being built.
     pub vol_surface_id: String,
     /// Base date for the surface.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Identifier for the underlying instrument.
@@ -990,14 +1018,18 @@ pub struct VolSurfaceParams {
 /// from swaption quotes using the SABR model.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SwaptionVolParams {
     /// Identifier for the volatility surface.
     pub vol_surface_id: String,
     /// Base date for the calibration.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Discount curve identifier for pricing.
@@ -1076,7 +1108,8 @@ pub struct SwaptionVolParams {
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
 #[cfg_attr(feature = "ts_export", ts(rename_all = "snake_case"))]
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum SurfaceExtrapolationPolicy {
     /// Reject out-of-bounds targets with an explicit error (vendor-matching).
@@ -1092,7 +1125,8 @@ pub enum SurfaceExtrapolationPolicy {
 /// CDS tranche quotes with different detachment points.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BaseCorrelationParams {
     /// Credit index identifier (e.g., CDX, iTraxx).
@@ -1103,7 +1137,10 @@ pub struct BaseCorrelationParams {
     pub maturity_years: f64,
     /// Base date for the calibration.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Discount curve identifier for pricing.
@@ -1158,7 +1195,8 @@ pub struct BaseCorrelationParams {
 /// - `correlation`: Market-implied flat correlation for the tranche.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct StudentTParams {
     /// Identifier for the reference tranche instrument.
@@ -1203,7 +1241,8 @@ fn default_student_t_correlation() -> f64 {
 /// European swaption market prices using Jamshidian decomposition.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct HullWhiteStepParams {
     /// Discount curve ID (must already exist in market context).
@@ -1214,7 +1253,10 @@ pub struct HullWhiteStepParams {
     pub currency: Currency,
     /// Base date for the calibration.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Optional initial guess for mean reversion κ.
@@ -1228,7 +1270,8 @@ pub struct HullWhiteStepParams {
 /// Parameters for Hull-White 1-factor calibration to cap/floor volatility quotes.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum HullWhiteVolatilityMode {
     /// Calibrate and persist one scalar short-rate volatility.
@@ -1241,7 +1284,8 @@ pub enum HullWhiteVolatilityMode {
 /// Parameters for Hull-White 1-factor calibration to cap/floor volatility quotes.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CapFloorHullWhiteStepParams {
     /// Discount curve ID (must already exist in market context).
@@ -1256,7 +1300,10 @@ pub struct CapFloorHullWhiteStepParams {
     pub currency: Currency,
     /// Base date for the calibration.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Optional source mean reversion κ. Required for one-quote calibration.
@@ -1283,14 +1330,18 @@ pub struct CapFloorHullWhiteStepParams {
 /// to market-implied volatilities.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SviSurfaceParams {
     /// Identifier for the volatility surface being built.
     pub vol_surface_id: String,
     /// Base date for the surface.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Underlying instrument ticker.
@@ -1318,7 +1369,8 @@ pub struct SviSurfaceParams {
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
 #[cfg_attr(feature = "ts_export", ts(rename_all = "snake_case"))]
-#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum SwaptionVolConvention {
     /// Normal (Bachelier) absolute volatility in decimal rate units.
@@ -1343,7 +1395,8 @@ pub enum SwaptionVolConvention {
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
 #[cfg_attr(feature = "ts_export", ts(rename_all = "snake_case"))]
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum AtmStrikeConvention {
     /// ATM = forward swap rate (standard market convention)
@@ -1357,7 +1410,8 @@ pub enum AtmStrikeConvention {
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
 #[cfg_attr(feature = "ts_export", ts(rename_all = "snake_case"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum SabrInterpolationMethod {
     /// Bilinear interpolation in (expiry, tenor) over SABR parameters.
@@ -1401,7 +1455,8 @@ fn default_sabr_beta() -> f64 {
 /// FX spot rate, and cross-currency basis swap or FX forward quotes.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct XccyBasisParams {
     /// Identifier for the foreign discount curve being built.
@@ -1412,7 +1467,10 @@ pub struct XccyBasisParams {
     pub currency: Currency,
     /// Base date for the curve.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// T+0 cash FX rate (domestic per foreign), used when a quote omits `spot_fx`.
@@ -1457,7 +1515,8 @@ pub struct XccyBasisParams {
 /// rate instrument quotes using global (Levenberg-Marquardt) optimization.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ParametricCurveParams {
     /// Identifier for the parametric curve being built.
@@ -1465,7 +1524,10 @@ pub struct ParametricCurveParams {
     pub curve_id: CurveId,
     /// Base date for the curve.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Nelson-Siegel variant (NS or NSS).

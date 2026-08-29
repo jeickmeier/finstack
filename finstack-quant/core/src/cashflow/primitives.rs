@@ -47,17 +47,8 @@ use crate::money::Money;
 /// - **Credit Events**: `DefaultedNotional`, `Recovery`
 /// - **Margin/Collateral**: `InitialMarginPost`, `VariationMarginPay`, etc.
 #[non_exhaustive]
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CFKind {
     /// Fixed-rate coupon cash-flow.
@@ -338,18 +329,17 @@ impl CFKind {
 }
 
 /// Contractual accrual metadata attached to one cashflow.
-#[derive(
-    Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CashFlowAccrual {
     /// Contractual accrual-period start date.
     #[serde(with = "crate::wire::date")]
-    #[schemars(with = "crate::wire::DateWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
     pub start: Date,
     /// Contractual accrual-period end date.
     #[serde(with = "crate::wire::date")]
-    #[schemars(with = "crate::wire::DateWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
     pub end: Date,
     /// Day-count convention used for the accrual factor.
     pub day_count: DayCount,
@@ -362,18 +352,20 @@ pub struct CashFlowAccrual {
 ///
 /// Represents a monetary flow at a specific date with metadata
 /// for proper classification and risk calculation.
-#[derive(
-    Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CashFlow {
     /// Payment date (or payment date for principal/fee, or reset date for `CFKind::FloatReset`).
     #[serde(with = "crate::wire::date")]
-    #[schemars(with = "crate::wire::DateWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
     pub date: Date,
     /// Optional index reset date (for floating coupons).
     #[serde(default, with = "crate::wire::optional_date")]
-    #[schemars(with = "Option<crate::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<crate::wire::DateWire>")
+    )]
     pub reset_date: Option<Date>,
     /// Monetary amount including its currency.
     pub amount: Money,

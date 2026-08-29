@@ -27,12 +27,16 @@ use serde::{Deserialize, Serialize};
 /// `period_return = 0`, and `return_index = 100`. Later rows use
 /// `period_return = pnl / capital` and chain
 /// `return_index *= 1 + period_return`.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CompositeHistoryRow {
     /// Market observation date of this close.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
     /// Composite value before any close-of-period rebalance, in reporting currency.
     pub value: Money,
@@ -47,11 +51,17 @@ pub struct CompositeHistoryRow {
     pub return_index: f64,
     /// Effective date of quantities held into this close.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub held_state_effective_date: Date,
     /// New state date made effective for the next interval, when rebalanced.
     #[serde(default, with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub next_state_effective_date: Option<Date>,
     /// Primitive path, net, and gross exposures under the held (pre-rebalance) state.
     pub exposures: CompositeExposureReport,

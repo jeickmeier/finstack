@@ -5,7 +5,8 @@ pub use finstack_quant_models::types::{ExerciseStyle, OptionType};
 use serde::{Deserialize, Serialize};
 
 /// Settlement type for options
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum SettlementType {
     /// Physical delivery
@@ -36,7 +37,8 @@ impl std::str::FromStr for SettlementType {
 }
 
 /// Credit parameters for CDS instruments
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CreditParams {
     /// Reference entity (issuer being protected)

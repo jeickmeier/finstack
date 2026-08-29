@@ -12,24 +12,25 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 /// Result containing tranche-specific cashflows and metadata.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct TrancheCashflows {
     /// Tranche identifier.
     pub tranche_id: String,
     /// Cashflow schedule for this tranche (simple dated flows).
-    #[schemars(with = "String")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     pub cashflows: DatedFlows,
     /// Detailed cashflows with proper classification using CFKind.
     pub detailed_flows: Vec<CashFlow>,
     /// Interest cashflows (component of total).
-    #[schemars(with = "String")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     pub interest_flows: DatedFlows,
     /// Principal cashflows (component of total).
-    #[schemars(with = "String")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     pub principal_flows: DatedFlows,
     /// PIK capitalization flows.
-    #[schemars(with = "String")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     pub pik_flows: DatedFlows,
     /// Interest DEFERRED to future periods on a non-PIK tranche.
     ///
@@ -40,10 +41,10 @@ pub struct TrancheCashflows {
     /// `total_pik` as capitalized balance — the two have different effects on
     /// notional, on later interest due, and on OC denominators.
     #[serde(default)]
-    #[schemars(with = "String")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     pub deferred_flows: DatedFlows,
     /// Write-down flows (loss allocation reducing tranche balance).
-    #[schemars(with = "String")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     pub writedown_flows: DatedFlows,
     /// Final tranche balance after all payments.
     pub final_balance: Money,
@@ -60,7 +61,8 @@ pub struct TrancheCashflows {
 }
 
 /// Tranche-specific valuation result.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct TrancheValuation {
     /// Tranche identifier.

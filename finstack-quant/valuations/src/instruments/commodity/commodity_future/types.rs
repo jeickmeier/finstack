@@ -9,14 +9,18 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 
 /// Exchange final-settlement rule for a linear commodity future.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum CommodityFutureSettlement {
     /// One official observation at the supplied date.
     Single {
         /// Date whose forward or realized price determines final settlement.
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         observation_date: Date,
         /// Official observed price once the observation date has passed.
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -26,11 +30,17 @@ pub enum CommodityFutureSettlement {
     ArithmeticAverage {
         /// Ordered, unique exchange observation dates.
         #[serde(with = "finstack_quant_core::wire::dates")]
-        #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+        )]
         fixing_dates: Vec<Date>,
         /// Official prices already fixed, keyed by observation date.
         #[serde(default, with = "finstack_quant_core::wire::dated_f64_values")]
-        #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+        )]
         realized_fixings: Vec<(Date, f64)>,
     },
 }
@@ -46,8 +56,8 @@ pub enum CommodityFutureSettlement {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = CommodityFuture::validate)]
 #[serde(deny_unknown_fields)]
 pub struct CommodityFuture {

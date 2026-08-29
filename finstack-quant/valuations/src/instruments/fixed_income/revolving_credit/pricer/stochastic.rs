@@ -13,8 +13,6 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Result;
 use finstack_quant_models::monte_carlo::estimate::Estimate;
 use finstack_quant_models::monte_carlo::results::{MoneyEstimate, MonteCarloResult};
-use rayon::prelude::*;
-
 impl RevolvingCreditPricer {
     /// Price with full MC path capture for analysis.
     ///
@@ -135,12 +133,24 @@ impl RevolvingCreditPricer {
         // valuation is parallelised. `into_par_iter().collect()` preserves path
         // order, keeping the antithetic pairing and the PV statistics identical
         // to the serial implementation.
+        let price_path = |path_data| {
+            let schedule = engine.generate_stochastic_path(path_data)?;
+            Self::price_single_path(facility, market, as_of, &schedule)
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let path_results: Vec<_> = {
+            use rayon::prelude::*;
+            paths
+                .into_par_iter()
+                .map(price_path)
+                .collect::<Result<Vec<_>>>()?
+        };
+
+        #[cfg(target_arch = "wasm32")]
         let path_results: Vec<_> = paths
-            .into_par_iter()
-            .map(|path_data| {
-                let schedule = engine.generate_stochastic_path(path_data)?;
-                Self::price_single_path(facility, market, as_of, &schedule)
-            })
+            .into_iter()
+            .map(price_path)
             .collect::<Result<Vec<_>>>()?;
 
         // Compute MC statistics using Bessel-corrected variance (N-1 denominator)

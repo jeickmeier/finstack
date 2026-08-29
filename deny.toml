@@ -67,11 +67,7 @@ allow = []
 deny = []
 
 # Skip duplicate version check for transitive dependencies we don't control.
-skip = [
-    # `lru 0.16.4` still uses hashbrown 0.16, while indexmap/schemars moved to
-    # hashbrown 0.17. Remove once `lru` upgrades.
-    { name = "hashbrown", version = "=0.16.1" },
-]
+skip = []
 
 skip-tree = []
 

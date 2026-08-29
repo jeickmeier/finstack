@@ -39,17 +39,8 @@ use time::Duration as TimeDuration;
 /// let mid_date = Date::from_calendar_date(2024, Month::January, 15).expect("Valid date");
 /// assert_eq!(stepped.value_on(mid_date).expect("Value lookup should succeed"), 100.0);
 /// ```
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum SeriesInterpolation {
     /// Last observation carried forward
@@ -112,9 +103,10 @@ impl std::str::FromStr for SeriesInterpolation {
 ///     assert_eq!(m.currency(), Currency::USD);
 /// }
 /// ```
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "MarketScalarWire", into = "MarketScalarWire")]
-#[schemars(try_from = "MarketScalarWire")]
+#[cfg_attr(feature = "json-schema", schemars(try_from = "MarketScalarWire"))]
 pub enum MarketScalar {
     /// Unitless numeric (e.g., equity beta, recovery rate assumption)
     Unitless(f64),
@@ -122,7 +114,8 @@ pub enum MarketScalar {
     Price(crate::money::Money),
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 enum MarketScalarWire {
     Unitless(f64),
@@ -202,9 +195,10 @@ impl From<MarketScalar> for MarketScalarWire {
 /// let interpolated = series.value_on(mid).expect("Value lookup should succeed");
 /// assert!(interpolated > 3.7 && interpolated < 3.9);
 /// ```
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "ScalarTimeSeriesWire", into = "ScalarTimeSeriesWire")]
-#[schemars(try_from = "ScalarTimeSeriesWire")]
+#[cfg_attr(feature = "json-schema", schemars(try_from = "ScalarTimeSeriesWire"))]
 pub struct ScalarTimeSeries {
     id: CurveId,
     currency: Option<Currency>,
@@ -554,7 +548,8 @@ fn from_days(days: i32) -> Date {
 }
 
 /// Raw serializable state of a ScalarTimeSeries
-#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct ScalarTimeSeriesWire {
     /// Series identifier
@@ -563,7 +558,10 @@ struct ScalarTimeSeriesWire {
     pub currency: Option<Currency>,
     /// Observations as (date, value) pairs
     #[serde(with = "crate::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(crate::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(crate::wire::DateWire, f64)>")
+    )]
     pub observations: Vec<(Date, f64)>,
     /// Interpolation method
     pub interpolation: SeriesInterpolation,

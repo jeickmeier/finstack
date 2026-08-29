@@ -13,18 +13,18 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 finstack-quant-analytics = { path = "../finstack-quant/analytics", version = "0.8.0" }
-finstack-quant-attribution = { path = "../finstack-quant/attribution", version = "0.8.0" }
-finstack-quant-cashflows = { path = "../finstack-quant/cashflows", version = "0.8.0" }
-finstack-quant-covenants = { path = "../finstack-quant/covenants", version = "0.8.0" }
-finstack-quant-core = { path = "../finstack-quant/core", version = "0.8.0" }
-finstack-quant-features = { path = "../finstack-quant/features", version = "0.8.0" }
-finstack-quant-margin = { path = "../finstack-quant/margin", version = "0.8.0" }
-finstack-quant-statements = { path = "../finstack-quant/statements", version = "0.8.0" }
+finstack-quant-attribution = { path = "../finstack-quant/attribution", version = "0.8.0", default-features = false }
+finstack-quant-cashflows = { path = "../finstack-quant/cashflows", version = "0.8.0", default-features = false }
+finstack-quant-covenants = { path = "../finstack-quant/covenants", version = "0.8.0", default-features = false }
+finstack-quant-core = { path = "../finstack-quant/core", version = "0.8.0", default-features = false }
+finstack-quant-features = { path = "../finstack-quant/features", version = "0.8.0", default-features = false }
+finstack-quant-margin = { path = "../finstack-quant/margin", version = "0.8.0", default-features = false }
+finstack-quant-statements = { path = "../finstack-quant/statements", version = "0.8.0", default-features = false }
 finstack-quant-statements-analytics = { path = "../finstack-quant/statements-analytics", version = "0.8.0" }
 finstack-quant-valuations = { path = "../finstack-quant/valuations", version = "0.8.0", default-features = false }
 finstack-quant-calibration = { path = "../finstack-quant/calibration", version = "0.8.0", default-features = false }
 finstack-quant-models = { path = "../finstack-quant/models", version = "0.8.0", default-features = false }
-finstack-quant-scenarios = { path = "../finstack-quant/scenarios", version = "0.8.0" }
+finstack-quant-scenarios = { path = "../finstack-quant/scenarios", version = "0.8.0", default-features = false }
 finstack-quant-portfolio = { path = "../finstack-quant/portfolio", version = "0.8.0", default-features = false }
 wasm-bindgen = "0.2.114"
 js-sys = "0.3"
@@ -32,16 +32,10 @@ serde = { workspace = true }
 serde-wasm-bindgen = "0.6"
 serde_json = { workspace = true }
 indexmap = { workspace = true }
-console_error_panic_hook = "0.1"
+console_error_panic_hook = { version = "0.1", optional = true }
 
 # Month enum required by Date bindings
 time = { workspace = true }
-
-[target.'cfg(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "none")))'.dependencies]
-# `jsonschema` pulls in `ahash` -> `getrandom` 0.3 on wasm. Enabling the `wasm_js`
-# feature here unifies features for that transitive version so `wasm-pack build`
-# can produce the JS/WASM package consumed by the JavaScript facade and tests.
-getrandom_03 = { package = "getrandom", version = "0.3.4", features = ["wasm_js"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
@@ -52,6 +46,7 @@ wasm-bindgen-test = "0.3"
 # - `ts_export`: Emit TypeScript type definitions at build time (opt-in, writes files to disk)
 [features]
 default = []
+console_panic_hook = ["dep:console_error_panic_hook"]
 ts_export = ["finstack-quant-valuations/ts_export"]
 
 [package.metadata.wasm-pack.profile.release]

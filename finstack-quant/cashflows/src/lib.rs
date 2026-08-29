@@ -107,6 +107,7 @@ pub mod traits;
 /// Generic schedule-driven interest accrual engine.
 pub mod accrual;
 pub mod json;
+#[cfg(feature = "json-schema")]
 pub mod schema;
 
 mod serde_defaults;

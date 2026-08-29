@@ -18,7 +18,8 @@ use finstack_quant_core::Result;
 /// qualifying, including high-yield sectors represented by SIMM buckets 7-12.
 /// Credit non-qualifying is reserved for securitizations and other exposures
 /// governed by the non-qualifying risk class.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "risk_class", rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum SimmCreditClassification {
@@ -97,7 +98,8 @@ impl<'de> serde::Deserialize<'de> for SimmCreditClassification {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct OtcMarginSpec {
     /// Full CSA specification (for bilateral trades)

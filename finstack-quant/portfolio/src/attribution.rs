@@ -4,9 +4,9 @@
 //! with currency conversion to portfolio base currency.
 
 use crate::error::{Error, Result};
-use crate::evaluation::{
-    EvaluationProfile, PortfolioEvaluationPlan, PositionExecution, POSITION_PARALLEL_MIN_POSITIONS,
-};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::evaluation::POSITION_PARALLEL_MIN_POSITIONS;
+use crate::evaluation::{EvaluationProfile, PortfolioEvaluationPlan, PositionExecution};
 use crate::portfolio::Portfolio;
 use crate::types::PositionId;
 use crate::valuation::{
@@ -824,6 +824,7 @@ pub(crate) fn reduce_metrics_based_prepared(
             })
         };
 
+    #[cfg(not(target_arch = "wasm32"))]
     let position_results: Vec<Result<PositionAttributionData>> =
         if portfolio.positions.len() >= POSITION_PARALLEL_MIN_POSITIONS {
             use rayon::prelude::*;
@@ -835,6 +836,11 @@ pub(crate) fn reduce_metrics_based_prepared(
         } else {
             portfolio.positions.iter().map(reduce_position).collect()
         };
+
+    #[cfg(target_arch = "wasm32")]
+    let position_results: Vec<Result<PositionAttributionData>> =
+        portfolio.positions.iter().map(reduce_position).collect();
+
     let position_data = position_results.into_iter().collect::<Result<Vec<_>>>()?;
 
     aggregate_position_attributions(
@@ -916,6 +922,8 @@ pub(crate) fn reduce_method_owned_prepared(
                 val_t1.value,
             )
         };
+
+    #[cfg(not(target_arch = "wasm32"))]
     let position_results: Vec<Result<PositionAttributionData>> =
         if portfolio.positions.len() >= POSITION_PARALLEL_MIN_POSITIONS {
             use rayon::prelude::*;
@@ -927,6 +935,11 @@ pub(crate) fn reduce_method_owned_prepared(
         } else {
             portfolio.positions.iter().map(reduce_position).collect()
         };
+
+    #[cfg(target_arch = "wasm32")]
+    let position_results: Vec<Result<PositionAttributionData>> =
+        portfolio.positions.iter().map(reduce_position).collect();
+
     let position_data = position_results.into_iter().collect::<Result<Vec<_>>>()?;
 
     aggregate_position_attributions(

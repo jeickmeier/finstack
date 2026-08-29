@@ -14,8 +14,6 @@ use finstack_quant_models::factor::{
 };
 use finstack_quant_valuations::instruments::Instrument;
 
-use rayon::prelude::*;
-
 /// Finite-difference sensitivity engine using central bumps around the base market.
 #[derive(Debug, Clone)]
 pub struct DeltaBasedEngine {
@@ -277,20 +275,26 @@ impl FactorSensitivityEngine for DeltaBasedEngine {
         let mut matrix = SensitivityMatrix::zeros(position_ids, factor_ids);
         let repricing_plan = FactorRepricingPlan::build(positions, factors, market);
 
-        let column_results: Vec<Result<Vec<f64>>> = factors
-            .par_iter()
-            .enumerate()
-            .map(|(factor_index, factor)| {
-                self.compute_factor_column(
-                    positions,
-                    repricing_plan.affected(factor_index),
-                    factor,
-                    market,
-                    as_of,
-                    base_currency,
-                )
-            })
-            .collect();
+        let compute_column = |(factor_index, factor): (usize, &FactorDefinition)| {
+            self.compute_factor_column(
+                positions,
+                repricing_plan.affected(factor_index),
+                factor,
+                market,
+                as_of,
+                base_currency,
+            )
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let column_results: Vec<Result<Vec<f64>>> = {
+            use rayon::prelude::*;
+            factors.par_iter().enumerate().map(compute_column).collect()
+        };
+
+        #[cfg(target_arch = "wasm32")]
+        let column_results: Vec<Result<Vec<f64>>> =
+            factors.iter().enumerate().map(compute_column).collect();
         let columns = column_results
             .into_iter()
             .collect::<Result<Vec<Vec<f64>>>>()?;

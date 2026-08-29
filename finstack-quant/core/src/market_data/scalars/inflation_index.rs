@@ -71,7 +71,6 @@ use crate::currency::Currency;
 use crate::dates::{Date, DateExt};
 use crate::{Error, Result};
 
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Interpolation method for CPI/RPI values between monthly observations.
@@ -93,7 +92,8 @@ use serde::{Deserialize, Serialize};
 /// let linear = InflationInterpolation::Linear; // TIPS standard
 /// let step = InflationInterpolation::Step;     // Conservative approach
 /// ```
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum InflationInterpolation {
@@ -160,7 +160,8 @@ impl core::str::FromStr for InflationInterpolation {
 /// let gilt_lag = InflationLag::Months(3);  // UK modern gilts
 /// let no_lag = InflationLag::None;         // Inflation swaps (forecast-based)
 /// ```
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum InflationLag {
@@ -258,9 +259,10 @@ pub enum InflationLag {
 ///     Accounting*, 2(1), 1-19. `docs/REFERENCES.md#kerkhof-2005`
 ///   - Hurd, M., & Relleen, J. (2006). "Estimating the Inflation Risk Premium."
 ///     Bank of England Quarterly Bulletin, Q2 2006. `docs/REFERENCES.md#kerkhof-2005`
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "InflationIndexWire", into = "InflationIndexWire")]
-#[schemars(try_from = "InflationIndexWire")]
+#[cfg_attr(feature = "json-schema", schemars(try_from = "InflationIndexWire"))]
 pub struct InflationIndex {
     /// Unique identifier for this index (e.g., "US-CPI-U", "UK-RPI")
     pub id: String,
@@ -552,7 +554,8 @@ impl InflationIndex {
 }
 
 /// Raw serializable state of an InflationIndex
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct InflationIndexWire {
     /// Unique identifier
@@ -561,7 +564,10 @@ struct InflationIndexWire {
     pub currency: Currency,
     /// Observations as (date, value) pairs
     #[serde(with = "crate::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(crate::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(crate::wire::DateWire, f64)>")
+    )]
     pub observations: Vec<(Date, f64)>,
     /// Interpolation method
     pub interpolation: InflationInterpolation,

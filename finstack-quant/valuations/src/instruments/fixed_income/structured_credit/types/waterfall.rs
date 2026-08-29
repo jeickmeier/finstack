@@ -19,9 +19,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 /// Recipient of waterfall payments
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
@@ -39,9 +38,8 @@ pub enum RecipientType {
 }
 
 /// Type of management fee
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
@@ -55,9 +53,8 @@ pub enum ManagementFeeType {
 }
 
 /// Rounding convention for payments
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
@@ -72,7 +69,8 @@ pub enum RoundingConvention {
 }
 
 /// How to calculate payment amount
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
@@ -146,7 +144,8 @@ pub enum PaymentCalculation {
 /// Each sub-spec is optional; when none are present the resolved waterfall is
 /// identical to the base waterfall. Applied by
 /// [`crate::instruments::fixed_income::structured_credit::resolve_waterfall`].
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct WaterfallRules {
     /// Available-funds / net-WAC cap on named tranches' interest.
@@ -313,7 +312,8 @@ impl WaterfallRules {
 }
 
 /// Available-funds cap (net-WAC cap) specification.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AfcSpec {
     /// Ids of tranches whose interest coupon is capped at the collateral's
@@ -334,7 +334,8 @@ pub struct AfcSpec {
 /// tranche interest shortfalls — providing credit enhancement from excess
 /// spread. Any balance unused at deal end is released back to equity, unless a
 /// cumulative-loss trap trigger is breached.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ExcessSpreadSpec {
     /// Target funded balance of the spread account (currency units).
@@ -365,7 +366,8 @@ pub struct ExcessSpreadSpec {
 /// Delinquency triggers are intentionally absent: the simulation engine models
 /// defaults and recoveries but not a separate delinquency state, so there is no
 /// delinquency rate to test against.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum StepDownTrigger {
@@ -388,12 +390,16 @@ pub enum StepDownTrigger {
 /// subordination to the juniors. While any trigger is breached the deal reverts
 /// to sequential, so the switch is re-evaluated every period (non-sticky). An
 /// empty `triggers` list steps down purely on the date.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct StepDownSpec {
     /// Earliest date principal may switch to pro-rata.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub step_down_date: Date,
     /// Performance triggers; all must pass for the step-down to take effect.
     pub triggers: Vec<StepDownTrigger>,
@@ -401,7 +407,8 @@ pub struct StepDownSpec {
 
 /// One step of a shifting-interest schedule: the senior's share of principal
 /// from `months_from_closing` onward (until the next step).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ShiftingInterestStep {
     /// Months from closing at which this senior share takes effect.
@@ -418,7 +425,8 @@ pub struct ShiftingInterestStep {
 /// senior; later steps release principal to the subordinates. Modelled as a
 /// per-period weighted pro-rata of *all* principal (a first-order treatment;
 /// agency-style scheduled-vs-prepayment splitting is a refinement).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ShiftingInterestSpec {
     /// Id of the senior tranche that receives the scheduled principal share.
@@ -434,7 +442,8 @@ pub struct ShiftingInterestSpec {
 /// `max_cumulative_loss_pct`, an early-amortization event is triggered: the
 /// revolving period ends immediately and the deal begins paying principal down
 /// (amortizing) even before its scheduled revolving-period end.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EarlyAmortizationSpec {
     /// Cumulative-loss fraction (decimal, of the original pool balance) at or
@@ -460,21 +469,29 @@ pub struct EarlyAmortizationSpec {
 /// last payment), any residual funding-account balance is swept to the
 /// outstanding tranches senior-first at deal end, so accumulated principal is
 /// never stranded.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ControlledAccumulationSpec {
     /// First date principal is accumulated into the funding account.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub start_date: Date,
     /// Date the accumulated funding account is released as a bullet payment.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub bullet_date: Date,
 }
 
 /// Allocation mode within a tier
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
@@ -486,7 +503,8 @@ pub enum AllocationMode {
 }
 
 /// Payment type classification
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
@@ -502,7 +520,8 @@ pub enum PaymentType {
 }
 
 /// Individual payment recipient within a tier
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Recipient {
     /// Unique identifier
@@ -585,7 +604,8 @@ impl Recipient {
 }
 
 /// Waterfall tier with multiple recipients
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct WaterfallTier {
     /// Unique tier identifier
@@ -639,12 +659,16 @@ impl WaterfallTier {
 }
 
 /// Result of waterfall distribution
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct WaterfallDistribution {
     /// Payment date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub payment_date: Date,
     /// Total available cash at start
     pub total_available: Money,
@@ -703,7 +727,8 @@ impl WaterfallDistribution {
 }
 
 /// Record of a diverted payment from one tier to another recipient.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DiversionRecord {
     /// Source tier where cash originated.
@@ -717,7 +742,8 @@ pub struct DiversionRecord {
 }
 
 /// Record of individual payment
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PaymentRecord {
     /// Tier id
@@ -739,7 +765,8 @@ pub struct PaymentRecord {
 }
 
 /// Simple OC/IC trigger for diversion
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CoverageTestRules {
     /// Haircuts applied by collateral rating
@@ -784,10 +811,11 @@ impl From<&super::setup::CoverageTestConfig> for CoverageTestRules {
 }
 
 /// Coverage trigger definition used for diversion logic (OC/IC thresholds).
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 // Distinct from the tranche-level `types::tranches::CoverageTrigger`.
-#[schemars(rename = "WaterfallCoverageTrigger")]
+#[cfg_attr(feature = "json-schema", schemars(rename = "WaterfallCoverageTrigger"))]
 pub struct CoverageTrigger {
     /// Tranche where test applies
     pub tranche_id: String,
@@ -798,7 +826,8 @@ pub struct CoverageTrigger {
 }
 
 /// Type of coverage test (simplified to OC/IC only)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum CoverageTestType {
@@ -876,7 +905,8 @@ impl Default for WaterfallWorkspace {
 }
 
 /// Main waterfall engine with tier-based distribution
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Waterfall {
     /// Ordered payment tiers

@@ -44,17 +44,8 @@ use finstack_quant_core::Result;
 ///
 /// This is less common but may be used in some markets or for consistency with
 /// other FX instruments that quote in this direction.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum NdfQuoteConvention {
@@ -132,17 +123,8 @@ impl std::str::FromStr for NdfQuoteConvention {
 ///     .build()
 ///     .expect("Valid NDF");
 /// ```
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 pub enum NdfFixingSource {
     /// PBOC - People's Bank of China CNY/USD fixing.
@@ -319,8 +301,8 @@ impl std::str::FromStr for NdfFixingSource {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = Ndf::validate)]
 #[serde(deny_unknown_fields, try_from = "NdfUnchecked")]
 pub struct Ndf {
@@ -332,11 +314,17 @@ pub struct Ndf {
     pub settlement_currency: Currency,
     /// Fixing date (rate observation date, typically T-2 before maturity).
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub fixing_date: Date,
     /// Maturity/settlement date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
     /// Notional amount in base currency.
     pub notional: Money,
@@ -413,7 +401,8 @@ pub struct Ndf {
     pub attributes: Attributes,
 }
 
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct NdfUnchecked {
     /// Unique instrument identifier.
@@ -424,11 +413,17 @@ struct NdfUnchecked {
     settlement_currency: Currency,
     /// Fixing date (rate observation date, typically T-2 before maturity).
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     fixing_date: Date,
     /// Maturity/settlement date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     maturity: Date,
     /// Notional amount in base currency.
     notional: Money,

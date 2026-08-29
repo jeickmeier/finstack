@@ -10,34 +10,40 @@ description = "Quote ingestion, market construction, calibration, and cached rec
 autobenches = false
 
 [dependencies]
-finstack-quant-core = { path = "../core", version = "0.8.0" }
+finstack-quant-core = { path = "../core", version = "0.8.0", default-features = false }
 finstack-quant-models = { path = "../models", version = "0.8.0", default-features = false }
-finstack-quant-cashflows = { path = "../cashflows", version = "0.8.0" }
-finstack-quant-valuations = { path = "../valuations", version = "0.8.0" }
+finstack-quant-cashflows = { path = "../cashflows", version = "0.8.0", default-features = false }
+finstack-quant-valuations = { path = "../valuations", version = "0.8.0", default-features = false }
 indexmap = { workspace = true, features = ["serde"] }
-smallvec = { version = "1.15", default-features = false, features = ["serde"] }
 serde = { workspace = true }
-serde_json = { workspace = true, features = ["raw_value"] }
+serde_json = { workspace = true }
 time = { workspace = true }
 rust_decimal = { workspace = true }
-schemars = { workspace = true }
-jsonschema = { version = "0.28", default-features = false }
+schemars = { workspace = true, optional = true }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
-rayon = "1.11"
 thiserror = { workspace = true }
-num-complex = "0.4"
-strum = { workspace = true, features = ["derive"] }
 ts-rs = { version = "12", optional = true, features = ["serde-compat", "no-serde-warnings"] }
+
+# rayon has no working thread pool on single-threaded wasm32; parallel
+# code paths are cfg-gated to native targets, so the dependency is too.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rayon = "1.11"
 
 [dev-dependencies]
 time = { workspace = true, features = ["macros"] }
 proptest = "1.11.0"
 criterion = { workspace = true }
 rust_decimal_macros = { workspace = true }
-toml = "1.1.4"
 
 [features]
-default = []
+default = ["json-schema"]
+json-schema = [
+    "dep:schemars",
+    "finstack-quant-core/json-schema",
+    "finstack-quant-models/json-schema",
+    "finstack-quant-cashflows/json-schema",
+    "finstack-quant-valuations/json-schema",
+]
 ts_export = ["dep:ts-rs", "finstack-quant-models/ts_export", "finstack-quant-valuations/ts_export"]
 
 [[bench]]
@@ -67,6 +73,7 @@ harness = false
 [[bin]]
 name = "gen_calibration_schemas"
 path = "src/bin/gen_schemas.rs"
+required-features = ["json-schema"]
 
 [lints]
 workspace = true

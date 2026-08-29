@@ -8,7 +8,8 @@ use std::sync::OnceLock;
 /// Each standard metric belongs to exactly one group. Use
 /// [`MetricGroup::metrics()`] to list members and
 /// [`MetricGroup::ALL`] to iterate all groups.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum MetricGroup {
     /// Static pricing outputs: prices, yields, spreads, durations, implied

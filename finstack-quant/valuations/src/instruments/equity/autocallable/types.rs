@@ -42,9 +42,8 @@ use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 use time::macros::date;
 
 /// Final payoff type for autocallable products.
-#[derive(
-    Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum FinalPayoffType {
     /// Capital protection: max(floor, participation * min(S_T/S_0, cap))
@@ -72,8 +71,8 @@ pub enum FinalPayoffType {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = Autocallable::validate)]
 #[serde(deny_unknown_fields, try_from = "AutocallableUnchecked")]
 pub struct Autocallable {
@@ -86,17 +85,26 @@ pub struct Autocallable {
     /// Barriers are monitored **discretely** at these exact dates only.
     /// The Monte Carlo time grid is constructed to include these dates precisely.
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub observation_dates: Vec<Date>,
     /// Contractual payment dates for coupons and early redemption.
     ///
     /// Each entry corresponds to `observation_dates` at the same index.
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub payment_dates: Vec<Date>,
     /// Explicit terminal expiry date for the structure.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Autocall barrier levels (as ratios of initial spot, e.g., 1.0 = 100%).
     ///
@@ -168,7 +176,10 @@ pub struct Autocallable {
     #[builder(default)]
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     pub past_fixings: Vec<(Date, f64)>,
     /// Pricing overrides (manual price, yield, spread)
     #[builder(default)]
@@ -197,7 +208,8 @@ pub struct Autocallable {
 
 /// Mirror of `Autocallable` used by serde to apply `validate()` after
 /// deserialization. Not part of the public API.
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct AutocallableUnchecked {
     /// Unique instrument identifier
@@ -209,15 +221,24 @@ struct AutocallableUnchecked {
     /// Barriers are monitored **discretely** at these exact dates only.
     /// The Monte Carlo time grid is constructed to include these dates precisely.
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     observation_dates: Vec<Date>,
     /// Contractual payment dates corresponding to observation dates.
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     payment_dates: Vec<Date>,
     /// Explicit terminal expiry date for the structure.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     expiry: Date,
     /// Autocall barrier levels (as ratios of initial spot, e.g., 1.0 = 100%).
     ///
@@ -278,7 +299,10 @@ struct AutocallableUnchecked {
     /// remaining future observation dates are simulated.
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     past_fixings: Vec<(Date, f64)>,
     /// Pricing overrides (manual price, yield, spread)
     #[serde(default)]

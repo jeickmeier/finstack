@@ -47,9 +47,10 @@ use super::SabrParameterData;
 /// Each grid node stores a [`SabrParameterData`] and a forward rate. The
 /// interpolation mode records how a models-layer evaluator should combine
 /// nodes; core performs structural validation only.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "VolCubeWire", into = "VolCubeWire")]
-#[schemars(try_from = "VolCubeWire")]
+#[cfg_attr(feature = "json-schema", schemars(try_from = "VolCubeWire"))]
 pub struct VolCube {
     id: CurveId,
     expiries: Box<[f64]>,
@@ -62,7 +63,8 @@ pub struct VolCube {
 }
 
 /// Raw serializable state of a VolCube.
-#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct VolCubeWire {
     /// Identifier the cube is registered and looked up under.

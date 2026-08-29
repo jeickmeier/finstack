@@ -10,28 +10,43 @@ description = "Portfolio aggregation for Finstack Quant: positions, books, and d
 autobenches = false
 
 [dependencies]
-finstack-quant-core = { path = "../core", version = "0.8.0" }
-finstack-quant-attribution = { path = "../attribution", version = "0.8.0" }
-finstack-quant-calibration = { path = "../calibration", version = "0.8.0" }
-finstack-quant-cashflows = { path = "../cashflows", version = "0.8.0" }
-finstack-quant-margin = { path = "../margin", version = "0.8.0" }
-finstack-quant-models = { path = "../models", version = "0.8.0" }
-finstack-quant-valuations = { path = "../valuations", version = "0.8.0" }
-finstack-quant-scenarios = { path = "../scenarios", version = "0.8.0" }
+finstack-quant-core = { path = "../core", version = "0.8.0", default-features = false }
+finstack-quant-attribution = { path = "../attribution", version = "0.8.0", default-features = false }
+finstack-quant-calibration = { path = "../calibration", version = "0.8.0", default-features = false }
+finstack-quant-cashflows = { path = "../cashflows", version = "0.8.0", default-features = false }
+finstack-quant-margin = { path = "../margin", version = "0.8.0", default-features = false }
+finstack-quant-models = { path = "../models", version = "0.8.0", default-features = false }
+finstack-quant-valuations = { path = "../valuations", version = "0.8.0", default-features = false }
+finstack-quant-scenarios = { path = "../scenarios", version = "0.8.0", default-features = false }
 thiserror = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true, features = ["raw_value"] }
-schemars = { workspace = true }
+serde_json = { workspace = true }
+schemars = { workspace = true, optional = true }
 indexmap = { workspace = true, features = ["serde"] }
 tracing = { version = "0.1", default-features = false }
 time = { workspace = true, features = ["macros", "serde", "parsing", "formatting"] }
-rayon = "1.11"
 good_lp = { version = "1.15", default-features = false, features = ["microlp"] }
 ts-rs = { version = "12", optional = true, features = ["serde-compat", "no-serde-warnings"] }
 
 [features]
-default = []
+default = ["json-schema"]
+json-schema = [
+    "dep:schemars",
+    "finstack-quant-core/json-schema",
+    "finstack-quant-attribution/json-schema",
+    "finstack-quant-calibration/json-schema",
+    "finstack-quant-cashflows/json-schema",
+    "finstack-quant-margin/json-schema",
+    "finstack-quant-models/json-schema",
+    "finstack-quant-valuations/json-schema",
+    "finstack-quant-scenarios/json-schema",
+]
 ts_export = ["dep:ts-rs", "finstack-quant-core/ts_export"]
+
+[[bin]]
+name = "gen_materialization_schemas"
+path = "src/bin/gen_materialization_schemas.rs"
+required-features = ["json-schema"]
 
 [dev-dependencies]
 criterion = { workspace = true }
@@ -85,6 +100,11 @@ harness = false
 
 [lints]
 workspace = true
+
+# rayon has no working thread pool on single-threaded wasm32; parallel
+# code paths are cfg-gated to native targets, so the dependency is too.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rayon = "1.11"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3.103"

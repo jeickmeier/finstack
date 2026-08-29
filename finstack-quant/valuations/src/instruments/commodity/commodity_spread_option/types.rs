@@ -79,9 +79,9 @@ use finstack_quant_core::Result;
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
-#[schemars(deny_unknown_fields)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "json-schema", schemars(deny_unknown_fields))]
 #[builder(validate = CommoditySpreadOption::validate)]
 pub struct CommoditySpreadOption {
     /// Unique instrument identifier.
@@ -92,7 +92,10 @@ pub struct CommoditySpreadOption {
     pub option_type: OptionType,
     /// Option expiry date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Spread strike price K in the payoff max(S1 - S2 - K, 0).
     pub strike: f64,
@@ -101,7 +104,10 @@ pub struct CommoditySpreadOption {
         serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
         deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
-    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::PositiveF64Wire")
+    )]
     pub notional: f64,
     /// Forward/price curve ID for leg 1 (the "long" commodity).
     pub leg1_forward_curve_id: CurveId,
@@ -118,7 +124,10 @@ pub struct CommoditySpreadOption {
         serialize_with = "finstack_quant_core::wire::serialize_correlation",
         deserialize_with = "finstack_quant_core::wire::deserialize_correlation"
     )]
-    #[schemars(with = "finstack_quant_core::wire::CorrelationWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::CorrelationWire")
+    )]
     pub correlation: f64,
     /// Day count convention for time to expiry.
     #[serde(default = "crate::serde_defaults::day_count_act365f")]
@@ -152,7 +161,7 @@ pub struct CommoditySpreadOption {
     /// Rejects unknown JSON fields (restores `deny_unknown_fields` despite the
     /// `#[serde(flatten)]` on `underlying`).
     #[serde(flatten)]
-    #[schemars(skip)]
+    #[cfg_attr(feature = "json-schema", schemars(skip))]
     #[builder(default)]
     pub(crate) unknown_fields: finstack_quant_core::serde_guard::UnknownFieldGuard,
 }

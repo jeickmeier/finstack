@@ -49,9 +49,8 @@ fn validate_finite(value: f64) -> Result<()> {
 /// Haircuts represent the discount from book value realized in a
 /// forced-sale / workout scenario. Values are in \[0, 1\] where 0 means
 /// full recovery of book value and 1 means total loss.
-#[derive(
-    Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CollateralType {
     /// Cash and cash equivalents. Typical haircut: 0-5%.
@@ -93,7 +92,8 @@ impl std::str::FromStr for CollateralType {
 }
 
 /// A single piece of collateral in the recovery waterfall.
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CollateralPiece {
     /// Collateral asset class.
     pub collateral_type: CollateralType,
@@ -134,7 +134,8 @@ impl CollateralPiece {
 /// Workout and resolution costs.
 ///
 /// These reduce the net recovery available to creditors.
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct WorkoutCosts {
     /// Direct costs as fraction of EAD (legal fees, administrative). Typical: 3-8%.
     pub direct_cost_rate: f64,
@@ -204,7 +205,8 @@ impl WorkoutCosts {
 /// and costs include both direct (legal, administrative) and indirect
 /// (opportunity cost) components. Costs are discounted to the default date
 /// with the same factor as recoveries (Basel workout-LGD methodology).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct WorkoutLgd {
     /// Ordered collateral waterfall (highest priority first).
     collateral: Vec<CollateralPiece>,

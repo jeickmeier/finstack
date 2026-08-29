@@ -28,8 +28,8 @@ use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 // Note: JsonSchema derive requires finstack-quant-core types to implement JsonSchema
 // #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -52,7 +52,10 @@ pub struct Equity {
     #[serde(default)]
     #[builder(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     pub discrete_dividends: Vec<(Date, f64)>,
     /// Discount curve ID for pricing
     pub discount_curve_id: CurveId,

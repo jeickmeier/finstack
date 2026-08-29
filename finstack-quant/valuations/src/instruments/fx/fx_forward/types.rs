@@ -64,8 +64,8 @@ use time::macros::date;
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = FxForward::validate)]
 #[serde(deny_unknown_fields, try_from = "FxForwardUnchecked")]
 pub struct FxForward {
@@ -77,7 +77,10 @@ pub struct FxForward {
     pub quote_currency: Currency,
     /// Maturity/settlement date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
     /// Notional amount in base currency.
     pub notional: Money,
@@ -127,7 +130,8 @@ pub struct FxForward {
     pub attributes: Attributes,
 }
 
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct FxForwardUnchecked {
     /// Unique instrument identifier.
@@ -138,7 +142,10 @@ struct FxForwardUnchecked {
     quote_currency: Currency,
     /// Maturity/settlement date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     maturity: Date,
     /// Notional amount in base currency.
     notional: Money,

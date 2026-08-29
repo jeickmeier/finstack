@@ -9,9 +9,8 @@ use finstack_quant_models::credit::{
 /// `Discrete` only checks the barrier at grid points (fast but biased for
 /// coarse time steps). `BrownianBridge` uses a Brownian-bridge crossing
 /// probability between grid points to approximate continuous monitoring.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum BarrierCrossing {
     /// Discrete monitoring: default if `V(t_i) < B(t_i)` at time steps.
@@ -21,9 +20,8 @@ pub enum BarrierCrossing {
 }
 
 /// Which structural parameter to calibrate in the MC engine.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CalibrationParameter {
     /// Calibrate the debt barrier B.
@@ -37,7 +35,8 @@ pub enum CalibrationParameter {
 /// When set on [`MertonMcConfig::calibration`], the pricer runs a low-path
 /// bisection to solve for a structural parameter so that the cash base-case
 /// MC price matches the target market quote, then re-prices with full paths.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MertonMcCalibrationSpec {
     /// Target market quote to match (interpreted at quote/settlement date).
@@ -76,9 +75,8 @@ impl Default for MertonMcCalibrationSpec {
 /// Determines how each coupon payment is handled: paid in cash, accreted
 /// to notional (PIK), split between cash and PIK, or decided dynamically
 /// by a [`ToggleExerciseModel`].
-#[derive(
-    Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum PikMode {
     /// Coupon paid in cash.
@@ -116,7 +114,8 @@ pub enum PikMode {
 /// // Toggle for 3 years, then mandatory cash
 /// let toggle_window = PikSchedule::Stepped(vec![(0.0, PikMode::Toggle), (3.0, PikMode::Cash)]);
 /// ```
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum PikSchedule {
     /// Same mode for all coupon dates.
@@ -153,7 +152,8 @@ impl PikSchedule {
 }
 
 /// Configuration for Monte Carlo PIK bond pricing.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MertonMcConfig {
     /// Merton structural credit model.

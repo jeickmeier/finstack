@@ -29,7 +29,6 @@ use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::market_data::hierarchy::ResolutionMode;
 use finstack_quant_core::types::CurveId;
 use indexmap::IndexMap;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Re-export [`HierarchyTarget`] for hierarchy-targeted operations.
@@ -79,7 +78,8 @@ pub use finstack_quant_statements::types::NodeId;
 ///     hazard_bump_mode: HazardBumpMode::default(),
 /// };
 /// ```
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ScenarioSpec {
     /// Unique identifier for this scenario.
@@ -122,7 +122,8 @@ pub struct ScenarioSpec {
 /// quotes. [`Self::FirstOrderShift`] applies
 /// [`HazardCurve::with_parallel_hazard_rate_bump_bp`](finstack_quant_core::market_data::term_structures::HazardCurve::with_parallel_hazard_rate_bump_bp)
 /// directly to hazard knots for screening and large hierarchy fan-out.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum HazardBumpMode {
     /// Shock implied par CDS spreads and re-bootstrap the hazard curve.
@@ -209,7 +210,8 @@ impl ScenarioSpec {
 /// Hierarchy-targeted variants are resolved into direct identifiers during
 /// [`crate::engine::ScenarioEngine::apply`] using the market hierarchy attached
 /// to the execution context.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum OperationSpec {
     /// FX rate percent shift.
@@ -836,7 +838,8 @@ fn default_true() -> bool {
 /// let kind = CurveKind::Discount;
 /// assert_eq!(format!("{:?}", kind), "Discount");
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CurveKind {
     /// Discount factor curve.
@@ -879,7 +882,8 @@ pub enum CurveKind {
 /// let mode = TenorMatchMode::Interpolate;
 /// assert_eq!(format!("{:?}", mode), "Interpolate");
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum TenorMatchMode {
     /// Match exact pillar only (errors if not found).
@@ -917,7 +921,8 @@ pub enum TenorMatchMode {
 /// [`TimeRollMode::BusinessDays`] or [`TimeRollMode::CalendarDays`], which
 /// both resolve the target date via [`finstack_quant_core::dates::Tenor`] and are
 /// additive modulo the chosen business-day convention.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum TimeRollMode {
     /// Business-day-adjusted roll (ModifiedFollowing).
@@ -968,7 +973,8 @@ pub enum TimeRollMode {
 ///     day_count: None, // Use curve's day count
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct RateBindingSpec {
     /// Statement node ID to receive the rate.
@@ -1022,7 +1028,8 @@ impl RateBindingSpec {
 /// different quoting conventions (for example from continuous zeros to annual
 /// or simple statement rates). The output remains a decimal annualized rate;
 /// only the compounding basis changes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Compounding {
     /// Simple interest (no compounding).

@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 /// deserialization.
 ///
 /// Add this as the final `#[serde(flatten)]` field and exclude it from generated
-/// schemas with `#[schemars(skip)]`.
+/// schemas with `#[cfg_attr(feature = "json-schema", schemars(skip))]`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct UnknownFieldGuard;
 

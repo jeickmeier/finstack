@@ -20,7 +20,6 @@ use finstack_quant_core::market_data::context::CreditIndexState;
 use finstack_quant_core::market_data::dividends::DividendSchedule;
 use finstack_quant_core::market_data::scalars::{InflationIndex, MarketScalar, ScalarTimeSeries};
 use finstack_quant_core::market_data::surfaces::{FxDeltaVolSurface, VolCube};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ts_export")]
 use ts_rs::TS;
@@ -32,7 +31,8 @@ use ts_rs::TS;
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
 #[cfg_attr(feature = "ts_export", ts(rename_all = "snake_case"))]
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum MarketDatum {
     /// Interest-rate quote (deposit, FRA, future, swap, ...).
@@ -77,7 +77,8 @@ pub enum MarketDatum {
 /// FX-spot quote payload for [`MarketDatum::FxSpot`].
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FxSpotDatum {
     /// Stable identifier for this datum.
@@ -95,7 +96,8 @@ pub struct FxSpotDatum {
 /// Single-name spot-price payload for [`MarketDatum::Price`].
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PriceDatum {
     /// Stable identifier (e.g., asset ticker).
@@ -108,7 +110,8 @@ pub struct PriceDatum {
 /// Dividend-schedule payload for [`MarketDatum::DividendSchedule`].
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DividendScheduleDatum {
     /// The dividend schedule itself.
@@ -119,7 +122,8 @@ pub struct DividendScheduleDatum {
 /// Collateral / CSA mapping payload for [`MarketDatum::Collateral`].
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CollateralEntry {
     /// Trade-leg currency this CSA mapping applies to.

@@ -39,18 +39,9 @@ use time::{Duration, Month};
 /// Parses the exact snake_case wire values via [`std::str::FromStr`]
 /// (for example, `"quarterly"` or `"semi_annual"`).
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum PeriodKind {
     /// Daily periods (252 trading days per year by convention)
@@ -270,19 +261,10 @@ impl PeriodKind {
 
 /// Identifier for a Gregorian period like `2025Q1` or a fiscal period like
 /// `FY2025W53`.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(into = "String", try_from = "String")]
-#[schemars(with = "String")]
+#[cfg_attr(feature = "json-schema", schemars(with = "String"))]
 pub struct PeriodId {
     /// Gregorian or fiscal year label.
     pub year: i32,
@@ -711,18 +693,17 @@ impl FiscalConfig {
 }
 
 /// A concrete period with start/end dates and actual/forecast flag.
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Period {
     /// Identifier of this period.
     pub id: PeriodId,
     /// Inclusive start date.
-    #[schemars(with = "String", extend("format" = "date"))]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String", extend("format" = "date")))]
     pub start: Date,
     /// Exclusive end date.
-    #[schemars(with = "String", extend("format" = "date"))]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String", extend("format" = "date")))]
     pub end: Date,
     /// True when this period is part of the "actuals" subset.
     pub is_actual: bool,
@@ -734,7 +715,8 @@ pub struct Period {
 /// run of model periods. Each [`Period`] uses the crate-wide `[start, end)`
 /// interval convention, so the `end` of one period naturally aligns with the
 /// `start` of the next.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct PeriodPlan {
     /// Ordered periods produced by the parser.
     pub periods: Vec<Period>,

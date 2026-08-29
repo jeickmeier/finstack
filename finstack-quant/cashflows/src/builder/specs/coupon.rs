@@ -13,17 +13,9 @@ use super::schedule::ScheduleParams;
 /// - `PIK`: 100% capitalized into principal.
 /// - `Split { cash_pct, pik_pct }`: percentages applied to the coupon amount.
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum CouponType {
@@ -37,12 +29,18 @@ pub enum CouponType {
         /// Fraction of the coupon paid in cash, expressed as a decimal share in
         /// `[0, 1]`.
         #[serde(with = "finstack_quant_core::wire::decimal")]
-        #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DecimalWire")
+        )]
         cash_pct: Decimal,
         /// Fraction of the coupon capitalized as PIK, expressed as a decimal
         /// share in `[0, 1]`.
         #[serde(with = "finstack_quant_core::wire::decimal")]
-        #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DecimalWire")
+        )]
         pik_pct: Decimal,
     },
 }
@@ -83,10 +81,11 @@ impl CouponType {
 ///
 /// This type combines the coupon quote, payment behavior, and schedule
 /// conventions required to emit a fixed-rate leg.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(from = "RawFixedCouponSpec")]
-#[schemars(!from)]
-#[schemars(deny_unknown_fields)]
+#[cfg_attr(feature = "json-schema", schemars(!from))]
+#[cfg_attr(feature = "json-schema", schemars(deny_unknown_fields))]
 pub struct FixedCouponSpec {
     /// Coupon settlement behavior: cash, PIK, or an explicit split of the
     /// coupon amount.
@@ -94,7 +93,10 @@ pub struct FixedCouponSpec {
     pub coupon_type: CouponType,
     /// Coupon rate as a decimal (e.g., 0.05 for 5%). Uses Decimal for exact representation.
     #[serde(with = "finstack_quant_core::wire::decimal")]
-    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DecimalWire")
+    )]
     pub rate: Decimal,
     /// Accrual and payment schedule conventions.
     #[serde(flatten)]
@@ -150,17 +152,9 @@ impl From<RawFixedCouponSpec> for FixedCouponSpec {
 /// - `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 /// - `docs/REFERENCES.md#isda-2006-definitions`
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum OvernightCompoundingMethod {
@@ -234,17 +228,8 @@ fn default_reset_lag() -> i32 {
 ///
 /// - `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`
 /// - `docs/REFERENCES.md#hull-options-futures`
-#[derive(
-    Clone,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum FloatingRateFallback {
@@ -263,7 +248,10 @@ pub enum FloatingRateFallback {
     /// the projected index rate.
     FixedRate(
         #[serde(with = "finstack_quant_core::wire::decimal")]
-        #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DecimalWire")
+        )]
         rust_decimal::Decimal,
     ),
 }
@@ -280,17 +268,9 @@ impl FloatingRateFallback {
 
 /// Where overnight index floors/caps are applied for daily-compounded rates.
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
+    Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum OvernightIndexConstraintApplication {
@@ -397,7 +377,8 @@ impl OvernightIndexConstraintApplication {
 ///     fallback: Default::default(),
 /// };
 /// ```
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FloatingRateSpec {
     /// Forward curve identifier (e.g., "USD-SOFR-3M", "EUR-EURIBOR-6M").
@@ -405,7 +386,10 @@ pub struct FloatingRateSpec {
 
     /// Spread/margin over index in basis points. Uses Decimal for exact representation.
     #[serde(with = "finstack_quant_core::wire::decimal")]
-    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DecimalWire")
+    )]
     pub spread_bp: Decimal,
 
     /// Gearing/leverage multiplier applied to the all-in rate (default: 1.0).
@@ -417,7 +401,10 @@ pub struct FloatingRateSpec {
     /// (negative gearing) are not currently expressible with this field.
     #[serde(default = "default_gearing")]
     #[serde(with = "finstack_quant_core::wire::decimal")]
-    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DecimalWire")
+    )]
     pub gearing: Decimal,
 
     /// Whether gearing includes the spread (default: true).
@@ -432,7 +419,10 @@ pub struct FloatingRateSpec {
     /// Example: index_floor_bp = Some(0.0) ensures index rate >= 0%.
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::optional_decimal")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")
+    )]
     pub index_floor_bp: Option<Decimal>,
 
     /// Floor on all-in rate in basis points (Min Coupon).
@@ -440,7 +430,10 @@ pub struct FloatingRateSpec {
     /// Applied to the final calculated rate after gearing and spread.
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::optional_decimal")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")
+    )]
     pub all_in_floor_bp: Option<Decimal>,
 
     /// Cap on all-in rate in basis points (applied after spread and gearing).
@@ -448,13 +441,19 @@ pub struct FloatingRateSpec {
     /// Example: all_in_cap_bp = Some(1000.0) ensures all-in rate <= 10%.
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::optional_decimal")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")
+    )]
     pub all_in_cap_bp: Option<Decimal>,
 
     /// Cap on index rate in basis points (applied to index component).
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::optional_decimal")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")
+    )]
     pub index_cap_bp: Option<Decimal>,
 
     /// Index floor/cap application policy for overnight-compounded coupons.
@@ -580,10 +579,11 @@ fn default_gearing_includes_spread() -> bool {
 /// Used by the cashflow builder for instruments with floating rate coupons.
 /// Embeds the canonical `FloatingRateSpec` for rate projection and adds
 /// coupon-specific settings like payment frequency and PIK behavior.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(from = "RawFloatingCouponSpec")]
-#[schemars(!from)]
-#[schemars(deny_unknown_fields)]
+#[cfg_attr(feature = "json-schema", schemars(!from))]
+#[cfg_attr(feature = "json-schema", schemars(deny_unknown_fields))]
 pub struct FloatingCouponSpec {
     /// Floating rate specification (contains index, spread, floor, cap, etc).
     pub rate_spec: FloatingRateSpec,
@@ -661,17 +661,21 @@ impl From<RawFloatingCouponSpec> for FloatingCouponSpec {
 ///     },
 /// };
 /// ```
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(from = "RawStepUpCouponSpec")]
-#[schemars(!from)]
-#[schemars(deny_unknown_fields)]
+#[cfg_attr(feature = "json-schema", schemars(!from))]
+#[cfg_attr(feature = "json-schema", schemars(deny_unknown_fields))]
 pub struct StepUpCouponSpec {
     /// Coupon type (Cash/PIK/Split).
     #[serde(default)]
     pub coupon_type: CouponType,
     /// Initial coupon rate (annual, decimal). Used until the first step date.
     #[serde(with = "finstack_quant_core::wire::decimal")]
-    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DecimalWire")
+    )]
     pub initial_rate: Decimal,
     /// Step schedule: (effective_date, new_rate). Must be sorted by date.
     /// Each entry sets the rate from that date forward until the next step.
@@ -682,8 +686,11 @@ pub struct StepUpCouponSpec {
     /// integer multiples of `frequency`); business-day adjustment is not
     /// applied here. The rate is set at accrual start (per market
     /// convention for step-up bonds).
-    #[schemars(
-        with = "Vec<(finstack_quant_core::wire::DateWire, finstack_quant_core::wire::DecimalWire)>"
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(
+            with = "Vec<(finstack_quant_core::wire::DateWire, finstack_quant_core::wire::DecimalWire)>"
+        )
     )]
     pub step_schedule: Vec<(Date, Decimal)>,
     /// Accrual and payment schedule conventions.

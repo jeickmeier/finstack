@@ -17,7 +17,8 @@ use finstack_quant_core::{Error, Result};
 const CONSERVATION_REL_TOLERANCE: f64 = 64.0 * f64::EPSILON;
 
 /// A claim participating in a recovery waterfall.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct RecoveryClaim {
     /// Stable claim identifier.
     pub id: String,
@@ -46,7 +47,8 @@ impl RecoveryClaim {
 }
 
 /// Recovery allocated to one claim.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct RecoveryAllocation {
     /// Stable claim identifier.
     pub id: String,
@@ -69,7 +71,8 @@ pub struct RecoveryAllocation {
 }
 
 /// Result of allocating a distributable estate across claims.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct RecoveryWaterfallResult {
     /// Total value distributed to claims.
     pub total_distributed: f64,

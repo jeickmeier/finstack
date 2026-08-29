@@ -4,7 +4,6 @@
 //! prioritized and how excess cash flow sweeps and PIK toggles behave.
 
 use crate::error::{Error, Result};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -25,7 +24,8 @@ use std::collections::HashSet;
 /// - **Prepayment penalties, call premiums, and original issue discount (OID)
 ///   are unsupported.** Prepayments (sweep, mandatory, voluntary) are applied
 ///   at par with no penalty or premium, and no OID accretion is modeled.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct WaterfallSpec {
     /// Priority order of payments (default: Fees > Interest > Amortization > Sweep > Equity)
@@ -79,7 +79,8 @@ pub struct WaterfallSpec {
 }
 
 /// A seniority class for intra-category waterfall allocation.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PaymentClassSpec {
     /// Class identifier (e.g. `"1L"`).
@@ -364,7 +365,8 @@ pub(crate) fn reject_available_cash_debt_service(text: &str) -> Result<()> {
 }
 
 /// Payment priority levels in the waterfall.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum PaymentPriority {
     /// Fees (commitment fees, facility fees, etc.)
@@ -406,7 +408,8 @@ pub enum PaymentPriority {
 /// # References
 ///
 /// - Fixed-income and leverage context: `docs/REFERENCES.md#tuckman-serrat-fixed-income`
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EcfSweepSpec {
     /// Formula or node reference for EBITDA (e.g., "ebitda" or "revenue - cogs - opex")
@@ -450,7 +453,8 @@ pub struct EcfSweepSpec {
 /// least that many periods before it can switch back.
 ///
 /// Thresholds use the same scalar units as the referenced `liquidity_metric`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PikToggleSpec {
     /// Node reference or formula for liquidity metric (e.g., "cash_balance" or "ebitda / interest_expense")

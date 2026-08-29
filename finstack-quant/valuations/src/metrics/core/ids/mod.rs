@@ -37,9 +37,8 @@ pub use group::MetricGroup;
 /// when metric names change. Covers bond, IRS, deposit, and risk metrics.
 ///
 /// See unit tests and `examples/` for usage.
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct MetricId(Cow<'static, str>);
 
 impl MetricId {

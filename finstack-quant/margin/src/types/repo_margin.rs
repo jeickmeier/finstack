@@ -7,17 +7,8 @@ use finstack_quant_core::types::Percentage;
 ///
 /// Different margin mechanisms offer varying levels of protection
 /// and operational complexity.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Default,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum RepoMarginType {
@@ -102,7 +93,8 @@ impl std::str::FromStr for RepoMarginType {
 /// - Paragraph 5: Income Payments
 /// - Paragraph 8: Substitution
 /// - Annex I: Margin Ratio and Haircut
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct RepoMarginSpec {
     /// Type of margin mechanism.

@@ -23,7 +23,8 @@ use serde_json::json;
 pub const ATTRIBUTION_SCHEMA: &str = "finstack_quant.attribution/1";
 
 /// Exact schema marker accepted by attribution envelopes.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub enum AttributionSchema {
     /// The sole supported attribution contract.
     #[serde(rename = "finstack_quant.attribution/1")]
@@ -39,7 +40,8 @@ impl AttributionSchema {
 ///
 /// Mirrors the calibration and instrument envelope patterns with schema versioning
 /// and strict field validation for long-term JSON stability.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AttributionEnvelope {
     /// Schema version identifier (currently "finstack_quant.attribution/1")
@@ -79,7 +81,8 @@ impl AttributionEnvelope {
 ///
 /// Contains all data needed to perform attribution: instrument, market snapshots,
 /// dates, and methodology.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AttributionSpec {
     /// Instrument to attribute (as JSON envelope)
@@ -90,11 +93,17 @@ pub struct AttributionSpec {
     pub market_t1: MarketContextState,
     /// Valuation date at T₀
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub as_of_t0: Date,
     /// Valuation date at T₁
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub as_of_t1: Date,
     /// Attribution methodology
     pub method: AttributionMethod,
@@ -130,7 +139,8 @@ pub(crate) const DEFAULT_STRICT_VALIDATION: bool = true;
 /// Optional configuration for attribution runs.
 ///
 /// Allows overriding default tolerances and metrics for attribution calculations.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AttributionConfig {
     /// Absolute tolerance for residual validation (optional)
@@ -358,7 +368,8 @@ pub fn validate_attribution_json(json: &str) -> Result<String> {
 }
 
 /// Complete attribution result with P&L attribution and metadata.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AttributionResult {
     /// P&L attribution with factor decomposition
@@ -368,7 +379,8 @@ pub struct AttributionResult {
 }
 
 /// Top-level envelope for attribution results.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AttributionResultEnvelope {
     /// Schema version identifier.

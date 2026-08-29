@@ -77,17 +77,8 @@ use crate::impl_instrument_base;
 use crate::instruments::common_impl::validation;
 
 /// Day basis used to convert annual option theta into a per-day amount.
-#[derive(
-    PartialEq,
-    Eq,
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ThetaDayBasis {
     /// Calendar-day theta, annual theta divided by 365.
@@ -114,20 +105,25 @@ impl ThetaDayBasis {
 /// than re-running the live option model. Cash settlement fixes the intrinsic
 /// payoff from `spot`; physical settlement retains the marked delivery
 /// obligation until `settlement_date`.
-#[derive(
-    PartialEq, Clone, Copy, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(PartialEq, Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EquityOptionExercise {
     /// Exercise date, or the expiry observation date for an unexercised option.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
     /// Observed underlying level used to determine the fixed cash payoff.
     pub spot: f64,
     /// Contractual cash-payment or physical-delivery date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub settlement_date: Date,
     /// Whether the option was exercised or automatically assigned.
     pub exercised: bool,
@@ -161,8 +157,8 @@ impl EquityOptionExercise {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EquityOption {
     /// Unique instrument identifier
@@ -179,7 +175,10 @@ pub struct EquityOption {
     pub exercise_style: ExerciseStyle,
     /// Option expiry date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Notional amount for valuation scaling.
     pub notional: Money,
@@ -255,7 +254,10 @@ pub struct EquityOption {
     #[builder(default)]
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     pub discrete_dividends: Vec<(Date, f64)>,
     /// Exercise schedule for Bermudan options.
     ///
@@ -265,7 +267,10 @@ pub struct EquityOption {
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_dates")]
-    #[schemars(with = "Option<Vec<finstack_quant_core::wire::DateWire>>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<Vec<finstack_quant_core::wire::DateWire>>")
+    )]
     pub exercise_schedule: Option<Vec<Date>>,
     /// Pricing overrides (manual price, yield, spread)
     #[builder(default)]

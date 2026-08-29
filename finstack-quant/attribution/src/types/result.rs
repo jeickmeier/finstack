@@ -20,9 +20,8 @@ use crate::taylor::TaylorAttributionConfig;
 /// that inner Rayon costs more than it saves. `Parallel` opts into Rayon for
 /// independent factor repricings when the caller is not already parallelizing
 /// an outer portfolio or batch loop.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionPolicy {
     /// Use Rayon for independent attribution repricings.
@@ -39,7 +38,8 @@ pub enum ExecutionPolicy {
 /// - **Waterfall**: Sequential application (guarantees sum = total, order matters)
 /// - **MetricsBased**: Linear approximation using existing metrics (fast but approximate)
 /// - **Taylor**: Sensitivity-based Taylor expansion (first/second order via bump-and-reprice)
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum AttributionMethod {
     /// Independent factor isolation (may not sum due to cross-effects).
@@ -81,7 +81,8 @@ pub enum AttributionMethod {
 /// - **Fx**: FxMatrix
 /// - **Volatility**: surfaces (VolSurface)
 /// - **MarketScalars**: prices, series, inflation_indices, dividends
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum AttributionFactor {
     /// Time decay and accruals (Theta).
@@ -185,7 +186,8 @@ impl AttributionFactor {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct PnlAttribution {
     /// Total P&L *as reported by this attribution*.
     ///
@@ -334,19 +336,26 @@ pub struct PnlAttribution {
 /// Attribution metadata.
 ///
 /// Records methodology, dates, repricing count, and residual statistics.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct AttributionMeta {
     /// Attribution method used.
     pub method: AttributionMethod,
 
     /// Start date (T₀).
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub t0: Date,
 
     /// End date (T₁).
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub t1: Date,
 
     /// Instrument identifier.

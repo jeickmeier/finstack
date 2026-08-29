@@ -9,9 +9,8 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 
 /// Snowball note variant.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum SnowballVariant {
     /// Path-dependent snowball: c_i = max(c_{i-1} + fixed - floating, 0).
@@ -52,7 +51,8 @@ impl std::fmt::Display for SnowballVariant {
 /// # References
 ///
 /// - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models*. Chapter 14. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
-#[derive(PartialEq, Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(PartialEq, Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Snowball {
     /// Unique instrument identifier.
@@ -73,7 +73,10 @@ pub struct Snowball {
     pub notional: Money,
     /// Coupon payment dates (must be sorted ascending).
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub coupon_dates: Vec<Date>,
     /// Floating rate index identifier.
     pub floating_index_id: CurveId,

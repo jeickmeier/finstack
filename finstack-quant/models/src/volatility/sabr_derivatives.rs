@@ -17,7 +17,8 @@ use finstack_quant_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 
 /// Market data for SABR calibration.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct SabrMarketData {
     /// Forward price
     pub forward: f64,

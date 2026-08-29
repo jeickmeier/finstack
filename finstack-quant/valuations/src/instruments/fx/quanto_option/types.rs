@@ -19,8 +19,8 @@ use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = QuantoOption::validate)]
 #[serde(deny_unknown_fields, try_from = "QuantoOptionUnchecked")]
 pub struct QuantoOption {
@@ -34,7 +34,10 @@ pub struct QuantoOption {
     pub option_type: OptionType,
     /// Option expiry date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Strike-equivalent domestic reference notional.
     ///
@@ -116,7 +119,8 @@ pub struct QuantoOption {
     pub attributes: Attributes,
 }
 
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct QuantoOptionUnchecked {
     /// Unique instrument identifier.
@@ -129,7 +133,10 @@ struct QuantoOptionUnchecked {
     option_type: OptionType,
     /// Option expiry date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     expiry: Date,
     /// Strike-equivalent domestic reference notional.
     notional: Money,

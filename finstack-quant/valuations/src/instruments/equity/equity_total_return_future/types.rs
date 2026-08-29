@@ -20,8 +20,8 @@ use finstack_quant_core::types::{InstrumentId, PriceId};
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = EquityTotalReturnFuture::validate)]
 #[serde(deny_unknown_fields)]
 pub struct EquityTotalReturnFuture {

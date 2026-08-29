@@ -15,9 +15,9 @@
     Hash,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
     strum::EnumIter,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[repr(u16)]
 /// Strongly-typed instrument classification for pricer dispatch.
 ///
@@ -348,9 +348,9 @@ impl std::str::FromStr for InstrumentType {
     Hash,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
     strum::EnumIter,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 #[repr(u16)]
@@ -590,18 +590,9 @@ impl std::str::FromStr for ModelKey {
 /// ```
 #[repr(C)]
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PricerKey {
     /// The instrument type being priced.

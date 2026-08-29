@@ -4,7 +4,6 @@ use super::{
 use finstack_quant_core::math::random::{Pcg64Rng, RandomNumberGenerator};
 use finstack_quant_core::{InputError, Result};
 use finstack_quant_models::credit::{AssetDynamics, BarrierType, CreditState};
-use rayon::prelude::*;
 use smallvec::SmallVec;
 
 /// Bond parameters for the PIK-aware risk-free leg (no-default scenario).
@@ -174,247 +173,258 @@ impl MertonMcEngine {
             coupon_periods: usize,
         }
 
-        let outcomes: Vec<SmallVec<[LegOutcome; 2]>> = (0..n_base)
-            .into_par_iter()
-            .map_init(
-                || {
-                    (
-                        vec![0.0f64; total_steps],
-                        vec![0.0f64; total_steps],
-                        vec![0.0f64; num_coupons],
-                    )
-                },
-                |(normals, uniforms, toggle_uniforms), path_idx| {
-                    // Per-path RNG for determinism
-                    let mut rng = Pcg64Rng::new_with_stream(config.seed, path_idx as u64);
+        let init_bufs = || {
+            (
+                vec![0.0f64; total_steps],
+                vec![0.0f64; total_steps],
+                vec![0.0f64; num_coupons],
+            )
+        };
+        let simulate_base =
+            |(normals, uniforms, toggle_uniforms): &mut (Vec<f64>, Vec<f64>, Vec<f64>),
+             path_idx| {
+                // Per-path RNG for determinism
+                let mut rng = Pcg64Rng::new_with_stream(config.seed, path_idx as u64);
 
-                    // Fill per-thread buffers with random draws so that antithetic
-                    // pairs share identical randomness (normals are sign-flipped;
-                    // uniforms are reused).
-                    for n in normals.iter_mut() {
-                        *n = rng.normal(0.0, 1.0);
-                    }
-                    // Brownian-bridge crossing checks
-                    for u in uniforms.iter_mut() {
-                        *u = rng.uniform();
-                    }
-                    // Toggle decision draws — one per coupon date, shared across the
-                    // antithetic pair to preserve variance-reduction symmetry.
-                    for tu in toggle_uniforms.iter_mut() {
-                        *tu = rng.uniform();
-                    }
+                // Fill per-thread buffers with random draws so that antithetic
+                // pairs share identical randomness (normals are sign-flipped;
+                // uniforms are reused).
+                for n in normals.iter_mut() {
+                    *n = rng.normal(0.0, 1.0);
+                }
+                // Brownian-bridge crossing checks
+                for u in uniforms.iter_mut() {
+                    *u = rng.uniform();
+                }
+                // Toggle decision draws — one per coupon date, shared across the
+                // antithetic pair to preserve variance-reduction symmetry.
+                for tu in toggle_uniforms.iter_mut() {
+                    *tu = rng.uniform();
+                }
 
-                    // Antithetic decision derived purely from `path_idx`. With
-                    // `n_base = num_paths.div_ceil(2)`, only the final base path
-                    // (when `num_paths` is odd) emits a single leg, so the serial
-                    // `path_pvs.len() + 1 < num_paths` test is exactly
-                    // `2 * path_idx + 1 < num_paths`.
-                    let signs: &[f64] = if config.antithetic && 2 * path_idx + 1 < num_paths {
-                        &[1.0, -1.0]
-                    } else {
-                        &[1.0]
-                    };
+                // Antithetic decision derived purely from `path_idx`. With
+                // `n_base = num_paths.div_ceil(2)`, only the final base path
+                // (when `num_paths` is odd) emits a single leg, so the serial
+                // `path_pvs.len() + 1 < num_paths` test is exactly
+                // `2 * path_idx + 1 < num_paths`.
+                let signs: &[f64] = if config.antithetic && 2 * path_idx + 1 < num_paths {
+                    &[1.0, -1.0]
+                } else {
+                    &[1.0]
+                };
 
-                    let mut legs: SmallVec<[LegOutcome; 2]> = SmallVec::new();
-                    for &sign in signs {
-                        let mut leg = LegOutcome::default();
-                        let mut v = config.merton.asset_value();
-                        let mut n_current = notional;
-                        let mut defaulted = false;
-                        let mut path_pv = 0.0;
-                        let mut path_pik_elections: usize = 0;
-                        let mut path_coupon_periods: usize = 0;
-                        let mut coupon_idx: usize = 0;
+                let mut legs: SmallVec<[LegOutcome; 2]> = SmallVec::new();
+                for &sign in signs {
+                    let mut leg = LegOutcome::default();
+                    let mut v = config.merton.asset_value();
+                    let mut n_current = notional;
+                    let mut defaulted = false;
+                    let mut path_pv = 0.0;
+                    let mut path_pik_elections: usize = 0;
+                    let mut path_coupon_periods: usize = 0;
+                    let mut coupon_idx: usize = 0;
 
-                        for (step, &normal_draw) in normals.iter().enumerate().take(total_steps) {
-                            let t = (step + 1) as f64 * dt;
-                            let z = normal_draw * sign;
-                            // For the antithetic path (sign = -1) the trajectory is
-                            // sign-flipped, so the crossing probability `p` is
-                            // different.  Proper antithetic variance reduction requires
-                            // the complementary uniform `1 - u` so that the two path
-                            // legs remain negatively correlated and the variance
-                            // reduction is not partially defeated by correlated
-                            // default decisions.
-                            let u = if sign < 0.0 {
-                                1.0 - uniforms[step]
-                            } else {
-                                uniforms[step]
-                            };
+                    for (step, &normal_draw) in normals.iter().enumerate().take(total_steps) {
+                        let t = (step + 1) as f64 * dt;
+                        let z = normal_draw * sign;
+                        // For the antithetic path (sign = -1) the trajectory is
+                        // sign-flipped, so the crossing probability `p` is
+                        // different.  Proper antithetic variance reduction requires
+                        // the complementary uniform `1 - u` so that the two path
+                        // legs remain negatively correlated and the variance
+                        // reduction is not partially defeated by correlated
+                        // default decisions.
+                        let u = if sign < 0.0 {
+                            1.0 - uniforms[step]
+                        } else {
+                            uniforms[step]
+                        };
 
-                            let v_prev = v;
-                            let barrier_prev = match barrier_type {
-                                BarrierType::FirstPassage { .. } => first_passage_barriers[step],
-                                BarrierType::Terminal => debt_barrier,
-                            };
+                        let v_prev = v;
+                        let barrier_prev = match barrier_type {
+                            BarrierType::FirstPassage { .. } => first_passage_barriers[step],
+                            BarrierType::Terminal => debt_barrier,
+                        };
 
-                            // 1. Evolve asset value (GBM)
-                            v *= (mu * dt + sigma * sqrt_dt * z).exp();
+                        // 1. Evolve asset value (GBM)
+                        v *= (mu * dt + sigma * sqrt_dt * z).exp();
 
-                            // 2. Check default
-                            match barrier_type {
-                                BarrierType::Terminal => {
-                                    let is_final_step = step + 1 == total_steps;
-                                    if is_final_step && v < debt_barrier {
-                                        let recovery_rate = config
-                                            .dynamic_recovery
-                                            .as_ref()
-                                            .map_or(config.default_recovery_rate, |dr| {
-                                                dr.recovery_at_notional(n_current)
-                                            });
-                                        let recovery_cashflow = recovery_rate * n_current;
-                                        let df = Self::df_at_time(dfs_ref, t, discount_rate);
-                                        path_pv += recovery_cashflow * df;
-                                        defaulted = true;
-                                        leg.defaulted_at = Some(t);
-                                        leg.recovery_pct = recovery_rate;
-                                        break;
-                                    }
-                                }
-                                BarrierType::FirstPassage { .. } => {
-                                    let barrier = first_passage_barriers[step + 1];
-                                    let crossed = if v < barrier {
-                                        true
-                                    } else if matches!(
-                                        config.barrier_crossing,
-                                        BarrierCrossing::BrownianBridge
-                                    ) && sigma > 0.0
-                                        && dt > 0.0
-                                    {
-                                        let barrier_now = barrier;
-                                        let x0 = (v_prev / barrier_prev).ln();
-                                        let x1 = (v / barrier_now).ln();
-                                        if x0 > 0.0 && x1 > 0.0 {
-                                            let denom = sigma * sigma * dt;
-                                            let p = (-2.0 * x0 * x1 / denom).exp();
-                                            u < p
-                                        } else {
-                                            true
-                                        }
-                                    } else {
-                                        false
-                                    };
-
-                                    if crossed {
-                                        let recovery_rate = config
-                                            .dynamic_recovery
-                                            .as_ref()
-                                            .map_or(config.default_recovery_rate, |dr| {
-                                                dr.recovery_at_notional(n_current)
-                                            });
-                                        let recovery_cashflow = recovery_rate * n_current;
-                                        let df = Self::df_at_time(dfs_ref, t, discount_rate);
-                                        path_pv += recovery_cashflow * df;
-                                        defaulted = true;
-                                        leg.defaulted_at = Some(t);
-                                        leg.recovery_pct = recovery_rate;
-                                        break;
-                                    }
+                        // 2. Check default
+                        match barrier_type {
+                            BarrierType::Terminal => {
+                                let is_final_step = step + 1 == total_steps;
+                                if is_final_step && v < debt_barrier {
+                                    let recovery_rate = config
+                                        .dynamic_recovery
+                                        .as_ref()
+                                        .map_or(config.default_recovery_rate, |dr| {
+                                            dr.recovery_at_notional(n_current)
+                                        });
+                                    let recovery_cashflow = recovery_rate * n_current;
+                                    let df = Self::df_at_time(dfs_ref, t, discount_rate);
+                                    path_pv += recovery_cashflow * df;
+                                    defaulted = true;
+                                    leg.defaulted_at = Some(t);
+                                    leg.recovery_pct = recovery_rate;
+                                    break;
                                 }
                             }
-
-                            // 3. At coupon dates (using pre-computed schedule)
-                            while coupon_idx < coupon_schedule.len()
-                                && t >= coupon_schedule[coupon_idx].0 - dt * 0.5
-                            {
-                                let (coupon_t, period_frac) = coupon_schedule[coupon_idx];
-                                let coupon_amount = n_current * accrual_factor * period_frac;
-                                path_coupon_periods += 1;
-                                let df = Self::df_at_time(dfs_ref, coupon_t, discount_rate);
-
-                                match config.pik_schedule.mode_at(coupon_t) {
-                                    PikMode::Cash => {
-                                        path_pv += coupon_amount * df;
+                            BarrierType::FirstPassage { .. } => {
+                                let barrier = first_passage_barriers[step + 1];
+                                let crossed = if v < barrier {
+                                    true
+                                } else if matches!(
+                                    config.barrier_crossing,
+                                    BarrierCrossing::BrownianBridge
+                                ) && sigma > 0.0
+                                    && dt > 0.0
+                                {
+                                    let barrier_now = barrier;
+                                    let x0 = (v_prev / barrier_prev).ln();
+                                    let x1 = (v / barrier_now).ln();
+                                    if x0 > 0.0 && x1 > 0.0 {
+                                        let denom = sigma * sigma * dt;
+                                        let p = (-2.0 * x0 * x1 / denom).exp();
+                                        u < p
+                                    } else {
+                                        true
                                     }
-                                    PikMode::Pik => {
-                                        n_current += coupon_amount;
+                                } else {
+                                    false
+                                };
+
+                                if crossed {
+                                    let recovery_rate = config
+                                        .dynamic_recovery
+                                        .as_ref()
+                                        .map_or(config.default_recovery_rate, |dr| {
+                                            dr.recovery_at_notional(n_current)
+                                        });
+                                    let recovery_cashflow = recovery_rate * n_current;
+                                    let df = Self::df_at_time(dfs_ref, t, discount_rate);
+                                    path_pv += recovery_cashflow * df;
+                                    defaulted = true;
+                                    leg.defaulted_at = Some(t);
+                                    leg.recovery_pct = recovery_rate;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // 3. At coupon dates (using pre-computed schedule)
+                        while coupon_idx < coupon_schedule.len()
+                            && t >= coupon_schedule[coupon_idx].0 - dt * 0.5
+                        {
+                            let (coupon_t, period_frac) = coupon_schedule[coupon_idx];
+                            let coupon_amount = n_current * accrual_factor * period_frac;
+                            path_coupon_periods += 1;
+                            let df = Self::df_at_time(dfs_ref, coupon_t, discount_rate);
+
+                            match config.pik_schedule.mode_at(coupon_t) {
+                                PikMode::Cash => {
+                                    path_pv += coupon_amount * df;
+                                }
+                                PikMode::Pik => {
+                                    n_current += coupon_amount;
+                                    path_pik_elections += 1;
+                                }
+                                PikMode::Split {
+                                    cash_fraction,
+                                    pik_fraction,
+                                } => {
+                                    path_pv += coupon_amount * cash_fraction * df;
+                                    n_current += coupon_amount * pik_fraction;
+                                    if pik_fraction > 0.0 {
                                         path_pik_elections += 1;
                                     }
-                                    PikMode::Split {
-                                        cash_fraction,
-                                        pik_fraction,
-                                    } => {
-                                        path_pv += coupon_amount * cash_fraction * df;
-                                        n_current += coupon_amount * pik_fraction;
-                                        if pik_fraction > 0.0 {
+                                }
+                                PikMode::Toggle => {
+                                    if let Some(ref toggle) = config.toggle_model {
+                                        let leverage = n_current / v;
+                                        let hazard_rate =
+                                            config.endogenous_hazard.as_ref().map_or_else(
+                                                || {
+                                                    let pd =
+                                                        config.merton.default_probability(coupon_t);
+                                                    if coupon_t > 0.0 {
+                                                        -(1.0 - pd).ln() / coupon_t
+                                                    } else {
+                                                        0.0
+                                                    }
+                                                },
+                                                |eh| eh.hazard_at_leverage(leverage),
+                                            );
+                                        let remaining = maturity_years - coupon_t;
+                                        let dd = if sigma > 0.0 && remaining > 0.0 {
+                                            let sqrt_remaining = remaining.sqrt();
+                                            ((v / n_current).ln()
+                                                + (r - config.merton.payout_rate()
+                                                    - 0.5 * sigma * sigma)
+                                                    * remaining)
+                                                / (sigma * sqrt_remaining)
+                                        } else {
+                                            0.0
+                                        };
+
+                                        let state = CreditState {
+                                            hazard_rate,
+                                            distance_to_default: Some(dd),
+                                            leverage,
+                                            accreted_notional: n_current,
+                                            coupon_due: coupon_amount,
+                                            asset_value: Some(v),
+                                        };
+
+                                        let tu =
+                                            toggle_uniforms.get(coupon_idx).copied().unwrap_or(0.5);
+                                        if toggle.should_pik_with_uniform(&state, tu) {
+                                            n_current += coupon_amount;
                                             path_pik_elections += 1;
-                                        }
-                                    }
-                                    PikMode::Toggle => {
-                                        if let Some(ref toggle) = config.toggle_model {
-                                            let leverage = n_current / v;
-                                            let hazard_rate =
-                                                config.endogenous_hazard.as_ref().map_or_else(
-                                                    || {
-                                                        let pd = config
-                                                            .merton
-                                                            .default_probability(coupon_t);
-                                                        if coupon_t > 0.0 {
-                                                            -(1.0 - pd).ln() / coupon_t
-                                                        } else {
-                                                            0.0
-                                                        }
-                                                    },
-                                                    |eh| eh.hazard_at_leverage(leverage),
-                                                );
-                                            let remaining = maturity_years - coupon_t;
-                                            let dd = if sigma > 0.0 && remaining > 0.0 {
-                                                let sqrt_remaining = remaining.sqrt();
-                                                ((v / n_current).ln()
-                                                    + (r - config.merton.payout_rate()
-                                                        - 0.5 * sigma * sigma)
-                                                        * remaining)
-                                                    / (sigma * sqrt_remaining)
-                                            } else {
-                                                0.0
-                                            };
-
-                                            let state = CreditState {
-                                                hazard_rate,
-                                                distance_to_default: Some(dd),
-                                                leverage,
-                                                accreted_notional: n_current,
-                                                coupon_due: coupon_amount,
-                                                asset_value: Some(v),
-                                            };
-
-                                            let tu = toggle_uniforms
-                                                .get(coupon_idx)
-                                                .copied()
-                                                .unwrap_or(0.5);
-                                            if toggle.should_pik_with_uniform(&state, tu) {
-                                                n_current += coupon_amount;
-                                                path_pik_elections += 1;
-                                            } else {
-                                                path_pv += coupon_amount * df;
-                                            }
                                         } else {
                                             path_pv += coupon_amount * df;
                                         }
+                                    } else {
+                                        path_pv += coupon_amount * df;
                                     }
                                 }
-
-                                coupon_idx += 1;
                             }
-                        }
 
-                        // 4. Terminal payment (if survived)
-                        if !defaulted {
-                            let df = Self::df_at_time(dfs_ref, maturity_years, discount_rate);
-                            path_pv += n_current * df;
-                            leg.survived = true;
-                            leg.terminal_notional = n_current;
+                            coupon_idx += 1;
                         }
-
-                        leg.pik_elections = path_pik_elections;
-                        leg.coupon_periods = path_coupon_periods;
-                        leg.pv = path_pv;
-                        legs.push(leg);
                     }
-                    legs
-                },
-            )
-            .collect();
+
+                    // 4. Terminal payment (if survived)
+                    if !defaulted {
+                        let df = Self::df_at_time(dfs_ref, maturity_years, discount_rate);
+                        path_pv += n_current * df;
+                        leg.survived = true;
+                        leg.terminal_notional = n_current;
+                    }
+
+                    leg.pik_elections = path_pik_elections;
+                    leg.coupon_periods = path_coupon_periods;
+                    leg.pv = path_pv;
+                    legs.push(leg);
+                }
+                legs
+            };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let outcomes: Vec<SmallVec<[LegOutcome; 2]>> = {
+            use rayon::prelude::*;
+            (0..n_base)
+                .into_par_iter()
+                .map_init(init_bufs, simulate_base)
+                .collect()
+        };
+
+        #[cfg(target_arch = "wasm32")]
+        let outcomes: Vec<SmallVec<[LegOutcome; 2]>> = {
+            let mut bufs = init_bufs();
+            (0..n_base)
+                .map(|path_idx| simulate_base(&mut bufs, path_idx))
+                .collect()
+        };
 
         // Serial, order-preserving fold into the running accumulators. This
         // reproduces the exact serial accumulation sequence (base path, then

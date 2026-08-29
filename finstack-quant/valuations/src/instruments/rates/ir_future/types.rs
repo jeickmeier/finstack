@@ -41,9 +41,8 @@ use time::macros::date;
 use crate::instruments::Position;
 
 /// Exchange settlement method for the reference rate underlying a listed future.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum RateAveragingMethod {
@@ -69,8 +68,8 @@ pub(crate) struct RateFutureProjection {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = InterestRateFuture::validate)]
 #[serde(deny_unknown_fields)]
 pub struct InterestRateFuture {
@@ -82,7 +81,10 @@ pub struct InterestRateFuture {
     pub notional: Money,
     /// Future expiry/delivery date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Underlying rate fixing date.
     ///
@@ -90,7 +92,10 @@ pub struct InterestRateFuture {
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub fixing_date: Option<Date>,
     /// Rate period start date.
     ///
@@ -98,7 +103,10 @@ pub struct InterestRateFuture {
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub period_start: Option<Date>,
     /// Rate period end date.
     ///
@@ -106,7 +114,10 @@ pub struct InterestRateFuture {
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub period_end: Option<Date>,
     /// Quoted future price (e.g., 99.25)
     pub quoted_price: f64,
@@ -175,7 +186,8 @@ pub struct InterestRateFuture {
 ///
 /// Encapsulates exchange-defined contract parameters and optional convexity
 /// adjustment for pricing.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FutureContractSpecs {
     /// Face value of contract (e.g., $1,000,000 for Eurodollar/SOFR futures)

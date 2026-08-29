@@ -13,9 +13,6 @@ use finstack_quant_core::math::linalg::{cholesky_correlation, CorrelationFactor}
 use finstack_quant_core::Result;
 
 use std::ops::Range;
-use std::sync::Mutex;
-
-use rayon::prelude::*;
 
 /// Generic Monte Carlo execution engine.
 ///
@@ -659,8 +656,9 @@ impl McEngine {
         D: Discretization<P> + Clone,
         F: Payoff,
     {
+        #[cfg(not(target_arch = "wasm32"))]
         if self.config.use_parallel {
-            self.price_parallel(
+            return self.price_parallel(
                 rng,
                 process,
                 disc,
@@ -669,19 +667,18 @@ impl McEngine {
                 currency,
                 discount_factor,
                 capture,
-            )
-        } else {
-            self.price_serial(
-                rng,
-                process,
-                disc,
-                initial_state,
-                payoff,
-                currency,
-                discount_factor,
-                capture,
-            )
+            );
         }
+        self.price_serial(
+            rng,
+            process,
+            disc,
+            initial_state,
+            payoff,
+            currency,
+            discount_factor,
+            capture,
+        )
     }
 
     /// Serial pricing implementation with optional path capture.
@@ -906,6 +903,7 @@ impl McEngine {
     }
 
     /// Parallel pricing implementation with optional path capture.
+    #[cfg(not(target_arch = "wasm32"))]
     #[allow(clippy::too_many_arguments)]
     fn price_parallel<R, P, D, F>(
         &self,
@@ -924,6 +922,10 @@ impl McEngine {
         D: Discretization<P> + Clone,
         F: Payoff,
     {
+        use std::sync::Mutex;
+
+        use rayon::prelude::*;
+
         // Hoist per-run, path-independent scheme constants once before fanning
         // out; the prepared copy is shared read-only across all chunks (it is
         // `Sync`), so every parallel path sees the same precomputed constants.

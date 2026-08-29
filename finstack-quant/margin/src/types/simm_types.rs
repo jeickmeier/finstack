@@ -25,17 +25,8 @@ where
 }
 
 /// Risk classes for SIMM categorization.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum SimmRiskClass {
@@ -57,17 +48,8 @@ pub enum SimmRiskClass {
 ///
 /// Maps reference entities to ISDA SIMM credit qualifying buckets.
 /// See ISDA SIMM v2.6 Table 2.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum SimmCreditSector {
@@ -156,7 +138,8 @@ impl std::str::FromStr for SimmCreditSector {
 /// Tuple-keyed maps cannot be represented directly as JSON object keys, so this
 /// DTO stores each bucket as an array of tuples. It is the canonical JSON shape
 /// used by language bindings and examples.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SimmSensitivitiesJson {
     /// Base currency for the sensitivities.
@@ -440,7 +423,8 @@ impl From<SimmSensitivitiesJson> for SimmSensitivities {
 /// # References
 ///
 /// - ISDA SIMM: `docs/REFERENCES.md#isda-simm`
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct SimmSensitivities {
     /// Base currency for the sensitivities.
     ///

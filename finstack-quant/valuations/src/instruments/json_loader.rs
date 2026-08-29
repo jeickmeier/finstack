@@ -28,7 +28,8 @@ pub const INSTRUMENT_CONTRACT: ContractDescriptor =
     ContractDescriptor::new("finstack_quant.instrument");
 
 /// Canonical schema marker for persisted instrument envelopes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub enum InstrumentSchema {
     /// The sole supported instrument contract.
     #[serde(rename = "finstack_quant.instrument/1")]
@@ -55,7 +56,8 @@ impl std::fmt::Display for InstrumentSchema {
 }
 
 /// Versioned envelope for JSON instrument definitions.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct InstrumentEnvelope {
     /// Required v1 instrument contract marker.
@@ -69,6 +71,7 @@ pub struct InstrumentEnvelope {
 /// Every generated single-instrument artifact otherwise shares one templated
 /// description, which makes the index unable to tell `cms_option` from
 /// `cms_spread_option`. The registry test asserts this covers every tag.
+#[cfg(feature = "json-schema")]
 pub(crate) fn instrument_summary(tag: &str) -> &'static str {
     match tag {
         "agency_cmo" => "Agency CMO tranche carved from a collateral pool.",
@@ -258,14 +261,15 @@ macro_rules! define_instrument_json {
                 pub(crate) mod $variant {
                     use super::super::*;
 
-                    #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+                    #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
                     #[serde(
                         rename_all = "snake_case",
                         tag = "type",
                         content = "spec",
                         deny_unknown_fields
                     )]
-                    #[schemars(rename = $tag)]
+                    #[cfg_attr(feature = "json-schema", schemars(rename = $tag))]
                     pub(crate) enum Wire<'a> {
                         #[serde(rename = $tag)]
                         Instrument(std::borrow::Cow<'a, $ty>),
@@ -277,14 +281,15 @@ macro_rules! define_instrument_json {
                 pub(crate) mod $boxed_variant {
                     use super::super::*;
 
-                    #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+                    #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
                     #[serde(
                         rename_all = "snake_case",
                         tag = "type",
                         content = "spec",
                         deny_unknown_fields
                     )]
-                    #[schemars(rename = $boxed_tag)]
+                    #[cfg_attr(feature = "json-schema", schemars(rename = $boxed_tag))]
                     pub(crate) enum Wire<'a> {
                         #[serde(rename = $boxed_tag)]
                         Instrument(std::borrow::Cow<'a, $boxed_ty>),
@@ -312,18 +317,22 @@ macro_rules! define_instrument_json {
         }
 
         /// Canonical tagged union of all supported instrument serde types.
-        #[derive(Debug, Clone, schemars::JsonSchema)]
-        #[serde(tag = "type", content = "spec", deny_unknown_fields)]
+        #[derive(Debug, Clone)]
+        #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+        #[cfg_attr(
+            feature = "json-schema",
+            serde(tag = "type", content = "spec", deny_unknown_fields)
+        )]
         #[non_exhaustive]
         pub enum InstrumentJson {
             $(
                 #[doc = concat!("Canonical `", $tag, "` instrument payload.")]
-                #[serde(rename = $tag)]
+                #[cfg_attr(feature = "json-schema", serde(rename = $tag))]
                 $variant($ty),
             )*
             $(
                 #[doc = concat!("Canonical `", $boxed_tag, "` instrument payload.")]
-                #[serde(rename = $boxed_tag)]
+                #[cfg_attr(feature = "json-schema", serde(rename = $boxed_tag))]
                 $boxed_variant(Box<$boxed_ty>),
             )*
         }
@@ -385,7 +394,8 @@ pub fn registry_tags() -> &'static [&'static str] {
     with_instrument_json_registry!(instrument_json_registry_tags)
 }
 
-#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct SingleInstrumentEnvelope<T> {
     schema: InstrumentSchema,
@@ -399,6 +409,7 @@ pub struct InstrumentRegistryEntry {
     /// Stable asset-class directory below `schemas/instruments/1`.
     pub category: &'static str,
     /// Schema artifact generated from the concrete serde type.
+    #[cfg(feature = "json-schema")]
     pub artifact: finstack_quant_core::schema::SchemaArtifact,
     /// Canonical generated fixture path relative to this crate.
     pub fixture_path: &'static str,
@@ -473,6 +484,7 @@ macro_rules! instrument_registry_entries {
                 InstrumentRegistryEntry {
                     tag: $tag,
                     category: $category,
+                    #[cfg(feature = "json-schema")]
                     artifact: finstack_quant_core::schema::SchemaArtifact::new::<
                         SingleInstrumentEnvelope<instrument_variant::$variant::Wire<'static>>,
                     >(
@@ -532,6 +544,7 @@ macro_rules! instrument_registry_entries {
                 InstrumentRegistryEntry {
                     tag: $boxed_tag,
                     category: $boxed_category,
+                    #[cfg(feature = "json-schema")]
                     artifact: finstack_quant_core::schema::SchemaArtifact::new::<
                         SingleInstrumentEnvelope<instrument_variant::$boxed_variant::Wire<'static>>,
                     >(

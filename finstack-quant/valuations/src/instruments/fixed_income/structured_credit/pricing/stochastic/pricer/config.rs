@@ -31,14 +31,16 @@ use std::sync::Arc;
 /// - **Tree**: `tests/instruments/structured_credit/unit/{stochastic_pricing_tests,stochastic_tranche_pv_tests}`, at horizons within the node bound.
 /// - **MonteCarlo**: the same suites plus the convergence tests.
 /// - **Hybrid**: structured-credit pricer integration tests.
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 // Distinct from `finstack_quant_models::factor::config::PricingMode`
 // (`delta_based` / `full_repricing`).
-#[schemars(rename = "StructuredCreditPricingMode")]
+#[cfg_attr(
+    feature = "json-schema",
+    schemars(rename = "StructuredCreditPricingMode")
+)]
 pub enum PricingMode {
     /// Tree-based pricing (exact, non-recombining).
     ///

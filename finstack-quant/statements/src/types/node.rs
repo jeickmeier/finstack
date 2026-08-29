@@ -4,7 +4,6 @@ use crate::types::AmountOrScalar;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::PeriodId;
 use indexmap::IndexMap;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::fmt;
@@ -13,7 +12,8 @@ use std::fmt;
 ///
 /// Serializes as a plain string and is interoperable with `&str` via
 /// [`Borrow`] and [`AsRef`].
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[repr(transparent)]
 pub struct NodeId(String);
 
@@ -113,7 +113,8 @@ mod period_availability_dates {
 /// - **Value**: Explicit values only
 /// - **Calculated**: Formula-derived only
 /// - **Mixed**: Value OR Forecast OR Formula (precedence: Value > Forecast > Formula)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct NodeSpec {
     /// Unique identifier for this node
@@ -128,7 +129,10 @@ pub struct NodeSpec {
 
     /// Explicit values per period (for Value and Mixed nodes)
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<IndexMap<String, AmountOrScalar>>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<IndexMap<String, AmountOrScalar>>")
+    )]
     pub values: Option<IndexMap<PeriodId, AmountOrScalar>>,
     /// Point-in-time availability date for each explicit period value.
     ///
@@ -142,7 +146,10 @@ pub struct NodeSpec {
         with = "period_availability_dates",
         skip_serializing_if = "IndexMap::is_empty"
     )]
-    #[schemars(with = "IndexMap<String, finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "IndexMap<String, finstack_quant_core::wire::DateWire>")
+    )]
     pub availability_dates: IndexMap<PeriodId, finstack_quant_core::dates::Date>,
 
     /// Forecast specification (for Mixed nodes)
@@ -283,7 +290,8 @@ impl NodeSpec {
 /// - **Value**: Only explicit values (actuals, assumptions)
 /// - **Calculated**: Only formula-derived
 /// - **Mixed**: Value OR Forecast OR Formula (precedence: Value > Forecast > Formula)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum NodeType {
     /// Only explicit values
@@ -297,7 +305,8 @@ pub enum NodeType {
 /// Forecast method specification.
 ///
 /// Defines how to forecast future values for a node.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ForecastSpec {
     /// Forecast method
@@ -480,7 +489,8 @@ impl ForecastSpec {
 }
 
 /// Available forecast methods.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ForecastMethod {
     /// Carry last value forward
@@ -520,7 +530,8 @@ pub enum ForecastMethod {
 }
 
 /// Seasonal decomposition mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum SeasonalMode {
     /// Additive seasonality: Y = Trend + Seasonal + Error
@@ -533,7 +544,8 @@ pub enum SeasonalMode {
 ///
 /// Determines whether a node represents monetary values (with a specific currency)
 /// or scalar values (ratios, percentages, counts, etc.).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum NodeValueType {
     /// Monetary value with a specific currency (e.g., revenue, costs, balance sheet items)

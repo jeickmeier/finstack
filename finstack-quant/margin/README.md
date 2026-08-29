@@ -9,8 +9,9 @@ pulling in the instrument stack.
 
 ## Position in the stack
 
-Depends only on `finstack-quant-core` (plus `schemars`, `serde`, `serde_json`,
-`time`, `tracing`). It does **not** depend on `finstack-quant-valuations` or
+Depends only on `finstack-quant-core` (plus `serde`, `serde_json`, `time`,
+`tracing`, and optional `schemars` behind the default `json-schema` feature).
+It does **not** depend on `finstack-quant-valuations` or
 `finstack-quant-models`; the [`Marginable`](src/traits.rs) trait is the seam,
 and valuations implements it as a bridge layer.
 

@@ -56,9 +56,9 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
-#[schemars(deny_unknown_fields)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "json-schema", schemars(deny_unknown_fields))]
 pub struct CommodityAsianOption {
     /// Unique instrument identifier.
     pub id: InstrumentId,
@@ -70,7 +70,10 @@ pub struct CommodityAsianOption {
         serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
         deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
-    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::PositiveF64Wire")
+    )]
     pub strike: f64,
     /// Option type (call or put).
     pub option_type: OptionType,
@@ -80,24 +83,36 @@ pub struct CommodityAsianOption {
     ///
     /// **Note**: These dates should be pre-adjusted for business day conventions.
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub fixing_dates: Vec<Date>,
     /// Already observed fixings for seasoned options (ex-date, price pairs).
     #[builder(default)]
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     pub realized_fixings: Vec<(Date, f64)>,
     /// Contract quantity in commodity units.
     #[serde(
         serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
         deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
-    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::PositiveF64Wire")
+    )]
     pub quantity: f64,
     /// Option expiry/settlement date for the payoff.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Forward/futures price curve ID.
     pub forward_curve_id: CurveId,
@@ -138,7 +153,7 @@ pub struct CommodityAsianOption {
     /// Rejects unknown JSON fields (restores `deny_unknown_fields` despite the
     /// `#[serde(flatten)]` on `underlying`).
     #[serde(flatten)]
-    #[schemars(skip)]
+    #[cfg_attr(feature = "json-schema", schemars(skip))]
     #[builder(default)]
     pub(crate) unknown_fields: finstack_quant_core::serde_guard::UnknownFieldGuard,
 }

@@ -17,17 +17,8 @@ use finstack_quant_models::credit::pool::PoolGranularity;
 /// - **Clamp**: Simple flat extrapolation; common for quick prototyping.
 /// - **LinearInVariance**: Market-standard for equity/FX; preserves no-arbitrage conditions
 ///   better than linear-in-vol by extrapolating in total variance space (σ²T).
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum VolSurfaceExtrapolation {
@@ -62,17 +53,8 @@ pub enum VolSurfaceExtrapolation {
 }
 
 /// Quote convention used when reporting or consuming OAS values.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum OasQuoteCompounding {
     /// Continuous additive spread, matching the tree's internal short-rate shift.
@@ -101,17 +83,8 @@ impl OasQuoteCompounding {
 }
 
 /// Price/accrual convention used for OAS inversion targets.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum OasPriceBasis {
     /// Target the full settlement dirty price.
@@ -167,9 +140,8 @@ fn check_finite_fields(fields: &[(Option<f64>, bool)]) -> finstack_quant_core::R
 /// 8. `quoted_i_spread` — decimal I-spread
 /// 9. `quoted_asw_market` — decimal ASW (market convention)
 /// 10. `quoted_japanese_simple_yield` — decimal Tokyo simple yield (単利)
-#[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct MarketQuoteOverrides {
     /// Quoted clean price as a percentage of par (e.g., `99.5` = 99.5% of par).
@@ -340,9 +312,8 @@ impl MarketQuoteOverrides {
 // Sub-struct: Bump configuration
 
 /// Bump sizes for finite-difference sensitivity calculations.
-#[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct BumpConfig {
     /// Rho bump size in **decimal rate** units (default `0.0001 = 1bp`).
@@ -411,16 +382,16 @@ impl BumpConfig {
 /// [`crate::instruments::fixed_income::bond::pricing::engine::merton_mc::MertonMcConfig`]
 /// that allows the pricer registry to access the MC configuration from
 /// [`InstrumentPricingOverrides`].
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
 pub struct MertonMcOverride(
     pub crate::instruments::fixed_income::bond::pricing::engine::merton_mc::MertonMcConfig,
 );
 
 /// Model selection and tree pricing parameters.
-#[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct ModelConfig {
     /// Volatility surface extrapolation policy when `implied_volatility` is not set.
@@ -680,9 +651,8 @@ impl ModelConfig {
 // Sub-struct: Instrument-owned pricing inputs
 
 /// Instrument-owned pricing inputs that can materially change valuation.
-#[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct InstrumentPricingOverrides {
     /// Market-quoted values (prices, implied vol, spreads, upfront payments).
@@ -997,17 +967,8 @@ pub(crate) fn resolve_rates_credit_config(
 use super::breakeven::BreakevenConfig;
 
 /// Basis used for bond duration, convexity, and DV01-style risk metrics.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum BondRiskBasis {
     /// Use maturity/workout cashflows under the quoted-yield convention.
@@ -1021,9 +982,8 @@ pub enum BondRiskBasis {
 }
 
 /// Metric-time overrides derived from an instrument's pricing metadata.
-#[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct MetricPricingOverrides {
     /// Bump sizes for finite-difference sensitivities.
@@ -1167,9 +1127,8 @@ impl MetricPricingOverrides {
 // Sub-struct: Scenario adjustments
 
 /// Scenario-only valuation adjustments.
-#[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct ScenarioPricingOverrides {
     /// Scenario price shock as decimal percentage (e.g., -0.05 for -5% price shock).
@@ -1340,7 +1299,8 @@ mod tests {
         assert_eq!(config.rate_mean_reversion, 0.05);
     }
 
-    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+    #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
     #[serde(deny_unknown_fields)]
     struct FocusedWireFixture {
         id: String,

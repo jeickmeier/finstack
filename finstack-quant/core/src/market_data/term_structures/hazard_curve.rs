@@ -108,7 +108,8 @@ use crate::{
 /// # Thread Safety
 ///
 /// Immutable after construction; safe to share via `Arc<HazardCurve>`.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "RawHazardCurve", into = "RawHazardCurve")]
 pub struct HazardCurve {
     id: CurveId,
@@ -145,14 +146,15 @@ pub struct HazardCurve {
 }
 
 /// Raw serializable state of a HazardCurve
-#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct RawHazardCurve {
     /// Curve identifier
     pub id: String,
     /// Base date
     #[serde(with = "crate::wire::date")]
-    #[schemars(with = "crate::wire::DateWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
     pub base: Date,
     /// Time/value pairs used to construct the curve
     pub knot_points: Vec<(f64, f64)>,
@@ -1743,17 +1745,8 @@ mod tests {
 /// Order is **not** total — `SeniorSecured` is strictly senior to `Senior`,
 /// `Subordinated`, and `Junior`, but the relative ordering of `Subordinated`
 /// vs. `Junior` is jurisdiction-dependent. Do not rely on `Ord` semantics.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Seniority {
     /// Senior secured debt
@@ -1798,17 +1791,8 @@ impl core::str::FromStr for Seniority {
 /// follows piecewise-constant survival. Use `LogLinear` when spreads span
 /// multiple decades (e.g. high-yield issuers) so interpolation stays in
 /// log-space; otherwise the default `Linear` is fine.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Default,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ParInterp {
     /// Linear interpolation in spread space

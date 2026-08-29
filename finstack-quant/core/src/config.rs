@@ -52,9 +52,8 @@ use std::collections::BTreeMap;
 /// cfg.rounding.mode = RoundingMode::TowardZero;
 /// assert!(matches!(cfg.rounding.mode, RoundingMode::TowardZero));
 /// ```
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum RoundingMode {
@@ -290,9 +289,10 @@ pub struct RoundingPolicy {
 /// // Customize for stricter rate comparisons
 /// tol.rate_epsilon = 1e-14;
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
-#[schemars(deny_unknown_fields)]
+#[cfg_attr(feature = "json-schema", schemars(deny_unknown_fields))]
 pub struct ToleranceConfig {
     /// Epsilon for rate comparisons (default: 1e-12).
     ///
@@ -302,7 +302,10 @@ pub struct ToleranceConfig {
         serialize_with = "serialize_positive_f64",
         deserialize_with = "deserialize_positive_f64"
     )]
-    #[schemars(with = "crate::wire::PositiveF64Wire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "crate::wire::PositiveF64Wire")
+    )]
     pub rate_epsilon: f64,
     /// Epsilon for generic floating-point comparisons (default: 1e-10).
     ///
@@ -312,7 +315,10 @@ pub struct ToleranceConfig {
         serialize_with = "serialize_positive_f64",
         deserialize_with = "deserialize_positive_f64"
     )]
-    #[schemars(with = "crate::wire::PositiveF64Wire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "crate::wire::PositiveF64Wire")
+    )]
     pub generic_epsilon: f64,
 }
 
@@ -412,7 +418,8 @@ impl Default for ToleranceConfig {
 ///
 /// Instances are typically produced via [`rounding_context_from`] and persisted
 /// alongside valuation results.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct RoundingContext {
     /// Active rounding mode.
     pub mode: RoundingMode,
@@ -521,7 +528,8 @@ pub const NUMERIC_MODE_F64: &str = "f64";
 /// assert_eq!(meta.numeric_mode, NUMERIC_MODE_F64);
 /// assert!(meta.timestamp.is_none()); // deterministic by default
 /// ```
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct ResultsMeta {
     /// Numeric engine mode used to produce the results.
     ///
@@ -546,7 +554,7 @@ pub struct ResultsMeta {
         default,
         with = "time::serde::iso8601::option"
     )]
-    #[schemars(with = "Option<String>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "Option<String>"))]
     pub timestamp: Option<time::OffsetDateTime>,
     /// Finstack Quant library version used to produce the result.
     #[serde(skip_serializing_if = "Option::is_none", default)]

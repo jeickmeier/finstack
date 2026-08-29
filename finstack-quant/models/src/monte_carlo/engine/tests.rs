@@ -453,6 +453,7 @@ fn test_serial_vs_parallel_bit_identical_for_varying_payoff() {
     assert_eq!(serial.mean.amount(), parallel.mean.amount());
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn test_default_chunking_bit_identical_across_thread_pool_sizes() {
     // The DEFAULT chunk size must be a pure function of `num_paths` — never

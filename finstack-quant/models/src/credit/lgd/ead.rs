@@ -17,7 +17,8 @@ use finstack_quant_core::Result;
 ///
 /// Represents the fraction of undrawn commitments expected to be drawn
 /// at the time of default.
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CreditConversionFactor {
     /// CCF value in \[0, 1\]. Basel IRB: typically 0.75 for revolvers.
     ccf: f64,
@@ -64,7 +65,8 @@ impl CreditConversionFactor {
 ///
 /// Optionally supports Loan Equivalency (LEQ) estimation for revolving
 /// facilities where the CCF varies with utilization.
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct EadCalculator {
     /// Currently drawn amount.
     drawn: f64,

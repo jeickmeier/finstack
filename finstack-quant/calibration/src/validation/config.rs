@@ -34,7 +34,8 @@ pub(crate) fn default_rate_bounds_policy_for_serde() -> RateBoundsPolicy {
 /// ```
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct RateBounds {
     /// Minimum allowed rate (decimal, e.g., -0.02 for -2%)
@@ -161,7 +162,8 @@ impl RateBounds {
 /// explicit and avoids relying on `RateBounds::default()` as an implicit assumption.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RateBoundsPolicy {
     /// Pick currency-specific bounds via `RateBounds::for_currency(currency)`.
@@ -198,7 +200,8 @@ impl std::str::FromStr for RateBoundsPolicy {
 /// Runtime validation behavior for arbitrage/consistency checks.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ValidationMode {
     /// Emit warnings (non-fatal) when validations fail.
@@ -240,7 +243,8 @@ impl std::str::FromStr for ValidationMode {
 /// for specific arbitrage and monotonicity checks.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ValidationConfig {
     /// Enable forward rate positivity check

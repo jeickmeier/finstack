@@ -8,8 +8,11 @@ use crate::collections::HashMap;
 use crate::currency::Currency;
 use crate::dates::Date;
 use crate::error::InputError;
-use parking_lot::RwLock;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+
+fn recover<T>(res: Result<T, std::sync::PoisonError<T>>) -> T {
+    res.unwrap_or_else(std::sync::PoisonError::into_inner)
+}
 
 /// Simple FX provider backed by an in-memory quote store.
 ///
@@ -84,7 +87,7 @@ impl SimpleFxProvider {
     /// ```
     pub fn set_quote(&self, from: Currency, to: Currency, rate: f64) -> crate::Result<()> {
         let rate = super::validate_fx_rate(from, to, rate)?;
-        self.quotes.write().insert((from, to), rate);
+        recover(self.quotes.write()).insert((from, to), rate);
         Ok(())
     }
 
@@ -122,7 +125,7 @@ impl SimpleFxProvider {
                 super::validate_fx_rate(from, to, rate).map(|rate| ((from, to), rate))
             })
             .collect::<crate::Result<Vec<_>>>()?;
-        let mut guard = self.quotes.write();
+        let mut guard = recover(self.quotes.write());
         for (pair, rate) in validated {
             guard.insert(pair, rate);
         }
@@ -145,7 +148,7 @@ impl SimpleFxProvider {
     /// assert_eq!(provider.get_direct(Currency::USD, Currency::EUR), None);
     /// ```
     pub fn get_direct(&self, from: Currency, to: Currency) -> Option<f64> {
-        self.quotes.read().get(&(from, to)).copied()
+        recover(self.quotes.read()).get(&(from, to)).copied()
     }
 }
 
@@ -221,8 +224,7 @@ impl FxProvider for SimpleFxProvider {
     }
 
     fn snapshot_quotes(&self) -> Vec<(Currency, Currency, f64)> {
-        self.quotes
-            .read()
+        recover(self.quotes.read())
             .iter()
             .map(|(&(from, to), &rate)| (from, to, rate))
             .collect()

@@ -42,9 +42,9 @@ use super::definitions::{
     Debug,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
     finstack_quant_valuations_macros::FinancialBuilder,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Swaption {
     /// Unique instrument identifier
@@ -55,7 +55,10 @@ pub struct Swaption {
     pub notional: Money,
     /// Option expiry date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Exercise style (European, Bermudan, American). Defaults to European.
     #[builder(default)]

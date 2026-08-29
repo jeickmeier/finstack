@@ -48,7 +48,8 @@ struct VolatilityWeightingConfig<'a> {
 }
 
 /// One self-contained leg in a composite specification.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CompositeLegSpec {
     /// Stable identifier of the embedded instrument; must equal `instrument.id()`.
@@ -89,7 +90,8 @@ impl CompositeLegSpec {
 }
 
 /// Calendar cadence for automatic composite rebalancing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RebalanceFrequency {
     /// Every calendar day, adjusted by the configured business-day convention.
@@ -114,7 +116,8 @@ impl RebalanceFrequency {
 }
 
 /// Rule controlling when dynamic quantities may be explicitly recalculated.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum RebalanceRule {
     /// Rebalance only when the caller explicitly invokes `rebalance`.
@@ -123,18 +126,27 @@ pub enum RebalanceRule {
     Dates {
         /// Strictly increasing dates on which the new state becomes eligible.
         #[serde(with = "finstack_quant_core::wire::dates")]
-        #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+        )]
         dates: Vec<Date>,
     },
     /// Generate dates from a calendar-aware cadence.
     Calendar {
         /// Unadjusted schedule start.
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         start: Date,
         /// Optional final unadjusted schedule date.
         #[serde(default, with = "finstack_quant_core::wire::optional_date")]
-        #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+        )]
         end: Option<Date>,
         /// Daily, weekly, monthly, or quarterly cadence.
         frequency: RebalanceFrequency,
@@ -266,7 +278,8 @@ impl RebalanceRule {
 ///
 /// - DV01-neutral and duration-weighted curve trades:
 ///   `docs/REFERENCES.md#tuckman-serrat-fixed-income`
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum WeightingMethod {
     /// Use each leg's signed `weight` directly as its resolved quantity.
@@ -420,7 +433,8 @@ impl WeightingMethod {
 }
 
 /// Immutable resolved quantity for one top-level composite leg.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ResolvedCompositeLeg {
     /// Identifier of the corresponding leg specification.
@@ -430,12 +444,16 @@ pub struct ResolvedCompositeLeg {
 }
 
 /// Immutable holdings state used by pricing, risk, scenarios, and history.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CompositeState {
     /// Date from which the resolved quantities are effective.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub effective_date: Date,
     /// Resolved top-level quantities in specification order.
     pub resolved_legs: Vec<ResolvedCompositeLeg>,
@@ -444,12 +462,16 @@ pub struct CompositeState {
 }
 
 /// One dated, complete market snapshot used by dynamic weighting and history.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CompositeMarketObservation {
     /// Observation date; must be strictly increasing within a supplied history.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
     /// Complete materialized market state for the observation date.
     pub state: MarketContextState,
@@ -481,7 +503,8 @@ impl CompositeMarketObservation {
 }
 
 /// Unresolved composite definition and rebalance policy.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CompositeSpec {
     /// Stable composite instrument identifier.
@@ -1194,7 +1217,8 @@ impl CompositeSpec {
 /// assert_eq!(composite.state.resolved_legs.len(), 2);
 /// # Ok::<(), finstack_quant_core::Error>(())
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CompositeInstrument {
     /// Economic definition and future rebalance policy.
@@ -1203,7 +1227,7 @@ pub struct CompositeInstrument {
     pub state: CompositeState,
     /// Boxed legs materialized once per instance.
     #[serde(skip)]
-    #[schemars(skip)]
+    #[cfg_attr(feature = "json-schema", schemars(skip))]
     boxed_legs: BoxedLegCache,
 }
 
@@ -1733,7 +1757,8 @@ crate::impl_empty_cashflow_provider!(
 );
 
 /// Primitive execution delta produced by initialization or rebalance.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CompositeTrade {
     /// Primitive instrument identifier.
@@ -1745,7 +1770,8 @@ pub struct CompositeTrade {
 }
 
 /// Result of resolving a new composite holdings state.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CompositeRebalanceResult {
     /// Newly resolved, immutable, priceable composite.
@@ -1755,7 +1781,8 @@ pub struct CompositeRebalanceResult {
 }
 
 /// Path-level primitive exposure in a resolved composite tree.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PrimitiveExposure {
     /// Composite and leg identifiers from the root to the primitive.
@@ -1771,7 +1798,7 @@ pub struct PrimitiveExposure {
     /// Reporting-currency additive risk measures for this path.
     pub measures: IndexMap<MetricId, f64>,
     #[serde(skip)]
-    #[schemars(skip)]
+    #[cfg_attr(feature = "json-schema", schemars(skip))]
     pub(crate) instrument: Option<InstrumentJson>,
 }
 
@@ -1792,7 +1819,8 @@ impl PrimitiveExposure {
 }
 
 /// Net and gross exposure aggregated by primitive instrument identifier.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PrimitiveAggregate {
     /// Primitive instrument identifier.
@@ -1814,7 +1842,8 @@ pub struct PrimitiveAggregate {
 }
 
 /// Complete primitive decomposition with path, net, and gross views.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CompositeExposureReport {
     /// Composite reporting currency.
@@ -1826,12 +1855,16 @@ pub struct CompositeExposureReport {
 }
 
 /// Rich structured details attached to composite valuation results.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CompositeValuationDetails {
     /// Effective date of the frozen holdings state used for pricing.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub state_effective_date: Date,
     /// Currency of all reported values and additive risk measures.
     pub reporting_currency: Currency,
@@ -1846,7 +1879,8 @@ pub struct CompositeValuationDetails {
 }
 
 /// One top-level leg result retained in composite valuation details.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CompositeLegValuation {
     /// Identifier of the top-level leg specification.

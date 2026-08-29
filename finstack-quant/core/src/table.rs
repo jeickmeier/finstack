@@ -11,7 +11,6 @@
 
 use crate::{Error, Result};
 use indexmap::IndexMap;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Serializable columnar table envelope.
@@ -20,7 +19,8 @@ use serde::{Deserialize, Serialize};
 /// count. Optional metadata can record domain-specific hints such as which
 /// column is a metric, what a numeric field represents, or how a host-language
 /// binding should interpret the data.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct TableEnvelope {
     /// Number of rows in the table.
     pub row_count: usize,
@@ -94,7 +94,8 @@ impl TableEnvelope {
 }
 
 /// A single named column in a [`TableEnvelope`].
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct TableColumn {
     /// Column name.
     pub name: String,
@@ -148,7 +149,8 @@ impl TableColumn {
 }
 
 /// Column storage variants supported by the table envelope.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type", content = "values", rename_all = "snake_case")]
 pub enum TableColumnData {
     /// Non-null string column.
@@ -258,7 +260,8 @@ decl_typed_accessors! {
 }
 
 /// Optional semantic hint for a column.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum TableColumnRole {
     /// Row identifier or primary grouping field.

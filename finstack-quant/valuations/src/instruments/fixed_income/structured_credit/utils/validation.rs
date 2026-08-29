@@ -13,15 +13,8 @@ use finstack_quant_core::HashSet;
 use finstack_quant_core::Result;
 
 /// Validation error details.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    thiserror::Error,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum ValidationError {

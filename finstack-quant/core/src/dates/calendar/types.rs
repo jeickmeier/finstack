@@ -17,17 +17,9 @@ use time::{Date, Weekday};
 /// markets (SAR, AED, QAR, BHD, OMR, KWD) observe Friday/Saturday. Crypto and
 /// other 24/7 markets may have no weekends at all.
 #[derive(
-    Default,
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
+    Default, Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum WeekendRule {
     /// Saturday and Sunday (default -- Western markets).

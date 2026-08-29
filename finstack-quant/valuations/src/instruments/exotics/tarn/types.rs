@@ -33,7 +33,8 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
 ///
 /// - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models - Theory and
 ///   Practice* (2nd ed.). Springer. Chapter 14: Exotic Derivatives. `docs/REFERENCES.md#brigo-mercurio-2006-interest-rate-models`
-#[derive(PartialEq, Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(PartialEq, Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Tarn {
     /// Unique instrument identifier.
@@ -51,7 +52,10 @@ pub struct Tarn {
     pub notional: Money,
     /// Coupon payment dates (must be sorted ascending).
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub coupon_dates: Vec<Date>,
     /// Floating rate tenor (e.g., "3M", "6M").
     pub floating_tenor: Tenor,

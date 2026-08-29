@@ -27,7 +27,8 @@ use std::sync::Arc;
 ///
 /// Represents the clearing-house rulebook used to source conservative fallback
 /// parameters such as MPOR and the decimal conservative-rate proxy.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum CcpMethodology {

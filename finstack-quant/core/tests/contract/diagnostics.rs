@@ -1,6 +1,7 @@
 use finstack_quant_core::{
     ContractError, Diagnostic, LoadLimits, LoadPhase, Severity, ValidationReport,
 };
+#[cfg(feature = "json-schema")]
 use schemars::schema_for;
 use serde_json::json;
 

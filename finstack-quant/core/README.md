@@ -217,7 +217,7 @@ convention returns an error rather than guessing when it is missing.
 
 **Determinism.** Core introduces no parallelism of its own — it has no `rayon`
 dependency, so there is no parallel/serial split to reconcile here. (Its types
-are still `Send + Sync`; the FX providers guard their caches with `parking_lot`
+are still `Send + Sync`; the FX providers guard their caches with `std::sync`
 locks.) Randomness is explicitly seeded: `Pcg64Rng` and `SobolRng` are
 constructed with a seed and never read the system clock or a thread-local
 generator. Hash containers use `rustc_hash` aliases for stable iteration order.
@@ -270,11 +270,12 @@ produced by the `gen_core_schemas` binary. Regenerate with
 
 | Feature | Default | Effect |
 |---------|---------|--------|
+| `json-schema` | on | Optional `schemars` derives and the `schema` generation module. WASM builds this crate with `default-features = false` so the schema stack stays off that graph. |
 | `ts_export` | off | Derives `ts_rs::TS` on the `contract::diagnostics` types for TypeScript declaration export. |
 
-Serde, `schemars`, and tracing hooks compile unconditionally; there is no
-`std`/`no_std` split (the crate uses the standard library). Golden-test helpers
-live in `finstack-quant-test-utils`, not behind a feature here.
+Serde and tracing hooks compile unconditionally; there is no `std`/`no_std`
+split (the crate uses the standard library). Golden-test helpers live in
+`finstack-quant-test-utils`, not behind a feature here.
 
 ## Bindings
 

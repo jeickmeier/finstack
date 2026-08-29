@@ -64,9 +64,9 @@ use rust_decimal::Decimal;
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
-#[schemars(deny_unknown_fields)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "json-schema", schemars(deny_unknown_fields))]
 pub struct CommoditySwap {
     /// Unique instrument identifier.
     pub id: InstrumentId,
@@ -78,11 +78,17 @@ pub struct CommoditySwap {
         serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
         deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
-    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::PositiveF64Wire")
+    )]
     pub quantity: f64,
     /// Fixed price per unit.
     #[serde(with = "finstack_quant_core::wire::decimal")]
-    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DecimalWire")
+    )]
     pub fixed_price: Decimal,
     /// Floating index ID for price lookups.
     pub floating_index_id: CurveId,
@@ -92,11 +98,17 @@ pub struct CommoditySwap {
     pub side: PayReceive,
     /// Start date of the swap.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub start_date: Date,
     /// End date of the swap.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
     /// Payment frequency as a Tenor.
     pub frequency: Tenor,
@@ -129,7 +141,10 @@ pub struct CommoditySwap {
     #[builder(default)]
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     pub realized_fixings: Vec<(Date, f64)>,
     /// Instrument-owned pricing inputs.
     #[builder(default)]
@@ -158,7 +173,7 @@ pub struct CommoditySwap {
     pub attributes: Attributes,
     /// Rejects unknown JSON fields despite the flattened underlying.
     #[serde(flatten)]
-    #[schemars(skip)]
+    #[cfg_attr(feature = "json-schema", schemars(skip))]
     #[builder(default)]
     pub(crate) unknown_fields: finstack_quant_core::serde_guard::UnknownFieldGuard,
 }

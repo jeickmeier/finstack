@@ -10,19 +10,34 @@ description = "Deterministic scenario DSL for Finstack Quant with preview, compo
 autobenches = false
 
 [dependencies]
-finstack-quant-attribution = { path = "../attribution", version = "0.8.0" }
-finstack-quant-core = { path = "../core", version = "0.8.0" }
-finstack-quant-models = { path = "../models", version = "0.8.0" }
-finstack-quant-statements = { path = "../statements", version = "0.8.0" }
-finstack-quant-valuations = { path = "../valuations", version = "0.8.0" }
+finstack-quant-attribution = { path = "../attribution", version = "0.8.0", default-features = false }
+finstack-quant-core = { path = "../core", version = "0.8.0", default-features = false }
+finstack-quant-models = { path = "../models", version = "0.8.0", default-features = false }
+finstack-quant-statements = { path = "../statements", version = "0.8.0", default-features = false }
+finstack-quant-valuations = { path = "../valuations", version = "0.8.0", default-features = false }
 indexmap = { workspace = true, features = ["serde"] }
-rayon = "1.11"
-schemars = { workspace = true }
+schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true, features = ["macros"] }
 tracing = { version = "0.1", default-features = false }
+
+# rayon has no working thread pool on single-threaded wasm32; parallel
+# code paths are cfg-gated to native targets, so the dependency is too.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rayon = "1.11"
+
+[features]
+default = ["json-schema"]
+json-schema = [
+    "dep:schemars",
+    "finstack-quant-attribution/json-schema",
+    "finstack-quant-core/json-schema",
+    "finstack-quant-models/json-schema",
+    "finstack-quant-statements/json-schema",
+    "finstack-quant-valuations/json-schema",
+]
 
 [dev-dependencies]
 finstack-quant-calibration = { path = "../calibration", version = "0.8.0" }
@@ -32,6 +47,7 @@ jsonschema = { version = "0.28", default-features = false }
 [[bin]]
 name = "gen_scenario_schemas"
 path = "src/bin/gen_schemas.rs"
+required-features = ["json-schema"]
 
 [[bench]]
 name = "scenarios"

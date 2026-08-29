@@ -32,7 +32,8 @@ use crate::impl_instrument_base;
 /// - **Observation period**: 20 of 30 consecutive trading days
 ///
 /// Some issuances use 120% or 150% thresholds.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SoftCallTrigger {
     /// Threshold as a percentage of conversion price (e.g., 130.0 = 130%).
@@ -102,8 +103,8 @@ impl SoftCallTrigger {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ConvertibleBond {
     /// Unique identifier for the instrument.
@@ -112,11 +113,17 @@ pub struct ConvertibleBond {
     pub notional: Money,
     /// Issue date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub issue_date: Date,
     /// Maturity date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
     /// Discount curve identifier for the debt component (risk-free or funding).
     pub discount_curve_id: CurveId,
@@ -226,7 +233,8 @@ pub struct ConvertibleBond {
 ///   for credit-curve convertibles rho isolates the equity-leg discounting and
 ///   drift sensitivity while the implied credit spread narrows by the bump;
 ///   the DV01 metric (parallel, all curves) is the full parallel-rate number.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct ConvertibleGreeks {
     /// Instrument price
     pub price: f64,
@@ -256,7 +264,8 @@ impl From<finstack_quant_models::TreeGreeks> for ConvertibleGreeks {
 }
 
 /// Defines how and when conversion can occur.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ConversionPolicy {
     /// Holder may convert at any time (subject to window, if any).
@@ -268,18 +277,27 @@ pub enum ConversionPolicy {
     /// the mandatory date is not modeled.
     MandatoryOn(
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         Date,
     ),
     /// Holder may convert within a window.
     Window {
         /// Start.
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         start: Date,
         /// End.
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         end: Date,
     },
     /// Conversion tied to an external event or condition.
@@ -303,7 +321,10 @@ pub enum ConversionPolicy {
     MandatoryVariable {
         /// Date of mandatory conversion.
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         conversion_date: Date,
         /// Upper conversion price (above this, holder receives min shares).
         upper_conversion_price: f64,
@@ -313,7 +334,8 @@ pub enum ConversionPolicy {
 }
 
 /// Events that may trigger conversion.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ConversionEvent {
     /// Qualified Ipo variant.
@@ -340,7 +362,8 @@ pub enum ConversionEvent {
 /// Most convertible bonds use **Weighted Average** anti-dilution, which is
 /// less protective but more issuer-friendly. **Full Ratchet** is mainly seen
 /// in private placements and venture-style convertibles.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum AntiDilutionPolicy {
     /// No anti-dilution protection.
@@ -405,7 +428,8 @@ pub enum AntiDilutionPolicy {
 /// };
 /// assert!(conversion.dividend_adjustment.is_protected());
 /// ```
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum DividendAdjustment {
     /// No dividend adjustment.
@@ -430,12 +454,16 @@ impl DividendAdjustment {
 ///
 /// Records details of an equity issuance or corporate action that may
 /// affect the conversion ratio under the bond's anti-dilution provisions.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DilutionEvent {
     /// Date of the dilutive event.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
     /// New issue price per share (for below-market issuances).
     pub new_issue_price: f64,
@@ -446,7 +474,8 @@ pub struct DilutionEvent {
 }
 
 /// Conversion specification for the instrument.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ConversionSpec {
     /// Conversion ratio (shares per bond). If not provided, derive from price.

@@ -172,17 +172,8 @@ pub(crate) fn finalize_flows(
 }
 
 /// Meaning of the emitted schedule relative to pricing and waterfall policy.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Default,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CashflowRepresentation {
     /// Fixed or contractually scheduled future dated cash amounts.
@@ -200,7 +191,8 @@ pub enum CashflowRepresentation {
 ///
 /// Tracks referenced calendar IDs, optional facility limits, and the instrument's
 /// issue date for use by downstream engines (e.g., accrual calculation).
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CashFlowMeta {
     /// Meaning of the schedule relative to waterfall policy.
@@ -217,12 +209,18 @@ pub struct CashFlowMeta {
     /// be off by 1-2 days.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub issue_date: Option<Date>,
     /// Contractual maturity date, distinct from an adjusted final payment date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub maturity_date: Option<Date>,
 }
 
@@ -230,12 +228,13 @@ pub struct CashFlowMeta {
 ///
 /// Contains ordered cashflows plus notional and a representative `DayCount`.
 /// Methods provide convenient accessors commonly used by pricing and analysis.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CashFlowSchedule {
     /// Ordered cashflows (coupons, principal payments, fees)
     #[serde(deserialize_with = "deserialize_sorted_flows")]
-    #[schemars(with = "Vec<CashFlow>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "Vec<CashFlow>"))]
     pub(crate) flows: Vec<CashFlow>,
     /// Notional schedule (constant or amortizing)
     pub(crate) notional: Notional,

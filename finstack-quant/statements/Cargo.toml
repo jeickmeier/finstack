@@ -10,24 +10,32 @@ description = "Financial-statements modeling for Finstack Quant with determinist
 autobenches = false
 
 [dependencies]
-finstack-quant-core = { path = "../core", version = "0.8.0" }
-finstack-quant-cashflows = { path = "../cashflows", version = "0.8.0" }
-finstack-quant-valuations = { path = "../valuations", version = "0.8.0" }
+finstack-quant-core = { path = "../core", version = "0.8.0", default-features = false }
+finstack-quant-cashflows = { path = "../cashflows", version = "0.8.0", default-features = false }
+finstack-quant-valuations = { path = "../valuations", version = "0.8.0", default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
 indexmap = { workspace = true, features = ["serde"] }
-schemars = { workspace = true }
+schemars = { workspace = true, optional = true }
 thiserror = { workspace = true }
 nom = "8.0"
 tracing = { version = "0.1", default-features = false }
 time = { workspace = true }
 rust_decimal = { workspace = true }
-strsim = "0.11.1"
 
 # rayon has no working thread pool on single-threaded wasm32; parallel
 # code paths are cfg-gated to native targets, so the dependency is too.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rayon = "1.11"
+
+[features]
+default = ["json-schema"]
+json-schema = [
+    "dep:schemars",
+    "finstack-quant-core/json-schema",
+    "finstack-quant-cashflows/json-schema",
+    "finstack-quant-valuations/json-schema",
+]
 
 [dev-dependencies]
 time = { workspace = true, features = ["macros"] }
@@ -38,6 +46,7 @@ jsonschema = { version = "0.28", default-features = false }
 [[bin]]
 name = "gen_statement_schemas"
 path = "src/bin/gen_schemas.rs"
+required-features = ["json-schema"]
 
 [[bench]]
 name = "statements_operations"

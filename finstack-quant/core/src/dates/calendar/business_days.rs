@@ -157,9 +157,8 @@ pub trait HolidayCalendar: Send + Sync {
 }
 
 /// Basic metadata describing a holiday calendar.
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CalendarMetadata {
     /// Lowercase identifier (stable code).
     pub id: &'static str,
@@ -202,9 +201,8 @@ pub struct CalendarMetadata {
 /// assert_eq!(adj.day(), 3);
 /// # Ok::<(), finstack_quant_core::Error>(())
 /// ```
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum BusinessDayConvention {

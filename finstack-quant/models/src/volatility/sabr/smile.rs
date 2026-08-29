@@ -12,7 +12,8 @@ pub struct SabrSmile {
 }
 
 /// Result of arbitrage validation, containing any violations found.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct ArbitrageValidationResult {
     /// Strikes where butterfly spread is negative (convexity violation)
     pub butterfly_violations: Vec<ButterflyViolation>,
@@ -21,7 +22,8 @@ pub struct ArbitrageValidationResult {
 }
 
 /// A butterfly spread violation at a specific strike.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct ButterflyViolation {
     /// Strike at which the violation occurs
     pub strike: f64,
@@ -32,7 +34,8 @@ pub struct ButterflyViolation {
 }
 
 /// A monotonicity violation between two strikes.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct MonotonicityViolation {
     /// Lower strike
     pub strike_low: f64,

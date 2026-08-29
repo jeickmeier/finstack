@@ -1,7 +1,8 @@
 //! Recovery model specifications for credit instruments.
 
 /// Recovery model specification.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct RecoveryModelSpec {
     /// Recovery rate as fraction (0.0 to 1.0, e.g., 0.40 for 40%)

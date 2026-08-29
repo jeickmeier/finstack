@@ -1,6 +1,5 @@
 //! Template metadata types for the stress test template library.
 
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Severity classification for stress scenarios.
@@ -8,9 +7,8 @@ use serde::{Deserialize, Serialize};
 /// This label is intended for discovery and filtering rather than for pricing
 /// logic. Registries and UIs can use it to group historical events by the
 /// magnitude of the modeled dislocation.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
     /// Mild stress with limited market dislocation.
@@ -25,9 +23,8 @@ pub enum Severity {
 ///
 /// These values describe the primary risk buckets touched by a historical
 /// scenario so registries can expose coarse filtering and search.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum AssetClass {
     /// Interest rates and fixed income.
@@ -51,7 +48,8 @@ pub enum AssetClass {
 /// fields are intentionally discovery-oriented: they identify the historical
 /// event, the affected asset classes, and any component templates that can be
 /// built separately from the composite scenario.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct TemplateMetadata {
     /// Stable identifier for the template.
@@ -65,7 +63,10 @@ pub struct TemplateMetadata {
     /// This is typically the date of the market dislocation rather than the
     /// valuation date used when the template is later executed.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub event_date: time::Date,
     /// Asset classes materially affected by the scenario.
     pub asset_classes: Vec<AssetClass>,

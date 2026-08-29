@@ -100,17 +100,8 @@ fn advance_business_days<C: HolidayCalendar + ?Sized>(cal: &C, mut date: Date, d
 /// This mirrors the semantics of bond accrual methods but is defined at the
 /// cashflow layer so it can be reused by any instrument that exposes a
 /// `CashFlowSchedule`.
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum AccrualMethod {
@@ -156,7 +147,8 @@ pub enum AccrualMethod {
 const MAX_EX_COUPON_DAYS: u32 = 366;
 
 /// Ex-coupon convention applied to coupon flows.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ExCouponRule {
     /// Number of days before coupon date that go ex.
@@ -215,7 +207,8 @@ impl ExCouponRule {
 }
 
 /// Generic configuration for schedule-driven interest accrual.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AccrualConfig {
     /// Accrual method (Linear or Compounded).

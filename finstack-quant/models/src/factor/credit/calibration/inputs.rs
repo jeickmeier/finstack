@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::types::IssuerId;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::factor::credit::hierarchy::{GenericFactorSpec, IssuerTags};
@@ -18,12 +17,16 @@ use crate::factor::credit::hierarchy::{GenericFactorSpec, IssuerTags};
 /// below 20,000 bp. Deeply distressed quotes at or above 200% running-spread
 /// equivalents are rejected as looking like basis points; such names must be
 /// excluded from the calibration universe.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct HistoryPanel {
     /// Observation dates (sorted ascending).
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub dates: Vec<Date>,
     /// Per-issuer decimal spread series aligned with [`dates`][Self::dates].
     ///
@@ -33,7 +36,8 @@ pub struct HistoryPanel {
 }
 
 /// Point-in-time issuer tags at the calibration `as_of`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct IssuerTagPanel {
     /// Tag map keyed by issuer.
@@ -41,7 +45,8 @@ pub struct IssuerTagPanel {
 }
 
 /// Generic (PC) factor reference and aligned values.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct GenericFactorSeries {
     /// Reference (name + series_id) embedded into the artifact.
@@ -53,7 +58,8 @@ pub struct GenericFactorSeries {
 }
 
 /// All inputs the calibrator needs for a single calibration run.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CreditCalibrationInputs {
     /// Complete regular issuer-spread history in decimal units.
@@ -64,7 +70,10 @@ pub struct CreditCalibrationInputs {
     pub generic_factor: GenericFactorSeries,
     /// Calibration anchor date (must appear in `history_panel.dates`).
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub as_of: Date,
     /// Issuer spreads at `as_of` in decimal units (level space).
     pub as_of_spreads: BTreeMap<IssuerId, f64>,

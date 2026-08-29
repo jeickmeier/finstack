@@ -1,5 +1,4 @@
 use finstack_quant_core::dates::{Date, DateExt};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::factor::credit::hierarchy::{CreditHierarchySpec, IssuerBetaPolicy};
@@ -9,7 +8,8 @@ use crate::factor::credit::hierarchy::{CreditHierarchySpec, IssuerBetaPolicy};
 /// Annualization used for sample/EWMA variance and Ledoit-Wolf covariance
 /// is derived from this enum (`252` / `12` / `4`). There is no free
 /// annualization float.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum PanelFrequency {
@@ -117,7 +117,8 @@ fn step_months_from_origin(origin: Date, months: i32) -> Date {
 ///
 /// `Returns` (the default) matches the spec's reference math: `r_i(t) =
 /// S_i(t) - S_i(t-1)` and the generic factor is differenced the same way.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum PanelSpace {
@@ -142,7 +143,8 @@ pub enum PanelSpace {
 /// under [`PanelSpace::Levels`] the calibrator first-differences the peeled
 /// level series before estimating variance, so the zero-mean convention is
 /// sound in either panel space.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum VolModelChoice {
@@ -162,14 +164,15 @@ pub enum VolModelChoice {
     ///   Document* (4th ed.). J.P. Morgan/Reuters. §5.2. `docs/REFERENCES.md#jpmorgan1996RiskMetrics`
     Ewma {
         /// Smoothing parameter λ ∈ (0, 1) (RiskMetrics daily default 0.94).
-        #[schemars(extend("exclusiveMinimum" = 0.0, "exclusiveMaximum" = 1.0))]
+        #[cfg_attr(feature = "json-schema", schemars(extend("exclusiveMinimum" = 0.0, "exclusiveMaximum" = 1.0)))]
         lambda: f64,
     },
 }
 
 /// Strategy for assembling the factor covariance matrix.
 ///
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum CovarianceStrategy {
@@ -179,7 +182,7 @@ pub enum CovarianceStrategy {
     /// Σ = D·ρ·D + α·I. Requires `alpha >= 0`. See design spec §4.1.
     Ridge {
         /// Ridge regularisation in annualized **bp²**; must be `>= 0`.
-        #[schemars(range(min = 0.0))]
+        #[cfg_attr(feature = "json-schema", schemars(range(min = 0.0)))]
         alpha: f64,
     },
     /// Full sample covariance with PSD repair via nearest-correlation projection:
@@ -224,7 +227,8 @@ pub enum CovarianceStrategy {
 /// cross-section DTS. Spread durations are a single per-issuer value across
 /// the window; duration drift within the window is a documented
 /// simplification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum BucketWeighting {
@@ -236,7 +240,8 @@ pub enum BucketWeighting {
 }
 
 /// OLS β shrinkage rule.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum BetaShrinkage {
@@ -245,14 +250,15 @@ pub enum BetaShrinkage {
     /// Convex shrinkage toward 1.0: `β ← (1 - α) · β_fit + α · 1.0`.
     TowardOne {
         /// Shrinkage weight in `[0, 1]`.
-        #[schemars(range(min = 0.0, max = 1.0))]
+        #[cfg_attr(feature = "json-schema", schemars(range(min = 0.0, max = 1.0)))]
         alpha: f64,
     },
 }
 
 /// Per-level minimum-bucket-size thresholds used to gate fold-up of sparse
 /// hierarchy buckets.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BucketSizeThresholds {
     /// Threshold per hierarchy level. Levels beyond `per_level.len()` use the
@@ -275,7 +281,8 @@ impl BucketSizeThresholds {
 }
 
 /// Configuration for the calibrator.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CreditCalibrationConfig {
     /// Issuer-beta classification policy.

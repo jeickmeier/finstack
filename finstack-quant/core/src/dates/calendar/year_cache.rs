@@ -5,9 +5,11 @@
 //! makes `is_holiday` O(1) and Bus/252 counting O(years) inside the validated
 //! range [`BASE_YEAR`, `END_YEAR`].
 
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
 
-use parking_lot::RwLock;
+fn recover<T>(res: Result<T, std::sync::PoisonError<T>>) -> T {
+    res.unwrap_or_else(std::sync::PoisonError::into_inner)
+}
 use time::{Date, Duration};
 
 use super::business_days::HolidayCalendar;
@@ -110,10 +112,10 @@ fn year_bits(cal: &Calendar, year: i32) -> YearBits {
         rules_addr: cal.rules.as_ptr() as usize,
         rules_len: cal.rules.len(),
     };
-    if let Some(bits) = cache().read().get(&key).copied() {
+    if let Some(bits) = recover(cache().read()).get(&key).copied() {
         return bits;
     }
-    let mut cache = cache().write();
+    let mut cache = recover(cache().write());
     if let Some(bits) = cache.get(&key).copied() {
         return bits;
     }

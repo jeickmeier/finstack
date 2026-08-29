@@ -65,17 +65,8 @@ const MAX_TENOR_WEEKS: u32 = MAX_TENOR_DAYS / 7;
 const MAX_TENOR_MONTHS: u32 = MAX_TENOR_YEARS * 12;
 
 /// Unit of a tenor period.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum TenorUnit {
     /// Days (D)
@@ -138,17 +129,8 @@ impl TenorUnit {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "TenorDe")]
 pub struct Tenor {
     /// Number of units.
@@ -162,7 +144,8 @@ pub struct Tenor {
 /// A zero-count tenor is a no-op period that makes schedule generation
 /// loop forever, so inbound payloads (e.g. JSON) with `"count": 0` must
 /// fail loudly instead of constructing a degenerate `Tenor`.
-#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[derive(serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct TenorDe {
     /// Number of `unit` periods in the tenor. Must be at least 1; `0` is

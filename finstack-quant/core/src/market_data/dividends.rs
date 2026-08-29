@@ -59,7 +59,8 @@ use serde::{Deserialize, Serialize};
 /// - **Cash**: Actual dividend payment (quarterly, semi-annual, etc.)
 /// - **Stock**: Share distribution (less common, complicates option pricing)
 /// - **Yield**: Continuous approximation for analytical models
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum DividendKind {
     /// Cash dividend payment.
@@ -84,11 +85,12 @@ pub enum DividendKind {
 }
 
 /// A dated dividend event.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct DividendEvent {
     /// Ex-dividend date.
     #[serde(with = "crate::wire::date")]
-    #[schemars(with = "crate::wire::DateWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
     pub date: Date,
     /// Event kind.
     pub kind: DividendKind,
@@ -126,7 +128,8 @@ pub struct DividendEvent {
 ///
 /// assert_eq!(schedule.events.len(), 1);
 /// ```
-#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DividendSchedule {
     /// Unique identifier of this schedule in the market context.

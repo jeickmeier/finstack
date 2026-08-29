@@ -42,8 +42,8 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = CmsSwap::validate)]
 #[serde(deny_unknown_fields)]
 pub struct CmsSwap {
@@ -59,11 +59,17 @@ pub struct CmsSwap {
     pub cms_tenor: f64,
     /// Fixing dates for CMS rate observations.
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub cms_fixing_dates: Vec<Date>,
     /// Payment dates for the CMS leg.
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub cms_payment_dates: Vec<Date>,
     /// Accrual fractions for each CMS period.
     pub cms_accrual_fractions: Vec<f64>,
@@ -144,7 +150,8 @@ pub struct CmsSwap {
 }
 
 /// Funding leg specification for a CMS swap.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
 pub enum FundingLeg {
@@ -154,7 +161,10 @@ pub enum FundingLeg {
         rate: f64,
         /// Payment dates for each period.
         #[serde(with = "finstack_quant_core::wire::dates")]
-        #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+        )]
         payment_dates: Vec<Date>,
         /// Accrual fractions for each period.
         accrual_fractions: Vec<f64>,
@@ -179,7 +189,10 @@ pub enum FundingLeg {
         /// Payment dates for each period. Each is also treated as the period's
         /// accrual-end date (no payment lag — see the variant docs).
         #[serde(with = "finstack_quant_core::wire::dates")]
-        #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+        )]
         payment_dates: Vec<Date>,
         /// Accrual fractions for each period.
         accrual_fractions: Vec<f64>,

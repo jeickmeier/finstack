@@ -20,10 +20,11 @@ use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 
 /// Type of asset in the basket
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 // Distinct from the structured-credit collateral `AssetType`.
-#[schemars(rename = "BasketAssetType")]
+#[cfg_attr(feature = "json-schema", schemars(rename = "BasketAssetType"))]
 pub enum AssetType {
     /// Equity security
     Equity,
@@ -41,7 +42,8 @@ pub enum AssetType {
 }
 
 /// Reference to a constituent asset in the basket
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(
     tag = "kind",
     content = "value",
@@ -77,7 +79,8 @@ impl std::fmt::Debug for BoxedConstituentCache {
 }
 
 /// Individual constituent in a basket
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BasketConstituent {
     /// Unique identifier for the constituent
@@ -93,7 +96,8 @@ pub struct BasketConstituent {
 }
 
 /// Configuration for basket pricing behaviour.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BasketPricingConfig {
     /// Day basis used for fee accrual (e.g., 365.0 or 365.25). Avoid hardcoding in logic.
@@ -122,8 +126,8 @@ impl Default for BasketPricingConfig {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Basket {
     /// Unique instrument identifier
@@ -166,7 +170,7 @@ pub struct Basket {
     pub pricing_config: BasketPricingConfig,
     /// Boxed instrument constituents materialized once per instance.
     #[serde(skip)]
-    #[schemars(skip)]
+    #[cfg_attr(feature = "json-schema", schemars(skip))]
     #[builder(default)]
     pub(crate) boxed_constituents: BoxedConstituentCache,
 }

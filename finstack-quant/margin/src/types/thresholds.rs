@@ -41,7 +41,8 @@ use finstack_quant_core::config::FinstackConfig;
 ///     settlement_lag: 1,
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct VmParameters {
     /// Threshold amount below which no margin is exchanged.
@@ -287,7 +288,8 @@ impl Default for VmParameters {
 ///     segregated: true,
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ImParameters {
     /// IM calculation methodology.
@@ -302,7 +304,7 @@ pub struct ImParameters {
         deserialize_with = "serde_validation::mpor_days::deserialize",
         serialize_with = "serde_validation::mpor_days::serialize"
     )]
-    #[schemars(range(min = 1))]
+    #[cfg_attr(feature = "json-schema", schemars(range(min = 1)))]
     pub mpor_days: u32,
 
     /// IM threshold (aggregate group level).

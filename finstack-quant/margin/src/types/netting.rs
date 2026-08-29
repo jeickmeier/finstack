@@ -8,9 +8,8 @@
 /// shapes are mutually exclusive, so the type encodes them as enum
 /// variants rather than as a struct with two `Option<String>` fields
 /// that could in principle both be set or both be unset.
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum NettingSetId {
     /// A bilateral netting set scoped by counterparty + CSA.

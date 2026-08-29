@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 /// The policy tells a provider *how* the rate will be applied so it can decide
 /// between spot, forward, or averaged sources.
 ///
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum FxConversionPolicy {
@@ -93,7 +94,8 @@ impl FxQuery {
 /// Attach [`FxPolicyMeta`] to valuation results so auditors can understand how
 /// FX conversions were sourced.
 ///
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FxPolicyMeta {
     /// Strategy the provider actually applied or was instructed to apply.
@@ -118,9 +120,8 @@ impl Default for FxPolicyMeta {
 ///
 /// Controls triangulation and caching.
 ///
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 #[serde(default)]
 pub struct FxConfig {
@@ -166,7 +167,8 @@ pub struct FxRateResult {
 
 /// Serializable state of an FxMatrix.
 /// Contains the configuration and cached quotes that can be persisted and restored.
-#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FxMatrixState {
     /// Matrix configuration, including pivot and cache capacity.
@@ -177,6 +179,9 @@ pub struct FxMatrixState {
     ///
     /// Required: a snapshot that omits it would silently re-derive those
     /// dates from the provider instead of restoring the pinned fixings.
-    #[schemars(with = "Vec<(Currency, Currency, String, FxConversionPolicy, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(Currency, Currency, String, FxConversionPolicy, f64)>")
+    )]
     pub pinned_quotes: Vec<(Currency, Currency, Date, FxConversionPolicy, f64)>,
 }

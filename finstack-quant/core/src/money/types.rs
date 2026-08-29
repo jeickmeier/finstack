@@ -108,24 +108,15 @@ impl Default for FormatOpts {
 /// assert_eq!(notional.currency(), Currency::EUR);
 /// assert_eq!(notional.amount(), 1_000_000.0);
 /// ```
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Money {
     /// Monetary amount, carried on the wire as an exact decimal string rather
     /// than a JSON number so no precision is lost in transit. Rounded to the
     /// currency's ISO 4217 minor-unit scale.
     #[serde(with = "crate::wire::decimal")]
-    #[schemars(with = "crate::wire::DecimalWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DecimalWire"))]
     amount: AmountRepr,
     /// ISO 4217 currency of `amount`. Arithmetic between two `Money` values
     /// requires this to match; there is no implicit conversion.

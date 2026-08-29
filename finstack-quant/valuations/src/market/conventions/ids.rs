@@ -11,7 +11,8 @@ use std::fmt;
 macro_rules! define_convention_id {
     ($(#[$meta:meta])* $name:ident) => {
         $(#[$meta])*
-        #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, schemars::JsonSchema)]
+        #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
         pub struct $name(String);
 
         impl $name {
@@ -102,7 +103,8 @@ define_convention_id!(
 ///
 /// let clause = CdsDocClause::Cr14; // Cum-Restructuring 2014
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CdsDocClause {
     /// Cum-Restructuring 2014 (CR14)
@@ -164,7 +166,8 @@ impl std::str::FromStr for CdsDocClause {
 ///     doc_clause: CdsDocClause::Cr14,
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CdsConventionKey {
     /// The currency of the CDS.
     pub currency: Currency,

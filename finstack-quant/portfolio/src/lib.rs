@@ -83,16 +83,8 @@
 macro_rules! define_string_id {
     ($(#[$meta:meta])* $vis:vis struct $name:ident;) => {
         $(#[$meta])*
-        #[derive(
-            Clone,
-            Debug,
-            PartialEq,
-            Eq,
-            Hash,
-            serde::Serialize,
-            serde::Deserialize,
-            schemars::JsonSchema,
-        )]
+        #[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
         #[repr(transparent)]
         $vis struct $name(String);
 
@@ -208,6 +200,7 @@ pub mod portfolio;
 pub mod position;
 /// Primitive exposure and overlapping-concentration reports.
 pub mod primitive;
+#[cfg(feature = "json-schema")]
 pub mod schema;
 
 /// Result envelopes for portfolio operations.

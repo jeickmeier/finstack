@@ -18,7 +18,8 @@ use finstack_quant_core::{Error, InputError, Result};
 use serde::{Deserialize, Serialize};
 
 /// Recovery model specification.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RecoveryModel {
     /// Constant recovery (ignores notional changes).
@@ -49,7 +50,8 @@ pub enum RecoveryModel {
 /// Models the relationship between the accreted notional and the recovery
 /// rate in default. As PIK accrual increases the notional relative to the
 /// original base, recovery declines according to the chosen [`RecoveryModel`].
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DynamicRecoverySpec {
     /// Base (reference) recovery rate `R_0`.

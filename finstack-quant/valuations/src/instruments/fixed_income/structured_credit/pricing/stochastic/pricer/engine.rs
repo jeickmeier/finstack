@@ -22,7 +22,6 @@ use finstack_quant_models::credit::pool::{
 };
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::traits::RandomStream;
-use rayon::prelude::*;
 use std::sync::Arc;
 
 #[cfg(test)]
@@ -367,21 +366,30 @@ impl StochasticPricer {
         // index for its idiosyncratic-draw substream. Both properties are
         // required for bit-identical serial/parallel results (the downstream
         // Welford accumulation is order-sensitive).
+        let price_factors = |(path_index, factors): (usize, Vec<f64>)| {
+            let shocks =
+                self.path_shocks_from_factors(instrument, &factors, path_index as u64, prepared)?;
+            let per_name_engine = per_name_simulator
+                .as_ref()
+                .map(|sim| self.per_name_engine(sim, path_index, antithetic));
+            self.price_path(instrument, context, prepared, shocks, per_name_engine)
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let outputs: Vec<PathScenarioOutput> = {
+            use rayon::prelude::*;
+            factor_sets
+                .into_par_iter()
+                .enumerate()
+                .map(price_factors)
+                .collect::<Result<Vec<_>>>()?
+        };
+
+        #[cfg(target_arch = "wasm32")]
         let outputs: Vec<PathScenarioOutput> = factor_sets
-            .into_par_iter()
+            .into_iter()
             .enumerate()
-            .map(|(path_index, factors)| {
-                let shocks = self.path_shocks_from_factors(
-                    instrument,
-                    &factors,
-                    path_index as u64,
-                    prepared,
-                )?;
-                let per_name_engine = per_name_simulator
-                    .as_ref()
-                    .map(|sim| self.per_name_engine(sim, path_index, antithetic));
-                self.price_path(instrument, context, prepared, shocks, per_name_engine)
-            })
+            .map(price_factors)
             .collect::<Result<Vec<_>>>()?;
 
         let mut collector = ScenarioCollector::new(instrument, num_paths, antithetic)?;

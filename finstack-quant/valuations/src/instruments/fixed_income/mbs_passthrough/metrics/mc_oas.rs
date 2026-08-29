@@ -46,7 +46,6 @@ use finstack_quant_models::monte_carlo::process::ou::HullWhite1FParams;
 use finstack_quant_models::monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_models::monte_carlo::traits::RandomStream;
 use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
-use rayon::prelude::*;
 
 /// Configuration for Monte Carlo OAS calculation.
 #[derive(Debug, Clone)]
@@ -433,19 +432,25 @@ pub(crate) fn calculate_mc_oas(
     // objective value bit-identical to the serial implementation (and therefore
     // keeping Brent's iterates — and the solved OAS — unchanged).
     let objective = |oas: f64| -> f64 {
-        let path_pvs: Vec<Result<f64>> = paths
-            .par_iter()
-            .map(|path| {
-                price_on_path(
-                    mbs,
-                    path,
-                    initial_rate,
-                    oas,
-                    config.prepay_rate_sensitivity,
-                    &steps,
-                )
-            })
-            .collect();
+        let price_one = |path: &_| {
+            price_on_path(
+                mbs,
+                path,
+                initial_rate,
+                oas,
+                config.prepay_rate_sensitivity,
+                &steps,
+            )
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let path_pvs: Vec<Result<f64>> = {
+            use rayon::prelude::*;
+            paths.par_iter().map(price_one).collect()
+        };
+
+        #[cfg(target_arch = "wasm32")]
+        let path_pvs: Vec<Result<f64>> = paths.iter().map(price_one).collect();
 
         let mut total = 0.0_f64;
         for pv in path_pvs {

@@ -19,7 +19,8 @@ fn default_true() -> bool {
 /// along with the residual and a local sensitivity measure.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct QuoteQuality {
     /// Human-readable label identifying this quote (e.g., "USD-1Y-SWAP").
@@ -42,7 +43,8 @@ pub struct QuoteQuality {
 /// monitoring rather than production hot paths.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CalibrationDiagnostics {
     /// Per-quote quality metrics for each calibration instrument.
@@ -221,7 +223,8 @@ fn compute_residual_diagnostics(residuals: &BTreeMap<String, f64>) -> ResidualDi
 /// ```
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CalibrationReport {
     /// User-facing success flag. True only if both fitting and validation passed.

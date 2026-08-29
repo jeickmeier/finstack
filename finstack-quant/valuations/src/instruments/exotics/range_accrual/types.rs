@@ -9,17 +9,8 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, IndexId, InstrumentId, PriceId, Rate};
 
 /// Specifies how the range bounds are interpreted.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum BoundsType {
@@ -90,8 +81,8 @@ impl std::str::FromStr for BoundsType {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct RangeAccrual {
     /// Unique instrument identifier
@@ -100,7 +91,10 @@ pub struct RangeAccrual {
     pub underlying_ticker: String,
     /// Observation dates for range checking (must be sorted ascending)
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub observation_dates: Vec<Date>,
     /// Lower bound of accrual range (interpretation depends on bounds_type)
     pub lower_bound: f64,
@@ -118,7 +112,10 @@ pub struct RangeAccrual {
     pub day_count: finstack_quant_core::dates::DayCount,
     /// Contractual accrual-period start date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub accrual_start_date: Date,
     /// Explicit rate index for rate-linked range accruals.
     #[builder(optional)]
@@ -172,7 +169,10 @@ pub struct RangeAccrual {
     pub quanto: Option<QuantoSpec>,
     /// Optional payment date (defaults to last observation date)
     #[serde(default, with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub payment_date: Option<Date>,
     /// Number of past observations that were in range (for mid-life valuations).
     /// If None, past observations are not included in the accrual calculation.

@@ -41,7 +41,8 @@ use std::sync::Arc;
 /// instrument's native PV currency. It does not change the scale factor.
 /// A warning is emitted when it disagrees with the instrument's valuation
 /// currency.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum PositionUnit {
     /// Number of units/shares (for equities, baskets). Scale factor = `quantity`.

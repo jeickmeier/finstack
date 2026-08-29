@@ -7,7 +7,8 @@ use finstack_quant_cashflows::builder::{DefaultModelSpec, PrepaymentModelSpec, R
 ///
 /// Different instrument types have different model parameters that affect
 /// pricing. This enum captures the relevant parameters for each type.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ModelParamsSnapshot {
     /// Structured credit parameters (prepayment, default, recovery).

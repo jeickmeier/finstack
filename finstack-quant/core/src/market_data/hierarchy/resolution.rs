@@ -7,7 +7,6 @@ use super::{HierarchyNode, MarketDataHierarchy};
 use crate::collections::{HashMap, HashSet};
 use crate::types::CurveId;
 use indexmap::IndexMap;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,7 +16,8 @@ pub(crate) struct ResolvedCurveMatch {
 }
 
 /// Controls how shocks at multiple hierarchy levels combine for a single curve.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ResolutionMode {
     /// The deepest (most specific) matching node's shock wins.
@@ -31,7 +31,8 @@ pub enum ResolutionMode {
 }
 
 /// A predicate for filtering nodes by their tags.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum TagPredicate {
     /// Tag value must exactly equal the given value.
@@ -67,7 +68,8 @@ impl TagPredicate {
 }
 
 /// A filter combining multiple tag predicates (AND semantics).
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct TagFilter {
     /// All predicates must match (AND semantics).
     pub predicates: Vec<TagPredicate>,
@@ -86,7 +88,8 @@ impl TagFilter {
 }
 
 /// A target specifying a hierarchy path with optional tag filtering.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct HierarchyTarget {
     /// Path through the hierarchy (e.g., `["Credit", "US", "IG"]`).
     pub path: Vec<String>,

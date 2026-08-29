@@ -1,9 +1,12 @@
 //! Embedded JSON Schema resources owned by the cashflows crate.
 
-use finstack_quant_core::{Error, Result};
+#[cfg(feature = "jsonschema-validate")]
+use finstack_quant_core::Error;
+use finstack_quant_core::Result;
 use serde_json::Value;
 
 /// Stable base URI for cashflow component schemas.
+#[cfg(feature = "jsonschema-validate")]
 pub const CASHFLOW_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/cashflow/1/";
 
 /// Typed cashflow definitions eligible for assertion-checked externalization.
@@ -51,6 +54,7 @@ pub fn package_cashflow_schema(schema: &mut Value) -> Result<()> {
     )
 }
 
+#[cfg(feature = "jsonschema-validate")]
 const SCHEMAS: [(&str, &str); 7] = [
     (
         "amortization_spec.schema.json",
@@ -86,6 +90,7 @@ const SCHEMAS: [(&str, &str); 7] = [
 ///
 /// Errors are cached as `String` because `finstack_quant_core::Error` is not
 /// `Clone`.
+#[cfg(feature = "jsonschema-validate")]
 fn parsed_schemas() -> &'static std::result::Result<Vec<(String, jsonschema::Resource)>, String> {
     static CACHE: std::sync::OnceLock<
         std::result::Result<Vec<(String, jsonschema::Resource)>, String>,
@@ -111,6 +116,7 @@ fn parsed_schemas() -> &'static std::result::Result<Vec<(String, jsonschema::Res
 /// # Errors
 ///
 /// Returns a validation error if a checked-in schema is malformed.
+#[cfg(feature = "jsonschema-validate")]
 pub fn resources() -> Result<Vec<(String, jsonschema::Resource)>> {
     match parsed_schemas() {
         Ok(entries) => Ok(entries.clone()),

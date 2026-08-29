@@ -3,9 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 /// Four-state barrier option classification.
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum BarrierType {
     /// Up-and-out: knocked out when spot touches or rises above the barrier.

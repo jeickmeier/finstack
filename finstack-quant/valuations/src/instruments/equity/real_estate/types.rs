@@ -11,9 +11,8 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::InstrumentId;
 
 /// Broad property classification for reporting / tagging.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RealEstatePropertyType {
     /// Office (CBD/suburban, single-tenant or multi-tenant).
@@ -33,9 +32,8 @@ pub enum RealEstatePropertyType {
 }
 
 /// Valuation method for a real estate asset.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RealEstateValuationMethod {
     /// Discounted cashflow using an explicit NOI schedule and discount rate.
@@ -54,8 +52,8 @@ pub enum RealEstateValuationMethod {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = RealEstateAsset::validate)]
 #[serde(deny_unknown_fields, try_from = "RealEstateAssetUnchecked")]
 pub struct RealEstateAsset {
@@ -65,7 +63,10 @@ pub struct RealEstateAsset {
     pub currency: Currency,
     /// Valuation date (base date for discounting).
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub valuation_date: Date,
     /// Valuation method (DCF or DirectCap).
     pub valuation_method: RealEstateValuationMethod,
@@ -81,7 +82,10 @@ pub struct RealEstateAsset {
     /// would understate those values by 12x/4x. Flows dated exactly on the
     /// valuation `as_of` are included in PV undiscounted (t = 0).
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     pub noi_schedule: Vec<(Date, f64)>,
     /// Capital expenditure schedule (date, amount). Values are treated as **positive outflows**.
     ///
@@ -89,7 +93,10 @@ pub struct RealEstateAsset {
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_dated_f64_values")]
-    #[schemars(with = "Option<Vec<(finstack_quant_core::wire::DateWire, f64)>>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<Vec<(finstack_quant_core::wire::DateWire, f64)>>")
+    )]
     pub capex_schedule: Option<Vec<(Date, f64)>>,
     /// Discount rate for DCF (annualized).
     #[builder(optional)]
@@ -125,7 +132,10 @@ pub struct RealEstateAsset {
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub sale_date: Option<Date>,
     /// Optional explicit gross sale price (terminal proceeds), before disposition costs.
     ///
@@ -192,7 +202,8 @@ pub struct RealEstateAsset {
 
 /// Mirror of `RealEstateAsset` used by serde to apply `validate()` after
 /// deserialization. Not part of the public API.
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct RealEstateAssetUnchecked {
     /// Unique instrument identifier.
@@ -201,7 +212,10 @@ struct RealEstateAssetUnchecked {
     currency: Currency,
     /// Valuation date (base date for discounting).
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     valuation_date: Date,
     /// Valuation method (DCF or DirectCap).
     valuation_method: RealEstateValuationMethod,
@@ -210,14 +224,20 @@ struct RealEstateAssetUnchecked {
     property_type: Option<RealEstatePropertyType>,
     /// Net operating income schedule (date, amount).
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     noi_schedule: Vec<(Date, f64)>,
     /// Capital expenditure schedule (date, amount). Values are treated as **positive outflows**.
     ///
     /// When present, cashflows are valued as `NOI - CapEx` (unlevered net cash flow).
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::optional_dated_f64_values")]
-    #[schemars(with = "Option<Vec<(finstack_quant_core::wire::DateWire, f64)>>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<Vec<(finstack_quant_core::wire::DateWire, f64)>>")
+    )]
     capex_schedule: Option<Vec<(Date, f64)>>,
     /// Discount rate for DCF (annualized).
     #[serde(default)]
@@ -244,7 +264,10 @@ struct RealEstateAssetUnchecked {
     /// Terminal proceeds (if configured) are realized on `sale_date`.
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     sale_date: Option<Date>,
     /// Optional explicit gross sale price (terminal proceeds), before disposition costs.
     ///

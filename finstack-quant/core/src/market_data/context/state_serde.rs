@@ -43,7 +43,8 @@ macro_rules! define_curve_state {
         /// Serializable state representation for any curve type.
         ///
         /// Produced when persisting market data snapshots through serde.
-        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
         #[serde(tag = "type", rename_all = "snake_case")]
         pub enum CurveState {
             $(
@@ -114,7 +115,8 @@ impl<'de> serde::Deserialize<'de> for CurveStorage {
 ///
 /// Instead of serializing `Arc<Curve>` directly, we store curve IDs that
 /// reference curves present in the `MarketContextState`.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CreditIndexState {
     /// Unique identifier for this credit index
@@ -157,14 +159,15 @@ where
 ///
 /// Provides a stable, versioned snapshot of all market data that can be
 /// persisted to JSON and reconstructed deterministically.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 // Every key except `fx` is mandatory. `hierarchy` is listed here rather than
-// carrying `#[schemars(required)]` because that attribute also strips the
+// carrying `#[cfg_attr(feature = "json-schema", schemars(required))]` because that attribute also strips the
 // field's `null` branch, which would make the schema reject payloads serde
 // accepts. `market_context_state_schema_permits_explicit_null_hierarchy` keeps
 // this list in step with the field set.
-#[schemars(extend("required" = [
+#[cfg_attr(feature = "json-schema", schemars(extend("required" = [
     "schema_version",
     "curves",
     "surfaces",
@@ -177,7 +180,7 @@ where
     "vol_cubes",
     "collateral",
     "hierarchy",
-]))]
+])))]
 pub struct MarketContextState {
     /// Required schema version. Only version `1` is accepted.
     pub schema_version: SchemaVersion,

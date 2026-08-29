@@ -19,17 +19,8 @@ use finstack_quant_core::Result;
 ///
 /// Recovery rates vary significantly by position in the capital structure.
 /// These classes align with rating agency (Moody's, S&P) reporting categories.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum SeniorityClass {
     /// First-lien secured debt with explicit collateral priority.
@@ -83,7 +74,8 @@ impl std::str::FromStr for SeniorityClass {
 /// - Altman, E. I., Resti, A., & Sironi, A. (2005). "Recovery Risk." Risk Books. `docs/REFERENCES.md#altman-et-al-2005-recovery`
 /// - Schuermann, T. (2004). "What Do We Know About Loss Given Default?"
 ///   Wharton Financial Institutions Center Working Paper 04-01. `docs/REFERENCES.md#schuermann-2004-lgd`
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "BetaRecoveryWire")]
 pub struct BetaRecovery {
     /// Mean recovery rate in (0, 1).
@@ -96,7 +88,8 @@ pub struct BetaRecovery {
     beta_param: f64,
 }
 
-#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[derive(serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct BetaRecoveryWire {
     mean: f64,
@@ -287,7 +280,8 @@ impl BetaRecovery {
 /// Provides Beta distribution parameters derived from long-run empirical
 /// recovery studies. Users can construct custom calibrations or use the
 /// built-in Moody's and S&P historical defaults.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct SeniorityCalibration {
     /// Source label (e.g., "Moody's 1982-2023").
     pub source: String,
@@ -361,7 +355,8 @@ impl SeniorityCalibration {
 ///
 /// Wraps a `BetaRecovery` to provide seniority-aware recovery estimation.
 /// Can be used directly or plugged into portfolio default simulation.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct SeniorityRecovery {
     class: SeniorityClass,
     dist: BetaRecovery,

@@ -75,7 +75,8 @@ use crate::types::SimmSensitivities;
 /// | `Constant` | `1` | Evergreen / constantly re-hedged books |
 /// | `LinearToMaturity` | `max(1 − t/T, 0)` | Amortizing linear-risk books |
 /// | `SqrtTime` | `sqrt(max(1 − t/T, 0))` | DV01-style risk ∝ √(remaining time) |
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ImDecayProfile {
     /// IM stays at today's level for the whole horizon.
@@ -130,7 +131,8 @@ impl ImDecayProfile {
 ///
 /// Values are in the aggregation currency chosen when the profile was built
 /// (e.g. the `currency` argument of [`im_profile_from_simm`]).
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ImProfile {
     /// Time points in years from the valuation date (strictly increasing, positive).
@@ -250,7 +252,8 @@ fn validate_time_grid(time_grid: &[f64]) -> finstack_quant_core::Result<()> {
 ///
 /// All monetary quantities are f64 in the IM profile's currency, matching the
 /// convention of [`crate::xva::types::XvaResult`].
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MvaResult {
     /// MVA (positive = lifetime funding cost of posting IM).

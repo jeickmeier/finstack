@@ -63,8 +63,8 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = DollarRoll::validate)]
 #[serde(deny_unknown_fields)]
 pub struct DollarRoll {
@@ -98,7 +98,10 @@ pub struct DollarRoll {
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub front_settlement_date: Option<Date>,
     /// Explicit back-month settlement date override.
     ///
@@ -106,7 +109,10 @@ pub struct DollarRoll {
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub back_settlement_date: Option<Date>,
     /// Front-month price (sell price).
     pub front_price: f64,
@@ -116,7 +122,10 @@ pub struct DollarRoll {
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub trade_date: Option<Date>,
     /// Discount curve identifier.
     pub discount_curve_id: CurveId,

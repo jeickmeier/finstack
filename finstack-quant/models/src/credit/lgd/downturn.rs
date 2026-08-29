@@ -25,7 +25,8 @@ use finstack_quant_core::math::special_functions::standard_normal_inv_cdf;
 use finstack_quant_core::Result;
 
 /// Method for computing downturn LGD from base (through-the-cycle) LGD.
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum DownturnMethod {
     /// Proprietary stressed-LGD approximation (mean plus a multiple of the
@@ -70,7 +71,8 @@ pub enum DownturnMethod {
 ///
 /// Wraps a base LGD estimate and applies a downturn adjustment method
 /// to produce a stressed LGD for capital calculations.
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DownturnLgd {
     /// Downturn adjustment method.

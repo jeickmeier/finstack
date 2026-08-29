@@ -105,7 +105,8 @@ fn default_settlement_days() -> u32 {
 ///     fallback: Default::default(),
 /// });
 /// ```
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[allow(clippy::large_enum_variant)]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
@@ -198,8 +199,8 @@ impl RateSpec {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = TermLoan::validate)]
 #[serde(deny_unknown_fields)]
 pub struct TermLoan {
@@ -214,12 +215,18 @@ pub struct TermLoan {
 
     /// Issue (effective) date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub issue_date: Date,
 
     /// Maturity date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
 
     /// Rate specification (fixed or floating)

@@ -24,9 +24,8 @@ const OFFICIAL_TREE_STEPS: usize = 401;
 const RISK_TREE_STEPS: usize = 201;
 
 /// Quotation model used for an option on a futures price.
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum FutureOptionModel {
     /// Black-76 with decimal lognormal volatility and positive price/strike.
@@ -36,9 +35,8 @@ pub enum FutureOptionModel {
 }
 
 /// Premium-settlement convention.
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum FutureOptionPremiumStyle {
     /// Premium is paid up front, so the expected expiry payoff is discounted.
@@ -48,25 +46,35 @@ pub enum FutureOptionPremiumStyle {
 }
 
 /// Settlement delivered by exercise or assignment.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum FutureOptionSettlement {
     /// Cash payment of intrinsic value on the supplied date.
     Cash {
         /// Date on which the fixed exercise payoff is paid.
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         payment_date: Date,
     },
     /// Delivery of a futures position entered at the option strike.
     Future {
         /// Last trading date of the delivered underlying future.
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         underlying_last_trading_date: Date,
         /// Final settlement date of the delivered underlying future.
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         underlying_settlement_date: Date,
         /// Official final settlement of the delivered future once trading has ended.
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -94,14 +102,16 @@ impl FutureOptionSettlement {
 }
 
 /// Exercise or assignment observation for an option on a future.
-#[derive(
-    Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FutureOptionExercise {
     /// Exercise date. European options require this to equal contractual expiry.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
     /// Official underlying futures price used to determine exercise.
     pub futures_price: f64,
@@ -135,8 +145,8 @@ impl FutureOptionExercise {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = FutureOptionTerms::validate)]
 #[serde(deny_unknown_fields)]
 pub struct FutureOptionTerms {
@@ -178,7 +188,10 @@ pub struct FutureOptionTerms {
     pub exercise_style: ExerciseStyle,
     /// Contractual option expiry.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Cash payment or delivery of an underlying future.
     pub settlement: FutureOptionSettlement,

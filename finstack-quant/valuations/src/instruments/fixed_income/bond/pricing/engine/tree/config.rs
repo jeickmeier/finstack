@@ -12,7 +12,8 @@ use finstack_quant_models::trees::TreeCompounding;
 /// `HoLee` model is a simple parallel-shift tree appropriate for quick estimates.
 /// For production callable bond OAS, use `HullWhite` with parameters fitted
 /// before pricing.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 #[derive(Default)]
 pub enum TreeModelChoice {

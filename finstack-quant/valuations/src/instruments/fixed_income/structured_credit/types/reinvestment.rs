@@ -12,12 +12,16 @@ use super::pool::{AssetPool, PoolAsset};
 use serde::{Deserialize, Serialize};
 
 /// Manages reinvestment during the reinvestment period (price-only selection)
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ReinvestmentManager {
     /// End date of reinvestment period
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub end_date: Date,
     /// Whether reinvestment is currently allowed
     pub reinvestment_allowed: bool,

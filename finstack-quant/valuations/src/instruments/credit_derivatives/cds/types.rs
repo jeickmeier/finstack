@@ -69,17 +69,8 @@ use std::sync::OnceLock;
 pub use crate::instruments::common_impl::parameters::legs::PayReceive;
 
 /// ISDA CDS conventions
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CDSConvention {
     /// Standard North American convention (quarterly, Act/360)
@@ -99,17 +90,9 @@ pub enum CDSConvention {
 /// boolean overrides is intentionally not supported — the variants here are the
 /// only conventions traded in practice.
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CdsValuationConvention {
     /// ISDA-style dirty model PV.
@@ -577,8 +560,8 @@ fn resolve_doc_clause(clause: CdsDocClause) -> CdsDocClause {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 // Note: JsonSchema derive requires finstack-quant-core types to implement JsonSchema
 // #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -630,7 +613,10 @@ pub struct CreditDefaultSwap {
     /// - If negative: Seller pays Buyer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_dated_money")]
-    #[schemars(with = "Option<(finstack_quant_core::wire::DateWire, Money)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<(finstack_quant_core::wire::DateWire, Money)>")
+    )]
     pub upfront: Option<(Date, Money)>,
     /// ISDA documentation clause for restructuring credit events.
     ///
@@ -660,7 +646,10 @@ pub struct CreditDefaultSwap {
     /// When `None`, protection starts on the premium leg start date (standard CDS).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub protection_effective_date: Option<Date>,
     /// Optional OTC margin specification for VM/IM.
     ///

@@ -23,9 +23,16 @@ use time::Date;
 /// let id = QuoteId::new("USD-SOFR-DEP-1M");
 /// assert_eq!(id.as_str(), "USD-SOFR-DEP-1M");
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, PartialOrd, Ord, schemars::JsonSchema)]
-#[schemars(transparent)]
-pub struct QuoteId(#[schemars(length(min = 1), regex(pattern = r".*\S.*"))] String);
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, PartialOrd, Ord)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "json-schema", schemars(transparent))]
+pub struct QuoteId(
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(length(min = 1), regex(pattern = r".*\S.*"))
+    )]
+    String,
+);
 
 /// Shared deserialize/validate message for empty or whitespace-only quote ids.
 pub(crate) const EMPTY_QUOTE_ID: &str = "quote id must not be empty or whitespace";
@@ -128,7 +135,8 @@ impl From<String> for QuoteId {
 ///
 /// let pillar = Pillar::Date(Date::from_calendar_date(2029, time::Month::June, 20).unwrap());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Pillar {
     /// A relative tenor (e.g., 5Y, 3M).
@@ -142,7 +150,10 @@ pub enum Pillar {
     /// typically used for futures contracts or bespoke instruments with fixed maturities.
     Date(
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         Date,
     ),
 }

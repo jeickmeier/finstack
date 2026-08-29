@@ -8,11 +8,11 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::wire::PercentageQuantityWire;
 use finstack_quant_valuations::instruments::{InstrumentEnvelope, MarketDependencies};
 use indexmap::IndexMap;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Sole supported portfolio-materialization contract marker.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
 pub enum PortfolioMaterializationSchema {
     /// Canonical v1 materialization contract.
@@ -30,7 +30,8 @@ impl PortfolioMaterializationSchema {
 /// Unlike [`crate::portfolio::PortfolioSpec`], this database-oriented format
 /// stores each instrument artifact once and lets ordered lightweight positions
 /// reference the artifact by ID.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct PortfolioMaterializationEnvelope {
@@ -48,7 +49,8 @@ pub struct PortfolioMaterializationEnvelope {
 }
 
 /// Portfolio fields shared by every materialized position.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct PortfolioHeader {
@@ -62,7 +64,10 @@ pub struct PortfolioHeader {
     pub base_currency: Currency,
     /// Valuation date for the materialized portfolio.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub as_of: Date,
     /// Entities keyed by their stable IDs in deterministic order.
@@ -83,7 +88,8 @@ pub struct PortfolioHeader {
 }
 
 /// One unique, content-addressed instrument artifact.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct InstrumentArtifact {
@@ -101,21 +107,23 @@ pub struct InstrumentArtifact {
     pub dependencies: Option<MarketDependencies>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(untagged)]
 enum MaterializedPositionWire {
     Percentage(PercentageMaterializedPositionWire),
     NonPercentage(NonPercentageMaterializedPositionWire),
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct PercentageMaterializedPositionWire {
     /// Position identifier, unique within the materialized portfolio.
-    #[schemars(with = "String")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     id: PositionId,
     /// Legal entity or book the position belongs to, used for rollups.
-    #[schemars(with = "String")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     entity_id: EntityId,
     /// Identifier of the instrument this position holds.
     instrument_id: String,
@@ -133,14 +141,15 @@ struct PercentageMaterializedPositionWire {
     meta: IndexMap<String, serde_json::Value>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct NonPercentageMaterializedPositionWire {
     /// Position identifier, unique within the materialized portfolio.
-    #[schemars(with = "String")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     id: PositionId,
     /// Legal entity or book the position belongs to, used for rollups.
-    #[schemars(with = "String")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     entity_id: EntityId,
     /// Identifier of the instrument this position holds.
     instrument_id: String,
@@ -159,23 +168,26 @@ struct NonPercentageMaterializedPositionWire {
     meta: IndexMap<String, serde_json::Value>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 enum PercentagePositionUnitWire {
     Percentage,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(untagged, deny_unknown_fields)]
 enum NonPercentagePositionUnitWire {
     Named(NonPercentagePositionUnitName),
     Notional {
-        #[schemars(required)]
+        #[cfg_attr(feature = "json-schema", schemars(required))]
         notional: NullableCurrencyWire,
     },
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(untagged)]
 enum NullableCurrencyWire {
     Currency(Currency),
@@ -200,7 +212,8 @@ impl From<NullableCurrencyWire> for Option<Currency> {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 enum NonPercentagePositionUnitName {
     Units,
@@ -208,17 +221,18 @@ enum NonPercentagePositionUnitName {
 }
 
 /// Lightweight position referencing a unique instrument artifact.
-#[derive(Clone, Debug, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
 #[serde(from = "MaterializedPositionWire")]
-#[schemars(with = "MaterializedPositionWire")]
+#[cfg_attr(feature = "json-schema", schemars(with = "MaterializedPositionWire"))]
 pub struct MaterializedPosition {
     /// Stable position identifier.
-    #[schemars(with = "String")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub id: PositionId,
     /// Stable ID of the entity that owns the position.
-    #[schemars(with = "String")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String"))]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub entity_id: EntityId,
     /// Instrument identifier exposed by portfolio lookup and reports.
@@ -359,7 +373,8 @@ impl Serialize for MaterializedPosition {
 }
 
 /// Producer and compiler version stamps for reproducibility.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct MaterializerInfo {

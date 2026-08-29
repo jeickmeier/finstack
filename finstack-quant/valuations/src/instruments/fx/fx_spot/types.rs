@@ -94,8 +94,8 @@ use finstack_quant_core::Result;
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = FxSpot::validate_economics)]
 #[serde(deny_unknown_fields, try_from = "FxSpotUnchecked")]
 pub struct FxSpot {
@@ -108,7 +108,10 @@ pub struct FxSpot {
     /// Optional settlement date (T+2 typically for spot)
     #[builder(optional)]
     #[serde(default, with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub settlement: Option<Date>,
     /// Optional settlement lag in business days when `settlement` is not provided.
     ///
@@ -173,7 +176,8 @@ pub struct FxSpot {
     pub attributes: Attributes,
 }
 
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct FxSpotUnchecked {
     /// Unique identifier for the FX pair
@@ -184,7 +188,10 @@ struct FxSpotUnchecked {
     quote_currency: Currency,
     /// Optional settlement date (T+2 typically for spot)
     #[serde(default, with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     settlement: Option<Date>,
     /// Optional settlement lag in business days when `settlement` is not provided.
     ///

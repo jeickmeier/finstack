@@ -3,37 +3,50 @@
 use finstack_quant_core::{Error, Result};
 
 /// SABR model parameters
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
-#[schemars(deny_unknown_fields)]
+#[cfg_attr(feature = "json-schema", schemars(deny_unknown_fields))]
 pub struct SabrParameters {
     /// Initial volatility (alpha)
     #[serde(
         serialize_with = "finstack_quant_core::wire::serialize_positive_f64",
         deserialize_with = "finstack_quant_core::wire::deserialize_positive_f64"
     )]
-    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::PositiveF64Wire")
+    )]
     pub alpha: f64,
     /// CEV exponent (beta) - typically 0 to 1
     #[serde(
         serialize_with = "finstack_quant_core::wire::serialize_closed_unit_interval_f64",
         deserialize_with = "finstack_quant_core::wire::deserialize_closed_unit_interval_f64"
     )]
-    #[schemars(with = "finstack_quant_core::wire::ClosedUnitIntervalF64Wire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::ClosedUnitIntervalF64Wire")
+    )]
     pub beta: f64,
     /// Volatility of volatility (nu/volvol)
     #[serde(
         serialize_with = "finstack_quant_core::wire::serialize_non_negative_f64",
         deserialize_with = "finstack_quant_core::wire::deserialize_non_negative_f64"
     )]
-    #[schemars(with = "finstack_quant_core::wire::NonNegativeF64Wire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::NonNegativeF64Wire")
+    )]
     pub nu: f64,
     /// Correlation between asset and volatility (rho)
     #[serde(
         serialize_with = "finstack_quant_core::wire::serialize_correlation",
         deserialize_with = "finstack_quant_core::wire::deserialize_correlation"
     )]
-    #[schemars(with = "finstack_quant_core::wire::CorrelationWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::CorrelationWire")
+    )]
     pub rho: f64,
     /// Shift parameter for handling negative rates (optional)
     #[serde(
@@ -42,7 +55,10 @@ pub struct SabrParameters {
         serialize_with = "finstack_quant_core::wire::serialize_optional_positive_f64",
         deserialize_with = "finstack_quant_core::wire::deserialize_optional_positive_f64"
     )]
-    #[schemars(with = "Option<finstack_quant_core::wire::PositiveF64Wire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::PositiveF64Wire>")
+    )]
     pub shift: Option<f64>,
 }
 

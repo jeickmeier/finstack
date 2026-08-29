@@ -2,15 +2,17 @@
 //! JSON contract directly to `schemars`.
 
 use rust_decimal::Decimal;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use time::Date;
 
 /// Numeric schema revision for contracts whose sole supported revision is v1.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
-#[schemars(transparent)]
-pub struct SchemaVersion(#[schemars(range(min = 1, max = 1))] u32);
+#[cfg_attr(feature = "json-schema", schemars(transparent))]
+pub struct SchemaVersion(
+    #[cfg_attr(feature = "json-schema", schemars(range(min = 1, max = 1)))] u32,
+);
 
 impl SchemaVersion {
     /// Canonical numeric revision used by every v1-only wire contract.
@@ -43,10 +45,14 @@ impl From<SchemaVersion> for u32 {
 }
 
 /// ISO 8601 calendar date encoded as a `YYYY-MM-DD` JSON string.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
-#[schemars(transparent)]
-pub struct DateWire(#[schemars(with = "String", extend("format" = "date"))] pub Date);
+#[cfg_attr(feature = "json-schema", schemars(transparent))]
+pub struct DateWire(
+    #[cfg_attr(feature = "json-schema", schemars(with = "String", extend("format" = "date")))]
+    pub  Date,
+);
 
 impl From<Date> for DateWire {
     fn from(value: Date) -> Self {
@@ -466,12 +472,16 @@ pub mod dated_i32_values {
 }
 
 /// Exact decimal encoded only as a JSON string.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
-#[schemars(transparent)]
+#[cfg_attr(feature = "json-schema", schemars(transparent))]
 pub struct DecimalWire(
     #[serde(with = "rust_decimal::serde::str")]
-    #[schemars(with = "String", regex(pattern = r"^-?\d+(\.\d+)?([eE][+-]?\d+)?$"))]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "String", regex(pattern = r"^-?\d+(\.\d+)?([eE][+-]?\d+)?$"))
+    )]
     pub Decimal,
 );
 
@@ -551,10 +561,13 @@ pub mod optional_decimal {
 ///
 /// This type is used by serde field adapters so runtime deserialization and
 /// generated schemas enforce the same positive-number contract.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
-#[schemars(transparent)]
-pub struct PositiveF64Wire(#[schemars(extend("exclusiveMinimum" = 0.0))] f64);
+#[cfg_attr(feature = "json-schema", schemars(transparent))]
+pub struct PositiveF64Wire(
+    #[cfg_attr(feature = "json-schema", schemars(extend("exclusiveMinimum" = 0.0)))] f64,
+);
 
 impl PositiveF64Wire {
     /// Return the validated primitive value.
@@ -587,10 +600,11 @@ impl<'de> Deserialize<'de> for PositiveF64Wire {
 }
 
 /// Finite JSON number greater than or equal to zero.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
-#[schemars(transparent)]
-pub struct NonNegativeF64Wire(#[schemars(range(min = 0.0))] f64);
+#[cfg_attr(feature = "json-schema", schemars(transparent))]
+pub struct NonNegativeF64Wire(#[cfg_attr(feature = "json-schema", schemars(range(min = 0.0)))] f64);
 
 impl NonNegativeF64Wire {
     /// Return the validated primitive value.
@@ -623,10 +637,13 @@ impl<'de> Deserialize<'de> for NonNegativeF64Wire {
 }
 
 /// Finite JSON number in the closed interval `[0, 1]`.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
-#[schemars(transparent)]
-pub struct ClosedUnitIntervalF64Wire(#[schemars(range(min = 0.0, max = 1.0))] f64);
+#[cfg_attr(feature = "json-schema", schemars(transparent))]
+pub struct ClosedUnitIntervalF64Wire(
+    #[cfg_attr(feature = "json-schema", schemars(range(min = 0.0, max = 1.0)))] f64,
+);
 
 impl ClosedUnitIntervalF64Wire {
     /// Return the validated primitive value.
@@ -659,11 +676,13 @@ impl<'de> Deserialize<'de> for ClosedUnitIntervalF64Wire {
 }
 
 /// Finite JSON number in the open interval `(0, 1)`.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
-#[schemars(transparent)]
+#[cfg_attr(feature = "json-schema", schemars(transparent))]
 pub struct OpenUnitIntervalF64Wire(
-    #[schemars(extend("exclusiveMinimum" = 0.0, "exclusiveMaximum" = 1.0))] f64,
+    #[cfg_attr(feature = "json-schema", schemars(extend("exclusiveMinimum" = 0.0, "exclusiveMaximum" = 1.0)))]
+     f64,
 );
 
 impl OpenUnitIntervalF64Wire {
@@ -697,10 +716,13 @@ impl<'de> Deserialize<'de> for OpenUnitIntervalF64Wire {
 }
 
 /// Finite correlation coefficient in the closed interval `[-1, 1]`.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
-#[schemars(transparent)]
-pub struct CorrelationWire(#[schemars(range(min = -1.0, max = 1.0))] f64);
+#[cfg_attr(feature = "json-schema", schemars(transparent))]
+pub struct CorrelationWire(
+    #[cfg_attr(feature = "json-schema", schemars(range(min = -1.0, max = 1.0)))] f64,
+);
 
 impl CorrelationWire {
     /// Return the validated primitive value.
@@ -733,10 +755,13 @@ impl<'de> Deserialize<'de> for CorrelationWire {
 }
 
 /// Finite percentage-position quantity in the closed interval `[-100, 100]`.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
-#[schemars(transparent)]
-pub struct PercentageQuantityWire(#[schemars(range(min = -100.0, max = 100.0))] f64);
+#[cfg_attr(feature = "json-schema", schemars(transparent))]
+pub struct PercentageQuantityWire(
+    #[cfg_attr(feature = "json-schema", schemars(range(min = -100.0, max = 100.0)))] f64,
+);
 
 impl PercentageQuantityWire {
     /// Return the validated primitive value.

@@ -7,22 +7,21 @@ use smallvec::SmallVec;
 use crate::instruments::json_loader::InstrumentJson;
 
 /// Collection of curves used by an instrument, categorized by market role.
-#[derive(
-    Default, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Default, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct InstrumentCurves {
     /// Discount curves used by the instrument (including primary and foreign).
-    #[schemars(with = "Vec<CurveId>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "Vec<CurveId>"))]
     pub discount_curves: SmallVec<[CurveId; 2]>,
     /// Forward/projection curves used by the instrument.
-    #[schemars(with = "Vec<CurveId>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "Vec<CurveId>"))]
     pub forward_curves: SmallVec<[CurveId; 2]>,
     /// Credit/hazard curves used by the instrument.
-    #[schemars(with = "Vec<CurveId>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "Vec<CurveId>"))]
     pub credit_curves: SmallVec<[CurveId; 2]>,
     /// Inflation curves or published inflation indices used by the instrument.
-    #[schemars(with = "Vec<CurveId>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "Vec<CurveId>"))]
     pub inflation_curves: SmallVec<[CurveId; 2]>,
 }
 
@@ -72,17 +71,8 @@ impl InstrumentCurves {
 }
 
 /// Identifies a rate curve's market role for risk calculations.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RatesCurveKind {
     /// Discount curve used for present-value discounting.
@@ -123,17 +113,8 @@ impl core::str::FromStr for RatesCurveKind {
 }
 
 /// FX pair identifier using base/quote currency ordering.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FxPair {
     /// Base currency (numerator).
@@ -150,7 +131,8 @@ impl FxPair {
 }
 
 /// A volatility-surface dependency with the context needed for diagnostics.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct VolatilityDependency {
     /// Volatility surface identifier.
@@ -187,9 +169,8 @@ impl PartialEq for VolatilityDependency {
 impl Eq for VolatilityDependency {}
 
 /// Unified dependency container for instrument market data requirements.
-#[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MarketDependencies {
     /// Curve dependencies grouped by type.

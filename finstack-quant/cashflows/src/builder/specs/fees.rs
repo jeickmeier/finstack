@@ -9,14 +9,18 @@ use rust_decimal::Decimal;
 /// Sign policy: any non-zero fee amount is emitted. Negative fixed amounts and
 /// negative `bp` quotes (rebates) flow through as negative fee cashflows for
 /// both variants.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum FeeSpec {
     /// Fixed fee paid once on a specified date.
     Fixed {
         /// Payment date of the fixed fee.
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         date: Date,
         /// Fee amount in currency units.
         amount: Money,
@@ -28,7 +32,10 @@ pub enum FeeSpec {
         /// Fee quote in basis points per annum, stored as `Decimal` to preserve
         /// the quoted value exactly.
         #[serde(with = "finstack_quant_core::wire::decimal")]
-        #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DecimalWire")
+        )]
         bp: Decimal,
         /// Accrual and payment frequency for the fee schedule.
         frequency: Tenor,
@@ -49,17 +56,8 @@ pub enum FeeSpec {
 }
 
 /// Controls how the outstanding balance is sampled during fee accrual.
-#[derive(
-    Clone,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum FeeAccrualBasis {
     /// Use the outstanding balance at the period's accrual start, matching the
@@ -79,7 +77,8 @@ impl FeeAccrualBasis {
 }
 
 /// Fee base for periodic bp fees.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
 pub enum FeeBase {
@@ -97,16 +96,23 @@ pub enum FeeBase {
 /// Tiers are evaluated in order: the first tier where utilization >= threshold applies.
 /// Tiers must be sorted by threshold (ascending); [`evaluate_fee_tiers`]
 /// rejects unordered tiers.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FeeTier {
     /// Utilization threshold (0.0 to 1.0). Fee applies when utilization >= this threshold.
     #[serde(with = "finstack_quant_core::wire::decimal")]
-    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DecimalWire")
+    )]
     pub threshold: Decimal,
     /// Fee rate in basis points for this tier.
     #[serde(with = "finstack_quant_core::wire::decimal")]
-    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DecimalWire")
+    )]
     pub bp: Decimal,
 }
 

@@ -222,17 +222,8 @@ use crate::dates::Tenor;
 /// # See Also
 ///
 /// - [`ScheduleBuilder::stub_rule`] to configure stub behavior
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum StubKind {
@@ -304,9 +295,8 @@ impl std::str::FromStr for StubKind {
 /// assert!(result.is_err()); // new() validates start <= end
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
-#[derive(
-    Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum ScheduleWarning {
@@ -329,17 +319,8 @@ pub enum ScheduleWarning {
 }
 
 /// Explicit policy for how schedule construction should respond to recoverable issues.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ScheduleErrorPolicy {
     /// Strict production mode: propagate all errors.
@@ -410,9 +391,8 @@ impl std::fmt::Display for ScheduleWarning {
 ///
 /// - [`ScheduleBuilder`] for constructing schedules
 /// - [`ScheduleWarning`] for warning types
-#[derive(
-    Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct Schedule {
     /// Unadjusted accrual grid (period start plus each period end).
     ///
@@ -420,21 +400,21 @@ pub struct Schedule {
     /// payment lag, and fixing lag live on [`Self::payment_dates`] and
     /// [`Self::fixing_dates`].
     #[serde(with = "crate::wire::dates")]
-    #[schemars(with = "Vec<crate::wire::DateWire>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "Vec<crate::wire::DateWire>"))]
     pub dates: Vec<Date>,
     /// Payment date for each accrual period (one per period end).
     ///
     /// Length is `dates.len().saturating_sub(1)`. Duplicate payment dates are
     /// retained so the series stays 1:1 with period ends.
     #[serde(default, with = "crate::wire::dates")]
-    #[schemars(with = "Vec<crate::wire::DateWire>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "Vec<crate::wire::DateWire>"))]
     pub payment_dates: Vec<Date>,
     /// Fixing dates for each accrual period.
     ///
     /// Empty when no fixing lag is configured; otherwise the same length as
     /// [`Self::payment_dates`].
     #[serde(default, with = "crate::wire::dates")]
-    #[schemars(with = "Vec<crate::wire::DateWire>")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "Vec<crate::wire::DateWire>"))]
     pub fixing_dates: Vec<Date>,
     /// Warnings generated during schedule construction.
     ///
@@ -1114,7 +1094,8 @@ fn strict_fail_closed_on_warnings(
     Ok(schedule)
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "ScheduleSpecWire")]
 /// Serializable specification for building a schedule.
 ///
@@ -1124,11 +1105,11 @@ fn strict_fail_closed_on_warnings(
 pub struct ScheduleSpec {
     /// Start date of the schedule.
     #[serde(with = "crate::wire::date")]
-    #[schemars(with = "crate::wire::DateWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
     pub start: Date,
     /// End date (maturity) of the schedule.
     #[serde(with = "crate::wire::date")]
-    #[schemars(with = "crate::wire::DateWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
     pub end: Date,
     /// Payment frequency (e.g., quarterly, monthly).
     pub frequency: Tenor,
@@ -1155,14 +1136,15 @@ pub struct ScheduleSpec {
     pub fixing_lag_business_days: Option<i32>,
 }
 
-#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[derive(serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct ScheduleSpecWire {
     #[serde(with = "crate::wire::date")]
-    #[schemars(with = "crate::wire::DateWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
     start: Date,
     #[serde(with = "crate::wire::date")]
-    #[schemars(with = "crate::wire::DateWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
     end: Date,
     frequency: Tenor,
     stub: StubKind,

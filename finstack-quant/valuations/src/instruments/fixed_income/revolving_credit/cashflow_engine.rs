@@ -36,7 +36,8 @@ use super::types::{BaseRateSpec, DrawRepaySpec, RevolvingCredit};
 /// Contains the full trajectory of utilization, interest rates, and credit spreads
 /// at each contractual accrual boundary, enabling cashflow generation and
 /// survival probability computation.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct ThreeFactorPathData {
     /// Utilization trajectory at each payment date [0, 1]
     pub utilization_path: Vec<f64>,
@@ -51,7 +52,10 @@ pub struct ThreeFactorPathData {
     /// The compatibility name is retained because this payload predates the
     /// separation of accrual and adjusted payment dates.
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub payment_dates: Vec<Date>,
     /// Whether `short_rate_path` was simulated by a stochastic rate process
     /// (Hull-White with σ > 0). When true the pricer discounts pathwise on

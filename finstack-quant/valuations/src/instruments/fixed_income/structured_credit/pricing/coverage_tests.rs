@@ -17,7 +17,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 /// Coverage test type (OC/IC).
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum CoverageTest {
@@ -561,7 +562,8 @@ pub struct TestContext<'a> {
 }
 
 /// Result of a coverage test calculation.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct TestResult {
     /// Test identifier.
     pub test_id: String,

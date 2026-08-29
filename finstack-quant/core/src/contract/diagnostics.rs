@@ -1,13 +1,13 @@
 //! Structured, bounded diagnostics for persisted artifact loading.
 
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::LoadLimits;
 
 /// Stage of persisted artifact loading that produced a diagnostic.
 #[non_exhaustive]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum LoadPhase {
@@ -29,7 +29,8 @@ pub enum LoadPhase {
 
 /// Severity assigned to a persisted artifact diagnostic.
 #[non_exhaustive]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
@@ -44,7 +45,8 @@ pub enum Severity {
 /// Field names and enum representations are a persisted JSON contract. Unknown
 /// fields are rejected during deserialization.
 #[non_exhaustive]
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct Diagnostic {
@@ -230,7 +232,8 @@ impl Diagnostic {
 }
 
 /// Bounded collection of diagnostics produced by a validation operation.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct ValidationReport {

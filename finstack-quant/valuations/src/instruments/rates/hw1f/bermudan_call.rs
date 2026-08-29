@@ -15,12 +15,16 @@ use finstack_quant_core::dates::Date;
 /// - `call_price`: Fraction of notional returned at exercise (1.0 = par).
 /// - `lockout_periods`: Number of initial coupon periods during which
 ///   the call right cannot be exercised.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BermudanCallProvision {
     /// Dates on which the issuer can call (must be sorted ascending).
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub call_dates: Vec<Date>,
     /// Call price (fraction of notional, typically 1.0 = par).
     pub call_price: f64,

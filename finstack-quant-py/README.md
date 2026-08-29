@@ -90,6 +90,20 @@ mise run python-build             # uv run maturin develop  (dev profile)
 mise run python-build -- --release
 ```
 
+`python-sync` still installs the union `dev` group (the default). Split
+groups are available when you want a slimmer environment:
+
+```bash
+uv sync --group test              # pytest, hypothesis, jsonschema
+uv sync --group lint              # ruff, ty, bandit, pre-commit
+uv sync --group goldens           # QuantLib, for golden regeneration only
+uv sync --group notebooks         # IPython / Jupyter
+uv sync --group arrow             # pyarrow / polars interchange tests
+```
+
+Pip extras mirror the same sets: `pip install .[test]`, `.[goldens]`,
+`.[notebooks]`, `.[arrow]`, `.[lint]`, `.[build]`.
+
 The dev profile compiles fast and runs slowly; use `--release` for large
 portfolios, Monte Carlo work, and batch notebook runs. `mise run wheel-local`
 builds a release wheel for the current interpreter into `target/wheels`;

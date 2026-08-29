@@ -104,7 +104,8 @@
 /// In the IRS instrument implementation, the RFR-style variant
 /// (`CompoundedInArrears`) is also used to classify swaps as OIS for
 /// discount-only float-leg pricing; see `InterestRateSwap::is_single_curve_ois` for details.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum FloatingLegCompounding {
@@ -146,7 +147,7 @@ pub enum FloatingLegCompounding {
         /// weights remain anchored to the **original** accrual period dates.
         /// This is consistent with "lookback without observation shift" as
         /// described in the ISDA 2021 Definitions and ARRC SOFR conventions.
-        #[schemars(range(min = 0, max = 31))]
+        #[cfg_attr(feature = "json-schema", schemars(range(min = 0, max = 31)))]
         lookback_days: i32,
     },
 
@@ -162,7 +163,7 @@ pub enum FloatingLegCompounding {
     /// ```
     CompoundedWithObservationShift {
         /// Number of business days to shift both observation dates and DCF weights.
-        #[schemars(range(min = 0, max = 31))]
+        #[cfg_attr(feature = "json-schema", schemars(range(min = 0, max = 31)))]
         shift_days: i32,
     },
 
@@ -173,7 +174,7 @@ pub enum FloatingLegCompounding {
     /// convention as "Rate Cut-Off Days".
     CompoundedWithRateCutoff {
         /// Number of business days before period end to freeze the overnight rate.
-        #[schemars(range(min = 0, max = 31))]
+        #[cfg_attr(feature = "json-schema", schemars(range(min = 0, max = 31)))]
         cutoff_days: i32,
     },
 }

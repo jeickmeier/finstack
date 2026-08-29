@@ -524,6 +524,7 @@ impl LsmcPricer {
     ) -> Result<PathMatrix> {
         let time_grid = TimeGrid::uniform(time_to_maturity, num_steps)?;
 
+        #[cfg(not(target_arch = "wasm32"))]
         if self.config.use_parallel {
             return self.generate_paths_parallel(
                 process,
@@ -590,6 +591,7 @@ impl LsmcPricer {
     }
 
     /// Parallel path generation using rayon with deterministic per-path RNG.
+    #[cfg(not(target_arch = "wasm32"))]
     fn generate_paths_parallel(
         &self,
         process: &GbmProcess,

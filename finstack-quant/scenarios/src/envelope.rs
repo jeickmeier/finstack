@@ -4,7 +4,6 @@ use finstack_quant_core::contract::{
     deserialize_json_value, parse_json_value, ContractDescriptor, ContractError, Diagnostic,
     LoadLimits, LoadPhase, Severity, ValidationReport,
 };
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::ScenarioSpec;
@@ -14,7 +13,8 @@ pub const SCENARIO_CONTRACT: ContractDescriptor =
     ContractDescriptor::new("finstack_quant.scenario");
 
 /// Exact schema marker accepted by [`ScenarioEnvelope`].
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub enum ScenarioSchema {
     /// The sole supported scenario contract.
     #[serde(rename = "finstack_quant.scenario/1")]
@@ -27,7 +27,8 @@ impl ScenarioSchema {
 }
 
 /// Versioned wrapper used when persisting a scenario specification.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ScenarioEnvelope {
     /// Exact scenario contract marker.

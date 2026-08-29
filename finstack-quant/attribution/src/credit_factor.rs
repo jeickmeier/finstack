@@ -57,7 +57,8 @@ use finstack_quant_models::factor::credit::decomposition::PeriodDecomposition;
 ///
 /// Defaults: per-issuer adder breakdown OFF (large-portfolio payload control);
 /// per-bucket breakdown ON.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields, default)]
 pub struct CreditFactorDetailOptions {
     /// When true, populate `CreditFactorAttribution.adder_pnl_by_issuer`.

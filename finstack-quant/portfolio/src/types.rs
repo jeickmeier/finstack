@@ -25,7 +25,8 @@ pub const DUMMY_ENTITY_ID: &str = "_standalone";
 /// Entities represent companies, funds, or other legal entities that
 /// own instruments. For standalone instruments (derivatives, FX), use
 /// the dummy entity.
-#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Entity {
     /// Unique identifier for the entity
@@ -158,7 +159,8 @@ impl Entity {
 /// optimization constraints.  Text values represent categorical data
 /// (rating, sector), while numeric values represent continuous data
 /// (credit score, ESG score) usable in metric expressions.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(untagged)]
 pub enum AttributeValue {
     /// Categorical / string attribute (e.g., rating = "CCC", sector = "Energy").

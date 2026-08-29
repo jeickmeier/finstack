@@ -11,10 +11,14 @@ description = "Vectorized panel feature transforms for Finstack Quant"
 autobenches = false
 
 [dependencies]
-finstack-quant-core = { path = "../core", version = "0.8.0" }
-schemars = { workspace = true }
+finstack-quant-core = { path = "../core", version = "0.8.0", default-features = false }
+schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[features]
+default = ["json-schema"]
+json-schema = ["dep:schemars", "finstack-quant-core/json-schema"]
 
 [dev-dependencies]
 criterion = { workspace = true }

@@ -14,8 +14,10 @@ use std::sync::OnceLock;
 
 #[cfg(test)]
 const JSON_SCHEMA_DIALECT: &str = "https://json-schema.org/draft/2020-12/schema";
-const COMMON_SCHEMA_BASE: &str = finstack_quant_core::schema::COMMON_SCHEMA_BASE;
+#[cfg(feature = "jsonschema-validate")]
+const COMMON_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/common/1/";
 
+#[cfg(feature = "json-schema")]
 const PRICING_OVERRIDE_SCHEMA_DEFINITIONS:
     &[finstack_quant_core::schema::ExternalSchemaDefinition] = &[
     finstack_quant_core::schema::ExternalSchemaDefinition::new::<
@@ -47,6 +49,7 @@ const PRICING_OVERRIDE_SCHEMA_DEFINITIONS:
 /// # Arguments
 ///
 /// * `schema` - Complete schema generated from a valuation serde type.
+#[cfg(feature = "json-schema")]
 #[doc(hidden)]
 pub fn package_valuations_schema(schema: &mut Value) -> finstack_quant_core::Result<()> {
     let mut definitions = finstack_quant_core::schema::COMMON_SCHEMA_DEFINITIONS.to_vec();
@@ -90,6 +93,7 @@ fn instrument_schema_cache(
     })
 }
 
+#[cfg(feature = "jsonschema-validate")]
 fn common_schema_resource(
     filename: &'static str,
     raw: &'static str,
@@ -107,6 +111,7 @@ fn common_schema_resource(
     Ok((format!("{COMMON_SCHEMA_BASE}{filename}"), resource))
 }
 
+#[cfg(feature = "jsonschema-validate")]
 fn common_schema_resources() -> finstack_quant_core::Result<Vec<(String, jsonschema::Resource)>> {
     [
         (
@@ -163,6 +168,7 @@ fn common_schema_resources() -> finstack_quant_core::Result<Vec<(String, jsonsch
     .collect()
 }
 
+#[cfg(feature = "jsonschema-validate")]
 fn embedded_instrument_schema_resources(
 ) -> finstack_quant_core::Result<Vec<(String, jsonschema::Resource)>> {
     let mut resources = std::collections::BTreeMap::new();
@@ -188,6 +194,7 @@ fn embedded_instrument_schema_resources(
     Ok(resources.into_iter().collect())
 }
 
+#[cfg(feature = "jsonschema-validate")]
 fn external_schema_resources() -> finstack_quant_core::Result<Vec<(String, jsonschema::Resource)>> {
     let mut resources = common_schema_resources()?;
     resources.extend(finstack_quant_cashflows::schema::resources()?);
@@ -247,6 +254,7 @@ pub fn valuation_result_schema() -> finstack_quant_core::Result<&'static Value> 
         .map_err(|e| finstack_quant_core::Error::Validation(e.clone()))
 }
 
+#[cfg(feature = "jsonschema-validate")]
 /// Validate an instrument JSON value against the envelope schema.
 ///
 /// Returns `Ok(())` if the JSON conforms to the instrument envelope schema,
@@ -320,6 +328,7 @@ pub fn validate_instrument_envelope_json(instance: &Value) -> finstack_quant_cor
     validate_instrument_type_json(instrument_type, instance)
 }
 
+#[cfg(feature = "jsonschema-validate")]
 /// Validate a JSON value against a specific instrument type's schema.
 ///
 /// # Errors
@@ -343,8 +352,10 @@ pub fn validate_instrument_type_json(
 ///
 /// `finstack_quant_core::Error` is `Clone`, so a cached failure is replayed
 /// verbatim - same variant, same message - on every later call.
+#[cfg(feature = "jsonschema-validate")]
 type CachedValidator = Result<jsonschema::Validator, finstack_quant_core::Error>;
 
+#[cfg(feature = "jsonschema-validate")]
 /// Resources an individual instrument schema can actually reach.
 ///
 /// Every instrument schema `$ref`s only into `common/1` and `cashflow/1` — none
@@ -374,6 +385,7 @@ fn instrument_ref_resources() -> finstack_quant_core::Result<Vec<(String, jsonsc
     Ok(resources)
 }
 
+#[cfg(feature = "jsonschema-validate")]
 /// Compile `schema` against the supplied resolver resources.
 ///
 /// This is the expensive step the caches below exist to amortize: each call
@@ -393,6 +405,7 @@ fn build_validator_with(
         })
 }
 
+#[cfg(feature = "jsonschema-validate")]
 /// Compile `schema` with every embedded resource registered.
 ///
 /// Used for the envelope, whose `oneOf` reaches every instrument schema.
@@ -400,11 +413,13 @@ fn build_validator(schema: &Value, context: &str) -> CachedValidator {
     build_validator_with(schema, context, external_schema_resources()?)
 }
 
+#[cfg(feature = "jsonschema-validate")]
 /// Compile a single instrument type's schema with only the resources it can reach.
 fn build_instrument_validator(schema: &Value, context: &str) -> CachedValidator {
     build_validator_with(schema, context, instrument_ref_resources()?)
 }
 
+#[cfg(feature = "jsonschema-validate")]
 /// Compiled validator for the instrument envelope schema.
 ///
 /// # Why this is cached
@@ -430,6 +445,7 @@ fn instrument_envelope_validator() -> finstack_quant_core::Result<&'static jsons
         .map_err(Clone::clone)
 }
 
+#[cfg(feature = "jsonschema-validate")]
 /// Per-instrument-type compiled validators, keyed by canonical registry tag.
 ///
 /// Each tag owns its own `OnceLock`, so two instrument types can never share a
@@ -449,6 +465,7 @@ fn instrument_validator_cache(
     })
 }
 
+#[cfg(feature = "jsonschema-validate")]
 /// Compiled validator for one canonical instrument tag.
 ///
 /// # Errors
@@ -475,6 +492,7 @@ fn instrument_type_validator(
         .map_err(Clone::clone)
 }
 
+#[cfg(feature = "jsonschema-validate")]
 /// Collect every violation `validator` reports for `instance`.
 fn validate_with(
     validator: &jsonschema::Validator,
@@ -504,13 +522,17 @@ fn validate_with(
     }
 }
 
+#[cfg(feature = "json-schema")]
 use crate::instruments::json_loader::instrument_registry;
+#[cfg(feature = "json-schema")]
 use crate::instruments::{
     InstrumentEnvelope, InstrumentPricingOverrides, MetricPricingOverrides,
     ScenarioPricingOverrides,
 };
+#[cfg(feature = "json-schema")]
 use finstack_quant_core::schema::{SchemaArtifact, SchemaKind};
 
+#[cfg(feature = "json-schema")]
 /// Canonical `Attributes` payloads.
 fn attributes_examples() -> finstack_quant_core::Result<Vec<Value>> {
     Ok(vec![
@@ -519,6 +541,7 @@ fn attributes_examples() -> finstack_quant_core::Result<Vec<Value>> {
     ])
 }
 
+#[cfg(feature = "json-schema")]
 /// Canonical `BusinessDayConvention` values.
 fn business_day_convention_examples() -> finstack_quant_core::Result<Vec<Value>> {
     Ok(vec![
@@ -527,6 +550,7 @@ fn business_day_convention_examples() -> finstack_quant_core::Result<Vec<Value>>
     ])
 }
 
+#[cfg(feature = "json-schema")]
 /// Canonical ISO 4217 codes.
 fn currency_examples() -> finstack_quant_core::Result<Vec<Value>> {
     Ok(vec![
@@ -536,6 +560,7 @@ fn currency_examples() -> finstack_quant_core::Result<Vec<Value>> {
     ])
 }
 
+#[cfg(feature = "json-schema")]
 /// Canonical `Date` payloads.
 fn date_examples() -> finstack_quant_core::Result<Vec<Value>> {
     Ok(vec![
@@ -544,6 +569,7 @@ fn date_examples() -> finstack_quant_core::Result<Vec<Value>> {
     ])
 }
 
+#[cfg(feature = "json-schema")]
 /// Canonical day-count labels.
 fn day_count_examples() -> finstack_quant_core::Result<Vec<Value>> {
     Ok(vec![
@@ -553,6 +579,7 @@ fn day_count_examples() -> finstack_quant_core::Result<Vec<Value>> {
     ])
 }
 
+#[cfg(feature = "json-schema")]
 /// Canonical identifier payloads.
 ///
 /// Ids are opaque strings resolved against whatever market or registry the call
@@ -564,6 +591,7 @@ fn id_examples() -> finstack_quant_core::Result<Vec<Value>> {
     ])
 }
 
+#[cfg(feature = "json-schema")]
 /// Canonical `Tenor` payloads.
 fn tenor_examples() -> finstack_quant_core::Result<Vec<Value>> {
     Ok(vec![
@@ -572,6 +600,7 @@ fn tenor_examples() -> finstack_quant_core::Result<Vec<Value>> {
     ])
 }
 
+#[cfg(feature = "json-schema")]
 /// Canonical `Diagnostic` payloads.
 fn diagnostic_examples() -> finstack_quant_core::Result<Vec<Value>> {
     Ok(vec![serde_json::json!({
@@ -583,6 +612,7 @@ fn diagnostic_examples() -> finstack_quant_core::Result<Vec<Value>> {
     })])
 }
 
+#[cfg(feature = "json-schema")]
 /// Canonical `ValidationReport` payloads.
 fn validation_report_examples() -> finstack_quant_core::Result<Vec<Value>> {
     Ok(vec![
@@ -600,6 +630,7 @@ fn validation_report_examples() -> finstack_quant_core::Result<Vec<Value>> {
     ])
 }
 
+#[cfg(feature = "json-schema")]
 /// Canonical pricing-override payloads.
 ///
 /// All three override maps default to empty and are omitted when empty, so the
@@ -609,6 +640,7 @@ fn empty_override_examples() -> finstack_quant_core::Result<Vec<Value>> {
 }
 
 /// Canonical `ScenarioPricingOverrides` payloads.
+#[cfg(feature = "json-schema")]
 fn scenario_override_examples() -> finstack_quant_core::Result<Vec<Value>> {
     Ok(vec![
         serde_json::json!({}),
@@ -616,6 +648,7 @@ fn scenario_override_examples() -> finstack_quant_core::Result<Vec<Value>> {
     ])
 }
 
+#[cfg(feature = "json-schema")]
 /// Canonical `ValuationResult`: a priced bond with its policy stamps.
 fn valuation_result_examples() -> finstack_quant_core::Result<Vec<Value>> {
     let as_of =
@@ -643,6 +676,7 @@ fn valuation_result_examples() -> finstack_quant_core::Result<Vec<Value>> {
     Ok(vec![value])
 }
 
+#[cfg(feature = "json-schema")]
 /// Canonical examples for the instrument umbrella union.
 fn instrument_examples() -> finstack_quant_core::Result<Vec<Value>> {
     let mut examples = Vec::new();
@@ -658,6 +692,7 @@ fn instrument_examples() -> finstack_quant_core::Result<Vec<Value>> {
     Ok(examples)
 }
 
+#[cfg(feature = "json-schema")]
 /// Canonical `Decimal` payloads.
 ///
 /// Exact decimals are JSON *strings*; emitting a JSON number here is the most
@@ -671,6 +706,7 @@ fn decimal_examples() -> finstack_quant_core::Result<Vec<Value>> {
     ])
 }
 
+#[cfg(feature = "json-schema")]
 /// Canonical `Money` payloads, pairing a decimal string with an ISO 4217 code.
 fn money_examples() -> finstack_quant_core::Result<Vec<Value>> {
     Ok(vec![
@@ -679,6 +715,7 @@ fn money_examples() -> finstack_quant_core::Result<Vec<Value>> {
     ])
 }
 
+#[cfg(feature = "json-schema")]
 /// The crate's schema registry as a shared, lazily built slice.
 ///
 /// [`artifacts`] builds a fresh `Vec` because the instrument entries are
@@ -690,6 +727,7 @@ pub fn artifacts_slice() -> &'static [SchemaArtifact] {
     CACHE.get_or_init(artifacts)
 }
 
+#[cfg(feature = "json-schema")]
 /// The crate's complete schema registry, sorted by artifact path.
 ///
 /// This lives in the library, not the generator binary, so the generator, the

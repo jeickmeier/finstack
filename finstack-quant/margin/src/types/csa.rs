@@ -18,7 +18,8 @@ use finstack_quant_core::config::FinstackConfig;
 ///
 /// Specifies the operational timing for margin calls including
 /// notification and dispute resolution windows.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MarginCallTiming {
     /// Notification deadline (hours after valuation, e.g., 13:00 local time)
@@ -26,7 +27,7 @@ pub struct MarginCallTiming {
         deserialize_with = "serde_validation::notification_deadline_hours::deserialize",
         serialize_with = "serde_validation::notification_deadline_hours::serialize"
     )]
-    #[schemars(range(max = 23))]
+    #[cfg_attr(feature = "json-schema", schemars(range(max = 23)))]
     pub notification_deadline_hours: u8,
 
     /// Response deadline (hours after notification)
@@ -103,7 +104,8 @@ impl MarginCallTiming {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CsaSpec {
     /// CSA identifier (e.g., "USD-CSA-STANDARD", "COUNTERPARTY-XYZ-CSA")

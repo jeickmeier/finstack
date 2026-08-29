@@ -55,9 +55,8 @@ use crate::{
 /// workflows materialize ATM matrices on `expiry × tenor`. Keeping the axis type
 /// explicit prevents consumers from accidentally interpreting tenor buckets as
 /// strikes.
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
 pub enum VolSurfaceAxis {
@@ -87,17 +86,8 @@ impl std::fmt::Display for VolSurfaceAxis {
 /// Black), so misreading one as the other silently mis-prices. Tagging the
 /// quote type lets consumers enforce their convention via
 /// [`VolSurface::require_quote_type`].
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-    Default,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum VolQuoteType {
     /// Black (lognormal) implied volatility, relative units (the default).
@@ -131,17 +121,8 @@ impl std::str::FromStr for VolQuoteType {
 }
 
 /// Interpolation contract for vol surfaces.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum VolInterpolationMode {
     /// Interpolate implied volatility directly (the default).
@@ -175,9 +156,10 @@ pub enum VolInterpolationMode {
 /// Volatility surface defined on expiry × strike grid.
 ///
 /// Internally stores volatilities in row-major order as a boxed slice.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "VolSurfaceWire", into = "VolSurfaceWire")]
-#[schemars(try_from = "VolSurfaceWire")]
+#[cfg_attr(feature = "json-schema", schemars(try_from = "VolSurfaceWire"))]
 pub struct VolSurface {
     id: CurveId,
     expiries: Box<[f64]>,
@@ -190,7 +172,8 @@ pub struct VolSurface {
 }
 
 /// Raw serializable state of a VolSurface
-#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct VolSurfaceWire {
     /// Surface identifier

@@ -13,7 +13,6 @@ use finstack_quant_valuations::instruments::{
     TermLoan,
 };
 use indexmap::IndexMap;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Persistence contract for [`FinancialModelSpec`].
@@ -28,7 +27,8 @@ pub const FINANCIAL_MODEL_CONTRACT: ContractDescriptor =
 /// Period order in [`FinancialModelSpec::periods`] defines the evaluation timeline:
 /// engines iterate periods in this sequence when resolving dependencies and rolling
 /// windows.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FinancialModelSpec {
     /// Unique model identifier
@@ -534,7 +534,8 @@ fn validation_report_error(error: Error, limits: &LoadLimits) -> ContractError {
 }
 
 /// Capital structure specification.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CapitalStructureSpec {
     /// Debt instruments (bonds, loans, swaps)
@@ -568,7 +569,8 @@ pub struct CapitalStructureSpec {
 /// focused on debt and its common interest-rate hedges. The payloads are
 /// converted to the canonical valuations registry only when a model is
 /// evaluated.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(
     rename_all = "snake_case",
     tag = "type",
@@ -630,7 +632,8 @@ impl TryFrom<InstrumentJson> for FinancialStatementInstrument {
 /// Debt instrument specification.
 ///
 /// An identifier paired with a supported financial-statement instrument.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DebtInstrumentSpec {
     /// Instrument identifier (key within the capital structure).

@@ -110,6 +110,7 @@ pub mod error;
 /// Horizon total return analysis.
 pub mod horizon;
 /// JSON Schema generation helpers for scenario contracts.
+#[cfg(feature = "json-schema")]
 pub mod schema;
 /// Scenario specification types and enums.
 pub mod spec;

@@ -128,7 +128,8 @@ pub trait RecoveryModel: Send + Sync + std::fmt::Debug {
 /// Recovery model specification for configuration and serialization.
 ///
 /// Allows recovery model selection without constructing the full model.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum RecoverySpec {
     /// Constant recovery rate (current default behavior).

@@ -22,7 +22,8 @@ use super::{AssetDynamics, BarrierType};
 /// Deserialization is routed through [`MertonModel::new_with_dynamics`] via
 /// [`RawMertonModel`], so a model loaded from JSON satisfies exactly the same
 /// invariants as one built in Rust. The serialized field set is unchanged.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "RawMertonModel")]
 pub struct MertonModel {
     /// Current firm asset value `V_0`, in the issuer's reporting currency.
@@ -51,8 +52,9 @@ pub struct MertonModel {
 /// Exists solely so `#[serde(try_from = ...)]` can funnel deserialization
 /// through [`MertonModel::new_with_dynamics`]. Field names and types mirror
 /// [`MertonModel`] exactly, so the JSON representation is identical.
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-#[schemars(rename = "MertonModel")]
+#[derive(Debug, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "json-schema", schemars(rename = "MertonModel"))]
 pub struct RawMertonModel {
     /// Current firm asset value `V_0`, in the issuer's reporting currency.
     /// Strictly positive.

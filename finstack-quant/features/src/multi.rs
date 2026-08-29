@@ -10,13 +10,13 @@ use crate::{transform_cross_sectional, CrossSectionalOp};
 use finstack_quant_core::math::linalg::{cholesky_decomposition, cholesky_solve};
 use finstack_quant_core::math::stats::{covariance, variance};
 use finstack_quant_core::{Error, Result};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::str::FromStr;
 
 /// Supported pairwise rolling time-series transform operation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum PairwiseOp {
     /// Rolling sample covariance between `values` and `other`.

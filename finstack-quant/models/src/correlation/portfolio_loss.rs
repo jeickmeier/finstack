@@ -24,7 +24,8 @@ pub const MAX_PORTFOLIO_LOSS_PATHS: usize = 1_000_000;
 const FACTOR_NORM_REL_TOLERANCE: f64 = 64.0 * f64::EPSILON;
 
 /// One name in a finite credit portfolio.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CreditExposure {
     /// Stable exposure identifier.
     pub id: String,
@@ -39,7 +40,8 @@ pub struct CreditExposure {
 }
 
 /// Portfolio credit-loss simulation settings.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct PortfolioLossConfig {
     /// Number of simulated paths in `1..=MAX_PORTFOLIO_LOSS_PATHS`.
     pub num_paths: usize,
@@ -61,7 +63,8 @@ pub struct PortfolioLossConfig {
 /// sign and losses are negative, e.g. `metrics::risk::VarResult` and the
 /// portfolio risk engines): here the random variable is the loss itself,
 /// not a P&L.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct PortfolioLossResult {
     /// Loss for each path in ascending path-index order.
     pub losses: Vec<f64>,
@@ -90,7 +93,8 @@ pub struct PortfolioLossResult {
 ///   Derivatives*. Wiley Finance. Chapter 15 ("Modelling Tranches"), which
 ///   defines the tranche loss function
 ///   `min(max(L - A, 0), D - A) / (D - A)` used here. `docs/REFERENCES.md#o-kane-2008`
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct TrancheLossStatistics {
     /// Tranche attachment point as a fraction of pool notional, in `[0, 1)`.
     pub attachment: f64,

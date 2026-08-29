@@ -4,7 +4,6 @@ use finstack_quant_core::contract::{
     deserialize_json_value, parse_json_value, ContractDescriptor, ContractError, Diagnostic,
     LoadLimits, LoadPhase, Severity, ValidationReport,
 };
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::factor::FactorModelConfig;
@@ -14,7 +13,8 @@ pub const FACTOR_MODEL_CONFIG_CONTRACT: ContractDescriptor =
     ContractDescriptor::new("finstack_quant.factor_model_config");
 
 /// Exact schema marker accepted by [`FactorModelConfigEnvelope`].
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub enum FactorModelConfigSchema {
     /// The sole supported factor-model configuration contract.
     #[serde(rename = "finstack_quant.factor_model_config/1")]
@@ -27,7 +27,8 @@ impl FactorModelConfigSchema {
 }
 
 /// Versioned wrapper used when persisting factor-model configuration.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FactorModelConfigEnvelope {
     /// Exact factor-model configuration contract marker.

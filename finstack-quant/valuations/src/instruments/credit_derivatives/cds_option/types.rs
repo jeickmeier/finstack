@@ -56,17 +56,8 @@ pub(crate) const MAX_IMPLIED_VOL: f64 = 5.0;
 pub(crate) const FACTOR_TOLERANCE: f64 = 1e-6;
 
 /// Accrual-start convention for the synthetic underlying CDS used by CDSO.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    PartialEq,
-    Default,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ProtectionStartConvention {
     /// Spot-protection CDS: standard prior CDS roll relative to valuation date.
@@ -96,8 +87,8 @@ pub enum ProtectionStartConvention {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CDSOption {
     /// Unique instrument identifier
@@ -111,11 +102,17 @@ pub struct CDSOption {
     pub exercise_style: ExerciseStyle,
     /// Option expiry date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Underlying CDS maturity date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub cds_maturity: Date,
     /// Notional amount
     pub notional: Money,
@@ -125,14 +122,20 @@ pub struct CDSOption {
     /// quotes option time from premium settlement rather than valuation date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     #[builder(default)]
     pub cash_settlement_date: Option<Date>,
     /// Exercise settlement date for Black time-to-expiry, when distinct from
     /// the legal option expiration date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     #[builder(default)]
     pub exercise_settlement_date: Option<Date>,
     /// Underlying CDS accrual-effective date used for forward spread and risky
@@ -141,7 +144,10 @@ pub struct CDSOption {
     /// protection starts at expiry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     #[builder(default)]
     pub underlying_effective_date: Option<Date>,
     /// Convention used to select the synthetic underlying CDS accrual start
@@ -244,7 +250,10 @@ pub struct CDSOption {
     /// term `H(K) = ξN(c − K)A(K)` (DOCS 2055833 Eq. 2.4) is populated.
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::optional_decimal")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")
+    )]
     pub underlying_cds_coupon: Option<Decimal>,
 }
 

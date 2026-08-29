@@ -27,9 +27,8 @@ use super::pricer::CDSIndexPricer;
 use crate::impl_instrument_base;
 
 /// Pricing mode for CDS indices.
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum IndexPricing {
     /// Price the index against a single index hazard curve (synthetic CDS)
@@ -49,7 +48,8 @@ pub enum ParSpreadMethod {
 }
 
 /// Constituent in a CDS index with weight and credit parameters.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CDSIndexConstituent {
     /// Credit configuration for the issuer (includes hazard curve id and recovery)
@@ -139,8 +139,8 @@ pub struct IndexParSpreadResult {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CDSIndex {
     /// Unique instrument identifier

@@ -10,27 +10,29 @@ description = "Instrument pricing, cashflows, and risk for Finstack Quant: fixed
 autobenches = false
 
 [dependencies]
-finstack-quant-core = { path = "../core", version = "0.8.0" }
-finstack-quant-analytics = { path = "../analytics", version = "0.8.0" }
-finstack-quant-cashflows = { path = "../cashflows", version = "0.8.0" }
-finstack-quant-covenants = { path = "../covenants", version = "0.8.0" }
-finstack-quant-margin = { path = "../margin", version = "0.8.0" }
+finstack-quant-core = { path = "../core", version = "0.8.0", default-features = false }
+finstack-quant-cashflows = { path = "../cashflows", version = "0.8.0", default-features = false }
+finstack-quant-covenants = { path = "../covenants", version = "0.8.0", default-features = false }
+finstack-quant-margin = { path = "../margin", version = "0.8.0", default-features = false }
 finstack-quant-models = { path = "../models", version = "0.8.0", default-features = false }
 finstack-quant-valuations-macros = { path = "macros", version = "0.8.0" }
 indexmap = { workspace = true, features = ["serde"] }
 smallvec = { version = "1.15", default-features = false, features = ["serde"] }
-rayon = "1.11"
 serde = { workspace = true }
-serde_json = { workspace = true, features = ["raw_value"] }
+serde_json = { workspace = true }
 time = { workspace = true }
 rust_decimal = { workspace = true }
-schemars = { workspace = true }
-jsonschema = { version = "0.28", default-features = false }
+schemars = { workspace = true, optional = true }
+jsonschema = { version = "0.28", default-features = false, optional = true }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 thiserror = { workspace = true }
-num-complex = "0.4"
 strum = { workspace = true, features = ["derive"] }
 ts-rs = { version = "12", optional = true, features = ["serde-compat", "no-serde-warnings"] }
+
+# rayon has no working thread pool on single-threaded wasm32; parallel
+# code paths are cfg-gated to native targets, so the dependency is too.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rayon = "1.11"
 
 [dev-dependencies]
 finstack-quant-calibration = { path = "../calibration", version = "0.8.0" }
@@ -43,7 +45,20 @@ toml = "1.1.4"
 
 
 [features]
-default = []
+default = ["json-schema", "jsonschema-validate"]
+json-schema = [
+    "dep:schemars",
+    "finstack-quant-core/json-schema",
+    "finstack-quant-cashflows/json-schema",
+    "finstack-quant-covenants/json-schema",
+    "finstack-quant-margin/json-schema",
+    "finstack-quant-models/json-schema",
+]
+jsonschema-validate = [
+    "json-schema",
+    "dep:jsonschema",
+    "finstack-quant-cashflows/jsonschema-validate",
+]
 ts_export = ["dep:ts-rs", "finstack-quant-models/ts_export"]
 
 [[bench]]
@@ -181,6 +196,7 @@ harness = false
 [[bin]]
 name = "gen_schemas"
 path = "src/bin/gen_schemas.rs"
+required-features = ["json-schema"]
 
 [lints]
 workspace = true

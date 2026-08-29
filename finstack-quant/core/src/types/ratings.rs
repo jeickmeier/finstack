@@ -61,7 +61,8 @@ use serde::{Deserialize, Serialize};
 /// assert!(CreditRating::BBBMinus.is_investment_grade());
 /// assert!(!CreditRating::BBPlus.is_investment_grade());
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub enum CreditRating {
     /// AAA / Aaa — Highest quality, minimal credit risk
     #[serde(rename = "AAA")]

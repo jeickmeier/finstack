@@ -5,14 +5,15 @@ use serde::Deserialize;
 use std::cmp::Ordering;
 
 /// One atomic quote binding retained for hazard calibration replay.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct HazardCalibrationInput {
     /// Exact serialized typed CDS quote.
     pub quote: serde_json::Value,
     /// Contractual pillar date resolved from the quote and CDS conventions.
     #[serde(with = "crate::wire::date")]
-    #[schemars(with = "crate::wire::DateWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
     pub pillar_date: Date,
     /// Frozen year-fraction pillar time used by the original solve.
     pub pillar_time: f64,
@@ -25,7 +26,8 @@ pub struct HazardCalibrationInput {
 /// `HazardCurveParams`, typed CDS quotes, and `CalibrationConfig`. Keeping the
 /// complete serde payloads avoids replacing date pillars with rounded tenors or
 /// silently substituting current defaults for the original solver policy.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct HazardCalibrationRecipe {
     /// Exact serialized `HazardCurveParams` used for the original solve.
     pub hazard_params: serde_json::Value,

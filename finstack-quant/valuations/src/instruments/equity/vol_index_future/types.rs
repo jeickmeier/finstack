@@ -89,8 +89,8 @@ use time::macros::date;
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct VolatilityIndexFuture {
     /// Unique identifier.
@@ -104,12 +104,18 @@ pub struct VolatilityIndexFuture {
     /// used in the settlement calculation), not a date 30 days before
     /// settlement.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub expiry: Date,
     /// Final settlement date — the morning Special Opening Quotation (SOQ)
     /// of the index is computed on this date (same day as `expiry` for VIX).
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub settlement_date: Date,
     /// Final settlement/SOQ fixing in index points.
     #[serde(default)]
@@ -160,7 +166,8 @@ pub struct VolatilityIndexFuture {
 /// - Standard multiplier: $1,000 per index point
 /// - Minimum tick: 0.05 index points ($50)
 /// - Weekly and monthly expiries available
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct VolIndexContractSpecs {
     /// Contract multiplier (USD per index point).

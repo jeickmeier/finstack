@@ -17,6 +17,7 @@
 //! native PV and no matrix quote fail closed.
 
 use crate::error::{Error, Result};
+#[cfg(not(target_arch = "wasm32"))]
 use crate::evaluation::POSITION_PARALLEL_MIN_POSITIONS;
 use crate::types::{EntityId, PositionId};
 use crate::valuation::PortfolioValuation;
@@ -28,7 +29,6 @@ use finstack_quant_core::HashMap;
 use finstack_quant_core::HashSet;
 use finstack_quant_valuations::metrics::MetricId;
 use indexmap::IndexMap;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Aggregated metric across the portfolio.
@@ -51,7 +51,8 @@ use serde::{Deserialize, Serialize};
 /// Instrument-specific measures such as yield and duration remain in
 /// [`PortfolioMetrics::by_position`] and are listed on
 /// [`PortfolioMetrics::unaggregated_metrics`].
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct AggregatedMetric {
     /// Metric identifier
     pub metric_id: String,
@@ -82,7 +83,8 @@ pub struct AggregatedMetric {
 /// - [`unaggregated_metrics`](Self::unaggregated_metrics) — metrics that
 ///   exist per position but are not portfolio-summable, so they have no
 ///   total at all.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct PortfolioMetrics {
     /// Aggregated metrics (summable only)
     pub aggregated: IndexMap<String, AggregatedMetric>,
@@ -122,7 +124,8 @@ pub struct PortfolioMetrics {
 }
 
 /// Position-level metrics with explicit native currency context.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct PositionMetrics {
     /// Native currency for this position's valuation and non-summable metrics.
     pub currency: Currency,
@@ -201,7 +204,8 @@ impl PortfolioMetrics {
 
 /// A metric value that was excluded from portfolio aggregation because it was
 /// non-finite (NaN or ±Inf).
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct SkippedMetric {
     /// Position that produced the non-finite value.
     pub position_id: PositionId,
@@ -334,8 +338,6 @@ pub fn aggregate_metrics(
     market: &MarketContext,
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<PortfolioMetrics> {
-    use rayon::prelude::*;
-
     let valuation_base_currency = valuation.total_base_currency.currency();
     if base_currency != valuation_base_currency {
         return Err(Error::invalid_input(format!(
@@ -374,8 +376,10 @@ pub fn aggregate_metrics(
             })
         };
 
+    #[cfg(not(target_arch = "wasm32"))]
     let collected_results: Vec<Result<PositionMetricData>> =
         if position_entries.len() >= POSITION_PARALLEL_MIN_POSITIONS {
+            use rayon::prelude::*;
             position_entries
                 .par_iter()
                 .filter_map(|(position_id, position_value)| {
@@ -390,6 +394,13 @@ pub fn aggregate_metrics(
                 })
                 .collect()
         };
+
+    #[cfg(target_arch = "wasm32")]
+    let collected_results: Vec<Result<PositionMetricData>> = position_entries
+        .iter()
+        .filter_map(|(position_id, position_value)| collect_position((position_id, position_value)))
+        .collect();
+
     let collected = collected_results
         .into_iter()
         .collect::<Result<Vec<PositionMetricData>>>()?;

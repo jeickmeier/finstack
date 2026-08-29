@@ -13,7 +13,8 @@ use finstack_quant_cashflows::builder::specs::PrepaymentModelSpec;
 ///
 /// Allows prepayment model selection and configuration without
 /// constructing the full model, enabling serialization and deferred construction.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "model", deny_unknown_fields)]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]

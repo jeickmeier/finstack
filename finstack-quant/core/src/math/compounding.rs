@@ -66,7 +66,8 @@ use std::num::NonZeroU32;
 ///
 /// For positive rates and t > 0: `r_simple > r_annual > r_continuous`
 /// (less frequent compounding requires a higher quoted rate for the same DF).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Compounding {
     /// Continuous compounding: r = -ln(DF) / t

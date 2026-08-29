@@ -5,9 +5,8 @@ use crate::dates::{Date, DayCount, Tenor};
 use crate::types::{CurveId, IndexId};
 
 /// Serialized identifier for an interest-rate futures convention.
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
 pub struct RateCalibrationFutureContractId(String);
 
@@ -24,9 +23,8 @@ impl RateCalibrationFutureContractId {
 }
 
 /// Numerical method used to calibrate a rate curve.
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RateCalibrationMethod {
     /// Sequential bootstrap.
@@ -39,9 +37,8 @@ pub enum RateCalibrationMethod {
 }
 
 /// OIS floating-leg compounding convention used during calibration.
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RateCalibrationOisCompounding {
     /// Simple term-rate accrual.
@@ -64,9 +61,8 @@ pub enum RateCalibrationOisCompounding {
 }
 
 /// Role of a curve and its linked rate-curve identifier during calibration.
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RateCalibrationCurveRole {
     /// Discount curve, linked to the projection curve used to price its instruments.
@@ -82,9 +78,8 @@ pub enum RateCalibrationCurveRole {
 }
 
 /// Typed maturity specification retained from an original market quote.
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RateCalibrationPillar {
     /// Relative tenor resolved from the calibration base date.
@@ -92,13 +87,14 @@ pub enum RateCalibrationPillar {
     /// Absolute calendar date.
     Date(
         #[serde(with = "crate::wire::date")]
-        #[schemars(with = "crate::wire::DateWire")]
+        #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
         Date,
     ),
 }
 
 /// Lossless rate quote representation used by calibration replay.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum RateCalibrationQuote {
     /// Money-market deposit quote.
@@ -127,7 +123,7 @@ pub enum RateCalibrationQuote {
         contract: RateCalibrationFutureContractId,
         /// Futures expiry date.
         #[serde(with = "crate::wire::date")]
-        #[schemars(with = "crate::wire::DateWire")]
+        #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
         expiry: Date,
         /// Quoted futures price.
         price: f64,
@@ -157,7 +153,8 @@ pub enum RateCalibrationQuote {
 }
 
 /// Typed conventions required to replay a rate-curve calibration.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct RateCalibrationRecipe {
     /// Currency of the calibrated curve.

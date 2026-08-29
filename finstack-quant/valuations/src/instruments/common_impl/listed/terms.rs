@@ -5,9 +5,8 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 
 /// Final settlement mode for a listed future.
-#[derive(
-    Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ListedFutureSettlement {
     /// Cash settlement of final variation margin.
@@ -23,14 +22,18 @@ pub enum ListedFutureSettlement {
 }
 
 /// Delivery instruction produced after a physically settled future stops trading.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ListedDeliveryObligation {
     /// Deliverable asset, grade, location, or basket identifier.
     pub asset: String,
     /// Settlement date on which delivery and invoice exchange occur.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub delivery_date: Date,
     /// Signed physical quantity: positive is received, negative is delivered.
     pub asset_quantity: f64,
@@ -41,7 +44,8 @@ pub struct ListedDeliveryObligation {
 }
 
 /// Standardized position, multiplier, and lifecycle terms for a listed future.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ListedFutureTerms {
     /// Number of exchange contracts. Fractional values are permitted for
@@ -61,11 +65,17 @@ pub struct ListedFutureTerms {
     pub settlement_price: Option<f64>,
     /// Final date on which the contract trades.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub last_trading_date: Date,
     /// Date on which final cash settlement is completed.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub settlement_date: Date,
     /// Long or short position direction.
     pub position: Position,

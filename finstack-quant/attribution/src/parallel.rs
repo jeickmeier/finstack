@@ -52,6 +52,7 @@ use super::factors::*;
 use super::helpers::*;
 use super::model_params;
 use super::types::*;
+use crate::policy_map::{try_map_policy, try_map_policy_zip};
 use finstack_quant_calibration::recalibration::CachedRecalibrationProvider;
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::dates::Date;
@@ -62,7 +63,6 @@ use finstack_quant_models::factor::credit::hierarchy::CreditFactorModel;
 use finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot;
 use finstack_quant_valuations::instruments::Instrument;
 use indexmap::IndexMap;
-use rayon::prelude::*;
 use std::sync::Arc;
 
 /// Additive cross-factor interaction contribution for a pair of factors.
@@ -843,16 +843,8 @@ fn attribute_pnl_parallel_impl(
                     }
                 }
             };
-        let first_order_results = match execution_policy {
-            ExecutionPolicy::Parallel => factor_specs
-                .par_iter()
-                .map(reprice_first_order)
-                .collect::<Result<Vec<_>>>()?,
-            ExecutionPolicy::Serial => factor_specs
-                .iter()
-                .map(reprice_first_order)
-                .collect::<Result<Vec<_>>>()?,
-        };
+        let first_order_results =
+            try_map_policy(execution_policy, &factor_specs, reprice_first_order)?;
 
         let mut val_with_t0_discount: Option<Money> = None;
         let mut val_with_t0_forward: Option<Money> = None;
@@ -1011,16 +1003,7 @@ fn attribute_pnl_parallel_impl(
             };
             Ok((label.clone(), pnl))
         };
-        let cross_results = match execution_policy {
-            ExecutionPolicy::Parallel => cross_specs
-                .par_iter()
-                .map(reprice_cross_spec)
-                .collect::<Result<Vec<(String, Money)>>>()?,
-            ExecutionPolicy::Serial => cross_specs
-                .iter()
-                .map(reprice_cross_spec)
-                .collect::<Result<Vec<(String, Money)>>>()?,
-        };
+        let cross_results = try_map_policy(execution_policy, &cross_specs, reprice_cross_spec)?;
 
         let mut cross_total = 0.0;
         let mut cross_by_pair: IndexMap<String, Money> = IndexMap::new();
@@ -1068,16 +1051,7 @@ fn attribute_pnl_parallel_impl(
                 output,
             })
         };
-        let pre_fx_evals = match execution_policy {
-            ExecutionPolicy::Parallel => pre_fx_specs
-                .par_iter()
-                .map(eval_pre_fx)
-                .collect::<Result<Vec<_>>>()?,
-            ExecutionPolicy::Serial => pre_fx_specs
-                .iter()
-                .map(eval_pre_fx)
-                .collect::<Result<Vec<_>>>()?,
-        };
+        let pre_fx_evals = try_map_policy(execution_policy, &pre_fx_specs, eval_pre_fx)?;
         let mut val_with_t0_inflation: Option<Money> = None;
         let mut val_with_t0_correlation: Option<Money> = None;
         for eval in pre_fx_evals {
@@ -1340,33 +1314,26 @@ fn attribute_pnl_parallel_impl(
         // Each cross-factor block is an independent full revaluation. Reprice them
         // in parallel, then reduce in the fixed `cross_specs` order so the result
         // is bit-identical to the previous sequential loop.
-        let reprice_default_cross =
-            |(pair, flag_a, flag_b, reprice_a, reprice_b): &CrossSpec<'_>| {
-                let (Some(val_a), Some(val_b)) = (*reprice_a, *reprice_b) else {
-                    return Ok(None);
-                };
-                let pnl = reprice_cross_factor(
-                    instrument,
-                    market_t0,
-                    market_t1,
-                    as_of_t1,
-                    *flag_a | *flag_b,
-                    val_t1,
-                    val_a,
-                    val_b,
-                )?;
-                Ok(Some(((*pair).to_string(), pnl)))
+        let reprice_default_cross = |(pair, flag_a, flag_b, reprice_a, reprice_b): &CrossSpec<
+            '_,
+        >|
+         -> Result<Option<(String, Money)>> {
+            let (Some(val_a), Some(val_b)) = (*reprice_a, *reprice_b) else {
+                return Ok(None);
             };
-        let cross_results = match execution_policy {
-            ExecutionPolicy::Parallel => cross_specs
-                .par_iter()
-                .map(reprice_default_cross)
-                .collect::<Result<Vec<Option<(String, Money)>>>>()?,
-            ExecutionPolicy::Serial => cross_specs
-                .iter()
-                .map(reprice_default_cross)
-                .collect::<Result<Vec<Option<(String, Money)>>>>()?,
+            let pnl = reprice_cross_factor(
+                instrument,
+                market_t0,
+                market_t1,
+                as_of_t1,
+                *flag_a | *flag_b,
+                val_t1,
+                val_a,
+                val_b,
+            )?;
+            Ok(Some(((*pair).to_string(), pnl)))
         };
+        let cross_results = try_map_policy(execution_policy, &cross_specs, reprice_default_cross)?;
         for result in cross_results.into_iter().flatten() {
             let (pair, pnl) = result;
             num_repricings += 1;
@@ -1470,20 +1437,12 @@ fn attribute_pnl_parallel_impl(
                         };
                         reprice_instrument(instrument, &market_step, as_of_t1)
                     };
-                let step_values: Vec<Money> = match execution_policy {
-                    ExecutionPolicy::Parallel => cascade
-                        .steps
-                        .par_iter()
-                        .zip(cumulative_bp.par_iter())
-                        .map(reprice_cascade_step)
-                        .collect::<Result<Vec<Money>>>()?,
-                    ExecutionPolicy::Serial => cascade
-                        .steps
-                        .iter()
-                        .zip(cumulative_bp.iter())
-                        .map(reprice_cascade_step)
-                        .collect::<Result<Vec<Money>>>()?,
-                };
+                let step_values: Vec<Money> = try_map_policy_zip(
+                    execution_policy,
+                    &cascade.steps,
+                    &cumulative_bp,
+                    reprice_cascade_step,
+                )?;
                 num_repricings += step_values.len();
 
                 // Telescope to per-step P&Ls: V_k − V_{k−1}, V_0 = base_credit_val.

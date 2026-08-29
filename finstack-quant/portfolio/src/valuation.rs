@@ -11,14 +11,14 @@ use finstack_quant_core::money::Money;
 use finstack_quant_valuations::metrics::MetricId;
 use finstack_quant_valuations::results::ValuationResult;
 use indexmap::IndexMap;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Result of valuing a single position.
 ///
 /// Holds both native-currency and base-currency valuations along with
 /// the underlying [`ValuationResult`].
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct PositionValue {
     /// Position identifier
     pub position_id: PositionId,
@@ -54,11 +54,15 @@ pub struct PositionValue {
 /// Complete portfolio valuation results.
 ///
 /// Provides per-position valuations, totals by entity, and the grand total.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct PortfolioValuation {
     /// Valuation date carried through from the portfolio.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub as_of: finstack_quant_core::dates::Date,
 
     /// Values for each position

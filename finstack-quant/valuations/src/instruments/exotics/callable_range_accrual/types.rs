@@ -26,7 +26,8 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
 ///   call_price < continuation_value.
 /// - **HW Tree**: Build trinomial tree, attach range accrual cashflows
 ///   at each node, apply backward induction with call decision.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CallableRangeAccrual {
     /// Unique instrument identifier.

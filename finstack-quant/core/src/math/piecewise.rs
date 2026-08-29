@@ -6,7 +6,8 @@
 use crate::{Error, Result};
 
 /// A finite, left-continuous piecewise-constant curve.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "RawPiecewiseConstantCurve")]
 pub struct PiecewiseConstantCurve {
     /// Knot times in years, strictly increasing and starting at exactly zero.
@@ -17,7 +18,8 @@ pub struct PiecewiseConstantCurve {
     values: Vec<f64>,
 }
 
-#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[derive(serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 struct RawPiecewiseConstantCurve {
     times: Vec<f64>,
     values: Vec<f64>,

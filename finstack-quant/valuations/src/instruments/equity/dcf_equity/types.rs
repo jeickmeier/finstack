@@ -33,7 +33,8 @@ const GORDON_GROWTH_NEAR_SINGULARITY_THRESHOLD: f64 = 0.001;
 const SUB_ANNUAL_GRID_SPACING_THRESHOLD_YEARS: f64 = 0.75;
 
 /// Terminal value calculation method for DCF.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TerminalValueSpec {
     /// Gordon Growth Model: TV = FCF_terminal × (1 + g) / (WACC - g)
@@ -79,7 +80,8 @@ pub enum TerminalValueSpec {
 ///
 /// When attached to a [`DiscountedCashFlow`], this takes precedence over the
 /// flat `net_debt` scalar.
-#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EquityBridge {
     /// Total interest-bearing debt.
@@ -126,7 +128,8 @@ impl EquityBridge {
 /// The enterprise value reported by a DCF remains pre-discount. When discounts
 /// are present, `enterprise_value - net_debt` reconciles to pre-discount
 /// equity value, not to the discounted fair-market equity value.
-#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ValuationDiscounts {
     /// Discount for Lack of Marketability (0.0–1.0, e.g., 0.25 for 25%).
@@ -182,7 +185,8 @@ impl ValuationDiscounts {
 ///
 /// Used to compute diluted shares outstanding from options, warrants,
 /// RSUs, or convertible instruments.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DilutionSecurity {
     /// Descriptive name (e.g., "Employee Stock Options").
@@ -225,8 +229,8 @@ pub struct DilutionSecurity {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = DiscountedCashFlow::validate)]
 #[serde(deny_unknown_fields, try_from = "DiscountedCashFlowUnchecked")]
 pub struct DiscountedCashFlow {
@@ -236,7 +240,10 @@ pub struct DiscountedCashFlow {
     pub currency: Currency,
     /// Explicit period free cash flows (date, amount pairs).
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     pub flows: Vec<(Date, f64)>,
     /// Weighted Average Cost of Capital (discount rate).
     pub wacc: f64,
@@ -248,7 +255,10 @@ pub struct DiscountedCashFlow {
     pub net_debt: f64,
     /// Valuation date (as-of date for the DCF).
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub valuation_date: Date,
     /// Mid-year discounting convention (default: `false` = end-of-period).
     ///
@@ -320,7 +330,8 @@ pub struct DiscountedCashFlow {
 
 /// Mirror of `DiscountedCashFlow` used by serde to apply `validate()` after
 /// deserialization. Not part of the public API.
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct DiscountedCashFlowUnchecked {
     /// Unique identifier for the DCF.
@@ -329,7 +340,10 @@ struct DiscountedCashFlowUnchecked {
     currency: Currency,
     /// Explicit period free cash flows (date, amount pairs).
     #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
-    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")
+    )]
     flows: Vec<(Date, f64)>,
     /// Weighted Average Cost of Capital (discount rate).
     wacc: f64,
@@ -341,7 +355,10 @@ struct DiscountedCashFlowUnchecked {
     net_debt: f64,
     /// Valuation date (as-of date for the DCF).
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     valuation_date: Date,
     /// Discount curve identifier, used for risk attribution only.
     ///

@@ -26,9 +26,8 @@ use super::parameters::InflationLinkedBondParams;
 use crate::impl_instrument_base;
 
 /// Indexation method for inflation adjustment
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum IndexationMethod {
     /// Canadian model (real yield, indexed principal and coupons)
@@ -155,9 +154,8 @@ impl IndexationMethod {
 }
 
 /// Deflation protection type
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum DeflationProtection {
     /// No deflation protection
@@ -271,8 +269,8 @@ impl InflationSource {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[builder(validate = InflationLinkedBond::validate)]
 #[serde(deny_unknown_fields)]
 pub struct InflationLinkedBond {
@@ -282,7 +280,10 @@ pub struct InflationLinkedBond {
     pub notional: Money,
     /// Real coupon rate (as decimal)
     #[serde(with = "finstack_quant_core::wire::decimal")]
-    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DecimalWire")
+    )]
     pub real_coupon: Decimal,
     /// Coupon frequency
     pub frequency: Tenor,
@@ -290,17 +291,26 @@ pub struct InflationLinkedBond {
     pub day_count: DayCount,
     /// Issue date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub issue_date: Date,
     /// Maturity date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
     /// Base CPI/index value at issue
     pub base_index: f64,
     /// Base date for index (may differ from issue date)
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub base_date: Date,
     /// Indexation method
     pub indexation_method: IndexationMethod,

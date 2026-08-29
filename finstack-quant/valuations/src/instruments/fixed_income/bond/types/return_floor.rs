@@ -40,9 +40,8 @@ use finstack_quant_core::types::Rate;
 /// Use [`ReturnFloorKind::Moic`] for money-multiple protection (common in
 /// leveraged loans and private credit) or [`ReturnFloorKind::Xirr`] for
 /// annualized IRR protection.
-#[derive(
-    Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum ReturnFloorKind {
@@ -60,16 +59,15 @@ pub enum ReturnFloorKind {
     /// rate. The floor binds only on early redemptions, not at maturity. Day
     /// count defaults to Act/365F (matching `core::cashflow::xirr`) unless
     /// overridden via [`ReturnFloorSpec::day_count`].
-    Xirr(#[schemars(with = "f64")] Rate),
+    Xirr(#[cfg_attr(feature = "json-schema", schemars(with = "f64"))] Rate),
 }
 
 /// Issue price = invested capital `V0` (amount funded at issue; IRR initial outflow
 /// and MOIC denominator).
 ///
 /// Defaults to [`IssuePrice::Par`] when not specified.
-#[derive(
-    Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum IssuePrice {
@@ -117,9 +115,8 @@ impl IssuePrice {
 /// inactive (the bond behaves as uncallable or follows its normal call
 /// schedule). The floor binds only on early issuer-called redemptions; it
 /// never applies at maturity.
-#[derive(
-    Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum ProtectionWindow {
@@ -131,7 +128,10 @@ pub enum ProtectionWindow {
     /// maturity). The floor is not applied to redemptions before `from`.
     From(
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         Date,
     ),
     /// Explicit closed interval `[start, end]` (both ends inclusive). The floor
@@ -139,11 +139,17 @@ pub enum ProtectionWindow {
     Between {
         /// First date on which the floor-protected call window opens.
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         start: Date,
         /// Last date on which the floor-protected call window closes (inclusive).
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         end: Date,
     },
 }
@@ -274,7 +280,8 @@ pub enum ProtectionWindow {
 /// );
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct ReturnFloorSpec {

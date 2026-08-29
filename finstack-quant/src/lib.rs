@@ -75,4 +75,5 @@ pub use finstack_quant_statements as statements;
 pub use finstack_quant_statements_analytics as statements_analytics;
 pub use finstack_quant_valuations as valuations;
 
+#[cfg(all(feature = "json-schema", feature = "jsonschema-validate"))]
 pub mod schema;

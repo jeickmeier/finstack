@@ -340,13 +340,33 @@ fn extract_dependencies(
         .collect())
 }
 
+/// Unicode-scalar Levenshtein distance via two-row dynamic programming.
+fn levenshtein(a: &str, b: &str) -> usize {
+    if a == b {
+        return 0;
+    }
+    let b_chars: Vec<char> = b.chars().collect();
+    let m = b_chars.len();
+    let mut prev: Vec<usize> = (0..=m).collect();
+    let mut curr = vec![0; m + 1];
+    for (i, ca) in a.chars().enumerate() {
+        curr[0] = i + 1;
+        for (j, &cb) in b_chars.iter().enumerate() {
+            let cost = usize::from(ca != cb);
+            curr[j + 1] = (prev[j + 1] + 1).min(curr[j] + 1).min(prev[j] + cost);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[m]
+}
+
 /// Suggest similar identifiers for a typo using Levenshtein distance.
 ///
 /// Returns a comma-separated list of up to 3 most similar identifiers.
 fn suggest_similar_identifiers(typo: &str, valid: &IndexSet<NodeId>) -> String {
     let mut similarities: Vec<(usize, &NodeId)> = valid
         .iter()
-        .map(|id| (strsim::levenshtein(typo, id.as_str()), id))
+        .map(|id| (levenshtein(typo, id.as_str()), id))
         .collect();
 
     // Sort by distance (closest first)
@@ -546,23 +566,23 @@ mod tests {
 
     #[test]
     fn test_levenshtein_distance() {
-        assert_eq!(strsim::levenshtein("", ""), 0);
-        assert_eq!(strsim::levenshtein("abc", "abc"), 0);
-        assert_eq!(strsim::levenshtein("abc", ""), 3);
-        assert_eq!(strsim::levenshtein("", "abc"), 3);
-        assert_eq!(strsim::levenshtein("kitten", "sitting"), 3);
-        assert_eq!(strsim::levenshtein("revenue", "revnue"), 1);
+        assert_eq!(levenshtein("", ""), 0);
+        assert_eq!(levenshtein("abc", "abc"), 0);
+        assert_eq!(levenshtein("abc", ""), 3);
+        assert_eq!(levenshtein("", "abc"), 3);
+        assert_eq!(levenshtein("kitten", "sitting"), 3);
+        assert_eq!(levenshtein("revenue", "revnue"), 1);
     }
 
     #[test]
     fn test_levenshtein_stress() {
         let long_a: String = "a".repeat(200);
         let long_b: String = "b".repeat(200);
-        let dist = strsim::levenshtein(&long_a, &long_b);
+        let dist = levenshtein(&long_a, &long_b);
         assert_eq!(dist, 200);
 
         let same: String = "x".repeat(200);
-        assert_eq!(strsim::levenshtein(&same, &same), 0);
+        assert_eq!(levenshtein(&same, &same), 0);
     }
 
     #[test]

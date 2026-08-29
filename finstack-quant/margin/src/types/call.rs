@@ -11,17 +11,8 @@ use std::fmt;
 ///
 /// Classifies the nature of a margin call for proper processing
 /// and accounting treatment.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum MarginCallType {
@@ -82,15 +73,16 @@ impl std::str::FromStr for MarginCallType {
 ///
 /// Represents a single margin call with all relevant details for
 /// processing and settlement.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MarginCall {
     /// Date the margin call is issued
-    #[schemars(with = "String", extend("format" = "date"))]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String", extend("format" = "date")))]
     pub call_date: Date,
 
     /// Settlement date for the margin transfer
-    #[schemars(with = "String", extend("format" = "date"))]
+    #[cfg_attr(feature = "json-schema", schemars(with = "String", extend("format" = "date")))]
     pub settlement_date: Date,
 
     /// Type of margin call

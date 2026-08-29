@@ -57,7 +57,8 @@ use ts_rs::TS;
 #[cfg_attr(feature = "ts_export", ts(rename_all = "snake_case"))]
 // Keep this enum externally tagged. Market quote schemas, golden calibration
 // payloads, and Python envelope payloads already depend on this shape.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[allow(clippy::large_enum_variant)]
 pub enum InflationQuote {
@@ -69,7 +70,10 @@ pub enum InflationQuote {
         /// Swap maturity
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         maturity: Date,
         /// Fixed rate (decimal)
         rate: f64,
@@ -89,7 +93,10 @@ pub enum InflationQuote {
         /// Swap maturity
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         maturity: Date,
         /// Fixed rate (decimal)
         rate: f64,

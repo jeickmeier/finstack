@@ -97,7 +97,8 @@ impl Default for ExplainOpts {
 /// Mutation is intentionally single-threaded through `&mut self`. If multiple
 /// workers need to append to one trace, wrap it in external synchronization and
 /// keep ordering semantics explicit at the call site.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct ExplanationTrace {
     /// Type of trace (e.g., "calibration", "pricing", "waterfall")
     #[serde(rename = "type")]
@@ -153,7 +154,8 @@ impl ExplanationTrace {
 /// - Calibration: iteration details, convergence status
 /// - Pricing: cashflow-level PV breakdowns
 /// - Waterfall: step-by-step payment allocations
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum TraceEntry {
     /// Calibration solver iteration details
@@ -174,7 +176,7 @@ pub enum TraceEntry {
     CashflowPV {
         /// Cashflow payment date (ISO8601)
         #[serde(with = "crate::wire::date")]
-        #[schemars(with = "crate::wire::DateWire")]
+        #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
         date: Date,
         /// Cashflow amount (stored as f64 for JSON simplicity)
         cashflow_amount: f64,

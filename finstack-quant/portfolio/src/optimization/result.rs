@@ -9,11 +9,11 @@ use crate::types::{Entity, PositionId};
 use finstack_quant_core::config::ResultsMeta;
 use finstack_quant_core::wire::SchemaVersion;
 use indexmap::IndexMap;
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize, Serializer};
 
 /// Status of an optimization run.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum OptimizationStatus {
     /// Found optimal solution.
@@ -52,7 +52,8 @@ impl OptimizationStatus {
 }
 
 /// Direction of a trade.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum TradeDirection {
     /// Buy more of the instrument (increase exposure).
@@ -64,7 +65,8 @@ pub enum TradeDirection {
 }
 
 /// Whether a trade is for an existing position or a new candidate.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum TradeType {
     /// Adjusting an existing portfolio position.
@@ -76,7 +78,8 @@ pub enum TradeType {
 }
 
 /// Trade specification for a single position.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct TradeSpec {
     /// Position identifier in the optimized portfolio.
@@ -100,8 +103,12 @@ pub struct TradeSpec {
 }
 
 /// Solution of an optimization problem.
-#[derive(Clone, Debug, JsonSchema)]
-#[schemars(with = "PortfolioOptimizationResultWire")]
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[cfg_attr(
+    feature = "json-schema",
+    schemars(with = "PortfolioOptimizationResultWire")
+)]
 pub struct PortfolioOptimizationResult {
     /// Echo of the original problem for traceability.
     pub problem: PortfolioOptimizationProblem,
@@ -353,7 +360,8 @@ impl PortfolioOptimizationResult {
 /// is intentionally omitted — it contains `Arc<dyn Instrument>` values that do
 /// not round-trip through serde.
 /// Canonical serializable optimization-result contract.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PortfolioOptimizationResultWire {
     /// Required numeric v1 marker.

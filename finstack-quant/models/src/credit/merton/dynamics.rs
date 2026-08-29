@@ -3,9 +3,8 @@ use finstack_quant_core::{Error, Result};
 /// Asset dynamics specification for the Merton model.
 ///
 /// Controls the stochastic process assumed for the firm's asset value.
-#[derive(
-    Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum AssetDynamics {
     /// Standard geometric Brownian motion (lognormal diffusion).
@@ -100,12 +99,11 @@ impl AssetDynamics {
 }
 
 /// Barrier monitoring type for default determination.
-#[derive(
-    Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 // Distinct from the barrier-option `finstack_quant_core::types::BarrierType`.
-#[schemars(rename = "MertonBarrierType")]
+#[cfg_attr(feature = "json-schema", schemars(rename = "MertonBarrierType"))]
 pub enum BarrierType {
     /// Default only assessed at maturity (classic Merton).
     Terminal,

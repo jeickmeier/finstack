@@ -44,17 +44,8 @@ use crate::impl_instrument_base;
 ///
 /// Always verify the vol convention with your data provider as using
 /// the wrong type will produce materially incorrect prices.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Default,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum CapFloorVolType {
@@ -121,9 +112,8 @@ impl std::str::FromStr for CapFloorVolType {
 }
 
 /// Type of interest rate option
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum RateOptionType {
@@ -170,17 +160,8 @@ impl std::str::FromStr for RateOptionType {
 /// ISDA-standard RFR coupons normally compound only the overnight index and add
 /// any spread as simple interest after compounding. `Include` represents the
 /// less common contract where the spread enters every daily compound factor.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum OvernightSpreadCompounding {
     /// Add the spread after compounding the overnight index.
@@ -196,14 +177,15 @@ pub enum OvernightSpreadCompounding {
 /// observation-shift, and rate-cutoff semantics cannot drift from IRS pricing.
 /// Payment and fixing calendars are separate because operational payment
 /// delays need not use the index publication calendar.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct OvernightCouponConvention {
     /// Daily overnight compounding convention.
     pub compounding: FloatingLegCompounding,
     /// Payment delay in business days after the accrual end date.
     #[serde(default)]
-    #[schemars(range(min = 0, max = 31))]
+    #[cfg_attr(feature = "json-schema", schemars(range(min = 0, max = 31)))]
     pub payment_delay_days: i32,
     /// Calendar used for overnight observations and fixings.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -232,8 +214,8 @@ pub struct OvernightCouponConvention {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CapFloor {
     /// Unique instrument identifier
@@ -244,7 +226,10 @@ pub struct CapFloor {
     pub notional: Money,
     /// Strike (as decimal, e.g., 0.05 for 5%)
     #[serde(with = "finstack_quant_core::wire::decimal")]
-    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DecimalWire")
+    )]
     pub strike: Decimal,
     /// Contractual spread added to the referenced rate, in decimal rate units.
     ///
@@ -254,15 +239,24 @@ pub struct CapFloor {
     #[serde(default, skip_serializing_if = "Decimal::is_zero")]
     #[builder(default)]
     #[serde(with = "finstack_quant_core::wire::decimal")]
-    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DecimalWire")
+    )]
     pub spread: Decimal,
     /// Start date of underlying period
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub start_date: Date,
     /// End date of underlying period
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
     /// Payment frequency for caps/floors
     pub frequency: Tenor,
@@ -335,7 +329,10 @@ pub struct CapFloor {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     #[serde(with = "finstack_quant_core::wire::optional_dated_money")]
-    #[schemars(with = "Option<(finstack_quant_core::wire::DateWire, Money)>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<(finstack_quant_core::wire::DateWire, Money)>")
+    )]
     pub premium: Option<(Date, Money)>,
     /// Additional attributes
     #[builder(default)]

@@ -134,7 +134,8 @@ use super::types::RateSpec;
 /// // $50,000 fixed OID
 /// let oid_fixed = OidPolicy::WithheldAmount(Money::new(50_000.0, Currency::USD));
 /// ```
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum OidPolicy {
@@ -166,7 +167,8 @@ impl OidPolicy {
 ///
 /// When enabled, EIR amortization schedules are computed for reporting using
 /// the loan's full cashflow schedule (including OID effects).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields, default)]
 pub struct OidEirSpec {
     /// Include fee cashflows (upfront, commitment, usage) in the EIR schedule.
@@ -185,12 +187,16 @@ impl Default for OidEirSpec {
 ///
 /// Represents a scheduled or actual draw against the commitment, reducing
 /// available capacity and increasing outstanding principal.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DrawEvent {
     /// Date of the draw
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
     /// Amount drawn from available commitment
     pub amount: Money,
@@ -200,12 +206,16 @@ pub struct DrawEvent {
 ///
 /// Reduces the total commitment limit at a specified date, typically used
 /// to match construction completion or covenant requirements.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CommitmentStepDown {
     /// Effective date of the step-down
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
     /// New (lower) commitment limit after step-down
     pub new_limit: Money,
@@ -215,7 +225,8 @@ pub struct CommitmentStepDown {
 ///
 /// Determines the denominator for commitment fee calculations on
 /// revolving or delayed-draw facilities.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
@@ -274,18 +285,25 @@ pub enum CommitmentFeeBase {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DdtlSpec {
     /// Total commitment limit available for draws
     pub commitment_limit: Money,
     /// First date draws are permitted
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub availability_start: Date,
     /// Last date draws are permitted (commitment expiry)
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub availability_end: Date,
     /// Scheduled or actual draw events
     pub draws: Vec<DrawEvent>,
@@ -319,12 +337,16 @@ impl DdtlSpec {
 ///
 /// Increases the interest margin by a fixed amount at a specified date,
 /// typically triggered by covenant breach or scheduled rating migration.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MarginStepUp {
     /// Effective date of margin increase
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
     /// Increase in margin (basis points)
     pub delta_bp: i32,
@@ -344,12 +366,16 @@ impl MarginStepUp {
 ///
 /// Enables or disables PIK interest at a specified date. When enabled,
 /// a portion of interest may be capitalized rather than paid in cash.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PikToggle {
     /// Date PIK feature is toggled
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
     /// True to enable PIK, false to disable
     pub enable_pik: bool,
@@ -359,12 +385,16 @@ pub struct PikToggle {
 ///
 /// Represents scheduled or covenant-triggered prepayment from borrower's
 /// excess cash flow, reducing outstanding principal.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CashSweepEvent {
     /// Date of cash sweep prepayment
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
     /// Amount of mandatory prepayment
     pub amount: Money,
@@ -375,7 +405,8 @@ pub struct CashSweepEvent {
 /// Aggregates all covenant-triggered or scheduled events that modify
 /// loan terms, including margin increases, PIK toggles, cash sweeps,
 /// and draw restrictions.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct TermLoanCovenantEvents {
     /// Margin step-up schedule
@@ -386,7 +417,10 @@ pub struct TermLoanCovenantEvents {
     pub cash_sweeps: Vec<CashSweepEvent>,
     /// Dates on which draws are prohibited (covenant breach or scheduled)
     #[serde(with = "finstack_quant_core::wire::dates")]
-    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Vec<finstack_quant_core::wire::DateWire>")
+    )]
     pub draw_stop_dates: Vec<Date>,
 }
 
@@ -394,13 +428,14 @@ pub struct TermLoanCovenantEvents {
 ///
 /// Defines how the loan principal is amortized over its life,
 /// from no amortization (bullet) to custom schedules.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 // Distinct from `finstack_quant_cashflows::builder::specs::AmortizationSpec`;
 // naming the schema keeps both out of the positional `AmortizationSpec2` slot.
-#[schemars(rename = "TermLoanAmortizationSpec")]
+#[cfg_attr(feature = "json-schema", schemars(rename = "TermLoanAmortizationSpec"))]
 pub enum AmortizationSpec {
     /// Bullet loan with no scheduled amortization
     None,
@@ -408,11 +443,17 @@ pub enum AmortizationSpec {
     Linear {
         /// Amortization start date
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         start: Date,
         /// Amortization end date (full repayment)
         #[serde(with = "finstack_quant_core::wire::date")]
-        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "finstack_quant_core::wire::DateWire")
+        )]
         end: Date,
     },
     /// Percentage of current outstanding principal per period (geometric decay).
@@ -449,7 +490,11 @@ pub enum AmortizationSpec {
     },
     /// Custom amortization schedule with explicit principal payments
     Custom(
-        #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")] Vec<(Date, Money)>,
+        #[cfg_attr(
+            feature = "json-schema",
+            schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")
+        )]
+        Vec<(Date, Money)>,
     ),
 }
 
@@ -536,7 +581,8 @@ impl AmortizationSpec {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct TermLoanSpec {
     /// Unique instrument identifier
@@ -556,11 +602,17 @@ pub struct TermLoanSpec {
     pub notional_limit: Option<Money>,
     /// Loan issue/origination date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub issue: Date,
     /// Final maturity date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
     /// Interest rate specification (fixed or floating)
     pub rate: RateSpec,
@@ -646,7 +698,8 @@ fn default_settlement_days() -> u32 {
 /// (101% of par, sometimes called "soft call 101"), after which they become
 /// callable at par. Make-whole provisions are more common in investment-grade
 /// term loans and private placements.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 #[derive(Default)]
@@ -683,12 +736,16 @@ pub enum LoanCallType {
 /// For `MakeWhole` calls, `price_pct_of_par` serves as the minimum
 /// (floor) redemption price. The actual price is the greater of
 /// `price_pct_of_par` and the make-whole amount.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct LoanCall {
     /// Call date (earliest prepayment date for this call provision)
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
     /// Redemption price as percentage of par (e.g., 102.0 = 102% of par).
     /// For make-whole calls, this is the minimum (floor) price.
@@ -730,7 +787,8 @@ pub struct LoanCall {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct LoanCallSchedule {
     /// Ordered call provisions (typically sorted by date with descending premiums)

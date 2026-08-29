@@ -18,7 +18,8 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::InstrumentId;
 
 /// Financing instruments supported by levered real-estate valuation and metrics.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(
     rename_all = "snake_case",
     tag = "type",
@@ -71,8 +72,8 @@ impl RealEstateFinancing {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct LeveredRealEstateEquity {
     /// Unique instrument identifier.
@@ -91,7 +92,10 @@ pub struct LeveredRealEstateEquity {
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub exit_date: Option<Date>,
     /// Attributes for tagging and scenarios.
     #[builder(default)]

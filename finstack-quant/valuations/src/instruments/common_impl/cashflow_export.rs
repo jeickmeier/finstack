@@ -36,7 +36,6 @@ use finstack_quant_core::math::NeumaierAccumulator;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::{Error, Result};
-use schemars::JsonSchema;
 use serde::Serialize;
 
 use crate::instruments::fixed_income::inflation_linked_bond::InflationLinkedBond;
@@ -51,7 +50,8 @@ use crate::pricer::{shared_standard_registry, ModelKey, ParsedInstrument, Pricer
 // Envelope schema
 
 /// Top-level JSON envelope returned by [`instrument_cashflows_json`].
-#[derive(Debug, Clone, Serialize, serde::Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct InstrumentCashflowEnvelope {
     /// Instrument identifier.
     pub instrument_id: String,
@@ -61,7 +61,10 @@ pub struct InstrumentCashflowEnvelope {
     pub model: String,
     /// Valuation date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub as_of: Date,
     /// Discount curve ID used.
     pub discount_curve_id: CurveId,
@@ -83,11 +86,15 @@ pub struct InstrumentCashflowEnvelope {
 }
 
 /// Single-row enriched cashflow view.
-#[derive(Debug, Clone, Serialize, serde::Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CashflowRow {
     /// Payment date.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub date: Date,
     /// Signed cashflow amount in row currency.
     pub amount: f64,
@@ -105,7 +112,10 @@ pub struct CashflowRow {
     /// Reset date when the flow is a floating-rate fixing.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default, with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub reset_date: Option<Date>,
     /// `df(as_of, date)`.
     pub discount_factor: f64,

@@ -47,7 +47,8 @@ use crate::{
 use serde::{Deserialize, Serialize};
 
 /// Nelson-Siegel model variant selector.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum NsVariant {
     /// Four-parameter Nelson-Siegel model.
@@ -59,7 +60,8 @@ pub enum NsVariant {
 /// Nelson-Siegel model parameters.
 ///
 /// Stores either the 4-parameter NS or 6-parameter NSS specification.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(tag = "variant", rename_all = "snake_case")]
 pub enum NelsonSiegelModel {
     /// Four-parameter Nelson-Siegel.
@@ -293,7 +295,8 @@ impl NelsonSiegelModel {
 /// # Thread Safety
 ///
 /// Immutable after construction; safe to share via `Arc<ParametricCurve>`.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "RawParametricCurve", into = "RawParametricCurve")]
 pub struct ParametricCurve {
     id: CurveId,
@@ -303,14 +306,15 @@ pub struct ParametricCurve {
 }
 
 /// Raw serializable state of ParametricCurve.
-#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct RawParametricCurve {
     /// Curve identifier.
     id: String,
     /// Base date.
     #[serde(with = "crate::wire::date")]
-    #[schemars(with = "crate::wire::DateWire")]
+    #[cfg_attr(feature = "json-schema", schemars(with = "crate::wire::DateWire"))]
     base_date: Date,
     /// Day count convention.
     day_count: DayCount,

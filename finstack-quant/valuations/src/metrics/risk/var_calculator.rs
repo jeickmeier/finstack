@@ -26,17 +26,8 @@ use finstack_quant_core::Result;
 use std::sync::Arc;
 
 /// VaR calculation method.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum VarMethod {
@@ -59,7 +50,8 @@ pub enum VarMethod {
 ///
 /// Controls statistical properties such as confidence level and pricing method.
 /// The historical window/observation count is derived from [`MarketHistory`].
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct VarConfig {
     /// Confidence level (e.g., 0.95 for 95% VaR, 0.99 for 99% VaR)
@@ -67,7 +59,10 @@ pub struct VarConfig {
         serialize_with = "finstack_quant_core::wire::serialize_open_unit_interval_f64",
         deserialize_with = "finstack_quant_core::wire::deserialize_open_unit_interval_f64"
     )]
-    #[schemars(with = "finstack_quant_core::wire::OpenUnitIntervalF64Wire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::OpenUnitIntervalF64Wire")
+    )]
     pub confidence_level: f64,
 
     /// VaR calculation method
@@ -498,15 +493,21 @@ fn aggregate_scenario_pnls_par<F>(
 where
     F: Fn(&MarketContext) -> Result<f64> + Send + Sync,
 {
-    use rayon::prelude::*;
-    history
-        .scenarios
-        .par_iter()
-        .map(|scenario| {
-            let scenario_market = scenario.apply(base_market)?;
-            scenario_pnl(&scenario_market)
-        })
-        .collect()
+    let map_scenario = |scenario: &super::market_history::MarketScenario| {
+        let scenario_market = scenario.apply(base_market)?;
+        scenario_pnl(&scenario_market)
+    };
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use rayon::prelude::*;
+        history.scenarios.par_iter().map(map_scenario).collect()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        history.scenarios.iter().map(map_scenario).collect()
+    }
 }
 
 /// Calculate VaR using full revaluation method.

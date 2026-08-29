@@ -14,7 +14,8 @@ use serde::{Deserialize, Serialize};
 /// Contains the identifying fields plus every measure keyed by its
 /// string `MetricId`. When serialized, measures are flattened into the
 /// top-level object alongside the identifying fields.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct ValuationRow {
     /// Instrument identifier.
     pub instrument_id: String,

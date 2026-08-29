@@ -19,7 +19,8 @@ use finstack_quant_core::types::CreditRating;
 ///
 /// Monetary fields use the asset's native currency. Rates are annual decimal
 /// rates unless a field explicitly says basis points.
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PoolAsset {
     /// Stable identifier used to match the asset to diagnostics and scenarios.
@@ -38,7 +39,10 @@ pub struct PoolAsset {
     pub index_id: Option<String>,
     /// Contractual maturity date of the asset.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
     /// Optional credit-quality classification of the obligor or asset.
     pub credit_quality: Option<CreditRating>,
@@ -54,7 +58,10 @@ pub struct PoolAsset {
     pub purchase_price: Option<Money>,
     /// Date on which the pool acquired the asset, if known.
     #[serde(default, with = "finstack_quant_core::wire::optional_date")]
-    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "Option<finstack_quant_core::wire::DateWire>")
+    )]
     pub acquisition_date: Option<Date>,
     /// Day-count convention used for coupon and accrual calculations.
     pub day_count: DayCount,
@@ -323,12 +330,16 @@ impl PoolAsset {
 }
 
 /// Reinvestment period and rules
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ReinvestmentPeriod {
     /// End date of reinvestment period
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub end_date: Date,
     /// Whether reinvestment is currently active
     pub is_active: bool,
@@ -337,7 +348,8 @@ pub struct ReinvestmentPeriod {
 }
 
 /// Criteria for reinvestment during revolving period
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ReinvestmentCriteria {
     /// Maximum purchase price (% of par)
@@ -365,7 +377,8 @@ impl Default for ReinvestmentCriteria {
 }
 
 /// AssetPool-level performance statistics
-#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PoolStats {
     /// Weighted average coupon
@@ -394,7 +407,8 @@ pub struct PoolStats {
 }
 
 /// Main asset pool structure
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AssetPool {
     /// AssetPool identifier
@@ -442,7 +456,8 @@ pub struct AssetPool {
 }
 
 /// Representative line for aggregated pool modeling
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct RepLine {
     /// Unique identifier for the rep line
@@ -457,7 +472,10 @@ pub struct RepLine {
     pub index_id: Option<String>,
     /// Weighted average maturity date
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub maturity: Date,
     /// Weighted average seasoning in months
     pub seasoning_months: u32,

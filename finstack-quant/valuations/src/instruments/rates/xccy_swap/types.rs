@@ -71,9 +71,8 @@ impl ProjectedXccyPeriod {
 }
 
 /// Whether the holder pays or receives a leg.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum LegSide {
@@ -149,17 +148,8 @@ impl LegSide {
 }
 
 /// Notional exchange convention for XCCY swaps.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
 #[cfg_attr(feature = "ts_export", ts(export, rename_all = "snake_case"))]
@@ -205,9 +195,8 @@ impl std::fmt::Display for NotionalExchange {
 /// respectively.
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
 #[cfg_attr(feature = "ts_export", ts(export, rename_all = "snake_case"))]
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum ResettingSide {
@@ -242,7 +231,8 @@ impl std::str::FromStr for ResettingSide {
 ///
 /// Each leg owns its own dates, discount curve, calendar, and stub conventions,
 /// following the IRS leg-centric pattern.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct XccySwapLeg {
     /// Leg currency.
@@ -257,11 +247,17 @@ pub struct XccySwapLeg {
     pub discount_curve_id: CurveId,
     /// Start date of the leg.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub start: Date,
     /// End date of the leg.
     #[serde(with = "finstack_quant_core::wire::date")]
-    #[schemars(with = "finstack_quant_core::wire::DateWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DateWire")
+    )]
     pub end: Date,
     /// Coupon frequency.
     pub frequency: Tenor,
@@ -276,7 +272,10 @@ pub struct XccySwapLeg {
     /// Spread in basis points (e.g. `Decimal::from(5)` = 5bp).
     #[serde(default)]
     #[serde(with = "finstack_quant_core::wire::decimal")]
-    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+    #[cfg_attr(
+        feature = "json-schema",
+        schemars(with = "finstack_quant_core::wire::DecimalWire")
+    )]
     pub spread_bp: Decimal,
     /// Payment lag in business days after period end (default: 0).
     #[serde(default)]
@@ -311,8 +310,8 @@ pub struct XccySwapLeg {
     finstack_quant_valuations_macros::FinancialBuilder,
     serde::Serialize,
     serde::Deserialize,
-    schemars::JsonSchema,
 )]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct XccySwap {
     /// Unique identifier for this instrument.

@@ -16,7 +16,8 @@ use rust_decimal::Decimal;
 ///
 /// Represents a periodic fee based on the outstanding balance,
 /// expressed in basis points.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct MbsFeeSpec {
     /// Fee name (e.g., "servicing", "guarantee")
     pub name: String,
