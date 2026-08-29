@@ -581,6 +581,22 @@ WASM_NAMESPACE_SUBSETS = [
 ]
 
 
+def test_analytics_periodic_returns_shared_method_contract() -> None:
+    """The raw periodic-return panel must stay named across all three hosts."""
+    block = CONTRACT["wasm_analytics_subset"]
+    assert block["shared_methods"] == {"Performance.periodic_returns": "Performance.periodicReturns"}
+
+    performance = importlib.import_module("finstack_quant.analytics").Performance
+    assert callable(getattr(performance, "periodic_returns", None))
+
+    stub = (CONTRACT_PATH.parent / "finstack_quant" / "analytics" / "__init__.pyi").read_text()
+    assert "def periodic_returns(" in stub
+    assert "list[list[tuple[datetime.date, float]]]" in stub
+
+    dts = (CONTRACT_PATH.parent.parent / "finstack-quant-wasm" / "index.d.ts").read_text()
+    assert "periodicReturns(frequency?: string): PeriodicReturnPoint[][];" in dts
+
+
 @pytest.mark.parametrize(("section", "const_name", "python_package"), WASM_NAMESPACE_SUBSETS)
 def test_wasm_namespace_subset_exports_match_contract(section: str, const_name: str, python_package: str) -> None:
     """`exports/<ns>.js` root keys must match the contract subset section."""

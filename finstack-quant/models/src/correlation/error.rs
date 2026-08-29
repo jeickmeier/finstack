@@ -6,6 +6,7 @@
 //! recovery inputs, and Student-t degrees of freedom.
 
 use finstack_quant_analytics::correlation::Error as MatrixError;
+use finstack_quant_core::math::linalg::CholeskyError;
 
 /// Convenience result type for models correlation constructors.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -13,7 +14,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Error type for models correlation constructors and matrix validation.
 ///
 /// Matrix failures wrap [`MatrixError`] via [`From`]. Domain variants are
-/// raised only by latent-factor, recovery, and copula constructors.
+/// raised only by latent-factor, recovery, and copula constructors. Cholesky
+/// failures preserve the canonical core error and its structured diagnostics.
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
@@ -24,6 +26,14 @@ pub enum Error {
         /// Analytics matrix-validation or nearest-correlation failure.
         #[from]
         MatrixError,
+    ),
+    /// Cholesky factorization failure from core linear algebra.
+    #[error(transparent)]
+    Cholesky(
+        /// Canonical factorization error, including dimensions or the offending
+        /// row, column, value, diagonal, and numerical threshold where relevant.
+        #[from]
+        CholeskyError,
     ),
     /// Volatility vector length does not match number of factors.
     ///

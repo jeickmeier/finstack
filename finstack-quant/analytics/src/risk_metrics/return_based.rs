@@ -38,54 +38,7 @@ pub enum CagrDayCount {
     DayCount(DayCount),
 }
 
-/// Basis used to annualize CAGR from either explicit dates or a periods-per-year factor.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum CagrBasis {
-    /// Annualize across an explicit calendar range using the chosen convention.
-    Dates {
-        /// Inclusive start date of the return span.
-        start: Date,
-        /// Inclusive end date of the return span.
-        end: Date,
-        /// Day-count convention used to convert the span to a year fraction.
-        day_count: CagrDayCount,
-    },
-    /// Annualize from a periods-per-year factor such as 252 (daily) or 12 (monthly).
-    #[cfg(test)]
-    Factor(f64),
-}
-
-impl CagrBasis {
-    /// Build a date-based CAGR basis using the default Act/365.25 convention.
-    #[cfg(test)]
-    #[must_use]
-    pub(crate) fn dates(start: Date, end: Date) -> Self {
-        Self::Dates {
-            start,
-            end,
-            day_count: CagrDayCount::default(),
-        }
-    }
-
-    /// Build a date-based CAGR basis with an explicit day-count convention.
-    #[must_use]
-    pub(crate) fn dates_with(start: Date, end: Date, day_count: CagrDayCount) -> Self {
-        Self::Dates {
-            start,
-            end,
-            day_count,
-        }
-    }
-
-    /// Build a factor-based CAGR basis from periods per year.
-    #[cfg(test)]
-    #[must_use]
-    pub(crate) fn factor(ann_factor: f64) -> Self {
-        Self::Factor(ann_factor)
-    }
-}
-
-/// Compound annual growth rate from a return series using the supplied basis.
+/// Compound annual growth rate from a return series over explicit dates.
 ///
 /// Computes:
 ///
@@ -93,16 +46,18 @@ impl CagrBasis {
 /// CAGR = (Π(1 + r_i))^(1/years) - 1
 /// ```
 ///
-/// where `years` comes either from an explicit date range or from a
-/// periods-per-year factor, depending on `basis`.
+/// where `years` is the year fraction between `start` and `end` under
+/// `day_count`.
 ///
 /// # Arguments
 ///
-/// * `returns`    - Slice of simple period returns.
-/// * `basis`      - How to annualize the compounded return.
-/// * `calendar`   - Holiday calendar required when `basis` uses
+/// * `returns`   - Slice of simple period returns.
+/// * `start`     - Start date of the holding period.
+/// * `end`       - End date of the holding period.
+/// * `day_count` - Convention used to convert the holding period to years.
+/// * `calendar`  - Holiday calendar required when `day_count` is
 ///   [`CagrDayCount::DayCount`] with [`DayCount::Bus252`]. Ignored for
-///   Act/365.25 and for day-counts that do not need a calendar.
+///   Act/365.25 and day-counts that do not need a calendar.
 ///
 /// # Returns
 ///
@@ -110,14 +65,15 @@ impl CagrBasis {
 ///
 /// # Errors
 ///
-/// Returns [`crate::error::InputError::Invalid`] when `returns` is empty, a
-/// date basis has a non-positive span, or a factor basis uses a non-positive or
-/// non-finite annualization factor. Propagates
+/// Returns [`crate::error::InputError::Invalid`] when `returns` is empty or the
+/// date range has a non-positive span. Propagates
 /// [`crate::error::InputError::MissingCalendarForBus252`] when Bus/252 is
 /// requested without a calendar.
 pub(crate) fn cagr(
     returns: &[f64],
-    basis: CagrBasis,
+    start: Date,
+    end: Date,
+    day_count: CagrDayCount,
     calendar: Option<&dyn HolidayCalendar>,
 ) -> crate::Result<f64> {
     if returns.is_empty() {
@@ -125,23 +81,6 @@ pub(crate) fn cagr(
         return Err(crate::error::InputError::Invalid.into());
     }
 
-    match basis {
-        CagrBasis::Dates {
-            start,
-            end,
-            day_count,
-        } => cagr_from_dates(returns, start, end, day_count, calendar),
-        #[cfg(test)]
-        CagrBasis::Factor(ann_factor) => cagr_from_factor(returns, ann_factor),
-    }
-}
-fn cagr_from_dates(
-    returns: &[f64],
-    start: Date,
-    end: Date,
-    day_count: CagrDayCount,
-    calendar: Option<&dyn HolidayCalendar>,
-) -> crate::Result<f64> {
     let total = 1.0 + crate::returns::comp_total(returns);
     let years = annualized_years(start, end, day_count, calendar)?;
     if years <= 0.0 {
@@ -158,7 +97,11 @@ fn cagr_from_dates(
 }
 
 #[cfg(test)]
-fn cagr_from_factor(returns: &[f64], ann_factor: f64) -> crate::Result<f64> {
+pub(crate) fn cagr_from_factor(returns: &[f64], ann_factor: f64) -> crate::Result<f64> {
+    if returns.is_empty() {
+        tracing::debug!(reason = "empty_returns", "invalid CAGR input");
+        return Err(crate::error::InputError::Invalid.into());
+    }
     if !ann_factor.is_finite() || ann_factor <= 0.0 {
         tracing::debug!(
             ann_factor,
@@ -559,15 +502,23 @@ pub(crate) fn gain_to_pain(returns: &[f64]) -> f64 {
     total / abs_losses
 }
 
-/// Modified Sharpe ratio: excess return divided by Cornish-Fisher VaR.
+/// Modified Sharpe ratio: excess return divided by corresponding-horizon
+/// Cornish-Fisher VaR.
 ///
 /// Replaces the standard deviation in the Sharpe denominator with the
-/// Cornish-Fisher adjusted VaR, accounting for skewness and kurtosis.
-/// Excess return uses the same geometric rf decompounding as [`sharpe`]:
+/// Cornish-Fisher adjusted VaR, accounting for skewness and kurtosis. Both
+/// numerator and denominator are measured at the annual horizon implied by
+/// `ann_factor`. Excess return uses the same geometric rf decompounding as
+/// [`sharpe`]:
 ///
 /// ```text
-/// Modified Sharpe = ((μ − rf_period) × N) / |CF-VaR|
+/// Modified Sharpe = ((μ − rf_period) × N) / |CF-VaR_N|
 /// ```
+///
+/// Passing `Some(ann_factor)` to [`cornish_fisher_var`] is intentional:
+/// it scales the mean and volatility and applies the i.i.d. horizon decay to
+/// skewness and excess kurtosis. A one-period VaR denominator would be
+/// inconsistent with the annualized numerator.
 ///
 /// # Arguments
 ///
@@ -575,7 +526,8 @@ pub(crate) fn gain_to_pain(returns: &[f64]) -> f64 {
 /// * `risk_free_rate` - Annualized risk-free rate in decimal form.
 /// * `confidence`     - VaR confidence level (e.g., `0.95`).
 /// * `ann_factor`     - Number of periods per year used to decompound
-///   `risk_free_rate` and to annualize the arithmetic mean.
+///   `risk_free_rate` and to put both the excess-return numerator and
+///   Cornish-Fisher VaR denominator on the annual horizon.
 ///
 /// # Returns
 ///
@@ -620,7 +572,8 @@ mod tests {
     #[test]
     fn cagr_basic() {
         let r = [0.10];
-        let c = cagr(&r, CagrBasis::dates(jan1(2024), jan1(2025)), None).expect("valid CAGR");
+        let c =
+            cagr(&r, jan1(2024), jan1(2025), CagrDayCount::default(), None).expect("valid CAGR");
         assert!((c - 0.10).abs() < 0.01);
     }
 
@@ -629,11 +582,9 @@ mod tests {
         let r = [0.10];
         let c = cagr(
             &r,
-            CagrBasis::dates_with(
-                jan1(2024),
-                jan1(2025),
-                CagrDayCount::DayCount(DayCount::Act365F),
-            ),
+            jan1(2024),
+            jan1(2025),
+            CagrDayCount::DayCount(DayCount::Act365F),
             None,
         )
         .expect("valid CAGR");
@@ -644,14 +595,12 @@ mod tests {
     fn cagr_default_convention_is_act_365_25() {
         let r = [0.10];
         let c_default =
-            cagr(&r, CagrBasis::dates(jan1(2024), jan1(2025)), None).expect("valid CAGR");
+            cagr(&r, jan1(2024), jan1(2025), CagrDayCount::default(), None).expect("valid CAGR");
         let c_fixed = cagr(
             &r,
-            CagrBasis::dates_with(
-                jan1(2024),
-                jan1(2025),
-                CagrDayCount::DayCount(DayCount::Act365F),
-            ),
+            jan1(2024),
+            jan1(2025),
+            CagrDayCount::DayCount(DayCount::Act365F),
             None,
         )
         .expect("valid CAGR");
@@ -664,11 +613,9 @@ mod tests {
         let r = [0.10];
         let err = cagr(
             &r,
-            CagrBasis::dates_with(
-                jan1(2024),
-                jan1(2025),
-                CagrDayCount::DayCount(DayCount::Bus252),
-            ),
+            jan1(2024),
+            jan1(2025),
+            CagrDayCount::DayCount(DayCount::Bus252),
             None,
         )
         .expect_err("Bus252 requires a calendar");
@@ -697,26 +644,37 @@ mod tests {
     }
 
     #[test]
-    fn cagr_factor_basis_rejects_bad_ann_factor() {
-        assert!(cagr(&[0.01, 0.02], CagrBasis::factor(0.0), None).is_err());
-        assert!(cagr(&[0.01, 0.02], CagrBasis::factor(-1.0), None).is_err());
-        assert!(cagr(&[0.01, 0.02], CagrBasis::factor(f64::NAN), None).is_err());
+    fn factor_cagr_rejects_bad_ann_factor() {
+        assert!(cagr_from_factor(&[0.01, 0.02], 0.0).is_err());
+        assert!(cagr_from_factor(&[0.01, 0.02], -1.0).is_err());
+        assert!(cagr_from_factor(&[0.01, 0.02], f64::NAN).is_err());
     }
 
     #[test]
-    fn cagr_factor_basis_accepts_single_period() {
-        assert!(
-            (cagr(&[0.10], CagrBasis::factor(1.0), None).expect("valid CAGR") - 0.10).abs()
-                < 1.0e-12
-        );
+    fn factor_cagr_accepts_single_period() {
+        assert!((cagr_from_factor(&[0.10], 1.0).expect("valid CAGR") - 0.10).abs() < 1.0e-12);
     }
 
     #[test]
-    fn cagr_date_basis_rejects_non_positive_spans() {
+    fn date_cagr_rejects_non_positive_spans() {
         let returns = [0.10];
 
-        assert!(cagr(&returns, CagrBasis::dates(jan1(2024), jan1(2024)), None).is_err());
-        assert!(cagr(&returns, CagrBasis::dates(jan1(2025), jan1(2024)), None).is_err());
+        assert!(cagr(
+            &returns,
+            jan1(2024),
+            jan1(2024),
+            CagrDayCount::default(),
+            None,
+        )
+        .is_err());
+        assert!(cagr(
+            &returns,
+            jan1(2025),
+            jan1(2024),
+            CagrDayCount::default(),
+            None,
+        )
+        .is_err());
     }
 
     #[test]
@@ -725,7 +683,7 @@ mod tests {
         let m_ann = mean_return(&r, true, 252.0);
         let mean_p = mean(&r);
         assert!((m_ann - mean_p * 252.0).abs() < 1e-10);
-        let cagr_ann = cagr(&r, CagrBasis::factor(252.0), None).expect("valid CAGR");
+        let cagr_ann = cagr_from_factor(&r, 252.0).expect("valid CAGR");
         assert!(
             cagr_ann.is_finite() && (m_ann - cagr_ann).abs() > 1e-6,
             "arithmetic annualized mean should differ from compounded cagr"
@@ -897,6 +855,57 @@ mod tests {
     }
 
     #[test]
+    fn modified_sharpe_uses_annual_excess_over_annual_cf_var() {
+        let returns = [-0.06, -0.03, -0.02, 0.01, 0.02, 0.025, 0.03, 0.04];
+        let risk_free_rate = 0.02;
+        let confidence = 0.95;
+        let ann_factor = 12.0;
+
+        let period_mean = mean(&returns);
+        let period_vol = variance(&returns).sqrt();
+        let rf_period = (1.0_f64 + risk_free_rate).powf(1.0 / ann_factor) - 1.0;
+        let annual_excess = (period_mean - rf_period) * ann_factor;
+
+        let annual_skew = crate::risk_metrics::skewness(&returns) / ann_factor.sqrt();
+        let annual_kurt = crate::risk_metrics::kurtosis(&returns) / ann_factor;
+        let z = crate::math::special_functions::standard_normal_inv_cdf(1.0 - confidence);
+        let z2 = z * z;
+        let z3 = z2 * z;
+        let annual_z_cf = z + (z2 - 1.0) * annual_skew / 6.0 + (z3 - 3.0 * z) * annual_kurt / 24.0
+            - (2.0 * z3 - 5.0 * z) * annual_skew * annual_skew / 36.0;
+        let annual_cf_var = period_mean * ann_factor + annual_z_cf * period_vol * ann_factor.sqrt();
+        assert!(annual_cf_var < 0.0);
+
+        let expected = annual_excess / annual_cf_var.abs();
+        let actual = modified_sharpe(&returns, risk_free_rate, confidence, ann_factor);
+        assert!(
+            (actual - expected).abs() < 1.0e-12,
+            "{actual} vs {expected}"
+        );
+    }
+
+    #[test]
+    fn modified_sharpe_differs_from_one_period_var_denominator() {
+        let returns = [-0.06, -0.03, -0.02, 0.01, 0.02, 0.025, 0.03, 0.04];
+        let risk_free_rate = 0.02;
+        let confidence = 0.95;
+        let ann_factor = 12.0;
+
+        let period_mean = mean(&returns);
+        let rf_period = (1.0_f64 + risk_free_rate).powf(1.0 / ann_factor) - 1.0;
+        let annual_excess = (period_mean - rf_period) * ann_factor;
+        let one_period_cf_var = cornish_fisher_var(&returns, confidence, None);
+        assert!(one_period_cf_var < 0.0);
+
+        let inconsistent = annual_excess / one_period_cf_var.abs();
+        let actual = modified_sharpe(&returns, risk_free_rate, confidence, ann_factor);
+        assert!(
+            (actual - inconsistent).abs() > 1.0e-6,
+            "annual-horizon and one-period denominators must not be interchangeable"
+        );
+    }
+
+    #[test]
     fn modified_sharpe_empty() {
         assert_eq!(modified_sharpe(&[], 0.02, 0.95, 252.0), 0.0);
     }
@@ -910,7 +919,8 @@ mod tests {
 
     #[test]
     fn cagr_empty_is_err() {
-        assert!(cagr(&[], CagrBasis::factor(252.0), None).is_err());
+        assert!(cagr(&[], jan1(2024), jan1(2025), CagrDayCount::default(), None,).is_err());
+        assert!(cagr_from_factor(&[], 252.0).is_err());
     }
 
     #[test]

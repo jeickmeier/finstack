@@ -123,6 +123,30 @@ fn matrix_f64_to_js(values: &[Vec<f64>]) -> JsValue {
     outer.into()
 }
 
+/// Convert a ticker-major periodic-return panel to nested JavaScript arrays.
+fn periodic_panel_to_js(panel: Vec<Vec<(time::Date, f64)>>) -> Result<JsValue, JsValue> {
+    let outer = Array::new_with_length(panel.len() as u32);
+    for (ticker_idx, series) in panel.into_iter().enumerate() {
+        let points = Array::new_with_length(series.len() as u32);
+        for (point_idx, (date, value)) in series.into_iter().enumerate() {
+            let point = js_sys::Object::new();
+            Reflect::set(
+                &point,
+                &JsValue::from_str("date"),
+                &JsValue::from_str(&date_to_iso(date)),
+            )?;
+            Reflect::set(
+                &point,
+                &JsValue::from_str("value"),
+                &JsValue::from_f64(value),
+            )?;
+            points.set(point_idx as u32, point.into());
+        }
+        outer.set(ticker_idx as u32, points.into());
+    }
+    Ok(outer.into())
+}
+
 fn result_vec_f64_to_js(result: finstack_quant_core::Result<Vec<f64>>) -> Result<JsValue, JsValue> {
     Ok(vec_f64_to_js(&result.map_err(to_js_err)?))
 }
@@ -691,9 +715,17 @@ impl JsPerformance {
         vec_f64_to_js(&self.inner.m_squared(risk_free_rate.unwrap_or(0.0)))
     }
 
-    /// Modified Sharpe ratio using Cornish-Fisher VaR per asset.
-    /// @param risk_free_rate - Annualized decimal risk-free rate; defaults to 0.0.
-    /// @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
+    /// Modified Sharpe ratio using annualized excess return and
+    /// corresponding-annual-horizon Cornish-Fisher VaR per asset.
+    ///
+    /// The panel frequency supplies the periods-per-year scaling for both
+    /// terms, including the horizon decay of skewness and excess kurtosis;
+    /// the denominator is not one-period VaR.
+    /// @param risk_free_rate - Annualized decimal risk-free rate, decompounded
+    /// to the panel frequency before constructing annualized excess return;
+    /// defaults to 0.0.
+    /// @param confidence - Annual-horizon tail confidence as a decimal
+    /// probability; defaults to 0.95.
     /// @returns Per-ticker values as a Float64Array in `tickerNames()` order.
     #[wasm_bindgen(js_name = modifiedSharpe)]
     pub fn modified_sharpe(&self, risk_free_rate: Option<f64>, confidence: Option<f64>) -> JsValue {
@@ -778,6 +810,32 @@ impl JsPerformance {
     #[wasm_bindgen(js_name = cumulativeReturns)]
     pub fn cumulative_returns(&self) -> JsValue {
         matrix_f64_to_js(&self.inner.cumulative_returns())
+    }
+
+    /// Calendar-bucketed compounded returns per ticker.
+    ///
+    /// The outer array is ticker-major in `tickerNames()` order. Each inner
+    /// array contains chronological `{ date, value }` points, where `date` is
+    /// the bucket's ISO-8601 period-end date and `value` is a simple decimal
+    /// return (`0.01` means 1%). Chaining one ticker's values reconciles with
+    /// its final `cumulativeReturns()` value.
+    ///
+    /// # Arguments
+    ///
+    /// * `frequency` - Optional calendar frequency token: `"daily"`,
+    ///   `"weekly"`, `"monthly"`, `"quarterly"`, `"semiannual"`, or
+    ///   `"annual"`; defaults to `"monthly"`.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an unsupported frequency or a failure to create a point
+    /// property on the JavaScript result object.
+    /// @param frequency - Optional calendar-bucketing frequency; defaults to monthly.
+    /// @returns Ticker-major nested arrays of chronological period-end points with simple decimal returns.
+    #[wasm_bindgen(js_name = periodicReturns)]
+    pub fn periodic_returns(&self, frequency: Option<String>) -> Result<JsValue, JsValue> {
+        let kind = parse_frequency(frequency.as_deref().unwrap_or("monthly"))?;
+        periodic_panel_to_js(self.inner.periodic_returns(kind))
     }
 
     /// Drawdown series per asset.
@@ -1050,7 +1108,8 @@ impl JsPerformance {
     ///
     /// FYTD is the first observation on or after the fiscal calendar start
     /// through `ref_date`. Holidays are not skipped. The first included
-    /// simple return still spans the prior close.
+    /// simple return still spans the prior close. The serialized result always
+    /// contains `{ mtd, qtd, ytd, fytd }`, with `fytd` as a numeric array.
     ///
     /// # Arguments
     ///
@@ -1068,7 +1127,7 @@ impl JsPerformance {
     /// @param ref_date - ISO-8601 date on which MTD, QTD, YTD, and FYTD windows end.
     /// @param fiscal_year_start_month - Optional fiscal-year start month from 1 through 12; defaults to January.
     /// @param fiscal_year_start_day - Optional fiscal-year start day; defaults to the first day.
-    /// @returns Per-ticker `{ mtd, qtd, ytd, fytd }` lookback returns as decimal fractions.
+    /// @returns Per-ticker `{ mtd, qtd, ytd, fytd }` numeric arrays of lookback returns as decimal fractions; `fytd` is never null.
     #[wasm_bindgen(js_name = lookbackReturns)]
     pub fn lookback_returns(
         &self,

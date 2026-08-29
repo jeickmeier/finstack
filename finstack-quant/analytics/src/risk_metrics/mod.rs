@@ -8,8 +8,9 @@ mod return_based;
 mod rolling;
 mod tail_risk;
 
+#[cfg(test)]
+pub(crate) use return_based::cagr_from_factor;
 pub(crate) use return_based::invalid_annualization_factor;
-pub(crate) use return_based::CagrBasis;
 pub use return_based::CagrDayCount;
 pub(crate) use return_based::{
     cagr, downside_deviation, gain_to_pain, geometric_mean, mean_return, mean_vol_annualized,

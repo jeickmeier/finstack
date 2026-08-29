@@ -226,8 +226,7 @@ impl Performance {
     /// # Returns
     ///
     /// Per-ticker compounded simple returns for MTD, QTD, YTD, and FYTD.
-    /// `fytd` is always `Some`; the `Option` is kept for the existing serde
-    /// wire shape.
+    /// All four vectors contain one entry per ticker.
     pub fn lookback_returns(&self, ref_date: Date, fiscal_config: FiscalConfig) -> LookbackReturns {
         let compute = |selector: fn(&[Date], Date) -> core::ops::Range<usize>| -> Vec<f64> {
             self.map_tickers(|i| {
@@ -252,7 +251,7 @@ impl Performance {
             mtd: compute(lookback::mtd_select),
             qtd: compute(lookback::qtd_select),
             ytd: compute(lookback::ytd_select),
-            fytd: Some(fytd),
+            fytd,
         }
     }
 
@@ -283,7 +282,19 @@ impl Performance {
     /// Returns one `Vec<(Date, f64)>` per ticker — each entry is
     /// `(period_end_date, compounded_return)` for one calendar bucket of `frequency`.
     /// Buckets compound via the shared kernel, so they reconcile exactly with
-    /// [`Performance::cumulative_returns`]. Calendar bucketing only.
+    /// [`Performance::cumulative_returns`]. Returns are simple decimal fractions
+    /// (`0.01` means 1%), ticker series follow [`Performance::ticker_names`] order,
+    /// and points within each series are chronological. Calendar bucketing only.
+    ///
+    /// # Arguments
+    ///
+    /// * `frequency` - Calendar bucket size. Supported [`PeriodKind`] values are
+    ///   daily, weekly, monthly, quarterly, semiannual, and annual.
+    ///
+    /// # Returns
+    ///
+    /// A ticker-major panel of chronological `(period_end_date,
+    /// compounded_return)` points over the active analysis window.
     pub fn periodic_returns(&self, frequency: PeriodKind) -> Vec<Vec<(Date, f64)>> {
         self.map_tickers(|i| {
             group_by_period_dated(

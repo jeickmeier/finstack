@@ -1,6 +1,8 @@
-"""Tests for the additive Performance.to_periodic_returns_dataframe export."""
+"""Tests for raw and pandas periodic-return exits on ``Performance``."""
 
 from __future__ import annotations
+
+from datetime import date
 
 import pandas as pd
 import pytest
@@ -21,19 +23,40 @@ def test_periodic_monthly_shape_and_columns() -> None:
     assert len(df) == 2  # Jan + Feb 2021
 
 
+def test_raw_periodic_returns_are_ticker_major_dated_points() -> None:
+    idx = pd.bdate_range("2021-01-01", "2021-02-26")
+    rets = pd.DataFrame(
+        {
+            "STRAT": [0.001] * len(idx),
+            "BENCH": [0.002] * len(idx),
+        },
+        index=idx,
+    )
+    panel = Performance.from_returns(rets).periodic_returns()
+
+    assert len(panel) == 2
+    assert [len(series) for series in panel] == [2, 2]
+    for series in panel:
+        assert all(isinstance(point[0], date) and isinstance(point[1], float) for point in series)
+        assert [point[0] for point in series] == sorted(point[0] for point in series)
+
+
 def test_periodic_annual_single_year() -> None:
     df = _two_month_perf().to_periodic_returns_dataframe("annual")
     assert len(df) == 1  # all observations are in 2021
 
 
 def test_periodic_rejects_unknown_frequency() -> None:
-    with pytest.raises(Exception, match=r"frequency|monthly|annual"):
-        _two_month_perf().to_periodic_returns_dataframe("hourly")
+    perf = _two_month_perf()
+    with pytest.raises(ValueError, match=r"frequency|monthly|annual"):
+        perf.periodic_returns("hourly")
+    with pytest.raises(ValueError, match=r"frequency|monthly|annual"):
+        perf.to_periodic_returns_dataframe("hourly")
 
 
 def test_periodic_monthly_reconciles_with_cumulative() -> None:
     perf = _two_month_perf()
-    monthly = perf.to_periodic_returns_dataframe("monthly")["STRAT"]
+    monthly = perf.periodic_returns("monthly")[0]
     total = perf.to_cumulative_returns_dataframe()["STRAT"].iloc[-1]
-    chained = (1.0 + monthly.iloc[0]) * (1.0 + monthly.iloc[1]) - 1.0
+    chained = (1.0 + monthly[0][1]) * (1.0 + monthly[1][1]) - 1.0
     assert abs(chained - total) < 1e-9

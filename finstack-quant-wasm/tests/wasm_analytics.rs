@@ -197,6 +197,74 @@ fn cumulative_and_drawdown_series_are_per_ticker_panels() {
 }
 
 #[wasm_bindgen_test]
+fn periodic_returns_are_ticker_major_points_and_reconcile() {
+    let dates = vec![
+        "2025-01-30".to_string(),
+        "2025-01-31".to_string(),
+        "2025-02-03".to_string(),
+    ];
+    let returns = vec![vec![0.01, 0.02, -0.01], vec![0.005, -0.002, 0.015]];
+    let names = vec!["FUND".to_string(), "BENCH".to_string()];
+    let perf = JsPerformance::from_returns(
+        to_js(&dates),
+        to_f64_matrix(&returns),
+        to_js(&names),
+        Some("BENCH".to_string()),
+        Some("daily".to_string()),
+    )
+    .unwrap();
+
+    let outer = perf
+        .periodic_returns(None)
+        .unwrap()
+        .dyn_into::<Array>()
+        .expect("expected ticker-major outer Array");
+    assert_eq!(outer.length(), 2);
+
+    let cumulative = typed_matrix(perf.cumulative_returns());
+    for ticker_idx in 0..outer.length() {
+        let points = outer
+            .get(ticker_idx)
+            .dyn_into::<Array>()
+            .expect("expected point Array");
+        assert_eq!(points.length(), 2);
+
+        let point_dates: Vec<String> = (0..points.length())
+            .map(|point_idx| {
+                Reflect::get(&points.get(point_idx), &JsValue::from_str("date"))
+                    .unwrap()
+                    .as_string()
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(point_dates, vec!["2025-01-31", "2025-02-03"]);
+
+        let chained = (0..points.length()).fold(1.0, |wealth, point_idx| {
+            let value = Reflect::get(&points.get(point_idx), &JsValue::from_str("value"))
+                .unwrap()
+                .as_f64()
+                .unwrap();
+            wealth * (1.0 + value)
+        }) - 1.0;
+        let final_cumulative = cumulative[ticker_idx as usize].last().unwrap();
+        assert!((chained - final_cumulative).abs() < 1e-12);
+    }
+}
+
+#[wasm_bindgen_test]
+fn periodic_returns_reject_unknown_frequency() {
+    let error = build_perf()
+        .periodic_returns(Some("hourly".to_string()))
+        .expect_err("hourly must not be accepted");
+    let message: String = error
+        .dyn_into::<js_sys::Error>()
+        .expect("frequency errors should be JavaScript Error objects")
+        .message()
+        .into();
+    assert!(message.contains("Unknown frequency"));
+}
+
+#[wasm_bindgen_test]
 fn correlation_matrix_is_square() {
     let perf = build_perf();
     let mat = typed_matrix(perf.correlation_matrix().unwrap());
@@ -294,13 +362,14 @@ fn multi_factor_greeks_resolves_to_struct() {
 // ---- Lookback & aggregation ----
 
 #[wasm_bindgen_test]
-fn lookback_returns_emit_mtd_qtd_ytd() {
+fn lookback_returns_emit_mtd_qtd_ytd_fytd_arrays() {
     let perf = build_perf();
     let raw = perf.lookback_returns("2025-01-12", None, None).unwrap();
     let value: serde_json::Value = serde_wasm_bindgen::from_value(raw).unwrap();
     assert_eq!(value["mtd"].as_array().unwrap().len(), 2);
     assert_eq!(value["qtd"].as_array().unwrap().len(), 2);
     assert_eq!(value["ytd"].as_array().unwrap().len(), 2);
+    assert_eq!(value["fytd"].as_array().unwrap().len(), 2);
 }
 
 #[wasm_bindgen_test]

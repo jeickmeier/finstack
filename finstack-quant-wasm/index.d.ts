@@ -2837,9 +2837,23 @@ export interface LookbackReturns {
    */
   ytd: number[];
   /**
-   * Fiscal-year-to-date simple returns per ticker, or `null` when FYTD is not computed.
+   * Fiscal-year-to-date simple returns per ticker in `tickerNames()` order.
    */
-  fytd: number[] | null;
+  fytd: number[];
+}
+
+/**
+ * One calendar-bucketed return emitted by `Performance.periodicReturns`.
+ */
+export interface PeriodicReturnPoint {
+  /**
+   * ISO-8601 date of the final observation in the calendar bucket.
+   */
+  date: string;
+  /**
+   * Compounded simple return as a decimal fraction (`0.01` means 1%).
+   */
+  value: number;
 }
 
 /**
@@ -2863,7 +2877,7 @@ export declare class Performance {
    * Construct from a ticker-major, column-oriented price matrix. The outer
    * element selects a ticker, and each inner series is aligned to `dates`.
    * @param dates - ISO-8601 observation dates in ascending order, with one entry per value in each inner price series.
-   * @param prices - Ticker-major, column-oriented matrix where `prices[tickerIdx][dateIdx]` is the price for `tickerIdx` at `dates[dateIdx]`.
+   * @param prices - Ticker-major, column-oriented matrix where `prices[ticker_idx][date_idx]` is the price for `ticker_idx` at `dates[date_idx]`.
    * @param tickerNames - Ticker labels aligned with the outer elements of `prices`.
    * @param benchmarkTicker - Optional ticker label to use as the benchmark return series.
    * @param frequency - Optional observation frequency token; defaults to daily.
@@ -2880,7 +2894,7 @@ export declare class Performance {
    * Construct from a ticker-major, column-oriented return matrix. The outer
    * element selects a ticker, and each inner series is aligned to `dates`.
    * @param dates - ISO-8601 observation dates in ascending order, with one entry per value in each inner return series.
-   * @param returns - Ticker-major, column-oriented simple decimal return matrix where `returns[tickerIdx][dateIdx]` is the return for `tickerIdx` at `dates[dateIdx]`.
+   * @param returns - Ticker-major, column-oriented simple decimal return matrix where `returns[ticker_idx][date_idx]` is the return for `ticker_idx` at `dates[date_idx]`.
    * @param tickerNames - Ticker labels aligned with the outer elements of `returns`.
    * @param benchmarkTicker - Optional ticker label to use as the benchmark return series.
    * @param frequency - Optional observation frequency token; defaults to daily.
@@ -2909,8 +2923,8 @@ export declare class Performance {
   resetBenchTicker(ticker: string): void;
   /**
    * Ticker names in column order.
-   * @throws Error - Rejects if the ticker-name vector cannot be serialized to JavaScript.
    * @returns Ticker labels in column order as a JavaScript string array.
+   * @throws Error - Rejects if the ticker-name vector cannot be serialized to JavaScript.
    */
   tickerNames(): string[];
   /**
@@ -3164,9 +3178,11 @@ export declare class Performance {
    */
   mSquared(riskFreeRate?: number): Float64Array;
   /**
-   * Modified Sharpe ratio using Cornish-Fisher VaR per asset.
-   * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
-   * @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
+   * Modified Sharpe ratio using annualized excess return and corresponding-annual-horizon Cornish-Fisher VaR per asset.
+   *
+   * The panel frequency supplies the periods-per-year scaling for both terms, including the horizon decay of skewness and excess kurtosis; the denominator is not one-period VaR.
+   * @param riskFreeRate - Annualized decimal risk-free rate, decompounded to the panel frequency before constructing annualized excess return; defaults to 0.0.
+   * @param confidence - Annual-horizon tail confidence as a decimal probability; defaults to 0.95.
    * @returns Per-ticker values as a Float64Array in `tickerNames()` order.
    */
   modifiedSharpe(riskFreeRate?: number, confidence?: number): Float64Array;
@@ -3208,6 +3224,30 @@ export declare class Performance {
    * @returns One Float64Array per ticker in `tickerNames()` order.
    */
   cumulativeReturns(): Float64Array[];
+  /**
+   * Calendar-bucketed compounded returns for every ticker.
+   *
+   * The outer array is ticker-major in `tickerNames()` order. Each inner
+   * array contains chronological period-end points. Chaining one ticker's
+   * decimal `value` fields reconciles with its final `cumulativeReturns()`
+   * value.
+   *
+   * @example
+   * ```ts
+   * const perf = Performance.fromReturns(
+   *   ["2024-01-01", "2024-01-02"],
+   *   [[0.01, 0.02]],
+   *   ["FUND"],
+   * );
+   * const [[point]] = perf.periodicReturns();
+   * console.log(point.date, point.value); // "2024-01-02", 0.0302
+   * ```
+   * @param frequency - Optional calendar frequency token: `"daily"`, `"weekly"`, `"monthly"`, `"quarterly"`, `"semiannual"`, or `"annual"`; defaults to `"monthly"`.
+   * @param frequency - Optional calendar-bucketing frequency; defaults to monthly.
+   * @returns Ticker-major nested arrays of chronological period-end points with simple decimal returns.
+   * @throws Error - Rejects an unsupported frequency or a failure to create a point property on the JavaScript result object.
+   */
+  periodicReturns(frequency?: string): PeriodicReturnPoint[][];
   /**
    * Drawdown series per asset.
    * @returns One Float64Array per ticker in `tickerNames()` order.
@@ -3331,8 +3371,11 @@ export declare class Performance {
    * simple return still spans the prior close.
    * @param refDate - ISO-8601 date on which MTD, QTD, YTD, and FYTD windows end.
    * @param fiscalYearStartMonth - Optional fiscal-year start month from 1 through 12; defaults to January.
+   * @param fiscalYearStartDay - Optional fiscal-year start day; defaults to the first day of the month.
+   * @param refDate - ISO-8601 date on which MTD, QTD, YTD, and FYTD windows end.
+   * @param fiscalYearStartMonth - Optional fiscal-year start month from 1 through 12; defaults to January.
    * @param fiscalYearStartDay - Optional fiscal-year start day; defaults to the first day.
-   * @returns Per-ticker `{ mtd, qtd, ytd, fytd }` lookback returns as decimal fractions.
+   * @returns Per-ticker `{ mtd, qtd, ytd, fytd }` numeric arrays of lookback returns as decimal fractions; `fytd` is never null.
    * @throws Error - Rejects an invalid ISO `ref_date`, a fiscal month outside `1..=12`, a fiscal day outside `1..=31`, or a result that cannot be serialized to JavaScript.
    */
   lookbackReturns(

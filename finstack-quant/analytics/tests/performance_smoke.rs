@@ -237,7 +237,7 @@ fn performance_facade_exercises_broad_api_surface() {
     assert_finite_metric("year-to-date lookback", &lookbacks.ytd, ticker_count);
     assert_finite_metric(
         "fiscal-year-to-date lookback",
-        &lookbacks.fytd.expect("fiscal lookback present"),
+        &lookbacks.fytd,
         ticker_count,
     );
 
@@ -326,7 +326,7 @@ fn performance_lookback_returns_clamps_pre_start_reference_date() {
     assert_eq!(lookbacks.mtd, vec![0.0]);
     assert_eq!(lookbacks.qtd, vec![0.0]);
     assert_eq!(lookbacks.ytd, vec![0.0]);
-    assert_eq!(lookbacks.fytd, Some(vec![0.0]));
+    assert_eq!(lookbacks.fytd, vec![0.0]);
 }
 
 #[test]
@@ -362,7 +362,7 @@ fn performance_smoke_asserts_fiscal_lookback_and_zero_variance_invariants() {
     let config = FiscalConfig::new(1, 15).expect("valid fiscal config");
     let ref_date = *rising_perf.active_dates().last().expect("last active date");
     let lookbacks = rising_perf.lookback_returns(ref_date, config);
-    assert!(lookbacks.fytd.expect("fytd present")[0] > 0.0);
+    assert!(lookbacks.fytd[0] > 0.0);
 }
 
 #[test]

@@ -671,15 +671,15 @@ impl PyLookbackReturns {
     fn ytd<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
         slice_to_pyarray(py, &self.inner.ytd)
     }
-    /// Fiscal-year-to-date returns (``None`` if no fiscal config).
+    /// Fiscal-year-to-date returns per ticker.
     #[getter]
-    fn fytd<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyArray1<f64>>> {
-        self.inner.fytd.as_deref().map(|v| slice_to_pyarray(py, v))
+    fn fytd<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
+        slice_to_pyarray(py, &self.inner.fytd)
     }
 
     /// Convert to a pandas ``DataFrame`` with ticker names as index.
     ///
-    /// Columns: mtd, qtd, ytd (and fytd when available).
+    /// Columns: mtd, qtd, ytd, and fytd.
     fn to_dataframe<'py>(
         &self,
         py: Python<'py>,
@@ -689,18 +689,16 @@ impl PyLookbackReturns {
         data.set_item("mtd", slice_to_pyarray(py, &self.inner.mtd))?;
         data.set_item("qtd", slice_to_pyarray(py, &self.inner.qtd))?;
         data.set_item("ytd", slice_to_pyarray(py, &self.inner.ytd))?;
-        if let Some(ref fytd) = self.inner.fytd {
-            data.set_item("fytd", slice_to_pyarray(py, fytd))?;
-        }
+        data.set_item("fytd", slice_to_pyarray(py, &self.inner.fytd))?;
         let idx = ticker_names.into_pyobject(py)?.into_any();
         dict_to_dataframe(py, &data, Some(idx))
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "LookbackReturns(mtd_len={}, has_fytd={})",
+            "LookbackReturns(mtd_len={}, fytd_len={})",
             self.inner.mtd.len(),
-            self.inner.fytd.is_some()
+            self.inner.fytd.len()
         )
     }
 }

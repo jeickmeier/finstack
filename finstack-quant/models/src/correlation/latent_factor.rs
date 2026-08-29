@@ -45,7 +45,7 @@
 
 use crate::correlation::{Error, Result};
 use finstack_quant_analytics::correlation::{validate_correlation_matrix, Error as MatrixError};
-use finstack_quant_core::math::linalg::{cholesky_correlation, CholeskyError, CorrelationFactor};
+use finstack_quant_core::math::linalg::{cholesky_correlation, CorrelationFactor};
 
 /// Perform Cholesky decomposition of a correlation matrix using diagonal pivoting.
 /// Returns a [`CorrelationFactor`] that holds the lower triangular factor in the
@@ -62,28 +62,12 @@ use finstack_quant_core::math::linalg::{cholesky_correlation, CholeskyError, Cor
 /// is indefinite.
 ///
 /// # Errors
-/// Returns [`crate::correlation::Error`] if the flattened matrix shape is wrong or
-/// the matrix is not positive semidefinite.
+/// Returns [`crate::correlation::Error`] preserving the canonical core
+/// [`finstack_quant_core::math::linalg::CholeskyError`] when the flattened
+/// matrix shape is wrong, an entry is non-finite, or the matrix is not positive
+/// semidefinite.
 pub fn cholesky_decompose(matrix: &[f64], n: usize) -> Result<CorrelationFactor> {
-    if matrix.len() != n * n {
-        return Err(MatrixError::InvalidSize {
-            expected: n,
-            actual: matrix.len(),
-        }
-        .into());
-    }
-
-    match cholesky_correlation(matrix, n) {
-        Ok(factor) => Ok(factor),
-        Err(CholeskyError::NotPositiveDefinite { row, .. }) => {
-            Err(MatrixError::NotPositiveSemiDefinite { row }.into())
-        }
-        Err(CholeskyError::DimensionMismatch { expected, actual }) => {
-            Err(MatrixError::InvalidSize { expected, actual }.into())
-        }
-        // cholesky_correlation only emits NotPositiveDefinite and DimensionMismatch.
-        Err(_) => Err(MatrixError::NotPositiveSemiDefinite { row: 0 }.into()),
-    }
+    cholesky_correlation(matrix, n).map_err(Error::from)
 }
 
 /// Closed enum over the concrete factor models for correlated behavior.
@@ -790,6 +774,7 @@ impl LatentMultiFactor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use finstack_quant_core::math::linalg::CholeskyError;
 
     #[test]
     fn test_single_factor_creation() {
@@ -950,7 +935,9 @@ mod tests {
         match (result, cholesky_result) {
             (
                 Err(MatrixError::NotPositiveSemiDefinite { row: validate_row }),
-                Err(Error::Matrix(MatrixError::NotPositiveSemiDefinite { row: cholesky_row })),
+                Err(Error::Cholesky(CholeskyError::NotPositiveDefinite {
+                    row: cholesky_row, ..
+                })),
             ) => assert_eq!(validate_row, cholesky_row),
             other => panic!("expected matching PSD errors, got {:?}", other),
         }
@@ -964,6 +951,52 @@ mod tests {
     }
 
     // ========== Cholesky Decomposition Tests ==========
+
+    #[test]
+    fn test_cholesky_dimension_mismatch_preserves_expected_and_actual() {
+        let err = cholesky_decompose(&[1.0, 0.0, 0.0], 2)
+            .expect_err("non-square flattened input should be rejected");
+
+        assert!(matches!(
+            err,
+            Error::Cholesky(CholeskyError::DimensionMismatch {
+                expected: 2,
+                actual: 3,
+            })
+        ));
+    }
+
+    #[test]
+    fn test_cholesky_indefinite_matrix_preserves_failure_row_and_diagonal() {
+        let err = cholesky_decompose(&[1.0, 0.9, 0.0, 0.9, 1.0, 0.9, 0.0, 0.9, 1.0], 3)
+            .expect_err("indefinite matrix should be rejected");
+
+        match err {
+            Error::Cholesky(CholeskyError::NotPositiveDefinite { diag, row }) => {
+                assert_eq!(row, 1);
+                assert!(
+                    (diag + 0.62).abs() < 1e-12,
+                    "expected failing diagonal -0.62 at row 1, got {diag}"
+                );
+            }
+            other => panic!("expected positive-definiteness error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cholesky_non_finite_input_preserves_location_and_value() {
+        let err = cholesky_decompose(&[1.0, 0.0, f64::INFINITY, 1.0], 2)
+            .expect_err("non-finite matrix entry should be rejected");
+
+        assert!(matches!(
+            err,
+            Error::Cholesky(CholeskyError::NonFiniteInput {
+                value,
+                row: 1,
+                col: 0,
+            }) if value == f64::INFINITY
+        ));
+    }
 
     #[test]
     fn test_cholesky_identity() {

@@ -2680,7 +2680,9 @@ def cholesky_decompose(matrix: Sequence[float], n: int) -> list[float]:
     Raises
     ------
     ValueError
-        If the matrix shape is wrong or the matrix is indefinite.
+        If the matrix shape is wrong, an entry is non-finite, or the matrix is
+        indefinite. The message includes the mismatched dimensions or the
+        offending position and value.
 
     Examples
     --------

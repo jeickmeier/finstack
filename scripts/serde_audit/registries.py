@@ -315,6 +315,7 @@ RESULT_ALIAS_EXCEPTIONS = tuple(
     for crate, path in (
         ("analytics", "src/correlation/error.rs"),
         ("core", "src/error/mod.rs"),
+        ("models", "src/correlation/error.rs"),
         ("portfolio", "src/error.rs"),
         ("scenarios", "src/error.rs"),
         ("statements", "src/error.rs"),
@@ -403,7 +404,7 @@ RUNTIME_RESULT_EXCEPTIONS = (
     ),
     *_runtime_exception(
         "valuations",
-        "src/instruments/fixed_income/revolving_credit/pricer/unified.rs",
+        "src/instruments/fixed_income/revolving_credit/pricer/results.rs",
         ("PathResult", "EnhancedMonteCarloResult"),
     ),
     *_runtime_exception(

@@ -1428,8 +1428,9 @@ fn nearest_correlation(
 /// triangular — it may contain non-zero entries above the diagonal. The
 /// effective numerical rank is not surfaced through this function.
 ///
-/// Raises ``ValueError`` if the matrix shape is wrong or the matrix is
-/// indefinite.
+/// Raises ``ValueError`` if the matrix shape is wrong, an entry is non-finite,
+/// or the matrix is indefinite. The message preserves the core Cholesky
+/// diagnostic, including dimensions or the offending position and value.
 #[pyfunction]
 #[pyo3(text_signature = "(matrix, n)")]
 fn cholesky_decompose(py: Python<'_>, matrix: Vec<f64>, n: usize) -> PyResult<Vec<f64>> {

@@ -292,11 +292,23 @@ class TestPeriodicReturns:
         assert len(lb.mtd) == 2
         assert len(lb.qtd) == 2
         assert len(lb.ytd) == 2
+        assert len(lb.fytd) == 2
+        assert list(lb.to_dataframe(["ACME", "BENCH"]).columns) == [
+            "mtd",
+            "qtd",
+            "ytd",
+            "fytd",
+        ]
+        assert "fytd_len=2" in repr(lb)
+        assert "has_fytd" not in repr(lb)
 
     def test_lookback_with_fiscal_month(self, perf_prices: Performance) -> None:
         lb = perf_prices.lookback_returns(date(2024, 2, 29), fiscal_year_start_month=4)
-        assert lb.fytd is not None
         assert len(lb.fytd) == 2
+
+    def test_lookback_rejects_null_fytd_json(self) -> None:
+        with pytest.raises(ValueError, match="invalid type: null"):
+            LookbackReturns.from_json('{"mtd":[],"qtd":[],"ytd":[],"fytd":null}')
 
     def test_lookback_rejects_invalid_fiscal_month(self, perf_prices: Performance) -> None:
         with pytest.raises(AnalyticsError, match="Invalid"):

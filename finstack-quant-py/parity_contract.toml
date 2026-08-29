@@ -259,8 +259,8 @@ aggregation  = { python = "finstack_quant.analytics", status = "flattened", note
 benchmark    = { python = "finstack_quant.analytics", status = "flattened", note = "Reachable via Performance.beta / .greeks / .rolling_greeks; freestanding bindings removed" }
 correlation  = { python = "finstack_quant.models.correlation", status = "exists", note = "Matrix/statistical correlation remains analytics-owned; reusable copula and credit-correlation models are exposed through finstack_quant.models.correlation." }
 drawdown     = { python = "finstack_quant.analytics", status = "flattened", note = "Reachable via Performance.max_drawdown / .mean_drawdown / .drawdown_series / .drawdown_details" }
-lookback     = { python = "finstack_quant.analytics", status = "flattened", note = "Reachable via Performance.lookback_returns" }
-performance  = { python = "finstack_quant.analytics", status = "flattened", note = "Performance class is the sole entry point on finstack_quant.analytics. Known gap: Rust Performance::periodic_returns (the raw per-ticker (Date, f64) panel) is unbound in BOTH hosts — Python exposes only its DataFrame derivative to_periodic_returns_dataframe; WASM has no equivalent." }
+lookback     = { python = "finstack_quant.analytics", status = "flattened", note = "Reachable via Performance.lookback_returns. Rust, Python, and WASM always expose LookbackReturns.fytd as a non-null per-ticker vector; the serialized field name is fytd." }
+performance  = { python = "finstack_quant.analytics", status = "flattened", note = "Performance class is the sole entry point on finstack_quant.analytics. Canonical Rust Performance::periodic_returns is shared as Python Performance.periodic_returns and WASM Performance.periodicReturns; Python additionally provides the pandas convenience exit to_periodic_returns_dataframe from the same Rust method." }
 regression   = { python = "finstack_quant.analytics", status = "flattened", note = "constrained_least_squares (Jeet & Partani 2023, Appendix A) exposed flat on finstack_quant.analytics; plain numeric list[float] API, no JSON envelope" }
 returns      = { python = "finstack_quant.analytics", status = "flattened", note = "Reachable via Performance constructors (prices) / Performance.from_returns. Naming exception: Python Performance.from_returns takes a DataFrame; the Rust-shaped (dates, returns, ticker_names) constructor is Performance.from_returns_arrays. Price-constructor asymmetry (parallel to the from_returns exception): Python Performance.new is DataFrame-first (a prices DataFrame) with the Rust-shaped (dates, prices, ticker_names) constructor as Performance.from_arrays; Rust and WASM expose only the array-shaped constructor (WASM `new Performance(dates, prices, tickerNames, ...)`)." }
 risk_metrics = { python = "finstack_quant.analytics", status = "flattened", note = "Reachable via Performance scalar methods (CAGR/Sharpe/Sortino/VaR/etc.)" }
@@ -312,7 +312,10 @@ python_only = [
 # to_correlation_dataframe, to_drawdown_details_dataframe,
 # to_lookback_returns_dataframe), which are DataFrame marshalling with no
 # JS equivalent.
-method_gaps_note = "Performance: from_arrays, from_returns_arrays, and the nine DataFrame methods (to_dataframe, to_summary_dataframe, to_returns_dataframe, to_cumulative_returns_dataframe, to_periodic_returns_dataframe, to_drawdown_series_dataframe, to_correlation_dataframe, to_drawdown_details_dataframe, to_lookback_returns_dataframe) are Python-only; Rust Performance::periodic_returns itself is unbound in both hosts."
+method_gaps_note = "Performance: from_arrays, from_returns_arrays, and the nine DataFrame methods (to_dataframe, to_summary_dataframe, to_returns_dataframe, to_cumulative_returns_dataframe, to_periodic_returns_dataframe, to_drawdown_series_dataframe, to_correlation_dataframe, to_drawdown_details_dataframe, to_lookback_returns_dataframe) are Python-only."
+
+[wasm_analytics_subset.shared_methods]
+"Performance.periodic_returns" = "Performance.periodicReturns"
 
 [wasm_analytics_subset.python_js_map]
 Performance = "Performance"

@@ -72,7 +72,7 @@ returns them.
 | Item | Module | Notes |
 |------|--------|-------|
 | `Performance` | `performance` | Entry point |
-| `LookbackReturns` | `performance` | `mtd` / `qtd` / `ytd` / optional `fytd`, one entry per ticker |
+| `LookbackReturns` | `performance` | `mtd` / `qtd` / `ytd` / `fytd`, one entry per ticker |
 | `PeriodStats` | `aggregation` | Best/worst, win rate, streaks, payoff and profit factors, CPC index |
 | `DrawdownEpisode` | `drawdown` | Returned by `Performance::drawdown_details` |
 | `BetaResult`, `GreeksResult`, `RollingGreeks`, `MultiFactorResult`, `ReturnKind` | `benchmark` | Returned / consumed by benchmark methods |
@@ -167,11 +167,12 @@ Higham failure.
 
 ## Serialization
 
-`Performance`, `LookbackReturns`, `PeriodStats`, `DrawdownEpisode`,
-`BetaResult`, `GreeksResult`, `MultiFactorResult`, `RollingGreeks`, and
-`DatedSeries` derive `Serialize`/`Deserialize`. The `PeriodStats` fields that
-can legitimately be `±∞` (`payoff_ratio`, `profit_factor`, `cpc_ratio`,
-`kelly_criterion`) go through
+`Performance` derives `Serialize` only for its Python `repr`; its private
+cached state is not deserializable and must be built through the validated
+constructors. `LookbackReturns`, `PeriodStats`, `DrawdownEpisode`, `BetaResult`,
+`GreeksResult`, `MultiFactorResult`, `RollingGreeks`, and `DatedSeries` derive
+`Serialize`/`Deserialize`. The `PeriodStats` fields that can legitimately be
+`±∞` (`payoff_ratio`, `profit_factor`, `cpc_ratio`, `kelly_criterion`) go through
 `finstack_quant_core::wire::non_finite_f64` so JSON round-trips exactly. See
 [`docs/SERDE_STABILITY.md`](../../docs/SERDE_STABILITY.md).
 

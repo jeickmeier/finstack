@@ -1381,7 +1381,8 @@ risk calculation with a standard reference.
 
 - Gregoriou, G. N., and Gueyie, J.-P. "Risk-Adjusted Performance of Funds of
   Hedge Funds Using a Modified Sharpe Ratio." Canonical reference for the
-  modified Sharpe ratio.
+  modified Sharpe ratio: mean excess return divided by modified VaR measured
+  at the corresponding horizon.
 
 <a id="jpmorgan1996RiskMetrics"></a>
 

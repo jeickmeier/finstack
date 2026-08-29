@@ -131,6 +131,10 @@ fn analytics_dts_matches_runtime_hotspots() {
     );
     let ticker_names_docs = preceding_jsdoc(&dts, "  tickerNames(): string[];");
     let drawdown_duration_docs = preceding_jsdoc(&dts, "  maxDrawdownDuration(): number[];");
+    let periodic_returns_docs = preceding_jsdoc(
+        &dts,
+        "  periodicReturns(frequency?: string): PeriodicReturnPoint[][];",
+    );
 
     assert!(dts.contains("export declare class Performance {"));
     assert!(dts.contains("Performance: typeof Performance;"));
@@ -146,6 +150,25 @@ fn analytics_dts_matches_runtime_hotspots() {
         &dts,
         "activeDatesForTicker(tickerIdx: number): string[];",
     ));
+    assert!(dts.contains("export interface PeriodicReturnPoint {"));
+    assert!(contains_ignoring_ws(
+        &dts,
+        "periodicReturns(frequency?: string): PeriodicReturnPoint[][];",
+    ));
+    assert!(periodic_returns_docs.contains("The outer array is ticker-major"));
+    for token in [
+        "daily",
+        "weekly",
+        "monthly",
+        "quarterly",
+        "semiannual",
+        "annual",
+    ] {
+        assert!(periodic_returns_docs.contains(token));
+    }
+    assert!(periodic_returns_docs.contains("decimal `value` fields"));
+    assert!(periodic_returns_docs.contains("@throws Error"));
+    assert!(periodic_returns_docs.contains("@example"));
     assert!(dts.contains("export type NumericMatrix = NumericArray[];"));
     assert!(contains_signature(
         &dts,
@@ -189,6 +212,8 @@ fn analytics_dts_matches_runtime_hotspots() {
         &dts,
         "lookbackReturns(refDate: string, fiscalYearStartMonth?: number, fiscalYearStartDay?: number): LookbackReturns;",
     ));
+    assert!(contains_ignoring_ws(&dts, "fytd: number[];"));
+    assert!(!dts.contains("fytd: number[] | null;"));
     assert!(contains_ignoring_ws(
         &dts,
         "rollingReturns(tickerIdx: number, window: number): DatedSeries;",

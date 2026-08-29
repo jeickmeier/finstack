@@ -20,6 +20,7 @@ finstack-quant-wasm/types/generated/DiscountCurveParams.ts
 finstack-quant-wasm/types/generated/DiscountCurveSolveConfig.ts
 finstack-quant-wasm/types/generated/DividendScheduleDatum.ts
 finstack-quant-wasm/types/generated/ForwardCurveParams.ts
+finstack-quant-wasm/types/generated/ForwardCurveSolveConfig.ts
 finstack-quant-wasm/types/generated/FxQuote.ts
 finstack-quant-wasm/types/generated/FxSpotDatum.ts
 finstack-quant-wasm/types/generated/HazardCurveParams.ts

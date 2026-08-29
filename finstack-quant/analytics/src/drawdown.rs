@@ -853,9 +853,7 @@ mod drawdown_ratio_tests {
     fn drawdown_composite_helpers_compose_correctly() {
         let returns = [0.01, -0.02, 0.015, -0.005, 0.012, 0.008];
         let ann = 252.0;
-        let cagr_val =
-            crate::risk_metrics::cagr(&returns, crate::risk_metrics::CagrBasis::factor(ann), None)
-                .expect("valid CAGR");
+        let cagr_val = crate::risk_metrics::cagr_from_factor(&returns, ann).expect("valid CAGR");
         let dd = to_drawdown_series(&returns);
         let max_dd = dd.iter().copied().fold(0.0_f64, f64::min);
         let ulcer = ulcer_index(&dd);

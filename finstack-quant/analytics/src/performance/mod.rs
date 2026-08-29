@@ -57,7 +57,7 @@ mod scalar;
 /// assert_eq!(perf.cagr(finstack_quant_analytics::CagrDayCount::Act365_25, None)?.len(), 2);
 /// # Ok::<(), finstack_quant_core::Error>(())
 /// ```
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize)]
 pub struct Performance {
     price_dates: Vec<Date>,
     dates: Vec<Date>,
@@ -72,7 +72,7 @@ pub struct Performance {
     end_idx: usize,
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize)]
 struct TickerSpan {
     start: usize,
     end: usize,
@@ -899,6 +899,6 @@ pub struct LookbackReturns {
     pub qtd: Vec<f64>,
     /// Year-to-date compounded return per ticker.
     pub ytd: Vec<f64>,
-    /// Fiscal-year-to-date compounded return per ticker (None if no fiscal config).
-    pub fytd: Option<Vec<f64>>,
+    /// Fiscal-year-to-date compounded return per ticker.
+    pub fytd: Vec<f64>,
 }

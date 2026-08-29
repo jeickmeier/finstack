@@ -19,6 +19,8 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::collections::BTreeSet;
 
+type PyPeriodicReturnPanel<'py> = Vec<Vec<(Bound<'py, PyAny>, f64)>>;
+
 /// Wrap a `Vec<f64>` as a NumPy `float64` array, taking ownership of the
 /// buffer so no per-element `PyFloat` boxing occurs.
 fn vec_to_pyarray<'py>(py: Python<'py>, values: Vec<f64>) -> Bound<'py, PyArray1<f64>> {
@@ -991,6 +993,12 @@ impl PyPerformance {
 
     /// Modified Sharpe ratio for each ticker.
     ///
+    /// Uses annualized excess return in the numerator and Cornish-Fisher VaR
+    /// at the corresponding annual horizon in the denominator. The panel
+    /// frequency determines the periods-per-year scaling for both terms,
+    /// including the horizon decay of skewness and excess kurtosis; the
+    /// denominator is not one-period VaR.
+    ///
     /// Returns
     /// -------
     /// pandas.Series
@@ -1068,6 +1076,38 @@ impl PyPerformance {
     /// Cumulative returns for each ticker.
     fn cumulative_returns(&self) -> Vec<Vec<f64>> {
         self.inner.cumulative_returns()
+    }
+
+    /// Calendar-bucketed compounded returns for each ticker.
+    ///
+    /// ``frequency`` accepts ``"daily"``, ``"weekly"``, ``"monthly"``,
+    /// ``"quarterly"``, ``"semiannual"``, or ``"annual"``. The outer list is
+    /// ticker-major in :attr:`ticker_names` order. Each inner list contains
+    /// chronological ``(period_end_date, compounded_return)`` tuples, where
+    /// returns are decimal fractions (``0.01`` means 1%). Chaining the values
+    /// for a ticker reconciles with its final :meth:`cumulative_returns` value.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``frequency`` is not a supported token.
+    #[pyo3(signature = (frequency = "monthly"))]
+    fn periodic_returns<'py>(
+        &self,
+        py: Python<'py>,
+        frequency: &str,
+    ) -> PyResult<PyPeriodicReturnPanel<'py>> {
+        let kind = parse_frequency(frequency)?;
+        let panel = self.inner.periodic_returns(kind);
+        panel
+            .into_iter()
+            .map(|series| {
+                series
+                    .into_iter()
+                    .map(|(date, value)| Ok((date_to_py(py, date)?, value)))
+                    .collect()
+            })
+            .collect()
     }
 
     /// Drawdown series for each ticker.
@@ -1388,7 +1428,8 @@ impl PyPerformance {
     /// ``frequency`` is one of ``"daily"``, ``"weekly"``, ``"monthly"``,
     /// ``"quarterly"``, ``"semiannual"``, or ``"annual"``. Returns a DataFrame
     /// indexed by period-end date with one column per ticker; buckets reconcile
-    /// with :meth:`to_cumulative_returns_dataframe`.
+    /// with :meth:`to_cumulative_returns_dataframe`. This convenience exit is
+    /// built from the same canonical Rust result as :meth:`periodic_returns`.
     #[pyo3(signature = (frequency = "monthly"))]
     fn to_periodic_returns_dataframe<'py>(
         &self,
@@ -1496,9 +1537,7 @@ impl PyPerformance {
         data.set_item("mtd", slice_to_pyarray(py, &lb.mtd))?;
         data.set_item("qtd", slice_to_pyarray(py, &lb.qtd))?;
         data.set_item("ytd", slice_to_pyarray(py, &lb.ytd))?;
-        if let Some(ref fytd) = lb.fytd {
-            data.set_item("fytd", slice_to_pyarray(py, fytd))?;
-        }
+        data.set_item("fytd", slice_to_pyarray(py, &lb.fytd))?;
 
         let idx = ticker_index(py, self.inner.ticker_names())?;
         dict_to_dataframe(py, &data, Some(idx))

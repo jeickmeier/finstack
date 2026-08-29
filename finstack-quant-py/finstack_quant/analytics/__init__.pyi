@@ -1142,7 +1142,7 @@ class LookbackReturns:
     >>> from finstack_quant.analytics import Performance
     >>> dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(5)]
     >>> perf = Performance.from_arrays(dates, [[100.0, 90.0, 95.0, 80.0, 100.0]], ["FUND"])
-    >>> len(perf.lookback_returns(date(2024, 1, 5)).mtd)
+    >>> len(perf.lookback_returns(date(2024, 1, 5)).fytd)
     1
     """
 
@@ -1240,14 +1240,15 @@ class LookbackReturns:
         """
 
     @property
-    def fytd(self) -> npt.NDArray[np.float64] | None:
+    def fytd(self) -> npt.NDArray[np.float64]:
         """
-        Fiscal-year-to-date returns when a fiscal config is provided.
+        Fiscal-year-to-date returns per ticker.
 
         Returns
         -------
-        npt.NDArray[np.float64] or None
-            Array of FYTD returns, or ``None`` when no fiscal config is set.
+        npt.NDArray[np.float64]
+            Array of FYTD returns, one per ticker. The fiscal calendar defaults
+            to a January-1 start when no fiscal configuration is supplied.
 
         Notes
         -----
@@ -1258,7 +1259,7 @@ class LookbackReturns:
         """
         Convert to a pandas DataFrame with ticker names as index.
 
-        Columns: ``mtd``, ``qtd``, ``ytd`` (and ``fytd`` when available).
+        Columns: ``mtd``, ``qtd``, ``ytd``, and ``fytd``.
 
         Parameters
         ----------
@@ -1268,7 +1269,8 @@ class LookbackReturns:
         Returns
         -------
         pd.DataFrame
-            DataFrame indexed by ticker name with lookback return columns.
+            DataFrame indexed by ticker name with the four lookback return
+            columns, including ``fytd``.
 
         Raises
         ------
@@ -2529,12 +2531,19 @@ class Performance:
         """
         Modified Sharpe ratio for each ticker.
 
+        The numerator is annualized excess return and the denominator is
+        Cornish-Fisher VaR at the corresponding annual horizon. The panel
+        frequency supplies the periods-per-year scaling for both terms,
+        including the horizon decay of skewness and excess kurtosis; this
+        method does not divide an annualized numerator by one-period VaR.
+
         Parameters
         ----------
         risk_free_rate : float, default 0.0
-            Annualized risk-free rate as a decimal.
+            Annualized risk-free rate as a decimal, decompounded to the panel
+            frequency before constructing annualized excess return.
         confidence : float, default 0.95
-            Confidence level for VaR.
+            Confidence level for annual-horizon Cornish-Fisher VaR.
 
         Returns
         -------
@@ -3006,7 +3015,8 @@ class Performance:
         Returns
         -------
         LookbackReturns
-            :class:`LookbackReturns` with MTD, QTD, YTD, and optional FYTD.
+            :class:`LookbackReturns` with mandatory MTD, QTD, YTD, and FYTD
+            vectors, each containing one value per ticker.
 
         Raises
         ------
@@ -3047,6 +3057,47 @@ class Performance:
         ValueError
             If *fiscal_year_start_month* is not in ``1..=12`` or
             *fiscal_year_start_day* is not in ``1..=31``.
+        """
+
+    def periodic_returns(
+        self,
+        frequency: str = "monthly",
+    ) -> list[list[tuple[datetime.date, float]]]:
+        """
+        Calendar-bucketed compounded returns for all tickers.
+
+        Parameters
+        ----------
+        frequency : str, default "monthly"
+            Calendar-bucketing frequency: one of ``"daily"``, ``"weekly"``,
+            ``"monthly"``, ``"quarterly"``, ``"semiannual"``, or
+            ``"annual"``.
+
+        Returns
+        -------
+        list[list[tuple[datetime.date, float]]]
+            Ticker-major panel in :attr:`ticker_names` order. Each inner list
+            contains chronological ``(period_end_date, compounded_return)``
+            points. Returns are simple decimal fractions (``0.01`` means 1%);
+            chaining one ticker's points reconciles with the final value from
+            :meth:`cumulative_returns`.
+
+        Raises
+        ------
+        ValueError
+            If ``frequency`` is not a supported token.
+
+        Examples
+        --------
+        >>> from datetime import date
+        >>> perf = Performance.from_returns_arrays(
+        ...     [date(2024, 1, 1), date(2024, 1, 2)],
+        ...     [[0.01, 0.02]],
+        ...     ["FUND"],
+        ... )
+        >>> panel = perf.periodic_returns()
+        >>> (len(panel), panel[0][0][0], round(panel[0][0][1], 4))
+        (1, datetime.date(2024, 1, 2), 0.0302)
         """
 
     # -- DataFrame export methods --
@@ -3155,7 +3206,8 @@ class Performance:
         pd.DataFrame
             Compounded period returns indexed by period-end date, one column
             per ticker. Buckets reconcile with
-            :meth:`to_cumulative_returns_dataframe`.
+            :meth:`to_cumulative_returns_dataframe`. This convenience exit is
+            built from the same canonical result as :meth:`periodic_returns`.
 
         Raises
         ------

@@ -78,11 +78,7 @@ impl Performance {
                     }
                     .into());
                 };
-                risk_metrics::cagr(
-                    self.active_returns(i),
-                    risk_metrics::CagrBasis::dates_with(start, end, day_count),
-                    calendar,
-                )
+                risk_metrics::cagr(self.active_returns(i), start, end, day_count, calendar)
             })
             .collect()
     }
@@ -583,12 +579,19 @@ impl Performance {
 
     /// Modified Sharpe ratio for each ticker.
     ///
+    /// Computes annualized excess return divided by the absolute
+    /// Cornish-Fisher VaR at the same annual horizon. The panel frequency
+    /// determines the periods-per-year factor used for both terms, including
+    /// the horizon scaling of Cornish-Fisher skewness and excess kurtosis.
+    /// Using one-period VaR here would mismatch the annualized numerator.
+    ///
     /// # Arguments
     ///
     /// * `risk_free_rate` - Annualized risk-free rate in decimal form.
     ///   Decompounded to the panel frequency before subtraction, matching
     ///   [`Self::sharpe`].
-    /// * `confidence`     - Cornish-Fisher VaR confidence level in `(0, 1)`.
+    /// * `confidence`     - Annual-horizon Cornish-Fisher VaR confidence level
+    ///   in `(0, 1)`.
     ///
     /// # Returns
     ///
@@ -609,7 +612,7 @@ impl Performance {
 mod from_returns_cagr_tests {
 
     use crate::dates::{Date, Month, PeriodKind};
-    use crate::risk_metrics::{cagr, CagrBasis, CagrDayCount};
+    use crate::risk_metrics::{cagr, CagrDayCount};
     use crate::Performance;
 
     fn d(year: i32, month: Month, day: u8) -> Date {
@@ -635,13 +638,17 @@ mod from_returns_cagr_tests {
         let actual = perf.cagr(CagrDayCount::default(), None).expect("cagr")[0];
         let expected = cagr(
             &returns[0],
-            CagrBasis::dates(d(2022, Month::December, 31), d(2023, Month::March, 31)),
+            d(2022, Month::December, 31),
+            d(2023, Month::March, 31),
+            CagrDayCount::default(),
             None,
         )
         .expect("expected cagr");
         let invented_gap = cagr(
             &returns[0],
-            CagrBasis::dates(d(2023, Month::January, 3), d(2023, Month::March, 31)),
+            d(2023, Month::January, 3),
+            d(2023, Month::March, 31),
+            CagrDayCount::default(),
             None,
         )
         .expect("gap-invented cagr");
@@ -664,13 +671,17 @@ mod from_returns_cagr_tests {
         let actual = perf.cagr(CagrDayCount::default(), None).expect("cagr")[0];
         let expected = cagr(
             &returns[0],
-            CagrBasis::dates(d(2024, Month::January, 2), d(2024, Month::January, 5)),
+            d(2024, Month::January, 2),
+            d(2024, Month::January, 5),
+            CagrDayCount::default(),
             None,
         )
         .expect("expected cagr");
         let two_day_prior = cagr(
             &returns[0],
-            CagrBasis::dates(d(2024, Month::January, 1), d(2024, Month::January, 5)),
+            d(2024, Month::January, 1),
+            d(2024, Month::January, 5),
+            CagrDayCount::default(),
             None,
         )
         .expect("two-day-prior cagr");

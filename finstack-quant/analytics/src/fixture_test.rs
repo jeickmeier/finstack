@@ -6,7 +6,7 @@
 
 use crate::benchmark::{multi_factor_greeks, rolling_greeks, ReturnKind};
 use crate::dates::Date;
-use crate::risk_metrics::{cagr, expected_shortfall, sharpe, sortino, value_at_risk, CagrBasis};
+use crate::risk_metrics::{cagr_from_factor, expected_shortfall, sharpe, sortino, value_at_risk};
 use serde::Deserialize;
 
 const API_INVARIANTS_FIXTURE: &str = include_str!("../tests/data/api_invariants_data.json");
@@ -70,7 +70,7 @@ fn rust_core_matches_api_invariants_fixture() {
     let expected = &fixture.expected;
 
     assert_close(
-        cagr(&fixture.returns, CagrBasis::factor(252.0), None).expect("valid fixture CAGR"),
+        cagr_from_factor(&fixture.returns, 252.0).expect("valid fixture CAGR"),
         expected.cagr_factor,
     );
     assert_close(sharpe(0.12, 0.18, 0.02, 1.0), expected.sharpe);
