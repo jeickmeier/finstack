@@ -82,9 +82,10 @@
 //!
 //! - **Public**: `finstack_quant_valuations::instruments::*` — instrument types, shared traits
 //!   (`Instrument`, ...), parameter types, and the `pricing`
-//!   submodule for shared pricing infrastructure.
-//! - **Internal**: `common_impl` is crate-private plumbing; nothing below it needs to be
-//!   referenced from outside the crate.
+//!   submodule for shared pricing infrastructure used by this crate and by
+//!   `finstack-quant-calibration` (`swap_legs`, overnight conventions, time helpers).
+//! - **Internal**: `common_impl` is crate-private. A few of its modules are
+//!   re-exported through `pricing` and the instrument root.
 //!
 //! # Supported Instrument Types
 //!
@@ -150,9 +151,13 @@ pub(crate) mod common_impl;
 
 mod marginable;
 
-/// Shared pricing infrastructure (schedules, generic pricers, TRS engine, etc.).
+/// Shared pricing helpers used by this crate and `finstack-quant-calibration`.
 pub mod pricing {
-    pub use super::common_impl::pricing::*;
+    pub use super::common_impl::pricing::overnight_conventions;
+    pub use super::common_impl::pricing::swap_legs;
+    pub use super::common_impl::pricing::time;
+    #[doc(hidden)]
+    pub use super::common_impl::pricing::GenericInstrumentPricer;
 }
 
 /// Per-flow cashflow export with DF / survival / PV columns.

@@ -75,10 +75,13 @@ pub(super) fn enrich(
             base_result.value,
             metrics,
             MetricBuildOptions {
-                cfg,
-                market_history,
-                recalibration_provider,
-                metric_registry,
+                pricing: crate::instruments::PricingOptions {
+                    config: cfg,
+                    market_history,
+                    recalibration_provider,
+                    metric_registry,
+                    ..crate::instruments::PricingOptions::default()
+                },
                 pricing_dispatch: crate::pricer::PricingDispatch::registered(
                     model,
                     pricer_registry,
@@ -107,10 +110,13 @@ pub(super) fn enrich(
             base_result.value,
             &spread_metrics,
             MetricBuildOptions {
-                cfg: cfg.clone(),
-                market_history: market_history.clone(),
-                recalibration_provider: recalibration_provider.clone(),
-                metric_registry: metric_registry.clone(),
+                pricing: crate::instruments::PricingOptions {
+                    config: cfg.clone(),
+                    market_history: market_history.clone(),
+                    recalibration_provider: recalibration_provider.clone(),
+                    metric_registry: metric_registry.clone(),
+                    ..crate::instruments::PricingOptions::default()
+                },
                 ..MetricBuildOptions::default()
             },
         )
@@ -127,10 +133,13 @@ pub(super) fn enrich(
             base_result.value,
             &risk_metrics,
             MetricBuildOptions {
-                cfg,
-                market_history,
-                recalibration_provider,
-                metric_registry,
+                pricing: crate::instruments::PricingOptions {
+                    config: cfg,
+                    market_history,
+                    recalibration_provider,
+                    metric_registry,
+                    ..crate::instruments::PricingOptions::default()
+                },
                 pricing_dispatch: crate::pricer::PricingDispatch::registered(
                     model,
                     pricer_registry,

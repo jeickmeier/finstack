@@ -641,28 +641,13 @@ fn black76_unit_price(
     df: f64,
     option_type: OptionType,
 ) -> f64 {
-    if t <= 0.0 || sigma <= 0.0 {
-        let intrinsic = match option_type {
-            OptionType::Call => (forward - strike).max(0.0),
-            OptionType::Put => (strike - forward).max(0.0),
-        };
-        return intrinsic * df;
-    }
-
-    let d1 = finstack_quant_models::d1_black76(forward, strike, sigma, t);
-    let d2 = finstack_quant_models::d2_black76(forward, strike, sigma, t);
-
-    let price = match option_type {
+    let undiscounted = match option_type {
         OptionType::Call => {
-            forward * finstack_quant_core::math::norm_cdf(d1)
-                - strike * finstack_quant_core::math::norm_cdf(d2)
+            finstack_quant_models::closed_form::black_call(forward, strike, sigma, t)
         }
-        OptionType::Put => {
-            strike * finstack_quant_core::math::norm_cdf(-d2)
-                - forward * finstack_quant_core::math::norm_cdf(-d1)
-        }
+        OptionType::Put => finstack_quant_models::closed_form::black_put(forward, strike, sigma, t),
     };
-    price * df
+    undiscounted * df
 }
 
 impl Instrument for CommodityOption {
@@ -1269,7 +1254,7 @@ mod tests {
                     .build()
                     .expect("vol surface"),
             );
-        let registry = crate::pricer::standard_registry();
+        let registry = crate::pricer::standard_pricer_registry();
 
         let default = option
             .price_with_metrics(

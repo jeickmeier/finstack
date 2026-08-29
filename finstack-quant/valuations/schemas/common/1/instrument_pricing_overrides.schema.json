@@ -249,20 +249,6 @@
         }
       ]
     },
-    "ClosedUnitIntervalF64Wire": {
-      "description": "Finite JSON number in the closed interval `[0, 1]`.",
-      "format": "double",
-      "maximum": 1.0,
-      "minimum": 0.0,
-      "type": "number"
-    },
-    "CorrelationWire": {
-      "description": "Finite correlation coefficient in the closed interval `[-1, 1]`.",
-      "format": "double",
-      "maximum": 1.0,
-      "minimum": -1.0,
-      "type": "number"
-    },
     "CreditStateVariable": {
       "description": "Which credit metric drives the toggle decision.",
       "oneOf": [
@@ -1770,17 +1756,6 @@
             "null"
           ]
         },
-        "sabr_params": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SabrParameters"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Optional SABR volatility model parameters."
-        },
         "structured_credit_pool_granularity": {
           "anyOf": [
             {
@@ -1812,11 +1787,6 @@
             "integer",
             "null"
           ]
-        },
-        "use_gobet_miri": {
-          "default": false,
-          "description": "Use Gobet-Miri discrete monitoring correction for barrier options.\n\nWhen true, uses a Monte Carlo correction for discrete monitoring.\nWhen false, uses analytical continuous monitoring pricing.",
-          "type": "boolean"
         },
         "vol_model": {
           "anyOf": [
@@ -1855,12 +1825,6 @@
         "currency"
       ],
       "type": "object"
-    },
-    "NonNegativeF64Wire": {
-      "description": "Finite JSON number greater than or equal to zero.",
-      "format": "double",
-      "minimum": 0.0,
-      "type": "number"
     },
     "OasPriceBasis": {
       "description": "Price/accrual convention used for OAS inversion targets.",
@@ -2064,12 +2028,6 @@
         }
       ]
     },
-    "PositiveF64Wire": {
-      "description": "Finite JSON number that is strictly greater than zero.\n\nThis type is used by serde field adapters so runtime deserialization and\ngenerated schemas enforce the same positive-number contract.",
-      "exclusiveMinimum": 0.0,
-      "format": "double",
-      "type": "number"
-    },
     "RecoveryModel": {
       "description": "Recovery model specification.",
       "oneOf": [
@@ -2159,46 +2117,6 @@
           "type": "object"
         }
       ]
-    },
-    "SabrParameters": {
-      "additionalProperties": false,
-      "description": "SABR model parameters",
-      "properties": {
-        "alpha": {
-          "$ref": "#/$defs/PositiveF64Wire",
-          "description": "Initial volatility (alpha)"
-        },
-        "beta": {
-          "$ref": "#/$defs/ClosedUnitIntervalF64Wire",
-          "description": "CEV exponent (beta) - typically 0 to 1"
-        },
-        "nu": {
-          "$ref": "#/$defs/NonNegativeF64Wire",
-          "description": "Volatility of volatility (nu/volvol)"
-        },
-        "rho": {
-          "$ref": "#/$defs/CorrelationWire",
-          "description": "Correlation between asset and volatility (rho)"
-        },
-        "shift": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/PositiveF64Wire"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Shift parameter for handling negative rates (optional)"
-        }
-      },
-      "required": [
-        "alpha",
-        "beta",
-        "nu",
-        "rho"
-      ],
-      "type": "object"
     },
     "StochasticToggle": {
       "description": "Stochastic (sigmoid) toggle configuration.",

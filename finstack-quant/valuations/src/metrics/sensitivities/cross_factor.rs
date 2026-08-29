@@ -337,7 +337,6 @@ pub(crate) fn make_fx_bumper(context: &MetricContext) -> Result<Option<Box<dyn F
 
 /// Generic cross-factor calculator using runtime bumper factories.
 pub struct CrossFactorCalculator {
-    pair: CrossFactorPair,
     factory_a: BumperFactoryFn,
     factory_b: BumperFactoryFn,
 }
@@ -345,20 +344,14 @@ pub struct CrossFactorCalculator {
 impl CrossFactorCalculator {
     /// Creates a reusable cross-factor calculator for the given pair.
     pub(crate) fn new(
-        pair: CrossFactorPair,
+        _pair: CrossFactorPair,
         factory_a: BumperFactoryFn,
         factory_b: BumperFactoryFn,
     ) -> Self {
         Self {
-            pair,
             factory_a,
             factory_b,
         }
-    }
-
-    /// Returns the pair this calculator represents.
-    pub fn pair(&self) -> CrossFactorPair {
-        self.pair
     }
 }
 

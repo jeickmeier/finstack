@@ -22,6 +22,7 @@ use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 use super::instruments::{
     enum_from_str, parse_typed_instrument_json, serialize_typed_instrument_json,
 };
+use super::pricing::binding_pricing_options;
 use super::PyValuationResult;
 
 /// Price a typed instrument envelope through the canonical Rust pricer.
@@ -41,22 +42,23 @@ fn price_envelope(
     let model = model.to_owned();
     let pricing_options = pricing_options.map(str::to_owned);
     let market_history = market_history.map(str::to_owned);
+    let instrument = py.detach(move || {
+        finstack_quant_valuations::pricer::parse_boxed_instrument_json(
+            &envelope_json,
+            pricing_options.as_deref(),
+        )
+        .map_err(core_to_py)
+    })?;
     let inner = py
         .detach(move || {
-            finstack_quant_valuations::pricer::price_instrument_json(
-                finstack_quant_valuations::pricer::JsonPricingRequest {
-                    instrument_json: &envelope_json,
-                    market: &market,
-                    as_of: &as_of,
-                    model: &model,
-                    metrics: &metrics,
-                    instrument_pricing_overrides_json: pricing_options.as_deref(),
-                    market_history_json: market_history.as_deref(),
-                    pricing_options: finstack_quant_valuations::instruments::PricingOptions::default()
-                        .with_recalibration_provider(std::sync::Arc::new(
-                            finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
-                        )),
-                },
+            finstack_quant_valuations::pricer::price_instrument(
+                &instrument,
+                &market,
+                &as_of,
+                &model,
+                &metrics,
+                market_history.as_deref(),
+                binding_pricing_options(),
             )
         })
         .map_err(core_to_py)?;
@@ -76,26 +78,16 @@ fn envelope_metric_value(
     let as_of = crate::bindings::date_utils::extract_date_iso(as_of)?;
     let model = model.to_owned();
     py.detach(move || {
-        let metrics = [metric.to_string()];
-        let result = finstack_quant_valuations::pricer::price_instrument_json(
-            finstack_quant_valuations::pricer::JsonPricingRequest {
-                instrument_json: &envelope_json,
-                market: &market,
-                as_of: &as_of,
-                model: &model,
-                metrics: &metrics,
-                instrument_pricing_overrides_json: None,
-                market_history_json: None,
-                pricing_options: finstack_quant_valuations::instruments::PricingOptions::default()
-                    .with_recalibration_provider(std::sync::Arc::new(
-                        finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(
-                        ),
-                    )),
-            },
-        )?;
-        result.metric_str(metric).ok_or_else(|| {
-            finstack_quant_core::Error::Validation(format!("metric `{metric}` was not returned"))
-        })
+        let instrument =
+            finstack_quant_valuations::pricer::parse_boxed_instrument_json(&envelope_json, None)?;
+        finstack_quant_valuations::pricer::metric_value(
+            &instrument,
+            &market,
+            &as_of,
+            &model,
+            metric,
+            binding_pricing_options(),
+        )
     })
     .map_err(core_to_py)
 }
@@ -117,27 +109,17 @@ fn envelope_option_greeks<'py>(
     let model = model.to_owned();
     let pairs = py
         .detach(move || {
-            let names = finstack_quant_valuations::pricer::STANDARD_OPTION_GREEKS;
-            let metrics = names.iter().map(|name| (*name).to_string()).collect::<Vec<_>>();
-            let result = finstack_quant_valuations::pricer::price_instrument_json(
-                finstack_quant_valuations::pricer::JsonPricingRequest {
-                    instrument_json: &envelope_json,
-                    market: &market,
-                    as_of: &as_of,
-                    model: &model,
-                    metrics: &metrics,
-                    instrument_pricing_overrides_json: None,
-                    market_history_json: None,
-                    pricing_options: finstack_quant_valuations::instruments::PricingOptions::default()
-                        .with_recalibration_provider(std::sync::Arc::new(
-                            finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
-                        )),
-                },
+            let instrument = finstack_quant_valuations::pricer::parse_boxed_instrument_json(
+                &envelope_json,
+                None,
             )?;
-            Ok::<_, finstack_quant_core::Error>(names
-                .iter()
-                .filter_map(|name| result.metric_str(name).map(|value| (*name, value)))
-                .collect::<Vec<_>>())
+            finstack_quant_valuations::pricer::present_standard_option_greeks(
+                &instrument,
+                &market,
+                &as_of,
+                &model,
+                binding_pricing_options(),
+            )
         })
         .map_err(core_to_py)?;
     let out = PyDict::new(py);

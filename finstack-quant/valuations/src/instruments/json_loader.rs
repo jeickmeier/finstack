@@ -647,10 +647,13 @@ impl InstrumentJson {
     ///
     /// Returns an error if spec validation fails during conversion.
     pub fn into_boxed(self) -> Result<Box<dyn Instrument>> {
-        let instrument: Box<dyn Instrument> =
-            with_instrument_json_registry!(instrument_json_into_boxed_match, self)?;
-        instrument.as_ref().validate_for_pricing()?;
-        Ok(instrument)
+        self.validate_for_pricing()?;
+        self.into_boxed_assuming_validated()
+    }
+
+    /// Box a payload that has already passed [`Self::validate_for_pricing`].
+    pub(crate) fn into_boxed_assuming_validated(self) -> Result<Box<dyn Instrument>> {
+        with_instrument_json_registry!(instrument_json_into_boxed_match, self)
     }
 
     /// Convert this JSON representation into a shared cashflow provider.

@@ -284,7 +284,7 @@ fn removed_option_discounting_aliases_return_unknown_pricer() {
     let equity_option = EquityOption::example().expect("equity option example");
     let swaption = Swaption::example();
     let commodity_option = CommodityOption::example();
-    let registry = standard_registry();
+    let registry = standard_pricer_registry();
     let market = MarketContext::new();
     let as_of = date!(2025 - 01 - 01);
 
@@ -325,7 +325,7 @@ fn removed_option_discounting_aliases_return_unknown_pricer() {
 }
 
 #[test]
-fn standard_registry_has_exact_expected_coverage() {
+fn standard_pricer_registry_has_exact_expected_coverage() {
     use InstrumentType as I;
     use ModelKey as M;
 
@@ -463,7 +463,7 @@ fn standard_registry_has_exact_expected_coverage() {
         (I::VolatilityIndexFutureOption, vec![M::Discounting]),
     ]);
 
-    assert_eq!(standard_registry().all_models_grouped(), expected);
+    assert_eq!(standard_pricer_registry().all_models_grouped(), expected);
 }
 
 #[test]
@@ -548,7 +548,7 @@ fn test_model_key_repr_values() {
 
 #[test]
 fn test_all_models_is_sorted_deduplicated_and_registry_derived() {
-    let registry = standard_registry();
+    let registry = standard_pricer_registry();
     let models = registry.all_models();
 
     assert!(!models.is_empty());
@@ -571,7 +571,7 @@ fn test_all_models_is_sorted_deduplicated_and_registry_derived() {
 
 #[test]
 fn test_all_models_grouped_agrees_with_available_models_for_instrument() {
-    let registry = standard_registry();
+    let registry = standard_pricer_registry();
     let grouped = registry.all_models_grouped();
     assert!(!grouped.is_empty());
 
@@ -590,8 +590,8 @@ fn test_all_models_grouped_agrees_with_available_models_for_instrument() {
 }
 
 #[test]
-fn test_list_models_mirrors_the_standard_registry_and_is_deterministic() {
-    let expected: Vec<String> = standard_registry()
+fn test_list_models_mirrors_the_standard_pricer_registry_and_is_deterministic() {
+    let expected: Vec<String> = standard_pricer_registry()
         .all_models()
         .into_iter()
         .map(|model| model.to_string())
@@ -630,7 +630,7 @@ fn test_list_models_grouped_covers_the_same_models_as_list_models() {
         grouped
             .get(&InstrumentType::Bond.to_string())
             .expect("bond models"),
-        &standard_registry()
+        &standard_pricer_registry()
             .available_models_for_instrument(InstrumentType::Bond)
             .into_iter()
             .map(|model| model.to_string())

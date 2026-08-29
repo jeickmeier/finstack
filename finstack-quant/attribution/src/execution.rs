@@ -217,11 +217,12 @@ impl AttributionSpec {
                 // calculators fall back to defaults and the config knob is
                 // silently inert (audit finding: spec.rs wrote the extension
                 // but pricing ran with `PricingOptions::default()`).
-                let pricing_options = finstack_quant_valuations::instruments::PricingOptions::new()
-                    .with_config(&config)
-                    .with_recalibration_provider(std::sync::Arc::new(
-                        CachedRecalibrationProvider::new(),
-                    ));
+                let pricing_options =
+                    finstack_quant_valuations::instruments::PricingOptions::default()
+                        .with_config(&config)
+                        .with_recalibration_provider(std::sync::Arc::new(
+                            CachedRecalibrationProvider::new(),
+                        ));
                 let val_t0 = instrument_arc.price_with_metrics(
                     &market_t0,
                     self.as_of_t0,

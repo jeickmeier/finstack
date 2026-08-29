@@ -230,7 +230,7 @@ fn test_full_recovery_rate_is_rejected() {
     cds.protection.recovery_rate = 1.0;
 
     // Pricing must surface a structured error rather than silently degenerate.
-    let registry = finstack_quant_valuations::pricer::standard_registry();
+    let registry = finstack_quant_valuations::pricer::standard_pricer_registry();
     let err = registry
         .price_with_metrics(
             &cds,

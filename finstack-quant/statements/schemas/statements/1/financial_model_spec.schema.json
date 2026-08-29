@@ -5540,17 +5540,6 @@
             "null"
           ]
         },
-        "sabr_params": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SabrParameters"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Optional SABR volatility model parameters."
-        },
         "structured_credit_pool_granularity": {
           "anyOf": [
             {
@@ -5582,11 +5571,6 @@
             "integer",
             "null"
           ]
-        },
-        "use_gobet_miri": {
-          "default": false,
-          "description": "Use Gobet-Miri discrete monitoring correction for barrier options.\n\nWhen true, uses a Monte Carlo correction for discrete monitoring.\nWhen false, uses analytical continuous monitoring pricing.",
-          "type": "boolean"
         },
         "vol_model": {
           "anyOf": [

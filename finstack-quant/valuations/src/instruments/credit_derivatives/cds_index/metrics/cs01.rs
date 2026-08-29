@@ -226,12 +226,10 @@ impl MetricCalculator for CdsIndexBucketedCs01Calculator {
                 KeyRateCs01Request {
                     series_id,
                     bump_bp,
-                    conventions: crate::recalibration::HazardRecalibrationConventions {
-                        discount_curve_id: discount_id.clone(),
-                        doc_clause: None,
-                        cds_valuation_convention: None,
-                        deal_quote_override: None,
-                    },
+                    discount_curve_id: discount_id.clone(),
+                    doc_clause: None,
+                    cds_valuation_convention: None,
+                    deal_quote_override: None,
                 },
                 reval,
             )?);

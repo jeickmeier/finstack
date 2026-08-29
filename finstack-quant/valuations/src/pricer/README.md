@@ -12,13 +12,23 @@ The ordering rules documented below — validate, resolve `as_of`, price unshock
 stamp metadata, apply the scenario shock exactly once, enrich with metrics — are
 therefore the whole pricing contract for anything reached by a `ModelKey`.
 
-One public pricing surface sits outside that contract and must not be assumed to
-follow it: `StructuredCredit::price_stochastic`, which runs its own
-`ValidatedPricingLifecycle` and returns a `StochasticPricingResult` without a
-registry lookup. The `pub(crate)` `PricerRegistry::price_raw` is a third
-exception: it shares the dispatch table and the validate / resolve-`as_of` /
-apply-shock steps, but returns an unrounded `f64` and never stamps metadata or
-enriches with metrics.
+A few typed methods sit outside that contract and are **advanced-only**. Hosts
+and ordinary Rust callers should stay on `price_with_metrics` /
+`price_instrument` with the matching `ModelKey`:
+
+- `StructuredCredit::price_stochastic` / `price_stochastic_with_mode` — covered
+  by `ModelKey::StructuredCreditStochastic` (`StructuredCreditStochasticPricer`
+  already calls `price_stochastic_base`).
+- `StructuredCredit::value_tranche` / `value_tranche_with_metrics` — per-tranche
+  convenience for tests and scenario metrics; deal-level PV still goes through
+  the registry.
+- `Bond::price_merton_mc` — covered by `ModelKey::MertonMc`.
+
+Those methods run their own lifecycle and return typed result structs, not a
+`ValuationResult`. The `pub(crate)` `PricerRegistry::price_raw` is a separate
+internal exception: it shares the dispatch table and the validate /
+resolve-`as_of` / apply-shock steps, but returns an unrounded `f64` and never
+stamps metadata or enriches with metrics.
 
 ## Position in the stack
 
@@ -38,7 +48,7 @@ in a different crate, reached by the MC instrument pricers.
 
 | Path | Contents | Visibility |
 |------|----------|------------|
-| [`mod.rs`](mod.rs) | `register_all_pricers`, `build_standard_registry`, the `standard_registry()` `OnceLock` singleton, the `register_generic!` macro, all re-exports | mixed |
+| [`mod.rs`](mod.rs) | `register_all_pricers`, `build_standard_registry`, the `standard_pricer_registry()` `OnceLock` singleton, the `register_generic!` macro, all re-exports | mixed |
 | [`keys.rs`](keys.rs) | `InstrumentType`, `ModelKey`, `PricerKey` — enums, `as_str`, `Display`, `FromStr`, serde | private mod, types re-exported |
 | [`registry.rs`](registry.rs) | `Pricer` trait, `PricerRegistry`, the pricing pipeline, `expect_inst`, FX-policy collection | private mod, items re-exported |
 | [`errors.rs`](errors.rs) | `PricingError`, `PricingErrorContext`, the two lossy conversions to/from `finstack_quant_core::Error` | private mod, types re-exported |
@@ -62,7 +72,7 @@ whose only public effect is what `register_all_pricers` assembles.
 Re-exported from `crate::pricer` (and therefore public API):
 
 `InstrumentType`, `ModelKey`, `PricerKey`, `Pricer`, `PricerRegistry`,
-`PricingError`, `PricingErrorContext`, `standard_registry()`, `expect_inst`
+`PricingError`, `PricingErrorContext`, `standard_pricer_registry()`, `expect_inst`
 (marked `#[doc(hidden)]`), every `pub fn` in `json` and
 `ParsedInstrument`, and `STANDARD_OPTION_GREEKS`.
 
@@ -70,14 +80,14 @@ Internal, despite living next to the public surface:
 
 | Item | Visibility | Note |
 |------|-----------|------|
-| `shared_standard_registry()` | `pub(crate)` | `Arc` handle onto the same singleton `standard_registry()` returns |
+| `shared_standard_registry()` | `pub(crate)` | `Arc` handle onto the same singleton `standard_pricer_registry()` returns |
 | `register_generic!` | `pub(crate) use` | Registration boilerplate for `GenericInstrumentPricer` |
 | `PricerRegistry::price_raw` | `pub(crate)` | Unrounded `f64` path for finite-difference risk |
 | `registry::attach_metric_measures` | `pub(super)` | |
 | `enrichment::*` | `pub(super)` | |
 
 `PricerRegistry` derives `Clone` and `Default`, so a caller can build a bespoke
-registry from `standard_registry().clone()` and mutate it, then pass it via
+registry from `standard_pricer_registry().clone()` and mutate it, then pass it via
 `PricingOptions::with_registry`.
 
 ## Keys
@@ -157,7 +167,7 @@ monkey-patching. `build_standard_registry` propagates registration errors to the
 `OnceLock` initializer, where a duplicate built-in registration is treated as an
 invariant violation.
 
-`standard_registry()` returns a `&'static PricerRegistry` from a process-wide
+`standard_pricer_registry()` returns a `&'static PricerRegistry` from a process-wide
 `OnceLock<Arc<PricerRegistry>>`. When metrics are requested, the pricing path
 wraps a cheap clone in `Arc`; the registry's ordered pricer map is already
 `Arc`-backed, so this does not deep-clone the dispatch table.

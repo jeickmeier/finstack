@@ -98,7 +98,7 @@ mod gbm_barrier {
     use finstack_quant_valuations::instruments::{Attributes, OptionType};
     use finstack_quant_valuations::metrics::MetricId;
     use finstack_quant_valuations::pricer::{
-        standard_registry, InstrumentType, ModelKey, PricerKey,
+        standard_pricer_registry, InstrumentType, ModelKey, PricerKey,
     };
     use time::Month;
 
@@ -199,7 +199,7 @@ mod gbm_barrier {
         let market = market(as_of);
         let option = down_and_out_call(expiry);
 
-        let registry = standard_registry();
+        let registry = standard_pricer_registry();
 
         // --- GBM barrier MC (ModelKey::MonteCarloGBM) ---------------------------
         let gbm_pricer = registry
@@ -537,7 +537,7 @@ mod asian_geometric {
     };
     use finstack_quant_valuations::instruments::{Attributes, OptionType};
     use finstack_quant_valuations::pricer::{
-        standard_registry, InstrumentType, ModelKey, PricerKey,
+        standard_pricer_registry, InstrumentType, ModelKey, PricerKey,
     };
     use time::Month;
 
@@ -689,7 +689,7 @@ mod asian_geometric {
             .expect("year fraction");
         let df = (-RATE * t).exp();
 
-        let registry = standard_registry();
+        let registry = standard_pricer_registry();
 
         // --- MC GBM pricer (ModelKey::MonteCarloGBM) ----------------------------
         let mc_pricer = registry

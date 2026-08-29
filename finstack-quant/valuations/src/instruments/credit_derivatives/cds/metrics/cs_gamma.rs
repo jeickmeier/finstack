@@ -56,10 +56,7 @@ use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::sensitivities::cs01::with_prepared_cds_risk_context;
 use crate::metrics::{MetricCalculator, MetricContext};
-use crate::recalibration::{
-    HazardRecalibrationAction, HazardRecalibrationConventions, HazardRecalibrationRequest,
-    QuoteBump,
-};
+use crate::recalibration::{HazardRecalibrationAction, HazardRecalibrationRequest, QuoteBump};
 
 /// Calculates CS-Gamma for credit default swaps.
 ///
@@ -94,23 +91,23 @@ impl MetricCalculator for CsGammaCalculator {
                     "CDS CS-Gamma",
                 )?;
 
-                let conventions = HazardRecalibrationConventions {
-                    discount_curve_id: prepared.discount_id.clone(),
-                    doc_clause: Some(prepared.doc_clause),
-                    cds_valuation_convention: Some(prepared.valuation_convention),
-                    deal_quote_override: prepared.deal_quote_override,
-                };
                 let bumped_hazard_up = context.bump_hazard_spreads_cached(
                     hazard_ref,
                     base_ctx,
                     &QuoteBump::ParallelBp(bump_bp),
-                    &conventions,
+                    prepared.discount_id.clone(),
+                    Some(prepared.doc_clause),
+                    Some(prepared.valuation_convention),
+                    prepared.deal_quote_override,
                 )?;
                 let bumped_hazard_dn = context.bump_hazard_spreads_cached(
                     hazard_ref,
                     base_ctx,
                     &QuoteBump::ParallelBp(-bump_bp),
-                    &conventions,
+                    prepared.discount_id.clone(),
+                    Some(prepared.doc_clause),
+                    Some(prepared.valuation_convention),
+                    prepared.deal_quote_override,
                 )?;
                 let bumped_hazard_0 = context.rebuild_hazard_curve(
                     HazardRecalibrationRequest {

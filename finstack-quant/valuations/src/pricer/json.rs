@@ -212,7 +212,7 @@ pub fn list_standard_metrics_grouped() -> BTreeMap<String, Vec<String>> {
 ///
 /// Deduplicated canonical model keys in ascending [`ModelKey`] order.
 pub fn list_models() -> Vec<String> {
-    crate::pricer::standard_registry()
+    crate::pricer::standard_pricer_registry()
         .all_models()
         .into_iter()
         .map(|model| model.to_string())
@@ -232,7 +232,7 @@ pub fn list_models() -> Vec<String> {
 /// A map from instrument type to its ascending, deduplicated model keys, in
 /// ascending instrument-type order.
 pub fn list_models_grouped() -> BTreeMap<String, Vec<String>> {
-    crate::pricer::standard_registry()
+    crate::pricer::standard_pricer_registry()
         .all_models_grouped()
         .into_iter()
         .map(|(instrument, models)| {
@@ -262,7 +262,10 @@ pub fn parse_boxed_instrument_json(
     pricing_options: Option<&str>,
 ) -> finstack_quant_core::Result<ParsedInstrument> {
     let effective_json = instrument_json_for_pricing(instrument_json, pricing_options)?;
-    InstrumentEnvelope::from_str(effective_json.as_ref()).map(ParsedInstrument::new)
+    let instrument = parse_instrument_json(effective_json.as_ref())?;
+    Ok(ParsedInstrument::new(
+        instrument.into_boxed_assuming_validated()?,
+    ))
 }
 
 /// Parse a concrete model key used by the JSON pricing helpers.
@@ -449,6 +452,140 @@ pub fn price_instrument(
         .map_err(Into::into)
 }
 
+/// Price a parsed instrument and return one requested scalar metric.
+///
+/// Fails when the selected model does not produce `metric`.
+///
+/// # Arguments
+///
+/// * `instrument` - Validated instrument already accepted by
+///   [`price_instrument`].
+/// * `market` - Market context supplying model-required curves, quotes, and FX
+///   data.
+/// * `as_of` - ISO-8601 valuation date passed to the pricing lifecycle.
+/// * `model` - Canonical model key, or `"default"` to use the instrument's
+///   registered default model.
+/// * `metric` - Scalar metric name that must be produced by the selected model.
+/// * `pricing_options` - Pricing services and configuration supplied by the
+///   caller, including any host-attached recalibration provider.
+///
+/// # Errors
+///
+/// Propagates pricing and input-validation failures from [`price_instrument`],
+/// and returns `Error::Validation` when the selected model does not produce
+/// `metric`.
+pub fn metric_value(
+    instrument: &ParsedInstrument,
+    market: &MarketContext,
+    as_of: &str,
+    model: &str,
+    metric: &str,
+    pricing_options: crate::instruments::PricingOptions,
+) -> finstack_quant_core::Result<f64> {
+    let metrics = [metric.to_string()];
+    let result = price_instrument(
+        instrument,
+        market,
+        as_of,
+        model,
+        &metrics,
+        None,
+        pricing_options,
+    )?;
+    result
+        .metric_str(metric)
+        .ok_or_else(|| Error::Validation(format!("metric `{metric}` was not returned")))
+}
+
+/// Price a parsed instrument and return the requested scalar metrics that were
+/// produced by the selected model.
+///
+/// The returned pairs preserve the requested order but omit unavailable
+/// metrics. Use [`metric_value`] when an unavailable metric must be treated as
+/// an error.
+///
+/// # Arguments
+///
+/// * `instrument` - Validated instrument already accepted by
+///   [`price_instrument`].
+/// * `market` - Market context supplying model-required curves, quotes, and FX
+///   data.
+/// * `as_of` - ISO-8601 valuation date passed to the pricing lifecycle.
+/// * `model` - Canonical model key, or `"default"` to use the instrument's
+///   registered default model.
+/// * `metrics` - Requested scalar metric names in desired output order;
+///   unavailable entries are omitted from the returned pairs.
+/// * `pricing_options` - Pricing services and configuration supplied by the
+///   caller, including any host-attached recalibration provider.
+///
+/// # Errors
+///
+/// Returns an error for the same input, market-data, or pricing failures as
+/// [`price_instrument`]. Missing individual metrics are omitted rather than
+/// causing an error.
+pub fn present_metric_values<'a>(
+    instrument: &ParsedInstrument,
+    market: &MarketContext,
+    as_of: &str,
+    model: &str,
+    metrics: &'a [&'a str],
+    pricing_options: crate::instruments::PricingOptions,
+) -> finstack_quant_core::Result<Vec<(&'a str, f64)>> {
+    let metric_ids: Vec<String> = metrics.iter().map(|m| (*m).to_string()).collect();
+    let result = price_instrument(
+        instrument,
+        market,
+        as_of,
+        model,
+        &metric_ids,
+        None,
+        pricing_options,
+    )?;
+    Ok(metrics
+        .iter()
+        .filter_map(|m| result.metric_str(m).map(|v| (*m, v)))
+        .collect())
+}
+
+/// Price a parsed option instrument and return the standard sparse option
+/// Greek set produced by the selected model.
+///
+/// The result is an ordered subset of [`STANDARD_OPTION_GREEKS`]. Models that
+/// cannot produce a requested Greek omit it rather than fabricating a zero.
+///
+/// # Arguments
+///
+/// * `instrument` - Validated option instrument already accepted by
+///   [`price_instrument`].
+/// * `market` - Market context supplying model-required curves, volatilities,
+///   quotes, and FX data.
+/// * `as_of` - ISO-8601 valuation date passed to the pricing lifecycle.
+/// * `model` - Canonical option model key, or `"default"` for the
+///   instrument's registered default model.
+/// * `pricing_options` - Pricing services and configuration supplied by the
+///   caller, including any host-attached recalibration provider.
+///
+/// # Errors
+///
+/// Returns an error for the same input, market-data, or pricing failures as
+/// [`price_instrument`].
+pub fn present_standard_option_greeks(
+    instrument: &ParsedInstrument,
+    market: &MarketContext,
+    as_of: &str,
+    model: &str,
+    pricing_options: crate::instruments::PricingOptions,
+) -> finstack_quant_core::Result<Vec<(&'static str, f64)>> {
+    present_metric_values(
+        instrument,
+        market,
+        as_of,
+        model,
+        STANDARD_OPTION_GREEKS,
+        pricing_options,
+    )
+}
+
 /// Price a canonical instrument envelope and return one requested scalar
 /// metric, failing when the metric is not produced by the selected model.
 ///
@@ -475,20 +612,15 @@ pub fn metric_value_from_instrument_json(
     model: &str,
     metric: &str,
 ) -> finstack_quant_core::Result<f64> {
-    let metric_ids = [metric.to_string()];
-    let result = price_instrument_json(JsonPricingRequest {
-        instrument_json,
+    let instrument = parse_boxed_instrument_json(instrument_json, None)?;
+    metric_value(
+        &instrument,
         market,
         as_of,
         model,
-        metrics: &metric_ids,
-        instrument_pricing_overrides_json: None,
-        market_history_json: None,
-        pricing_options: crate::instruments::PricingOptions::default(),
-    })?;
-    result
-        .metric_str(metric)
-        .ok_or_else(|| Error::Validation(format!("metric `{metric}` was not returned")))
+        metric,
+        crate::instruments::PricingOptions::default(),
+    )
 }
 
 /// Price a canonical instrument envelope and return the requested scalar
@@ -522,21 +654,15 @@ pub fn present_metric_values_from_instrument_json<'a>(
     model: &str,
     metrics: &'a [&'a str],
 ) -> finstack_quant_core::Result<Vec<(&'a str, f64)>> {
-    let metric_ids: Vec<String> = metrics.iter().map(|m| (*m).to_string()).collect();
-    let result = price_instrument_json(JsonPricingRequest {
-        instrument_json,
+    let instrument = parse_boxed_instrument_json(instrument_json, None)?;
+    present_metric_values(
+        &instrument,
         market,
         as_of,
         model,
-        metrics: &metric_ids,
-        instrument_pricing_overrides_json: None,
-        market_history_json: None,
-        pricing_options: crate::instruments::PricingOptions::default(),
-    })?;
-    Ok(metrics
-        .iter()
-        .filter_map(|m| result.metric_str(m).map(|v| (*m, v)))
-        .collect())
+        metrics,
+        crate::instruments::PricingOptions::default(),
+    )
 }
 
 /// Price a tagged option instrument JSON payload and return the standard sparse

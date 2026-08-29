@@ -49,7 +49,7 @@ structured_credit/
 ├── types/
 │   ├── instrument.rs / structured_credit_impl.rs  # the StructuredCredit struct and its impls
 │   ├── constructors.rs   # new_abs / new_clo / new_cmbs / new_rmbs / example
-│   ├── pricing_methods.rs# value_tranche(_with_metrics), price_stochastic(_with_mode)
+│   ├── pricing_methods.rs# advanced-only value_tranche / price_stochastic; hosts use ModelKey
 │   ├── stochastic.rs     # enable_stochastic_defaults, with_stochastic_* setters
 │   ├── constants.rs enums.rs pool.rs pool_state.rs tranches.rs waterfall.rs
 │   ├── results.rs setup.rs reinvestment.rs

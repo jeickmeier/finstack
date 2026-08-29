@@ -3,7 +3,19 @@
 use super::PyValuationResult;
 use crate::bindings::extract::{extract_instrument_json, extract_market};
 use crate::errors::core_to_py;
+use finstack_quant_valuations::instruments::PricingOptions;
 use pyo3::prelude::*;
+use std::sync::Arc;
+
+/// Attach the host-owned cached recalibration provider.
+///
+/// Lives here rather than in `finstack-quant-valuations` because that crate
+/// cannot depend on `finstack-quant-calibration`.
+pub(super) fn binding_pricing_options() -> PricingOptions {
+    PricingOptions::default().with_recalibration_provider(Arc::new(
+        finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
+    ))
+}
 
 /// Price an instrument from its canonical envelope and return a ``ValuationResult``.
 ///
@@ -89,11 +101,7 @@ fn price_instrument(
                 &model,
                 &metrics,
                 market_history.as_deref(),
-                finstack_quant_valuations::instruments::PricingOptions::default()
-                    .with_recalibration_provider(std::sync::Arc::new(
-                        finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(
-                        ),
-                    )),
+                binding_pricing_options(),
             )
         })
         .map_err(core_to_py)?;

@@ -47,9 +47,8 @@ class ValuationResult:
     Returned directly by the ``price_*`` helpers; :meth:`from_json` rebuilds one
     from a previously serialized payload.
 
-    The rich ``details`` (model-specific pricing detail) and ``meta`` (numeric
-    mode, rounding context, FX policy stamps) fields of the Rust envelope have
-    no typed getters yet; they are reachable through ``to_json()`` only.
+    ``details`` is the optional tagged model-specific pricing payload; ``meta``
+    is the Rust ``ResultsMeta`` policy stamp (numeric mode, rounding, FX, timing).
 
     Examples
     --------
@@ -68,6 +67,8 @@ class ValuationResult:
     >>> result = price_instrument(bond, market, "2024-01-15")
     >>> (result.instrument_id, round(result.price, 2), result.currency)
     ('B', 1018.16, 'USD')
+    >>> isinstance(result.meta, dict) and result.details is None
+    True
 
     """
 
@@ -368,25 +369,43 @@ class ValuationResult:
         """
         ...
 
-    def to_metrics_dataframe(self) -> pd.DataFrame:
+    @property
+    def meta(self) -> dict[str, Any]:
         """
-        Export as a single-row pandas DataFrame.
+        Policy stamps from the Rust ``ResultsMeta`` envelope.
 
-        Columns include ``instrument_id``, ``price``, ``currency``, plus one
-        column per metric key.  Useful for stacking multiple results with
-        ``pd.concat``.
-
-        Prefer :meth:`to_dataframe`, which additionally carries the valuation
-        date.
+        Keys include numeric mode, rounding context, optional FX policy, and
+        the computation timestamp. Same serde shape as the WASM result object.
 
         Returns
         -------
-        pd.DataFrame
-            Single-row DataFrame with one column per metric.
+        dict[str, Any]
+            Decoded ``ResultsMeta`` document.
 
-        Notes
-        -----
-        This accessor does not raise; it returns the stored or derived value.
+        Raises
+        ------
+        ValueError
+            If the metadata cannot be serialized to a Python object.
+        """
+        ...
+
+    @property
+    def details(self) -> dict[str, Any] | None:
+        """
+        Model-specific structured pricing detail, if the pricer emitted one.
+
+        Tagged ``{"type": ..., "data": ...}`` document matching Rust
+        ``ValuationDetails``. ``None`` when the envelope is scalar-only.
+
+        Returns
+        -------
+        dict[str, Any] or None
+            Decoded detail payload, or ``None`` when absent.
+
+        Raises
+        ------
+        ValueError
+            If the detail payload cannot be serialized to a Python object.
         """
         ...
 

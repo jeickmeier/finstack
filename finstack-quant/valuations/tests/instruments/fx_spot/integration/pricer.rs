@@ -4,13 +4,13 @@ use super::super::common::*;
 use finstack_quant_core::{currency::Currency, market_data::context::MarketContext, money::Money};
 use finstack_quant_valuations::{
     instruments::Instrument,
-    pricer::{standard_registry, InstrumentType, ModelKey, PricerKey},
+    pricer::{standard_pricer_registry, InstrumentType, ModelKey, PricerKey},
 };
 
 #[test]
 fn test_registry_pricer_key() {
     let key = PricerKey::new(InstrumentType::FxSpot, ModelKey::Discounting);
-    let registry = standard_registry();
+    let registry = standard_pricer_registry();
 
     assert!(
         registry.get_pricer(key).is_some(),
@@ -21,7 +21,7 @@ fn test_registry_pricer_key() {
 #[test]
 fn test_registry_prices_fx_spot() {
     let fx = eurusd_with_notional(1_000_000.0, 1.20);
-    let registry = standard_registry();
+    let registry = standard_pricer_registry();
     let market = MarketContext::new();
     let as_of = finstack_quant_core::dates::Date::from_calendar_date(2024, time::Month::January, 1)
         .unwrap();
@@ -43,7 +43,7 @@ fn test_registry_prices_fx_spot() {
 
 #[test]
 fn test_pricer_with_various_instruments() {
-    let registry = standard_registry();
+    let registry = standard_pricer_registry();
     let market = MarketContext::new();
 
     let instruments: Vec<Box<dyn Instrument>> = vec![
@@ -82,7 +82,7 @@ fn test_pricer_with_various_instruments() {
 #[test]
 fn test_pricer_consistent_with_instrument_value() {
     let fx = eurusd_with_notional(2_500_000.0, 1.22);
-    let registry = standard_registry();
+    let registry = standard_pricer_registry();
     let market = MarketContext::new();
     let as_of = finstack_quant_core::dates::Date::from_calendar_date(2024, time::Month::January, 1)
         .unwrap();
@@ -114,7 +114,7 @@ fn test_pricer_with_fx_matrix() {
     let fx = sample_eurusd()
         .with_notional(Money::new(1_000_000.0, Currency::EUR))
         .unwrap();
-    let registry = standard_registry();
+    let registry = standard_pricer_registry();
     let market = market_with_fx_matrix(); // EUR/USD = 1.20
     let as_of = finstack_quant_core::dates::Date::from_calendar_date(2024, time::Month::January, 1)
         .unwrap();
@@ -141,7 +141,7 @@ fn test_pricer_with_fx_matrix() {
 #[test]
 fn test_pricer_valuation_result_structure() {
     let fx = eurusd_with_notional(1_000_000.0, 1.20);
-    let registry = standard_registry();
+    let registry = standard_pricer_registry();
     let market = MarketContext::new();
     let as_of = finstack_quant_core::dates::Date::from_calendar_date(2024, time::Month::January, 1)
         .unwrap();

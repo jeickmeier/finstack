@@ -40,11 +40,6 @@ pub struct PricingOptions {
 }
 
 impl PricingOptions {
-    /// Create new pricing options with no extras.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Set the configuration for metric computation.
     ///
     /// The config controls sensitivity bump sizes and other calculation parameters.

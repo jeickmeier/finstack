@@ -28,7 +28,9 @@
 use crate::instruments::common_impl::helpers::year_fraction;
 use crate::instruments::common_impl::parameters::OptionType;
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::rates::hw1f::{resolve_hw1f_params, Hw1fParamFamily, Hw1fResolveRequest};
+use crate::instruments::rates::hw1f::{
+    hw1f_overrides_from_model_config, resolve_hw1f_params, Hw1fParamFamily, Hw1fResolveRequest,
+};
 use crate::instruments::rates::swaption::types::Swaption;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
@@ -156,7 +158,8 @@ impl SwaptionHullWhitePricer {
 
         // Resolve only complete explicit or pre-calibrated HW1F parameters.
         let context_label = format!("Swaption {}", swaption.id);
-        let overrides = hw1f_overrides_json(swaption);
+        let overrides =
+            hw1f_overrides_from_model_config(&swaption.instrument_pricing_overrides.model_config);
         let req = Hw1fResolveRequest {
             curve_id: swaption.get_discount_curve_id().as_str(),
             family: Hw1fParamFamily::Swaption,
@@ -330,24 +333,6 @@ impl SwaptionHullWhitePricer {
 /// volatility). Partial overrides are preserved so [`resolve_hw1f_params`] can
 /// reject them explicitly instead of combining sources.
 ///
-/// # Unit contract
-///
-/// `hw1f_sigma` is a **short-rate** absolute volatility (annual decimal, ~0.005–0.015).
-/// It must NOT be confused with an option implied volatility (e.g. 0.20 lognormal),
-/// which lives in `market_quotes.implied_volatility`. Feeding an option vol directly
-/// into the HW tree would produce a ~13–40× mis-priced result.
-fn hw1f_overrides_json(swaption: &Swaption) -> Option<serde_json::Value> {
-    let config = &swaption.instrument_pricing_overrides.model_config;
-    let mut values = serde_json::Map::new();
-    if let Some(kappa) = config.hw1f_mean_reversion {
-        values.insert("hw1f_kappa".to_string(), serde_json::json!(kappa));
-    }
-    if let Some(sigma) = config.hw1f_sigma {
-        values.insert("hw1f_sigma".to_string(), serde_json::json!(sigma));
-    }
-    (!values.is_empty()).then_some(serde_json::Value::Object(values))
-}
-
 #[cfg(test)]
 mod tests {
     #[allow(dead_code, unused_imports)]

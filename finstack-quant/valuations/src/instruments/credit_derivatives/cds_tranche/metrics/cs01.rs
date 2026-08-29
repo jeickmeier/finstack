@@ -98,16 +98,14 @@ impl MetricCalculator for CdsTrancheCs01Calculator {
             context,
             &hazard_id,
             bump_bp,
-            crate::recalibration::HazardRecalibrationConventions {
-                discount_curve_id: discount_id.ok_or_else(|| {
-                    finstack_quant_core::Error::Validation(
-                        "CDS tranche CS01 requires a discount curve".to_string(),
-                    )
-                })?,
-                doc_clause: None,
-                cds_valuation_convention: None,
-                deal_quote_override: None,
-            },
+            discount_id.ok_or_else(|| {
+                finstack_quant_core::Error::Validation(
+                    "CDS tranche CS01 requires a discount curve".to_string(),
+                )
+            })?,
+            None,
+            None,
+            None,
             reval,
         )?;
 
@@ -185,16 +183,14 @@ impl MetricCalculator for CdsTrancheBucketedCs01Calculator {
             KeyRateCs01Request {
                 series_id,
                 bump_bp,
-                conventions: crate::recalibration::HazardRecalibrationConventions {
-                    discount_curve_id: discount_id.ok_or_else(|| {
-                        finstack_quant_core::Error::Validation(
-                            "CDS tranche bucketed CS01 requires a discount curve".to_string(),
-                        )
-                    })?,
-                    doc_clause: None,
-                    cds_valuation_convention: None,
-                    deal_quote_override: None,
-                },
+                discount_curve_id: discount_id.ok_or_else(|| {
+                    finstack_quant_core::Error::Validation(
+                        "CDS tranche bucketed CS01 requires a discount curve".to_string(),
+                    )
+                })?,
+                doc_clause: None,
+                cds_valuation_convention: None,
+                deal_quote_override: None,
             },
             reval,
         )

@@ -61,7 +61,14 @@ impl StructuredCredit {
             .max(0.0))
     }
 
-    /// Stochastic pricing convenience that defaults to Monte Carlo.
+    /// Advanced stochastic pricing that defaults to Monte Carlo.
+    ///
+    /// Host and registry callers should use
+    /// [`Instrument::price_with_metrics`](crate::instruments::Instrument::price_with_metrics)
+    /// with [`ModelKey::StructuredCreditStochastic`](crate::pricer::ModelKey::StructuredCreditStochastic)
+    /// (or `price_instrument` on the same model key). This method remains for
+    /// tests and direct Rust callers that want a `StochasticPricingResult`
+    /// without going through the registry envelope.
     pub fn price_stochastic(
         &self,
         context: &MarketContext,
@@ -98,7 +105,11 @@ impl StructuredCredit {
         )
     }
 
-    /// Stochastic pricing with an explicit mode (tree, Monte Carlo, or hybrid).
+    /// Advanced stochastic pricing with an explicit mode (tree, Monte Carlo, or hybrid).
+    ///
+    /// Prefer the registry `StructuredCreditStochastic` model key for host
+    /// pricing. Use this method only when a caller needs to force a
+    /// [`PricingMode`] without going through `price_with_metrics`.
     pub fn price_stochastic_with_mode(
         &self,
         context: &MarketContext,
@@ -449,7 +460,13 @@ impl StructuredCredit {
         )
     }
 
-    /// Calculate present value for a specific tranche.
+    /// Present value of one named tranche.
+    ///
+    /// Deal-level host pricing uses
+    /// [`Instrument::price_with_metrics`](crate::instruments::Instrument::price_with_metrics)
+    /// (deterministic) or `ModelKey::StructuredCreditStochastic` (stochastic).
+    /// This method is the advanced per-tranche convenience used by tests and
+    /// scenario metrics; it does not run the registry pipeline.
     pub fn value_tranche(
         &self,
         tranche_id: &str,

@@ -30,7 +30,9 @@ use crate::instruments::rates::cap_floor::pricing::projection::{
     resolve_optioned_caplet_inputs, OptionedCouponProjection,
 };
 use crate::instruments::rates::cap_floor::types::{CapFloor, RateOptionType};
-use crate::instruments::rates::hw1f::{resolve_hw1f_params, Hw1fParamFamily, Hw1fResolveRequest};
+use crate::instruments::rates::hw1f::{
+    hw1f_overrides_from_model_config, resolve_hw1f_params, Hw1fParamFamily, Hw1fResolveRequest,
+};
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
 };
@@ -508,31 +510,6 @@ impl CapFloorHullWhitePricer {
 /// identify the fitted parameter pair independently of option implied volatility.
 /// A σ-only override is retained as well and rejected by the shared resolver.
 ///
-/// # Unit contract
-///
-/// `hw1f_sigma` is a **short-rate** absolute volatility (annual decimal, ~0.005–0.015).
-/// It must NOT be confused with an option implied volatility (e.g. 0.20 lognormal),
-/// which lives in `market_quotes.implied_volatility`. Feeding an option vol directly
-/// into the HW tree would produce a ~13–40× mis-priced result.
-fn hw1f_overrides_json(cap_floor: &CapFloor) -> Option<serde_json::Value> {
-    let mut overrides = serde_json::Map::new();
-    if let Some(kappa) = cap_floor
-        .instrument_pricing_overrides
-        .model_config
-        .hw1f_mean_reversion
-    {
-        overrides.insert("hw1f_kappa".to_owned(), serde_json::json!(kappa));
-    }
-    if let Some(sigma) = cap_floor
-        .instrument_pricing_overrides
-        .model_config
-        .hw1f_sigma
-    {
-        overrides.insert("hw1f_sigma".to_owned(), serde_json::json!(sigma));
-    }
-    (!overrides.is_empty()).then_some(serde_json::Value::Object(overrides))
-}
-
 /// Resolve the effective Hull-White 1F (κ, σ) the cap/floor pricer uses.
 ///
 /// Applies the documented precedence (complete explicit overrides, then a
@@ -545,7 +522,8 @@ pub(crate) fn resolve_capfloor_hw1f_params(
     _as_of: finstack_quant_core::dates::Date,
 ) -> finstack_quant_core::Result<HullWhiteCalibrationParams> {
     let context_label = format!("CapFloor {}", cap_floor.id);
-    let overrides = hw1f_overrides_json(cap_floor);
+    let overrides =
+        hw1f_overrides_from_model_config(&cap_floor.instrument_pricing_overrides.model_config);
     let req = Hw1fResolveRequest {
         curve_id: cap_floor.discount_curve_id.as_str(),
         family: Hw1fParamFamily::CapFloor,

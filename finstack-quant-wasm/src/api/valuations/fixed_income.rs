@@ -15,7 +15,7 @@ use crate::api::core::money::JsMoney;
 use crate::api::core::types::{JsBps, JsRate};
 use crate::utils::{parse_iso_date, to_js_err};
 use finstack_quant_core::dates::StubKind;
-use finstack_quant_valuations::instruments::{Instrument, InstrumentEnvelope, InstrumentJson};
+use finstack_quant_valuations::instruments::{InstrumentEnvelope, InstrumentJson};
 use wasm_bindgen::prelude::*;
 
 /// Parse a canonical instrument envelope through the shared JSON-loader path.
@@ -123,10 +123,7 @@ impl JsBond {
     #[wasm_bindgen(js_name = fromJson)]
     pub fn from_json(json: &str) -> Result<JsBond, JsValue> {
         match parse_envelope(json)? {
-            InstrumentJson::Bond(inner) => {
-                inner.validate_for_pricing().map_err(to_js_err)?;
-                Ok(JsBond { inner })
-            }
+            InstrumentJson::Bond(inner) => Ok(JsBond { inner }),
             _ => Err(JsValue::from_str(
                 "expected instrument type \"bond\", got a different instrument type",
             )),
@@ -176,10 +173,7 @@ impl JsTermLoan {
     #[wasm_bindgen(js_name = fromJson)]
     pub fn from_json(json: &str) -> Result<JsTermLoan, JsValue> {
         match parse_envelope(json)? {
-            InstrumentJson::TermLoan(inner) => {
-                inner.validate_for_pricing().map_err(to_js_err)?;
-                Ok(JsTermLoan { inner })
-            }
+            InstrumentJson::TermLoan(inner) => Ok(JsTermLoan { inner }),
             _ => Err(JsValue::from_str(
                 "expected instrument type \"term_loan\", got a different instrument type",
             )),

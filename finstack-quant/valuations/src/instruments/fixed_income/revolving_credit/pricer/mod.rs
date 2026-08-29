@@ -1,24 +1,15 @@
-//! Unified pricing engine for revolving credit facilities.
+//! Revolving-credit pricing.
 //!
-//! This module provides a single, unified pricing approach that handles both
-//! deterministic and stochastic modes:
-//!
-//! - [`RevolvingCreditPricer`]: Unified pricer that automatically selects method
-//! - [`unified`]: Core implementation of single-path and MC pricing
-//! - [`path_generator`]: 3-factor Monte Carlo path generation
-//!
-//! # Usage
-//!
-//! Price a revolving credit facility using the pricer registry:
-//!
-//! # Monte Carlo Pricing
-//!
-//! Use full path capture for distribution analysis:
+//! [`RevolvingCreditPricer`] handles deterministic and stochastic facilities.
+//! Path generation lives in [`path_generator`].
 
 mod components;
 pub mod monte_carlo_discretization;
 pub mod monte_carlo_process;
 pub mod path_generator;
+mod path_pricing;
+mod results;
+mod stochastic;
 pub(crate) mod unified;
 
 pub(crate) use unified::RevolvingCreditPricer;

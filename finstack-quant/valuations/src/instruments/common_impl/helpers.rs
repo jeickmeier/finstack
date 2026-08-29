@@ -3,9 +3,9 @@
 //! Contains helpers shared across instrument implementations, notably metric
 //! context construction and deterministic measure assembly.
 
-use crate::metrics::risk::MarketHistory;
+use crate::instruments::PricingOptions;
 use crate::metrics::{standard_registry, MetricContext, MetricId};
-use finstack_quant_core::config::FinstackConfig;
+use crate::pricer::PricingDispatch;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::{
@@ -445,22 +445,7 @@ pub fn merged_path_config(
 
 /// Extract a unitless market scalar with a fallback default.
 ///
-/// Commonly used to fetch model parameters (e.g. Heston kappa, rough vol Hurst
-/// exponent) from the market context. Returns the `default` when the scalar is
-/// absent or has a non-unitless type.
-pub fn get_unitless_scalar(market: &MarketContext, key: &str, default: f64) -> f64 {
-    market
-        .get_price(key)
-        .ok()
-        .and_then(|s| match s {
-            MarketScalar::Unitless(v) => Some(*v),
-            MarketScalar::Price(_) => None,
-        })
-        .unwrap_or(default)
-}
-
-/// Strict variant of [`get_unitless_scalar`] that errors when the scalar is
-/// missing or carries a non-unitless type.
+/// Read a required unitless market scalar, erroring when it is missing or typed.
 ///
 /// Production model-parameter resolvers should prefer this over the lenient
 /// fallback form so missing or mistyped model scalars are surfaced.
@@ -520,13 +505,11 @@ pub fn get_unitless_scalar_strict(
 ///
 /// The `instrument` parameter is also `Arc`-wrapped. Instruments are generally immutable
 /// after construction, so this is safe for concurrent reads.
+/// Crate-private bundle at the registry → metric boundary.
 #[derive(Default)]
 pub(crate) struct MetricBuildOptions {
-    pub(crate) cfg: Option<Arc<FinstackConfig>>,
-    pub(crate) market_history: Option<Arc<MarketHistory>>,
-    pub(crate) recalibration_provider: Option<Arc<dyn crate::recalibration::RecalibrationProvider>>,
-    pub(crate) metric_registry: Option<Arc<crate::metrics::MetricRegistry>>,
-    pub(crate) pricing_dispatch: crate::pricer::PricingDispatch,
+    pub(crate) pricing: PricingOptions,
+    pub(crate) pricing_dispatch: PricingDispatch,
 }
 
 pub(crate) fn compute_metrics_dyn(
@@ -538,13 +521,10 @@ pub(crate) fn compute_metrics_dyn(
     options: MetricBuildOptions,
 ) -> finstack_quant_core::Result<IndexMap<crate::metrics::MetricId, f64>> {
     let MetricBuildOptions {
-        cfg,
-        market_history,
-        recalibration_provider,
-        metric_registry,
+        pricing,
         pricing_dispatch,
     } = options;
-    let finstack_config = cfg.unwrap_or_else(MetricContext::default_config);
+    let finstack_config = pricing.config.unwrap_or_else(MetricContext::default_config);
     let mut context = MetricContext::new(
         Arc::clone(&instrument),
         curves,
@@ -554,10 +534,10 @@ pub(crate) fn compute_metrics_dyn(
     );
 
     // Attach market history if provided (for Historical VaR / Expected Shortfall metrics)
-    if let Some(history) = market_history {
+    if let Some(history) = pricing.market_history {
         context = context.with_market_history(history);
     }
-    context.set_recalibration_provider(recalibration_provider);
+    context.set_recalibration_provider(pricing.recalibration_provider);
     context.set_pricer_dispatch(pricing_dispatch);
 
     // Preserve only the subsets consumed by the metric layer.
@@ -569,7 +549,7 @@ pub(crate) fn compute_metrics_dyn(
     let market_ref: Arc<MarketContext> = Arc::clone(&context.curves);
     instrument.seed_metric_context(&mut context, market_ref.as_ref(), as_of);
 
-    let registry = match metric_registry.as_deref() {
+    let registry = match pricing.metric_registry.as_deref() {
         Some(registry) => registry,
         None => standard_registry(),
     };
@@ -632,7 +612,8 @@ pub(crate) fn build_with_metrics_dyn(
     options: MetricBuildOptions,
 ) -> finstack_quant_core::Result<crate::results::ValuationResult> {
     let cfg = options
-        .cfg
+        .pricing
+        .config
         .clone()
         .unwrap_or_else(MetricContext::default_config);
     let instrument_id = instrument.id().to_string();
@@ -656,6 +637,7 @@ mod tests {
     use crate::instruments::common_impl::traits::{Attributes, Instrument};
     use crate::metrics::MetricId;
     use crate::pricer::InstrumentType;
+    use finstack_quant_core::config::FinstackConfig;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::Date;
     use finstack_quant_core::market_data::context::MarketContext;
@@ -829,8 +811,7 @@ mod tests {
                 base,
                 metrics,
                 MetricBuildOptions {
-                    cfg: options.config,
-                    market_history: options.market_history,
+                    pricing: options,
                     ..MetricBuildOptions::default()
                 },
             )?)
@@ -856,7 +837,10 @@ mod tests {
             base_value,
             &[],
             MetricBuildOptions {
-                cfg: Some(cfg),
+                pricing: PricingOptions {
+                    config: Some(cfg),
+                    ..PricingOptions::default()
+                },
                 ..MetricBuildOptions::default()
             },
         )?;

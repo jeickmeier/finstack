@@ -9,8 +9,7 @@
 //! ```text
 //! valuations::Error
 //! ├── Core(finstack_quant_core::Error)      ← propagated core errors
-//! ├── Pricing(PricingError)                 ← pricer registry, model failures
-//! └── Correlation(correlation::Error)       ← factor model validation
+//! └── Pricing(PricingError)                 ← pricer registry, model failures
 //! ```
 //!
 //! All variants convert one-way into [`finstack_quant_core::Error`] via [`From`] for
@@ -75,10 +74,6 @@ pub enum Error {
     /// Pricing model or registry error.
     #[error(transparent)]
     Pricing(#[from] PricingError),
-
-    /// Correlation matrix validation error (factor model).
-    #[error(transparent)]
-    Correlation(#[from] finstack_quant_models::correlation::Error),
 }
 
 /// Convenience result type used throughout the valuations crate.
@@ -90,13 +85,11 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// |---------------------------|---------------------------------|
 /// | `Core(e)`                 | Pass-through                    |
 /// | `Pricing(e)`              | Delegates to `From<PricingError>`|
-/// | `Correlation(e)`          | `Validation(e.to_string())`     |
 impl From<Error> for finstack_quant_core::Error {
     fn from(err: Error) -> Self {
         match err {
             Error::Core(e) => e,
             Error::Pricing(e) => e.into(),
-            Error::Correlation(e) => finstack_quant_core::Error::Validation(e.to_string()),
         }
     }
 }
@@ -153,21 +146,7 @@ mod tests {
     }
 
     #[test]
-    fn correlation_error_wraps_into_unified() {
-        let corr = finstack_quant_models::correlation::Error::InvalidSize {
-            expected: 3,
-            actual: 5,
-        };
-        let unified: Error = corr.into();
-        assert!(matches!(
-            unified,
-            Error::Correlation(finstack_quant_models::correlation::Error::InvalidSize { .. })
-        ));
-    }
-
-    #[test]
     fn unified_converts_to_core_error() {
-        // Pricing -> core
         let pricing = PricingError::model_failure_with_context(
             "test failure",
             PricingErrorContext::default(),
@@ -176,18 +155,6 @@ mod tests {
         assert!(matches!(
             core_err,
             finstack_quant_core::Error::Calibration { .. }
-        ));
-
-        // Correlation -> core
-        let corr = finstack_quant_models::correlation::Error::NotSymmetric {
-            i: 0,
-            j: 1,
-            diff: 0.01,
-        };
-        let core_err: finstack_quant_core::Error = Error::Correlation(corr).into();
-        assert!(matches!(
-            core_err,
-            finstack_quant_core::Error::Validation(_)
         ));
     }
 }

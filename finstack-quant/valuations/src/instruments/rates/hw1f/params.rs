@@ -4,6 +4,7 @@
 //! complete pair written to the market by a prior calibration step. It never
 //! reads a volatility surface, performs a fit, or substitutes model defaults.
 
+use crate::instruments::pricing_overrides::ModelConfig;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::Result;
@@ -90,6 +91,31 @@ fn override_positive_f64(
     }
 }
 
+/// Build the HW1F override JSON object consumed by [`resolve_hw1f_params`].
+///
+/// Maps `hw1f_mean_reversion` → `hw1f_kappa` and `hw1f_sigma` → `hw1f_sigma`.
+/// `hw1f_sigma` is short-rate absolute volatility (annual decimal, typically
+/// 0.005–0.015), not an option implied volatility. Returns `None` when
+/// neither field is set so the resolver can fall back to pre-fitted market
+/// scalars. The JSON shape is unchanged from the previous per-pricer helpers.
+///
+/// # Arguments
+///
+/// * `config` - Instrument model configuration whose optional HW1F pair is
+///   copied into the override object. Empty configs produce `None` rather
+///   than `{}`.
+#[must_use]
+pub fn hw1f_overrides_from_model_config(config: &ModelConfig) -> Option<serde_json::Value> {
+    let mut values = serde_json::Map::new();
+    if let Some(kappa) = config.hw1f_mean_reversion {
+        values.insert("hw1f_kappa".to_string(), serde_json::json!(kappa));
+    }
+    if let Some(sigma) = config.hw1f_sigma {
+        values.insert("hw1f_sigma".to_string(), serde_json::json!(sigma));
+    }
+    (!values.is_empty()).then_some(serde_json::Value::Object(values))
+}
+
 /// Resolve a complete HW1F parameter pair without fitting during pricing.
 ///
 /// # Arguments
@@ -160,6 +186,18 @@ mod tests {
             overrides,
             context: "test",
         }
+    }
+
+    #[test]
+    fn overrides_from_model_config_preserve_json_shape() {
+        let mut config = ModelConfig::default();
+        assert!(hw1f_overrides_from_model_config(&config).is_none());
+        config.hw1f_mean_reversion = Some(0.05);
+        config.hw1f_sigma = Some(0.012);
+        assert_eq!(
+            hw1f_overrides_from_model_config(&config),
+            Some(json!({"hw1f_kappa": 0.05, "hw1f_sigma": 0.012}))
+        );
     }
 
     #[test]

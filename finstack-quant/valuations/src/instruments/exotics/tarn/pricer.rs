@@ -9,7 +9,9 @@ use crate::instruments::rates::hw1f::hw1f_curve::{
 };
 use crate::instruments::rates::hw1f::hw1f_mc::RateExoticHw1fMcPricer;
 use crate::instruments::rates::hw1f::mc_config::RateExoticMcConfig;
-use crate::instruments::rates::hw1f::{resolve_hw1f_params, Hw1fParamFamily, Hw1fResolveRequest};
+use crate::instruments::rates::hw1f::{
+    hw1f_overrides_from_model_config, resolve_hw1f_params, Hw1fParamFamily, Hw1fResolveRequest,
+};
 use crate::metrics::MetricId;
 use crate::pricer::{
     InstrumentType, ModelKey, Pricer, PricerKey, PricingError, PricingErrorContext,
@@ -239,11 +241,13 @@ impl TarnPricer {
         market: &MarketContext,
         _as_of: Date,
     ) -> Result<HullWhiteCalibrationParams> {
-        let overrides = hw1f_overrides_json(inst).or_else(|| {
-            self.hw_params.map(|params| {
+        let overrides =
+            hw1f_overrides_from_model_config(&inst.instrument_pricing_overrides.model_config)
+                .or_else(|| {
+                    self.hw_params.map(|params| {
                 serde_json::json!({"hw1f_kappa": params.kappa, "hw1f_sigma": params.sigma})
             })
-        });
+                });
         let context_label = format!("TARN {}", inst.id);
         let req = Hw1fResolveRequest {
             curve_id: inst.discount_curve_id.as_str(),
@@ -491,18 +495,6 @@ impl Default for TarnPricer {
     fn default() -> Self {
         Self::new()
     }
-}
-
-fn hw1f_overrides_json(inst: &Tarn) -> Option<serde_json::Value> {
-    let config = &inst.instrument_pricing_overrides.model_config;
-    let mut values = serde_json::Map::new();
-    if let Some(kappa) = config.hw1f_mean_reversion {
-        values.insert("hw1f_kappa".to_string(), serde_json::json!(kappa));
-    }
-    if let Some(sigma) = config.hw1f_sigma {
-        values.insert("hw1f_sigma".to_string(), serde_json::json!(sigma));
-    }
-    (!values.is_empty()).then_some(serde_json::Value::Object(values))
 }
 
 /// PV of a fully-seasoned TARN schedule whose every coupon fixes off the

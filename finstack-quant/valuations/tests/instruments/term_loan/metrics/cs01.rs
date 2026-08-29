@@ -7,7 +7,7 @@ use finstack_quant_core::types::CurveId;
 use finstack_quant_valuations::instruments::fixed_income::term_loan::TermLoan;
 use finstack_quant_valuations::instruments::PricingOptions;
 use finstack_quant_valuations::metrics::MetricId;
-use finstack_quant_valuations::pricer::{standard_registry, ModelKey};
+use finstack_quant_valuations::pricer::{standard_pricer_registry, ModelKey};
 use time::macros::date;
 
 fn credit_loan_and_market() -> (TermLoan, MarketContext) {
@@ -29,7 +29,7 @@ fn explicit_hazard_cs01_routes_only_when_active_model_consumes_credit() {
     let as_of = date!(2024 - 01 - 01);
     let (loan, market) = credit_loan_and_market();
 
-    let tree = standard_registry()
+    let tree = standard_pricer_registry()
         .price_with_metrics(
             &loan,
             ModelKey::Tree,
@@ -42,7 +42,7 @@ fn explicit_hazard_cs01_routes_only_when_active_model_consumes_credit() {
     let tree_hazard = *tree.measures.get("cs01_hazard").expect("cs01_hazard");
     assert!(tree_hazard < 0.0);
 
-    let discounting = standard_registry()
+    let discounting = standard_pricer_registry()
         .price_with_metrics(
             &loan,
             ModelKey::Discounting,

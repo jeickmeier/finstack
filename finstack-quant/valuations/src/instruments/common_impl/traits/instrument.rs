@@ -12,113 +12,16 @@ use std::any::Any;
 
 use super::pricing_options::PricingOptions;
 
-/// Unified instrument trait combining identity, attributes, and pricing.
+/// Unified instrument trait: identity, attributes, and pricing.
 ///
-/// This is the primary trait for all financial instruments in the valuation framework.
-/// It provides a consistent interface for instrument identification, metadata access,
-/// and pricing operations. All concrete instrument types (Bond, Swap, Option, etc.)
-/// implement this trait.
-///
-/// # Core Responsibilities
-///
-/// 1. **Identity**: Unique instrument identifiers and type information
-/// 2. **Metadata**: Tags and attributes for categorization and scenario selection
-/// 3. **Pricing**: Present value calculation with optional risk metrics
-/// 4. **Type Safety**: Strongly-typed instrument dispatch and downcasting
-///
-/// # Pricing Methods
-///
-/// The trait provides two pricing methods with different performance characteristics:
-///
-/// - [`value()`](Instrument::value): Fast NPV-only calculation (no metrics)
-/// - [`price_with_metrics()`](Instrument::price_with_metrics): NPV plus requested risk metrics
-///
-/// `value()` is the canonical rounded pricing path and returns a [`Money`] amount
-/// in the instrument's reporting currency. [`value_raw()`](Instrument::value_raw)
-/// should be used only when the caller needs the same economics before currency
-/// rounding, typically for finite-difference risk calculations.
-///
-/// # Implementation Guidelines
-///
-/// Instruments should:
-/// - Return unique, stable identifiers from `id()`
-/// - Map to the correct `InstrumentType` variant in `key()`
-/// - Implement efficient `base_value()` kernels for hot paths
-/// - Compute metrics on-demand in `price_with_metrics()`
-/// - Support `clone_box()` for trait object cloning
+/// [`value`](Instrument::value) is the rounded NPV. [`value_raw`](Instrument::value_raw)
+/// is the same economics before currency rounding (finite-difference risk).
+/// [`price_with_metrics`](Instrument::price_with_metrics) is the canonical
+/// NPV-plus-metrics entry point. Implement pricing in `base_value`; do not
+/// override the public lifecycle wrappers.
 ///
 /// # Examples
 ///
-/// ## Basic Pricing
-///
-/// ```rust
-/// use finstack_quant_valuations::instruments::Bond;
-/// use finstack_quant_valuations::instruments::Instrument;
-/// use finstack_quant_core::currency::Currency;
-/// use finstack_quant_core::money::Money;
-/// use finstack_quant_core::dates::create_date;
-/// use finstack_quant_core::types::Rate;
-/// use finstack_quant_core::market_data::context::MarketContext;
-/// use time::Month;
-///
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let issue = create_date(2025, Month::January, 15)?;
-/// let maturity = create_date(2030, Month::January, 15)?;
-/// let bond = Bond::fixed(
-///     "BOND-001",
-///     Money::new(1_000_000.0, Currency::USD),
-///     Rate::from_percent(5.0),
-///     issue,
-///     maturity,
-///     finstack_quant_core::dates::StubKind::None,
-///     "USD-OIS"
-/// )?;
-///
-/// let market = MarketContext::new();
-/// let as_of = create_date(2025, Month::January, 1)?;
-///
-/// // Fast NPV calculation
-/// // let pv = bond.value(&market, as_of)?;
-/// // println!("PV: {}", pv);
-/// # Ok(())
-/// # }
-/// ```
-///
-/// ## Pricing with Metrics
-///
-/// ```rust
-/// use finstack_quant_valuations::instruments::Bond;
-/// use finstack_quant_valuations::instruments::Instrument;
-/// use finstack_quant_valuations::metrics::MetricId;
-/// # use finstack_quant_core::currency::Currency;
-/// # use finstack_quant_core::money::Money;
-/// # use finstack_quant_core::dates::create_date;
-/// # use finstack_quant_core::types::Rate;
-/// # use finstack_quant_core::market_data::context::MarketContext;
-/// # use time::Month;
-///
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// # let issue = create_date(2025, Month::January, 15)?;
-/// # let maturity = create_date(2030, Month::January, 15)?;
-/// # let bond = Bond::fixed("BOND-001", Money::new(1_000_000.0, Currency::USD),
-/// #     Rate::from_percent(5.0), issue, maturity,
-/// #     finstack_quant_core::dates::StubKind::None, "USD-OIS");
-/// # let market = MarketContext::new();
-/// # let as_of = create_date(2025, Month::January, 1)?;
-///
-/// // Request specific metrics
-/// let metrics = vec![MetricId::Ytm, MetricId::DurationMod, MetricId::Dv01];
-/// // let result = bond.price_with_metrics(&market, as_of, &metrics)?;
-///
-/// // Access metrics
-/// // println!("YTM: {:.2}%", result.measures["ytm"] * 100.0);
-/// // println!("Duration: {:.2}", result.measures["duration_mod"]);
-/// # Ok(())
-/// # }
-/// ```
-///
-/// ## Trait Object Usage
-///
 /// ```rust
 /// use finstack_quant_valuations::instruments::Bond;
 /// use finstack_quant_valuations::instruments::Instrument;
@@ -141,13 +44,9 @@ use super::pricing_options::PricingOptions;
 ///     "USD-OIS"
 /// )?;
 ///
-/// // Use as trait object
 /// let instrument: Box<dyn Instrument> = Box::new(bond);
 /// assert_eq!(instrument.id(), "BOND-001");
-///
-/// // Clone trait object
-/// let cloned = instrument.clone_box();
-/// assert_eq!(cloned.id(), "BOND-001");
+/// assert_eq!(instrument.clone_box().id(), "BOND-001");
 /// # Ok(())
 /// # }
 /// ```
@@ -797,13 +696,6 @@ pub trait Instrument: CashflowProvider + Send + Sync {
     /// - Required market data is missing
     /// - Metric calculation fails
     /// - Instrument configuration is invalid
-    ///
-    /// # Examples
-    /// Compute present value with specified risk metrics.
-    ///
-    /// This is the canonical user-facing pricing entry point. Pass `&[]` for
-    /// PV only; pass requested metric IDs to get DV01, duration, YTM, etc.
-    /// alongside the PV.
     fn price_with_metrics(
         &self,
         market: &MarketContext,

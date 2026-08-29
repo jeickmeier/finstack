@@ -999,8 +999,7 @@ mod tests {
                     base_value,
                     metrics,
                     crate::instruments::common_impl::helpers::MetricBuildOptions {
-                        cfg: options.config,
-                        market_history: options.market_history,
+                        pricing: options,
                         ..crate::instruments::common_impl::helpers::MetricBuildOptions::default()
                     },
                 )?,
@@ -1089,8 +1088,7 @@ mod tests {
                     base_value,
                     metrics,
                     crate::instruments::common_impl::helpers::MetricBuildOptions {
-                        cfg: options.config,
-                        market_history: options.market_history,
+                        pricing: options,
                         ..crate::instruments::common_impl::helpers::MetricBuildOptions::default()
                     },
                 )?,
@@ -1528,8 +1526,7 @@ mod tests {
                     base_value,
                     metrics,
                     crate::instruments::common_impl::helpers::MetricBuildOptions {
-                        cfg: options.config,
-                        market_history: options.market_history,
+                        pricing: options,
                         ..crate::instruments::common_impl::helpers::MetricBuildOptions::default()
                     },
                 )?,

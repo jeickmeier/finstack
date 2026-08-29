@@ -130,6 +130,10 @@ impl Structured2D {
 }
 
 /// Immutable inputs shared by every calculator in one metric request.
+///
+/// Not re-exported from [`crate::metrics`]; the registry → metric boundary
+/// uses [`crate::instruments::PricingOptions`] plus crate-private
+/// [`crate::instruments::common_impl::helpers::MetricBuildOptions`].
 pub struct MetricPricingInputs {
     /// Instrument being valued.
     pub instrument: Arc<dyn Instrument>,
@@ -431,12 +435,18 @@ impl MetricContext {
     }
 
     /// Recalibrate a hazard curve, reusing an identical batch-local result.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn bump_hazard_spreads_cached(
         &self,
         hazard: &finstack_quant_core::market_data::term_structures::HazardCurve,
         market: &MarketContext,
         bump: &crate::recalibration::QuoteBump,
-        conventions: &crate::recalibration::HazardRecalibrationConventions,
+        discount_curve_id: CurveId,
+        doc_clause: Option<crate::market::conventions::ids::CdsDocClause>,
+        cds_valuation_convention: Option<
+            crate::instruments::credit_derivatives::cds::CdsValuationConvention,
+        >,
+        deal_quote_override: Option<crate::recalibration::DealCdsQuoteOverride>,
     ) -> finstack_quant_core::Result<
         Arc<finstack_quant_core::market_data::term_structures::HazardCurve>,
     > {
@@ -449,21 +459,27 @@ impl MetricContext {
             hazard: Arc::new(hazard.clone()),
             source_market: Arc::clone(&self.curves),
             target_market: Arc::new(market.clone()),
-            discount_curve_id: conventions.discount_curve_id.clone(),
-            doc_clause: conventions.doc_clause,
-            cds_valuation_convention: conventions.cds_valuation_convention,
-            deal_quote_override: conventions.deal_quote_override,
+            discount_curve_id,
+            doc_clause,
+            cds_valuation_convention,
+            deal_quote_override,
             action: crate::recalibration::HazardRecalibrationAction::SpreadBump(bump.clone()),
         })
     }
 
     /// Recalibrate after bumping one exact spread-risk recipe binding.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn bump_hazard_spread_risk_input_cached(
         &self,
         hazard: &finstack_quant_core::market_data::term_structures::HazardCurve,
         market: &MarketContext,
         quote_bump: (usize, f64),
-        conventions: &crate::recalibration::HazardRecalibrationConventions,
+        discount_curve_id: CurveId,
+        doc_clause: Option<crate::market::conventions::ids::CdsDocClause>,
+        cds_valuation_convention: Option<
+            crate::instruments::credit_derivatives::cds::CdsValuationConvention,
+        >,
+        deal_quote_override: Option<crate::recalibration::DealCdsQuoteOverride>,
     ) -> finstack_quant_core::Result<
         Arc<finstack_quant_core::market_data::term_structures::HazardCurve>,
     > {
@@ -476,10 +492,10 @@ impl MetricContext {
             hazard: Arc::new(hazard.clone()),
             source_market: Arc::clone(&self.curves),
             target_market: Arc::new(market.clone()),
-            discount_curve_id: conventions.discount_curve_id.clone(),
-            doc_clause: conventions.doc_clause,
-            cds_valuation_convention: conventions.cds_valuation_convention,
-            deal_quote_override: conventions.deal_quote_override,
+            discount_curve_id,
+            doc_clause,
+            cds_valuation_convention,
+            deal_quote_override,
             action: crate::recalibration::HazardRecalibrationAction::ExactQuoteIndexBump {
                 quote_index: quote_bump.0,
                 bump_bp: quote_bump.1,

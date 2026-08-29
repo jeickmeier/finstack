@@ -5,9 +5,10 @@ use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::exotics::callable_range_accrual::CallableRangeAccrual;
 use crate::instruments::exotics::range_accrual::BoundsType;
 use crate::instruments::rates::hw1f::{
-    basis_for_degree, initial_short_rate_from_curve, prepare_hw1f_params, resolve_hw1f_params,
-    ExerciseBoundaryPayoff, Hw1fParamFamily, Hw1fResolveRequest, Hw1fTermForward,
-    PeriodForwardCoeffs, RateExoticHw1fLsmcPricer, RateExoticHw1fMcPricer, RateExoticMcConfig,
+    basis_for_degree, hw1f_overrides_from_model_config, initial_short_rate_from_curve,
+    prepare_hw1f_params, resolve_hw1f_params, ExerciseBoundaryPayoff, Hw1fParamFamily,
+    Hw1fResolveRequest, Hw1fTermForward, PeriodForwardCoeffs, RateExoticHw1fLsmcPricer,
+    RateExoticHw1fMcPricer, RateExoticMcConfig,
 };
 use crate::metrics::MetricId;
 use crate::pricer::{
@@ -251,11 +252,13 @@ impl CallableRangeAccrualPricer {
         market: &MarketContext,
         _as_of: Date,
     ) -> Result<HullWhiteCalibrationParams> {
-        let overrides = hw1f_overrides_json(inst).or_else(|| {
-            self.hw_params.map(|params| {
+        let overrides =
+            hw1f_overrides_from_model_config(&inst.instrument_pricing_overrides.model_config)
+                .or_else(|| {
+                    self.hw_params.map(|params| {
                 serde_json::json!({"hw1f_kappa": params.kappa, "hw1f_sigma": params.sigma})
             })
-        });
+                });
         let context_label = format!("CallableRangeAccrual {}", inst.id);
         let req = Hw1fResolveRequest {
             curve_id: inst.range_accrual.discount_curve_id.as_str(),
@@ -400,18 +403,6 @@ impl Default for CallableRangeAccrualPricer {
     fn default() -> Self {
         Self::new()
     }
-}
-
-fn hw1f_overrides_json(inst: &CallableRangeAccrual) -> Option<serde_json::Value> {
-    let config = &inst.instrument_pricing_overrides.model_config;
-    let mut values = serde_json::Map::new();
-    if let Some(kappa) = config.hw1f_mean_reversion {
-        values.insert("hw1f_kappa".to_string(), serde_json::json!(kappa));
-    }
-    if let Some(sigma) = config.hw1f_sigma {
-        values.insert("hw1f_sigma".to_string(), serde_json::json!(sigma));
-    }
-    (!values.is_empty()).then_some(serde_json::Value::Object(values))
 }
 
 impl Pricer for CallableRangeAccrualPricer {

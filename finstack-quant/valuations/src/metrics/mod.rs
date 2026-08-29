@@ -287,12 +287,13 @@ pub use core::finite_difference::bump_surface_vol_absolute;
 pub use core::ids::{MetricGroup, MetricId};
 pub use core::registry::{MetricRegistry, MetricRegistryError};
 pub use core::standard_registry::standard_registry;
-pub use core::traits::{MetricCalculator, MetricContext, MetricPricingInputs, Structured2D};
+pub use core::traits::{MetricCalculator, MetricContext, Structured2D};
 /// Format a standard risk bucket (years) as a human-readable label.
 pub use sensitivities::config::{
     format_bucket_label, STANDARD_BUCKETS_YEARS, STANDARD_BUCKET_LABELS,
 };
-pub use sensitivities::cross_factor::{CrossFactorCalculator, CrossFactorPair};
+pub(crate) use sensitivities::cross_factor::CrossFactorCalculator;
+pub use sensitivities::cross_factor::CrossFactorPair;
 pub use sensitivities::theta::collect_cashflows_in_period;
 
 // Crate-internal re-exports (NOT part of the public API)

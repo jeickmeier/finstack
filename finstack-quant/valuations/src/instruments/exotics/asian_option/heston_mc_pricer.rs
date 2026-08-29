@@ -14,7 +14,6 @@ use finstack_quant_core::dates::{Date, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 
-use finstack_quant_models::closed_form::heston::HestonPricingParams;
 use finstack_quant_models::monte_carlo::discretization::qe_heston::QeHeston;
 use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig};
 use finstack_quant_models::monte_carlo::payoff::asian::{AsianCall, AsianPut, AveragingMethod};
@@ -27,8 +26,8 @@ use finstack_quant_models::monte_carlo::TimeGrid;
 ///
 /// Prices Asian options under the Heston stochastic volatility model using
 /// QE discretization. Averaging is performed on the spot component of the
-/// Heston two-factor path. Heston parameters are sourced from market scalars
-/// with sensible defaults.
+/// Heston two-factor path. Heston parameters are required market scalars
+/// (`HESTON_KAPPA`, `HESTON_THETA`, `HESTON_SIGMA_V`, `HESTON_RHO`, `HESTON_V0`).
 pub(crate) struct AsianOptionHestonMcPricer {
     num_paths: usize,
     steps_per_year: f64,
@@ -43,19 +42,6 @@ impl AsianOptionHestonMcPricer {
             steps_per_year: 252.0,
             min_steps: 10,
         }
-    }
-
-    /// Extract a **required** Heston parameter from market scalars.
-    ///
-    /// Errors when the scalar is absent or mistyped, mirroring the closed-form
-    /// Heston pricer's `from_market_strict`. A silent default would price the
-    /// Asian with arbitrary SPX-like parameters when the surface is missing.
-    fn heston_scalar(market: &MarketContext, key: &str) -> finstack_quant_core::Result<f64> {
-        crate::instruments::common_impl::helpers::get_unitless_scalar_strict(
-            market,
-            key,
-            "Heston Asian MC",
-        )
     }
 
     /// Price an Asian option using Heston Monte Carlo.
@@ -120,13 +106,11 @@ impl AsianOptionHestonMcPricer {
             inst.div_yield_id.as_ref(),
         )?;
 
-        let kappa = Self::heston_scalar(market, "HESTON_KAPPA")?;
-        let theta = Self::heston_scalar(market, "HESTON_THETA")?;
-        let sigma_v = Self::heston_scalar(market, "HESTON_SIGMA_V")?;
-        let rho = Self::heston_scalar(market, "HESTON_RHO")?;
-        let v0 = Self::heston_scalar(market, "HESTON_V0")?;
-
-        let heston_params = HestonPricingParams::new(r, q, kappa, theta, sigma_v, rho, v0)?;
+        let heston_params =
+            crate::instruments::equity::equity_option::heston_market::heston_params_from_market_strict(
+                market, r, q,
+            )?;
+        let v0 = heston_params.v0;
         let process = HestonProcess::new(heston_params);
         let discretization = QeHeston::new();
 

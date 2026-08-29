@@ -9,7 +9,9 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::fx::ndf::{Ndf, NdfQuoteConvention};
 use finstack_quant_valuations::instruments::{Attributes, Instrument};
-use finstack_quant_valuations::pricer::{standard_registry, InstrumentType, ModelKey, PricerKey};
+use finstack_quant_valuations::pricer::{
+    standard_pricer_registry, InstrumentType, ModelKey, PricerKey,
+};
 use std::sync::Arc;
 use time::Month;
 
@@ -209,7 +211,7 @@ fn test_ndf_registry_pricer() {
         .build()
         .expect("should build");
 
-    let registry = standard_registry();
+    let registry = standard_pricer_registry();
 
     // Verify pricer is registered
     assert!(

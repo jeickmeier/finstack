@@ -20,7 +20,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_models::closed_form::black_scholes_spot_call;
 use finstack_quant_valuations::instruments::PricingOptions;
-use finstack_quant_valuations::pricer::{standard_registry, ModelKey};
+use finstack_quant_valuations::pricer::{standard_pricer_registry, ModelKey};
 use time::macros::date;
 
 /// Black-Scholes reference price for the shared `create_call` contract
@@ -57,7 +57,7 @@ fn price_call(
     strike: f64,
 ) -> f64 {
     let call = create_call(as_of, expiry, strike);
-    standard_registry()
+    standard_pricer_registry()
         .price_with_metrics(&call, model, market, as_of, &[], PricingOptions::default())
         .expect("pricing should succeed")
         .value
@@ -230,7 +230,7 @@ fn heston_fourier_missing_scalars_error() {
     let market = build_standard_market(as_of, 100.0, 0.20, 0.0, 0.0);
     let call = create_call(as_of, expiry, 100.0);
 
-    let result = standard_registry().price_with_metrics(
+    let result = standard_pricer_registry().price_with_metrics(
         &call,
         ModelKey::HestonFourier,
         &market,
@@ -272,7 +272,7 @@ fn heston_mc_collapses_to_black_scholes() {
     );
     let mut call = create_call(as_of, expiry, strike);
     call.instrument_pricing_overrides.model_config.mc_paths = Some(80_000);
-    let pv = standard_registry()
+    let pv = standard_pricer_registry()
         .price_with_metrics(
             &call,
             ModelKey::MonteCarloHeston,
@@ -424,7 +424,7 @@ fn rough_heston_mc_atm_is_positive_and_sane() {
     );
     let mut call = create_call(as_of, expiry, 100.0);
     call.instrument_pricing_overrides.model_config.mc_paths = Some(4_000);
-    let pv = standard_registry()
+    let pv = standard_pricer_registry()
         .price_with_metrics(
             &call,
             ModelKey::MonteCarloRoughHeston,
@@ -452,7 +452,7 @@ fn rough_heston_fourier_missing_scalars_error() {
     let market = build_standard_market(as_of, 100.0, 0.20, 0.0, 0.0);
     let call = create_call(as_of, expiry, 100.0);
 
-    let result = standard_registry().price_with_metrics(
+    let result = standard_pricer_registry().price_with_metrics(
         &call,
         ModelKey::RoughHestonFourier,
         &market,

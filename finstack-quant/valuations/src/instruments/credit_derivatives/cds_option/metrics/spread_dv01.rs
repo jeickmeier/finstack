@@ -9,7 +9,7 @@ use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::credit_derivatives::cds_option::pricer::synthetic_underlying_cds;
 use crate::instruments::credit_derivatives::cds_option::CDSOption;
 use crate::metrics::{MetricCalculator, MetricContext};
-use crate::recalibration::{HazardRecalibrationConventions, QuoteBump};
+use crate::recalibration::QuoteBump;
 use finstack_quant_core::Result;
 
 /// Spread DV01 calculator for the option's synthetic underlying CDS.
@@ -28,12 +28,10 @@ impl MetricCalculator for UnderlyingSpreadDv01Calculator {
             hazard.as_ref(),
             &context.curves,
             &QuoteBump::ParallelBp(1.0),
-            &HazardRecalibrationConventions {
-                discount_curve_id: option.discount_curve_id.clone(),
-                doc_clause: None,
-                cds_valuation_convention: None,
-                deal_quote_override: None,
-            },
+            option.discount_curve_id.clone(),
+            None,
+            None,
+            None,
         )?;
         let bumped_market = context
             .curves

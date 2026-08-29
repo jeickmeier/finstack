@@ -14,7 +14,6 @@ use finstack_quant_core::dates::{Date, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 
-use finstack_quant_models::closed_form::heston::HestonPricingParams;
 use finstack_quant_models::monte_carlo::discretization::qe_heston::QeHeston;
 use finstack_quant_models::monte_carlo::engine::{McEngine, McEngineConfig};
 use finstack_quant_models::monte_carlo::payoff::barrier::{
@@ -29,8 +28,8 @@ use finstack_quant_models::monte_carlo::TimeGrid;
 ///
 /// Prices barrier options under the Heston stochastic volatility model using
 /// QE discretization. The barrier is monitored on the spot component (`state[0]`)
-/// of the Heston path. Heston parameters are sourced from market scalars with
-/// sensible defaults.
+/// of the Heston path. Heston parameters are required market scalars
+/// (`HESTON_KAPPA`, `HESTON_THETA`, `HESTON_SIGMA_V`, `HESTON_RHO`, `HESTON_V0`).
 pub(crate) struct BarrierOptionHestonMcPricer {
     num_paths: usize,
     steps_per_year: f64,
@@ -102,33 +101,11 @@ impl BarrierOptionHestonMcPricer {
             inst.strike,
         );
 
-        let kappa = crate::instruments::common_impl::helpers::get_unitless_scalar(
-            market,
-            "HESTON_KAPPA",
-            2.0,
-        );
-        let theta = crate::instruments::common_impl::helpers::get_unitless_scalar(
-            market,
-            "HESTON_THETA",
-            0.04,
-        );
-        let sigma_v = crate::instruments::common_impl::helpers::get_unitless_scalar(
-            market,
-            "HESTON_SIGMA_V",
-            0.3,
-        );
-        let rho = crate::instruments::common_impl::helpers::get_unitless_scalar(
-            market,
-            "HESTON_RHO",
-            -0.7,
-        );
-        let v0 = crate::instruments::common_impl::helpers::get_unitless_scalar(
-            market,
-            "HESTON_V0",
-            0.04,
-        );
-
-        let heston_params = HestonPricingParams::new(r, q, kappa, theta, sigma_v, rho, v0)?;
+        let heston_params =
+            crate::instruments::equity::equity_option::heston_market::heston_params_from_market_strict(
+                market, r, q,
+            )?;
+        let v0 = heston_params.v0;
         let process = HestonProcess::new(heston_params);
         let discretization = QeHeston::new();
 

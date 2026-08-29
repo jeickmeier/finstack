@@ -262,7 +262,14 @@ impl crate::instruments::common_impl::traits::Instrument for Bond {
 
 // Declare canonical market dependencies for DV01/CS01 calculators.
 impl Bond {
-    /// Price this bond using the Merton Monte Carlo structural credit model.
+    /// Advanced Merton Monte Carlo structural-credit price for this bond.
+    ///
+    /// Host and registry callers should use
+    /// [`Instrument::price_with_metrics`](crate::instruments::Instrument::price_with_metrics)
+    /// with [`ModelKey::MertonMc`](crate::pricer::ModelKey::MertonMc)
+    /// (Python: `Bond.price` / `price_instrument(..., model="merton_mc")`).
+    /// This method remains for tests and calibration that need the typed
+    /// `MertonMcResult` without the valuation envelope.
     ///
     /// Extracts coupon rate and frequency from the bond's `CashflowSpec`, then
     /// delegates to

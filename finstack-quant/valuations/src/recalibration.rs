@@ -109,19 +109,6 @@ pub struct DealCdsQuoteOverride {
     pub spread_bp: f64,
 }
 
-/// Common curve identifiers and conventions for hazard replay.
-#[derive(Clone, Debug, PartialEq)]
-pub struct HazardRecalibrationConventions {
-    /// Discount curve identifier required by the stored recipe.
-    pub discount_curve_id: CurveId,
-    /// Optional documentation-clause assertion.
-    pub doc_clause: Option<CdsDocClause>,
-    /// Optional CDS valuation-convention assertion.
-    pub cds_valuation_convention: Option<CdsValuationConvention>,
-    /// Optional deal-level clean-spread replacement.
-    pub deal_quote_override: Option<DealCdsQuoteOverride>,
-}
-
 /// Hazard-curve replay operation.
 #[derive(Clone, Debug, PartialEq)]
 pub enum HazardRecalibrationAction {

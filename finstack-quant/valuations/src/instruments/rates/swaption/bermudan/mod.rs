@@ -2,7 +2,8 @@
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::rates::hw1f::{
-    resolve_hw1f_params, Hw1fParamFamily, Hw1fParamSource, Hw1fResolveRequest,
+    hw1f_overrides_from_model_config, resolve_hw1f_params, Hw1fParamFamily, Hw1fParamSource,
+    Hw1fResolveRequest,
 };
 use crate::instruments::rates::swaption::pricing::BermudanSwaptionTreeValuator;
 use crate::instruments::rates::swaption::BermudanSwaption;
@@ -17,18 +18,6 @@ use finstack_quant_models::rates::hull_white::HullWhiteCalibrationParams;
 use finstack_quant_models::trees::HullWhiteTree;
 use finstack_quant_models::trees::HullWhiteTreeConfig;
 use std::sync::Arc;
-
-fn hw1f_overrides_json(swaption: &BermudanSwaption) -> Option<serde_json::Value> {
-    let config = &swaption.instrument_pricing_overrides.model_config;
-    let mut values = serde_json::Map::new();
-    if let Some(kappa) = config.hw1f_mean_reversion {
-        values.insert("hw1f_kappa".to_string(), serde_json::json!(kappa));
-    }
-    if let Some(sigma) = config.hw1f_sigma {
-        values.insert("hw1f_sigma".to_string(), serde_json::json!(sigma));
-    }
-    (!values.is_empty()).then_some(serde_json::Value::Object(values))
-}
 
 // LSMC imports (gated by feature)
 use crate::instruments::common_impl::parameters::OptionType;
@@ -296,7 +285,8 @@ impl BermudanSwaptionPricer {
         _ttm: f64,
     ) -> std::result::Result<(HullWhiteCalibrationParams, Hw1fParamSource), PricingError> {
         let context_label = format!("BermudanSwaption {}", swaption.id);
-        let overrides = hw1f_overrides_json(swaption);
+        let overrides =
+            hw1f_overrides_from_model_config(&swaption.instrument_pricing_overrides.model_config);
         let req = Hw1fResolveRequest {
             curve_id: swaption.get_discount_curve_id().as_str(),
             family: Hw1fParamFamily::Swaption,

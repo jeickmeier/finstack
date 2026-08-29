@@ -146,7 +146,7 @@ market = MarketContext().insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
 
 result = price_instrument(bond, market, as_of, metrics=["dv01"])
 print(result.instrument_id, round(result.price, 2), result.currency)  # B 1017.07 USD
-frame = result.to_metrics_dataframe()
+frame = result.to_dataframe()
 ```
 
 ## Result-return contract

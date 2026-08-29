@@ -35,8 +35,9 @@ mod registry;
 pub use errors::{PricingError, PricingErrorContext};
 pub use json::{
     instrument_envelope_from_spec, list_models, list_models_grouped, list_standard_metrics,
-    list_standard_metrics_grouped, metric_value_from_instrument_json, parse_boxed_instrument_json,
-    parse_instrument_json, parse_model_key, present_metric_values_from_instrument_json,
+    list_standard_metrics_grouped, metric_value, metric_value_from_instrument_json,
+    parse_boxed_instrument_json, parse_instrument_json, parse_model_key, present_metric_values,
+    present_metric_values_from_instrument_json, present_standard_option_greeks,
     present_standard_option_greeks_from_instrument_json, pretty_instrument_json, price_instrument,
     price_instrument_json, validate_instrument_json, validate_typed_instrument_json,
     JsonPricingRequest, ParsedInstrument, STANDARD_OPTION_GREEKS,
@@ -126,9 +127,9 @@ static STANDARD_PRICER_REGISTRY: OnceLock<Arc<PricerRegistry>> = OnceLock::new()
 /// Return the shared standard pricer registry by reference.
 ///
 /// This is the primary public entry point for accessing the built-in pricer set.
-/// Callers that need to mutate a registry should start from `standard_registry().clone()`.
+/// Callers that need to mutate a registry should start from `standard_pricer_registry().clone()`.
 #[allow(clippy::expect_used)]
-pub fn standard_registry() -> &'static PricerRegistry {
+pub fn standard_pricer_registry() -> &'static PricerRegistry {
     STANDARD_PRICER_REGISTRY
         .get_or_init(|| {
             Arc::new(
@@ -213,9 +214,12 @@ mod tests {
 
     #[test]
     fn standard_registry_returns_shared_singleton() {
-        assert!(ptr::eq(standard_registry(), standard_registry()));
         assert!(ptr::eq(
-            standard_registry(),
+            standard_pricer_registry(),
+            standard_pricer_registry()
+        ));
+        assert!(ptr::eq(
+            standard_pricer_registry(),
             shared_standard_registry().as_ref(),
         ));
     }
@@ -223,14 +227,14 @@ mod tests {
     #[test]
     fn cloned_standard_registry_is_independently_mutable() {
         let key = PricerKey::new(InstrumentType::Deposit, ModelKey::Tree);
-        assert!(standard_registry().get_pricer(key).is_none());
+        assert!(standard_pricer_registry().get_pricer(key).is_none());
 
-        let mut cloned = standard_registry().clone();
+        let mut cloned = standard_pricer_registry().clone();
         cloned
             .register(DummyPricer)
             .expect("new clone registration");
 
         assert!(cloned.get_pricer(key).is_some());
-        assert!(standard_registry().get_pricer(key).is_none());
+        assert!(standard_pricer_registry().get_pricer(key).is_none());
     }
 }

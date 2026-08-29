@@ -22,7 +22,7 @@
 //! };
 //! use finstack_quant_valuations::prelude::*;
 //!
-//! let registry = finstack_quant_valuations::pricer::standard_registry();
+//! let registry = finstack_quant_valuations::pricer::standard_pricer_registry();
 //! let bond = Bond::fixed(
 //!     "BOND-001",
 //!     Money::new(1_000_000.0, Currency::USD),

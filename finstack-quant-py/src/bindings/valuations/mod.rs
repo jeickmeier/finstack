@@ -19,11 +19,11 @@ pub(crate) mod typed_rates;
 pub(crate) mod typed_structured_credit;
 
 use crate::bindings::pandas_utils::{
-    dict_to_dataframe, serde_object_to_single_row_dataframe_with_schema,
+    serde_object_to_single_row_dataframe_with_schema, serde_to_py,
 };
 use crate::errors::display_to_py;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList};
+use pyo3::types::PyList;
 
 #[pyclass(
     name = "ValuationResult",
@@ -108,7 +108,7 @@ impl PyValuationResult {
     ///
     /// Despite the ``_series`` suffix (which mirrors the Rust name) this is a
     /// plain ``list`` of tuples, not a :class:`pandas.Series`. Use
-    /// :meth:`to_metrics_dataframe` for the tabular view.
+    /// :meth:`to_dataframe` for the tabular view.
     ///
     /// Results preserve the underlying ``measures`` insertion order. Legacy
     /// malformed escapes remain literal, and decoded-coordinate collisions
@@ -149,9 +149,6 @@ impl PyValuationResult {
     /// Rust-side DataFrame rows cannot drift apart. Stack a book with
     /// ``pd.concat([r.to_dataframe() for r in results])``; instruments with
     /// different metric sets align on column name and leave ``NaN`` elsewhere.
-    ///
-    /// ``to_metrics_dataframe`` is the older, near-identical view that names
-    /// the value column ``price`` and omits the valuation date.
     #[pyo3(text_signature = "($self)")]
     fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let row = self.inner.to_row();
@@ -162,22 +159,26 @@ impl PyValuationResult {
         )
     }
 
-    /// Export as a single-row pandas ``DataFrame``.
+    /// Policy stamps: numeric mode, rounding context, FX policy, and timing.
     ///
-    /// Columns include ``instrument_id``, ``price``, ``currency``, plus one
-    /// column per metric key.  Useful for stacking multiple results with
-    /// ``pd.concat``.
+    /// Same serde shape as the Rust ``ResultsMeta`` object already present on
+    /// the WASM ``ValuationResult``.
+    #[getter]
+    fn meta<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        serde_to_py(py, &self.inner.meta)
+    }
+
+    /// Model-specific structured pricing detail, or ``None``.
     ///
-    /// Prefer ``to_dataframe``, which additionally carries the valuation date.
-    fn to_metrics_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let data = PyDict::new(py);
-        data.set_item("instrument_id", vec![&self.inner.instrument_id])?;
-        data.set_item("price", vec![self.inner.value.amount()])?;
-        data.set_item("currency", vec![self.inner.value.currency().to_string()])?;
-        for (key, &val) in &self.inner.measures {
-            data.set_item(key.to_string(), vec![val])?;
-        }
-        dict_to_dataframe(py, &data, None)
+    /// Same tagged ``{type, data}`` shape as the Rust ``ValuationDetails``
+    /// enum. Absent when the pricer emitted only the scalar envelope.
+    #[getter]
+    fn details<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.inner
+            .details
+            .as_ref()
+            .map(|details| serde_to_py(py, details))
+            .transpose()
     }
 
     fn __repr__(&self) -> String {

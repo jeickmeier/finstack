@@ -1,9 +1,7 @@
 //! WASM bindings for instrument pricing and metric introspection.
 //!
-//! Structural credit-model factories (Merton, CreditGrades, dynamic recovery,
-//! endogenous hazard, toggle exercise) live in [`super::credit`]. CDS-family
-//! example payloads live in [`super::credit_derivatives`]. Both mirror the
-//! Python binding layout; the exported JS surface is unchanged.
+//! CDS-family example payloads live in [`super::credit_derivatives`].
+//! Structural credit-model factories live under `crate::api::models::credit`.
 //!
 //! # Monte-Carlo determinism
 //!
@@ -26,8 +24,20 @@
 use super::market_handle::JsMarket;
 use crate::utils::{to_js_err, to_js_error, to_js_value};
 use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_valuations::instruments::PricingOptions;
 use finstack_quant_valuations::results::ValuationResult;
+use std::sync::Arc;
 use wasm_bindgen::prelude::*;
+
+/// Attach the host-owned cached recalibration provider.
+///
+/// Lives here rather than in `finstack-quant-valuations` because that crate
+/// cannot depend on `finstack-quant-calibration`.
+fn binding_pricing_options() -> PricingOptions {
+    PricingOptions::default().with_recalibration_provider(Arc::new(
+        finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
+    ))
+}
 
 pub(super) fn parse_market_json(market_json: &str) -> Result<MarketContext, JsValue> {
     serde_json::from_str(market_json).map_err(to_js_err)
@@ -71,10 +81,7 @@ pub(super) fn price_result_with_context(
         model,
         &metrics,
         market_history_json,
-        finstack_quant_valuations::instruments::PricingOptions::default()
-            .with_recalibration_provider(std::sync::Arc::new(
-                finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
-            )),
+        binding_pricing_options(),
     )
     .map_err(|e| to_js_error(&e))
 }
@@ -131,25 +138,15 @@ pub(super) fn metric_value_with_context(
     model: &str,
     metric: &str,
 ) -> Result<f64, JsValue> {
-    let metrics = [metric.to_string()];
-    let result = finstack_quant_valuations::pricer::price_instrument(
+    finstack_quant_valuations::pricer::metric_value(
         instrument,
         market,
         as_of,
         model,
-        &metrics,
-        None,
-        finstack_quant_valuations::instruments::PricingOptions::default()
-            .with_recalibration_provider(std::sync::Arc::new(
-                finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
-            )),
+        metric,
+        binding_pricing_options(),
     )
-    .map_err(to_js_err)?;
-    result.metric_str(metric).ok_or_else(|| {
-        to_js_err(finstack_quant_core::Error::Validation(format!(
-            "metric `{metric}` was not returned"
-        )))
-    })
+    .map_err(to_js_err)
 }
 
 pub(super) fn standard_option_greeks_with_context(
@@ -158,28 +155,14 @@ pub(super) fn standard_option_greeks_with_context(
     as_of: &str,
     model: &str,
 ) -> Result<Vec<(&'static str, f64)>, JsValue> {
-    let names = finstack_quant_valuations::pricer::STANDARD_OPTION_GREEKS;
-    let metrics = names
-        .iter()
-        .map(|name| (*name).to_string())
-        .collect::<Vec<_>>();
-    let result = finstack_quant_valuations::pricer::price_instrument(
+    finstack_quant_valuations::pricer::present_standard_option_greeks(
         instrument,
         market,
         as_of,
         model,
-        &metrics,
-        None,
-        finstack_quant_valuations::instruments::PricingOptions::default()
-            .with_recalibration_provider(std::sync::Arc::new(
-                finstack_quant_calibration::recalibration::CachedRecalibrationProvider::new(),
-            )),
+        binding_pricing_options(),
     )
-    .map_err(to_js_err)?;
-    Ok(names
-        .iter()
-        .filter_map(|name| result.metric_str(name).map(|value| (*name, value)))
-        .collect())
+    .map_err(to_js_err)
 }
 
 /// Deserialize a `ValuationResult` from JSON and return the canonical JSON.
@@ -1172,9 +1155,6 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&canonical).expect("json");
         assert!(parsed.is_object());
     }
-
-    // (Credit-model evaluator parity tests live in `super::credit::tests`,
-    // co-located with the functions they exercise.)
 
     /// Build a floored-bond InstrumentJson string from a raw JSON spec.
     ///
