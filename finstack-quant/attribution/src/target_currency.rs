@@ -73,7 +73,7 @@ use indexmap::IndexMap;
 ///   (`credit_factor_detail`, `credit_carry_decomposition`) and
 ///   `carry_detail` ARE translated — every Money leaf, including bucket and
 ///   per-issuer maps, moves to target currency at T1 FX so their documented
-///   reconciliation invariants keep closing after translation (audit M5).
+///   reconciliation invariants keep closing after translation.
 ///   Remaining detail maps (`rates_detail`, `credit_detail`,
 ///   `inflation_detail`, `correlations_detail`, `fx_detail`, `vol_detail`,
 ///   `cross_factor_detail`, `model_params_detail`, `scalars_detail`) are

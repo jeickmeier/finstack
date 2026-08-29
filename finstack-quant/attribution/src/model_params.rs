@@ -157,8 +157,7 @@ fn prepayment_shift(
                     // (age < 30m) the effective CPR is age/30 × 6% × mult and
                     // this proxy overstates the shift by up to 2.5×.
                     // Collateral age is not available from the snapshots, so
-                    // the proxy is documented rather than seasoning-adjusted
-                    // (audit Mo11).
+                    // the proxy is documented rather than seasoning-adjusted.
                     Some((mult_t1 - mult_t0) * 600.0) // Convert to basis points
                 }
                 (None, None)
@@ -166,8 +165,8 @@ fn prepayment_shift(
                     // Direct CPR difference in basis points
                     Some((prep_t1.cpr - prep_t0.cpr) * 10000.0)
                 }
-                // Audit Mo11: a (PSA, None) pair used to fall through to
-                // `None` and be silently zeroed by the caller. The None side
+                // A (PSA, None) pair used to fall through to `None` and be
+                // silently zeroed by the caller. The None side
                 // is treated as PSA multiplier 0 (zero prepayment baseline;
                 // its `cpr` field is ignored, matching the PSA branch which
                 // also ignores `cpr`) so the Some side's shift is measured.
@@ -204,6 +203,13 @@ fn prepayment_shift(
     }
 }
 
+fn measure_or_zero(shift: Option<f64>, what: &str) -> f64 {
+    shift.unwrap_or_else(|| {
+        tracing::warn!("Model parameter {what} shift defaulted to zero");
+        0.0
+    })
+}
+
 /// Measure prepayment parameter shift between two snapshots.
 ///
 /// Returns the shift in **basis points** of CPR (0.0 if not applicable),
@@ -219,10 +225,7 @@ pub fn measure_prepayment_shift(
     snapshot_t0: &ModelParamsSnapshot,
     snapshot_t1: &ModelParamsSnapshot,
 ) -> f64 {
-    prepayment_shift(snapshot_t0, snapshot_t1).unwrap_or_else(|| {
-        tracing::warn!("Model parameter prepayment shift defaulted to zero");
-        0.0
-    })
+    measure_or_zero(prepayment_shift(snapshot_t0, snapshot_t1), "prepayment")
 }
 
 /// Compute a default rate parameter shift between two snapshots.
@@ -266,10 +269,7 @@ pub fn measure_default_shift(
     snapshot_t0: &ModelParamsSnapshot,
     snapshot_t1: &ModelParamsSnapshot,
 ) -> f64 {
-    default_shift(snapshot_t0, snapshot_t1).unwrap_or_else(|| {
-        tracing::warn!("Model parameter default shift defaulted to zero");
-        0.0
-    })
+    measure_or_zero(default_shift(snapshot_t0, snapshot_t1), "default")
 }
 
 /// Compute a recovery rate parameter shift between two snapshots.
@@ -313,10 +313,7 @@ pub fn measure_recovery_shift(
     snapshot_t0: &ModelParamsSnapshot,
     snapshot_t1: &ModelParamsSnapshot,
 ) -> f64 {
-    recovery_shift(snapshot_t0, snapshot_t1).unwrap_or_else(|| {
-        tracing::warn!("Model parameter recovery shift defaulted to zero");
-        0.0
-    })
+    measure_or_zero(recovery_shift(snapshot_t0, snapshot_t1), "recovery")
 }
 
 /// Compute a conversion ratio shift between two snapshots.
@@ -360,10 +357,7 @@ pub fn measure_conversion_shift(
     snapshot_t0: &ModelParamsSnapshot,
     snapshot_t1: &ModelParamsSnapshot,
 ) -> f64 {
-    conversion_shift(snapshot_t0, snapshot_t1).unwrap_or_else(|| {
-        tracing::warn!("Model parameter conversion shift defaulted to zero");
-        0.0
-    })
+    measure_or_zero(conversion_shift(snapshot_t0, snapshot_t1), "conversion")
 }
 
 #[cfg(test)]
@@ -395,7 +389,7 @@ mod tests {
         assert_eq!(shift, 300.0);
     }
 
-    /// Audit Mo11: a (PSA, None) prepayment-curve pair used to fall through
+    /// A (PSA, None) prepayment-curve pair used to fall through
     /// the match to `None` and be silently reported as a 0bp shift. The None
     /// side is treated as PSA multiplier 0 (zero baseline), so the Some side's
     /// shift is measured rather than dropped.

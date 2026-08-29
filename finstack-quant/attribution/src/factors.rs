@@ -24,11 +24,11 @@
 //! clone of `current_market`, then each FLAGGED family is dropped and
 //! replaced from the snapshot. Families the snapshot does not model — credit
 //! indices, collateral CSA mappings, hierarchy — always survive the restore
-//! unchanged (quant review B2: the previous from-scratch rebuild silently
-//! dropped them, breaking every instrument that depends on them).
+//! unchanged (the previous from-scratch rebuild silently dropped them,
+//! breaking every instrument that depends on them).
 //!
-//! Every [`CurveStorage`] variant is owned by exactly one flag family (quant
-//! review B8: price / vol-index / basis-spread / parametric curves previously
+//! Every [`CurveStorage`] variant is owned by exactly one flag family (price
+//! / vol-index / basis-spread / parametric curves previously
 //! survived every restore at their pre-restore state, so a waterfall /
 //! parallel attribution never moved them to T1 and their P&L fell into the
 //! residual):
@@ -442,7 +442,7 @@ impl MarketSnapshot {
         // unflagged families. The match is deliberately EXHAUSTIVE (no `_`
         // arm): every `CurveStorage` variant must be owned by exactly one
         // flag family, so adding a tenth variant is a compile error here
-        // instead of a silent restore gap (quant review B8).
+        // instead of a silent restore gap.
         new_market.retain_curves_mut(|_, curve| match curve {
             CurveStorage::Discount(_) => !restore_flags.contains(MarketRestoreFlags::DISCOUNT),
             CurveStorage::Forward(_)

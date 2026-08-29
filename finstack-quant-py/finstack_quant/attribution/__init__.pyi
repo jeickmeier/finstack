@@ -833,23 +833,6 @@ class PnlAttribution:
         """
         ...
 
-    def residual_within_meta_tolerance(self) -> bool:
-        """
-        Check residual using the attribution's stored method-specific tolerances.
-
-        Returns
-        -------
-        bool
-            ``True`` when the residual satisfies the absolute or percentage
-            tolerance stored in the attribution metadata; ``False`` for an
-            invalid result or an out-of-tolerance residual.
-
-        Notes
-        -----
-        This method does not raise; it returns ``True`` or ``False``.
-        """
-        ...
-
     def validate_currencies(self) -> None:
         """
         Validate that every factor's currency matches ``total_pnl.currency``.
@@ -1240,6 +1223,8 @@ def attribute_pnl(
     method: str | dict[str, Any],
     config: dict[str, Any] | None = None,
     full_cross_attribution: bool | None = None,
+    model_params_t0_json: str | None = None,
+    credit_factor_model_json: str | None = None,
 ) -> PnlAttribution:
     """
     Run P&L attribution for a single instrument.
@@ -1274,6 +1259,12 @@ def attribute_pnl(
         default.
     full_cross_attribution : bool or None
         Option to compute all 36 cross-factor pairs when enabled.
+    model_params_t0_json : str or None
+        Serialized opening ``ModelParamsSnapshot``. When omitted, model-
+        parameter P&L is isolated from the instrument's current snapshot.
+    credit_factor_model_json : str or None
+        Serialized ``CreditFactorModel``. When supplied, credit-factor
+        hierarchy detail is populated on the result.
 
     Returns
     -------

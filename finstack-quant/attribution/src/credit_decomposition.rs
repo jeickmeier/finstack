@@ -91,7 +91,7 @@ impl AttributionSpec {
         else {
             return Ok(None);
         };
-        // Surface planner diagnostics (e.g. the Mo3 factor-series unit
+        // Surface planner diagnostics (e.g. the factor-series unit
         // guard) into the attribution's notes.
         notes.extend(cascade.warnings.iter().cloned());
 
@@ -102,7 +102,7 @@ impl AttributionSpec {
         //    here so `cs01_amt` and the cascade's per-step `delta_bp` share
         //    units exactly (par CDS spread bp).
         //
-        //    Audit (M2 fix): the prior implementation measured CS01 at
+        //    The prior implementation measured CS01 at
         //    (market_t0, as_of_t0). That baseline drifts from the credit_pnl
         //    baseline whenever forwards / discounting / recovery move between
         //    T0 and T1, distorting generic / level / adder attributions for
@@ -175,7 +175,7 @@ impl AttributionSpec {
 impl AttributionSpec {
     /// Split `carry_detail.coupon_income`, `carry_detail.pull_to_par` and
     /// `carry_detail.roll_down` into rates / credit parts and emit the
-    /// per-factor `credit_carry_decomposition` (PR-8b §7).
+    /// per-factor `credit_carry_decomposition`.
     ///
     /// # Math (§7.3, §7.5)
     ///
@@ -191,12 +191,12 @@ impl AttributionSpec {
     ///   credit share is well-defined by the same ratio. The wire field stays
     ///   a single `Money` (v1 schema); the split enters the two carry totals
     ///   so that `rates_carry_total + credit_carry_total ≡ carry_detail.total`
-    ///   holds exactly (audit M2 — previously pull_to_par entered neither leg).
+    ///   holds exactly (previously pull_to_par entered neither leg).
     /// - `roll.credit_part   = 0` (v1: scalar level factors, no term-structure
     ///   adder → all credit roll-down lands in adder, which is 0 here)
     /// - `roll.rates_part    = roll.total`
     ///
-    /// **Negative total yield** (audit Mo5): when `r + s ≤ 0` with `s > 0`
+    /// **Negative total yield**: when `r + s ≤ 0` with `s > 0`
     /// (negative-rate books where the base rate overwhelms the spread), the
     /// naive `s / (r + s)` is negative and previously clamped to 0, routing
     /// the entire coupon to rates despite a genuine positive spread. Since
@@ -210,7 +210,7 @@ impl AttributionSpec {
     /// Each factor's credit-carry share is its contribution to `S_i` scaled
     /// by `credit_carry_total / S_i`, so
     /// `generic + Σ levels + adder ≡ credit_carry_total` by construction
-    /// (audit Mo6 — previously the scale used only the coupon credit part).
+    /// (previously the scale used only the coupon credit part).
     ///
     /// Best-effort: returns `Ok(())` and leaves the existing CarryDetail
     /// alone if the inputs are missing (no carry detail, no issuer in model,
@@ -346,7 +346,7 @@ impl AttributionSpec {
         // builders enforce hazard ≥ 0 and recovery ∈ [0, 1], `s ≥ 0` always —
         // so the economically meaningful credit share is clamped to [0, 1].
         //
-        // Audit Mo5: when the total risky yield is non-positive (or the
+        // When the total risky yield is non-positive (or the
         // denominator degenerately cancels) while `s > 0`, the spread is the
         // only positive-yield component: the naive share is negative and a
         // clamp-to-zero would mislabel a genuinely spread-carrying bond as
@@ -383,7 +383,7 @@ impl AttributionSpec {
             None => (Money::new(0.0, ccy), Money::new(0.0, ccy)),
         };
 
-        // 5b. Split pull_to_par on the same credit share (audit M2). It is
+        // 5b. Split pull_to_par on the same credit share. It is
         //     discount-driven convergence toward par under the total risky
         //     yield `r + s`, so the s/(r + s) ratio applies exactly as it does
         //     to the coupon. The wire field stays a single `Money` (v1
@@ -446,7 +446,7 @@ impl AttributionSpec {
 
         let s_model: f64 = pc_share_of_s + level_share_of_s.iter().sum::<f64>() + adder_of_s;
 
-        // Scaling factor: credit_carry_total / S_model (audit Mo6 — scaling
+        // Scaling factor: credit_carry_total / S_model (scaling
         // by only the coupon credit part broke `generic + Σ levels + adder ≡
         // credit_carry_total` the moment any non-coupon credit carry, e.g.
         // the pull-to-par credit share, was nonzero). If S_model is zero, we
@@ -769,7 +769,7 @@ mod tests {
         );
     }
 
-    /// Mo6: the per-factor allocation must sum to `credit_carry_total`
+    /// The per-factor allocation must sum to `credit_carry_total`
     /// (generic + Σ levels + adder ≡ credit_carry_total), not merely to the
     /// coupon credit share.
     #[test]
@@ -800,7 +800,7 @@ mod tests {
         );
     }
 
-    /// Mo5: with r = −2% and s = +1% the naive share s/(r+s) = −1 used to
+    /// With r = −2% and s = +1% the naive share s/(r+s) = −1 used to
     /// clamp to 0, routing the whole coupon to rates despite a genuine 100bp
     /// spread. The spread is the only positive-yield component, so the coupon
     /// must go to credit (share = 1) with a diagnostic note.

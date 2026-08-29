@@ -144,7 +144,7 @@ pub(crate) fn reprice_instrument(
 /// # Errors
 ///
 /// Returns error if currency conversion fails.
-pub fn compute_pnl(
+pub(crate) fn compute_pnl(
     val_t0: Money,
     val_t1: Money,
     target_currency: Currency,
@@ -181,32 +181,7 @@ pub fn compute_pnl(
 /// # Errors
 ///
 /// Returns error if currency conversion fails.
-///
-/// # Examples
-///
-/// ```no_run
-/// use finstack_quant_core::currency::Currency;
-/// use finstack_quant_core::market_data::context::MarketContext;
-/// use finstack_quant_core::money::Money;
-/// use finstack_quant_attribution::compute_pnl_with_fx;
-/// use time::macros::date;
-///
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// // For FX attribution: convert T₀ value with T₀ FX, T₁ value with T₁ FX
-/// let fx_pnl = compute_pnl_with_fx(
-///     Money::new(1_000_000.0, Currency::EUR),
-///     Money::new(1_100_000.0, Currency::EUR),
-///     Currency::USD,
-///     &MarketContext::new(),
-///     &MarketContext::new(),
-///     date!(2025-01-15),
-///     date!(2025-01-16),
-/// )?;
-/// # let _ = fx_pnl;
-/// # Ok(())
-/// # }
-/// ```
-pub fn compute_pnl_with_fx(
+pub(crate) fn compute_pnl_with_fx(
     val_t0: Money,
     val_t1: Money,
     target_currency: Currency,

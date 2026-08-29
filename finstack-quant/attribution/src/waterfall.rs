@@ -222,7 +222,7 @@ pub fn attribute_pnl_waterfall(
     skip_all,
     fields(instrument_id = %instrument.id(), method = "waterfall")
 )]
-pub fn attribute_pnl_waterfall_with_credit_model(
+pub(crate) fn attribute_pnl_waterfall_with_credit_model(
     instrument: &Arc<dyn Instrument>,
     market_t0: &MarketContext,
     market_t1: &MarketContext,
@@ -370,8 +370,7 @@ fn attribute_pnl_waterfall_impl(
     // Policy-visibility invariant: stamp the execution policy the
     // attribution ran under (workspace rule: results carry the parallel flag).
     attribution.meta.execution_policy = Some(ExecutionPolicy::Serial);
-    // Path-order visibility (audit Mo12): waterfall factor P&Ls are
-    // path-dependent, so stamp the executed order into the notes for audit.
+    // Waterfall factor P&Ls are path-dependent; stamp the executed order.
     attribution.meta.notes.push(format!(
         "waterfall order: {}",
         factor_order
@@ -829,9 +828,8 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// Audit rec #7 verification: confirm that Money's Decimal-backed
-    /// arithmetic does not drift over many small same-currency adds, even at
-    /// large notional. The audit recommendation of a Kahan/Neumaier
+    /// Confirm that Money's Decimal-backed arithmetic does not drift over
+    /// many small same-currency adds, even at large notional. A Kahan/Neumaier
     /// accumulator turned out to be redundant because `Money::checked_add` is
     /// exact within the Decimal envelope — this test pins that invariant so a
     /// future Decimal→f64 substitution would be caught.

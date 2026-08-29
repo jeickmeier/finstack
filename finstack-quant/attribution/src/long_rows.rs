@@ -21,7 +21,7 @@
 //! Each row's `currency` is taken from its OWN `Money` value, never from the
 //! parent factor aggregate: detail maps are not currency-validated by
 //! [`PnlAttribution::validate_currencies`], so stamping the parent's currency
-//! could silently mislabel a mixed-currency payload (quant review MO-B3).
+//! could silently mislabel a mixed-currency payload.
 //!
 //! # Kind taxonomy
 //!
@@ -68,6 +68,7 @@
 
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
+use finstack_quant_core::Result;
 use indexmap::IndexMap;
 use serde::Serialize;
 
@@ -114,6 +115,98 @@ impl LongDetailRow {
             currency: money.currency().to_string(),
         }
     }
+}
+
+/// One wide (single-row) projection of a [`PnlAttribution`] aggregate fields.
+///
+/// Used by the Python `to_dataframe` export. Every amount is taken from its
+/// own `Money` value after [`PnlAttribution::validate_currencies`] so the
+/// single `currency` column labels comparable units.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct PnlAttributionWideRow {
+    /// Instrument identifier from attribution metadata.
+    pub instrument_id: String,
+    /// Canonical snake-case method name.
+    pub method: String,
+    /// Opening valuation date as `YYYY-MM-DD`.
+    pub t0: String,
+    /// Closing valuation date as `YYYY-MM-DD`.
+    pub t1: String,
+    /// ISO-4217 code of `total_pnl` (and every factor, after validation).
+    pub currency: String,
+    /// Total reported P&L amount.
+    pub total_pnl: f64,
+    /// Raw mark-to-market P&L when the method recorded it.
+    pub mark_to_market_pnl: Option<f64>,
+    /// Carry P&L amount.
+    pub carry: f64,
+    /// Rates-curves P&L amount.
+    pub rates_curves_pnl: f64,
+    /// Credit-curves P&L amount.
+    pub credit_curves_pnl: f64,
+    /// Inflation-curves P&L amount.
+    pub inflation_curves_pnl: f64,
+    /// Correlations P&L amount.
+    pub correlations_pnl: f64,
+    /// Pricing-impact FX P&L amount.
+    pub fx_pnl: f64,
+    /// Reporting-currency FX translation P&L amount.
+    pub fx_translation_pnl: f64,
+    /// Volatility P&L amount.
+    pub vol_pnl: f64,
+    /// Cross-factor interaction P&L amount.
+    pub cross_factor_pnl: f64,
+    /// Model-parameter P&L amount.
+    pub model_params_pnl: f64,
+    /// Market-scalars P&L amount.
+    pub market_scalars_pnl: f64,
+    /// Residual P&L amount.
+    pub residual: f64,
+    /// Residual as a percentage of total P&L.
+    pub residual_pct: f64,
+    /// Number of repricings performed.
+    pub num_repricings: usize,
+    /// True when residual or a factor is non-finite.
+    pub result_invalid: bool,
+}
+
+/// Project aggregate attribution fields into one wide row.
+///
+/// # Arguments
+///
+/// * `attribution` - Attribution result whose aggregate Money fields are
+///   flattened. Currencies must already agree or the call fails.
+///
+/// # Errors
+///
+/// Returns [`finstack_quant_core::Error::Validation`] when any factor
+/// currency differs from `total_pnl`.
+pub fn pnl_attribution_wide_row(attribution: &PnlAttribution) -> Result<PnlAttributionWideRow> {
+    attribution.validate_currencies()?;
+    Ok(PnlAttributionWideRow {
+        instrument_id: attribution.meta.instrument_id.clone(),
+        method: attribution.meta.method.as_str().to_owned(),
+        t0: attribution.meta.t0.to_string(),
+        t1: attribution.meta.t1.to_string(),
+        currency: attribution.total_pnl.currency().to_string(),
+        total_pnl: attribution.total_pnl.amount(),
+        mark_to_market_pnl: attribution.mark_to_market_pnl.map(|m| m.amount()),
+        carry: attribution.carry.amount(),
+        rates_curves_pnl: attribution.rates_curves_pnl.amount(),
+        credit_curves_pnl: attribution.credit_curves_pnl.amount(),
+        inflation_curves_pnl: attribution.inflation_curves_pnl.amount(),
+        correlations_pnl: attribution.correlations_pnl.amount(),
+        fx_pnl: attribution.fx_pnl.amount(),
+        fx_translation_pnl: attribution.fx_translation_pnl.amount(),
+        vol_pnl: attribution.vol_pnl.amount(),
+        cross_factor_pnl: attribution.cross_factor_pnl.amount(),
+        model_params_pnl: attribution.model_params_pnl.amount(),
+        market_scalars_pnl: attribution.market_scalars_pnl.amount(),
+        residual: attribution.residual.amount(),
+        residual_pct: attribution.meta.residual_pct,
+        num_repricings: attribution.meta.num_repricings,
+        result_invalid: attribution.result_invalid,
+    })
 }
 
 /// Project every populated detail breakdown of `attribution` into long rows.

@@ -1,11 +1,11 @@
-//! PR-8a: per-issuer credit-factor cascade for waterfall and parallel.
+//! Per-issuer credit-factor cascade for waterfall and parallel.
 //!
 //! Builds an ordered cascade `(generic / level_0 / ... / level_{L-1} / adder)`
 //! of incremental synthetic spread shifts (in bp) that, applied per-issuer to
 //! the instrument's hazard curves, decomposes the credit P&L into hierarchy
 //! components.
 //!
-//! Single-instrument scope mirrors the linear PR-7 wire: the instrument's
+//! Single-instrument scope mirrors the linear CS01 path: the instrument's
 //! issuer is read from `attributes().get_meta("credit::issuer_id")`, and the
 //! per-issuer ΔS_i is synthesized by feeding `S_t0=0, S_t1=ΔS_i` to
 //! `decompose_levels`, with `Δgeneric=0`.  Because `Σ_step (β·ΔF) + Δadder ≡
@@ -18,7 +18,7 @@
 //! wholesale (instead of merely bumping by `Δadder_i` bp). The step is still
 //! labelled "Adder" — the bp-bump portion exactly equals `Δadder_i` for
 //! parallel moves; for non-parallel moves the residual tenor structure is
-//! absorbed into Adder, matching the PR-plan's intent that all credit
+//! absorbed into Adder, so all credit
 //! roll-down / curve-shape effects flow into the per-issuer adder.
 
 use std::collections::BTreeMap;
@@ -55,7 +55,7 @@ use finstack_quant_valuations::recalibration::{
 /// hierarchy decomposition could not explain.
 pub(crate) const ADDER_MAGNITUDE_WARN_RATIO: f64 = 0.05;
 
-/// Audit Mo3: minimum factor-series/par-spread scale ratio treated as a unit
+/// Minimum factor-series/par-spread scale ratio treated as a unit
 /// mismatch. Scalar factor series ([`MarketScalar::Unitless`]) are consumed
 /// directly as basis points; a percent-quoted series (e.g. `3.25` → `3.50`
 /// meaning 25bp) under-reads its move 100× and the idiosyncratic adder
@@ -87,8 +87,8 @@ pub(crate) enum CreditStepKind {
     /// parallel Generic / Level / Adder bumps cannot explain. The step snaps
     /// the running hazard curves to their T1 state, so the cascade end-state
     /// matches the no-model single Credit step exactly and `Σ steps ≡ total`
-    /// still holds. Audit item #1: previously this residual was absorbed into
-    /// `Adder`, mislabeling curve-shape risk as issuer-idiosyncratic.
+    /// still holds. Previously this residual was absorbed into `Adder`,
+    /// mislabeling curve-shape risk as issuer-idiosyncratic.
     CurveShape,
 }
 
@@ -314,7 +314,7 @@ pub(crate) fn plan_credit_cascade(
     let has_scalar_factor_moves =
         generic_move.is_some() || scalar_level_moves.iter().any(|(_, m)| m.is_some());
 
-    // Audit Mo3 unit-coherence guard: scalar series are consumed as bp with
+    // Unit-coherence guard: scalar series are consumed as bp with
     // no unit tag, so a percent-quoted series silently under-reads its factor
     // move ~100× and the adder absorbs the residual. Flag any observed
     // nonzero factor move that is ≥ FACTOR_UNIT_MISMATCH_RATIO× smaller than
@@ -890,8 +890,8 @@ mod tests {
         .unwrap()
         .expect("cascade");
 
-        // Cascade: generic, rating, region, adder, curve_shape (audit item #1
-        // adds the curve-shape step — for a flat hazard move it is a 0bp snap).
+        // Cascade: generic, rating, region, adder, curve_shape
+        // (for a flat hazard move, curve_shape is a 0bp snap).
         let labels: Vec<&str> = cascade.steps.iter().map(|s| s.label.as_str()).collect();
         let deltas: Vec<f64> = cascade.steps.iter().map(|step| step.delta_bp).collect();
         assert_eq!(
@@ -932,7 +932,7 @@ mod tests {
         );
     }
 
-    /// Audit Mo3: a percent-quoted factor series (3.25 → 3.50, i.e. Δ = 0.25
+    /// A percent-quoted factor series (3.25 → 3.50, i.e. Δ = 0.25
     /// "percent" intended as 25bp) consumed as bp explains only 0.25bp of a
     /// 25bp spread move — a 100× unit under-read the adder silently absorbs.
     /// The cascade must surface a loud diagnostic when the factor series'

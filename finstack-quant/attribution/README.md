@@ -81,7 +81,7 @@ attribution/src/
 ├── credit_decomposition.rs # Generic / per-level / adder decomposition
 ├── execution.rs            # AttributionSpec::execute dispatcher
 ├── return_contribution.rs  # Single-period weight × return contribution
-├── long_rows.rs            # PnlAttribution → long-format LongDetailRow projection
+├── long_rows.rs            # PnlAttribution → long-format and wide-row projections
 ├── target_currency.rs      # translate_to_target_currency (native → reporting currency)
 ├── schema.rs               # Published JSON Schema artifacts
 ├── spec.rs                 # JSON envelope, AttributionSpec, AttributionResult
@@ -161,12 +161,11 @@ Two schema artifacts are checked in under
 | `attribute_pnl_taylor`, `TaylorAttributionConfig`                                | `taylor`         | Sensitivity-based expansion mapped to `PnlAttribution` |
 | `PnlAttribution`, `AttributionFactor`, `AttributionMethod`, `AttributionMeta`     | `types`          | Result envelope and factor enums            |
 | `CarryDetail`, `RatesCurvesAttribution`, `CreditCurvesAttribution`, `CreditFactorAttribution`, `InflationCurvesAttribution`, `CorrelationsAttribution`, `FxAttribution`, `VolAttribution`, `ModelParamsAttribution`, `ScalarsAttribution`, `CrossFactorDetail`, `CreditCarryDecomposition`, `CreditCarryByLevel`, `LevelCarry`, `LevelPnl`, `SourceLine` | `types` | Per-factor detail structs                   |
-| `MarketSnapshot`, `MarketRestoreFlags`                                             | `factors`        | T₀/T₁ snapshot and per-factor restore primitives |
-| `compute_pnl`, `compute_pnl_with_fx`                                              | `helpers`        | Money/FX arithmetic for P&L computation     |
 | `translate_to_target_currency`                                                         | `target_currency`     | Post-hoc translation of a native-currency `PnlAttribution` into a reporting currency, adding `fx_translation_pnl` |
-| `extract_model_params`, `with_model_params`, `measure_prepayment_shift`, `measure_default_shift`, `measure_recovery_shift`, `measure_conversion_shift` | `model_params` | Model-parameter snapshotting and shift attribution; use `finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot` for the snapshot type |
+| `AttributionJsonInputs` | `spec` | Binding-friendly JSON fragments for `AttributionSpec::from_json_inputs` |
+| `pnl_attribution_wide_row`, `PnlAttributionWideRow` | `long_rows` | Single-row aggregate projection used by Python `to_dataframe` |
 | `compute_credit_factor_attribution`, `CreditAttributionInput`, `CreditFactorDetailOptions`, `credit_factor_model_id` | `credit_factor` | Calibrated credit-factor decomposition of `credit_curves_pnl`; the model type is `finstack_quant_models::factor::credit::hierarchy::CreditFactorModel` |
-| `AttributionEnvelope`, `AttributionSpec`, `AttributionSchema`, `AttributionConfig`, `AttributionResult`, `AttributionResultEnvelope`, `ATTRIBUTION_SCHEMA`, `default_attribution_metrics`, `validate_attribution_json` | `spec` | JSON contract |
+| `AttributionEnvelope`, `AttributionSpec`, `AttributionJsonInputs`, `AttributionSchema`, `AttributionConfig`, `AttributionResult`, `AttributionResultEnvelope`, `ATTRIBUTION_SCHEMA`, `default_attribution_metrics`, `validate_attribution_json` | `spec` | JSON contract |
 | `attribute_return_contribution`, `attribute_return_contribution_json`, `validate_return_contribution_json`, `ReturnContributionSpec`, `ReturnContributionResult`, `ReturnContributionPosition`, `ReturnContributionFactor`, `ReturnContributionWeighting`, `InstrumentContribution`, `GroupContribution`, `FactorContribution`, `BenchmarkRelativeContribution` | `return_contribution` | Single-period weight × return contribution |
 | `pnl_attribution_long_rows`, `pnl_attribution_carry_rows`, `pnl_attribution_credit_factor_rows`, `LongDetailRow` | `long_rows` | Long-format projection of a `PnlAttribution`, consumed by the Python DataFrame exports |
 | `ARTIFACTS`, `ATTRIBUTION_SCHEMA_BASE` | `schema` | Published JSON Schema artifacts and their base URI |

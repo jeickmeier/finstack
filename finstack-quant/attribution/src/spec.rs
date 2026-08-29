@@ -108,7 +108,9 @@ pub struct AttributionSpec {
     /// instrument has a recognizable issuer + credit-curve exposure), the
     /// returned `PnlAttribution` carries a `credit_factor_detail` field with
     /// generic / per-level / adder P&L additively decomposing
-    /// `credit_curves_pnl`. PR-7 wires metrics-based and Taylor methods.
+    /// `credit_curves_pnl`. Parallel and waterfall populate the detail via
+    /// the reprice cascade; metrics-based and Taylor back-solve it after
+    /// the linear decomposition.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credit_factor_model: Option<Box<CreditFactorModel>>,
     /// Detail/payload options for `credit_factor_detail`. Inert when
@@ -179,55 +181,78 @@ pub struct AttributionConfig {
     pub execution_policy: Option<ExecutionPolicy>,
 }
 
+/// JSON fragments used by host bindings to construct an [`AttributionSpec`].
+///
+/// Every field is a serialized payload or an ISO date string. Optional
+/// fragments that are `None` are omitted from the spec (no model-parameter
+/// snapshot, no credit-factor model).
+#[derive(Debug, Clone, Copy)]
+pub struct AttributionJsonInputs<'a> {
+    /// Canonical v1 instrument envelope JSON.
+    pub instrument_json: &'a str,
+    /// Canonical market-context JSON at T₀.
+    pub market_t0_json: &'a str,
+    /// Canonical market-context JSON at T₁.
+    pub market_t1_json: &'a str,
+    /// ISO-8601 valuation date for `market_t0_json`.
+    pub as_of_t0: &'a str,
+    /// ISO-8601 valuation date for `market_t1_json`.
+    pub as_of_t1: &'a str,
+    /// Snake-case serialized [`AttributionMethod`].
+    pub method_json: &'a str,
+    /// Optional complete serialized [`AttributionConfig`].
+    pub config_json: Option<&'a str>,
+    /// Optional serialized T₀ [`finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot`].
+    pub model_params_t0_json: Option<&'a str>,
+    /// Optional serialized [`CreditFactorModel`].
+    pub credit_factor_model_json: Option<&'a str>,
+    /// When true, parallel attribution evaluates every pairwise cross term.
+    pub full_cross_attribution: bool,
+}
+
 impl AttributionSpec {
     /// Build an attribution spec from the JSON-friendly inputs used by bindings.
     ///
-    /// `as_of_t0` and `as_of_t1` must use ISO-8601 calendar-date syntax. When
-    /// present, `config_json` supplies the complete serialized attribution
-    /// configuration; it is not merged with caller state.
+    /// `inputs.as_of_t0` and `inputs.as_of_t1` must use ISO-8601 calendar-date
+    /// syntax. When present, `inputs.config_json` supplies the complete
+    /// serialized attribution configuration; it is not merged with caller state.
     ///
     /// # Arguments
     ///
-    /// * `instrument_json` - Canonical v1 instrument envelope containing the
-    ///   instrument to attribute.
-    /// * `market_t0_json` - Canonical market-context state at the beginning of
-    ///   the attribution interval.
-    /// * `market_t1_json` - Canonical market-context state at the end of the
-    ///   attribution interval.
-    /// * `as_of_t0` - ISO-8601 valuation date for `market_t0_json`.
-    /// * `as_of_t1` - ISO-8601 valuation date for `market_t1_json`.
-    /// * `method_json` - Snake-case serialized [`AttributionMethod`].
-    /// * `config_json` - Optional complete serialized attribution config.
+    /// * `inputs` - Instrument, market, date, method, and optional config,
+    ///   model-parameter, credit-factor-model, and full-cross fragments.
+    ///   Dates must be ISO-8601 calendar dates. JSON fragments must match
+    ///   the crate's serde schemas (`deny_unknown_fields`).
     ///
     /// # Errors
     ///
     /// Returns [`finstack_quant_core::Error::Validation`] when any JSON payload
     /// has the wrong schema or either as-of date cannot be parsed.
-    pub fn from_json_inputs(
-        instrument_json: &str,
-        market_t0_json: &str,
-        market_t1_json: &str,
-        as_of_t0: &str,
-        as_of_t1: &str,
-        method_json: &str,
-        config_json: Option<&str>,
-    ) -> Result<Self> {
+    pub fn from_json_inputs(inputs: AttributionJsonInputs<'_>) -> Result<Self> {
         let instrument_envelope: InstrumentEnvelope =
-            parse_input_json("instrument envelope", instrument_json)?;
+            parse_input_json("instrument envelope", inputs.instrument_json)?;
         Ok(Self {
             instrument: instrument_envelope.instrument,
-            market_t0: parse_input_json("market_t0", market_t0_json)?,
-            market_t1: parse_input_json("market_t1", market_t1_json)?,
-            as_of_t0: parse_iso_date("as_of_t0", as_of_t0)?,
-            as_of_t1: parse_iso_date("as_of_t1", as_of_t1)?,
-            method: parse_input_json("method", method_json)?,
-            model_params_t0: None,
-            config: config_json
+            market_t0: parse_input_json("market_t0", inputs.market_t0_json)?,
+            market_t1: parse_input_json("market_t1", inputs.market_t1_json)?,
+            as_of_t0: parse_iso_date("as_of_t0", inputs.as_of_t0)?,
+            as_of_t1: parse_iso_date("as_of_t1", inputs.as_of_t1)?,
+            method: parse_input_json("method", inputs.method_json)?,
+            model_params_t0: inputs
+                .model_params_t0_json
+                .map(|json| parse_input_json("model_params_t0", json))
+                .transpose()?,
+            config: inputs
+                .config_json
                 .map(|json| parse_input_json("config", json))
                 .transpose()?,
-            credit_factor_model: None,
+            credit_factor_model: inputs
+                .credit_factor_model_json
+                .map(|json| parse_input_json("credit_factor_model", json))
+                .transpose()?
+                .map(Box::new),
             credit_factor_detail_options: CreditFactorDetailOptions::default(),
-            full_cross_attribution: false,
+            full_cross_attribution: inputs.full_cross_attribution,
         })
     }
 }
@@ -509,17 +534,26 @@ mod tests {
             execution_policy: None,
         };
 
-        let spec = AttributionSpec::from_json_inputs(
-            &serde_json::to_string(&InstrumentEnvelope::new(InstrumentJson::Bond(bond)))
-                .expect("instrument JSON should serialize"),
-            &serde_json::to_string(&market_state).expect("market_t0 JSON should serialize"),
-            &serde_json::to_string(&market_state).expect("market_t1 JSON should serialize"),
-            "2025-01-01",
-            "2025-01-02",
-            &serde_json::to_string(&AttributionMethod::Parallel)
-                .expect("method JSON should serialize"),
-            Some(&serde_json::to_string(&config).expect("config JSON should serialize")),
-        )
+        let instrument_json =
+            serde_json::to_string(&InstrumentEnvelope::new(InstrumentJson::Bond(bond)))
+                .expect("instrument JSON should serialize");
+        let market_json =
+            serde_json::to_string(&market_state).expect("market JSON should serialize");
+        let method_json = serde_json::to_string(&AttributionMethod::Parallel)
+            .expect("method JSON should serialize");
+        let config_json = serde_json::to_string(&config).expect("config JSON should serialize");
+        let spec = AttributionSpec::from_json_inputs(AttributionJsonInputs {
+            instrument_json: &instrument_json,
+            market_t0_json: &market_json,
+            market_t1_json: &market_json,
+            as_of_t0: "2025-01-01",
+            as_of_t1: "2025-01-02",
+            method_json: &method_json,
+            config_json: Some(&config_json),
+            model_params_t0_json: None,
+            credit_factor_model_json: None,
+            full_cross_attribution: false,
+        })
         .expect("binding-friendly spec constructor should succeed");
 
         assert!(matches!(spec.method, AttributionMethod::Parallel));
@@ -536,6 +570,9 @@ mod tests {
             .as_ref()
             .and_then(|cfg| cfg.strict_validation)
             .expect("strict_validation should be preserved"));
+        assert!(!spec.full_cross_attribution);
+        assert!(spec.credit_factor_model.is_none());
+        assert!(spec.model_params_t0.is_none());
     }
 
     #[test]
@@ -547,15 +584,18 @@ mod tests {
         let raw = serde_json::to_string(&InstrumentJson::Bond(bond))
             .expect("instrument JSON should serialize");
 
-        let error = AttributionSpec::from_json_inputs(
-            &raw,
-            "{}",
-            "{}",
-            "2025-01-01",
-            "2025-01-02",
-            "\"parallel\"",
-            None,
-        )
+        let error = AttributionSpec::from_json_inputs(AttributionJsonInputs {
+            instrument_json: &raw,
+            market_t0_json: "{}",
+            market_t1_json: "{}",
+            as_of_t0: "2025-01-01",
+            as_of_t1: "2025-01-02",
+            method_json: "\"parallel\"",
+            config_json: None,
+            model_params_t0_json: None,
+            credit_factor_model_json: None,
+            full_cross_attribution: false,
+        })
         .expect_err("bare instrument JSON must be rejected before market parsing");
 
         assert!(error.to_string().contains("instrument envelope"));

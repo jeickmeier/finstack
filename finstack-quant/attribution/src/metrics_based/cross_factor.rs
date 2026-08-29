@@ -31,7 +31,7 @@ pub(super) fn apply(
     attribution: &mut PnlAttribution,
     non_finite_detected: &mut bool,
 ) {
-    // Cross-factor terms (audit rec #5).
+    // Cross-factor terms.
     //
     // Same seven pairs as the parallel attribution (see
     // [`crate::parallel::attribute_pnl_parallel_with_credit_model`]
@@ -193,7 +193,7 @@ pub(super) fn apply(
         );
     }
 
-    // Credit×Vol (audit fix): material for convertibles, whose equity vol
+    // Credit×Vol: material for convertibles, whose equity vol
     // feeds the conversion option while the credit curve discounts the
     // bond floor. `CrossGammaCreditVol` is $ per bp-credit per vol-point,
     // pairing with `avg_credit_shift_bp` (bp) × `avg_vol_shift_abs`

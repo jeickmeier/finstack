@@ -282,7 +282,7 @@ pub(super) fn measure_rate_curve_shift_bp(
 /// collapses toward zero for a twist), this returns the L1 mean so a
 /// non-parallel move still registers a large magnitude. Used by the
 /// rates-convexity block to detect "the average is small but the curve
-/// genuinely moved" — see audit rec #6.
+/// genuinely moved".
 ///
 /// Returns `0.0` if either side's curve is missing.
 fn discount_curve_abs_shift_bp(

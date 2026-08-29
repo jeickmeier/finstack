@@ -8071,8 +8071,20 @@ export declare const valuations: ValuationsNamespace;
 
 /**
  * Parameters for P&L attribution via [`attribute_pnl`].
+ *
+ * Optional `modelParamsT0Json` and `creditFactorModelJson` attach an opening
+ * model-parameter snapshot and a credit-factor model after construction.
  */
-export interface AttributionParams extends WasmOwned {}
+export interface AttributionParams extends WasmOwned {
+  /**
+   * Optional serialized opening `ModelParamsSnapshot` JSON.
+   */
+  modelParamsT0Json?: string | null;
+  /**
+   * Optional serialized `CreditFactorModel` JSON.
+   */
+  creditFactorModelJson?: string | null;
+}
 
 /**
  * P&L attribution result returned by `attributePnl`.
@@ -8219,7 +8231,9 @@ export interface AttributionNamespace {
    *
    * `configJson` may include `{ "execution_policy": "parallel" }` to opt into
    * inner Rayon when the host is not already parallelizing attribution at the
-   * portfolio or batch level. Serial is the default.
+   * portfolio or batch level. Serial is the default. Set
+   * `modelParamsT0Json` / `creditFactorModelJson` on the constructed object
+   * to attach an opening model-parameter snapshot or credit-factor model.
    */
   AttributionParams: new (
     instrumentJson: string,

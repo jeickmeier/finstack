@@ -291,7 +291,10 @@ fn test_waterfall_attribution_sum_equality() {
     );
 
     // Residual should be very small for waterfall
-    assert!(attribution.residual_within_meta_tolerance());
+    assert!(attribution.residual_within_tolerance(
+        attribution.meta.tolerance_pct,
+        attribution.meta.tolerance_abs,
+    ));
 }
 
 /// Test FX attribution for cross-currency exposure.
@@ -614,8 +617,8 @@ fn test_waterfall_factor_ordering_sensitivity() {
     assert_eq!(attr1.total_pnl.amount(), attr2.total_pnl.amount());
 
     // Both should have minimal residual
-    assert!(attr1.residual_within_meta_tolerance());
-    assert!(attr2.residual_within_meta_tolerance());
+    assert!(attr1.residual_within_tolerance(attr1.meta.tolerance_pct, attr1.meta.tolerance_abs));
+    assert!(attr2.residual_within_tolerance(attr2.meta.tolerance_pct, attr2.meta.tolerance_abs));
 
     // Factor attributions may differ due to ordering of post-Carry factors
     // (this is expected and correct for waterfall methodology).

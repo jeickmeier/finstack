@@ -517,7 +517,7 @@ pub fn attribute_pnl_parallel(
     skip_all,
     fields(instrument_id = %instrument.id(), method = "parallel")
 )]
-pub fn attribute_pnl_parallel_with_credit_model(
+pub(crate) fn attribute_pnl_parallel_with_credit_model(
     instrument: &Arc<dyn Instrument>,
     market_t0: &MarketContext,
     market_t1: &MarketContext,
@@ -1315,7 +1315,7 @@ fn attribute_pnl_parallel_impl(
                 val_with_t0_credit,
                 val_with_t0_vol,
             ),
-            // Audit Mo7: Rates×Inflation captures linkers (real-rate exposure
+            // Rates×Inflation captures linkers (real-rate exposure
             // is the product of nominal rates and the CPI projection) and
             // Credit×Correlations captures tranches (loss allocation is
             // jointly driven by hazard levels and base correlation). Both are

@@ -73,6 +73,12 @@ fn detach_catch_attribution_panic<T: Send>(
 ///     When true, the parallel method evaluates every pairwise cross-factor
 ///     interaction (full cross matrix) instead of the default seven economic
 ///     pairs. More repricings, smaller residual.
+/// model_params_t0_json : str, optional
+///     Serialized opening ``ModelParamsSnapshot``. When omitted, model-
+///     parameter P&L is isolated from the instrument's current snapshot.
+/// credit_factor_model_json : str, optional
+///     Serialized ``CreditFactorModel``. When supplied, credit-factor
+///     hierarchy detail is populated on the result.
 ///
 /// Returns
 /// -------
@@ -86,7 +92,7 @@ fn detach_catch_attribution_panic<T: Send>(
 /// >>> print(attr.explain())
 /// >>> attr.to_dataframe()
 #[pyfunction]
-#[pyo3(signature = (instrument_json, market_t0_json, market_t1_json, as_of_t0, as_of_t1, method, config=None, full_cross_attribution=None))]
+#[pyo3(signature = (instrument_json, market_t0_json, market_t1_json, as_of_t0, as_of_t1, method, config=None, full_cross_attribution=None, model_params_t0_json=None, credit_factor_model_json=None))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn attribute_pnl(
     py: Python<'_>,
@@ -98,6 +104,8 @@ pub(crate) fn attribute_pnl(
     method: &Bound<'_, PyAny>,
     config: Option<&Bound<'_, PyAny>>,
     full_cross_attribution: Option<bool>,
+    model_params_t0_json: Option<&str>,
+    credit_factor_model_json: Option<&str>,
 ) -> PyResult<PyPnlAttribution> {
     let as_of_t0 = crate::bindings::date_utils::extract_date_iso(as_of_t0)?;
     let as_of_t1 = crate::bindings::date_utils::extract_date_iso(as_of_t1)?;
@@ -108,15 +116,20 @@ pub(crate) fn attribute_pnl(
     // Parsing reconstructs instruments and markets and can panic on
     // pathological payloads (e.g. `Money::new` on a non-finite amount), so it
     // is guarded like the WASM twin's `attributePnl/from_json_inputs` wrap.
-    let mut spec = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let spec = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         finstack_quant_attribution::AttributionSpec::from_json_inputs(
-            instrument_json,
-            market_t0_json,
-            market_t1_json,
-            &as_of_t0,
-            &as_of_t1,
-            &method_json,
-            config_json.as_deref(),
+            finstack_quant_attribution::AttributionJsonInputs {
+                instrument_json,
+                market_t0_json,
+                market_t1_json,
+                as_of_t0: &as_of_t0,
+                as_of_t1: &as_of_t1,
+                method_json: &method_json,
+                config_json: config_json.as_deref(),
+                model_params_t0_json,
+                credit_factor_model_json,
+                full_cross_attribution: full_cross_attribution.unwrap_or(false),
+            },
         )
     })) {
         Ok(result) => result.map_err(core_to_py)?,
@@ -127,10 +140,6 @@ pub(crate) fn attribute_pnl(
             )))
         }
     };
-
-    if let Some(val) = full_cross_attribution {
-        spec.full_cross_attribution = val;
-    }
 
     let result = detach_catch_attribution_panic(py, "attribute_pnl", || spec.execute())?;
     Ok(PyPnlAttribution {

@@ -207,7 +207,7 @@
       "type": "string"
     },
     "CarryDetail": {
-      "description": "Detailed carry decomposition.\n\nWhen available, breaks carry into sub-components:\n- **coupon_income**: Net cashflows (coupons, interest) received during the period\n- **pull_to_par**: PV convergence toward par (time effect at flat yield)\n- **roll_down**: Curve shape benefit from aging along a sloped curve\n- **funding_cost**: Cost of financing the position\n\nThe populated price-carry lines always partition `total` after removing\nfunding that is already netted into `total`:\n\n```text\ncoupon_income + pull_to_par + roll_down − funding_cost.unwrap_or(0) = total\n```\n\nwhen `total` is a metrics-path `CarryTotal` (already net of financing).\nOn reprice paths, `total` is the isolated date-roll factor (`theta + cash`,\nall-in price carry). `funding_cost` is then a repo overlay and is **not**\nsubtracted from `total`; the price-carry partition is\n`coupon + pull_to_par + roll_down = total`, and economic carry net of\nfinancing is `total − funding_cost`.\n\nIn metrics-based attribution, these fields are populated from pre-computed\ncarry decomposition metrics when available. In repricing-based attribution\nmethods, pull-to-par uses a flat curve that inverts the instrument's YTM\ncompounding convention, and `funding_cost` is isolated when a funding/repo\ncurve is configured and present on the carry market.\n\n`coupon_income` and `roll_down` are typed as [`SourceLine`] so that\ncallers with a `CreditFactorModel` may further split them into rates and\ncredit components (PR-8b §7.1).\n\n# Reference\n\nBloomberg PORT decomposes carry into Carry (coupon/funding), Curve Roll-Down,\nand Shift as distinct P&L components. `docs/REFERENCES.md#campisi-2000`",
+      "description": "Detailed carry decomposition.\n\nWhen available, breaks carry into sub-components:\n- **coupon_income**: Net cashflows (coupons, interest) received during the period\n- **pull_to_par**: PV convergence toward par (time effect at flat yield)\n- **roll_down**: Curve shape benefit from aging along a sloped curve\n- **funding_cost**: Cost of financing the position\n\nThe populated price-carry lines always partition `total` after removing\nfunding that is already netted into `total`:\n\n```text\ncoupon_income + pull_to_par + roll_down − funding_cost.unwrap_or(0) = total\n```\n\nwhen `total` is a metrics-path `CarryTotal` (already net of financing).\nOn reprice paths, `total` is the isolated date-roll factor (`theta + cash`,\nall-in price carry). `funding_cost` is then a repo overlay and is **not**\nsubtracted from `total`; the price-carry partition is\n`coupon + pull_to_par + roll_down = total`, and economic carry net of\nfinancing is `total − funding_cost`.\n\nIn metrics-based attribution, these fields are populated from pre-computed\ncarry decomposition metrics when available. In repricing-based attribution\nmethods, pull-to-par uses a flat curve that inverts the instrument's YTM\ncompounding convention, and `funding_cost` is isolated when a funding/repo\ncurve is configured and present on the carry market.\n\n`coupon_income` and `roll_down` are typed as [`SourceLine`] so that\ncallers with a `CreditFactorModel` may further split them into rates and\ncredit components.\n\n# Reference\n\nBloomberg PORT decomposes carry into Carry (coupon/funding), Curve Roll-Down,\nand Shift as distinct P&L components. `docs/REFERENCES.md#campisi-2000`",
       "properties": {
         "coupon_income": {
           "anyOf": [
@@ -280,7 +280,7 @@
       "type": "object"
     },
     "CreditCarryByLevel": {
-      "description": "Per-factor breakdown of credit carry (PR-8b §7.2).",
+      "description": "Per-factor breakdown of credit carry.",
       "properties": {
         "adder_by_issuer": {
           "additionalProperties": {
@@ -316,7 +316,7 @@
       "type": "object"
     },
     "CreditCarryDecomposition": {
-      "description": "Factor-cut decomposition of carry under a calibrated `CreditFactorModel`\n(PR-8b §7.2). Populated only when an `AttributionSpec.credit_factor_model`\nwas supplied. Purely additive — does not modify any existing field.\n\n# Reconciliation invariants (§7.4, all at 1e-8 absolute tolerance)\n\nWith `w = s / (r + s)` the credit share used for the coupon split\n(see `compute_carry_credit_split_and_decomposition`):\n\n- `rates_carry_total + credit_carry_total ≡ carry_detail.total` — the two\n  legs partition the full carry, **including `pull_to_par`**, which is\n  split on the same `w` (its wire field stays a single unsplit `Money`)\n- `credit_carry_total ≡ Σ_lines SourceLine.credit_part + w × pull_to_par`\n  (lines = coupon + roll)\n- `credit_carry_total ≡ generic + Σ_levels(level.total) + adder_total`\n- `rates_carry_total ≡ Σ_lines SourceLine.rates_part\n  + (1 − w) × pull_to_par − funding_cost`\n\n# Attribution method coverage\n\nAll four methods populate `carry_detail`: Parallel, Waterfall and Taylor\nvia `apply_total_return_carry` (theta + coupon_income; pull-to-par and\nfunding lines stay `None` on those paths), MetricsBased from the carry\ndecomposition metrics. `credit_carry_decomposition` is therefore emitted\non any path whose `carry_detail.coupon_income` is populated when a\n`CreditFactorModel` is supplied — the decomposition logic is\nmethod-agnostic.",
+      "description": "Factor-cut decomposition of carry under a calibrated `CreditFactorModel`.\nPopulated only when an `AttributionSpec.credit_factor_model` was supplied.\nPurely additive — does not modify any existing field.\n\n# Reconciliation invariants (§7.4, all at 1e-8 absolute tolerance)\n\nWith `w = s / (r + s)` the credit share used for the coupon split\n(see `compute_carry_credit_split_and_decomposition`):\n\n- `rates_carry_total + credit_carry_total ≡ carry_detail.total` — the two\n  legs partition the full carry, **including `pull_to_par`**, which is\n  split on the same `w` (its wire field stays a single unsplit `Money`)\n- `credit_carry_total ≡ Σ_lines SourceLine.credit_part + w × pull_to_par`\n  (lines = coupon + roll)\n- `credit_carry_total ≡ generic + Σ_levels(level.total) + adder_total`\n- `rates_carry_total ≡ Σ_lines SourceLine.rates_part\n  + (1 − w) × pull_to_par − funding_cost`\n\n# Attribution method coverage\n\nAll four methods populate `carry_detail`: Parallel, Waterfall and Taylor\nvia `apply_total_return_carry` (theta + coupon_income; pull-to-par and\nfunding lines stay `None` on those paths), MetricsBased from the carry\ndecomposition metrics. `credit_carry_decomposition` is therefore emitted\non any path whose `carry_detail.coupon_income` is populated when a\n`CreditFactorModel` is supplied — the decomposition logic is\nmethod-agnostic.",
       "properties": {
         "credit_by_level": {
           "$ref": "#/$defs/CreditCarryByLevel",
@@ -368,7 +368,7 @@
       "type": "object"
     },
     "CreditFactorAttribution": {
-      "description": "Hierarchy-level decomposition of credit P&L, opt-in via\n`AttributionSpec.credit_factor_model`.\n\nThe reconciliation invariant\n\n```text\ngeneric_pnl + Σ_levels(level.total) + adder_pnl_total + curve_shape_pnl ≡ credit_curves_pnl\n```\n\nholds at absolute tolerance `1e-8` for both metrics-based and Taylor methods.\n`curve_shape_pnl` is the non-parallel hazard-curve residual (audit item #1);\nfor a purely parallel credit move it is zero and the invariant reduces to\nthe historical `generic + Σ levels + adder` form.\n\n**Single-instrument scope**: when produced via the valuations-layer\nper-instrument attribution wire (`metrics_based`, `taylor`), each call\nprocesses a single instrument. Therefore `LevelPnl.by_bucket` will contain\nat most one entry per call (the issuer's bucket at that level).\nPortfolio-level multi-bucket aggregation is provided at the portfolio layer\n(PR-8 onward).",
+      "description": "Hierarchy-level decomposition of credit P&L, opt-in via\n`AttributionSpec.credit_factor_model`.\n\nThe reconciliation invariant\n\n```text\ngeneric_pnl + Σ_levels(level.total) + adder_pnl_total + curve_shape_pnl ≡ credit_curves_pnl\n```\n\nholds at absolute tolerance `1e-8` for both metrics-based and Taylor methods.\n`curve_shape_pnl` is the non-parallel hazard-curve residual;\nfor a purely parallel credit move it is zero and the invariant reduces to\nthe historical `generic + Σ levels + adder` form.\n\n**Single-instrument scope**: when produced via the valuations-layer\nper-instrument attribution wire (`metrics_based`, `taylor`), each call\nprocesses a single instrument. Therefore `LevelPnl.by_bucket` will contain\nat most one entry per call (the issuer's bucket at that level).\nPortfolio-level multi-bucket aggregation is provided at the portfolio layer.",
       "properties": {
         "adder_magnitude": {
           "anyOf": [
@@ -1530,7 +1530,7 @@
               "type": "null"
             }
           ],
-          "description": "Optional credit-factor-hierarchy decomposition of carry (PR-8b §7.2).\n\nPopulated only when an `AttributionSpec.credit_factor_model` was\nsupplied."
+          "description": "Optional credit-factor-hierarchy decomposition of carry.\n\nPopulated only when an `AttributionSpec.credit_factor_model` was\nsupplied."
         },
         "credit_curves_pnl": {
           "$ref": "#/$defs/Money",
@@ -1616,7 +1616,7 @@
               "type": "null"
             }
           ],
-          "description": "Pure mark-to-market change: `val_t1 − val_t0` with **no** intra-period\ncashflow adjustment.\n\nAdded in audit rec #2 to separate the raw user-input price change from\nthe total-return view stamped on `total_pnl`. When the attribution path\nadded coupon_income to `total_pnl` (the standard total-return convention\nin parallel / waterfall / taylor attribution), this field still reports\nthe raw `val_t1 − val_t0` so a downstream consumer that computed their\nown total from the underlying valuations can reconcile cleanly.\n\nAttribution paths that cannot provide the raw mark-to-market change use\n`None`."
+          "description": "Pure mark-to-market change: `val_t1 − val_t0` with **no** intra-period\ncashflow adjustment.\n\nSeparates the raw user-input price change from\nthe total-return view stamped on `total_pnl`. When the attribution path\nadded coupon_income to `total_pnl` (the standard total-return convention\nin parallel / waterfall / taylor attribution), this field still reports\nthe raw `val_t1 − val_t0` so a downstream consumer that computed their\nown total from the underlying valuations can reconcile cleanly.\n\nAttribution paths that cannot provide the raw mark-to-market change use\n`None`."
         },
         "market_scalars_pnl": {
           "$ref": "#/$defs/Money",
@@ -1916,7 +1916,7 @@
     },
     "SourceLine": {
       "additionalProperties": false,
-      "description": "One source-line of carry, optionally split into rates / credit components.\n\nUsed for `CarryDetail.coupon_income` and `CarryDetail.roll_down`. When no\n`CreditFactorModel` is supplied to attribution, `rates_part` and\n`credit_part` are both `None` and `total` carries the canonical scalar\nvalue. When a model is supplied, the two parts sum to `total` at\n1e-8 absolute tolerance (PR-8b §7.1, §7.4 invariants 1 & 2).",
+      "description": "One source-line of carry, optionally split into rates / credit components.\n\nUsed for `CarryDetail.coupon_income` and `CarryDetail.roll_down`. When no\n`CreditFactorModel` is supplied to attribution, `rates_part` and\n`credit_part` are both `None` and `total` carries the canonical scalar\nvalue. When a model is supplied, the two parts sum to `total` at\n1e-8 absolute tolerance.",
       "properties": {
         "credit_part": {
           "anyOf": [

@@ -151,13 +151,16 @@ pub use types::result::{
     AttributionFactor, AttributionMeta, AttributionMethod, ExecutionPolicy, PnlAttribution,
 };
 
+/// Snapshot/restore primitives used by benches and integration tests.
+#[doc(hidden)]
 pub use factors::{MarketRestoreFlags, MarketSnapshot};
-pub use helpers::{compute_pnl, compute_pnl_with_fx};
 pub use long_rows::{
     pnl_attribution_carry_rows, pnl_attribution_credit_factor_rows, pnl_attribution_long_rows,
-    LongDetailRow,
+    pnl_attribution_wide_row, LongDetailRow, PnlAttributionWideRow,
 };
 pub use metrics_based::attribute_pnl_metrics_based;
+/// Model-parameter snapshot helpers used by integration tests.
+#[doc(hidden)]
 pub use model_params::{
     extract_model_params, measure_conversion_shift, measure_default_shift,
     measure_prepayment_shift, measure_recovery_shift, with_model_params,
@@ -172,8 +175,8 @@ pub use return_contribution::{
 };
 pub use spec::{
     default_attribution_metrics, validate_attribution_json, AttributionConfig, AttributionEnvelope,
-    AttributionResult, AttributionResultEnvelope, AttributionSchema, AttributionSpec,
-    ATTRIBUTION_SCHEMA,
+    AttributionJsonInputs, AttributionResult, AttributionResultEnvelope, AttributionSchema,
+    AttributionSpec, ATTRIBUTION_SCHEMA,
 };
 pub use target_currency::translate_to_target_currency;
 pub use taylor::{attribute_pnl_taylor, TaylorAttributionConfig};
@@ -283,7 +286,7 @@ pub mod __private {
 /// one of the `attribute_pnl_*` functions listed in the module docs.
 ///
 /// This is intentionally a thin wrapper over direct repricing plus
-/// [`compute_pnl_with_fx`]: the function is cheap, it allocates no scratch
+/// date-matched FX conversion: the function is cheap, it allocates no scratch
 /// buffers, and it contains no factor iteration. Benchmark the heavier
 /// methodologies against this baseline to quantify the cost of factor
 /// attribution.
@@ -346,7 +349,7 @@ pub fn simple_pnl_bridge(
 ) -> finstack_quant_core::Result<Money> {
     let v_t0 = helpers::reprice_instrument(instrument, market_t0, as_of_t0)?;
     let v_t1 = helpers::reprice_instrument(instrument, market_t1, as_of_t1)?;
-    compute_pnl_with_fx(
+    helpers::compute_pnl_with_fx(
         v_t0,
         v_t1,
         target_currency,

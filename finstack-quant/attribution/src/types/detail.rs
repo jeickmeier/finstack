@@ -143,7 +143,7 @@ mod currency_pair_key_map {
 /// ```
 ///
 /// holds at absolute tolerance `1e-8` for both metrics-based and Taylor methods.
-/// `curve_shape_pnl` is the non-parallel hazard-curve residual (audit item #1);
+/// `curve_shape_pnl` is the non-parallel hazard-curve residual;
 /// for a purely parallel credit move it is zero and the invariant reduces to
 /// the historical `generic + Σ levels + adder` form.
 ///
@@ -151,8 +151,7 @@ mod currency_pair_key_map {
 /// per-instrument attribution wire (`metrics_based`, `taylor`), each call
 /// processes a single instrument. Therefore `LevelPnl.by_bucket` will contain
 /// at most one entry per call (the issuer's bucket at that level).
-/// Portfolio-level multi-bucket aggregation is provided at the portfolio layer
-/// (PR-8 onward).
+/// Portfolio-level multi-bucket aggregation is provided at the portfolio layer.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct CreditFactorAttribution {
     /// Deterministic traceability ID for the calibrated model. Format:
@@ -338,7 +337,7 @@ pub struct ModelParamsAttribution {
 /// `CreditFactorModel` is supplied to attribution, `rates_part` and
 /// `credit_part` are both `None` and `total` carries the canonical scalar
 /// value. When a model is supplied, the two parts sum to `total` at
-/// 1e-8 absolute tolerance (PR-8b §7.1, §7.4 invariants 1 & 2).
+/// 1e-8 absolute tolerance.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SourceLine {
@@ -405,7 +404,7 @@ impl SourceLine {
 ///
 /// `coupon_income` and `roll_down` are typed as [`SourceLine`] so that
 /// callers with a `CreditFactorModel` may further split them into rates and
-/// credit components (PR-8b §7.1).
+/// credit components.
 ///
 /// # Reference
 ///
@@ -448,9 +447,9 @@ pub struct CarryDetail {
     pub funding_cost: Option<Money>,
 }
 
-/// Factor-cut decomposition of carry under a calibrated `CreditFactorModel`
-/// (PR-8b §7.2). Populated only when an `AttributionSpec.credit_factor_model`
-/// was supplied. Purely additive — does not modify any existing field.
+/// Factor-cut decomposition of carry under a calibrated `CreditFactorModel`.
+/// Populated only when an `AttributionSpec.credit_factor_model` was supplied.
+/// Purely additive — does not modify any existing field.
 ///
 /// # Reconciliation invariants (§7.4, all at 1e-8 absolute tolerance)
 ///
@@ -488,7 +487,7 @@ pub struct CreditCarryDecomposition {
     pub credit_by_level: CreditCarryByLevel,
 }
 
-/// Per-factor breakdown of credit carry (PR-8b §7.2).
+/// Per-factor breakdown of credit carry.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct CreditCarryByLevel {
     /// Generic (PC) factor contribution to credit carry.

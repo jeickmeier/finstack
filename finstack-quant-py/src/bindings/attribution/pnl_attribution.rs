@@ -7,6 +7,7 @@ use crate::bindings::pandas_utils::{
 use crate::errors::display_to_py;
 use finstack_quant_attribution::{
     pnl_attribution_carry_rows, pnl_attribution_credit_factor_rows, pnl_attribution_long_rows,
+    pnl_attribution_wide_row,
 };
 use pyo3::prelude::*;
 
@@ -355,9 +356,8 @@ impl PyPnlAttribution {
     /// Check whether the residual is within tolerance.
     ///
     /// With no arguments this uses the attribution's own stored,
-    /// method-appropriate tolerances — identical to
-    /// :meth:`residual_within_meta_tolerance` and consistent with the native
-    /// (Rust) check. Pass explicit values to override either threshold.
+    /// method-appropriate tolerances. Pass explicit values to override
+    /// either threshold.
     ///
     /// Parameters
     /// ----------
@@ -381,21 +381,6 @@ impl PyPnlAttribution {
             pct_tolerance.unwrap_or(self.inner.meta.tolerance_pct),
             abs_tolerance.unwrap_or(self.inner.meta.tolerance_abs),
         )
-    }
-
-    /// Check whether the residual is within the attribution's stored,
-    /// method-appropriate tolerances (``meta.tolerance_pct`` /
-    /// ``meta.tolerance_abs``).
-    ///
-    /// This matches the native ``residual_within_meta_tolerance`` check and is
-    /// the recommended pass/fail gate — the per-method tolerances differ
-    /// (waterfall is far tighter than metrics-based or Taylor).
-    ///
-    /// Returns
-    /// -------
-    /// bool
-    fn residual_within_meta_tolerance(&self) -> bool {
-        self.inner.residual_within_meta_tolerance()
     }
 
     /// Validate that every factor's currency matches ``total_pnl.currency``.
@@ -442,40 +427,10 @@ impl PyPnlAttribution {
         // frame is only meaningful when the factors agree with `total_pnl`.
         // Without this, a EUR `fx_pnl` beside a USD total is presented as
         // comparable and `df[factors].sum(axis=1)` silently adds unlike units.
-        self.inner.validate_currencies().map_err(display_to_py)?;
-        // `mark_to_market_pnl` is Option<Money>; serialize as null when
-        // missing. A null makes pandas infer dtype `object` for the column
-        // (documented caveat above) — present values give `float64`.
-        let row = serde_json::json!({
-            "instrument_id": self.inner.meta.instrument_id,
-            "method": self.inner.meta.method.as_str(),
-            "t0": self.inner.meta.t0.to_string(),
-            "t1": self.inner.meta.t1.to_string(),
-            "currency": self.inner.total_pnl.currency().to_string(),
-            "total_pnl": self.inner.total_pnl.amount(),
-            "mark_to_market_pnl": self.inner.mark_to_market_pnl.map(|m| m.amount()),
-            "carry": self.inner.carry.amount(),
-            "rates_curves_pnl": self.inner.rates_curves_pnl.amount(),
-            "credit_curves_pnl": self.inner.credit_curves_pnl.amount(),
-            "inflation_curves_pnl": self.inner.inflation_curves_pnl.amount(),
-            "correlations_pnl": self.inner.correlations_pnl.amount(),
-            "fx_pnl": self.inner.fx_pnl.amount(),
-            "fx_translation_pnl": self.inner.fx_translation_pnl.amount(),
-            "vol_pnl": self.inner.vol_pnl.amount(),
-            "cross_factor_pnl": self.inner.cross_factor_pnl.amount(),
-            "model_params_pnl": self.inner.model_params_pnl.amount(),
-            "market_scalars_pnl": self.inner.market_scalars_pnl.amount(),
-            "residual": self.inner.residual.amount(),
-            "residual_pct": self.inner.meta.residual_pct,
-            "num_repricings": self.inner.meta.num_repricings,
-            // `result_invalid` lets downstream pipelines refuse to aggregate
-            // attributions flagged invalid (non-finite sensitivities, residual
-            // computation failures).
-            "result_invalid": self.inner.result_invalid,
-        });
+        let wide = pnl_attribution_wide_row(&self.inner).map_err(display_to_py)?;
         serde_object_to_single_row_dataframe_with_schema(
             py,
-            &row,
+            &wide,
             &[
                 "instrument_id",
                 "method",

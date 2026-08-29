@@ -895,7 +895,7 @@ fn attribute_pnl_taylor_impl(
             &mut non_finite_detected,
         );
 
-        // MO5: route accumulation through Money::checked_add so a currency
+        // Route accumulation through Money::checked_add so a currency
         // mismatch surfaces as an error instead of being silently coerced into
         // `ccy`. Taylor factors are all produced in the instrument's native
         // currency in practice, but the safety net matches the rest of the
@@ -930,7 +930,7 @@ fn attribute_pnl_taylor_impl(
         } else if factor.factor_name == "Theta" {
             // Taylor theta already includes cashflows from compute_theta_factor.
             // Re-use the coupon income that was captured during that compute
-            // (audit MO3: previously we re-called collect_cashflows_in_period
+            // (previously we re-called collect_cashflows_in_period
             // here, which doubled cashflow traversal cost and risked silent
             // desync against the value `compute_theta_factor` consumed).
             let ci_val = taylor.theta_coupon_income.unwrap_or(0.0);
@@ -1021,7 +1021,7 @@ pub(crate) fn attribute_pnl_taylor_prepared(
     )
 }
 
-// NOTE (audit item #3): the former `measure_forward_curve_shift` /
+// NOTE: the former `measure_forward_curve_shift` /
 // `measure_average_rate_shift` helpers — an unweighted mean of per-tenor shifts
 // — were removed. An unweighted average mis-attributes non-parallel curve
 // moves (a steepener averages toward zero), so `compute_rate_factor` and
@@ -1049,7 +1049,7 @@ struct KeyRateBucket {
 /// differences captures only the diagonal of the Hessian, and because
 /// triangular bucket weights form a partition of unity (`Σ wᵢ(t) = 1`), an
 /// exposure at a knot between two buckets picks up weight `w` from each bump
-/// so its diagonal terms scale by `Σ wᵢ² < 1` — audit B7 measured a 2×
+/// so its diagonal terms scale by `Σ wᵢ² < 1` — a 2×
 /// convexity understatement for a knot midway between buckets (w = 0.5/0.5).
 /// Cross-bucket Hessian terms would need O(n²) repricings, so instead the
 /// second-order term comes from one parallel bump:
@@ -2069,9 +2069,9 @@ mod tests {
         );
     }
 
-    /// MO4 regression: malformed config bumps (≤ 0 or > sane max) must be
-    /// rejected at validation rather than producing a `result_invalid`
-    /// flagged result. Before MO4 the central-difference DV01 was a 0/0 NaN
+    /// Malformed config bumps (≤ 0 or > sane max) must be rejected at
+    /// validation rather than producing a `result_invalid` flagged result.
+    /// Previously the central-difference DV01 was a 0/0 NaN
     /// and the attribution flagged itself invalid; with the strengthened
     /// validation the caller now gets an immediate `Error::Validation`.
     #[test]

@@ -215,8 +215,7 @@ impl AttributionSpec {
                 // (e.g. `rate_bump_bp` from `AttributionConfig`) — it must be
                 // attached to the pricing request or the sensitivity
                 // calculators fall back to defaults and the config knob is
-                // silently inert (audit finding: spec.rs wrote the extension
-                // but pricing ran with `PricingOptions::default()`).
+                // silently inert.
                 let pricing_options =
                     finstack_quant_valuations::instruments::PricingOptions::default()
                         .with_config(&config)
@@ -258,20 +257,15 @@ impl AttributionSpec {
             }
         }
 
-        // Optional: credit-factor hierarchy decomposition of credit_curves_pnl.
-        // Wired for MetricsBased and Taylor (PR-7). Other methods leave the
-        // field None; they will be wired in PR-8a/b. The existing
-        // `credit_curves_pnl` field is unchanged numerically — this is purely
-        // additive detail.
+        // Optional credit-factor hierarchy detail. Parallel and waterfall
+        // populate `credit_factor_detail` inside the method via the reprice
+        // cascade. Metrics-based and Taylor back-solve it here. Either way
+        // `credit_curves_pnl` is unchanged — this is additive detail.
         if let Some(model_ref) = &self.credit_factor_model {
             let linear_path = matches!(
                 self.method,
                 AttributionMethod::MetricsBased | AttributionMethod::Taylor(_)
             );
-            // PR-8a: Parallel and Waterfall now populate `credit_factor_detail`
-            // internally via the per-step credit cascade. The linear methods
-            // (PR-7) still go through the back-solve in
-            // `compute_credit_factor_detail`.
             if linear_path {
                 let mut detail_notes: Vec<String> = Vec::new();
                 match self.compute_credit_factor_detail(
@@ -308,10 +302,9 @@ impl AttributionSpec {
             // For Parallel / Waterfall methods, the detail (if any) is already
             // populated inside the method itself.
 
-            // PR-8b: split coupon_income / roll_down into rates / credit parts
-            // and emit `credit_carry_decomposition` (the second lens, §7.2).
-            // Best-effort: failures fall back to leaving the existing scalar
-            // CarryDetail untouched and append a diagnostic note.
+            // Split coupon_income / roll_down into rates / credit parts and
+            // emit `credit_carry_decomposition`. Best-effort: failures leave
+            // the existing scalar CarryDetail untouched and append a note.
             //
             // All four methods populate `carry_detail` (parallel / waterfall /
             // Taylor via `apply_total_return_carry`; metrics-based from the
@@ -330,7 +323,7 @@ impl AttributionSpec {
             }
         }
 
-        // Item 2: optional target-currency translation. Runs as a final
+        // Optional target-currency translation. Runs as a final
         // post-processing step so direct callers of the per-method functions
         // keep their existing native-currency behavior; only the JSON-spec
         // pipeline (used by the bindings) picks up `target_currency`.

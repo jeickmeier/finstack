@@ -963,14 +963,15 @@ schema = { python = "finstack_quant.attribution.schema", status = "exists", note
 # reach only through the string-dispatched `attribute_pnl` / JSON envelope
 # entry points. The Rust-only categories are:
 #   - typed decomposition entry points (attribute_pnl_waterfall / _taylor /
-#     _parallel / _metrics_based, simple_pnl_bridge, compute_pnl helpers,
+#     _parallel / _metrics_based, simple_pnl_bridge,
 #     attribute_return_contribution_json)
 #   - per-factor detail structs (CarryDetail, RatesCurvesAttribution,
 #     CreditFactorAttribution, and the rest of types::detail) — reachable
 #     from hosts as serde payloads on PnlAttribution detail getters
 #   - spec/envelope/schema types (AttributionSpec, AttributionEnvelope,
 #     AttributionResult(Envelope), AttributionSchema, AttributionConfig,
-#     TaylorAttributionConfig) — hosts pass/receive them as JSON
+#     AttributionJsonInputs, TaylorAttributionConfig) — hosts pass/receive
+#     them as JSON or binding fragments
 #   - measure helpers and model-param shift utilities (extract_model_params,
 #     measure_*_shift, with_model_params, MarketSnapshot/MarketRestoreFlags)
 #   - return-contribution value types (spec/position/factor/group structs) —
@@ -1000,11 +1001,11 @@ public = ["get", "index", "validate"]
 # the JSON/spec attribution surface through `exports/attribution.js` with
 # camelCase facade names plus the wasm-bindgen params constructor.
 #
-# Panic containment asymmetry (intentional): the WASM binding wraps
-# attribution execution in catch_unwind because an uncaught unwind at the
-# wasm boundary aborts the whole module instance, killing every subsequent
-# call from the JS host. Python does not need the wrapper — pyo3 converts an
-# unwind into a PanicException without poisoning the interpreter.
+# Panic containment (intentional on both hosts): WASM wraps parse and
+# execute in catch_unwind because an uncaught unwind at the wasm boundary
+# aborts the whole module instance. Python also wraps parse and execute so
+# a panic (for example Money::new on a non-finite amount) becomes a
+# catchable RuntimeError rather than a BaseException PanicException.
 # ---------------------------------------------------------------------------
 [wasm_attribution_subset]
 rust_module_root = "../finstack-quant-wasm/src/api/attribution/"

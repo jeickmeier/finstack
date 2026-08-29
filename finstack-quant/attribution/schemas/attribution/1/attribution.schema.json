@@ -1798,7 +1798,7 @@
               "type": "null"
             }
           ],
-          "description": "Optional calibrated credit factor model. When present (and the\ninstrument has a recognizable issuer + credit-curve exposure), the\nreturned `PnlAttribution` carries a `credit_factor_detail` field with\ngeneric / per-level / adder P&L additively decomposing\n`credit_curves_pnl`. PR-7 wires metrics-based and Taylor methods."
+          "description": "Optional calibrated credit factor model. When present (and the\ninstrument has a recognizable issuer + credit-curve exposure), the\nreturned `PnlAttribution` carries a `credit_factor_detail` field with\ngeneric / per-level / adder P&L additively decomposing\n`credit_curves_pnl`. Parallel and waterfall populate the detail via\nthe reprice cascade; metrics-based and Taylor back-solve it after\nthe linear decomposition."
         },
         "full_cross_attribution": {
           "default": false,

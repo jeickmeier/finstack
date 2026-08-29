@@ -27,13 +27,29 @@ pub struct JsAttributionParams {
     method_json: String,
     config_json: Option<String>,
     full_cross_attribution: Option<bool>,
+    model_params_t0_json: Option<String>,
+    credit_factor_model_json: Option<String>,
 }
 
 #[wasm_bindgen(js_class = AttributionParams)]
 impl JsAttributionParams {
     /// Bundle the attribution inputs (instrument / markets / dates / method
     /// JSON strings plus optional config and full-cross flag) for
-    /// `attributePnl`.
+    /// `attributePnl`. Attach a T₀ model-parameter snapshot or credit-factor
+    /// model with the optional setters after construction.
+    ///
+    /// # Arguments
+    ///
+    /// * `instrument_json` - Canonical v1 instrument envelope JSON.
+    /// * `market_t0_json` - Canonical MarketContext JSON at T₀.
+    /// * `market_t1_json` - Canonical MarketContext JSON at T₁.
+    /// * `as_of_t0` - ISO-8601 valuation date for the start snapshot.
+    /// * `as_of_t1` - ISO-8601 valuation date for the end snapshot.
+    /// * `method_json` - Snake-case serialized attribution method.
+    /// * `config_json` - Optional complete attribution configuration JSON.
+    /// * `full_cross_attribution` - When `Some(true)`, evaluate every pairwise
+    ///   cross-factor term.
+    ///
     /// @param instrument_json - Canonical instrument envelope JSON in the Finstack v1 schema.
     /// @param market_t0_json - Canonical MarketContext JSON at the attribution start date.
     /// @param market_t1_json - Canonical MarketContext JSON at the attribution end date.
@@ -63,7 +79,57 @@ impl JsAttributionParams {
             method_json,
             config_json,
             full_cross_attribution,
+            model_params_t0_json: None,
+            credit_factor_model_json: None,
         }
+    }
+
+    /// Optional serialized opening `ModelParamsSnapshot`.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - JSON snapshot of T₀ model parameters, or omitted.
+    ///
+    /// @param value - Optional serialized opening ModelParamsSnapshot JSON.
+    #[wasm_bindgen(setter, js_name = modelParamsT0Json)]
+    pub fn set_model_params_t0_json(&mut self, value: Option<String>) {
+        self.model_params_t0_json = value;
+    }
+
+    /// Optional serialized opening `ModelParamsSnapshot`.
+    ///
+    /// # Returns
+    ///
+    /// The JSON snapshot attached after construction, or omitted.
+    ///
+    /// @returns The JSON snapshot attached after construction, or omitted.
+    #[wasm_bindgen(getter, js_name = modelParamsT0Json)]
+    pub fn model_params_t0_json(&self) -> Option<String> {
+        self.model_params_t0_json.clone()
+    }
+
+    /// Optional serialized `CreditFactorModel`.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - JSON credit-factor model, or omitted.
+    ///
+    /// @param value - Optional serialized CreditFactorModel JSON.
+    #[wasm_bindgen(setter, js_name = creditFactorModelJson)]
+    pub fn set_credit_factor_model_json(&mut self, value: Option<String>) {
+        self.credit_factor_model_json = value;
+    }
+
+    /// Optional serialized `CreditFactorModel`.
+    ///
+    /// # Returns
+    ///
+    /// The JSON credit-factor model attached after construction, or omitted.
+    ///
+    /// @returns The JSON credit-factor model attached after construction, or omitted.
+    #[wasm_bindgen(getter, js_name = creditFactorModelJson)]
+    pub fn credit_factor_model_json(&self) -> Option<String> {
+        self.credit_factor_model_json.clone()
     }
 }
 
@@ -152,25 +218,26 @@ fn run_attribute_pnl(
     label: &str,
     params: &JsAttributionParams,
 ) -> Result<finstack_quant_attribution::AttributionResult, JsValue> {
-    // MI3 defense in depth: wrap input-parsing as well. `from_json_inputs`
-    // funnels through serde + downstream constructors that should not panic,
-    // but a deeply malformed payload could in principle. An uncaught unwind
-    // at the wasm boundary aborts the whole module instance, killing every
-    // subsequent call from the JS host.
-    let mut spec = catch_attribution_panic(&format!("{label}/from_json_inputs"), || {
+    // Wrap input-parsing as well. `from_json_inputs` funnels through serde
+    // plus constructors that should not panic, but a malformed payload could
+    // in principle. An uncaught unwind at the wasm boundary aborts the
+    // module instance and kills every subsequent call from the JS host.
+    let spec = catch_attribution_panic(&format!("{label}/from_json_inputs"), || {
         finstack_quant_attribution::AttributionSpec::from_json_inputs(
-            &params.instrument_json,
-            &params.market_t0_json,
-            &params.market_t1_json,
-            &params.as_of_t0,
-            &params.as_of_t1,
-            &params.method_json,
-            params.config_json.as_deref(),
+            finstack_quant_attribution::AttributionJsonInputs {
+                instrument_json: &params.instrument_json,
+                market_t0_json: &params.market_t0_json,
+                market_t1_json: &params.market_t1_json,
+                as_of_t0: &params.as_of_t0,
+                as_of_t1: &params.as_of_t1,
+                method_json: &params.method_json,
+                config_json: params.config_json.as_deref(),
+                model_params_t0_json: params.model_params_t0_json.as_deref(),
+                credit_factor_model_json: params.credit_factor_model_json.as_deref(),
+                full_cross_attribution: params.full_cross_attribution.unwrap_or(false),
+            },
         )
     })?;
-    if let Some(val) = params.full_cross_attribution {
-        spec.full_cross_attribution = val;
-    }
     catch_attribution_panic(label, || spec.execute())
 }
 
@@ -229,7 +296,7 @@ pub fn attribute_pnl_json(params: &JsAttributionParams) -> Result<String, JsValu
 /// @param spec_json - JSON-serialized AttributionParams specification to validate and execute.
 #[wasm_bindgen(js_name = attributePnlFromSpec)]
 pub fn attribute_pnl_from_spec(spec_json: &str) -> Result<String, JsValue> {
-    // MI3: wrap serde_json parse too. A JSON-parse panic would otherwise abort
+    // Wrap serde_json parse too. A JSON-parse panic would otherwise abort
     // the wasm module instance.
     let envelope = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         serde_json::from_str::<finstack_quant_attribution::AttributionEnvelope>(spec_json)

@@ -206,7 +206,7 @@ pub struct PnlAttribution {
     /// Pure mark-to-market change: `val_t1 − val_t0` with **no** intra-period
     /// cashflow adjustment.
     ///
-    /// Added in audit rec #2 to separate the raw user-input price change from
+    /// Separates the raw user-input price change from
     /// the total-return view stamped on `total_pnl`. When the attribution path
     /// added coupon_income to `total_pnl` (the standard total-return convention
     /// in parallel / waterfall / taylor attribution), this field still reports
@@ -314,7 +314,7 @@ pub struct PnlAttribution {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credit_factor_detail: Option<CreditFactorAttribution>,
 
-    /// Optional credit-factor-hierarchy decomposition of carry (PR-8b §7.2).
+    /// Optional credit-factor-hierarchy decomposition of carry.
     ///
     /// Populated only when an `AttributionSpec.credit_factor_model` was
     /// supplied.
@@ -406,10 +406,9 @@ impl PnlAttribution {
 
         Self {
             total_pnl,
-            // Audit rec #2: the raw mark-to-market is whatever the caller
-            // passed as `total_pnl` *before* any total-return adjustment.
-            // Stored as Some() at construction; downstream apply_total_return_carry
-            // leaves this untouched even as it mutates total_pnl.
+            // Raw mark-to-market is the caller-supplied `total_pnl` before
+            // any total-return adjustment. `apply_total_return_carry` leaves
+            // this field untouched when it mutates `total_pnl`.
             mark_to_market_pnl: Some(total_pnl),
             carry: zero,
             rates_curves_pnl: zero,
@@ -673,7 +672,7 @@ impl PnlAttribution {
             self.meta.notes.push(note);
             self.residual = Money::new(0.0, self.total_pnl.currency());
             self.meta.residual_pct = 0.0;
-            // Audit rec #3: surface the failure so `residual_within_tolerance`
+            // Surface the failure so `residual_within_tolerance`
             // does NOT report a "clean" 0 residual after a validation error.
             self.result_invalid = true;
             return Err(e);
@@ -761,7 +760,7 @@ impl PnlAttribution {
                 self.meta.notes.push(note);
                 self.residual = Money::new(0.0, self.total_pnl.currency());
                 self.meta.residual_pct = 0.0;
-                // Audit rec #3: as above — flag invalid so tolerance checks fail.
+                // Flag invalid so tolerance checks fail.
                 self.result_invalid = true;
                 return Err(e);
             }
@@ -793,7 +792,7 @@ impl PnlAttribution {
     ///
     /// `true` if residual is within tolerance.
     pub fn residual_within_tolerance(&self, pct_tolerance: f64, abs_tolerance: f64) -> bool {
-        // Audit rec #3: if residual computation failed, `residual` was reset to 0
+        // If residual computation failed, `residual` was reset to 0
         // and a clean tolerance check would falsely succeed. Refuse to claim
         // "within tolerance" when the attribution is flagged invalid.
         if self.result_invalid {
@@ -818,17 +817,6 @@ impl PnlAttribution {
         };
 
         abs_residual <= tolerance
-    }
-
-    /// Check if residual is within the stored tolerance thresholds.
-    ///
-    /// Uses the tolerance_abs and tolerance_pct from metadata.
-    ///
-    /// # Returns
-    ///
-    /// `true` if residual is within the stored tolerances.
-    pub fn residual_within_meta_tolerance(&self) -> bool {
-        self.residual_within_tolerance(self.meta.tolerance_pct, self.meta.tolerance_abs)
     }
 
     /// Generate a structured tree explanation of P&L attribution.
@@ -1197,7 +1185,7 @@ mod tests {
         assert!((attr.residual.amount() - 50.0).abs() < 1e-10);
     }
 
-    /// Audit rec #2: `mark_to_market_pnl` must capture the raw `val_t1 − val_t0`
+    /// `mark_to_market_pnl` must capture the raw `val_t1 − val_t0`
     /// supplied at construction time and stay frozen even if `total_pnl` is
     /// later mutated by `apply_total_return_carry`. This is what lets a
     /// consumer reconcile against their own computation of the price change.
@@ -1239,7 +1227,7 @@ mod tests {
         );
     }
 
-    /// Audit rec #3: when compute_residual fails because a factor is in a
+    /// When compute_residual fails because a factor is in a
     /// different currency from total_pnl, the attribution must report itself
     /// as invalid, and `residual_within_tolerance` must refuse to claim
     /// success even though `residual == 0` was set by the failure path.
@@ -1267,8 +1255,8 @@ mod tests {
             "tolerance check MUST fail when result_invalid is set, regardless of residual value"
         );
         assert!(
-            !attr.residual_within_meta_tolerance(),
-            "meta-tolerance check MUST also fail when result_invalid is set"
+            !attr.residual_within_tolerance(attr.meta.tolerance_pct, attr.meta.tolerance_abs),
+            "stored-tolerance check MUST also fail when result_invalid is set"
         );
     }
 

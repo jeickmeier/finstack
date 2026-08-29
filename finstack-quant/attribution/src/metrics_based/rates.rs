@@ -248,7 +248,7 @@ pub(super) fn apply(
     // LIMITATION: Assumes parallel/average shifts and small moves; for large or non-parallel
     // moves, use bump-and-reprice curve gamma when available.
     //
-    // TWIST GUARD (audit rec #6): if the signed average is much smaller than
+    // TWIST GUARD: if the signed average is much smaller than
     // the L1 (absolute) average, the curves were twisted (e.g. short-end +50bp,
     // long-end −50bp averages to ~0). In that regime the scalar convexity term
     // `½·γ·avg²` collapses to ≈0 even though the true second-order
@@ -335,7 +335,7 @@ pub(super) fn apply(
             ));
         }
 
-        // Twist-domination warning (audit rec #6).
+        // Twist-domination warning.
         if let Some(abs_shift) = avg_rate_abs_shift_bp {
             if let Some(note) = twist_diagnostic_note("Rates convexity", avg_shift, abs_shift) {
                 attribution.meta.notes.push(note);

@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "P&L attribution for Finstack Quant portfolios: Brinson, Taylor, parallel, waterfall, and credit-factor decomposition"
+description = "Instrument P&L attribution: parallel, waterfall, Taylor, metrics-based, credit-factor, and return contribution"
 autobenches = false
 
 [dependencies]
