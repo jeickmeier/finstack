@@ -1143,6 +1143,9 @@ pub fn validate_correlation_matrix_detailed(
 
     for i in 0..n {
         let value = matrix[i * n + i];
+        if !value.is_finite() {
+            return Err(CorrelationError::OutOfBounds { i, j: i, value });
+        }
         if (value - 1.0).abs() > DIAGONAL_TOLERANCE {
             return Err(CorrelationError::DiagonalNotOne { index: i, value });
         }

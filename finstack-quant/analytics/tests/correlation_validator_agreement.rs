@@ -108,9 +108,27 @@ fn rounding_scale_overshoot_is_accepted_by_both() {
 
 #[test]
 fn diagonal_within_tolerance_is_accepted_by_both() {
+    // This exceeds the tighter off-diagonal coefficient-bound slack. Diagonal
+    // entries must still be governed solely by DIAGONAL_TOLERANCE.
     let matrix = [1.0 + 5e-11];
     assert!(core_validate(&matrix, 1).is_ok());
     assert!(analytics_validate(&matrix, 1).is_ok());
+}
+
+#[test]
+fn diagonal_nan_reports_out_of_bounds_from_both_detailed_validators() {
+    let matrix = [f64::NAN];
+    let analytics_error = analytics_validate(&matrix, 1).expect_err("analytics should reject NaN");
+    let core_error =
+        validate_correlation_matrix_detailed(&matrix, 1).expect_err("core should reject NaN");
+
+    for error in [&analytics_error, &core_error] {
+        assert!(matches!(
+            error,
+            Error::OutOfBounds { i: 0, j: 0, value } if value.is_nan()
+        ));
+    }
+    assert!(core_validate(&matrix, 1).is_err());
 }
 
 #[test]

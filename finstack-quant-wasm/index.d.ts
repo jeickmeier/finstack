@@ -2877,7 +2877,7 @@ export declare class Performance {
    * Construct from a ticker-major, column-oriented price matrix. The outer
    * element selects a ticker, and each inner series is aligned to `dates`.
    * @param dates - ISO-8601 observation dates in ascending order, with one entry per value in each inner price series.
-   * @param prices - Ticker-major, column-oriented matrix where `prices[ticker_idx][date_idx]` is the price for `ticker_idx` at `dates[date_idx]`.
+   * @param prices - Ticker-major, column-oriented matrix where `prices[tickerIdx][dateIdx]` is the price for `tickerIdx` at `dates[dateIdx]`.
    * @param tickerNames - Ticker labels aligned with the outer elements of `prices`.
    * @param benchmarkTicker - Optional ticker label to use as the benchmark return series.
    * @param frequency - Optional observation frequency token; defaults to daily.
@@ -2894,7 +2894,7 @@ export declare class Performance {
    * Construct from a ticker-major, column-oriented return matrix. The outer
    * element selects a ticker, and each inner series is aligned to `dates`.
    * @param dates - ISO-8601 observation dates in ascending order, with one entry per value in each inner return series.
-   * @param returns - Ticker-major, column-oriented simple decimal return matrix where `returns[ticker_idx][date_idx]` is the return for `ticker_idx` at `dates[date_idx]`.
+   * @param returns - Ticker-major, column-oriented simple decimal return matrix where `returns[tickerIdx][dateIdx]` is the return for `tickerIdx` at `dates[dateIdx]`.
    * @param tickerNames - Ticker labels aligned with the outer elements of `returns`.
    * @param benchmarkTicker - Optional ticker label to use as the benchmark return series.
    * @param frequency - Optional observation frequency token; defaults to daily.
@@ -2951,7 +2951,7 @@ export declare class Performance {
    * Dates for one ticker's active return series as ISO date strings.
    * @param tickerIdx - Zero-based ticker column index in tickerNames order.
    * @returns ISO-8601 dates for that ticker's active return series, in chronological order.
-   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns.
+   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns.
    */
   activeDatesForTicker(tickerIdx: number): string[];
   /**
@@ -3216,7 +3216,7 @@ export declare class Performance {
    * Per-period simple returns for one asset, as decimal fractions (0.01 = +1%).
    * @param tickerIdx - Zero-based ticker column index in tickerNames order.
    * @returns Simple decimal returns for the selected ticker, in date order.
-   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns.
+   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns.
    */
   returnsForTicker(tickerIdx: number): Float64Array;
   /**
@@ -3243,7 +3243,6 @@ export declare class Performance {
    * console.log(point.date, point.value); // "2024-01-02", 0.0302
    * ```
    * @param frequency - Optional calendar frequency token: `"daily"`, `"weekly"`, `"monthly"`, `"quarterly"`, `"semiannual"`, or `"annual"`; defaults to `"monthly"`.
-   * @param frequency - Optional calendar-bucketing frequency; defaults to monthly.
    * @returns Ticker-major nested arrays of chronological period-end points with simple decimal returns.
    * @throws Error - Rejects an unsupported frequency or a failure to create a point property on the JavaScript result object.
    */
@@ -3304,7 +3303,7 @@ export declare class Performance {
    * @param window - Observation window length; defaults to 63 periods.
    * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
    * @returns `{ dates, alphas, betas }` series for the selected ticker.
-   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
+   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
    */
   rollingGreeks(tickerIdx: number, window?: number, riskFreeRate?: number): RollingGreeksResult;
   /**
@@ -3312,7 +3311,7 @@ export declare class Performance {
    * @param tickerIdx - Zero-based ticker column index in tickerNames order.
    * @param window - Observation window length; defaults to 63 periods.
    * @returns `{ dates, volatility }` series for the selected ticker.
-   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
+   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
    */
   rollingVolatility(tickerIdx: number, window?: number): DatedSeries;
   /**
@@ -3321,7 +3320,7 @@ export declare class Performance {
    * @param window - Observation window length; defaults to 63 periods.
    * @param mar - Per-period minimum acceptable return as a decimal; defaults to 0.0.
    * @returns `{ dates, sortino }` series for the selected ticker.
-   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
+   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
    */
   rollingSortino(tickerIdx: number, window?: number, mar?: number): DatedSeries;
   /**
@@ -3330,7 +3329,7 @@ export declare class Performance {
    * @param window - Observation window length; defaults to 63 periods.
    * @param riskFreeRate - Annualized decimal risk-free rate; defaults to 0.0.
    * @returns `{ dates, sharpe }` series for the selected ticker.
-   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
+   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created.
    */
   rollingSharpe(tickerIdx: number, window?: number, riskFreeRate?: number): DatedSeries;
   /**
@@ -3338,7 +3337,7 @@ export declare class Performance {
    * @param tickerIdx - Zero-based ticker column index in tickerNames order.
    * @param window - Positive number of observations to compound in each window.
    * @returns `{ dates, return }` series for the selected ticker.
-   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created. A zero or overlong `window` returns an empty series rather than rejecting.
+   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns or the JavaScript result object's properties cannot be created. A zero or overlong `window` returns an empty series rather than rejecting.
    */
   rollingReturns(tickerIdx: number, window: number): DatedSeries;
   /**
@@ -3346,7 +3345,7 @@ export declare class Performance {
    * @param tickerIdx - Zero-based ticker column index in tickerNames order.
    * @param n - Number of largest drawdown episodes to return; defaults to 5.
    * @returns Drawdown episode objects for the selected ticker, largest first.
-   * @throws Error - Rejects when `ticker_idx` is outside the loaded ticker columns or the drawdown details cannot be serialized to JavaScript.
+   * @throws Error - Rejects when `tickerIdx` is outside the loaded ticker columns or the drawdown details cannot be serialized to JavaScript.
    */
   drawdownDetails(tickerIdx: number, n?: number): DrawdownEpisode[];
   /**
@@ -3360,7 +3359,7 @@ export declare class Performance {
    * @param returnKind - `"excess"` or `"total"`; defaults to `"excess"`.
    * @param riskFreeRate - Annualized decimal risk-free rate used when `returnKind` is `"total"`; defaults to 0.0.
    * @returns `{ alpha, betas, r_squared, adjusted_r_squared, residual_vol }` for the selected ticker.
-   * @throws Error - Rejects a non-numeric `factor_returns` matrix, an unknown `returnKind`, an out-of-range `ticker_idx`, no factors, too few observations, non-finite or length-mismatched inputs, a singular factor design, or a result that cannot be serialized to JavaScript.
+   * @throws Error - Rejects a non-numeric `factor_returns` matrix, an unknown `returnKind`, an out-of-range `tickerIdx`, no factors, too few observations, non-finite or length-mismatched inputs, a singular factor design, or a result that cannot be serialized to JavaScript.
    */
   multiFactorGreeks(tickerIdx: number, factorReturns: NumericMatrix, returnKind?: string, riskFreeRate?: number): MultiFactorResult;
   /**
@@ -3390,7 +3389,7 @@ export declare class Performance {
    * @param fiscalYearStartMonth - Optional fiscal-year start month from 1 through 12.
    * @param fiscalYearStartDay - Optional fiscal-year start day within the selected month.
    * @returns Period statistics object for the selected ticker at the requested frequency.
-   * @throws Error - Rejects an unsupported `aggregation_frequency`, a fiscal month outside `1..=12`, a fiscal day outside `1..=31`, an out-of-range `ticker_idx`, or period statistics that cannot be serialized to JavaScript.
+   * @throws Error - Rejects an unsupported `aggregation_frequency`, a fiscal month outside `1..=12`, a fiscal day outside `1..=31`, an out-of-range `tickerIdx`, or period statistics that cannot be serialized to JavaScript.
    */
   periodStats(
     tickerIdx: number,

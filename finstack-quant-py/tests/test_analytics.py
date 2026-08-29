@@ -12,6 +12,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 import math
 from pathlib import Path
+import pickle
 
 import pandas as pd
 import pytest
@@ -339,6 +340,36 @@ class TestBenchmark:
         results = perf_prices.greeks()
         assert len(results) == 2
         assert all(isinstance(r, GreeksResult) for r in results)
+
+    def test_degenerate_beta_and_greeks_wire_round_trips_preserve_nan(self) -> None:
+        perf = Performance.from_returns_arrays(
+            [date(2024, 1, 1)],
+            [[0.01], [0.01]],
+            ["TARGET", "BENCH"],
+            benchmark_ticker="BENCH",
+        )
+
+        beta_result = perf.beta()[0]
+        beta_from_json = BetaResult.from_json(beta_result.to_json())
+        beta_from_pickle = pickle.loads(  # noqa: S301 - trusted in-process round trip
+            pickle.dumps(beta_result)
+        )
+        for result in (beta_from_json, beta_from_pickle):
+            assert math.isnan(result.beta)
+            assert math.isnan(result.std_err)
+            assert math.isnan(result.ci_lower)
+            assert math.isnan(result.ci_upper)
+
+        greeks_result = perf.greeks()[0]
+        greeks_from_json = GreeksResult.from_json(greeks_result.to_json())
+        greeks_from_pickle = pickle.loads(  # noqa: S301 - trusted in-process round trip
+            pickle.dumps(greeks_result)
+        )
+        for result in (greeks_from_json, greeks_from_pickle):
+            assert math.isnan(result.alpha)
+            assert math.isnan(result.beta)
+            assert math.isnan(result.r_squared)
+            assert math.isnan(result.adjusted_r_squared)
 
     def test_greeks_risk_free_rate_changes_jensen_alpha(self) -> None:
         dates = _daily_dates(6)

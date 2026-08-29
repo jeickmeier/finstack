@@ -90,12 +90,14 @@ Canonical home for the shared correlation-matrix helpers. Exports:
 
 - `validate_correlation_matrix(matrix, n)` — square-shape, unit-diagonal,
   symmetry, `[-1, 1]` bounds, and PSD (Cholesky) checks, classifying failures
-  into the module-local `Error` enum.
+  as the canonical core `CorrelationError`, re-exported here as `Error`.
 - `nearest_correlation_matrix(matrix, n, opts)` with `NearestCorrelationOpts` —
   Higham (2002) alternating-projection PSD repair.
-- `Error` / `Result` — module-scoped `thiserror` type. This is the only error
-  enum the crate defines; everything else returns
-  `finstack_quant_core::Result`.
+- `Error` — re-export of
+  `finstack_quant_core::math::linalg::CorrelationError`.
+- `Result<T>` — analytics-local convenience alias for
+  `std::result::Result<T, Error>`. The analytics crate does not define a
+  separate correlation error or depend on `thiserror`.
 
 `finstack_quant_models::correlation` re-exports the matrix helpers and opts
 unchanged, and owns a wider `Error` that wraps this crate's matrix failures

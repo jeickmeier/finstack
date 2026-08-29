@@ -287,6 +287,55 @@ fn beta_and_greeks_return_per_ticker_structs() {
 }
 
 #[wasm_bindgen_test]
+fn degenerate_beta_and_greeks_preserve_javascript_nan() {
+    let dates = vec!["2025-01-01".to_string()];
+    let returns = vec![vec![0.01], vec![0.01]];
+    let names = vec!["TARGET".to_string(), "BENCH".to_string()];
+    let perf = JsPerformance::from_returns(
+        to_js(&dates),
+        to_f64_matrix(&returns),
+        to_js(&names),
+        Some("BENCH".to_string()),
+        Some("daily".to_string()),
+    )
+    .unwrap();
+
+    let betas = perf
+        .beta()
+        .unwrap()
+        .dyn_into::<Array>()
+        .expect("beta results should be an array");
+    let beta = betas.get(0);
+    for field in ["beta", "std_err", "ci_lower", "ci_upper"] {
+        let value = Reflect::get(&beta, &JsValue::from_str(field)).expect("missing beta field");
+        assert!(
+            value
+                .as_f64()
+                .expect("beta field should be numeric")
+                .is_nan(),
+            "{field} should be JavaScript NaN"
+        );
+    }
+
+    let greeks = perf
+        .greeks(None)
+        .unwrap()
+        .dyn_into::<Array>()
+        .expect("greeks results should be an array");
+    let greek = greeks.get(0);
+    for field in ["alpha", "beta", "r_squared", "adjusted_r_squared"] {
+        let value = Reflect::get(&greek, &JsValue::from_str(field)).expect("missing greeks field");
+        assert!(
+            value
+                .as_f64()
+                .expect("greeks field should be numeric")
+                .is_nan(),
+            "{field} should be JavaScript NaN"
+        );
+    }
+}
+
+#[wasm_bindgen_test]
 fn greeks_optional_risk_free_rate_changes_alpha() {
     let dates = vec![
         "2025-01-01".to_string(),

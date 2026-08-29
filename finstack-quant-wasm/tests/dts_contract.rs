@@ -245,6 +245,20 @@ fn analytics_dts_matches_runtime_hotspots() {
 }
 
 #[test]
+fn periodic_returns_has_one_exact_frequency_param_description() {
+    let dts = index_dts();
+    let docs = preceding_jsdoc(
+        &dts,
+        "  periodicReturns(frequency?: string): PeriodicReturnPoint[][];",
+    );
+
+    assert_eq!(docs.matches("@param frequency").count(), 1);
+    assert!(docs.contains(
+        "@param frequency - Optional calendar frequency token: `\"daily\"`, `\"weekly\"`, `\"monthly\"`, `\"quarterly\"`, `\"semiannual\"`, or `\"annual\"`; defaults to `\"monthly\"`."
+    ));
+}
+
+#[test]
 fn core_dts_exposes_typed_array_math_fast_paths() {
     let dts = index_dts();
 

@@ -169,6 +169,37 @@ fn obj_from_pairs(pairs: &[(&str, JsValue)]) -> Result<JsValue, JsValue> {
     Ok(obj.into())
 }
 
+fn beta_results_to_js(results: Vec<fa::BetaResult>) -> Result<JsValue, JsValue> {
+    let array = Array::new_with_length(results.len() as u32);
+    for (index, result) in results.into_iter().enumerate() {
+        let value = obj_from_pairs(&[
+            ("beta", JsValue::from_f64(result.beta)),
+            ("std_err", JsValue::from_f64(result.std_err)),
+            ("ci_lower", JsValue::from_f64(result.ci_lower)),
+            ("ci_upper", JsValue::from_f64(result.ci_upper)),
+        ])?;
+        array.set(index as u32, value);
+    }
+    Ok(array.into())
+}
+
+fn greeks_results_to_js(results: Vec<fa::GreeksResult>) -> Result<JsValue, JsValue> {
+    let array = Array::new_with_length(results.len() as u32);
+    for (index, result) in results.into_iter().enumerate() {
+        let value = obj_from_pairs(&[
+            ("alpha", JsValue::from_f64(result.alpha)),
+            ("beta", JsValue::from_f64(result.beta)),
+            ("r_squared", JsValue::from_f64(result.r_squared)),
+            (
+                "adjusted_r_squared",
+                JsValue::from_f64(result.adjusted_r_squared),
+            ),
+        ])?;
+        array.set(index as u32, value);
+    }
+    Ok(array.into())
+}
+
 /// Serialize a `DatedSeries`-like rolling result with parallel `dates` /
 /// numeric vectors as a plain JS object whose numeric vector is a typed array.
 fn dated_series_to_js(
@@ -214,7 +245,7 @@ impl JsPerformance {
     /// Rejects malformed dates or matrices, invalid prices, unsupported
     /// frequencies, and an unknown benchmark ticker.
     /// @param dates - ISO-8601 observation dates in ascending order, with one entry per value in each inner price series.
-    /// @param prices - Ticker-major, column-oriented matrix where `prices[ticker_idx][date_idx]` is the price for `ticker_idx` at `dates[date_idx]`.
+    /// @param prices - Ticker-major, column-oriented matrix where `prices[tickerIdx][dateIdx]` is the price for `tickerIdx` at `dates[dateIdx]`.
     /// @param ticker_names - Ticker labels aligned with the outer elements of `prices`.
     /// @param benchmark_ticker - Optional ticker label to use as the benchmark return series.
     /// @param frequency - Optional observation frequency token; defaults to daily.
@@ -245,7 +276,7 @@ impl JsPerformance {
     /// Rejects malformed dates or matrices and invalid benchmark or
     /// frequency inputs.
     /// @param dates - ISO-8601 observation dates in ascending order, with one entry per value in each inner return series.
-    /// @param returns - Ticker-major, column-oriented simple decimal return matrix where `returns[ticker_idx][date_idx]` is the return for `ticker_idx` at `dates[date_idx]`.
+    /// @param returns - Ticker-major, column-oriented simple decimal return matrix where `returns[tickerIdx][dateIdx]` is the return for `tickerIdx` at `dates[dateIdx]`.
     /// @param ticker_names - Ticker labels aligned with the outer elements of `returns`.
     /// @param benchmark_ticker - Optional ticker label to use as the benchmark return series.
     /// @param frequency - Optional observation frequency token; defaults to daily.
@@ -830,7 +861,7 @@ impl JsPerformance {
     ///
     /// Rejects an unsupported frequency or a failure to create a point
     /// property on the JavaScript result object.
-    /// @param frequency - Optional calendar-bucketing frequency; defaults to monthly.
+    /// @param frequency - Optional calendar frequency token: `"daily"`, `"weekly"`, `"monthly"`, `"quarterly"`, `"semiannual"`, or `"annual"`; defaults to `"monthly"`.
     /// @returns Ticker-major nested arrays of chronological period-end points with simple decimal returns.
     #[wasm_bindgen(js_name = periodicReturns)]
     pub fn periodic_returns(&self, frequency: Option<String>) -> Result<JsValue, JsValue> {
@@ -906,7 +937,7 @@ impl JsPerformance {
     /// Rejects if the beta results cannot be serialized to JavaScript.
     /// @returns Per-ticker `{ beta, std_err, ci_lower, ci_upper }` objects in `tickerNames()` order.
     pub fn beta(&self) -> Result<JsValue, JsValue> {
-        to_js(&self.inner.beta())
+        beta_results_to_js(self.inner.beta())
     }
 
     /// Benchmark regression annualized Jensen alpha/beta statistics per asset.
@@ -917,7 +948,7 @@ impl JsPerformance {
     /// @param risk_free_rate - Annualized decimal risk-free rate; defaults to 0.0.
     /// @returns Per-ticker `{ alpha, beta, r_squared, adjusted_r_squared }` objects in `tickerNames()` order.
     pub fn greeks(&self, risk_free_rate: Option<f64>) -> Result<JsValue, JsValue> {
-        to_js(&self.inner.greeks(risk_free_rate.unwrap_or(0.0)))
+        greeks_results_to_js(self.inner.greeks(risk_free_rate.unwrap_or(0.0)))
     }
 
     /// Rolling benchmark annualized Jensen alpha/beta for one asset over a window.

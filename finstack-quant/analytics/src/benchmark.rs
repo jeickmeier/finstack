@@ -250,14 +250,18 @@ pub(crate) fn r_squared(returns: &[f64], benchmark: &[f64]) -> f64 {
 pub struct BetaResult {
     /// Estimated beta coefficient, or [`f64::NAN`] when it is not estimable
     /// together with the confidence interval.
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub beta: f64,
     /// Standard error of the beta estimate, or [`f64::NAN`] when undefined.
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub std_err: f64,
     /// Lower bound of the 95% confidence interval, or [`f64::NAN`] when
     /// undefined.
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub ci_lower: f64,
     /// Upper bound of the 95% confidence interval, or [`f64::NAN`] when
     /// undefined.
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub ci_upper: f64,
 }
 
@@ -465,12 +469,16 @@ fn jensen_alpha(
 pub struct GreeksResult {
     /// Annualized Jensen alpha, or [`f64::NAN`] when the regression slope is
     /// undefined.
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub alpha: f64,
     /// Beta (slope) of portfolio vs benchmark, or [`f64::NAN`] when undefined.
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub beta: f64,
     /// R-squared of the regression, or [`f64::NAN`] when undefined.
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub r_squared: f64,
     /// Adjusted R-squared of the regression, or [`f64::NAN`] when undefined.
+    #[serde(with = "finstack_quant_core::wire::non_finite_f64")]
     pub adjusted_r_squared: f64,
 }
 
@@ -1179,6 +1187,28 @@ mod tests {
             assert!(greeks_result.r_squared.is_nan());
             assert!(greeks_result.adjusted_r_squared.is_nan());
         }
+    }
+
+    #[test]
+    fn degenerate_beta_and_greeks_json_round_trip_nan_fields() {
+        let beta_result = beta(&[], &[]);
+        let beta_json = serde_json::to_string(&beta_result).expect("beta result should serialize");
+        let beta_round_trip: BetaResult =
+            serde_json::from_str(&beta_json).expect("beta result should deserialize");
+        assert!(beta_round_trip.beta.is_nan());
+        assert!(beta_round_trip.std_err.is_nan());
+        assert!(beta_round_trip.ci_lower.is_nan());
+        assert!(beta_round_trip.ci_upper.is_nan());
+
+        let greeks_result = greeks(&[], &[], 252.0, 0.0);
+        let greeks_json =
+            serde_json::to_string(&greeks_result).expect("greeks result should serialize");
+        let greeks_round_trip: GreeksResult =
+            serde_json::from_str(&greeks_json).expect("greeks result should deserialize");
+        assert!(greeks_round_trip.alpha.is_nan());
+        assert!(greeks_round_trip.beta.is_nan());
+        assert!(greeks_round_trip.r_squared.is_nan());
+        assert!(greeks_round_trip.adjusted_r_squared.is_nan());
     }
 
     #[test]
