@@ -16,11 +16,11 @@
 //! [`crate::correlation::joint_probabilities`]) are re-exported from
 //! [`finstack_quant_core::math::probability`].
 //!
-//! Matrix-validation helpers (`Error`, `Result`, `validate_correlation_matrix`,
+//! Matrix-validation helpers (`validate_correlation_matrix`,
 //! `nearest_correlation_matrix`, `NearestCorrelationOpts`) are re-exported from
-//! [`finstack_quant_analytics::correlation`], which is the canonical home for those
-//! types so model engines can consume them
-//! without depending on `finstack-quant-valuations`.
+//! [`finstack_quant_analytics::correlation`]. [`Error`] / [`Result`] are
+//! models-owned: they wrap analytics matrix failures and add credit-domain
+//! variants (volatilities, recovery, Student-t df).
 //!
 //! # Utilities
 //!
@@ -45,6 +45,7 @@
 //!
 
 pub mod copula;
+mod error;
 pub mod latent_factor;
 pub mod portfolio_loss;
 pub mod recovery;
@@ -53,8 +54,9 @@ pub use copula::{
     Copula, CopulaSpec, GaussianCopula, MultiFactorCopula, RandomFactorLoadingCopula,
     StudentTCopula,
 };
+pub use error::{Error, Result};
 pub use finstack_quant_analytics::correlation::{
-    nearest_correlation_matrix, validate_correlation_matrix, Error, NearestCorrelationOpts, Result,
+    nearest_correlation_matrix, validate_correlation_matrix, NearestCorrelationOpts,
 };
 pub use finstack_quant_core::math::probability::{
     correlation_bounds, joint_probabilities, CorrelatedBernoulli,

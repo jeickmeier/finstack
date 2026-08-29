@@ -10,7 +10,7 @@ use crate::aggregation::{
 use crate::correlation::{
     nearest_correlation_matrix, validate_correlation_matrix, NearestCorrelationOpts,
 };
-use crate::dates::{Date, FiscalConfig, HolidayCalendar, PeriodKind};
+use crate::dates::{Date, FiscalConfig, PeriodKind};
 use crate::drawdown::{drawdown_details, to_drawdown_series, DrawdownEpisode};
 use crate::lookback;
 use crate::math::stats::{correlation, mean_var};
@@ -217,21 +217,20 @@ impl Performance {
     /// Compounded returns for each lookback period (MTD, QTD, YTD, FYTD) at `ref_date`.
     ///
     /// FYTD is the first observation on or after the fiscal calendar start
-    /// through `ref_date`. The first included simple return still spans the
-    /// prior close. `calendar` is unused for FYTD start alignment.
+    /// through `ref_date`. Holidays are not skipped. The first included
+    /// simple return still spans the prior close.
     ///
     /// # Arguments
     ///
     /// * `ref_date` - Inclusive end of each lookback window.
     /// * `fiscal_config` - Fiscal year start month and day for FYTD.
-    /// * `calendar` - Accepted for call-site compatibility; FYTD no longer
-    ///   skips holidays with Following.
-    pub fn lookback_returns(
-        &self,
-        ref_date: Date,
-        fiscal_config: FiscalConfig,
-        calendar: &dyn HolidayCalendar,
-    ) -> crate::Result<LookbackReturns> {
+    ///
+    /// # Returns
+    ///
+    /// Per-ticker compounded simple returns for MTD, QTD, YTD, and FYTD.
+    /// `fytd` is always `Some`; the `Option` is kept for the existing serde
+    /// wire shape.
+    pub fn lookback_returns(&self, ref_date: Date, fiscal_config: FiscalConfig) -> LookbackReturns {
         let compute = |selector: fn(&[Date], Date) -> core::ops::Range<usize>| -> Vec<f64> {
             self.map_tickers(|i| {
                 let range = selector(self.active_dates_for_ticker_unchecked(i), ref_date);
@@ -244,19 +243,19 @@ impl Performance {
 
         let fytd = self.map_tickers(|i| {
             let dates = self.active_dates_for_ticker_unchecked(i);
-            let range = lookback::fytd_select(dates, ref_date, fiscal_config, calendar);
+            let range = lookback::fytd_select(dates, ref_date, fiscal_config);
             let r = self.active_returns(i);
             let start = range.start.min(r.len());
             let end = range.end.min(r.len()).max(start);
             comp_total(&r[start..end])
         });
 
-        Ok(LookbackReturns {
+        LookbackReturns {
             mtd: compute(lookback::mtd_select),
             qtd: compute(lookback::qtd_select),
             ytd: compute(lookback::ytd_select),
             fytd: Some(fytd),
-        })
+        }
     }
 
     /// Period-aggregated statistics for a specific ticker.

@@ -3319,20 +3319,17 @@ export declare class Performance {
    *
    * FYTD is the first observation on or after the fiscal calendar start
    * through `refDate`. Holidays are not skipped. The first included
-   * simple return still spans the prior close. `calendar` is accepted
-   * for call-site compatibility.
+   * simple return still spans the prior close.
    * @param refDate - ISO-8601 date on which MTD, QTD, YTD, and FYTD windows end.
    * @param fiscalYearStartMonth - Optional fiscal-year start month from 1 through 12; defaults to January.
    * @param fiscalYearStartDay - Optional fiscal-year start day; defaults to the first day.
-   * @param calendar - Optional holiday-calendar id accepted for call-site compatibility; defaults to NYSE.
    * @returns Per-ticker `{ mtd, qtd, ytd, fytd }` lookback returns as decimal fractions.
-   * @throws Error - Rejects an invalid ISO `ref_date`, a fiscal month outside `1..=12`, a fiscal day outside `1..=31`, an unknown `calendar`, or a result that cannot be serialized to JavaScript.
+   * @throws Error - Rejects an invalid ISO `ref_date`, a fiscal month outside `1..=12`, a fiscal day outside `1..=31`, or a result that cannot be serialized to JavaScript.
    */
   lookbackReturns(
     refDate: string,
     fiscalYearStartMonth?: number,
-    fiscalYearStartDay?: number,
-    calendar?: string
+    fiscalYearStartDay?: number
   ): LookbackReturns;
   /**
    * Aggregated period statistics for one asset at the given frequency.

@@ -129,29 +129,10 @@ pub(crate) fn group_by_period(
     frequency: PeriodKind,
     fiscal_config: Option<FiscalConfig>,
 ) -> Vec<(PeriodId, f64)> {
-    let mut observations = dates.iter().copied().zip(returns.iter().copied());
-    let Some((first_date, first_return)) = observations.next() else {
-        return Vec::new();
-    };
-
-    let mut result: Vec<(PeriodId, f64)> = Vec::new();
-    let mut current_pid = date_to_period_id(first_date, frequency, fiscal_config);
-    let mut period_returns = vec![first_return];
-
-    for (date, ret) in observations {
-        let pid = date_to_period_id(date, frequency, fiscal_config);
-        if pid != current_pid {
-            let comp = comp_total(&period_returns);
-            result.push((current_pid, comp));
-            period_returns.clear();
-            current_pid = pid;
-        }
-        period_returns.push(ret);
-    }
-    let comp = comp_total(&period_returns);
-    result.push((current_pid, comp));
-
-    result
+    group_period_buckets(dates, returns, frequency, fiscal_config)
+        .into_iter()
+        .map(|(pid, _, compounded)| (pid, compounded))
+        .collect()
 }
 
 /// Calendar-bucket compounded returns, tagging each bucket with its **last
@@ -163,28 +144,42 @@ pub(crate) fn group_by_period_dated(
     returns: &[f64],
     frequency: PeriodKind,
 ) -> Vec<(Date, f64)> {
-    let mut it = dates.iter().copied().zip(returns.iter().copied());
-    let Some((first_date, first_ret)) = it.next() else {
+    group_period_buckets(dates, returns, frequency, None)
+        .into_iter()
+        .map(|(_, last_date, compounded)| (last_date, compounded))
+        .collect()
+}
+
+/// Shared period grouper: one `(PeriodId, last observation date, compounded)`
+/// row per contiguous bucket of `frequency`.
+fn group_period_buckets(
+    dates: &[Date],
+    returns: &[f64],
+    frequency: PeriodKind,
+    fiscal_config: Option<FiscalConfig>,
+) -> Vec<(PeriodId, Date, f64)> {
+    let mut observations = dates.iter().copied().zip(returns.iter().copied());
+    let Some((first_date, first_return)) = observations.next() else {
         return Vec::new();
     };
 
-    let mut out: Vec<(Date, f64)> = Vec::new();
-    let mut current_pid = date_to_period_id(first_date, frequency, None);
-    let mut bucket = vec![first_ret];
+    let mut result = Vec::new();
+    let mut current_pid = date_to_period_id(first_date, frequency, fiscal_config);
+    let mut period_returns = vec![first_return];
     let mut last_date = first_date;
 
-    for (date, ret) in it {
-        let pid = date_to_period_id(date, frequency, None);
+    for (date, ret) in observations {
+        let pid = date_to_period_id(date, frequency, fiscal_config);
         if pid != current_pid {
-            out.push((last_date, comp_total(&bucket)));
-            bucket.clear();
+            result.push((current_pid, last_date, comp_total(&period_returns)));
+            period_returns.clear();
             current_pid = pid;
         }
-        bucket.push(ret);
+        period_returns.push(ret);
         last_date = date;
     }
-    out.push((last_date, comp_total(&bucket)));
-    out
+    result.push((current_pid, last_date, comp_total(&period_returns)));
+    result
 }
 
 /// Compute period-level statistics from grouped returns.

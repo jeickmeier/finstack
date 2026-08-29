@@ -67,47 +67,6 @@ pub enum Error {
         /// Out-of-bounds value.
         value: f64,
     },
-    /// Volatility vector length does not match number of factors.
-    ///
-    /// Returned by validated factor-model constructors when the caller supplies
-    /// a volatility vector whose length disagrees with the declared number of
-    /// factors. Previously the caller's vector was silently dropped and
-    /// replaced with unit volatilities, which masked serious misconfiguration.
-    #[error("Volatility vector length mismatch: expected {expected}, got {actual}")]
-    VolatilityLengthMismatch {
-        /// Expected number of factors.
-        expected: usize,
-        /// Length of the volatility vector supplied by the caller.
-        actual: usize,
-    },
-    /// Volatility value is negative or non-finite.
-    ///
-    /// Returned by validated factor-model constructors when a volatility entry
-    /// is `< 0.0` or non-finite. Silent clamping would mask sign-flip bugs
-    /// upstream (e.g., `-0.2` becoming `0.01`).
-    #[error("Invalid volatility at index {index}: {value} (must be finite and >= 0.0)")]
-    InvalidVolatility {
-        /// Index of the offending volatility value.
-        index: usize,
-        /// The offending value.
-        value: f64,
-    },
-    /// Recovery-model input is invalid.
-    #[error("Invalid recovery input `{field}` = {value}: {requirement}")]
-    InvalidRecoveryInput {
-        /// Name of the invalid recovery input field.
-        field: String,
-        /// The offending value.
-        value: f64,
-        /// Human-readable requirement violated by the value.
-        requirement: String,
-    },
-    /// Student-t degrees of freedom is invalid.
-    #[error("Invalid Student-t degrees of freedom {value}: must be finite and > 2.0")]
-    InvalidStudentTDegreesOfFreedom {
-        /// The offending degrees-of-freedom value.
-        value: f64,
-    },
     /// Iterative algorithm exhausted its iteration budget before converging.
     ///
     /// Returned by

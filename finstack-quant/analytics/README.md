@@ -97,9 +97,10 @@ Canonical home for the shared correlation-matrix helpers. Exports:
   enum the crate defines; everything else returns
   `finstack_quant_core::Result`.
 
-`finstack_quant_models::correlation` re-exports all of these unchanged, so
-`valuations` callers do not need an analytics dependency. That merged namespace
-is a documented deviation from strict crate-mirroring, recorded in
+`finstack_quant_models::correlation` re-exports the matrix helpers and opts
+unchanged, and owns a wider `Error` that wraps this crate's matrix failures
+plus credit-domain variants. That merged namespace is a documented deviation
+from strict crate-mirroring, recorded in
 [`finstack-quant-py/parity_contract.toml`](../../finstack-quant-py/parity_contract.toml).
 
 ### `regression`
@@ -203,6 +204,7 @@ The authoritative contract, including every known gap, is
 | [`tests/correctness_regressions.rs`](tests/correctness_regressions.rs) | Hand-checked metric values pinned to `1e-12` |
 | [`tests/correlation_validator_agreement.rs`](tests/correlation_validator_agreement.rs) | `correlation::validate_correlation_matrix` agrees with core's `math::linalg` validator |
 | [`benches/analytics_hot_paths.rs`](benches/analytics_hot_paths.rs) | Criterion benches for the hot scalar and rolling paths |
+| [`benches/analytics_scaling.rs`](benches/analytics_scaling.rs) | Criterion size-sweep benches (ns per element vs series / matrix size) |
 
 ## References
 
@@ -218,6 +220,7 @@ Entries live in [`docs/REFERENCES.md`](../../docs/REFERENCES.md):
 cargo clippy -p finstack-quant-analytics --lib --bins --tests --examples --all-features -- -D warnings
 cargo nextest run -p finstack-quant-analytics --lib --test '*'
 cargo bench -p finstack-quant-analytics --bench analytics_hot_paths
+cargo bench -p finstack-quant-analytics --bench analytics_scaling
 ```
 
 Workspace gates (`mise run rust-lint`, `mise run rust-test`, `mise run rust-doc`

@@ -10,10 +10,28 @@ use finstack_quant_analytics as fa;
 use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 #[inline]
 fn slice_to_pyarray<'py>(py: Python<'py>, values: &[f64]) -> Bound<'py, PyArray1<f64>> {
     PyArray1::from_slice(py, values)
+}
+
+fn serde_from_json<T: DeserializeOwned>(json: &str) -> PyResult<T> {
+    serde_json::from_str(json).map_err(display_to_py)
+}
+
+fn serde_to_json<T: Serialize>(value: &T) -> PyResult<String> {
+    serde_json::to_string(value).map_err(display_to_py)
+}
+
+fn pickle_reduce_json<'py, T: pyo3::PyTypeInfo>(
+    py: Python<'py>,
+    json: String,
+) -> PyResult<(Bound<'py, PyAny>, (String,))> {
+    let from_json = py.get_type::<T>().getattr("from_json")?;
+    crate::bindings::pickle_support::reduce_via_json(from_json, json)
 }
 
 /// Aggregated statistics for grouped periodic returns.
@@ -30,21 +48,21 @@ impl PyPeriodStats {
     /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
-        let from_json = py.get_type::<Self>().getattr("from_json")?;
-        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+        pickle_reduce_json::<Self>(py, self.to_json()?)
     }
 
     /// Deserialize from JSON.
     #[staticmethod]
     #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: fa::PeriodStats = serde_json::from_str(json).map_err(display_to_py)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: serde_from_json(json)?,
+        })
     }
 
     /// Serialize to compact JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_to_json(&self.inner)
     }
 
     /// Best period return.
@@ -130,21 +148,21 @@ impl PyBetaResult {
     /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
-        let from_json = py.get_type::<Self>().getattr("from_json")?;
-        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+        pickle_reduce_json::<Self>(py, self.to_json()?)
     }
 
     /// Deserialize from JSON.
     #[staticmethod]
     #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: fa::BetaResult = serde_json::from_str(json).map_err(display_to_py)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: serde_from_json(json)?,
+        })
     }
 
     /// Serialize to compact JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_to_json(&self.inner)
     }
 
     /// Beta coefficient.
@@ -227,21 +245,21 @@ impl PyGreeksResult {
     /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
-        let from_json = py.get_type::<Self>().getattr("from_json")?;
-        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+        pickle_reduce_json::<Self>(py, self.to_json()?)
     }
 
     /// Deserialize from JSON.
     #[staticmethod]
     #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: fa::GreeksResult = serde_json::from_str(json).map_err(display_to_py)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: serde_from_json(json)?,
+        })
     }
 
     /// Serialize to compact JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_to_json(&self.inner)
     }
 
     /// Annualized Jensen alpha.
@@ -323,21 +341,21 @@ impl PyRollingGreeks {
     /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
-        let from_json = py.get_type::<Self>().getattr("from_json")?;
-        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+        pickle_reduce_json::<Self>(py, self.to_json()?)
     }
 
     /// Deserialize from JSON.
     #[staticmethod]
     #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: fa::RollingGreeks = serde_json::from_str(json).map_err(display_to_py)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: serde_from_json(json)?,
+        })
     }
 
     /// Serialize to compact JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_to_json(&self.inner)
     }
 
     /// Date labels for each rolling window.
@@ -415,21 +433,21 @@ impl PyMultiFactorResult {
     /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
-        let from_json = py.get_type::<Self>().getattr("from_json")?;
-        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+        pickle_reduce_json::<Self>(py, self.to_json()?)
     }
 
     /// Deserialize from JSON.
     #[staticmethod]
     #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: fa::MultiFactorResult = serde_json::from_str(json).map_err(display_to_py)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: serde_from_json(json)?,
+        })
     }
 
     /// Serialize to compact JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_to_json(&self.inner)
     }
 
     /// Annualized OLS intercept of the (possibly rf-adjusted) dependent series.
@@ -542,21 +560,21 @@ impl PyDrawdownEpisode {
     /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
-        let from_json = py.get_type::<Self>().getattr("from_json")?;
-        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+        pickle_reduce_json::<Self>(py, self.to_json()?)
     }
 
     /// Deserialize from JSON.
     #[staticmethod]
     #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: fa::DrawdownEpisode = serde_json::from_str(json).map_err(display_to_py)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: serde_from_json(json)?,
+        })
     }
 
     /// Serialize to compact JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_to_json(&self.inner)
     }
 
     /// Start date of the drawdown.
@@ -621,21 +639,21 @@ impl PyLookbackReturns {
     /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
-        let from_json = py.get_type::<Self>().getattr("from_json")?;
-        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+        pickle_reduce_json::<Self>(py, self.to_json()?)
     }
 
     /// Deserialize from JSON.
     #[staticmethod]
     #[pyo3(text_signature = "(json)")]
     fn from_json(json: &str) -> PyResult<Self> {
-        let inner: fa::LookbackReturns = serde_json::from_str(json).map_err(display_to_py)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner: serde_from_json(json)?,
+        })
     }
 
     /// Serialize to compact JSON.
     fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
+        serde_to_json(&self.inner)
     }
 
     /// Month-to-date returns per ticker.
@@ -728,8 +746,7 @@ impl PyDatedSeries {
     /// `to_json` / `from_json`, so an unpickled value is exactly what the wire
     /// format defines — there is no second state format that can drift.
     fn __reduce__<'py>(&self, py: Python<'py>) -> PyResult<(Bound<'py, PyAny>, (String,))> {
-        let from_json = py.get_type::<Self>().getattr("from_json")?;
-        crate::bindings::pickle_support::reduce_via_json(from_json, self.to_json()?)
+        pickle_reduce_json::<Self>(py, self.to_json()?)
     }
 
     /// Deserialize from JSON.

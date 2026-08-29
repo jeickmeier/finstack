@@ -8,7 +8,7 @@
 //!
 //! Delegates to `dates::DateExt` for calendar math.
 
-use crate::dates::{Date, DateExt, Duration, FiscalConfig, HolidayCalendar, Month};
+use crate::dates::{Date, DateExt, Duration, FiscalConfig, Month};
 use core::ops::Range;
 
 /// Index of the first date on or after `target` via binary search.
@@ -98,8 +98,6 @@ pub(crate) fn ytd_select(dates: &[Date], ref_date: Date) -> Range<usize> {
 /// * `dates`         - Sorted slice of observation dates.
 /// * `ref_date`      - Reference date (typically "today").
 /// * `fiscal_config` - Fiscal year configuration (start month, start day).
-/// * `_calendar`     - Accepted for call-site compatibility; FYTD no longer
-///   adjusts the fiscal start onto a business day.
 ///
 /// # Returns
 ///
@@ -108,7 +106,6 @@ pub(crate) fn fytd_select(
     dates: &[Date],
     ref_date: Date,
     fiscal_config: FiscalConfig,
-    _calendar: &dyn HolidayCalendar,
 ) -> Range<usize> {
     let fy_start = fiscal_year_start_date(ref_date, fiscal_config);
     select_range(dates, fy_start, ref_date)
@@ -145,10 +142,6 @@ mod tests {
         (0..n).map(|i| start + Duration::days(i as i64)).collect()
     }
 
-    fn nyse() -> &'static dyn HolidayCalendar {
-        crate::dates::calendar_by_id("nyse").expect("nyse calendar")
-    }
-
     #[test]
     fn ytd_select_basic() {
         let dates = daily_dates(d(2025, 1, 1), 60);
@@ -175,7 +168,7 @@ mod tests {
     fn fytd_select_us_federal() {
         let dates = daily_dates(d(2024, 10, 1), 120);
         let config = FiscalConfig::us_federal();
-        let range = fytd_select(&dates, d(2025, 1, 15), config, nyse());
+        let range = fytd_select(&dates, d(2025, 1, 15), config);
         assert_eq!(range.start, 0);
     }
 
@@ -197,7 +190,7 @@ mod tests {
     #[test]
     fn fytd_select_includes_first_observation_on_or_after_fiscal_start() {
         let dates = daily_dates(d(2024, 12, 30), 10);
-        let range = fytd_select(&dates, d(2025, 1, 6), FiscalConfig::calendar_year(), nyse());
+        let range = fytd_select(&dates, d(2025, 1, 6), FiscalConfig::calendar_year());
         // Jan 1 2025 is a holiday; the window still starts at the first
         // observation on/after Jan 1, not the Following business day.
         assert_eq!(dates[range.start], d(2025, 1, 1));

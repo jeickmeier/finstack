@@ -235,6 +235,31 @@ pub(crate) fn mean_return(returns: &[f64], annualize: bool, ann_factor: f64) -> 
         m
     }
 }
+
+/// Annualized mean and volatility from one Welford pass.
+///
+/// Equivalent to `(mean_return(returns, true, ann_factor),
+/// volatility(returns, true, ann_factor))` but walks the slice once instead
+/// of twice. Used by callers (e.g. Sharpe / M²) that need both.
+///
+/// # Arguments
+///
+/// * `returns`    - Slice of period simple returns.
+/// * `ann_factor` - Number of periods per year (e.g., 252 daily, 12 monthly).
+///
+/// # Returns
+///
+/// `(annualized_mean, annualized_volatility)`. Returns `(NaN, NaN)` for the
+/// same invalid annualization-factor cases as the individual functions.
+#[must_use]
+pub(crate) fn mean_vol_annualized(returns: &[f64], ann_factor: f64) -> (f64, f64) {
+    if invalid_annualization_factor(true, ann_factor) {
+        return (f64::NAN, f64::NAN);
+    }
+    let (m, var) = mean_var(returns);
+    (m * ann_factor, var.sqrt() * ann_factor.sqrt())
+}
+
 /// Volatility (standard deviation of returns), optionally annualized.
 ///
 /// Uses **sample** standard deviation (n-1 denominator), consistent with
@@ -253,25 +278,6 @@ pub(crate) fn mean_return(returns: &[f64], annualize: bool, ann_factor: f64) -> 
 /// Sample standard deviation of `returns` (n-1 denominator), annualized if requested.
 /// Returns `0.0` for an empty slice. When `annualize` is `true`, returns
 /// [`f64::NAN`] if `ann_factor` is not finite or is `<= 0`.
-///
-/// # Examples
-/// Annualized mean and volatility from one Welford pass.
-///
-/// Equivalent to `(mean_return(returns, true, ann_factor),
-/// volatility(returns, true, ann_factor))` but walks the slice once instead
-/// of twice. Used by callers (e.g. Sharpe / M²) that need both.
-///
-/// Returns `(NaN, NaN)` for the same invalid annualization-factor cases as
-/// the individual functions.
-#[must_use]
-pub(crate) fn mean_vol_annualized(returns: &[f64], ann_factor: f64) -> (f64, f64) {
-    if invalid_annualization_factor(true, ann_factor) {
-        return (f64::NAN, f64::NAN);
-    }
-    let (m, var) = mean_var(returns);
-    (m * ann_factor, var.sqrt() * ann_factor.sqrt())
-}
-
 #[must_use]
 pub(crate) fn volatility(returns: &[f64], annualize: bool, ann_factor: f64) -> f64 {
     if invalid_annualization_factor(annualize, ann_factor) {

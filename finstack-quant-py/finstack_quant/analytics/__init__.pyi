@@ -2985,7 +2985,6 @@ class Performance:
         ref_date: object,
         fiscal_year_start_month: int | None = None,
         fiscal_year_start_day: int | None = None,
-        calendar: str = "nyse",
     ) -> LookbackReturns:
         """
         Period-to-date lookback returns.
@@ -3003,8 +3002,6 @@ class Performance:
             Fiscal year start month in ``1..=12``.
         fiscal_year_start_day : int, optional
             Fiscal year start day in ``1..=31``.
-        calendar : str, default "nyse"
-            Holiday-calendar id accepted for call-site compatibility.
 
         Returns
         -------
@@ -3014,9 +3011,8 @@ class Performance:
         Raises
         ------
         ValueError
-            If *fiscal_year_start_month* is not in ``1..=12``,
-            *fiscal_year_start_day* is not in ``1..=31``, or *calendar*
-            is not a registered calendar id.
+            If *fiscal_year_start_month* is not in ``1..=12`` or
+            *fiscal_year_start_day* is not in ``1..=31``.
         """
 
     def period_stats(
@@ -3234,14 +3230,13 @@ class Performance:
         ref_date: object,
         fiscal_year_start_month: int | None = None,
         fiscal_year_start_day: int | None = None,
-        calendar: str = "nyse",
     ) -> pd.DataFrame:
         """
         Period-to-date lookback returns as a pandas DataFrame.
 
         Indexed by ticker name with columns ``mtd``, ``qtd``, ``ytd``,
         and ``fytd``. See :meth:`lookback_returns` for the FYTD fiscal-start
-        and *calendar* semantics (default ``"nyse"``).
+        semantics.
 
         Parameters
         ----------
@@ -3251,8 +3246,6 @@ class Performance:
             Fiscal year start month in ``1..=12``.
         fiscal_year_start_day : int, optional
             Fiscal year start day in ``1..=31``.
-        calendar : str, default "nyse"
-            Business-day calendar id.
 
         Returns
         -------
@@ -3262,9 +3255,8 @@ class Performance:
         Raises
         ------
         ValueError
-            If *fiscal_year_start_month* is not in ``1..=12``,
-            *fiscal_year_start_day* is not in ``1..=31``, or *calendar*
-            is not a registered calendar id.
+            If *fiscal_year_start_month* is not in ``1..=12`` or
+            *fiscal_year_start_day* is not in ``1..=31``.
         """
         ...
 

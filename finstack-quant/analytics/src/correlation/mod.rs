@@ -10,9 +10,10 @@
 //! - [`Error`]: Structured validation diagnostics
 //! - [`nearest_correlation_matrix`][]: Higham (2002)
 //!   alternating-projection PSD repair
-//! - [`validate_correlation_matrix`]: Thin wrapper over
-//!   [`finstack_quant_core::math::linalg::validate_correlation_matrix`] that
-//!   classifies failures into [`Error`] variants
+//! - [`validate_correlation_matrix`]: Same accept/reject thresholds as
+//!   [`finstack_quant_core::math::linalg::validate_correlation_matrix`], with
+//!   located [`Error`] variants (`DiagonalNotOne`, `OutOfBounds`, …) that
+//!   core's coarser `InputError` cannot express
 
 mod error;
 mod nearest_correlation;
@@ -33,9 +34,15 @@ pub(crate) const CORRELATION_BOUND_SLACK: f64 =
 
 /// Validate a flattened row-major correlation matrix.
 ///
-/// Delegates to [`finstack_quant_core::math::linalg::validate_correlation_matrix`]
-/// for the actual checks and classifies the first failure into an
-/// [`Error`] variant for diagnostics.
+/// Uses the same diagonal, symmetry, and `[-1, 1]` thresholds as
+/// [`finstack_quant_core::math::linalg::validate_correlation_matrix`]
+/// ([`CORRELATION_TOLERANCE`], [`CORRELATION_BOUND_SLACK`]) and the same
+/// pivoted Cholesky PSD check. This function reports the first failure as a
+/// located [`Error`] variant; core only returns a coarse `InputError`.
+///
+/// The two validators are kept in agreement by
+/// `tests/correlation_validator_agreement.rs`. Do not change a threshold
+/// here without updating core (or the reverse).
 ///
 /// Checks performed:
 /// - Correct size (`matrix.len() == n * n`)

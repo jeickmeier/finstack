@@ -321,13 +321,9 @@ impl PyPerformance {
         ref_date: time::Date,
         fiscal_year_start_month: Option<u8>,
         fiscal_year_start_day: Option<u8>,
-        calendar: &str,
     ) -> PyResult<fa::LookbackReturns> {
         let fc = make_fiscal_config(fiscal_year_start_month, fiscal_year_start_day)?;
-        let calendar = resolve_fiscal_calendar(calendar)?;
-        self.inner
-            .lookback_returns(ref_date, fc, calendar)
-            .map_err(core_to_py)
+        Ok(self.inner.lookback_returns(ref_date, fc))
     }
 }
 
@@ -1251,15 +1247,13 @@ impl PyPerformance {
     ///
     /// FYTD is the first observation on or after the fiscal calendar start
     /// through ``ref_date``. Holidays are not skipped. The first included
-    /// simple return still spans the prior close. ``calendar`` is accepted
-    /// for call-site compatibility.
-    #[pyo3(signature = (ref_date, fiscal_year_start_month = None, fiscal_year_start_day = None, calendar = "nyse"))]
+    /// simple return still spans the prior close.
+    #[pyo3(signature = (ref_date, fiscal_year_start_month = None, fiscal_year_start_day = None))]
     fn lookback_returns(
         &self,
         ref_date: Bound<'_, PyAny>,
         fiscal_year_start_month: Option<u8>,
         fiscal_year_start_day: Option<u8>,
-        calendar: &str,
     ) -> PyResult<PyLookbackReturns> {
         let d = py_to_date(&ref_date)?;
         Ok(PyLookbackReturns {
@@ -1267,7 +1261,6 @@ impl PyPerformance {
                 d,
                 fiscal_year_start_month,
                 fiscal_year_start_day,
-                calendar,
             )?,
         })
     }
@@ -1487,23 +1480,17 @@ impl PyPerformance {
     ///
     /// Returns a DataFrame with ticker names as index and columns:
     /// mtd, qtd, ytd, and fytd. See :meth:`lookback_returns` for the FYTD
-    /// fiscal-start and ``calendar`` semantics (default ``"nyse"``).
-    #[pyo3(signature = (ref_date, fiscal_year_start_month = None, fiscal_year_start_day = None, calendar = "nyse"))]
+    /// fiscal-start semantics.
+    #[pyo3(signature = (ref_date, fiscal_year_start_month = None, fiscal_year_start_day = None))]
     fn to_lookback_returns_dataframe<'py>(
         &self,
         py: Python<'py>,
         ref_date: Bound<'_, PyAny>,
         fiscal_year_start_month: Option<u8>,
         fiscal_year_start_day: Option<u8>,
-        calendar: &str,
     ) -> PyResult<Bound<'py, PyAny>> {
         let d = py_to_date(&ref_date)?;
-        let lb = self.lookback_returns_inner(
-            d,
-            fiscal_year_start_month,
-            fiscal_year_start_day,
-            calendar,
-        )?;
+        let lb = self.lookback_returns_inner(d, fiscal_year_start_month, fiscal_year_start_day)?;
 
         let data = PyDict::new(py);
         data.set_item("mtd", slice_to_pyarray(py, &lb.mtd))?;

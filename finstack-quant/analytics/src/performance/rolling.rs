@@ -3,14 +3,9 @@
 //! Pure layout split from `performance.rs`; no behavior changes.
 
 use super::Performance;
+use crate::math::summation::NeumaierAccumulator;
+use crate::returns::MIN_GROWTH_FACTOR;
 use crate::risk_metrics::{rolling_sharpe, rolling_sortino, rolling_volatility, DatedSeries};
-
-/// Smallest growth factor allowed before taking the log.
-///
-/// Matches the floor used by `returns::comp_sum` / `comp_total` so the
-/// incremental rolling kernel produces the same wipeout handling as the
-/// per-window full recomputation.
-const MIN_GROWTH_FACTOR: f64 = 1e-18;
 
 /// Recompute precision interval for the sliding log-sum used by
 /// `rolling_returns`. Mirrors `risk_metrics::rolling::ROLLING_KERNEL_RECOMPUTE_INTERVAL`.
@@ -26,20 +21,11 @@ fn log_factor(r: f64) -> Option<f64> {
 }
 
 fn recompute_log_sum(window: &[f64]) -> Option<f64> {
-    let mut sum = 0.0_f64;
-    let mut comp = 0.0_f64;
+    let mut acc = NeumaierAccumulator::new();
     for &r in window {
-        let lf = log_factor(r)?;
-        // Neumaier-style compensated summation, matching `comp_total`.
-        let t = sum + lf;
-        if sum.abs() >= lf.abs() {
-            comp += (sum - t) + lf;
-        } else {
-            comp += (lf - t) + sum;
-        }
-        sum = t;
+        acc.add(log_factor(r)?);
     }
-    Some(sum + comp)
+    Some(acc.total())
 }
 
 impl Performance {

@@ -17,9 +17,6 @@ use super::support::{parse_f64_matrix, parse_f64_vec, parse_iso_date, parse_iso_
 
 const DEFAULT_FISCAL_START_MONTH: u8 = 1;
 const DEFAULT_FISCAL_START_DAY: u8 = 1;
-/// Default holiday calendar for FYTD fiscal-year-start alignment. Callers
-/// with non-US panels should pass an explicit calendar id instead.
-const DEFAULT_FISCAL_CALENDAR_ID: &str = "nyse";
 const DEFAULT_FREQ: &str = "daily";
 const DEFAULT_ROLLING_WINDOW: usize = 63;
 const DEFAULT_CONFIDENCE: f64 = 0.95;
@@ -1051,18 +1048,24 @@ impl JsPerformance {
     ///
     /// FYTD is the first observation on or after the fiscal calendar start
     /// through `ref_date`. Holidays are not skipped. The first included
-    /// simple return still spans the prior close. `calendar` is accepted
-    /// for call-site compatibility.
+    /// simple return still spans the prior close.
+    ///
+    /// # Arguments
+    ///
+    /// * `ref_date` - ISO-8601 date on which MTD, QTD, YTD, and FYTD windows end.
+    /// * `fiscal_year_start_month` - Optional fiscal-year start month from 1
+    ///   through 12; defaults to January.
+    /// * `fiscal_year_start_day` - Optional fiscal-year start day; defaults to
+    ///   the first day of the month.
     ///
     /// # Errors
     ///
     /// Rejects an invalid ISO `ref_date`, a fiscal month outside `1..=12`, a
-    /// fiscal day outside `1..=31`, an unknown `calendar`, or a result that
-    /// cannot be serialized to JavaScript.
+    /// fiscal day outside `1..=31`, or a result that cannot be serialized to
+    /// JavaScript.
     /// @param ref_date - ISO-8601 date on which MTD, QTD, YTD, and FYTD windows end.
     /// @param fiscal_year_start_month - Optional fiscal-year start month from 1 through 12; defaults to January.
     /// @param fiscal_year_start_day - Optional fiscal-year start day; defaults to the first day.
-    /// @param calendar - Optional holiday-calendar id accepted for call-site compatibility; defaults to NYSE.
     /// @returns Per-ticker `{ mtd, qtd, ytd, fytd }` lookback returns as decimal fractions.
     #[wasm_bindgen(js_name = lookbackReturns)]
     pub fn lookback_returns(
@@ -1070,13 +1073,10 @@ impl JsPerformance {
         ref_date: &str,
         fiscal_year_start_month: Option<u8>,
         fiscal_year_start_day: Option<u8>,
-        calendar: Option<String>,
     ) -> Result<JsValue, JsValue> {
         let d = parse_iso_date(ref_date)?;
         let fc = make_fiscal_config(fiscal_year_start_month, fiscal_year_start_day)?;
-        let cal =
-            resolve_fiscal_calendar(calendar.as_deref().unwrap_or(DEFAULT_FISCAL_CALENDAR_ID))?;
-        to_js(&self.inner.lookback_returns(d, fc, cal).map_err(to_js_err)?)
+        to_js(&self.inner.lookback_returns(d, fc))
     }
 
     /// Aggregated period statistics for one asset at the given frequency.

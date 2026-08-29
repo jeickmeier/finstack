@@ -118,7 +118,7 @@ fn analytics_dts_matches_runtime_hotspots() {
     ));
     assert!(contains_ignoring_ws(
         &dts,
-        "lookbackReturns(refDate: string, fiscalYearStartMonth?: number, fiscalYearStartDay?: number, calendar?: string): LookbackReturns;",
+        "lookbackReturns(refDate: string, fiscalYearStartMonth?: number, fiscalYearStartDay?: number): LookbackReturns;",
     ));
     assert!(contains_ignoring_ws(
         &dts,

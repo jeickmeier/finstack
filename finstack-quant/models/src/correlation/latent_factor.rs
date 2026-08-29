@@ -44,7 +44,7 @@
 //!
 
 use crate::correlation::{Error, Result};
-use finstack_quant_analytics::correlation::validate_correlation_matrix;
+use finstack_quant_analytics::correlation::{validate_correlation_matrix, Error as MatrixError};
 use finstack_quant_core::math::linalg::{cholesky_correlation, CholeskyError, CorrelationFactor};
 
 /// Perform Cholesky decomposition of a correlation matrix using diagonal pivoting.
@@ -66,22 +66,23 @@ use finstack_quant_core::math::linalg::{cholesky_correlation, CholeskyError, Cor
 /// the matrix is not positive semidefinite.
 pub fn cholesky_decompose(matrix: &[f64], n: usize) -> Result<CorrelationFactor> {
     if matrix.len() != n * n {
-        return Err(Error::InvalidSize {
+        return Err(MatrixError::InvalidSize {
             expected: n,
             actual: matrix.len(),
-        });
+        }
+        .into());
     }
 
     match cholesky_correlation(matrix, n) {
         Ok(factor) => Ok(factor),
         Err(CholeskyError::NotPositiveDefinite { row, .. }) => {
-            Err(Error::NotPositiveSemiDefinite { row })
+            Err(MatrixError::NotPositiveSemiDefinite { row }.into())
         }
         Err(CholeskyError::DimensionMismatch { expected, actual }) => {
-            Err(Error::InvalidSize { expected, actual })
+            Err(MatrixError::InvalidSize { expected, actual }.into())
         }
         // cholesky_correlation only emits NotPositiveDefinite and DimensionMismatch.
-        Err(_) => Err(Error::NotPositiveSemiDefinite { row: 0 }),
+        Err(_) => Err(MatrixError::NotPositiveSemiDefinite { row: 0 }.into()),
     }
 }
 
@@ -618,10 +619,11 @@ impl LatentMultiFactor {
         let vols: Vec<f64> = volatilities.iter().map(|v| v.clamp(0.01, 10.0)).collect();
 
         if correlations.len() != n * n {
-            return Err(Error::InvalidSize {
+            return Err(MatrixError::InvalidSize {
                 expected: n,
                 actual: correlations.len(),
-            });
+            }
+            .into());
         }
 
         validate_correlation_matrix(&correlations, n)?;
@@ -908,7 +910,7 @@ mod tests {
     fn test_validate_invalid_size() {
         let corr = vec![1.0, 0.5, 0.5, 1.0];
         let result = validate_correlation_matrix(&corr, 3);
-        assert!(matches!(result, Err(Error::InvalidSize { .. })));
+        assert!(matches!(result, Err(MatrixError::InvalidSize { .. })));
     }
 
     #[test]
@@ -917,7 +919,7 @@ mod tests {
         let result = validate_correlation_matrix(&corr, 2);
         assert!(matches!(
             result,
-            Err(Error::DiagonalNotOne { index: 0, .. })
+            Err(MatrixError::DiagonalNotOne { index: 0, .. })
         ));
     }
 
@@ -925,7 +927,7 @@ mod tests {
     fn test_validate_not_symmetric() {
         let corr = vec![1.0, 0.5, 0.3, 1.0]; // Off-diagonals don't match
         let result = validate_correlation_matrix(&corr, 2);
-        assert!(matches!(result, Err(Error::NotSymmetric { .. })));
+        assert!(matches!(result, Err(MatrixError::NotSymmetric { .. })));
     }
 
     #[test]
@@ -933,7 +935,10 @@ mod tests {
         // Non-PSD matrix: high correlations that violate PSD constraint
         let corr = vec![1.0, 0.9, 0.9, 0.9, 1.0, -0.5, 0.9, -0.5, 1.0];
         let result = validate_correlation_matrix(&corr, 3);
-        assert!(matches!(result, Err(Error::NotPositiveSemiDefinite { .. })));
+        assert!(matches!(
+            result,
+            Err(MatrixError::NotPositiveSemiDefinite { .. })
+        ));
     }
 
     #[test]
@@ -944,8 +949,8 @@ mod tests {
 
         match (result, cholesky_result) {
             (
-                Err(Error::NotPositiveSemiDefinite { row: validate_row }),
-                Err(Error::NotPositiveSemiDefinite { row: cholesky_row }),
+                Err(MatrixError::NotPositiveSemiDefinite { row: validate_row }),
+                Err(Error::Matrix(MatrixError::NotPositiveSemiDefinite { row: cholesky_row })),
             ) => assert_eq!(validate_row, cholesky_row),
             other => panic!("expected matching PSD errors, got {:?}", other),
         }
@@ -955,7 +960,7 @@ mod tests {
     fn test_validate_out_of_bounds() {
         let corr = vec![1.0, 1.5, 1.5, 1.0];
         let result = validate_correlation_matrix(&corr, 2);
-        assert!(matches!(result, Err(Error::OutOfBounds { .. })));
+        assert!(matches!(result, Err(MatrixError::OutOfBounds { .. })));
     }
 
     // ========== Cholesky Decomposition Tests ==========
@@ -1045,7 +1050,10 @@ mod tests {
         let err = LatentMultiFactor::new(2, vols, corr)
             .expect_err("invalid matrices should no longer silently fall back");
 
-        assert!(matches!(err, Error::NotSymmetric { .. }));
+        assert!(matches!(
+            err,
+            Error::Matrix(MatrixError::NotSymmetric { .. })
+        ));
     }
 
     #[test]

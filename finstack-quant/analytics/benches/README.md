@@ -2,8 +2,10 @@
 
 Criterion benchmarks for the `finstack-quant-analytics` hot paths. The crate sets
 `autobenches = false` in [`../Cargo.toml`](../Cargo.toml), so a new file here is inert
-until it is added as a `[[bench]]` target. One target is registered:
-`analytics_hot_paths` (`harness = false`, Criterion owns `main`).
+until it is added as a `[[bench]]` target. Two targets are registered
+(`harness = false`, Criterion owns `main`): `analytics_hot_paths` (absolute
+cost at one size) and `analytics_scaling` (how cost grows with series length
+or matrix dimension).
 
 Every case is driven through [`Performance`](../src/performance/mod.rs), the crate's
 canonical public entry point. Almost every per-metric building block is `pub(crate)`;
@@ -51,6 +53,7 @@ style preference: benchmark inputs feed the same code paths the correctness test
 
 ```bash
 cargo bench -p finstack-quant-analytics --bench analytics_hot_paths
+cargo bench -p finstack-quant-analytics --bench analytics_scaling
 cargo bench -p finstack-quant-analytics --bench analytics_hot_paths -- --quick
 cargo bench -p finstack-quant-analytics -- value_at_risk        # filter by id substring
 cargo bench -p finstack-quant-analytics -- --save-baseline before
