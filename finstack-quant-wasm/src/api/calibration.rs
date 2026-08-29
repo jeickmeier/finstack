@@ -41,8 +41,9 @@
 #[cfg(target_arch = "wasm32")]
 use crate::utils::structured_js_error;
 use crate::utils::to_js_value;
-use finstack_quant_calibration::api::engine::{self, ExecuteError, ExecutionSolverDiagnostics};
+use finstack_quant_calibration::api::engine::{self, ExecuteError};
 use finstack_quant_calibration::api::errors::EnvelopeError;
+use finstack_quant_calibration::api::host_error::HostExecuteError;
 #[cfg(test)]
 use finstack_quant_calibration::api::schema::CalibrationEnvelope;
 use finstack_quant_calibration::api::schema::CalibrationResultEnvelope;
@@ -80,8 +81,7 @@ pub fn validate_calibration_json(json: &str) -> Result<String, JsValue> {
 /// carries the structured `EnvelopeError` payload when the failure is
 /// envelope-related).
 fn calibrate_inner(envelope_json: &str) -> Result<CalibrationResultEnvelope, ExecuteError> {
-    let envelope = validate::parse_envelope(envelope_json)?;
-    engine::execute(&envelope)
+    engine::execute_json(envelope_json)
 }
 
 /// Execute a calibration plan and return the full result envelope.
@@ -153,20 +153,11 @@ pub fn calibrate_bermudan_lmm_base_vol(
 
 /// Map every execution stage to the same structured JavaScript error contract.
 fn execute_error_to_js(err: ExecuteError) -> JsValue {
-    let details = err.details();
-    let details_json = err.to_json();
-    match structured_calibration_js_error(
-        "CalibrationEnvelopeError",
-        &details.cause,
-        &details.category,
-        details.stage.as_str(),
-        details.step_id.as_deref(),
-        details.solver_diagnostics.as_ref(),
-        &details_json,
-    ) {
+    let host = err.host_error();
+    match attach_host_error(&host) {
         Ok(error) => error,
         Err(message) => execute_error_to_js(ExecuteError::envelope(
-            details.stage,
+            host.stage,
             EnvelopeError::JsonSerialize {
                 target: "ExecutionSolverDiagnostics".to_string(),
                 message,
@@ -175,51 +166,33 @@ fn execute_error_to_js(err: ExecuteError) -> JsValue {
     }
 }
 
-/// Serialize solver diagnostics into the canonical JSON wire representation.
+/// Attach the Rust-owned host-error payload to a named JavaScript `Error`.
 ///
-/// `ExecutionSolverDiagnostics` has only JSON-native fields, so this conversion
-/// is structurally serializable today. Keeping the fallible result makes a
-/// future non-JSON field an explicit structured calibration error instead of a
-/// silently absent `solver_diagnostics` property.
-#[cfg(any(test, target_arch = "wasm32"))]
-fn solver_diagnostics_json(
-    diagnostics: &ExecutionSolverDiagnostics,
-) -> Result<String, serde_json::Error> {
-    serde_json::to_string(diagnostics)
-}
-
-/// Build the calibration-specific JavaScript error contract.
-///
-/// A present diagnostic is parsed from its canonical JSON representation. If
-/// that conversion fails, callers receive `Err` and replace the original
-/// error with a structured `json_serialize` calibration failure; only a
-/// genuinely absent diagnostic is represented as JavaScript `null`.
-fn structured_calibration_js_error(
-    name: &str,
-    message: &str,
-    kind: &str,
-    stage: &str,
-    step_id: Option<&str>,
-    solver_diagnostics: Option<&ExecutionSolverDiagnostics>,
-    details_json: &str,
-) -> Result<JsValue, String> {
+/// Solver diagnostics arrive as JSON and are parsed into an object. A parse
+/// failure is returned as `Err` so the caller can replace the original error
+/// with a structured `json_serialize` calibration failure.
+fn attach_host_error(host: &HostExecuteError) -> Result<JsValue, String> {
     #[cfg(target_arch = "wasm32")]
     {
-        let error = structured_js_error(name, message, Some(kind), Some(details_json));
+        let error = structured_js_error(
+            "CalibrationEnvelopeError",
+            &host.message,
+            Some(&host.kind),
+            Some(&host.details),
+        );
         let _ = js_sys::Reflect::set(
             &error,
             &JsValue::from_str("stage"),
-            &JsValue::from_str(stage),
+            &JsValue::from_str(host.stage.as_str()),
         );
-        let step_value = step_id.map_or(JsValue::NULL, JsValue::from_str);
+        let step_value = host
+            .step_id
+            .as_deref()
+            .map_or(JsValue::NULL, JsValue::from_str);
         let _ = js_sys::Reflect::set(&error, &JsValue::from_str("step_id"), &step_value);
-        let solver_value = match solver_diagnostics {
-            Some(diagnostics) => {
-                let json = solver_diagnostics_json(diagnostics)
-                    .map_err(|error| format!("failed to serialize solver diagnostics: {error}"))?;
-                js_sys::JSON::parse(&json)
-                    .map_err(|_| "failed to parse serialized solver diagnostics".to_string())?
-            }
+        let solver_value = match host.solver_diagnostics.as_deref() {
+            Some(json) => js_sys::JSON::parse(json)
+                .map_err(|_| "failed to parse serialized solver diagnostics".to_string())?,
             None => JsValue::NULL,
         };
         let _ = js_sys::Reflect::set(
@@ -230,21 +203,13 @@ fn structured_calibration_js_error(
         let _ = js_sys::Reflect::set(
             &error,
             &JsValue::from_str("details"),
-            &JsValue::from_str(details_json),
+            &JsValue::from_str(&host.details),
         );
         Ok(error)
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let _ = (
-            name,
-            message,
-            kind,
-            stage,
-            step_id,
-            solver_diagnostics,
-            details_json,
-        );
+        let _ = host;
         Ok(JsValue::NULL)
     }
 }
@@ -387,17 +352,24 @@ mod tests {
 
     #[test]
     fn solver_diagnostics_use_the_canonical_json_conversion() {
-        let diagnostics = ExecutionSolverDiagnostics {
-            max_residual: 0.02,
-            tolerance: 0.01,
-            iterations: 12,
-            worst_quote_id: Some("quote-1".to_string()),
-            worst_quote_residual: Some(-0.02),
-        };
-
-        let value: serde_json::Value =
-            serde_json::from_str(&solver_diagnostics_json(&diagnostics).expect("serialize"))
-                .expect("canonical diagnostic JSON");
+        let error = ExecuteError::envelope(
+            engine::ExecutionStage::Solver,
+            EnvelopeError::SolverNotConverged {
+                step_id: "quote-step".to_string(),
+                max_residual: 0.02,
+                tolerance: 0.01,
+                iterations: 12,
+                worst_quote_id: Some("quote-1".to_string()),
+                worst_quote_residual: Some(-0.02),
+            },
+        );
+        let host = error.host_error();
+        let value: serde_json::Value = serde_json::from_str(
+            host.solver_diagnostics
+                .as_deref()
+                .expect("solver diagnostics present"),
+        )
+        .expect("canonical diagnostic JSON");
         assert_eq!(value["iterations"], 12);
         assert_eq!(value["worst_quote_id"], "quote-1");
         assert_ne!(value, serde_json::Value::Null);

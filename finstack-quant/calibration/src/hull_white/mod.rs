@@ -1,5 +1,9 @@
 //! Hull-White one-factor model calibration to European swaptions.
 //!
+//! Plan-driven engine steps `hull_white` and `cap_floor_hull_white` are the
+//! canonical public entry. The functions in this module are the solvers those
+//! steps invoke after converting envelope volatility quotes.
+//!
 //! Calibrates the two Hull-White parameters (mean reversion κ and short rate
 //! volatility σ) by minimising squared swaption price errors using the
 //! Levenberg-Marquardt algorithm.

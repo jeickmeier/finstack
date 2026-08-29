@@ -76,16 +76,14 @@ fn market_quote_examples() -> finstack_quant_core::Result<Vec<Value>> {
         })
 }
 
-/// The calibration schema registry as a shared, lazily built slice.
+/// Return the calibration schema registry as a shared, lazily built slice.
 #[must_use]
-pub fn artifacts_slice() -> &'static [SchemaArtifact] {
+pub fn artifacts() -> &'static [SchemaArtifact] {
     static CACHE: OnceLock<Vec<SchemaArtifact>> = OnceLock::new();
-    CACHE.get_or_init(artifacts)
+    CACHE.get_or_init(build_artifacts)
 }
 
-/// Return schema-generation artifacts owned by calibration.
-#[must_use]
-pub fn artifacts() -> Vec<SchemaArtifact> {
+fn build_artifacts() -> Vec<SchemaArtifact> {
     vec![
         SchemaArtifact::new::<crate::api::schema::CalibrationEnvelope>(
             "schemas/calibration/1/calibration.schema.json",

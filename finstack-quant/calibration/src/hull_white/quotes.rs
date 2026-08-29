@@ -124,11 +124,13 @@ impl CapFloorQuote {
     ///
     /// # Arguments
     ///
-    /// * `maturity` - Final payment or expiry date of the instrument being constructed
-    /// * `strike` - Option strike in the surface's quote units (absolute or relative)
-    /// * `volatility` - Volatility supplied by the caller for this operation
-    /// * `is_cap` - Is cap supplied by the caller for this operation
-    /// * `is_normal_vol` - Is normal vol supplied by the caller for this operation
+    /// * `maturity` - Cap/floor maturity in years from the curve base date.
+    ///   Must be finite and positive.
+    /// * `strike` - Strike as a decimal rate (for example `0.03` for 3%).
+    /// * `volatility` - Quoted volatility. Normal vols use decimal rate units
+    ///   (`0.0088` is 88 bp).
+    /// * `is_cap` - `true` for a cap, `false` for a floor.
+    /// * `is_normal_vol` - `true` for Bachelier vol. Lognormal quotes are rejected.
     pub fn try_new(
         maturity: f64,
         strike: f64,
@@ -164,10 +166,10 @@ impl SwaptionQuote {
     ///
     /// # Arguments
     ///
-    /// * `expiry` - Option expiry date or year-fraction used to locate the volatility point
-    /// * `tenor` - Market tenor label or period length used to locate the quote or rate
-    /// * `volatility` - Volatility supplied by the caller for this operation
-    /// * `is_normal_vol` - Is normal vol supplied by the caller for this operation
+    /// * `expiry` - Swaption expiry in years. Must be finite and positive.
+    /// * `tenor` - Underlying swap tenor in years (for example `5.0` for 5Y).
+    /// * `volatility` - Market-quoted volatility. Must be finite and positive.
+    /// * `is_normal_vol` - `true` for Bachelier vol, `false` for Black-76.
     pub fn try_new(
         expiry: f64,
         tenor: f64,

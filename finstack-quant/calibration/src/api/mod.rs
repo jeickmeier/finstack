@@ -8,9 +8,10 @@
 //! - `schema`: Definition of calibration plans, steps, and envelopes.
 //! - `engine`: Execution logic for processing calibration plans.
 
-pub mod context_builder;
+pub(crate) mod context_builder;
 pub mod engine;
 pub mod errors;
+pub mod host_error;
 pub mod market_datum;
 pub mod prior_market;
 pub mod schema;

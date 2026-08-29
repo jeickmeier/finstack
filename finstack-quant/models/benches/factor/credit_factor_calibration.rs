@@ -1,4 +1,4 @@
-//! Credit factor model calibration benchmarks (PR-12).
+//! Credit factor model calibration benchmarks.
 //!
 //! Measures the end-to-end cost of [`CreditCalibrator::calibrate`] at
 //! a representative 50 × 36 months × 2 levels synthetic panel.

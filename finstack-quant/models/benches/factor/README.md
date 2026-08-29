@@ -75,5 +75,5 @@ Criterion writes to `target/criterion/<group>/<id>/report/index.html`; the
 - [`../../portfolio/benches/README.md`](../../portfolio/benches/README.md) — where these
   primitives are exercised at book scale (`sensitivity_simulation`,
   `parallel_thresholds`)
-- [`../../valuations/benches/README.md`](../../valuations/benches/README.md) —
-  `credit_factor_calibration`, the calibration path this target omits
+- [`credit_factor_calibration.rs`](credit_factor_calibration.rs) — end-to-end
+  `CreditCalibrator` panel this target omits

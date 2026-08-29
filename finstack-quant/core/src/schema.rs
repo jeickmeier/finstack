@@ -165,6 +165,7 @@ impl SchemaKind {
 /// The registry stores only stable metadata and a monomorphized
 /// `schema_for!(T)` function. Existing checked-in JSON is never consulted when
 /// generating the document.
+#[derive(Clone, Copy)]
 pub struct SchemaArtifact {
     /// Path relative to the owning crate's manifest directory.
     pub relative_path: &'static str,

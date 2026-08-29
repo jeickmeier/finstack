@@ -48,7 +48,7 @@ use std::sync::Arc;
 ///   objects after `prior` has been loaded.
 /// * `settings` - Calibration configuration controlling construction policy,
 ///   including FX matrix and credit-index reconstruction behavior.
-pub fn build_initial_context(
+pub(crate) fn build_initial_context(
     prior: &[PriorMarketObject],
     data: &[MarketDatum],
     settings: &CalibrationConfig,

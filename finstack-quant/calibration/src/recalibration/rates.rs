@@ -1,6 +1,5 @@
 //! Shared rates curve bumping logic (plan-driven calibration).
 
-use super::currency::infer_currency_from_id;
 use crate::api::schema::{DiscountCurveParams, ForwardCurveParams, StepParams};
 use crate::config::CalibrationMethod;
 use crate::config::RatesStepConventions;
@@ -9,6 +8,7 @@ use crate::quotes::market_quote::MarketQuote;
 use crate::quotes::rates::RateQuote;
 use crate::step_runtime;
 use crate::CalibrationConfig;
+#[cfg(test)]
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -149,19 +149,6 @@ impl RateRecalibrationCache {
     }
 }
 
-/// Infer currency from a discount curve ID using token-by-token heuristics.
-///
-/// Best-effort fallback for callers that don't have explicit currency metadata.
-/// Returns USD if no known currency or benchmark-rate token appears in the ID.
-///
-/// # Arguments
-///
-/// * `curve` - Discount curve whose identifier is tokenized for an inferred
-///   currency when explicit curve metadata is unavailable.
-pub fn infer_currency_from_discount_curve_id(curve: &DiscountCurve) -> Currency {
-    infer_currency_from_id(curve.id().as_str())
-}
-
 /// Bump a discount curve by shocking rate quotes and re-calibrating.
 ///
 /// This applies a [`QuoteBump`] to a collection of [`RateQuote`]s and
@@ -180,7 +167,7 @@ pub fn infer_currency_from_discount_curve_id(curve: &DiscountCurve) -> Currency 
 /// * `config` - Solver and validation policy to apply during re-calibration.
 ///   Preserve `params.method` on `config.calibration_method` when the recipe
 ///   method should override other documented defaults.
-pub fn bump_discount_curve(
+pub(crate) fn bump_discount_curve(
     quotes: &[RateQuote],
     params: &DiscountCurveParams,
     base_context: &MarketContext,

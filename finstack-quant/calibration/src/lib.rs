@@ -93,8 +93,6 @@
 pub mod api;
 /// Quote-to-instrument construction and date resolution.
 pub(crate) mod build;
-/// Embedded calibration defaults.
-mod defaults;
 /// Hull-White one-factor model calibration to European swaptions.
 pub mod hull_white;
 /// Bermudan LMM loading-scale calibration.
@@ -124,11 +122,6 @@ pub mod validation;
 /// Quote shocks use the valuations-owned `QuoteBump` contract. Direct curve
 /// and surface shocks remain core `BumpSpec`/`Bumpable` operations.
 pub mod recalibration;
-
-pub use defaults::{
-    defaults_from_config, embedded_defaults, CalibrationDefaults, CalibrationValidationDefaults,
-    CALIBRATION_DEFAULTS_EXTENSION_KEY,
-};
 
 /// Shared constants (tolerances, magic numbers).
 pub(crate) mod constants;

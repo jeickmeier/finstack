@@ -55,10 +55,6 @@ name = "global_calibration"
 harness = false
 
 [[bench]]
-name = "credit_factor_calibration"
-harness = false
-
-[[bench]]
 name = "df_bootstrap"
 harness = false
 

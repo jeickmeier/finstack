@@ -60,4 +60,4 @@ pub mod vol;
 /// Cross-currency swap quotes.
 pub mod xccy;
 
-pub use market_quote::{MarketQuote, QuoteProvenance, QuoteSnapshot};
+pub use market_quote::MarketQuote;

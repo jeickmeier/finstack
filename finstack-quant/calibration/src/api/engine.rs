@@ -709,6 +709,27 @@ fn bad_fit_envelope_error(step_id: &str, report: &CalibrationReport) -> Envelope
     }
 }
 
+/// Parse a JSON calibration envelope and execute it.
+///
+/// Combines [`super::validate::parse_envelope`] with [`execute`] so host
+/// bindings do not reimplement the parse-then-run path.
+///
+/// # Arguments
+///
+/// * `envelope_json` - UTF-8 JSON calibration-envelope document in the
+///   canonical v1 flat-market shape.
+///
+/// # Errors
+///
+/// Returns [`ExecuteError`] when strict loading rejects the document or
+/// [`execute`] fails after a successful parse.
+pub fn execute_json(
+    envelope_json: &str,
+) -> std::result::Result<CalibrationResultEnvelope, ExecuteError> {
+    let envelope = super::validate::parse_envelope(envelope_json)?;
+    execute(&envelope)
+}
+
 /// Execute a full [`CalibrationEnvelope`] plan.
 ///
 /// Returns a structured [`ExecuteError`] for ingestion, configuration,

@@ -198,7 +198,7 @@ fn serialize_pretty_json<T: Serialize>(value: &T, target: &str) -> Result<String
 ///
 /// * `json` - UTF-8 JSON calibration-envelope document in the canonical v1
 ///   flat-market shape.
-pub fn parse_envelope(json: &str) -> Result<CalibrationEnvelope, EnvelopeError> {
+pub(crate) fn parse_envelope(json: &str) -> Result<CalibrationEnvelope, EnvelopeError> {
     parse_envelope_with_report(json).map(|(envelope, _report)| envelope)
 }
 
@@ -214,7 +214,7 @@ pub fn parse_envelope(json: &str) -> Result<CalibrationEnvelope, EnvelopeError> 
 /// Returns [`EnvelopeError::StrictLoad`] for malformed JSON, a missing or
 /// malformed schema marker, an unsupported schema version, or an invalid v1
 /// envelope structure.
-pub fn parse_envelope_with_report(
+pub(crate) fn parse_envelope_with_report(
     json: &str,
 ) -> Result<(CalibrationEnvelope, ContractValidationReport), EnvelopeError> {
     CalibrationEnvelope::from_slice_strict(json.as_bytes(), &LoadLimits::default()).map_err(

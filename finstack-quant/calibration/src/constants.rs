@@ -62,7 +62,7 @@ pub(crate) const OBJECTIVE_VALID_ABS_MAX: f64 = PENALTY / 10.0;
 /// If the final residual exceeds this value, the calibration is considered to have
 /// hit a hard constraint or failed significantly.
 ///
-/// # W-41: Known threshold gap
+/// # Known threshold gap
 ///
 /// The global solver's `fill_penalty` computes `PENALTY * (d / (1 + d))` for bound
 /// violations, where `d = sqrt(sum_squared_outside)`. For very small violations

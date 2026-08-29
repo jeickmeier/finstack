@@ -50,7 +50,6 @@ Sampling is tunable through `FQ_BENCH_SAMPLE_SIZE`, `FQ_BENCH_WARM_UP_TIME`,
 | `cashflow_generation` | Bond/swap cashflow generation, schedule build, and summation examples |
 | `calibration` | Plan-driven discount and forward calibration |
 | `global_calibration` | GlobalSolve discount and hazard calibration examples |
-| `credit_factor_calibration` | Representative credit factor calibration panel |
 | `linear_rates` | Deposit, FRA, basis swap, cap/floor, repo, and futures examples |
 | `df_bootstrap` / `fwd_curve` | Focused discount and forward curve bootstrap examples |
 | `mc_pricing` | Public Monte Carlo pricing path |

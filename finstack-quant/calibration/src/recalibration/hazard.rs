@@ -161,7 +161,7 @@ type CachedHazardCurve = Arc<Mutex<Option<Arc<HazardCurve>>>>;
 /// knots, so a second bump of an already-recalibrated curve does not reuse
 /// the first result.
 #[derive(Default)]
-pub struct HazardRecalibrationCache {
+pub(crate) struct HazardRecalibrationCache {
     entries: Mutex<HashMap<HazardRecalibrationKey, CachedHazardCurve>>,
 }
 
@@ -178,12 +178,6 @@ impl std::fmt::Debug for HazardRecalibrationCache {
 }
 
 impl HazardRecalibrationCache {
-    /// Create an empty cache.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     fn get_or_recalibrate(
         &self,
         request: HazardParRecalibration<'_>,

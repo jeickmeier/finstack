@@ -17,10 +17,11 @@ Public modules:
 
 - `api`: calibration envelopes, engine configuration, reports, and validation.
 - `quotes`: raw market quote contracts.
-- `build`: quote-to-market construction.
 - `recalibration`: cached implementations of the valuations replay port.
 - `hull_white`: explicit Hull-White parameter calibration.
 - `lmm`: explicit Bermudan LMM base-volatility calibration.
+
+Quote-to-instrument construction lives in crate-private `build/`.
 
 Host APIs live at `finstack_quant.calibration` in Python and `calibration` in
 the WASM facade. There are no compatibility exports under valuations.

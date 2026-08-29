@@ -30,23 +30,6 @@ use std::sync::Arc;
 ///
 /// This is ephemeral and valid only for the `as_of` date used during construction.
 /// If the valuation date changes, a new `PreparedQuote` must be created.
-///
-/// # Examples
-///
-/// ```text
-/// # use finstack_quant_calibration::build::prepared::PreparedQuote;
-/// # use finstack_quant_calibration::quotes::rates::RateQuote;
-/// # use finstack_quant_calibration::quotes::ids::QuoteId;
-/// # use finstack_quant_core::dates::Date;
-/// # use std::sync::Arc;
-/// # use finstack_quant_valuations::instruments::Instrument;
-/// #
-/// # fn example() -> finstack_quant_core::Result<()> {
-/// // In practice, this would be created by a builder function
-/// // let prepared = prepare_quote(quote, ctx)?;
-/// # Ok(())
-/// # }
-/// ```
 #[derive(Clone)]
 pub(crate) struct PreparedQuote<Q> {
     /// The original market quote.
@@ -90,28 +73,6 @@ impl<Q> PreparedQuote<Q> {
     /// * `instrument` - The constructed instrument ready for pricing
     /// * `pillar_date` - The resolved maturity date of the pillar
     /// * `pillar_time` - The time-to-maturity in years, calculated from `as_of` to `pillar_date`
-    ///
-    /// # Returns
-    ///
-    /// A new `PreparedQuote` instance.
-    ///
-    /// # Examples
-    ///
-    /// ```text
-    /// # use finstack_quant_calibration::build::prepared::PreparedQuote;
-    /// # use finstack_quant_core::dates::Date;
-    /// # use std::sync::Arc;
-    /// # use finstack_quant_valuations::instruments::Instrument;
-    /// #
-    /// # fn example(quote: Arc<String>, instrument: Arc<dyn Instrument>) -> finstack_quant_core::Result<()> {
-    /// let pillar_date = Date::from_calendar_date(2025, time::Month::January, 2).unwrap();
-    /// let as_of = Date::from_calendar_date(2024, time::Month::January, 2).unwrap();
-    /// let pillar_time = (pillar_date - as_of).whole_days() as f64 / 365.25;
-    ///
-    /// let prepared = PreparedQuote::new(quote, instrument, pillar_date, pillar_time);
-    /// # Ok(())
-    /// # }
-    /// ```
     pub(crate) fn new(
         quote: Arc<Q>,
         instrument: Arc<dyn Instrument>,

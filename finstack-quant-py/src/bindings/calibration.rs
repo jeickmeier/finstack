@@ -31,33 +31,19 @@ create_exception!(
      attributes for programmatic handling."
 );
 
-/// Map every execution stage to the same structured Python exception contract.
+/// Attach the Rust-owned host-error payload to `CalibrationEnvelopeError`.
 fn execute_error_to_py(py: Python<'_>, err: ExecuteError) -> PyErr {
-    let details = err.details();
-    let details_json = err.to_json();
-    let solver_diagnostics = match details.solver_diagnostics.as_ref() {
-        Some(diagnostics) => match serde_json::to_string(diagnostics) {
-            Ok(json) => Some(json),
-            Err(serialization_err) => {
-                return PyRuntimeError::new_err(format!(
-                    "failed to serialize solver diagnostics for CalibrationEnvelopeError: \
-                     {serialization_err}; underlying calibration error: {}",
-                    details.cause
-                ));
-            }
-        },
-        None => None,
-    };
-    let exc = CalibrationEnvelopeError::new_err(details.cause.clone());
+    let host = err.host_error();
+    let exc = CalibrationEnvelopeError::new_err(host.message.clone());
     let value = exc.value(py);
     let attrs: [(&str, PyResult<()>); 5] = [
-        ("kind", value.setattr("kind", details.category.clone())),
-        ("stage", value.setattr("stage", details.stage.as_str())),
-        ("details", value.setattr("details", details_json)),
-        ("step_id", value.setattr("step_id", details.step_id.clone())),
+        ("kind", value.setattr("kind", host.kind)),
+        ("stage", value.setattr("stage", host.stage.as_str())),
+        ("details", value.setattr("details", host.details)),
+        ("step_id", value.setattr("step_id", host.step_id)),
         (
             "solver_diagnostics",
-            value.setattr("solver_diagnostics", solver_diagnostics),
+            value.setattr("solver_diagnostics", host.solver_diagnostics),
         ),
     ];
     for (name, result) in attrs {
@@ -66,7 +52,7 @@ fn execute_error_to_py(py: Python<'_>, err: ExecuteError) -> PyErr {
                 "failed to attach '{name}' attribute to CalibrationEnvelopeError \
                  ({}): underlying calibration error: {}",
                 setattr_err.value(py),
-                details.cause
+                host.message
             ));
         }
     }
@@ -374,15 +360,12 @@ fn dry_run(py: Python<'_>, json: &str) -> PyResult<String> {
 ///     (first error); use ``dry_run`` to list every static error.
 #[pyfunction]
 fn calibrate(py: Python<'_>, json: &str) -> PyResult<PyCalibrationResult> {
-    let envelope = validate_api::parse_envelope(json)
-        .map_err(ExecuteError::from)
-        .map_err(|error| execute_error_to_py(py, error))?;
     // Release the GIL for the duration of the solver: calibration can run for seconds.
     // The error is boxed inside the closure: `ExecuteError` is a large enum, and
     // an un-boxed large `Err` variant on the `detach` closure trips
     // `clippy::result_large_err`.
     let result = py
-        .detach(|| engine::execute(&envelope).map_err(Box::new))
+        .detach(|| engine::execute_json(json).map_err(Box::new))
         .map_err(|e| execute_error_to_py(py, *e))?;
     Ok(PyCalibrationResult::new(result))
 }

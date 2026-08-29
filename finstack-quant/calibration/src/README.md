@@ -18,7 +18,6 @@ only to replay an already-calibrated context.
 | `quotes/` | public | Raw market quote DTOs and quote identifiers |
 | `build/` | crate-private | Quote-to-instrument construction and date resolution |
 | `hull_white/` | public | Hull-White 1F calibration to swaptions and cap/floors |
-| `defaults.rs` | public | Embedded calibration defaults and their config-extension override key |
 | `solver.rs` + `solver/` | crate-private | Sequential bootstrap, global fit (Newton/LM), multi-start, shared helpers; re-exports `SolverConfig` |
 | `targets/` | crate-private | Per-step targets: discount, forward, hazard, inflation, vol, swaption, SVI, LMM, base correlation, Student-t, XCCY basis, parametric |
 | `validation/` | public | Curve/surface validators, preflight checks, rate bounds |

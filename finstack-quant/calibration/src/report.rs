@@ -413,7 +413,7 @@ impl CalibrationReport {
     }
 
     /// Explicitly mark the report as having encountered penalty residuals during
-    /// the solve (W-41: provenance-based penalty detection).
+    /// the solve (provenance-based penalty detection).
     ///
     /// The magnitude-based threshold in `compute_residual_diagnostics` cannot
     /// detect small penalty values produced by `fill_penalty` in the optimizer
@@ -921,7 +921,7 @@ mod tests {
         assert!((cloned.residual - qq.residual).abs() < 1e-15);
     }
 
-    // W-41 regression tests.
+    // Penalty-flag regression tests.
     //
     // `fill_penalty` in `global.rs` computes `PENALTY * (d/(1+d))` for a small
     // bound violation `d`. For tiny `d`, this value can be much less than
@@ -933,10 +933,10 @@ mod tests {
     // callers who KNOW bounds were violated can mark the report explicitly, without
     // relying on magnitude alone. The report honors this flag over the threshold.
 
-    /// W-41: a residual value smaller than `RESIDUAL_PENALTY_ABS_MIN` but produced
-    /// by `fill_penalty` is not recognized by the threshold check alone.
+    /// A residual smaller than `RESIDUAL_PENALTY_ABS_MIN` but produced by
+    /// `fill_penalty` is not recognized by the threshold check alone.
     #[test]
-    fn w41_small_penalty_residual_not_recognized_without_explicit_flag() {
+    fn small_penalty_residual_not_recognized_without_explicit_flag() {
         // Simulate a tiny bound violation: d=1e-4, penalty = PENALTY * d/(1+d) ≈ 100.
         let d = 1e-4_f64;
         let small_penalty = PENALTY * (d / (1.0 + d));
@@ -973,16 +973,16 @@ mod tests {
         // The gap: without an explicit flag, the report doesn't say "penalty".
         assert!(
             !report.convergence_reason.contains("penalty"),
-            "W-41 gap: threshold-based detection missed small penalty residual; \
+            "threshold-based detection missed small penalty residual; \
              convergence_reason says: {}",
             report.convergence_reason
         );
     }
 
-    /// W-41: `with_has_penalty_residuals(true)` must override threshold detection
+    /// `with_has_penalty_residuals(true)` must override threshold detection
     /// and flag the calibration as having penalty residuals.
     #[test]
-    fn w41_explicit_has_penalty_flag_overrides_threshold_detection() {
+    fn explicit_has_penalty_flag_overrides_threshold_detection() {
         let d = 1e-4_f64;
         let small_penalty = PENALTY * (d / (1.0 + d));
 
@@ -1005,10 +1005,10 @@ mod tests {
         );
     }
 
-    /// W-41: `with_has_penalty_residuals(false)` must not change the outcome for
+    /// `with_has_penalty_residuals(false)` must not change the outcome for
     /// a normal calibration (no regression on clean path).
     #[test]
-    fn w41_explicit_no_penalty_flag_does_not_regress_clean_calibration() {
+    fn explicit_no_penalty_flag_does_not_regress_clean_calibration() {
         let mut residuals = BTreeMap::new();
         residuals.insert("quote_1Y".to_string(), 1e-10);
         residuals.insert("quote_5Y".to_string(), 2e-10);

@@ -303,7 +303,6 @@ pub(crate) fn execute_params(
         }
         StepParams::VolSurface(p) => {
             let (surface, report) = VolSurfaceTarget::solve(p, quotes, context, global_config)?;
-            // Preserve context insertion behavior
             let mut new_report = report;
             new_report
                 .explanation

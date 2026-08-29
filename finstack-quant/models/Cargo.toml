@@ -72,6 +72,11 @@ path = "benches/factor/factor_model_scale.rs"
 harness = false
 
 [[bench]]
+name = "credit_factor_calibration"
+path = "benches/factor/credit_factor_calibration.rs"
+harness = false
+
+[[bench]]
 name = "liquidity"
 harness = false
 

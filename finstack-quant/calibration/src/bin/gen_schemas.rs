@@ -12,11 +12,12 @@ fn main() -> finstack_quant_core::Result<()> {
     run_schema_index_generator(
         manifest_dir,
         Path::new("schemas/index.json"),
-        &artifacts,
+        artifacts,
         &command,
     )?;
     let (calibration, market): (Vec<_>, Vec<_>) = artifacts
-        .into_iter()
+        .iter()
+        .copied()
         .partition(|artifact| artifact.relative_path.starts_with("schemas/calibration/"));
     run_schema_generator(
         manifest_dir,
