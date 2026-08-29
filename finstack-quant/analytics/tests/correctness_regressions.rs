@@ -217,6 +217,13 @@ fn benchmark_relative_metrics_use_overlapping_dates_only() {
     .expect("edge-ragged returns should build");
 
     assert_close(perf.beta()[1].beta, 2.0);
+    assert_close(perf.r_squared()[1], 1.0);
+    let greeks = &perf.greeks(0.0)[1];
+    assert_close(greeks.alpha, 0.0);
+    assert_close(greeks.beta, 2.0);
+    assert_close(greeks.r_squared, 1.0);
+    assert_close(greeks.adjusted_r_squared, 1.0);
+    assert!(perf.treynor(0.0)[1].is_finite());
     assert_close(
         perf.correlation_matrix().expect("psd correlation")[0][1],
         1.0,
@@ -595,6 +602,89 @@ fn single_observation_windows_surface_nan_not_signed_infinity() {
         perf.treynor(0.02)[0].is_nan(),
         "treynor on 1 obs must be NaN"
     );
+    let beta = &perf.beta()[0];
+    assert!(beta.beta.is_nan());
+    assert!(beta.std_err.is_nan());
+    assert!(beta.ci_lower.is_nan());
+    assert!(beta.ci_upper.is_nan());
+    assert!(perf.r_squared()[0].is_nan());
+    let greeks = &perf.greeks(0.02)[0];
+    assert!(greeks.alpha.is_nan());
+    assert!(greeks.beta.is_nan());
+    assert!(greeks.r_squared.is_nan());
+    assert!(greeks.adjusted_r_squared.is_nan());
+}
+
+#[test]
+fn performance_regression_outputs_are_nan_for_empty_overlap() {
+    let dates: Vec<Date> = (1..=4).map(|day| d(2024, Month::January, day)).collect();
+    let perf = Performance::from_returns(
+        dates,
+        vec![
+            vec![0.01, 0.02, f64::NAN, f64::NAN],
+            vec![f64::NAN, f64::NAN, 0.03, 0.04],
+        ],
+        vec!["BENCH".to_string(), "PORT".to_string()],
+        Some("BENCH"),
+        PeriodKind::Daily,
+    )
+    .expect("edge-ragged non-overlapping returns should build");
+
+    let beta = &perf.beta()[1];
+    assert!(beta.beta.is_nan());
+    assert!(beta.std_err.is_nan());
+    assert!(beta.ci_lower.is_nan());
+    assert!(beta.ci_upper.is_nan());
+    assert!(perf.treynor(0.0)[1].is_nan());
+    assert!(perf.r_squared()[1].is_nan());
+
+    let greeks = &perf.greeks(0.0)[1];
+    assert!(greeks.alpha.is_nan());
+    assert!(greeks.beta.is_nan());
+    assert!(greeks.r_squared.is_nan());
+    assert!(greeks.adjusted_r_squared.is_nan());
+}
+
+#[test]
+fn performance_regression_outputs_are_nan_for_constant_benchmark() {
+    let dates: Vec<Date> = (1..=4).map(|day| d(2024, Month::January, day)).collect();
+    let perf = Performance::from_returns(
+        dates,
+        vec![vec![0.01, 0.03, 0.02, 0.05], vec![0.01, 0.01, 0.01, 0.01]],
+        vec!["PORT".to_string(), "BENCH".to_string()],
+        Some("BENCH"),
+        PeriodKind::Daily,
+    )
+    .expect("constant benchmark panel should build");
+
+    let beta = &perf.beta()[0];
+    assert!(beta.beta.is_nan());
+    assert!(beta.std_err.is_nan());
+    assert!(beta.ci_lower.is_nan());
+    assert!(beta.ci_upper.is_nan());
+    assert!(perf.treynor(0.0)[0].is_nan());
+    assert!(perf.r_squared()[0].is_nan());
+
+    let greeks = &perf.greeks(0.0)[0];
+    assert!(greeks.alpha.is_nan());
+    assert!(greeks.beta.is_nan());
+    assert!(greeks.r_squared.is_nan());
+    assert!(greeks.adjusted_r_squared.is_nan());
+}
+
+#[test]
+fn performance_treynor_uses_slope_estimated_from_two_observations() {
+    let dates = vec![d(2024, Month::January, 1), d(2024, Month::January, 2)];
+    let perf = Performance::from_returns(
+        dates,
+        vec![vec![0.03, 0.05], vec![0.01, 0.02]],
+        vec!["PORT".to_string(), "BENCH".to_string()],
+        Some("BENCH"),
+        PeriodKind::Annual,
+    )
+    .expect("two-observation return panel should build");
+
+    assert_close(perf.treynor(0.0)[0], 0.02);
 }
 
 #[test]

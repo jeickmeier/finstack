@@ -9,7 +9,7 @@
 //! variance, OnlineCovariance).
 
 use crate::dates::Date;
-use crate::math::stats::{correlation, mean, OnlineCovariance, OnlineStats};
+use crate::math::stats::{mean, OnlineCovariance, OnlineStats};
 use crate::regression::normalized_svd_least_squares;
 use finstack_quant_core::math::{neumaier_sum, NeumaierAccumulator};
 use nalgebra::DMatrix;
@@ -73,6 +73,18 @@ fn seeded_accumulator(value: f64) -> NeumaierAccumulator {
     let mut acc = NeumaierAccumulator::new();
     acc.add(value);
     acc
+}
+
+/// Accumulate the sufficient statistics for a single-factor regression over
+/// the overlapping prefix of two series.
+#[inline]
+fn regression_covariance(returns: &[f64], benchmark: &[f64]) -> (usize, OnlineCovariance) {
+    let n = returns.len().min(benchmark.len());
+    let mut covariance = OnlineCovariance::new();
+    for (&portfolio_return, &benchmark_return) in returns[..n].iter().zip(benchmark[..n].iter()) {
+        covariance.update(portfolio_return, benchmark_return);
+    }
+    (n, covariance)
 }
 
 /// Tracking error: annualized volatility of active (excess) returns.
@@ -214,26 +226,38 @@ pub(crate) fn information_ratio(
 ///
 /// # Returns
 ///
-/// R-squared in `[0, 1]`. Returns `0.0` for empty or zero-variance series.
-/// Mismatched lengths are truncated to the shorter series, matching the
-/// convention of [`tracking_error`], [`beta`], and [`greeks`].
+/// R-squared in `[0, 1]` when both overlapping series have at least two
+/// observations and nonzero variance. Returns [`f64::NAN`] when R-squared
+/// cannot be estimated, including empty or one-observation overlap and
+/// zero-variance portfolio or benchmark series. Mismatched lengths are
+/// truncated to the shorter series, matching the convention of
+/// [`tracking_error`], [`beta`], and [`greeks`].
 #[must_use]
 pub(crate) fn r_squared(returns: &[f64], benchmark: &[f64]) -> f64 {
-    let n = returns.len().min(benchmark.len());
-    let c = correlation(&returns[..n], &benchmark[..n]);
+    let (n, covariance) = regression_covariance(returns, benchmark);
+    if n < 2 || covariance.variance_x() == 0.0 || covariance.variance_y() == 0.0 {
+        return f64::NAN;
+    }
+    let c = covariance.correlation();
     c * c
 }
 
-/// OLS beta result with optional standard error and confidence interval.
+/// OLS beta result with standard error and 95% confidence interval.
+///
+/// All fields are [`f64::NAN`] when fewer than three paired observations are
+/// available or the benchmark variance is zero.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BetaResult {
-    /// Estimated beta coefficient.
+    /// Estimated beta coefficient, or [`f64::NAN`] when it is not estimable
+    /// together with the confidence interval.
     pub beta: f64,
-    /// Standard error of the beta estimate.
+    /// Standard error of the beta estimate, or [`f64::NAN`] when undefined.
     pub std_err: f64,
-    /// Lower bound of the 95% confidence interval.
+    /// Lower bound of the 95% confidence interval, or [`f64::NAN`] when
+    /// undefined.
     pub ci_lower: f64,
-    /// Upper bound of the 95% confidence interval.
+    /// Upper bound of the 95% confidence interval, or [`f64::NAN`] when
+    /// undefined.
     pub ci_upper: f64,
 }
 
@@ -320,18 +344,20 @@ fn beta_ci_critical_value(sample_size: usize) -> f64 {
 /// critical — for `38 ≤ n − 2 < 240`. The `≥ 240` regime uses the asymptotic
 /// normal value, which is up to ~0.5% narrower than the exact t at df = 240.
 ///
-/// Requires at least 3 observations; returns `NaN` for standard error and
-/// CI bounds when `n < 3`.
+/// Requires at least 3 paired observations because the result includes a
+/// residual standard error and confidence interval.
 ///
 /// # Arguments
 ///
-/// * `portfolio`  - Portfolio return series.
-/// * `benchmark`  - Benchmark return series.
+/// * `portfolio`  - Portfolio return series. Mismatched input lengths are
+///   truncated to the shorter overlap.
+/// * `benchmark`  - Benchmark return series. A zero-variance overlapping
+///   benchmark makes the regression undefined.
 ///
 /// # Returns
 ///
 /// A [`BetaResult`] with `beta`, `std_err`, `ci_lower`, and `ci_upper`.
-/// All fields are `NAN` when the series are too short (`n < 3`) or the
+/// All fields are [`f64::NAN`] when the series are too short (`n < 3`) or the
 /// benchmark has zero variance (the slope is unidentifiable).
 ///
 /// # Examples
@@ -348,7 +374,7 @@ fn beta_ci_critical_value(sample_size: usize) -> f64 {
 /// assert!(result.std_err.is_finite());
 /// ```
 pub fn beta(portfolio: &[f64], benchmark: &[f64]) -> BetaResult {
-    let n = portfolio.len().min(benchmark.len());
+    let (n, oc) = regression_covariance(portfolio, benchmark);
     if n < 3 {
         return BetaResult {
             beta: f64::NAN,
@@ -356,10 +382,6 @@ pub fn beta(portfolio: &[f64], benchmark: &[f64]) -> BetaResult {
             ci_lower: f64::NAN,
             ci_upper: f64::NAN,
         };
-    }
-    let mut oc = OnlineCovariance::new();
-    for i in 0..n {
-        oc.update(portfolio[i], benchmark[i]);
     }
     // A zero-variance benchmark cannot identify a slope: surface NaN
     // (matching `beta_only` / `greeks` / `rolling_greeks`) rather than the
@@ -407,25 +429,18 @@ pub fn beta(portfolio: &[f64], benchmark: &[f64]) -> BetaResult {
 /// correlation, and adjusted-R² arithmetic. Used by callers (e.g. Treynor)
 /// that need only the slope and otherwise pay for unused outputs.
 ///
-/// Returns `0.0` for empty inputs (matching the [`greeks`] sentinel) and
-/// [`f64::NAN`] for a zero-variance benchmark, where the regression cannot
-/// identify a slope — matching the [`rolling_greeks`] degenerate-window
-/// sentinel. A `NaN` beta propagates through downstream ratios (e.g.
-/// Treynor) instead of producing a plausible-looking `0.0` or `±∞`.
+/// Returns [`f64::NAN`] when fewer than two paired observations are available
+/// or the benchmark variance is zero, because the slope cannot be identified.
+/// Mismatched lengths are truncated to the shorter overlap. A `NaN` beta
+/// propagates through downstream ratios (e.g. Treynor) instead of producing a
+/// plausible-looking `0.0` or `±∞`.
 #[must_use]
 pub(crate) fn beta_only(returns: &[f64], benchmark: &[f64]) -> f64 {
-    let n = returns.len().min(benchmark.len());
-    if n == 0 {
-        return 0.0;
-    }
-    let mut oc = OnlineCovariance::new();
-    for i in 0..n {
-        oc.update(returns[i], benchmark[i]);
-    }
-    if oc.variance_y() == 0.0 {
+    let (n, covariance) = regression_covariance(returns, benchmark);
+    if n < 2 || covariance.variance_y() == 0.0 {
         return f64::NAN;
     }
-    oc.optimal_beta()
+    covariance.optimal_beta()
 }
 
 fn jensen_alpha(
@@ -440,15 +455,22 @@ fn jensen_alpha(
 }
 
 /// Greeks (alpha, beta, R-squared, adjusted R-squared) from a single-factor regression.
+///
+/// Fields that cannot be estimated are [`f64::NAN`]. In particular, all
+/// fields are `NaN` with fewer than two paired observations or a
+/// zero-variance benchmark. R-squared fields are also `NaN` for a
+/// zero-variance portfolio, and adjusted R-squared is `NaN` with fewer than
+/// three observations.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct GreeksResult {
-    /// Annualized Jensen alpha.
+    /// Annualized Jensen alpha, or [`f64::NAN`] when the regression slope is
+    /// undefined.
     pub alpha: f64,
-    /// Beta (slope) of portfolio vs benchmark.
+    /// Beta (slope) of portfolio vs benchmark, or [`f64::NAN`] when undefined.
     pub beta: f64,
-    /// R-squared of the regression.
+    /// R-squared of the regression, or [`f64::NAN`] when undefined.
     pub r_squared: f64,
-    /// Adjusted R-squared of the regression.
+    /// Adjusted R-squared of the regression, or [`f64::NAN`] when undefined.
     pub adjusted_r_squared: f64,
 }
 
@@ -461,55 +483,62 @@ pub struct GreeksResult {
 /// α = ((mean(r_p) - rf_period) - β × (mean(r_b) - rf_period)) × ann_factor
 /// ```
 ///
-/// Unlike [`beta`], this function does not compute standard errors
-/// and is lighter-weight for scenarios where the point estimates are
-/// sufficient (e.g., rolling window computations).
+/// Unlike [`beta`], this function does not compute standard errors and is
+/// lighter-weight when point estimates are sufficient.
 ///
 /// # Arguments
 ///
-/// * `returns`    - Portfolio return series.
-/// * `benchmark`  - Benchmark return series.
+/// * `returns`    - Portfolio return series. Mismatched input lengths are
+///   truncated to the shorter overlap.
+/// * `benchmark`  - Benchmark return series. A zero-variance overlapping
+///   benchmark makes alpha and beta undefined.
 /// * `ann_factor` - Number of periods per year. Used to annualize alpha.
 /// * `risk_free_rate` - Annualized risk-free rate used for Jensen alpha.
 ///
 /// # Returns
 ///
 /// A [`GreeksResult`] with annualized Jensen `alpha`, `beta`, `r_squared`, and
-/// `adjusted_r_squared`. Returns zeros for empty inputs. For a zero-variance
-/// benchmark the regression cannot identify a slope, so `alpha` and `beta`
-/// are [`f64::NAN`] (matching the [`rolling_greeks`] degenerate-window
-/// sentinel) while `r_squared` / `adjusted_r_squared` remain `0.0`.
+/// `adjusted_r_squared`. Fields that cannot be estimated are [`f64::NAN`]:
+/// all fields for fewer than two paired observations or a zero-variance
+/// benchmark; both R-squared fields for a zero-variance portfolio; and
+/// adjusted R-squared for exactly two observations.
 pub(crate) fn greeks(
     returns: &[f64],
     benchmark: &[f64],
     ann_factor: f64,
     risk_free_rate: f64,
 ) -> GreeksResult {
-    let n = returns.len().min(benchmark.len());
-    if n == 0 {
+    let (n, covariance) = regression_covariance(returns, benchmark);
+    if n < 2 {
         return GreeksResult {
-            alpha: 0.0,
-            beta: 0.0,
-            r_squared: 0.0,
-            adjusted_r_squared: 0.0,
+            alpha: f64::NAN,
+            beta: f64::NAN,
+            r_squared: f64::NAN,
+            adjusted_r_squared: f64::NAN,
         };
     }
-    let mut oc = OnlineCovariance::new();
-    for i in 0..n {
-        oc.update(returns[i], benchmark[i]);
-    }
-    let beta = if oc.variance_y() == 0.0 {
+    let beta = if covariance.variance_y() == 0.0 {
         f64::NAN
     } else {
-        oc.optimal_beta()
+        covariance.optimal_beta()
     };
-    let alpha = jensen_alpha(oc.mean_x(), oc.mean_y(), beta, ann_factor, risk_free_rate);
-    let c = oc.correlation();
-    let r_squared = c * c;
-    let adjusted_r_squared = if n > 2 {
+    let alpha = jensen_alpha(
+        covariance.mean_x(),
+        covariance.mean_y(),
+        beta,
+        ann_factor,
+        risk_free_rate,
+    );
+    let r_squared = if covariance.variance_x() == 0.0 || covariance.variance_y() == 0.0 {
+        f64::NAN
+    } else {
+        let correlation = covariance.correlation();
+        correlation * correlation
+    };
+    let adjusted_r_squared = if n > 2 && r_squared.is_finite() {
         1.0 - (1.0 - r_squared) * (n as f64 - 1.0) / (n as f64 - 2.0)
     } else {
-        0.0
+        f64::NAN
     };
     GreeksResult {
         alpha,
@@ -1128,11 +1157,77 @@ mod tests {
     }
 
     #[test]
+    fn regression_statistics_are_nan_without_two_overlapping_observations() {
+        for (returns, benchmark) in [
+            (&[][..], &[][..]),
+            (&[0.01][..], &[][..]),
+            (&[][..], &[0.01][..]),
+            (&[0.02][..], &[0.01][..]),
+        ] {
+            let beta_result = beta(returns, benchmark);
+            assert!(beta_result.beta.is_nan());
+            assert!(beta_result.std_err.is_nan());
+            assert!(beta_result.ci_lower.is_nan());
+            assert!(beta_result.ci_upper.is_nan());
+
+            assert!(beta_only(returns, benchmark).is_nan());
+            assert!(r_squared(returns, benchmark).is_nan());
+
+            let greeks_result = greeks(returns, benchmark, 252.0, 0.0);
+            assert!(greeks_result.alpha.is_nan());
+            assert!(greeks_result.beta.is_nan());
+            assert!(greeks_result.r_squared.is_nan());
+            assert!(greeks_result.adjusted_r_squared.is_nan());
+        }
+    }
+
+    #[test]
     fn beta_basic() {
         let y = [0.02, 0.04, 0.06, 0.08, 0.10];
         let x = [0.01, 0.02, 0.03, 0.04, 0.05];
         let result = beta(&y, &x);
         assert!((result.beta - 2.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn slope_only_supports_two_points_while_beta_result_requires_three() {
+        let returns = [0.03, 0.05];
+        let benchmark = [0.01, 0.02];
+
+        assert!((beta_only(&returns, &benchmark) - 2.0).abs() < 1e-12);
+
+        let result = beta(&returns, &benchmark);
+        assert!(result.beta.is_nan());
+        assert!(result.std_err.is_nan());
+        assert!(result.ci_lower.is_nan());
+        assert!(result.ci_upper.is_nan());
+
+        let greeks_result = greeks(&returns, &benchmark, 12.0, 0.0);
+        assert!((greeks_result.alpha - 0.12).abs() < 1e-12);
+        assert!((greeks_result.beta - 2.0).abs() < 1e-12);
+        assert!((greeks_result.r_squared - 1.0).abs() < 1e-12);
+        assert!(greeks_result.adjusted_r_squared.is_nan());
+    }
+
+    #[test]
+    fn batch_regression_truncates_to_shorter_valid_linear_overlap() {
+        let returns = [0.01, 0.03, 0.05, 99.0];
+        let benchmark = [0.00, 0.01, 0.02];
+
+        let result = beta(&returns, &benchmark);
+        assert!((result.beta - 2.0).abs() < 1e-12);
+        assert!(result.std_err.abs() < 1e-12);
+        assert!((result.ci_lower - 2.0).abs() < 1e-12);
+        assert!((result.ci_upper - 2.0).abs() < 1e-12);
+
+        assert!((beta_only(&returns, &benchmark) - 2.0).abs() < 1e-12);
+        assert!((r_squared(&returns, &benchmark) - 1.0).abs() < 1e-12);
+
+        let greeks_result = greeks(&returns, &benchmark, 12.0, 0.0);
+        assert!((greeks_result.alpha - 0.12).abs() < 1e-12);
+        assert!((greeks_result.beta - 2.0).abs() < 1e-12);
+        assert!((greeks_result.r_squared - 1.0).abs() < 1e-12);
+        assert!((greeks_result.adjusted_r_squared - 1.0).abs() < 1e-12);
     }
 
     #[test]
@@ -1303,14 +1398,19 @@ mod tests {
         let b = vec![0.5_f64; 10];
 
         assert!(beta_only(&r, &b).is_nan());
+        assert!(r_squared(&r, &b).is_nan());
 
         let g = greeks(&r, &b, 252.0, 0.0);
         assert!(g.beta.is_nan());
         assert!(g.alpha.is_nan());
+        assert!(g.r_squared.is_nan());
+        assert!(g.adjusted_r_squared.is_nan());
 
         let result = beta(&r, &b);
         assert!(result.beta.is_nan());
         assert!(result.std_err.is_nan());
+        assert!(result.ci_lower.is_nan());
+        assert!(result.ci_upper.is_nan());
 
         // Treynor on an unidentifiable beta propagates NaN instead of ±∞.
         assert!(treynor(0.10, 0.02, beta_only(&r, &b), 1.0).is_nan());

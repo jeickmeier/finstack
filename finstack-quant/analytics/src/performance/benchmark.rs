@@ -25,7 +25,7 @@ impl Performance {
     /// One Treynor ratio per ticker in column order, using the active
     /// benchmark to estimate beta. Returns [`f64::NAN`] when the overlapping
     /// ticker/benchmark window has fewer than 2 observations (beta is not
-    /// estimable from one point).
+    /// estimable from one point) or the benchmark variance is zero.
     pub fn treynor(&self, risk_free_rate: f64) -> Vec<f64> {
         let ann = self.ann();
         self.map_tickers(|i| {
@@ -87,6 +87,10 @@ impl Performance {
     }
 
     /// R-squared for each ticker versus the active benchmark.
+    ///
+    /// Returns [`f64::NAN`] for a ticker when its overlap with the benchmark
+    /// has fewer than two observations or either overlapping series has zero
+    /// variance.
     pub fn r_squared(&self) -> Vec<f64> {
         self.map_tickers(|i| {
             let (r, bench) = self.active_pair_returns(i);
@@ -95,6 +99,11 @@ impl Performance {
     }
 
     /// OLS beta estimates for each ticker versus the active benchmark.
+    ///
+    /// Each [`BetaResult`] includes a standard error and 95% confidence
+    /// interval and therefore requires at least three overlapping
+    /// observations. All result fields are [`f64::NAN`] when the overlap is
+    /// shorter or the benchmark variance is zero.
     pub fn beta(&self) -> Vec<BetaResult> {
         self.map_tickers(|i| {
             let (r, bench) = self.active_pair_returns(i);
@@ -106,6 +115,19 @@ impl Performance {
     ///
     /// Alpha is annualized Jensen alpha using the configured observation
     /// frequency and the supplied annualized risk-free rate.
+    ///
+    /// # Arguments
+    ///
+    /// * `risk_free_rate` - Annualized risk-free rate in decimal form,
+    ///   geometrically decompounded to the panel frequency for Jensen alpha.
+    ///
+    /// # Returns
+    ///
+    /// One [`GreeksResult`] per ticker in column order. Fields that cannot be
+    /// estimated are [`f64::NAN`]: all fields for fewer than two overlapping
+    /// observations or zero benchmark variance, both R-squared fields for
+    /// zero ticker variance, and adjusted R-squared for exactly two
+    /// observations.
     pub fn greeks(&self, risk_free_rate: f64) -> Vec<GreeksResult> {
         self.map_tickers(|i| {
             let (r, bench) = self.active_pair_returns(i);
