@@ -198,7 +198,7 @@ fn calibrate_hull_white_to_swaptions_core(
         &target,
         quotes,
         &config,
-        Some(HW_VALIDATION_TOLERANCE),
+        HW_VALIDATION_TOLERANCE,
         Some(&multi_start),
     )?;
 

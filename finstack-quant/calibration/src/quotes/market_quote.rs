@@ -88,7 +88,7 @@ impl MarketQuote {
     pub fn validate(&self) -> Result<()> {
         if self.id().trim().is_empty() {
             return Err(Error::Validation(
-                "market quote id must not be empty".to_string(),
+                crate::quotes::ids::EMPTY_QUOTE_ID.to_string(),
             ));
         }
 

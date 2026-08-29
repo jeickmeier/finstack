@@ -132,7 +132,9 @@ impl GlobalFitOptimizer {
     /// * `config` - Calibration settings specifying tolerances and methods.
     /// * `success_tolerance` - Accept/reject threshold for the unweighted native residual
     ///   (`max_i |r_i|`). Distinct from the LM solver convergence tolerance in `config`.
-    ///   If `None`, falls back to `config.discount_curve.validation_tolerance`.
+    ///   Callers pass the target-specific validation tolerance (for example
+    ///   `config.forward_curve.validation_tolerance`). There is no implicit
+    ///   discount-curve fallback.
     ///
     /// # Returns
     /// A pair containing the calibrated term structure and a diagnostic report.
@@ -145,7 +147,7 @@ impl GlobalFitOptimizer {
         target: &T,
         quotes: &[T::Quote],
         config: &CalibrationConfig,
-        success_tolerance: Option<f64>,
+        success_tolerance: f64,
     ) -> Result<(T::Curve, CalibrationReport)>
     where
         T: GlobalSolveTarget,
@@ -162,7 +164,7 @@ impl GlobalFitOptimizer {
         target: &T,
         quotes: &[T::Quote],
         config: &CalibrationConfig,
-        success_tolerance: Option<f64>,
+        success_tolerance: f64,
         multi_start: Option<&MultiStartConfig>,
     ) -> Result<(T::Curve, CalibrationReport)>
     where
@@ -331,8 +333,7 @@ impl GlobalFitOptimizer {
 
         // `validation_tolerance` is the accept/reject threshold for the final residual,
         // distinct from the LM solver convergence tolerance. See calibration/README.md.
-        let validation_tolerance =
-            success_tolerance.unwrap_or(config.discount_curve.validation_tolerance);
+        let validation_tolerance = success_tolerance;
 
         // Success is unweighted `max_i |r_i| <= validation_tolerance`. Weights belong
         // in the LM objective only; do not scale the gate by √n or compare weighted L2
@@ -1361,7 +1362,7 @@ mod tests {
         let target = TestTarget::from_len(4, vec![tol; 4]);
         let quotes = vec![0usize, 1usize, 2usize, 3usize];
         let config = CalibrationConfig::default().with_tolerance(1.0);
-        let (_curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, Some(tol))
+        let (_curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, tol)
             .expect("optimization should complete");
 
         assert!(
@@ -1387,7 +1388,7 @@ mod tests {
         let target = TestTarget::from_len(2, vec![0.15, 0.0]).with_weights(vec![0.01, 0.01]);
         let quotes = vec![0usize, 1usize];
         let config = CalibrationConfig::default().with_tolerance(1e-12);
-        let (_curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, Some(0.1))
+        let (_curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, 0.1)
             .expect("optimization should complete");
         assert!(
             !report.success,
@@ -1411,7 +1412,7 @@ mod tests {
 
         // The 4th arg is the *validation/success* tolerance (distinct from the LM
         // solver tolerance set via `with_tolerance`).
-        let (_curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, Some(0.1))
+        let (_curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, 0.1)
             .expect("optimization should complete");
 
         assert!(
@@ -1523,8 +1524,13 @@ mod tests {
         let quotes = vec![0usize, 1usize];
         let config = CalibrationConfig::default().with_tolerance(1.0);
 
-        let (_curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, None)
-            .expect("optimization succeeds");
+        let (_curve, report) = GlobalFitOptimizer::optimize(
+            &target,
+            &quotes,
+            &config,
+            config.discount_curve.validation_tolerance,
+        )
+        .expect("optimization succeeds");
 
         let meta = report
             .metadata
@@ -1545,8 +1551,13 @@ mod tests {
         let quotes = vec![0usize, 1usize];
         let config = CalibrationConfig::default().with_tolerance(1.0);
 
-        let err =
-            GlobalFitOptimizer::optimize(&target, &quotes, &config, None).expect_err("should fail");
+        let err = GlobalFitOptimizer::optimize(
+            &target,
+            &quotes,
+            &config,
+            config.discount_curve.validation_tolerance,
+        )
+        .expect_err("should fail");
         let Error::Calibration { message, .. } = err else {
             unreachable!("length mismatch should return a Calibration error");
         };
@@ -1563,8 +1574,13 @@ mod tests {
         let quotes = vec![0usize, 1usize];
         let config = CalibrationConfig::default().with_tolerance(1.0);
 
-        let err =
-            GlobalFitOptimizer::optimize(&target, &quotes, &config, None).expect_err("should fail");
+        let err = GlobalFitOptimizer::optimize(
+            &target,
+            &quotes,
+            &config,
+            config.discount_curve.validation_tolerance,
+        )
+        .expect_err("should fail");
         let Error::Calibration { message, .. } = err else {
             unreachable!("non-increasing times should return a Calibration error");
         };
@@ -1581,8 +1597,13 @@ mod tests {
         let quotes = vec![0usize];
         let config = CalibrationConfig::default().with_tolerance(1.0);
 
-        let err =
-            GlobalFitOptimizer::optimize(&target, &quotes, &config, None).expect_err("should fail");
+        let err = GlobalFitOptimizer::optimize(
+            &target,
+            &quotes,
+            &config,
+            config.discount_curve.validation_tolerance,
+        )
+        .expect_err("should fail");
         let Error::Calibration { message, .. } = err else {
             unreachable!("non-finite inputs should return a Calibration error");
         };
@@ -1602,8 +1623,13 @@ mod tests {
         let quotes = vec![5usize, 7usize];
         let config = CalibrationConfig::default().with_tolerance(1.0);
 
-        let (_curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, None)
-            .expect("optimization succeeds");
+        let (_curve, report) = GlobalFitOptimizer::optimize(
+            &target,
+            &quotes,
+            &config,
+            config.discount_curve.validation_tolerance,
+        )
+        .expect("optimization succeeds");
 
         assert!(report.residuals.contains_key("TEST-5"));
         assert!(report.residuals.contains_key("TEST-7"));
@@ -1626,8 +1652,13 @@ mod tests {
         let quotes = vec![10usize, 11usize, 12usize];
         let config = CalibrationConfig::default().with_tolerance(1e12);
 
-        let (_curve, report) =
-            GlobalFitOptimizer::optimize(&target, &quotes, &config, None).expect("should succeed");
+        let (_curve, report) = GlobalFitOptimizer::optimize(
+            &target,
+            &quotes,
+            &config,
+            config.discount_curve.validation_tolerance,
+        )
+        .expect("should succeed");
 
         assert_eq!(report.residuals.len(), 3);
         assert_eq!(report.residuals.get("GLOBAL-000010"), Some(&0.01));
@@ -1688,8 +1719,13 @@ mod tests {
         let quotes = vec![0usize, 1usize];
         let config = CalibrationConfig::default().with_tolerance(1e12);
 
-        let (_curve, report) =
-            GlobalFitOptimizer::optimize(&target, &quotes, &config, None).expect("should succeed");
+        let (_curve, report) = GlobalFitOptimizer::optimize(
+            &target,
+            &quotes,
+            &config,
+            config.discount_curve.validation_tolerance,
+        )
+        .expect("should succeed");
 
         let invalid_count: usize = report
             .metadata
@@ -1784,8 +1820,13 @@ mod tests {
             .with_tolerance(1e-12)
             .with_max_iterations(50);
 
-        let (_curve, report) =
-            GlobalFitOptimizer::optimize(&target, &quotes, &config, None).expect("should succeed");
+        let (_curve, report) = GlobalFitOptimizer::optimize(
+            &target,
+            &quotes,
+            &config,
+            config.discount_curve.validation_tolerance,
+        )
+        .expect("should succeed");
 
         assert_eq!(report.residuals.len(), quotes.len());
     }
@@ -1796,8 +1837,13 @@ mod tests {
         let quotes: Vec<usize> = Vec::new();
         let config = CalibrationConfig::default().with_tolerance(1.0);
 
-        let err = GlobalFitOptimizer::optimize(&target, &quotes, &config, None)
-            .expect_err("empty active quotes should fail");
+        let err = GlobalFitOptimizer::optimize(
+            &target,
+            &quotes,
+            &config,
+            config.discount_curve.validation_tolerance,
+        )
+        .expect_err("empty active quotes should fail");
         assert!(matches!(
             err,
             Error::Input(finstack_quant_core::InputError::TooFewPoints)
@@ -1810,8 +1856,13 @@ mod tests {
         let quotes = vec![0usize, 1usize];
         let config = CalibrationConfig::default().with_tolerance(1.0);
 
-        let err = GlobalFitOptimizer::optimize(&target, &quotes, &config, None)
-            .expect_err("n_residuals < n_params should fail");
+        let err = GlobalFitOptimizer::optimize(
+            &target,
+            &quotes,
+            &config,
+            config.discount_curve.validation_tolerance,
+        )
+        .expect_err("n_residuals < n_params should fail");
         let Error::Calibration { message, .. } = err else {
             unreachable!("underdetermined systems should return a Calibration error");
         };
@@ -1828,8 +1879,13 @@ mod tests {
 
         for weights in [vec![-1.0, 1.0], vec![f64::NAN, 1.0]] {
             let target = TestTarget::from_len(2, vec![0.01, 0.02]).with_weights(weights);
-            let err = GlobalFitOptimizer::optimize(&target, &quotes, &config, None)
-                .expect_err("invalid weights should fail");
+            let err = GlobalFitOptimizer::optimize(
+                &target,
+                &quotes,
+                &config,
+                config.discount_curve.validation_tolerance,
+            )
+            .expect_err("invalid weights should fail");
             let Error::Calibration { message, .. } = err else {
                 unreachable!("invalid residual weights should return a Calibration error");
             };
@@ -1840,8 +1896,13 @@ mod tests {
         }
 
         let zero_target = TestTarget::from_len(2, vec![0.01, 0.02]).with_weights(vec![0.0, 0.0]);
-        let zero_err = GlobalFitOptimizer::optimize(&zero_target, &quotes, &config, None)
-            .expect_err("all-zero weights should fail");
+        let zero_err = GlobalFitOptimizer::optimize(
+            &zero_target,
+            &quotes,
+            &config,
+            config.discount_curve.validation_tolerance,
+        )
+        .expect_err("all-zero weights should fail");
         let Error::Calibration { message, .. } = zero_err else {
             unreachable!("all-zero residual weights should return a Calibration error");
         };
@@ -1857,7 +1918,7 @@ mod tests {
         let quotes = vec![0usize];
         let config = CalibrationConfig::default().with_tolerance(1.0);
 
-        let (_curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, Some(0.1))
+        let (_curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, 0.1)
             .expect("optimization should still complete");
 
         assert!(
@@ -1882,8 +1943,13 @@ mod tests {
             .with_tolerance(1.0)
             .with_compute_diagnostics(true);
 
-        let (_curve, report) =
-            GlobalFitOptimizer::optimize(&target, &quotes, &config, None).expect("should succeed");
+        let (_curve, report) = GlobalFitOptimizer::optimize(
+            &target,
+            &quotes,
+            &config,
+            config.discount_curve.validation_tolerance,
+        )
+        .expect("should succeed");
 
         let diagnostics = report
             .diagnostics

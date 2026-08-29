@@ -205,7 +205,7 @@ pub fn calibrate_hull_white_to_cap_floors(
         &target,
         quotes,
         &config_lm,
-        Some(HW_VALIDATION_TOLERANCE),
+        HW_VALIDATION_TOLERANCE,
         Some(&multi_start),
     )?;
 

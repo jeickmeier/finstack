@@ -24,7 +24,11 @@ use time::Date;
 /// assert_eq!(id.as_str(), "USD-SOFR-DEP-1M");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, PartialOrd, Ord, schemars::JsonSchema)]
-pub struct QuoteId(String);
+#[schemars(transparent)]
+pub struct QuoteId(#[schemars(length(min = 1), regex(pattern = r".*\S.*"))] String);
+
+/// Shared deserialize/validate message for empty or whitespace-only quote ids.
+pub(crate) const EMPTY_QUOTE_ID: &str = "quote id must not be empty or whitespace";
 
 impl<'de> Deserialize<'de> for QuoteId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -33,9 +37,7 @@ impl<'de> Deserialize<'de> for QuoteId {
     {
         let value = String::deserialize(deserializer)?;
         if value.trim().is_empty() {
-            return Err(serde::de::Error::custom(
-                "quote id must not be empty or whitespace",
-            ));
+            return Err(serde::de::Error::custom(EMPTY_QUOTE_ID));
         }
         Ok(Self(value))
     }

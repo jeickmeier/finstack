@@ -219,12 +219,10 @@ impl ParametricCurveTarget {
         // headroom for a well-converged fit while still flagging a genuinely poor NS fit
         // (e.g. badly mis-specified initial parameters or an inconsistent quote set).
         const PARAMETRIC_LS_TOLERANCE_FLOOR: f64 = 1e-3;
-        let success_tolerance = Some(
-            config
-                .discount_curve
-                .validation_tolerance
-                .max(PARAMETRIC_LS_TOLERANCE_FLOOR),
-        );
+        let success_tolerance = config
+            .discount_curve
+            .validation_tolerance
+            .max(PARAMETRIC_LS_TOLERANCE_FLOOR);
         let (curve, report) =
             GlobalFitOptimizer::optimize(&target, &prepared_quotes, &config, success_tolerance)?;
 

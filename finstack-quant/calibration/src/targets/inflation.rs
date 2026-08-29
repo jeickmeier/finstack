@@ -315,7 +315,7 @@ impl InflationCurveTarget {
         let prepared_quotes = target.prepare_quotes(inflation_quotes)?;
 
         // Target-specific validation tolerance for inflation curves.
-        let success_tolerance = Some(config.inflation_curve.validation_tolerance);
+        let success_tolerance = config.inflation_curve.validation_tolerance;
 
         let (curve, mut report) = match params.method {
             CalibrationMethod::Bootstrap => SequentialBootstrapper::bootstrap(
@@ -323,7 +323,7 @@ impl InflationCurveTarget {
                 &prepared_quotes,
                 Vec::new(),
                 &config,
-                success_tolerance,
+                Some(success_tolerance),
                 None,
             )?,
             CalibrationMethod::GlobalSolve { .. } => {

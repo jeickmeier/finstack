@@ -397,7 +397,7 @@ Global solve requires strictly increasing times.",
         });
 
         // Target-specific validation tolerance for discount curves.
-        let success_tolerance = Some(config.discount_curve.validation_tolerance);
+        let success_tolerance = config.discount_curve.validation_tolerance;
 
         // Optional bootstrap seeding for the global solve to improve convergence and accuracy.
         let mut seed_report: Option<CalibrationReport> = None;
@@ -412,7 +412,7 @@ Global solve requires strictly increasing times.",
                 &seed_quotes,
                 vec![(0.0, 1.0)],
                 &config,
-                success_tolerance,
+                Some(success_tolerance),
                 None,
             ) {
                 Ok((curve_seed, report)) => {
@@ -432,7 +432,7 @@ Global solve requires strictly increasing times.",
                     &prepared_quotes,
                     vec![(0.0, 1.0)],
                     &config,
-                    success_tolerance,
+                    Some(success_tolerance),
                     None,
                 )?;
                 if matches!(
@@ -1389,8 +1389,13 @@ mod tests {
         let pq = PreparedQuote::new(std::sync::Arc::new(quote), instrument, maturity, p_time);
         let quotes = vec![CalibrationQuote::Rates(pq)];
 
-        let (_curve, report) =
-            GlobalFitOptimizer::optimize(&target, &quotes, &config, None).expect("solve");
+        let (_curve, report) = GlobalFitOptimizer::optimize(
+            &target,
+            &quotes,
+            &config,
+            config.discount_curve.validation_tolerance,
+        )
+        .expect("solve");
         println!("Max residual: {}", report.max_residual);
         assert!(report.max_residual < 1e-6);
     }
@@ -1464,8 +1469,13 @@ mod tests {
                 quotes.push(CalibrationQuote::Rates(pq));
             }
 
-            let (curve, report) =
-                GlobalFitOptimizer::optimize(&target, &quotes, &config, None).expect("solve");
+            let (curve, report) = GlobalFitOptimizer::optimize(
+                &target,
+                &quotes,
+                &config,
+                config.discount_curve.validation_tolerance,
+            )
+            .expect("solve");
 
             // Ensure calibration succeeded with normalized residuals
             println!(

@@ -62,7 +62,11 @@ pub(crate) mod bloomberg_quadrature;
 pub(crate) mod metrics;
 pub(crate) mod parameters;
 pub(crate) mod pricer;
+
 mod strike;
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests_cdx_ig_46;
 mod types;
 
 pub use parameters::CDSOptionParams;

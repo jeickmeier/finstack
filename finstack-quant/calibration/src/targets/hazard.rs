@@ -314,7 +314,7 @@ impl HazardCurveTarget {
         }
 
         // Target-specific validation tolerance for hazard curves.
-        let success_tolerance = Some(config.hazard_curve.validation_tolerance);
+        let success_tolerance = config.hazard_curve.validation_tolerance;
 
         let (curve, report) = match params.method {
             CalibrationMethod::Bootstrap => SequentialBootstrapper::bootstrap(
@@ -322,7 +322,7 @@ impl HazardCurveTarget {
                 &prepared_quotes,
                 Vec::new(),
                 &config,
-                success_tolerance,
+                Some(success_tolerance),
                 None,
             )?,
             CalibrationMethod::GlobalSolve { .. } => {

@@ -144,7 +144,7 @@ impl ForwardCurveTarget {
             base_context: context.clone(),
         });
 
-        let success_tolerance = Some(config.forward_curve.validation_tolerance);
+        let success_tolerance = config.forward_curve.validation_tolerance;
 
         if matches!(params.method, CalibrationMethod::Bootstrap) {
             return Err(finstack_quant_core::Error::Validation(format!(
@@ -1014,7 +1014,7 @@ mod tests {
             &target,
             &quotes,
             &target.config,
-            Some(target.config.forward_curve.validation_tolerance),
+            target.config.forward_curve.validation_tolerance,
         )
         .expect("bounded global solve should return its best curve");
         assert!(
@@ -1087,7 +1087,7 @@ mod tests {
             .expect("deposit parameter grid");
         assert_eq!(times, vec![0.0, 0.25]);
 
-        let (curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, Some(1e-8))
+        let (curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, 1e-8)
             .expect("multi-deposit global solve");
         assert!(report.success, "{}", report.convergence_reason);
         assert!((curve.rate_between(0.0, 0.25).expect("3M rate") - 0.04).abs() < 1e-8);
@@ -1157,7 +1157,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let (curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, Some(1e-8))
+        let (curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, 1e-8)
             .expect("mixed day-count deposit global solve");
         assert!(report.success, "{}", report.convergence_reason);
 
