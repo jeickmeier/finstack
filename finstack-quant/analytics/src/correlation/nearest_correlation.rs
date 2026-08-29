@@ -96,8 +96,8 @@ impl Default for NearestCorrelationOpts {
 ///   `1e-6` at any off-diagonal entry.
 /// * [`Error::DiagonalNotOne`] if any diagonal entry is further than `1e-3`
 ///   from `1.0`.
-/// * [`Error::EigenDecompositionFailed`] if a PSD projection cannot decompose
-///   its symmetric input.
+/// * [`Error::EigenDecompositionFailed`] if `input` contains a non-finite entry
+///   or a PSD projection cannot decompose its symmetric input.
 /// * [`Error::DidNotConverge`] if the algorithm fails to converge within
 ///   `opts.max_iter` iterations.
 pub fn nearest_correlation_matrix(
@@ -113,6 +113,9 @@ pub fn nearest_correlation_matrix(
     }
     if n == 0 {
         return Ok(Vec::new());
+    }
+    if input.iter().any(|value| !value.is_finite()) {
+        return Err(Error::EigenDecompositionFailed);
     }
 
     // Sanity gates: reject pathological inputs. Small defects are fine —
@@ -362,6 +365,14 @@ mod tests {
 
         assert!(matches!(err, Error::EigenDecompositionFailed));
         assert_eq!(err.to_string(), "Symmetric eigendecomposition failed");
+    }
+
+    #[test]
+    fn non_finite_diagonal_reports_eigendecomposition_failure() {
+        let err = nearest_correlation_matrix(&[f64::NAN], 1, NearestCorrelationOpts::default())
+            .expect_err("non-finite diagonal must be reported");
+
+        assert!(matches!(err, Error::EigenDecompositionFailed));
     }
 
     /// The algorithm is Higham (2002) Algorithm 3.3: the Dykstra correction is
