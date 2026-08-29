@@ -194,9 +194,7 @@ Forecast ids are `Covenant::instance_key()`; the display string travels
 separately in `covenant_description`. Nullable forecast fields
 (`projected_values`, `headroom`) serialize as JSON `null` when a value is
 inactive or not meaningful — a springing covenant outside its activation window,
-or a leverage ratio on negative EBITDA. `CovenantForecast::explain()` renders a
-per-date text summary and `warning_indices(threshold)` finds thin-headroom
-periods.
+or a leverage ratio on negative EBITDA.
 
 ## Templates
 
@@ -212,10 +210,9 @@ periods.
 ## JSON surface
 
 `json` is the serde-first boundary used by the language bindings:
-`evaluate_engine_json`, `evaluate_engine_map`, the validators
-(`validate_covenant_spec_json`, `validate_covenant_report_json`,
-`validate_covenant_engine_json`), and JSON template builders
-(`lbo_standard_json`, `cov_lite_json`, `real_estate_json`,
+`evaluate_engine_map`, the validators (`validate_covenant_spec_json`,
+`validate_covenant_report_json`, `validate_covenant_engine_json`), and JSON
+template builders (`lbo_standard_json`, `cov_lite_json`, `real_estate_json`,
 `project_finance_json`).
 
 Inbound JSON denies unknown fields and runs domain validation on top of the

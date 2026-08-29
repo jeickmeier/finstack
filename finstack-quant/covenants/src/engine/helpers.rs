@@ -1,4 +1,4 @@
-use super::types::{BoundKind, CovenantType};
+use super::types::{BoundKind, CovenantSpec, CovenantType, ThresholdTest};
 use finstack_quant_core::dates::Date;
 
 pub(super) struct SpecEvaluation {
@@ -29,6 +29,64 @@ pub(crate) fn headroom_for(bound: Option<BoundKind>, value: f64, threshold: f64)
         Some(BoundKind::AtLeast) => (value - threshold) / denom,
         None => 0.0,
     }
+}
+
+/// Whether a springing trigger is met, including the NaN-activates convention.
+///
+/// `NaN <= t` and `NaN >= t` are both false, which would deactivate the
+/// covenant and report a pass on undefined data. A NaN trigger therefore
+/// activates so the covenant's own NaN handling decides the outcome.
+///
+/// # Arguments
+///
+/// * `metric` - Trigger metric id used only in the NaN warning.
+/// * `value` - Observed trigger metric. `NaN` activates; finite values use
+///   `test`.
+/// * `test` - Minimum or maximum bound applied to a finite `value`.
+pub(crate) fn springing_condition_met(metric: &str, value: f64, test: ThresholdTest) -> bool {
+    if value.is_nan() {
+        tracing::warn!(
+            metric,
+            "springing condition metric is NaN \u{2014} activating the covenant \
+             rather than silently treating it as inactive",
+        );
+        return true;
+    }
+    match test {
+        ThresholdTest::Maximum(threshold) => value <= threshold,
+        ThresholdTest::Minimum(threshold) => value >= threshold,
+    }
+}
+
+/// Ordered metric names for a spec: explicit id, then type default, then
+/// Custom/Basket name. The engine uses only the first name (missing is an
+/// error). Forecast tries each name until one resolves.
+///
+/// # Arguments
+///
+/// * `spec` - Specification whose `metric_id` and covenant type supply the
+///   candidate names.
+pub(crate) fn spec_metric_names(spec: &CovenantSpec) -> Vec<&str> {
+    let mut names = Vec::new();
+    if let Some(id) = &spec.metric_id {
+        names.push(id.as_str());
+    }
+    if let Some(name) = spec.covenant.covenant_type.default_metric_name() {
+        if !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    let extra = match &spec.covenant.covenant_type {
+        CovenantType::Custom { metric, .. } => Some(metric.as_str()),
+        CovenantType::Basket { name, .. } => Some(name.as_str()),
+        _ => None,
+    };
+    if let Some(name) = extra {
+        if !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    names
 }
 
 /// Shared point-in-time and forecast breach convention.

@@ -102,51 +102,22 @@ pub fn validate_covenant_engine_json(json: &str) -> Result<String> {
     canonical_json(&value)
 }
 
-/// Evaluate a covenant engine against a string-keyed JSON metric map.
+/// Evaluate a covenant engine against a JSON metric map, returning typed reports.
 ///
 /// `engine_json` must contain a valid [`CovenantEngine`]. `metrics_json` must
 /// be a JSON object whose values are JSON numbers; its keys are the metric
 /// identifiers referenced by the engine, such as `debt_to_ebitda`, `dscr`, or
 /// `liquidity`. The function evaluates every covenant as of the ISO-8601
-/// calendar date in `as_of` and returns the complete [`CovenantReport`] array
-/// as JSON, including pass/fail state and configured consequences.
+/// calendar date in `as_of` and returns an [`indexmap::IndexMap`] keyed by
+/// stable covenant instance key.
 ///
 /// A metric value has the unit required by its covenant test: leverage and
 /// coverage metrics are ratios (for example, `5.0` means 5.0x), while monetary
 /// thresholds such as capex and liquidity use the engine's reporting currency
 /// convention. This API deliberately does not infer units or metric aliases.
-///
-/// # Arguments
-///
-/// * `engine_json` - UTF-8 JSON document for a valid covenant engine whose
-///   metric identifiers define the required keys in `metrics_json`.
-/// * `metrics_json` - UTF-8 JSON object mapping metric IDs to finite numeric
-///   values in the units required by their individual covenant tests.
-/// * `as_of` - ISO-8601 calendar date at which all covenant tests are
-///   evaluated.
-///
-/// # Errors
-///
-/// Returns an error if the engine or metric map is malformed, any metric value
-/// is not a JSON number, `as_of` is not an ISO-8601 date, the engine fails
-/// validation, a required metric is absent or unsuitable for its covenant, or
-/// the reports cannot be serialized. Evaluation errors preserve the engine's
-/// detailed diagnostic so callers can identify the offending covenant or
-/// metric.
-pub fn evaluate_engine_json(engine_json: &str, metrics_json: &str, as_of: &str) -> Result<String> {
-    let reports = evaluate_engine_map(engine_json, metrics_json, as_of)?;
-    serde_json::to_string(&reports).map_err(|e| {
-        finstack_quant_core::Error::Validation(format!("Serialize covenant reports: {e}"))
-    })
-}
-
-/// Evaluate a covenant engine against a JSON metric map, returning typed reports.
-///
-/// Identical to [`evaluate_engine_json`] except that the covenant reports are
-/// returned as an [`indexmap::IndexMap`] keyed by stable covenant instance key rather
-/// than serialized. Language bindings that surface typed report objects call
-/// this so the parsing, validation, and unit conventions stay owned by the
-/// crate rather than duplicated per binding.
+/// Language bindings that surface typed report objects call this so the
+/// parsing, validation, and unit conventions stay owned by the crate rather
+/// than duplicated per binding.
 ///
 /// # Arguments
 ///

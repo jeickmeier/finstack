@@ -103,11 +103,6 @@ impl HashMapMetricSource {
     pub fn insert(&mut self, metric: impl Into<CovenantMetricId>, value: f64) -> Option<f64> {
         self.metrics.insert(metric.into(), value)
     }
-
-    /// Borrow the underlying metric map.
-    pub fn metrics(&self) -> &HashMap<CovenantMetricId, f64> {
-        &self.metrics
-    }
 }
 
 impl CovenantMetricSource for HashMapMetricSource {

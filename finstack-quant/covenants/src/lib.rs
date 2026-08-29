@@ -73,25 +73,23 @@ pub mod json;
 pub mod metric;
 /// Covenant report types and structures
 pub(crate) mod report;
-/// Covenant threshold schedules and interpolation
+/// Covenant threshold schedules (piecewise-constant step-downs)
 pub(crate) mod schedule;
 /// Covenant package templates for common deal structures
 pub mod templates;
 
 pub use engine::{
     BoundKind, ConsequenceApplication, Covenant, CovenantBreach, CovenantConsequence,
-    CovenantEngine, CovenantEvalCtx, CovenantScope, CovenantSpec, CovenantTestSpec, CovenantType,
-    CovenantWaiver, CovenantWindow, EvaluationTrigger, InstrumentMutator, SpringingCondition,
-    ThresholdTest,
+    CovenantEngine, CovenantEvalCtx, CovenantScope, CovenantSpec, CovenantType, CovenantWaiver,
+    CovenantWindow, EvaluationTrigger, InstrumentMutator, SpringingCondition, ThresholdTest,
 };
 pub use forward::{
     forecast_breaches_generic, forecast_covenant_generic, CovenantForecast, CovenantForecastConfig,
     FutureBreach, ModelTimeSeries,
 };
 pub use json::{
-    cov_lite_json, evaluate_engine_json, evaluate_engine_map, lbo_standard_json,
-    project_finance_json, real_estate_json, validate_covenant_engine_json,
-    validate_covenant_report_json, validate_covenant_spec_json,
+    cov_lite_json, evaluate_engine_map, lbo_standard_json, project_finance_json, real_estate_json,
+    validate_covenant_engine_json, validate_covenant_report_json, validate_covenant_spec_json,
 };
 pub use metric::{CovenantMetricId, CovenantMetricSource, HashMapMetricSource};
 pub use report::CovenantReport;

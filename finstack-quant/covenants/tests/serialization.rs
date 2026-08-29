@@ -7,7 +7,7 @@ use finstack_quant_covenants::{
     validate_covenant_engine_json, validate_covenant_report_json, BoundKind,
     ConsequenceApplication, Covenant, CovenantBreach, CovenantConsequence, CovenantEngine,
     CovenantForecast, CovenantForecastConfig, CovenantMetricId, CovenantReport, CovenantScope,
-    CovenantSpec, CovenantTestSpec, CovenantType, CovenantWindow, FutureBreach, SpringingCondition,
+    CovenantSpec, CovenantType, CovenantWindow, FutureBreach, SpringingCondition,
     ThresholdSchedule, ThresholdTest,
 };
 use time::Month;
@@ -158,37 +158,6 @@ fn covenant_spec_roundtrip() {
     assert_eq!(spec.covenant, rt.covenant);
     assert_eq!(spec.metric_id, rt.metric_id);
     assert!(rt.custom_evaluator.is_none());
-}
-
-#[test]
-fn covenant_test_spec_roundtrip() {
-    let test_spec = CovenantTestSpec {
-        specs: vec![
-            CovenantSpec::with_metric(
-                Covenant::new(
-                    CovenantType::MaxTotalLeverage { threshold: 5.0 },
-                    Tenor::quarterly(),
-                    "max_total_leverage",
-                ),
-                CovenantMetricId::from("total_leverage"),
-            ),
-            CovenantSpec::with_metric(
-                Covenant::new(
-                    CovenantType::MinInterestCoverage { threshold: 1.5 },
-                    Tenor::quarterly(),
-                    "min_interest_coverage",
-                ),
-                CovenantMetricId::from("interest_coverage"),
-            ),
-        ],
-        test_date: date(2025, 3, 31),
-        reference_date: Some(date(2025, 1, 1)),
-    };
-
-    let rt = roundtrip(&test_spec);
-    assert_eq!(test_spec.test_date, rt.test_date);
-    assert_eq!(test_spec.reference_date, rt.reference_date);
-    assert_eq!(test_spec.specs.len(), rt.specs.len());
 }
 
 #[test]

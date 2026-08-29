@@ -4,7 +4,6 @@ use finstack_quant_core::dates::Date;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-// Covenant type definitions were previously under loan; re-introduce minimal versions locally
 /// Whether a covenant is tested periodically or only upon an action.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -280,24 +279,10 @@ pub enum BoundKind {
 
 impl CovenantType {
     fn validate(&self) -> finstack_quant_core::Result<()> {
-        let value = match self {
-            CovenantType::MaxDebtToEbitda { threshold }
-            | CovenantType::MinInterestCoverage { threshold }
-            | CovenantType::MinFixedChargeCoverage { threshold }
-            | CovenantType::MaxTotalLeverage { threshold }
-            | CovenantType::MaxSeniorLeverage { threshold }
-            | CovenantType::MinAssetCoverage { threshold }
-            | CovenantType::MinDscr { threshold }
-            | CovenantType::MaxNetDebtToEbitda { threshold }
-            | CovenantType::MaxCapex { threshold }
-            | CovenantType::MinLiquidity { threshold } => Some(*threshold),
-            CovenantType::Custom { test, .. } => match test {
-                ThresholdTest::Maximum(t) | ThresholdTest::Minimum(t) => Some(*t),
-            },
-            CovenantType::Basket { limit, .. } => Some(*limit),
-            CovenantType::Negative { .. } | CovenantType::Affirmative { .. } => None,
-        };
-        if value.is_some_and(|v| !v.is_finite()) {
+        if self
+            .threshold_value()
+            .is_some_and(|value| !value.is_finite())
+        {
             return Err(finstack_quant_core::Error::Validation(
                 "covenant thresholds and limits must be finite".to_string(),
             ));
@@ -567,22 +552,6 @@ impl CovenantSpec {
     pub(crate) fn validate(&self) -> finstack_quant_core::Result<()> {
         self.covenant.validate()
     }
-}
-
-/// Covenant test specification with timing windows.
-///
-/// This is a serialization-friendly envelope used by higher-level tooling.
-/// The `CovenantEngine` does not currently evaluate `CovenantTestSpec`
-/// instances directly.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CovenantTestSpec {
-    /// Covenant specifications to test
-    pub specs: Vec<CovenantSpec>,
-    /// Test date
-    pub test_date: Date,
-    /// Reference date for calculating cure periods
-    pub reference_date: Option<Date>,
 }
 
 /// Covenant window for scheduled testing.

@@ -1,4 +1,4 @@
-//! Covenant threshold schedules and interpolation.
+//! Covenant threshold schedules (piecewise-constant step-downs).
 //!
 //! [`ThresholdSchedule`] stores a piecewise-constant mapping from dates to
 //! threshold values, sorted ascending. The effective threshold for a test
@@ -70,11 +70,6 @@ impl ThresholdSchedule {
     /// Read-only access to the sorted schedule entries.
     pub fn entries(&self) -> &[(Date, f64)] {
         &self.0
-    }
-
-    /// Consume the schedule and return the sorted entries.
-    pub fn into_inner(self) -> Vec<(Date, f64)> {
-        self.0
     }
 }
 

@@ -1,8 +1,10 @@
-use super::helpers::{headroom_for, is_covenant_breached, InstrumentMutator, SpecEvaluation};
+use super::helpers::{
+    headroom_for, is_covenant_breached, spec_metric_names, springing_condition_met,
+    InstrumentMutator, SpecEvaluation,
+};
 use super::types::{
     ConsequenceApplication, CovenantBreach, CovenantConsequence, CovenantEvalCtx, CovenantScope,
-    CovenantSpec, CovenantType, CovenantWaiver, CovenantWindow, CustomMetricCalculator,
-    EvaluationTrigger, ThresholdTest,
+    CovenantSpec, CovenantWaiver, CovenantWindow, CustomMetricCalculator, EvaluationTrigger,
 };
 use crate::metric::{CovenantMetricId, CovenantMetricSource};
 use crate::schedule::threshold_for_date;
@@ -245,9 +247,8 @@ impl CovenantEngine {
         let mut reports = IndexMap::new();
 
         for spec in specs {
-            // Identity key (instance label if set, else the type discriminant).
-            // Reports and breaches are keyed on this so two same-type covenants
-            // don't silently overwrite each other.
+            // Identity key is the instance label. Reports and breaches are keyed
+            // on it so two same-type covenants don't silently overwrite each other.
             let cid = spec.covenant.instance_key();
             let cid = cid.as_str();
             let description = spec.covenant.description();
@@ -558,11 +559,6 @@ impl CovenantEngine {
         Ok(applications)
     }
 
-    /// Get applicable specs for a given date (public for testing).
-    pub fn get_applicable_specs(&self, test_date: Date) -> Vec<&CovenantSpec> {
-        self.get_applicable_specs_internal(test_date)
-    }
-
     fn get_applicable_specs_internal(&self, test_date: Date) -> Vec<&CovenantSpec> {
         // Check windows first
         for window in &self.windows {
@@ -586,27 +582,11 @@ impl CovenantEngine {
         if let Some(condition) = &spec.covenant.springing_condition {
             let condition_value =
                 self.get_metric_value(context, &condition.metric_id, test_date)?;
-            // NaN is indeterminate, not "condition not met": both `NaN <= t` and
-            // `NaN >= t` are false, which would silently deactivate the covenant
-            // and report a pass on undefined data. Mirror the crate's
-            // point-in-time convention (`helpers::is_covenant_breached`, and the
-            // forecast path's "NaN => breached") by ACTIVATING, so the covenant is
-            // evaluated and its own NaN handling decides the outcome.
-            let condition_met = if condition_value.is_nan() {
-                tracing::warn!(
-                    metric = condition.metric_id.as_str(),
-                    "springing condition metric is NaN \u{2014} activating the covenant \
-                     rather than silently treating it as inactive",
-                );
-                true
-            } else {
-                match condition.test {
-                    ThresholdTest::Maximum(t) => condition_value <= t,
-                    ThresholdTest::Minimum(t) => condition_value >= t,
-                }
-            };
-
-            if !condition_met {
+            if !springing_condition_met(
+                condition.metric_id.as_str(),
+                condition_value,
+                condition.test,
+            ) {
                 tracing::debug!(
                     metric = condition.metric_id.as_str(),
                     value = condition_value,
@@ -663,22 +643,11 @@ impl CovenantEngine {
             })
             .unwrap_or(base_threshold);
 
-        // Otherwise use metric-based evaluation
-        let metric_value = if let Some(metric_id) = &spec.metric_id {
-            self.get_metric_value(context, metric_id, test_date)?
-        } else if let Some(name) = covenant_type.default_metric_name() {
-            self.get_metric_value(context, &CovenantMetricId::from(name), test_date)?
-        } else {
-            match covenant_type {
-                CovenantType::Custom { metric, .. } => {
-                    self.get_metric_value(context, &CovenantMetricId::from(metric), test_date)?
-                }
-                CovenantType::Basket { name, .. } => {
-                    self.get_metric_value(context, &CovenantMetricId::from(name), test_date)?
-                }
-                _ => unreachable!("Non-numeric covenants return early above"),
-            }
+        let Some(metric_name) = spec_metric_names(spec).into_iter().next() else {
+            unreachable!("Non-numeric covenants return early above");
         };
+        let metric_value =
+            self.get_metric_value(context, &CovenantMetricId::from(metric_name), test_date)?;
 
         let mut detail = None;
         let passed = if covenant_type.is_ratio_max() && metric_value < 0.0 {

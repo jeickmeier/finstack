@@ -23,18 +23,19 @@
 //!   defined via `ttm(ebitda)` — before being exposed through
 //!   [`crate::metric::CovenantMetricSource`].
 
+mod covenant_engine;
 mod helpers;
-#[path = "engine.rs"]
-mod implementation;
 mod types;
 
+pub use covenant_engine::CovenantEngine;
 pub use helpers::InstrumentMutator;
-pub(crate) use helpers::{headroom_for, is_covenant_breached};
-pub use implementation::CovenantEngine;
+pub(crate) use helpers::{
+    headroom_for, is_covenant_breached, spec_metric_names, springing_condition_met,
+};
 pub use types::{
     BoundKind, ConsequenceApplication, Covenant, CovenantBreach, CovenantConsequence,
-    CovenantEvalCtx, CovenantScope, CovenantSpec, CovenantTestSpec, CovenantType, CovenantWaiver,
-    CovenantWindow, EvaluationTrigger, SpringingCondition, ThresholdTest,
+    CovenantEvalCtx, CovenantScope, CovenantSpec, CovenantType, CovenantWaiver, CovenantWindow,
+    EvaluationTrigger, SpringingCondition, ThresholdTest,
 };
 
 #[cfg(test)]

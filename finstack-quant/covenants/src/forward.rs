@@ -1,13 +1,13 @@
 //! Covenant forward-projection with headroom analytics.
 //!
 //! This module provides generic covenant forecasting that can be driven by any
-//! time-series model implementing the [`ModelTimeSeries`] trait. A thin
-//! statements-specific adapter is provided behind the `statements_bridge` feature
-//! so this module remains usable without introducing a crate cycle.
+//! time-series model implementing the [`ModelTimeSeries`] trait. Statement-model
+//! adapters live in `finstack-quant-statements-analytics` so this crate has no
+//! statements dependency.
 
 use crate::engine::{
-    headroom_for, is_covenant_breached, BoundKind, CovenantSpec, CovenantType, SpringingCondition,
-    ThresholdTest,
+    headroom_for, is_covenant_breached, spec_metric_names, springing_condition_met, BoundKind,
+    CovenantSpec, CovenantType, SpringingCondition,
 };
 use finstack_quant_core::dates::{Date, PeriodId};
 use finstack_quant_core::math::norm_cdf;
@@ -18,7 +18,7 @@ use finstack_quant_core::Result;
 use serde::{Deserialize, Serialize};
 
 /// Default RNG seed used when `random_seed` is `None` in Monte Carlo mode.
-pub const DEFAULT_MC_SEED: u64 = 0;
+pub(crate) const DEFAULT_MC_SEED: u64 = 0;
 
 /// Covenant forecast configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -119,55 +119,6 @@ pub struct CovenantForecast {
     pub min_headroom_date: Option<Date>,
     /// Minimum finite headroom value across all active test dates.
     pub min_headroom_value: Option<f64>,
-}
-
-impl CovenantForecast {
-    /// Convenience helper to find indices with headroom under a threshold.
-    pub fn warning_indices(&self, warn_threshold: f64) -> Vec<usize> {
-        self.headroom
-            .iter()
-            .enumerate()
-            .filter_map(|(i, h)| h.is_some_and(|h| h < warn_threshold).then_some(i))
-            .collect()
-    }
-
-    /// Render a human-readable explanation across periods.
-    pub fn explain(&self) -> String {
-        let mut s = String::new();
-        s.push_str(&format!("Covenant: {}\n", self.covenant_id));
-        for i in 0..self.test_dates.len() {
-            let date = self.test_dates[i];
-            let value = self.projected_values[i]
-                .map(|v| format!("{v:.4}"))
-                .unwrap_or_else(|| "n/a".to_string());
-            let thr = self.thresholds[i];
-            let hr = self.headroom[i]
-                .map(|h| format!("{:+.1}%", h * 100.0))
-                .unwrap_or_else(|| "n/a".to_string());
-            let bp = self.breach_probability[i];
-            let is_breach = bp >= 1.0;
-            let status = if is_breach { "BREACH" } else { "OK" };
-            s.push_str(&format!(
-                "{}: {} (thr: {:.4}, headroom: {}, breach prob: {:.0}%) {}\n",
-                date,
-                value,
-                thr,
-                hr,
-                bp * 100.0,
-                status
-            ));
-        }
-        s
-    }
-
-    /// 95% confidence interval for breach probability at a given index.
-    pub fn breach_probability_ci_95(&self, index: usize) -> Option<(f64, f64)> {
-        let se = self.breach_probability_stderr.get(index).copied()?;
-        let p = self.breach_probability[index];
-        Some(((p - 1.96 * se).max(0.0), (p + 1.96 * se).min(1.0)))
-    }
-
-    // Table/pandas export lives in downstream crates to keep valuations serde-first.
 }
 
 /// A projected covenant breach.
@@ -602,24 +553,12 @@ fn metric_value_for_spec<MTS: ModelTimeSeries>(
     model: &MTS,
     period: &PeriodId,
 ) -> Option<f64> {
-    // Prefer explicit metric_id if provided (assumed to map to model node id).
-    if let Some(metric_id) = &spec.metric_id {
-        let name = metric_id.as_str();
-        if let Some(v) = model.get_scalar(name, period) {
-            return Some(v);
+    for name in spec_metric_names(spec) {
+        if let Some(value) = model.get_scalar(name, period) {
+            return Some(value);
         }
     }
-
-    // Fallbacks by standard covenant types (expect nodes to exist with conventional names)
-    if let Some(name) = spec.covenant.covenant_type.default_metric_name() {
-        if let Some(v) = model.get_scalar(name, period) {
-            return Some(v);
-        }
-    }
-
     match &spec.covenant.covenant_type {
-        CovenantType::Custom { metric, .. } => model.get_scalar(metric, period),
-        CovenantType::Basket { name, .. } => model.get_scalar(name, period),
         CovenantType::Negative { .. } | CovenantType::Affirmative { .. } => Some(1.0),
         _ => None,
     }
@@ -779,31 +718,11 @@ fn springing_condition_active<MTS: ModelTimeSeries>(
                 id: format!("springing_metric:{metric_name}"),
             })
         })?;
-        // NaN is indeterminate, not "inactive": both comparisons are false for
-        // NaN, which would drop the covenant out of the forecast entirely and
-        // report breach probability 0.0 ("definitely safe") on undefined data.
-        // Mirror the point-in-time convention (NaN => breached) by activating.
-        let active = if value.is_nan() {
-            tracing::warn!(
-                metric = metric_name,
-                "springing condition metric is NaN \u{2014} activating the covenant \
-                 rather than silently excluding it from the forecast",
-            );
-            true
-        } else {
-            match cond.test {
-                ThresholdTest::Maximum(threshold) => value <= threshold,
-                ThresholdTest::Minimum(threshold) => value >= threshold,
-            }
-        };
-        Ok(active)
+        Ok(springing_condition_met(metric_name, value, cond.test))
     } else {
         Ok(true)
     }
 }
-
-// Note: Statements-specific bridging lives in the `finstack-quant` meta crate to avoid a
-// dependency cycle between `valuations` and `statements`.
 
 #[cfg(test)]
 mod tests {

@@ -193,7 +193,7 @@ NON_MAINTAINED_SERDE_EXCEPTIONS = (
     *_in_process_spec(
         "covenants",
         "src/engine/types.rs",
-        ("CovenantSpec", "CovenantTestSpec"),
+        ("CovenantSpec",),
     ),
     *_computed_output("margin", "src/regulatory/frtb/types.rs", ("FrtbSbaResult",)),
     *_computed_output("margin", "src/regulatory/sa_ccr/types.rs", ("EadResult",)),
