@@ -550,7 +550,7 @@ def test_documented_one_way_inventory_is_exact() -> None:
         "decomposition-output": 4,
         "generic-error-result-alias": 7,
         "in-process-execution-envelope": 1,
-        "in-process-serde-spec": 18,
+        "in-process-serde-spec": 17,
         "internal-registry-document": 3,
         "non-maintained-serde-output": 35,
         "runtime-result": 19,
@@ -558,7 +558,7 @@ def test_documented_one_way_inventory_is_exact() -> None:
         "scenario-view": 2,
         "validation-report": 3,
     }
-    assert len(_MODULE.REVIEWED_EXCEPTIONS) == 114
+    assert len(_MODULE.REVIEWED_EXCEPTIONS) == 113
 
 
 def test_maintained_contract_capability_matrix_is_complete() -> None:

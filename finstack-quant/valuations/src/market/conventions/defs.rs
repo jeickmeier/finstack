@@ -175,6 +175,7 @@ impl std::str::FromStr for CdsConvention {
 /// Exact documentation clauses remain on the instrument or quote. `family`
 /// is the regional schedule family used to select these settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct CdsConventionSpec {
     /// Regional schedule family represented by this registry row.
     pub family: CdsConvention,
