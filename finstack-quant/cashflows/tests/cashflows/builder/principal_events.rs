@@ -986,8 +986,8 @@ fn full_horizon_coupon_programs_are_order_independent() {
         );
     });
     assert_program_order_independent(principal, issue, maturity, |builder| {
-        let _ = builder
-            .float_margin_stepup_decimal(&[(switch, dec!(250))], order_independence_float_spec());
+        let _ =
+            builder.float_margin_stepup(&[(switch, dec!(250))], order_independence_float_spec());
     });
 }
 

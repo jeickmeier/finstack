@@ -473,7 +473,7 @@ impl CashFlowBuilder {
     /// Creates consecutive floating coupon windows whose margin over the
     /// floating index changes at the supplied boundary dates.
     #[must_use = "builder methods should be chained or terminated with .build(...)"]
-    pub fn float_margin_stepup_decimal(
+    pub fn float_margin_stepup(
         &mut self,
         steps: &[(Date, Decimal)],
         base_spec: FloatingCouponSpec,

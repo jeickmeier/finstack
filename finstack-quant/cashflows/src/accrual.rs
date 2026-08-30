@@ -179,7 +179,9 @@ impl ExCouponRule {
     ///
     /// # Arguments
     ///
-    /// * `payment_date` - Payment date supplied by the caller for this operation
+    /// * `payment_date` - Coupon payment date from which the ex-coupon
+    ///   window is counted backward (`days_before_coupon` business or
+    ///   calendar days, depending on whether `calendar_id` is set)
     pub fn ex_date(&self, payment_date: Date) -> finstack_quant_core::Result<Date> {
         if self.days_before_coupon > MAX_EX_COUPON_DAYS {
             return Err(finstack_quant_core::Error::Validation(format!(

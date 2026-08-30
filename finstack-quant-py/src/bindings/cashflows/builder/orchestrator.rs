@@ -10,8 +10,8 @@ use crate::errors::core_to_py;
 
 use super::schedule::PyCashFlowSchedule;
 use super::specs::{
-    PyAmortizationSpec, PyCouponType, PyFeeSpec, PyFixedCouponSpec, PyFloatingCouponSpec,
-    PyPrincipalExchange, PyStepUpCouponSpec,
+    date_decimal_pairs, PyAmortizationSpec, PyCouponType, PyFeeSpec, PyFixedCouponSpec,
+    PyFixedWindow, PyFloatingCouponSpec, PyPrincipalExchange, PyStepUpCouponSpec,
 };
 
 /// Wrapper for [`PrincipalEvent`]
@@ -280,6 +280,59 @@ impl PyCashFlowBuilder {
             .map(|(d, ct)| Ok((py_to_date(d)?, ct.inner)))
             .collect::<PyResult<_>>()?;
         let _ = slf.inner.payment_split_program(&steps);
+        Ok(slf)
+    }
+
+    /// Switch from a fixed coupon to a floating coupon at ``switch``.
+    ///
+    /// Parameters
+    /// ----------
+    /// switch : datetime.date
+    ///     Date on which the floating leg begins (exclusive end of the
+    ///     fixed window).
+    /// fixed_win : FixedWindow
+    ///     Fixed rate and schedule for the pre-switch window.
+    /// floating : FloatingCouponSpec
+    ///     Floating coupon spec for the post-switch window.
+    /// fixed_split : CouponType
+    ///     Cash / PIK / split settlement for the fixed window.
+    #[pyo3(text_signature = "(self, switch, fixed_win, floating, fixed_split)")]
+    fn fixed_to_float<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        switch: &Bound<'py, PyAny>,
+        fixed_win: PyRef<'py, PyFixedWindow>,
+        floating: PyRef<'py, PyFloatingCouponSpec>,
+        fixed_split: PyRef<'py, PyCouponType>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let switch = py_to_date(switch)?;
+        let _ = slf.inner.fixed_to_float(
+            switch,
+            fixed_win.inner.clone(),
+            floating.inner.clone(),
+            fixed_split.inner,
+        );
+        Ok(slf)
+    }
+
+    /// Consecutive floating windows whose margin changes at ``steps``.
+    ///
+    /// Parameters
+    /// ----------
+    /// steps : list[tuple[datetime.date, decimal.Decimal]]
+    ///     Ordered ``(window_end, spread_bp)`` pairs. Each date is the
+    ///     exclusive end of a window whose margin is that spread.
+    /// base_spec : FloatingCouponSpec
+    ///     Base floating spec; each window replaces ``spread_bp``.
+    #[pyo3(text_signature = "(self, steps, base_spec)")]
+    fn float_margin_stepup<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        steps: Vec<(Bound<'py, PyAny>, Bound<'py, PyAny>)>,
+        base_spec: PyRef<'py, PyFloatingCouponSpec>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let steps = date_decimal_pairs(steps)?;
+        let _ = slf
+            .inner
+            .float_margin_stepup(&steps, base_spec.inner.clone());
         Ok(slf)
     }
 

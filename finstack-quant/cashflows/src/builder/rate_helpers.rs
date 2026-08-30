@@ -22,11 +22,6 @@
 //!
 //! ### Gearing Excludes Spread (Affine Model)
 //! `rate = cap( max( all_in_floor, (gearing * max(index, floor)) + spread ) )`
-//!
-//! ## References
-//!
-//! -
-//! -
 
 use finstack_quant_core::dates::{Date, DayCountContext};
 use finstack_quant_core::market_data::term_structures::ForwardCurve;

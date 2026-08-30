@@ -684,6 +684,77 @@ class TestCashFlowBuilder:
         assert len(floats) == 4
         assert all(f.amount.amount > 0.0 for f in floats)
 
+    def test_fixed_to_float_builds(self) -> None:
+        from decimal import Decimal
+
+        from finstack_quant.cashflows.builder import (
+            CashFlowSchedule,
+            CouponType,
+            FixedWindow,
+            FloatingCouponSpec,
+            FloatingRateFallback,
+            FloatingRateSpec,
+            ScheduleParams,
+        )
+        from finstack_quant.cashflows.primitives import CFKind
+
+        floating = FloatingCouponSpec(
+            rate_spec=FloatingRateSpec(
+                index_id="USD-SOFR-3M",
+                spread_bp=Decimal("200"),
+                reset_frequency="3M",
+                fallback=FloatingRateFallback.SPREAD_ONLY,
+            ),
+            schedule=ScheduleParams.quarterly_act360(),
+        )
+        schedule = (
+            CashFlowSchedule
+            .builder()
+            .principal(Money(1_000_000.0, "USD"), dt.date(2025, 1, 15), dt.date(2027, 1, 15))
+            .fixed_to_float(
+                dt.date(2026, 1, 15),
+                FixedWindow(Decimal("0.04"), ScheduleParams.semiannual_30360()),
+                floating,
+                CouponType.CASH,
+            )
+            .build(None)
+        )
+        kinds = {f.kind for f in schedule.get_flows()}
+        assert CFKind.FIXED in kinds
+        assert CFKind.FLOAT_RESET in kinds
+
+    def test_float_margin_stepup_builds(self) -> None:
+        from decimal import Decimal
+
+        from finstack_quant.cashflows.builder import (
+            CashFlowSchedule,
+            FloatingCouponSpec,
+            FloatingRateFallback,
+            FloatingRateSpec,
+            ScheduleParams,
+        )
+        from finstack_quant.cashflows.primitives import CFKind
+
+        spec = FloatingCouponSpec(
+            rate_spec=FloatingRateSpec(
+                index_id="USD-SOFR-3M",
+                spread_bp=Decimal("200"),
+                reset_frequency="3M",
+                fallback=FloatingRateFallback.SPREAD_ONLY,
+            ),
+            schedule=ScheduleParams.quarterly_act360(),
+        )
+        schedule = (
+            CashFlowSchedule
+            .builder()
+            .principal(Money(1_000_000.0, "USD"), dt.date(2025, 1, 15), dt.date(2026, 1, 15))
+            .float_margin_stepup([(dt.date(2025, 7, 15), Decimal("250"))], spec)
+            .build(None)
+        )
+        floats = [f for f in schedule.get_flows() if f.kind == CFKind.FLOAT_RESET]
+        assert floats
+        assert all(f.amount.amount > 0.0 for f in floats)
+
     def test_add_principal_event_requires_kind(self) -> None:
         from finstack_quant.cashflows.builder import CashFlowSchedule
 

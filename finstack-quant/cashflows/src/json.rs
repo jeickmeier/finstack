@@ -347,7 +347,7 @@ impl CashflowScheduleBuildSpec {
                 }
                 CouponLegSpec::FloatingMarginProgram { steps, base } => {
                     let steps: Vec<_> = steps.iter().map(|step| (step.date, step.rate)).collect();
-                    let _ = builder.float_margin_stepup_decimal(&steps, base.clone());
+                    let _ = builder.float_margin_stepup(&steps, base.clone());
                 }
             }
         }

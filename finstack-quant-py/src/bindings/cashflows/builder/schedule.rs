@@ -34,12 +34,8 @@ pub struct PyCashFlowMeta {
 impl PyCashFlowMeta {
     /// Schedule representation label (``"contractual"``, ``"projected"``, …).
     #[getter]
-    fn representation(&self) -> PyResult<String> {
-        serde_json::to_value(self.inner.representation)
-            .map_err(crate::errors::display_to_py)?
-            .as_str()
-            .map(str::to_string)
-            .ok_or_else(|| crate::errors::value_error("non-string representation label"))
+    fn representation(&self) -> &'static str {
+        self.inner.representation.as_str()
     }
 
     /// Holiday calendar identifiers used by the schedule.

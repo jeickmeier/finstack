@@ -475,7 +475,9 @@ impl CashFlowBuilder {
     ///
     /// # Arguments
     ///
-    /// * `curves` - Curves supplied by the caller for this operation
+    /// * `curves` - Optional market context used to project floating legs.
+    ///   Pass `None` for fixed-only schedules; floating specs with the
+    ///   default error fallback fail when required curves are missing
     pub fn build(
         &self,
         curves: Option<&finstack_quant_core::market_data::context::MarketContext>,

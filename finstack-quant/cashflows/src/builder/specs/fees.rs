@@ -116,8 +116,6 @@ pub struct FeeTier {
     pub bp: Decimal,
 }
 
-impl FeeTier {}
-
 /// Evaluate fee tiers to find the applicable rate for a given utilization.
 ///
 /// Returns the fee rate from the highest tier where utilization >= threshold.

@@ -362,13 +362,13 @@ python_package = "finstack_quant.cashflows.builder"
 # CashFlowSchedule.to_dataframe), SchedulePeriod, project_floating_rate /
 # FloatingRateParams (pricer plumbing), CashflowRepresentation /
 # PvCreditAdjustment / PvDiscountSource (enum metadata carried inside schedule
-# JSON), evaluate_fee_tiers / FeeTier / FixedWindow / DefaultCurve /
+# JSON), evaluate_fee_tiers / FeeTier / DefaultCurve /
 # PrepaymentCurve (spec internals reachable through the spec types).
-note = "cdr_to_mdr/cpr_to_smm/mdr_to_cdr/smm_to_cpr are also re-exported at the Rust crate root and bound flat on finstack_quant.cashflows (see wasm_cashflows_subset)."
+note = "cdr_to_mdr/cpr_to_smm/mdr_to_cdr/smm_to_cpr are also re-exported at the Rust crate root and bound flat on finstack_quant.cashflows (see wasm_cashflows_subset). Typed CashFlowBuilder matches the Rust coupon-program methods (including fixed_to_float and float_margin_stepup); WASM remains JSON-only via CouponLegSpec."
 public = [
     "AmortizationSpec", "CashFlowBuilder", "CashFlowMeta", "CashFlowSchedule", "CouponType",
     "DefaultModelSpec", "FeeAccrualBasis", "FeeBase",
-    "FeeSpec", "FixedCouponSpec", "FloatingCouponSpec", "FloatingRateFallback",
+    "FeeSpec", "FixedCouponSpec", "FixedWindow", "FloatingCouponSpec", "FloatingRateFallback",
     "FloatingRateSpec", "Notional", "OvernightCompoundingMethod",
     "OvernightIndexConstraintApplication", "PrepaymentModelSpec", "PrincipalEvent",
     "PrincipalExchange",

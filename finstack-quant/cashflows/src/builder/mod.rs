@@ -8,6 +8,8 @@
 //! - `FixedCouponSpec`, `FloatingCouponSpec`, `CouponType`
 //! - `AmortizationSpec`, `FeeSpec`, `ScheduleParams`
 //! - `PrepaymentModelSpec`, `DefaultModelSpec`, `RecoveryModelSpec`
+//!   (credit calculators re-exported here; `CashFlowBuilder.build()` does not
+//!   consume them)
 //!
 //! # Usage
 //!

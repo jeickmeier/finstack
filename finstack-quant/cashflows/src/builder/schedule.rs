@@ -187,6 +187,21 @@ pub enum CashflowRepresentation {
     NoResidual,
 }
 
+impl CashflowRepresentation {
+    /// Serde `snake_case` wire label for this representation.
+    ///
+    /// Returns `contractual`, `projected`, `placeholder`, or `no_residual`.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Contractual => "contractual",
+            Self::Projected => "projected",
+            Self::Placeholder => "placeholder",
+            Self::NoResidual => "no_residual",
+        }
+    }
+}
+
 /// Metadata shared by an entire cashflow schedule.
 ///
 /// Tracks referenced calendar IDs, optional facility limits, and the instrument's
@@ -280,10 +295,14 @@ impl CashFlowSchedule {
     ///
     /// # Arguments
     ///
-    /// * `flows` - Flows supplied by the caller for this operation
+    /// * `flows` - Classified cash, PIK, and notional rows to sort into
+    ///   canonical schedule order. This constructor does not validate
+    ///   economic invariants; call [`Self::validate`] or
+    ///   [`Self::try_from_parts`] for untrusted input.
     /// * `notional` - Trade notional amount in the instrument currency's major units
     /// * `day_count` - Day-count convention converting date pairs into year fractions
-    /// * `meta` - Meta supplied by the caller for this operation
+    /// * `meta` - Schedule-level calendars, facility limit, issue/maturity
+    ///   dates, and representation tag stamped on the result
     pub fn from_parts(
         flows: Vec<CashFlow>,
         notional: Notional,
@@ -317,10 +336,12 @@ impl CashFlowSchedule {
     ///
     /// # Arguments
     ///
-    /// * `flows` - Flows supplied by the caller for this operation
+    /// * `flows` - Classified cash, PIK, and notional rows to sort, then
+    ///   check against funding, balance, and currency invariants
     /// * `notional` - Trade notional amount in the instrument currency's major units
     /// * `day_count` - Day-count convention converting date pairs into year fractions
-    /// * `meta` - Meta supplied by the caller for this operation
+    /// * `meta` - Schedule-level calendars, facility limit, issue/maturity
+    ///   dates, and representation tag stamped on the result
     pub fn try_from_parts(
         flows: Vec<CashFlow>,
         notional: Notional,
@@ -370,7 +391,8 @@ impl CashFlowSchedule {
     ///
     /// # Arguments
     ///
-    /// * `update` - Update supplied by the caller for this operation
+    /// * `update` - Closure applied to each flow in current order; the
+    ///   schedule is re-sorted after every flow has been visited
     pub fn update_flows(&mut self, mut update: impl FnMut(&mut CashFlow)) {
         for flow in &mut self.flows {
             update(flow);
@@ -411,7 +433,7 @@ impl CashFlowSchedule {
         sort_flows(&mut self.flows);
     }
 
-    /// Create a new cashflow builder (standard Rust pattern).
+    /// Create a new cashflow builder.
     ///
     /// This is the recommended entry point for building cashflow schedules.
     /// Returns a `CashFlowBuilder` that can be configured and built.

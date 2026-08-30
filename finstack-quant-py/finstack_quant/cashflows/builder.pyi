@@ -8,10 +8,10 @@ amortization and notional rules, fee specs, and the credit behavior models
 programs. ``CashFlowSchedule.builder()`` is the fluent entry point into
 ``CashFlowBuilder``, whose chained methods assemble a principal, coupon
 legs, fees, and principal events into a canonical ``CashFlowSchedule``.
-Fuller schedule accessors (notional, day count, metadata, validation) are
-added in a later task; ``get_flows()`` is available today. The canonical
-JSON program bridge on ``finstack_quant.cashflows`` remains available for
-the full build pipeline as well.
+Schedule accessors (``get_flows``, notional, day count, metadata,
+validation) are available on ``CashFlowSchedule``. The canonical JSON
+program bridge on ``finstack_quant.cashflows`` remains available for the
+full build pipeline as well.
 
 Examples
 --------
@@ -45,6 +45,7 @@ __all__ = [
     "FeeBase",
     "FeeSpec",
     "FixedCouponSpec",
+    "FixedWindow",
     "FloatingCouponSpec",
     "FloatingRateFallback",
     "FloatingRateSpec",
@@ -594,6 +595,71 @@ class CashFlowBuilder:
         """
         ...
 
+    def fixed_to_float(
+        self,
+        switch: datetime.date,
+        fixed_win: FixedWindow,
+        floating: FloatingCouponSpec,
+        fixed_split: CouponType,
+    ) -> CashFlowBuilder:
+        """
+        Switch from a fixed coupon to a floating coupon at ``switch``.
+
+        Parameters
+        ----------
+        switch : datetime.date
+            Date on which the floating leg begins (exclusive end of the
+            fixed window).
+        fixed_win : FixedWindow
+            Fixed rate and schedule for the pre-switch window.
+        floating : FloatingCouponSpec
+            Floating coupon spec for the post-switch window.
+        fixed_split : CouponType
+            Cash / PIK / split settlement for the fixed window.
+
+        Returns
+        -------
+        CashFlowBuilder
+            This same builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``switch`` is outside the principal horizon or a coupon
+            schedule cannot be generated. The error is deferred and
+            raised from :meth:`build`.
+        """
+        ...
+
+    def float_margin_stepup(
+        self,
+        steps: list[tuple[datetime.date, Decimal]],
+        base_spec: FloatingCouponSpec,
+    ) -> CashFlowBuilder:
+        """
+        Consecutive floating windows whose margin changes at ``steps``.
+
+        Parameters
+        ----------
+        steps : list[tuple[datetime.date, decimal.Decimal]]
+            Ordered ``(window_end, spread_bp)`` pairs. Each date is the
+            exclusive end of a window whose margin is that spread.
+        base_spec : FloatingCouponSpec
+            Base floating spec; each window replaces ``spread_bp``.
+
+        Returns
+        -------
+        CashFlowBuilder
+            This same builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If a window is empty or a coupon schedule cannot be generated.
+            The error is deferred and raised from :meth:`build`.
+        """
+        ...
+
     def build(self, market: MarketContext | None = None) -> CashFlowSchedule:
         """
         Compile the configured legs into a canonical cashflow schedule.
@@ -998,6 +1064,13 @@ class CashFlowSchedule:
         ValueError
             If day-count conversion fails or credit-adjusted inputs are
             internally inconsistent.
+
+        Notes
+        -----
+        This is the host binding of Rust
+        ``CashFlowSchedule.pv_by_period_with_market``. The richer Rust
+        ``pv_by_period`` that takes ``PvDiscountSource`` is not
+        host-facing.
         """
         ...
 
@@ -1444,6 +1517,73 @@ class FeeSpec:
         ... )
         >>> spec is not None
         True
+        """
+        ...
+
+class FixedWindow:
+    """
+    Fixed-rate coupon window with a shared schedule.
+
+    Pairs an annual coupon rate with the schedule conventions used for
+    that window. Pass this to :meth:`CashFlowBuilder.fixed_to_float` as
+    the pre-switch fixed leg.
+
+    Examples
+    --------
+    >>> from decimal import Decimal
+    >>> from finstack_quant.cashflows.builder import FixedWindow, ScheduleParams
+    >>> window = FixedWindow(Decimal("0.04"), ScheduleParams.semiannual_30360())
+    >>> window.rate
+    Decimal('0.04')
+    """
+
+    def __init__(self, rate: Decimal | float, schedule: ScheduleParams) -> None:
+        """
+        Construct a fixed-rate coupon window.
+
+        Parameters
+        ----------
+        rate : decimal.Decimal | float
+            Annual coupon rate as a decimal (``0.05`` for 5%).
+        schedule : ScheduleParams
+            Accrual and payment schedule conventions for the window.
+
+        Raises
+        ------
+        ValueError
+            If *rate* is not representable as a finite decimal value.
+        """
+        ...
+
+    @property
+    def rate(self) -> Decimal:
+        """
+        Annual coupon rate in decimal terms (``0.05`` is 5%).
+
+        Returns
+        -------
+        decimal.Decimal
+            The coupon rate as an exact decimal (e.g. ``Decimal("0.04")``).
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
+        """
+        ...
+
+    @property
+    def schedule(self) -> ScheduleParams:
+        """
+        Accrual and payment schedule conventions.
+
+        Returns
+        -------
+        ScheduleParams
+            The schedule-generation parameters for this window.
+
+        Notes
+        -----
+        This accessor does not raise; it returns the stored value.
         """
         ...
 

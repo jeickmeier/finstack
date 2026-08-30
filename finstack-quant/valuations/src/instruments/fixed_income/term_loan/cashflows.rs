@@ -386,7 +386,7 @@ pub(crate) fn generate_cashflows(
             // mid-period. Snap each step-up date to the accrual-period grid
             // (the first accrual start >= the step date) before building
             // windows; passing raw off-cycle dates to
-            // `float_margin_stepup_decimal` would split the enclosing period
+            // `float_margin_stepup` would split the enclosing period
             // into mid-period stubs, diverging from the fixed-rate branch
             // whose compiler applies `rate_for(period.accrual_start)`
             // whole-period semantics. A step dated after the final period
@@ -440,7 +440,7 @@ pub(crate) fn generate_cashflows(
                 },
                 schedule: loan_schedule_params(loan),
             };
-            let _ = builder.float_margin_stepup_decimal(&steps, base_spec);
+            let _ = builder.float_margin_stepup(&steps, base_spec);
         }
     }
 
